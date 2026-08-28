@@ -111,9 +111,12 @@ fs-*/
 foobar/
 symlink_tsconfig.json
 
-# Ad-hoc test/debug scripts in project root
-test-*.mjs
-test-*.js
+# Ad-hoc test/debug scripts in project root — ANCHORED, which is what "in project root"
+# always claimed. Unanchored, `test-*.mjs` matches at every depth, and it swallowed a new
+# `scripts/` module that a gate imports (#1365): `git add` said nothing, and CI would have
+# failed on the missing file only after the push. Nothing else in the tree matches.
+/test-*.mjs
+/test-*.js
 .shoot-*.mjs
 
 # Metafile

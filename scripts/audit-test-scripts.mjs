@@ -63,6 +63,21 @@ function findPkgJsons(dir, out = []) {
     return out;
 }
 
+/**
+ * Does `test` invoke `leg` — as opposed to merely CONTAINING its name?
+ *
+ * `test.includes('test:node')` was the whole test, and `build:test:node` contains
+ * `test:node`. That pairing is the tree's dominant idiom
+ * (`"test": "gjsify run build:test:node && gjsify run test:node"`), so deleting the second
+ * half of it left this gate printing OK over a suite that no longer ran — measured on
+ * `packages/infra/cli`, the largest node suite in the repo. Building a bundle is not
+ * running it, which is the distinction this script's own founding incident is about
+ * ("abort-controller/adwaita-app/storybook-core built but never ran their node leg").
+ */
+function runsLeg(test, leg) {
+    return new RegExp(`(?<![\\w:-])${leg}(?![\\w:-])`).test(test);
+}
+
 const violations = [];
 for (const root of ROOTS) {
     for (const pkgPath of findPkgJsons(root)) {
@@ -76,7 +91,7 @@ for (const root of ROOTS) {
         const scripts = pkg.scripts || {};
         const test = scripts.test || '';
         for (const leg of LEGS) {
-            if (scripts[leg] && !test.includes(leg)) {
+            if (scripts[leg] && !runsLeg(test, leg)) {
                 violations.push({ name: pkg.name || pkgPath, pkgPath, leg });
             }
         }

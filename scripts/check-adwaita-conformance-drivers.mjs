@@ -25,7 +25,26 @@
 // adwaita-web drove none of the six. A reason left outside the check is prose,
 // and prose that says "covered" is worse than no reason at all.
 //
+// THE THIRD INCIDENT
+//
+// "Driven" then meant NAMED: any `*.spec.ts` under a renderer that spelled the table
+// outside a comment. Naming is not running. Measured on this tree for #1365 — delete the
+// one line `AdwCarouselNsTest,` from the `run({…})` of
+// `packages/nativescript-bridge/adwaita/src/test.mts`, leave the import above it alone —
+// and the NS carousel suite executes nowhere while this gate,
+// `check-node-test-registration.mjs` and `check-browser-test-registration.mjs` all exit
+// 0, still counting `CAROUSEL_NAVIGATE_VECTORS`, `CAROUSEL_REVEAL_VECTORS` and
+// `CAROUSEL_PROPERTY_DEFAULT_VECTORS` as renderer-driven. The two registration gates each
+// hold a WEAKER fact than "it runs" — one that some entry imports it, the other only in
+// browser-ONLY packages — and neither covers the gap this gate was reading through. So
+// the fact comes from `scripts/suite-registration.mjs` now, which both this file and
+// `check-node-test-registration.mjs` read, rather than from a third derivation here.
+//
 // WHAT IT CHECKS
+//
+// SUITE arm — for every `*.spec.ts` naming a table:
+//   0. it is LIVE — a test entry of its package hands its suite to `run({…})`  → pass
+//      otherwise it drives nothing, whoever else does                          → FAIL
 //
 // TABLE arm — for every `export const *_VECTORS` in `conformance/`:
 //   1. driven by at least one RENDERER suite            → pass
@@ -35,7 +54,8 @@
 //   4. driven by nothing at all                                            → FAIL
 //   5. renderer-driven AND still carrying `CORE-ONLY:`                     → FAIL
 //
-// "Driven" = a renderer `*.spec.ts` names the table OUTSIDE a comment (consumersUnder).
+// "Driven" = a LIVE renderer `*.spec.ts` names the table OUTSIDE a comment — the naming
+// is `namedPerSpec`, the liveness `suiteDrivers`.
 //
 // CLAIM arm — every comment CLAUSE in the core or either renderer that names a
 // vector table is resolved against reality (clause, not sentence — see clausesIn):
@@ -50,11 +70,24 @@
 //  10. a `CORE-ONLY:` reason citing a table as its coverage, where no chain of
 //      citations from it reaches a renderer-driven table                   → FAIL
 //  11. a `CORE-ONLY:` reason that names no table and is not a ledgered GAP  → FAIL
+//  12. a SPEC whose every table reaches no renderer, promising renderer coverage
+//      in its own header                                                     → FAIL
 //
 // 10 reads only citations whose clause is PHRASED as coverage (COVERAGE_PHRASING); a
 // precedent citation is held by the TABLE arm instead, on the table it names. 11 is what
 // makes an exemption falsifiable — every other arm keys off a citation, so naming none
 // was the cheapest way to write one.
+//
+// 12 is the same idea for the OTHER side of the file. Arms 6-10 all begin at a citation,
+// so a promise that names no table is invisible to them, and `BOTH_CLAIM` knows "both"
+// and "the two" but not "every". Measured: "…so this suite and every renderer suite
+// assert the SAME table" stood at the top of two spec files whose vectors are exempted
+// `CORE-ONLY: GAP — no renderer drives this table yet`, and every arm passed it. It needs
+// no prose parsing to catch, because the file contradicts itself: what a spec is ABOUT is
+// readable from its CODE, and where nothing it touches reaches a renderer, a renderer
+// coverage claim anywhere in it is false. Widening `BOTH_CLAIM` to "every" would have
+// been true and would have caught neither — the clause cites no table, so arm 8 never
+// reaches it.
 //
 // MODULE arm — the table arm is TABLE-keyed, so core behaviour with no table at
 // all is invisible to it. Every module under `adwaita-core/src` that exports
@@ -74,11 +107,12 @@
 //
 // Usage: node scripts/check-adwaita-conformance-drivers.mjs [--root <dir>]
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
+import { readSuiteRegistration, walk as walkFiles } from './suite-registration.mjs';
 
 // Every repo-relative path below is COMPARED against a `/`-spelled literal and printed into a
 // finding. On win32 `relative()` hands back `packages\web\…`, so the module arm matched nothing
@@ -157,20 +191,26 @@ const SUITE_CLAIMS = [
     { label: 'nativescript', pattern: /\bNativeScript\b/i },
 ];
 const COVERAGE_VERB = /\b(?:suite|drives?|driven by|held to|asserts)\b/i;
+/**
+ * A renderer named as a CLASS rather than by name — "every renderer suite", "both ports".
+ * SUITE_CLAIMS above knows the two renderers by name and is the arm for a claim that picks
+ * one; this is for a claim that gestures at all of them, which is how both measured false
+ * promises were written.
+ */
+const RENDERER_WORD = /\b(?:renderers?|ports?|browser|adwaita-web|NativeScript)\b/i;
+/**
+ * A clause the CLAUSE_TURN split has already headed with a negation states the ABSENCE of
+ * coverage — "no renderer drives these yet" is the true sentence to write in exactly the
+ * files arm 12 examines, and reading it as a promise would fail the honest wording. `only`
+ * is deliberately not here: "only the browser suite drives these" is a claim, not a denial.
+ */
+const DENIAL = /^\s*(?:no|not|none|neither|nor)\b/i;
 /** An exemption that offers no coverage is a GAP, and a GAP with no anchor has no retirement. */
 const GAP_REASON = /\bGAP\b/;
 const GAP_ANCHOR = /#\d+/;
 const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
-function walk(dir) {
-    const out = [];
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const path = join(dir, entry.name);
-        if (entry.isDirectory()) out.push(...walk(path));
-        else if (entry.name.endsWith('.ts')) out.push(path);
-    }
-    return out;
-}
+const walk = (dir) => walkFiles(dir, (name) => name.endsWith('.ts'));
 
 /**
  * Every exported vector table, with the text ABOVE its declaration — back to the
@@ -195,7 +235,7 @@ function tablesIn(file) {
 const withoutComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 /**
- * Which of `names` a suite under `dir` DRIVES: names used outside a comment, in a `*.spec.ts`.
+ * Which of `names` each `*.spec.ts` under `dir` NAMES, outside a comment.
  *
  * Outside a comment, because a claim must not supply its own evidence — this branch's own fix
  * spelled the five `DATA_GRID_*_VECTORS` out in an adwaita-web comment saying the browser drives
@@ -204,18 +244,48 @@ const withoutComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, ' ').rep
  * arm then demanded the true marker be deleted. `*.spec.ts`, because driving means ITERATING in
  * a test; every non-spec mention in either renderer is prose today, so that half only keeps the
  * first from being one file's move away from useless.
+ *
+ * Per FILE, not merged, because naming is only half of driving — see {@link suiteDrivers}.
  */
-function consumersUnder(dir, names) {
-    const seen = new Set();
+function namedPerSpec(dir, names) {
+    const perFile = new Map();
     for (const file of walk(dir)) {
         if (file.startsWith(CONFORMANCE_DIR) || !file.endsWith('.spec.ts')) continue;
         const source = withoutComments(readFileSync(file, 'utf8'));
-        for (const name of names) {
-            // Word-boundary, so `FOO_VECTORS` does not match `FOO_VECTORS_2`.
-            if (!seen.has(name) && new RegExp(`\\b${name}\\b`).test(source)) seen.add(name);
-        }
+        // Word-boundary, so `FOO_VECTORS` does not match `FOO_VECTORS_2`.
+        const named = names.filter((name) => new RegExp(`\\b${name}\\b`).test(source));
+        if (named.length > 0) perFile.set(file, named);
     }
-    return seen;
+    return perFile;
+}
+
+/**
+ * Which of `names` a suite under `dir` DRIVES — named by a spec that RUNS.
+ *
+ * #1365: naming was the whole test, so a table stayed "driven" by a spec that executed nowhere.
+ * Measured on this tree by deleting one line — the `AdwCarouselNsTest,` key from the `run({…})`
+ * of `packages/nativescript-bridge/adwaita/src/test.mts`, its import left in place: the NS
+ * carousel suite stopped running and this gate, `check-node-test-registration.mjs` and
+ * `check-browser-test-registration.mjs` all stayed green over three tables nothing asserted.
+ *
+ * Liveness is read by `scripts/suite-registration.mjs` rather than re-derived here, because the
+ * cheap local version of it is what opened the hole: a second derivation of the same fact drifts
+ * from the first, and the weaker of the two is the one that keeps passing.
+ */
+function suiteDrivers(dir, names) {
+    const { live, opaque } = readSuiteRegistration(dirname(dir));
+    const driven = new Set();
+    const dead = [];
+    let drivers = 0;
+    for (const [file, named] of namedPerSpec(dir, names)) {
+        if (!live.has(file)) {
+            dead.push({ file, named });
+            continue;
+        }
+        drivers += 1;
+        for (const name of named) driven.add(name);
+    }
+    return { driven, dead, opaque, drivers };
 }
 
 /** Contiguous runs of comment lines, marker-stripped and joined — one prose block each. */
@@ -328,9 +398,13 @@ if (tables.length === 0) {
 
 const names = tables.map((table) => table.name);
 const declared = new Set(names);
-const byLabel = new Map(RENDERERS.map(({ label, dir }) => [label, consumersUnder(dir, names)]));
-const byRenderer = new Set([...byLabel.values()].flatMap((set) => [...set]));
-const byCore = consumersUnder(CORE_SUITE_DIR, names);
+const suites = [...RENDERERS, { label: 'adwaita-core', dir: CORE_SUITE_DIR }].map((suite) => ({
+    ...suite,
+    ...suiteDrivers(suite.dir, names),
+}));
+const byLabel = new Map(suites.map(({ label, driven }) => [label, driven]));
+const byRenderer = new Set(RENDERERS.flatMap(({ label }) => [...byLabel.get(label)]));
+const byCore = byLabel.get('adwaita-core');
 
 /** The `CORE-ONLY:` reason a table carries, as one line. */
 const reasons = new Map();
@@ -377,7 +451,30 @@ function reachesADriver(name, seen = new Set()) {
 
 const failures = [];
 /** What each arm actually resolved. A gate that reports only "green" cannot show it ran. */
-const resolved = { chains: 0, citations: 0, both: 0, suite: 0, counted: 0, exempted: 0 };
+const resolved = { chains: 0, citations: 0, both: 0, suite: 0, counted: 0, exempted: 0, specs: 0, promises: 0 };
+
+// SUITE arm. The arms below key off which tables are driven, so a spec that names a table
+// while running nowhere would otherwise surface one step downstream, as "driven only by the
+// core suite" pointing at the TABLE — sending the reader to the file that is fine. Name the
+// spec instead: it is the thing to fix, and it is a defect even where another live spec
+// happens to drive the same table.
+for (const { label, dead, opaque, drivers } of suites) {
+    resolved.specs += drivers;
+    for (const entry of opaque) {
+        failures.push(
+            `${rel(ROOT, entry)}: this gate cannot tell what the ${label} entry registers — no ` +
+                `\`run({…})\`, no delegation to a sibling entry, nothing called by hand. Until it can, ` +
+                `"driven" is unknowable here rather than false.`,
+        );
+    }
+    for (const { file, named } of dead) {
+        failures.push(
+            `${rel(ROOT, file)}: names ${named.join(', ')}, but no test entry of ${label} hands its ` +
+                `suite to \`run({…})\` — so it runs NOWHERE and drives nothing. Register it, or delete it.`,
+        );
+    }
+}
+
 for (const table of tables) {
     const where = `${rel(ROOT, table.file)}:${table.line} → ${table.name}`;
     if (byRenderer.has(table.name)) {
@@ -431,6 +528,33 @@ for (const table of tables) {
             `${where}: its reason cites ${name} as the coverage that makes this table redundant, but ` +
                 `no chain of citations from ${name} reaches a table any renderer drives.`,
         );
+    }
+}
+
+// PROMISE arm. Every arm below starts at a citation, so a header that promises renderer
+// coverage without naming a table reaches none of them. This one starts at the CODE
+// instead: the tables a spec IMPORTS are what it is about, and where not one of them
+// reaches a renderer — directly or through an exemption chain — any renderer coverage
+// claim in that file is false, whatever words it is written in. That is why it needs no
+// new prose matcher precise enough to be argued with: the condition is already decided
+// before a clause is read.
+for (const file of walk(CORE_SUITE_DIR)) {
+    if (file.startsWith(CONFORMANCE_DIR) || !file.endsWith('.spec.ts')) continue;
+    // From the code, with comments blanked — the same rule as the TABLE arm, and for the
+    // same reason: a claim must not supply its own evidence.
+    const code = withoutComments(readFileSync(file, 'utf8'));
+    const about = names.filter((name) => new RegExp(`\\b${name}\\b`).test(code));
+    if (about.length === 0 || about.some((name) => reachesADriver(name))) continue;
+    resolved.promises += 1;
+    for (const block of commentBlocks(file)) {
+        for (const clause of claimUnitsIn(block.text)) {
+            if (DENIAL.test(clause) || !RENDERER_WORD.test(clause) || !COVERAGE_PHRASING.test(clause)) continue;
+            failures.push(
+                `${rel(ROOT, file)}:${block.line}: promises renderer coverage — "${clause.trim()}" — while no ` +
+                    `renderer drives ${about.join(', ')} and no exemption chain from them reaches one. ` +
+                    `Drive them from a renderer, or say what is actually true here.`,
+            );
+        }
     }
 }
 
@@ -557,8 +681,10 @@ if (failures.length > 0) {
 }
 
 console.log(
-    `check-adwaita-conformance-drivers: ${tables.length} vector tables, ${resolved.exempted} core-only, ` +
+    `check-adwaita-conformance-drivers: ${tables.length} vector tables driven from ${resolved.specs} live ` +
+        `spec(s), ${resolved.exempted} core-only, ` +
         `${resolved.chains} coverage chain(s) walked to a driver. Read ${resolved.citations} prose citation(s), ` +
         `of which ${resolved.both} both-renderer claim(s), ${resolved.suite} single-suite claim(s) and ` +
-        `${resolved.counted} counted glob(s) were resolved against the tree.`,
+        `${resolved.counted} counted glob(s) were resolved against the tree, and read the header of ` +
+        `${resolved.promises} spec(s) no renderer stands behind.`,
 );
