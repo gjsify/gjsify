@@ -21,6 +21,17 @@ export type OtpPromptFn = (question: string) => Promise<string>;
 const DEFAULT_QUESTION = 'This operation requires a one-time password.\nEnter OTP: ';
 
 /**
+ * The question for every prompt AFTER the first one in a run.
+ *
+ * A long sweep outlives a TOTP window (npm codes last ~30 s), so it legitimately
+ * asks again — but repeating the first-time wording makes that read as "it did
+ * not take my code" rather than "that code has aged out". The user then retypes
+ * the SAME digits, which is the one answer guaranteed not to work.
+ */
+const RENEW_QUESTION =
+    'The previous one-time password is no longer valid (npm codes last about 30 seconds).\nEnter a NEW OTP: ';
+
+/**
  * True when a response is an npm OTP / 2FA challenge (401 + a `www-authenticate`
  * header naming `otp`, or a body mentioning a one-time password / `EOTP`).
  */
@@ -121,7 +132,7 @@ export class OtpProvider {
      * Prompt for a fresh code, cache it (in-process + file cache), and return the
      * trimmed input — `''` when nothing was entered, which callers read as "give up".
      */
-    async refresh(question: string = DEFAULT_QUESTION, sinceEpoch?: number): Promise<string> {
+    async refresh(question?: string, sinceEpoch?: number): Promise<string> {
         // Somebody supplied a newer code than this caller last saw. Its own attempt
         // failed against the OLD code, so the answer is that code, not a prompt.
         if (sinceEpoch !== undefined && this.generation > sinceEpoch && this.cached) {
@@ -131,7 +142,10 @@ export class OtpProvider {
         // stdin double every echoed keystroke, and the user is being asked twice
         // for a code that is shared anyway.
         if (this.pending) return this.pending;
-        this.pending = this.promptOnce(question);
+        // The provider is the only thing that knows whether a code has already
+        // been supplied in this run, so it owns the wording. An explicit
+        // `question` from the caller always wins.
+        this.pending = this.promptOnce(question ?? (this.generation > 0 ? RENEW_QUESTION : DEFAULT_QUESTION));
         try {
             return await this.pending;
         } finally {
@@ -197,7 +211,9 @@ export async function withOtpRetry(
     opts: OtpRetryOptions = {},
 ): Promise<Response> {
     const maxPrompts = opts.maxPrompts ?? 2;
-    const question = opts.question ?? DEFAULT_QUESTION;
+    // Deliberately NOT defaulted here: `undefined` is what lets the provider pick
+    // between the first-time wording and the "your previous code aged out" one.
+    const question = opts.question;
     const cached = provider.current();
     const seededFirst = opts.seedFirstAttempt === true && cached !== undefined;
 

@@ -49,6 +49,22 @@ function scriptedPrompt(codes: string[]): { fn: (q: string) => Promise<string>; 
     };
 }
 
+/** A promptFn that records the QUESTION it was asked, not only how often. */
+function recordingPrompt(codes: string[]): {
+    fn: (q: string) => Promise<string>;
+    questions: string[];
+} {
+    let i = 0;
+    const questions: string[] = [];
+    return {
+        questions,
+        fn: async (q: string) => {
+            questions.push(q);
+            return codes[i++] ?? '';
+        },
+    };
+}
+
 /**
  * A promptFn that takes a tick to answer, so concurrent callers genuinely overlap.
  * An instant prompt would let each caller finish before the next begins and the
@@ -313,6 +329,45 @@ export default async () => {
             );
             expect(prompt.count()).toBe(1);
             expect(results.every((r) => r.status === 200)).toBe(true);
+        });
+    });
+
+    await describe('OtpProvider — the SECOND prompt says the first code aged out', async () => {
+        // A sweep long enough to outlive a ~30s TOTP window legitimately asks
+        // again. Repeating the first-time wording reads as "it did not take my
+        // code", so the user retypes the SAME digits — the one answer guaranteed
+        // not to work.
+        await it('asks the first time plainly and the next time as a RENEWAL', async () => {
+            const prompt = recordingPrompt(['111111', '222222']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            await provider.refresh();
+            provider.invalidate();
+            await provider.refresh();
+
+            expect(prompt.questions.length).toBe(2);
+            expect(prompt.questions[0].includes('requires a one-time password')).toBe(true);
+            expect(prompt.questions[0].includes('no longer valid')).toBe(false);
+            expect(prompt.questions[1].includes('no longer valid')).toBe(true);
+            expect(prompt.questions[1].includes('NEW OTP')).toBe(true);
+        });
+
+        await it('an explicit question from the caller still wins', async () => {
+            const prompt = recordingPrompt(['111111', '222222']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            await provider.refresh('custom: ');
+            provider.invalidate();
+            await provider.refresh('custom: ');
+            expect(prompt.questions).toStrictEqual(['custom: ', 'custom: ']);
+        });
+
+        await it('withOtpRetry lets the provider choose the wording', async () => {
+            const prompt = recordingPrompt(['wrong1', '246810']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            const reg = fakeRegistry('246810');
+            const res = await withOtpRetry(reg.doFetch, provider);
+            expect(res.status).toBe(200);
+            expect(prompt.questions[0].includes('no longer valid')).toBe(false);
+            expect(prompt.questions[1].includes('no longer valid')).toBe(true);
         });
     });
 };
