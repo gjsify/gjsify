@@ -69,7 +69,10 @@
 //      block of HTML for a widget the reader has not seen yet, and NOTHING else would
 //      notice: arm 8 still holds, both tabs still render, the fence is still authored
 //      once. It is a source-order read because the panes are laid out in the template,
-//      and this gate deliberately runs without a build.
+//      and this gate deliberately runs without a build — so it reads the file with its
+//      COMMENTS BLANKED OUT and counts the mount, because a marker named in prose above
+//      the tabs, or mounted twice, is how a source-text read goes green over the defect
+//      it is named after.
 //
 // The `title` IS the join: `Adw.ViewSwitcherBar` → `view-switcher-bar`, the same
 // bare name the widget files, the story metas and the ledgers are already spelled
@@ -183,21 +186,46 @@ const PREVIEW_MOUNT = 'adw-widget-preview-tpl';
 const TAB_MAP = 'tabs.map(';
 
 /**
- * Arm 9: the live preview is emitted BEFORE the code tabs, inside the tab view.
+ * The same file with its comments blanked out.
  *
- * Returns null when it is, or the reason it is not.
+ * Arm 9 is a SOURCE-TEXT read, and a source-text read that counts PROSE is how a
+ * check goes green while the thing it names is gone. That is not hypothetical here:
+ * `check-website-preview-not-content.mjs` shipped in exactly that state — its first
+ * cut asked whether a file CONTAINED the marker string, and `AdwGalleryCard.astro`
+ * carries an eight-line comment naming the marker, so deleting the marker from its
+ * markup left the check green. Measured again on this arm: move the preview after
+ * the code tabs and leave `adw-widget-preview-tpl` in a comment above them, and the
+ * unmasked read exits 0 on a window that opens on HTML.
+ *
+ * Line comments are anchored to the start of a line so that a `https://` inside an
+ * attribute is not read as one.
+ */
+const withoutComments = (text) => text.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/^[ \t]*\/\/.*$/gm, '');
+
+/**
+ * Arm 9: the live preview is emitted BEFORE the code tabs, inside the tab view, and
+ * exactly once.
+ *
+ * The COUNTS are part of the arm, not tidiness: two preview panes render the widget
+ * twice under two "Preview" tabs mounting the same markup, and the order read alone
+ * blesses it — the first mount still precedes the tabs. Measured by duplicating the
+ * pane: exit 0.
+ *
+ * Returns null when the file is right, or the reason it is not.
  */
 function previewPanePosition(root) {
-    const text = readFileSync(join(root, WINDOW_COMPONENT), 'utf8');
+    const text = withoutComments(readFileSync(join(root, WINDOW_COMPONENT), 'utf8'));
     const view = /<adw-tab-view\b[\s\S]*?<\/adw-tab-view>/.exec(text);
     if (view === null) {
         return `holds no <adw-tab-view> … </adw-tab-view>, so there is no pane order to read`;
     }
-    const mount = view[0].indexOf(PREVIEW_MOUNT);
-    const tabs = view[0].indexOf(TAB_MAP);
-    if (mount === -1) return `mounts no preview (\`${PREVIEW_MOUNT}\`) inside its tab view`;
-    if (tabs === -1) return `renders no code tabs (\`${TAB_MAP}\`) inside its tab view`;
-    if (mount > tabs) return `mounts the preview AFTER the code tabs`;
+    const mounts = view[0].split(PREVIEW_MOUNT).length - 1;
+    const maps = view[0].split(TAB_MAP).length - 1;
+    if (mounts === 0) return `mounts no preview (\`${PREVIEW_MOUNT}\`) inside its tab view`;
+    if (maps === 0) return `renders no code tabs (\`${TAB_MAP}\`) inside its tab view`;
+    if (mounts > 1) return `mounts ${mounts} previews inside its tab view, and a window runs the widget once`;
+    if (maps > 1) return `renders the code tabs ${maps} times inside its tab view`;
+    if (view[0].indexOf(PREVIEW_MOUNT) > view[0].indexOf(TAB_MAP)) return `mounts the preview AFTER the code tabs`;
     return null;
 }
 
