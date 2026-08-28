@@ -1,19 +1,11 @@
 // The contract that keeps the double from becoming a private fiction.
 //
 // A test double is only worth the oracle it stands in for, and the failure mode is
-// specific: the double grows a prop React Native does not have, the implementation
-// starts using it, and the suite stays green against a surface nobody ships. So the
-// double is DECLARED as `typeof RealView` in `react-native.ts` — the annotation is
-// the contract — and this file falsifies it rather than restating it, plus asserts the
-// one runtime property a host component must have.
-//
-// WHY THE TYPE CHECK IS THE STRONG HALF. `.native.tsx` imports `'react-native'`, and
-// `tsc` resolves that to the real 32 MB package, never to this double: the
-// substitution is a bundle-time `--alias`. So the implementation is ALWAYS checked
-// against React Native's own `types_generated`, and the double only has to be
-// renderable. That split is what makes option "a double" different from "the test
-// measures the copy", and it is the reason the double is fifteen lines rather than a
-// re-implementation.
+// specific: the double grows a prop React Native does not have, the implementation starts
+// using it, and the suite stays green against a surface nobody ships. So the double is
+// DECLARED as `typeof RealView` in `react-native.ts`, and this file FALSIFIES that
+// annotation rather than restating it — plus asserts the one runtime property a host
+// component must have.
 
 import { describe, expect, it } from '@gjsify/unit';
 import { isValidElement } from 'react';
