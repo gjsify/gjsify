@@ -2976,6 +2976,47 @@ often as by its name line, and this repo does both deliberately (`:428` and `:29
 one sentence) — so the reader has to accept a range rather than a point, and say which
 it accepted when it fails.
 
+**A second cause, found by bumping a pin (2026-08-28).** The four above are transcription errors —
+someone wrote the wrong number. This one is not, and the pointer history is the finding:
+
+| when | `refs/gtkx` pointer | `PREFIX_FOR` sits at |
+|---|---|---|
+| #1180, ADR 0024 written | `83ab4cee` (v1.1.0) | 35 |
+| **#1304, 2026-08-25** | `2ce19757a` (upstream `main`, between v1.3.0 and v1.4.0) | **39** |
+| #1396, 2026-08-28 | `9c8293db` (v1.5.0) | 41 |
+
+So `ADR 0024`'s `stage.ts:35` was **correct when written and made wrong by #1304**, three days and
+two merged PRs before anyone looked. The 2026-08-28 bump moved it 39 → 41; it did not break it, it
+found it. #1304 also relabelled the pin in prose in two ADRs at once — 0024 kept saying v1.1.0 and
+0032 started saying v1.4.0, while the actual pointer predated v1.4.0 by a day. Nobody wrote a wrong
+number; a pointer moved under three correct sentences.
+
+The cheap discriminator needs no window heuristic and no symbol parsing: **a commit that changes a
+`refs/<pool>` pointer must re-check every line citation into THAT pool**, and a bump touches one
+pool at a time. What stops it is not the script — `check-refs-citations.mjs` exists — but its
+reach. It resolves a coordinate with `statSync` (`:259`), i.e. **it asks whether the FILE exists**,
+so it was green on 35, green on 39 and green on 41. And it can only ask about pools that are on
+disk: it reports its own coverage honestly — `773 coordinates across 53 submodules`, and on a tree
+with no pools realized it prints `0 resolved in the 0 of 95 declared submodules checked out here,
+762 skipped` and exits 0.
+
+**Adding `refs/gtkx` to that gate's checkout step was written, measured (`2 resolved in the 1 of 95`,
+up from 0) and REVERTED, and the reason it was reverted is the one worth keeping.** It was not the
+network: `audit-runtimes.yml:435` and `:951` already check out `refs/libadwaita` in both jobs, so
+github.com is inside those required checks either way — that was a wrong reason and is corrected
+here rather than deleted, because it is the second time in this entry that a true conclusion rested
+on a false premise. The sound reason stands alone: the defect is a LINE moving and the gate checks
+a FILE, so widening the pool set buys coordinates the gate still cannot fail on. Line-level first;
+pools after.
+
+One thing the line-level check will hit immediately, said now so it is a requirement rather than a
+surprise: **this entry cites `stage.ts` at line 35 on purpose, and that citation is deliberately
+wrong.** `check-refs-citations.mjs` already knows the shape of this problem — `SELF` (`:89`) exists
+because "a ledger entry that spells the coordinate it excuses becomes that coordinate's last
+citer" — but `SELF` covers only the gate's own file. Today the harvest is harmless: `CITATION`
+(`:108`) stops at the path and never takes the `:NNN`. The first version of a line-level check has
+to either widen that exclusion or read this paragraph as its own first failing case.
+
 The second half is smaller and equally invisible: the worktree's `refs/libadwaita`
 sat FIVE commits ahead of the pointer recorded in `HEAD` during that review. Citations
 are only meaningful against the pin, and checking it took a hand-run `md5sum` over
