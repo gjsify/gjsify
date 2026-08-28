@@ -10,7 +10,14 @@
 //   1. Auth gate — `whoami` first. If the token is live, proceed without asking
 //      for credentials; only when it is dead/missing do we run the `gjsify
 //      login` flow (unless `--yes` on a non-TTY, which fails clearly).
-//   2. Enumerate publishable workspaces (non-private, excluding `@girs/*`).
+//   2. Enumerate publishable workspaces (non-private). `@girs/*` is excluded
+//      by DEFAULT, not by rule: in this repo those are third-party type
+//      packages nobody here publishes. `--include '@girs/*'` selects them,
+//      which is what ts-for-gir needs — its `@girs/*` workspaces ARE its
+//      publishables, a new GNOME cycle mints a dozen new npm names, and
+//      gjsify/types publishes them over OIDC, which cannot create a name that
+//      does not exist yet. The release script there names this command as the
+//      way to bootstrap them; until now the command could not select them.
 //   3. Determine each package's state (bounded concurrency) by reading npm's
 //      Trusted-Publisher config through the SAME requester path `gjsify trust`
 //      uses: unpublished (404) / published-but-untrusted / published-and-trusted.
@@ -47,6 +54,7 @@ import {
 import { DEFAULT_PROBE_CONCURRENCY, probeAllTrustStates, type PkgPlan } from '../utils/onboard-probe.js';
 
 interface OnboardOptions {
+    include?: string[];
     repository?: string;
     workflow: string;
     environment?: string;
@@ -72,6 +80,12 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         'Ensure every publishable @gjsify/* workspace is both published on npm and has a Trusted Publisher configured — publishing/trusting only what is missing, one shared OTP across the whole sweep. Idempotent.',
     builder: (yargs) =>
         yargs
+            .option('include', {
+                description:
+                    "Only onboard workspaces matching these name globs. Passing any pattern also lifts the default `@girs/*` exclusion, so `--include '@girs/*'` is how a ts-for-gir style repo bootstraps its generated type packages.",
+                type: 'array',
+                string: true,
+            })
             .option('repository', {
                 description: 'GitHub repo as `owner/repo`. Default: inferred from the `origin` git remote.',
                 type: 'string',
@@ -175,9 +189,19 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         // merge the sweep reports "all done" while a package that was never
         // published is simply absent from the list.
         const all = mergePublishables(discoverWorkspaces(root, { includeRoot: true }), cwd);
-        const selected = filterWorkspaces(all, { noPrivate: true, exclude: ['@girs/*'] }).filter((ws) => ws.name);
+        // `@girs/*` is excluded by default because in THIS repo they are
+        // third-party dependencies. An explicit `--include` means the caller
+        // knows which packages are theirs, so the default no longer applies —
+        // otherwise `--include '@girs/*'` would silently select nothing, which
+        // is the failure mode a bootstrap command can least afford.
+        const include = args.include?.filter((pattern) => pattern.length > 0);
+        const exclude = include && include.length > 0 ? undefined : ['@girs/*'];
+        const selected = filterWorkspaces(all, { noPrivate: true, include, exclude }).filter((ws) => ws.name);
         if (selected.length === 0) {
-            const msg = 'gjsify onboard: no publishable workspace packages found.';
+            const msg =
+                include && include.length > 0
+                    ? `gjsify onboard: no publishable workspace matches --include ${include.join(' ')}.`
+                    : 'gjsify onboard: no publishable workspace packages found.';
             if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, error: 'no-packages', message: msg })}\n`);
             else console.error(msg);
             return process.exit(1);

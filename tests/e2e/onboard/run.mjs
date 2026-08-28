@@ -215,6 +215,22 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
         pkg('@onb/unpublished-a');
         pkg('@onb/unpublished-b');
         pkg('@onb/never-published-2xx');
+        // A `@girs/*` package: excluded by DEFAULT (in the gjsify monorepo those
+        // are third-party dependencies), selectable with `--include '@girs/*'`
+        // (in ts-for-gir they are the repo's own publishables, and a GNOME cycle
+        // mints a dozen new npm names that OIDC cannot create).
+        const girsDir = join(root, 'packages', 'girs-thing');
+        mkdirSync(girsDir, { recursive: true });
+        writeFileSync(
+            join(girsDir, 'package.json'),
+            JSON.stringify(
+                { name: '@girs/thing-1.0', version: '1.0.0', type: 'module', main: 'index.js', files: ['index.js'] },
+                null,
+                2,
+            ) + '\n',
+        );
+        writeFileSync(join(girsDir, 'index.js'), 'export const ok = true;\n');
+
         // A private package that must be EXCLUDED from the sweep.
         const privDir = join(root, 'packages', 'private-one');
         mkdirSync(privDir, { recursive: true });
@@ -238,6 +254,7 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             // The shape real npm produces and this suite never had: absent,
             // but the trust read answers `200 []` instead of `404`.
             '@onb/never-published-2xx': { published: false, trusted: false, emptyWhenAbsent: true },
+            '@girs/thing-1.0': { published: false, trusted: false },
         };
     }
 
@@ -380,6 +397,32 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
         }
     });
 
+    it("skips @girs/* by default, and --include '@girs/*' selects it", async () => {
+        // Both halves matter. Without the default exclusion the gjsify monorepo
+        // would try to publish its dependencies; without the override,
+        // `--include '@girs/*'` would match nothing and the sweep would report
+        // "no publishable workspace packages found" — a bootstrap command
+        // announcing its own gap as closed.
+        pkgState = freshState();
+        const { root, npmrcPath } = scaffoldMonorepo(LIVE_TOKEN);
+        try {
+            const plain = await runOnboard(root, npmrcPath, ['--dry-run']);
+            assert.equal(plain.code, 0);
+            assert.doesNotMatch(plain.stdout, /@girs\/thing-1\.0/, '@girs/* must be excluded by default');
+
+            const included = await runOnboard(root, npmrcPath, ['--dry-run', '--include', '@girs/*']);
+            assert.equal(included.code, 0);
+            assert.match(included.stdout, /@girs\/thing-1\.0/, "--include '@girs/*' must select it");
+            assert.doesNotMatch(
+                included.stdout,
+                /@onb\//,
+                'an explicit --include is a whitelist: nothing else may come along',
+            );
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
     it('gates login on whoami — a LIVE token does not trigger login', async () => {
         // All packages already done → no OTP, no publishing; just the auth gate.
         pkgState = {
@@ -388,6 +431,7 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             '@onb/unpublished-a': { published: true, trusted: true },
             '@onb/unpublished-b': { published: true, trusted: true },
             '@onb/never-published-2xx': { published: true, trusted: true },
+            '@girs/thing-1.0': { published: true, trusted: true },
         };
         const { root, npmrcPath } = scaffoldMonorepo(LIVE_TOKEN);
         try {
