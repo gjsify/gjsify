@@ -44,6 +44,16 @@
     background-color: #ebebed;
 }
 
+/* The BOX the header bar sits in, not the header bar. AdwToolbarView pads it with
+ * the status-bar inset (#1128) and `.adw-toolbar-view-top` paints that padding in
+ * the DEFAULT header colour — white. Recolouring `.sb-sidebar-header` alone left
+ * that band white above a #ebebed sidebar: measured on emulator-5554, a 142 px
+ * (54 dp) white stripe between the clock and the title. The box has to carry the
+ * pane's colour too, which is what the widget's own comment says the box is for. */
+.sb-sidebar-pane .adw-toolbar-view-top {
+    background-color: #ebebed;
+}
+
 .sb-sidebar-scroll {
     background-color: #ebebed;
 }
@@ -97,6 +107,11 @@
 /* ===== Detail header (back + story title + controls toggle) ===== */
 
 .sb-detail-header {
+    background-color: #fafafb;
+}
+
+/* Same as `.sb-sidebar-pane .adw-toolbar-view-top`, for the detail pane. */
+.sb-content-pane .adw-toolbar-view-top {
     background-color: #fafafb;
 }
 
@@ -198,6 +213,17 @@
 .ns-dark .sb-sidebar-header,
 .ns-dark .sb-sidebar-scroll {
     background-color: #2e2e32;
+}
+
+/* Dark twins of the two `.adw-toolbar-view-top` rules above. The dark default
+ * (#2e2e32) happens to equal the dark sidebar, so only the detail pane showed the
+ * band in dark mode — both are pinned here rather than relying on that coincidence. */
+.ns-dark .sb-sidebar-pane .adw-toolbar-view-top {
+    background-color: #2e2e32;
+}
+
+.ns-dark .sb-content-pane .adw-toolbar-view-top {
+    background-color: #1d1d20;
 }
 
 .ns-dark .sb-category {
