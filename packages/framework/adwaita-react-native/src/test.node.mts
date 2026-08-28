@@ -9,6 +9,7 @@
 
 import { run } from '@gjsify/unit';
 
+import binNativeSuite from './widgets/bin.native.spec.js';
 import clampNativeSuite from './widgets/clamp.native.spec.js';
 import doubleSuite from './testing/react-native.spec.js';
 import paritySuite from './parity.spec.js';
@@ -16,5 +17,6 @@ import paritySuite from './parity.spec.js';
 run({
     paritySuite,
     doubleSuite,
+    binNativeSuite,
     clampNativeSuite,
 });
