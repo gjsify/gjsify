@@ -437,27 +437,9 @@ The macOS `--app gjs` bundles are built on the Fedora leg and executed on macOS.
 
 Bun and Deno share the `node` runtime slot through the Node-API common ABI, and `main.yml`'s `cross-runtime` job tests that rather than assuming it: one engine-agnostic `--app node` bundle per package, run on all three runtimes. The selection rule matters. A spec that imports `node:path` gets the *host runtime's* builtin, because the `--app node` bundle externalises it, so such a leg would test Bun rather than the polyfill. Every covered package either imports its own package by name, imports a bare Web specifier that the alias table routes to the polyfill, or is infra code that is nobody's builtin.
 
-### What the darwin legs found
-
-The OS axis exists because a declaration nothing exercises is a guess. Measured on darwin-x64 and arm64 against a `main` that every existing check called green:
-
-| package | symptom | mechanism |
-|---|---|---|
-| `@gjsify/child_process` | the whole suite: `spawnSync` returned `status: null`, `pid: 0`, empty stdout | the specs spawn `process.execPath`, and `@gjsify/process` reported the SCRIPT rather than the interpreter, so the file being spawned was the test bundle |
-| `@gjsify/process` | `pid`, `ppid` and `memoryUsage().rss` all `0` | three inline `/proc/self/*` reads with no fallback; `0` is a valid pid, so nothing could detect the wrong answer |
-| `@gjsify/os` | `cpu.times.user` `undefined` where Node guarantees a number | a getter that warned once per core and returned `{}` |
-| `@gjsify/net` | `isIP('01.02.03.04')` answered `4`; Node answers `0` | delegating to `Gio.InetAddress`, i.e. to the host's `inet_pton(3)`: BSD accepts leading zeros, glibc rejects them |
-
-Three of the four cannot fail on Linux at all, and the fourth cannot fail under native Node. That is the shape of hole a single-OS pipeline leaves.
-
-One macOS fact invalidates the obvious fix for a dyld problem: **`DYLD_*` environment variables do not survive a shell boundary.** SIP strips them when a protected binary is exec'd, and `/bin/sh` and `/bin/bash` are protected, so `DYLD_LIBRARY_PATH=… ; some-script.sh` loses the value before the script's first command:
-
-```
-DYLD_LIBRARY_PATH=x /bin/sh -c 'echo $DYLD_LIBRARY_PATH'    # prints nothing
-DYLD_LIBRARY_PATH=x node -p 'process.env.DYLD_LIBRARY_PATH' # prints x
-```
-
-This is why `@gjsify/cli` repairs the loader path on the child's launch environment (`buildNativeEnv()` feeding `spawn('gjs', …, { env })`), where no shell sits in between, rather than exporting it anywhere. A workflow-level export is a no-op, and `macos-suites.yml` prints the measurement on every run so the next person reaching for the variable is told why.
+The four defects that first darwin run found — and the macOS loader fact that invalidates the obvious fix for a
+`dyld` problem — are recorded in
+[ADR 0018](https://github.com/gjsify/gjsify/blob/main/docs/adr/0018-os-axis-declaration.md) § *darwin re-measured*.
 
 ## Measuring gjsify on Windows
 
