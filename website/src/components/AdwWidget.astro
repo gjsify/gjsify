@@ -246,6 +246,21 @@ const decodeEcCode = (html: string): string | null => {
  */
 const LIVE_PANE = 'live';
 
+// That requirement, held rather than stated. `data-impls` is POSITIONAL and the
+// script below looks a pane up by name with `indexOf`, so a LIVE_PANE equal to a
+// slot name gives the live window two entries reading the same id and the first one
+// answers for both: the HTML tab could never be the remembered choice, and picking
+// it would move every OTHER preview window to its Preview pane instead. Nothing
+// else notices — the ids never leave `data-impls`, so the site builds, both tabs
+// render, and every gate stays green.
+const collidingSlot = WINDOWS.flatMap((win) => win.tabs.map((tab) => tab.slot)).find((slot) => slot === LIVE_PANE);
+if (collidingSlot !== undefined) {
+    throw new Error(
+        `AdwWidget: LIVE_PANE is "${LIVE_PANE}", which is also a tab slot. The pane ids in \`data-impls\` ` +
+            'are positional and looked up by name, so no two panes of one window can share an id.',
+    );
+}
+
 const rendered: {
     id: string;
     title: string;
