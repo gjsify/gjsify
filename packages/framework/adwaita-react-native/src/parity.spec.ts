@@ -2,11 +2,11 @@
 // sentence in a README.
 //
 // The claim has a precise form: for every widget, the GTK module and the React Native
-// module are each assignable to the BASE module. Base declares the prop type and the
-// signature; a platform module that renames a prop, drops one, changes an arity or
-// widens a return is then a type error in this file rather than a divergence somebody
-// finds on one of the two devices — where, on GTK, the failure mode is a window that
-// renders and is wrong at exit 0.
+// module are each assignable to the BASE module, which declares the prop type and the
+// signature. A platform module that renames a prop, drops one, changes an arity or widens
+// a return is then a type error here rather than a divergence somebody finds on one of the
+// two devices — where, on GTK, the failure mode is a window that renders and is wrong at
+// exit 0.
 //
 // THE ASSERTIONS ARE TYPE-LEVEL AND THE IMPORTS ARE `import type`, which is what lets
 // one file hold both halves. `clamp.gtk.tsx` imports `gi://Adw` transitively and
@@ -157,21 +157,19 @@ export default async () => {
 
     await describe('the base modules refuse', async () => {
         // THIS TESTS THE REFUSAL, NOT THE REACHING OF IT, and the reason is a
-        // measurement that also corrects the design. `import { AdwClamp } from
-        // './index.js'` inside this package does NOT load the base barrel in any
-        // gjsify build: `platform-resolve` rewrites the specifier to `./index.gtk.js`
-        // before the bundler sees it, for a relative import exactly as for one from
-        // `node_modules`. Written the obvious way, this suite asserted a refusal
-        // against the GTK component and reported "the base module returned".
+        // measurement that also narrowed the design's claim about who reaches it
+        // (`refuse.ts`). `import { AdwClamp } from './index.js'` inside this package
+        // does NOT load the base barrel in any gjsify build: `platform-resolve`
+        // rewrites the specifier to `./index.gtk.js` before the bundler sees it, for a
+        // relative import exactly as for one from `node_modules`. Written the obvious
+        // way, this suite asserted a refusal against the GTK component and reported
+        // "the base module returned".
         //
-        // So the audience for the throw is narrower than the design said: not "a tool
-        // that ignores export conditions", but a tool that ignores export conditions
-        // AND is not gjsify (which resolves past the base file) AND is not Metro
-        // (which honours them). What holds the other half — that every base module
-        // routes through this function and re-exports no platform sibling — is
-        // `scripts/check-adwaita-rn-platform-split.mjs`, statically, with no build.
-        // The third derivation, loading the shipped `lib/esm/index.js` in plain Node,
-        // wants an e2e suite and is named in the README as absent.
+        // What holds the other half — that every base module routes through this
+        // function and re-exports no platform sibling — is
+        // `scripts/check-adwaita-rn-platform-split.mjs`, statically, with no build. The
+        // third derivation, loading the shipped `lib/esm/index.js` in plain Node, wants
+        // an e2e suite and is named in the README as absent.
         await it('names the component and the export-condition cause', async () => {
             const message = refusalOf('AdwClamp');
             expect(message).toContain('<AdwClamp>');

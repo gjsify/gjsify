@@ -149,13 +149,9 @@ export default async () => {
     });
 
     await describe('AdwClamp on React Native — the property range both halves answer alike', async () => {
-        // `maximum-size` and `tightening-threshold` are `g_param_spec_int (…, 0, G_MAXINT,
-        // …)`. GObject's handling of a value outside that range is neither uniform nor
-        // the same on both of its own paths — measured through the GTK component itself:
-        // `new Adw.Clamp({'maximum-size': NaN})` STORES 0, `set_property` with the same
-        // NaN leaves the property alone and logs a critical, and a negative keeps the
-        // default on both paths and logs one too. So BOTH halves run
-        // `normalizeClampSize` and neither half asks GObject to answer this question.
+        // BOTH halves run `normalizeClampSize` and neither asks GObject to answer this
+        // question, because GObject gives one out-of-range value three answers — the
+        // measurement is in `clamp.gtk.tsx`.
         //
         // Each row below is asserted against the same authored value in
         // `clamp.gtk.spec.tsx`'s describe of the same name, where it is read off the

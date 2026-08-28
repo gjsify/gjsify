@@ -1,26 +1,21 @@
-// The named refusal every base module raises, and the audience it is written for.
+// The named refusal every base module raises. A widget exists three times: the real
+// `Adw.*` in `<name>.gtk.tsx`, React Native primitives over `@gjsify/adwaita-core`'s
+// arithmetic in `<name>.native.tsx`, and `<name>.ts` — this function's caller — with no
+// implementation at all.
 //
-// A widget in this package exists three times: `<name>.gtk.tsx` (the real `Adw.*`
-// widget through `@gjsify/gtk-host`), `<name>.native.tsx` (React Native primitives
-// over `@gjsify/adwaita-core`'s arithmetic), and `<name>.ts` — this one — which has
-// no implementation at all.
+// WHO REACHES IT is narrower than "a tool that ignores export conditions", and the
+// measurements say so. Metro honours them, and gjsify's own builds resolve past the base
+// file before the bundler sees it. Node honours `exports` whenever it is present, and
+// metro with package exports switched OFF reads `['browser', 'main']`, neither of which
+// this package declares — it fails to resolve rather than landing here. What is left is a
+// bundler that ignores `exports` and reads `module`, and that is this message's audience.
 //
-// WHO REACHES IT. The `exports` map routes `react-native` to the native module and
-// `default` to the GTK one, so a tool that honours export conditions never loads a
-// base module. Metro does honour them: `metro-config` enables package exports by
-// default and `@react-native/metro-config` supplies the `react-native` condition.
-// gjsify's own app builds honour them too. What is left is a tool that ignores
-// `exports` entirely and falls back to `main`/`module` — and that is exactly the
-// case this message is for.
-//
-// WHY NOT LET IT RESOLVE TO SOMETHING. An earlier draft of this design had the base
-// module re-export the React Native implementation, on the theory that half a widget
-// beats none. It is the opposite: on GTK the specifier `react-native` is aliased
-// onto `@gjsify/react-native`, so an accidentally-loaded native implementation would
-// RUN — as a working, worse copy of the widget beside the real one. Invisible in CI,
-// obvious on screen. A throw naming the module and the fix is the cheaper failure by
-// a wide margin, which is why `scripts/check-adwaita-rn-platform-split.mjs` refuses a
-// base module that re-exports a platform sibling.
+// WHY IT THROWS INSTEAD OF RESOLVING TO SOMETHING. On the GTK path the specifier
+// `react-native` is aliased onto `@gjsify/react-native`, so a base module re-exporting the
+// native implementation would RUN — a working, worse copy of the widget beside the real
+// one, invisible in CI and obvious on screen. A throw naming the module and the fix is the
+// cheaper failure by a wide margin; `scripts/check-adwaita-rn-platform-split.mjs` rule 3
+// enforces it and carries the full account.
 
 /** The package's own name, in the message rather than interpolated at five sites. */
 const PACKAGE = '@gjsify/adwaita-react-native';
@@ -29,9 +24,9 @@ const PACKAGE = '@gjsify/adwaita-react-native';
  * Refuse, naming the component and how to reach a real one.
  *
  * Called from the component body rather than at module scope so that a bundler which
- * merely REACHES the base module — a type-only import that survived, a barrel walked
- * for its declarations — does not die at load. The failure is at the first render,
- * which is still long before anything ships.
+ * merely REACHES the base module — a type-only import that survived, a barrel walked for
+ * its declarations — does not die at load. The failure is at the first render, which is
+ * still long before anything ships.
  */
 export function refuseBaseModule(component: string): never {
     throw new Error(

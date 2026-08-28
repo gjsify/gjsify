@@ -23,7 +23,14 @@
 // The replacement works — a package of this exact shape resolved through the real
 // resolver with `@react-native/metro-config@0.87.1`'s `unstable_conditionNames:
 // ['react-native']` lands on `clamp.native.js`, and without that condition on
-// `clamp.gtk.js` — but it moved the correctness from a resolver's algorithm into a
+// `clamp.gtk.js`. A stock React Native 0.87 application therefore needs NO
+// configuration, and it is the React Native PRESET rather than metro that selects the
+// phone half: `metro-config@0.87.0` `defaults/index.js:69` sets
+// `unstable_enablePackageExports: true` while line 65 leaves `unstable_conditionNames`
+// EMPTY — metro alone would take the `default` branch — and
+// `@react-native/metro-config@0.87.1` `dist/index.js:49` supplies the condition.
+//
+// But the replacement moved the correctness from a resolver's algorithm into a
 // HAND-MAINTAINED map and three hand-maintained barrels. That is the class that
 // drifted three separate times in this repository in one day: the gallery against the
 // storybook, the stories against their registration, the descriptors against GIR. So
