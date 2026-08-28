@@ -376,10 +376,17 @@ for (const spec of WINDOWS) {
     const applyPreference = (impl: string | null, skip?: Element) => {
         if (!impl) return;
         for (const el of document.querySelectorAll<HTMLElement>('[data-impl-tabs]')) {
-            // The MARKED view, not the first one: a preview that is itself an
-            // `<adw-tab-view>` precedes it in DOM order, so `querySelector` handed
-            // back the preview and silently retargeted it whenever the reader picked
-            // an implementation on any other widget.
+            // The MARKED view, not just any: a mounted preview can itself be an
+            // `<adw-tab-view>` — the Adw.TabView block on /adwaita/view-switching/ is
+            // one — and an unmarked `querySelector` handed that one back and silently
+            // retargeted it whenever the reader picked an implementation on any other
+            // widget. It used to PRECEDE this view, back when the preview was a pane
+            // above the tab bar; now that the preview is the first TAB it is a
+            // DESCENDANT of this view (measured on the built page: the marked view at
+            // byte 784, the preview's own at 985), so an unmarked selector would
+            // happen to answer right today. The marker stays, because what makes it
+            // right is that it names the window's OWN view rather than where the
+            // preview currently sits.
             const view = el.querySelector('adw-tab-view[data-impl-view]');
             if (!view || view === skip) continue;
             const impls = (el.dataset.impls ?? '').split(',');
