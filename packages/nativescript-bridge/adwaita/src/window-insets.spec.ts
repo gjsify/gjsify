@@ -7,7 +7,14 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { NO_INSETS, WindowInsetsBroadcast, normaliseInsets, toolbarViewInsetPadding } from './widgets/window-insets.js';
+import {
+    NO_HOST_PAYMENT,
+    NO_INSETS,
+    WindowInsetsBroadcast,
+    insetsOwedBy,
+    normaliseInsets,
+    toolbarViewInsetPadding,
+} from './widgets/window-insets.js';
 
 /** A phone in portrait: status bar above, gesture area below. */
 const PHONE = { top: 24, bottom: 48, left: 0, right: 0 };
@@ -55,6 +62,54 @@ export default async () => {
         await it('adds nothing when there is nothing to add', () => {
             const p = toolbarViewInsetPadding(NO_INSETS, { hasTopBar: true, hasBottomBar: true });
             expect(p.topBarTop + p.contentTop + p.bottomBarBottom + p.contentBottom).toBe(0);
+        });
+    });
+
+    await describe('insetsOwedBy', async () => {
+        // The Android host (a `Page`'s `LayoutBase`) pays the bottom edge, keyboard
+        // folded in, and — after `host-insets.android.ts` writes `androidOverflowEdge` —
+        // nothing at the top. This is the shape that produced the defect: before this
+        // function existed the widget paid the bottom a second time, measured as
+        // 63 px + 63 px of dead space under the content on emulator-5554.
+        const ANDROID_PAGE = { top: false, bottom: true };
+
+        await it('drops only the edges the host paid', () => {
+            expect(insetsOwedBy(PHONE, ANDROID_PAGE)).toStrictEqual({ top: 24, bottom: 0, left: 0, right: 0 });
+        });
+
+        await it('owes everything when nothing above pays', () => {
+            expect(insetsOwedBy(PHONE, NO_HOST_PAYMENT)).toStrictEqual(PHONE);
+        });
+
+        await it('owes nothing when the host pays both edges', () => {
+            const owed = insetsOwedBy(PHONE, { top: true, bottom: true });
+            expect(owed.top).toBe(0);
+            expect(owed.bottom).toBe(0);
+        });
+
+        await it('never touches left or right', () => {
+            // No host in this tree pays them, and an edge dropped by a rule that never
+            // paid it is how an inset goes missing silently rather than loudly.
+            const cutout = { top: 24, bottom: 48, left: 33, right: 11 };
+            for (const top of [true, false]) {
+                for (const bottom of [true, false]) {
+                    const owed = insetsOwedBy(cutout, { top, bottom });
+                    expect(owed.left).toBe(33);
+                    expect(owed.right).toBe(11);
+                }
+            }
+        });
+
+        await it('composes with the slot split so each edge is paid exactly once', () => {
+            // The whole point, asserted end to end: host share + widget share = the inset.
+            for (const paid of [NO_HOST_PAYMENT, ANDROID_PAGE, { top: true, bottom: false }]) {
+                const p = toolbarViewInsetPadding(insetsOwedBy(PHONE, paid), {
+                    hasTopBar: true,
+                    hasBottomBar: true,
+                });
+                expect(p.topBarTop + p.contentTop + (paid.top ? PHONE.top : 0)).toBe(PHONE.top);
+                expect(p.bottomBarBottom + p.contentBottom + (paid.bottom ? PHONE.bottom : 0)).toBe(PHONE.bottom);
+            }
         });
     });
 

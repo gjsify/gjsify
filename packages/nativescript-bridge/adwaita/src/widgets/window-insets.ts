@@ -51,6 +51,40 @@ export interface InsetPadding {
 export const NO_INSETS: WindowInsets = { top: 0, bottom: 0, left: 0, right: 0 };
 
 /**
+ * The edges a HOST layout already pays, so the widget must not pay them again.
+ *
+ * Declared here rather than beside the platform files that answer it, so this module
+ * stays the one place the inset arithmetic lives and keeps importing nothing.
+ */
+export interface HostPaidEdges {
+    readonly top: boolean;
+    readonly bottom: boolean;
+}
+
+/** Nothing above the widget pays anything — it owes every edge. */
+export const NO_HOST_PAYMENT: HostPaidEdges = { top: false, bottom: false };
+
+/**
+ * Drop the edges a host layout already paid, leaving what the widget still owes.
+ *
+ * Separate from {@link toolbarViewInsetPadding} because it answers a different question:
+ * that one splits an owed inset between the slots of ONE widget, this one decides
+ * whether the inset is owed at all. Which edges a host pays is a per-platform fact
+ * (`host-insets.{android,ios}.ts`); how much of it lands on which slot is not.
+ *
+ * Left and right pass through: no host in this tree pays them, and dropping an edge
+ * nobody paid is how an inset silently goes missing.
+ */
+export function insetsOwedBy(insets: WindowInsets, paidByHost: HostPaidEdges): WindowInsets {
+    return {
+        top: paidByHost.top ? 0 : insets.top,
+        bottom: paidByHost.bottom ? 0 : insets.bottom,
+        left: insets.left,
+        right: insets.right,
+    };
+}
+
+/**
  * Assign `insets` to the slots of a toolbar view of `shape`.
  *
  * Total per edge is always exactly the inset — never doubled across two slots, which

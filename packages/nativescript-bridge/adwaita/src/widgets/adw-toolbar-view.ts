@@ -31,8 +31,9 @@ import {
     toolbarViewClassNames,
 } from './chrome.js';
 import { resolveBuilderSlot } from './builder-slots.js';
+import { resolveHostInsets } from './host-insets.js';
 import { observeWindowInsets } from './window-insets-source.js';
-import { NO_INSETS, type WindowInsets, toolbarViewInsetPadding } from './window-insets.js';
+import { NO_INSETS, type WindowInsets, insetsOwedBy, toolbarViewInsetPadding } from './window-insets.js';
 
 /** The classes the widget starts with; the derived ones are swapped in beside them. */
 const BASE_CLASSES = {
@@ -241,7 +242,14 @@ export class AdwToolbarView extends GridLayout {
     }
 
     /**
-     * Pay each edge's inset out of the slot that sits on it.
+     * Pay each edge's inset out of the slot that sits on it — the part of it this
+     * widget still owes.
+     *
+     * `insetsOwedBy` drops what the HOST already paid, which on Android is the bottom
+     * edge (the page's `LayoutBase`, because only its branch also folds in the keyboard)
+     * and never the top (`host-insets.android.ts` hands that edge back, because only the
+     * top-bar box paints it in the header colour). Without it the inset was applied
+     * twice: 142 px + 142 px above the header bar on emulator-5554.
      *
      * The assignment is decided by the pure sibling (`toolbarViewInsetPadding`); this
      * only spells it in NativeScript. Where that module says "the content pays", the
@@ -251,7 +259,7 @@ export class AdwToolbarView extends GridLayout {
      */
     private _applyInsets(insets: WindowInsets): void {
         this._insets = insets;
-        const padding = toolbarViewInsetPadding(insets, {
+        const padding = toolbarViewInsetPadding(insetsOwedBy(insets, resolveHostInsets(this, insets)), {
             hasTopBar: this._topBarCount > 0,
             hasBottomBar: this._bottomBarCount > 0,
         });

@@ -80,6 +80,16 @@ declare module '@nativescript/core' {
         /** The view this one is mounted in, or `null` at the root — the walk a
          *  nested widget offers an unhandled action up. */
         readonly parent: View | null;
+        /** The `Page` this view is mounted in — `ViewBase.page` walks the parents and
+         *  `Page` returns itself — or `null` while it is not mounted in one. */
+        readonly page: Page | null;
+        /**
+         * Android only (`CoreTypes.AndroidOverflow`) — which window-inset edges this
+         * view lets its content OVERFLOW instead of paying as padding. `'none'`, which
+         * `Page` sets, pays every edge; `'top'` hands the top edge back to whatever is
+         * inside. Written by `host-insets.android.ts`; a no-op on other platforms.
+         */
+        androidOverflowEdge: string;
         /** Accessibility role announced to the platform screen reader —
          *  NS's counterpart to `gtk_widget_class_set_accessible_role`. */
         accessibilityRole: string;
@@ -104,6 +114,9 @@ declare module '@nativescript/core' {
         /** Remove a previously-added CSS pseudo-class and reapply style. */
         deletePseudoClass(name: string): void;
     }
+
+    /** One screen. Declared for the two members `host-insets.android.ts` reaches. */
+    export class Page extends View {}
 
     /** Payload of the `'touch'` gesture — fires repeatedly through a touch. */
     export interface TouchGestureEventData extends EventData {
