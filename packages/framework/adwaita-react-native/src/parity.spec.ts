@@ -22,6 +22,17 @@
 // nothing renders `AdwBin` in a spec. The first version of this check stayed GREEN;
 // the version below fails with `Type 'false' does not satisfy the constraint 'true'`
 // on `BinNativeSatisfiesBase`.
+//
+// AND FALSIFIED AGAIN, WHERE ASSIGNABILITY ALONE COULD NOT SEE IT. Assignability was the
+// whole check here, and on these props it is exactly as weak as
+// `testing/react-native.spec.ts` says it is on `ViewProps`: every prop in `props.ts` is
+// OPTIONAL, and a target of all-optional properties accepts a source that shares one of
+// them. Measured — `clamp.native.tsx` renaming `maximumSize` to `maximumWidth`, with its
+// suite following the new name, left `tsc` at exit 0 and this file silent; so did
+// dropping `tighteningThreshold` from that half's surface altogether. Both fall now,
+// because the check also compares prop NAME SETS: a key set is a union of string
+// literals, and a union missing a member is not assignable to one that has it. Same
+// instrument as the double's contract, exported from here rather than written twice.
 
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -51,13 +62,50 @@ import { refuseBaseModule } from './refuse.js';
  */
 export type Assert<T extends true> = T;
 
-/** Does `Platform` provide everything `Base` declares — same names, same signatures? */
-type SatisfiesBase<Platform, Base> = Platform extends Base ? true : false;
+/**
+ * Are `A` and `B` the same type, without a union distributing on the way in?
+ *
+ * The tuple wrappers are load-bearing: a bare `A extends B` distributes over a union,
+ * and the two things this file compares — key sets — are unions.
+ */
+export type Identical<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
-export type BinGtkSatisfiesBase = Assert<SatisfiesBase<typeof BinGtk, typeof BinBase>>;
-export type BinNativeSatisfiesBase = Assert<SatisfiesBase<typeof BinNative, typeof BinBase>>;
-export type ClampGtkSatisfiesBase = Assert<SatisfiesBase<typeof ClampGtk, typeof ClampBase>>;
-export type ClampNativeSatisfiesBase = Assert<SatisfiesBase<typeof ClampNative, typeof ClampBase>>;
+/**
+ * Do `A` and `B` accept exactly the same property NAMES?
+ *
+ * The half of a props contract that structural assignability cannot express when every
+ * property is optional. Used here per widget, and by `testing/react-native.spec.ts`
+ * against React Native's own `View`.
+ */
+export type SameKeys<A, B> = Identical<keyof A, keyof B>;
+
+/** The props a component accepts, or `never` for anything that is not one. */
+type PropsOf<Component> = Component extends (props: infer P) => unknown ? P : never;
+
+/**
+ * Does `Platform` provide everything `Base` declares — the whole module surface by
+ * assignability, AND `Name`'s prop names exactly?
+ *
+ * The component is named rather than derived because a mapped type over `keyof Base`
+ * stays deferred when `Base` is a type parameter, and two deferred mapped types compare
+ * EQUAL: written that way the key-set half was inert, and the rename it was added for
+ * went on passing. A named component is also the better diagnostic, and `Name` is
+ * constrained to both modules, so a wrong one is an error here rather than a silent
+ * `never`.
+ *
+ * The assignability half stays: it is what catches a REQUIRED prop the base does not
+ * declare, a changed arity and a widened return, none of which a key set can see. A
+ * platform-only export beyond `Name` is deliberately fine — the surface promise is about
+ * the widgets, not about a helper one half happens to need.
+ */
+type SatisfiesBase<Platform, Base, Name extends keyof Base & keyof Platform> = Platform extends Base
+    ? SameKeys<PropsOf<Platform[Name]>, PropsOf<Base[Name]>>
+    : false;
+
+export type BinGtkSatisfiesBase = Assert<SatisfiesBase<typeof BinGtk, typeof BinBase, 'AdwBin'>>;
+export type BinNativeSatisfiesBase = Assert<SatisfiesBase<typeof BinNative, typeof BinBase, 'AdwBin'>>;
+export type ClampGtkSatisfiesBase = Assert<SatisfiesBase<typeof ClampGtk, typeof ClampBase, 'AdwClamp'>>;
+export type ClampNativeSatisfiesBase = Assert<SatisfiesBase<typeof ClampNative, typeof ClampBase, 'AdwClamp'>>;
 
 /**
  * The names above, as data, so the RUNTIME half can assert the set is complete.
@@ -74,12 +122,20 @@ export const PARITY_ASSERTIONS = [
     'ClampNativeSatisfiesBase',
 ] as const;
 
-/** What the refusal says when something actually reaches it. */
+/**
+ * What the refusal says when something actually reaches it.
+ *
+ * A non-`Error` is reported as such rather than stringified into a passing assertion.
+ * Measured: with `String(error)` here, changing `refuse.ts` to `throw String(…)` left
+ * `tsc`, the gate and all 19 Node tests green — the message still contained every
+ * substring asserted below, and the only thing lost was the stack, which is the whole
+ * value of the throw to whoever hits it.
+ */
 const refusalOf = (component: string): string => {
     try {
         refuseBaseModule(component);
     } catch (error) {
-        return error instanceof Error ? error.message : String(error);
+        return error instanceof Error ? error.message : `<not an Error: ${typeof error}>`;
     }
     return '<no refusal: the base module returned>';
 };

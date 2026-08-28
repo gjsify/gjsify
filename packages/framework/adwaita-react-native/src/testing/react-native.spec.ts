@@ -19,7 +19,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { isValidElement } from 'react';
 import type { View as RealView } from 'react-native';
 
-import type { Assert } from '../parity.spec.js';
+import type { Assert, SameKeys } from '../parity.spec.js';
 import { RCT_VIEW, View } from './react-native.js';
 
 /**
@@ -36,14 +36,19 @@ import { RCT_VIEW, View } from './react-native.js';
  * `keyof` is what bites, because a key set is a union of string literals and a union
  * with an extra member is not assignable to one without it. Both directions were run
  * against the version below: an invented prop and a dropped `onLayout` each fail on
- * `DoublePropsMatchReactNative` and nowhere else.
+ * `DoublePropsMatchReactNative` and nowhere else. A third, added since: a prop whose
+ * TYPE changes while the key set does not (`onLayout?: string`) is invisible here and
+ * falls on `CONTRACT` below — the two assertions cover different halves and both are
+ * needed.
  *
  * The check is deliberately TAUTOLOGICAL while `react-native.ts` annotates `View` as
  * `typeof RealView` — that is the point. It is the annotation this holds in place, and
  * removing the annotation is the only way for the double to acquire a surface of its
  * own.
+ *
+ * `SameKeys` comes from `parity.spec.ts`, which needs the same instrument for the same
+ * reason one level up: the package's own props are all-optional too.
  */
-type SameKeys<A, B> = [keyof A] extends [keyof B] ? ([keyof B] extends [keyof A] ? true : false) : false;
 export type DoublePropsMatchReactNative = Assert<SameKeys<Parameters<typeof View>[0], Parameters<typeof RealView>[0]>>;
 
 /** The value half: the double is still React Native's `View` by type, at runtime too. */
