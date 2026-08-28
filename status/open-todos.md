@@ -1393,6 +1393,23 @@ IS to be commented and saying so in a reviewed ceiling change. Not by moving ful
 comments onto code lines — the script's own header records that ~1670 trailing comments
 are already invisible to it, so that direction buys a number and no clarity.
 
+### 18 specs in five packages are registered by nothing, because their entry is one directory down
+
+`readSuiteRegistration` looks for `src/test*.{ts,mts,cts,tsx}` at the TOP of `src/` only
+and returns an empty result when it finds none; `check-node-test-registration.mjs` and
+`check-browser-test-registration.mjs` then skip the package outright. Five keep their
+entry a level down — `packages/framework/webgl/src/test/`, and `src/ts/` in
+`lightningcss-native`, `http2-native`, `sab-native`, `tls-native` — so their 18
+`*.spec.ts` files are held to nothing at all. A spec no entry imports would still report
+as reachable there, because the reader never looked.
+
+Found by `scripts/check-source-visibility.mjs`: its first registration of that walker
+declared the scope as "every spec under a package `src`" and reported these 18 as blind,
+and the scope had to be narrowed to the walker's own subject to go green. It is NOT the
+extension class it was found beside — nothing here turns on a suffix — and closing it
+changes what those two gates ASSERT (18 newly graded specs, plausibly with findings), so
+it wants its own commit.
+
 ### Manifest-conformance follow-ups
 
 The five standalone declaration-vs-reality scripts are now one rule registry (`@gjsify/manifest-conformance` + `scripts/manifest-conformance/`). Three things were deliberately left out of that refactor so it stayed a refactor.
