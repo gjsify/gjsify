@@ -4,6 +4,7 @@
 // its own inputs can only be tested by building a real project.
 
 import { renderMimePackage } from './mime.js';
+import { SHARE } from './share-dirs.js';
 import { basename, extname, posix } from 'node:path';
 
 import type { FormatDescriptor, FormatId, ShipSettings, StagedFile } from './types.js';
@@ -51,7 +52,7 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
     }
 
     files.push({
-        path: `share/metainfo/${settings.appId}.metainfo.xml`,
+        path: `${SHARE.metainfo}/${settings.appId}.metainfo.xml`,
         mode: 0o644,
         source: { kind: 'text', text: inputs.metainfo },
     });
@@ -61,7 +62,7 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
             throw new Error('gjsify ship: internal error — a desktop entry is required for `kind: "app"`.');
         }
         files.push({
-            path: `share/applications/${settings.appId}.desktop`,
+            path: `${SHARE.applications}/${settings.appId}.desktop`,
             mode: 0o644,
             source: { kind: 'text', text: inputs.desktopEntry },
         });
@@ -81,7 +82,7 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
             );
         }
         files.push({
-            path: `share/glib-2.0/schemas/${name}`,
+            path: `${SHARE.schemas}/${name}`,
             mode: 0o644,
             source: { kind: 'file', path: schema },
         });
@@ -103,7 +104,7 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
     // reason it is for the GSettings schema: a generic name collides with another package's file.
     if (settings.mimeTypes.length > 0) {
         files.push({
-            path: `share/mime/packages/${settings.appId}.xml`,
+            path: `${SHARE.mime}/${settings.appId}.xml`,
             mode: 0o644,
             source: { kind: 'text', text: renderMimePackage(settings.mimeTypes) },
         });
@@ -113,7 +114,7 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
     // is where `bindtextdomain` looks, and nowhere else.
     for (const locale of settings.localeFiles) {
         files.push({
-            path: posix.join('share/locale', locale.rel),
+            path: posix.join(SHARE.locale, locale.rel),
             mode: 0o644,
             source: { kind: 'file', path: locale.abs },
         });
@@ -221,7 +222,7 @@ function planIcons(settings: ShipSettings): StagedFile[] {
     for (const icon of settings.iconFiles) {
         const ext = extname(icon);
         const dir = iconSizeDir(icon);
-        const path = `share/icons/hicolor/${dir}/apps/${settings.appId}${ext}`;
+        const path = `${SHARE.icons}/${dir}/apps/${settings.appId}${ext}`;
         const previous = seen.get(path);
         if (previous !== undefined) {
             throw new Error(

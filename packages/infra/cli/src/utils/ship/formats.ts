@@ -9,7 +9,7 @@
 // a format can be host-bound (§ A3), so `host` is a descriptor field now.
 
 import { isOnPath } from '../check-system-deps.js';
-import type { Layout } from './layout.js';
+import { LAYOUTS, LAYOUT_NAMES, type Layout } from './layout.js';
 import type { FormatDescriptor, FormatId, HostOs, PackSettings } from './types.js';
 
 // `process.arch` → the format's architecture name. Taken from dpkg's own
@@ -203,6 +203,11 @@ export function defaultFormatIds(layoutOs: HostOs): FormatId[] {
     return FORMAT_IDS.filter((id) => FORMATS[id].layoutOs === layoutOs && FORMATS[id].host.finishOn === 'any');
 }
 
+/** `process.platform` token → the positional that selects it, so a message says `windows`, not `win32`. */
+const LAYOUT_NAME_BY_OS: Record<string, string> = Object.fromEntries(
+    LAYOUT_NAMES.map((name) => [LAYOUTS[name].os, name]),
+);
+
 /** Every format that wraps one OS's layout, tool-bound ones included. */
 export function formatIdsFor(layoutOs: HostOs): FormatId[] {
     return FORMAT_IDS.filter((id) => FORMATS[id].layoutOs === layoutOs);
@@ -311,8 +316,18 @@ export function resolveFormats(raw: readonly string[], layout: Layout): FormatDe
                     ? `No format wraps the ${layout.name} layout yet — \`gjsify ship ${layout.name} --stage\` ` +
                       'assembles it and stops (ADR 0024 stages 4 and 5).'
                     : `Formats for this layout: ${wrap.join(', ')}.`) +
-                ` To build ${foreign.join(', ')}, name the layout ${foreign.length > 1 ? 'they wrap' : 'it wraps'}` +
-                `: \`gjsify ship ${FORMATS[foreign[0] as FormatId].layoutOs} --target ${foreign.join(',')}\`.`,
+                // One suggestion PER foreign layout. `foreign[0]`'s layout was
+                // being offered for all of them, two lines under the dedup that
+                // exists precisely because several are anticipated — so a mixed
+                // `--target` would have printed a command that fails the same way.
+                ` To build ${foreign.join(', ')}, name the layout each wraps: ` +
+                `${foreignLayouts
+                    .map(
+                        (os) =>
+                            `\`gjsify ship ${LAYOUT_NAME_BY_OS[os] ?? os} --target ` +
+                            `${foreign.filter((name) => FORMATS[name].layoutOs === os).join(',')}\``,
+                    )
+                    .join(', ')}.`,
         );
     }
     return unique.map((name) => FORMATS[name]);
@@ -335,8 +350,18 @@ export function resolveFormats(raw: readonly string[], layout: Layout): FormatDe
  * success: `assemble` refuses a PACK with nothing to pack, and a `--stage` run
  * legitimately wants exactly this — assemble the layout, wrap nothing.
  */
-export function configuredFormats(raw: readonly string[], layout: Layout): FormatDescriptor[] {
-    return parseFormatNames(raw, '`gjsify.ship.targets`')
-        .filter((name) => FORMATS[name].layoutOs === layout.os)
-        .map((name) => FORMATS[name]);
+export function configuredFormats(
+    raw: readonly string[],
+    layout: Layout,
+): { formats: FormatDescriptor[]; dropped: FormatId[] } {
+    const named = parseFormatNames(raw, '`gjsify.ship.targets`');
+    const kept = named.filter((name) => FORMATS[name].layoutOs === layout.os);
+    // The dropped names are RETURNED rather than swallowed. The `--target` path
+    // refuses by name; this one silently produced a shorter list, so a project
+    // whose configured formats all belong to another layout got a stage and no
+    // explanation of why nothing was packed.
+    return {
+        formats: kept.map((name) => FORMATS[name]),
+        dropped: named.filter((name) => FORMATS[name].layoutOs !== layout.os),
+    };
 }

@@ -80,12 +80,16 @@ function discoverTypelibs(projectDir: string, dirs: string[] | undefined): strin
             // The layout axis (ADR 0024 § 2) is what put those two files in
             // reach: they land in `Contents/Frameworks` and in the program
             // directory's `lib\`.
-            // Case-INSENSITIVE, which is not pedantry on this particular list:
-            // two of the three extensions belong to case-preserving-but-
-            // insensitive filesystems, so `LIBFOO.DLL` and `Foo.Dylib` are
-            // ordinary names there and a lowercase-only test drops them into
-            // exactly the silent failure the paragraph above describes.
-            if (/\.(typelib|dylib|dll)$|\.so(\.\d+)*$/i.test(file)) out.push(join(root, file));
+            // Case-insensitive for the extensions that come off case-preserving-
+            // but-INSENSITIVE filesystems — `LIBFOO.DLL` and `Foo.Dylib` are
+            // ordinary names on macOS and Windows, and a lowercase-only test drops
+            // them into exactly the silent failure the paragraph above describes.
+            //
+            // NOT for `.so`, and the asymmetry is the reason rather than an
+            // oversight: ELF sonames come off case-SENSITIVE filesystems where
+            // `libfoo.so` is the only spelling, and `/i` there additionally makes
+            // `README.SO` a shared library. One rationale, one scope.
+            if (/\.(typelib|dylib|dll)$/i.test(file) || /\.so(\.\d+)*$/.test(file)) out.push(join(root, file));
         }
     }
     return out;

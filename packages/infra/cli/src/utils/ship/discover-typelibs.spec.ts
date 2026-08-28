@@ -85,6 +85,13 @@ export default async () => {
             ]);
         });
 
+        await it('does NOT case-fold the ELF branch', () => {
+            // The `/i` belongs to `.dylib`/`.dll`, which come off case-insensitive
+            // filesystems. Applying it to `.so` as well made `README.SO` a shared
+            // library — a scope the stated rationale never covered.
+            expect(staged(['README.SO', 'NOTES.So', 'libgwebgl.so'])).toStrictEqual(['libgwebgl.so']);
+        });
+
         await it('leaves everything else where it is', () => {
             // The `.gir` beside a prebuilt typelib is the measured case: it is
             // XML for a compiler, not something an installed app loads, and every

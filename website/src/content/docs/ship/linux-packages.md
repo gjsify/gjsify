@@ -240,7 +240,7 @@ running on that machine.
 
 | Flag | Default | What it does |
 |---|---|---|
-| `--target <fmt..>` | `gjsify.ship.targets`, else `deb,rpm` | Formats to build. Comma-separated or repeated. An unknown name fails before anything is built. |
+| `--target <fmt..>` | `gjsify.ship.targets`, else `deb,rpm` | Formats to build. Comma-separated or repeated. An unknown name fails before anything is built, and so does a format belonging to another OS's layout — `gjsify ship darwin --target deb` is an error. `gjsify.ship.targets` is treated differently on purpose: it is a project default, so a name that wraps another layout is dropped with a printed note rather than failing the run. |
 | `--out <dir>` | `gjsify.ship.outDir`, else `ship` | Output root, relative to the project. |
 | `--stage` | `false` | Write the staged payload and stop, packing nothing. |
 | `--from-stage <dir>` | — | Pack a payload an earlier `--stage` run wrote. Needs no project: no `package.json`, no config, no built bundle. |

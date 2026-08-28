@@ -212,12 +212,25 @@ async function assemble(args: ShipOptions): Promise<void> {
     // `targets: ["deb", "rpm"]`, with a message telling the author to run the
     // command they had just run. And the derived default can legitimately be
     // EMPTY, which `resolveFormats` refuses — rightly, for a list a caller typed.
-    const formats =
-        args.target !== undefined
-            ? resolveFormats(args.target, layout)
-            : ship.targets !== undefined
-              ? configuredFormats(ship.targets, layout)
-              : defaultFormatIds(layout.os).map((id) => FORMATS[id]);
+    let formats: FormatDescriptor[];
+    if (args.target !== undefined) {
+        formats = resolveFormats(args.target, layout);
+    } else if (ship.targets !== undefined) {
+        const configured = configuredFormats(ship.targets, layout);
+        formats = configured.formats;
+        // SAID, not swallowed. The `--target` path refuses a foreign format by
+        // name; this one used to shorten the list in silence, so a project whose
+        // configured formats all wrap another layout got a stage and no account
+        // of where its targets went.
+        if (configured.dropped.length > 0) {
+            console.log(
+                `${LOG} \`gjsify.ship.targets\` names ${configured.dropped.join(', ')}, which wrap another ` +
+                    `layout — not built for ${layout.name}. Pass --target to ask for one explicitly.`,
+            );
+        }
+    } else {
+        formats = defaultFormatIds(layout.os).map((id) => FORMATS[id]);
+    }
     if (!args.stage) assertPackable(formats, layout, args.os === undefined ? 'host' : 'positional');
     // BEFORE the build, not before the pack. `gjsify ship` runs the project's
     // own `build` script first, so discovering a missing `flatpak-builder`
@@ -330,7 +343,15 @@ async function assemble(args: ShipOptions): Promise<void> {
                 `${LOG} the ${layout.name} layout carries ${carried.length} file(s) whose Linux correctness ` +
                     'comes from a package install step it has no equivalent for:',
             );
-            for (const { path, why } of carried) console.warn(`${LOG}   ${path} — ${why}`);
+            // The marker is the whole point of `ShareVerdict`. Every launcher
+            // exports XDG_DATA_DIRS at the staged `share/`, so an uncompiled
+            // schema directory is not a missing feature — `g_settings_new()`
+            // ABORTS on it. Printing that at the same weight as "neither OS reads
+            // one" is what buried it in a list of five.
+            const marker: Record<string, string> = { aborts: 'ABORTS: ', unknown: 'UNCLASSIFIED: ', inert: '' };
+            for (const { path, verdict, why } of carried) {
+                console.warn(`${LOG}   ${marker[verdict] ?? ''}${path} — ${why}`);
+            }
         }
         if (layout.runtimeGap !== undefined) console.warn(`${LOG} ${layout.runtimeGap}`);
     }
@@ -480,7 +501,7 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
         assertPackable(
             defaultFormatIds(layout.os).map((id) => FORMATS[id]),
             layout,
-            'positional',
+            'stage',
         );
     const formats = resolveFormats(args.target ?? manifest.formats, layout);
     assertFormatsStaged(manifest, formats);
@@ -694,17 +715,31 @@ function assertCanPack(format: FormatDescriptor): void {
  * it says, and a Linux package built on a Mac is now something you ask for — but
  * a refusal that does not name the one-word replacement is just a regression.
  */
-function assertPackable(formats: readonly FormatDescriptor[], layout: Layout, chosenBy: 'host' | 'positional'): void {
+function assertPackable(
+    formats: readonly FormatDescriptor[],
+    layout: Layout,
+    chosenBy: 'host' | 'positional' | 'stage',
+): void {
     if (formats.length > 0) return;
     const linux = defaultFormatIds('linux').join(',');
+    // Three callers, three different next steps. Telling a `--from-stage` caller
+    // to run `gjsify ship <os> --stage` names the command that PRODUCED the stage
+    // they are holding, which is advice to go in a circle.
+    const advice = {
+        host:
+            `This host is ${process.platform}, so \`gjsify ship\` assembled the ${layout.name} layout. ` +
+            'Assembly is not host-bound (ADR 0024 § A1), so the Linux packages are still one word away: ' +
+            `\`gjsify ship linux\` builds ${linux} from right here.`,
+        positional:
+            `\`gjsify ship ${layout.name} --stage\` assembles the payload and stops, which is the whole of ` +
+            'what this command does for that OS today.',
+        stage:
+            `This stage carries the ${layout.name} layout and nothing here can wrap it — a stage is a build ` +
+            'intermediate, not an artifact. Keep it for the milestone that packs it, or re-assemble with ' +
+            '`gjsify ship linux --stage` if a Linux package is what you wanted.',
+    }[chosenBy];
     throw new Error(
-        `gjsify ship: no format wraps the ${layout.name} layout yet, so there is nothing to pack. ` +
-            (chosenBy === 'host'
-                ? `This host is ${process.platform}, so \`gjsify ship\` assembled the ${layout.name} layout. ` +
-                  'Assembly is not host-bound (ADR 0024 § A1), so the Linux packages are still one word away: ' +
-                  `\`gjsify ship linux\` builds ${linux} from right here.`
-                : `\`gjsify ship ${layout.name} --stage\` assembles the payload and stops, which is the whole ` +
-                  'of what this command does for that OS today.') +
+        `gjsify ship: no format wraps the ${layout.name} layout yet, so there is nothing to pack. ${advice}` +
             ' A macOS `.app`/`.dmg` and a Windows program directory plus installer are ADR 0024 stages 4 and 5.',
     );
 }
@@ -737,6 +772,16 @@ function assertPackable(formats: readonly FormatDescriptor[], layout: Layout, ch
  * NOT be resolved through `Config.forBuild`, whose fallback is the HOST runtime
  * — that would refuse, or worse silently re-target, a perfectly good GJS project
  * merely for running this command under Node.
+ *
+ * WHY THIS REFUSES AND `Layout.runtimeGap` ONLY WARNS, since the two describe
+ * neighbouring predicaments and get opposite treatment. A target this command
+ * cannot package would leave here as an ARTIFACT — a `.deb` a stranger installs,
+ * which then fails at startup, with no gate between here and their machine. A
+ * windows stage cannot run on any Windows machine either, but it is not an
+ * artifact: `assertPackable` refuses to pack it, so the only thing leaving this
+ * command is a build intermediate whose consumer is the milestone that wraps it.
+ * Refusing would ban assembling the layout at all, which is the whole of M1. The
+ * day a Windows format exists, that warning has to become this refusal.
  *
  * Phase one only. Phase two does not re-read `gjsify.app` — it has no project —
  * but it is not unchecked either: `assertLauncherMatchesInterpreter` compares

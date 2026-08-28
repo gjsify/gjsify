@@ -139,7 +139,7 @@ preference.
 | Linux · `--app gjs` | none — `Depends: gjs (>= 1.86)` | GJS and GTK come from the distro. Bundling would be ~100 MiB of cargo cult. **Measured caveat: no released Debian satisfies that floor** — Debian went 1.82.3 (trixie) straight to 1.88.1 (forky), skipping 1.84 and 1.86. The honest floor is emitted anyway and warned about; see § Implementation status |
 | Linux · `--app node` | none — `Depends: nodejs (>= 24)` / `Requires: nodejs(engine) >= 24` | **Amended and IMPLEMENTED (#1354 M0):** the launcher branches on `gjsify.app` and execs `node`, `assertShippableTarget` accepts it, and `assertLauncherMatchesInterpreter` refuses any package whose launcher and dependency disagree. The row read "bundled Node — no system Node can be assumed"; true of macOS and Windows, false of Linux, where every distribution ships one — bundling would be the same ~100 MiB cargo cult the `--app gjs` row rejects. The rpm spelling is not a style choice: `Requires: nodejs >= 24` is a silent NO-OP on Fedora, whose virtual `nodejs` Provide carries Epoch 1, so `0:24` is satisfied by `1:22.23.1` — measured with `dnf repoquery` on F44. ⚠️ And even the correct spelling does not put Node 24 on `PATH`: the alternatives-managed `/usr/bin/node` belongs to whichever `nodejs<stream>-bin` is installed, so `nodejs22-bin` + `nodejs(engine) >= 24` is a satisfiable state with `node` at 22. Floor honestly emitted and warned about, exactly like the GJS one |
 | **macOS** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-darwin-<arch>`** | this is the combination CI proves on both arches, with no Homebrew in the picture: the *batteries-included conformance* and *windowing proof* legs of `node-gi.yml` run green against the relocated bundle |
-| **Windows** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-win32-x64`** | **there is no GJS host on Windows** (`docs/ci-selective.md`), so this is not a choice. The *batteries-included conformance* and *Adwaita Storybook proof* legs prove it without gvsbuild |
+| **Windows** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-win32-x64`** | **there is no GJS host on Windows** — no job in this repository installs one, and the `gjs` mentions in `docs/ci-selective.md` this line used to cite are about the affected-classifier bundle, not about Windows. So this is not a choice. The *batteries-included conformance* and *Adwaita Storybook proof* legs prove it without gvsbuild |
 | `--app browser` | — | no OS-package question |
 | `--app nativescript` | — | APK/IPA is a different pipeline; out of scope |
 
@@ -370,8 +370,13 @@ in `assemble`: before that, `--stage --arch x64` over an arm64 Mach-O exited 0 a
 the `share/…` files whose Linux correctness comes from a `.deb`/`.rpm` install scriptlet —
 `glib-compile-schemas` above all, without which GSettings aborts at runtime — plus a `.desktop`
 entry and an AppStream component neither OS reads. Sameness IS the defect there, so no file-set
-comparison can reach it. `linuxInstallDependent()` is the list, printed on every non-Linux stage and
-pinned by the e2e suite; deciding what each becomes needs the container, i.e. stages 4 and 5.
+comparison can reach it. `linuxInstallDependent()` is the list — exhaustive over `share/` rather than an
+allow-list, keyed on one shared `SHARE` constant the four call sites import, and split by severity
+so the schema entry (which ABORTS `g_settings_new()`, because every launcher points `XDG_DATA_DIRS`
+at the staged `share/`) is not ranked with four that merely do nothing. The first version of it
+claimed in prose that its rules could not drift; that was measured false over five independent
+string literals, so the claim is now a mechanism or it is not made. Deciding what each entry becomes
+needs the container, i.e. stages 4 and 5.
 Flagged for stage 4 and not measured here: a loose `.typelib` in `Contents/Frameworks` is the
 classic codesign/notarization complaint.
 

@@ -95,7 +95,9 @@ entirely on macOS for `Contents/Frameworks`, and the launcher's own NAME changes
   already exists to prevent, arriving through a different door.
 - **`gjsify.ship.targets` is FILTERED, not refused**, and the two are different questions. A flag is
   a claim about this run; a configured list is a project-level default written once, and refusing it
-  the same way makes the positional unusable in any project that has the key. Measured: with
+  the same way makes the positional unusable in any project that has the key. The filtering is not
+  silent: `configuredFormats` returns what it dropped and `gjsify ship` prints it, because the
+  `--target` path names a foreign format and this one used to just produce a shorter list. Measured: with
   `targets: ["deb", "rpm"]` — which `packages/infra/cli/package.json` declares — the strict path
   made `gjsify ship darwin --stage` exit 1 telling the author to run `gjsify ship darwin --stage`,
   and no `--target` value got a darwin stage out of such a project at all. `configuredFormats` is
@@ -138,12 +140,33 @@ compiles or reindexes them at install time (`utils/ship/scripts.ts`). An uncompi
 GSettings abort at runtime. Two more — the `.desktop` entry and the AppStream component — are
 freedesktop metadata neither other OS reads at all.
 
-`linuxInstallDependent()` in `utils/ship/payload.ts` is that list, keyed on the same prefixes
-`cacheRefreshCommands` guards so the two cannot drift apart. It is printed on every darwin and
-windows stage and pinned by `tests/e2e/ship-layout`, so it cannot grow in silence. What each entry
-BECOMES — a compiled `gschemas.compiled` in the bundle, an `Info.plist` `CFBundleDocumentTypes`, a
-Windows registry association, or nothing — is ADR 0024 stages 4 and 5, because it needs the
-container that does not exist yet.
+`linuxInstallDependent()` in `utils/ship/payload.ts` is that list. An earlier version of this
+paragraph said the rules were "keyed on the same prefixes `cacheRefreshCommands` guards so the two
+cannot drift" — which was PROSE, not a mechanism, and it was measured false: `share/glib-2.0/schemas`
+existed as five independent string literals, and pointing one rule at a directory matching nothing
+dropped a file from the printed warning with the whole suite green at exit 0. Three things replace
+the sentence:
+
+- **`utils/ship/share-dirs.ts` holds `SHARE`,** and `plan.ts`, `readPayloadFacts`,
+  `cacheRefreshCommands` and `linuxInstallDependent` all import it, so the compiler is what keeps
+  them together. `rpm.ts` derives the three entries that name a directory the planner stages into
+  and keeps the rest literal, because "which directories does the distro own" is a different
+  question — parents included, deliberately non-exhaustive.
+- **The rule is EXHAUSTIVE, not an allow-list**, and that direction is the repair. A closed list of
+  five reported "carries 5 file(s)" for a payload carrying six: a
+  `share/dbus-1/services/*.service` added through `gjsify.ship.extraFiles` is meaningful on Linux
+  only because the package installs it into a system prefix, and it went unnamed. Anything under
+  `share/` that is neither classified nor known-portable (only `share/locale` is) comes back
+  `unknown`.
+- **`ShareVerdict` separates `aborts` from `inert`**, because they are not one severity. Every
+  launcher exports `XDG_DATA_DIRS` at the staged `share/`, so a `.app` built from this stage points
+  GSettings at a schema directory holding an `.xml` and no `gschemas.compiled` — `g_settings_new()`
+  ABORTS. The other four merely do nothing. The aborting entry is printed first and marked.
+
+`tests/e2e/ship-layout` now calls the function rather than re-deriving its own regex, and asserts
+against the tree in both directions. What each entry BECOMES — a compiled `gschemas.compiled` in the
+bundle, an `Info.plist` `CFBundleDocumentTypes`, a Windows registry association, or nothing — is ADR
+0024 stages 4 and 5, because it needs the container that does not exist yet.
 
 Flagged there and not measured here: a loose `.typelib` in `Contents/Frameworks` is the classic
 codesign/notarization complaint (a bundle's `Frameworks` is expected to hold code, and a plain data
@@ -158,6 +181,14 @@ so the check now also runs in `assemble`, on the tree that was just written. Mea
 `gjsify ship darwin --stage --arch x64` over an arm64 Mach-O exited 0, recorded `darwin-x64`, and
 `--expect-target darwin-x64` accepted it. The cost is a second read of the payload on the one-shot
 Linux path, which is the price of checking the tree that ships rather than the bytes in memory.
+
+**What it does NOT cover, and the Windows row is the one to read carefully.** `readBinaryArch`
+answers from ELF and Mach-O and returns `null` for PE by design — the COFF machine field is one this
+tree has never parsed. So a Windows payload whose only native file is a `.dll` cannot trip this check
+at all: the guard is silent there rather than wrong. The e2e's windows leg reuses the fixture's
+Mach-O, so it proves the LAYOUT and the same Mach-O branch, not the PE case. Closing it means
+teaching `readBinaryArch` the COFF field (`manifest-conformance`'s `binary.mjs` already reads it);
+`status/open-todos.md` item 5 carries the gap.
 
 ## `DistroFormatId` is not `FormatId`
 

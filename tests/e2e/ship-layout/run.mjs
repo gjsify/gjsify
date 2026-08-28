@@ -35,7 +35,16 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -45,6 +54,18 @@ import { APP_ID, CLI_ENTRY, MONOREPO_ROOT, listPayload, scaffold, STAGE_MANIFEST
 
 const { readLibrary } = await import(
     pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'binary.mjs')).href
+);
+
+// The CLI's OWN classifier, imported rather than restated. The layout map above
+// is deliberately re-derived here — importing `place()` would compare the
+// implementation with itself — but this one is the opposite case: the thing under
+// test is that the WARNING matches what the function decided, so a private copy of
+// the rules would make a mutation of them invisible. Measured: with the expected
+// set re-derived from a regex in this file, pointing one rule at a directory that
+// matches nothing dropped a file from the printed warning and this suite stayed
+// green at exit 0.
+const { linuxInstallDependent } = await import(
+    pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'ship', 'payload.js')).href
 );
 
 /**
@@ -106,6 +127,17 @@ const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest(
  * makes a run that unexpectedly SUCCEEDS fail the test — without it, a broken
  * gate reads as a passing assertion about an error that never happened.
  */
+/**
+ * Run the CLI and return both streams plus the status.
+ *
+ * `runCli`, not `runCliSync`: the sync helper returns stdout alone and throws on a
+ * non-zero exit, and every assertion below is about a WARNING, which is on stderr.
+ * A test reading stdout would pass whether or not the notice exists.
+ */
+function runCliCapture(args, cwd) {
+    return runCli(CLI_ENTRY, args, { cwd });
+}
+
 function shipExpectingFailure(args, cwd) {
     try {
         runCliSync(CLI_ENTRY, args, { cwd });
@@ -422,50 +454,102 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             );
             assert.match(output, /the payload is arm64, but the package would be labelled x64/);
         }
+        // WHAT THIS DOES NOT PROVE, and the windows row is the one to read
+        // carefully: the fixture's native file is a Mach-O, so all three legs
+        // exercise the LAYOUT and the same Mach-O branch of `readBinaryArch`.
+        // That reader returns `null` for PE by design (`payload.ts` says so), so
+        // a Windows payload whose only native file is a `.dll` cannot trip this
+        // check at all — the guard is silent there rather than wrong, and closing
+        // it means teaching `readBinaryArch` the COFF machine field.
+        // `status/open-todos.md` item 5 carries it.
     });
 
-    it('names what the map carried into a layout with no install step for it', () => {
+    it('classifies EVERY share/ entry the map carried, one severity apart', () => {
         // The half "same files, same bytes, modulo the map" is STRUCTURALLY BLIND
-        // to, because sameness is the defect: three of these are correct on Linux
+        // to, because sameness is the defect: most of these are correct on Linux
         // only because a .deb/.rpm scriptlet compiles or reindexes them at install
         // (`utils/ship/scripts.ts`), and two are freedesktop metadata neither OS
-        // reads. An uncompiled `.gschema.xml` makes GSettings abort at runtime.
+        // reads.
         //
-        // Pinned rather than merely commented so the list cannot grow in silence,
-        // and so the milestone that decides what each one BECOMES — a compiled
-        // schema in the bundle, an `Info.plist` document type, a Windows registry
-        // association, or dropped — reds this test instead of quietly shipping.
+        // Asserted against the CLI's own classifier and against the TREE, in both
+        // directions: every `share/` file staged for a non-Linux layout — except
+        // the one genuinely portable directory — must be named by the function.
+        // The previous version compared a regex in this file against a count, so a
+        // rule pointed at nothing changed neither side.
         for (const os of ['darwin', 'windows']) {
-            const carried = listPayload(stages[os]).filter((rel) =>
-                /(glib-2\.0\/schemas|mime\/packages|icons\/hicolor|applications|metainfo)\//.test(rel),
+            const share = listPayload(stages[os]).filter(
+                (rel) =>
+                    /(^|\/)share\//.test(rel) && !rel.includes('/share/locale/') && !rel.startsWith('share/locale/'),
             );
-            assert.equal(carried.length, 5, `${os}: ${carried.join(', ')}`);
+            // The classifier reads PREFIX-RELATIVE paths, which is what `assemble`
+            // hands it — the layout map runs after.
+            const carried = linuxInstallDependent(listPayload(stages.linux).map((path) => ({ path })));
+            assert.equal(carried.length, share.length, `${os}: ${share.length} share file(s), ${carried.length} named`);
+            assert.equal(carried.filter((entry) => entry.verdict === 'aborts').length, 1);
+            assert.ok(carried[0].path.includes('glib-2.0/schemas'), 'the aborting entry must come first');
+            // NO entry may be `unknown` for this fixture — every directory it
+            // stages has a rule. This is the assertion that catches a rule
+            // pointed at a directory matching nothing: the count alone does not,
+            // because the exhaustive fallback still names the file, just with the
+            // wrong verdict and the wrong reason. Measured both ways against the
+            // built `lib/`.
+            assert.deepEqual(
+                carried.filter((entry) => entry.verdict === 'unknown').map((entry) => entry.path),
+                [],
+            );
         }
     });
 
-    it('SAYS so on the tree it staged, rather than leaving it in a comment', async () => {
-        // `runCli`, not `runCliSync`: these are warnings, so they are on stderr,
-        // and the sync helper returns stdout alone. A test that read stdout would
-        // pass whether or not the notice exists.
-        const { status, stderr } = await runCli(
-            CLI_ENTRY,
-            ['ship', 'darwin', '--skip-build', '--stage', '--arch', ARCH, '--out', 'ship-notice'],
-            { cwd: projectDir },
+    it('reports a share/ directory nothing classifies, rather than counting past it', async () => {
+        // The allow-list direction, measured wrong: with a closed list of five, a
+        // `share/dbus-1/services/*.service` added through `extraFiles` — meaningful
+        // on Linux only because the package installs it into a system prefix —
+        // left the warning still saying "carries 5 file(s)".
+        const dir = scaffold(join(tmpDir, 'unclassified-share'), (pkg) => {
+            pkg.gjsify.ship.extraFiles = { 'share/dbus-1/services/org.example.ShipDemo.service': 'data/svc' };
+        });
+        writeFileSync(join(dir, 'data', 'svc'), '[D-BUS Service]\n');
+        const { status, stderr } = await runCliCapture(
+            ['ship', 'darwin', '--skip-build', '--stage', '--out', 'ship'],
+            dir,
         );
         assert.equal(status, 0);
-        assert.match(stderr, /whose Linux correctness comes from a package install step/);
-        assert.match(stderr, /glib-compile-schemas/);
-        // …including the runtime the launcher cannot yet name (ADR 0024 § 4 vs
-        // #1354 M0), which is the other thing the file-set equality cannot see.
-        assert.match(stderr, /no RELOCATABLE GJS/);
-        // Linux says neither: it has the install step and it has the runtime.
-        const linux = await runCli(
-            CLI_ENTRY,
+        assert.match(stderr, /carries 6 file\(s\)/);
+        assert.match(stderr, /UNCLASSIFIED: share\/dbus-1\/services\/org\.example\.ShipDemo\.service/);
+    });
+
+    // BOTH non-Linux layouts, not just darwin: the windows warning and its
+    // `runtimeGap` went down a print path no test had ever executed.
+    for (const [os, gap] of [
+        ['darwin', /no RELOCATABLE GJS/],
+        ['windows', /NO GJS host on Windows at all \(ADR 0024 § 4\)/],
+    ]) {
+        it(`${os}: SAYS so on the tree it staged, rather than leaving it in a comment`, async () => {
+            const { status, stderr } = await runCliCapture(
+                ['ship', os, '--skip-build', '--stage', '--arch', ARCH, '--out', `ship-notice-${os}`],
+                projectDir,
+            );
+            assert.equal(status, 0);
+            assert.match(stderr, /whose Linux correctness comes from a package install step/);
+            // The severity marker, which is the difference between "this app will
+            // not start" and "this file is ignored".
+            assert.match(stderr, /ABORTS: share\/glib-2\.0\/schemas\/.*\.gschema\.xml/);
+            assert.match(stderr, /GSettings ABORTS on a schema directory with no `gschemas\.compiled`/);
+            assert.match(stderr, gap);
+            // The citation is ADR 0024 § 4 and not `docs/ci-selective.md`, which
+            // contains no occurrence of the fact this string asserts.
+            assert.ok(!stderr.includes('ci-selective'), 'the runtime gap must not cite a file without the fact');
+        });
+    }
+
+    it('linux says neither: it has the install step and it has the runtime', async () => {
+        const { status, stderr } = await runCliCapture(
             ['ship', 'linux', '--skip-build', '--stage', '--arch', ARCH, '--out', 'ship-notice-linux'],
-            { cwd: projectDir },
+            projectDir,
         );
-        assert.equal(linux.status, 0);
-        assert.ok(!linux.stderr.includes('whose Linux correctness'));
+        assert.equal(status, 0);
+        assert.ok(!stderr.includes('whose Linux correctness'));
+        assert.ok(!stderr.includes('ABORTS:'));
     });
 
     it('takes `win32` as well as `windows`, because --expect-target prints the first', () => {

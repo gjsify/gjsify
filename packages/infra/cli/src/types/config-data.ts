@@ -424,7 +424,15 @@ export interface ConfigDataShip extends AppMetadata {
     release?: string;
     /** `Maintainer:` / `Packager:` as `Name <email>`. Default: `package.json#author`. */
     maintainer?: string;
-    /** Formats to build when `--target` is not given. Default `['deb', 'rpm']`. */
+    /**
+     * Formats to build when `--target` is not given. Default `['deb', 'rpm']`.
+     *
+     * A project-level DEFAULT, so it is filtered to the layout `gjsify ship <os>`
+     * assembles rather than refused against it — a name here that wraps another
+     * OS's layout is dropped, and `gjsify ship` prints which. A `--target` on the
+     * command line is a claim about ONE run and is refused instead. Without that
+     * split, declaring this key made `gjsify ship darwin --stage` impossible.
+     */
     targets?: string[];
     /** Output root, relative to the project. Default `'ship'`. */
     outDir?: string;

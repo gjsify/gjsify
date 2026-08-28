@@ -202,13 +202,18 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         os: 'win32',
         shippedRuntime: 'node',
         // The stronger of the two gaps, and not a relocation question: there is
-        // no GJS host on Windows AT ALL (`docs/ci-selective.md`), so nothing on
-        // that OS can run a `--app gjs` payload until M0's bundled Node exists
-        // and the payload is built for it.
+        // no GJS host on Windows AT ALL, so nothing on that OS can run a
+        // `--app gjs` payload until M0's bundled Node exists and the payload is
+        // built for it. Cited to ADR 0024 § 4, which is where the fact is
+        // established — an earlier version of this string cited
+        // `docs/ci-selective.md`, which contains no occurrence of it and whose
+        // four `gjs` mentions are all about the affected-classifier bundle. The
+        // bad citation came in from the ADR's own § 4 table and was promoted into
+        // a user-visible string, which is the worst place for one.
         runtimeGap:
-            'the staged launcher execs an interpreter off `PATH`, and Windows ships neither: there is NO GJS ' +
-            'host on Windows at all (`docs/ci-selective.md`) — so this tree cannot run there yet. ADR 0024 § 4 derives Node; it ' +
-            'arrives with `@gjsify/node-runtime-win32-x64` and a `--app node` payload (#1354 M0).',
+            'the staged launcher execs an interpreter off `PATH`, and Windows ships neither: there is NO ' +
+            'GJS host on Windows at all (ADR 0024 § 4) — so this tree cannot run there yet. § 4 derives ' +
+            'Node; it arrives with `@gjsify/node-runtime-win32-x64` and a `--app node` payload (#1354 M0).',
         // `.cmd`, not `.bat`: the two differ in whether a failing built-in (`set`,
         // `path`, `append`) sets ERRORLEVEL, and `.cmd` is the one where it does.
         launcherExt: '.cmd',
