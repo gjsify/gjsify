@@ -1,44 +1,75 @@
 ---
 // AdwWidget — the documentation block for a single Adwaita component.
 //
-// Renders, top to bottom:
-//   1. A LIVE PREVIEW panel — the real widget rendered with
-//      @gjsify/adwaita-web custom elements on an Adwaita "view" surface. No
-//      screenshots: the browser paints the actual component, exactly like the
-//      official Libadwaita widget gallery shows one, and it follows the site's
-//      light/dark theme toggle.
-//   2. A WINDOW with IMPLEMENTATION TABS — one Adw.TabBar tab per port, each
-//      holding that port's code snippet. Native GJS is the primary
-//      implementation and always comes first; the rest are additional and
-//      optional. {@link IMPLS} is the list, and it is the one place a port is
-//      declared: `scripts/check-website-adwaita-gallery.mjs` holds it against the
-//      pages in both directions.
+// Renders a COLUMN OF WINDOWS, one per KIND of implementation, because the kind
+// is the distinction a reader cannot recover on their own:
 //
-// The tab window mirrors CommandTabs (the runtime tabs used elsewhere): an
-// Adwaita headerbar with a centered title + copy button, an <adw-tab-view>
-// below it, and the active tab's Expressive Code block beneath. The copy
-// button forwards to the active block's hidden EC copy button, so EC's
-// clipboard handling + the Adwaita toast keep working. The chosen
-// implementation is remembered (localStorage) and synced across every
-// AdwWidget on the site: pick "Web" once and all widget snippets follow.
+//   1. LIVE PREVIEW — the real widget, painted by @gjsify/adwaita-web custom
+//      elements on an Adwaita "view" surface, with the markup that paints it as
+//      the window's one tab. No screenshots: the browser runs the component, the
+//      way the official Libadwaita widget gallery shows one, and it follows the
+//      site's light/dark toggle.
+//   2. VANILLA TYPESCRIPT — `@girs` GObject-Introspection TypeScript and the
+//      matching Blueprint declaration: two FILES of one program, against the REAL
+//      libadwaita widget.
+//   3. UI FRAMEWORKS — that same real widget, driven through `@gjsify/gtk-host`.
+//   4. NATIVESCRIPT — the port that runs on a phone.
 //
-// Feed the snippets as named MDX slots (one fenced code block each). A tab
-// appears only where its slot was given, so a port that cannot express THIS
-// widget simply has no tab on it:
+// It used to be ONE window with those five as sibling tabs, and five siblings
+// cannot say any of it: `gjs`/`blueprint` ARE libadwaita, `web` and
+// `nativescript` are REIMPLEMENTATIONS of it, and a framework tab drives the real
+// one. A window can say it, in its title and its subtitle. {@link WINDOWS} is
+// that model and it is the one place a port is declared —
+// `scripts/check-website-adwaita-gallery.mjs` holds it against the pages in both
+// directions, and refuses a window no page fills.
+//
+// TWO CLAIMS THAT MOVED RATHER THAN DIED, both load-bearing:
+//
+//   · The first tab was labelled "GJS · Node · Bun · Deno" and not "GJS" on
+//     purpose: naming one runtime made the tab read as "the GJS variant", i.e. as
+//     if the other three needed a different program. They do not; that is the
+//     claim the whole site rests on. The window holding it is titled for its AXIS
+//     ("Vanilla TypeScript" — what two file tabs share), so the four runtimes are
+//     named in its SUBTITLE. Do not drop them from it.
+//   · "React Native on GTK" carried its qualifier in the tab LABEL, because a
+//     plain "React Native" standing beside Web and NativeScript would have read as
+//     the port that runs on a phone — the one claim this repository must not make
+//     about code it has not written. NativeScript is its own window now, so the
+//     qualifier moved onto the window: "UI frameworks · on GTK, through
+//     @gjsify/gtk-host". Same claim, said once, covering every framework tab the
+//     window will grow.
+//
+// The header bar sits above BOTH panes of the preview window for the reason it
+// was put there: whatever a header bar sits on is what the reader takes the
+// window to be about. It once held the widget TITLE over a pane of code, and the
+// title read as belonging to the code. So the window carrying the widget's title
+// is the one that RUNS the widget, and every other window is titled for its kind.
+//
+// ONE SOURCE FOR THE MARKUP. The `preview` slot is a fenced ```html block: the
+// window SHOWS that fence (Expressive Code, exactly as authored) and MOUNTS it.
+// It used to be a fragment of MDX markup with a second, hand-kept `web` fence
+// beside it saying the same thing — measured across the 40 blocks, 17 were
+// byte-identical and 23 had already drifted, and nothing checked them. The drift
+// was not cosmetic: `Adw.ToolbarView`'s preview carried a sizing wrapper its
+// snippet omitted, `Adw.Carousel`'s snippet was a different document from the one
+// the page renders, and eight rows previewed inside an `<adw-preferences-group>`
+// their snippet dropped. A reader copying the tab often did not get the widget
+// above it. One fence renders and is shown, so there is no second copy to keep.
+//
+// Feed the rest as named MDX slots (one fenced code block each). A tab appears
+// only where its slot was given, and a WINDOW only where at least one of its tabs
+// did, so a port that cannot express THIS widget simply has no tab, and a kind
+// with nothing to say has no window:
 //
 //   <AdwWidget title="Adw.SwitchRow">
-//     <Fragment slot="preview">
-//       <adw-preferences-group>
-//         <adw-switch-row title="Automatic updates" active></adw-switch-row>
-//       </adw-preferences-group>
-//     </Fragment>
+//     <Fragment slot="preview">```html …```</Fragment>
 //     <Fragment slot="gjs">```ts …```</Fragment>
-//     <Fragment slot="web">```ts …```</Fragment>
+//     <Fragment slot="blueprint">```blueprint …```</Fragment>
 //     <Fragment slot="nativescript">```ts …```</Fragment>
 //   </AdwWidget>
 
 interface Props {
-    /** Title shown centered in the tab-window headerbar, e.g. "Adw.SwitchRow". */
+    /** The widget, e.g. "Adw.SwitchRow". Titles the live-preview window. */
     title?: string;
     /**
      * Padding around the preview widget. Use "flush" for widgets that own their
@@ -49,6 +80,23 @@ interface Props {
     /** When set, the preview panel scrolls horizontally instead of clipping wide widgets. */
     scroll?: boolean;
     /**
+     * Inline CSS for the preview STAGE — the box the widget is mounted into.
+     *
+     * This is preview-only scaffolding, and it is a prop precisely so that it
+     * cannot be anything else. A widget that fills a window (a toolbar view, a
+     * split view, a dialog) has no height of its own, so the gallery gives it one;
+     * that height is a property of this PANEL, not of the widget, and every line
+     * of it that sat in the markup was a line the reader copied and did not need.
+     * Sixteen blocks wrapped their widget in a `<div style="height: …">` for it —
+     * five then repeated the wrapper in their snippet and eleven did not, which is
+     * the whole drift in one habit.
+     *
+     * Taken VERBATIM from the wrapper it replaces (`height: 340px; width: 100%;
+     * display: flex; overflow: hidden;`) so the computed layout is unchanged: it
+     * is an inline style on the element that wrapper's parent already was.
+     */
+    stage?: string;
+    /**
      * Canonical upstream reference for this widget. Omit to derive it from an
      * `Adw.*` / `Gtk.*` `title` (libadwaita / GTK 4 class docs); pass a URL for a
      * title that isn't a single class, or `false` to suppress the link.
@@ -57,8 +105,9 @@ interface Props {
 }
 
 import { ADWAITA_ATTRIBUTES } from '../data/adwaita-attributes';
+import AdwWidgetWindow from './AdwWidgetWindow.astro';
 
-const { title = 'Code', padding = 'comfortable', scroll = false, docHref } = Astro.props;
+const { title = 'Code', padding = 'comfortable', scroll = false, stage, docHref } = Astro.props;
 
 // Derive the upstream class-reference URL from a `Namespace.ClassName` title, so
 // each widget links to its canonical docs (the sources this gallery documents).
@@ -92,134 +141,157 @@ const elementTag = `adw-${title
     .toLowerCase()}`;
 const attributes = ADWAITA_ATTRIBUTES[elementTag] ?? null;
 
-// GJS is the primary implementation and always present; Web + NativeScript are
-// additional. Render only the slots that were actually provided.
-const IMPLS = [
-    // NOT "GJS". The snippet is plain `@girs/*` GObject-Introspection TypeScript,
-    // which is exactly the code that runs unchanged on all four runtimes — naming
-    // one of them made the tab read as "the GJS variant", i.e. as if the other
-    // three needed a different program. They do not; that is the claim the whole
-    // site rests on, so the tab that demonstrates it has to say so.
-    { slot: 'gjs', label: 'GJS · Node · Bun · Deno' },
-    // Blueprint sits next to GJS because it describes the SAME native widget
-    // tree — it is how a GTK UI is usually written, with the GJS side reduced to
-    // wiring. Web and NativeScript are the ports and follow.
-    //
-    // The tab holds the DECLARATION only, deliberately: a `.blp` file is a
-    // widget tree and nothing else, and padding it with a loader would make it
-    // look like a fourth complete program rather than the thing it is.
-    { slot: 'blueprint', label: 'Blueprint' },
-    // "on GTK" is load-bearing, not a decoration. `@gjsify/react-native` renders
-    // React Native components onto GTK 4 IN-PROCESS; there is no Adwaita widget set
-    // built out of React Native primitives, so nothing in this tab runs on a phone.
-    // A tab labelled plainly "React Native" beside Web and NativeScript would read
-    // as the port that does, which is the one claim this repository must not make
-    // about code it has not written.
-    //
-    // It sits third, with the two GTK tabs, because that is what it targets: `@girs`
-    // TypeScript, Blueprint and this all describe the SAME native widget tree, and
-    // Web and NativeScript are the ports away from it. The snippet is JSX over
-    // gtk-host's own Adwaita tags with React Native primitives inside them, so a
-    // widget can only carry this tab where gtk-host has a curated child policy for
-    // it — see the Layout page for the two there that have none, and why.
-    { slot: 'react-native', label: 'React Native on GTK' },
-    { slot: 'web', label: 'Web' },
-    { slot: 'nativescript', label: 'NativeScript' },
+/**
+ * The windows, in order, and every port this component renders.
+ *
+ * `subtitle` is not decoration: it is where a window says what KIND it is, and
+ * two of them carry a claim that used to live in a tab label (see the header).
+ */
+const WINDOWS = [
+    {
+        id: 'preview',
+        // No title of its own: this window takes the WIDGET's, because it is the
+        // one that runs the widget. See the header — a header bar names whatever
+        // it sits on, and this one sits on the running component.
+        title: null,
+        subtitle: '@gjsify/adwaita-web — import it once to register these elements',
+        // The pane above the tabs, where the tab's own markup is mounted and painted.
+        live: true,
+        tabs: [{ slot: 'preview', label: 'HTML' }],
+    },
+    {
+        id: 'vanilla',
+        title: 'Vanilla TypeScript',
+        // The four runtimes, verbatim from the tab label this window replaced. The
+        // snippet is plain `@girs/*` GObject-Introspection TypeScript, which is
+        // exactly the code that runs unchanged on all four of them.
+        subtitle: 'GJS · Node · Bun · Deno — one program, four runtimes',
+        tabs: [
+            { slot: 'gjs', label: 'TypeScript' },
+            // Blueprint is a FILE of the same program, which is why it is a tab here
+            // and not a window of its own: a `.blp` is a widget tree and nothing
+            // else, and the TypeScript beside it is the loader that mounts it.
+            // Standing alone it read as a fourth complete program, which it is not.
+            { slot: 'blueprint', label: 'Blueprint' },
+        ],
+    },
+    {
+        id: 'frameworks',
+        title: 'UI frameworks',
+        // `@gjsify/react-native` renders React Native components onto GTK 4
+        // IN-PROCESS. There is no Adwaita widget set built out of React Native
+        // primitives, so nothing under this window runs on a phone — which is why
+        // it is not filed with NativeScript, and why the window says GTK.
+        subtitle: 'on GTK, through @gjsify/gtk-host',
+        tabs: [{ slot: 'react-native', label: 'React Native' }],
+    },
+    {
+        id: 'nativescript',
+        title: 'NativeScript',
+        subtitle: '@gjsify/adwaita-nativescript — the port that runs on a phone',
+        tabs: [{ slot: 'nativescript', label: 'TypeScript' }],
+    },
 ];
 
-const present: { slot: string; label: string; html: string }[] = [];
-for (const impl of IMPLS) {
-    if (Astro.slots.has(impl.slot)) {
-        present.push({ ...impl, html: await Astro.slots.render(impl.slot) });
+/**
+ * The one slot that is an OVERRIDE rather than a tab: markup shown in place of the
+ * preview window's own fence.
+ *
+ * It exists for a single widget and the gate holds it there with its reason:
+ * `<adw-toast-overlay>` has no declarative toast child — `addToast()` is the whole
+ * API — so the markup that PAINTS a toast in a preview is the overlay's internal
+ * DOM, which is the one thing a reader must not copy. Everywhere else the fence
+ * that renders is the fence that is shown, and there is no second copy to keep.
+ */
+const MARKUP_OVERRIDE = 'web';
+
+/** U+007F — Expressive Code's own stand-in for a newline inside `data-code`. */
+const EC_NEWLINE = String.fromCharCode(0x7f);
+
+/**
+ * Expressive Code hands the raw source back on the copy button's `data-code`, with
+ * newlines as U+007F (its own copy script does the same `replace`). That is how the
+ * live preview gets the fence's bytes: rendered once, shown as code and mounted as
+ * markup.
+ *
+ * Only NUMERIC entities are decoded, in one pass. EC escapes `&` as `&#x26;` and
+ * leaves `<` raw, so `&#x26;lt;` is a literal `&lt;` in the source — decoding named
+ * entities as well would turn it into `<` and quietly rewrite the author's markup.
+ * `String.replace` never rescans what it substitutes, which is what makes one pass
+ * exact.
+ */
+const decodeEcCode = (html: string): string | null => {
+    const found = [...html.matchAll(/data-code="([^"]*)"/g)];
+    if (found.length !== 1) return null;
+    return found[0][1]
+        .replaceAll(EC_NEWLINE, '\n')
+        .replaceAll(/&#x([0-9a-fA-F]+);/g, (_m, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+        .replaceAll(/&#(\d+);/g, (_m, dec: string) => String.fromCodePoint(Number(dec)));
+};
+
+const rendered: {
+    id: string;
+    title: string;
+    subtitle: string;
+    live: boolean;
+    impls: string;
+    tabs: { slot: string; label: string; html: string }[];
+}[] = [];
+let previewMarkup: string | null = null;
+
+for (const spec of WINDOWS) {
+    const tabs: { slot: string; label: string; html: string }[] = [];
+    for (const tab of spec.tabs) {
+        if (!Astro.slots.has(tab.slot)) continue;
+        let html = await Astro.slots.render(tab.slot);
+        if (tab.slot === 'preview') {
+            previewMarkup = decodeEcCode(html);
+            if (previewMarkup === null) {
+                // Loud, at build time, never at runtime: without the source there is
+                // no preview, and a silently empty stage on 40 blocks is exactly the
+                // failure this component was restructured to end.
+                throw new Error(
+                    `AdwWidget(${title}): the preview slot rendered no single Expressive Code block to read ` +
+                        'its markup back from. It has to hold exactly one fenced ```html block.',
+                );
+            }
+            // The one override: the markup a reader should copy, where the fence
+            // that renders is not it.
+            if (Astro.slots.has(MARKUP_OVERRIDE)) html = await Astro.slots.render(MARKUP_OVERRIDE);
+        }
+        tabs.push({ ...tab, html });
     }
+    if (tabs.length === 0) continue;
+    rendered.push({
+        id: spec.id,
+        title: spec.title ?? title,
+        subtitle: spec.subtitle,
+        live: spec.live === true,
+        impls: tabs.map((t) => t.slot).join(','),
+        tabs,
+    });
 }
-const implsAttr = present.map((r) => r.slot).join(',');
-const hasPreview = Astro.slots.has('preview');
 ---
 
-{/* ONE window, shaped like a GNOME Workbench session: the header bar names the
-    widget, the pane under it RUNS it, and the editor tabs below hold the source
-    for each port.
-
-    It used to be two stacked cards — a free-floating preview, then a separate
-    Adwaita window for the code — and the header bar sat on the second one. So the
-    title read as belonging to the CODE rather than to the widget, and the pair
-    never fused: whatever a header bar sits on is what the reader takes the window
-    to be about. Putting it above BOTH panes is the whole fix. */}
+{/* One window per KIND, each shaped like a GNOME Workbench session. The first
+    names the WIDGET and runs it; the rest name what they are. */}
 <div class="adw-widget">
-    <div class="command-tabs adw-widget-window not-content" data-impl-tabs data-impls={implsAttr}>
-        <div class="command-tabs-headerbar">
-            <span class="command-tabs-headerbar-start">
-                {
-                    refHref && (
-                        <a
-                            class="command-tabs-ref"
-                            href={refHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={`Reference for ${title}`}
-                            aria-label={`Open the reference for ${title} in a new tab`}
-                        >
-                            <span class="command-tabs-ref-icon" aria-hidden="true" />
-                        </a>
-                    )
-                }
-            </span>
-            <span class="command-tabs-headerbar-title">{title}</span>
-            <span class="command-tabs-headerbar-end">
-                <button class="command-tabs-copy" aria-label="Copy active tab" type="button">
-                    <span class="command-tabs-copy-icon" aria-hidden="true"></span>
-                </button>
-            </span>
-        </div>
-
-        {
-            hasPreview && (
-                <div
-                    class:list={[
-                        'adw-widget-preview',
-                        'not-content',
-                        `is-${padding}`,
-                        { 'is-scroll': scroll },
-                    ]}
-                >
-                {/* `not-content` for the same reason CommandTabs.astro states it,
-                    and it was missing HERE while the tabs below already carried
-                    it. Starlight gives every content element that FOLLOWS a
-                    sibling a `margin-top: 1rem`, exempting only
-                    `:where(.not-content *)`. Inside a preview that lands on the
-                    widgets: measured on the deployed page, the second button of
-                    a wrap box and every one after it took `margin-top: 16px`
-                    while the first took none — and in a flex line the first then
-                    STRETCHED by exactly that much, 50px against its siblings'
-                    34px. The same rule pushed a header bar's trailing button
-                    below its own title and set the two panes of a split view
-                    onto baselines 16px apart, which clipped the sidebar's last
-                    row. A preview is a rendering of a widget, not prose: it has
-                    to be laid out by the widget's own stylesheet alone. */}
-                {/* The preview is cloned into the stage at runtime (see <script>),
-                    not server-rendered directly, for two reasons:
-                    1. adwaita-web custom elements upgrade as the page is parsed;
-                       a nested composite (a split view holding toolbar views) can
-                       lose its slotted children to an upgrade-order race. Cloning
-                       AFTER the elements are defined uses the reliable
-                       build-then-attach path instead.
-                    2. Astro's MDX compiler strips `slot="…"` attributes (it reads
-                       `slot` as its own slot-assignment directive), so the preview
-                       markup carries `data-adw-slot="…"`; the script maps it back
-                       to a real `slot` before attaching. */}
-                    <template class="adw-widget-preview-tpl">
-                        <slot name="preview" />
-                    </template>
-                    <div class="adw-widget-preview-stage" />
-                </div>
-            )
-        }
-
-        <adw-tab-view no-close expand-tabs data-impl-view>
-            {present.map((r) => <adw-tab-page title={r.label} set:html={r.html} />)}
-        </adw-tab-view>
-    </div>
+    {
+        rendered.map((win, index) => (
+            <AdwWidgetWindow
+                title={win.title}
+                subtitle={win.subtitle}
+                refHref={index === 0 ? refHref : null}
+                widget={title}
+                impls={win.impls}
+                tabs={win.tabs}
+                preview={win.live ? previewMarkup : null}
+                padding={padding}
+                scroll={scroll}
+                stage={stage}
+            />
+        ))
+    }
 
     {
         attributes && attributes.length > 0 && (
@@ -248,20 +320,14 @@ const hasPreview = Astro.slots.has('preview');
     import '@gjsify/adwaita-web';
 
     // Mount each preview: clone its inert <template> into the stage now that the
-    // custom elements are defined, mapping data-adw-slot back to the real slot
-    // attribute. Building the subtree and attaching it in one go (rather than
-    // letting the parser upgrade it in place) avoids the nested-composite
-    // upgrade-order race, and data-adw-slot survives Astro's slot stripping.
+    // custom elements are defined. Building the subtree and attaching it in one go
+    // (rather than letting the parser upgrade it in place) avoids the
+    // nested-composite upgrade-order race.
     for (const tpl of document.querySelectorAll<HTMLTemplateElement>('.adw-widget-preview-tpl')) {
         const stage = tpl.parentElement?.querySelector<HTMLElement>('.adw-widget-preview-stage');
         if (!stage || stage.dataset.mounted) continue;
         stage.dataset.mounted = '1';
-        const frag = tpl.content.cloneNode(true) as DocumentFragment;
-        for (const el of frag.querySelectorAll<HTMLElement>('[data-adw-slot]')) {
-            el.setAttribute('slot', el.getAttribute('data-adw-slot') ?? '');
-            el.removeAttribute('data-adw-slot');
-        }
-        stage.append(frag);
+        stage.append(tpl.content.cloneNode(true));
     }
 
     const KEY = 'gjsify-preferred-impl';
@@ -277,6 +343,9 @@ const hasPreview = Astro.slots.has('preview');
             if (!view || view === skip) continue;
             const impls = (el.dataset.impls ?? '').split(',');
             const index = impls.indexOf(impl);
+            // The windows hold disjoint tab sets, so a stored choice simply does not
+            // apply to most of them: picking "Blueprint" moves every Vanilla
+            // TypeScript window and leaves the others where the reader left them.
             if (index >= 0) view.setAttribute('selected', String(index));
         }
     };
@@ -338,8 +407,42 @@ const hasPreview = Astro.slots.has('preview');
         margin-top: 1.5rem;
     }
 
+    /* One window per kind, stacked. They are separate windows, so they are spaced
+       like windows rather than joined like the two panes of the first one. */
+    .adw-widget-window + .adw-widget-window {
+        margin-top: 0.75rem;
+    }
+
+    /* ── Window title + subtitle — an Adw.WindowTitle in the header bar. The
+          subtitle is where a window says what KIND it holds, which is the whole
+          reason there is more than one window (see the header comment). ── */
+    .command-tabs .command-tabs-headerbar-title {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        line-height: 1.2;
+        min-width: 0;
+    }
+
+    .adw-widget-window-title {
+        font-weight: bold;
+        font-size: 0.875rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .adw-widget-window-subtitle {
+        font-size: 0.7rem;
+        font-weight: normal;
+        opacity: 0.55;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     /* ── Live preview pane ──────────────────────────────────────────────
-       The window's upper pane: an Adwaita "view" surface the real widget is
+       The first window's upper pane: an Adwaita "view" surface the real widget is
        painted onto, directly under the header bar. It carries no frame of its
        own — the window around it owns every edge — only the separator that
        divides it from the editor tabs below, the way a paned split does. */
@@ -369,6 +472,9 @@ const hasPreview = Astro.slots.has('preview');
         transform: translateZ(0);
     }
 
+    /* The box the widget is mounted into. The `stage` prop adds an inline style
+       here: the size a doc page has to give a widget that has none, kept out of
+       the markup the reader copies. */
     .adw-widget-preview-stage {
         display: flex;
         align-items: center;
@@ -390,15 +496,15 @@ const hasPreview = Astro.slots.has('preview');
         overflow-x: auto;
     }
 
-    /* The preview is a PANE now, inside the window, so there is no second card
+    /* The preview is a PANE, inside the first window, so there is no second card
        whose corners have to be squared off to fake a join. */
 
     /* Narrow viewports: stop stretching the tabs to equal widths and let the bar
        scroll instead — which is what Adw.TabBar itself does when its tabs no
        longer fit. Equal widths on a phone gave each of four tabs about 80px, and
-       "GJS · Node · Bun · Deno" then ellipsises down to something that names
-       nothing. The bar already has `overflow-x: auto`; it just needs tabs that
-       keep their own width. */
+       a label then ellipsises down to something that names nothing. The bar
+       already has `overflow-x: auto`; it just needs tabs that keep their own
+       width. */
     @media (max-width: 700px) {
         .adw-widget-window adw-tab-view[expand-tabs] .adw-tab {
             flex: 0 0 auto;

@@ -1,6 +1,6 @@
 ---
 title: Presentation
-description: "Adwaita presentation widgets: avatar, banner, shortcut label, spinner, status page and window title. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
+description: "Adwaita presentation widgets: avatar, banner, shortcut label, spinner, status page and window title. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -11,16 +11,18 @@ These widgets show state and identity rather than collect input. Use an
 work is running, a **status page** for an empty or error state, and a **window
 title** in a header bar.
 
-Each preview below is the live web component, so it follows the light and dark
-toggle the way a real window would. Under it, the tabs give you the same widget
-four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
-the matching Blueprint declaration, the web port and the NativeScript port.
+Each block below is a stack of windows. The first one RUNS the widget: the preview
+is the live browser port, so it follows the light and dark toggle the way a real
+window would, and the tab under it holds the very markup that paints it. Then comes
+one window per kind of implementation — **Vanilla TypeScript**, the `@girs` program
+that runs unchanged on GJS, Node, Bun and Deno, with the matching Blueprint
+declaration beside it, and **NativeScript**, the port that runs on a phone.
 
 Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its tab says so.
+follow its naming, and where one of them differs, its own window says so.
 
 :::note
 The previews run the browser port, so behaviour Libadwaita drives natively (a
@@ -38,7 +40,9 @@ full profile header.
 
 <AdwWidget title="Adw.Avatar">
   <Fragment slot="preview">
+    ```html
     <adw-avatar text="Ada Lovelace" size="96" show-initials icon="avatar-default"></adw-avatar>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -65,12 +69,6 @@ full profile header.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <!-- import '@gjsify/adwaita-web' once to register the elements -->
-    <adw-avatar text="Ada Lovelace" size="96" show-initials icon="avatar-default"></adw-avatar>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwAvatar } from '@gjsify/adwaita-nativescript';
@@ -93,7 +91,9 @@ space while the message applies.
 
 <AdwWidget title="Adw.Banner">
   <Fragment slot="preview">
+    ```html
     <adw-banner title="Metered connection: updates paused" button-label="Resume" revealed></adw-banner>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -123,11 +123,6 @@ space while the message applies.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-banner title="Metered connection: updates paused" button-label="Resume" revealed></adw-banner>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwBanner } from '@gjsify/adwaita-nativescript';
@@ -152,6 +147,7 @@ shows the **disabled-text** placeholder instead.
 
 <AdwWidget title="Adw.ShortcutLabel">
   <Fragment slot="preview">
+    ```html
     <div style="display:flex;flex-wrap:wrap;gap:24px;justify-content:center;align-items:center;">
       <adw-shortcut-label accelerator="&lt;Control&gt;C"></adw-shortcut-label>
       <adw-shortcut-label accelerator="&lt;Shift&gt;A Home"></adw-shortcut-label>
@@ -159,6 +155,7 @@ shows the **disabled-text** placeholder instead.
       <adw-shortcut-label accelerator="Control_L&amp;Control_R"></adw-shortcut-label>
       <adw-shortcut-label accelerator="" disabled-text="Disabled"></adw-shortcut-label>
     </div>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -209,15 +206,6 @@ shows the **disabled-text** placeholder instead.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-shortcut-label accelerator="&lt;Control&gt;C"></adw-shortcut-label>
-    <adw-shortcut-label accelerator="&lt;Shift&gt;A Home"></adw-shortcut-label>
-    <adw-shortcut-label accelerator="&lt;Alt&gt;1...9"></adw-shortcut-label>
-    <adw-shortcut-label accelerator="Control_L&amp;Control_R"></adw-shortcut-label>
-    <adw-shortcut-label accelerator="" disabled-text="Disabled"></adw-shortcut-label>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwShortcutLabel } from '@gjsify/adwaita-nativescript';
@@ -240,7 +228,9 @@ instead.
 
 <AdwWidget title="Adw.Spinner">
   <Fragment slot="preview">
+    ```html
     <adw-spinner size="48"></adw-spinner>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -266,11 +256,6 @@ instead.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-spinner size="48"></adw-spinner>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwSpinner } from '@gjsify/adwaita-nativescript';
@@ -287,13 +272,13 @@ Fill an empty, error or welcome screen with a centred placeholder: a large
 symbolic **icon**, a **title** and a **description**. Add a **child** widget to
 give the user a way out, such as a button that creates their first document.
 
-<AdwWidget title="Adw.StatusPage" padding="flush">
+<AdwWidget title="Adw.StatusPage" padding="flush" stage="height: 320px; display:flex;">
   <Fragment slot="preview">
-    <div style="height: 320px; display:flex;">
-      <adw-status-page icon="folder" title="No Documents" description="Documents you create or open will appear here.">
-        <adw-button label="New Document" pill suggested></adw-button>
-      </adw-status-page>
-    </div>
+    ```html
+    <adw-status-page icon="folder" title="No Documents" description="Documents you create or open will appear here.">
+      <adw-button label="New Document" pill suggested></adw-button>
+    </adw-status-page>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -333,13 +318,6 @@ give the user a way out, such as a button that creates their first document.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-status-page icon="folder" title="No Documents" description="Documents you create or open will appear here.">
-        <adw-button label="New Document" pill suggested></adw-button>
-    </adw-status-page>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwButton, AdwStatusPage } from '@gjsify/adwaita-nativescript';
@@ -366,7 +344,9 @@ so a single-line title stays vertically centred.
 
 <AdwWidget title="Adw.WindowTitle">
   <Fragment slot="preview">
+    ```html
     <adw-window-title title="Inbox" subtitle="3 unread messages"></adw-window-title>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -387,11 +367,6 @@ so a single-line title stays vertically centred.
       title: _("Inbox");
       subtitle: _("3 unread messages");
     }
-    ```
-  </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-window-title title="Inbox" subtitle="3 unread messages"></adw-window-title>
     ```
   </Fragment>
   <Fragment slot="nativescript">

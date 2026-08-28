@@ -1,6 +1,6 @@
 ---
 title: Navigation
-description: "Adwaita navigation widgets: navigation split view, overlay split view, navigation view, sidebar and bottom sheet. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
+description: "Adwaita navigation widgets: navigation split view, overlay split view, navigation view, sidebar and bottom sheet. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -11,16 +11,18 @@ its content sit side by side. As the window narrows, the same structure folds
 into a stack you push and pop, or into a panel that overlays the content. You
 build one structure, not two.
 
-Each preview below is the live web component, so it follows the light and dark
-toggle the way a real window would. Under it, the tabs give you the same widget
-four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
-the matching Blueprint declaration, the web port and the NativeScript port.
+Each block below is a stack of windows. The first one RUNS the widget: the preview
+is the live browser port, so it follows the light and dark toggle the way a real
+window would, and the tab under it holds the very markup that paints it. Then comes
+one window per kind of implementation — **Vanilla TypeScript**, the `@girs` program
+that runs unchanged on GJS, Node, Bun and Deno, with the matching Blueprint
+declaration beside it, and **NativeScript**, the port that runs on a phone.
 
 Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its tab says so.
+follow its naming, and where one of them differs, its own window says so.
 
 :::note
 These are the widgets that lean hardest on Libadwaita: adaptive breakpoints,
@@ -37,31 +39,31 @@ narrow the view **collapses** into a single navigation stack, so selecting a
 sidebar row pushes the content page and a back button returns to the list. Give
 the sidebar and the content each their own navigation page and header bar.
 
-<AdwWidget title="Adw.NavigationSplitView" padding="flush">
+<AdwWidget title="Adw.NavigationSplitView" padding="flush" stage="height: 340px; width: 100%; display: flex; overflow: hidden;">
   <Fragment slot="preview">
-    <div style="height: 340px; width: 100%; display: flex; overflow: hidden;">
-      <adw-navigation-split-view show-content style="flex: 1;">
-        <adw-toolbar-view data-adw-slot="sidebar">
-          <adw-header-bar data-adw-slot="top">
-            <adw-window-title data-adw-slot="center" title="Mailboxes"></adw-window-title>
-          </adw-header-bar>
-          <adw-sidebar mode="sidebar" selected="0">
-            <adw-sidebar-section>
-              <adw-sidebar-item title="All Mail" subtitle="128 messages" icon-name="mail-unread-symbolic"></adw-sidebar-item>
-              <adw-sidebar-item title="Starred" subtitle="6 messages" icon-name="starred-symbolic"></adw-sidebar-item>
-              <adw-sidebar-item title="Drafts" subtitle="2 messages" icon-name="document-edit-symbolic"></adw-sidebar-item>
-              <adw-sidebar-item title="Archive" subtitle="512 messages" icon-name="folder-symbolic"></adw-sidebar-item>
-            </adw-sidebar-section>
-          </adw-sidebar>
-        </adw-toolbar-view>
-        <adw-toolbar-view data-adw-slot="content">
-          <adw-header-bar data-adw-slot="top">
-            <adw-window-title data-adw-slot="center" title="All Mail"></adw-window-title>
-          </adw-header-bar>
-          <adw-status-page icon="mail-unread-symbolic" title="All Mail" description="Select a conversation from the list to read it here."></adw-status-page>
-        </adw-toolbar-view>
-      </adw-navigation-split-view>
-    </div>
+    ```html
+    <adw-navigation-split-view show-content style="flex: 1;">
+      <adw-toolbar-view slot="sidebar">
+        <adw-header-bar slot="top">
+          <adw-window-title slot="center" title="Mailboxes"></adw-window-title>
+        </adw-header-bar>
+        <adw-sidebar mode="sidebar" selected="0">
+          <adw-sidebar-section>
+            <adw-sidebar-item title="All Mail" subtitle="128 messages" icon-name="mail-unread-symbolic"></adw-sidebar-item>
+            <adw-sidebar-item title="Starred" subtitle="6 messages" icon-name="starred-symbolic"></adw-sidebar-item>
+            <adw-sidebar-item title="Drafts" subtitle="2 messages" icon-name="document-edit-symbolic"></adw-sidebar-item>
+            <adw-sidebar-item title="Archive" subtitle="512 messages" icon-name="folder-symbolic"></adw-sidebar-item>
+          </adw-sidebar-section>
+        </adw-sidebar>
+      </adw-toolbar-view>
+      <adw-toolbar-view slot="content">
+        <adw-header-bar slot="top">
+          <adw-window-title slot="center" title="All Mail"></adw-window-title>
+        </adw-header-bar>
+        <adw-status-page icon="mail-unread-symbolic" title="All Mail" description="Select a conversation from the list to read it here."></adw-status-page>
+      </adw-toolbar-view>
+    </adw-navigation-split-view>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -165,34 +167,6 @@ the sidebar and the content each their own navigation page and header bar.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <!-- import '@gjsify/adwaita-web' once to register the elements -->
-    <div style="height: 340px; width: 100%; display: flex; overflow: hidden;">
-        <adw-navigation-split-view show-content style="flex: 1;">
-            <adw-toolbar-view slot="sidebar">
-                <adw-header-bar slot="top">
-                    <adw-window-title slot="center" title="Mailboxes"></adw-window-title>
-                </adw-header-bar>
-                <adw-sidebar mode="sidebar" selected="0">
-                    <adw-sidebar-section>
-                        <adw-sidebar-item title="All Mail" subtitle="128 messages" icon-name="mail-unread-symbolic"></adw-sidebar-item>
-                        <adw-sidebar-item title="Starred" subtitle="6 messages" icon-name="starred-symbolic"></adw-sidebar-item>
-                        <adw-sidebar-item title="Drafts" subtitle="2 messages" icon-name="document-edit-symbolic"></adw-sidebar-item>
-                        <adw-sidebar-item title="Archive" subtitle="512 messages" icon-name="folder-symbolic"></adw-sidebar-item>
-                    </adw-sidebar-section>
-                </adw-sidebar>
-            </adw-toolbar-view>
-            <adw-toolbar-view slot="content">
-                <adw-header-bar slot="top">
-                    <adw-window-title slot="center" title="All Mail"></adw-window-title>
-                </adw-header-bar>
-                <adw-status-page icon="mail-unread-symbolic" title="All Mail" description="Select a conversation from the list to read it here."></adw-status-page>
-            </adw-toolbar-view>
-        </adw-navigation-split-view>
-    </div>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import {
@@ -242,27 +216,27 @@ instead of replacing the content, the sidebar slides **over the top** of it as a
 temporary panel above a dimming scrim. Choose this one for a utility, filter or
 navigation pane that should not push the main content aside on a narrow window.
 
-<AdwWidget title="Adw.OverlaySplitView" padding="flush">
+<AdwWidget title="Adw.OverlaySplitView" padding="flush" stage="height: 340px; width: 100%; display: flex; overflow: hidden;">
   <Fragment slot="preview">
-    <div style="height: 340px; width: 100%; display: flex; overflow: hidden;">
-      <adw-overlay-split-view show-sidebar style="flex: 1;">
-        <adw-toolbar-view data-adw-slot="sidebar">
-          <adw-header-bar data-adw-slot="top"></adw-header-bar>
-          <adw-sidebar mode="sidebar" selected="0">
-            <adw-sidebar-section>
-              <adw-sidebar-item title="Home" icon-name="go-home-symbolic"></adw-sidebar-item>
-              <adw-sidebar-item title="Discover" icon-name="system-search-symbolic"></adw-sidebar-item>
-              <adw-sidebar-item title="Library" icon-name="folder-music-symbolic"></adw-sidebar-item>
-              <adw-sidebar-item title="Settings" icon-name="emblem-system-symbolic"></adw-sidebar-item>
-            </adw-sidebar-section>
-          </adw-sidebar>
-        </adw-toolbar-view>
-        <adw-toolbar-view data-adw-slot="content">
-          <adw-header-bar data-adw-slot="top"></adw-header-bar>
-          <adw-status-page icon="folder-music" title="Your Library" description="Toggle the sidebar to browse sections. Collapse it to overlay the content."></adw-status-page>
-        </adw-toolbar-view>
-      </adw-overlay-split-view>
-    </div>
+    ```html
+    <adw-overlay-split-view show-sidebar style="flex: 1;">
+      <adw-toolbar-view slot="sidebar">
+        <adw-header-bar slot="top"></adw-header-bar>
+        <adw-sidebar mode="sidebar" selected="0">
+          <adw-sidebar-section>
+            <adw-sidebar-item title="Home" icon-name="go-home-symbolic"></adw-sidebar-item>
+            <adw-sidebar-item title="Discover" icon-name="system-search-symbolic"></adw-sidebar-item>
+            <adw-sidebar-item title="Library" icon-name="folder-music-symbolic"></adw-sidebar-item>
+            <adw-sidebar-item title="Settings" icon-name="emblem-system-symbolic"></adw-sidebar-item>
+          </adw-sidebar-section>
+        </adw-sidebar>
+      </adw-toolbar-view>
+      <adw-toolbar-view slot="content">
+        <adw-header-bar slot="top"></adw-header-bar>
+        <adw-status-page icon="folder-music" title="Your Library" description="Toggle the sidebar to browse sections. Collapse it to overlay the content."></adw-status-page>
+      </adw-toolbar-view>
+    </adw-overlay-split-view>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -356,29 +330,6 @@ navigation pane that should not push the main content aside on a narrow window.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <div style="height: 340px; width: 100%; display: flex; overflow: hidden;">
-        <adw-overlay-split-view show-sidebar style="flex: 1;">
-            <adw-toolbar-view slot="sidebar">
-                <adw-header-bar slot="top"></adw-header-bar>
-                <adw-sidebar mode="sidebar" selected="0">
-                    <adw-sidebar-section>
-                        <adw-sidebar-item title="Home" icon-name="go-home-symbolic"></adw-sidebar-item>
-                        <adw-sidebar-item title="Discover" icon-name="system-search-symbolic"></adw-sidebar-item>
-                        <adw-sidebar-item title="Library" icon-name="folder-music-symbolic"></adw-sidebar-item>
-                        <adw-sidebar-item title="Settings" icon-name="emblem-system-symbolic"></adw-sidebar-item>
-                    </adw-sidebar-section>
-                </adw-sidebar>
-            </adw-toolbar-view>
-            <adw-toolbar-view slot="content">
-                <adw-header-bar slot="top"></adw-header-bar>
-                <adw-status-page icon="folder-music" title="Your Library" description="Toggle the sidebar to browse sections. Collapse it to overlay the content."></adw-status-page>
-            </adw-toolbar-view>
-        </adw-overlay-split-view>
-    </div>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import {
@@ -426,30 +377,34 @@ when transitions are animated, and a back-swipe gesture takes the user back.
 The preview below is interactive: click **Open contact** on the root page to push
 the detail page and watch the back button appear.
 
-<AdwWidget title="Adw.NavigationView" padding="flush">
+<AdwWidget title="Adw.NavigationView" padding="flush" stage="height: 340px; width: 100%; display: flex; overflow: hidden;">
   <Fragment slot="preview">
-    <div style="height: 340px; width: 100%; display: flex; overflow: hidden;">
-      <adw-navigation-view animate-transitions="true" style="flex: 1;">
-        <adw-navigation-page tag="root" title="Contacts">
-          <adw-toolbar-view>
-            <adw-header-bar data-adw-slot="top">
-              <adw-window-title data-adw-slot="center" title="Contacts"></adw-window-title>
-            </adw-header-bar>
-            <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-              <adw-button label="Open contact" pill suggested></adw-button>
-            </div>
-          </adw-toolbar-view>
-        </adw-navigation-page>
-        <adw-navigation-page tag="detail" title="Ada Lovelace">
-          <adw-toolbar-view>
-            <adw-header-bar data-adw-slot="top">
-              <adw-window-title data-adw-slot="center" title="Ada Lovelace"></adw-window-title>
-            </adw-header-bar>
-            <adw-status-page icon="avatar-default" title="Ada Lovelace" description="Mathematician and writer, the first computer programmer."></adw-status-page>
-          </adw-toolbar-view>
-        </adw-navigation-page>
-      </adw-navigation-view>
-    </div>
+    ```html
+    <adw-navigation-view animate-transitions="true" style="flex: 1;">
+      <adw-navigation-page tag="root" title="Contacts">
+        <adw-toolbar-view>
+          <adw-header-bar slot="top">
+            <adw-window-title slot="center" title="Contacts"></adw-window-title>
+          </adw-header-bar>
+          <!-- The toolbar view gives its content widget the whole rect, as
+               Adw.ToolbarView does, so a button that wants to sit in the middle
+               says so. This box is the web spelling of the TypeScript tab's
+               halign/valign: center. -->
+          <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
+            <adw-button label="Open contact" pill suggested></adw-button>
+          </div>
+        </adw-toolbar-view>
+      </adw-navigation-page>
+      <adw-navigation-page tag="detail" title="Ada Lovelace">
+        <adw-toolbar-view>
+          <adw-header-bar slot="top">
+            <adw-window-title slot="center" title="Ada Lovelace"></adw-window-title>
+          </adw-header-bar>
+          <adw-status-page icon="avatar-default" title="Ada Lovelace" description="Mathematician and writer, the first computer programmer."></adw-status-page>
+        </adw-toolbar-view>
+      </adw-navigation-page>
+    </adw-navigation-view>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -530,36 +485,6 @@ the detail page and watch the back button appear.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <div style="height: 340px; width: 100%; display: flex; overflow: hidden;">
-        <adw-navigation-view animate-transitions="true" style="flex: 1;">
-            <adw-navigation-page tag="root" title="Contacts">
-                <adw-toolbar-view>
-                    <adw-header-bar slot="top">
-                        <adw-window-title slot="center" title="Contacts"></adw-window-title>
-                    </adw-header-bar>
-                    <!-- The toolbar view gives its content widget the whole rect, as
-                         Adw.ToolbarView does, so a button that wants to sit in the
-                         middle says so. This box is the web spelling of the GJS tab's
-                         halign/valign: center. -->
-                    <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-                        <adw-button label="Open contact" pill suggested></adw-button>
-                    </div>
-                </adw-toolbar-view>
-            </adw-navigation-page>
-            <adw-navigation-page tag="detail" title="Ada Lovelace">
-                <adw-toolbar-view>
-                    <adw-header-bar slot="top">
-                        <adw-window-title slot="center" title="Ada Lovelace"></adw-window-title>
-                    </adw-header-bar>
-                    <adw-status-page icon="avatar-default" title="Ada Lovelace" description="Mathematician and writer, the first computer programmer."></adw-status-page>
-                </adw-toolbar-view>
-            </adw-navigation-page>
-        </adw-navigation-view>
-    </div>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwButton, AdwHeaderBar, AdwNavigationView, AdwStatusPage, AdwToolbarView } from '@gjsify/adwaita-nativescript';
@@ -606,20 +531,20 @@ Use this rather than a boxed list. A boxed list draws itself as a settings card,
 which looks wrong edge to edge in a pane; a sidebar is a flat selectable list and
 already knows how to be one.
 
-<AdwWidget title="Adw.Sidebar" padding="flush">
+<AdwWidget title="Adw.Sidebar" padding="flush" stage="height: 340px; width: 100%; display: flex; overflow: hidden; border: 1px solid var(--card-shade-color); border-radius: var(--card-radius, 12px);">
   <Fragment slot="preview">
-    <div style="height: 340px; width: 100%; display: flex; overflow: hidden; border: 1px solid var(--card-shade-color); border-radius: var(--card-radius, 12px);">
-      <adw-sidebar mode="sidebar" selected="0" style="width: 220px;">
-        <adw-sidebar-section title="Mailboxes">
-          <adw-sidebar-item title="Inbox" subtitle="3 unread" icon-name="mail-unread-symbolic"></adw-sidebar-item>
-          <adw-sidebar-item title="Starred" subtitle="Favourites" icon-name="starred-symbolic"></adw-sidebar-item>
-          <adw-sidebar-item title="Sent" subtitle="Outgoing mail" icon-name="mail-send-symbolic"></adw-sidebar-item>
-          <adw-sidebar-item title="Archive" subtitle="Older mail" icon-name="folder-symbolic"></adw-sidebar-item>
-        </adw-sidebar-section>
-      </adw-sidebar>
-      <div style="width: 1px; align-self: stretch; background-color: var(--separator-color, var(--card-shade-color));"></div>
-      <adw-status-page title="Inbox" icon="mail-unread" description="3 unread" style="flex: 1 1 auto;"></adw-status-page>
-    </div>
+    ```html
+    <adw-sidebar mode="sidebar" selected="0" style="width: 220px;">
+      <adw-sidebar-section title="Mailboxes">
+        <adw-sidebar-item title="Inbox" subtitle="3 unread" icon-name="mail-unread-symbolic"></adw-sidebar-item>
+        <adw-sidebar-item title="Starred" subtitle="Favourites" icon-name="starred-symbolic"></adw-sidebar-item>
+        <adw-sidebar-item title="Sent" subtitle="Outgoing mail" icon-name="mail-send-symbolic"></adw-sidebar-item>
+        <adw-sidebar-item title="Archive" subtitle="Older mail" icon-name="folder-symbolic"></adw-sidebar-item>
+      </adw-sidebar-section>
+    </adw-sidebar>
+    <div style="width: 1px; align-self: stretch; background-color: var(--separator-color, var(--card-shade-color));"></div>
+    <adw-status-page title="Inbox" icon="mail-unread" description="3 unread" style="flex: 1 1 auto;"></adw-status-page>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -696,22 +621,6 @@ already knows how to be one.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <div style="height: 340px; width: 100%; display: flex; overflow: hidden; border: 1px solid var(--card-shade-color); border-radius: var(--card-radius, 12px);">
-        <adw-sidebar mode="sidebar" selected="0" style="width: 220px;">
-            <adw-sidebar-section title="Mailboxes">
-                <adw-sidebar-item title="Inbox" subtitle="3 unread" icon-name="mail-unread-symbolic"></adw-sidebar-item>
-                <adw-sidebar-item title="Starred" subtitle="Favourites" icon-name="starred-symbolic"></adw-sidebar-item>
-                <adw-sidebar-item title="Sent" subtitle="Outgoing mail" icon-name="mail-send-symbolic"></adw-sidebar-item>
-                <adw-sidebar-item title="Archive" subtitle="Older mail" icon-name="folder-symbolic"></adw-sidebar-item>
-            </adw-sidebar-section>
-        </adw-sidebar>
-        <div style="width: 1px; align-self: stretch; background-color: var(--separator-color, var(--card-shade-color));"></div>
-        <adw-status-page title="Inbox" icon="mail-unread" description="3 unread" style="flex: 1 1 auto;"></adw-status-page>
-    </div>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwSidebar, AdwStatusPage, NOTIFY_SIDEBAR_SELECTED } from '@gjsify/adwaita-nativescript';
@@ -761,35 +670,37 @@ which suits contextual actions and secondary content on a narrow window. Make it
 **modal** to dim the content behind it. `canClose` is on by default, so Escape or
 a click on the dimmed area dismisses the sheet; switch it off to keep the sheet
 up until your own code closes it. The preview starts with the sheet up: click the
-dimmed area to dismiss it, and the button underneath to bring it back.
+dimmed area to dismiss it. Bringing it back is a property set (`open = true`), which
+this static preview does not wire — the button under the sheet is there to show the
+content pane, not to work.
 
-<AdwWidget title="Adw.BottomSheet" padding="flush">
+<AdwWidget title="Adw.BottomSheet" padding="flush" stage="height: 340px; width: 100%; display: flex; overflow: hidden; position: relative;">
   <Fragment slot="preview">
-    <div style="height: 340px; width: 100%; display: flex; overflow: hidden; position: relative;">
-      <adw-bottom-sheet open modal can-close style="flex: 1;">
-        <adw-bottom-sheet-content>
-          <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-            <adw-button pill suggested data-adw-toggle-open="adw-bottom-sheet">Toggle sheet</adw-button>
-          </div>
-        </adw-bottom-sheet-content>
-        <adw-bottom-sheet-sheet>
-          <div style="display: flex; flex-direction: column; gap: 12px; margin: 18px 18px 24px;">
-            <span style="font-size: 15pt; font-weight: 800;">Share track</span>
-            <adw-preferences-group>
-              <adw-action-row title="Copy link" activatable>
-                <span data-adw-slot="prefix" class="adw-icon adw-icon--edit-copy"></span>
-              </adw-action-row>
-              <adw-action-row title="Send to a friend" activatable>
-                <span data-adw-slot="prefix" class="adw-icon adw-icon--mail-send"></span>
-              </adw-action-row>
-              <adw-action-row title="Add to playlist" activatable>
-                <span data-adw-slot="prefix" class="adw-icon adw-icon--list-add"></span>
-              </adw-action-row>
-            </adw-preferences-group>
-          </div>
-        </adw-bottom-sheet-sheet>
-      </adw-bottom-sheet>
-    </div>
+    ```html
+    <adw-bottom-sheet open modal can-close style="flex: 1;">
+      <adw-bottom-sheet-content>
+        <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
+          <adw-button pill suggested>Toggle sheet</adw-button>
+        </div>
+      </adw-bottom-sheet-content>
+      <adw-bottom-sheet-sheet>
+        <div style="display: flex; flex-direction: column; gap: 12px; margin: 18px 18px 24px;">
+          <span style="font-size: 15pt; font-weight: 800;">Share track</span>
+          <adw-preferences-group>
+            <adw-action-row title="Copy link" activatable>
+              <span slot="prefix" class="adw-icon adw-icon--edit-copy"></span>
+            </adw-action-row>
+            <adw-action-row title="Send to a friend" activatable>
+              <span slot="prefix" class="adw-icon adw-icon--mail-send"></span>
+            </adw-action-row>
+            <adw-action-row title="Add to playlist" activatable>
+              <span slot="prefix" class="adw-icon adw-icon--list-add"></span>
+            </adw-action-row>
+          </adw-preferences-group>
+        </div>
+      </adw-bottom-sheet-sheet>
+    </adw-bottom-sheet>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -902,35 +813,6 @@ dimmed area to dismiss it, and the button underneath to bring it back.
         }
       };
     }
-    ```
-  </Fragment>
-  <Fragment slot="web">
-    ```html
-    <div style="height: 340px; width: 100%; display: flex; overflow: hidden; position: relative;">
-        <adw-bottom-sheet open modal can-close style="flex: 1;">
-            <adw-bottom-sheet-content>
-                <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-                    <adw-button pill suggested>Toggle sheet</adw-button>
-                </div>
-            </adw-bottom-sheet-content>
-            <adw-bottom-sheet-sheet>
-                <div style="display: flex; flex-direction: column; gap: 12px; margin: 18px 18px 24px;">
-                    <span style="font-size: 15pt; font-weight: 800;">Share track</span>
-                    <adw-preferences-group>
-                        <adw-action-row title="Copy link" activatable>
-                            <span slot="prefix" class="adw-icon adw-icon--edit-copy"></span>
-                        </adw-action-row>
-                        <adw-action-row title="Send to a friend" activatable>
-                            <span slot="prefix" class="adw-icon adw-icon--mail-send"></span>
-                        </adw-action-row>
-                        <adw-action-row title="Add to playlist" activatable>
-                            <span slot="prefix" class="adw-icon adw-icon--list-add"></span>
-                        </adw-action-row>
-                    </adw-preferences-group>
-                </div>
-            </adw-bottom-sheet-sheet>
-        </adw-bottom-sheet>
-    </div>
     ```
   </Fragment>
   <Fragment slot="nativescript">

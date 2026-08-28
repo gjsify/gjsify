@@ -1,6 +1,6 @@
 ---
 title: Feedback
-description: "Adwaita feedback widgets: toast, alert dialog, about dialog and preferences dialog. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
+description: "Adwaita feedback widgets: toast, alert dialog, about dialog and preferences dialog. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -11,16 +11,18 @@ happen next. A **dialog** puts a modal surface in front of the window and waits
 for an answer, so use it when something does. This page also covers the two
 dialogs every app is expected to have: About and Preferences.
 
-Each preview below is the live web component, so it follows the light and dark
-toggle the way a real window would. Under it, the tabs give you the same widget
-four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
-the matching Blueprint declaration, the web port and the NativeScript port.
+Each block below is a stack of windows. The first one RUNS the widget: the preview
+is the live browser port, so it follows the light and dark toggle the way a real
+window would, and the tab under it holds the very markup that paints it. Then comes
+one window per kind of implementation — **Vanilla TypeScript**, the `@girs` program
+that runs unchanged on GJS, Node, Bun and Deno, with the matching Blueprint
+declaration beside it, and **NativeScript**, the port that runs on a phone.
 
 Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its tab says so.
+follow its naming, and where one of them differs, its own window says so.
 
 :::note
 The previews hold each dialog **open** and each toast **visible**, which is not
@@ -43,22 +45,27 @@ by its timeout, its close button, its action button or an explicit dismissal.
 Every port behaves the same way here, so a queue you tested in the browser holds
 on the desktop.
 
-<AdwWidget title="Adw.Toast" padding="flush">
+<AdwWidget title="Adw.Toast" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
   <Fragment slot="preview">
-    <div style="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
-      <adw-toast-overlay style="width: 360px; height: 220px; position: relative;">
-        <adw-status-page title="Documents" description="Drag files here to organise them."></adw-status-page>
-        <div class="adw-toast-overlay-toasts">
-          <div class="adw-toast visible">
-            <div class="adw-toast-content-wrapper">
-              <span class="adw-toast-title">File moved to Trash</span>
-            </div>
-            <button type="button" class="adw-toast-action-button">Undo</button>
-            <button type="button" class="adw-toast-close-button" aria-label="Close"></button>
+    ```html
+    <!-- NOT the markup a reader copies, and the only block on the site where the
+         two differ: the `web` fragment below overrides this tab. `addToast()` is
+         the whole API — <adw-toast-overlay> has no declarative toast child — so a
+         preview can only DEPICT the result, which is the overlay's own internal
+         DOM. See AdwWidget.astro's MARKUP_OVERRIDE. -->
+    <adw-toast-overlay style="width: 360px; height: 220px; position: relative;">
+      <adw-status-page title="Documents" description="Drag files here to organise them."></adw-status-page>
+      <div class="adw-toast-overlay-toasts">
+        <div class="adw-toast visible">
+          <div class="adw-toast-content-wrapper">
+            <span class="adw-toast-title">File moved to Trash</span>
           </div>
+          <button type="button" class="adw-toast-action-button">Undo</button>
+          <button type="button" class="adw-toast-close-button" aria-label="Close"></button>
         </div>
-      </adw-toast-overlay>
-    </div>
+      </div>
+    </adw-toast-overlay>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -92,7 +99,6 @@ on the desktop.
   </Fragment>
   <Fragment slot="web">
     ```html
-    <!-- import '@gjsify/adwaita-web' once to register the elements -->
     <adw-toast-overlay id="overlay" style="width: 360px; height: 220px;">
         <adw-status-page title="Documents" description="Drag files here to organise them."></adw-status-page>
     </adw-toast-overlay>
@@ -133,18 +139,18 @@ ID, and that ID is what reaches your code. Give one response a **destructive** o
 **suggested** appearance to mark the consequence, and set the **default** and
 **close** responses so Enter and Escape do the right thing.
 
-<AdwWidget title="Adw.AlertDialog" padding="flush">
+<AdwWidget title="Adw.AlertDialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
   <Fragment slot="preview">
-    <div style="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
-      <adw-alert-dialog
-        open
-        heading="Delete Project?"
-        body="This will permanently remove the project and all of its files. This action cannot be undone."
-      >
-        <adw-alert-response id="cancel">Cancel</adw-alert-response>
-        <adw-alert-response id="delete" appearance="destructive">Delete</adw-alert-response>
-      </adw-alert-dialog>
-    </div>
+    ```html
+    <adw-alert-dialog
+      open
+      heading="Delete Project?"
+      body="This will permanently remove the project and all of its files. This action cannot be undone."
+    >
+      <adw-alert-response id="cancel">Cancel</adw-alert-response>
+      <adw-alert-response id="delete" appearance="destructive">Delete</adw-alert-response>
+    </adw-alert-dialog>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -183,18 +189,6 @@ ID, and that ID is what reaches your code. Give one response a **destructive** o
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-alert-dialog
-        open
-        heading="Delete Project?"
-        body="This will permanently remove the project and all of its files. This action cannot be undone."
-    >
-        <adw-alert-response id="cancel">Cancel</adw-alert-response>
-        <adw-alert-response id="delete" appearance="destructive">Delete</adw-alert-response>
-    </adw-alert-dialog>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwAlertDialog } from '@gjsify/adwaita-nativescript';
@@ -223,21 +217,23 @@ app metadata and the dialog builds the rest: a large **icon**, the application
 **name**, a **developer** line, a **version** pill, and Details, Credits and
 Legal sub-pages you never lay out yourself.
 
-<AdwWidget title="Adw.AboutDialog" padding="flush">
+<AdwWidget title="Adw.AboutDialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
   <Fragment slot="preview">
-    <div style="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
-      <adw-about-dialog
-        open
-        application-name="Adwaita Storybook"
-        developer-name="A GJSify Project"
-        version="0.11.0"
-        comments="A live catalogue of native GTK and Adwaita widgets, rendered under GJS."
-        website="https://github.com/gjsify/gjsify"
-        issue-url="https://github.com/gjsify/gjsify/issues"
-        license="The MIT License (MIT)"
-        copyright="© 2026 The GJSify Project"
-      ></adw-about-dialog>
-    </div>
+    ```html
+    <!-- developers / designers are string arrays set as properties, e.g.
+         el.developers = ['Ada Lovelace', 'Grace Hopper']; -->
+    <adw-about-dialog
+      open
+      application-name="Adwaita Storybook"
+      developer-name="A GJSify Project"
+      version="0.11.0"
+      comments="A live catalogue of native GTK and Adwaita widgets, rendered under GJS."
+      website="https://github.com/gjsify/gjsify"
+      issue-url="https://github.com/gjsify/gjsify/issues"
+      license="The MIT License (MIT)"
+      copyright="© 2026 The GJSify Project"
+    ></adw-about-dialog>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -278,23 +274,6 @@ Legal sub-pages you never lay out yourself.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <!-- developers / designers are string arrays set as properties, e.g.
-         el.developers = ['Ada Lovelace', 'Grace Hopper']; -->
-    <adw-about-dialog
-        open
-        application-name="Adwaita Storybook"
-        developer-name="A GJSify Project"
-        version="0.11.0"
-        comments="A live catalogue of native GTK and Adwaita widgets, rendered under GJS."
-        website="https://github.com/gjsify/gjsify"
-        issue-url="https://github.com/gjsify/gjsify/issues"
-        license="The MIT License (MIT)"
-        copyright="© 2026 The GJSify Project"
-    ></adw-about-dialog>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwAboutDialog } from '@gjsify/adwaita-nativescript';
@@ -322,19 +301,19 @@ spin buttons. Most apps need only one page, which is what the example shows. In 
 native window, extra pages sit behind a view switcher and you see one at a time;
 the web port renders them stacked instead.
 
-<AdwWidget title="Adw.PreferencesDialog" padding="flush">
+<AdwWidget title="Adw.PreferencesDialog" padding="flush" stage="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
   <Fragment slot="preview">
-    <div style="height: 360px; width: 100%; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center;">
-      <adw-preferences-dialog open title="Preferences">
-        <adw-preferences-page title="General" icon-name="preferences-system-symbolic">
-          <adw-preferences-group title="Appearance" description="Control how the application looks and behaves.">
-            <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
-            <adw-combo-row title="Accent colour" items='["Blue","Teal","Green","Orange","Purple"]' selected="0"></adw-combo-row>
-            <adw-spin-row title="Font size" min="8" max="24" value="12" step="1"></adw-spin-row>
-          </adw-preferences-group>
-        </adw-preferences-page>
-      </adw-preferences-dialog>
-    </div>
+    ```html
+    <adw-preferences-dialog open title="Preferences">
+      <adw-preferences-page title="General" icon-name="preferences-system-symbolic">
+        <adw-preferences-group title="Appearance" description="Control how the application looks and behaves.">
+          <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
+          <adw-combo-row title="Accent colour" items='["Blue","Teal","Green","Orange","Purple"]' selected="0"></adw-combo-row>
+          <adw-spin-row title="Font size" min="8" max="24" value="12" step="1"></adw-spin-row>
+        </adw-preferences-group>
+      </adw-preferences-page>
+    </adw-preferences-dialog>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -413,19 +392,6 @@ the web port renders them stacked instead.
         }
       }
     }
-    ```
-  </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-preferences-dialog open title="Preferences">
-        <adw-preferences-page title="General" icon-name="preferences-system-symbolic">
-            <adw-preferences-group title="Appearance" description="Control how the application looks and behaves.">
-                <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
-                <adw-combo-row title="Accent colour" items='["Blue","Teal","Green","Orange","Purple"]' selected="0"></adw-combo-row>
-                <adw-spin-row title="Font size" min="8" max="24" value="12" step="1"></adw-spin-row>
-            </adw-preferences-group>
-        </adw-preferences-page>
-    </adw-preferences-dialog>
     ```
   </Fragment>
   <Fragment slot="nativescript">

@@ -618,16 +618,23 @@ A/B-proven, and the slot rule proven in BOTH directions (a web-only glyph fails 
 it, and the honest answer for each is different:
 
 - **Whether a preview is INTERACTIVE.** `navigation.mdx` says "click **Open contact**
-  to push the detail page" and "the button underneath to bring it back"; the first
-  button carries no handler and `<adw-button>` has no action attribute, and the second
-  reads `data-adw-toggle-open`, which NOTHING in the repository reads — one grep hit,
-  the doc itself. Both need a browser to see, so no cheap static gate exists. The
-  storybook wires the first in JS (`navigation-view.web.ts:63-65`) and that line was
-  dropped when the sample was written.
-- **Whether four tabs build the SAME widget set.** A per-`<AdwWidget>` reader could
-  compare the tag/class set each of the four fences constructs and demand a ledger
-  line for a difference — that catches the counts (the Preferences Group block builds
-  three rows in two tabs and two in three) but not semantics: nothing static sees that
+  to push the detail page"; the button carries no handler and `<adw-button>` has no
+  action attribute. It needs a browser to see, so no cheap static gate exists. The
+  storybook wires it in JS (`navigation-view.web.ts:63-65`) and that line was dropped
+  when the sample was written. The bottom sheet's "Toggle sheet" button had the same
+  shape plus a `data-adw-toggle-open` attribute NOTHING in the repository read — one
+  grep hit, the doc itself — and that one is gone: the preview markup is now the
+  snippet, so a dead attribute would have been shipped to every reader who copied the
+  tab, and it was deleted rather than documented.
+- **Whether the remaining surfaces build the SAME widget set.** The `web` fence is
+  gone — the preview's own markup is what the browser window shows, so preview and
+  markup can no longer disagree, and `check-website-adwaita-gallery.mjs` arm 8 refuses
+  a second copy unless it is ledgered (one is: `Adw.Toast`). What is left is the four
+  remaining surfaces: markup, `@girs` TypeScript, Blueprint, NativeScript. A
+  per-`<AdwWidget>` reader could compare the tag/class set each fence constructs and
+  demand a ledger line for a difference — that catches the counts (the Preferences
+  Group block builds three rows in its markup and its Blueprint, two in its TypeScript
+  and its NativeScript) but not semantics: nothing static sees that
   `Adw.Clamp { maximumSize: 400 }` under a child with `widthRequest: 520` cannot
   demonstrate clamping, because the child's own minimum raises all three thresholds
   to 520.
