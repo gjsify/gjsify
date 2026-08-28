@@ -207,14 +207,16 @@ export interface ListRowHandle<Row extends ListRowKey> {
  * framework in it. This supplies the three callbacks it cannot have: what to put in a
  * row widget, what to show there, and how to let go.
  *
- * ONE REACTIVE ROOT PER ROW WIDGET, created in `mountRow` and never again. Two reasons,
- * and both are measurements someone already paid for. The carrier is taken ONCE,
- * because `adopt` snapshots what a container already held and cannot tell our own
- * previous child from application chrome — GTK recycles a carrier across bind/unbind,
- * so taking it per bind refuses with `occupied-slot` on the first recycled row
- * (`host.spec.ts` pins that). And a row's signals live INSIDE the root rather than
- * beside it: a computation created with no owner is never disposed, which for a
- * per-row memo is a leak per row.
+ * ONE REACTIVE ROOT PER ROW WIDGET, created in `mountRow` and never again, for two
+ * reasons that are not the same kind of thing. The carrier is taken ONCE because taking
+ * it per bind is REFUSED: `adopt` snapshots what a container already held and cannot
+ * tell our own previous child from application chrome, and the same carrier comes back
+ * on the next show, so the second one reads our own row as someone else's and raises
+ * `occupied-slot` (measured against this seam; `host.spec.ts` pins the same refusal
+ * from the host's side). The row's signals live INSIDE the root rather than beside it
+ * for a documented reason rather than a measured one — Solid never disposes a
+ * computation created with no owner, which for a per-row memo would be one leak per
+ * row.
  *
  * What the row sees is an ACCESSOR, not a value, and that is the capability this seam
  * buys over re-rendering: when `setRows` finds unchanged keys over changed content, the

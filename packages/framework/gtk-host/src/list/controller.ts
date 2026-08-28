@@ -202,11 +202,12 @@ export class ListController<Row extends ListRowKey, Handle> {
     dispose(): void {
         if (this.#disposed) return;
         this.#disposed = true;
-        // GTK FIRST, the dialect second, and the order is what makes the loop below
-        // safe: `set_model(null)` makes GTK give every bound row back, and a live
-        // `teardown` handler would then release a handle this loop is about to release
-        // again. Disconnecting is also the half the header's six criticals are about —
-        // it has to happen before the widgets become garbage either way.
+        // The GTK half FIRST, and disconnecting first inside it. That is the half the
+        // header's six criticals are about — it has to happen before the widgets
+        // become garbage — and doing it before `set_model(null)` also means GTK cannot
+        // re-enter the sink through `teardown` while the controller is dismantling
+        // itself, so the release loop below sees exactly the handles that were live
+        // rather than a set something else is emptying underneath it.
         for (const handler of this.#handlers) this.#factory.disconnect(handler);
         this.#handlers.length = 0;
         if (this.#view !== null) {
