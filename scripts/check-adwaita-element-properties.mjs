@@ -31,10 +31,12 @@
 // attribute genuinely can carry, and which is therefore the only half whose absence
 // carries information.
 //
-// KNOWN_GAPS IS A MEASURED BACKLOG, NOT A BLESSING. 83 scalar properties across 28
-// elements are unobserved today. They are listed rather than individually justified,
-// because inventing 53 rationales would be worse than naming none: a rule without its
-// real reason gets "simplified" back into the bug. What this check buys now is the
+// KNOWN_GAPS IS A MEASURED BACKLOG, NOT A BLESSING. A number of scalar properties
+// across the adw-* elements are unobserved today; THIS SCRIPT PRINTS THE LIVE FIGURE
+// on every run, and the stamped one that used to stand here said 83 against a real 75
+// — a second copy of a number the run already computes. They are listed rather than
+// individually justified, because inventing a rationale per entry would be worse than
+// naming none: a rule without its real reason gets "simplified" back into the bug. What this check buys now is the
 // RATCHET — a new gap fails, and closing one fails too until it leaves the list, so the
 // number can only go down and cannot go quietly back up.
 //
@@ -95,6 +97,23 @@ const KNOWN_GAPS = {
     'adw-split-button': ['can-shrink'],
     'adw-status-page': ['icon-name'],
     'adw-tab-view': ['shortcuts'],
+    'adw-toggle': [
+        // Invisible until `AdwToggle` gained a GTK tag: it is a placement carrier
+        // (ADR 0028 § Amendment), so the widget it is held against only started
+        // existing in the table when the carrier rule landed. The gap is older than
+        // the check that found it.
+        //
+        // `enabled` is the one with a written decision and an obligation attached —
+        // `status/open-todos.md` § `<adw-toggle>` has no `enabled`. Adding it means
+        // adding the roving-focus filter in the same change, and
+        // `keyboard-operable.spec.ts` pins `observedAttributes` so that commit fails
+        // until someone reads the entry.
+        'description',
+        'enabled',
+        'name',
+        'tooltip',
+        'use-underline',
+    ],
     'adw-toggle-group': ['active-name', 'can-shrink', 'homogeneous'],
     'adw-toolbar-view': ['reveal-bottom-bars', 'reveal-top-bars'],
     'adw-view-stack': ['enable-transitions', 'hhomogeneous', 'transition-duration', 'vhomogeneous'],
