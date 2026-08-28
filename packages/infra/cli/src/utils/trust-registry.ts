@@ -121,6 +121,11 @@ export function classifyTrustList(
 export function parseRepoFromGitRemote(url: string): string | null {
     let s = url.trim();
     if (!s) return null;
+    // npm manifests spell the same URL `git+https://…` / `git+ssh://…`. The
+    // scheme prefix is npm's, not the transport's, and without stripping it the
+    // scheme match below fails on `+` and the whole URL reads as unparseable —
+    // which is indistinguishable from "this package declares no repository".
+    s = s.replace(/^git\+/, '');
     s = s.replace(/\.git$/, '');
     const scp = s.match(/^[^/@]+@[^:]+:(.+)$/);
     if (scp) {

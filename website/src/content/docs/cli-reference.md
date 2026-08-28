@@ -1834,4 +1834,12 @@ gjsify onboard --yes                 # non-interactive
 
 What it does, in order: check the token is live (running the [`login`](#gjsify-login) flow only if it is not), enumerate the publishable packages, read each package's Trusted Publisher state concurrently, then act only on the gaps. One 2FA code is reused across every publish and trust operation, so a sweep of many packages usually asks you for a code once. Re-running when everything is already published and trusted does nothing and exits 0.
 
+A package whose own `package.json` names a **different** `repository` than the one being
+configured is refused, with the foreign repo and the count. A workspace of a repo is not the same
+claim as a package published from it: `gjsify/ts-for-gir` has 703 generated `@girs/*` workspaces
+that publish from `gjsify/types`, and a Trusted Publisher scoped to the wrong repository points
+that package's OIDC exchange at a workflow that never publishes it. Narrow the set with
+`--exclude` / `--include`, or point `--repository` at the repo that does publish them. A package
+that declares no repository is not evidence of a mismatch, and passes.
+
 The first line of output names the repo root and every enumeration source with its count — `root=/src/types | packages(*)=703`. That is worth reading before you let a sweep write to npm: the package list is the whole blast radius, and a total on its own cannot tell the right tree from a plausible wrong one. `--json` carries the same three fields (`root`, `sources`, `discovered`) in its summary object.

@@ -45,6 +45,7 @@ import { detectPackageManager } from './workspace.js';
 import { spawnToCompletion } from '../utils/spawn.js';
 import {
     assertEveryPatternMatches,
+    assertRepositoryAgreement,
     collectOnboardPackages,
     describeSources,
     resolveRepoRoot,
@@ -251,6 +252,23 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                     : 'Pass --packages with a directory glob if this repo has no workspace manifest.');
             if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, error: 'no-packages', message: msg })}\n`);
             else console.error(msg);
+            return process.exit(1);
+        }
+
+        // Every selected package must AGREE that it lives here. A workspace of
+        // this repo is not the same claim as a package published from it —
+        // `gjsify/ts-for-gir` has ~703 generated `@girs/*` workspaces that
+        // publish from `gjsify/types`, and trusting those for the wrong
+        // workflow breaks exactly the release this sweep exists to protect.
+        try {
+            assertRepositoryAgreement(selected, repository);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (asJson) {
+                process.stdout.write(`${JSON.stringify({ ok: false, error: 'foreign-repository', message: msg })}\n`);
+            } else {
+                console.error(msg);
+            }
             return process.exit(1);
         }
 

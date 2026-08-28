@@ -13,9 +13,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { Workspace } from '@gjsify/workspace';
 import {
     assertEveryPatternMatches,
+    assertRepositoryAgreement,
     collectOnboardPackages,
+    declaredRepository,
     describeSources,
     resolveRepoRoot,
 } from './onboard-discovery.js';
@@ -164,6 +167,57 @@ export default async () => {
             } finally {
                 rmSync(root, { recursive: true, force: true });
             }
+        });
+    });
+
+    await describe('assertRepositoryAgreement', async () => {
+        const wsWith = (name: string, repository?: unknown): Workspace =>
+            ({ name, manifest: repository === undefined ? {} : { repository } }) as unknown as Workspace;
+
+        await it("reads npm's git+ spelling out of the manifest", () => {
+            expect(
+                declaredRepository(wsWith('@girs/gtk-4.0', { url: 'git+https://github.com/gjsify/types.git' })),
+            ).toBe('gjsify/types');
+            expect(declaredRepository(wsWith('@acme/a', 'https://github.com/acme/tools'))).toBe('acme/tools');
+        });
+
+        await it('passes when every package agrees, case-insensitively', () => {
+            assertRepositoryAgreement(
+                [
+                    wsWith('@acme/a', { url: 'git+https://github.com/acme/tools.git' }),
+                    wsWith('@acme/b', 'https://github.com/Acme/Tools'),
+                ],
+                'acme/tools',
+            );
+        });
+
+        await it('passes a package that declares NO repository — absence is not evidence', () => {
+            assertRepositoryAgreement([wsWith('@acme/a')], 'acme/tools');
+        });
+
+        await it('REFUSES a package published from somewhere else', () => {
+            // The measured case: `gjsify onboard` in gjsify/ts-for-gir selects the
+            // generated `@girs/*` workspaces, which publish from gjsify/types.
+            let threw: Error | undefined;
+            try {
+                assertRepositoryAgreement(
+                    [
+                        wsWith('@ts-for-gir/cli', { url: 'git+https://github.com/gjsify/ts-for-gir.git' }),
+                        wsWith('@girs/gtk-4.0', { url: 'git+https://github.com/gjsify/types.git' }),
+                        wsWith('@girs/adw-1', { url: 'git+https://github.com/gjsify/types.git' }),
+                    ],
+                    'gjsify/ts-for-gir',
+                );
+            } catch (err) {
+                threw = err as Error;
+            }
+            expect(threw !== undefined).toBe(true);
+            const msg = threw?.message ?? '';
+            // It must name the FOREIGN repo and the count, not just refuse.
+            expect(msg.includes('gjsify/types: 2 package(s)')).toBe(true);
+            expect(msg.includes('@girs/gtk-4.0')).toBe(true);
+            // …and must not accuse the package that does belong here.
+            expect(msg.includes('@ts-for-gir/cli')).toBe(false);
         });
     });
 

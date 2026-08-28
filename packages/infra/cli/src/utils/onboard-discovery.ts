@@ -24,6 +24,7 @@ import { spawnSync } from 'node:child_process';
 import { discoverWorkspaces, type Workspace } from '@gjsify/workspace';
 import { join } from 'node:path';
 import { mergePublishables } from './publishable-packages.js';
+import { parseRepoFromGitRemote } from './trust-registry.js';
 import { findWorkspaceRoot } from './workspace-root.js';
 
 /** One enumeration source and how much it contributed. */
@@ -147,4 +148,62 @@ export function describeSources(sources: readonly DiscoverySource[]): string {
         .filter((s) => s.count > 0)
         .map((s) => (s.patterns ? `${s.kind}(${s.patterns.join(',')})=${s.count}` : `${s.kind}=${s.count}`))
         .join(' + ');
+}
+
+/** The `owner/repo` a package's own manifest claims, or null if it claims none. */
+export function declaredRepository(ws: Workspace): string | null {
+    const repo = ws.manifest.repository as string | { url?: string } | undefined;
+    const url = typeof repo === 'string' ? repo : repo?.url;
+    if (typeof url !== 'string' || url.length === 0) return null;
+    return parseRepoFromGitRemote(url);
+}
+
+/**
+ * Refuse to configure a Trusted Publisher for a package whose OWN manifest says
+ * it lives in a different repository.
+ *
+ * This replaces a hardcoded `exclude: ['@girs/*']`, and it is worth more than
+ * the thing it replaces. Measured: `gjsify onboard` in `gjsify/ts-for-gir`
+ * selects 716 packages, ~703 of them the generated `@girs/*` under
+ * `types-dev/*` — which are workspaces there, but are PUBLISHED FROM
+ * `gjsify/types`. Trusting them for `gjsify/ts-for-gir`'s `release.yml` would
+ * point their OIDC exchange at a workflow that never publishes them, i.e. break
+ * the release the sweep exists to protect.
+ *
+ * A name pattern only ever covered the one case somebody had already been bitten
+ * by. The manifest's `repository` is the package's own claim about where it
+ * comes from, so this covers every monorepo that has another project's packages
+ * inside it — vendored, submoduled, or generated.
+ *
+ * Silence is the only safe default in the other direction: a package that
+ * declares NO repository is not evidence of a mismatch, so it passes.
+ */
+export function assertRepositoryAgreement(selected: readonly Workspace[], repository: string): void {
+    const target = repository.toLowerCase();
+    const foreign = selected
+        .map((ws) => ({ ws, declared: declaredRepository(ws) }))
+        .filter((e) => e.declared !== null && e.declared.toLowerCase() !== target);
+    if (foreign.length === 0) return;
+
+    const byRepo = new Map<string, string[]>();
+    for (const { ws, declared } of foreign) {
+        const list = byRepo.get(declared as string) ?? [];
+        list.push(ws.name);
+        byRepo.set(declared as string, list);
+    }
+    const lines = [
+        `gjsify onboard: ${foreign.length} selected package(s) declare a DIFFERENT repository than ${repository}:`,
+    ];
+    for (const [repo, names] of byRepo) {
+        const shown = names.slice(0, 5).join(', ');
+        const more = names.length > 5 ? `, … (+${names.length - 5} more)` : '';
+        lines.push(`  ${repo}: ${names.length} package(s) — ${shown}${more}`);
+    }
+    lines.push(
+        "  A Trusted Publisher scoped to the wrong repository points that package's OIDC exchange",
+        '  at a workflow that does not publish it, which breaks the release this sweep protects.',
+        '  Either exclude them (--exclude), select only what belongs here (--include), or point',
+        '  --repository at the repo that actually publishes them.',
+    );
+    throw new Error(lines.join('\n'));
 }

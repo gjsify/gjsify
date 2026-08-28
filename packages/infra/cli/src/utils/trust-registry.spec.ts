@@ -139,6 +139,13 @@ export default async () => {
         await it('takes the last two segments of a nested path', async () => {
             expect(parseRepoFromGitRemote('https://gitlab.com/group/sub/proj.git')).toBe('sub/proj');
         });
+        await it("parses npm's git+ manifest spelling", async () => {
+            // The shape every `@girs/*` package.json carries. Unparsed, it reads
+            // as "declares no repository" — the one answer that disables the
+            // cross-repo guard that consumes it.
+            expect(parseRepoFromGitRemote('git+https://github.com/gjsify/types.git')).toBe('gjsify/types');
+            expect(parseRepoFromGitRemote('git+ssh://git@github.com/gjsify/types.git')).toBe('gjsify/types');
+        });
         await it('returns null for junk', async () => {
             expect(parseRepoFromGitRemote('')).toBe(null);
             expect(parseRepoFromGitRemote('not-a-url')).toBe(null);
