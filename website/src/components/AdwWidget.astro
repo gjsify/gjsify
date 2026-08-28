@@ -107,6 +107,7 @@ interface Props {
 }
 
 import { ADWAITA_ATTRIBUTES } from '../data/adwaita-attributes';
+import { sampleAttributes } from './attr-sample.mjs';
 import AdwWidgetWindow from './AdwWidgetWindow.astro';
 
 const { title = 'Code', padding = 'comfortable', scroll = false, stage, docHref } = Astro.props;
@@ -299,7 +300,7 @@ const rendered: {
     id: string;
     title: string;
     live: boolean;
-    attributes: { tag: string; names: string[] } | null;
+    attributes: { tag: string; names: string[]; sample: Map<string, string> } | null;
     impls: string;
     tabs: { slot: string; label: string; html: string }[];
 }[] = [];
@@ -349,7 +350,10 @@ for (const spec of WINDOWS) {
     // that could not see the declaration, which is how `<adw-wrap-box>` shipped
     // paneless over 14 attributes. `check-generated-website-data.mjs` fails on it now,
     // so this arm is what that failure renders as rather than a silent policy.
-    const attrs = live && attributes !== null && attributes.length > 0 ? { tag: elementTag, names: attributes } : null;
+    const attrs =
+        live && attributes !== null && attributes.length > 0
+            ? { tag: elementTag, names: attributes, sample: sampleAttributes(previewMarkup, elementTag) }
+            : null;
     rendered.push({
         id: spec.id,
         title: spec.title ?? title,
@@ -648,35 +652,56 @@ for (const spec of WINDOWS) {
         font-size: 0.9em;
     }
 
-    .adw-widget-attrs > p {
-        margin: 0;
+    .adw-widget-attrs table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+    }
+
+    /* The caption reads BEFORE the table for a screen reader, which is the order the
+       sentence wants: what the list is, then the list. */
+    .adw-widget-attrs caption {
+        text-align: left;
         color: var(--sl-color-gray-2);
         line-height: 1.5;
+        padding-bottom: 0.75rem;
     }
 
-    .adw-widget-attrs > ul {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.35rem 0.5rem;
-        list-style: none;
-        margin: 0.75rem 0 0;
-        padding: 0;
+    .adw-widget-attrs th,
+    .adw-widget-attrs td {
+        padding: 0.35rem 0.75rem 0.35rem 0;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.16);
+        vertical-align: baseline;
     }
 
-    .adw-widget-attrs > ul > li {
-        margin: 0;
+    .adw-widget-attrs thead th {
+        font-size: 0.85em;
+        font-weight: 600;
+        color: var(--sl-color-gray-3);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
     }
 
-    /* Chips, not a sentence. `not-content` opts these out of Starlight's inline-code
-       styling, so without this the four names ran together as one line of monospace
-       and read as prose rather than as a list of four things. A grey that is an alpha
-       over the page's own background works in both schemes without a second rule. */
-    .adw-widget-attrs > ul > li > code {
-        display: inline-block;
-        background: rgba(128, 128, 128, 0.12);
-        border: 1px solid rgba(128, 128, 128, 0.18);
-        border-radius: 6px;
-        padding: 0.1rem 0.45rem;
-        line-height: 1.5;
+    .adw-widget-attrs tbody tr:last-child th,
+    .adw-widget-attrs tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    /* Monospace by CLASS, not by a `<code>` element: `attr-sample.mjs` resolves each cell
+       to a string plus a class, so the styling has to travel with it. Starlight's own
+       inline-code styling is off in here anyway (`not-content`), so the element bought
+       nothing the class does not. */
+    .adw-widget-attrs tbody th,
+    .adw-widget-attrs .is-value {
+        font-family: var(--__sl-font-mono);
+        font-weight: 400;
+    }
+
+    /* Neither of these cells is a VALUE — one says the preview writes the attribute with
+       nothing after it, the other that it does not write it at all — so neither takes the
+       monospace above, and both step back from the cells that are. */
+    .adw-widget-attrs .is-absent,
+    .adw-widget-attrs .is-bare {
+        color: var(--sl-color-gray-3);
     }
 </style>
