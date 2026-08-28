@@ -75,6 +75,77 @@ export const AdwTabViewTest = async () => {
         });
     });
 
+    // ONE HALF of the upgrade-order defect; the other half is the define order at the
+    // foot of `elements/adw-tab-view.ts`, which no test in this realm can observe —
+    // both names are already registered by the time a spec runs, and `define` is what
+    // upgrades. What IS reproducible here is the STATE that order produced: a real
+    // `<adw-tab-page>` next to an `<adw-tab-view>` that is still an ordinary
+    // HTMLElement. `document.implementation.createHTMLDocument()` has no browsing
+    // context, so nothing it creates is ever upgraded; adopting the element carries it
+    // into this document without upgrading it, which INSERTING it would do.
+    //
+    // Constructing both with `document.createElement` instead would pass either way —
+    // both are defined, so both come back upgraded and the ancestor always has the
+    // method. The parse-then-define order the site hits is covered in
+    // `tests/browser/specs/adwaita-upgrade-order.spec.ts`.
+    await describe('adw-tab-page beside an un-upgraded view', async () => {
+        await it('reports nothing when the view has none of its methods yet', async () => {
+            const view = document.adoptNode(
+                document.implementation.createHTMLDocument('').createElement('adw-tab-view'),
+            );
+            expect('syncDeclaredPage' in view).toBe(false);
+            const page = document.createElement('adw-tab-page');
+            view.appendChild(page);
+
+            // A custom-element reaction never throws INTO its caller: the exception is
+            // REPORTED, so `setAttribute` returns normally whether or not the callback
+            // blew up and only a listener sees the difference. `preventDefault` keeps a
+            // red run from also logging it at the console.
+            const reported: string[] = [];
+            const onError = (event: ErrorEvent) => {
+                reported.push(event.message);
+                event.preventDefault();
+            };
+            window.addEventListener('error', onError);
+            page.setAttribute('title', 'One');
+            window.removeEventListener('error', onError);
+
+            expect(reported).toStrictEqual([]);
+            expect(page.getAttribute('title')).toBe('One');
+        });
+
+        await it('leaves a page appended after connect unadopted rather than throwing', async () => {
+            // The imperative surface is `appendPage`; a bare DOM append is out of
+            // contract, and the point here is only that it fails QUIETLY — the page
+            // carries no `data-page-id`, so `syncDeclaredPage` has no record to touch.
+            //
+            // "rather than throwing" is ASSERTED and not assumed. Without the listener
+            // this test measured only the two counts, and both hold whether or not the
+            // callback blew up: a custom-element reaction is REPORTED, never rethrown
+            // into `setAttribute`, so the model is untouched either way. Measured — with
+            // `syncDeclaredPage` mutated to throw on exactly this path, the whole
+            // in-bundle suite of 4631 stayed green and only an unrelated spec's global
+            // error sweep noticed.
+            const view = makeTabView();
+            const late = document.createElement('adw-tab-page');
+            view.appendChild(late);
+
+            const reported: string[] = [];
+            const onError = (event: ErrorEvent) => {
+                reported.push(event.message);
+                event.preventDefault();
+            };
+            window.addEventListener('error', onError);
+            late.setAttribute('title', 'Late');
+            window.removeEventListener('error', onError);
+
+            expect(reported).toStrictEqual([]);
+            expect(view.nPages).toBe(3);
+            expect(chips(view).length).toBe(3);
+            view.parentElement?.remove();
+        });
+    });
+
     await describe('adw-tab-view expand-tabs / no-close', async () => {
         await it('no-close hides every close affordance', async () => {
             const view = makeTabView('no-close');

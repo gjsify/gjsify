@@ -74,8 +74,21 @@ export class AdwTabPage extends HTMLElement {
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
         // `closest` still finds the view after adoption: the element is moved
         // into the view's page container, not replaced by a wrapper.
-        const view = this.closest('adw-tab-view') as AdwTabView | null;
-        view?.syncDeclaredPage(this, name, value);
+        //
+        // `instanceof` rather than a cast plus `?.`, because the two failures the
+        // `?.` conflated are different: a MISSING ancestor, and an ancestor that is
+        // there but is still an ordinary HTMLElement because its own definition has
+        // not upgraded it. The cast asserted the second away, and it is the one that
+        // happened — `syncDeclaredPage is not a function`, 19 times on
+        // `/getting-started/`, once per declared page.
+        //
+        // Dropping the notification for an un-upgraded view is correct and not
+        // merely quiet: such a view has not adopted this page yet, and
+        // `_adoptDeclaredPage` reads every attribute in PAGE_ATTRIBUTES straight off
+        // the element when it does, so there is nothing to lose and nothing to defer.
+        const view = this.closest('adw-tab-view');
+        if (!(view instanceof AdwTabView)) return;
+        view.syncDeclaredPage(this, name, value);
     }
 }
 
@@ -797,5 +810,14 @@ export class AdwTabView extends HTMLElement {
     }
 }
 
-customElements.define('adw-tab-page', AdwTabPage);
+// The VIEW first, and the order carries weight: `define` upgrades every matching
+// element already in the document, immediately. Registering the page first therefore
+// upgraded every declared `<adw-tab-page>` while its `<adw-tab-view>` parent was still
+// un-upgraded, and `AdwTabPage.attributeChangedCallback` reaches for that parent.
+// Parent before child keeps the window shut; the `instanceof` guard in the callback is
+// what holds when something outside this file reopens it — and because the guard makes
+// the order UNOBSERVABLE (with it in place, page-first renders identically and every
+// test still passes, measured), the order itself is held by
+// `scripts/check-adwaita-upgrade-order.mjs` rather than by a spec.
 customElements.define('adw-tab-view', AdwTabView);
+customElements.define('adw-tab-page', AdwTabPage);
