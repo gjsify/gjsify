@@ -18,6 +18,16 @@
 // `.deb`/`.rpm` declares a dependency on the distribution's Node instead
 // (`depends.ts` → `NODE_PACKAGE`), the way a `--app gjs` package declares `gjs`.
 // Every Linux distribution ships a Node; macOS and Windows ship none.
+//
+// ⚠️ NOTHING CALLS THIS YET, outside its own spec, and that is worth stating
+// rather than leaving a reader to discover. `gjsify ship` targets deb and rpm
+// today, and neither carries an interpreter — the Linux answer is the dependency
+// above. This module is the seam the `.app` / Windows-program-directory layout
+// will stage through, and its `null`-not-throw contract ("the caller decides how
+// loud to be") is therefore a promise to a caller that does not exist yet. The
+// tests are what keep it honest in the meantime: they resolve a real installed
+// package out of a throwaway consumer tree, so the by-name claim in the READMEs
+// is checked even while the staging is not written.
 
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';

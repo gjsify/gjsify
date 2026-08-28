@@ -69,12 +69,17 @@ export const STAGE_MANIFEST_FILE = '.gjsify-ship-stage.json';
  * whatever runtime IT defaults to — a different `org.gnome.Platform` version
  * than the project asked for, at exit 0.
  *
- * 3 added `settings.minNodeVersion`, and it is the same case for the same
- * reason. An older reader ignoring it does not skip a field: it has no concept
- * of a Node dependency at all, so it packs a `--app node` payload with no
- * `nodejs` / `nodejs(engine)` requirement — an install that succeeds and an app
- * that dies at `exec node`, at exit 0. Bumping is what turns that into the
- * refusal `readStageManifest` already knows how to give.
+ * 3 added `settings.app` and `settings.minNodeVersion`, and it is the same case
+ * for the same reason. An older reader ignoring `app` does not skip a field: it
+ * has no concept of an interpreter choice, so it seeds `gjs >= …` for a stage
+ * whose launcher — already rendered, already in the tree it is packing — execs
+ * `node`. The package then declares one interpreter and runs another.
+ *
+ * Stated as a consequence and not as an incident, because it never happened:
+ * `app` and the launcher landed together, in the change this line documents. The
+ * PREVIOUS version of this comment claimed the incident anyway, which is worth
+ * leaving on the record — a rule with an invented reason gets "simplified" back
+ * out the first time somebody notices the reason is not real.
  */
 export const STAGE_SCHEMA_VERSION = 3;
 
@@ -161,6 +166,7 @@ export function toPackSettings(settings: ShipSettings): PackSettings {
         group: settings.group,
         extraDepends: settings.extraDepends,
         typelibPackages: settings.typelibPackages,
+        app: settings.app,
         minGjsVersion: settings.minGjsVersion,
         minNodeVersion: settings.minNodeVersion,
         flatpak: settings.flatpak,
@@ -501,6 +507,7 @@ function readPackSettings(data: Record<string, unknown>, at: string): PackSettin
                 ];
             }),
         ),
+        app: expectApp(data.app, field('app')),
         minGjsVersion: expectString(data.minGjsVersion, field('minGjsVersion')),
         minNodeVersion: expectString(data.minNodeVersion, field('minNodeVersion')),
         flatpak: readFlatpakSettings(record(data.flatpak, field('flatpak')), field('flatpak')),
@@ -545,6 +552,19 @@ function expectArray(value: unknown, at: string): unknown[] {
         throw new Error(`gjsify ship: ${at} must be an array. Re-run the \`--stage\` phase.`);
     }
     return value;
+}
+
+/**
+ * The interpreter field, checked against the two values that exist.
+ *
+ * Not `expectString`: this one decides which interpreter the package DEPENDS on,
+ * so an unknown value must stop the pack rather than flow into a `Depends:` line
+ * as itself. The only way to reach it is a stage from a gjsify that knows a third
+ * target, which the schema check above already refuses — this is the second wall.
+ */
+function expectApp(value: unknown, at: string): 'gjs' | 'node' {
+    if (value === 'gjs' || value === 'node') return value;
+    throw new Error(`gjsify ship: ${at} must be "gjs" or "node", got ${JSON.stringify(value)}.`);
 }
 
 function expectString(value: unknown, at: string): string {

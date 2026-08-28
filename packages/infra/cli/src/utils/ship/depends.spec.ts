@@ -20,7 +20,7 @@ import {
 import { resolveFormats } from './formats.js';
 import { parseGiSpecifier, scanGiNamespaces } from './gi-namespaces.js';
 
-const base = { hasIcons: true, hasSchemas: false, hasNodeInterpreter: false, extra: [] };
+const base = { hasIcons: true, hasSchemas: false, interpreter: 'gjs' as const, extra: [] };
 
 export default async () => {
     await describe('deriveDepends', async () => {
@@ -31,7 +31,7 @@ export default async () => {
                 namespaces: ['Gtk-4.0', 'Gwebgl-0.1'],
                 hasIcons: true,
                 hasSchemas: false,
-                hasNodeInterpreter: false,
+                interpreter: 'gjs' as const,
                 extra: [],
                 bundledTypelibs: ['/p/gi/Gwebgl-0.1.typelib', '/p/gi/libgwebgl.so'],
             });
@@ -47,7 +47,7 @@ export default async () => {
                     namespaces: ['Totally-1.0'],
                     hasIcons: true,
                     hasSchemas: false,
-                    hasNodeInterpreter: false,
+                    interpreter: 'gjs' as const,
                     extra: [],
                     bundledTypelibs: ['/p/gi/Gwebgl-0.1.typelib'],
                 }),
@@ -150,30 +150,35 @@ export default async () => {
             // `--whatprovides 'nodejs >= 24'` answers nodejs22-1:22.23.1,
             // because the virtual `nodejs` Provide carries Epoch 1 and a bare
             // `>= 24` desugars to `0:24`. `nodejs(engine)` has no epoch.
-            expect(deriveDepends('rpm', { ...base, namespaces: [], hasNodeInterpreter: true })).toContain(
+            expect(deriveDepends('rpm', { ...base, namespaces: [], interpreter: 'node' })).toContain(
                 'nodejs(engine) >= 24',
             );
-            expect(deriveDepends('deb', { ...base, namespaces: [], hasNodeInterpreter: true })).toContain(
-                'nodejs >= 24',
-            );
+            expect(deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node' })).toContain('nodejs >= 24');
             // The rpm spelling must never leak into a Debian `Depends:` — the
             // failure `SCHEMA_COMPILER_PACKAGE`'s header records, one row over.
-            expect(deriveDepends('deb', { ...base, namespaces: [], hasNodeInterpreter: true })).not.toContain(
+            expect(deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node' })).not.toContain(
                 'nodejs(engine) >= 24',
             );
         });
 
-        await it('declares no Node at all for a payload that carries no `--app node` bundle', async () => {
-            // A `--app gjs` package must not pull in an interpreter it never
-            // executes: the dependency is derived from the payload, not from the
-            // fact that gjsify itself is written in JavaScript.
-            const depends = deriveDepends('rpm', { ...base, namespaces: [] });
-            expect(depends.some((d) => d.startsWith('nodejs'))).toBe(false);
+        await it('declares exactly ONE interpreter, never both', async () => {
+            // THE REGRESSION THIS PINS. The first cut seeded `gjs >= …`
+            // unconditionally and appended `nodejs >= …` from a payload
+            // heuristic, so a package could declare both — and a `>= 24` floor is
+            // unsatisfiable on every current DEB stable, which turns a working
+            // GJS package into one apt refuses everywhere.
+            const gjs = deriveDepends('rpm', { ...base, namespaces: [] });
+            expect(gjs[0]).toBe('gjs >= 1.86');
+            expect(gjs.some((d) => d.startsWith('nodejs'))).toBe(false);
+
+            const node = deriveDepends('rpm', { ...base, namespaces: [], interpreter: 'node' });
+            expect(node[0]).toBe('nodejs(engine) >= 24');
+            expect(node.some((d) => d.startsWith('gjs'))).toBe(false);
         });
 
         await it('honours a lowered Node floor', async () => {
             expect(
-                deriveDepends('deb', { ...base, namespaces: [], hasNodeInterpreter: true, minNodeVersion: '20' }),
+                deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node', minNodeVersion: '20' }),
             ).toContain('nodejs >= 20');
         });
 

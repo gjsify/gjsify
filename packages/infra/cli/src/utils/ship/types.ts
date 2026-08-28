@@ -238,9 +238,22 @@ export interface PackSettings {
     extraDepends: Record<DistroFormatId, string[]>;
     /** Project-supplied GI-namespace → package rows, filling gaps in the built-in table. */
     typelibPackages: Record<string, Record<DistroFormatId, string>>;
-    /** Minimum GJS the emitted dependency asks for. */
+    /**
+     * The interpreter the launcher execs, and therefore the one the package
+     * depends on. From `gjsify.app`; default `'gjs'`.
+     *
+     * ON `PackSettings`, not on `ShipSettings` alone, because BOTH halves need it
+     * and they must not answer it differently: `renderLauncher` writes
+     * `exec gjs -m` or `exec node` from this field, and `deriveDepends` seeds
+     * `gjs >= …` or `nodejs >= …` from the same one. Two sources here is the
+     * defect this field replaces — a filename heuristic once produced
+     * `Depends: gjs (>= 1.86), nodejs (>= 24)` on a package whose launcher execed
+     * gjs.
+     */
+    app: 'gjs' | 'node';
+    /** Minimum GJS the emitted dependency asks for. Used only for `app: 'gjs'`. */
     minGjsVersion: string;
-    /** Minimum Node major, used only when the payload is a `--app node` bundle. */
+    /** Minimum Node major. Used only for `app: 'node'`. */
     minNodeVersion: string;
     /** The Flatpak manifest's non-payload half, fully defaulted at stage time. */
     flatpak: ShipFlatpakSettings;

@@ -137,7 +137,7 @@ preference.
 | OS | runtime in the artifact | why, measured |
 |---|---|---|
 | Linux · `--app gjs` | none — `Depends: gjs (>= 1.86)` | GJS and GTK come from the distro. Bundling would be ~100 MiB of cargo cult. **Measured caveat: no released Debian satisfies that floor** — Debian went 1.82.3 (trixie) straight to 1.88.1 (forky), skipping 1.84 and 1.86. The honest floor is emitted anyway and warned about; see § Implementation status |
-| Linux · `--app node` | none — `Depends: nodejs (>= 24)` / `Requires: nodejs(engine) >= 24` | **Amended (#1354 M0).** This row read "bundled Node — no system Node can be assumed"; that is true of macOS and Windows and false of Linux, where every distribution ships one. Bundling it would be the same ~100 MiB cargo cult the `--app gjs` row rejects. The rpm spelling is not a style choice: `Requires: nodejs >= 24` is a silent NO-OP on Fedora, whose virtual `nodejs` Provide carries Epoch 1, so `0:24` is satisfied by `1:22.23.1` — measured with `dnf repoquery` on F44. Floor honestly emitted and warned about, exactly like the GJS one |
+| Linux · `--app node` | none — `Depends: nodejs (>= 24)` / `Requires: nodejs(engine) >= 24` | **Amended and IMPLEMENTED (#1354 M0):** the launcher branches on `gjsify.app` and execs `node`, `assertShippableTarget` accepts it, and `assertLauncherMatchesInterpreter` refuses any package whose launcher and dependency disagree. The row read "bundled Node — no system Node can be assumed"; true of macOS and Windows, false of Linux, where every distribution ships one — bundling would be the same ~100 MiB cargo cult the `--app gjs` row rejects. The rpm spelling is not a style choice: `Requires: nodejs >= 24` is a silent NO-OP on Fedora, whose virtual `nodejs` Provide carries Epoch 1, so `0:24` is satisfied by `1:22.23.1` — measured with `dnf repoquery` on F44. ⚠️ And even the correct spelling does not put Node 24 on `PATH`: the alternatives-managed `/usr/bin/node` belongs to whichever `nodejs<stream>-bin` is installed, so `nodejs22-bin` + `nodejs(engine) >= 24` is a satisfiable state with `node` at 22. Floor honestly emitted and warned about, exactly like the GJS one |
 | **macOS** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-darwin-<arch>`** | this is the combination CI proves on both arches, with no Homebrew in the picture: the *batteries-included conformance* and *windowing proof* legs of `node-gi.yml` run green against the relocated bundle |
 | **Windows** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-win32-x64`** | **there is no GJS host on Windows** (`docs/ci-selective.md`), so this is not a choice. The *batteries-included conformance* and *Adwaita Storybook proof* legs prove it without gvsbuild |
 | `--app browser` | — | no OS-package question |
@@ -368,9 +368,16 @@ time fetch versus a platform package — is unchanged.
 > **Settled (#1354 M0).** A platform package, in `@gjsify/gtk-runtime-*`'s shape: hand-written
 > manifest, gitignored payload, `files:` overriding `.gitignore` at pack time. Node 24, three
 > targets, `bin/node` + Node's `LICENSE` and nothing else. Linux gets none and declares
-> `nodejs` / `nodejs(engine)` instead. The one place it diverges from that precedent is the
-> publish topology: gtk-runtime's payload is BUILT on the OS it targets and needs a runner per
-> OS, ours is a digest-verified DOWNLOAD, so all three ride one ubuntu job.
+> `nodejs` / `nodejs(engine)` instead — and that half is code, not only a table row: the
+> launcher branches on `gjsify.app`, the seed dependency follows the same field, and a real
+> `.rpm` from the `--app node` fixture reads back `nodejs(engine) >= 24` with no `gjs` line.
+> The one place it diverges from that precedent is the publish topology: gtk-runtime's payload
+> is BUILT on the OS it targets and needs a runner per OS, ours is a digest-verified DOWNLOAD,
+> so all three ride one ubuntu job.
+>
+> What is NOT yet built: nothing stages the bundled interpreter into a `.app` or a Windows
+> program directory. That is the layout axis, and `utils/ship/node-runtime.ts` is the seam it
+> will go through.
 
 *Architecture is derived, not configured.* A payload with no `.so`/`.node` is `Architecture: all` /
 `BuildArch: noarch`. Claiming `amd64` for a bundle of JavaScript would make apt refuse it on an

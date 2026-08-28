@@ -91,12 +91,21 @@ check(
     `${binPath}: wrong magic — this is not a ${spec.os} binary`,
 );
 check((statSync(binPath).mode & 0o111) !== 0, `${binPath}: not executable`);
+// The bare-binary shortcut is a WINDOWS shortcut, and naming it on a darwin
+// failure would point the reader at a URL that 404s. Measured on v24.20.0:
+// `dist/<v>/win-x64/` is the only per-target directory the release publishes, and
+// it carries no LICENSE; `dist/<v>/darwin-arm64/` and `dist/<v>/darwin-x64/` do
+// not exist. A diagnostic that names the wrong cause costs more than none.
+const bareBinaryHint =
+    spec.kind === 'zip'
+        ? ` ⚠️ The bare-binary path https://nodejs.org/dist/${NODE_VERSION}/${spec.distTag}/ carries NO LICENSE ` +
+          'at all — if this file is absent, that convenient route is the likely cause and the obligation was ' +
+          'dropped with no error.'
+        : '';
 check(
     license.byteLength > 0 && EXPECTED_LICENSE_BYTES.has(license.byteLength),
     `${licensePath}: ${license.byteLength} B is neither length measured for ${NODE_VERSION} ` +
-        `(${[...EXPECTED_LICENSE_BYTES].join(', ')}). ⚠️ The bare-binary path ` +
-        `https://nodejs.org/dist/${NODE_VERSION}/${spec.distTag}/ carries NO LICENSE at all — if this file is ` +
-        'absent, that convenient route is the likely cause and the obligation was dropped with no error.',
+        `(${[...EXPECTED_LICENSE_BYTES].join(', ')}).${bareBinaryHint}`,
 );
 check(
     new TextDecoder().decode(license).startsWith(LICENSE_FIRST_LINE),

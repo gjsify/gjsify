@@ -18,8 +18,9 @@ import { buildRpm } from './rpm.js';
 import {
     assertPayloadMatchesArch,
     isArchIndependent,
+    assertLauncherMatchesInterpreter,
     readBinaryArch,
-    readPayloadFacts,
+    readLauncherInterpreter,
     readShebangInterpreters,
     type PayloadEntry,
 } from './payload.js';
@@ -57,6 +58,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         execArgs: [],
         outDir: 'ship',
         arch: 'x64',
+        app: 'gjs' as const,
         minGjsVersion: '1.86',
         minNodeVersion: '24',
         ...overrides,
@@ -226,34 +228,42 @@ export default async () => {
         });
     });
 
-    await describe('readPayloadFacts: hasNodeInterpreter', async () => {
-        await it('reads a `--app node` bundle off its filename', async () => {
-            // The convention `gjsify build --app node` writes and
-            // `resolveNodeEntry()` probes for. Derived, not declared: an
-            // authored `gjsify.ship.app` key can be stale in a way nothing
-            // notices until apt installs a package whose launcher execs an
-            // interpreter that was never depended on.
-            expect(readPayloadFacts([{ path: 'lib/demo/app.node.mjs' }]).hasNodeInterpreter).toBe(true);
-            expect(readPayloadFacts([{ path: 'lib/demo/app.node.cjs' }]).hasNodeInterpreter).toBe(true);
-            expect(readPayloadFacts([{ path: 'lib/demo/app.node.js' }]).hasNodeInterpreter).toBe(true);
+    await describe('the launcher and the dependency must name the same interpreter', async () => {
+        const launcher = (text: string) => [{ path: 'bin/demo', mode: 0o755, data: encoder.encode(text) }];
+        const gjsLauncher = '#!/bin/sh\nset -e\nexec gjs -m "$prefix"/lib/demo/app.gjs.js "$@"\n';
+        const nodeLauncher = '#!/bin/sh\nset -e\nexec node "$prefix"/lib/demo/app.node.mjs "$@"\n';
+
+        await it('reads the interpreter off the staged launcher', async () => {
+            expect(readLauncherInterpreter(launcher(gjsLauncher), 'demo')).toBe('gjs');
+            expect(readLauncherInterpreter(launcher(nodeLauncher), 'demo')).toBe('node');
         });
 
-        await it('is false for a `--app gjs` payload', async () => {
-            // The case that must stay quiet: a GJS package pulling in a Node
-            // interpreter it never runs is a dependency nobody asked for.
-            const facts = readPayloadFacts([
-                { path: 'bin/demo' },
-                { path: 'lib/demo/app.gjs.mjs' },
-                { path: 'share/applications/eu.example.Demo.desktop' },
-            ]);
-            expect(facts.hasNodeInterpreter).toBe(false);
+        await it('refuses a package that depends on one interpreter and execs the other', async () => {
+            // The defect measured on the first cut of the Node half: a filename
+            // heuristic put `nodejs (>= 24)` in `Depends:` while this line still
+            // read `exec gjs -m`. Both files were individually well-formed, so no
+            // structural check could see it — only comparing them can.
+            expect(() => assertLauncherMatchesInterpreter(launcher(gjsLauncher), 'demo', 'node')).toThrow(
+                'execs `gjs`',
+            );
+            expect(() => assertLauncherMatchesInterpreter(launcher(nodeLauncher), 'demo', 'gjs')).toThrow(
+                'execs `node`',
+            );
         });
 
-        await it('is not fooled by `node` appearing elsewhere in the path', async () => {
-            // `.node.mjs` is a SUFFIX. A directory called `node_modules`, or a
-            // `.node` addon, says nothing about which interpreter runs the app.
-            expect(readPayloadFacts([{ path: 'lib/demo/node_modules/x/index.mjs' }]).hasNodeInterpreter).toBe(false);
-            expect(readPayloadFacts([{ path: 'lib/demo/gi/better_sqlite3.node' }]).hasNodeInterpreter).toBe(false);
+        await it('passes when they agree, and stays silent when it cannot tell', async () => {
+            // `null` must not fail a working artifact: `gjsify.ship.extraFiles`
+            // can replace `bin/<name>` with a launcher this reader never wrote.
+            assertLauncherMatchesInterpreter(launcher(gjsLauncher), 'demo', 'gjs');
+            assertLauncherMatchesInterpreter(launcher('#!/bin/sh\nexit 0\n'), 'demo', 'node');
+            assertLauncherMatchesInterpreter([], 'demo', 'node');
+            expect(readLauncherInterpreter([], 'demo')).toBe(null);
+        });
+
+        await it('is not fooled by the word `exec` inside the launcher body', async () => {
+            const withNoise =
+                '#!/bin/sh\n# exec gjs is what this used to do\nEXECUTABLE=1\nexec node "$prefix"/lib/demo/a.mjs\n';
+            expect(readLauncherInterpreter(launcher(withNoise), 'demo')).toBe('node');
         });
     });
 

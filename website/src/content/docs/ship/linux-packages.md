@@ -312,6 +312,11 @@ Depends: nodejs (>= 24)          # deb
 Requires: nodejs(engine) >= 24   # rpm
 ```
 
+`gjsify ship` picks the interpreter from `gjsify.app` — the same field your build
+already uses — and the launcher it writes execs that one and no other. A package
+therefore declares exactly one interpreter, and `gjsify ship` refuses to build one
+whose launcher and dependency disagree.
+
 **The two names are not interchangeable, and getting rpm's wrong fails
 silently.** `Requires: nodejs >= 24` is a no-op on Fedora: the virtual `nodejs`
 Provide carries Epoch 1, so a bare `>= 24` desugars to `0:24` and is satisfied by
@@ -336,6 +341,14 @@ genuinely runs on an older Node, say so — and test it there first:
 ```jsonc
 "gjsify": { "ship": { "minNodeVersion": "20" } }
 ```
+
+⚠️ **A satisfied `Requires:` is not the same as Node 24 on `PATH`.** Fedora's
+streams are parallel-installable and `/usr/bin/node` is an alternatives symlink
+owned by whichever `nodejs<stream>-bin` package is installed — so
+`nodejs22-bin` plus `nodejs(engine) >= 24` is a perfectly valid state in which
+`node` is still 22. Measured with `dnf install --assumeno` on Fedora 44. No
+dependency any packager can emit closes that; an app that truly requires 24 has to
+check `process.versions.node` at startup and say so.
 
 macOS and Windows have no system Node to depend on, so an artifact for those
 carries its own interpreter from `@gjsify/node-runtime-<target>`. You add nothing

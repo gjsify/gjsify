@@ -27,7 +27,7 @@
   "gjsify": {
     "runtimes": {
       "gjs": "none",
-      "node": "none",
+      "node": "polyfill",
       "browser": "none",
       "nativescript": "none"
     },

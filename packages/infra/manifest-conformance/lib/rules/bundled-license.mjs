@@ -53,9 +53,16 @@ import { defineRule } from '../registry.mjs';
  * some other directory name, its name goes here in the same commit.
  *
  * Measured before adding it, because `bin` is a far more ordinary name than
- * `gtk`: across all 337 manifests in this repository, ZERO list `bin` in `files`
- * apart from the three added with it. And the trigger is `files`, not the `bin`
- * MANIFEST FIELD — a package declaring executables via `"bin": {…}` is untouched.
+ * `gtk` — and measured over THIS RULE'S OWN UNIVERSE, which is the part worth
+ * copying: `createContext({ discoveryRoots: ['packages'] })` sees 329 packages,
+ * and exactly three of them list `bin` in `files`, all three added with this
+ * line. An earlier version of this note counted 337 by walking the working tree
+ * for `package.json` files, which is a different set from the one the rule
+ * scans; a number measured beside the check it justifies is not evidence about
+ * the check.
+ *
+ * And the trigger is `files`, not the `bin` MANIFEST FIELD — a package declaring
+ * executables via `"bin": {…}` is untouched.
  */
 const PAYLOAD_DIRS = new Set(['gtk', 'bin']);
 

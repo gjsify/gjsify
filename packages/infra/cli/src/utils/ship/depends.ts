@@ -74,11 +74,30 @@ export const DEFAULT_NODE_FLOOR = '24';
  * to be a Provide in the first place.) The spelling appears nowhere in the
  * Fedora packaging guideline's own source — it comes from real spec files.
  *
- * No `/usr/bin/node` file dependency beside it, and that is measured rather than
- * omitted: `dnf repoquery --requires nodejs24` lists `/usr/bin/node`, so the
- * alternatives-managed symlink (from the separate `nodejs24-bin` subpackage)
- * comes along with the engine. A second, redundant `Requires` would say nothing
- * the first does not.
+ * No `/usr/bin/node` file dependency beside it — right answer, and the FIRST
+ * reason written here for it was wrong, so both are recorded. It is not that
+ * `nodejs24` pulls the symlink in: `/usr/bin/node` is provided by `nodejs20-bin`,
+ * `nodejs22-bin` AND `nodejs24-bin`, all three of which
+ * `Provides`/`Conflicts: alternative-for(nodejs-bin)` and are therefore mutually
+ * exclusive. `nodejs24` itself installs `/usr/bin/node-24`. So the file
+ * dependency is satisfied by ANY stream's `-bin`, which makes it worthless as a
+ * version constraint — that is why it is not emitted.
+ *
+ * ⚠️ AND THAT LEAVES A REAL HOLE, which no dependency this writer can emit
+ * closes. Measured on Fedora 44:
+ *
+ *     dnf install --assumeno nodejs22-bin 'nodejs(engine) >= 24'
+ *       → installs nodejs22-bin, nodejs22, nodejs24, nodejs24-libs
+ *       → and NOT nodejs24-bin
+ *
+ * Every requirement is met and `node` on `PATH` is still 22. rpm's alternatives
+ * scheme has no vocabulary for "the stream that owns the symlink must be at
+ * least 24", so an app that must have 24 on `PATH` has to check at runtime; a
+ * package cannot ask for it. Recorded here because the gap is invisible from the
+ * emitted `Requires:` line, which looks correct and is.
+ *
+ * (`nodejs24` carries no bare `nodejs` Provide at all — only `nodejs22` does on
+ * F44, which is the other half of why the epoch trap above bites.)
  *
  * A `Record`, for the reason {@link SCHEMA_COMPILER_PACKAGE} records: a ternary
  * reads as a two-way choice and is really "deb, or ELSE rpm's name", and a third
@@ -244,15 +263,28 @@ export interface DependsInputs {
     /** Whether the payload installs GSettings schemas. */
     hasSchemas: boolean;
     /**
-     * Whether the payload is a `--app node` bundle and therefore needs a Node
-     * interpreter from the distribution.
+     * The interpreter the launcher execs — `settings.app`, the SAME field
+     * `renderLauncher` branches on.
      *
-     * Derived from the staged paths (`readPayloadFacts`), never declared — same
-     * rule as `hasIcons`, and for the same reason: the payload is what ships.
-     * macOS and Windows do not appear here at all; there the interpreter is
-     * CARRIED, from `@gjsify/node-runtime-<target>`.
+     * Not a payload fact, and the attempt to make it one is worth keeping: the
+     * first cut derived it from a staged FILENAME (`*.node.mjs`), which is wrong
+     * in both directions. `discoverPayload` stages the whole directory beside
+     * the bundle and `dist/<name>.gjs.js` next to `dist/<name>.node.mjs` is the
+     * documented normal layout, so a pure `--app gjs` project that also builds a
+     * Node bundle declared a Node dependency it never execs — and with a `>= 24`
+     * floor that `.deb` is REFUSED by apt on trixie, Ubuntu 24.04 and Ubuntu
+     * 26.04. A working package made uninstallable is not "one extra package
+     * installed".
+     *
+     * The honest source is the one thing that decides both the launcher and this
+     * list. `assertLauncherMatchesInterpreter` re-reads the staged launcher and
+     * refuses a package where the two disagree, which is the check a payload
+     * heuristic could never be.
+     *
+     * macOS and Windows never reach here: there the interpreter is CARRIED, from
+     * `@gjsify/node-runtime-<target>`.
      */
-    hasNodeInterpreter: boolean;
+    interpreter: 'gjs' | 'node';
     /** User-supplied additions for this format. */
     extra: readonly string[];
     /** Project-supplied table rows, filling gaps in {@link TYPELIB_PACKAGES}. */
@@ -292,7 +324,15 @@ const BUNDLED_TYPELIB = /^Gjsify[A-Z]/;
  * @throws when a namespace has no entry in the table — see the module header.
  */
 export function deriveDepends(format: DistroFormatId, inputs: DependsInputs): string[] {
-    const out: string[] = [`gjs >= ${inputs.minGjsVersion ?? DEFAULT_GJS_FLOOR}`];
+    // The interpreter the launcher execs, and nothing else: a package declares ONE.
+    // Linux is the only place this is a dependency at all — macOS and Windows have
+    // no system Node, so an artifact for those CARRIES one from
+    // `@gjsify/node-runtime-<target>`, and that is the whole reason those three
+    // packages exist and this one line is their opposite.
+    const out: string[] =
+        inputs.interpreter === 'node'
+            ? [`${NODE_PACKAGE[format]} >= ${inputs.minNodeVersion ?? DEFAULT_NODE_FLOOR}`]
+            : [`gjs >= ${inputs.minGjsVersion ?? DEFAULT_GJS_FLOOR}`];
     const unmapped: string[] = [];
 
     // Namespaces the package SHIPS ITSELF, read off the staged filenames rather than from a
@@ -344,17 +384,10 @@ export function deriveDepends(format: DistroFormatId, inputs: DependsInputs): st
     // `Gio.Settings.new()` aborts the app — an install that succeeds and an app
     // that does not start.
     if (inputs.hasSchemas) out.push(SCHEMA_COMPILER_PACKAGE[format]);
-    // The interpreter a `--app node` bundle is executed by. Bundled on macOS and
-    // Windows (`@gjsify/node-runtime-<target>`), depended on here — the same split
-    // ADR 0024 draws for everything else the host may or may not provide, and the
-    // reason Linux gets no runtime package: every distribution ships a Node.
-    if (inputs.hasNodeInterpreter) {
-        out.push(`${NODE_PACKAGE[format]} >= ${inputs.minNodeVersion ?? DEFAULT_NODE_FLOOR}`);
-    }
     out.push(...inputs.extra);
 
-    // Set-dedupe keeps first-insertion order, so `gjs` stays first and the
-    // list is stable across runs.
+    // Set-dedupe keeps first-insertion order, so the interpreter stays first and
+    // the list is stable across runs.
     return [...new Set(out)];
 }
 

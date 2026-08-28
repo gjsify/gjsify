@@ -65,13 +65,20 @@ export const LICENSE_FIRST_LINE = 'Node.js is licensed for use as follows:';
  * `distTag` is nodejs.org's (`win`). They differ, and conflating them is how a
  * fetcher ends up requesting a directory that does not exist.
  *
- * ⚠️ `archive` is deliberately the `.tar.xz` / `.zip` and NEVER the bare-binary
- * path `https://nodejs.org/dist/<v>/win-x64/`. Measured on v24.20.0, that
- * directory contains `node.exe`, `node.lib`, `node_pdb.7z`, `node_pdb.zip` —
- * and NO `LICENSE`. It is the convenient route (93 MB, no unzip) and it is the
- * one that silently drops the redistribution obligation: nothing errors, the
- * package just ships someone else's binary with no terms attached. The `.zip`
- * costs one extra extraction and carries the licence.
+ * ⚠️ `archive` is deliberately an archive and NEVER the bare-binary path
+ * `https://nodejs.org/dist/<v>/win-x64/`. Measured on v24.20.0, that directory
+ * contains `node.exe`, `node.lib`, `node_pdb.7z`, `node_pdb.zip` — and NO
+ * `LICENSE`. It is the convenient route (93 MB, no unzip) and it is the one that
+ * silently drops the redistribution obligation: nothing errors, the package just
+ * ships someone else's binary with no terms attached. The `.zip` costs one extra
+ * extraction and carries the licence.
+ *
+ * The shortcut exists for WIN-X64 ONLY — `dist/<v>/darwin-arm64/` and
+ * `dist/<v>/darwin-x64/` return 404, measured on the same release, and the
+ * release index lists only `docs/`, `win-arm64/` and `win-x64/`. The rule is
+ * written for every target anyway because the fetcher is one shared script, and
+ * because "there is no shortcut on this target *today*" is a fact about a
+ * publisher's directory layout, not a property anyone here controls.
  */
 export const TARGETS = {
     'darwin-arm64': {

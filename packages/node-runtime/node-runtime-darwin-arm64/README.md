@@ -10,7 +10,9 @@ bin/manifest.json   which release, which URL, which digests
 ```
 
 Platform-gated (`os: ["darwin"]`, `cpu: ["arm64"]`), tier 3. On any other
-platform npm skips it. The `bin/` payload is **not committed** — it is fetched and
+platform `npm install` REFUSES it with `EBADPLATFORM` — see
+[Installing it from another platform](#installing-it-from-another-platform), which
+is not an edge case here. The `bin/` payload is **not committed** — it is fetched and
 digest-checked on a CI runner by
 [`../scripts/fetch-node-runtime.mjs`](../scripts/fetch-node-runtime.mjs) and reaches
 consumers through the published tarball.
@@ -46,9 +48,11 @@ epoch and resolves correctly.
 
 ## Why `bin/node` and not the whole distribution
 
-The full release drags in npm's bundled `node_modules`, which in the win-x64 zip
-alone adds **154 further LICENSE files** — 154 attribution obligations for code
-that is not being shipped. An interpreter inside a `.app` or a Windows program
+The full release drags in npm's bundled `node_modules`, which adds **149 further
+LICENSE files** — 149 attribution obligations for code that is not being shipped.
+(Measured on v24.20.0 as archive entries whose basename begins `LICENSE`/`LICENCE`:
+150 in total, one of which is Node's own. The count is the same in the win-x64 zip
+and in the darwin tarballs — it is a property of the release, not of one archive.) An interpreter inside a `.app` or a Windows program
 directory needs the binary and the terms it travels under.
 
 Node's own `LICENSE`, verbatim from the release, discharges the whole set in one
@@ -58,16 +62,41 @@ OpenSSL is upstream 3.5.7 under **Apache-2.0 alone** — not quictls, not the du
 licence — so there is no advertising clause and no "Eric Young" attribution to
 reproduce, and no bundled Apache component ships a `NOTICE`.
 
-## Two traps the fetcher exists to close
+## Two traps in the release, and what the fetcher does about them
 
-1. **`https://nodejs.org/dist/<v>/darwin-arm64/` carries no LICENSE.** That directory
-   holds `node` and debug symbols and nothing else — measured on v24.20.0. It is
-   the convenient route and it drops the redistribution obligation with no error.
-   The fetcher only ever reads the `.tar.xz` / `.zip`, which carry it.
+1. **The convenient shortcut that drops the licence does not exist for darwin —
+   and that is worth stating, not omitting.** `https://nodejs.org/dist/<v>/win-x64/`
+   serves a bare `node.exe` with no LICENSE beside it, and taking that route is
+   how a Windows package ends up redistributing a binary with no terms attached.
+   Measured on v24.20.0, the equivalent `darwin-arm64/` and `darwin-x64/` paths
+   return **404**: the release publishes no per-target directory for macOS at all,
+   so the only way to get this binary is the `.tar.xz`, which carries the licence.
+   The fetcher is one shared script across all three targets, so it reads the
+   archive here for the reason it must there.
 2. **One release ships the licence twice, byte-different.** 157,609 B with LF (in
    the tarballs) and 160,555 B with CRLF (in the zip) — 2,946 CR, one per line.
    Any size or digest check must expect **both**, or it passes two targets and
    fails the third for a reason that reads like a corrupt download.
+
+## Installing it from another platform
+
+`os`/`cpu` gating is what keeps this 90–125 MB package off machines that cannot
+run it — but the design also says a Windows or macOS artifact may be assembled on
+**Linux** (ADR 0024 § A1: the packers are pure JavaScript and run anywhere). Those
+two pull in opposite directions, and npm resolves it in gating's favour. Measured
+with npm 11.17.0 on Linux:
+
+| command | result |
+| --- | --- |
+| `npm install @gjsify/node-runtime-win32-x64` | `EBADPLATFORM`, exit 1 |
+| `npm install --os=win32 --cpu=x64 …` | `EBADPLATFORM`, exit 1 — the flags do **not** help |
+| `npm install --force …` | installs, **exit 0** |
+| `npm pack @gjsify/node-runtime-win32-x64` | downloads the tarball, **exit 0** |
+
+So a shipper cross-assembling on Linux uses `--force` (or `npm pack` plus an
+extraction, which needs no override at all). This is NOT the "npm silently skips
+a platform mismatch" behaviour — that applies to an `optionalDependencies` entry,
+and this package is deliberately never one (see *Who installs it* above).
 
 ## Use it directly
 

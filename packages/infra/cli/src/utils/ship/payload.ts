@@ -68,6 +68,14 @@ export function buildTimestamp(bundlePath: string, env: Record<string, string | 
  * Path-only, on purpose — `isArchIndependent` is the sibling that reads BYTES, and the two answer
  * different questions from the same payload. The same split as `plan.ts`'s `isExecutableAsset`
  * (by name) versus this module's magic sniffing (by content).
+ *
+ * NOT EVERY QUESTION BELONGS HERE, and one that does not was briefly added: "does this package need
+ * a Node interpreter", derived from a `*.node.mjs` filename anywhere in the tree. Every fact above
+ * is about something the package INSTALLS at a well-known path, which is why a path answers it.
+ * That one was about what the launcher EXECS — and `discoverPayload` stages the whole directory
+ * beside the bundle, so a `--app gjs` project that also builds a Node bundle carried the file and
+ * ran neither. It lives on `settings.app` now, with `assertLauncherMatchesInterpreter` below as the
+ * check. Before adding a field here, ask whether a path can answer it or only correlate with it.
  */
 export interface PayloadFacts {
     /** The payload installs a `share/applications/*.desktop`. */
@@ -78,43 +86,9 @@ export interface PayloadFacts {
     hasSchemas: boolean;
     /** The payload installs a `share/mime/packages/*.xml`, so the mime cache needs rebuilding. */
     hasMimeTypes: boolean;
-    /**
-     * The payload installs a `--app node` bundle, so it needs a Node interpreter
-     * the package does not carry.
-     *
-     * DERIVED FROM THE NAME the bundler already writes — `dist/<name>.node.mjs`,
-     * the exact triple `resolveNodeEntry()` probes for (`.node.mjs`, `.node.js`,
-     * `.node.cjs`) — and not from a `gjsify.ship.app` key somebody would have to
-     * author. The module header's rule applies here as hard as anywhere: a
-     * declaration that a package needs Node, kept beside a payload that does
-     * not, is a claim nothing checks; and the reverse, an app whose author
-     * forgot the key, ships a `.deb` that installs and dies at `exec node`.
-     *
-     * A NAME CONVENTION is admittedly weaker than a magic number, and it fails
-     * in the safe direction only for the false POSITIVE (a GJS payload that
-     * happens to contain `foo.node.mjs` declares a `nodejs` dependency it does
-     * not use — harmless, one extra package installed). The false NEGATIVE — a
-     * project that names its `--app node` bundle something else — costs the
-     * dependency, and `gjsify.ship.depends.{deb,rpm}` is the hatch that adds it
-     * back. That trade is only acceptable because the convention is the one this
-     * toolchain itself emits and resolves against, not one invented here.
-     */
-    hasNodeInterpreter: boolean;
     /** Prefix-relative paths of the typelibs the payload carries itself. */
     bundledTypelibs: string[];
 }
-
-/**
- * The filenames `gjsify build --app node` writes.
- *
- * Kept in step with `resolveNodeEntry()`'s candidate list in
- * `utils/resolve-gjs-entry.ts` — `<stem>.node.mjs`, `<stem>.node.js`,
- * `<stem>.node.cjs`. Two places spell the same convention because they answer it
- * from opposite ends (one probes the project tree, one reads a staged payload
- * that may have arrived from another host, ADR 0024 § A2) and neither can import
- * the other's filesystem assumptions.
- */
-const NODE_BUNDLE = /\.node\.(mjs|js|cjs)$/;
 
 /**
  * Read {@link PayloadFacts} off a payload or off a plan.
@@ -131,12 +105,67 @@ export function readPayloadFacts(entries: readonly { path: string }[]): PayloadF
         hasIcons: paths.some((path) => path.startsWith('share/icons/hicolor/')),
         hasSchemas: paths.some((path) => path.startsWith('share/glib-2.0/schemas/') && path.endsWith('.gschema.xml')),
         hasMimeTypes: paths.some((path) => path.startsWith('share/mime/packages/') && path.endsWith('.xml')),
-        hasNodeInterpreter: paths.some((path) => NODE_BUNDLE.test(path)),
         // Anywhere in the payload, not only `lib/<name>/gi/`: `gjsify.ship.extraFiles` can place
         // one elsewhere, and a typelib the package carries is a typelib the package must not also
         // declare a distro dependency for, wherever it sits.
         bundledTypelibs: paths.filter((path) => path.endsWith('.typelib')),
     };
+}
+
+/**
+ * The interpreter the STAGED launcher will actually exec, or `null` when the
+ * question cannot be answered from the bytes.
+ *
+ * WHY THIS IS READ BACK AT ALL, when `settings.app` already says so. Because
+ * `settings.app` says what the launcher was RENDERED from, and the dependency is
+ * a claim about what the installed package will RUN. Those were once two
+ * different things: the Node dependency was derived from a filename glob over
+ * the staged tree while `renderLauncher` execed `gjs` unconditionally, and the
+ * packer emitted `Depends: gjs (>= 1.86), nodejs (>= 24)` for a package that
+ * runs neither combination. Nothing in the pipeline compared them, and no
+ * structural check could: both artifacts were individually well-formed.
+ *
+ * So this reads the file that will be installed, and
+ * {@link assertLauncherMatchesInterpreter} compares it against the dependency
+ * about to be written. It is the same shape as `assertPayloadMatchesArch` — a
+ * LABEL checked against the payload it describes — and it is cheap because the
+ * packing phase already has every staged byte in memory.
+ */
+export function readLauncherInterpreter(payload: readonly PayloadEntry[], binaryName: string): string | null {
+    const launcher = payload.find((entry) => entry.path === `bin/${binaryName}`);
+    if (launcher === undefined) return null;
+    // The LAST `exec` line, since the launcher only ever has one and it is
+    // final; a `#!`-line or an exported variable must not be mistaken for it.
+    const match = /\nexec\s+(\S+)/.exec(`\n${new TextDecoder().decode(launcher.data)}`);
+    return match === null ? null : (match[1] as string);
+}
+
+/**
+ * Refuse a package whose launcher execs an interpreter the package does not
+ * depend on.
+ *
+ * `null` — no launcher, or no `exec` line this reader recognises — is SILENT and
+ * deliberately so: `gjsify.ship.extraFiles` can replace `bin/<name>` outright,
+ * and refusing a package because this function did not understand a launcher
+ * somebody else wrote would fail a working artifact over a parser. The check
+ * exists for the case where both files ARE ours and disagree.
+ */
+export function assertLauncherMatchesInterpreter(
+    payload: readonly PayloadEntry[],
+    binaryName: string,
+    interpreter: 'gjs' | 'node',
+): void {
+    const found = readLauncherInterpreter(payload, binaryName);
+    if (found === null || found === interpreter) return;
+    throw new Error(
+        `gjsify ship: the launcher bin/${binaryName} execs \`${found}\`, but this package would declare a ` +
+            `dependency on \`${interpreter}\`.\n` +
+            '    An installed package that depends on one interpreter and runs another installs cleanly and ' +
+            'fails\n' +
+            "    at first launch, on the user's machine. Both are rendered from `gjsify.app`, so a mismatch " +
+            'here\n' +
+            '    means the stage and the packer disagree — re-run the `--stage` phase with this gjsify.',
+    );
 }
 
 /**

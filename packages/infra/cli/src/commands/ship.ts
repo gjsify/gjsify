@@ -48,6 +48,7 @@ import {
 } from '../utils/ship/formats.js';
 import { scanGiNamespaces } from '../utils/ship/gi-namespaces.js';
 import {
+    assertLauncherMatchesInterpreter,
     assertPayloadMatchesArch,
     buildTimestamp,
     isArchIndependent,
@@ -201,6 +202,7 @@ async function assemble(args: ShipOptions): Promise<void> {
         flatpak,
         cli: { outDir: args.out, arch: args.arch },
         discovered,
+        app: configData.app,
     });
     for (const warning of warnings) console.warn(`${LOG} ${warning}`);
 
@@ -277,24 +279,21 @@ async function assemble(args: ShipOptions): Promise<void> {
             namespaces,
             hasIcons: facts.hasIcons,
             hasSchemas: facts.hasSchemas,
-            hasNodeInterpreter: facts.hasNodeInterpreter,
+            interpreter: settings.app,
             extra: settings.extraDepends[format.depends],
             typelibPackages: settings.typelibPackages,
             bundledTypelibs: facts.bundledTypelibs,
             minGjsVersion: settings.minGjsVersion,
             minNodeVersion: settings.minNodeVersion,
         });
-        for (const warning of warnAboutGjsFloor(format.depends, settings.minGjsVersion)) {
-            console.warn(`${LOG} ${warning}`);
-        }
-        // Only when the payload actually needs an interpreter — the floor is real
-        // either way, but a warning about a dependency this package does not emit
-        // is noise, and a noisy warning is one nobody reads when it matters.
-        if (facts.hasNodeInterpreter) {
-            for (const warning of warnAboutNodeFloor(format.depends, settings.minNodeVersion)) {
-                console.warn(`${LOG} ${warning}`);
-            }
-        }
+        // One warning per package, for the interpreter it actually declares. A
+        // floor warning about a dependency this package does not emit is noise,
+        // and a noisy warning is the one nobody reads when it matters.
+        const floorWarnings =
+            settings.app === 'node'
+                ? warnAboutNodeFloor(format.depends, settings.minNodeVersion)
+                : warnAboutGjsFloor(format.depends, settings.minGjsVersion);
+        for (const warning of floorWarnings) console.warn(`${LOG} ${warning}`);
     }
 
     // Written unconditionally, not only under `--stage`: a `ship/stage/` that
@@ -387,22 +386,17 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
     // goes beside the artifacts.
     const outRoot = args.out === undefined ? dirname(stageDir) : resolve(cwd, args.out);
 
-    // From the STAGE's own paths, not from the settings: this phase may be running
-    // on a machine that has never seen the project (ADR 0024 § A2), and the stage is
-    // the only thing that crossed.
-    const stagedFacts = readPayloadFacts(manifest.staged);
-
     const artifacts: ShipArtifact[] = [];
     for (const format of formats) {
         if (format.depends !== null) {
-            for (const warning of warnAboutGjsFloor(format.depends, manifest.settings.minGjsVersion)) {
-                console.warn(`${LOG} ${warning}`);
-            }
-            if (stagedFacts.hasNodeInterpreter) {
-                for (const warning of warnAboutNodeFloor(format.depends, manifest.settings.minNodeVersion)) {
-                    console.warn(`${LOG} ${warning}`);
-                }
-            }
+            // From the stage manifest's settings, which is all this phase has: it
+            // may be running on a machine that has never seen the project
+            // (ADR 0024 § A2).
+            const floorWarnings =
+                manifest.settings.app === 'node'
+                    ? warnAboutNodeFloor(format.depends, manifest.settings.minNodeVersion)
+                    : warnAboutGjsFloor(format.depends, manifest.settings.minGjsVersion);
+            for (const warning of floorWarnings) console.warn(`${LOG} ${warning}`);
         }
         artifacts.push(
             await packOne({
@@ -461,7 +455,7 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                   namespaces: input.namespaces,
                   hasIcons: facts.hasIcons,
                   hasSchemas: facts.hasSchemas,
-                  hasNodeInterpreter: facts.hasNodeInterpreter,
+                  interpreter: settings.app,
                   extra: settings.extraDepends[format.depends],
                   typelibPackages: settings.typelibPackages,
                   bundledTypelibs: facts.bundledTypelibs,
@@ -483,6 +477,13 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // architecture, and the mismatch that matters is exactly the one on a payload
     // that IS architecture-specific.
     assertPayloadMatchesArch(payload, input.arch);
+
+    // The second half of the same idea, on the other label this package carries:
+    // the dependency list says which interpreter runs the app, and until now
+    // nothing compared it to the launcher that will. They CAN disagree — a stage
+    // assembled by one gjsify and packed by another — and a package that depends
+    // on `gjs` while execing `node` installs cleanly and dies at first launch.
+    if (format.depends !== null) assertLauncherMatchesInterpreter(payload, settings.binaryName, settings.app);
 
     const archLabel = format.archName(input.arch, isArchIndependent(payload));
     const common = { settings, payload, prefix: format.prefix, depends, archLabel, mtime };
@@ -554,26 +555,33 @@ function assertCanPack(format: FormatDescriptor): void {
 /**
  * Refuse a build target this command cannot package correctly.
  *
- * The launcher execs `gjs -m <bundle>`, so a `--app node` bundle would produce
- * a package that installs and then fails at startup — and ADR 0024 § 4 says
- * that case needs a BUNDLED Node, whose delivery (fetched at ship time versus a
- * platform package) is still an open decision. Better to say so than to ship
- * the broken half of it.
+ * `gjs` and `node` are packageable: `renderLauncher` execs the one
+ * `settings.app` names and `deriveDepends` declares the same one — `gjs >= …`,
+ * or `nodejs (>= 24)` / `nodejs(engine) >= 24`. Until #1354's M0 this said "only
+ * `gjs` can be packaged today", which was true: the launcher execed gjs
+ * unconditionally, so a `--app node` package would have installed and died at
+ * startup.
  *
- * An undeclared target is the common case for a GJS app and is allowed: `app`
- * otherwise defaults to the HOST runtime, which would refuse a perfectly good
- * GJS project merely for running this command under Node.
+ * `browser` and `nativescript` stay refused, and not for want of a launcher
+ * line: a browser bundle has no process to start, and NativeScript ships as an
+ * APK/IPA through a different pipeline entirely (ADR 0024 § 4).
  *
- * Phase one only, and nothing checks it again in phase two: a stage can only
- * exist because this passed, and the staged `bin/<name>` carries the
- * `exec gjs -m` line that proves it.
+ * An undeclared target is the common case for a GJS app and is allowed. It must
+ * NOT be resolved through `Config.forBuild`, whose fallback is the HOST runtime
+ * — that would refuse, or worse silently re-target, a perfectly good GJS project
+ * merely for running this command under Node.
+ *
+ * Phase one only. Phase two does not re-read `gjsify.app` — it has no project —
+ * but it is not unchecked either: `assertLauncherMatchesInterpreter` compares
+ * the staged `bin/<name>`'s own `exec` line against the dependency about to be
+ * written.
  */
 function assertShippableTarget(app: string | undefined): void {
-    if (app === undefined || app === 'gjs') return;
+    if (app === undefined || app === 'gjs' || app === 'node') return;
     throw new Error(
-        `gjsify ship: this project declares \`gjsify.app: "${app}"\`, and only \`gjs\` can be packaged today. ` +
-            'The launcher execs `gjs -m <bundle>`, so any other target would install and then fail to start. ' +
-            'ADR 0024 § 4 has the runtime-per-OS table and what is still open for the other targets.',
+        `gjsify ship: this project declares \`gjsify.app: "${app}"\`, and only \`gjs\` and \`node\` can be ` +
+            'packaged. A browser bundle has no process to launch, and a NativeScript app ships as an APK/IPA ' +
+            'through a different pipeline. ADR 0024 § 4 has the runtime-per-OS table.',
     );
 }
 
