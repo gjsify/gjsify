@@ -99,22 +99,24 @@ recorder.
 ## Why lists are not ordinary elements
 
 `FlatList`, `SectionList`, `VirtualizedList` and `VirtualizedSectionList` are one component that
-differs only in how it receives its rows. Three measurements force that.
+differs only in how it receives its rows, because a `Gtk.ListView` takes no children at all: no
+`append`, `add`, `insert`, `prepend`, `remove` or `set_child` on its prototype. The host's
+placement policies are data naming a method, so there is no method to name.
 
-A `Gtk.ListView` takes no children: no `append`, `add`, `insert`, `prepend`, `remove` or
-`set_child` on its prototype. The host's placement policies are data naming a method, so there is
-no method to name.
+Most of what follows from that is **not React's**. The model, the factory, the key diff and the
+teardown authority live in `@gjsify/gtk-host/list`, where Vue and Solid reach the same three
+measurements — the `Gio.ListStore` carrier identity, why a data change splices the model instead
+of announcing it, and why `dispose()` rather than GTK's own `teardown` signal is what disconnects.
+That module's header states each of them once; nothing restates them here, because a second copy
+is the one that goes stale.
 
-Rebinding is driven by the model, not by identity. `items_changed(0, 1, 1)` over the same carrier
-object produced no rebind at all, while `splice(0, 1, [fresh])` produced `setup, bind 0,
-unbind 0, teardown`.
+What is React's is the deferral: a row's tree is rendered on a microtask, because GTK binds rows
+from inside React's own commit and the adapter's `render()` refuses a re-entrant flush by name.
+Solid's rows over the same controller need no deferral at all.
 
 Virtualisation is real but the allocation is not. With a 500-row model in a presented 400×300
 window the adjustment's `upper` is 11 000, the list is allocated its whole 11 000 px content
 height, and only 205 of the 500 rows are realised.
-
-Teardown needs care: destroying a window whose `Gtk.SignalListItemFactory` still had JS handlers
-connected produced six `Gjs-CRITICAL` lines.
 
 ## Overlay, dialogs and window size
 

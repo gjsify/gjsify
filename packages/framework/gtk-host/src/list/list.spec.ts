@@ -28,7 +28,7 @@ import { createElement, effect, listRows, setProp, type ListRowHandle } from '..
 import { gtkChildren, installDiagnosticsGate } from '../conformance/index.js';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
 import { GTK_HOSTS, gated } from '../testing/gate.mjs';
-import { ListController } from './controller.js';
+import { ListController, type ListRowSink } from './controller.js';
 import type { HostNode } from '../types.js';
 
 /** The row shape every vector below uses. */
@@ -80,10 +80,45 @@ const rowBody = (row: () => Row, index: () => number): HostNode => {
 /** Let every queued microtask run — where a dialect that defers would have done its work. */
 const drain = (): Promise<void> => new Promise<void>((resolve) => queueMicrotask(resolve));
 
+/**
+ * How many row widgets the dialect was asked to mount, and how many to release.
+ *
+ * `liveRows` cannot answer the second question — it says the controller FORGOT a
+ * handle, not that the dialect was TOLD to let go of it, and a controller that forgets
+ * without telling leaks a reactive root and every handler inside that row for the life
+ * of the process. That is the header's third measurement seen from the seam, and
+ * nothing but the seam can see it: after GTK has dropped a row's widgets there is no
+ * tree left to ask. Measured as a gap — removing `disposeRow` from `#teardown` left
+ * every other vector in this file green.
+ */
+interface Census {
+    mounted: number;
+    released: number;
+}
+
 interface Mounted {
     readonly view: Gtk.ListView;
     readonly controller: ListController<Row, ListRowHandle<Row>>;
+    readonly census: Census;
     setRows(rows: readonly Row[]): Promise<void>;
+}
+
+/** The real Solid sink, counted on both sides. Nothing about a row is simulated. */
+function counted(census: Census): ListRowSink<Row, ListRowHandle<Row>> {
+    const rows = listRows<Row>(rowBody);
+    return {
+        mountRow(item) {
+            census.mounted += 1;
+            return rows.mountRow(item);
+        },
+        showRow(handle, row, index) {
+            rows.showRow(handle, row, index);
+        },
+        disposeRow(handle) {
+            census.released += 1;
+            rows.disposeRow(handle);
+        },
+    };
 }
 
 /**
@@ -98,13 +133,15 @@ interface Mounted {
 async function mounted(body: (mount: Mounted) => Promise<void>): Promise<void> {
     const window = new Gtk.Window();
     const view = new Gtk.ListView();
-    const controller = new ListController<Row, ListRowHandle<Row>>(listRows<Row>(rowBody));
+    const census: Census = { mounted: 0, released: 0 };
+    const controller = new ListController<Row, ListRowHandle<Row>>(counted(census));
     controller.attach(view);
     window.set_child(view);
     try {
         await body({
             view,
             controller,
+            census,
             setRows: async (rows) => {
                 controller.setRows(rows);
                 await drain();
@@ -181,6 +218,9 @@ export default async () => {
                     // GTK tears the row widgets down on the splice, and the controller
                     // hands each handle back to the dialect as it goes.
                     expect(mount.controller.liveRows).toBe(0);
+                    // BOTH sides of the seam, not just the controller's own count.
+                    expect(mount.census.mounted > 0).toBe(true);
+                    expect(mount.census.released).toBe(mount.census.mounted);
                 });
             });
 
@@ -197,6 +237,9 @@ export default async () => {
                     expect(mount.controller.liveRows).toBe(0);
                     expect(mount.view.get_factory()).toBe(null);
                     expect(mount.view.get_model()).toBe(null);
+                    // And every row the dialect mounted was handed back — `dispose()`
+                    // reaches the sink for the rows GTK never tore down itself.
+                    expect(mount.census.released).toBe(mount.census.mounted);
                     // Idempotent: the owner's cleanup and an explicit dispose both
                     // reach it, and `mounted` is about to call it a third time.
                     mount.controller.dispose();
