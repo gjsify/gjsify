@@ -118,10 +118,28 @@ export const AdwTabViewTest = async () => {
             // The imperative surface is `appendPage`; a bare DOM append is out of
             // contract, and the point here is only that it fails QUIETLY — the page
             // carries no `data-page-id`, so `syncDeclaredPage` has no record to touch.
+            //
+            // "rather than throwing" is ASSERTED and not assumed. Without the listener
+            // this test measured only the two counts, and both hold whether or not the
+            // callback blew up: a custom-element reaction is REPORTED, never rethrown
+            // into `setAttribute`, so the model is untouched either way. Measured — with
+            // `syncDeclaredPage` mutated to throw on exactly this path, the whole
+            // in-bundle suite of 4631 stayed green and only an unrelated spec's global
+            // error sweep noticed.
             const view = makeTabView();
             const late = document.createElement('adw-tab-page');
             view.appendChild(late);
+
+            const reported: string[] = [];
+            const onError = (event: ErrorEvent) => {
+                reported.push(event.message);
+                event.preventDefault();
+            };
+            window.addEventListener('error', onError);
             late.setAttribute('title', 'Late');
+            window.removeEventListener('error', onError);
+
+            expect(reported).toStrictEqual([]);
             expect(view.nPages).toBe(3);
             expect(chips(view).length).toBe(3);
             view.parentElement?.remove();
