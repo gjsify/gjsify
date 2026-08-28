@@ -35,10 +35,13 @@
 //     all 40 blocks was the second copy.
 //   · "React Native on GTK" carried its qualifier in the tab LABEL, because a
 //     plain "React Native" standing beside Web and NativeScript would have read as
-//     the port that runs on a phone — the one claim this repository must not make
-//     about code it has not written. The qualifier is now the page's:
-//     `layout.mdx`, the only page with that window, says it "renders a GTK window,
-//     not a phone screen — which is why it is not the NativeScript one".
+//     the port that runs on a phone — which is not what this window renders. (That
+//     reason once read "code it has not written"; `@gjsify/adwaita-react-native`
+//     was written in #1380, and the qualifier survives it, because what is at stake
+//     here is what THIS window shows, not what exists elsewhere in the tree.) The
+//     qualifier is now the page's: `layout.mdx`, the only page with that window,
+//     says it "renders a GTK window, not a phone screen — which is why it is not
+//     the NativeScript one".
 //
 // So the header bar carries a title and nothing else. Whatever a header bar sits
 // on is what the reader takes the window to be about: it once held the widget
@@ -203,12 +206,13 @@ const WINDOWS = [
         // screen.
         //
         // This comment used to give a different reason — "there is no Adwaita
-        // widget set built out of React Native primitives" — and that reason died
-        // with `@gjsify/adwaita-react-native` (#1380), which is exactly such a set.
-        // The decision survives it, because it never rested on that package's
-        // absence: what fills this window is direction A, and a direction-B package
-        // existing elsewhere in the tree does not put a phone on this page. It
-        // would take a TAB that renders one.
+        // widget set built out of React Native primitives, SO nothing under this
+        // window runs on a phone" — and that premise died with
+        // `@gjsify/adwaita-react-native` (#1380), which is exactly such a set. The
+        // `so` means the absence really was load-bearing as written; what survives
+        // is the CONCLUSION, on other grounds. What fills this window is direction
+        // A, and a direction-B package existing elsewhere in the tree does not put
+        // a phone on this page. It would take a TAB that renders one.
         title: 'UI frameworks',
         tabs: [{ slot: 'react-native', label: 'React Native' }],
     },
