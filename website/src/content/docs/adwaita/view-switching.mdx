@@ -548,8 +548,10 @@ default; set `allow-scroll-wheel="false"` to leave wheel events to the page
 instead. **Mouse drag** is on by default; `allow-mouse-drag="false"` leaves
 dragging to touch, as it does upstream. **Long swipes** are off by default; turn
 them on to let one flick skip several pages — with the caveat that a *touchpad*
-flick can already cross more than one page here, because that gesture is the
-browser's and it does not consult the setting.
+flick can already cross more than one page here. The setting is applied (each page
+gets `scroll-snap-stop: always` when long swipes are off), but the browser does not
+honour it for that gesture; GTK, which runs the same input through its own tracker,
+does.
 
 <AdwWidget title="Adw.Carousel" padding="flush" stage="height: 220px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
   <Fragment slot="preview">

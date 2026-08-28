@@ -168,7 +168,7 @@ Node.js 24+ is **optional** — needed only to run the cross-validation test tra
 > `npm run status:generate` to render the full snapshot into a (gitignored)
 > `STATUS.md`. The tables below are a high-level snapshot.
 
-gjsify is a monorepo of `@gjsify/*` packages, organised as four pillars plus the
+gjsify is a monorepo of `@gjsify/*` packages, organised as five pillars plus the
 toolchain. How many there are is derived, not typed — `npm run status:generate`
 counts them; the note above says where from.
 
@@ -246,7 +246,7 @@ packages/
   web/        # Web API packages (fetch, XHR, WebSocket, WebRTC, WebAudio, …) + adwaita-*
   dom/        # DOM spec impls (canvas2d-core, dom-elements)
   framework/  # GTK bridges, Storybook, devtools, app shell
-  gjs/        # GJS utilities, types, the @gjsify/unit test framework
+  gjs/        # GJS runtime, shared utils, the @gjsify/unit test framework
   infra/      # CLI, Rolldown/Vite plugins, native engine bridges, create-app
   nativescript-bridge/   # native mobile widgets + bridges (NativeScript axis)
 examples/     # dev/test examples (Express, Hono, socket.io, three.js, WebGL, …)

@@ -50,8 +50,7 @@ gjsify run test
 
 ```bash
 gjsify run build      # Build every workspace package
-gjsify run build:node # Only the Node.js targets
-gjsify run build:web  # Only the Web API targets
+gjsify run build:infra # Only the CLI and build tooling
 gjsify run check      # Type-check all packages
 gjsify run test       # Run tests on Node.js and GJS
 gjsify run clear      # Remove all build outputs

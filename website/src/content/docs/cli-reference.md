@@ -946,7 +946,7 @@ A bare `gjsify format` writes. There is no flagless report mode: `--check` is th
 
 Under GJS, formatting runs in-process through the `@gjsify/oxfmt-native` bridge. Everywhere else the `oxfmt` npm launcher is resolved from `node_modules` and spawned with `node`. Set `GJSIFY_OXFMT=npm` to force the launcher, or `GJSIFY_OXFMT=native` to fail instead of falling back when the prebuild is missing. From inside a sub-workspace, resolution walks up to the workspace root, so a single `.oxfmtrc.json` there applies everywhere.
 
-oxfmt handles JS, TS and TOML. It does not format CSS or JSON, and GJSify does not substitute another formatter for those.
+oxfmt itself formats more than JS and TS — JSON, CSS and TOML among them — but the `.oxfmtrc.json` that `--init` writes ignores every one of those, so a GJSify project formats JS and TS only. Drop a pattern from `ignorePatterns` to widen it.
 
 If oxfmt is missing you get `[gjsify oxc] oxfmt not found.` with `gjsify install -D oxfmt` as the hint, and exit 1.
 
@@ -1036,11 +1036,11 @@ This used to be called `gjsify check`. The bare name now runs the TypeScript che
 <details>
 <summary>What it checks</summary>
 
-**Required.** Always checked, and a miss is fatal: `gjs`, `pkg-config`, `meson`, `blueprint-compiler`, plus `gtk4`, `libadwaita-1`, `libsoup-3.0` and `gobject-introspection-1.0`. On Windows the Microsoft Visual C++ runtime is checked too, because the GTK bundle's DLLs will not load without it.
+**Required.** Always checked, and a miss is fatal: `gjs`, `pkg-config`, `meson`, plus `gtk4`, `libadwaita-1`, `libsoup-3.0` and `gobject-introspection-1.0`. On Windows the Microsoft Visual C++ runtime is checked too, because the GTK bundle's DLLs will not load without it.
 
 **Node.js** is reported but never required. The `install.mjs` bootstrap is run by `gjs`, so "not installed" is a legitimate answer here.
 
-**Build toolchain, optional.** `ninja` and `vala` for the Vala bridges, `cargo` for the three Rust-backed engines (`@gjsify/rolldown-native`, `@gjsify/lightningcss-native`, `@gjsify/oxfmt-native`). You only need these if you rebuild a prebuild from source.
+**Build toolchain, optional.** `blueprint-compiler` for `.blp` templates — resolved the same way the build resolves it, so a project with no `.blp` never needs it and a Windows host keeping it off `PATH` under MSYS2 is not a miss. `ninja` and `vala` for the Vala bridges, `cargo` for the three Rust-backed engines (`@gjsify/rolldown-native`, `@gjsify/lightningcss-native`, `@gjsify/oxfmt-native`). You only need these if you rebuild a prebuild from source.
 
 **Library dependencies, optional.** Checked only when the matching `@gjsify/*` package is in your project:
 

@@ -39,10 +39,10 @@ exist there.
 
 Two of those three style with `className`, and both configure their token scales
 on the way in. That line is not decoration: the values behind a class name come
-from the project, the layer's default scale holds `0` and `px` alone, and a class
-naming an undeclared token throws out of the render — leaving an empty window at
-exit 0 with nothing in the log. The header bar's snippet names no class and needs
-no such line.
+from the project, the layer's default scales are deliberately small (spacing holds
+`0` and `px` alone), and a class naming an undeclared token throws out of the
+render — leaving an empty window at exit 0 with nothing in the log. The header
+bar's snippet names no class and needs no such line.
 
 Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
@@ -122,14 +122,14 @@ at a comfortable measure on a large display without wasting room on a small one.
     import { Text, View } from 'react-native';
     import { configureStyle } from '@gjsify/react-native';
 
-    // The class VALUES are the project's. The layer's default scale holds `0` and
-    // `px` only, so a class naming a token you have not declared throws out of the
+    // The class VALUES are the project's. The layer's default spacing scale holds `0`
+    // and `px` only, so a class naming a token you have not declared throws out of the
     // render — the window is then empty at exit 0, with no GTK diagnostic.
     configureStyle({ tokens: { spacing: { m: '12px' }, fontSize: { title: '18px' } } });
 
     export function ReadingColumn() {
         return (
-            <adw-clamp maximumSize={400} tighteningThreshold={400}>
+            <adw-clamp maximumSize={400} tighteningThreshold={300}>
                 {/* One child: `AdwClamp`'s policy is `set_child`, measured. */}
                 <View className="flex-col gap-m p-m">
                     <Text className="text-title">Clamped</Text>

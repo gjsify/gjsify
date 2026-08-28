@@ -430,34 +430,19 @@ A golden-diff conformance harness runs the same programs on `gjs`, `node`, `bun`
 
 Linux is the CI baseline: the full suite (10,000+ cases across Node and GJS), every e2e suite and every integration suite run on Fedora. The other two operating systems are covered by named jobs rather than by a runtime-class claim:
 
-- **macOS** runs `@gjsify/node-gi`'s own CI (build, conformance, a real GTK/Adwaita window, the full Adwaita storybook), `@gjsify/napi`'s build and gates, and the native-bridge prebuild job. Two jobs run the `@gjsify/*` suites themselves: `main.yml`'s `macos` job executes a curated subset of `--app gjs` bundles on arm64 under Homebrew `gjs` 1.88, and `macos-suites.yml` runs the Node-pillar suites on both `test:node` and `test:gjs`, on darwin-arm64 and darwin-x64, on `main` and nightly rather than per PR. macOS is the only one of the three where both legs can run at all, which is the point of running them: `test:node` says the spec is right, `test:gjs` says the port is.
-- **Windows** runs `@gjsify/node-gi`'s CI including a real GTK window and the storybook, using a bundled GTK runtime rather than a system install, plus the Node-pillar `@gjsify/*` suites in `windows-suites.yml` on `main` and nightly. Those run under **cmd.exe with the git-bash utilities stripped from `PATH`**, because Git for Windows supplies a real `rm`, `cp` and `sh` that npm's `%COMSPEC%` scripts do not have, and testing from git-bash reports false greens.
+- **macOS** runs `@gjsify/node-gi`'s own CI (build, conformance, a real GTK/Adwaita window, the full Adwaita storybook), `@gjsify/napi`'s build and gates, and the native-bridge prebuild job. Two jobs run the `@gjsify/*` suites themselves: `main.yml`'s `macos` job executes a curated subset of `--app gjs` bundles on arm64 under Homebrew `gjs` 1.88, and `macos-suites.yml` runs the Node-pillar suites on both `test:node` and `test:gjs`, on darwin-arm64 and darwin-x64, on every pull request as well as on `main` and the nightly. macOS is the only one of the three where both legs can run at all, which is the point of running them: `test:node` says the spec is right, `test:gjs` says the port is.
+- **Windows** runs `@gjsify/node-gi`'s CI including a real GTK window and the storybook, using a bundled GTK runtime rather than a system install, plus the Node-pillar `@gjsify/*` suites in `windows-suites.yml`, on every pull request as well as on `main` and the nightly. Those run under **cmd.exe with the git-bash utilities stripped from `PATH`**, because Git for Windows supplies a real `rm`, `cp` and `sh` that npm's `%COMSPEC%` scripts do not have, and testing from git-bash reports false greens.
 
 The macOS `--app gjs` bundles are built on the Fedora leg and executed on macOS. That split is a cost decision rather than a capability one. `@gjsify/rolldown-native`, the bundler engine `gjsify build` uses under GJS, is built, staged and load-tested under Homebrew `gjs` on both darwin arches by `prebuilds.yml`, and its `darwin-arm64` and `darwin-x64` artifacts are committed. What no job does yet is drive `gjsify build` under GJS on macOS end to end, and standing that up would mean a full `gjsify install` on a runner billed at 10x. A `--app gjs` bundle is a single self-contained file whose only unbundled imports are `gi://GLib`, `gi://Gio` and `gi://GioUnix`, so building it on Linux and running it on macOS is sound. It verifies **runtime** behaviour on macOS, not the build toolchain there.
 
 Bun and Deno share the `node` runtime slot through the Node-API common ABI, and `main.yml`'s `cross-runtime` job tests that rather than assuming it: one engine-agnostic `--app node` bundle per package, run on all three runtimes. The selection rule matters. A spec that imports `node:path` gets the *host runtime's* builtin, because the `--app node` bundle externalises it, so such a leg would test Bun rather than the polyfill. Every covered package either imports its own package by name, imports a bare Web specifier that the alias table routes to the polyfill, or is infra code that is nobody's builtin.
 
-### What the darwin legs found
-
-The OS axis exists because a declaration nothing exercises is a guess. Measured on darwin-x64 and arm64 against a `main` that every existing check called green:
-
-| package | symptom | mechanism |
-|---|---|---|
-| `@gjsify/child_process` | the whole suite: `spawnSync` returned `status: null`, `pid: 0`, empty stdout | the specs spawn `process.execPath`, and `@gjsify/process` reported the SCRIPT rather than the interpreter, so the file being spawned was the test bundle |
-| `@gjsify/process` | `pid`, `ppid` and `memoryUsage().rss` all `0` | three inline `/proc/self/*` reads with no fallback; `0` is a valid pid, so nothing could detect the wrong answer |
-| `@gjsify/os` | `cpu.times.user` `undefined` where Node guarantees a number | a getter that warned once per core and returned `{}` |
-| `@gjsify/net` | `isIP('01.02.03.04')` answered `4`; Node answers `0` | delegating to `Gio.InetAddress`, i.e. to the host's `inet_pton(3)`: BSD accepts leading zeros, glibc rejects them |
-
-Three of the four cannot fail on Linux at all, and the fourth cannot fail under native Node. That is the shape of hole a single-OS pipeline leaves.
-
-One macOS fact invalidates the obvious fix for a dyld problem: **`DYLD_*` environment variables do not survive a shell boundary.** SIP strips them when a protected binary is exec'd, and `/bin/sh` and `/bin/bash` are protected, so `DYLD_LIBRARY_PATH=… ; some-script.sh` loses the value before the script's first command:
-
-```
-DYLD_LIBRARY_PATH=x /bin/sh -c 'echo $DYLD_LIBRARY_PATH'    # prints nothing
-DYLD_LIBRARY_PATH=x node -p 'process.env.DYLD_LIBRARY_PATH' # prints x
-```
-
-This is why `@gjsify/cli` repairs the loader path on the child's launch environment (`buildNativeEnv()` feeding `spawn('gjs', …, { env })`), where no shell sits in between, rather than exporting it anywhere. A workflow-level export is a no-op, and `macos-suites.yml` prints the measurement on every run so the next person reaching for the variable is told why.
+The four defects that first darwin run found are recorded in
+[ADR 0018](https://github.com/gjsify/gjsify/blob/main/docs/adr/0018-os-axis-declaration.md) § *darwin re-measured*.
+The macOS loader fact that invalidates the obvious fix for a `dyld` problem — SIP strips every `DYLD_*` variable at
+the first `/bin/sh` boundary, so a wrapper cannot hand the loader a path — is
+[ADR 0024](https://github.com/gjsify/gjsify/blob/main/docs/adr/0024-ship-installable-artifacts.md) § 3, and
+`macos-suites.yml` re-measures it on every run.
 
 ## Measuring gjsify on Windows
 

@@ -557,8 +557,9 @@ function checkStyleTokens(text, where, fenceList) {
                     ? 'the fence itself never calls `configureStyle({ tokens })` — a gallery tab is copied on ' +
                       'its own, so a token step in another tab does not cover it. '
                     : 'nothing at or above it on the page calls `configureStyle({ tokens })`. ') +
-                "The values behind those names come from the reader's project — the default scale is `0` and " +
-                '`px` — so the first undeclared token throws out of the render: React unmounts, the window is ' +
+                "The values behind those names come from the reader's project — the default scales are " +
+                'deliberately small, spacing being `0` and `px` alone — so the first undeclared ' +
+                'token throws out of the render: React unmounts, the window is ' +
                 'EMPTY, and the process exits 0 with no GTK diagnostic.',
         );
     }

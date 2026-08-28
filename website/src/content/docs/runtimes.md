@@ -132,9 +132,10 @@ Browser builds carry no native code, so they run wherever a browser does, and
 there is no bridge and no engine floor to check. Every package declares what it
 provides here in its `gjsify.runtimes.browser` slot, the same way it declares its
 `gjs`, `node` and `nativescript` slots, and a CI audit holds that declaration
-against what the source actually imports. The bundles themselves are driven through Playwright on
-Firefox, which shares the SpiderMonkey engine with GJS; a Chromium project sits
-in the config for surfacing engine differences on demand.
+against what the source actually imports. The bundles themselves are driven on
+Firefox, which shares the SpiderMonkey engine with GJS; what they check is our
+implementation claims against the real browser platform, not our GJS packages
+inside a browser.
 
 ## Mobile with NativeScript (experimental)
 

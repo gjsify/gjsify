@@ -1,6 +1,6 @@
 // W3C Web Storage API for GJS
 // Reference: refs/deno/ext/webstorage/01_webstorage.js
-// localStorage: backed by in-memory Map (persistent via file I/O on GJS)
+// localStorage: backed by an in-memory Map — NOT persistent on GJS or anywhere else.
 // sessionStorage: in-memory only (cleared on process exit)
 
 /**

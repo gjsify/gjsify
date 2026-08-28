@@ -219,9 +219,11 @@ React Native runtime, so reaching for it would feed the GTK build code expecting
 Falling through to the base file is the honest outcome. `.web` is worse, because it looks right
 for a desktop target while carrying the DOM assumptions this design rules out.
 
-**None of that chain resolves yet.** The bundler's platform resolver knows `.android`, `.ios`,
-`.visionos` and `.native`, and extending it is where the desktop chain will land. Until then a
-GTK build reads the base file, and a `.gtk.tsx` beside it is a file nothing imports.
+The chain resolves on both desktop targets: `--app gjs` and `--app node` each install the
+resolver with `.gtk` → `.<os>` → `.desktop`. `.android`, `.ios`, `.visionos` and `.native` are
+the NativeScript chain instead. Falling through to the base file is not silent either — when a
+`.native` or `.web` sibling exists and the desktop chain declines it, the build warns naming
+the file, so an author's fork cannot become dead code with nothing saying so.
 
 ## Related
 
