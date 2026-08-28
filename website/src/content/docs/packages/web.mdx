@@ -51,7 +51,7 @@ Groups work too (`--globals auto,dom`). The full identifier and group list is in
 | `@gjsify/compression-streams` | Gio | CompressionStream, DecompressionStream (gzip, deflate, deflate-raw). Routed through `node:zlib`, which is `Gio.ZlibCompressor` on GJS |
 | `@gjsify/dom-events` | pure TS | Event, CustomEvent, EventTarget, UIEvent, MouseEvent, PointerEvent, KeyboardEvent, WheelEvent, FocusEvent |
 | `@gjsify/dom-exception` | pure TS | DOMException per WebIDL |
-| `@gjsify/domparser` | pure TS | `DOMParser.parseFromString` over a minimal DOM. It parses as XML whatever `mimeType` you pass, which covers TMX and similar formats but not real-world HTML |
+| `@gjsify/domparser` | pure TS | `DOMParser.parseFromString` over a minimal DOM. `text/html` runs an HTML5 tokenizer and tree builder, the XML types run the XML scanner, and an unsupported type throws rather than guessing. Subpaths `/html`, `/selectors` (CSS Selectors 4: `querySelector`, `matches`, `closest`) and `/entities` |
 | `@gjsify/eventsource` | Soup 3.0 | EventSource (Server-Sent Events), TextLineStream |
 | `@gjsify/fetch` | Soup 3.0, Gio, GLib | `fetch()`, Request, Response, Headers, redirects, `file://` and `data:` URIs |
 | `@gjsify/formdata` | pure TS | FormData, File, multipart encoding |

@@ -118,7 +118,7 @@ These are the things that have no standard bare specifier:
 | [Web APIs](/gjsify/packages/web/) | one per standard, plus meta packages and the native Vala bridges some opt into | `fetch`, `XMLHttpRequest`, `WebSocket`, `WebRTC`, `WebAudio`, Streams, `DOMParser`, `MessageChannel`, `WebAssembly` and more |
 | [DOM & Graphics](/gjsify/packages/dom/) | the DOM element model, plus one bridge per GTK-backed element | Canvas 2D, WebGL, DOM elements, and the GTK-backed Canvas / WebGL / Video / IFrame widgets |
 | Framework | renderer host, React Native layer, app shell plus tooling | [`@gjsify/gtk-host`](/gjsify/frameworks/) and its [style partition](/gjsify/frameworks/styling/), [`@gjsify/react-native`](/gjsify/frameworks/react-native/), [`@gjsify/adwaita-app`](/gjsify/guides/native-adwaita-app/), [storybook](/gjsify/guides/storybook/), [devtools](/gjsify/guides/devtools/) |
-| Adwaita for the browser | 4 | `@gjsify/adwaita-web`, `@gjsify/adwaita-core`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons` |
+| Adwaita for the browser | the widget set, its headless core, and the assets and storybook renderer beside them | `@gjsify/adwaita-web`, `@gjsify/adwaita-core`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons`, `@gjsify/adwaita-storybook` |
 | Reverse bridge | 1 | [`@gjsify/node-gi`](/gjsify/projects/node-gi/), GObject-Introspection on Node.js, Bun and Deno |
 | Forward bridge | 1 | [`@gjsify/napi`](/gjsify/projects/napi/), native Node.js N-API `.node` addons in GJS |
 
