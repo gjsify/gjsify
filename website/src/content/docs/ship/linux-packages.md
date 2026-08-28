@@ -242,6 +242,8 @@ running on that machine.
 | `--target <fmt..>` | `gjsify.ship.targets`, else `deb,rpm` | Formats to build. Comma-separated or repeated. An unknown name fails before anything is built. |
 | `--out <dir>` | `gjsify.ship.outDir`, else `ship` | Output root, relative to the project. |
 | `--stage` | `false` | Write the staged payload and stop, packing nothing. |
+| `--from-stage <dir>` | — | Pack a payload an earlier `--stage` run wrote. Needs no project: no `package.json`, no config, no built bundle. |
+| `--expect-target <os>-<arch>` | — | With `--from-stage`: refuse a stage assembled for a different matrix leg. Compares against what the stage recorded, not against this host. |
 | `--skip-build` | `false` | Package what is already built instead of running the project's `build` script. |
 | `--arch <arch>` | this host | Target architecture in `process.arch` spelling. |
 | `--verbose` | `false` | Print each staged file and the GI namespaces the bundle imports. |

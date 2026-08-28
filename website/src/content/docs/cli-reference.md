@@ -1383,7 +1383,7 @@ No runtime is bundled on Linux: GJS and GTK come from the distribution, so the p
 | `minGjsVersion` | `1.86` | Minimum GJS the emitted dependency asks for. |
 | `depends` | `{}` | Extra runtime dependencies per format, appended to the derived set. For things that are not typelibs. |
 | `typelibPackages` | `{}` | GI namespace to the package shipping its typelib. This is what unblocks an unknown namespace. |
-| `bundledTypelibs` | `[]` | Directories whose `*.typelib` and `lib*.so*` the package carries itself, for GI libraries that arrive as npm prebuilds rather than distro packages. Staged into `lib/<name>/gi/`, with the launcher pointing `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` there. |
+| `bundledTypelibs` | `[]` | Directories whose `*.typelib` and `*.so` (with or without a numeric soversion) the package carries itself, for GI libraries that arrive as npm prebuilds rather than distro packages. Staged into `lib/<name>/gi/`, with the launcher pointing `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` there. |
 | `localeDir` | — | Directory of COMPILED gettext catalogues in `<lang>/LC_MESSAGES/<domain>.mo` layout. Staged into `share/locale/`; the launcher exports `GJSIFY_LOCALE_DIR`. `.po` sources are refused — `bindtextdomain` reads `.mo` only. |
 | `extraFiles` | `{}` | Extra payload entries: prefix-relative destination to project-relative source. |
 | `execArgs` | `[]` | Arguments the launcher appends before the user's own. |

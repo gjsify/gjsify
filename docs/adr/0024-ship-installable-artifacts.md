@@ -304,8 +304,9 @@ runner is a supported path. The discriminating proof is a deletion: `tests/e2e/s
 tmpdir, deletes the project tree, packs, and asserts byte-equality with the single-host artifact.
 
 That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
-stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg -i --dry-run` and a real
-`lintian` — and the workflow measures that those tools exist rather than assuming it.
+stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`
+and deliberately not `--dry-run`, because the run worth having is the one that lays bytes down — then `dpkg --verify`
+against the package's own md5sums, `dpkg --purge`, and `lintian` as a third reader.
 
 **Stage 1 (the ELF glibc floor) was already landed when this ADR was written**, and this paragraph
 previously said the opposite. Both halves are in the tree and have been since 2026-08-01,
