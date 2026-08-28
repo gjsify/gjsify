@@ -25,9 +25,10 @@
 //   1. Every generator listed in {@link GENERATORS} reproduces its committed
 //      output. Run with no argument they WRITE; `--check` compares and exits 1.
 //   2. Every `<AdwWidget title="…">` on a gallery page derives a tag that the web
-//      pillar actually registers — or sits in {@link NO_ELEMENT} with the reason
+//      pillar actually registers AND observes something — or sits in
+//      {@link NO_ATTRIBUTE_PANE} with the reason
 //      its widget has none.
-//   3. Nothing in {@link NO_ELEMENT} names a title that DOES resolve, so a stale
+//   3. Nothing in {@link NO_ATTRIBUTE_PANE} names a title that DOES get a pane, so a stale
 //      exemption cannot read as considered when it is merely forgotten.
 //   4. Every gallery block reaches the framework-snippet source: either a tree in
 //      `adwaita-gallery-trees.mjs` or a REFUSAL naming why it has none, never both
@@ -109,13 +110,21 @@ const GENERATORS = [
 ];
 
 /**
- * Gallery titles whose widget is not a custom element, with the reason.
+ * Gallery titles whose block renders NO attribute pane, with the reason.
  *
- * Not a convenience list: each entry is a claim that gets checked back, so an
- * element that later gains a tag turns this into a failure rather than a
+ * Not a convenience list: each entry is a claim that gets checked back, so a title
+ * that later gains an observing element turns this into a failure rather than a
  * permanently silent block.
+ *
+ * TWO ways to have no pane and only one used to be checked. A title that resolves to
+ * no element failed here; a title that resolved to an element observing NOTHING was
+ * counted and waved through, and this check printed its own contradiction — "40
+ * gallery block(s), 38 rendering a generated attribute table, 1 exemption(s)" — at
+ * exit 0. `<adw-wrap-box>` was the second: 14 attributes its own
+ * `attributeChangedCallback` serves, read as none because the reader could not see a
+ * `return [...PROPERTY_ATTRIBUTES];`, and one gallery block silently without a pane.
  */
-const NO_ELEMENT = {
+const NO_ATTRIBUTE_PANE = {
     'Adw.Toast': `A toast is not an element — \`AdwToast\` is a plain class the overlay takes, so its surface is constructor options (\`timeout\`, \`buttonLabel\`) rather than attributes. \`<adw-toast-overlay>\` IS an element and is documented on the same page; it observes nothing of its own.`,
 };
 
@@ -188,27 +197,37 @@ for (const page of readdirSync(DOCS_DIR).filter((f) => f.endsWith('.mdx'))) {
         seenTitles.add(title);
         const tag = toTag(title);
         if (byTag.has(tag)) {
-            if (byTag.get(tag).length > 0) tabled++;
-            if (NO_ELEMENT[title]) {
+            const observed = byTag.get(tag).length;
+            if (observed > 0) tabled++;
+            if (NO_ATTRIBUTE_PANE[title] && observed > 0) {
                 failures.push(
-                    `${page}: "${title}" is exempted in NO_ELEMENT and DOES resolve, to <${tag}>. ` +
-                        'Drop the exemption — a stale one reads as considered.',
+                    `${page}: "${title}" is exempted in NO_ATTRIBUTE_PANE and DOES get a pane, from ` +
+                        `<${tag}>. Drop the exemption — a stale one reads as considered.`,
+                );
+            } else if (observed === 0 && !NO_ATTRIBUTE_PANE[title]) {
+                failures.push(
+                    `${page}: "${title}" derives <${tag}>, which the pillar registers but which this\n` +
+                        '    reader says observes NOTHING, so its block renders no attribute pane and looks\n' +
+                        '    documented anyway. Either the reader cannot see the declaration (teach\n' +
+                        '    scripts/adwaita-elements.mjs the shape) or the element really has none — say\n' +
+                        '    so in NO_ATTRIBUTE_PANE.',
                 );
             }
             continue;
         }
-        if (NO_ELEMENT[title]) continue;
+        if (NO_ATTRIBUTE_PANE[title]) continue;
         failures.push(
             `${page}: "${title}" derives <${tag}>, which the web pillar does not register, so its\n` +
-                '    block renders no attribute table and looks documented anyway. Either the title or\n' +
-                '    the element name is wrong, or the widget has no element — say so in NO_ELEMENT.',
+                '    block renders no attribute pane and looks documented anyway. Either the title or\n' +
+                '    the element name is wrong, or the widget has no element — say so in\n' +
+                '    NO_ATTRIBUTE_PANE.',
         );
     }
 }
 
-for (const title of Object.keys(NO_ELEMENT)) {
+for (const title of Object.keys(NO_ATTRIBUTE_PANE)) {
     if (!seenTitles.has(title)) {
-        failures.push(`NO_ELEMENT names "${title}", which no gallery page uses. Drop the entry.`);
+        failures.push(`NO_ATTRIBUTE_PANE names "${title}", which no gallery page uses. Drop the entry.`);
     }
 }
 
@@ -421,7 +440,7 @@ if (ADWAITA_GALLERY_TREES.length === 0) failures.push('no framework tree at all 
 
 notes.push(
     `${blocks} gallery block(s), ${tabled} rendering a generated attribute table, ` +
-        `${byTag.size} registered element(s), ${Object.keys(NO_ELEMENT).length} exemption(s)`,
+        `${byTag.size} registered element(s), ${Object.keys(NO_ATTRIBUTE_PANE).length} exemption(s)`,
 );
 
 for (const note of notes) console.log(`check-generated-website-data: ${note}`);
