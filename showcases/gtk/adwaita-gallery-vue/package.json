@@ -1,0 +1,62 @@
+{
+    "name": "@gjsify/example-gtk-adwaita-gallery-vue",
+    "version": "0.44.0",
+    "description": "Every Adwaita gallery snippet that has a Vue dialect, generated from one source and asserted against the real GTK widget tree",
+    "type": "module",
+    "private": true,
+    "main": "dist/app.gjs.mjs",
+    "files": [
+        "dist",
+        "src"
+    ],
+    "scripts": {
+        "clear": "gjsify clear dist tsconfig.tsbuildinfo",
+        "check": "node ../../../scripts/check-vue-program.mjs .",
+        "build": "gjsify run build:gjs",
+        "build:gjs": "gjsify build src/app.ts --app gjs --outfile dist/app.gjs.mjs --define '__VUE_OPTIONS_API__=false' --define '__VUE_PROD_DEVTOOLS__=false' --define '__VUE_PROD_HYDRATION_MISMATCH_DETAILS__=false' --define 'process.env.NODE_ENV=\"production\"'",
+        "start:gjs": "gjs -m dist/app.gjs.mjs",
+        "probe": "gjsify run build:gjs && GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs"
+    },
+    "gjsify": {
+        "main": "dist/app.gjs.mjs",
+        "tier": 3,
+        "bundler": {
+            "plugins": [
+                {
+                    "name": "@gjsify/rolldown-plugin-vue"
+                }
+            ]
+        },
+        "example": {
+            "runtimes": [
+                "gjs"
+            ]
+        }
+    },
+    "devDependencies": {
+        "@girs/adw-1": "^4.1.0",
+        "@girs/gjs": "^4.1.0",
+        "@girs/glib-2.0": "^4.1.0",
+        "@girs/gobject-2.0": "^4.1.0",
+        "@girs/gtk-4.0": "^4.1.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/gtk-host": "workspace:^",
+        "@gjsify/rolldown-plugin-vue": "workspace:^",
+        "@types/node": "^25.9.2",
+        "@vue/runtime-core": "^3.5.0",
+        "typescript": "^6.0.3",
+        "vue": "^3.5.41",
+        "vue-tsc": "^3.3.11"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "showcases/gtk/adwaita-gallery-vue"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/gtk/adwaita-gallery-vue#readme"
+}

@@ -114,8 +114,8 @@ export const pillarCoverage: readonly PillarCoverage[] = [
     },
     {
         category: 'Showcases',
-        total: 18,
-        full: 18,
+        total: 22,
+        full: 22,
         partial: 0,
         stub: 0,
     },

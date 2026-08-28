@@ -1,0 +1,29 @@
+using Gtk 4.0;
+using Adw 1;
+
+// Adw.Bin and not Adw.HeaderBar: measured on libadwaita 1.9 / gjs 1.88.1,
+// AdwHeaderBar is a FINAL type, so no class can be a template for it.
+template $GalleryHeaderBar: Adw.Bin {
+  child: Adw.HeaderBar {
+    title-widget: Adw.WindowTitle {
+      title: _("Text Editor");
+      subtitle: "notes.md";
+    };
+
+    [start]
+    Gtk.Button {
+      icon-name: "go-previous-symbolic";
+      tooltip-text: _("Back");
+
+      styles ["flat"]
+    }
+
+    [end]
+    Gtk.MenuButton menuButton {
+      icon-name: "open-menu-symbolic";
+      tooltip-text: _("Main Menu");
+
+      styles ["flat"]
+    }
+  };
+}

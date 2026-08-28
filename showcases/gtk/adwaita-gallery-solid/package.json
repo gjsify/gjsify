@@ -1,0 +1,62 @@
+{
+    "name": "@gjsify/example-gtk-adwaita-gallery-solid",
+    "version": "0.44.0",
+    "description": "Every Adwaita gallery snippet that has a Solid dialect, generated from one source and asserted against the real GTK widget tree",
+    "type": "module",
+    "private": true,
+    "main": "dist/app.gjs.mjs",
+    "files": [
+        "dist",
+        "src"
+    ],
+    "scripts": {
+        "clear": "gjsify clear dist tsconfig.tsbuildinfo",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjs && gjsify run build:refusals",
+        "build:gjs": "gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs",
+        "start:gjs": "gjs -m dist/app.gjs.mjs",
+        "probe": "gjsify run build:gjs && GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs",
+        "build:refusals": "gjsify build src/refusals.ts --app gjs --outfile dist/refusals.gjs.mjs",
+        "probe:refusals": "gjsify run build:refusals && gjs -m dist/refusals.gjs.mjs"
+    },
+    "gjsify": {
+        "main": "dist/app.gjs.mjs",
+        "tier": 3,
+        "bundler": {
+            "plugins": [
+                {
+                    "name": "@gjsify/rolldown-plugin-solid"
+                }
+            ]
+        },
+        "example": {
+            "runtimes": [
+                "gjs"
+            ]
+        }
+    },
+    "devDependencies": {
+        "@girs/adw-1": "^4.1.0",
+        "@girs/gjs": "^4.1.0",
+        "@girs/glib-2.0": "^4.1.0",
+        "@girs/gobject-2.0": "^4.1.0",
+        "@girs/gtk-4.0": "^4.1.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/gtk-host": "workspace:^",
+        "@gjsify/rolldown-plugin-solid": "workspace:^",
+        "@types/node": "^25.9.2",
+        "solid-js": "^1.9.0",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "showcases/gtk/adwaita-gallery-solid"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/gtk/adwaita-gallery-solid#readme"
+}

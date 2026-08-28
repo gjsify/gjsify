@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "target": "ESNext",
+        "outDir": "dist",
+        "rootDir": "src",
+        "strict": true,
+        "skipLibCheck": true,
+        "types": [],
+        "lib": ["ESNext", "DOM", "DOM.Iterable"],
+        // The AUTOMATIC runtime, unlike the Solid sibling: `react-jsx` is what
+        // makes oxc emit `import { jsx } from "@gjsify/gtk-host/react/jsx-runtime"`.
+        // `jsxImportSource` must NOT be `"react"` — that is the 208-tag trap ADR
+        // 0028 § 8 measured, where every HTML tag type-checks on a GTK renderer.
+        "jsx": "react-jsx",
+        "jsxImportSource": "@gjsify/gtk-host/react"
+    },
+    "include": ["src/**/*"]
+}
