@@ -262,13 +262,22 @@ for (const spec of WINDOWS) {
         let html = await Astro.slots.render(tab.slot);
         if (tab.slot === 'preview') {
             previewMarkup = decodeEcCode(html);
-            if (previewMarkup === null) {
-                // Loud, at build time, never at runtime: without the source there is
-                // no preview, and a silently empty stage on 40 blocks is exactly the
-                // failure this component was restructured to end.
+            // Loud, at build time, never at runtime: without the source there is no
+            // preview, and a silently empty stage on 40 blocks is exactly the failure
+            // this component was restructured to end.
+            //
+            // EMPTY counts as without. An empty ```html fence decodes to '' and not to
+            // null, so it walked past a `=== null` guard and mounted nothing: measured
+            // by emptying one fence — the site built at exit 0, this gate and
+            // `check-doc-fences.mjs` both stayed green, and /adwaita/controls/ shipped a
+            // "Preview" tab over an empty stage. That is the blank page at exit 0 with
+            // zero diagnostics that the throw below exists to prevent, so it has to
+            // cover the blank one too.
+            if (previewMarkup === null || previewMarkup.trim() === '') {
                 throw new Error(
-                    `AdwWidget(${title}): the preview slot rendered no single Expressive Code block to read ` +
-                        'its markup back from. It has to hold exactly one fenced ```html block.',
+                    `AdwWidget(${title}): the preview slot rendered no single NON-EMPTY Expressive Code ` +
+                        'block to read its markup back from. It has to hold exactly one fenced ```html ' +
+                        'block, with markup in it.',
                 );
             }
             // The one override: the markup a reader should copy, where the fence

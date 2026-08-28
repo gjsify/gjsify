@@ -66,6 +66,21 @@ const {
 /** The preview is a pane like any other, so it counts like one. */
 const panes = tabs.length + (preview === null ? 0 : 1);
 
+// NO PANES AT ALL is a header bar over nothing, and it renders exactly that way at
+// exit 0. `AdwWidget` is what prevents it — it skips a window none of whose tab
+// slots this block filled — and nothing downstream restated the guard: measured by
+// deleting that one line, /adwaita/buttons/ built green with five extra empty
+// windows on it. Arm 7 of `check-website-adwaita-gallery.mjs` cannot see this one:
+// it refuses a window DECLARED with no tabs, while these are windows whose tabs are
+// simply unprovided on this block, which is the ordinary case (`frameworks` is
+// filled on one page of eight).
+if (panes === 0) {
+    throw new Error(
+        `AdwWidgetWindow(${title}): a window with no pane at all. AdwWidget renders a window only where ` +
+            'this block filled one of its tabs, so this means that skip stopped happening.',
+    );
+}
+
 // A live window always has its markup tab beside the preview: AdwWidget renders
 // no window with zero tabs, and the live one declares the `preview` tab that both
 // mounts and shows the fence. So the single-pane case is only ever a lone code
