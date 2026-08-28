@@ -119,14 +119,19 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
         ctor: () => Gtk.ListBoxRow,
         children: { kind: 'single', set: 'set_child' },
     },
-    // The three list-item carriers, and they are the first curated entries that are
-    // NOT `Gtk.Widget` subclasses — measured: `GObject.type_is_a(Gtk.ListItem,
-    // Gtk.Widget)` is FALSE for all three, and they are absent from the generated
-    // table for exactly that reason (its criterion is "concrete GtkWidget
-    // descendant"). Curating them needs no change to that criterion: `gate1` in the
-    // generator already states that "an abstract or non-widget class can still be
-    // curated as a MOUNT container", and `mergeGenerated` carries a curated row the
-    // generated set does not know.
+    // The three GTK list-item carriers, and they are the first curated entries that
+    // are NOT `Gtk.Widget` subclasses — measured: `GObject.type_is_a(Gtk.ListItem,
+    // Gtk.Widget)` is FALSE for all three.
+    //
+    // They ARE in the generated table, and getting them there is what ADR 0028's
+    // 2026-08-28 amendment decided: `placementCarriers` is a second rule beside
+    // `concreteWidgets`, so the criterion is no longer "concrete GtkWidget
+    // descendant" alone. An earlier draft of this work curated them WITHOUT
+    // generating them, on the strength of `gate1`'s "an abstract or non-widget class
+    // can still be curated as a MOUNT container" — and `generated.spec.ts`'s
+    // `every curated widget is one the generator also found` refused it. The gate
+    // permits the shape; the invariant above it does not. Both are right, and the
+    // criterion was the thing that had to move.
     //
     // WHY they are wanted: a `Gtk.ListView` installs no child-insertion method at
     // all — no `append`, `add`, `insert`, `prepend`, `remove` or `set_child`,
@@ -136,9 +141,11 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
     // what lets that subtree be placed through the host's own `single` policy rather
     // than through a `set_child` call inside one framework's list controller.
     //
-    // These are ADOPTED, never constructed by the host: GTK's factory makes them.
-    // They construct bare anyway (measured, `child` is null), so nothing here is a
-    // special case in `materialize`.
+    // In PRACTICE these are adopted rather than created: GTK's factory makes the
+    // carrier and hands it over. They are ordinary creatable tags all the same —
+    // they construct bare (measured, `child` is null) and `constructsEveryDescriptor`
+    // constructs them on every run — so nothing here is a special case in
+    // `materialize`.
     //
     // `Gtk.ColumnViewRow` is deliberately ABSENT, and that is a measurement rather
     // than an omission: unlike its three siblings it installs neither `set_child` nor

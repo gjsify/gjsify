@@ -237,7 +237,7 @@ function constructedDefaults(descriptor: WidgetDescriptor): Map<string, unknown>
         // ParamSpec is exactly the behaviour this function replaces, so the
         // fallback is signalled by an EMPTY map — never by a guessed value —
         // and a removal keeps working instead of throwing out of `setProp`.
-        // All 164 table rows construct (measured, one process per row); this path
+        // Every table row but one constructs (measured, one process per row); this path
         // is for the registry.
         return values;
     }

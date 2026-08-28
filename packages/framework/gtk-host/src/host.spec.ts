@@ -1525,17 +1525,47 @@ export default async () => {
                         factory,
                     });
                     window.set_child(view);
-                    // Rooting is the trigger; nothing below waits on a frame.
-                    expect(seen.length > 0).toBe(true);
-                    expect(seen.every((r) => r === 'placed')).toBe(true);
+                    // Rooting is the trigger; nothing below waits on a frame. The
+                    // COUNT is pinned, not just "more than none": a `> 0` here passes
+                    // when GTK sets up one row of three, which is the shape a
+                    // recycling bug would have.
+                    expect(seen).toStrictEqual(['placed', 'placed', 'placed']);
                 } finally {
-                    // Order is load-bearing: disconnecting BEFORE the window dies keeps
-                    // GJS from blocking a JS callback during GC sweeping, which it
-                    // reports as a `Gjs-CRITICAL` per handler — and every spec here
-                    // asserts zero GTK diagnostics.
+                    // DISCONNECTING is load-bearing; the order is not, and an earlier
+                    // version of this comment claimed the opposite. Measured with this
+                    // vector's handler set, both orders are silent — zero diagnostics
+                    // through a captured `log_set_writer_func`, after two forced
+                    // `System.gc()` and a main-loop turn. What is NOT survivable is
+                    // leaving them connected: over five destroy cycles the process
+                    // aborted with `Gjs-CRITICAL (recursed): Attempting to run a JS
+                    // callback during garbage collection`, exit 134.
                     factory.disconnect(handler);
                     window.destroy();
                 }
+            });
+
+            await it('refuses a re-adopted carrier that still holds our own child', async () => {
+                // A LIMITATION, pinned rather than fixed, because the follow-up that
+                // moves the list controller onto this seam will meet it on the first
+                // recycled row. `adopt` snapshots what the container already held into
+                // `foreign`, and it cannot tell the host's own previous child from
+                // application chrome — so adopting the SAME carrier twice reads our own
+                // label as someone else's and refuses.
+                //
+                // GTK reuses a carrier across `bind`/`unbind`, so a renderer that calls
+                // `adopt` per bind hits this immediately. The shape of the fix is a
+                // carrier the host remembers rather than re-adopts; naming it here so
+                // the next reader meets a known boundary instead of a puzzle.
+                const item = new Gtk.ListItem();
+                const first = adopt(item);
+                insert(createElement('GtkLabel', { label: 'ours' }), first);
+                let code = 'none';
+                try {
+                    insert(createElement('GtkLabel'), adopt(item));
+                } catch (e) {
+                    code = (e as { code?: string }).code ?? 'no-code';
+                }
+                expect(code).toBe('occupied-slot');
             });
 
             await it('leaves Gtk.ListView itself refusing a child, which is correct', async () => {

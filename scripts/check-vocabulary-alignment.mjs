@@ -118,10 +118,15 @@ const WEB_ELEMENT_ALIGNMENT = {
     // both halves of a one-child slot and is therefore a placement carrier, so it now
     // has a GTK tag and the two surfaces share the spelling.
     //
-    // The four entries around it did NOT follow, and that is the rule working rather
-    // than an inconsistency: none of them holds a child. Measured across Gtk-4.0 and
-    // Adw-1, exactly four classes satisfy the carrier rule, and `AdwToggle` is the
-    // only Adw one.
+    // The four entries around it did NOT follow, and the reason is narrower than
+    // "none of them holds a child" — which is what this comment said first and is
+    // false for three of them. MEASURED against Adw-1: `AdwTabPage` and
+    // `AdwViewStackPage` both have a `child: Gtk.Widget` and a `get_child()`, and
+    // `AdwSidebarItem` holds a widget in `suffix`. What they do not have is a
+    // SETTABLE slot named `child`: those two `child` properties are construct-only,
+    // and `suffix` is spelled differently. Only `AdwSidebarSection` holds no widget
+    // at all. So the discriminator is `set_child`, and the rule is keyed on GTK's
+    // naming convention rather than on the shape.
     'adw-view-stack-page': { webOnly: 'AdwViewStackPage descends from GObject.Object, not GtkWidget' },
     // Declarative children with no GObject of their own: on GTK these are method calls.
     'adw-alert-response': { webOnly: 'a declarative form of Adw.AlertDialog.add_response()' },

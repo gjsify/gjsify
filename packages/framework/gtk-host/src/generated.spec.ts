@@ -81,7 +81,7 @@ export default async () => {
 
         // The running version of each library that can declare a widget member.
         // Nothing else needs one: measured, every signal and every writable
-        // property of all 164 widgets is declared by a Gtk or an Adw type, or by
+        // property of every table row is declared by a Gtk or an Adw type, or by
         // GObject.Object — which contributes only `notify`, present since 2.0.
         const running: Readonly<Record<string, string>> = {
             Gtk: `${Gtk.get_major_version()}.${Gtk.get_minor_version()}.${Gtk.get_micro_version()}`,
@@ -134,8 +134,8 @@ export default async () => {
                 // `g_error("AdwLayoutSlot %p created without an ID")`, fatal by
                 // contract, SIGABRT and a core dump — was green in a 1746-test suite.
                 //
-                // Measured bare over all 164 rows on gjs 1.88.1 / GTK 4.22.4 / Adw
-                // 1.10: 163 construct and not one throws. So a REGRESSION here is a
+                // Measured bare over every row on gjs 1.88.1 / GTK 4.22.4 / Adw
+                // 1.10: all but one construct and not one throws. So a REGRESSION here is a
                 // new abort, and this test is what turns it into a failure whose last
                 // line names the tag instead of a core dump nobody attributes.
                 const required = new Map(Object.entries(REQUIRED_CONSTRUCT_PROPS));
@@ -143,7 +143,7 @@ export default async () => {
                 // Diagnostics are drained PER ROW, not left to the gate at the end
                 // of the test. Same assertion, with the one thing the gate cannot
                 // give: a name. Measured — a first CI run failed here with
-                // "GTK reported 1 diagnostic(s)" over 164 constructions and no way
+                // "GTK reported 1 diagnostic(s)" over the whole table and no way
                 // to tell which, while the same sweep is silent on a workstation
                 // both with and without a session bus.
                 const noisy: string[] = [];
@@ -181,7 +181,7 @@ export default async () => {
                         // SHUTDOWN prints `Gjs-CRITICAL: Attempting to run a JS callback
                         // during shutdown` on stderr, after the summary. Severing a
                         // widget's internals is what schedules that: measured one row
-                        // per process over all 164, disposing makes EIGHT of them do it
+                        // per process over the whole table, disposing makes EIGHT of them do it
                         // (AdwComboRow, GtkColumnView, GtkEditableLabel, GtkEmojiChooser,
                         // GtkScrollbar, GtkColorChooserDialog, GtkColorChooserWidget,
                         // GtkFileChooserWidget) and leaving them alone makes TWO
@@ -237,9 +237,12 @@ export default async () => {
 
             await it('refuses to guess a placement for an uncurated row', async () => {
                 // A/B in the shape of `REQUIRED_CONSTRUCT_PROPS`' one above, for the
-                // other curated-vs-generated fact — and the only safety property 138
-                // of the 164 rows have. It had ZERO tests: `grep uncurated-placement`
-                // found two throw sites and this error's constructor.
+                // other curated-vs-generated fact — and the only safety property the
+                // UNCURATED majority of the table has. It had ZERO tests: `grep
+                // uncurated-placement` found two throw sites and this error's
+                // constructor. (The count that used to stand here was 138 of 164,
+                // which encoded a curated figure that had itself drifted to 26 in the
+                // generated header; `tableProvenance()` is the live answer.)
                 //
                 // `GtkExpander` really does hold one child, so this is what a user
                 // hits first; `add`, `append` and `set_child` all exist somewhere in

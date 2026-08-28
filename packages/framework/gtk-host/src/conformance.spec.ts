@@ -34,7 +34,7 @@ export default async () => {
             // without one. The first version answered `String(raw ?? '')`, so such a
             // record was COUNTED and then described as nothing: a CI run failed with
             // "GTK reported 1 diagnostic(s) that would have passed at exit 0:" and a
-            // blank list, right after a test that had constructed 164 widgets. A
+            // blank list, right after a test that had constructed the whole table. A
             // count without a name sends the reader back to guessing, which is the
             // state this module exists to end.
             //

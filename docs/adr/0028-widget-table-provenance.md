@@ -241,11 +241,27 @@ this ADR. That invariant is right and stays; the *criterion under it* was too na
 
 **It is a rule and not a list, and that is the load-bearing part.** A hand-written list of
 carrier gtypes would be exactly the curated data § 2 reserves for what the GIR cannot
-express — and the GIR expresses this perfectly well. The rule was written after a
-hand-written list of three (`GtkListItem`, `GtkListHeader`, `GtkColumnViewCell`), and
-selecting by rule instead returned **four**: `AdwToggle` has the identical shape, was not
-on the list, and would have been an arbitrary gap. That fourth member is the argument for
-the rule, not a bonus.
+express. The rule was written after a hand-written list of three (`GtkListItem`,
+`GtkListHeader`, `GtkColumnViewCell`), and selecting by rule instead returned **four**:
+`AdwToggle` has the identical shape, was not on the list, and would have been an arbitrary
+gap. That fourth member is the argument for the rule, not a bonus.
+
+**What the rule actually keys on, stated because "both halves of a one-child slot" hides
+it.** `set_child` does all the discriminating: measured over Gtk-4.0 + Adw-1, **zero**
+classes declare `set_child` without `get_child`, so requiring the getter excludes nothing
+here. It is required anyway because `appOccupant`/`slotOccupant` need it — but the honest
+description is "a settable slot named `child`", and the discriminator is GTK's own naming
+convention, not a shape the GIR describes.
+
+**The blind spot that follows, and it is real.** Six concrete non-widgets in Gtk + Adw hold
+a `Gtk.Widget` through a settable slot with a matching getter under a DIFFERENT name —
+`AdwToast.set_custom_title`, `AdwSidebarItem.set_suffix`, `GtkTreeViewColumn.set_widget`,
+`GtkCenterLayout.set_{start,center,end}_widget` — and this rule misses every one. Widening
+to "any settable widget-typed slot" is not the fix: it would wrongly select
+`GtkWidgetPaintable.set_widget` and `AdwSpinnerPaintable.set_widget`, which OBSERVE a
+widget rather than place one, and the GIR cannot tell those apart. So a future carrier
+spelled `set_content` is selected by nothing and noticed by nothing. Curating one is the
+escape hatch, and doing so needs this section amended rather than a quiet exception.
 
 **What does not change.** A generated row still carries no policy — `children:
 { kind: 'uncurated' }` — so which method adopts the child stays curated, exactly as for

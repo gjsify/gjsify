@@ -28,7 +28,7 @@ const registry = new Map<string, WidgetDescriptor>();
  * Separate rather than merged, because the GType-keyed map is what
  * `nearestRegistered()` walks and what `registeredTags()` reports — folding
  * aliases in would make the conformance suite check every widget twice and report
- * 328 tags for 164 widgets.
+ * Two spellings per row, so the map is twice the table.
  */
 const aliases = new Map<string, WidgetDescriptor>();
 
@@ -64,7 +64,7 @@ export const registeredTags = (): string[] => [...registry.keys()].sort();
 export function nearestRegistered(gtype: GObject.GType): WidgetDescriptor | undefined {
     // A WALK UP THE TYPE CHAIN, not a scan of the table, and the table's size is
     // what forced it: the previous scan called `descriptor.ctor()` on every entry to
-    // learn its GType, which with a generated table means resolving 164 GI classes
+    // learn its GType, which with a generated table means resolving every GI class
     // on the first subclass ever mounted — the exact cost `ctor` is lazy to avoid.
     // Walking `type_parent` and looking each name up is O(depth) with no class
     // resolution at all, and it finds the same descriptor: the first hit going up IS
