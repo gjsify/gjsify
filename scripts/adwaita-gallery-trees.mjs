@@ -513,8 +513,24 @@ export const ADWAITA_GALLERY_TREES = [
  */
 export const ADWAITA_GALLERY_REFUSALS = {
     // Measured by `showcases/gtk/adwaita-gallery-solid/src/refusals.ts`: the host
-    // raises `uncurated-placement` BY NAME when the child is materialised. 13 of 13,
-    // and the probe fails if any of them starts being accepted.
+    // raises `uncurated-placement` BY NAME when the child is materialised. Nine of
+    // them, which is every entry in this group, and the probe fails if any starts
+    // being accepted.
+    //
+    // COUNT THE GROUP, not the probe. This note read "13 of 13", and the probe has
+    // driven ELEVEN placements since it landed in #1376 — never thirteen. Two of the
+    // eleven are not entries here at all: a split view that raises `rejected-child`
+    // rather than `uncurated-placement`, and a `gtk-action-bar` that is no gallery
+    // block. Thirteen is the count from before two placements turned out to be
+    // ACCEPTED and left the list, restated beside a list that was already shorter —
+    // a number kept by hand next to the thing it counts.
+    //
+    // Nothing holds the two lists against each other, which is why neither the count
+    // nor a stale entry has a mechanism behind it. It is a plain-Node question: an
+    // `uncurated-placement` entry is one whose GType has no curated descriptor under
+    // `packages/framework/gtk-host/src/descriptors/`, and every placement the probe
+    // drives is either an entry here or ledgered in the probe with its own reason.
+    // That arm belongs beside the refusal arms of `check-generated-website-data.mjs`.
     'Adw.WrapBox': 'uncurated-placement: AdwWrapBox has no child policy.',
     'Adw.PreferencesDialog': 'uncurated-placement: a page cannot be a child of AdwPreferencesDialog.',
     'Adw.BottomSheet': 'uncurated-placement: no child policy for the sheet or the content.',

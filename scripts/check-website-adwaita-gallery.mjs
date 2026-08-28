@@ -58,6 +58,15 @@
 //      across the 40 blocks 17 were byte-identical and 23 had already diverged, with
 //      nothing checking either way. One policed copy, named and reasoned, is the price
 //      of the widget whose API is imperative; a second one has to say why.
+//  10. Every WINDOW a page draws is NAMED in that page's prose, and every window
+//      title the prose names is one that page draws. The window titles are the join
+//      between the chrome and the page: what a title cannot say — the four runtimes
+//      behind "Native TypeScript", the three dialects behind "UI frameworks" — the
+//      intro says instead, so the two are one explanation in two files. Renaming a
+//      window in the component alone left nine pages naming one that no longer
+//      exists, and growing the frameworks window from three blocks to forty left
+//      seven intros enumerating two windows where the reader meets three. Arms 1-9
+//      see neither: the strings never leave the prose.
 //   9. The LIVE PREVIEW is the FIRST pane of the window that runs the widget, in
 //      {@link WINDOW_COMPONENT} — the file that draws a window, which is where pane
 //      order is decided.
@@ -263,13 +272,45 @@ function componentWindows(root) {
         // [preamble, id, chunk, id, chunk, …].
         const parts = decl[1].split(/\bid:\s*'([a-z][a-z0-9-]*)',/);
         for (let i = 1; i < parts.length; i += 2) {
-            const slots = [...parts[i + 1].matchAll(/\bslot:\s*'([a-z][a-z0-9-]*)'/g)].map(([, s]) => s);
-            windows.push({ id: parts[i], slots });
+            const chunk = withoutComments(parts[i + 1]);
+            const slots = [...chunk.matchAll(/\bslot:\s*'([a-z][a-z0-9-]*)'/g)].map(([, s]) => s);
+            // The TITLE, read with the comments blanked out: every window's chunk is
+            // mostly prose, and the live window's own note names two other windows'
+            // titles inside it.
+            const title = /\btitle:\s*'([^']*)'/.exec(chunk);
+            // A window with DATA panes renders on every block, filled or refused —
+            // `code:` is the list of them. It is not conditional on a page: arm 4 of
+            // `check-generated-website-data.mjs` refuses a block that reaches neither
+            // the snippet map nor the refusal map, so the pane is always one or the
+            // other. That is what makes arm 10 able to decide, from the source alone,
+            // that such a window is on a page.
+            const data = /\bcode:\s*[A-Za-z_$]/.test(chunk);
+            windows.push({ id: parts[i], slots, title: title === null ? null : title[1], data });
         }
     }
     const override = /\bconst MARKUP_OVERRIDE = '([a-z][a-z0-9-]*)';/.exec(text);
     return { windows, override: override === null ? null : override[1] };
 }
+
+/**
+ * A gallery page's PROSE: no frontmatter, no fenced code.
+ *
+ * Arm 10 asks whether a page NAMES a window, and every gallery page carries fenced
+ * NativeScript and GJS snippets that say "NativeScript" and "TypeScript" inside them.
+ * Read unmasked, a page would satisfy the arm with a code sample — the same
+ * source-text-read failure arm 9 blanks comments for.
+ *
+ * Whitespace is COLLAPSED, because these files are hard-wrapped and Markdown reads a
+ * line break as a space: "**UI\nframeworks**" is one phrase to every reader and two
+ * to a naive `includes`. Measured while writing this — the arm's first run failed on
+ * a page that named the window correctly, wrapped.
+ */
+const pageProse = (text) =>
+    text
+        .replace(/^---\n[\s\S]*?\n---\n/, '')
+        .replaceAll(/```[\s\S]*?```/g, '')
+        .replaceAll(/`[^`\n]*`/g, '')
+        .replaceAll(/\s+/g, ' ');
 
 /** Where the site's navigation is hand-written, and how a page is spelled in it. */
 const SIDEBAR = 'website/astro.config.mjs';
@@ -489,6 +530,85 @@ if (panePosition !== null) {
             '    widget the reader has not seen yet, and nothing else here would notice: both tabs still\n' +
             '    render and the fence is still authored once.',
     );
+}
+
+// --- arm 10: a window a page SHOWS is a window the page's prose NAMES ---
+
+/**
+ * The window titles a page renders, and the ones its prose enumerates, held against
+ * each other in both directions.
+ *
+ * THE INCIDENT. `Vanilla TypeScript` was renamed to `Native TypeScript` in
+ * {@link WIDGET_COMPONENT} and nowhere else. Every gallery page's intro enumerates
+ * the windows BY THESE EXACT STRINGS — the component's own note says so and relies on
+ * it ("the four runtimes are named by the PAGE") — so nine pages were left naming a
+ * window no block on them draws. In the same commit the frameworks window went from
+ * three blocks to all forty, and seven of those intros still enumerated two windows
+ * where the reader now meets three. Nothing saw either: the strings never leave the
+ * prose, so the site builds and arms 1-9 stay green.
+ *
+ * WHICH WINDOWS A PAGE SHOWS, from the source alone. A window is on a page if some
+ * block there provides one of its tab slots, or if it declares DATA panes — those are
+ * looked up per block and, where a block has none, replaced by the recorded reason,
+ * so such a window is on every block (see `componentWindows`).
+ *
+ * A page with NO blocks is skipped, because it draws no window at all — with one
+ * exception that is not a special case so much as the same rule at section scope: the
+ * gallery's index page introduces the section, so what it must name is the union over
+ * the pages it introduces. It carried the stale name too, and skipping it would have
+ * left the one page a reader meets first outside the rule.
+ *
+ * MEASURED against the four ways it can be wrong, each restored afterwards:
+ *
+ *   · rename the window in the component alone — exit 1, on all 9 pages, which is
+ *     the defect this arm is named after
+ *   · drop "UI frameworks" from one page's intro — exit 1, on that page
+ *   · remove the two `nativescript` fragments from `controls.mdx`, so the page stops
+ *     drawing a window it still names — exit 1, the inverse direction
+ *   · break the title read (`title:` -> `heading:`) — exit 1 on the vacuity guard,
+ *     not a green run against an empty set
+ */
+const SECTION_INDEX = 'index.mdx';
+const titledWindows = windows.filter((window) => window.title !== null);
+if (titledWindows.length === 0) {
+    failures.push(
+        `${WIDGET_COMPONENT}: no window in WINDOWS has a title, so arm 10 would hold every page against\n` +
+            '    an empty set and pass vacuously. The title read is broken, not the component.',
+    );
+}
+
+/** page → the titled windows its own blocks draw. */
+const shownBy = new Map(pages.map((page) => [page, new Set()]));
+for (const block of blocks) {
+    const page = block.page.slice(`${GALLERY}/`.length);
+    const slots = new Set([...block.body.matchAll(/<Fragment slot="([^"]+)"/g)].map(([, slot]) => slot));
+    for (const window of titledWindows) {
+        if (window.data || window.slots.some((slot) => slots.has(slot))) shownBy.get(page).add(window.title);
+    }
+}
+const everywhere = new Set([...shownBy.values()].flatMap((titles) => [...titles]));
+
+for (const page of pages) {
+    const shown = page === SECTION_INDEX ? everywhere : shownBy.get(page);
+    // A page with no block draws nothing, and the index stands for the section.
+    if (shown.size === 0) continue;
+    const prose = pageProse(readFileSync(join(ROOT, GALLERY, page), 'utf8'));
+    for (const title of titledWindows.map((window) => window.title)) {
+        const named = prose.includes(title);
+        if (named === shown.has(title)) continue;
+        failures.push(
+            named
+                ? `${GALLERY}/${page} names the window "${title}" in its prose, and no block on it draws\n` +
+                      '    that window. A reader is told to look for a window that is not there — and the\n' +
+                      '    enumeration is the only place the window titles are explained, so being wrong\n' +
+                      '    there is worse than being silent.'
+                : `${GALLERY}/${page} draws the window "${title}" and its prose never names it. Every\n` +
+                      `    gallery page introduces the stack of windows by title, and ${WIDGET_COMPONENT}\n` +
+                      '    relies on that: what a window title cannot say (the four runtimes, the three\n' +
+                      '    dialects) the page says instead. Rename a window here and nowhere else, or grow\n' +
+                      '    the stack by one, and the intro describes a page that no longer exists.',
+        );
+    }
 }
 
 if (failures.length > 0) {

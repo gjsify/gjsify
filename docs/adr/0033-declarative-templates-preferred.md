@@ -64,7 +64,7 @@ this project refuses hand-maintained tables elsewhere.
 ## Consequences
 
 - Documentation examples show the template and its loader side by side, the way the
-  gallery's Vanilla TypeScript window already shows `.ts` beside `.blp`. Where a runtime
+  gallery's Native TypeScript window already shows `.ts` beside `.blp`. Where a runtime
   has a declarative form, the example uses it.
 - A reader comparing two runtimes compares two trees, not a tree against a script.
 - `Adw.init()` and the final-type constraint above become part of what an example has to
