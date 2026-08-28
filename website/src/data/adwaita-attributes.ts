@@ -50,8 +50,8 @@ export const ADWAITA_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
         'spacing',
         'position',
     ],
-    'adw-carousel-indicator-dots': [],
-    'adw-carousel-indicator-lines': [],
+    'adw-carousel-indicator-dots': ['for'],
+    'adw-carousel-indicator-lines': ['for'],
     'adw-checkbox': ['checked', 'indeterminate', 'disabled', 'label'],
     'adw-clamp': ['maximum-size', 'tightening-threshold'],
     'adw-combo-row': ['title', 'subtitle', 'selected'],
@@ -156,11 +156,26 @@ export const ADWAITA_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
     'adw-view-switcher-page': [],
     'adw-window': [],
     'adw-window-title': ['title', 'subtitle'],
-    'adw-wrap-box': [],
+    'adw-wrap-box': [
+        'child-spacing',
+        'child-spacing-unit',
+        'pack-direction',
+        'align',
+        'justify',
+        'justify-last-line',
+        'line-spacing',
+        'line-spacing-unit',
+        'line-homogeneous',
+        'natural-line-length',
+        'natural-line-length-unit',
+        'wrap-reverse',
+        'wrap-policy',
+        'orientation',
+    ],
 };
 
 /** How many attributes the web pillar observes in total. */
-export const ADWAITA_ATTRIBUTE_COUNT = 260;
+export const ADWAITA_ATTRIBUTE_COUNT = 276;
 
 /** How many elements the pillar registers. An element with none is still an entry. */
 export const ADWAITA_ELEMENT_COUNT = 65;
