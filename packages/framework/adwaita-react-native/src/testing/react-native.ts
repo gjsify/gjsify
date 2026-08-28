@@ -28,9 +28,9 @@
 // WHAT IT DOES NOT PROVE: Yoga. A `width` and a `marginStart` in a style object are
 // an instruction to a layout engine that is not here, so "the child is 400 points
 // wide" is asserted as an instruction, never as a measured pixel. The measured pixel
-// exists only on the GTK side of this package (`showcases/gtk/adwaita-rn-clamp`
-// photographs it) and, for React Native, only on a device. That gap is named in the
-// README and is not closed by this file.
+// exists only on the GTK side of this package (`../widgets/clamp.gtk.spec.tsx`
+// photographs it through `shotEvidence`) and, for React Native, only on a device. That
+// gap is named in the README and is not closed by this file.
 
 import { createElement, type ReactElement } from 'react';
 import type { View as RealView } from 'react-native';
