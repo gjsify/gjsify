@@ -1,0 +1,101 @@
+{
+    "name": "@gjsify/adwaita-react-native",
+    "version": "0.44.0",
+    "description": "Adwaita widgets with one API surface and two implementations \u2014 the real Adw.* widget on GTK4, React Native primitives on a phone",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "react-native": "./lib/esm/index.native.js",
+            "default": "./lib/esm/index.gtk.js"
+        },
+        "./widgets/bin": {
+            "types": "./lib/types/widgets/bin.d.ts",
+            "react-native": "./lib/esm/widgets/bin.native.js",
+            "default": "./lib/esm/widgets/bin.gtk.js"
+        },
+        "./widgets/clamp": {
+            "types": "./lib/types/widgets/clamp.d.ts",
+            "react-native": "./lib/esm/widgets/clamp.native.js",
+            "default": "./lib/esm/widgets/clamp.gtk.js"
+        },
+        "./testing/react-native": {
+            "types": "./lib/types/testing/react-native.d.ts",
+            "default": "./lib/esm/testing/react-native.js"
+        }
+    },
+    "files": [
+        "lib",
+        "!lib/types/**/*.spec.d.ts"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs dist",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,tsx,js}' --exclude 'src/**/*.spec.{mts,ts,tsx}' 'src/test.{mts,ts}' 'src/test.node.mts'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs --define 'process.env.NODE_ENV=\"production\"' --exclude-globals navigator",
+        "build:test:node": "gjsify build src/test.node.mts --app node --outfile dist/test.node.mjs --exclude-globals navigator --alias react-native=@gjsify/adwaita-react-native/testing/react-native",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node dist/test.node.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "gtk",
+        "adwaita",
+        "react",
+        "react-native",
+        "design-system"
+    ],
+    "dependencies": {
+        "@gjsify/adwaita-core": "workspace:^",
+        "@gjsify/gtk-host": "workspace:^"
+    },
+    "peerDependencies": {
+        "react": "^19.2.0",
+        "react-native": ">=0.87 <1"
+    },
+    "peerDependenciesMeta": {
+        "react-native": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@girs/adw-1": "^4.1.0",
+        "@girs/gjs": "^4.1.0",
+        "@girs/gtk-4.0": "^4.1.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "@types/react": "^19.2.2",
+        "@types/react-test-renderer": "^19.1.0",
+        "react": "^19.2.0",
+        "react-native": ">=0.87 <1",
+        "react-test-renderer": "^19.2.8",
+        "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "polyfill",
+            "browser": "none",
+            "nativescript": "none",
+            "react-native": "native"
+        },
+        "tier": 3
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/adwaita-react-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/adwaita-react-native#readme"
+}
