@@ -12,6 +12,11 @@
 // right without anyone editing this file. {@link AdwWidget} decides which windows
 // exist and what they claim; this file knows how a window is drawn.
 //
+// THE ATTRIBUTE LIST IS A PANE TOO, and the LAST one, on that same window. It is
+// the browser port's `observedAttributes` and no other port's, so it belongs to the
+// window running the browser port rather than under the block, where it read as a
+// summary of all four. See AdwWidget's header for the measurement.
+//
 // THE LIVE PREVIEW IS A PANE, and the FIRST one, on the window that runs the
 // widget. It used to sit between the header bar and the tab bar, with the markup
 // appended below it, which reads as two stacked things — a picture, and some code
@@ -49,6 +54,13 @@ interface Props {
     scroll?: boolean;
     /** Inline CSS for the preview stage: preview-only scaffolding — see AdwWidget. */
     stage?: string;
+    /**
+     * The attributes this widget's custom element observes, or null on a window
+     * that is not the browser port (and on a widget that has no element).
+     */
+    attributes?: string[] | null;
+    /** The element those attributes belong to, e.g. `adw-button-content`. */
+    elementTag?: string | null;
 }
 
 const {
@@ -61,10 +73,12 @@ const {
     padding = 'comfortable',
     scroll = false,
     stage,
+    attributes = null,
+    elementTag = null,
 } = Astro.props;
 
-/** The preview is a pane like any other, so it counts like one. */
-const panes = tabs.length + (preview === null ? 0 : 1);
+/** The preview is a pane like any other, so it counts like one. And so is the attribute list. */
+const panes = tabs.length + (preview === null ? 0 : 1) + (attributes === null ? 0 : 1);
 
 // NO PANES AT ALL is a header bar over nothing, and it renders exactly that way at
 // exit 0. `AdwWidget` is what prevents it — it skips a window none of whose tab
@@ -91,6 +105,18 @@ if (panes < 2 && preview !== null) {
     throw new Error(
         `AdwWidgetWindow(${title}): a live preview reached a window with no tab beside it. The preview ` +
             'window declares its own markup tab, so this means AdwWidget stopped passing it.',
+    );
+}
+
+// The attribute pane is the LIVE window's — it is that window's element being
+// described. Asserted because nothing downstream would notice: on a code-only window
+// the pane would simply render, and a reader would read one port's attributes off
+// another port's window. And the single-pane branch below reads `tabs[0]`, which a
+// lone attribute pane would not have.
+if (attributes !== null && preview === null) {
+    throw new Error(
+        `AdwWidgetWindow(${title}): an attribute list reached a window that does not run the widget. ` +
+            'It is the browser port\'s `observedAttributes`, so AdwWidget passes it to the live window only.',
     );
 }
 ---
@@ -177,6 +203,25 @@ if (panes < 2 && preview !== null) {
                 {tabs.map((tab) => (
                     <adw-tab-page title={tab.label} set:html={tab.html} />
                 ))}
+                {attributes !== null && (
+                    <adw-tab-page title="Attributes">
+                        <div class="adw-widget-attrs not-content">
+                            <p>
+                                <code>{`<${elementTag}>`}</code> observes {attributes.length}
+                                {attributes.length === 1 ? ' attribute' : ' attributes'} in the browser port. Set one and
+                                the element re-renders; set anything else and it never hears about it. The windows below
+                                name their own — GObject properties on GTK, NativeScript's own spelling on a phone.
+                            </p>
+                            <ul>
+                                {attributes.map((attr) => (
+                                    <li>
+                                        <code>{attr}</code>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </adw-tab-page>
+                )}
             </adw-tab-view>
         )
     }
