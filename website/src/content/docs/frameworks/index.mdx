@@ -317,7 +317,7 @@ of mounted roots; until something needs one, a string throws rather than renderi
 ## The widget table and the type surfaces
 
 164 concrete `GtkWidget` descendants (102 from Gtk, 62 from Adw) are generated from the GIR
-and committed with the package. 26 of them also carry a hand-written placement rule, and the
+and committed with the package. 35 of them also carry a hand-written placement rule, and the
 generator may only ever add a tag, never contradict a curated one. A tag with no rule can be
 created, given properties and given handlers; inserting a child into it raises an error naming
 the tag that needs a policy. Guessing is not on offer — `add`, `append` and `set_child` all

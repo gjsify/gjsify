@@ -181,7 +181,7 @@ a **name** and keep a document that defines it.
 | You write | What happens |
 |---|---|
 | `justify-around`, `justify-evenly` | refused at the partition: GTK's box gives leftover main-axis space to the children that expand and has no per-gap distribution mode |
-| `justify-between` | deferred, then refused at attach time: the mapping is `Gtk.CenterBox`, which installs no `remove` method, so the host's slotted adoption policy cannot curate it. Spell the distribution with a spacer child (`flex-1`) or with `gap-*` |
+| `justify-between` | deferred, then refused at attach time: the mapping is `Gtk.CenterBox`, a different **widget**, and two or three children pick it — this layer resolves properties for the widget it was handed and has no children to count. Spell the distribution with a spacer child (`flex-1`) or with `gap-*` |
 | `ps-*` / `pe-*` | refused: GTK has no logical padding in either mechanism |
 | `text-start` / `text-end` | refused: GTK aligns text physically |
 | `w-1/2` and other fractions | refused: a widget requests a *minimum* in pixels or expands to fill. `w-full` / `h-full` are the only fractions with an exact GTK meaning |
