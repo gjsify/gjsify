@@ -35,7 +35,29 @@ export const BUNDLE = [
     '',
 ].join('\n');
 
-/** A minimal but complete GJS project: a built bundle, an icon, a schema, a licence. */
+/**
+ * The `--app node` twin of {@link BUNDLE}.
+ *
+ * `gi://` imports on purpose: a Node bundle still reaches GI through
+ * `@gjsify/node-gi`, so the typelib dependencies must be derived for it exactly
+ * as for a GJS one. A plain `console.log` bundle would have proved only that the
+ * interpreter line changed.
+ */
+export const NODE_BUNDLE = [
+    `import Gtk from 'gi://Gtk?version=4.0';`,
+    `import Adw from 'gi://Adw?version=1';`,
+    `console.log(Gtk, Adw);`,
+    '',
+].join('\n');
+
+/**
+ * A minimal but complete GJS project: a built bundle, an icon, a schema, a licence.
+ *
+ * `mutate` receives the DIRECTORY as well as the manifest, so a caller can plant
+ * a second bundle beside the first — which is the layout `resolve-gjs-entry.ts`
+ * documents as normal (`dist/<name>.gjs.js` next to `dist/<name>.node.mjs`) and
+ * the one a filename heuristic mis-read.
+ */
 export function scaffold(dir, mutate) {
     mkdirSync(join(dir, 'dist'), { recursive: true });
     mkdirSync(join(dir, 'data', 'icons', 'hicolor', 'scalable', 'apps'), { recursive: true });
@@ -74,7 +96,7 @@ export function scaffold(dir, mutate) {
             },
         },
     };
-    if (mutate) mutate(pkg);
+    if (mutate) mutate(pkg, dir);
 
     writeFileSync(join(dir, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`);
     writeFileSync(join(dir, 'dist', 'gjs.js'), BUNDLE);

@@ -68,8 +68,29 @@ export const STAGE_MANIFEST_FILE = '.gjsify-ship-stage.json';
  * `settings.flatpak` would not skip a field, it would pack a Flatpak against
  * whatever runtime IT defaults to — a different `org.gnome.Platform` version
  * than the project asked for, at exit 0.
+ *
+ * 3 added `settings.minNodeVersion` and 4 added `settings.app`. Same case as 2
+ * for the same reason: an older reader ignoring `app` does not skip a field, it
+ * has no concept of an interpreter choice at all, so it seeds `gjs >= …` for a
+ * stage whose launcher — already rendered, already in the tree it is packing —
+ * execs `node`. The package then declares one interpreter and runs another.
+ *
+ * Stated as a consequence and not as an incident, because it never happened:
+ * `app` and the launcher landed together. An earlier version of this comment
+ * claimed the incident anyway, which is worth leaving on the record — a rule
+ * with an invented reason gets "simplified" back out the first time somebody
+ * notices the reason is not real.
+ *
+ * WHY TWO BUMPS IN ONE CHANGE, when neither was ever released. Because 3 and 4
+ * are DIFFERENT SHAPES and 3 briefly existed: the intermediate commit wrote
+ * `schema: 3` with no `app`. Folding `app` into 3 would have made this reader
+ * meet that stage and fail on `settings.app must be "gjs" or "node", got
+ * undefined` — fail-closed, but naming a field instead of the one thing the
+ * reader can do about it. At 4 the schema check above catches it first and says
+ * "re-run the `--stage` phase with this gjsify", which is the whole reason this
+ * constant's header is an argument for bumping whenever a reader could mis-read.
  */
-export const STAGE_SCHEMA_VERSION = 2;
+export const STAGE_SCHEMA_VERSION = 4;
 
 /**
  * The OS whose layout `planStage` produces.
@@ -154,7 +175,9 @@ export function toPackSettings(settings: ShipSettings): PackSettings {
         group: settings.group,
         extraDepends: settings.extraDepends,
         typelibPackages: settings.typelibPackages,
+        app: settings.app,
         minGjsVersion: settings.minGjsVersion,
+        minNodeVersion: settings.minNodeVersion,
         flatpak: settings.flatpak,
     };
 }
@@ -493,7 +516,9 @@ function readPackSettings(data: Record<string, unknown>, at: string): PackSettin
                 ];
             }),
         ),
+        app: expectApp(data.app, field('app')),
         minGjsVersion: expectString(data.minGjsVersion, field('minGjsVersion')),
+        minNodeVersion: expectString(data.minNodeVersion, field('minNodeVersion')),
         flatpak: readFlatpakSettings(record(data.flatpak, field('flatpak')), field('flatpak')),
     };
 }
@@ -536,6 +561,19 @@ function expectArray(value: unknown, at: string): unknown[] {
         throw new Error(`gjsify ship: ${at} must be an array. Re-run the \`--stage\` phase.`);
     }
     return value;
+}
+
+/**
+ * The interpreter field, checked against the two values that exist.
+ *
+ * Not `expectString`: this one decides which interpreter the package DEPENDS on,
+ * so an unknown value must stop the pack rather than flow into a `Depends:` line
+ * as itself. The only way to reach it is a stage from a gjsify that knows a third
+ * target, which the schema check above already refuses — this is the second wall.
+ */
+function expectApp(value: unknown, at: string): 'gjs' | 'node' {
+    if (value === 'gjs' || value === 'node') return value;
+    throw new Error(`gjsify ship: ${at} must be "gjs" or "node", got ${JSON.stringify(value)}.`);
 }
 
 function expectString(value: unknown, at: string): string {

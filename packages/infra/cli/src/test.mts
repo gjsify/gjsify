@@ -16,6 +16,7 @@ import shipLocalesSuite from './utils/ship/discover-locales.spec.js';
 import shipMimeSuite from './utils/ship/mime.spec.js';
 import shipLicenseSuite from './utils/ship/discover-license.spec.js';
 import shipDependsSuite from './utils/ship/depends.spec.js';
+import shipNodeRuntimeSuite from './utils/ship/node-runtime.spec.js';
 import shipFlatpakSuite from './utils/ship/flatpak.spec.js';
 import installProvenanceSuite from './utils/install-provenance.spec.js';
 import shipArchivesSuite from './utils/ship/archives.spec.js';
@@ -212,6 +213,7 @@ run(
         shipMimeSuite,
         shipLicenseSuite,
         shipDependsSuite,
+        shipNodeRuntimeSuite,
         shipFlatpakSuite,
         installProvenanceSuite,
         shipArchivesSuite,

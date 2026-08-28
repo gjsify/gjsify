@@ -301,6 +301,59 @@ If your bundle genuinely runs on an older GJS, say so:
 Test it on that version before you do. Lowering the floor to make apt happy,
 without checking, is how you turn a clean refusal into a crash on first launch.
 
+## Choose the Node floor — only for `--app node`
+
+A `--app gjs` package declares no Node dependency at all, and this section does
+not apply to it. A **`--app node`** bundle needs an interpreter, and on Linux it
+is depended on rather than shipped:
+
+```
+Depends: nodejs (>= 24)          # deb
+Requires: nodejs(engine) >= 24   # rpm
+```
+
+`gjsify ship` picks the interpreter from `gjsify.app` — the same field your build
+already uses — and the launcher it writes execs that one and no other. A package
+therefore declares exactly one interpreter, and `gjsify ship` refuses to build one
+whose launcher and dependency disagree.
+
+**The two names are not interchangeable, and getting rpm's wrong fails
+silently.** `Requires: nodejs >= 24` is a no-op on Fedora: the virtual `nodejs`
+Provide carries Epoch 1, so a bare `>= 24` desugars to `0:24` and is satisfied by
+`1:22.23.1`. Measured with `dnf repoquery` on Fedora 44 — `--whatprovides 'nodejs
+>= 24'` answers **nodejs22**, while `--whatprovides 'nodejs(engine) >= 24'`
+answers nodejs24. `gjsify ship` emits the correct spelling for you; the reason is
+written down here because a hand-written spec file will get it wrong.
+
+The `>= 24` default excludes **every current DEB stable and LTS**:
+
+| suite | Node |
+| --- | --- |
+| Debian 13 trixie (stable) | 20 |
+| Debian 14 forky (testing) | 24 |
+| Ubuntu 24.04 LTS | 18 |
+| Ubuntu 26.04 LTS | 22 |
+| Fedora 43 / 44 / 45 | 22 by default, 24 installable from the base repo |
+
+`gjsify ship` prints that rather than lowering the number quietly. If your bundle
+genuinely runs on an older Node, say so — and test it there first:
+
+```jsonc
+"gjsify": { "ship": { "minNodeVersion": "20" } }
+```
+
+⚠️ **A satisfied `Requires:` is not the same as Node 24 on `PATH`.** Fedora's
+streams are parallel-installable and `/usr/bin/node` is an alternatives symlink
+owned by whichever `nodejs<stream>-bin` package is installed — so
+`nodejs22-bin` plus `nodejs(engine) >= 24` is a perfectly valid state in which
+`node` is still 22. Measured with `dnf install --assumeno` on Fedora 44. No
+dependency any packager can emit closes that; an app that truly requires 24 has to
+check `process.versions.node` at startup and say so.
+
+macOS and Windows have no system Node to depend on, so an artifact for those
+carries its own interpreter from `@gjsify/node-runtime-<target>`. You add nothing
+to `package.json`: those packages are resolved **by name** at ship time.
+
 ## Configure it in package.json
 
 Every key has a derived default, and metadata you do not set here falls back to

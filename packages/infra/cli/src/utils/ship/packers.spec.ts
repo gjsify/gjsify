@@ -18,7 +18,9 @@ import { buildRpm } from './rpm.js';
 import {
     assertPayloadMatchesArch,
     isArchIndependent,
+    assertLauncherMatchesInterpreter,
     readBinaryArch,
+    readLauncherInterpreters,
     readShebangInterpreters,
     type PayloadEntry,
 } from './payload.js';
@@ -56,7 +58,9 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         execArgs: [],
         outDir: 'ship',
         arch: 'x64',
+        app: 'gjs' as const,
         minGjsVersion: '1.86',
+        minNodeVersion: '24',
         ...overrides,
     };
 }
@@ -221,6 +225,96 @@ export default async () => {
                 ['bin/c', 0o755, '#!/bin/sh\n'],
             ]);
             expect(readShebangInterpreters(entries)).toStrictEqual(['/bin/sh', '/usr/bin/perl']);
+        });
+    });
+
+    await describe('the launcher and the dependency must name the same interpreter', async () => {
+        const launcher = (text: string) => [{ path: 'bin/demo', mode: 0o755, data: encoder.encode(text) }];
+        const gjsLauncher = '#!/bin/sh\nset -e\nexec gjs -m "$prefix"/lib/demo/app.gjs.js "$@"\n';
+        const nodeLauncher = '#!/bin/sh\nset -e\nexec node "$prefix"/lib/demo/app.node.mjs "$@"\n';
+
+        await it('reads the interpreter off the staged launcher', async () => {
+            expect(readLauncherInterpreters(launcher(gjsLauncher), 'demo')).toStrictEqual(['gjs']);
+            expect(readLauncherInterpreters(launcher(nodeLauncher), 'demo')).toStrictEqual(['node']);
+        });
+
+        await it('resolves a launcher this tree did not write', async () => {
+            // `gjsify.ship.extraFiles` can replace `bin/<name>` outright, and
+            // these are the shapes a hand-written one takes. The raw-token
+            // version answered `/usr/bin/gjs` and `env`, and REFUSED both.
+            expect(readLauncherInterpreters(launcher('exec /usr/bin/gjs -m /app/x.js\n'), 'demo')).toStrictEqual([
+                'gjs',
+            ]);
+            expect(
+                readLauncherInterpreters(launcher('exec env NODE_OPTIONS=--x node /app/x.mjs\n'), 'demo'),
+            ).toStrictEqual(['node']);
+            expect(
+                readLauncherInterpreters(launcher('exec /usr/bin/env -S node --enable-source-maps /a.mjs\n'), 'demo'),
+            ).toStrictEqual(['node']);
+        });
+
+        await it('reports EVERY exec, not the first — a launcher may branch', async () => {
+            // The first cut's comment said "the LAST `exec` line" while its
+            // non-global regex returned the FIRST. Neither is right for a script
+            // with branches, so all of them are collected and the caller decides.
+            const branching =
+                '#!/bin/sh\nif [ -n "$WAYLAND_DISPLAY" ]; then\n  exec gjs -m /a.js\nfi\nexec gjs -m /b.js\n';
+            expect(readLauncherInterpreters(launcher(branching), 'demo')).toStrictEqual(['gjs']);
+            const mixed = '#!/bin/sh\nif [ "$X" ]; then\n  exec node /a.mjs\nfi\nexec gjs -m /b.js\n';
+            expect(readLauncherInterpreters(launcher(mixed), 'demo')).toStrictEqual(['node', 'gjs']);
+        });
+
+        await it('refuses a package that depends on one interpreter and execs the other', async () => {
+            // The defect measured on the first cut of the Node half: a filename
+            // heuristic put `nodejs (>= 24)` in `Depends:` while this line still
+            // read `exec gjs -m`. Both files were individually well-formed, so no
+            // structural check could see it — only comparing them can.
+            expect(() => assertLauncherMatchesInterpreter(launcher(gjsLauncher), 'demo', 'node')).toThrow(
+                'execs `gjs`',
+            );
+            expect(() => assertLauncherMatchesInterpreter(launcher(nodeLauncher), 'demo', 'gjs')).toThrow(
+                'execs `node`',
+            );
+        });
+
+        await it('names a cause the reader can act on, and not the false one', async () => {
+            // "re-run the `--stage` phase" was the old advice and is FALSE for the
+            // case that reaches a user: re-staging an extraFiles override
+            // reproduces it forever.
+            let message = '';
+            try {
+                assertLauncherMatchesInterpreter(launcher(nodeLauncher), 'demo', 'gjs');
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain('gjsify.ship.extraFiles');
+            expect(message).not.toContain('--stage');
+        });
+
+        await it('passes a working package whose launcher it merely does not understand', async () => {
+            // FAIL ONLY on a positively identified OTHER interpreter. Everything
+            // else passes: a guard that turns working packages into failures buys
+            // nothing over the defect it prevents.
+            assertLauncherMatchesInterpreter(launcher(gjsLauncher), 'demo', 'gjs');
+            assertLauncherMatchesInterpreter(launcher('exec /usr/bin/gjs -m /a.js\n'), 'demo', 'gjs');
+            assertLauncherMatchesInterpreter(launcher('exec env NODE_OPTIONS=--x node /a.mjs\n'), 'demo', 'node');
+            // Neither interpreter, no exec at all, no launcher, and a branch that
+            // includes the declared one.
+            assertLauncherMatchesInterpreter(launcher('exec /usr/bin/python3 /a.py\n'), 'demo', 'gjs');
+            assertLauncherMatchesInterpreter(launcher('#!/bin/sh\nexit 0\n'), 'demo', 'node');
+            assertLauncherMatchesInterpreter([], 'demo', 'node');
+            assertLauncherMatchesInterpreter(
+                launcher('#!/bin/sh\nif [ "$X" ]; then\n  exec node /a.mjs\nfi\nexec gjs -m /b.js\n'),
+                'demo',
+                'gjs',
+            );
+            expect(readLauncherInterpreters([], 'demo')).toStrictEqual([]);
+        });
+
+        await it('is not fooled by the word `exec` inside the launcher body', async () => {
+            const withNoise =
+                '#!/bin/sh\n# exec gjs is what this used to do\nEXECUTABLE=1\nexec node "$prefix"/lib/demo/a.mjs\n';
+            expect(readLauncherInterpreters(launcher(withNoise), 'demo')).toStrictEqual(['node']);
         });
     });
 

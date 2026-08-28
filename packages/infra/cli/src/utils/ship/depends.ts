@@ -40,6 +40,72 @@ import type { DistroFormatId } from './types.js';
 export const DEFAULT_GJS_FLOOR = '1.86';
 
 /**
+ * The Node the `--app node` bundles target, as a MAJOR.
+ *
+ * Node 24 is the LTS line `@gjsify/node-runtime-*` bundles for macOS and
+ * Windows, and this is the Linux half of the same decision: where an
+ * interpreter is bundled, the floor is what was bundled; where it is depended
+ * on, the floor is what the bundle needs.
+ *
+ * It excludes EVERY current DEB stable/LTS — Debian 13 trixie 20, Ubuntu 24.04
+ * LTS 18, Ubuntu 26.04 LTS 22; only Debian 14 forky has 24. `warnAboutNodeFloor`
+ * is what makes that visible at ship time, and `gjsify.ship.minNodeVersion` is
+ * how a project whose bundle really does run on an older Node lowers it. The
+ * same honest-floor-plus-warning answer as {@link DEFAULT_GJS_FLOOR}, one axis
+ * over — and it will fire far more often.
+ */
+export const DEFAULT_NODE_FLOOR = '24';
+
+/**
+ * The package providing a Node interpreter, per format.
+ *
+ * ⚠️ THE TWO STRINGS ARE NOT THE SAME NAME, and getting rpm's wrong is silent.
+ * `Requires: nodejs >= 24` is a NO-OP on Fedora. Measured with `dnf repoquery`
+ * on Fedora 44:
+ *
+ *     --whatprovides 'nodejs >= 24'          → nodejs22-1:22.23.1-2.fc44
+ *     --whatprovides 'nodejs(engine) >= 24'  → nodejs24-1:24.18.0-1.fc44
+ *
+ * F44 has no real `nodejs` package at all — the name is a virtual Provide of the
+ * stream packages, which carry **Epoch 1**. A bare `>= 24` desugars to `0:24`,
+ * and `1:22.23.1` beats it on epoch alone, so the floor admits the very version
+ * it was written to exclude. `nodejs(engine)` carries no epoch and compares as
+ * written. (Streams 20/22/24 are parallel-installable, which is why the name has
+ * to be a Provide in the first place.) The spelling appears nowhere in the
+ * Fedora packaging guideline's own source — it comes from real spec files.
+ *
+ * No `/usr/bin/node` file dependency beside it — right answer, and the FIRST
+ * reason written here for it was wrong, so both are recorded. It is not that
+ * `nodejs24` pulls the symlink in: `/usr/bin/node` is provided by `nodejs20-bin`,
+ * `nodejs22-bin` AND `nodejs24-bin`, all three of which
+ * `Provides`/`Conflicts: alternative-for(nodejs-bin)` and are therefore mutually
+ * exclusive. `nodejs24` itself installs `/usr/bin/node-24`. So the file
+ * dependency is satisfied by ANY stream's `-bin`, which makes it worthless as a
+ * version constraint — that is why it is not emitted.
+ *
+ * ⚠️ AND THAT LEAVES A REAL HOLE, which no dependency this writer can emit
+ * closes. Measured on Fedora 44:
+ *
+ *     dnf install --assumeno nodejs22-bin 'nodejs(engine) >= 24'
+ *       → installs nodejs22-bin, nodejs22, nodejs24, nodejs24-libs
+ *       → and NOT nodejs24-bin
+ *
+ * Every requirement is met and `node` on `PATH` is still 22. rpm's alternatives
+ * scheme has no vocabulary for "the stream that owns the symlink must be at
+ * least 24", so an app that must have 24 on `PATH` has to check at runtime; a
+ * package cannot ask for it. Recorded here because the gap is invisible from the
+ * emitted `Requires:` line, which looks correct and is.
+ *
+ * (`nodejs24` carries no bare `nodejs` Provide at all — only `nodejs22` does on
+ * F44, which is the other half of why the epoch trap above bites.)
+ *
+ * A `Record`, for the reason {@link SCHEMA_COMPILER_PACKAGE} records: a ternary
+ * reads as a two-way choice and is really "deb, or ELSE rpm's name", and a third
+ * format silently inheriting rpm's spelling has happened here before, at exit 0.
+ */
+const NODE_PACKAGE: Record<DistroFormatId, string> = { deb: 'nodejs', rpm: 'nodejs(engine)' };
+
+/**
  * The package providing `glib-compile-schemas`, per format.
  *
  * A record, not `format === 'deb' ? … : …`. The ternary reads as a two-way
@@ -80,6 +146,50 @@ export function warnAboutGjsFloor(format: DistroFormatId, floor: string): string
             'The package installs on forky/sid and on distributions with a newer GJS. Set ' +
             '`gjsify.ship.minGjsVersion` if this bundle genuinely runs on an older GJS; do NOT lower it ' +
             'to make apt happy, because the result is an install that succeeds and an app that does not start.',
+    ];
+}
+
+/**
+ * Node majors per DEB suite, as measured 2026-08-28 — see {@link warnAboutNodeFloor}.
+ */
+const DEBIAN_NODE = 'trixie ships 20, forky 24; Ubuntu 24.04 LTS ships 18 and 26.04 LTS 22';
+
+/**
+ * Which formats the Node-floor warning is ABOUT.
+ *
+ * `rpm` is false, and it is a measured fact about Fedora rather than a default:
+ * F43/44/45 default to Node 22 but ship `nodejs24` in the base repository,
+ * parallel-installable, so `nodejs(engine) >= 24` resolves without an extra
+ * repository. Debian and Ubuntu have no such stream packages — one `nodejs` per
+ * suite, and it is older than 24 in every current stable/LTS.
+ *
+ * A `Record` and not `format !== 'deb'`, for the reason
+ * {@link GJS_FLOOR_IS_DEBIAN_NEWS} spells out: the negative form answers "stay
+ * quiet" for every format that will ever exist, including ones nobody has
+ * checked a distribution for.
+ */
+const NODE_FLOOR_IS_DEBIAN_NEWS: Record<DistroFormatId, boolean> = { deb: true, rpm: false };
+
+/**
+ * Warn when the Node floor cannot be satisfied by a released Debian or Ubuntu.
+ * Returns the warning lines; empty when the floor is fine.
+ *
+ * Only reached when the payload actually needs an interpreter — a `--app gjs`
+ * package declares no Node dependency, so warning about its floor would be
+ * noise attached to a line that is never emitted.
+ */
+export function warnAboutNodeFloor(format: DistroFormatId, floor: string): string[] {
+    if (!NODE_FLOOR_IS_DEBIAN_NEWS[format]) return [];
+    // Ubuntu 26.04 LTS's 22 is the newest a current DEB stable/LTS carries;
+    // trixie's 20 is older still. A floor of 22 or below is satisfiable
+    // somewhere released and stays quiet.
+    if (compareVersions(floor, '22') <= 0) return [];
+    return [
+        `gjsify ship: \`Depends: nodejs (>= ${floor})\` is not satisfiable on any current DEB stable/LTS — ` +
+            `${DEBIAN_NODE}. The package installs on forky/sid and on distributions with a newer Node. Set ` +
+            '`gjsify.ship.minNodeVersion` if this bundle genuinely runs on an older Node; do NOT lower it ' +
+            'to make apt happy, because the result is an install that succeeds and an app that dies on the ' +
+            'first syntax or API the older interpreter does not have.',
     ];
 }
 
@@ -152,6 +262,29 @@ export interface DependsInputs {
     hasIcons: boolean;
     /** Whether the payload installs GSettings schemas. */
     hasSchemas: boolean;
+    /**
+     * The interpreter the launcher execs — `settings.app`, the SAME field
+     * `renderLauncher` branches on.
+     *
+     * Not a payload fact, and the attempt to make it one is worth keeping: the
+     * first cut derived it from a staged FILENAME (`*.node.mjs`), which is wrong
+     * in both directions. `discoverPayload` stages the whole directory beside
+     * the bundle and `dist/<name>.gjs.js` next to `dist/<name>.node.mjs` is the
+     * documented normal layout, so a pure `--app gjs` project that also builds a
+     * Node bundle declared a Node dependency it never execs — and with a `>= 24`
+     * floor that `.deb` is REFUSED by apt on trixie, Ubuntu 24.04 and Ubuntu
+     * 26.04. A working package made uninstallable is not "one extra package
+     * installed".
+     *
+     * The honest source is the one thing that decides both the launcher and this
+     * list. `assertLauncherMatchesInterpreter` re-reads the staged launcher and
+     * refuses a package where the two disagree, which is the check a payload
+     * heuristic could never be.
+     *
+     * macOS and Windows never reach here: there the interpreter is CARRIED, from
+     * `@gjsify/node-runtime-<target>`.
+     */
+    interpreter: 'gjs' | 'node';
     /** User-supplied additions for this format. */
     extra: readonly string[];
     /** Project-supplied table rows, filling gaps in {@link TYPELIB_PACKAGES}. */
@@ -163,6 +296,8 @@ export interface DependsInputs {
     bundledTypelibs?: readonly string[];
     /** Minimum GJS. Default {@link DEFAULT_GJS_FLOOR}. */
     minGjsVersion?: string;
+    /** Minimum Node major, when one is depended on. Default {@link DEFAULT_NODE_FLOOR}. */
+    minNodeVersion?: string;
 }
 
 /**
@@ -189,7 +324,15 @@ const BUNDLED_TYPELIB = /^Gjsify[A-Z]/;
  * @throws when a namespace has no entry in the table — see the module header.
  */
 export function deriveDepends(format: DistroFormatId, inputs: DependsInputs): string[] {
-    const out: string[] = [`gjs >= ${inputs.minGjsVersion ?? DEFAULT_GJS_FLOOR}`];
+    // The interpreter the launcher execs, and nothing else: a package declares ONE.
+    // Linux is the only place this is a dependency at all — macOS and Windows have
+    // no system Node, so an artifact for those CARRIES one from
+    // `@gjsify/node-runtime-<target>`, and that is the whole reason those three
+    // packages exist and this one line is their opposite.
+    const out: string[] =
+        inputs.interpreter === 'node'
+            ? [`${NODE_PACKAGE[format]} >= ${inputs.minNodeVersion ?? DEFAULT_NODE_FLOOR}`]
+            : [`gjs >= ${inputs.minGjsVersion ?? DEFAULT_GJS_FLOOR}`];
     const unmapped: string[] = [];
 
     // Namespaces the package SHIPS ITSELF, read off the staged filenames rather than from a
@@ -243,8 +386,8 @@ export function deriveDepends(format: DistroFormatId, inputs: DependsInputs): st
     if (inputs.hasSchemas) out.push(SCHEMA_COMPILER_PACKAGE[format]);
     out.push(...inputs.extra);
 
-    // Set-dedupe keeps first-insertion order, so `gjs` stays first and the
-    // list is stable across runs.
+    // Set-dedupe keeps first-insertion order, so the interpreter stays first and
+    // the list is stable across runs.
     return [...new Set(out)];
 }
 

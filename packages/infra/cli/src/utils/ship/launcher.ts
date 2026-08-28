@@ -1,5 +1,18 @@
 // The `bin/<name>` entry a package installs.
 //
+// It execs ONE interpreter, named by `settings.app`, and `deriveDepends` seeds
+// the dependency from that same field. That coupling is the point rather than a
+// convenience: the first cut of the Node half derived "this payload needs Node"
+// from a FILENAME (`*.node.mjs` anywhere in the staged tree) while this function
+// still execed gjs unconditionally, and the two disagreed in both directions —
+// a `--app gjs` project that merely built a Node bundle beside its GJS one got
+// `Depends: gjs (>= 1.86), nodejs (>= 24)` and a launcher running the GJS
+// bundle, and `>= 24` is unsatisfiable on every current DEB stable, so a working
+// package became uninstallable for a reason its author never opted into.
+// `assertLauncherMatchesInterpreter` in `utils/ship/payload.ts` re-reads this
+// line off the STAGED file and is the gate that keeps the two from drifting
+// apart again.
+//
 // It derives its own prefix at runtime instead of having one baked in. That is
 // what lets ONE staged payload become a `.deb` under `/usr`, an `.rpm` under
 // `/usr` and a Flatpak under `/app` (ADR 0024 § 3) — a baked path would force a
@@ -20,7 +33,7 @@ function shellQuote(value: string): string {
 }
 
 /**
- * Render the launcher for a GJS application.
+ * Render the launcher.
  *
  * `bundleRelPath` is the bundle's path inside `lib/<binaryName>/`.
  */
@@ -62,6 +75,13 @@ export function renderLauncher(settings: ShipSettings, bundleRelPath: string): s
         lines.push('GJSIFY_LOCALE_DIR="$prefix"/share/locale', 'export GJSIFY_LOCALE_DIR');
     }
 
-    lines.push(`exec gjs -m ${lib}/${bundleRelPath}${args ? ` ${args}` : ''} "$@"`, '');
+    // `gjs` needs `-m` to treat the bundle as an ES module; `node` decides from
+    // the extension and rejects the flag. The interpreter NAME, not a path: both
+    // are found on `PATH`, which is what the emitted dependency guarantees is
+    // there — and on Fedora `/usr/bin/node` is an alternatives symlink whose
+    // target is whichever stream package won, so hardcoding a path would pin the
+    // launcher to a layout the dependency does not promise.
+    const interpreter = settings.app === 'node' ? 'node' : 'gjs -m';
+    lines.push(`exec ${interpreter} ${lib}/${bundleRelPath}${args ? ` ${args}` : ''} "$@"`, '');
     return lines.join('\n');
 }

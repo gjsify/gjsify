@@ -43,8 +43,28 @@ import { defineRule } from '../registry.mjs';
  * Directories whose presence in `files` means "this tarball carries a payload
  * built from a third-party prefix". Kept as a list of NAMES rather than of
  * packages: a new bundle that ships `gtk/` is caught the day it is added.
+ *
+ * `'bin'` is here for the `@gjsify/node-runtime-*` packages, which ship one Node
+ * binary plus Node's `LICENSE` as `files: ["bin"]`. It had to be ADDED — a set
+ * that only knew `'gtk'` would have let a package redistributing a 120 MB
+ * interpreter declare `"license": "MIT"` at exit 0, which is verbatim the defect
+ * this rule exists to close, one payload directory over. That is the failure to
+ * expect from a literal set: the day a package ships a third-party payload under
+ * some other directory name, its name goes here in the same commit.
+ *
+ * Measured before adding it, because `bin` is a far more ordinary name than
+ * `gtk` — and measured over THIS RULE'S OWN UNIVERSE, which is the part worth
+ * copying: `createContext({ discoveryRoots: ['packages'] })` sees 329 packages,
+ * and exactly three of them list `bin` in `files`, all three added with this
+ * line. An earlier version of this note counted 337 by walking the working tree
+ * for `package.json` files, which is a different set from the one the rule
+ * scans; a number measured beside the check it justifies is not evidence about
+ * the check.
+ *
+ * And the trigger is `files`, not the `bin` MANIFEST FIELD — a package declaring
+ * executables via `"bin": {…}` is untouched.
  */
-const PAYLOAD_DIRS = new Set(['gtk']);
+const PAYLOAD_DIRS = new Set(['gtk', 'bin']);
 
 /** `SEE LICENSE IN <file>` — npm's documented form for a licence too complex to express. */
 const SEE_LICENSE_IN = /^SEE LICEN[CS]E IN\s+(.+)$/;

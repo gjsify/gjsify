@@ -14,7 +14,7 @@ import { validateMimeTypes } from './mime.js';
 import { basename } from 'node:path';
 
 import type { AppMetadata, ConfigDataFlatpak, ConfigDataShip, DescriptionBlock } from '../../types/config-data.js';
-import { DEFAULT_GJS_FLOOR } from './depends.js';
+import { DEFAULT_GJS_FLOOR, DEFAULT_NODE_FLOOR } from './depends.js';
 import { resolveShipFlatpakSettings } from './flatpak-config.js';
 import { assertRelease, normaliseVersion } from './version.js';
 import type { ShipSettings } from './types.js';
@@ -56,6 +56,13 @@ export interface SettingsInput {
     flatpak: ConfigDataFlatpak;
     cli: { outDir?: string; arch?: string };
     discovered: DiscoveredPayload;
+    /**
+     * `gjsify.app` as DECLARED — `undefined` when the project declares nothing.
+     *
+     * Deliberately the raw config value and not `Config.forBuild`'s resolved one:
+     * see where it is defaulted below.
+     */
+    app?: string;
 }
 
 export interface ResolvedSettings {
@@ -104,6 +111,14 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
     const appId = ship.appId ?? flatpak.appId ?? reverseDnsOrThrow(pkg.name, binaryName);
     const name = metadata.name ?? titleCase(binaryName);
     const kind = metadata.kind ?? 'app';
+    // `gjsify.app`, defaulted HERE to `'gjs'` rather than taken from
+    // `Config.forBuild`'s resolution, which falls back to the HOST runtime. That
+    // fallback is right for a build (`gjsify build` under Node should produce a
+    // Node bundle by default) and catastrophic for a package: running this
+    // command under Node would silently turn every undeclared GJS project into
+    // one whose launcher execs `node`. An undeclared target is the common case
+    // for a GJS app, and it means GJS.
+    const app: 'gjs' | 'node' = input.app === 'node' ? 'node' : 'gjs';
 
     const rawVersion = ship.version ?? pkg.version;
     if (!rawVersion) {
@@ -174,7 +189,9 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         execArgs: ship.execArgs ?? [],
         outDir: input.cli.outDir ?? ship.outDir ?? 'ship',
         arch: input.cli.arch ?? process.arch,
+        app,
         minGjsVersion: ship.minGjsVersion ?? DEFAULT_GJS_FLOOR,
+        minNodeVersion: ship.minNodeVersion ?? DEFAULT_NODE_FLOOR,
         flatpak: flatpakSettings.settings,
     };
 

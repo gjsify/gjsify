@@ -68,6 +68,14 @@ export function buildTimestamp(bundlePath: string, env: Record<string, string | 
  * Path-only, on purpose — `isArchIndependent` is the sibling that reads BYTES, and the two answer
  * different questions from the same payload. The same split as `plan.ts`'s `isExecutableAsset`
  * (by name) versus this module's magic sniffing (by content).
+ *
+ * NOT EVERY QUESTION BELONGS HERE, and one that does not was briefly added: "does this package need
+ * a Node interpreter", derived from a `*.node.mjs` filename anywhere in the tree. Every fact above
+ * is about something the package INSTALLS at a well-known path, which is why a path answers it.
+ * That one was about what the launcher EXECS — and `discoverPayload` stages the whole directory
+ * beside the bundle, so a `--app gjs` project that also builds a Node bundle carried the file and
+ * ran neither. It lives on `settings.app` now, with `assertLauncherMatchesInterpreter` below as the
+ * check. Before adding a field here, ask whether a path can answer it or only correlate with it.
  */
 export interface PayloadFacts {
     /** The payload installs a `share/applications/*.desktop`. */
@@ -102,6 +110,128 @@ export function readPayloadFacts(entries: readonly { path: string }[]): PayloadF
         // declare a distro dependency for, wherever it sits.
         bundledTypelibs: paths.filter((path) => path.endsWith('.typelib')),
     };
+}
+
+/**
+ * Every interpreter the STAGED launcher could exec, resolved to a bare name.
+ *
+ * WHY THIS IS READ BACK AT ALL, when `settings.app` already says so. Because
+ * `settings.app` says what the launcher was RENDERED from, and the dependency is
+ * a claim about what the installed package will RUN. Those were once two
+ * different things: the Node dependency was derived from a filename glob over
+ * the staged tree while `renderLauncher` execed `gjs` unconditionally, and the
+ * packer emitted `Depends: gjs (>= 1.86), nodejs (>= 24)` for a package that
+ * runs neither combination. Nothing in the pipeline compared them, and no
+ * structural check could: both artifacts were individually well-formed.
+ *
+ * A LIST, and every `exec` rather than one of them. The first cut took the first
+ * match while its own comment claimed the last — `/\nexec\s+/` is not global, so
+ * the two disagreed and the comment was the wrong one. Neither is right for a
+ * script this tree did not write: a launcher may exec different interpreters on
+ * different branches, and picking one branch's answer is a guess. Collecting
+ * them lets {@link assertLauncherMatchesInterpreter} ask the only question that
+ * is safe on a foreign script — see there.
+ *
+ * NAMES, not the tokens as written. `exec /usr/bin/gjs -m …` execs gjs, and an
+ * `env` prefix (`exec env NODE_OPTIONS=… node …`) execs whatever follows its
+ * assignments. Both are things `gjsify.ship.extraFiles` legitimately writes, and
+ * the raw-token version REFUSED them: measured, an untouched `--app gjs` project
+ * whose `extraFiles` replaced the launcher with `exec /usr/bin/gjs -m …` failed
+ * the pack at exit 1 with "execs `/usr/bin/gjs`, but this package would declare
+ * a dependency on `gjs`" — a working artifact rejected over a parser, which is
+ * exactly what the `null` branch was written to prevent and did not.
+ */
+export function readLauncherInterpreters(payload: readonly PayloadEntry[], binaryName: string): string[] {
+    const launcher = payload.find((entry) => entry.path === `bin/${binaryName}`);
+    if (launcher === undefined) return [];
+    const text = new TextDecoder().decode(launcher.data);
+    const found: string[] = [];
+    // `[ \t]*` because a branching launcher indents the `exec` inside its `if`,
+    // and a pattern anchored hard to the newline silently sees only the last,
+    // unindented one — measured: a two-branch script reported `gjs` alone. A
+    // comment (`# exec gjs …`) still cannot match, since `#` is not whitespace.
+    for (const match of `\n${text}`.matchAll(/\n[ \t]*exec\s+([^\n]*)/g)) {
+        const name = interpreterOf((match[1] as string).trim());
+        if (name !== null) found.push(name);
+    }
+    return [...new Set(found)];
+}
+
+/**
+ * The program an `exec` line runs, as a bare name, or `null` when the line is
+ * not one this reader can honestly resolve.
+ *
+ * `env` is followed through because it is the documented way to pass variables
+ * to an interpreter and says nothing about which one runs. Everything past the
+ * first non-assignment word is arguments, so the walk stops there.
+ */
+function interpreterOf(line: string): string | null {
+    let words = line.split(/\s+/).filter((word) => word.length > 0);
+    for (let hop = 0; hop < 2 && words.length > 0; hop++) {
+        const program = basenameOf(words[0] as string);
+        if (program !== 'env') return program === '' ? null : program;
+        // Past `env`: skip its flags and `NAME=value` assignments to reach the
+        // program. `-S` takes the rest of the line as one string, which the split
+        // above has already flattened into words — the right answer either way.
+        words = words.slice(1).filter((word) => !word.startsWith('-') && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
+    }
+    return null;
+}
+
+/** Last path segment, POSIX or Windows — a launcher is generated text, not a path object. */
+function basenameOf(token: string): string {
+    const parts = token.split(/[/\\]/);
+    return parts[parts.length - 1] ?? '';
+}
+
+/**
+ * Refuse a package whose launcher execs an interpreter the package does not
+ * depend on.
+ *
+ * THE RULE, and it is deliberately asymmetric: fail ONLY when the launcher
+ * positively names the OTHER known interpreter and never names the declared one.
+ * Everything else passes — no launcher, no `exec` this reader resolves, a program
+ * that is neither `gjs` nor `node`, or a script whose branches include the
+ * declared one.
+ *
+ * That asymmetry is the correction. The first cut failed whenever the resolved
+ * token was not equal to the declared interpreter, and its own doc comment
+ * claimed the opposite ("`null` is SILENT ... refusing a package because this
+ * function did not understand a launcher somebody else wrote would fail a
+ * working artifact over a parser"). The parser's failure mode is not `null` — it
+ * answers confidently wrong. Measured on an otherwise untouched `--app gjs`
+ * project whose `gjsify.ship.extraFiles` replaced `bin/<name>`:
+ *
+ *     exec /usr/bin/gjs -m …        → exit 1, "execs `/usr/bin/gjs`"
+ *     exec env NODE_OPTIONS=… node… → exit 1, "execs `env`"
+ *
+ * Both worked before the check existed. A guard that turns working packages into
+ * failures buys nothing over the defect it prevents.
+ *
+ * The advice in the message is also fixed. It used to say "re-run the `--stage`
+ * phase", which is FALSE for the case that actually reaches a user: re-staging
+ * an `extraFiles` override reproduces it forever. The two real causes are named
+ * instead.
+ */
+export function assertLauncherMatchesInterpreter(
+    payload: readonly PayloadEntry[],
+    binaryName: string,
+    interpreter: 'gjs' | 'node',
+): void {
+    const found = readLauncherInterpreters(payload, binaryName);
+    if (found.length === 0 || found.includes(interpreter)) return;
+    const other = interpreter === 'gjs' ? 'node' : 'gjs';
+    if (!found.includes(other)) return;
+    throw new Error(
+        `gjsify ship: the launcher bin/${binaryName} execs \`${other}\`, but this package would declare a ` +
+            `dependency on \`${interpreter}\`.\n` +
+            '    An installed package that depends on one interpreter and runs another installs cleanly and ' +
+            'fails\n' +
+            "    at first launch, on the user's machine.\n" +
+            `    Either set \`gjsify.app\` to "${other}", or fix the launcher — if it comes from ` +
+            '`gjsify.ship.extraFiles`,\n' +
+            '    that override is what decides which interpreter runs and it must match the declaration.',
+    );
 }
 
 /**

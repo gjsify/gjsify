@@ -452,6 +452,18 @@ export interface ConfigDataShip extends AppMetadata {
      */
     minGjsVersion?: string;
     /**
+     * Minimum Node major the emitted dependency asks for, when the payload is a
+     * `--app node` bundle. Default `'24'` — the LTS line the
+     * `@gjsify/node-runtime-*` packages bundle for macOS and Windows.
+     *
+     * Lower it only if the bundle genuinely runs on an older Node. The default
+     * excludes every current DEB stable/LTS (trixie 20, Ubuntu 24.04 18, Ubuntu
+     * 26.04 22), so it makes a `.deb` that apt refuses there rather than one that
+     * installs and then dies on the first unsupported syntax — the same trade
+     * `minGjsVersion` makes, and `gjsify ship` warns about it either way.
+     */
+    minNodeVersion?: string;
+    /**
      * Runtime dependencies appended to the set derived from the bundle's
      * `gi://` imports — the escape hatch for a namespace the table does not
      * know, and for anything that is not a typelib at all.

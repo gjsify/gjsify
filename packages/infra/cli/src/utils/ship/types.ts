@@ -136,6 +136,28 @@ export interface FormatDescriptor {
      * dependencies are not a package list at all — see {@link DistroFormatId}.
      */
     depends: DistroFormatId | null;
+    /**
+     * The interpreters this format's runtime can actually provide at RUN time.
+     *
+     * A list and not a boolean, and on the descriptor rather than in a branch,
+     * because the answer is a property of the format's runtime and nothing else
+     * can be asked for it. `deb`/`rpm` carry both: a distribution ships `gjs` and
+     * `nodejs`, and the package declares whichever it execs.
+     *
+     * ⚠️ `flatpak` carries `gjs` ALONE, and that is a measured limit rather than
+     * a conservative default. `org.gnome.Platform` ships `gjs` and no `node`;
+     * Node exists only as `org.freedesktop.Sdk.Extension.node2x`, which puts
+     * `/usr/lib/sdk/node24/bin` on the **build** PATH — this repo's own
+     * `guides/flatpak-cli-tool.md` says so in those words. So a `--app node`
+     * Flatpak would install and die at `exec node`.
+     *
+     * That case was reachable: `assertLauncherMatchesInterpreter` is about the
+     * launcher agreeing with the DEPENDENCY, and a Flatpak has no dependency
+     * list, so the check is vacuous here — it compares `settings.app` against a
+     * launcher rendered from `settings.app`. Only the RUNTIME knows, and only
+     * this row can say.
+     */
+    interpreters: readonly ('gjs' | 'node')[];
     /** Where the project's licence text goes in this format's overlay. */
     licenseDest: (binaryName: string) => string;
     /**
@@ -238,8 +260,23 @@ export interface PackSettings {
     extraDepends: Record<DistroFormatId, string[]>;
     /** Project-supplied GI-namespace → package rows, filling gaps in the built-in table. */
     typelibPackages: Record<string, Record<DistroFormatId, string>>;
-    /** Minimum GJS the emitted dependency asks for. */
+    /**
+     * The interpreter the launcher execs, and therefore the one the package
+     * depends on. From `gjsify.app`; default `'gjs'`.
+     *
+     * ON `PackSettings`, not on `ShipSettings` alone, because BOTH halves need it
+     * and they must not answer it differently: `renderLauncher` writes
+     * `exec gjs -m` or `exec node` from this field, and `deriveDepends` seeds
+     * `gjs >= …` or `nodejs >= …` from the same one. Two sources here is the
+     * defect this field replaces — a filename heuristic once produced
+     * `Depends: gjs (>= 1.86), nodejs (>= 24)` on a package whose launcher execed
+     * gjs.
+     */
+    app: 'gjs' | 'node';
+    /** Minimum GJS the emitted dependency asks for. Used only for `app: 'gjs'`. */
     minGjsVersion: string;
+    /** Minimum Node major. Used only for `app: 'node'`. */
+    minNodeVersion: string;
     /** The Flatpak manifest's non-payload half, fully defaulted at stage time. */
     flatpak: ShipFlatpakSettings;
 }

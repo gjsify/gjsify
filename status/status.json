@@ -277,6 +277,18 @@
       "status": "full",
       "note": "Axis-5 reverse bridge — GI/GObject runtime for Node: unchanged GJS/GObject-Introspection code runs under Node.js (and Bun/Deno from the same N-API binary). Headless core complete (marshalling incl. OUT/INOUT, toggle-ref GC dance, signals, `GObject.registerClass` incl. custom props/signals/vfuncs + chain-up, boxed/struct access, callbacks, mainloop with the uv-driven auto-pump so a bare `node bundle.mjs` drains Gio async work byte-identically to `gjs -m`); GTK/Cairo layer landed (Adwaita window realizes + renders via GSK; the full Libadwaita storybook renders on Linux + Windows via the `--windowing` GTK runtime bundle); GIMarshallingTests oracle 370 pass / 0 fail; graduated Tier 3→2 per ADR 0005 (2026-07-14), dependency-isolation invariant retained (devDep-only seam). 17 `@gjsify/*` packages run their own suites unchanged on it. Deferred limitations tracked in Open TODOs."
     },
+    "@gjsify/node-runtime-darwin-arm64": {
+      "status": "full",
+      "note": "Bundled Node interpreter for macOS on Apple silicon, so a `gjsify ship` artifact can carry its own where the host provides none. Ships `bin/node` + Node's `LICENSE` and nothing else: the full distribution drags in npm's bundled `node_modules`, 149 further LICENSE files (150 including Node's own, the same count in every archive of the release), for code that is not being shipped. One verbatim `LICENSE` from a release TAG discharges MIT + Apache-2.0 (OpenSSL is upstream 3.5.7, Apache-2.0 alone, so no advertising clause) + BSD-3 + Unicode-3.0 + zlib + Artistic-2.0 + BlueOak-1.0.0 + ISC, with zero copyleft in the binary. Payload gitignored, fetched and sha256-verified on CI by the shared `packages/node-runtime/scripts/fetch-node-runtime.mjs`. Resolved BY NAME by whoever ships the app, no `optionalDependencies` edge \u2014 the `@gjsify/gtk-runtime-*` rule; cross-assembling on Linux needs `npm install --force` or `npm pack`, since `os`/`cpu` gating makes a plain install EBADPLATFORM. First publish not yet bootstrapped."
+    },
+    "@gjsify/node-runtime-darwin-x64": {
+      "status": "full",
+      "note": "Intel-macOS sibling of the arm64 interpreter bundle, from the same release and the same shared fetcher \u2014 nothing in the fetch or the verification is arch-dependent, since the payload is a verified DOWNLOAD rather than a build, which is what lets all three targets publish from one ubuntu job with no macOS and no Windows runner. Same two-file payload, same licence discharge, same by-name resolution. First publish not yet bootstrapped."
+    },
+    "@gjsify/node-runtime-win32-x64": {
+      "status": "full",
+      "note": "Windows-x64 interpreter bundle: `bin/node.exe` (the whole runtime \u2014 the win-x64 zip contains zero DLLs) + Node's `LICENSE`. \u26a0\ufe0f Sourced from the `.zip`, never from `https://nodejs.org/dist/<v>/win-x64/`: that directory holds `node.exe`, `node.lib` and debug symbols and NO LICENSE, so the convenient route drops the redistribution obligation with no error \u2014 and it is a WINDOWS-only shortcut, the darwin equivalents being 404. The same release also ships the licence twice byte-different (157,609 B LF in the tarballs, 160,555 B CRLF in the zip, 2,946 CR), so the size check is a Set of both. First publish not yet bootstrapped."
+    },
     "@gjsify/node-globals": {
       "status": "full",
       "note": "process, Buffer, structuredClone (full polyfill), TextEncoder/Decoder, atob/btoa, URL, setImmediate. Root export pure; side effects in `@gjsify/node-globals/register` (granular subpaths per feature; catch-all kept as the official \"give me everything\" opt-in). Users opt in via `--globals` (default `auto`) or an explicit register import."

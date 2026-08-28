@@ -1,0 +1,5 @@
+# The interpreter is ~90–125 MB and is fetched from nodejs.org on a CI runner,
+# never committed. `files: ["bin"]` in package.json overrides this for
+# `gjsify pack` (proven by tests/e2e/pack-gitignored-files/), which is the whole
+# mechanism: gitignored in the checkout, present in the tarball.
+bin/

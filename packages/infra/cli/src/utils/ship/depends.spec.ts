@@ -9,11 +9,18 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { deriveDepends, formatDebDepend, knownNamespaces, parseDepend, warnAboutGjsFloor } from './depends.js';
+import {
+    deriveDepends,
+    formatDebDepend,
+    knownNamespaces,
+    parseDepend,
+    warnAboutGjsFloor,
+    warnAboutNodeFloor,
+} from './depends.js';
 import { resolveFormats } from './formats.js';
 import { parseGiSpecifier, scanGiNamespaces } from './gi-namespaces.js';
 
-const base = { hasIcons: true, hasSchemas: false, extra: [] };
+const base = { hasIcons: true, hasSchemas: false, interpreter: 'gjs' as const, extra: [] };
 
 export default async () => {
     await describe('deriveDepends', async () => {
@@ -24,6 +31,7 @@ export default async () => {
                 namespaces: ['Gtk-4.0', 'Gwebgl-0.1'],
                 hasIcons: true,
                 hasSchemas: false,
+                interpreter: 'gjs' as const,
                 extra: [],
                 bundledTypelibs: ['/p/gi/Gwebgl-0.1.typelib', '/p/gi/libgwebgl.so'],
             });
@@ -39,6 +47,7 @@ export default async () => {
                     namespaces: ['Totally-1.0'],
                     hasIcons: true,
                     hasSchemas: false,
+                    interpreter: 'gjs' as const,
                     extra: [],
                     bundledTypelibs: ['/p/gi/Gwebgl-0.1.typelib'],
                 }),
@@ -135,6 +144,57 @@ export default async () => {
             expect(deriveDepends('deb', { ...base, namespaces: [], minGjsVersion: '1.82' })[0]).toBe('gjs >= 1.82');
         });
 
+        await it('spells the Node dependency differently per format, because the names differ', async () => {
+            // ⚠️ THE WHOLE POINT OF THIS TEST. `Requires: nodejs >= 24` is a
+            // silent NO-OP on Fedora: measured with `dnf repoquery` on F44,
+            // `--whatprovides 'nodejs >= 24'` answers nodejs22-1:22.23.1,
+            // because the virtual `nodejs` Provide carries Epoch 1 and a bare
+            // `>= 24` desugars to `0:24`. `nodejs(engine)` has no epoch.
+            expect(deriveDepends('rpm', { ...base, namespaces: [], interpreter: 'node' })).toContain(
+                'nodejs(engine) >= 24',
+            );
+            expect(deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node' })).toContain('nodejs >= 24');
+            // The rpm spelling must never leak into a Debian `Depends:` — the
+            // failure `SCHEMA_COMPILER_PACKAGE`'s header records, one row over.
+            expect(deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node' })).not.toContain(
+                'nodejs(engine) >= 24',
+            );
+        });
+
+        await it('declares exactly ONE interpreter, never both', async () => {
+            // THE REGRESSION THIS PINS. The first cut seeded `gjs >= …`
+            // unconditionally and appended `nodejs >= …` from a payload
+            // heuristic, so a package could declare both — and a `>= 24` floor is
+            // unsatisfiable on every current DEB stable, which turns a working
+            // GJS package into one apt refuses everywhere.
+            const gjs = deriveDepends('rpm', { ...base, namespaces: [] });
+            expect(gjs[0]).toBe('gjs >= 1.86');
+            expect(gjs.some((d) => d.startsWith('nodejs'))).toBe(false);
+
+            const node = deriveDepends('rpm', { ...base, namespaces: [], interpreter: 'node' });
+            expect(node[0]).toBe('nodejs(engine) >= 24');
+            expect(node.some((d) => d.startsWith('gjs'))).toBe(false);
+        });
+
+        await it('honours a lowered Node floor', async () => {
+            expect(
+                deriveDepends('deb', { ...base, namespaces: [], interpreter: 'node', minNodeVersion: '20' }),
+            ).toContain('nodejs >= 20');
+        });
+
+        await it('keeps the emitted bound parseable by both packers', async () => {
+            // `nodejs(engine)` contains parentheses, and `parseDepend` splits on
+            // whitespace around the relation — so the rpm name survives as ONE
+            // token. If it did not, the rpm header would carry a dependency on a
+            // package called `nodejs(engine`.
+            expect(parseDepend('nodejs(engine) >= 24')).toStrictEqual({
+                name: 'nodejs(engine)',
+                relation: '>=',
+                version: '24',
+            });
+            expect(formatDebDepend('nodejs >= 24')).toBe('nodejs (>= 24)');
+        });
+
         await it("knows every namespace this repo's own showcases import", async () => {
             for (const namespace of ['Gtk-4.0', 'Adw-1', 'GLib-2.0', 'Gio-2.0', 'GObject-2.0', 'GtkSource-5']) {
                 expect(knownNamespaces()).toContain(namespace);
@@ -156,6 +216,28 @@ export default async () => {
 
         await it('says nothing for rpm, where the floor is met', async () => {
             expect(warnAboutGjsFloor('rpm', '1.86').length).toBe(0);
+        });
+    });
+
+    await describe('warnAboutNodeFloor', async () => {
+        await it('warns for deb, where the default floor excludes every current stable/LTS', async () => {
+            // Debian 13 trixie 20, Ubuntu 24.04 LTS 18, Ubuntu 26.04 LTS 22 —
+            // measured 2026-08-28. This fires far more often than its GJS
+            // sibling, which is the honest consequence of a `>= 24` default and
+            // the reason the warning exists rather than a lowered floor.
+            expect(warnAboutNodeFloor('deb', '24').join('')).toContain('not satisfiable on any current DEB');
+            expect(warnAboutNodeFloor('deb', '26').length).toBe(1);
+        });
+
+        await it('is quiet for a floor a released suite actually satisfies', async () => {
+            // Ubuntu 26.04 LTS ships 22, which is the newest any current
+            // stable/LTS carries — so 22 and below are satisfiable somewhere.
+            expect(warnAboutNodeFloor('deb', '22').length).toBe(0);
+            expect(warnAboutNodeFloor('deb', '20').length).toBe(0);
+        });
+
+        await it('says nothing for rpm, where nodejs24 is parallel-installable from the base repo', async () => {
+            expect(warnAboutNodeFloor('rpm', '24').length).toBe(0);
         });
     });
 

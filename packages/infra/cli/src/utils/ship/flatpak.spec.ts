@@ -41,7 +41,9 @@ function packSettings(overrides: Partial<PackSettings> = {}): PackSettings {
         group: 'Applications/System',
         extraDepends: { deb: [], rpm: [] },
         typelibPackages: {},
+        app: 'gjs' as const,
         minGjsVersion: '1.86',
+        minNodeVersion: '24',
         flatpak: {
             runtime: 'org.gnome.Platform',
             runtimeVersion: '50',

@@ -1381,6 +1381,7 @@ No runtime is bundled on Linux: GJS and GTK come from the distribution, so the p
 | `licenseFile` | first of `LICENSE`, `LICENSE.md`, `LICENSE.txt`, `COPYING` | Licence file to ship. |
 | `section` / `group` | derived from `categories` | deb `Section:` and rpm `Group:`. |
 | `minGjsVersion` | `1.86` | Minimum GJS the emitted dependency asks for. |
+| `minNodeVersion` | `24` | Minimum Node the emitted dependency asks for. Only used when the payload is an `--app node` bundle — a `--app gjs` package declares no Node at all. |
 | `depends` | `{}` | Extra runtime dependencies per format, appended to the derived set. For things that are not typelibs. |
 | `typelibPackages` | `{}` | GI namespace to the package shipping its typelib. This is what unblocks an unknown namespace. |
 | `bundledTypelibs` | `[]` | Directories whose `*.typelib` and `*.so` (with or without a numeric soversion) the package carries itself, for GI libraries that arrive as npm prebuilds rather than distro packages. Staged into `lib/<name>/gi/`, with the launcher pointing `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` there. |
@@ -1394,6 +1395,18 @@ Metadata keys (`name`, `summary`, `description`, `developer`, `license`, `catego
 #### The GJS floor on Debian
 
 The emitted dependency is `gjs (>= 1.86)`, which is what the bundler targets. No released Debian satisfies it: Debian went from 1.82.3 (trixie) straight to 1.88.1 (forky). `gjsify ship` tells you rather than lowering the floor quietly, because a `.deb` that apt refuses beats one that installs and then dies on a syntax error. Set `gjsify.ship.minGjsVersion` if your bundle genuinely runs on an older GJS.
+
+#### The Node floor, and where the interpreter comes from
+
+`--app node` needs an interpreter, and where it comes from depends on the operating system.
+
+On **Linux** it is depended on, not shipped: the emitted dependency is `nodejs (>= 24)` on deb and `nodejs(engine) >= 24` on rpm. The two names genuinely differ, and the rpm one is not a style choice — `Requires: nodejs >= 24` is a **silent no-op on Fedora**, because the virtual `nodejs` Provide carries Epoch 1 and a bare `>= 24` desugars to `0:24`, which `1:22.23.1` satisfies. Measured with `dnf repoquery` on Fedora 44: `--whatprovides 'nodejs >= 24'` answers **nodejs22**.
+
+Which one is emitted comes from `gjsify.app`, the same field the build uses, and the launcher `gjsify ship` writes execs that one — `exec gjs -m <bundle>` or `exec node <bundle>`. A package that declared one and ran the other is refused before it is written.
+
+That floor excludes every current DEB stable and LTS — trixie ships 20, Ubuntu 24.04 ships 18, Ubuntu 26.04 ships 22; only forky has 24 — so `gjsify ship` warns about it, for the same reason it warns about the GJS floor. Set `gjsify.ship.minNodeVersion` if your bundle genuinely runs on an older Node.
+
+On **macOS and Windows** there is no system Node to depend on, so the artifact carries its own from `@gjsify/node-runtime-<target>`. You add nothing to `package.json`: the packages are resolved **by name** at ship time, the same rule the GTK runtime bundles follow, and `GJSIFY_NODE_RUNTIME` overrides the lookup with a directory.
 
 #### Where each format can be packed
 

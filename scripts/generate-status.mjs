@@ -809,7 +809,7 @@ function groupFacts(facts, entryOf) {
         ns: inPillar('nativescript-bridge'),
         gjs: inPillar('gjs'),
         infra: inPillar('infra'),
-        engines: [...inPillar('node-gi'), ...inPillar('napi')],
+        engines: [...inPillar('node-gi'), ...inPillar('napi'), ...inPillar('node-runtime')],
     };
 }
 
@@ -1047,7 +1047,7 @@ export function renderStatus(root, facts, data) {
             'Build/Infra tools',
             `${groups.infra.length} published + ${privateInfra.length} private (internal, documented in AGENTS.md)`,
         ],
-        ['Runtime engines (node-gi / napi)', String(groups.engines.length)],
+        ['Runtime engines (node-gi / napi / node-runtime)', String(groups.engines.length)],
         ['Spec files (static count, `packages/**/src`)', String(totalSpecs)],
         ['`it()` call sites (static count — not runtime totals; CI is the gate for those)', String(totalIts)],
         [
@@ -1152,7 +1152,12 @@ export function renderStatus(root, facts, data) {
     out.push('---', '');
     out.push(pillarSection('Build Infrastructure (`packages/infra/`)', groups.infra));
     out.push('---', '');
-    out.push(pillarSection('Runtime Engines (`packages/node-gi/`, `packages/napi/`)', groups.engines));
+    out.push(
+        pillarSection(
+            'Runtime Engines (`packages/node-gi/`, `packages/napi/`, `packages/node-runtime/`)',
+            groups.engines,
+        ),
+    );
     out.push('---', '');
     out.push('## GNOME Library Usage');
     out.push('');
