@@ -458,6 +458,49 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.match(requires, /^libadwaita$/m);
     });
 
+    it('refuses `--app node` for a runtime that has no node, before anything is staged', () => {
+        // The hole the `--app node` support opened. `assertShippableTarget` used
+        // to refuse `app: node` outright, so no format ever saw one; lifting that
+        // made deb and rpm correct and left Flatpak silently wrong. Measured at
+        // exit 0 before this refusal: a manifest with `runtime: org.gnome.Platform`
+        // and no `sdk-extensions`, beside a launcher that execs `node`.
+        //
+        // `--stage`, so the case needs no flatpak-builder: staging is exactly
+        // where the reviewer reproduced it, and the stage is what crosses to the
+        // packing host.
+        const dir = scaffold(join(tmpDir, 'flatpak-node'), (pkg, at) => {
+            pkg.gjsify.app = 'node';
+            pkg.gjsify.main = 'dist/app.node.mjs';
+            pkg.main = 'dist/app.node.mjs';
+            writeFileSync(join(at, 'dist', 'app.node.mjs'), NODE_BUNDLE);
+        });
+        const output = runCliExpectingFailure(dir, ['--stage', '--target', 'flatpak']);
+        assert.match(output, /the flatpak runtime cannot run it/);
+        assert.match(output, /org\.gnome\.Platform/);
+        // Nothing may have been written: the refusal is before the stage.
+        assert.equal(existsSync(join(dir, 'ship', 'stage')), false);
+    });
+
+    it('packs a project whose extraFiles replaces the launcher with an absolute interpreter', () => {
+        // The regression the launcher check introduced and this pins. An
+        // untouched `--app gjs` project whose `gjsify.ship.extraFiles` overrides
+        // `bin/<name>` used to pack fine; the first cut of the check compared the
+        // raw exec token and refused it at exit 1 with "execs `/usr/bin/gjs`".
+        // A guard that turns working packages into failures buys nothing over the
+        // defect it prevents.
+        const dir = scaffold(join(tmpDir, 'extrafiles-launcher'), (pkg, at) => {
+            pkg.gjsify.ship.extraFiles = { 'bin/ship-demo': 'launcher.sh' };
+            writeFileSync(
+                join(at, 'launcher.sh'),
+                '#!/bin/sh\nset -e\nexec env G_MESSAGES_DEBUG=all /usr/bin/gjs -m /usr/lib/ship-demo/gjs.js "$@"\n',
+            );
+        });
+        runCliSync(CLI_ENTRY, ['ship', '--skip-build'], { cwd: dir });
+        const launcher = readFileSync(join(dir, 'ship', 'stage', 'bin', 'ship-demo'), 'utf-8');
+        assert.match(launcher, /exec env G_MESSAGES_DEBUG=all \/usr\/bin\/gjs -m/);
+        assert.ok(existsSync(join(dir, 'ship', 'out', 'ship-demo-1.2.3-1.noarch.rpm')));
+    });
+
     it('a `--app gjs` project with a Node bundle beside it depends on gjs alone', () => {
         // `discoverPayload` stages the WHOLE directory beside the bundle, and
         // `dist/<name>.gjs.js` next to `dist/<name>.node.mjs` is the layout
@@ -551,13 +594,21 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         return join(dir, 'ship', 'out', 'ship-demo-1.2.3-1.noarch.rpm');
     }
 
-    function runCliExpectingFailure(cwd) {
+    function runCliExpectingFailure(cwd, extraArgs = []) {
+        let failed = false;
+        let output = '';
         try {
-            runCliSync(CLI_ENTRY, ['ship', '--skip-build'], { cwd });
+            runCliSync(CLI_ENTRY, ['ship', '--skip-build', ...extraArgs], { cwd });
         } catch (error) {
-            return `${error.stdout ?? ''}${error.stderr ?? ''}`;
+            failed = true;
+            output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
         }
-        assert.fail('expected `gjsify ship` to fail');
+        // `assert.fail` OUTSIDE the try. Inside it, its own AssertionError is
+        // caught by the very `catch` below and turned into an empty `output`,
+        // so a test that should have reported "the command SUCCEEDED" instead
+        // reports "the output did not match" — the failure names the wrong thing.
+        if (!failed) assert.fail('expected `gjsify ship` to fail');
+        return output;
     }
 
     function extractDeb() {

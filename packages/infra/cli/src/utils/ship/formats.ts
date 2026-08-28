@@ -94,6 +94,7 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         prefix: '/usr',
         host: WRITTEN_HERE(['ar', 'tar', 'dpkg-deb', 'lintian']),
         depends: 'deb',
+        interpreters: ['gjs', 'node'],
         // Debian policy § 12.5: every package ships its copyright in
         // /usr/share/doc/<package>/copyright, and lintian errors without it.
         licenseDest: (binaryName) => `share/doc/${binaryName}/copyright`,
@@ -106,6 +107,7 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         prefix: '/usr',
         host: WRITTEN_HERE(['rpm', 'rpm2cpio', 'cpio']),
         depends: 'rpm',
+        interpreters: ['gjs', 'node'],
         licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
         licenseKind: 'plain',
         archName: rpmArch,
@@ -143,6 +145,9 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // which also means the unmapped-namespace refusal ADR 0024 § 6 built for
         // deb and rpm has nothing to say about this format.
         depends: null,
+        // GJS ONLY. `org.gnome.Platform` ships `gjs`; Node is a build-time SDK
+        // extension, not a runtime — see the field's doc on `FormatDescriptor`.
+        interpreters: ['gjs'],
         // No policy demands a location, so this follows rpm's — one fewer shape
         // for a reader to learn, and `/app/share/licenses/<name>/LICENSE` is
         // where the equivalent file sits in the `.rpm` built from the same stage.

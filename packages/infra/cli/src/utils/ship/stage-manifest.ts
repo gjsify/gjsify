@@ -69,19 +69,28 @@ export const STAGE_MANIFEST_FILE = '.gjsify-ship-stage.json';
  * whatever runtime IT defaults to — a different `org.gnome.Platform` version
  * than the project asked for, at exit 0.
  *
- * 3 added `settings.app` and `settings.minNodeVersion`, and it is the same case
- * for the same reason. An older reader ignoring `app` does not skip a field: it
- * has no concept of an interpreter choice, so it seeds `gjs >= …` for a stage
- * whose launcher — already rendered, already in the tree it is packing — execs
- * `node`. The package then declares one interpreter and runs another.
+ * 3 added `settings.minNodeVersion` and 4 added `settings.app`. Same case as 2
+ * for the same reason: an older reader ignoring `app` does not skip a field, it
+ * has no concept of an interpreter choice at all, so it seeds `gjs >= …` for a
+ * stage whose launcher — already rendered, already in the tree it is packing —
+ * execs `node`. The package then declares one interpreter and runs another.
  *
  * Stated as a consequence and not as an incident, because it never happened:
- * `app` and the launcher landed together, in the change this line documents. The
- * PREVIOUS version of this comment claimed the incident anyway, which is worth
- * leaving on the record — a rule with an invented reason gets "simplified" back
- * out the first time somebody notices the reason is not real.
+ * `app` and the launcher landed together. An earlier version of this comment
+ * claimed the incident anyway, which is worth leaving on the record — a rule
+ * with an invented reason gets "simplified" back out the first time somebody
+ * notices the reason is not real.
+ *
+ * WHY TWO BUMPS IN ONE CHANGE, when neither was ever released. Because 3 and 4
+ * are DIFFERENT SHAPES and 3 briefly existed: the intermediate commit wrote
+ * `schema: 3` with no `app`. Folding `app` into 3 would have made this reader
+ * meet that stage and fail on `settings.app must be "gjs" or "node", got
+ * undefined` — fail-closed, but naming a field instead of the one thing the
+ * reader can do about it. At 4 the schema check above catches it first and says
+ * "re-run the `--stage` phase with this gjsify", which is the whole reason this
+ * constant's header is an argument for bumping whenever a reader could mis-read.
  */
-export const STAGE_SCHEMA_VERSION = 3;
+export const STAGE_SCHEMA_VERSION = 4;
 
 /**
  * The OS whose layout `planStage` produces.

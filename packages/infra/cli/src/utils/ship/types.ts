@@ -136,6 +136,28 @@ export interface FormatDescriptor {
      * dependencies are not a package list at all — see {@link DistroFormatId}.
      */
     depends: DistroFormatId | null;
+    /**
+     * The interpreters this format's runtime can actually provide at RUN time.
+     *
+     * A list and not a boolean, and on the descriptor rather than in a branch,
+     * because the answer is a property of the format's runtime and nothing else
+     * can be asked for it. `deb`/`rpm` carry both: a distribution ships `gjs` and
+     * `nodejs`, and the package declares whichever it execs.
+     *
+     * ⚠️ `flatpak` carries `gjs` ALONE, and that is a measured limit rather than
+     * a conservative default. `org.gnome.Platform` ships `gjs` and no `node`;
+     * Node exists only as `org.freedesktop.Sdk.Extension.node2x`, which puts
+     * `/usr/lib/sdk/node24/bin` on the **build** PATH — this repo's own
+     * `guides/flatpak-cli-tool.md` says so in those words. So a `--app node`
+     * Flatpak would install and die at `exec node`.
+     *
+     * That case was reachable: `assertLauncherMatchesInterpreter` is about the
+     * launcher agreeing with the DEPENDENCY, and a Flatpak has no dependency
+     * list, so the check is vacuous here — it compares `settings.app` against a
+     * launcher rendered from `settings.app`. Only the RUNTIME knows, and only
+     * this row can say.
+     */
+    interpreters: readonly ('gjs' | 'node')[];
     /** Where the project's licence text goes in this format's overlay. */
     licenseDest: (binaryName: string) => string;
     /**

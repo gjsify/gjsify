@@ -13,10 +13,20 @@
 //
 // WHAT IT SHIPS, and what it deliberately does not. `bin/<node|node.exe>` plus
 // `bin/LICENSE`, and that is all. The full distribution carries npm's bundled
-// `node_modules`, whose win-x64 zip alone holds 154 further LICENSE files; an
-// interpreter inside a `.app` or a Windows program directory needs the binary and
-// the terms it is redistributed under, and every one of those 154 files would be
-// an attribution obligation taken on for code that is not being shipped.
+// `node_modules`, which holds 149 further LICENSE files — 150 counting Node's
+// own, and the same count in the win-x64 zip as in the darwin tarballs, so it is
+// a property of the release rather than of one archive. An interpreter inside a
+// `.app` or a Windows program directory needs the binary and the terms it is
+// redistributed under, and every one of those 149 files would be an attribution
+// obligation taken on for code that is not being shipped.
+//
+// The number's PREDICATE, because a bare count is not checkable and the first
+// one written here was wrong: archive entries whose basename matches
+// `^licen[cs]e`, case-insensitively, on v24.20.0. The case-insensitivity is
+// load-bearing — `license`, `license.js` and `license.md` are 8 of the 150. An
+// earlier note said 154, which is a path-CONTAINS count: it adds
+// `spdx-license-ids/{deprecated,index,package}.json` and that directory entry,
+// i.e. three JSON data files and a directory, none of them an obligation.
 //
 // Node's own `LICENSE`, copied verbatim from the release, discharges the whole
 // set in one file: MIT, Apache-2.0 §4(a)/(b) (OpenSSL 3.5.7 is upstream, Apache-2.0

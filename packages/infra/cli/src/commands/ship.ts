@@ -205,6 +205,11 @@ async function assemble(args: ShipOptions): Promise<void> {
         app: configData.app,
     });
     for (const warning of warnings) console.warn(`${LOG} ${warning}`);
+    // BEFORE anything is staged, and NOT under `assertCanPack` (which `--stage`
+    // deliberately skips): a stage whose launcher execs an interpreter the target
+    // runtime does not have is already wrong, and it is the stage that crosses to
+    // the packing host.
+    for (const format of formats) assertFormatCanRunInterpreter(format, settings.app);
 
     const mtime = buildTimestamp(settings.bundlePath);
     const metadataInputs = {
@@ -388,6 +393,12 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
 
     const artifacts: ShipArtifact[] = [];
     for (const format of formats) {
+        // Re-asserted here and not only in phase one. `--from-stage` can be
+        // pointed at any stage with any `--target`, so a stage assembled for
+        // deb+rpm can be packed as a Flatpak on the finishing host — the phase
+        // that HAS no project and cannot re-read `gjsify.app` from it. The stage
+        // manifest carries the answer precisely so this stays checkable.
+        assertFormatCanRunInterpreter(format, manifest.settings.app);
         if (format.depends !== null) {
             // From the stage manifest's settings, which is all this phase has: it
             // may be running on a machine that has never seen the project
@@ -582,6 +593,40 @@ function assertShippableTarget(app: string | undefined): void {
         `gjsify ship: this project declares \`gjsify.app: "${app}"\`, and only \`gjs\` and \`node\` can be ` +
             'packaged. A browser bundle has no process to launch, and a NativeScript app ships as an APK/IPA ' +
             'through a different pipeline. ADR 0024 § 4 has the runtime-per-OS table.',
+    );
+}
+
+/**
+ * Refuse a format whose runtime cannot provide the interpreter the launcher execs.
+ *
+ * THE HOLE THIS CLOSES, and it was opened by the commit that made `--app node`
+ * packageable. `assertShippableTarget` used to refuse `app: 'node'` outright, so
+ * no format ever saw one. Lifting that made deb and rpm correct and left Flatpak
+ * silently wrong: measured at exit 0, a `--target flatpak --stage` with
+ * `app: 'node'` emitted a manifest with `runtime: org.gnome.Platform`,
+ * `runtime-version: 50`, no `sdk-extensions` and no `append-path`, beside a
+ * launcher that execs `node`. That runtime ships `gjs` and no `node`.
+ *
+ * WHY THE OTHER CHECK DOES NOT CATCH IT. `assertLauncherMatchesInterpreter`
+ * compares the launcher against the DEPENDENCY, and a Flatpak has no dependency
+ * list — `format.depends` is `null`, so both sides come from `settings.app` and
+ * agree by construction. Only the format's runtime knows what it can execute,
+ * which is why the answer is a descriptor field.
+ *
+ * Not a warning. The artifact would install and die at first launch on a user's
+ * machine, which is the failure this whole command is built to make impossible.
+ */
+function assertFormatCanRunInterpreter(format: FormatDescriptor, app: 'gjs' | 'node'): void {
+    if (format.interpreters.includes(app)) return;
+    throw new Error(
+        `gjsify ship: this project is \`gjsify.app: "${app}"\`, and the ${format.id} runtime cannot run it — ` +
+            `it provides ${format.interpreters.join(', ')}.\n` +
+            '    A Flatpak runs against `org.gnome.Platform`, which ships `gjs` and no `node`. Node exists only ' +
+            'as\n' +
+            '    `org.freedesktop.Sdk.Extension.node2x`, and that extension puts node on the BUILD path, not in ' +
+            'the\n' +
+            '    runtime — so the artifact would install and then fail at `exec node`.\n' +
+            `    Build the other formats (\`--target deb,rpm\`), or ship this app as \`gjsify.app: "gjs"\`.`,
     );
 }
 

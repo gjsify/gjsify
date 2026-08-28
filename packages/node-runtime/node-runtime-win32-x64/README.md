@@ -50,9 +50,12 @@ epoch and resolves correctly.
 
 The full release drags in npm's bundled `node_modules`, which adds **149 further
 LICENSE files** — 149 attribution obligations for code that is not being shipped.
-(Measured on v24.20.0 as archive entries whose basename begins `LICENSE`/`LICENCE`:
-150 in total, one of which is Node's own. The count is the same in the win-x64 zip
-and in the darwin tarballs — it is a property of the release, not of one archive.) An interpreter inside a `.app` or a Windows program
+(Measured on v24.20.0 as archive entries whose basename matches `^licen[cs]e`
+**case-insensitively**: 150 in total, one of which is Node's own. The case rule is
+load-bearing, not decoration — `license`, `license.js` and `license.md` account
+for 8 of the 150, and reading the predicate as literal capitals answers 142. The
+count is the same in the win-x64 zip and in the darwin tarballs, so it is a
+property of the release and not of one archive.) An interpreter inside a `.app` or a Windows program
 directory needs the binary and the terms it travels under.
 
 Node's own `LICENSE`, verbatim from the release, discharges the whole set in one
@@ -86,10 +89,17 @@ with npm 11.17.0 on Linux:
 
 | command | result |
 | --- | --- |
-| `npm install @gjsify/node-runtime-win32-x64` | `EBADPLATFORM`, exit 1 |
-| `npm install --os=win32 --cpu=x64 …` | `EBADPLATFORM`, exit 1 — the flags do **not** help |
-| `npm install --force …` | installs, **exit 0** |
-| `npm pack @gjsify/node-runtime-win32-x64` | downloads the tarball, **exit 0** |
+| `npm install <pkg>` | `EBADPLATFORM`, exit 1 |
+| `npm install --os=win32 --cpu=x64 <pkg>` | `EBADPLATFORM`, exit 1 — the flags do **not** help |
+| `npm install --force <pkg>` | installs, **exit 0** |
+| `npm pack <pkg>` | downloads the tarball, **exit 0** |
+
+⚠️ Measured against **`@gjsify/gtk-runtime-win32-x64@0.44.0`** — a published
+package with the same `os`/`cpu` gating — because the `@gjsify/node-runtime-*`
+names are not on npm yet. Run verbatim against one of these today and npm answers
+`E404`, not `EBADPLATFORM`; the rows become reproducible for these names after the
+first publish. Until then the same four commands work against a locally packed
+tarball (`gjsify pack`).
 
 So a shipper cross-assembling on Linux uses `--force` (or `npm pack` plus an
 extraction, which needs no override at all). This is NOT the "npm silently skips
