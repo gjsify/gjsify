@@ -511,7 +511,7 @@
     },
     "@gjsify/webstorage": {
       "status": "full",
-      "note": "Storage, localStorage, sessionStorage (W3C Web Storage) via Gio.File/GLib.KeyFile."
+      "note": "Storage, localStorage, sessionStorage (W3C Web Storage) over an in-memory Map. No GNOME backing yet: `localStorage` does not survive the process, and `Gio.File`+`GLib.KeyFile` is the named candidate (`src/index.ts`), unbuilt."
     },
     "@gjsify/worker_threads": {
       "status": "partial",
