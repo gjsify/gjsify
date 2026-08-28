@@ -20,8 +20,12 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, StackLayout, View } from '@nativescript/core';
+import { resolveBuilderSlot } from './builder-slots.js';
 import { PREFERENCES_GROUP_HEADER_CLASS, preferencesGroupVisuals } from './preferences-group-state.js';
 import type { NsSearchableGroup, NsSearchableRow } from './preferences-search.js';
+
+/** The one slot a template may name — everything else is a row. */
+const PREFERENCES_GROUP_SLOTS = ['headerSuffix'] as const;
 
 export class AdwPreferencesGroup extends StackLayout implements NsSearchableGroup {
     /** The header box: labels on the leading edge, suffix on the trailing one. */
@@ -146,6 +150,24 @@ export class AdwPreferencesGroup extends StackLayout implements NsSearchableGrou
         this._headerSuffix = view;
         if (this._headerSuffix) this._suffixHost.addChild(this._headerSuffix);
         this._applyVisuals();
+    }
+
+    /**
+     * XML inflation — a template's children are ROWS, not stray layout children.
+     *
+     * `<AdwPreferencesGroup.headerSuffix>` reaches the suffix host; everything
+     * else goes into the boxed list, which is where a row has to be to get the
+     * card, the rounded ends and the separators. Without this the `StackLayout`
+     * default appended each row NEXT TO the listbox: measured on Android, the
+     * rows rendered — unboxed, on the page background, with no `.boxed-list`
+     * around them — which is the failure that looks like a styling bug.
+     */
+    _addChildFromBuilder(name: string, view: View): void {
+        if (resolveBuilderSlot(name, PREFERENCES_GROUP_SLOTS, 'row') === 'headerSuffix') {
+            this.headerSuffix = view;
+            return;
+        }
+        this.addRow(view);
     }
 
     /** Append a row (or any view) to the boxed list. */

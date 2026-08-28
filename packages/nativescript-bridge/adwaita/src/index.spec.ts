@@ -26,6 +26,9 @@ import {
 import { attachRowPressFeedback } from './widgets/row-press.js';
 import type { TouchGestureEventData, View } from '@nativescript/core';
 import { extractIconPaths, extractPathData, normalizeArcFlags } from './widgets/icon-path.js';
+// `builder-slots.js` is pure too — no `@nativescript/core` — so the rule the four
+// XML-inflating widgets share is driven HERE rather than through a mock of it.
+import { resolveBuilderSlot } from './widgets/builder-slots.js';
 import { DEFAULT_ICON_COLOR, DEFAULT_ICON_COLOR_DARK } from './widgets/icon-path.js';
 // Color scheme + breakpoints are HEADLESS in `@gjsify/adwaita-core` and specced THERE;
 // imported through the NS re-export shims to pin the no-consumer-break guarantee. The
@@ -343,6 +346,42 @@ export default async () => {
         await it('element registration is a safe no-op when registerElement is absent', () => {
             // registerElement global does not exist off NativeScript — must not throw.
             expect(() => registerAdwaitaElementsNoopProbe()).not.toThrow();
+        });
+    });
+
+    await describe('XML builder slots (the name a template child arrives under)', async () => {
+        // The widgets' own property names, as NativeScript's complex-property
+        // syntax spells them: `<AdwToolbarView.topBar>` -> `topBar`.
+        const TOOLBAR = ['topBar', 'bottomBar', 'content'] as const;
+
+        await it('a declared slot name selects that slot', () => {
+            expect(resolveBuilderSlot('topBar', TOOLBAR, 'content')).toBe('topBar');
+            expect(resolveBuilderSlot('bottomBar', TOOLBAR, 'content')).toBe('bottomBar');
+        });
+
+        await it('a bare child arrives under its ELEMENT name and takes the fallback', () => {
+            // This is the case that mattered on device: NativeScript passes the
+            // element name for an untyped child, so anything not a slot has to
+            // land somewhere deliberate rather than in the layout's first cell.
+            expect(resolveBuilderSlot('AdwHeaderBar', TOOLBAR, 'content')).toBe('content');
+            expect(resolveBuilderSlot('Label', TOOLBAR, 'content')).toBe('content');
+        });
+
+        await it('reduces a dotted name to its last segment', () => {
+            expect(resolveBuilderSlot('AdwToolbarView.topBar', TOOLBAR, 'content')).toBe('topBar');
+        });
+
+        await it('a non-string name is the fallback, not a crash', () => {
+            expect(resolveBuilderSlot(undefined, TOOLBAR, 'content')).toBe('content');
+            expect(resolveBuilderSlot(null, TOOLBAR, 'content')).toBe('content');
+        });
+
+        await it('matching is exact — a near-miss is NOT the slot', () => {
+            // A silent near-miss is the whole failure class here: `topbar` landing
+            // in the content would put a header bar where the content goes and
+            // report nothing.
+            expect(resolveBuilderSlot('topbar', TOOLBAR, 'content')).toBe('content');
+            expect(resolveBuilderSlot('top-bar', TOOLBAR, 'content')).toBe('content');
         });
     });
 
