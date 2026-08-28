@@ -232,7 +232,22 @@
     "ignorePatterns": [
         "**/node_modules",
         "**/dist",
-        "**/lib",
+        // NO `**/lib` here, deliberately. `lib/` is this repo's build-output
+        // directory in 119 packages, and the root `.gitignore` already says so
+        // (`lib/`, line 53) — oxlint honours .gitignore, MEASURED both inside a
+        // git checkout and in a tree with no `.git` at all, so the pattern
+        // bought nothing for build output. What it did buy was a blind spot:
+        // it OVERRODE the deliberate `!lib/` re-include in
+        // `@gjsify/manifest-conformance` and `@gjsify/resolve-npm`, whose
+        // `lib/` is hand-written committed ESM (`build`/`clear` are both
+        // `echo 'nothing to do'`; there is no `src/`). 26 tracked source files
+        // — the manifest gates that block `main`, and the alias layer every
+        // build target routes through — had never been linted, and
+        // `oxlint packages/infra/resolve-npm` answered "No files found to lint"
+        // rather than "everything here is skipped". Letting .gitignore be the
+        // single reader for "is this build output" also makes the next such
+        // package correct by default: committing source under `lib/` requires
+        // an explicit `!lib/`, and that same act now makes it visible here.
         "**/build",
         "**/build-dir",
         "**/builddir",
@@ -243,6 +258,13 @@
         "**/refs",
         "tests/e2e/*/out",
         "packages/infra/lightningcss-wasm/src/napi-wasm.mjs",
+        // The one `lib/` that is committed but NOT ours: 108 verbatim copies of
+        // upstream TypeScript's default-library declarations, refreshed from
+        // `node_modules/typescript/lib` by `scripts/build-bundle.mjs` and
+        // re-included in `.gitignore` so a consumer without `typescript`
+        // resolves them. Linting vendored `lib.dom.d.ts` grades Microsoft's
+        // house style, and any finding is unfixable here by construction.
+        "packages/infra/tsc/lib",
         "packages/**/conformance.*.js",
         "**/@types",
         "**/src/generated",

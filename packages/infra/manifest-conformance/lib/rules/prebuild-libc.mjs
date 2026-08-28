@@ -196,7 +196,7 @@ export function hostPrebuildTarget(platform, arch, libc) {
  * @returns {string}
  */
 export function canonicalPrebuildTarget(token) {
-    const { os, arch, libc } = parsePrebuildTarget(token);
+    const { os, arch } = parsePrebuildTarget(token);
     if (!arch) return String(token);
     const canonical = `${os}-${ARCH_ALIASES[arch] ?? arch}`;
     return String(token).endsWith(MUSL_SUFFIX) ? `${canonical}${MUSL_SUFFIX}` : canonical;
@@ -229,7 +229,10 @@ export function canonicalPrebuildTarget(token) {
  */
 export function libcFlavourOfNeeded(needed) {
     const isGlibc = needed.some((n) => n === 'libc.so.6' || /^ld-linux(-|\.)/.test(n) || /^ld\d*\.so\.\d+$/.test(n));
-    const isMusl = needed.some((n) => /^libc\.musl-/.test(n) || /^ld-musl-/.test(n));
+    // Plain prefixes, so `startsWith` — unlike the glibc line above, whose two
+    // patterns carry an alternation and a digit class and stay regexes. The
+    // asymmetry is the signal: these two sonames have no variable part.
+    const isMusl = needed.some((n) => n.startsWith('libc.musl-') || n.startsWith('ld-musl-'));
     // Both cannot be true for a loadable image; report glibc and let the caller
     // fail on the contradiction, which it does with the full leaf list.
     if (isGlibc && isMusl) return 'glibc';

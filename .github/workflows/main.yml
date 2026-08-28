@@ -357,6 +357,27 @@ jobs:
       - name: Lint (oxlint, errors only)
         run: su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP' lint"
 
+      # And the question the step above cannot ask about itself: did it SEE the code?
+      # `.oxlintrc.json`'s `**/lib` was written for build output and also hid 26
+      # hand-written sources in `@gjsify/{manifest-conformance,resolve-npm}` — the
+      # manifest gates that block this branch and the alias layer every build target
+      # routes through, neither ever linted. The lint step was green throughout,
+      # because a gate grades the files it was handed and the defect was in the
+      # handing. This one diffs `oxlint --debug=files .` against the same walker over
+      # `git ls-files` with `--no-ignore`, so both halves are oxlint's own answer, and
+      # every blind file is either declared with a reason or red.
+      #
+      # It runs HERE, next to the lint it audits, and not in `audit-runtimes.yml` with
+      # the other repo-scoped gates: that workflow deliberately installs nothing, and
+      # this needs the pinned `oxlint` from `node_modules`.
+      #
+      # As TESTUSER, unlike the `check-doc-fences.mjs` step below: `gjsify-setup` runs
+      # `chown -R testuser:testuser .`, and this script's subject is `git ls-files`, so
+      # as root it would meet git's dubious-ownership refusal against a tree owned by
+      # someone else. `check-doc-fences.mjs` touches no git and does not care.
+      - name: Check the lint gate sees every tracked file
+        run: su testuser -c 'node scripts/check-lint-visibility.mjs'
+
       # A formatter with a config and no gate formats nothing. `.oxfmtrc.json`
       # had been maintained all along while nothing enforced it, and the drift
       # just accumulated: 388 files were unformatted against the version the
