@@ -815,6 +815,9 @@ export class AdwTabView extends HTMLElement {
 // upgraded every declared `<adw-tab-page>` while its `<adw-tab-view>` parent was still
 // un-upgraded, and `AdwTabPage.attributeChangedCallback` reaches for that parent.
 // Parent before child keeps the window shut; the `instanceof` guard in the callback is
-// what holds when something outside this file reopens it.
+// what holds when something outside this file reopens it — and because the guard makes
+// the order UNOBSERVABLE (with it in place, page-first renders identically and every
+// test still passes, measured), the order itself is held by
+// `scripts/check-adwaita-upgrade-order.mjs` rather than by a spec.
 customElements.define('adw-tab-view', AdwTabView);
 customElements.define('adw-tab-page', AdwTabPage);
