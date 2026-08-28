@@ -57,6 +57,32 @@ const CONFIG_ID = /\bid\s*:\s*['"]([^'"]+)['"]/;
 const APP_ID_LITERAL = /['"]([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*\.?gjsify[A-Za-z0-9_.]*)['"]/g;
 
 /**
+ * The iOS half of an application id, which is never QUOTED. `Info.plist`'s
+ * `CFBundleIdentifier` and `build.xcconfig`'s `PRODUCT_BUNDLE_IDENTIFIER` are
+ * NativeScript's two documented iOS override points, and both spell the value bare
+ * (`<string>x</string>`, `KEY = x`), so the quoted scan cannot see either: measured by
+ * putting a stale id in each file and watching the gate stay green. Without these the
+ * check held the whole Android side of every project and none of the iOS side — the
+ * same one-sided coverage `nativescript-platforms` exists to stop.
+ *
+ * Matched by KEY rather than by shape, so there is no new false-positive surface: the
+ * rule fires only when the key is present AND names something other than the declared
+ * id. An Xcode variable (`$(…)`, `${…}`) is a DELEGATION to that id, not a second
+ * spelling of it, and is what both files carry today.
+ */
+const IOS_ID_KEYS = [
+    { file: /\.plist$/, key: 'CFBundleIdentifier', re: /<key>CFBundleIdentifier<\/key>\s*<string>([^<]*)<\/string>/g },
+    {
+        file: /\.xcconfig$/,
+        key: 'PRODUCT_BUNDLE_IDENTIFIER',
+        re: /^[^\S\n]*PRODUCT_BUNDLE_IDENTIFIER[^\S\n]*=[^\S\n]*(.+?)[^\S\n]*;?[^\S\n]*$/gm,
+    },
+];
+
+/** The line `index` falls on, 1-based. */
+const lineAt = (src, index) => src.slice(0, index).split('\n').length;
+
+/**
  * Every tracked path, read once. `readIndexPaths` yields forward-slashed, repo-relative
  * paths on every platform, so the matching below needs no path normalisation.
  */
@@ -86,9 +112,16 @@ for (const config of configs) {
     }
 
     // Every other copy of the id inside the project must be the SAME string.
+    //
+    // `plist` and `xcconfig` are in the list because that is where the iOS half of an
+    // application id lives: `App_Resources/iOS/build.xcconfig`'s
+    // `PRODUCT_BUNDLE_IDENTIFIER` is NativeScript's documented override and `Info.plist`
+    // carries `CFBundleIdentifier`. Without them the check read the whole Android side of
+    // every project and none of the iOS side — measured by putting a stale id in each of
+    // those two files and watching the gate stay green.
     const root = dirname(config);
     for (const file of tracked.filter((f) => f.startsWith(`${root}/`))) {
-        if (!/\.(ts|tsx|mts|js|mjs|xml|json|md|gradle)$/.test(file)) continue;
+        if (!/\.(ts|tsx|mts|js|mjs|xml|json|md|gradle|plist|xcconfig)$/.test(file)) continue;
         let src;
         try {
             src = readFileSync(file, 'utf8');
@@ -108,6 +141,20 @@ for (const config of configs) {
                 });
             }
         });
+
+        for (const { file: pattern, key, re } of IOS_ID_KEYS) {
+            if (!pattern.test(file)) continue;
+            re.lastIndex = 0;
+            for (const m of src.matchAll(re)) {
+                const found = m[1].trim().replace(/^["']|["']$/g, '');
+                if (!found || found.includes('$(') || found.includes('${') || found === declared) continue;
+                problems.push({
+                    file,
+                    line: lineAt(src, m.index ?? 0),
+                    text: `${key} "${found}" does not match the project id "${declared}" declared in ${config}`,
+                });
+            }
+        }
     }
 }
 
