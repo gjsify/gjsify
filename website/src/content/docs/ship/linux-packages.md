@@ -26,6 +26,7 @@ Check these before the first run:
 | `license` (an SPDX id like `"MIT"`) | a required field in both formats | `gjsify.ship.license.project` |
 | `author` as `"Name <you@example.org>"` | `Maintainer:` / `Packager:`; dpkg refuses a package without one | `gjsify.ship.maintainer` |
 | `gjsify.main` (or `main`) | the bundle the launcher executes | `gjsify.ship.bundle` |
+| — | the human-readable display name: the `.desktop` `Name=`, the AppStream `<name>`, and the `<name>.app` directory a macOS layout is staged into | `gjsify.ship.name` (defaults to a title-cased `binaryName`) |
 | `scripts.build` | the build step that runs first | pass `--skip-build` instead |
 
 Your `version` is rewritten on the way in, because npm and dpkg disagree about

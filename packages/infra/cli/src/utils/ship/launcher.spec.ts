@@ -59,6 +59,22 @@ function settings(execArgs: string[]): ShipSettings {
 }
 
 export default async () => {
+    await describe('ship launcher interpreter', async () => {
+        await it("execs the payload's own runtime on every layout", () => {
+            // `assertShippableTarget` allows only a `--app gjs` bundle, so `gjs -m`
+            // is the only interpreter that can read what is staged. ADR 0024 § 4's
+            // Node answer is about a SHIPPED ARTIFACT and arrives with #1354 M0's
+            // bundled interpreter; naming it here put `exec node` in front of a
+            // bundle whose first line is `import Gtk from 'gi://Gtk?version=4.0'`.
+            const sh = renderLauncher(settings([]), 'gjs.js', LAYOUTS.darwin);
+            expect(sh.includes('exec gjs -m "$contents/Resources/lib/gjs.js" "$@"')).toBe(true);
+            const cmd = renderLauncher(settings([]), 'gjs.js', LAYOUTS.windows);
+            expect(cmd.includes('gjs -m "%HERE%app\\gjs.js" %*')).toBe(true);
+            const linux = renderLauncher(settings([]), 'gjs.js', LAYOUTS.linux);
+            expect(linux.includes('exec gjs -m "$prefix"/lib/hello/gjs.js "$@"')).toBe(true);
+        });
+    });
+
     await describe('ship launcher arguments', async () => {
         await it('single-quotes for /bin/sh, on both POSIX layouts', () => {
             const args = ["it's", '--flag=a b'];

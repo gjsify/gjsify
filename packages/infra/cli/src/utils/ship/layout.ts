@@ -80,28 +80,34 @@ export interface Layout {
     /** The `process.platform` token recorded in the stage manifest's `target.os`. */
     os: HostOs;
     /**
-     * The `gjsify build --app` target whose bundle this layout's launcher can run.
+     * The runtime ADR 0024 § 4 DERIVES for a shipped artifact on this OS.
      *
-     * DERIVED from the OS, never chosen per app (ADR 0024 § 4): Linux takes GJS
-     * from the distribution, and both other OSes take Node, because Node +
-     * `@gjsify/node-gi` + `@gjsify/gtk-runtime-<os>-<arch>` is the only combination
-     * either OS's CI proves — there is no GJS host on Windows at all
-     * (`docs/ci-selective.md`), and no RELOCATABLE GJS on macOS
-     * (`packages/node-gi/scripts/build-gtk-runtime-darwin.mjs`: "GJS ships no
-     * relocation"). `@gjsify/gjs-runtime-darwin-<arch>` is what would change the
-     * macOS row, and it is ADR 0024's stage 7.
+     * Recorded, not obeyed: it is what #1354 M0's platform packages implement,
+     * and it is NOT what the staged launcher execs today. Linux takes GJS from
+     * the distribution and the emitted `Depends: gjs` backs it; both other OSes
+     * take Node, because Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-<os>-<arch>`
+     * is the only combination either OS's CI proves.
+     *
+     * Keeping it as DATA rather than as a launcher decision is the whole of what
+     * M1 may honestly claim. A layout with no packer produces no installable
+     * artifact, so writing `exec node` into a stage assembled from a `--app gjs`
+     * bundle would put a runtime that cannot read the payload in front of it —
+     * the exact defect `assertShippableTarget` exists to prevent, produced by the
+     * code meant to prevent it. Measured before this was data: `gjsify ship
+     * darwin --stage` on a project with no `gjsify.app` key exited 0 and staged
+     * `exec node "$contents/Resources/lib/gjs.js"` in front of a bundle whose
+     * first line is `import Gtk from 'gi://Gtk?version=4.0'`.
      */
-    app: 'gjs' | 'node';
+    shippedRuntime: 'gjs' | 'node';
     /**
-     * The command the launcher execs.
+     * Why the staged launcher cannot name {@link shippedRuntime} yet, or absent
+     * when it already does.
      *
-     * Resolved from `PATH` today — on Linux the emitted `Depends: gjs` is what
-     * backs it. The two other rows are where a BUNDLED interpreter goes once the
-     * platform packages exist (issue #1354 M0: `@gjsify/node-runtime-darwin-arm64`,
-     * `-darwin-x64`, `-win32-x64`, Node 24); this field is the one line that
-     * changes, from a bare command to a layout-relative path.
+     * PRINTED at stage time rather than left as a comment: a tree whose launcher
+     * execs an interpreter the target OS may not have is a fact its author has to
+     * know, and it is the same fact that retires this field when M0 lands.
      */
-    interpreter: string;
+    runtimeGap?: string;
     /** Suffix the launcher's filename carries, `''` where the OS needs none. */
     launcherExt: string;
     /**
@@ -145,8 +151,7 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
     linux: {
         name: 'linux',
         os: 'linux',
-        app: 'gjs',
-        interpreter: 'gjs',
+        shippedRuntime: 'gjs',
         launcherExt: '',
         root: () => '',
         // The app id in the directory name is what makes `/usr/lib/<pkg>/` a
@@ -164,8 +169,17 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
     darwin: {
         name: 'darwin',
         os: 'darwin',
-        app: 'node',
-        interpreter: 'node',
+        shippedRuntime: 'node',
+        // GJS does exist on macOS — Homebrew ships it and the `macos` CI leg runs
+        // `test:gjs` on both arches — so a launcher naming it is true of a
+        // developer's machine and NOT of a `.app` a stranger downloads:
+        // `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs` records that GJS
+        // ships no relocation, which is why § 4 derives Node here.
+        runtimeGap:
+            'the staged launcher execs an interpreter off `PATH`, which a downloaded `.app` cannot assume — ' +
+            'macOS ships no Node, and there is no RELOCATABLE GJS (`build-gtk-runtime-darwin.mjs`: "GJS ' +
+            'ships no relocation"), so ADR 0024 § 4 derives Node here. A self-contained bundle needs `@gjsify/node-runtime-darwin-<arch>` and a ' +
+            '`--app node` payload (#1354 M0), or `@gjsify/gjs-runtime-darwin-<arch>` (ADR 0024 stage 7).',
         launcherExt: '',
         root: appBundleDir,
         // Apple's, all four. `Contents/MacOS` holds executables, `Contents/Resources`
@@ -186,8 +200,15 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
     windows: {
         name: 'windows',
         os: 'win32',
-        app: 'node',
-        interpreter: 'node',
+        shippedRuntime: 'node',
+        // The stronger of the two gaps, and not a relocation question: there is
+        // no GJS host on Windows AT ALL (`docs/ci-selective.md`), so nothing on
+        // that OS can run a `--app gjs` payload until M0's bundled Node exists
+        // and the payload is built for it.
+        runtimeGap:
+            'the staged launcher execs an interpreter off `PATH`, and Windows ships neither: there is NO GJS ' +
+            'host on Windows at all (`docs/ci-selective.md`) — so this tree cannot run there yet. ADR 0024 § 4 derives Node; it ' +
+            'arrives with `@gjsify/node-runtime-win32-x64` and a `--app node` payload (#1354 M0).',
         // `.cmd`, not `.bat`: the two differ in whether a failing built-in (`set`,
         // `path`, `append`) sets ERRORLEVEL, and `.cmd` is the one where it does.
         launcherExt: '.cmd',
@@ -218,13 +239,36 @@ export function launcherPath(layout: Layout, identity: LayoutIdentity): string {
 }
 
 /**
- * Resolve the positional — or a stage manifest's `target.os` — to a layout.
+ * The layout for one `process.platform` token, refusing every alias.
+ *
+ * STRICT, and that is the difference from {@link resolveLayout}, which is for a
+ * word a human typed. This one is for the stage manifest's `target.os` — a
+ * cross-host WIRE FORMAT with exactly one legal spelling per OS. Accepting
+ * `"windows"` there and silently comparing it as `win32` would mean
+ * `--expect-target win32-x64` no longer compares against the file's content:
+ * two manifests with different bytes in that field would both match, and the
+ * flag's whole job is to catch a job that downloaded the wrong artifact.
+ */
+export function layoutForOs(os: string): Layout {
+    const layout = BY_OS.get(os as HostOs);
+    if (layout === undefined) {
+        throw new Error(
+            `"${os}" is not a \`process.platform\` token this gjsify has a layout for. ` +
+                `Known: ${LAYOUT_NAMES.map((name) => LAYOUTS[name].os).join(', ')} — the ` +
+                '`${process.platform}-${process.arch}` spelling, so `win32` and never `windows`.',
+        );
+    }
+    return layout;
+}
+
+/**
+ * Resolve the positional to a layout.
  *
  * Accepts BOTH vocabularies (`windows` and `win32`) for the reason
  * {@link LayoutName} records: the ADR writes one and `--expect-target` prints the
  * other, and refusing whichever the user has in front of them is a papercut with
  * no upside. The canonical answer is a single `Layout`, so nothing downstream has
- * two spellings to reconcile.
+ * two spellings to reconcile. NOT for the stage manifest — see {@link layoutForOs}.
  */
 export function resolveLayout(raw: string): Layout {
     const name = raw.trim().toLowerCase();

@@ -252,12 +252,19 @@ function windowsPath(rel: string): string {
  * and compares it with the dependency about to be declared.
  *
  * `settings.app`, NOT the layout. ADR 0024 § 4's runtime-per-OS table says what
- * a shipped artifact CARRIES — see `Layout.app` — and reading it as a per-layout
- * launcher decision breaks both directions at once: it would refuse
- * `gjsify.app: "gjs"` for the macOS layout, and it would put `exec node` in
- * front of a bundle whose first line is `import Gtk from 'gi://Gtk?version=4.0'`.
- * The only interpreter that can read the payload is the one the payload was
- * BUILT for, and that is `settings.app` on all three.
+ * a shipped artifact CARRIES — that is `Layout.shippedRuntime` — and reading it
+ * as a per-layout launcher decision breaks both directions at once: it would
+ * refuse `gjsify.app: "gjs"` for the macOS layout, and it would put `exec node`
+ * in front of a bundle whose first line is
+ * `import Gtk from 'gi://Gtk?version=4.0'`. Measured before it was fixed: a
+ * project with no `gjsify.app` key staged
+ * `exec node "$contents/Resources/lib/gjs.js"` for macOS at exit 0. The only
+ * interpreter that can read the payload is the one the payload was BUILT for,
+ * and that is `settings.app` on all three.
+ *
+ * `Layout.runtimeGap` is where the honest half of that lives: it says, per OS,
+ * why the staged launcher does not yet name what § 4 derives, and `gjsify ship`
+ * prints it.
  *
  * `gjs` needs `-m` to treat the bundle as an ES module; `node` decides from the
  * extension and rejects the flag. The interpreter NAME, not a path: both are

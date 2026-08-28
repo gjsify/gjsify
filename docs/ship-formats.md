@@ -69,7 +69,9 @@ Two consequences of a host-bound format existing at all:
 to a stage-relative path. `planStage` still produces exactly one plan, in the Linux/XDG shape, and
 that split is what makes ADR 0024 § 2's claim checkable rather than rhetorical:
 `tests/e2e/ship-layout` assembles one project three ways and asserts the file SET and every file's
-BYTES agree modulo a map written out in the suite itself.
+BYTES agree modulo a map written out in the suite itself. Exactly one planned entry is
+layout-derived — the launcher, rendered before the plan is built — and the suite asserts that one
+DIFFERS between layouts, which is what keeps "one payload" from being a claim about nothing.
 
 `Contents/MacOS` is the first layout that is not a `prefix` substitution. The carried GI files
 (`gjsify.ship.bundledTypelibs`) sit inside `lib/<name>/` on Linux and leave the bundle directory
@@ -81,7 +83,7 @@ entirely on macOS for `Contents/Frameworks`, and the launcher's own NAME changes
 | macOS | `Contents/{MacOS,Resources,Frameworks}`, the `.app` suffix | the bundle directory's name (`name`), the executable inside it (`binaryName`), everything the data tree is keyed on (`appId`) |
 | Windows | `%~dp0`, CRLF, `.cmd`, `PATH` as the loader's path | `binaryName`, and the same data tree |
 
-Two things follow, and both are refusals rather than filters:
+### The refusals, and the two lists that are NOT the same question
 
 - **`FormatDescriptor.layoutOs` is not `host.finishOn`.** One says which staged tree a format wraps,
   the other where the container can be produced. They look like one field while only Linux formats
@@ -91,14 +93,71 @@ Two things follow, and both are refusals rather than filters:
 - **`--target deb` under `gjsify ship darwin` is an error**, not a silent empty build. Filtering it
   away would stage the tree, pack nothing and exit 0 — the shape the empty-`--target` refusal
   already exists to prevent, arriving through a different door.
+- **`gjsify.ship.targets` is FILTERED, not refused**, and the two are different questions. A flag is
+  a claim about this run; a configured list is a project-level default written once, and refusing it
+  the same way makes the positional unusable in any project that has the key. Measured: with
+  `targets: ["deb", "rpm"]` — which `packages/infra/cli/package.json` declares — the strict path
+  made `gjsify ship darwin --stage` exit 1 telling the author to run `gjsify ship darwin --stage`,
+  and no `--target` value got a darwin stage out of such a project at all. `configuredFormats` is
+  the filtered half; the empty result it can produce is safe because `assertPackable` refuses a PACK
+  with nothing to pack.
+- **`layoutForOs` is strict where `resolveLayout` is not.** The positional accepts `windows` beside
+  `win32`, because the ADR writes one and `--expect-target` prints the other. The stage manifest's
+  `target.os` accepts only the `process.platform` spelling: it is a cross-host wire format, and
+  routing it through the lenient resolver would mean two files with different bytes in the one field
+  `--expect-target` exists to compare both matched it.
+- **A bare `gjsify ship` on a macOS or Windows host now assembles THAT host's layout**, where the
+  old host-independent default emitted `.deb` + `.rpm` everywhere. Deliberate — the positional means
+  what it says — and `assertPackable` names the one-word replacement (`gjsify ship linux`) rather
+  than leaving it as a regression.
 
-The launcher has three forms because neither other OS runs the Linux one, and two of the
-differences are measured rather than stylistic: `readlink -f` is GNU coreutils' and the BSD
-`readlink` macOS ships has no `-f` (so under `set -e` the first line would end the launcher), and
-SIP strips an inherited `DYLD_*` at the `/bin/sh` exec, so a macOS launcher structurally cannot
-hand the loader a library path — ADR 0024 § 3 puts that half in-process instead. Which interpreter
-each execs is DERIVED from the OS (`Layout.app`, ADR 0024 § 4): `gjs` on Linux, `node` on macOS and
-Windows, because there is no GJS host on Windows and no relocatable GJS on macOS.
+### The launcher has three forms, and execs one interpreter
+
+Two of the differences are measured rather than stylistic: `readlink -f` is GNU coreutils' and the
+BSD `readlink` macOS ships has no `-f` (so under `set -e` the first line would end the launcher),
+and SIP strips an inherited `DYLD_*` at the `/bin/sh` exec, so a macOS launcher structurally cannot
+hand the loader a library path — ADR 0024 § 3 puts that half in-process instead.
+
+All three exec **`gjs -m`**. ADR 0024 § 4 derives Node for macOS and Windows, and that answer lives
+on `Layout.shippedRuntime` as DATA — it describes the runtime a SHIPPED ARTIFACT carries, which
+issue #1354 M0 implements by bundling one. Until then the only interpreter that can read the payload
+is the one it was built for, and `assertShippableTarget` (layout-independent, `gjs` only) guarantees
+that is GJS. The first cut of this axis read § 4 as a per-layout requirement and got both halves
+wrong at once: `gjsify.app: "gjs"` — the only declaration `ship` supports — was refused for the
+macOS layout, while a project declaring nothing staged `exec node …/gjs.js` in front of a bundle
+whose first line is `import Gtk from 'gi://Gtk?version=4.0'`. `Layout.runtimeGap` is the honest
+remainder: one sentence per OS saying why the launcher cannot name `shippedRuntime` yet, printed on
+every non-Linux stage.
+
+### What the file-set equality cannot see
+
+The equality is a real check and it is blind to one whole class, because **sameness is the defect**:
+the Linux tree carries `share/glib-2.0/schemas/*.gschema.xml`, `share/mime/packages/*.xml` and
+`share/icons/hicolor/**`, and all three are only correct there because a `.deb`/`.rpm` scriptlet
+compiles or reindexes them at install time (`utils/ship/scripts.ts`). An uncompiled schema makes
+GSettings abort at runtime. Two more — the `.desktop` entry and the AppStream component — are
+freedesktop metadata neither other OS reads at all.
+
+`linuxInstallDependent()` in `utils/ship/payload.ts` is that list, keyed on the same prefixes
+`cacheRefreshCommands` guards so the two cannot drift apart. It is printed on every darwin and
+windows stage and pinned by `tests/e2e/ship-layout`, so it cannot grow in silence. What each entry
+BECOMES — a compiled `gschemas.compiled` in the bundle, an `Info.plist` `CFBundleDocumentTypes`, a
+Windows registry association, or nothing — is ADR 0024 stages 4 and 5, because it needs the
+container that does not exist yet.
+
+Flagged there and not measured here: a loose `.typelib` in `Contents/Frameworks` is the classic
+codesign/notarization complaint (a bundle's `Frameworks` is expected to hold code, and a plain data
+file there is what `codesign --deep` and notarization object to), so stage 4 may have to move it.
+`LayoutDirs.other` already cites codesign as the reason nothing lands beside `Contents/`.
+
+### The label is checked against the payload at STAGE time
+
+`assertPayloadMatchesArch` has always guarded the artifact, inside `packOne`. Darwin and windows
+stages never reach a packer, and this is the first milestone in which the STAGE is the deliverable —
+so the check now also runs in `assemble`, on the tree that was just written. Measured before it did:
+`gjsify ship darwin --stage --arch x64` over an arm64 Mach-O exited 0, recorded `darwin-x64`, and
+`--expect-target darwin-x64` accepted it. The cost is a second read of the payload on the one-shot
+Linux path, which is the price of checking the tree that ships rather than the bytes in memory.
 
 ## `DistroFormatId` is not `FormatId`
 

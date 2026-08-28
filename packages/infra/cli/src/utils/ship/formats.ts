@@ -256,15 +256,10 @@ export function assertToolsInstalled(format: FormatDescriptor, present: (cmd: st
 }
 
 /**
- * Parse `--target deb,rpm` into a sorted, deduplicated descriptor list.
- *
- * The layout is a second refusal and not a filter: `gjsify ship darwin --target
- * deb` is a mistake worth naming, not a request to silently build nothing. A
- * filter would have staged the darwin layout, dropped the one target the caller
- * named, and exited 0 with no artifact — the shape this function's empty-list
- * refusal already exists to prevent, arriving through a different door.
+ * The shared half: names in, `FormatId`s out, with the two refusals that hold for
+ * every caller.
  */
-export function resolveFormats(raw: readonly string[], layout: Layout): FormatDescriptor[] {
+function parseFormatNames(raw: readonly string[], source: string): FormatId[] {
     const names = raw
         .flatMap((entry) => entry.split(','))
         .map((entry) => entry.trim())
@@ -275,7 +270,7 @@ export function resolveFormats(raw: readonly string[], layout: Layout): FormatDe
     const unknown = names.filter((name) => !Object.hasOwn(FORMATS, name));
     if (unknown.length > 0) {
         throw new Error(
-            `gjsify ship: unknown target${unknown.length > 1 ? 's' : ''} ${unknown.join(', ')}. ` +
+            `gjsify ship: unknown target${unknown.length > 1 ? 's' : ''} ${unknown.join(', ')} in ${source}. ` +
                 `Known targets: ${FORMAT_IDS.join(', ')}.`,
         );
     }
@@ -283,15 +278,35 @@ export function resolveFormats(raw: readonly string[], layout: Layout): FormatDe
     // An empty list would otherwise stage the payload and pack nothing, exit 0,
     // and print no artifact line — a success that produced no artifact.
     if (unique.length === 0) {
-        throw new Error(`gjsify ship: --target named no format. Known targets: ${FORMAT_IDS.join(', ')}.`);
+        throw new Error(`gjsify ship: ${source} named no format. Known targets: ${FORMAT_IDS.join(', ')}.`);
     }
+    return unique;
+}
+
+/**
+ * Parse an explicit `--target deb,rpm` into a sorted, deduplicated descriptor list.
+ *
+ * A format belonging to another layout is an ERROR here, not a filter:
+ * `gjsify ship darwin --target deb` is a mistake worth naming, and dropping it
+ * silently would stage the darwin layout, pack nothing and exit 0 — the shape
+ * the empty-list refusal above already exists to prevent, arriving through a
+ * different door.
+ *
+ * The FLAG is what makes that the right answer, and it is the whole difference
+ * from {@link configuredFormats}: a value typed on this command line is a claim
+ * about THIS run.
+ */
+export function resolveFormats(raw: readonly string[], layout: Layout): FormatDescriptor[] {
+    const unique = parseFormatNames(raw, '--target');
     const foreign = unique.filter((name) => FORMATS[name].layoutOs !== layout.os);
     if (foreign.length > 0) {
         const wrap = formatIdsFor(layout.os);
+        // Deduplicated: two formats wrapping the same layout read as
+        // "the linux/linux layout" without it.
+        const foreignLayouts = [...new Set(foreign.map((name) => FORMATS[name].layoutOs))];
         throw new Error(
             `gjsify ship: ${foreign.join(', ')} ${foreign.length > 1 ? 'wrap' : 'wraps'} the ` +
-                `${foreign.map((name) => FORMATS[name].layoutOs).join('/')} layout and this run assembles the ` +
-                `${layout.name} one. ` +
+                `${foreignLayouts.join('/')} layout and this run assembles the ${layout.name} one. ` +
                 (wrap.length === 0
                     ? `No format wraps the ${layout.name} layout yet — \`gjsify ship ${layout.name} --stage\` ` +
                       'assembles it and stops (ADR 0024 stages 4 and 5).'
@@ -301,4 +316,27 @@ export function resolveFormats(raw: readonly string[], layout: Layout): FormatDe
         );
     }
     return unique.map((name) => FORMATS[name]);
+}
+
+/**
+ * The same names from `gjsify.ship.targets`, FILTERED to the current layout.
+ *
+ * A configured list is a project-level DEFAULT — "when I ship this, build these"
+ * — written once and read by every run, so it cannot be a claim about a layout
+ * the author had not heard of when they wrote it. Refusing it the way
+ * {@link resolveFormats} refuses a flag makes the new positional unusable in
+ * every project that has the key, and this repository is the proof: with
+ * `targets: ["deb", "rpm"]` in `packages/infra/cli/package.json`,
+ * `gjsify ship darwin --stage` exited 1 telling the author to run
+ * `gjsify ship darwin --stage`. There was no `--target` value that got a darwin
+ * stage out of such a project at all.
+ *
+ * Filtering is safe HERE and only here, because an empty result is not a silent
+ * success: `assemble` refuses a PACK with nothing to pack, and a `--stage` run
+ * legitimately wants exactly this — assemble the layout, wrap nothing.
+ */
+export function configuredFormats(raw: readonly string[], layout: Layout): FormatDescriptor[] {
+    return parseFormatNames(raw, '`gjsify.ship.targets`')
+        .filter((name) => FORMATS[name].layoutOs === layout.os)
+        .map((name) => FORMATS[name]);
 }

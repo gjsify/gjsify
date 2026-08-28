@@ -63,11 +63,14 @@ window into `gjsify.ship.flatpak` that `flatpak init` resolves too (one-sided, i
 rewrite the manifest that command commits); the `AppMetadata` half is an alias and is NOT deprecated.
 
 **AND WHICH OS'S LAYOUT IT WRAPS** — `FormatDescriptor.layoutOs`, NOT `host.finishOn`; `gjsify ship
-<linux|darwin|windows>` picks the layout and `defaultFormatIds(os)` filters on both, which keeps a
-bare `gjsify ship` on Linux at `deb` + `rpm`. `planStage` still emits ONE prefix-relative plan and
+<linux|darwin|windows>` picks the layout, `defaultFormatIds(os)` filters on both, and a bare
+`gjsify ship` on Linux stays `deb` + `rpm`. `planStage` emits ONE prefix-relative plan and
 `layout.ts`'s `place()` is the map — that split is what lets `tests/e2e/ship-layout` state the map
-ITSELF and check § 2's "one payload, a handful of layouts" as an equality. Three launcher forms,
-two measured reasons: [docs/ship-formats.md](../../../docs/ship-formats.md) § The layout axis.
+ITSELF and check § 2's "one payload, a handful of layouts" as an equality. **A statement about a
+SHIPPED ARTIFACT is not one about assembly**: reading § 4's runtime table, `--target` and
+`assertPayloadMatchesArch` as if they were cost three measured defects, all in
+[docs/ship-formats.md](../../../docs/ship-formats.md) § The layout axis — read it before touching
+`layout.ts`.
 
 **`gjsify ship` is TWO PHASES, and the boundary is a TYPE** (ADR 0024 § A2): `--stage` assembles and
 writes `.gjsify-ship-stage.json`, a CLOSURE rather than a settings dump; `--from-stage <dir>` packs it

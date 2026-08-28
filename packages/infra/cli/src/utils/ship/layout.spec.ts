@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { hostLayout, launcherPath, place, placeStage, resolveLayout, LAYOUTS } from './layout.js';
+import { hostLayout, launcherPath, layoutForOs, place, placeStage, resolveLayout, LAYOUTS } from './layout.js';
 import type { StagedFile } from './types.js';
 
 const IDENTITY = { binaryName: 'hello', name: 'Hello World' };
@@ -109,13 +109,35 @@ export default async () => {
             expect(hostLayout('win32')).toBe(LAYOUTS.windows);
         });
 
-        await it('derives the interpreter from the OS, never from the app', () => {
-            // ADR 0024 § 4: there is no GJS host on Windows and no relocatable
-            // GJS on macOS, so both take Node. A row that quietly said `gjs`
-            // would produce a launcher nothing on that OS can run.
-            expect(LAYOUTS.linux.app).toBe('gjs');
-            expect(LAYOUTS.darwin.app).toBe('node');
-            expect(LAYOUTS.windows.app).toBe('node');
+        await it('records ADR 0024 § 4 without letting it decide anything yet', () => {
+            // § 4 derives the runtime a SHIPPED ARTIFACT carries: Node on both
+            // non-Linux OSes. M1 ships no artifact for either, so the field is
+            // DATA and the launcher does not read it — the first cut let it
+            // decide, and produced a macOS launcher naming `node` in front of a
+            // GJS bundle while refusing every project that honestly declared
+            // `gjsify.app: "gjs"`.
+            expect(LAYOUTS.linux.shippedRuntime).toBe('gjs');
+            expect(LAYOUTS.darwin.shippedRuntime).toBe('node');
+            expect(LAYOUTS.windows.shippedRuntime).toBe('node');
+        });
+
+        await it('pairs every unmet runtime with the sentence that says why', () => {
+            // A declared gap with no explanation is a field nobody reads. The
+            // pairing is the invariant: exactly the layouts whose launcher cannot
+            // yet name `shippedRuntime` carry a `runtimeGap`, and it is printed.
+            expect(LAYOUTS.linux.runtimeGap).toBeUndefined();
+            expect(LAYOUTS.darwin.runtimeGap).toContain('relocat');
+            expect(LAYOUTS.windows.runtimeGap).toContain('NO GJS host on Windows');
+        });
+
+        await it('takes the process.platform spelling ALONE for a stage manifest', () => {
+            // `resolveLayout` is for a word a human typed and accepts `windows`.
+            // `layoutForOs` is for the manifest's `target.os`, a cross-host wire
+            // format with one legal spelling — accepting an alias there makes
+            // `--expect-target` stop comparing against the file's own bytes.
+            expect(layoutForOs('win32')).toBe(LAYOUTS.windows);
+            expect(() => layoutForOs('windows')).toThrow('process.platform');
+            expect(() => layoutForOs('darwin')).not.toThrow();
         });
     });
 };

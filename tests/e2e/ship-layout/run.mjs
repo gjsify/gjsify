@@ -40,7 +40,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { runCliSync } from '../mock-registry.mjs';
+import { runCli, runCliSync } from '../mock-registry.mjs';
 import { APP_ID, CLI_ENTRY, MONOREPO_ROOT, listPayload, scaffold, STAGE_MANIFEST_FILE } from '../ship/fixture.mjs';
 
 const { readLibrary } = await import(
@@ -218,7 +218,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.match(launcher, /^LD_LIBRARY_PATH="\$prefix"\/lib\/ship-demo\/gi/m);
     });
 
-    it('darwin: no readlink -f, no DYLD_, and the payload interpreter against Contents/Resources', () => {
+    it("darwin: no readlink -f, no DYLD_, and the payload's own runtime", () => {
         const launcher = readFileSync(join(stages.darwin, `${APP_NAME}.app`, 'Contents', 'MacOS', BINARY), 'utf-8');
         assert.match(launcher, /^#!\/bin\/sh\n/);
         // `readlink -f` is GNU coreutils'; the BSD readlink macOS ships has no
@@ -229,17 +229,21 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.ok(!launcher.includes('DYLD_'), 'the macOS launcher must not export a DYLD_ variable');
         assert.match(launcher, /contents=\$\(dirname -- "\$here"\)/);
         assert.match(launcher, /GI_TYPELIB_PATH="\$contents\/Frameworks"/);
-        // `gjs -m`, on the macOS form too: the launcher execs what `settings.app`
-        // says the payload was BUILT for, never what the layout's row says a
-        // shipped artifact will eventually carry — see `execLine` in launcher.ts.
+        // `gjs -m`, not `node`, and this fixture is `--app gjs`. The launcher
+        // execs what `settings.app` says the payload was BUILT for, on every
+        // layout — never what the layout's row says a shipped artifact will
+        // eventually carry (`Layout.shippedRuntime`, ADR 0024 § 4, #1354 M0).
+        // Naming `node` here put a runtime that cannot parse
+        // `import Gtk from 'gi://Gtk'` in front of a bundle that starts with
+        // exactly that line, at exit 0.
         assert.match(launcher, /exec gjs -m "\$contents\/Resources\/lib\/gjs\.js" "\$@"/);
+        assert.ok(!launcher.includes('exec node'), 'the launcher must not name a runtime the payload cannot use');
     });
 
     it('windows: a CRLF .cmd that derives the program directory from %~dp0', () => {
         const raw = readFileSync(join(stages.windows, `${BINARY}.cmd`));
         const text = raw.toString('utf-8');
         assert.ok(text.startsWith('@echo off\r\n'), 'a batch file cmd.exe re-seeks through needs CRLF');
-        assert.equal(raw.includes(0x0a) && !text.includes('\n\r'), true);
         // Every LF is part of a CRLF pair: cmd.exe reads a batch file in chunks
         // and re-seeks by byte offset while running it, which is where the
         // documented LF-only `goto`/block failures come from.
@@ -271,17 +275,16 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
                     assert.match(shipExpectingFailure(args, projectDir), /--expect-target/);
                     continue;
                 }
-                // A matching target gets PAST the target check. Whether the run
-                // then packs is a different question — darwin and windows have
-                // no format yet, so those two still exit non-zero — which is why
-                // the assertion is that the refusal is not THIS one.
-                let output;
-                try {
-                    output = runCliSync(CLI_ENTRY, args, { cwd: projectDir });
-                } catch (error) {
-                    output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
+                // A matching target gets PAST the target check, and the two
+                // outcomes after it are DIFFERENT and both asserted positively.
+                // "the output does not mention --expect-target" was the first
+                // version and it is not a check: any failure lacking that literal
+                // passes it, including a crash before the flag is read.
+                if (os === 'linux') {
+                    assert.match(runCliSync(CLI_ENTRY, args, { cwd: projectDir }), /\[gjsify ship\] packing/);
+                } else {
+                    assert.match(shipExpectingFailure(args, projectDir), /no format wraps the .* layout yet/);
                 }
-                assert.ok(!output.includes('--expect-target'), `${os}: ${target} should have been accepted`);
             }
         });
     }
@@ -334,7 +337,13 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         // whose formats are all `finishOn: 'any'` would make one command emit
         // five artifacts. `defaultFormatIds` gained the layout as a SECOND
         // criterion so this list did not move.
-        runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage', '--out', 'ship-default'], { cwd: projectDir });
+        // `--arch` for the same reason every other run here passes it: this
+        // fixture's payload is a real arm64 Mach-O, and the stage-time label
+        // check two tests down refuses an x64 label over it. What is under test
+        // is the FORMAT list, and the host's arch is not part of it.
+        runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage', '--arch', ARCH, '--out', 'ship-default'], {
+            cwd: projectDir,
+        });
         const manifest = JSON.parse(
             readFileSync(join(projectDir, 'ship-default', 'stage', STAGE_MANIFEST_FILE), 'utf-8'),
         );
@@ -356,6 +365,107 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             projectDir,
         );
         assert.match(output, /deb wraps the linux layout and this run assembles the darwin/);
+    });
+
+    it('stages every layout for a project that DECLARES `gjsify.app: "gjs"`', () => {
+        // The regression this replaces refused exactly this project. Reading ADR
+        // 0024 § 4's runtime table as a per-layout requirement made
+        // `gjsify.app: "gjs"` — the honest declaration of the only build target
+        // `ship` supports — an error for the macOS and Windows layouts, i.e. the
+        // whole audience of the feature could not assemble either tree. Measured
+        // then: exit 1. Measured now: three stages.
+        const dir = scaffold(join(tmpDir, 'declared-gjs'), (pkg) => {
+            pkg.gjsify.app = 'gjs';
+        });
+        for (const os of ['linux', 'darwin', 'windows']) {
+            runCliSync(CLI_ENTRY, ['ship', os, '--skip-build', '--stage', '--out', `ship-${os}`], { cwd: dir });
+        }
+        const launcher = readFileSync(
+            join(dir, 'ship-darwin', 'stage', `${APP_NAME}.app`, 'Contents', 'MacOS', BINARY),
+            'utf-8',
+        );
+        assert.match(launcher, /exec gjs -m /);
+    });
+
+    it('stages a foreign layout for a project that configures `gjsify.ship.targets`', () => {
+        // The other half of the same defect, and this repository was the proof:
+        // `packages/infra/cli/package.json` declares `targets: ["deb", "rpm"]`,
+        // and passing a configured list through the strict `--target` path made
+        // `gjsify ship darwin --stage` exit 1 telling the author to run
+        // `gjsify ship darwin --stage`. A configured list is a project DEFAULT,
+        // so it is filtered to the layout; a typed `--target` still errors.
+        const dir = scaffold(join(tmpDir, 'configured-targets'), (pkg) => {
+            pkg.gjsify.ship.targets = ['deb', 'rpm'];
+        });
+        runCliSync(CLI_ENTRY, ['ship', 'darwin', '--skip-build', '--stage', '--out', 'ship-darwin'], { cwd: dir });
+        const manifest = JSON.parse(readFileSync(join(dir, 'ship-darwin', 'stage', STAGE_MANIFEST_FILE), 'utf-8'));
+        assert.deepEqual(manifest.formats, []);
+        assert.equal(manifest.target.os, 'darwin');
+        // And the same project still packs its configured formats on Linux.
+        runCliSync(CLI_ENTRY, ['ship', 'linux', '--skip-build', '--out', 'ship-linux'], { cwd: dir });
+        // `all`, because THIS scaffold carries no native file — the arch label is
+        // derived from the payload's bytes, not from the layout.
+        assert.ok(existsSync(join(dir, 'ship-linux', 'out', 'ship-demo_1.2.3-1_all.deb')));
+    });
+
+    it('holds the payload against the arch label at STAGE time, not only at pack time', () => {
+        // `assertPayloadMatchesArch` used to live only in `packOne`, which darwin
+        // and windows stages never reach — so the one milestone in which the
+        // STAGE is the deliverable was also the one where its label went
+        // unchecked. Measured before this: `ship darwin --stage --arch x64` over
+        // an arm64 Mach-O exited 0 and recorded `darwin-x64`, and
+        // `--expect-target darwin-x64` then accepted the lie.
+        for (const os of ['darwin', 'windows', 'linux']) {
+            const output = shipExpectingFailure(
+                ['ship', os, '--skip-build', '--stage', '--arch', 'x64', '--out', `mislabelled-${os}`],
+                projectDir,
+            );
+            assert.match(output, /the payload is arm64, but the package would be labelled x64/);
+        }
+    });
+
+    it('names what the map carried into a layout with no install step for it', () => {
+        // The half "same files, same bytes, modulo the map" is STRUCTURALLY BLIND
+        // to, because sameness is the defect: three of these are correct on Linux
+        // only because a .deb/.rpm scriptlet compiles or reindexes them at install
+        // (`utils/ship/scripts.ts`), and two are freedesktop metadata neither OS
+        // reads. An uncompiled `.gschema.xml` makes GSettings abort at runtime.
+        //
+        // Pinned rather than merely commented so the list cannot grow in silence,
+        // and so the milestone that decides what each one BECOMES — a compiled
+        // schema in the bundle, an `Info.plist` document type, a Windows registry
+        // association, or dropped — reds this test instead of quietly shipping.
+        for (const os of ['darwin', 'windows']) {
+            const carried = listPayload(stages[os]).filter((rel) =>
+                /(glib-2\.0\/schemas|mime\/packages|icons\/hicolor|applications|metainfo)\//.test(rel),
+            );
+            assert.equal(carried.length, 5, `${os}: ${carried.join(', ')}`);
+        }
+    });
+
+    it('SAYS so on the tree it staged, rather than leaving it in a comment', async () => {
+        // `runCli`, not `runCliSync`: these are warnings, so they are on stderr,
+        // and the sync helper returns stdout alone. A test that read stdout would
+        // pass whether or not the notice exists.
+        const { status, stderr } = await runCli(
+            CLI_ENTRY,
+            ['ship', 'darwin', '--skip-build', '--stage', '--arch', ARCH, '--out', 'ship-notice'],
+            { cwd: projectDir },
+        );
+        assert.equal(status, 0);
+        assert.match(stderr, /whose Linux correctness comes from a package install step/);
+        assert.match(stderr, /glib-compile-schemas/);
+        // …including the runtime the launcher cannot yet name (ADR 0024 § 4 vs
+        // #1354 M0), which is the other thing the file-set equality cannot see.
+        assert.match(stderr, /no RELOCATABLE GJS/);
+        // Linux says neither: it has the install step and it has the runtime.
+        const linux = await runCli(
+            CLI_ENTRY,
+            ['ship', 'linux', '--skip-build', '--stage', '--arch', ARCH, '--out', 'ship-notice-linux'],
+            { cwd: projectDir },
+        );
+        assert.equal(linux.status, 0);
+        assert.ok(!linux.stderr.includes('whose Linux correctness'));
     });
 
     it('takes `win32` as well as `windows`, because --expect-target prints the first', () => {

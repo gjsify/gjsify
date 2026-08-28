@@ -235,6 +235,46 @@ export function assertLauncherMatchesInterpreter(
 }
 
 /**
+ * Payload entries whose correctness depends on a step only a LINUX PACKAGE runs.
+ *
+ * WHY THIS EXISTS, and it is the hole the layout axis opened. `planStage` emits
+ * one prefix-relative plan and every layout carries it, so the darwin and windows
+ * trees hold the same `share/…` files the `.deb` does — and on Linux three of
+ * those four are only correct because `cacheRefreshCommands` compiles or reindexes
+ * them at install time (`scripts.ts`), which is a `.deb`/`.rpm` scriptlet and
+ * nothing else. A `.gschema.xml` that no `glib-compile-schemas` ever saw makes
+ * GSettings abort at runtime; a `.desktop` entry and an AppStream component are
+ * freedesktop metadata neither macOS nor Windows reads at all.
+ *
+ * The equality the layout suite checks — same file set, same bytes, modulo the map
+ * — is structurally blind to every one of them, because SAMENESS IS THE DEFECT
+ * here: the Linux tree is right for a reason the other two do not have. So this is
+ * the list, named rather than discovered later, printed at stage time and pinned
+ * by `tests/e2e/ship-layout` so it cannot grow in silence. Deciding what each one
+ * BECOMES — a compiled `gschemas.compiled` in the bundle, an `Info.plist`
+ * `CFBundleDocumentTypes`, a Windows registry association, or simply dropped — is
+ * ADR 0024 stages 4 and 5, and it needs the container that does not exist yet.
+ */
+export function linuxInstallDependent(entries: readonly { path: string }[]): { path: string; why: string }[] {
+    // Keyed on the same four prefixes `cacheRefreshCommands` guards, plus the
+    // AppStream component, so this list cannot drift from the scriptlets it
+    // describes without one of the two going obviously wrong.
+    const rules: Array<[string, string]> = [
+        ['share/glib-2.0/schemas/', 'needs `glib-compile-schemas` at install; GSettings aborts without it'],
+        ['share/mime/packages/', 'needs `update-mime-database`; detection runs off the compiled cache'],
+        ['share/icons/hicolor/', 'needs `gtk-update-icon-cache`; neither OS reads the hicolor theme'],
+        ['share/applications/', 'a freedesktop desktop entry; neither OS reads one'],
+        ['share/metainfo/', 'an AppStream component; neither OS reads one'],
+    ];
+    const out: { path: string; why: string }[] = [];
+    for (const entry of entries) {
+        const rule = rules.find(([prefix]) => entry.path.startsWith(prefix));
+        if (rule !== undefined) out.push({ path: entry.path, why: rule[1] });
+    }
+    return out;
+}
+
+/**
  * The interpreters the payload's own executables need, read off their shebangs.
  *
  * An interpreter is a dependency like any other, and rpm expects it declared:

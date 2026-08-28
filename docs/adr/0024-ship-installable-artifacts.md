@@ -351,6 +351,30 @@ field distinct from `host.finishOn`, which is what settles open question 3 (a `.
 new layouts yet — they are `--stage` only, and a pack is refused by name rather than exiting 0
 having produced nothing.
 
+**And three corrections the first cut of that axis needed, all of the same shape — reading a
+statement about a SHIPPED ARTIFACT as a statement about an assembly step.** (a) § 4 derives the
+runtime an artifact CARRIES; taken as a per-layout launcher requirement it refused
+`gjsify.app: "gjs"` — the only build target `ship` supports — for the macOS layout, while a project
+declaring nothing staged `exec node …/gjs.js` in front of a bundle opening with
+`import Gtk from 'gi://Gtk?version=4.0'`. Every launcher execs `gjs -m`; § 4's answer is
+`Layout.shippedRuntime` plus a printed `Layout.runtimeGap`, and it becomes a launcher decision when
+#1354 M0 puts an interpreter in the tree. (b) `gjsify.ship.targets` is a project DEFAULT, not a
+claim about one run, so it is filtered to the layout while a typed `--target` is refused — strict
+for both made `gjsify ship darwin --stage` exit 1 in this repository, whose own
+`packages/infra/cli/package.json` declares `targets`. (c) `assertPayloadMatchesArch` guarded the
+ARTIFACT, and this is the first milestone in which the STAGE is the deliverable, so it now also runs
+in `assemble`: before that, `--stage --arch x64` over an arm64 Mach-O exited 0 and
+`--expect-target darwin-x64` accepted the label.
+
+**What the layout equality cannot see, named rather than discovered later.** Both new trees carry
+the `share/…` files whose Linux correctness comes from a `.deb`/`.rpm` install scriptlet —
+`glib-compile-schemas` above all, without which GSettings aborts at runtime — plus a `.desktop`
+entry and an AppStream component neither OS reads. Sameness IS the defect there, so no file-set
+comparison can reach it. `linuxInstallDependent()` is the list, printed on every non-Linux stage and
+pinned by the e2e suite; deciding what each becomes needs the container, i.e. stages 4 and 5.
+Flagged for stage 4 and not measured here: a loose `.typelib` in `Contents/Frameworks` is the
+classic codesign/notarization complaint.
+
 That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
 stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`
 and deliberately not `--dry-run`, because the run worth having is the one that lays bytes down — then `dpkg --verify`

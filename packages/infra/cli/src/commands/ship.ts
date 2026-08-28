@@ -42,19 +42,21 @@ import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
 import {
     assertHostCanFinish,
     assertToolsInstalled,
+    configuredFormats,
     defaultFormatIds,
     formatIdsFor,
     resolveFormats,
     FORMAT_IDS,
     FORMATS,
 } from '../utils/ship/formats.js';
-import { hostLayout, resolveLayout, placeStage, LAYOUT_NAMES, type Layout } from '../utils/ship/layout.js';
+import { hostLayout, layoutForOs, resolveLayout, placeStage, LAYOUT_NAMES, type Layout } from '../utils/ship/layout.js';
 import { scanGiNamespaces } from '../utils/ship/gi-namespaces.js';
 import {
     assertLauncherMatchesInterpreter,
     assertPayloadMatchesArch,
     buildTimestamp,
     isArchIndependent,
+    linuxInstallDependent,
     readPayloadFacts,
 } from '../utils/ship/payload.js';
 import { assertOverlayIsLicensed, planOverlay, planStage, type StageInputs } from '../utils/ship/plan.js';
@@ -201,16 +203,22 @@ async function assemble(args: ShipOptions): Promise<void> {
     // Resolved before anything is built or written: a typo'd `--target`
     // should not cost a build and leave a half-written `ship/stage/`.
     //
-    // The default is not passed THROUGH `resolveFormats`, because it can legally
-    // be empty (a layout no format wraps yet) and that function refuses an empty
-    // list — rightly, for a list a caller TYPED. The two cases need different
-    // answers, and `assertPackable` below gives the second one.
-    const requested = args.target ?? ship.targets;
+    // THREE sources, three meanings, and collapsing them was a real defect. A
+    // `--target` is a claim about THIS run, so a format belonging to another
+    // layout is refused by name. `gjsify.ship.targets` is a project-level
+    // DEFAULT written once, so it is filtered to this layout instead — passing it
+    // through the strict path made `gjsify ship darwin --stage` exit 1 inside
+    // this very repository, whose `packages/infra/cli/package.json` declares
+    // `targets: ["deb", "rpm"]`, with a message telling the author to run the
+    // command they had just run. And the derived default can legitimately be
+    // EMPTY, which `resolveFormats` refuses — rightly, for a list a caller typed.
     const formats =
-        requested === undefined
-            ? defaultFormatIds(layout.os).map((id) => FORMATS[id])
-            : resolveFormats(requested, layout);
-    if (!args.stage) assertPackable(formats, layout);
+        args.target !== undefined
+            ? resolveFormats(args.target, layout)
+            : ship.targets !== undefined
+              ? configuredFormats(ship.targets, layout)
+              : defaultFormatIds(layout.os).map((id) => FORMATS[id]);
+    if (!args.stage) assertPackable(formats, layout, args.os === undefined ? 'host' : 'positional');
     // BEFORE the build, not before the pack. `gjsify ship` runs the project's
     // own `build` script first, so discovering a missing `flatpak-builder`
     // afterwards costs the whole build for a refusal that was knowable up
@@ -291,6 +299,41 @@ async function assemble(args: ShipOptions): Promise<void> {
     writeStage(stageDir, staged);
     console.log(`${LOG} staged ${staged.length} file(s) for ${layout.name} in ${relative(projectDir, stageDir)}/`);
     if (args.verbose) for (const file of staged) console.log(`${LOG}   ${file.path}`);
+
+    // Read the tree back and hold the payload against the label, HERE and not
+    // only in `packOne`. That check has always existed, one phase to the right,
+    // where it guards the artifact — and this is the first milestone in which the
+    // STAGE is the deliverable: darwin and windows have no packer, so a stage
+    // assembled `--arch x64` from an arm64 payload reached `--expect-target
+    // darwin-x64` with nothing having compared the two. Measured before this
+    // line: exit 0, `target: {os: "darwin", arch: "x64"}`, and a Mach-O
+    // `cputype` of arm64 inside it.
+    //
+    // It costs a second read of the payload on the one-shot Linux path, where
+    // `packOne` reads it again. That is the price of checking the tree that is
+    // shipped rather than the bytes that happen to be in memory, and it is the
+    // same reason `readStage` exists at all.
+    assertPayloadMatchesArch(readStage([stageDir], staged), settings.arch);
+
+    // What the map carried into a layout that has no install step for it.
+    //
+    // NOT a warning about this command's output being wrong — the files are the
+    // payload's and belong to it. It is the half the layout equality cannot see:
+    // three of these are only correct on Linux because a `.deb`/`.rpm` scriptlet
+    // compiles or reindexes them at install, and two are freedesktop metadata
+    // neither OS reads. Printed so the author of a `.app` knows before the
+    // container exists to decide what they become (ADR 0024 stages 4 and 5).
+    if (layout.os !== 'linux') {
+        const carried = linuxInstallDependent(planned);
+        if (carried.length > 0) {
+            console.warn(
+                `${LOG} the ${layout.name} layout carries ${carried.length} file(s) whose Linux correctness ` +
+                    'comes from a package install step it has no equivalent for:',
+            );
+            for (const { path, why } of carried) console.warn(`${LOG}   ${path} — ${why}`);
+        }
+        if (layout.runtimeGap !== undefined) console.warn(`${LOG} ${layout.runtimeGap}`);
+    }
 
     // Scanned from the BUILD TREE's bundle, which is why it has to be recorded:
     // `gi://` specifiers are what the emitted `Depends:` is derived from
@@ -426,7 +469,9 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
     const manifest = readStageManifest(stageDir);
     assertExpectedTarget(manifest, args['expect-target']);
 
-    const layout = resolveLayout(manifest.target.os);
+    // `layoutForOs`, not `resolveLayout`: the manifest is a wire format with one
+    // legal spelling per OS, and `readStageManifest` has already refused any other.
+    const layout = layoutForOs(manifest.target.os);
     // Before `resolveFormats`, which would otherwise answer a `--target` the
     // caller never typed: a stage for a layout no format wraps carries
     // `formats: []`, and the empty-list refusal there names `--target` and the
@@ -435,6 +480,7 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
         assertPackable(
             defaultFormatIds(layout.os).map((id) => FORMATS[id]),
             layout,
+            'positional',
         );
     const formats = resolveFormats(args.target ?? manifest.formats, layout);
     assertFormatsStaged(manifest, formats);
@@ -634,19 +680,32 @@ function assertCanPack(format: FormatDescriptor): void {
 /**
  * Refuse a pack for a layout no format wraps.
  *
- * Reached only WITHOUT `--target`, where the empty set is a fact about the
- * layout rather than something a caller typed. Without it, `gjsify ship darwin`
- * would assemble the tree, iterate an empty format list, print no artifact line
- * and exit 0 — a success that produced nothing, which is the same shape
- * `resolveFormats` refuses an empty `--target` for.
+ * Reached only when the format list was DERIVED — no `--target`, or a
+ * `gjsify.ship.targets` filtered empty by this layout — where the empty set is a
+ * fact about the layout rather than something a caller typed. Without it,
+ * `gjsify ship darwin` would assemble the tree, iterate an empty format list,
+ * print no artifact line and exit 0 — a success that produced nothing, which is
+ * the same shape `resolveFormats` refuses an empty `--target` for.
+ *
+ * `chosenBy` is not decoration. When the layout came from the HOST rather than
+ * from the positional, this is a BEHAVIOUR CHANGE the caller did not ask for:
+ * a bare `gjsify ship` on a Mac used to emit `.deb` + `.rpm`, because the default
+ * format set was host-independent. It is deliberate — the positional means what
+ * it says, and a Linux package built on a Mac is now something you ask for — but
+ * a refusal that does not name the one-word replacement is just a regression.
  */
-function assertPackable(formats: readonly FormatDescriptor[], layout: Layout): void {
+function assertPackable(formats: readonly FormatDescriptor[], layout: Layout, chosenBy: 'host' | 'positional'): void {
     if (formats.length > 0) return;
+    const linux = defaultFormatIds('linux').join(',');
     throw new Error(
         `gjsify ship: no format wraps the ${layout.name} layout yet, so there is nothing to pack. ` +
-            `\`gjsify ship ${layout.name} --stage\` assembles the payload and stops, which is the whole of ` +
-            'what this command does for that OS today — a macOS `.app`/`.dmg` and a Windows program directory ' +
-            'plus installer are ADR 0024 stages 4 and 5.',
+            (chosenBy === 'host'
+                ? `This host is ${process.platform}, so \`gjsify ship\` assembled the ${layout.name} layout. ` +
+                  'Assembly is not host-bound (ADR 0024 § A1), so the Linux packages are still one word away: ' +
+                  `\`gjsify ship linux\` builds ${linux} from right here.`
+                : `\`gjsify ship ${layout.name} --stage\` assembles the payload and stops, which is the whole ` +
+                  'of what this command does for that OS today.') +
+            ' A macOS `.app`/`.dmg` and a Windows program directory plus installer are ADR 0024 stages 4 and 5.',
     );
 }
 
@@ -663,6 +722,16 @@ function assertPackable(formats: readonly FormatDescriptor[], layout: Layout): v
  * `browser` and `nativescript` stay refused, and not for want of a launcher
  * line: a browser bundle has no process to start, and NativeScript ships as an
  * APK/IPA through a different pipeline entirely (ADR 0024 § 4).
+ *
+ * DELIBERATELY NOT PER LAYOUT, and the first cut of the layout axis got this
+ * exactly backwards. Reading ADR § 4's runtime table as a per-layout `app`
+ * requirement refused `gjsify.app: "gjs"` for the macOS layout — i.e. refused the
+ * entire audience of this command from assembling a `.app` — while a project with
+ * no `gjsify.app` key sailed through and staged a launcher naming `node` in front
+ * of a GJS bundle. Both halves came from the same mistake: § 4 derives the runtime
+ * a SHIPPED ARTIFACT carries, which is `Layout.shippedRuntime` and is printed as
+ * `Layout.runtimeGap`. What the launcher execs is what the PAYLOAD was built for,
+ * and that is `settings.app` on every layout.
  *
  * An undeclared target is the common case for a GJS app and is allowed. It must
  * NOT be resolved through `Config.forBuild`, whose fallback is the HOST runtime

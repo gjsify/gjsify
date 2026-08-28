@@ -40,7 +40,7 @@ import { join, sep } from 'node:path';
 
 import { cliVersion } from '../publish-headers.js';
 import { FORMAT_IDS } from './formats.js';
-import { resolveLayout, LAYOUT_NAMES } from './layout.js';
+import { layoutForOs, LAYOUTS, LAYOUT_NAMES } from './layout.js';
 import type {
     FormatDescriptor,
     FormatId,
@@ -302,12 +302,15 @@ export function readStageManifest(stageDir: string): StageManifest {
             version: expectString(tool.version, at('tool.version')),
         },
         target: {
-            // Through `resolveLayout`, so an unreadable `target.os` is refused
-            // HERE rather than reaching the layout lookup as a lie. The value
-            // decides which shape every staged path has; a manifest naming an OS
-            // this gjsify has no layout for is a manifest it cannot pack. Wrapped
-            // so the refusal names the FIELD, as every other one in this function
-            // does — `resolveLayout` speaks about a command-line word.
+            // `layoutForOs`, which takes the `process.platform` spelling and NO
+            // alias. `resolveLayout` — the positional's resolver — also accepts
+            // `windows`, and routing this field through it would mean a manifest
+            // literally saying `"windows"` was accepted and then COMPARED as
+            // `win32`: two files with different bytes in the one field
+            // `--expect-target` exists to compare would both match it, on a wire
+            // format whose entire job is to catch a job that downloaded the wrong
+            // artifact. Refused here rather than reaching the layout lookup as a
+            // lie, and named the way every other field in this function is.
             os: expectLayoutOs(expectString(target.os, at('target.os')), at('target.os')),
             arch: expectString(target.arch, at('target.arch')),
         },
@@ -373,22 +376,23 @@ export function readStageManifest(stageDir: string): StageManifest {
 }
 
 /**
- * `target.os`, resolved to a layout.
+ * `target.os`, resolved to a layout, in the one spelling this field may carry.
  *
- * The catch is here to REPLACE the message, not to swallow it: `resolveLayout`
- * speaks about a command-line word a user typed, and this one is a field in a
- * file that arrived from another host, so the fix is different and so is the
- * sentence. Every other field in `readStageManifest` names its own location the
- * same way.
+ * The catch REPLACES the message rather than swallowing it: `layoutForOs` speaks
+ * about a token, and this is a named field in a file that arrived from another
+ * host, so the fix is different and so is the sentence. Every other field in
+ * `readStageManifest` names its own location the same way.
  */
 function expectLayoutOs(value: string, where: string): HostOs {
     try {
-        return resolveLayout(value).os;
+        return layoutForOs(value).os;
     } catch {
+        const known = LAYOUT_NAMES.map((name) => LAYOUTS[name].os).join(', ');
         throw new Error(
-            `gjsify ship: ${where} is "${value}", and this gjsify has no layout for it. ` +
-                `Known: ${LAYOUT_NAMES.join(', ')}. A stage carries exactly one OS's layout and every path ` +
-                "in it has that OS's shape, so there is nothing to pack here. Re-run the `--stage` phase.",
+            `gjsify ship: ${where} is "${value}", which is not a layout this gjsify can pack. It carries ` +
+                `the \`process.platform\` spelling and only that — ${known}, so \`win32\` and never ` +
+                "`windows`. A stage holds exactly one OS's layout and every path in it has that OS's shape, " +
+                'so there is nothing to pack here. Re-run the `--stage` phase.',
         );
     }
 }

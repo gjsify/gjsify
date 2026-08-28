@@ -408,6 +408,9 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
     it('refuses a build target it cannot package', () => {
         // `gjs` and `node` are packageable; a browser bundle has no process to
         // launch and NativeScript ships through a different pipeline entirely.
+        // Layout-independent on purpose: making the check per-layout refused
+        // `gjsify.app: "gjs"` for macOS, which is the declaration this command's
+        // whole audience uses.
         const dir = scaffold(join(tmpDir, 'app-browser'), (pkg) => {
             pkg.gjsify.app = 'browser';
         });
