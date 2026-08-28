@@ -94,6 +94,16 @@ const drain = (): Promise<void> => new Promise<void>((resolve) => queueMicrotask
 interface Census {
     mounted: number;
     released: number;
+    /**
+     * `showRow(handle, null, …)` — how a dialect is told to EMPTY a departing row.
+     *
+     * Counted separately because nothing else can see it. It is one of the three rows of
+     * the published seam contract, and replacing `#unbind`'s call with a no-op left every
+     * other vector in this file green: GTK emits `unbind` and then `teardown`, so a row
+     * that was never emptied is torn down a moment later and the widget tree ends up in
+     * the same state either way. Measured as a gap, exactly like `released`.
+     */
+    emptied: number;
 }
 
 interface Mounted {
@@ -112,6 +122,7 @@ function counted(census: Census): ListRowSink<Row, ListRowHandle<Row>> {
             return rows.mountRow(item);
         },
         showRow(handle, row, index) {
+            if (row === null) census.emptied += 1;
             rows.showRow(handle, row, index);
         },
         disposeRow(handle) {
@@ -133,7 +144,7 @@ function counted(census: Census): ListRowSink<Row, ListRowHandle<Row>> {
 async function mounted(body: (mount: Mounted) => Promise<void>): Promise<void> {
     const window = new Gtk.Window();
     const view = new Gtk.ListView();
-    const census: Census = { mounted: 0, released: 0 };
+    const census: Census = { mounted: 0, released: 0, emptied: 0 };
     const controller = new ListController<Row, ListRowHandle<Row>>(counted(census));
     controller.attach(view);
     window.set_child(view);
@@ -221,6 +232,12 @@ export default async () => {
                     // BOTH sides of the seam, not just the controller's own count.
                     expect(mount.census.mounted > 0).toBe(true);
                     expect(mount.census.released).toBe(mount.census.mounted);
+                    // And each one was EMPTIED on its way out. MEASURED on gtk 4.22.4:
+                    // a splice emits `unbind` before `teardown` and the item still
+                    // answers `get_item()` at `unbind`, so this is the moment a dialect
+                    // is told to let a departing row go — the third row of the contract,
+                    // and the one nothing observed until this counter existed.
+                    expect(mount.census.emptied).toBe(mount.census.mounted);
                 });
             });
 
@@ -246,15 +263,29 @@ export default async () => {
                 });
             });
 
-            await it('refuses nothing and does nothing once disposed', async () => {
+            await it('leaves the MODEL alone on a late setRows, not just the view', async () => {
                 await mounted(async (mount) => {
                     await mount.setRows([{ key: 'a', title: 'a' }]);
+                    // The model is captured BEFORE dispose, and that is the whole
+                    // vector. Asserting an empty VIEW here proves nothing about the
+                    // disposed guard: `dispose()` has already run `set_model(null)`, so
+                    // a late splice cannot reach the view whether the guard exists or
+                    // not — which is why removing `if (this.#disposed) return;` left an
+                    // earlier version of this case green. The model outlives that
+                    // detachment and is the thing the guard actually protects.
+                    const model = mount.view.get_model() as Gtk.SelectionModel;
+                    expect(model !== null).toBe(true);
                     mount.controller.dispose();
+                    expect(model.get_n_items()).toBe(0);
+
                     // A late `setRows` is a no-op rather than a throw: an owner's
                     // cleanup order is not this layer's to police, and a rebuilt view
-                    // gets a fresh controller.
+                    // gets a fresh controller. Without the guard this splices a carrier
+                    // into a model the owner believes it has finished with.
                     await mount.setRows([{ key: 'b', title: 'b' }]);
+                    expect(model.get_n_items()).toBe(0);
                     expect(labels(mount.view)).toStrictEqual([]);
+                    expect(mount.census.mounted).toBe(1);
                 });
             });
         });

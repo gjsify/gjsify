@@ -14,7 +14,13 @@
 // through three callbacks (`ListRowSink`): mount, show, dispose. This module imports no
 // React, no Solid and no Vue, and must not — that constraint is the whole point, and it
 // is what lets the measurements below be stated ONCE for every renderer that binds to
-// them.
+// them. It is CHECKED, by `scripts/check-adapter-import-direction.mjs`, which scans this
+// directory for a framework import and fails on one: a constraint whose only enforcement
+// is the sentence asserting it is the shape this milestone has already paid for twice.
+//
+// The toolkit imports below are Gtk, GObject and Gio — three, not the two an earlier
+// draft of this paragraph claimed. `Gio` is not incidental: the model IS a
+// `Gio.ListStore`, which is the first measurement in this header.
 //
 // Three of those measurements are the reason this file has the shape it has, all on
 // gtk 4.22.4 / gjs 1.88.1.
@@ -86,11 +92,18 @@ export interface ListRowSink<Row extends ListRowKey, Handle> {
     /**
      * GTK made a row widget's carrier; put something in it and keep what you need.
      *
-     * Called from `setup`, ONCE per row widget, and that is not a convenience: GTK
-     * reuses a carrier across `bind`/`unbind`, and `adopt`'s `foreign` snapshot cannot
-     * tell the host's own previous child from application chrome — so a dialect that
-     * adopts per bind meets `occupied-slot` on the first recycled row. `host.spec.ts`
-     * pins that refusal. Adopt here, keep the element in the handle.
+     * Called from `setup`, ONCE per row widget, and that is not a convenience: `adopt`'s
+     * `foreign` snapshot cannot tell the host's own previous child from application
+     * chrome, so taking the carrier a SECOND time reads our own row as someone else's
+     * and refuses with `occupied-slot`. `host.spec.ts` pins that refusal.
+     *
+     * TWO routes reach it, and the nearer one is not the obvious one. GTK reusing a
+     * carrier across `bind`/`unbind` is the route people expect, and it needs scrolling
+     * or recycling to happen at all. The route that fires FIRST is `setRows` over
+     * unchanged keys: it shows every live row again through the same handle, with no
+     * GTK involvement, so a dialect that adopts per show meets the refusal on its first
+     * content change — measured, and it is what `list.spec.ts`'s in-place vector
+     * exercises. Adopt here, keep the element in the handle.
      */
     mountRow(item: Gtk.ListItem): Handle;
     /**
@@ -104,6 +117,29 @@ export interface ListRowSink<Row extends ListRowKey, Handle> {
     /** GTK is done with this row widget, or the controller is. Let go of everything. */
     disposeRow(handle: Handle): void;
 }
+
+/**
+ * WHERE A SINK'S OWN THROW GOES, because there are TWO paths and they differ.
+ *
+ * `setRows` over unchanged keys calls `showRow` DIRECTLY — no GTK in between — so a
+ * throw there propagates out of `setRows` to whoever called it, and a dialect can catch
+ * it. Every other call (`setup`, `bind`, `unbind`, `teardown`) runs inside a GObject
+ * signal callback, where GJS does not let an exception cross the C frame: it is swallowed
+ * and logged as `Gjs-CRITICAL … JS ERROR`, the emission continues, and the controller
+ * carries on with a row that never rendered. A diagnostics gate sees that; nothing else
+ * does.
+ *
+ * The asymmetry is not fixable from here — it is GJS's signal boundary — so it is
+ * DECLARED instead, and it decides where a sink should put its own error handling. It
+ * bites unevenly: React Native's sink only fills a Map on this path and cannot really
+ * throw, while Solid's `show()` runs the row's reactive updates synchronously inside
+ * `batch()`, so an error in application code lands here.
+ *
+ * Note what is NOT the answer: `@gjsify/react-native`'s `onRowError` is React's own root
+ * error channel, not this seam's. A sink that needs one owns it, because only the
+ * dialect knows what a row's error means — a controller-level hook would have to decide
+ * whether to keep binding, and neither answer is right for every renderer.
+ */
 
 /**
  * A `Gtk.ListView`'s model, factory and per-row handles.

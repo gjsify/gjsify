@@ -127,7 +127,10 @@ would otherwise own a copy of. `ListController` is that half, in a subpath rathe
 a package: a `/core` subpath beats a new `-core` package unless a separate NAME buys a
 package-level cycle or an independent external consumer, and neither is in play.
 
-It imports GTK and GObject and nothing else — no React, no Solid, no Vue — and the
+It imports Gtk, GObject and Gio and nothing else — no React, no Solid, no Vue; `Gio`
+is not an oversight in that list but the module's centrepiece, since the model IS a
+`Gio.ListStore`. The constraint that matters is the framework one, and
+`scripts/check-adapter-import-direction.mjs` enforces it rather than this sentence. The
 dialect supplies three callbacks:
 
 | callback | called from | what it owes |
@@ -139,8 +142,11 @@ dialect supplies three callbacks:
 **Take the carrier ONCE, in `mountRow`.** GTK recycles a carrier across `bind`/`unbind`,
 and `adopt` snapshots what a container already held without being able to tell the
 host's own previous child from application chrome — so a dialect that adopts per bind
-refuses with `occupied-slot` on the first recycled row. `host.spec.ts` pins that
-refusal; `list/controller.ts` carries the three measurements the controller's shape
+refuses with `occupied-slot`. `host.spec.ts` pins that
+refusal. The route that reaches it FIRST is not GTK recycling a carrier, which needs
+scrolling: it is `setRows` over unchanged keys, which shows every live row again through
+the same handle with no GTK involvement, so a per-show `adopt` fails on the first content
+change; `list/controller.ts` carries the three measurements the controller's shape
 follows from (the `Gio.ListStore` carrier identity, why a data change SPLICES rather
 than emitting `items-changed`, and why `dispose()` and not GTK's `teardown` is the
 teardown authority).
