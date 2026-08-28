@@ -95,6 +95,12 @@ const areaOf = (file) => AREAS.find((a) => file.startsWith(`${a}/`));
  * this script's own scoping and one repository-wide extension list, never a second
  * copy of either.
  *
+ * Which is why `isDeclarationFile` is NOT applied here and `sourceFiles` applies it
+ * instead: it is an extension question, and asking it on both sides of that check made
+ * the difference circular. Measured — widened to swallow `.tsx`, it dropped the same 19
+ * files from the scope and from the count together, and `check-source-visibility` exited
+ * 0 over the exact blindness it exists to end.
+ *
  * @param {readonly string[] | null} pathspecs
  */
 function trackedFiles(pathspecs) {
@@ -103,7 +109,7 @@ function trackedFiles(pathspecs) {
         .toString()
         .trim()
         .split('\n')
-        .filter((f) => f && !isDeclarationFile(f) && !EXCLUDED.some((r) => r.test(f)) && areaOf(f) !== undefined);
+        .filter((f) => f && !EXCLUDED.some((r) => r.test(f)) && areaOf(f) !== undefined);
 }
 
 /**
@@ -117,7 +123,7 @@ function trackedFiles(pathspecs) {
  * not open a file cannot hold it to anything.
  */
 function sourceFiles() {
-    return trackedFiles(sourcePathspecs(CODE_SOURCE_EXTENSIONS));
+    return trackedFiles(sourcePathspecs(CODE_SOURCE_EXTENSIONS)).filter((f) => !isDeclarationFile(f));
 }
 
 /**

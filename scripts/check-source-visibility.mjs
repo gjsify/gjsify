@@ -11,6 +11,10 @@
 //     four widget implementations were invisible to the ADR 0014 reachability audit.
 //     Setting its `gjsify.runtimes["react-native"]` to `polyfill`, `partial` or `none`
 //     each left `audit-runtimes --check` at exit 0 — the declaration was not checked.
+//     That package is on `feat/adwaita-react-native` and not here: on this branch the
+//     widening changes nothing, `listSourceFiles` returning the same 1354 files either
+//     way, so the `source-graph` half of this gate is held up by its vectors alone
+//     until that branch lands. The other two below are live on this tree.
 //   - `check-comment-budget.mjs` globbed `'*.ts' '*.mts' '*.mjs' '*.js' '*.cjs'` and
 //     did not count 19 tracked `.tsx` files. Folding them in moved `showcases` from
 //     0.153 to 0.170 against a ceiling of 0.158 that had shown 78 lines of headroom.
@@ -61,7 +65,6 @@ import {
     CODE_SOURCE_EXTENSIONS,
     TS_SOURCE_EXTENSIONS,
     hasSourceExtension,
-    isNonShippingSource,
     listSourceFiles,
     packagesUnder,
 } from '../packages/infra/manifest-conformance/lib/index.mjs';
@@ -201,6 +204,28 @@ const packageSrcDirs = packagesUnder(join(ROOT, 'packages')).map((dir) => join(d
  */
 const SPEC_SUBJECT = new RegExp(`\\.spec\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`);
 
+/**
+ * The two other things a source walk here declares outside its subject, spelled the same
+ * way and for the same reason: a TEST ENTRY and a DECLARATION file.
+ *
+ * `isNonShippingSource` used to be called here, as `isSpecFile` once was, and it carries
+ * the identical defect: it is `source-graph.mjs`'s OWN predicate, built from `SPEC_RE`,
+ * `TEST_ENTRY_RE` and `isDeclarationFile`, so a change inside it moves the scope and the
+ * read set together and the difference is against itself. Measured on this tree —
+ * `isNonShippingSource` widened to swallow `.mts` took the subject from 1354 to 1344 and
+ * this gate exited 0; widened to swallow `.tsx` it hid a staged `pkg/src/probe.tsx` from
+ * both halves, also exit 0. Same for `isDeclarationFile` inside the comment budget.
+ *
+ * `.spec.`, a leading `test`, and `.d.` are naming conventions both sides already agree
+ * on. The extension after each is the question, and it comes from the vocabulary.
+ */
+const TEST_ENTRY_SUBJECT = new RegExp(`^test(\\..*)?\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`);
+const DECLARATION_SUBJECT = new RegExp(`\\.d\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`);
+
+/** @param {string} name a BASE name, as the walkers' own exclusions take one */
+const isNonShippingSubject = (name) =>
+    SPEC_SUBJECT.test(name) || TEST_ENTRY_SUBJECT.test(name) || DECLARATION_SUBJECT.test(name);
+
 /** Tracked files directly under one of the package `src` trees. @param {(f: string) => boolean} keep */
 const underPackageSrc = (keep) =>
     tracked.filter(
@@ -221,8 +246,13 @@ const WALKERS = [
         id: 'comment-budget',
         what: "scripts/check-comment-budget.mjs — every tree's comment-to-code ratio against its ceiling",
         extensions: CODE_SOURCE_EXTENSIONS,
+        // `--scope` answers with the tracked files that budget is ABOUT, declarations
+        // INCLUDED — the extension question is asked here, once, so a change to
+        // `isDeclarationFile` moves the read set alone and shows up as blindness.
         measure: () => ({
-            scope: probe('check-comment-budget --scope', ['scripts/check-comment-budget.mjs', '--scope']),
+            scope: probe('check-comment-budget --scope', ['scripts/check-comment-budget.mjs', '--scope']).filter(
+                (file) => !DECLARATION_SUBJECT.test(file),
+            ),
             reads: probe('check-comment-budget --files', ['scripts/check-comment-budget.mjs', '--files']),
         }),
     },
@@ -232,11 +262,8 @@ const WALKERS = [
             'packages/infra/manifest-conformance/lib/source-graph.mjs `listSourceFiles` — the source ' +
             "set behind `audit-runtimes`' ADR 0014 cross-runtime reachability audit",
         extensions: TS_SOURCE_EXTENSIONS,
-        // `isNonShippingSource` is the walker's own exclusion, CALLED rather than
-        // restated: a spec or a `.d.ts` is outside its subject by design, and a second
-        // copy of that judgement is how the two sides drift into disagreeing.
         measure: () => ({
-            scope: underPackageSrc((file) => !isNonShippingSource(file.slice(file.lastIndexOf('/') + 1))),
+            scope: underPackageSrc((file) => !isNonShippingSubject(file.slice(file.lastIndexOf('/') + 1))),
             reads: packageSrcDirs.flatMap((dir) => listSourceFiles(dir)).map(rel),
         }),
     },
@@ -396,6 +423,25 @@ function selfTest() {
             reads: ['pkg/src/a.ts'],
             extensions: TS_SOURCE_EXTENSIONS,
         }).blind,
+        [],
+    );
+
+    // THE SPLIT, pinned. The census half only ever weighs the UNION, so an extension
+    // MOVED from one half of the vocabulary to the other leaves it green and every vector
+    // above green too — while `source-graph` and `suite-registration` both take their
+    // subject from the TypeScript half. Measured: with `tsx` in `JS_SOURCE_EXTENSIONS`, a
+    // staged `pkg/src/probe.tsx` and `pkg/src/probe.spec.tsx` were invisible to both and
+    // this script exited 0. Derived from the spelling rather than listed again — every
+    // TypeScript suffix contains `ts` and no JavaScript one does — so this stays a rule
+    // about the vocabulary and not a fourth copy of it.
+    expect(
+        'every TypeScript extension is in the TypeScript half',
+        CODE_SOURCE_EXTENSIONS.filter((ext) => ext.includes('ts') && !TS_SOURCE_EXTENSIONS.includes(ext)),
+        [],
+    );
+    expect(
+        '…and no JavaScript extension is',
+        TS_SOURCE_EXTENSIONS.filter((ext) => !ext.includes('ts')),
         [],
     );
 

@@ -10,7 +10,11 @@
  *   - `source-graph.mjs` matched `/\.(ts|mts)$/`, so all four widget implementations
  *     in `@gjsify/adwaita-react-native` were invisible to the ADR 0014 reachability
  *     audit — setting its `gjsify.runtimes["react-native"]` to `polyfill`, `partial`
- *     or `none` each left `audit-runtimes --check` at exit 0.
+ *     or `none` each left `audit-runtimes --check` at exit 0. Measured on
+ *     `feat/adwaita-react-native`, where that package lives: on `main` no `.tsx` file
+ *     sits under any package `src` yet, and `listSourceFiles` returns the identical
+ *     1354 files either way. This arm is the one that has not landed its file yet, so
+ *     the vector in `check-source-visibility.mjs` is all that falsifies it here.
  *   - `check-comment-budget.mjs` globbed `'*.ts' '*.mts' '*.mjs' '*.js' '*.cjs'` and
  *     did not count 19 tracked `.tsx` files — 12 in `packages/framework`, 7 in
  *     `showcases/gtk`. Folding them in moved `showcases` from 0.153 to 0.170, over a

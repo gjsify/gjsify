@@ -61,7 +61,9 @@ export const TYPE_ONLY_RE = /(?:^|\n)\s*(?:import|export)\s+type\s/;
  * into a package `src` tree and every scan here skipped them, so an
  * `import Adw from 'gi://Adw'` in `clamp.gtk.tsx` was invisible to the ADR 0014
  * reachability audit while the identical line in a `.ts` file failed it — measured,
- * both ways.
+ * both ways, on `feat/adwaita-react-native`. On `main` the widening is a no-op: no
+ * `.tsx` lives under a package `src`, and this walk returns the same 1354 files with
+ * either extension set. It is here so the arriving file is seen, not to fix a count.
  */
 export const SOURCE_EXTENSIONS = TS_SOURCE_EXTENSIONS;
 const SOURCE_EXT_RE = sourceExtensionRe(SOURCE_EXTENSIONS);

@@ -382,10 +382,11 @@ jobs:
       # cannot ask: oxlint reading a file says nothing about whether the reach audit, the
       # comment budget or the spec-registration reader ever opened it. `.tsx` arrived and
       # three of them kept grading the files they were handed — the reach audit could not
-      # see `@gjsify/adwaita-react-native`'s four widget implementations at all, so setting
-      # its `react-native` runtime slot to `polyfill`, `partial` or `none` was exit 0 for
-      # each; the comment budget did not count 19 tracked `.tsx` files, and folding them in
-      # took `showcases` from 0.153 to 0.170 against a ceiling that had shown headroom.
+      # see `@gjsify/adwaita-react-native`'s four widget implementations at all (measured on
+      # `feat/adwaita-react-native`, where that package lives), so setting its `react-native`
+      # runtime slot to `polyfill`, `partial` or `none` was exit 0 for each; and on this
+      # branch the comment budget did not count 19 tracked `.tsx` files, which took
+      # `showcases` from 0.153 to 0.170 against a ceiling that had shown headroom.
       # Each carried its own extension literal, so fixing one taught the others nothing.
       #
       # One vocabulary now (`source-extensions.mjs`), and this holds it: every extension
