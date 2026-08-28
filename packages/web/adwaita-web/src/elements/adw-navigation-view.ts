@@ -100,8 +100,20 @@ export class AdwNavigationPage extends HTMLElement {
         // back-button derivation read the CORE's copy — so a runtime change has to
         // be pushed into it. Without this the back button only ever reflected the
         // `can-pop` value it had at the last stack mutation.
-        const view = this.closest('adw-navigation-view') as AdwNavigationView | null;
-        view?.syncPageProperty(this, name, previous);
+        //
+        // `instanceof` rather than a cast plus `?.`: the two failures the `?.`
+        // conflated are different. A MISSING ancestor is one; an ancestor that IS
+        // there but is still an ordinary HTMLElement, because its own definition has
+        // not upgraded it yet, is the other, and the cast asserted it away. Measured
+        // on `dist/test.browser.mjs` against declared markup parsed before the module
+        // loaded: `syncPageProperty is not a function`, once per observed attribute
+        // per declared page. Dropping the notification for an un-upgraded view loses
+        // nothing — such a view has not registered this page, `syncPageProperty`
+        // already returns on `!isRegistered`, and `connectedCallback` reads the
+        // properties back out of the element through `readPageProps`.
+        const view = this.closest('adw-navigation-view');
+        if (!(view instanceof AdwNavigationView)) return;
+        view.syncPageProperty(this, name, previous);
     }
 
     revertAttribute(name: string, value: string | null): void {
@@ -464,5 +476,13 @@ export class AdwNavigationView extends HTMLElement {
     }
 }
 
-customElements.define('adw-navigation-page', AdwNavigationPage);
+// The VIEW first, and the order carries weight: `define` upgrades every matching
+// element already in the document, immediately, so these two calls are a sequence and
+// not a pair. Registering the page first upgraded every declared
+// `<adw-navigation-page>` while its `<adw-navigation-view>` parent was still an
+// ordinary HTMLElement, and `AdwNavigationPage.attributeChangedCallback` reaches for
+// that parent. Parent before child keeps the window shut; the `instanceof` guard in
+// the callback is what holds when something outside this file reopens it.
+// `scripts/check-adwaita-upgrade-order.mjs` holds the order itself.
 customElements.define('adw-navigation-view', AdwNavigationView);
+customElements.define('adw-navigation-page', AdwNavigationPage);
