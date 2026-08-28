@@ -38,13 +38,27 @@ job is to call `gjsify build` and put the results in a prefix** — 66 of them
 ADR 0018 retired. The thirteen showcases ship no desktop entry, no metainfo, no icon and no
 schema, so none of them can be installed at all, anywhere.
 
-**The reference.** `refs/gtkx` (v1.1.0, pinned by #1180) answers the Linux half for
-React+TypeScript GTK4 apps in 4 124 lines across 52 files, and the interesting number is how
-little of it is per-format: **73 % is target-independent.** The whole difference between a
-Flatpak and an `.rpm` is a four-line prefix map
-(`refs/gtkx/packages/cli/src/deploy/payload/stage.ts:35`) plus three overlay cases — where the
+**The reference.** `refs/gtkx` answers the Linux half for React+TypeScript GTK4 apps, and the
+interesting number is how little of it is per-format. Re-measured at **v1.5.0** (the pin was
+v1.1.0 when this ADR was written): **5 979 lines across 66 files** under
+`packages/cli/src/deploy/`, of which the `targets/` directory is **1 139** — so **80.9 % is
+target-independent**. The same partition at v1.1.0 gives 80.9 % of 4 124, identical to the
+decimal across a 45 % growth of the subsystem, which is a stronger finding than the 73 % this
+paragraph used to carry. That 73 % does not reproduce under any natural partition and its file
+classification was never recorded; it is restated here with the partition named so the next
+re-measurement compares like with like.
+
+The whole difference between a Flatpak and an `.rpm` is a four-line prefix map
+(`refs/gtkx/packages/cli/src/deploy/payload/stage.ts:41`, byte-identical to v1.1.0's `:35`, six
+lines lower because gettext added a constant above it) plus three overlay cases — where the
 copyright file goes, where the licence goes, and whether D-Bus activation is a `.service` file
-or a non-`DBusActivatable` desktop entry. It has no macOS and no Windows story at all.
+or a non-`DBusActivatable` desktop entry. It still has no macOS and no Windows story at all:
+grepped at v1.5.0 for `darwin|win32|macos|\.dmg|\.msi|\.app|mach-o` under `deploy/`, zero
+hits, and its only binary-format reader is still an ELF parser.
+
+One scope caveat that arrived with v1.5.0 and that a future re-measurement must not miss: the
+deploy story no longer fits inside `src/deploy/`. `deploy/freedesktop/localize.ts` reaches into a
+new sibling `src/i18n/`, so a line count scoped to `deploy/` now undercounts.
 
 That ratio is the finding, and it generalises one step further than the reference took it:
 **packaging looks like N problems and is one payload, a handful of layouts, and a packer per

@@ -2976,6 +2976,37 @@ often as by its name line, and this repo does both deliberately (`:428` and `:29
 one sentence) — so the reader has to accept a range rather than a point, and say which
 it accepted when it fails.
 
+**A second cause, found by bumping a pin (2026-08-28).** The four above are transcription
+errors — someone wrote the wrong number. This one is not: `ADR 0024:45` cited
+`refs/gtkx/packages/cli/src/deploy/payload/stage.ts:35`, that was CORRECT when written, and
+bumping the pin from v1.1.0 to v1.5.0 moved the same byte-identical four-line map to `:41`
+because gettext added a constant above it. `check-refs-citations.mjs` passed before the bump and
+after it, because the file exists in both. So the citation class has two entrances, and only one
+of them is a mistake anybody made.
+
+The cheap discriminator for this second cause needs no window heuristic and no symbol parsing:
+**a commit that changes a `refs/<pool>` pointer must re-check every line citation into THAT
+pool**, and a bump touches one pool at a time. What stops it from being free is not the script —
+it exists — but the pool having to be ON DISK to read a line out of it. `check-refs-citations.mjs`
+reports its own coverage and is honest about it: **773 coordinates across 53 submodules**, and on
+this workstation it prints `0 resolved in the 0 of 95 declared submodules checked out here, 762
+skipped` and exits 0. The gate is therefore only ever as wide as the checkout step above it, which
+is a deliberate cost decision (realizing every pool is ~150 GB), not an oversight — but it means
+the count in that summary line is the only thing standing between this gate and the
+green-CI-that-checked-nothing class.
+
+**Adding `refs/gtkx` to that checkout step was tried and REVERTED, and the reason is the finding.**
+It was written, measured (`2 resolved in the 1 of 95 declared submodules checked out here`, up
+from 0) and taken back out, because the justification did not survive being written down: the
+defect that prompted it is a LINE moving, and the gate checks that a FILE exists. It would have
+passed with `:35` before the bump and with `:35` after it. So the change bought two file-level
+coordinates and a network dependency on github.com inside two REQUIRED checks, for a defect class
+it cannot see — a rule with a reason that is not its own.
+
+The order that follows: the line-level check comes FIRST, with its window question answered, and
+only then is it worth paying disk and network to widen the pool set. Doing it the other way round
+produces a gate that is wider and no more able to fail.
+
 The second half is smaller and equally invisible: the worktree's `refs/libadwaita`
 sat FIVE commits ahead of the pointer recorded in `HEAD` during that review. Citations
 are only meaningful against the pin, and checking it took a hand-run `md5sum` over

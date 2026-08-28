@@ -76,11 +76,13 @@ Four properties of it shape every decision below:
 
 ### The prior art that changed one decision
 
-`gtkx` (v1.4.0, MPL-2.0, in `refs/`) ships `@gtkx/navigation`: **React Navigation 7's
+`gtkx` (v1.5.0, MPL-2.0, in `refs/`) ships `@gtkx/navigation`: **React Navigation 7's
 `core` and `routers` packages, unpatched, with no React Native dependency**, rendering
 `createStackNavigator` onto `AdwNavigationView` and `createTabNavigator` onto
 `AdwViewStack`. Four navigators cost **163 lines** of own router logic; everything
-else is `useNavigationBuilder` plus widget calls. Their test-to-source ratio there is
+else is `useNavigationBuilder` plus widget calls. Re-measured on the v1.5.0 pin and
+unchanged: `drawer/drawer-router.ts` 90 + `split-view/split-view-router.ts` 73 = 163,
+and they are still the only two router files in the package. Their test-to-source ratio there is
 2.1 : 1, which is the honest signal of how many edge cases a navigator holds.
 
 Read for its decisions only — its licence is not ours, and its substrate is a Rust
