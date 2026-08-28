@@ -90,9 +90,19 @@ export function isEventProp(prop: string): boolean {
 /**
  * Depth of property writes this host is currently performing.
  *
- * GObject emits `notify::` for our own writes, so a component that binds
- * `onNotifyText` and writes `text` in the handler re-enters itself. The counter
- * is module-wide because a nested write on a DIFFERENT object is still our write.
+ * GObject emits for our own writes, so a component that binds `onNotifyText` and
+ * writes `text` in the handler re-enters itself. The counter is module-wide
+ * because a nested write on a DIFFERENT object is still our write — and that is
+ * measured, not assumed: on gjs 1.88.1 / GTK 4.22.4, writing `active` on one
+ * grouped `Gtk.CheckButton` makes the OTHER one emit `notify::active` AND
+ * `toggled`, on an object the writer never touched.
+ *
+ * That measurement is also why this is a counter and not
+ * `g_signal_handler_block()` on the widget being written. Blocking is exact and
+ * leaves foreign handlers alone, which is attractive; it is also strictly weaker,
+ * because it can only reach handlers on the ONE object in hand, and the grouped
+ * check button above is a handler of ours on another. Both were measured before
+ * this comment was written.
  */
 let writeDepth = 0;
 export const beginHostWrite = () => {
@@ -124,12 +134,33 @@ export function setHandler(el: HostElement, prop: string, next: ((...args: unkno
     }
     if (!next) return;
 
-    const isNotify = signal.startsWith('notify::');
     const id = target.connect(signal, (...args: unknown[]) => {
-        // A `notify::` raised by our own patch is not a user event — and it must
+        // An emission raised by our own patch is not a user event — and it must
         // not spend a `.once` either, or the one emission the user asked for is
         // consumed by our own property write.
-        if (isNotify && inHostWrite()) return undefined;
+        //
+        // This used to read `isNotify && inHostWrite()`, and the narrowing was the
+        // defect: `notify::` is not the only signal a property write raises.
+        // MEASURED on gjs 1.88.1 / GTK 4.22.4 — `gtk_editable_set_text` is
+        // delete-then-insert, so ONE write over existing text emits
+        // `Gtk.Editable::changed` TWICE, carrying `["", "abc"]`. A controlled input
+        // reads that intermediate empty string as the user clearing the field, so
+        // the workaround was to bind `notify::text` instead of the signal that
+        // actually means "the text changed". `Gtk.ToggleButton::toggled` re-entered
+        // the same way. Both are covered now, because the guard asks who is
+        // WRITING rather than which signal arrived.
+        //
+        // The window is exactly one constructor call or one property write (the
+        // four `beginHostWrite` sites in `host.ts`) — child insertion is outside
+        // it — so nothing that a user could have caused is inside. One hazard to
+        // keep in view if the table grows: a handler the HOST installs on an
+        // object whose signals fire from inside a write would now be suppressed.
+        // `Gtk.SignalListItemFactory` is the near miss — its `setup`/`bind` do
+        // fire from inside a write — and it is safe today for a reason worth
+        // stating rather than rediscovering: it is not a curated element, and
+        // `@gjsify/react-native`'s list controller connects to it DIRECTLY, so
+        // those handlers never pass through here. Curating it would change that.
+        if (inHostWrite()) return undefined;
         if (once) {
             // Disconnect BEFORE calling: a callback that re-enters its own widget
             // would otherwise fire a second time, which is the whole point of

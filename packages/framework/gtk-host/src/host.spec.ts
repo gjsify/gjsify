@@ -384,8 +384,18 @@ export default async () => {
                 setProp(label, 'label', 'hello');
                 setProp(label, 'xalign', 0.25);
                 expect(widget.label).toBe('hello');
-                // Every property write reaches it, which is what `notify` means —
-                // and a `notify::`-shaped prop still selects exactly one.
+                // The host's OWN writes are an echo and stay silent — plain `notify`
+                // included. It did not, before the guard covered every signal rather
+                // than only the `notify::`-shaped ones, and the inconsistency was
+                // real: `onNotifyLabel` was suppressed on this write while `onNotify`
+                // re-entered on the same one.
+                expect(seen).toStrictEqual([]);
+                // The claim of this test is ROUTING, so it is observed the way routing
+                // has to be — from a write the host did not make. Every property
+                // reaches `notify`, which is what the bare signal means, and a
+                // `notify::`-shaped prop still selects exactly one.
+                widget.set_property('label', 'written by someone else');
+                widget.set_property('xalign', 0.75);
                 expect(seen.includes('label')).toBe(true);
                 expect(seen.includes('xalign')).toBe(true);
                 expect(label.handlers.has('notify')).toBe(true);
@@ -432,6 +442,69 @@ export default async () => {
                 // anywhere in the process would silence every notify::, greenly.
                 (label.widget as unknown as Gtk.Label).set_property('label', 'written by someone else');
                 expect(notified).toBe(1);
+            });
+
+            await it('does not report a NON-notify signal raised by our own write', async () => {
+                // The defect the widened guard closes, and the reason a consumer
+                // worked around it. MEASURED on gjs 1.88.1 / GTK 4.22.4:
+                // `gtk_editable_set_text` is delete-then-insert, so ONE host write
+                // over existing text emits `changed` TWICE — `["", "xyz"]`. A
+                // controlled input reads that empty string as the user clearing the
+                // field, which is why `@gjsify/react-native` binds `notify::text`
+                // rather than the signal that actually means "the text changed".
+                const entry = createElement('GtkEntry');
+                const widget = materialize(entry) as unknown as Gtk.Entry;
+                const seen: string[] = [];
+                // The emitter is NOT a parameter here: the host hands the callback
+                // `args.slice(1)`, so a DOM-shaped handler sees the signal's own
+                // arguments and nothing else. `changed` carries none, so the text is
+                // read from the widget. Getting this wrong throws INSIDE a GJS signal
+                // callback, where the throw is logged and swallowed — the array simply
+                // stays empty, which reads exactly like a guard that suppresses too
+                // much.
+                setEventHandler(entry, 'on:changed', () => {
+                    seen.push(widget.get_text());
+                });
+                setProp(entry, 'text', 'abc');
+                setProp(entry, 'text', 'xyz');
+                expect(seen).toStrictEqual([]);
+                expect(widget.get_text()).toBe('xyz'); // the write LANDED; only the echo is gone
+                // The positive control, and it has to be the path a KEYSTROKE takes:
+                // asserting only that our write is silent would pass just as well if
+                // the handler were never connected at all.
+                widget.get_buffer().insert_text(3, '!', 1);
+                expect(seen).toStrictEqual(['xyz!']);
+            });
+
+            await it('does not report an echo our write raised on ANOTHER object', async () => {
+                // Why the guard is a module-wide counter and not
+                // `g_signal_handler_block()` on the widget being written. MEASURED:
+                // writing `active` on one grouped `Gtk.CheckButton` makes the OTHER
+                // emit `notify::active` AND `toggled`. Blocking reaches only the
+                // object in hand, so it would leave this one re-entering.
+                const a = createElement('GtkCheckButton');
+                const b = createElement('GtkCheckButton');
+                materialize(a);
+                materialize(b);
+                // GTK state, not a host path: `group` is how the two become exclusive.
+                (b.widget as unknown as Gtk.CheckButton).set_group(a.widget as unknown as Gtk.CheckButton);
+                setProp(b, 'active', true);
+
+                let echoed = 0;
+                setEventHandler(b, 'onNotifyActive', () => {
+                    echoed += 1;
+                });
+                setEventHandler(b, 'onToggled', () => {
+                    echoed += 1;
+                });
+                setProp(a, 'active', true);
+                expect((b.widget as unknown as Gtk.CheckButton).get_active()).toBe(false);
+                expect(echoed).toBe(0);
+                // Positive control on the same pair: a change B did not get from us
+                // still reaches both handlers.
+                (a.widget as unknown as Gtk.CheckButton).set_active(false);
+                (b.widget as unknown as Gtk.CheckButton).set_active(true);
+                expect(echoed).toBe(2);
             });
 
             await it('refuses two props that resolve to one signal', async () => {
