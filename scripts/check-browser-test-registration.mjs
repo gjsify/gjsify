@@ -132,7 +132,8 @@ const DEFAULT_IMPORT = /^import\s+([A-Za-z_$][\w$]*)\s*(?:,\s*\{[^}]*\})?\s+from
 const RELATIVE_IMPORT = /(?:from|import)\s+['"](\.[^'"]+)['"]/g;
 
 /** The emitted specifier a TypeScript source imports by, back to the source file it names. */
-const resolveSpecifier = (fromFile, specifier) => join(dirname(fromFile), resolveToSource(specifier));
+const resolveSpecifier = (fromFile, specifier) =>
+    join(dirname(fromFile), resolveToSource(specifier, dirname(fromFile)));
 
 /**
  * The suites the FIRST `run({…})` in `source` registers, or `null` when there is none.

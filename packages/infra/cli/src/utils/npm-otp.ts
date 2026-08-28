@@ -21,6 +21,17 @@ export type OtpPromptFn = (question: string) => Promise<string>;
 const DEFAULT_QUESTION = 'This operation requires a one-time password.\nEnter OTP: ';
 
 /**
+ * The question for every prompt AFTER the first one in a run.
+ *
+ * A long sweep outlives a TOTP window (npm codes last ~30 s), so it legitimately
+ * asks again — but repeating the first-time wording makes that read as "it did
+ * not take my code" rather than "that code has aged out". The user then retypes
+ * the SAME digits, which is the one answer guaranteed not to work.
+ */
+const RENEW_QUESTION =
+    'The previous one-time password is no longer valid (npm codes last about 30 seconds).\nEnter a NEW OTP: ';
+
+/**
  * True when a response is an npm OTP / 2FA challenge (401 + a `www-authenticate`
  * header naming `otp`, or a body mentioning a one-time password / `EOTP`).
  */
@@ -62,6 +73,23 @@ export class OtpProvider {
     private cached: string | undefined;
     private readonly promptFn: OtpPromptFn;
     private readonly registry: string | undefined;
+    /**
+     * Bumped every time a NEW code becomes current. Concurrent callers compare the
+     * epoch they last saw against this one to tell "my code was rejected" from
+     * "somebody already replaced it while I was waiting" — the second needs no
+     * prompt, it needs the other one's code.
+     */
+    private generation = 0;
+    /**
+     * The prompt currently on screen, if any. THE fix for a sweep that probes with
+     * concurrency > 1: `promptLine` puts the terminal in RAW mode and echoes each
+     * keystroke by hand (utils/prompt.ts), so two live prompts mean two `data`
+     * listeners on the same stdin and every digit is echoed TWICE. Measured on a
+     * real 703-package sweep at the default concurrency of 4: five prompts stacked
+     * up and the typed code came back as `666644440000999944444444` — four echoes
+     * per keystroke. Whoever arrives second awaits this promise instead.
+     */
+    private pending: Promise<string> | undefined;
 
     /**
      * @param seed     Initial cached code (from `--otp`), or undefined.
@@ -91,13 +119,45 @@ export class OtpProvider {
     }
 
     /**
+     * How many times a new code has become current. Capture it before an attempt
+     * and hand it back to {@link refresh} / {@link invalidate} so a concurrent
+     * caller neither prompts for a code somebody already typed nor throws that
+     * code away on its own stale rejection.
+     */
+    epoch(): number {
+        return this.generation;
+    }
+
+    /**
      * Prompt for a fresh code, cache it (in-process + file cache), and return the
      * trimmed input — `''` when nothing was entered, which callers read as "give up".
      */
-    async refresh(question: string = DEFAULT_QUESTION): Promise<string> {
+    async refresh(question?: string, sinceEpoch?: number): Promise<string> {
+        // Somebody supplied a newer code than this caller last saw. Its own attempt
+        // failed against the OLD code, so the answer is that code, not a prompt.
+        if (sinceEpoch !== undefined && this.generation > sinceEpoch && this.cached) {
+            return this.cached;
+        }
+        // Single-flight: one prompt at a time, ever. Two raw-mode prompts on one
+        // stdin double every echoed keystroke, and the user is being asked twice
+        // for a code that is shared anyway.
+        if (this.pending) return this.pending;
+        // The provider is the only thing that knows whether a code has already
+        // been supplied in this run, so it owns the wording. An explicit
+        // `question` from the caller always wins.
+        this.pending = this.promptOnce(question ?? (this.generation > 0 ? RENEW_QUESTION : DEFAULT_QUESTION));
+        try {
+            return await this.pending;
+        } finally {
+            this.pending = undefined;
+        }
+    }
+
+    private async promptOnce(question: string): Promise<string> {
         const code = (await this.promptFn(question)).trim();
         if (code) {
             this.cached = code;
+            this.generation++;
             if (this.registry) writeCachedOtp(this.registry, code);
         }
         return code;
@@ -108,7 +168,12 @@ export class OtpProvider {
      * rejects it, so the NEXT command re-prompts instead of replaying a single-use
      * code the registry already burned.
      */
-    invalidate(): void {
+    invalidate(sinceEpoch?: number): void {
+        // Only the caller whose own code was rejected may clear it. Without this
+        // guard the first rejection in a concurrent burst wipes a code another
+        // worker just typed, and every remaining worker prompts again — the same
+        // stacked-prompt pile-up from the other direction.
+        if (sinceEpoch !== undefined && this.generation !== sinceEpoch) return;
         this.cached = undefined;
         if (this.registry) clearCachedOtp(this.registry);
     }
@@ -146,32 +211,43 @@ export async function withOtpRetry(
     opts: OtpRetryOptions = {},
 ): Promise<Response> {
     const maxPrompts = opts.maxPrompts ?? 2;
-    const question = opts.question ?? DEFAULT_QUESTION;
+    // Deliberately NOT defaulted here: `undefined` is what lets the provider pick
+    // between the first-time wording and the "your previous code aged out" one.
+    const question = opts.question;
     const cached = provider.current();
     const seededFirst = opts.seedFirstAttempt === true && cached !== undefined;
 
+    // Every invalidate/refresh below is scoped to the epoch of the code THIS call
+    // actually tried. Concurrent callers share the provider, so an unscoped
+    // `invalidate()` discards a code a sibling typed a millisecond ago and sends
+    // everyone back to the prompt.
+    let epoch = provider.epoch();
     let res = await doFetch(seededFirst ? cached : undefined);
     if (!(await isOtpChallenge(res))) return res;
     // The seeded code was rejected/consumed — drop it so it is not replayed and the
     // cross-invocation cache entry is cleared.
-    if (seededFirst) provider.invalidate();
+    if (seededFirst) provider.invalidate(epoch);
 
     if (!seededFirst && provider.current() !== undefined) {
+        epoch = provider.epoch();
         res = await doFetch(provider.current());
         if (!(await isOtpChallenge(res))) return res;
         // Stale seed, or a sibling command already burned the file-cached single-use
         // code.
-        provider.invalidate();
+        provider.invalidate(epoch);
     }
 
     for (let i = 0; i < maxPrompts; i++) {
-        const fresh = await provider.refresh(question);
+        // `refresh` with the epoch: if another concurrent caller has already typed a
+        // newer code, this returns THAT code and shows no prompt.
+        const fresh = await provider.refresh(question, epoch);
         if (!fresh) return res; // no input — hand the challenge back to the caller
+        epoch = provider.epoch();
         res = await doFetch(fresh);
         if (!(await isOtpChallenge(res))) return res;
         // Clear a rejected fresh code before re-prompting, so a wedged sequence never
         // leaves a burned code in the file cache.
-        provider.invalidate();
+        provider.invalidate(epoch);
     }
     return res;
 }

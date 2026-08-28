@@ -1,4 +1,4 @@
-// Which `*.spec.ts` a package REACHES, and which it actually RUNS — read once, for
+// Which `*.spec.{ts,tsx}` a package REACHES, and which it actually RUNS — read once, for
 // every gate that needs either fact.
 //
 // THE INCIDENT

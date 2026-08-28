@@ -49,6 +49,40 @@ function scriptedPrompt(codes: string[]): { fn: (q: string) => Promise<string>; 
     };
 }
 
+/** A promptFn that records the QUESTION it was asked, not only how often. */
+function recordingPrompt(codes: string[]): {
+    fn: (q: string) => Promise<string>;
+    questions: string[];
+} {
+    let i = 0;
+    const questions: string[] = [];
+    return {
+        questions,
+        fn: async (q: string) => {
+            questions.push(q);
+            return codes[i++] ?? '';
+        },
+    };
+}
+
+/**
+ * A promptFn that takes a tick to answer, so concurrent callers genuinely overlap.
+ * An instant prompt would let each caller finish before the next begins and the
+ * pile-up under test could not occur.
+ */
+function slowPrompt(codes: string[]): { fn: (q: string) => Promise<string>; count: () => number } {
+    let i = 0;
+    let calls = 0;
+    return {
+        count: () => calls,
+        fn: async () => {
+            calls++;
+            await new Promise((r) => setTimeout(r, 5));
+            return codes[i++] ?? '';
+        },
+    };
+}
+
 export default async () => {
     await describe('isOtpChallenge', async () => {
         await it('is true for 401 + www-authenticate: otp', async () => {
@@ -218,6 +252,122 @@ export default async () => {
                 else process.env.GJSIFY_NO_OTP_CACHE = prevOptOut;
                 rmSync(dir, { recursive: true, force: true });
             }
+        });
+    });
+
+    await describe('OtpProvider — one prompt, ever (the concurrent sweep)', async () => {
+        // `gjsify onboard` probes at concurrency 4 and `promptLine` runs the terminal
+        // in RAW mode echoing each keystroke by hand, so two live prompts mean two
+        // stdin listeners and every digit is echoed twice. Measured on a real
+        // 703-package sweep: five stacked prompts and the typed code came back as
+        // `666644440000999944444444` — four echoes per keystroke.
+        await it('serves four concurrent refreshes from ONE prompt', async () => {
+            const prompt = slowPrompt(['111111', '222222', '333333', '444444']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            const codes = await Promise.all([
+                provider.refresh(),
+                provider.refresh(),
+                provider.refresh(),
+                provider.refresh(),
+            ]);
+            expect(prompt.count()).toBe(1);
+            expect(codes).toStrictEqual(['111111', '111111', '111111', '111111']);
+        });
+
+        await it('prompts AGAIN for a caller that arrives after the first prompt closed', async () => {
+            // Single-flight must not mean single-ever: a genuinely rejected code
+            // still has to be replaceable.
+            const prompt = slowPrompt(['111111', '222222']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            expect(await provider.refresh()).toBe('111111');
+            provider.invalidate();
+            expect(await provider.refresh()).toBe('222222');
+            expect(prompt.count()).toBe(2);
+        });
+
+        await it('hands the NEWER code to a caller whose own attempt used an older one', async () => {
+            const prompt = slowPrompt(['111111', '222222']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            const stale = provider.epoch();
+            expect(await provider.refresh()).toBe('111111');
+            // The stale caller's attempt failed against the pre-refresh state; it
+            // must take the code that now exists, not open a second prompt.
+            expect(await provider.refresh(undefined, stale)).toBe('111111');
+            expect(prompt.count()).toBe(1);
+        });
+    });
+
+    await describe('OtpProvider — invalidate() is scoped to the attempt', async () => {
+        await it('does NOT clear a code that replaced the one being rejected', async () => {
+            const prompt = slowPrompt(['111111', '222222']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            const epochOfFirst = provider.epoch();
+            await provider.refresh(); // 111111, epoch bumps
+            // A sibling worker still holding the PRE-111111 epoch reports failure.
+            provider.invalidate(epochOfFirst);
+            expect(provider.current()).toBe('111111');
+        });
+
+        await it('clears when the rejected code IS the current one', async () => {
+            const prompt = slowPrompt(['111111']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            await provider.refresh();
+            provider.invalidate(provider.epoch());
+            expect(provider.current()).toBe(undefined);
+        });
+    });
+
+    await describe('withOtpRetry — a concurrent burst asks once', async () => {
+        await it('four parallel operations share ONE prompt and all succeed', async () => {
+            const prompt = slowPrompt(['246810', 'unused-2', 'unused-3', 'unused-4']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            const results = await Promise.all(
+                Array.from({ length: 4 }, () => {
+                    const reg = fakeRegistry('246810');
+                    return withOtpRetry(reg.doFetch, provider);
+                }),
+            );
+            expect(prompt.count()).toBe(1);
+            expect(results.every((r) => r.status === 200)).toBe(true);
+        });
+    });
+
+    await describe('OtpProvider — the SECOND prompt says the first code aged out', async () => {
+        // A sweep long enough to outlive a ~30s TOTP window legitimately asks
+        // again. Repeating the first-time wording reads as "it did not take my
+        // code", so the user retypes the SAME digits — the one answer guaranteed
+        // not to work.
+        await it('asks the first time plainly and the next time as a RENEWAL', async () => {
+            const prompt = recordingPrompt(['111111', '222222']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            await provider.refresh();
+            provider.invalidate();
+            await provider.refresh();
+
+            expect(prompt.questions.length).toBe(2);
+            expect(prompt.questions[0].includes('requires a one-time password')).toBe(true);
+            expect(prompt.questions[0].includes('no longer valid')).toBe(false);
+            expect(prompt.questions[1].includes('no longer valid')).toBe(true);
+            expect(prompt.questions[1].includes('NEW OTP')).toBe(true);
+        });
+
+        await it('an explicit question from the caller still wins', async () => {
+            const prompt = recordingPrompt(['111111', '222222']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            await provider.refresh('custom: ');
+            provider.invalidate();
+            await provider.refresh('custom: ');
+            expect(prompt.questions).toStrictEqual(['custom: ', 'custom: ']);
+        });
+
+        await it('withOtpRetry lets the provider choose the wording', async () => {
+            const prompt = recordingPrompt(['wrong1', '246810']);
+            const provider = new OtpProvider(undefined, prompt.fn);
+            const reg = fakeRegistry('246810');
+            const res = await withOtpRetry(reg.doFetch, provider);
+            expect(res.status).toBe(200);
+            expect(prompt.questions[0].includes('no longer valid')).toBe(false);
+            expect(prompt.questions[1].includes('no longer valid')).toBe(true);
         });
     });
 };

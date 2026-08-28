@@ -132,6 +132,20 @@ const refHref = docHref === false ? null : (docHref ?? deriveRef(title));
 // `<adw-toolbar-view>`'s, and eight of `<adw-overlay-split-view>`'s including the
 // `breakpoint` its own section is about. One component, every block, no hand.
 //
+// It rides in the LIVE window, as a pane beside that window's markup, and not as a
+// panel under the whole block. `observedAttributes` is read out of
+// `packages/web/adwaita-web/src` and nowhere else, so the list is ONE port's answer.
+// The NativeScript widget of the same name is a class of camelCase PROPERTIES rather
+// than attributes: `icon` where this element's attribute is `icon-name`, plus
+// `hostButton`, `iconColor`, `iconIsFallback` and `ellipsize`, none of which any
+// attribute here names — and it does carry `useUnderline` and `canShrink`, so the
+// two lists are neither the same set nor disjoint. A different surface, not the same
+// one renamed; `check-vocabulary-alignment.mjs` holds 22 of the 65 element names as
+// not sharing a spelling across the renderers. Under the last window this list read
+// as the block's SUMMARY, which is a claim about all four ports that no generator
+// here can make. The page's own contract is that where a port differs, ITS window
+// says so.
+//
 // A `Gtk.*` title resolves too: libadwaita ships no menu button, and the pillar
 // still spells that element `<adw-menu-button>`, so the namespace is dropped and
 // `adw-` prefixed. A title with no element (`Adw.Toast` is a plain class, not a
@@ -254,18 +268,30 @@ const decodeEcCode = (html: string): string | null => {
  */
 const LIVE_PANE = 'live';
 
+/**
+ * The pane id of the ATTRIBUTE LIST, the live window's last pane.
+ *
+ * Not a slot either, and for the same reason: no page provides it, the generated
+ * table is it. It joins {@link LIVE_PANE} in the positional list below.
+ */
+const ATTRS_PANE = 'attributes';
+
 // That requirement, held rather than stated. `data-impls` is POSITIONAL and the
-// script below looks a pane up by name with `indexOf`, so a LIVE_PANE equal to a
+// script below looks a pane up by name with `indexOf`, so a pane id equal to a
 // slot name gives the live window two entries reading the same id and the first one
 // answers for both: the HTML tab could never be the remembered choice, and picking
 // it would move every OTHER preview window to its Preview pane instead. Nothing
 // else notices — the ids never leave `data-impls`, so the site builds, both tabs
 // render, and every gate stays green.
-const collidingSlot = WINDOWS.flatMap((win) => win.tabs.map((tab) => tab.slot)).find((slot) => slot === LIVE_PANE);
+const OWN_PANES = [LIVE_PANE, ATTRS_PANE];
+const collidingSlot = WINDOWS.flatMap((win) => win.tabs.map((tab) => tab.slot)).find((slot) =>
+    OWN_PANES.includes(slot),
+);
 if (collidingSlot !== undefined) {
     throw new Error(
-        `AdwWidget: LIVE_PANE is "${LIVE_PANE}", which is also a tab slot. The pane ids in \`data-impls\` ` +
-            'are positional and looked up by name, so no two panes of one window can share an id.',
+        `AdwWidget: "${collidingSlot}" is both a tab slot and one of this component's own pane ids ` +
+            `(${OWN_PANES.join(', ')}). The pane ids in \`data-impls\` are positional and looked up by ` +
+            'name, so no two panes of one window can share an id.',
     );
 }
 
@@ -273,6 +299,7 @@ const rendered: {
     id: string;
     title: string;
     live: boolean;
+    attributes: { tag: string; names: string[] } | null;
     impls: string;
     tabs: { slot: string; label: string; html: string }[];
 }[] = [];
@@ -313,11 +340,26 @@ for (const spec of WINDOWS) {
     // `previewMarkup` is already read by the time this runs: the live window is
     // first in WINDOWS and its own `preview` tab is what sets it.
     const live = spec.live === true && previewMarkup !== null;
+    // The attribute list is the LIVE window's, because that is the window running the
+    // element whose `observedAttributes` produced it.
+    //
+    // NO pane has exactly one legitimate cause, a title with no element at all
+    // (`Adw.Toast` is a plain class). The `length > 0` arm is the other, and it is not
+    // a widget fact: an element the pillar registers that observes NOTHING is a reader
+    // that could not see the declaration, which is how `<adw-wrap-box>` shipped
+    // paneless over 14 attributes. `check-generated-website-data.mjs` fails on it now,
+    // so this arm is what that failure renders as rather than a silent policy.
+    const attrs = live && attributes !== null && attributes.length > 0 ? { tag: elementTag, names: attributes } : null;
     rendered.push({
         id: spec.id,
         title: spec.title ?? title,
         live,
-        impls: [...(live ? [LIVE_PANE] : []), ...tabs.map((t) => t.slot)].join(','),
+        attributes: attrs,
+        impls: [
+            ...(live ? [LIVE_PANE] : []),
+            ...tabs.map((t) => t.slot),
+            ...(attrs === null ? [] : [ATTRS_PANE]),
+        ].join(','),
         tabs,
     });
 }
@@ -338,26 +380,9 @@ for (const spec of WINDOWS) {
                 padding={padding}
                 scroll={scroll}
                 stage={stage}
+                attributes={win.attributes}
             />
         ))
-    }
-
-    {
-        attributes && attributes.length > 0 && (
-            <details class="adw-widget-attrs not-content">
-                <summary>
-                    <code>{`<${elementTag}>`}</code> takes {attributes.length}{' '}
-                    {attributes.length === 1 ? 'attribute' : 'attributes'}
-                </summary>
-                <ul>
-                    {attributes.map((attr) => (
-                        <li>
-                            <code>{attr}</code>
-                        </li>
-                    ))}
-                </ul>
-            </details>
-        )
     }
 </div>
 
@@ -613,19 +638,20 @@ for (const spec of WINDOWS) {
         mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%20fill='none'%20stroke='%23000'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6.5%203.5H3.2A1.2%201.2%200%200%200%202%204.7v8.1A1.2%201.2%200%200%200%203.2%2014h8.1a1.2%201.2%200%200%200%201.2-1.2V9.5'/%3E%3Cpath%20d='M9.5%202H14v4.5'/%3E%3Cpath%20d='M7%209%2014%202'/%3E%3C/svg%3E") no-repeat center / contain;
     }
 
-    /* The generated attribute list. Collapsed by default: it is a reference a
-       reader opens on purpose, not something to scroll past on every widget. */
+    /* The attribute pane of the live window — rendered by AdwWidgetWindow, styled
+       here, like every other class in that file: this block is `is:global`, which
+       is why no `:global()` wrapper belongs on these selectors. Written with one,
+       it survived the build as a LITERAL `:global(.adw-widget-attrs)` in the emitted
+       CSS — a selector that matches nothing, on a pane that still rendered. */
     .adw-widget-attrs {
-        margin-top: 0.5rem;
-        border: 1px solid var(--adw-border-color, rgba(0, 0, 0, 0.12));
-        border-radius: 8px;
-        padding: 0.4rem 0.75rem;
+        padding: 0.85rem 1rem 1rem;
         font-size: 0.9em;
     }
 
-    .adw-widget-attrs > summary {
-        cursor: pointer;
-        padding: 0.25rem 0;
+    .adw-widget-attrs > p {
+        margin: 0;
+        color: var(--sl-color-gray-2);
+        line-height: 1.5;
     }
 
     .adw-widget-attrs > ul {
@@ -633,11 +659,24 @@ for (const spec of WINDOWS) {
         flex-wrap: wrap;
         gap: 0.35rem 0.5rem;
         list-style: none;
-        margin: 0.5rem 0 0.25rem;
+        margin: 0.75rem 0 0;
         padding: 0;
     }
 
     .adw-widget-attrs > ul > li {
         margin: 0;
+    }
+
+    /* Chips, not a sentence. `not-content` opts these out of Starlight's inline-code
+       styling, so without this the four names ran together as one line of monospace
+       and read as prose rather than as a list of four things. A grey that is an alpha
+       over the page's own background works in both schemes without a second rule. */
+    .adw-widget-attrs > ul > li > code {
+        display: inline-block;
+        background: rgba(128, 128, 128, 0.12);
+        border: 1px solid rgba(128, 128, 128, 0.18);
+        border-radius: 6px;
+        padding: 0.1rem 0.45rem;
+        line-height: 1.5;
     }
 </style>

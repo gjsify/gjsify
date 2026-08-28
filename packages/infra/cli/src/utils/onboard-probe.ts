@@ -11,7 +11,7 @@
 
 import { DEFAULT_REGISTRY, registryFor, type NpmrcConfig } from '@gjsify/npm-registry';
 import type { Workspace } from '@gjsify/workspace';
-import type { TrustRequester } from '../commands/trust.js';
+import type { TrustRequester, TrustRequestResult } from '../commands/trust.js';
 import { classifyTrustList, trustUrl, type TrustState } from './trust-registry.js';
 
 /** What a package needs, computed from its published + trust state. */
@@ -39,6 +39,22 @@ export interface ProbeOptions {
     retryOn401?: boolean;
     /** Backoff before the single 401 retry. Default {@link PROBE_RETRY_DELAY_MS}. */
     retryDelayMs?: number;
+    /** How many times to wait out an HTTP 429. Default {@link RATE_LIMIT_MAX_RETRIES}. */
+    maxRateLimitRetries?: number;
+    /** First backoff for a 429; doubles per attempt. Default {@link RATE_LIMIT_BASE_DELAY_MS}. */
+    rateLimitBaseDelayMs?: number;
+    /**
+     * Cool-down shared across the sweep. Pass ONE instance to every call so a
+     * 429 anywhere holds back everywhere; omit for an isolated request.
+     */
+    gate?: RateLimitGate;
+    /**
+     * Called on every 429 with what npm actually sent and how long we will wait.
+     * The caller decides how loud to be; reporting the FIRST one is enough to
+     * turn "we got throttled" into "npm asked for N seconds" (or into "npm said
+     * nothing, so this delay is ours").
+     */
+    onRateLimit?: (info: { url: string; headers: string; waitMs: number; fromRetryAfter: boolean }) => void;
     /** Injected delay (tests pass a no-op). Default: real `setTimeout`. */
     sleep?: (ms: number) => Promise<void>;
     /**
@@ -49,6 +65,51 @@ export interface ProbeOptions {
 }
 
 export const PROBE_RETRY_DELAY_MS = 400;
+
+/**
+ * A 429 is npm asking to be asked later — never an answer about the package.
+ *
+ * Measured on the real 703-package sweep of `gjsify/types` at the default
+ * concurrency: the first 662 reads answered and the LAST 41 came back `429`, so
+ * the plan said `41 unreadable` for packages whose state nobody had actually
+ * failed to determine. The tail of an alphabetical list is exactly where a
+ * cumulative rate limit lands, which makes the damage look like a property of
+ * those packages.
+ *
+ * Waiting is the whole fix, and it has to be bounded: an unbounded wait turns a
+ * throttled sweep into a hang with no output.
+ */
+export const RATE_LIMIT_MAX_RETRIES = 4;
+export const RATE_LIMIT_BASE_DELAY_MS = 2000;
+
+/**
+ * What npm told us about pacing on a 429 — verbatim, so the answer to "how fast
+ * may we go" comes from the registry rather than from a guess.
+ *
+ * Measured 2026-08-28: npm serves NO `X-RateLimit-*` headers on ordinary
+ * responses, so there is no budget to read ahead of time. `Retry-After` on the
+ * 429 itself is the only channel, and whether npm populates it on the trust
+ * endpoint is exactly what this reports the first time it happens.
+ */
+export function describeRateLimitHeaders(headers: Headers | undefined): string {
+    if (!headers) return 'no headers captured';
+    const seen: string[] = [];
+    headers.forEach((value, key) => {
+        if (/^retry-after$/i.test(key) || /ratelimit/i.test(key)) seen.push(`${key}: ${value}`);
+    });
+    return seen.length > 0 ? seen.join(', ') : 'npm sent no Retry-After and no rate-limit headers';
+}
+
+/** Seconds to wait per npm's `Retry-After`, or null when it said nothing usable. */
+export function retryAfterMs(headers: Headers | undefined): number | null {
+    const raw = headers?.get('retry-after');
+    if (!raw) return null;
+    const secs = Number.parseInt(raw.trim(), 10);
+    // Only the delta-seconds form. The HTTP-date form is legal and npm does not
+    // send it; guessing at a date here would be a second clock to get wrong.
+    if (!Number.isFinite(secs) || secs < 0) return null;
+    return secs * 1000;
+}
 
 /**
  * Does the registry serve a packument for this name?
@@ -108,6 +169,91 @@ function defaultSleep(ms: number): Promise<void> {
 }
 
 /**
+ * A cool-down shared by every in-flight request of a sweep.
+ *
+ * Retrying ONE throttled request in isolation is not enough, and the measured
+ * run shows why: at serial pace `gjsify/types` was already being 429'd, so every
+ * other worker kept hammering the registry through the very window the retry was
+ * waiting out — and the retry budget then expired against a limit nobody had
+ * stopped provoking. `trust failed (HTTP 429)` was the result.
+ *
+ * A 429 anywhere therefore pauses EVERYWHERE. That also makes concurrency safe
+ * to raise: the sweep self-paces down to whatever npm is willing to serve
+ * instead of the operator guessing a number.
+ */
+export class RateLimitGate {
+    private until = 0;
+    private readonly now: () => number;
+    private readonly sleeper: (ms: number) => Promise<void>;
+
+    constructor(opts: { now?: () => number; sleep?: (ms: number) => Promise<void> } = {}) {
+        this.now = opts.now ?? (() => Date.now());
+        this.sleeper = opts.sleep ?? defaultSleep;
+    }
+
+    /** Block while a cool-down is in effect. */
+    async wait(): Promise<void> {
+        const remaining = this.until - this.now();
+        if (remaining > 0) await this.sleeper(remaining);
+    }
+
+    /** Hold every request back for at least `ms` from now. */
+    penalize(ms: number): void {
+        this.until = Math.max(this.until, this.now() + ms);
+    }
+
+    /** Milliseconds still owed, for tests and for reporting. */
+    remainingMs(): number {
+        return Math.max(0, this.until - this.now());
+    }
+}
+
+/**
+ * Issue a request, waiting out an HTTP 429 rather than reporting it as a state.
+ *
+ * Used by BOTH the probe GET and the act-phase trust POST, because a sweep long
+ * enough to be throttled on reads is long enough to be throttled on writes, and
+ * a throttled POST would otherwise be recorded as `trust failed (HTTP 429)` —
+ * a failure attributed to the package instead of to the pacing.
+ *
+ * Bounded on purpose: it returns the last 429 once the budget is spent, so the
+ * caller reports "unreadable" rather than hanging. `Retry-After` wins over the
+ * exponential backoff whenever npm sends a usable one.
+ */
+export async function requestWaitingOutRateLimit(
+    request: TrustRequester,
+    method: string,
+    url: string,
+    body?: unknown,
+    opts: ProbeOptions = {},
+): Promise<TrustRequestResult> {
+    const sleep = opts.sleep ?? defaultSleep;
+    const maxRetries = opts.maxRateLimitRetries ?? RATE_LIMIT_MAX_RETRIES;
+    const baseDelay = opts.rateLimitBaseDelayMs ?? RATE_LIMIT_BASE_DELAY_MS;
+    const gate = opts.gate;
+
+    // Respect a cool-down somebody else is already serving BEFORE spending an
+    // attempt. Without this the sweep keeps provoking the limit it is waiting on.
+    if (gate) await gate.wait();
+    let res = await request(method, url, body);
+    for (let attempt = 0; res.status === 429 && attempt < maxRetries; attempt++) {
+        const advised = retryAfterMs(res.headers);
+        const delay = advised ?? baseDelay * 2 ** attempt;
+        opts.onRateLimit?.({
+            url,
+            headers: describeRateLimitHeaders(res.headers),
+            waitMs: delay,
+            fromRetryAfter: advised !== null,
+        });
+        // Tell everyone, not just this call.
+        gate?.penalize(delay);
+        await (gate ? gate.wait() : sleep(delay));
+        res = await request(method, url, body);
+    }
+    return res;
+}
+
+/**
  * Read one package's published + trust state through the SHARED trust requester.
  * A surviving `auth-required` means the 401 was not an answerable OTP challenge —
  * a parallel-burst rejection or a lapsed 2FA-skip window — and both recover on a
@@ -123,11 +269,13 @@ export async function probeTrustState(
     const url = trustUrl(registry, ws.name);
     const classifyOpts = { repository: ctx.repository, workflow: ctx.workflow };
 
-    let res = await request('GET', url);
+    const sleep = opts.sleep ?? defaultSleep;
+
+    // A 429 is not an answer — wait it out BEFORE classifying anything.
+    let res = await requestWaitingOutRateLimit(request, 'GET', url, undefined, opts);
     let state = classifyTrustList(res.status, res.json, classifyOpts);
 
     if (state === 'auth-required' && opts.retryOn401 !== false) {
-        const sleep = opts.sleep ?? defaultSleep;
         await sleep(opts.retryDelayMs ?? PROBE_RETRY_DELAY_MS);
         res = await request('GET', url);
         state = classifyTrustList(res.status, res.json, classifyOpts);

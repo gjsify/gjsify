@@ -14,6 +14,10 @@ import {
     mapWithConcurrency,
     probeAllTrustStates,
     probeTrustState,
+    RateLimitGate,
+    requestWaitingOutRateLimit,
+    retryAfterMs,
+    describeRateLimitHeaders,
     type ProbeContext,
 } from './onboard-probe.js';
 
@@ -268,6 +272,150 @@ export default async () => {
             const plans = await probeAllTrustStates(request, [], 4, ctx(), { sleep: noSleep });
             expect(plans.length).toBe(0);
             expect(called).toBeFalsy();
+        });
+    });
+
+    await describe('onboard-probe — an HTTP 429 is not a state', async () => {
+        // Measured on the real 703-package sweep of `gjsify/types`: the first 662
+        // reads answered and the LAST 41 came back 429, so the plan reported
+        // `41 unreadable` for packages whose state nobody had failed to determine.
+        // A cumulative rate limit lands on the tail of an alphabetical list, which
+        // makes throttling look like a property of those packages.
+        const noSleep = async (): Promise<void> => {};
+
+        await it('retryAfterMs reads delta-seconds and refuses everything else', () => {
+            expect(retryAfterMs(new Headers({ 'retry-after': '7' }))).toBe(7000);
+            expect(retryAfterMs(new Headers({ 'retry-after': ' 0 ' }))).toBe(0);
+            // The HTTP-date form is legal and npm does not send it. Guessing at a
+            // date would be a second clock to get wrong, so it reads as "said
+            // nothing" and the exponential backoff decides.
+            expect(retryAfterMs(new Headers({ 'retry-after': 'Wed, 21 Oct 2026 07:28:00 GMT' }))).toBe(null);
+            expect(retryAfterMs(new Headers({ 'retry-after': '-3' }))).toBe(null);
+            expect(retryAfterMs(new Headers())).toBe(null);
+            expect(retryAfterMs(undefined)).toBe(null);
+        });
+
+        await it('waits out a 429 and returns the answer that follows it', async () => {
+            let calls = 0;
+            const req: TrustRequester = async () => {
+                calls++;
+                return calls <= 2
+                    ? { status: 429, json: undefined, text: '', headers: new Headers({ 'retry-after': '1' }) }
+                    : { status: 200, json: [], text: '[]' };
+            };
+            const res = await requestWaitingOutRateLimit(req, 'GET', 'https://r/x', undefined, { sleep: noSleep });
+            expect(res.status).toBe(200);
+            expect(calls).toBe(3);
+        });
+
+        await it('gives up after the budget and hands back the 429 — never hangs', async () => {
+            let calls = 0;
+            const req: TrustRequester = async () => {
+                calls++;
+                return { status: 429, json: undefined, text: '' };
+            };
+            const res = await requestWaitingOutRateLimit(req, 'GET', 'https://r/x', undefined, {
+                sleep: noSleep,
+                maxRateLimitRetries: 3,
+            });
+            expect(res.status).toBe(429);
+            expect(calls).toBe(4); // the first attempt plus three retries
+        });
+
+        await it('probeTrustState classifies the answer AFTER the throttling, not the 429', async () => {
+            let calls = 0;
+            const req: TrustRequester = async () => {
+                calls++;
+                return calls === 1
+                    ? { status: 429, json: undefined, text: '' }
+                    : { status: 404, json: undefined, text: '' };
+            };
+            const plan = await probeTrustState(req, ws('@onb/a'), ctx(), { sleep: noSleep });
+            expect(plan.state).toBe('unpublished');
+            expect(plan.action).toBe('publish-and-trust');
+        });
+
+        await it('still reports blocked when the throttling outlasts the budget', async () => {
+            const req: TrustRequester = async () => ({ status: 429, json: undefined, text: '' });
+            const plan = await probeTrustState(req, ws('@onb/a'), ctx(), {
+                sleep: noSleep,
+                maxRateLimitRetries: 1,
+            });
+            expect(plan.action).toBe('blocked');
+            expect(plan.httpStatus).toBe(429);
+        });
+    });
+
+    await describe('RateLimitGate — a 429 anywhere pauses everywhere', async () => {
+        await it('holds a later caller back for the penalty another one earned', async () => {
+            let clock = 0;
+            const slept: number[] = [];
+            const gate = new RateLimitGate({
+                now: () => clock,
+                sleep: async (ms) => {
+                    slept.push(ms);
+                    clock += ms;
+                },
+            });
+            expect(gate.remainingMs()).toBe(0);
+            gate.penalize(5000);
+            expect(gate.remainingMs()).toBe(5000);
+            await gate.wait();
+            expect(slept).toStrictEqual([5000]);
+            // The cool-down is served, not re-served.
+            expect(gate.remainingMs()).toBe(0);
+        });
+
+        await it('takes the LONGEST outstanding penalty, never the latest', async () => {
+            let clock = 0;
+            const gate = new RateLimitGate({ now: () => clock, sleep: async () => {} });
+            gate.penalize(10_000);
+            gate.penalize(1000); // a shorter one must not shorten the wait
+            expect(gate.remainingMs()).toBe(10_000);
+        });
+
+        await it('a throttled request waits on the SHARED gate', async () => {
+            let clock = 0;
+            const slept: number[] = [];
+            const gate = new RateLimitGate({
+                now: () => clock,
+                sleep: async (ms) => {
+                    slept.push(ms);
+                    clock += ms;
+                },
+            });
+            let calls = 0;
+            const req: TrustRequester = async () => {
+                calls++;
+                return calls === 1
+                    ? { status: 429, json: undefined, text: '', headers: new Headers({ 'retry-after': '3' }) }
+                    : { status: 200, json: [], text: '[]' };
+            };
+            const res = await requestWaitingOutRateLimit(req, 'GET', 'https://r/x', undefined, { gate });
+            expect(res.status).toBe(200);
+            // npm asked for 3s and that is what the whole sweep waited.
+            expect(slept).toStrictEqual([3000]);
+        });
+
+        await it('reports what npm actually said, so the pacing is not a guess', async () => {
+            const seen: string[] = [];
+            let calls = 0;
+            const withHeader: TrustRequester = async () => {
+                calls++;
+                return calls === 1
+                    ? { status: 429, json: undefined, text: '', headers: new Headers({ 'retry-after': '2' }) }
+                    : { status: 200, json: [], text: '[]' };
+            };
+            await requestWaitingOutRateLimit(withHeader, 'GET', 'https://r/x', undefined, {
+                sleep: async () => {},
+                onRateLimit: (i) => seen.push(`${i.fromRetryAfter}|${i.headers}|${i.waitMs}`),
+            });
+            expect(seen).toStrictEqual(['true|retry-after: 2|2000']);
+
+            // And the honest report when npm advertises nothing: measured
+            // 2026-08-28, npm serves no X-RateLimit-* headers at all.
+            expect(describeRateLimitHeaders(new Headers())).toBe('npm sent no Retry-After and no rate-limit headers');
+            expect(describeRateLimitHeaders(undefined)).toBe('no headers captured');
         });
     });
 };
