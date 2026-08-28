@@ -135,12 +135,35 @@ export default async () => {
 
         await it('eases between the thresholds instead of snapping to the maximum', async () => {
             // 700 sits inside `lower`=400 … `upper`=1000 for maximumSize 600, where a
-            // `maxWidth` would report 600 and libadwaita reports the eased value.
+            // `maxWidth` would report 600 and libadwaita reports the eased value. The
+            // NUMBER is asserted, not a range: `clamp.gtk.spec.tsx` reads 575 at x=62 off
+            // the live GTK tree in a 700-point window, so this is the second cross-renderer
+            // pair — and the first one that is actually ON the curve. The 1000/400 pair
+            // above is not: `tightening-threshold` defaults to 400, so `maximumSize={400}`
+            // collapses `lower`, `max` and `upper` onto one another and the easing region
+            // has zero width there. Two renderers agreeing at a degenerate point agree
+            // about very little.
             const child = onlyChild(settled(<AdwClamp>{null}</AdwClamp>, 700));
-            const style = child.props.style as Record<string, number>;
-            expect(style.width > 400).toBe(true);
-            expect(style.width < 600).toBe(true);
-            expect(style.marginStart).toBe(Math.trunc((700 - style.width) / 2));
+            expect(child.props.style as Style).toStrictEqual({ width: 575, marginStart: 62 });
+        });
+    });
+
+    await describe('AdwClamp on React Native — the property range GObject enforces', async () => {
+        // `maximum-size` and `tightening-threshold` are `g_param_spec_int (…, 0, G_MAXINT,
+        // …)`, and on GTK that range is enforced before libadwaita runs. Each expectation
+        // below is what the real `Adw.Clamp` was measured doing with the same input in a
+        // 1000-point window; without `normalizeClampSize` this half answered differently
+        // in both rows.
+        await it('truncates a fractional maximum, as an int property does', async () => {
+            const child = onlyChild(settled(<AdwClamp maximumSize={400.7}>{null}</AdwClamp>, FRAME_WIDTH));
+            expect(child.props.style as Style).toStrictEqual({ width: 400, marginStart: 300 });
+        });
+
+        await it('keeps the default for a value GObject would refuse', async () => {
+            // GTK: the assignment is rejected and `maximum-size` stays 600. Here the
+            // fallback has to come from the normaliser, because `??` sees a number.
+            const child = onlyChild(settled(<AdwClamp maximumSize={Number.NaN}>{null}</AdwClamp>, FRAME_WIDTH));
+            expect(child.props.style as Style).toStrictEqual({ width: 600, marginStart: 200 });
         });
     });
 };

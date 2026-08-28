@@ -9,6 +9,17 @@
 // libadwaita at the two ends of the curve and nowhere in the middle, and would make
 // the two halves of this package disagree exactly where nobody looks.
 //
+// THE PROPERTIES GO THROUGH `normalizeClampSize`, NOT `?? default`. Both are
+// `g_param_spec_int (…, 0, G_MAXINT, …)` on GTK, and GObject enforces that range before
+// libadwaita ever sees the value — so the two halves disagree on anything outside it
+// unless this half applies the same rule. Measured against the real `Adw.Clamp` in a
+// 1000-point window: `maximumSize={400.7}` allocates 400 there (an int property
+// truncates) and `?? default` gave 401 here; `maximumSize={NaN}` keeps the default 600
+// there (GObject refuses the assignment) and `?? default` propagated the `NaN` into a
+// `width: NaN` style. `normalizeClampSize` — the same function `@gjsify/adwaita-web`'s
+// `<adw-clamp>` and `@gjsify/adwaita-nativescript` already run before `clampAllocate` —
+// gives 400 and 600. A fourth private normalisation would be the drift, not the fix.
+//
 // THE SIZE SOURCE IS `onLayout`, NOT `useWindowDimensions()`. Every renderer of this
 // design binds to the size of the VIEW, never the window — NativeScript to
 // `layoutChanged`, the browser to a `ResizeObserver`, GTK to the widget's own
@@ -28,7 +39,7 @@
 import { useCallback, useState, type ReactElement } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 
-import { ADW_CLAMP_DEFAULTS, clampAllocate } from '@gjsify/adwaita-core';
+import { ADW_CLAMP_DEFAULTS, clampAllocate, normalizeClampSize } from '@gjsify/adwaita-core';
 
 import type { AdwClampProps } from '../props.js';
 
@@ -52,8 +63,8 @@ export function AdwClamp({ children, maximumSize, tighteningThreshold }: AdwClam
         available === null
             ? null
             : clampAllocate(available, {
-                  maximumSize: maximumSize ?? ADW_CLAMP_DEFAULTS.maximumSize,
-                  tighteningThreshold: tighteningThreshold ?? ADW_CLAMP_DEFAULTS.tighteningThreshold,
+                  maximumSize: normalizeClampSize(maximumSize, ADW_CLAMP_DEFAULTS.maximumSize),
+                  tighteningThreshold: normalizeClampSize(tighteningThreshold, ADW_CLAMP_DEFAULTS.tighteningThreshold),
                   childMin: 0,
                   childNat: 0,
               });

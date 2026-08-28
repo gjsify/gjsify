@@ -24,6 +24,14 @@
 // `adw_clamp_layout_allocate` and `@gjsify/adwaita-core`'s port of it are the same
 // curve. Asserting the number rather than "it looks clamped" is what makes the two
 // halves one widget.
+//
+// AND THE SHARED NUMBER IS TAKEN TWICE, ON PURPOSE. `maximum-size` 400 with the default
+// `tightening-threshold` of 400 collapses the curve: `lower`, `max` and `upper` all land
+// on 400, the eased region has zero width, and the two renderers agree there for a
+// reason that says nothing about the easing. So the second case is a 700-point frame at
+// the DEFAULT 600/400, which sits inside `lower`=400 … `upper`=1000 — libadwaita reads
+// 575 at x=62 there, a `min()` approximation would read 600, and the React Native suite
+// asserts that same pair as a style object.
 
 import Adw from 'gi://Adw?version=1';
 import Gdk from 'gi://Gdk?version=4.0';
@@ -41,8 +49,10 @@ import { AdwClamp } from './clamp.gtk.js';
 /** Named identities, not a capability probe: a suite that ran zero tests reports success. */
 const GTK_HOSTS: Runtime[] = ['Gjs', 'Node.js', 'Bun', 'Deno'];
 
-/** The frame `clamp.native.spec.tsx` asks the same question in. */
+/** The frames `clamp.native.spec.tsx` asks the same questions in. */
 const FRAME_WIDTH = 1000;
+/** Inside `lower` … `upper` for the DEFAULT 600/400 — the eased region. */
+const EASED_FRAME_WIDTH = 700;
 const FRAME_HEIGHT = 200;
 
 /**
@@ -81,8 +91,8 @@ const typeOf = (widget: Gtk.Widget): string =>
  * without the pump the first `get_width()` is 0 and the assertion would be measuring
  * the scheduler.
  */
-function laidOut(element: React.ReactNode, body: (container: Gtk.Widget) => void): void {
-    const window = new Gtk.Window({ defaultWidth: FRAME_WIDTH, defaultHeight: FRAME_HEIGHT });
+function laidOut(element: React.ReactNode, body: (container: Gtk.Widget) => void, frameWidth = FRAME_WIDTH): void {
+    const window = new Gtk.Window({ defaultWidth: frameWidth, defaultHeight: FRAME_HEIGHT });
     const container = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, hexpand: true, vexpand: true });
     window.set_child(container);
     const root = createRoot(container);
@@ -173,6 +183,29 @@ export default async () => {
                             expect(Math.round(bounds[1].get_width())).toBe(400);
                             expect(Math.round(bounds[1].get_x())).toBe(300);
                         },
+                    );
+                });
+
+                await it('rides the easing curve, where a min() would not', async () => {
+                    laidOut(
+                        <AdwClamp>
+                            <gtk-label label="inside" hexpand={true} />
+                        </AdwClamp>,
+                        (container) => {
+                            const clamp = find(container, 'AdwClamp');
+                            const evidence = shotEvidence(clamp, capture);
+                            expect(blankReason(evidence)).toBe(null);
+                            expect(clamp.get_width()).toBe(EASED_FRAME_WIDTH);
+
+                            const child = find(clamp, 'GtkLabel');
+                            const bounds = child.compute_bounds(clamp);
+                            expect(bounds[0]).toBe(true);
+                            // 575, not the 600 a `min(available, maximum)` would give —
+                            // and the pair `clamp.native.spec.tsx` asserts as a style.
+                            expect(Math.round(bounds[1].get_width())).toBe(575);
+                            expect(Math.round(bounds[1].get_x())).toBe(62);
+                        },
+                        EASED_FRAME_WIDTH,
                     );
                 });
             });
