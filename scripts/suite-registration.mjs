@@ -1,4 +1,4 @@
-// Which `*.spec.ts` a package REACHES, and which it actually RUNS — read once, for
+// Which `*.spec.{ts,tsx}` a package REACHES, and which it actually RUNS — read once, for
 // every gate that needs either fact.
 //
 // THE INCIDENT
@@ -71,7 +71,7 @@ export function packageDirs(dir, out = []) {
  * every PR.
  */
 export function isTestEntry(name) {
-    if (!name.startsWith('test') || name.endsWith('.spec.ts')) return false;
+    if (!name.startsWith('test') || name.endsWith('.spec.ts') || name.endsWith('.spec.tsx')) return false;
     return name.endsWith('.mts') || name.endsWith('.ts');
 }
 
@@ -124,11 +124,20 @@ export function stripComments(source) {
  * reported `packages/infra/tsc`'s one spec as an orphan while it ran on every PR — a
  * false violation is how a checker teaches people to ignore it.
  */
-export function resolveToSource(specifier) {
-    if (specifier.endsWith('.ts') || specifier.endsWith('.mts')) return specifier;
+export function resolveToSource(specifier, fromDir = '.') {
+    const exists = (candidate) => existsSync(resolve(fromDir, candidate));
+    if (specifier.endsWith('.ts') || specifier.endsWith('.tsx') || specifier.endsWith('.mts')) return specifier;
     if (specifier.endsWith('.mjs')) return `${specifier.slice(0, -4)}.mts`;
-    if (specifier.endsWith('.js')) return `${specifier.slice(0, -3)}.ts`;
-    return `${specifier}.ts`;
+    // `.tsx` is tried FIRST for a `.js` specifier and probed on disk rather than
+    // guessed, because a JSX spec is invisible to this reader otherwise — measured:
+    // `@gjsify/adwaita-react-native` added two `*.spec.tsx` and the gate's own count
+    // rose by the two `.ts` ones alone, so a JSX spec that no entry imported would
+    // never have been reported. Nothing else in the repository would have said so.
+    if (specifier.endsWith('.js')) {
+        const tsx = `${specifier.slice(0, -3)}.tsx`;
+        return exists(tsx) ? tsx : `${specifier.slice(0, -3)}.ts`;
+    }
+    return exists(`${specifier}.tsx`) ? `${specifier}.tsx` : `${specifier}.ts`;
 }
 
 /**
@@ -152,7 +161,7 @@ export function relativeImports(file, source) {
         const clause = match[1];
         const specifier = match[2] ?? match[3] ?? match[4];
         found.push({
-            target: resolve(dirname(file), resolveToSource(specifier)),
+            target: resolve(dirname(file), resolveToSource(specifier, dirname(file))),
             specifier,
             bindings: clause === undefined ? [] : bindingsIn(clause),
         });
@@ -296,7 +305,7 @@ export function readSuiteRegistration(pkgDir) {
         .filter(isTestEntry)
         .map((name) => join(src, name));
     if (entries.length === 0) return empty;
-    const specs = walk(src, (name) => name.endsWith('.spec.ts'));
+    const specs = walk(src, (name) => name.endsWith('.spec.ts') || name.endsWith('.spec.tsx'));
     if (specs.length === 0) return { ...empty, entries };
 
     const isSpec = new Set(specs);
