@@ -299,7 +299,7 @@ const rendered: {
     id: string;
     title: string;
     live: boolean;
-    attributes: string[] | null;
+    attributes: { tag: string; names: string[] } | null;
     impls: string;
     tabs: { slot: string; label: string; html: string }[];
 }[] = [];
@@ -349,7 +349,7 @@ for (const spec of WINDOWS) {
     // that could not see the declaration, which is how `<adw-wrap-box>` shipped
     // paneless over 14 attributes. `check-generated-website-data.mjs` fails on it now,
     // so this arm is what that failure renders as rather than a silent policy.
-    const attrs = live && attributes !== null && attributes.length > 0 ? attributes : null;
+    const attrs = live && attributes !== null && attributes.length > 0 ? { tag: elementTag, names: attributes } : null;
     rendered.push({
         id: spec.id,
         title: spec.title ?? title,
@@ -381,7 +381,6 @@ for (const spec of WINDOWS) {
                 scroll={scroll}
                 stage={stage}
                 attributes={win.attributes}
-                elementTag={elementTag}
             />
         ))
     }
