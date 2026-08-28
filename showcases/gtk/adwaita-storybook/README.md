@@ -3,7 +3,8 @@
 An interactive **component browser for [Libadwaita](https://gnome.pages.gitlab.gnome.org/libadwaita/)**
 widgets — the GNOME equivalent of a web "storybook". Each widget is rendered live, in
 isolation, with a two-way-bound **Controls** panel so you can poke at its properties and
-watch it update. 35 stories across 7 categories.
+watch it update — one story per `*.meta.ts`, grouped into the sidebar's shared
+category order.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
