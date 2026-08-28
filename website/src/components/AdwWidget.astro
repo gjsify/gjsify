@@ -110,6 +110,11 @@ interface Props {
 }
 
 import { ADWAITA_ATTRIBUTES } from '../data/adwaita-attributes';
+import {
+    ADWAITA_FRAMEWORK_REFUSALS,
+    ADWAITA_FRAMEWORK_SNIPPETS,
+    type FrameworkDialect,
+} from '../data/adwaita-framework-snippets';
 import { sampleAttributes } from './attr-sample.mjs';
 import AdwWidgetWindow from './AdwWidgetWindow.astro';
 
@@ -162,6 +167,30 @@ const elementTag = `adw-${title
 const attributes = ADWAITA_ATTRIBUTES[elementTag] ?? null;
 
 /**
+ * The framework panes: Solid, Vue and React, rendered from
+ * `data/adwaita-framework-snippets.ts` rather than written per page.
+ *
+ * Not slots, for the same reason the attribute table is not one — no page provides
+ * them and no page should, because the snippet a page would carry is a COPY. Each
+ * one here was compiled and run first: `showcases/gtk/adwaita-gallery-{solid,vue,react}`
+ * build this exact markup and assert the resulting widget tree against GTK with the
+ * diagnostics gate on, and `scripts/generate-adwaita-framework-snippets.mjs` extracts
+ * them from those programs. That data file has existed and been gated since it landed;
+ * until this component read it, nothing rendered it — 40 blocks' worth of generated,
+ * checked, invisible snippets.
+ *
+ * The order is the data file's own, and it puts the three host adapters together:
+ * they are one element model (`@gjsify/gtk-host`) behind three renderer APIs. The
+ * React Native tab beside them is a different layer and stays a slot, because it is
+ * written per page against what that page shows.
+ */
+const FRAMEWORK_PANES: readonly { id: FrameworkDialect; label: string; lang: string }[] = [
+    { id: 'solid', label: 'Solid', lang: 'tsx' },
+    { id: 'vue', label: 'Vue', lang: 'vue' },
+    { id: 'react', label: 'React', lang: 'tsx' },
+];
+
+/**
  * The windows, in order, and every port this component renders.
  *
  * A window says what KIND it is in its TITLE, and nothing else: the claims that
@@ -183,12 +212,17 @@ const WINDOWS = [
         tabs: [{ slot: 'preview', label: 'HTML' }],
     },
     {
-        id: 'vanilla',
+        id: 'native',
         // Titled for the AXIS its two tabs share. The four runtimes that axis is
         // about are named by every gallery page's intro, not here: the snippet is
         // plain `@girs/*` GObject-Introspection TypeScript, which is exactly the
         // code that runs unchanged on all four of them.
-        title: 'Vanilla TypeScript',
+        //
+        // NATIVE, not "Vanilla". Vanilla names a thing by what it is not — no
+        // framework — which was serviceable while the neighbouring window held one
+        // tab, and stopped being so once it held four. What this window actually
+        // shows is the GObject API itself, with no element model in between.
+        title: 'Native TypeScript',
         tabs: [
             { slot: 'gjs', label: 'TypeScript' },
             // Blueprint is a FILE of the same program, which is why it is a tab here
@@ -216,6 +250,13 @@ const WINDOWS = [
         // a phone on this page. It would take a TAB that renders one.
         title: 'UI frameworks',
         tabs: [{ slot: 'react-native', label: 'React Native' }],
+        // The Solid, Vue and React panes are DATA, filled from
+        // `ADWAITA_FRAMEWORK_SNIPPETS` for the 21 blocks that have an entry. The other
+        // 19 carry a recorded reason instead — see {@link FRAMEWORK_PANES} and
+        // {@link REFUSAL_PANE}. 21 + 19 is every block, which is the property that
+        // makes an empty frameworks window a bug rather than a gap.
+        code: FRAMEWORK_PANES,
+        refusals: true,
     },
     {
         id: 'nativescript',
@@ -288,6 +329,19 @@ const LIVE_PANE = 'live';
  */
 const ATTRS_PANE = 'attributes';
 
+/**
+ * The pane that says why a block has NO framework snippet.
+ *
+ * `ADWAITA_FRAMEWORK_REFUSALS` exists for this and says so in its own header: "a
+ * missing tab and a tab that cannot exist look identical, and only one of them is a
+ * fact". Nineteen of the forty blocks are the second kind — a `Gio.MenuModel` built
+ * imperatively, a dialog opened with `present()`, a container with no child policy —
+ * and rendering nothing there teaches a reader that the dialects are half-finished
+ * rather than that the widget is not markup.
+ */
+const REFUSAL_PANE = 'why-not';
+
+
 // That requirement, held rather than stated. `data-impls` is POSITIONAL and the
 // script below looks a pane up by name with `indexOf`, so a pane id equal to a
 // slot name gives the live window two entries reading the same id and the first one
@@ -295,7 +349,7 @@ const ATTRS_PANE = 'attributes';
 // it would move every OTHER preview window to its Preview pane instead. Nothing
 // else notices — the ids never leave `data-impls`, so the site builds, both tabs
 // render, and every gate stays green.
-const OWN_PANES = [LIVE_PANE, ATTRS_PANE];
+const OWN_PANES = [LIVE_PANE, ATTRS_PANE, REFUSAL_PANE, ...FRAMEWORK_PANES.map((pane) => pane.id)];
 const collidingSlot = WINDOWS.flatMap((win) => win.tabs.map((tab) => tab.slot)).find((slot) =>
     OWN_PANES.includes(slot),
 );
@@ -314,6 +368,8 @@ const rendered: {
     attributes: { tag: string; names: string[]; sample: Map<string, string> } | null;
     impls: string;
     tabs: { slot: string; label: string; html: string }[];
+    code: { id: string; label: string; lang: string; source: string }[];
+    refusal: string | null;
 }[] = [];
 let previewMarkup: string | null = null;
 
@@ -348,7 +404,27 @@ for (const spec of WINDOWS) {
         }
         tabs.push({ ...tab, html });
     }
-    if (tabs.length === 0) continue;
+    // The data panes, looked up by the block's own title — the same key the
+    // generator wrote. A block with no entry simply has none; a block whose entry
+    // is missing a dialect shows the dialects it has, because a pane rendering an
+    // empty fence is worse than an absent one.
+    const code = (spec.code ?? [])
+        .map((pane) => ({ ...pane, source: ADWAITA_FRAMEWORK_SNIPPETS[title]?.[pane.id] ?? '' }))
+        .filter((pane) => pane.source !== '');
+
+    // Both halves, because a window can now be entirely data: the frameworks window
+    // fills on 40 blocks while only 3 of them provide its slot. Testing `tabs` alone
+    // is what kept it invisible.
+    // A block with no snippet gets the RECORDED REASON, never silence. The two maps
+    // partition the gallery, so exactly one of `code` and `refusal` is non-empty on
+    // the frameworks window — and a block in NEITHER map leaves the window absent,
+    // which `check-generated-website-data.mjs` is what refuses.
+    const refusal = spec.refusals === true && code.length === 0 ? (ADWAITA_FRAMEWORK_REFUSALS[title] ?? null) : null;
+
+    // All three, because a window can now be entirely data: the frameworks window
+    // fills on all 40 blocks while only 3 of them provide its slot. Testing `tabs`
+    // alone is what kept it invisible.
+    if (tabs.length === 0 && code.length === 0 && refusal === null) continue;
     // `previewMarkup` is already read by the time this runs: the live window is
     // first in WINDOWS and its own `preview` tab is what sets it.
     const live = spec.live === true && previewMarkup !== null;
@@ -373,9 +449,13 @@ for (const spec of WINDOWS) {
         impls: [
             ...(live ? [LIVE_PANE] : []),
             ...tabs.map((t) => t.slot),
+            ...code.map((c) => c.id),
+            ...(refusal === null ? [] : [REFUSAL_PANE]),
             ...(attrs === null ? [] : [ATTRS_PANE]),
         ].join(','),
         tabs,
+        code,
+        refusal,
     });
 }
 ---
@@ -391,6 +471,8 @@ for (const spec of WINDOWS) {
                 widget={title}
                 impls={win.impls}
                 tabs={win.tabs}
+                code={win.code}
+                refusal={win.refusal}
                 preview={win.live ? previewMarkup : null}
                 padding={padding}
                 scroll={scroll}
