@@ -39,22 +39,29 @@ ADR 0018 retired. The thirteen showcases ship no desktop entry, no metainfo, no 
 schema, so none of them can be installed at all, anywhere.
 
 **The reference.** `refs/gtkx` answers the Linux half for React+TypeScript GTK4 apps, and the
-interesting number is how little of it is per-format. Re-measured at **v1.5.0** (the pin was
-v1.1.0 when this ADR was written): **5 979 lines across 66 files** under
-`packages/cli/src/deploy/`, of which the `targets/` directory is **1 139** — so **80.9 % is
-target-independent**. The same partition at v1.1.0 gives 80.9 % of 4 124, identical to the
-decimal across a 45 % growth of the subsystem, which is a stronger finding than the 73 % this
-paragraph used to carry. That 73 % does not reproduce under any natural partition and its file
-classification was never recorded; it is restated here with the partition named so the next
-re-measurement compares like with like.
+interesting number is how little of it is per-format. Re-measured at **v1.5.0**: **5 979 lines
+across 66 files** under `packages/cli/src/deploy/`, of which the `targets/` directory is
+**1 139** — so **80.9 % is target-independent**. The same partition at v1.1.0 gives 80.9 % of
+4 124: identical to the decimal, across a 45 % growth of the subsystem.
+
+That is not a correction of the 73 % this paragraph used to carry — it is a different partition,
+and both are defensible. `targets/` + `payload/` at v1.1.0 is 1 117 of 4 124, which rounds to
+exactly the 73 % originally written. **The partition, not the number, is what went unrecorded**,
+and a ratio whose denominator is unstated cannot be re-measured. `targets/`-only is named here
+because it is the one that held its value across four releases; whoever re-measures next should
+state theirs the same way.
 
 The whole difference between a Flatpak and an `.rpm` is a four-line prefix map
-(`refs/gtkx/packages/cli/src/deploy/payload/stage.ts:41`, byte-identical to v1.1.0's `:35`, six
-lines lower because gettext added a constant above it) plus three overlay cases — where the
+(`refs/gtkx/packages/cli/src/deploy/payload/stage.ts:41`) plus three overlay cases — where the
 copyright file goes, where the licence goes, and whether D-Bus activation is a `.service` file
-or a non-`DBusActivatable` desktop entry. It still has no macOS and no Windows story at all:
-grepped at v1.5.0 for `darwin|win32|macos|\.dmg|\.msi|\.app|mach-o` under `deploy/`, zero
-hits, and its only binary-format reader is still an ELF parser.
+or a non-`DBusActivatable` desktop entry. The map is byte-identical to v1.1.0's, where it sat at
+`:35`; two constants were added above it since, one of them gettext's `SHARE_LOCALE`.
+
+It still has no macOS and no Windows story at all — and the grep that establishes that has to be
+written carefully, because the obvious one lies. `darwin|win32|macos|mach-o|\.dmg|\.msi` under
+`deploy/` returns **zero hits** at v1.5.0. Adding `\.app` to that alternation returns dozens,
+every one of them `.applicationId` or `.appimage`. Its only binary-format reader is still an ELF
+parser.
 
 One scope caveat that arrived with v1.5.0 and that a future re-measurement must not miss: the
 deploy story no longer fits inside `src/deploy/`. `deploy/freedesktop/localize.ts` reaches into a
