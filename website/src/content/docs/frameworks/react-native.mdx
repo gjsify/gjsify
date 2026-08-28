@@ -257,14 +257,27 @@ header bar and the toolbar view, and not on the wrap box, whose policy is still 
 
 ### What this is not
 
-**There is no Adwaita widget set built out of React Native primitives.** Not in this repository:
-no package, no export, no component. `<adw-toolbar-view>` above is `Adw.ToolbarView` — a GTK 4
-widget, in a GTK 4 window, on a machine where libadwaita is installed. Nothing on this page runs
-on a phone, and no tab in the gallery claims otherwise.
+**This layer does not put Adwaita on a phone.** `<adw-toolbar-view>` above is
+`Adw.ToolbarView` — a GTK 4 widget, in a GTK 4 window, on a machine where libadwaita is
+installed. Nothing on this page runs on Android or iOS, and no tab in the gallery claims
+otherwise.
 
-That is the distinction worth keeping: this layer takes React Native's *components* to GTK. The
-opposite direction — Adwaita's *components*, rebuilt on React Native's primitives, so an Adwaita
-app could run on iOS and Android — is a different piece of software, and it is not written.
+That is the distinction worth keeping, and it is a direction rather than a boundary: this layer
+takes React Native's *components* to GTK. The opposite direction — Adwaita's *components* rebuilt
+on React Native's primitives, so an Adwaita app could run on iOS and Android — is a different
+piece of software, and it is now written:
+[`@gjsify/adwaita-react-native`](https://github.com/gjsify/gjsify/blob/main/packages/framework/adwaita-react-native/README.md).
+
+It is deliberately small, and the honest word for it is a walking skeleton: **two widgets**,
+`AdwBin` and `AdwClamp`, carrying the whole vertical rather than a widget set — both platform
+halves, the resolution mechanism, the manifest declaration, a gate and suites on each side. The
+phone half is not a `maxWidth` approximation: it runs `@gjsify/adwaita-core`'s port of
+`adw_clamp_layout_allocate`, libadwaita's own easing curve, so both halves are held to the same
+numbers. The two halves fork at the package's `exports` map on the `react-native` condition,
+never by file name.
+
+It is not on npm yet, and no gallery tab renders it — so nothing you see on this site is that
+package.
 
 ## Two defaults that are inverted
 

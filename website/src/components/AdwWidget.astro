@@ -197,11 +197,18 @@ const WINDOWS = [
     {
         id: 'frameworks',
         // `@gjsify/react-native` renders React Native components onto GTK 4
-        // IN-PROCESS. There is no Adwaita widget set built out of React Native
-        // primitives, so nothing under this window runs on a phone — which is why
+        // IN-PROCESS, so nothing under this window runs on a phone — which is why
         // it is not filed with NativeScript, and why `layout.mdx`, the only page
         // that fills this window, says it renders a GTK window and not a phone
         // screen.
+        //
+        // This comment used to give a different reason — "there is no Adwaita
+        // widget set built out of React Native primitives" — and that reason died
+        // with `@gjsify/adwaita-react-native` (#1380), which is exactly such a set.
+        // The decision survives it, because it never rested on that package's
+        // absence: what fills this window is direction A, and a direction-B package
+        // existing elsewhere in the tree does not put a phone on this page. It
+        // would take a TAB that renders one.
         title: 'UI frameworks',
         tabs: [{ slot: 'react-native', label: 'React Native' }],
     },
