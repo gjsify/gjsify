@@ -224,11 +224,17 @@ export function stripComments(text) {
  * attributing it to every tag the file registers is the same mistake as reading
  * a FILENAME for the element set, which is the incident at the top of this file.
  *
- * The scan is deliberately literal-only. A class whose list is computed —
- * spread from a base, concatenated — is reported as UNREADABLE by
+ * A class whose list this cannot work out is reported as UNREADABLE by
  * {@link observedAttributes} rather than as empty: an element with no attributes
  * and an element this cannot read are different facts, and only one of them is a
- * reason to document nothing.
+ * reason to document nothing. EVERY shape therefore has to land in one of those
+ * two — the failure is a third outcome, a computed list read as the empty one,
+ * which is a silent wrong answer wearing the shape of a right one. Two did:
+ * `return [...PROPERTY_ATTRIBUTES];` (no quoted string in it, and not the bare
+ * `return NAME;` shape either) and a subclass that simply inherits its base's
+ * getter. `<adw-wrap-box>` published "observes nothing" over 14 attributes its own
+ * `attributeChangedCallback` serves, and the website rendered no attribute pane at
+ * all for it while every gate stayed green.
  */
 export function observedAttributesByClass(text) {
     const code = stripComments(text);
@@ -238,6 +244,9 @@ export function observedAttributesByClass(text) {
     const extendsBase = new Map();
     /** @type {Map<string, string>} */
     const pending = new Map();
+    /** Classes with NO getter of their own, which therefore use their base's. */
+    /** @type {Map<string, string>} */
+    const inherits = new Map();
     const unreadable = [];
 
     // A module-level `const NAME = ['a', 'b']` a getter can return by name.
@@ -261,7 +270,14 @@ export function observedAttributesByClass(text) {
         const getter = /static get observedAttributes\(\)\s*(?::[^{]*)?\{\s*return\s+([^;]+);/.exec(body);
         if (!getter) {
             if (/static get observedAttributes\(\)/.test(body)) unreadable.push(name);
-            else byClass.set(name, []);
+            else {
+                // No getter here is not "observes nothing" when there is a base to
+                // take one from — `AdwCarouselIndicatorDots` has neither and observed
+                // `for` through `AdwCarouselIndicator` all along. Recorded rather than
+                // resolved, because the base can live in another file.
+                byClass.set(name, []);
+                if (classes[i][2]) inherits.set(name, classes[i][2]);
+            }
             continue;
         }
         const expression = getter[1].trim();
@@ -273,16 +289,40 @@ export function observedAttributesByClass(text) {
             else unreadable.push(name);
             continue;
         }
-        const inner = literal[1];
-        const own = [...inner.matchAll(/'([^']+)'/g)].map(([, attr]) => attr);
-        // `[...AdwEntryRow.observedAttributes, 'revealed']` — resolved after the
-        // whole pillar is read, because the base can live in another file.
-        const spread = /\.\.\.\s*([A-Za-z0-9_]+)\.observedAttributes/.exec(inner);
-        if (spread) pending.set(name, spread[1]);
+        // Read the literal IN ORDER: the emitted list is documented as declaration
+        // order, and a spread can sit anywhere in it.
+        /** @type {string[]} */
+        const own = [];
+        let unresolvedSpread = null;
+        for (const [, quoted, spreadName, ofBase] of literal[1].matchAll(
+            /'([^']+)'|\.\.\.\s*([A-Za-z0-9_$]+)(\.observedAttributes)?/g,
+        )) {
+            if (quoted !== undefined) {
+                own.push(quoted);
+            } else if (ofBase) {
+                // `[...AdwEntryRow.observedAttributes, 'revealed']` — resolved after
+                // the whole pillar is read, because the base can live in another file.
+                pending.set(name, spreadName);
+            } else {
+                // `[...PROPERTY_ATTRIBUTES]` — a named list in this module, spread
+                // rather than returned by name. Unresolved it yields no attribute at
+                // all, which is why it is a failure and not an empty list.
+                const named = constants.get(spreadName);
+                if (named === undefined) unresolvedSpread = spreadName;
+                else own.push(...named);
+            }
+        }
+        // A literal with text in it that yielded no name is the third outcome again,
+        // in whatever shape comes next (a double-quoted string, a `.concat`): only
+        // `return [];` may read as none.
+        if (unresolvedSpread !== null || (own.length === 0 && !pending.has(name) && literal[1].trim() !== '')) {
+            unreadable.push(name);
+            continue;
+        }
         byClass.set(name, own);
     }
 
-    return { byClass, unreadable, pending, extendsBase };
+    return { byClass, unreadable, pending, inherits, extendsBase };
 }
 
 /**
@@ -306,12 +346,15 @@ export function observedAttributes(root) {
     const perClass = new Map();
     /** @type {Map<string, string>} */
     const spreads = new Map();
+    /** @type {Map<string, string>} */
+    const inherits = new Map();
     const badClasses = new Set();
     for (const file of new Set(tags.values())) {
         const read = observedAttributesByClass(readFileSync(join(root, file), 'utf8'));
         sources.set(file, read);
         for (const [klass, attrs] of read.byClass) perClass.set(klass, attrs);
         for (const [klass, base] of read.pending) spreads.set(klass, base);
+        for (const [klass, base] of read.inherits) inherits.set(klass, base);
         for (const klass of read.unreadable) badClasses.add(klass);
     }
     for (const [klass, base] of spreads) {
@@ -322,6 +365,21 @@ export function observedAttributes(root) {
         }
         // Base first, so the order matches what the class itself returns.
         perClass.set(klass, [...inherited, ...(perClass.get(klass) ?? [])]);
+    }
+    // A subclass with no getter of its own answers with its base's list, exactly as
+    // the platform does. `extends HTMLElement` resolves to nothing and stays empty,
+    // which is the one case where empty is the true answer. Iterated to a fixpoint so
+    // a two-step chain lands, and bounded so a cycle cannot spin.
+    for (let pass = 0; pass < inherits.size; pass++) {
+        let changed = false;
+        for (const [klass, base] of inherits) {
+            const inherited = perClass.get(base);
+            if (inherited === undefined || inherited.length === 0) continue;
+            if (perClass.get(klass)?.length) continue;
+            perClass.set(klass, [...inherited]);
+            changed = true;
+        }
+        if (!changed) break;
     }
 
     for (const [tag, file] of tags) {

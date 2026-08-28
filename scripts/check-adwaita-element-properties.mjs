@@ -99,21 +99,6 @@ const KNOWN_GAPS = {
     'adw-toolbar-view': ['reveal-bottom-bars', 'reveal-top-bars'],
     'adw-view-stack': ['enable-transitions', 'hhomogeneous', 'transition-duration', 'vhomogeneous'],
     'adw-window': ['adaptive-preview'],
-    'adw-wrap-box': [
-        'align',
-        'child-spacing',
-        'child-spacing-unit',
-        'justify',
-        'justify-last-line',
-        'line-homogeneous',
-        'line-spacing',
-        'line-spacing-unit',
-        'natural-line-length',
-        'natural-line-length-unit',
-        'pack-direction',
-        'wrap-policy',
-        'wrap-reverse',
-    ],
 };
 
 /** A GIR type that holds an object — a slot on this renderer, never an attribute. */
