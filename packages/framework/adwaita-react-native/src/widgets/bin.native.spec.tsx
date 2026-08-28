@@ -57,6 +57,25 @@ export default async () => {
             expect(tree.props.onLayout).toBe(undefined);
         });
 
+        await it('keeps BOTH children, where GTK keeps only the last', async () => {
+            // The package's one silent divergence, pinned from this side too.
+            // `clamp.gtk.spec.tsx` measures the same JSX against the real `Adw.Bin`:
+            // gtk-host's `single` child policy is `set_child`, so the second child
+            // EVICTS the first and the tree keeps "two" — no throw, no GLib message.
+            // A `View` has no such limit. Naming it in the README is not enough on its
+            // own: without a row on each side, one half can change and the divergence
+            // silently becomes a different one.
+            const tree = mounted(
+                <AdwBin>
+                    <View testID="one" />
+                    <View testID="two" />
+                </AdwBin>,
+            );
+            const children = (tree.children ?? []) as ReactTestRendererJSON[];
+            expect(children.length).toBe(2);
+            expect(children.map((child) => child.props.testID)).toStrictEqual(['one', 'two']);
+        });
+
         await it('renders the child even when there is nothing to lay out', async () => {
             // A `null` child still leaves the view — `toJSON()` reports `children: null`
             // rather than an empty array, and reading that as "the widget vanished" is

@@ -123,6 +123,15 @@ than smoothed over.
   and inventing a styling seam is a decision this slice does not make.
 - **One unclamped frame.** Before the first `onLayout` there is no available width, so
   the child renders full-width for one frame.
+- **A second child is kept on React Native and dropped on GTK, silently.** `Adw.Bin` and
+  `Adw.Clamp` are one-child widgets; gtk-host's `single` child policy fills that slot with
+  `set_child`, so the second child EVICTS the first. Measured through `<AdwBin>` with two
+  labels: the GTK tree keeps `"two"` and loses `"one"`, with no throw, no host error and no
+  GLib message (the suite's `installDiagnosticsGate` asserts the silence). A `View` has no
+  such limit and renders both. Both behaviours are pinned by a row on each side —
+  `clamp.gtk.spec.tsx` and `bin.native.spec.tsx` — so neither can move alone. Refusing more
+  than one child on both halves would close it and is a surface decision this slice does not
+  make.
 - **`Adw.ClampScrollable` has no counterpart and will not get one.** It binds its four
   scroll properties onto its child, which is a GTK adoption concern; on React Native
   scrolling belongs to the `ScrollView`, not to the clamp. This is an asymmetry, not a

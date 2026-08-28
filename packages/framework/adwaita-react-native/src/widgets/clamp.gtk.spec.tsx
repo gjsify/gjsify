@@ -161,6 +161,30 @@ export default async () => {
                     },
                 );
             });
+
+            // A DIVERGENCE, pinned rather than asserted as correct. `Adw.Bin` is a
+            // one-child widget and gtk-host's `single` policy fills that slot by
+            // `set_child`, so a SECOND child evicts the first: measured, the tree keeps
+            // "two" and loses "one", with no throw, no host error and — asserted by this
+            // describe's own diagnostics gate — not one GLib message either. The React
+            // Native half renders both (`bin.native.spec.tsx` asserts that), so this is
+            // the one place a caller can write the same JSX and get two different
+            // pictures. The README names it; this row is what stops either side moving
+            // without the other being reconsidered.
+            await it('keeps only the LAST child, where React Native keeps both', async () => {
+                laidOut(
+                    <AdwBin>
+                        <gtk-label label="one" />
+                        <gtk-label label="two" />
+                    </AdwBin>,
+                    (container) => {
+                        const bin = find(container, 'AdwBin') as Adw.Bin;
+                        const child = bin.get_child() as Gtk.Label;
+                        expect(typeOf(child)).toBe('GtkLabel');
+                        expect(child.label).toBe('two');
+                    },
+                );
+            });
         });
 
         // The other half of the pair `clamp.native.spec.tsx` calls "the property range
