@@ -1854,8 +1854,12 @@ it lands on the *tail* of the list — which reads as "these packages are specia
 that the sweep asked too fast. A 429 **anywhere pauses everywhere**: retrying one throttled request in isolation leaves the rest
 of the sweep provoking the very limit that retry is waiting out, which is how a real run spent its
 retry budget and reported `trust failed (HTTP 429)`. Reads and writes share one cool-down, so the
-sweep self-paces down to whatever npm will serve. Only throttling that outlasts the backoff is
-reported, and the summary then says so and suggests a lower `--concurrency`.
+sweep self-paces down to whatever npm will serve. The wait is a TIME budget (5 minutes per request), not an
+attempt count: a fixed number of doubling retries is only ~30 seconds of patience, npm's window is
+longer than that, and a real 703-package sweep consequently failed its last 73 writes inside a
+single cooldown. Only throttling that outlasts the budget is reported — in the plan AND in the
+closing summary, since a write is throttled long after the plan has scrolled away and `73 failed`
+on its own reads as 73 broken packages.
 
 npm advertises no budget ahead of time — there are no `X-RateLimit-*` headers on ordinary
 responses — so the first 429 of a run prints what the registry actually said, including when it

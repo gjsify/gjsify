@@ -487,6 +487,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
 
         /** POST the Trusted Publisher config for one package and record the outcome. */
         let written = 0;
+        let throttledWrites = 0;
         const configureTrust = async (p: PkgPlan, i: number, publishedNow: boolean): Promise<void> => {
             // Through the rate-limit-aware wrapper: a 703-package sweep that gets
             // throttled on its READS gets throttled on its WRITES too, and a bare
@@ -515,6 +516,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
             } else {
                 log(`  [${at}] trust failed (HTTP ${created.status}) — ${p.ws.name}`);
                 indexed[i] = { name: p.ws.name, result: 'failed', detail: `trust HTTP ${created.status}` };
+                if (created.status === 429) throttledWrites++;
                 failed++;
             }
         };
@@ -583,6 +585,21 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         }
 
         for (const r of indexed) if (r) results.push(r);
+
+        // Name the cause at the END too, not only in the plan. A write is
+        // throttled minutes after the plan was printed and scrolled away, and
+        // "73 failed" on its own reads as 73 broken packages.
+        if (throttledWrites > 0) {
+            log();
+            log(
+                `${throttledWrites} of the failures are npm rate limits (HTTP 429) that outlasted the wait, ` +
+                    'not a problem with those packages.',
+            );
+            log(
+                '  Re-run to pick them up — the sweep is idempotent and skips everything already configured. ' +
+                    `A lower --write-concurrency (currently ${writeConcurrency}) provokes the limit less.`,
+            );
+        }
 
         finish(results, plans, { asJson, dryRun, failed, root, sources, discovered: all.length });
     },

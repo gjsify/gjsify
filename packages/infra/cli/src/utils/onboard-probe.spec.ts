@@ -308,18 +308,44 @@ export default async () => {
             expect(calls).toBe(3);
         });
 
-        await it('gives up after the budget and hands back the 429 — never hangs', async () => {
+        await it('gives up when the TIME budget is spent and hands back the 429 — never hangs', async () => {
+            // The budget is time, not attempts. 4 attempts of doubling 2s was 30
+            // seconds of patience, npm's window is longer, and the real sweep
+            // failed 73 packages at the tail because every in-flight request
+            // spent that budget inside ONE cooldown.
             let calls = 0;
+            const slept: number[] = [];
             const req: TrustRequester = async () => {
                 calls++;
                 return { status: 429, json: undefined, text: '' };
             };
             const res = await requestWaitingOutRateLimit(req, 'GET', 'https://r/x', undefined, {
-                sleep: noSleep,
-                maxRateLimitRetries: 3,
+                sleep: async (ms) => {
+                    slept.push(ms);
+                },
+                maxRateLimitWaitMs: 14_000,
+                rateLimitBaseDelayMs: 2000,
             });
             expect(res.status).toBe(429);
-            expect(calls).toBe(4); // the first attempt plus three retries
+            // 2 + 4 + 8 would overshoot, so the last wait is trimmed to the
+            // remainder: a budget is a promise about total time, not about steps.
+            expect(slept).toStrictEqual([2000, 4000, 8000]);
+            expect(slept.reduce((a, b) => a + b, 0)).toBe(14_000);
+            expect(calls).toBe(4);
+        });
+
+        await it('caps a single backoff step so escalation stays legible', async () => {
+            const slept: number[] = [];
+            const req: TrustRequester = async () => ({ status: 429, json: undefined, text: '' });
+            await requestWaitingOutRateLimit(req, 'GET', 'https://r/x', undefined, {
+                sleep: async (ms) => {
+                    slept.push(ms);
+                },
+                maxRateLimitWaitMs: 400_000,
+                rateLimitBaseDelayMs: 2000,
+            });
+            expect(slept.every((ms) => ms <= 60_000)).toBe(true);
+            expect(slept.includes(60_000)).toBe(true);
         });
 
         await it('probeTrustState classifies the answer AFTER the throttling, not the 429', async () => {
@@ -339,7 +365,7 @@ export default async () => {
             const req: TrustRequester = async () => ({ status: 429, json: undefined, text: '' });
             const plan = await probeTrustState(req, ws('@onb/a'), ctx(), {
                 sleep: noSleep,
-                maxRateLimitRetries: 1,
+                maxRateLimitWaitMs: 1,
             });
             expect(plan.action).toBe('blocked');
             expect(plan.httpStatus).toBe(429);
