@@ -20,7 +20,7 @@
 // (ADR 0028 § Amendment) — the `Gtk` below is a type and nothing else.
 
 import { adopt, createElement as hostCreateElement, insert as hostInsert, widgetOf } from '@gjsify/gtk-host';
-import { ListController, type ListRowSink } from '@gjsify/gtk-host/list';
+import { ListController, onScrollNearEnd, type ListRowSink } from '@gjsify/gtk-host/list';
 import { createRoot, type ReactRoot } from '@gjsify/gtk-host/react';
 import type Gtk from '@girs/gtk-4.0';
 import { createElement, type ReactNode } from 'react';
@@ -118,8 +118,11 @@ function reactRows(options: ListControllerOptions): ListRowSink<ListRow, ReactRo
             //
             // The carrier is taken ONCE, here, and this is the phase for it: `adopt`
             // snapshots what a container already held and cannot tell our own previous
-            // child from application chrome, so taking it again on a recycled row
-            // refuses with `occupied-slot` (pinned in the host's own `host.spec.ts`).
+            // child from application chrome, so taking it a second time refuses with
+            // `occupied-slot` (pinned in the host's own `host.spec.ts`). GTK recycling
+            // a carrier is the route people expect; the one that fires first is
+            // `setRows` over unchanged keys, which re-shows a live row with no GTK
+            // involvement at all.
             const container = hostCreateElement('GtkBox', { orientation: 'vertical' });
             hostInsert(container, adopt(item));
             const onRowError = options.onRowError;
@@ -174,54 +177,12 @@ export function rowKey(item: unknown, index: number, keyExtractor?: (item: unkno
 }
 
 /**
- * Call `listener` when the scroller gets within `threshold` page-lengths of the end.
+ * The scroll edge behind `onEndReached`, re-exported rather than reimplemented.
  *
- * `Gtk.Adjustment`, because that is where GTK keeps a scroll position: the scrolled
- * window has no scroll signal of its own, and `notify::value` on the adjustment behind
- * `hadjustment`/`vadjustment` is what `ScrollView`'s own `onScroll` refusal points at.
- * MEASURED: a `Gtk.ScrolledWindow` hands out its adjustments with no window anywhere,
- * and `set_value` on one raised `notify::value` — so this is drivable, and asserted, in
- * a spec that presents nothing.
- *
- * `upper` and `page-size` are subscribed too, and not for completeness: `upper` grows
- * when rows are added, which is the event that ARMS the next call — React Native fires
- * `onEndReached` once per arrival at the end, and a list that grew has a new end.
- *
- * A list with nothing to scroll (`upper <= page-size`) never fires. That is the state
- * every list is in before it has been allocated, and firing there would call
- * `onEndReached` on mount for every list in the application.
+ * It lived here, and it was never React's: `Gtk.Adjustment` arithmetic with no React in
+ * it and no toolkit value import. `@gjsify/gtk-host/list` owns it now, so a Vue or Solid
+ * list gets the same measured behaviour instead of re-deriving it — which is the failure
+ * this whole extraction exists to prevent. `components.ts` imports it from here, so the
+ * move costs no consumer a rewrite.
  */
-export function onScrollNearEnd(
-    scroller: Gtk.ScrolledWindow,
-    axis: 'horizontal' | 'vertical',
-    threshold: number,
-    listener: (distanceFromEnd: number) => void,
-): () => void {
-    const adjustment = axis === 'horizontal' ? scroller.get_hadjustment() : scroller.get_vadjustment();
-    let armed = true;
-    const check = (): void => {
-        const page = adjustment.get_page_size();
-        const upper = adjustment.get_upper();
-        if (upper <= page) {
-            armed = true;
-            return;
-        }
-        const distance = upper - page - adjustment.get_value();
-        if (distance > threshold * page) {
-            armed = true;
-            return;
-        }
-        if (!armed) return;
-        armed = false;
-        listener(distance);
-    };
-    const handlers = [
-        adjustment.connect('notify::value', check),
-        adjustment.connect('notify::upper', check),
-        adjustment.connect('notify::page-size', check),
-    ];
-    check();
-    return () => {
-        for (const handler of handlers) adjustment.disconnect(handler);
-    };
-}
+export { onScrollNearEnd };

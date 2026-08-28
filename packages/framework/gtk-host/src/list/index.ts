@@ -6,3 +6,4 @@
 // GTK and GObject knowledge that three dialects would otherwise each own a copy of.
 
 export { ListController, type ListRowKey, type ListRowSink } from './controller.js';
+export { onScrollNearEnd } from './scroll.js';
