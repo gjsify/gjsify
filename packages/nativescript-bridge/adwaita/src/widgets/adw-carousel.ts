@@ -40,6 +40,7 @@ import {
     normalizeCarouselPageWidth,
     type CarouselNotifyPayload,
 } from './carousel-state.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 // Re-exported so the widget module stays the one import site, as
 // `widgets/index.ts` and every consumer already expect.
@@ -254,7 +255,8 @@ export class AdwCarousel extends GridLayout {
      * `get_page_at_position` rule used everywhere else, so 0.5 lands on page 0
      * where the old `Math.round` picked page 1.
      */
-    set position(value: number) {
+    set position(raw: number | string) {
+        const value = xmlNumber(raw, this.position);
         if (!Number.isFinite(value)) return;
         const page = this._state.pageAt(value);
         if (page >= 0) this.scrollToPage(page);
@@ -270,7 +272,8 @@ export class AdwCarousel extends GridLayout {
         return this._state.interactive;
     }
 
-    set interactive(value: boolean) {
+    set interactive(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.interactive);
         this._state.setInteractive(value);
     }
 
@@ -283,7 +286,8 @@ export class AdwCarousel extends GridLayout {
         return this._pageWidth;
     }
 
-    set pageWidth(value: number) {
+    set pageWidth(raw: number | string) {
+        const value = xmlNumber(raw, this.pageWidth);
         this._pageWidth = normalizeCarouselPageWidth(value);
         for (const view of this._views.values()) view.width = this._pageWidth;
     }

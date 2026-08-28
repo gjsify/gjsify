@@ -39,6 +39,7 @@ import { splitViewColumns } from './split-view-state.js';
 import type { AdwPackType, NsShowSidebarNotification, NsSplitViewState } from './split-view-state.js';
 import type { AdwTextDirection } from '@gjsify/adwaita-core';
 import { resolveBuilderSlot } from './builder-slots.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 /** Event name emitted when the sidebar visibility changes. */
 export const NOTIFY_SHOW_SIDEBAR = 'notify::show-sidebar';
@@ -259,7 +260,8 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         return this._state.collapsed;
     }
 
-    set collapsed(value: boolean) {
+    set collapsed(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.collapsed);
         this._state.setCollapsed(!!value);
     }
 
@@ -268,7 +270,8 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         return this._state.showSidebar;
     }
 
-    set showSidebar(value: boolean) {
+    set showSidebar(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.showSidebar);
         this._state.setShowSidebar(!!value);
     }
 
@@ -286,7 +289,8 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         );
     }
 
-    set sidebarWidth(value: number) {
+    set sidebarWidth(raw: number | string) {
+        const value = xmlNumber(raw, this.sidebarWidth);
         // An explicit assignment pins the width; anything nonsensical releases
         // the pin rather than freezing the pane at a broken size.
         this._sidebarWidthOverride = Number.isFinite(value) && value > 0 ? value : null;
@@ -298,7 +302,8 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         return this._widthProps.minSidebarWidth;
     }
 
-    set minSidebarWidth(value: number) {
+    set minSidebarWidth(raw: number | string) {
+        const value = xmlNumber(raw, this.minSidebarWidth);
         this._widthProps.minSidebarWidth = normalizeWidthProp(value, defaultSidebarWidthProps().minSidebarWidth);
         this._applySidebarWidth();
     }
@@ -308,7 +313,8 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         return this._widthProps.maxSidebarWidth;
     }
 
-    set maxSidebarWidth(value: number) {
+    set maxSidebarWidth(raw: number | string) {
+        const value = xmlNumber(raw, this.maxSidebarWidth);
         this._widthProps.maxSidebarWidth = normalizeWidthProp(value, defaultSidebarWidthProps().maxSidebarWidth);
         this._applySidebarWidth();
     }
@@ -318,7 +324,8 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         return this._widthProps.sidebarWidthFraction;
     }
 
-    set sidebarWidthFraction(value: number) {
+    set sidebarWidthFraction(raw: number | string) {
+        const value = xmlNumber(raw, this.sidebarWidthFraction);
         this._widthProps.sidebarWidthFraction = normalizeWidthFraction(value);
         this._applySidebarWidth();
     }

@@ -94,6 +94,21 @@ import {
     templateFor,
     viewNameOf,
 } from './generate-adwaita-nativescript-templates.mjs';
+// The SAME reader `check-nativescript-xml-doors.mjs` holds the whole package with. Two
+// parsers over one source would be two truths about it, and the narrower corpus here is
+// the point: that gate says every setter is safe, this one says every template is honest
+// about the setter it names.
+import {
+    attributeKind,
+    chainOf,
+    coerces,
+    COERCERS,
+    membersOf,
+    readElements,
+    readTypeSources,
+    readWidgets,
+    setterOf,
+} from './nativescript-xml-doors.mjs';
 
 const rootFlag = process.argv.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : process.argv[rootFlag + 1];
@@ -444,17 +459,13 @@ const NS_CORE_PROPS = {
     orientation: 'LayoutBase orientation on StackLayout.',
 };
 
-const NS_WIDGETS_DIR = join(ROOT, 'packages/nativescript-bridge/adwaita/src/widgets');
-
-/** Class name -> its source text, indexed once so an `extends` chain can be walked. */
-const nsSources = new Map();
+let nsSources = new Map();
+let nsTypes = [];
+let nsElements = new Set();
 try {
-    for (const file of readdirSync(NS_WIDGETS_DIR).filter((f) => f.endsWith('.ts') && !f.endsWith('.spec.ts'))) {
-        const text = readFileSync(join(NS_WIDGETS_DIR, file), 'utf8');
-        // The file NAME is not the class name for every widget — `AdwSplitViewBase`
-        // lives in `split-view-base.ts` — so the index is built from the declarations.
-        for (const [, name] of text.matchAll(/export (?:abstract )?class (Adw\w+)/g)) nsSources.set(name, text);
-    }
+    ({ sources: nsSources } = readWidgets(ROOT));
+    nsTypes = readTypeSources(ROOT);
+    nsElements = readElements(ROOT);
 } catch {
     // Reported below: an empty index would make arm 8 pass vacuously.
 }
@@ -462,26 +473,9 @@ try {
 if (nsSources.size === 0) {
     failures.push('no @gjsify/adwaita-nativescript widget source was readable — arm 8 would prove nothing');
 } else {
-    /** A class and every ancestor of it inside this package, nearest first. */
-    const chainOf = (tag) => {
-        const chain = [];
-        for (let name = tag; name !== undefined && nsSources.has(name);) {
-            const text = nsSources.get(name);
-            chain.push(text);
-            name = new RegExp(`export (?:abstract )?class ${name}\\b[^{]*?extends (Adw\\w+)`).exec(text)?.[1];
-        }
-        return chain;
-    };
-
-    /** The setter body for `name` on this class or an ancestor, or null. */
-    const setterOf = (tag, name) => {
-        for (const text of chainOf(tag)) {
-            const at = text.search(new RegExp(`^\\s{4}set ${name}\\(`, 'm'));
-            if (at < 0) continue;
-            return text.slice(at, text.indexOf('\n    }', at));
-        }
-        return null;
-    };
+    if (nsElements.size === 0) {
+        failures.push("the widgets barrel's ELEMENTS map read as empty — arm 8 cannot judge a tag");
+    }
 
     /**
      * The XML slots a class declares, and whether it can place a child at all.
@@ -497,7 +491,7 @@ if (nsSources.size === 0) {
         const slots = new Set();
         let named = false;
         let anyChild = false;
-        for (const text of chainOf(tag)) {
+        for (const text of chainOf(nsSources, tag)) {
             if (/^\s{4}_addChildFromBuilder\(/m.test(text)) {
                 named = true;
                 anyChild = true;
@@ -510,15 +504,9 @@ if (nsSources.size === 0) {
         return { slots, named, anyChild };
     };
 
-    const registered = new Set(
-        [
-            ...(
-                readFileSync(join(NS_WIDGETS_DIR, 'index.ts'), 'utf8').match(/const ELEMENTS = \{[^}]*\}/s)?.[0] ?? ''
-            ).matchAll(/^\s{4}(Adw\w+),/gm),
-        ].map((m) => m[1]),
-    );
-    if (registered.size === 0)
-        failures.push("the widgets barrel's ELEMENTS map read as empty — arm 8 cannot judge a tag");
+    /** What a template literal is, in the vocabulary `attributeKind` answers in. */
+    const literalKind = (value) =>
+        typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'boolean' : 'string';
 
     const walkNs = (node, widget, parent) => {
         const own = node.tag.startsWith('Adw');
@@ -526,15 +514,15 @@ if (nsSources.size === 0) {
             failures.push(`${widget}: <${node.tag}> is not a widget class in @gjsify/adwaita-nativescript.`);
             return;
         }
-        if (own && registered.size > 0 && !registered.has(node.tag)) {
+        if (own && nsElements.size > 0 && !nsElements.has(node.tag)) {
             failures.push(
                 `${widget}: <${node.tag}> is not in the widgets barrel's ELEMENTS map, so it is not an ` +
                     'element the port offers for XML use.',
             );
         }
         for (const [name, value] of Object.entries(node.props ?? {})) {
-            const body = own ? setterOf(node.tag, name) : null;
-            if (body === null) {
+            const setter = own ? setterOf(nsSources, node.tag, name) : null;
+            if (setter === null) {
                 if (!Object.hasOwn(NS_CORE_PROPS, name)) {
                     failures.push(
                         `${widget}: <${node.tag}> has no setter "${name}" in @gjsify/adwaita-nativescript, and ` +
@@ -543,13 +531,34 @@ if (nsSources.size === 0) {
                 }
                 continue;
             }
-            if (typeof value === 'string') continue;
-            const helper = typeof value === 'number' ? 'xmlNumber' : 'xmlBoolean';
-            if (!body.includes(`${helper}(`)) {
+            // The WIDGET's declared type decides, never the JS literal in the source.
+            // Keying on the literal was a hole big enough to drive the whole defect
+            // through: `{ flat: 'false' }` and `{ flat: false }` emit byte-identical
+            // XML, and only the second was checked — so the evadable spelling was the
+            // one that could ship an uncoerced boolean.
+            const kind = attributeKind(nsSources, nsTypes, setter.annotation);
+            if (kind === null) {
                 failures.push(
-                    `${widget}: <${node.tag} ${name}="${value}"> — the setter does not go through ${helper}(). ` +
-                        'NativeScript assigns an attribute VERBATIM, so the widget would receive the STRING: a ' +
-                        'number falls back to the default and "false" is truthy.',
+                    `${widget}: <${node.tag}> declares ${name} as \`${setter.annotation}\`, which an XML ` +
+                        'attribute cannot carry — it arrives as a string. This block belongs in ' +
+                        'ADWAITA_GALLERY_NS_REFUSALS.',
+                );
+                continue;
+            }
+            if (literalKind(value) !== kind) {
+                failures.push(
+                    `${widget}: <${node.tag}> declares ${name} as \`${setter.annotation}\` (${kind}), but the ` +
+                        `template writes the ${literalKind(value)} ${JSON.stringify(value)}. Write it as a ` +
+                        `${kind} — the two emit the same XML, so the spelling is the only thing that can say ` +
+                        'which rule applies.',
+                );
+            }
+            if (!coerces(setter, kind)) {
+                failures.push(
+                    `${widget}: <${node.tag} ${name}="${value}"> — the setter does not go through ` +
+                        `${COERCERS[kind]}(). NativeScript assigns an attribute VERBATIM, so the widget would ` +
+                        'receive the STRING: a number falls back to the default and "false" is truthy. ' +
+                        '(check-nativescript-xml-doors.mjs holds this for the whole package.)',
                 );
             }
         }
@@ -610,7 +619,7 @@ if (nsSources.size === 0) {
             const walk = (node) => {
                 if (node.tag.startsWith('Adw') && Object.hasOwn(node.props ?? {}, name)) {
                     uses += 1;
-                    if (setterOf(node.tag, name) === null) fellThrough += 1;
+                    if (setterOf(nsSources, node.tag, name) === null) fellThrough += 1;
                 }
                 for (const child of node.children ?? []) walk(child);
             };
@@ -623,6 +632,62 @@ if (nsSources.size === 0) {
             );
         }
     }
+
+    // A REFUSAL is a claim about the port, and until this arm existed nothing read one.
+    // Three of the twelve named something that does not exist: two said a view switcher's
+    // `stack` was the blocker when neither class has a `stack` at all (it is `views`),
+    // and the toast reason described `AdwToast` — "not a View" — while the block's widget
+    // is `AdwToastOverlay`, which IS a View and IS offered for XML use. A true sentence
+    // about the wrong object is the most durable kind of wrong, because every reader
+    // checks the sentence and not the object.
+    for (const [widget, reason] of Object.entries(ADWAITA_GALLERY_NS_REFUSALS)) {
+        const mentions = [...reason.matchAll(/\b(Adw[A-Z]\w*)(?:\.(\w+))?/g)];
+        if (mentions.length === 0) {
+            failures.push(
+                `the refusal for "${widget}" names no widget class, so nothing can hold it against the port. ` +
+                    'Say which class refuses, and which member is the reason.',
+            );
+            continue;
+        }
+        for (const [, tag, member] of mentions) {
+            if (!nsSources.has(tag)) {
+                failures.push(`the refusal for "${widget}" names ${tag}, which is not a class in the package.`);
+                continue;
+            }
+            if (member === undefined) continue;
+            if (!membersOf(nsSources, tag).has(member)) {
+                failures.push(
+                    `the refusal for "${widget}" names ${tag}.${member}, which ${tag} does not have. ` +
+                        'A reason that names the wrong member reads as considered and is not.',
+                );
+                continue;
+            }
+            // And where the reason is "an attribute cannot carry this", the setter has
+            // to agree — otherwise the refusal is STALE and the block could have a
+            // template. This is the same reading arm 8 does, asked the other way round.
+            const setter = setterOf(nsSources, tag, member);
+            if (setter !== null && attributeKind(nsSources, nsTypes, setter.annotation) !== null) {
+                failures.push(
+                    `the refusal for "${widget}" rests on ${tag}.${member}, but its declared type ` +
+                        `\`${setter.annotation}\` IS something an XML attribute can carry. The refusal is ` +
+                        'stale — this block can have a template.',
+                );
+            }
+        }
+        if (reason.includes('_addChildFromBuilder')) {
+            const [, tag] = /\b(Adw[A-Z]\w*)/.exec(reason) ?? [];
+            if (
+                tag !== undefined &&
+                chainOf(nsSources, tag).some((text) => /^\s{4}_addChildFromBuilder\(/m.test(text))
+            ) {
+                failures.push(
+                    `the refusal for "${widget}" says ${tag} overrides no _addChildFromBuilder, and it does. ` +
+                        'The refusal is stale — this block can have a template.',
+                );
+            }
+        }
+    }
+    notes.push(`${Object.keys(ADWAITA_GALLERY_NS_REFUSALS).length} refusal reason(s) held against the widget classes`);
 
     // Arm 9: the bytes a reader copies are the bytes the probe inflated.
     let checkedTemplates = 0;

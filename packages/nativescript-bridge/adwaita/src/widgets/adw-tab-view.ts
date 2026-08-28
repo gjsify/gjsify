@@ -46,6 +46,7 @@ import {
     type TabViewNotifyPayload,
 } from './tab-view-state.js';
 import type { AdwViewPage } from './view-switcher-base.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
@@ -173,7 +174,8 @@ export class AdwTabView extends GridLayout {
         return this._state.selectedIndex;
     }
 
-    set selected(value: number) {
+    set selected(raw: number | string) {
+        const value = xmlNumber(raw, this.selected);
         this._state.selectNthPage(value);
     }
 
@@ -328,7 +330,8 @@ export class AdwTabView extends GridLayout {
         return this._autohide;
     }
 
-    set autohide(value: boolean) {
+    set autohide(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.autohide);
         this._autohide = !!value;
         this._applyBarVisibility();
     }

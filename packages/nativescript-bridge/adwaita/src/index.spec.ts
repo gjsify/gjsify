@@ -12,7 +12,7 @@ import { describe, it, expect } from '@gjsify/unit';
 // `./index.js`. The package root re-exports the widget classes, whose modules
 // `import { GridLayout } from '@nativescript/core'` at top level — that bare specifier
 // is unresolvable off NativeScript and fails the test bundle before any guard can run.
-import { AVATAR_COLORS, flattenAvatarGradient } from '@gjsify/adwaita-core';
+import { AVATAR_COLORS, flattenAvatarGradient, normalizeClampSize, resolveSpinnerSize } from '@gjsify/adwaita-core';
 import { AVATAR_COLOR_VECTORS, AVATAR_INITIALS_VECTORS, COMBO_CHOOSER_VECTORS } from '@gjsify/adwaita-core/conformance';
 import { assertNativeScript, isNativeScript } from '@gjsify/native-platform';
 import { avatarColor, avatarInitials } from './widgets/avatar-color.js';
@@ -26,8 +26,8 @@ import {
 import { attachRowPressFeedback } from './widgets/row-press.js';
 import type { TouchGestureEventData, View } from '@nativescript/core';
 import { extractIconPaths, extractPathData, normalizeArcFlags } from './widgets/icon-path.js';
-// `builder-slots.js` is pure too — no `@nativescript/core` — so the rule the four
-// XML-inflating widgets share is driven HERE rather than through a mock of it.
+// `builder-slots.js` is pure too — no `@nativescript/core` — so the rule every
+// XML-inflating widget shares is driven HERE rather than through a mock of it.
 import { resolveBuilderSlot } from './widgets/builder-slots.js';
 // `xml-values.js` is pure too, and it is the other half of the same door: XML hands a
 // plain accessor a STRING, and the four shapes below are what the gallery probe
@@ -432,6 +432,18 @@ export default async () => {
         await it('keeps a real boolean untouched', () => {
             expect(xmlBoolean(true, false)).toBe(true);
             expect(xmlBoolean(false, true)).toBe(false);
+        });
+
+        // Two setters deliberately do NOT use the helpers above: `AdwSpinner.size` and
+        // `AdwClamp.maximumSize` delegate to normalizers that already take a string and
+        // parse it with `Number.parseFloat`, so a CSS-ish length is a length. Wrapping
+        // them in `xmlNumber` swapped that for `Number` and both fell to the default —
+        // a regression that shipped once and that `check-nativescript-xml-doors.mjs`
+        // now refuses by name. These pin the tolerance the refusal protects.
+        await it('the loose normalizers parse a CSS-ish length, which xmlNumber must not be asked to', () => {
+            expect(resolveSpinnerSize('24px')).toBe(24);
+            expect(normalizeClampSize('50%', 400)).toBe(50);
+            expect(xmlNumber('24px', 48)).toBe(48);
         });
     });
 

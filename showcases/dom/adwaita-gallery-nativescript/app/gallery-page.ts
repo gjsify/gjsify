@@ -90,7 +90,7 @@ function placementOf(parent: View, slot: string | undefined): Placement | null {
         return null;
     }
     if (parent instanceof AdwExpanderRow) {
-        if (slot === undefined) return { views: [...parent.rows] };
+        if (slot === undefined) return { views: [...parent.disclosureRows] };
         if (slot === 'prefix') return { exact: parent.prefix };
         if (slot === 'suffix') return { exact: parent.suffix };
         return null;

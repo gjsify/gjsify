@@ -63,8 +63,8 @@ export const ADWAITA_NATIVESCRIPT_REFUSALS: Readonly<Record<string, string>> = {
     'Adw.Sidebar': "AdwSidebar.items and .sections are arrays of item descriptors; an XML attribute is a string.",
     'Adw.TabView': "AdwTabView.views and .tabs are arrays; an XML attribute is a string.",
     'Adw.ViewSwitcherBar': "AdwViewSwitcherBar.stack points at another VIEW, which no attribute can name.",
-    'Adw.ViewSwitcher': "its stack points at another VIEW, which no attribute can name.",
-    'Adw.InlineViewSwitcher': "its stack points at another VIEW, which no attribute can name.",
-    'Adw.Toast': "AdwToast is a plain class, not a View: NativeScript’s Builder has nothing to instantiate.",
+    'Adw.ViewSwitcher': "AdwViewSwitcher.views is an array of page descriptors; an XML attribute is a string.",
+    'Adw.InlineViewSwitcher': "AdwInlineViewSwitcher.views is an array of page descriptors; an XML attribute is a string.",
+    'Adw.Toast': "AdwToastOverlay takes no XML child (it overrides no _addChildFromBuilder) and a toast is raised by calling showToast(), which is not markup.",
     'Adw.AlertDialog': "AdwAlertDialog extends Observable, not View: it has no place in a view tree.",
 };

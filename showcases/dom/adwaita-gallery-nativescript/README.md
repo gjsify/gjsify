@@ -35,7 +35,10 @@ npm run probe:android
 
 This project is excluded from the root `workspaces` glob — its NativeScript toolchain must not be pulled into every `gjsify install` — but its `@gjsify/*` deps resolve from the **hoisted workspace** `node_modules` (caret ranges), so the NativeScript CLI must NOT run its own `npm install`: every script passes `--disable-npm-install`.
 
-Like [`tests/integration/nativescript`](../../../tests/integration/nativescript) and the storybook showcase beside it, this needs the NS CLI and an Android device, which no CI container has. It is **not wired into CI**; what CI holds is the static half — that every element, property and slot in a template exists, that every non-string property goes through `xmlNumber`/`xmlBoolean`, and that the shipped bytes match `app/views/`.
+Like [`tests/integration/nativescript`](../../../tests/integration/nativescript) and the storybook showcase beside it, this needs the NS CLI and an Android device, which no CI container has. It is **not wired into CI**. Two checks hold the static half there:
+
+- `scripts/check-generated-website-data.mjs` — every element, property and slot a template names exists; the template writes each value in the type the setter DECLARES (a `boolean` prop written as the string `'false'` emits the same XML and would slip past a rule keyed on the literal); every refusal reason names a member the widget really has; and the shipped bytes match `app/views/`.
+- `scripts/check-nativescript-xml-doors.mjs` — the same coercion rule over the **whole package** rather than over the 28 templates, because a consumer writing their own XML against the published `@gjsify/adwaita-nativescript` meets all 70 non-string setters and not just the ones this gallery happens to name.
 
 ## What it asserts
 

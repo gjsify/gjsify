@@ -31,6 +31,7 @@ import { AdwActionRow } from './adw-action-row.js';
 import { AdwIcon } from './adw-icon.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { NS_EDIT_ICON_CLASS, NS_ENTRY_ROW_CLASS, applyEntryRowState } from './entry-row-view.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 // Re-exported so consumers reach the headless state machine (and the vector-driven
 // painter) from `@gjsify/adwaita-nativescript` without a second import path.
@@ -201,7 +202,8 @@ export class AdwEntryRow extends AdwActionRow {
         return this._state.maxLength;
     }
 
-    set maxLength(value: number) {
+    set maxLength(raw: number | string) {
+        const value = xmlNumber(raw, this.maxLength);
         this._state.setMaxLength(value);
     }
 
@@ -210,7 +212,8 @@ export class AdwEntryRow extends AdwActionRow {
         return this._state.editable;
     }
 
-    set editable(value: boolean) {
+    set editable(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.editable);
         this._state.setEditable(value);
     }
 
@@ -219,7 +222,8 @@ export class AdwEntryRow extends AdwActionRow {
         return this._state.showApplyButton;
     }
 
-    set showApplyButton(value: boolean) {
+    set showApplyButton(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.showApplyButton);
         this._state.setShowApplyButton(value);
     }
 
@@ -228,7 +232,8 @@ export class AdwEntryRow extends AdwActionRow {
         return this._state.activatesDefault;
     }
 
-    set activatesDefault(value: boolean) {
+    set activatesDefault(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.activatesDefault);
         this._state.setActivatesDefault(value);
     }
 

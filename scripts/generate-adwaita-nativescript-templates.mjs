@@ -46,7 +46,7 @@
 
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { ADWAITA_GALLERY_NS_REFUSALS, ADWAITA_GALLERY_NS_TEMPLATES } from './adwaita-gallery-ns-templates.mjs';
 
@@ -281,63 +281,101 @@ ${expectedLiteral()}
 
 // ------------------------------------------------------------------------ writing
 
-const CHECK = process.argv.includes('--check');
-const drift = [];
+/**
+ * ONLY when run as a program.
+ *
+ * MEASURED, twice, and the second time was this file: `check-generated-website-data.mjs`
+ * imports `templateFor`, `viewNameOf` and `NS_GENERATED` from here, and without this
+ * guard that import RAN the writer — with the GATE's `process.argv`, which carries no
+ * `--check`. So the gate rewrote all four committed outputs back to source (and
+ * `rmSync`d any view it thought stale) before looking at them: hand-editing
+ * `app/views/AdwAvatar.xml` to `size="48"` left the check at exit 0 reporting "28 XML
+ * template(s) byte-identical", and the file came back saying `size="96"`.
+ *
+ * `generate-adwaita-framework-snippets.mjs` already carried this guard AND this
+ * incident in its own header. A check that repairs what it is about to check is the
+ * most expensive shape in this repository, and it was one import away — again. An
+ * import must cost a definition and nothing else, which is why the outputs are BUILT
+ * inside the guard rather than merely written inside it.
+ *
+ * The guard is not the whole answer either, because it fails OPEN: forget it once more
+ * and every gate stays green. So `audit-runtimes.yml` asserts a clean tree after each
+ * call, and a generator that writes during a check is then a red diff rather than a
+ * quiet repair.
+ */
+const RUN_AS_PROGRAM = process.argv[1] !== undefined && pathToFileURL(process.argv[1]).href === import.meta.url;
 
-/** Write, or (in `--check`) compare and record. */
-function emit(rel, content) {
-    const abs = join(ROOT, rel);
-    if (CHECK) {
+const CHECK = process.argv.includes('--check');
+
+/** Every committed output, as `[relative path, bytes]`. Built only when run. */
+function buildOutputs() {
+    const outputs = [
+        [NS_GENERATED.website, websiteData()],
+        [NS_GENERATED.barrel, barrel()],
+        [NS_GENERATED.expected, expectedModule()],
+    ];
+    for (const template of ADWAITA_GALLERY_NS_TEMPLATES) {
+        outputs.push([
+            `${NS_GENERATED.views}/${viewNameOf(template.widget)}.xml`,
+            templateFor(template.root, template.note),
+        ]);
+    }
+    return outputs;
+}
+
+if (RUN_AS_PROGRAM) {
+    const drift = [];
+    const outputs = buildOutputs();
+    for (const [rel, content] of outputs) {
+        const abs = join(ROOT, rel);
         let have = null;
         try {
             have = readFileSync(abs, 'utf8');
         } catch {
-            drift.push(`${rel}: missing`);
-            return;
+            have = null;
         }
-        if (have !== content) drift.push(`${rel}: out of date`);
-        return;
+        if (have === content) continue;
+        if (CHECK) {
+            drift.push(`${rel}: ${have === null ? 'missing' : 'out of date'}`);
+            continue;
+        }
+        mkdirSync(dirname(abs), { recursive: true });
+        writeFileSync(abs, content);
     }
-    mkdirSync(dirname(abs), { recursive: true });
-    writeFileSync(abs, content);
-}
 
-emit(NS_GENERATED.website, websiteData());
-emit(NS_GENERATED.barrel, barrel());
-emit(NS_GENERATED.expected, expectedModule());
+    // A view file left behind by a template that became a refusal is a template the
+    // probe would keep loading and the website would never show — green, and about
+    // nothing. `--check` reports it; a write removes it.
+    const wanted = new Set(ADWAITA_GALLERY_NS_TEMPLATES.map((t) => `${viewNameOf(t.widget)}.xml`));
+    let stale = [];
+    try {
+        stale = readdirSync(join(ROOT, NS_GENERATED.views)).filter((f) => f.endsWith('.xml') && !wanted.has(f));
+    } catch {
+        stale = [];
+    }
+    for (const file of stale) {
+        if (CHECK) drift.push(`${NS_GENERATED.views}/${file}: no template emits it any more`);
+        else rmSync(join(ROOT, NS_GENERATED.views, file));
+    }
 
-const viewsDir = join(ROOT, NS_GENERATED.views);
-const wanted = new Map(
-    ADWAITA_GALLERY_NS_TEMPLATES.map((t) => [`${viewNameOf(t.widget)}.xml`, templateFor(t.root, t.note)]),
-);
-for (const [file, content] of wanted) emit(`${NS_GENERATED.views}/${file}`, content);
-
-// A view file left behind by a template that became a refusal is a template the
-// probe would keep loading and the website would never show — green, and about
-// nothing. `--check` reports it; a write removes it.
-let stale = [];
-try {
-    stale = readdirSync(viewsDir).filter((f) => f.endsWith('.xml') && !wanted.has(f));
-} catch {
-    stale = [];
-}
-for (const file of stale) {
-    if (CHECK) drift.push(`${NS_GENERATED.views}/${file}: no template emits it any more`);
-    else rmSync(join(viewsDir, file));
-}
-
-if (CHECK && drift.length > 0) {
-    console.error('generate-adwaita-nativescript-templates: committed output is stale:');
-    for (const line of drift) console.error(`  ${line}`);
-    console.error('\nRe-run: node scripts/generate-adwaita-nativescript-templates.mjs');
-    process.exit(1);
-}
-
-if (!CHECK) {
-    console.log(
-        `generate-adwaita-nativescript-templates: ${ADWAITA_GALLERY_NS_TEMPLATES.length} template(s), ` +
-            `${Object.keys(ADWAITA_GALLERY_NS_REFUSALS).length} refusal(s), ` +
-            `${elementsUsed().length} element(s) in the barrel` +
-            (stale.length > 0 ? `, removed ${stale.length} stale view(s)` : ''),
-    );
+    if (CHECK) {
+        if (drift.length > 0) {
+            console.error('generate-adwaita-nativescript-templates: committed output is stale:');
+            for (const line of drift) console.error(`  ${line}`);
+            console.error('\nRe-run: node scripts/generate-adwaita-nativescript-templates.mjs');
+            process.exit(1);
+        }
+        console.log(
+            `generate-adwaita-nativescript-templates: ${outputs.length} generated file(s) current ` +
+                `(${ADWAITA_GALLERY_NS_TEMPLATES.length} template(s), ` +
+                `${Object.keys(ADWAITA_GALLERY_NS_REFUSALS).length} refusal(s))`,
+        );
+    } else {
+        console.log(
+            `generate-adwaita-nativescript-templates: ${ADWAITA_GALLERY_NS_TEMPLATES.length} template(s), ` +
+                `${Object.keys(ADWAITA_GALLERY_NS_REFUSALS).length} refusal(s), ` +
+                `${elementsUsed().length} element(s) in the barrel` +
+                (stale.length > 0 ? `, removed ${stale.length} stale view(s)` : ''),
+        );
+    }
 }

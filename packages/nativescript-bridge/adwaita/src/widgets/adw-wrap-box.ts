@@ -54,7 +54,7 @@ import {
     wrapBoxSpacingChanges,
     type WrapBoxFlexInput,
 } from './wrap-box-layout.js';
-import { xmlNumber } from './xml-values.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 /** Every `notify::` an `Adw.WrapBox` emits (adw-wrap-box.c:284-497). */
 export type AdwWrapBoxProperty =
@@ -223,7 +223,8 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._align;
     }
 
-    set align(value: number) {
+    set align(raw: number | string) {
+        const value = xmlNumber(raw, this.align);
         const next = normalizeWrapBoxAlign(value);
         if (next === this._align) return;
         this._align = next;
@@ -249,7 +250,8 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._justifyLastLine;
     }
 
-    set justifyLastLine(value: boolean) {
+    set justifyLastLine(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.justifyLastLine);
         const next = !!value;
         if (next === this._justifyLastLine) return;
         this._justifyLastLine = next;
@@ -262,7 +264,8 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._lineHomogeneous;
     }
 
-    set lineHomogeneous(value: boolean) {
+    set lineHomogeneous(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.lineHomogeneous);
         const next = !!value;
         if (next === this._lineHomogeneous) return;
         this._lineHomogeneous = next;
@@ -275,7 +278,8 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._wrapReverse;
     }
 
-    set wrapReverse(value: boolean) {
+    set wrapReverse(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.wrapReverse);
         const next = !!value;
         if (next === this._wrapReverse) return;
         this._wrapReverse = next;
@@ -332,7 +336,8 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._naturalLineLength;
     }
 
-    set naturalLineLength(value: number) {
+    set naturalLineLength(raw: number | string) {
+        const value = xmlNumber(raw, this.naturalLineLength);
         const next = normalizeNaturalLineLength(value);
         if (next === this._naturalLineLength) return;
         this._naturalLineLength = next;

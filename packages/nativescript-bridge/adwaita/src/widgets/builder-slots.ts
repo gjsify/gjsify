@@ -15,8 +15,10 @@
 // and painted on top of each other, an `AdwHeaderBar` child left `startBox` empty,
 // and an `AdwClamp` child left `child` null so the clamp never allocated.
 //
-// The name is therefore the whole decision, and it is the same decision in four
-// widgets: is this one of the slots I expose, or the default one? Keeping it here
+// The name is therefore the whole decision, and it is the same decision in every
+// widget that composes an internal tree: is this one of the slots I expose, or the
+// default one? It started as four and is now nine classes across seven modules —
+// which is the argument for one rule rather than a count. Keeping it here
 // — free of `@nativescript/core` — is what lets the spec suite drive it off-device,
 // where the widget classes cannot even be imported (their modules pull
 // `@nativescript/core` at module scope).

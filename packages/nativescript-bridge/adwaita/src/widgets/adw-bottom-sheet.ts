@@ -198,7 +198,8 @@ export class AdwBottomSheet extends GridLayout {
         return this._state.canClose;
     }
 
-    set canClose(value: boolean) {
+    set canClose(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.canClose);
         this._state.setCanClose(value);
     }
 

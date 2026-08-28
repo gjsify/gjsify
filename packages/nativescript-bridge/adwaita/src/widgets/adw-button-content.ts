@@ -36,6 +36,7 @@ import {
     buttonContentRootedParentClassName,
     buttonContentUnrootedParentClassName,
 } from './button-content.js';
+import { xmlBoolean } from './xml-values.js';
 
 /** The content's own base class, before `can-shrink` adds its own. */
 const BASE_CLASS = 'adw-button-content';
@@ -141,7 +142,8 @@ export class AdwButtonContent extends StackLayout {
         return this._props.useUnderline;
     }
 
-    set useUnderline(value: boolean) {
+    set useUnderline(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.useUnderline);
         this._props.useUnderline = !!value;
         this._renderLabel();
     }
@@ -158,7 +160,8 @@ export class AdwButtonContent extends StackLayout {
         return this._props.canShrink;
     }
 
-    set canShrink(value: boolean) {
+    set canShrink(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.canShrink);
         this._props.canShrink = !!value;
         this.className = buttonContentClassName(this.className, this._props.canShrink);
     }

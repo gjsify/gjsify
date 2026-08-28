@@ -26,6 +26,7 @@
 import { GridLayout, ItemSpec, StackLayout, View } from '@nativescript/core';
 import { AdwWindowTitle } from './adw-window-title.js';
 import { resolveBuilderSlot } from './builder-slots.js';
+import { xmlBoolean } from './xml-values.js';
 
 /**
  * The slots a template may name, spelled as this widget's own properties —
@@ -106,7 +107,8 @@ export class AdwHeaderBar extends GridLayout {
         return this._flat;
     }
 
-    set flat(value: boolean) {
+    set flat(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.flat);
         this._flat = !!value;
         this.className = this._flat ? 'adw-header-bar flat' : 'adw-header-bar';
     }

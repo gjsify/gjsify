@@ -553,9 +553,14 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Adw.Sidebar': 'AdwSidebar.items and .sections are arrays of item descriptors; an XML attribute is a string.',
     'Adw.TabView': 'AdwTabView.views and .tabs are arrays; an XML attribute is a string.',
     'Adw.ViewSwitcherBar': 'AdwViewSwitcherBar.stack points at another VIEW, which no attribute can name.',
-    'Adw.ViewSwitcher': 'its stack points at another VIEW, which no attribute can name.',
-    'Adw.InlineViewSwitcher': 'its stack points at another VIEW, which no attribute can name.',
+    'Adw.ViewSwitcher': 'AdwViewSwitcher.views is an array of page descriptors; an XML attribute is a string.',
+    'Adw.InlineViewSwitcher':
+        'AdwInlineViewSwitcher.views is an array of page descriptors; an XML attribute is a string.',
     // --- not a View ---
-    'Adw.Toast': 'AdwToast is a plain class, not a View: NativeScript’s Builder has nothing to instantiate.',
+    // The BLOCK is titled `Adw.Toast`, and the widget its NativeScript window would
+    // show is `AdwToastOverlay` — which IS a View and IS in the ELEMENTS map, so
+    // "not a View" was a true sentence about the wrong object.
+    'Adw.Toast':
+        'AdwToastOverlay takes no XML child (it overrides no _addChildFromBuilder) and a toast is raised by calling showToast(), which is not markup.',
     'Adw.AlertDialog': 'AdwAlertDialog extends Observable, not View: it has no place in a view tree.',
 };

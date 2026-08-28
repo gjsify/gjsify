@@ -163,8 +163,19 @@ export class AdwExpanderRow extends AdwActionRow {
         else super._addChildFromBuilder(slot, view);
     }
 
-    /** The rows inside the disclosure, in order — the read-back for `addRow`. */
-    get rows(): readonly View[] {
+    /**
+     * The rows inside the disclosure, in order — the read-back for `addRow`.
+     *
+     * NOT `rows`, which is what it was called first. `GridLayoutBase` declares `rows`
+     * as a SETTER-ONLY accessor (its getter is `rowsInternal`), so a getter of that
+     * name on a subclass shadows it: `expanderRow.rows = 'auto,*'` then throws
+     * `TypeError: Cannot set property rows … which has only a getter` in strict mode,
+     * which every NativeScript bundle is. Measured against that prototype shape, and
+     * it would have broken apps that never touch XML. `rows` and `columns` are the
+     * only two accessors of that shape on the bases this package extends —
+     * `scripts/check-nativescript-accessor-shadowing.mjs` holds both.
+     */
+    get disclosureRows(): readonly View[] {
         const out: View[] = [];
         for (let i = 0; i < this._disclosure.getChildrenCount(); i++) out.push(this._disclosure.getChildAt(i));
         return out;

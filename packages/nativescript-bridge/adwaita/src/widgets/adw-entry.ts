@@ -32,6 +32,7 @@
 
 import { GridLayout, ItemSpec, TextField, type EventData } from '@nativescript/core';
 import { ENTRY_ROW_MAX_LENGTH_LIMIT, clampEntryText, entryTextLength } from '@gjsify/adwaita-core';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 /** Event name emitted when {@link AdwEntry.text} changes. Mirrors GObject `notify::text`. */
 export const NOTIFY_TEXT = 'notify::text';
@@ -120,7 +121,8 @@ export class AdwEntry extends GridLayout {
         return this._maxLength;
     }
 
-    set maxLength(value: number) {
+    set maxLength(raw: number | string) {
+        const value = xmlNumber(raw, this.maxLength);
         // The 16-bit ceiling is `Adw.EntryRow:max-length`'s
         // (`ENTRY_ROW_MAX_LENGTH_LIMIT`, adw-entry-row.c:678-682); `Gtk.Entry`'s
         // own range is not verifiable in this tree, and the two are the same
@@ -145,7 +147,8 @@ export class AdwEntry extends GridLayout {
         return this._field.editable;
     }
 
-    set editable(value: boolean) {
+    set editable(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.editable);
         this._field.editable = !!value;
     }
 

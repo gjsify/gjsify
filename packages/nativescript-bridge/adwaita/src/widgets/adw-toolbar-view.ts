@@ -34,6 +34,7 @@ import { resolveBuilderSlot } from './builder-slots.js';
 import { resolveHostInsets } from './host-insets.js';
 import { observeWindowInsets } from './window-insets-source.js';
 import { NO_INSETS, type WindowInsets, insetsOwedBy, toolbarViewInsetPadding } from './window-insets.js';
+import { xmlBoolean } from './xml-values.js';
 
 /** The classes the widget starts with; the derived ones are swapped in beside them. */
 const BASE_CLASSES = {
@@ -196,7 +197,8 @@ export class AdwToolbarView extends GridLayout {
         return this._props.extendContentToTopEdge;
     }
 
-    set extendContentToTopEdge(value: boolean) {
+    set extendContentToTopEdge(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.extendContentToTopEdge);
         this._props.extendContentToTopEdge = !!value;
         this._applyBarPlacement();
     }
@@ -206,7 +208,8 @@ export class AdwToolbarView extends GridLayout {
         return this._props.extendContentToBottomEdge;
     }
 
-    set extendContentToBottomEdge(value: boolean) {
+    set extendContentToBottomEdge(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.extendContentToBottomEdge);
         this._props.extendContentToBottomEdge = !!value;
         this._applyBarPlacement();
     }

@@ -12,6 +12,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, Slider, StackLayout, type EventData } from '@nativescript/core';
+import { xmlNumber } from './xml-values.js';
 
 /** Event name emitted when {@link AdwSliderRow.value} changes. Mirrors GObject `notify::value`. */
 export const NOTIFY_SLIDER_VALUE = 'notify::value';
@@ -125,7 +126,8 @@ export class AdwSliderRow extends StackLayout {
         return this._value;
     }
 
-    set value(v: number) {
+    set value(raw: number | string) {
+        const v = xmlNumber(raw, this.value);
         const next = this._snap(Number.isFinite(v) ? v : 0);
         if (next !== this._value) {
             this._value = next;
@@ -138,7 +140,8 @@ export class AdwSliderRow extends StackLayout {
         return this._min;
     }
 
-    set min(v: number) {
+    set min(raw: number | string) {
+        const v = xmlNumber(raw, this.min);
         this._min = Number.isFinite(v) ? v : 0;
         this._slider.minValue = this._min;
         this.value = this._value;
@@ -149,7 +152,8 @@ export class AdwSliderRow extends StackLayout {
         return this._max;
     }
 
-    set max(v: number) {
+    set max(raw: number | string) {
+        const v = xmlNumber(raw, this.max);
         this._max = Number.isFinite(v) ? v : 100;
         this._slider.maxValue = this._max;
         this.value = this._value;
@@ -160,7 +164,8 @@ export class AdwSliderRow extends StackLayout {
         return this._step;
     }
 
-    set step(v: number) {
+    set step(raw: number | string) {
+        const v = xmlNumber(raw, this.step);
         this._step = Number.isFinite(v) && v > 0 ? v : 1;
     }
 

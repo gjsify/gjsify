@@ -34,6 +34,7 @@ import {
     navigationPageClassName,
 } from './navigation-stack.js';
 import type { NsNavigationEvent } from './navigation-stack.js';
+import { xmlBoolean } from './xml-values.js';
 
 export { NOTIFY_VISIBLE_PAGE, POPPED, PUSHED, REPLACED };
 
@@ -96,10 +97,11 @@ export class AdwNavigationView extends GridLayout {
      * An XML child is a PAGE, registered in document order — so the first one is
      * pushed and the rest wait behind it, exactly as `add` already promises.
      *
-     * A page's `tag` is not readable off the markup: NativeScript sets the child's
-     * OWN properties before handing it over, so a template gives the page an `id` and
-     * the loader beside it does `view.pushByTag`. What the tree needs is the
-     * registration, and that is what this is.
+     * Registered with NO TAG: `add(view)` defaults it to `null`, and nothing in the
+     * markup can supply one, because a `tag` is this widget's own idea rather than a
+     * property of the child. `pushByTag` is therefore not reachable for a page that
+     * came from a template; a loader that wants it registers the page itself, or
+     * calls `setPageTag` on one it looked up. What XML contributes is the tree.
      */
     _addChildFromBuilder(_name: string, view: View): void {
         this.add(view);
@@ -232,7 +234,8 @@ export class AdwNavigationView extends GridLayout {
         return this._nav.animateTransitions;
     }
 
-    set animateTransitions(value: boolean) {
+    set animateTransitions(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.animateTransitions);
         this._nav.setAnimateTransitions(value);
     }
 
@@ -241,7 +244,8 @@ export class AdwNavigationView extends GridLayout {
         return this._nav.popOnEscape;
     }
 
-    set popOnEscape(value: boolean) {
+    set popOnEscape(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.popOnEscape);
         this._nav.setPopOnEscape(value);
     }
 

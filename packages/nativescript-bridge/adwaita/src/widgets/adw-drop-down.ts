@@ -30,6 +30,7 @@ import { ComboState } from '@gjsify/adwaita-core';
 import type { AdwComboOption } from '@gjsify/adwaita-core';
 import { AdwIcon } from './adw-icon.js';
 import { attachRowPressFeedback } from './row-press.js';
+import { xmlNumber } from './xml-values.js';
 
 /** Event name emitted when {@link AdwDropDown.selected} changes through a pick. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
@@ -130,7 +131,8 @@ export class AdwDropDown extends StackLayout {
         return this._state.selectedIndex;
     }
 
-    set selected(value: number) {
+    set selected(raw: number | string) {
+        const value = xmlNumber(raw, this.selected);
         this._state.setSelectedIndex(value);
     }
 
