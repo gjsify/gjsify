@@ -17,7 +17,7 @@ gjsify/
 │   ├── nativescript-bridge/ # NativeScript (Android/iOS) native wrappers
 │   ├── node-gi/             # GObject-Introspection runtime for Node/Bun/Deno
 │   ├── napi/                # N-API host: native .node addons under GJS
-│   ├── gjs/                 # GJS runtime utilities, types, test framework
+│   ├── gjs/                 # GJS runtime, shared utils, @gjsify/unit test framework
 │   └── infra/               # CLI, Rolldown / Vite plugins, build tools
 ├── showcases/       # Curated, published example applications
 ├── examples/        # Private dev/test examples
@@ -32,6 +32,7 @@ GJSify uses **Rolldown** (Vite 8's production bundler) with platform-specific pl
 - **GJS build** (`gjsify build --app gjs`): Aliases `node:*` and Web API imports to `@gjsify/*`, externalises `gi://*`, `cairo`, `system` and `gettext`. Target: `firefox140`.
 - **Node build** (`gjsify build --app node`): Aliases `@gjsify/process` → `process`, maps aliased Web packages to their Node equivalents, and rewrites `gi://` imports to the [node-gi](/gjsify/projects/node-gi/) reverse bridge when the bundle uses them. Target: `node24`.
 - **Browser build** (`gjsify build --app browser`): Standard browser target. Target: `esnext`.
+- **NativeScript build** (`gjsify build --app nativescript`): Bundles for the NativeScript toolchain, where the Adwaita widget set renders as real Android and iOS views.
 
 The alias table lives in `packages/infra/resolve-npm/lib/index.mjs`; the Rolldown plugins live in `packages/infra/rolldown-plugin-gjsify/`.
 
@@ -51,15 +52,15 @@ Each `@gjsify/*` package maps Node.js or Web APIs to native GNOME libraries:
 | `WebSocket` | `Soup.WebsocketConnection` |
 | Canvas 2D | `Cairo.ImageSurface`, `PangoCairo` |
 | WebGL | `Gtk.GLArea`, OpenGL ES via `libepoxy` (Vala extension) |
-| `localStorage` | `Gio.File` + `GLib.KeyFile` |
 
-## Four equal-priority pillars
+## Five equal-priority pillars
 
-GJSify treats the **Node.js API**, the **Web API**, the **DOM API** and the **Framework** layer as four equal pillars:
+GJSify treats the **Node.js API**, the **Web API**, the **DOM API**, the **Framework** layer and the **NativeScript bridge** as five equal pillars:
 
 - `packages/node/`: Node.js builtins (`fs`, `http`, `crypto`, …)
 - `packages/web/`: Web platform APIs (`fetch`, `WebSocket`, `ReadableStream`, Web Crypto, …)
 - `packages/dom/`: DOM element classes (`HTMLCanvasElement`, `HTMLImageElement`, …) with headless Canvas 2D
 - `packages/framework/`: everything that glues DOM and GTK together without being a spec implementation: the [GTK host](/gjsify/frameworks/) (`@gjsify/gtk-host`) that UI-framework renderers target, its [style partition](/gjsify/frameworks/styling/) (`@gjsify/gtk-host/style`), the [React Native layer](/gjsify/frameworks/react-native/) (`@gjsify/react-native`) over both, the [bridge widgets](/gjsify/patterns/bridges/), the [storybook](/gjsify/guides/storybook/), the [devtools control plane](/gjsify/guides/devtools/) and the [Adwaita app shell](/gjsify/guides/native-adwaita-app/)
+- `packages/nativescript-bridge/`: the Adwaita widget set, storybook renderer and devtools agent as real Android and iOS views, plus the `node:fs` and platform bridges behind them
 
 The DOM-element ↔ GTK-widget pairings are documented in [Bridge Widgets](/gjsify/patterns/bridges/).
