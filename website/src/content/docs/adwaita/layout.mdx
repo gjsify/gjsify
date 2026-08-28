@@ -16,7 +16,7 @@ is the live browser port, so it follows the light and dark toggle the way a real
 window would, and the HTML tab beside it holds the very markup that paints it —
 one `import '@gjsify/adwaita-web'` registers every element in it. Then comes
 one window per kind of implementation, for every kind that can express this widget.
-Two are on all four widgets here — **Vanilla TypeScript**, the `@girs` program that
+Two of them name a file pair — **Native TypeScript**, the `@girs` program that
 runs unchanged on GJS, Node, Bun and Deno, with the matching Blueprint declaration
 beside it, and **NativeScript**, the port that runs on a phone, which splits the same
 way: an XML template holds the tree and the TypeScript beside it is the loader.
@@ -27,12 +27,13 @@ is a MODULE: NativeScript loads it and reads the element name off its exports, s
 markup names. A bare package specifier there does not resolve. The four templates
 below were rendered on an Android device before they were written down.
 
-The clamp, the header bar and the toolbar view carry a third, **UI frameworks**: the
-same widget written with [`@gjsify/react-native`](/gjsify/frameworks/react-native/)
-primitives inside it. The wrap box does not, because
-[`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host)
-has no child policy for `AdwWrapBox` yet, and a renderer that guessed one would call
-`add`, `append` or `set_child` and be wrong at exit 0. That window renders a GTK window,
+The third, **UI frameworks**, is on all four as well. The clamp, the header bar and
+the toolbar view show the same widget written in Solid, Vue and React through
+[`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host),
+with a [`@gjsify/react-native`](/gjsify/frameworks/react-native/) tab beside them. The
+wrap box shows the recorded reason instead: `@gjsify/gtk-host` has no child policy for
+`AdwWrapBox` yet, and a renderer that guessed one would call `add`, `append` or
+`set_child` and be wrong at exit 0. That window renders a GTK window,
 not a phone screen — which is why it is not the NativeScript one, and the [React Native
 page](/gjsify/frameworks/react-native/#adwaita-widgets) says what does and does not
 exist there.

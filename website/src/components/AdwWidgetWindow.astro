@@ -113,6 +113,25 @@ const {
 const panes =
     tabs.length + code.length + (refusal === null ? 0 : 1) + (preview === null ? 0 : 1) + (attributes === null ? 0 : 1);
 
+/**
+ * Whether this window holds any code at all, which is whether its header bar gets a
+ * COPY BUTTON.
+ *
+ * The button forwards to the active pane's hidden Expressive Code copy button and
+ * falls back to the window's own first one (see the handler in `AdwWidget`). A
+ * REFUSAL window has neither: its one pane is prose, so the handler finds nothing,
+ * returns, and does not even mark the press. Measured on the built site before this
+ * guard: 19 of 160 windows — every frameworks window carrying a recorded reason —
+ * rendered a button labelled "Copy this window's code" that could never copy
+ * anything. Nothing else noticed; the site builds and every gate stays green.
+ *
+ * Slot tabs and data panes are both Expressive Code blocks and nothing else is, so
+ * this counts the panes that hold code rather than asking a window what kind it is.
+ * The header bar's trailing span keeps the button's width either way, so the title
+ * stays centred against the windows above and below it.
+ */
+const copyable = tabs.length + code.length > 0;
+
 // NO PANES AT ALL is a header bar over nothing, and it renders exactly that way at
 // exit 0. `AdwWidget` is what prevents it — it skips a window none of whose tab
 // slots this block filled — and nothing downstream restated the guard: measured by
@@ -189,10 +208,13 @@ if (attributes !== null && preview === null) {
             {/* Not "copy active tab": the active pane can be the live preview,
                 which has no code in it. The handler in AdwWidget falls back to
                 this window's own code block, which for the preview window is the
-                markup that paints what the reader is looking at. */}
-            <button class="command-tabs-copy" aria-label="Copy this window's code" type="button">
-                <span class="command-tabs-copy-icon" aria-hidden="true"></span>
-            </button>
+                markup that paints what the reader is looking at — and where there
+                is no code block at all, there is no button, see {@link copyable}. */}
+            {copyable && (
+                <button class="command-tabs-copy" aria-label="Copy this window's code" type="button">
+                    <span class="command-tabs-copy-icon" aria-hidden="true" />
+                </button>
+            )}
         </span>
     </div>
 

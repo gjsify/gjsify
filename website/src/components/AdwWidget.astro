@@ -9,7 +9,7 @@
 //      the window's second tab. No screenshots: the browser runs the component,
 //      the way the official Libadwaita widget gallery shows one, and it follows
 //      the site's light/dark toggle.
-//   2. VANILLA TYPESCRIPT — `@girs` GObject-Introspection TypeScript and the
+//   2. NATIVE TYPESCRIPT — `@girs` GObject-Introspection TypeScript and the
 //      matching Blueprint declaration: two FILES of one program, against the REAL
 //      libadwaita widget.
 //   3. UI FRAMEWORKS — that same real widget, driven through `@gjsify/gtk-host`.
@@ -28,7 +28,7 @@
 //   · The first tab was labelled "GJS · Node · Bun · Deno" and not "GJS" on
 //     purpose: naming one runtime made the tab read as "the GJS variant", i.e. as
 //     if the other three needed a different program. They do not; that is the
-//     claim the whole site rests on. The window is titled for its AXIS ("Vanilla
+//     claim the whole site rests on. The window is titled for its AXIS ("Native
 //     TypeScript" — what two file tabs share) and the four runtimes are named by
 //     the PAGE: every gallery page's intro says "the `@girs` program that runs
 //     unchanged on GJS, Node, Bun and Deno". A window subtitle repeating it under
@@ -219,9 +219,16 @@ const WINDOWS = [
         // code that runs unchanged on all four of them.
         //
         // NATIVE, not "Vanilla". Vanilla names a thing by what it is not — no
-        // framework — which was serviceable while the neighbouring window held one
-        // tab, and stopped being so once it held four. What this window actually
-        // shows is the GObject API itself, with no element model in between.
+        // framework — which was serviceable while the neighbouring window held a
+        // single React Native tab, and stopped being so once that window began
+        // naming Solid, Vue and React beside it. What this window actually shows is
+        // the GObject API itself, with no element model in between.
+        //
+        // The TITLE is the join with the pages: every gallery page's intro
+        // enumerates the windows by these exact strings, so renaming one here and
+        // nowhere else leaves nine pages naming a window that does not exist — which
+        // is what happened, and is what arm 10 of
+        // `scripts/check-website-adwaita-gallery.mjs` now refuses.
         title: 'Native TypeScript',
         tabs: [
             { slot: 'gjs', label: 'TypeScript' },
@@ -341,7 +348,6 @@ const ATTRS_PANE = 'attributes';
  */
 const REFUSAL_PANE = 'why-not';
 
-
 // That requirement, held rather than stated. `data-impls` is POSITIONAL and the
 // script below looks a pane up by name with `indexOf`, so a pane id equal to a
 // slot name gives the live window two entries reading the same id and the first one
@@ -412,18 +418,15 @@ for (const spec of WINDOWS) {
         .map((pane) => ({ ...pane, source: ADWAITA_FRAMEWORK_SNIPPETS[title]?.[pane.id] ?? '' }))
         .filter((pane) => pane.source !== '');
 
-    // Both halves, because a window can now be entirely data: the frameworks window
-    // fills on 40 blocks while only 3 of them provide its slot. Testing `tabs` alone
-    // is what kept it invisible.
     // A block with no snippet gets the RECORDED REASON, never silence. The two maps
     // partition the gallery, so exactly one of `code` and `refusal` is non-empty on
     // the frameworks window — and a block in NEITHER map leaves the window absent,
-    // which `check-generated-website-data.mjs` is what refuses.
+    // which arm 4 of `check-generated-website-data.mjs` is what refuses.
     const refusal = spec.refusals === true && code.length === 0 ? (ADWAITA_FRAMEWORK_REFUSALS[title] ?? null) : null;
 
-    // All three, because a window can now be entirely data: the frameworks window
-    // fills on all 40 blocks while only 3 of them provide its slot. Testing `tabs`
-    // alone is what kept it invisible.
+    // All three, because a window can now be entirely data: measured on the built
+    // site, the frameworks window fills on all 40 blocks while only 3 of them
+    // provide its slot. Testing `tabs` alone is what kept it invisible.
     if (tabs.length === 0 && code.length === 0 && refusal === null) continue;
     // `previewMarkup` is already read by the time this runs: the live window is
     // first in WINDOWS and its own `preview` tab is what sets it.
@@ -522,7 +525,7 @@ for (const spec of WINDOWS) {
             const impls = (el.dataset.impls ?? '').split(',');
             const index = impls.indexOf(impl);
             // The windows hold disjoint tab sets, so a stored choice simply does not
-            // apply to most of them: picking "Blueprint" moves every Vanilla
+            // apply to most of them: picking "Blueprint" moves every Native
             // TypeScript window and leaves the others where the reader left them.
             if (index >= 0) view.setAttribute('selected', String(index));
         }
@@ -609,6 +612,18 @@ for (const spec of WINDOWS) {
         background-color: var(--view-bg-color);
         color: var(--view-fg-color);
         overflow: hidden;
+    }
+
+    /* ── The header bar's trailing slot ─────────────────────────────────
+       Reserved whether or not the copy button is in it. A window whose panes
+       hold no code drops the button (AdwWidgetWindow's `copyable`), and the
+       trailing span is `flex-shrink: 0` with no width of its own — so an empty
+       one collapses from 40px to its 6px padding and the centred title of that
+       window slides 17px left of the titles stacked above and below it. Same
+       width, both ways: 34px button plus its 3px padding on each side. */
+    .adw-widget-window .command-tabs-headerbar-end {
+        box-sizing: border-box;
+        width: 40px;
     }
 
     /* ── Live preview pane ──────────────────────────────────────────────
