@@ -206,11 +206,18 @@ if (attributes !== null && preview === null) {
                 {attributes !== null && (
                     <adw-tab-page title="Attributes">
                         <div class="adw-widget-attrs not-content">
+                            {/* WHAT IT WATCHES, not everything it reads. "set anything else and it
+                                never hears about it" was the first wording, and the fence one tab to
+                                the LEFT refutes it: the `<adw-combo-row>` preview on
+                                /adwaita/boxed-lists/ sets `items`, which is none of the three that
+                                row observes and which its `connectedCallback` reads anyway. An
+                                attribute taken once at connect is heard — just never again. */}
                             <p>
                                 <code>{`<${elementTag}>`}</code> observes {attributes.length}
-                                {attributes.length === 1 ? ' attribute' : ' attributes'} in the browser port. Set one and
-                                the element re-renders; set anything else and it never hears about it. The windows below
-                                name their own — GObject properties on GTK, NativeScript's own spelling on a phone.
+                                {attributes.length === 1 ? ' attribute' : ' attributes'} in the browser port:
+                                change one on a live element and it re-renders. That is the list it watches, not every
+                                attribute it reads, and not another port's — the windows below name their own, GObject
+                                properties on GTK, NativeScript's own spelling on a phone.
                             </p>
                             <ul>
                                 {attributes.map((attr) => (

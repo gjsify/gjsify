@@ -134,13 +134,17 @@ const refHref = docHref === false ? null : (docHref ?? deriveRef(title));
 //
 // It rides in the LIVE window, as a pane beside that window's markup, and not as a
 // panel under the whole block. `observedAttributes` is read out of
-// `packages/web/adwaita-web/src` and nowhere else, so the list is one port's answer
-// — and `<adw-button-content>`'s four are not the NativeScript widget's five
-// (`icon`, `iconColor`, `iconIsFallback`, `hostButton`, `label`: a different
-// vocabulary, which `check-vocabulary-alignment.mjs` already holds as a repo fact for
-// 22 of the 65 element names). Under the last window it read as the block's summary,
-// which is a claim about all four ports that no generator here can make. The page's
-// own contract is that where a port differs, ITS window says so.
+// `packages/web/adwaita-web/src` and nowhere else, so the list is ONE port's answer.
+// The NativeScript widget of the same name is a class of camelCase PROPERTIES rather
+// than attributes: `icon` where this element's attribute is `icon-name`, plus
+// `hostButton`, `iconColor`, `iconIsFallback` and `ellipsize`, none of which any
+// attribute here names — and it does carry `useUnderline` and `canShrink`, so the
+// two lists are neither the same set nor disjoint. A different surface, not the same
+// one renamed; `check-vocabulary-alignment.mjs` holds 22 of the 65 element names as
+// not sharing a spelling across the renderers. Under the last window this list read
+// as the block's SUMMARY, which is a claim about all four ports that no generator
+// here can make. The page's own contract is that where a port differs, ITS window
+// says so.
 //
 // A `Gtk.*` title resolves too: libadwaita ships no menu button, and the pillar
 // still spells that element `<adw-menu-button>`, so the namespace is dropped and
@@ -337,8 +341,14 @@ for (const spec of WINDOWS) {
     // first in WINDOWS and its own `preview` tab is what sets it.
     const live = spec.live === true && previewMarkup !== null;
     // The attribute list is the LIVE window's, because that is the window running the
-    // element whose `observedAttributes` produced it. A widget with no custom element
-    // — `Adw.Toast` is a plain class — simply has no such pane.
+    // element whose `observedAttributes` produced it.
+    //
+    // NO pane has exactly one legitimate cause, a title with no element at all
+    // (`Adw.Toast` is a plain class). The `length > 0` arm is the other, and it is not
+    // a widget fact: an element the pillar registers that observes NOTHING is a reader
+    // that could not see the declaration, which is how `<adw-wrap-box>` shipped
+    // paneless over 14 attributes. `check-generated-website-data.mjs` fails on it now,
+    // so this arm is what that failure renders as rather than a silent policy.
     const attrs = live && attributes !== null && attributes.length > 0 ? attributes : null;
     rendered.push({
         id: spec.id,
@@ -629,8 +639,6 @@ for (const spec of WINDOWS) {
         mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%20fill='none'%20stroke='%23000'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6.5%203.5H3.2A1.2%201.2%200%200%200%202%204.7v8.1A1.2%201.2%200%200%200%203.2%2014h8.1a1.2%201.2%200%200%200%201.2-1.2V9.5'/%3E%3Cpath%20d='M9.5%202H14v4.5'/%3E%3Cpath%20d='M7%209%2014%202'/%3E%3C/svg%3E") no-repeat center / contain;
     }
 
-    /* The generated attribute list. Collapsed by default: it is a reference a
-       reader opens on purpose, not something to scroll past on every widget. */
     /* The attribute pane of the live window — rendered by AdwWidgetWindow, styled
        here, like every other class in that file: this block is `is:global`, which
        is why no `:global()` wrapper belongs on these selectors. Written with one,
