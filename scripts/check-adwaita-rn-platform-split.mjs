@@ -12,7 +12,7 @@
 //
 // That is a correction, and it is what makes this gate load-bearing. The design
 // originally forked by FILE NAME — gjsify's `.gtk` chain on the desktop, Metro's
-// `.native` step on the phone. Measured against `metro-resolver@0.83.5`:
+// `.native` step on the phone. Measured against `metro-resolver@0.87.0`:
 // `resolveSourceFile` calls `resolveSourceFileForAllExts(context, '')` FIRST, with no
 // platform and an empty source extension, which skips both the platform branch and the
 // `preferNativePlatform` branch and resolves the literal path — extension included. Our
@@ -37,7 +37,7 @@
 // real one. No import error, no type error, no failing test; a window that is subtly
 // wrong. Hence rule 3 below: a base module refuses, and may not re-export a sibling.
 //
-// WHAT IT CHECKS — six rules, each falsified in both directions before landing:
+// WHAT IT CHECKS — eight rules, each falsified in both directions before landing:
 //
 //   1. Every widget has all three modules (base, `.gtk.tsx`, `.native.tsx`), and no
 //      platform module exists without the other two. Both directions, because a
@@ -47,8 +47,12 @@
 //      conditions, and every path an `exports` entry names has a source module behind
 //      it. A map entry pointing at a file that does not exist is a resolution failure
 //      in a consumer's bundler and nowhere else.
-//   3. The base module refuses: it calls the named-throw helper and imports or
-//      re-exports NO platform sibling.
+//   3. The base modules refuse: each widget's `<name>.ts` calls the named-throw helper,
+//      and neither it NOR the base barrel imports or re-exports a platform sibling.
+//      The barrel half is not decoration: `index.ts` is a second place the same drift
+//      lands, and rule 5 only asks whether the base modules are all NAMED there — a
+//      barrel that names them and ALSO re-exports `./widgets/clamp.native.js` satisfies
+//      it, which is the worse-copy case one file up.
 //   4. Every platform module carries an explicit `@jsxImportSource` pragma, and the
 //      right one. Measured: the per-file pragma beats the tsconfig option, and the two
 //      halves need OPPOSITE values — `@gjsify/gtk-host/react` so `<div>` is a TS2339
@@ -63,6 +67,16 @@
 //      surface" a thing `tsc` refuses rather than a sentence, and it is per-widget —
 //      so a widget added without its two aliases is a widget nothing holds to the
 //      surface, and the spec would go on passing. Nothing else can see that.
+//   8. The ORDER of the conditions inside each `exports` entry: `types` first,
+//      `default` last. `exports` resolves by FIRST MATCH, and `default` matches
+//      everything — so `{types, default, react-native}` is a map every rule above
+//      accepts (the keys are all there, pointing at the right files) and which hands
+//      the GTK build to every React Native application. Measured, not reasoned: with
+//      that order, `metro-resolver@0.87.0` under `unstable_conditionNames:
+//      ['react-native']` resolves `@gjsify/adwaita-react-native` to
+//      `lib/esm/index.gtk.js` on both ios and android. A key lookup — which is all
+//      rules 2 and 6 can do — cannot see order, so this rule is the only thing between
+//      a one-line reordering and a phone bundle that imports `gi://Adw`.
 //
 // A SCOPE THAT FINDS NOTHING IS A FAILURE. Zero widgets means a renamed directory or a
 // reader that stopped matching, and printing OK over a tree nothing looked at is the
@@ -173,8 +187,12 @@ function moduleSpecifiers(source) {
         index += 1;
     }
     const specifiers = new Set();
-    for (const match of code.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]/g)) {
-        specifiers.add(match[1]);
+    // The backtick is in the class because `import(`./clamp.native.js`)` is a legal
+    // specifier and was NOT read by the first version — measured: a base module reaching
+    // its sibling that way passed rule 3 at exit 0. A reader that under-detects is worse
+    // than no reader, because the rule it fronts for reads as enforced.
+    for (const match of code.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*(['"`])([^'"`]+)\1/g)) {
+        specifiers.add(match[2]);
     }
     return specifiers;
 }
@@ -210,7 +228,32 @@ for (const widget of [...widgets].sort()) {
     }
 }
 
-// ─── Rule 3 — the base module refuses, and re-exports no sibling ────────────
+// ─── Rule 3 — the base modules refuse, and re-export no sibling ─────────────
+/** Every `./widgets/<widget>.<platform>.js` a file must not name. Rule 3, twice. */
+const refusesPlatformSiblings = (source, where, prefix) => {
+    const imported = moduleSpecifiers(source);
+    for (const widget of [...widgets].sort()) {
+        for (const platform of PLATFORMS) {
+            const specifier = `${prefix}${widget}${platform.buildSuffix}`;
+            if (imported.has(specifier)) {
+                fail(
+                    'refusal',
+                    `${where}: reaches the ${platform.name} implementation of \`${widget}\` ` +
+                        `(\`${specifier}\`) instead of refusing`,
+                );
+            }
+        }
+    }
+};
+
+// The base BARREL, which rule 5 can only ask about completeness: it may name every base
+// module and still re-export a platform one beside it, and that extra line is the
+// "working worse copy" this file's header is about, one directory up.
+const baseBarrelPath = join(PACKAGE_DIR, 'src', 'index.ts');
+if (existsSync(baseBarrelPath)) {
+    refusesPlatformSiblings(read(baseBarrelPath), '`src/index.ts`', './widgets/');
+}
+
 for (const widget of [...widgets].sort()) {
     const basePath = join(WIDGETS_DIR, `${widget}.ts`);
     if (!existsSync(basePath)) continue;
@@ -218,19 +261,10 @@ for (const widget of [...widgets].sort()) {
     if (!source.includes(REFUSAL_HELPER)) {
         fail('refusal', `${widget}: \`src/widgets/${widget}.ts\` never calls \`${REFUSAL_HELPER}\``);
     }
-    const imported = moduleSpecifiers(source);
-    for (const platform of PLATFORMS) {
-        // A base module that resolves to a platform implementation is the "working
-        // worse copy" case in this file's header, and it is spelled as an ordinary
-        // import — which is why the check is on the specifier and not on a keyword.
-        if (imported.has(`./${widget}${platform.buildSuffix}`)) {
-            fail(
-                'refusal',
-                `${widget}: \`src/widgets/${widget}.ts\` reaches its ${platform.name} sibling ` +
-                    `(\`./${widget}${platform.buildSuffix}\`) instead of refusing`,
-            );
-        }
-    }
+    // A base module that resolves to a platform implementation is the "working worse
+    // copy" case in this file's header, and it is spelled as an ordinary import — which
+    // is why the check is on the specifier and not on a keyword.
+    refusesPlatformSiblings(source, `${widget}: \`src/widgets/${widget}.ts\``, './');
 }
 
 // ─── Rule 4 — the right JSX source, per platform module ─────────────────────
@@ -256,9 +290,33 @@ for (const widget of [...widgets].sort()) {
     }
 }
 
-// ─── Rules 2 and 6 — the `exports` map ──────────────────────────────────────
+// ─── Rules 2, 6 and 8 — the `exports` map ───────────────────────────────────
 const manifest = JSON.parse(read(join(PACKAGE_DIR, 'package.json')));
 const exportsField = manifest.exports ?? {};
+
+/**
+ * The conditions whose POSITION decides the answer, and where they have to be.
+ *
+ * `types` first because TypeScript stops at the first key it understands; `default`
+ * last because it matches everything, so anything after it is dead. Everything between
+ * them is order-independent here — the package declares one real condition.
+ */
+const CONDITION_POSITION = [
+    {
+        condition: 'types',
+        at: 0,
+        where: 'first',
+        because:
+            'TypeScript takes the first condition it understands, so a runtime condition ahead of it decides the declarations',
+    },
+    {
+        condition: 'default',
+        at: -1,
+        where: 'last',
+        because:
+            '`default` matches everything, so every condition after it is dead and the wrong half ships to one runtime only',
+    },
+];
 
 /** `./lib/esm/widgets/clamp.gtk.js` → the source module it is built from. */
 const sourceBehind = (target) => {
@@ -274,6 +332,23 @@ for (const [subpath, entry] of Object.entries(exportsField)) {
     if (typeof entry !== 'object' || entry === null) {
         fail('exports', `${subpath}: not a conditional entry, so it can name only one platform`);
         continue;
+    }
+    // Rule 8 — ORDER, which no key lookup below can see. `exports` takes the FIRST
+    // matching condition, so `default` before `react-native` gives a React Native app
+    // the GTK build with every other rule here still green: measured through
+    // `metro-resolver@0.87.0` with `unstable_conditionNames: ['react-native']`, that
+    // ordering resolves this package to `lib/esm/index.gtk.js` on ios and android alike.
+    const conditions = Object.keys(entry);
+    for (const { condition, at, where, because } of CONDITION_POSITION) {
+        const index = conditions.indexOf(condition);
+        if (index === -1) continue;
+        if (index !== (at === -1 ? conditions.length - 1 : at)) {
+            fail(
+                'exports',
+                `${subpath}: \`${condition}\` is condition ${index + 1} of ${conditions.length} ` +
+                    `(${conditions.join(', ')}), and must be ${where} — ${because}`,
+            );
+        }
     }
     for (const [condition, target] of Object.entries(entry)) {
         if (condition === 'types') continue;
@@ -400,6 +475,6 @@ if (problems.length > 0) {
 console.log(
     `check-adwaita-rn-platform-split: ${widgets.size} widget(s) — ` +
         `${[...widgets].sort().join(', ')} — each with a base module that refuses, a ` +
-        `${PLATFORMS.map((p) => p.name).join(' and a ')} module, an \`exports\` entry naming both, ` +
-        'and the JSX source its platform needs.',
+        `${PLATFORMS.map((p) => p.name).join(' and a ')} module, an \`exports\` entry naming both ` +
+        'in an order that resolves to them, and the JSX source its platform needs.',
 );

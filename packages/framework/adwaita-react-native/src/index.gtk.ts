@@ -3,7 +3,7 @@
 // EVERY PLATFORM FILE IS NAMED EXPLICITLY, and this is the correction that made the
 // whole package boundary work. The first design resolved the halves by FILE NAME —
 // gjsify's `.gtk` chain here, Metro's `.native` step on the phone. Measured against
-// `metro-resolver@0.83.5`, that is false for a published library: `resolveSourceFile`
+// `metro-resolver@0.87.0`, that is false for a published library: `resolveSourceFile`
 // tries the literal path FIRST, with no platform and an empty source extension, and
 // our shipped modules import each other WITH the `.js` extension. Metro finds
 // `clamp.js` and never looks at `clamp.native.js`. `.native` wins only for
