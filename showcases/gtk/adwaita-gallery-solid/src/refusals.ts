@@ -66,10 +66,16 @@ for (const [parentTag, childTag] of PLACEMENTS) {
         insert(child, parent);
         // MATERIALISE, and this is the whole method. The host defers construction
         // (ADR 0027 § Decision 5), so `insert` alone only LINKS the node — measured:
-        // all thirteen placements below "succeeded" at insert and the probe reported
-        // the refusal list as stale, which is the green-that-checked-nothing shape in
-        // its red-that-measured-nothing form. The placement is performed when the
-        // parent becomes a widget, which is what a render does and what this now does.
+        // every placement above "succeeded" at insert and the probe reported the
+        // refusal list as stale, which is the green-that-checked-nothing shape in its
+        // red-that-measured-nothing form. The placement is performed when the parent
+        // becomes a widget, which is what a render does and what this now does.
+        //
+        // (That note said "all thirteen" and this list has held ELEVEN since the file
+        // landed — thirteen is the count from before the two ACCEPTED placements in
+        // the header left it. A number restated beside the list it counts is a copy,
+        // and this one was already wrong when it was written, so it now names the
+        // list instead of counting it.)
         materialize(parent);
         accepted.push(`${parentTag} < ${childTag}`);
         print(`ACCEPTED  <${parentTag}> took <${childTag}> — the refusal list is STALE`);
