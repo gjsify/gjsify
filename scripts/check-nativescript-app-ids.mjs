@@ -27,10 +27,18 @@
 //      gjsify equals the declared one.
 //
 //   node scripts/check-nativescript-app-ids.mjs
+//
+// IT READS THE GIT INDEX, NOT `git ls-files`. The first draft shelled out, and
+// `windows-suites.yml` runs this on a leg that strips every `\Git\` entry from PATH on
+// purpose — so the subprocess produced nothing, the scope came back EMPTY, and the run
+// died on the refusal below rather than on an id. This repo had already settled that
+// question once: `scripts/manifest-conformance/git-index.mjs` is the one reader of
+// `.git/index`, and `check-build-infra-order.mjs` says so in its own header. Reusing it
+// keeps this check running on every leg and drops a subprocess.
 
 import { readFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
 import { dirname } from 'node:path';
+import { readIndexPaths } from './manifest-conformance/git-index.mjs';
 
 /** The namespace every application id in this repo lives under. */
 const NAMESPACE = 'org.gjsify.';
@@ -48,18 +56,21 @@ const CONFIG_ID = /\bid\s*:\s*['"]([^'"]+)['"]/;
  */
 const APP_ID_LITERAL = /['"]([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*\.?gjsify[A-Za-z0-9_.]*)['"]/g;
 
-const tracked = (glob) =>
-    execSync(`git ls-files -- ${glob}`, { maxBuffer: 1 << 28 })
-        .toString()
-        .split('\n')
-        .filter((f) => f && !f.includes('node_modules/'));
+/**
+ * Every tracked path, read once. `readIndexPaths` yields forward-slashed, repo-relative
+ * paths on every platform, so the matching below needs no path normalisation.
+ */
+const tracked = [...readIndexPaths(process.cwd())].filter((f) => !f.includes('node_modules/'));
 
-const configs = tracked("'**/nativescript.config.ts'");
+const configs = tracked.filter((f) => f === 'nativescript.config.ts' || f.endsWith('/nativescript.config.ts'));
 const problems = [];
 
+// An empty scope is a FAILURE, not a pass: a check that found nothing to check has not
+// held anything, and saying so at exit 0 is how a gate goes quiet without anyone noticing.
 if (configs.length === 0) {
     process.stderr.write(
-        'check-nativescript-app-ids: no nativescript.config.ts found — this check cannot see the ids it exists to hold.\n',
+        `check-nativescript-app-ids: no nativescript.config.ts among ${tracked.length} tracked path(s) — ` +
+            'this check cannot see the ids it exists to hold.\n',
     );
     process.exit(1);
 }
@@ -76,7 +87,7 @@ for (const config of configs) {
 
     // Every other copy of the id inside the project must be the SAME string.
     const root = dirname(config);
-    for (const file of tracked(`'${root}/**'`)) {
+    for (const file of tracked.filter((f) => f.startsWith(`${root}/`))) {
         if (!/\.(ts|tsx|mts|js|mjs|xml|json|md|gradle)$/.test(file)) continue;
         let src;
         try {
