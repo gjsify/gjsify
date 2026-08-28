@@ -1,16 +1,18 @@
-// `gjsify onboard [--dry-run] [--otp <code>] [--registry <url>] [--json] [--yes]`
+// `gjsify onboard [--packages <glob>] [--include/--exclude <glob>] [--dry-run] …`
 //
-// One command that ensures EVERY publishable `@gjsify/*` workspace is both
-// PUBLISHED on npm AND has a Trusted Publisher configured for this repo's
-// `release.yml`. It does the minimum work — publishing/trusting only what's
+// One command that ensures EVERY publishable package in a monorepo is both
+// PUBLISHED on npm AND has a Trusted Publisher configured for that repo's
+// release workflow. It does the minimum work — publishing/trusting only what's
 // missing — and folds the whole manual bootstrap sequence documented in
-// AGENTS.md ("New @gjsify/* package: first-publish + Trusted Publisher
-// bootstrap") into a single idempotent sweep:
+// docs/publishing.md into a single idempotent sweep:
 //
 //   1. Auth gate — `whoami` first. If the token is live, proceed without asking
 //      for credentials; only when it is dead/missing do we run the `gjsify
 //      login` flow (unless `--yes` on a non-TTY, which fails clearly).
-//   2. Enumerate publishable workspaces (non-private, excluding `@girs/*`).
+//   2. Enumerate the publishable packages (non-private), from the root
+//      manifest's `workspaces` globs and/or `--packages` directory globs, then
+//      filter by `--include`/`--exclude`. Every source is reported with its
+//      count — see utils/onboard-discovery.ts for why that is load-bearing.
 //   3. Determine each package's state (bounded concurrency) by reading npm's
 //      Trusted-Publisher config through the SAME requester path `gjsify trust`
 //      uses: unpublished (404) / published-but-untrusted / published-and-trusted.
@@ -22,13 +24,17 @@
 //      code is tried before prompting, so a whole sweep of N packages typically
 //      needs the user to type an OTP only once (see utils/npm-otp.ts).
 //
+// NOTHING here is specific to this repo. `--packages '*'` over a root that has
+// no package.json at all is the shape `gjsify/types` needs (703 `@girs/*`
+// directories, no workspace manifest), and it is the same code path that sweeps
+// this monorepo's workspaces.
+//
 // Re-running when everything is already published + trusted does nothing and
 // exits 0. `--dry-run` reports the plan and changes nothing.
 
 import { spawnSync } from 'node:child_process';
 import { DEFAULT_REGISTRY, whoami, type NpmrcConfig } from '@gjsify/npm-registry';
-import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
-import { mergePublishables } from '../utils/publishable-packages.js';
+import { filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { hasAnyCredential, loadNpmrc } from '../utils/load-npmrc.js';
 import { OtpProvider } from '../utils/npm-otp.js';
@@ -37,7 +43,13 @@ import { createTrustRequester } from './trust.js';
 import { runLogin, LoginError } from './login.js';
 import { detectPackageManager } from './workspace.js';
 import { spawnToCompletion } from '../utils/spawn.js';
-import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import {
+    assertEveryPatternMatches,
+    assertRepositoryAgreement,
+    collectOnboardPackages,
+    describeSources,
+    resolveRepoRoot,
+} from '../utils/onboard-discovery.js';
 import {
     githubTrustBody,
     normalizeWorkflowFile,
@@ -53,6 +65,12 @@ interface OnboardOptions {
     registry?: string;
     otp?: string;
     concurrency: number;
+    packages?: string[];
+    include?: string[];
+    exclude?: string[];
+    access: string;
+    build: boolean;
+    verbose?: boolean;
     'dry-run'?: boolean;
     json?: boolean;
     yes?: boolean;
@@ -69,7 +87,7 @@ interface PkgResult {
 export const onboardCommand: Command<unknown, OnboardOptions> = {
     command: 'onboard',
     description:
-        'Ensure every publishable @gjsify/* workspace is both published on npm and has a Trusted Publisher configured — publishing/trusting only what is missing, one shared OTP across the whole sweep. Idempotent.',
+        'Ensure every publishable package in a monorepo is both published on npm and has a Trusted Publisher configured for its release workflow — publishing/trusting only what is missing, one shared OTP across the whole sweep. Works on npm/yarn workspaces and, via --packages, on a monorepo with no workspace manifest at all. Idempotent.',
     builder: (yargs) =>
         yargs
             .option('repository', {
@@ -93,6 +111,42 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                 description:
                     'npm 2FA one-time code, used as the initial shared code. Prompted on demand (once) if omitted and a challenge occurs.',
                 type: 'string',
+            })
+            .option('packages', {
+                description:
+                    'Directory glob naming package folders, resolved against the repo root (repeatable). For a monorepo that is not an npm/yarn workspace — `--packages "*"` in a repo whose 703 package directories sit at the top level. Merged with the root manifest\'s own `workspaces` globs when it has any. A pattern matching NO directory is a hard error.',
+                type: 'string',
+                array: true,
+            })
+            .option('include', {
+                description: 'Glob pattern to include packages by NAME (repeatable). Applied after discovery.',
+                type: 'string',
+                array: true,
+            })
+            .option('exclude', {
+                description: 'Glob pattern to exclude packages by NAME (repeatable). Applied after discovery.',
+                type: 'string',
+                array: true,
+            })
+            .option('access', {
+                description:
+                    'npm access for a FIRST publish — `public` or `restricted`. Only ever applied to a package this sweep publishes; an already-published package keeps whatever access it has.',
+                type: 'string',
+                choices: ['public', 'restricted'],
+                default: 'public',
+            })
+            .option('build', {
+                description:
+                    "Run each to-be-published package's `build` script first. `--no-build` skips it, for a repo whose packages are generated artifacts with nothing to build.",
+                type: 'boolean',
+                default: true,
+            })
+            .option('verbose', {
+                description:
+                    'List every package in the plan table, including the ones already published + trusted (by default only the rows needing work are listed; the counts always cover all of them).',
+                type: 'boolean',
+                alias: 'v',
+                default: false,
             })
             .option('concurrency', {
                 description:
@@ -168,22 +222,63 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         const workflow = normalizeWorkflowFile(args.workflow);
         const environment = args.environment;
 
-        // 2. Enumerate publishable workspaces (non-private, exclude @girs/*).
-        const root = findWorkspaceRoot(cwd) ?? cwd;
-        // Non-workspace publishables (packages/{node-gi,napi}/*) publish through
-        // release.yml but `discoverWorkspaces` cannot see them — without this
-        // merge the sweep reports "all done" while a package that was never
-        // published is simply absent from the list.
-        const all = mergePublishables(discoverWorkspaces(root, { includeRoot: true }), cwd);
-        const selected = filterWorkspaces(all, { noPrivate: true, exclude: ['@girs/*'] }).filter((ws) => ws.name);
+        // 2. Enumerate the publishable packages (non-private), from every source
+        //    that applies to this repo, then filter by name.
+        const root = resolveRepoRoot(cwd);
+        let all: Workspace[];
+        let sources: string;
+        try {
+            if (args.packages && args.packages.length > 0) assertEveryPatternMatches(root, args.packages);
+            const found = collectOnboardPackages(root, cwd, { patterns: args.packages });
+            all = found.packages;
+            sources = describeSources(found.sources);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, error: 'discovery', message: msg })}\n`);
+            else console.error(msg);
+            return process.exit(1);
+        }
+        const selected = filterWorkspaces(all, {
+            noPrivate: true,
+            include: args.include,
+            exclude: args.exclude,
+        }).filter((ws) => ws.name);
         if (selected.length === 0) {
-            const msg = 'gjsify onboard: no publishable workspace packages found.';
+            const msg =
+                `gjsify onboard: no publishable packages found under ${root} ` +
+                `(discovered ${all.length}${sources ? ` — ${sources}` : ''}). ` +
+                (all.length > 0
+                    ? 'Every discovered package is private or was filtered out by --include/--exclude.'
+                    : 'Pass --packages with a directory glob if this repo has no workspace manifest.');
             if (asJson) process.stdout.write(`${JSON.stringify({ ok: false, error: 'no-packages', message: msg })}\n`);
             else console.error(msg);
             return process.exit(1);
         }
 
-        log(`gjsify onboard: ${selected.length} package(s) | repo=${repository} workflow=${workflow}`);
+        // Every selected package must AGREE that it lives here. A workspace of
+        // this repo is not the same claim as a package published from it —
+        // `gjsify/ts-for-gir` has ~703 generated `@girs/*` workspaces that
+        // publish from `gjsify/types`, and trusting those for the wrong
+        // workflow breaks exactly the release this sweep exists to protect.
+        try {
+            assertRepositoryAgreement(selected, repository);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (asJson) {
+                process.stdout.write(`${JSON.stringify({ ok: false, error: 'foreign-repository', message: msg })}\n`);
+            } else {
+                console.error(msg);
+            }
+            return process.exit(1);
+        }
+
+        // The blast radius of a sweep that writes to npm is exactly this list,
+        // so say where it came from — a total alone cannot distinguish the right
+        // set from a plausible wrong one.
+        log(`gjsify onboard: root=${root} | ${sources}`);
+        log(
+            `gjsify onboard: ${selected.length} of ${all.length} package(s) selected | repo=${repository} workflow=${workflow}`,
+        );
         if (dryRun) log('(dry-run — nothing will be published or configured)');
         log();
 
@@ -216,7 +311,15 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         const toTrust = plans.filter((p) => p.action === 'trust');
         const done = plans.filter((p) => p.action === 'skip');
         const blocked = plans.filter((p) => p.action === 'blocked');
-        for (const p of plans) log(`  ${statusCell(p)}  ${p.ws.name}`);
+        // A 703-package sweep prints 703 rows of "nothing to do" and buries the
+        // handful that matter. Rows needing WORK are always listed; the finished
+        // ones only under --verbose. The counts below cover all of them either
+        // way — a row can be omitted from the listing, never from the tally.
+        for (const p of plans) {
+            if (p.action === 'skip' && args.verbose !== true) continue;
+            log(`  ${statusCell(p)}  ${p.ws.name}`);
+        }
+        if (!args.verbose && done.length > 0) log(`  (${done.length} already published + trusted — pass -v to list)`);
         log();
         log(
             `Plan: ${done.length} already done, ${toPublish.length} to publish+trust, ${toTrust.length} to trust, ${blocked.length} unreadable.`,
@@ -235,10 +338,29 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                             ? 'would publish + trust'
                             : p.action === 'trust'
                               ? 'would trust'
-                              : undefined,
+                              : p.action === 'blocked'
+                                ? // Same shape the act phase reports, so a
+                                  // `failed` row in a dry-run summary says WHY
+                                  // rather than only that it did not succeed.
+                                  `state HTTP ${p.httpStatus}`
+                                : undefined,
                 });
             }
-            finish(results, plans, { asJson, dryRun });
+            // A dry-run whose whole job is to REPORT THE PLAN must not exit 0
+            // having failed to compute it. Every unreadable package is counted
+            // as a failure here: run without a token, every trust read is a 401
+            // and the summary is `0 to publish+trust, 0 to trust` — a plan that
+            // was never determined, printed in the shape of a plan that found
+            // nothing to do. Measured on `gjsify/types`: 703 packages, 703
+            // unreadable, exit 0.
+            finish(results, plans, {
+                asJson,
+                dryRun,
+                failed: blocked.length,
+                root,
+                sources,
+                discovered: all.length,
+            });
             return;
         }
 
@@ -264,7 +386,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
             if (p.action === 'publish-and-trust') {
                 log(`→ ${p.ws.name}: building + publishing…`);
                 try {
-                    await buildIfPresent(p.ws, log);
+                    if (args.build !== false) await buildIfPresent(p.ws, log);
                 } catch (err) {
                     const msg = err instanceof Error ? err.message : String(err);
                     log(`  build failed: ${msg}`);
@@ -275,7 +397,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                 const pub = await publishWorkspace({
                     wsDir: p.ws.location,
                     tag: 'latest',
-                    access: 'public',
+                    access: args.access,
                     provenance: false,
                     tolerate: true, // a concurrent/racey publish is harmless
                     tolerateUntrustedNew: false,
@@ -327,7 +449,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
             }
         }
 
-        finish(results, plans, { asJson, dryRun, failed });
+        finish(results, plans, { asJson, dryRun, failed, root, sources, discovered: all.length });
     },
 };
 
@@ -335,7 +457,17 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
 function finish(
     results: PkgResult[],
     plans: PkgPlan[],
-    opts: { asJson: boolean; dryRun: boolean; failed?: number },
+    opts: {
+        asJson: boolean;
+        dryRun: boolean;
+        failed?: number;
+        /** Repo root the package set was resolved against. */
+        root: string;
+        /** Rendered enumeration sources + counts — the sweep's blast radius. */
+        sources: string;
+        /** How many packages discovery found BEFORE --include/--exclude. */
+        discovered: number;
+    },
 ): void {
     const failed = opts.failed ?? 0;
     if (opts.asJson) {
@@ -344,6 +476,12 @@ function finish(
                 {
                     ok: failed === 0,
                     dryRun: opts.dryRun,
+                    // `root`/`sources`/`discovered` travel with the summary so a
+                    // caller can check WHICH tree was swept, not just that a
+                    // sweep reported itself finished.
+                    root: opts.root,
+                    sources: opts.sources,
+                    discovered: opts.discovered,
                     total: plans.length,
                     published: results.filter((r) => r.result === 'published' || r.result === 'published+trusted')
                         .length,
@@ -358,7 +496,10 @@ function finish(
         );
     } else {
         const line = opts.dryRun
-            ? 'Dry-run complete — nothing changed.'
+            ? failed > 0
+                ? `Dry-run INCOMPLETE — nothing changed, but ${failed} package(s) had an unreadable state, ` +
+                  'so the plan above does not cover them. Authenticate (`gjsify login`) and re-run.'
+                : 'Dry-run complete — nothing changed.'
             : `Done: ${results.filter((r) => r.result.includes('published')).length} published, ` +
               `${results.filter((r) => r.result === 'trusted' || r.result === 'published+trusted').length} trusted, ` +
               `${results.filter((r) => r.result === 'already-done').length} already done, ${failed} failed.`;

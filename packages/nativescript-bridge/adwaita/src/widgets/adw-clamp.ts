@@ -76,6 +76,20 @@ export class AdwClamp extends GridLayout {
         return this._child;
     }
 
+    /**
+     * XML inflation — every child a template declares is THE clamped child.
+     *
+     * Without this the `LayoutBase` default calls `addChild`, which puts the view
+     * in the grid and leaves `_child` null, so `_allocate` returns early: measured
+     * on Android, a clamp written in markup rendered its child at full width with
+     * no size class at all, i.e. as if there were no clamp around it. The name is
+     * ignored because there is only one destination — `<AdwClamp.child>` and a
+     * bare child mean the same thing.
+     */
+    _addChildFromBuilder(_name: string, view: View): void {
+        this.setChild(view);
+    }
+
     /** `Adw.Clamp:maximum-size` — the widest the child may ever get, in DIPs. */
     get maximumSize(): number {
         return this._props.maximumSize;

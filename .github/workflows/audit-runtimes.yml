@@ -521,6 +521,16 @@ jobs:
       - name: Check declared keyboard affordances have an implementation
         run: node scripts/check-adwaita-keyboard-contract.mjs
 
+      # An element that reaches for an ANCESTOR is registered after it. `define` upgrades
+      # matching elements in the document IMMEDIATELY, so `adw-tab-page` before
+      # `adw-tab-view` ran every declared page's attributeChangedCallback against a parent
+      # that was still a plain HTMLElement: 337 uncaught errors over 22 built pages, and
+      # the identical shape sat unnoticed in adw-navigation-view.ts. With the `instanceof`
+      # guard in place the ORDER is unobservable — page-first renders identically and the
+      # whole browser suite stays green, measured — so a spec cannot hold it and this does.
+      - name: Check ancestor-reaching elements are registered after their ancestor
+        run: node scripts/check-adwaita-upgrade-order.mjs
+
       # Three READMEs promised the three storybook targets "compare 1:1 by screenshot"
       # (#1052) and no such harness existed. It was not built — three rasterisers cannot
       # be compared pixel-for-pixel, and the NativeScript leg needs a device CI has not
@@ -1021,6 +1031,16 @@ jobs:
       # arms and the ledger are in the script header.
       - name: Check declared keyboard affordances have an implementation
         run: node scripts/check-adwaita-keyboard-contract.mjs
+
+      # An element that reaches for an ANCESTOR is registered after it. `define` upgrades
+      # matching elements in the document IMMEDIATELY, so `adw-tab-page` before
+      # `adw-tab-view` ran every declared page's attributeChangedCallback against a parent
+      # that was still a plain HTMLElement: 337 uncaught errors over 22 built pages, and
+      # the identical shape sat unnoticed in adw-navigation-view.ts. With the `instanceof`
+      # guard in place the ORDER is unobservable — page-first renders identically and the
+      # whole browser suite stays green, measured — so a spec cannot hold it and this does.
+      - name: Check ancestor-reaching elements are registered after their ancestor
+        run: node scripts/check-adwaita-upgrade-order.mjs
 
       # Three READMEs promised the three storybook targets "compare 1:1 by screenshot"
       # (#1052) and no such harness existed. It was not built — three rasterisers cannot

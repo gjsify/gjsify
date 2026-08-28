@@ -13,11 +13,19 @@ inside and adapt as the space around them changes.
 
 Each block below is a stack of windows. The first one RUNS the widget: the preview
 is the live browser port, so it follows the light and dark toggle the way a real
-window would, and the tab under it holds the very markup that paints it. Then comes
+window would, and the HTML tab beside it holds the very markup that paints it —
+one `import '@gjsify/adwaita-web'` registers every element in it. Then comes
 one window per kind of implementation, for every kind that can express this widget.
 Two are on all four widgets here — **Vanilla TypeScript**, the `@girs` program that
 runs unchanged on GJS, Node, Bun and Deno, with the matching Blueprint declaration
-beside it, and **NativeScript**, the port that runs on a phone.
+beside it, and **NativeScript**, the port that runs on a phone, which splits the same
+way: an XML template holds the tree and the TypeScript beside it is the loader.
+
+A NativeScript template reaches these widgets through its `xmlns`, and the namespace
+is a MODULE: NativeScript loads it and reads the element name off its exports, so
+`xmlns:adw="~/adwaita"` needs an app-local `app/adwaita.ts` that re-exports what the
+markup names. A bare package specifier there does not resolve. The four templates
+below were rendered on an Android device before they were written down.
 
 The clamp, the header bar and the toolbar view carry a third, **UI frameworks**: the
 same widget written with [`@gjsify/react-native`](/gjsify/frameworks/react-native/)
@@ -134,14 +142,25 @@ at a comfortable measure on a large display without wasting room on a small one.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwButtonContent, AdwClamp } from '@gjsify/adwaita-nativescript';
+    // app/adwaita.ts — the module the template's `xmlns:adw="~/adwaita"` resolves to.
+    // NativeScript reads `AdwClamp` off THIS module's exports; a bare package
+    // specifier in the xmlns does not resolve.
+    export { AdwClamp } from '@gjsify/adwaita-nativescript';
 
-    const inner = new AdwButtonContent();
-    inner.label = 'This content is clamped: it stops growing past the maximum size and stays centred.';
+    // app/views/clamp.ts — the loader. The template holds the tree; this holds the
+    // wiring, and here there is none beyond mounting it.
+    import { Builder } from '@nativescript/core';
 
-    const clamp = new AdwClamp();
-    clamp.setChild(inner);
-    clamp.maximumSize = 400;
+    export const clamp = Builder.load({ path: '~/views', name: 'clamp' });
+    ```
+  </Fragment>
+  <Fragment slot="nativescript-xml">
+    ```xml
+    <adw:AdwClamp xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:adw="~/adwaita"
+      maximumSize="400" tighteningThreshold="300">
+      <Label class="card" textWrap="true"
+        text="This content is clamped: it stops growing past the maximum size and stays centred." />
+    </adw:AdwClamp>
     ```
   </Fragment>
 </AdwWidget>
@@ -236,24 +255,28 @@ the trailing one.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwButton, AdwHeaderBar, AdwWindowTitle } from '@gjsify/adwaita-nativescript';
+    // app/adwaita.ts — the module the template's `xmlns:adw="~/adwaita"` resolves to.
+    export { AdwButton, AdwHeaderBar, AdwWindowTitle } from '@gjsify/adwaita-nativescript';
 
-    const title = new AdwWindowTitle();
-    title.title = 'Text Editor';
-    title.subtitle = 'notes.md';
+    // app/views/header-bar.ts — the loader.
+    import { Builder } from '@nativescript/core';
 
-    const headerBar = new AdwHeaderBar();
-    headerBar.setTitleWidget(title);
-
-    const backButton = new AdwButton();
-    backButton.text = '‹';
-    backButton.variant = 'flat';
-    headerBar.packStart(backButton);
-
-    const menuButton = new AdwButton();
-    menuButton.text = '≡';
-    menuButton.variant = 'flat';
-    headerBar.packEnd(menuButton);
+    export const headerBar = Builder.load({ path: '~/views', name: 'header-bar' });
+    ```
+  </Fragment>
+  <Fragment slot="nativescript-xml">
+    ```xml
+    <adw:AdwHeaderBar xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:adw="~/adwaita">
+      <adw:AdwHeaderBar.startBox>
+        <adw:AdwButton text="&#8249;" variant="flat" />
+      </adw:AdwHeaderBar.startBox>
+      <adw:AdwHeaderBar.titleWidget>
+        <adw:AdwWindowTitle title="Text Editor" subtitle="notes.md" />
+      </adw:AdwHeaderBar.titleWidget>
+      <adw:AdwHeaderBar.endBox>
+        <adw:AdwButton text="&#8801;" variant="flat" />
+      </adw:AdwHeaderBar.endBox>
+    </adw:AdwHeaderBar>
     ```
   </Fragment>
 </AdwWidget>
@@ -418,50 +441,56 @@ the view moves.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import {
+    // app/adwaita.ts — the module the template's `xmlns:adw="~/adwaita"` resolves to.
+    export {
         AdwHeaderBar,
         AdwImageButton,
         AdwStatusPage,
         AdwToolbarView,
         AdwWindowTitle,
     } from '@gjsify/adwaita-nativescript';
-    import { listAddSymbolic, listRemoveSymbolic, sendToSymbolic } from '@gjsify/adwaita-icons/actions';
+
+    // app/views/toolbar-view.ts — the loader, and the three things markup cannot say.
+    import { Builder } from '@nativescript/core';
+    import type { AdwImageButton, AdwStatusPage } from '@gjsify/adwaita-nativescript';
+    import { listAddSymbolic, sendToSymbolic } from '@gjsify/adwaita-icons/actions';
     import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 
-    const view = new AdwToolbarView();
+    export const view = Builder.load({ path: '~/views', name: 'toolbar-view' });
 
-    const header = new AdwHeaderBar();
-    const title = new AdwWindowTitle();
-    title.title = 'Documents';
-    title.subtitle = '12 items';
-    header.setTitleWidget(title);
-    view.addTopBar(header);
-
-    const content = new AdwStatusPage();
-    content.icon = folderSymbolic;
-    content.title = 'Your library';
-    content.description = 'Content sits between the toolbars and scrolls independently of them.';
-    view.setContent(content);
-
-    const bottomBar = new AdwHeaderBar();
-
-    const addButton = new AdwImageButton();
-    addButton.icon = listAddSymbolic;
-    bottomBar.packStart(addButton);
-
-    const removeButton = new AdwImageButton();
-    removeButton.icon = listRemoveSymbolic;
-    bottomBar.packStart(removeButton);
-
-    const selectionLabel = new AdwWindowTitle();
-    selectionLabel.title = 'Selection: none';
-    bottomBar.setTitleWidget(selectionLabel);
-
-    const shareButton = new AdwImageButton();
-    shareButton.icon = sendToSymbolic;
-    bottomBar.packEnd(shareButton);
-
-    view.addBottomBar(bottomBar);
+    // An icon here is the SVG SOURCE, not a theme name — NativeScript's Image
+    // decodes no SVG, so the widget rasterises the markup itself. An XML attribute
+    // is a string, so the template declares the buttons and gives them ids, and the
+    // loader hands each one its glyph.
+    view.getViewById<AdwStatusPage>('library').icon = folderSymbolic;
+    view.getViewById<AdwImageButton>('add').icon = listAddSymbolic;
+    view.getViewById<AdwImageButton>('share').icon = sendToSymbolic;
+    ```
+  </Fragment>
+  <Fragment slot="nativescript-xml">
+    ```xml
+    <adw:AdwToolbarView xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:adw="~/adwaita">
+      <adw:AdwToolbarView.topBar>
+        <adw:AdwHeaderBar title="Documents" subtitle="12 items" />
+      </adw:AdwToolbarView.topBar>
+      <adw:AdwToolbarView.content>
+        <adw:AdwStatusPage id="library" title="Your library"
+          description="Content sits between the toolbars and scrolls independently of them." />
+      </adw:AdwToolbarView.content>
+      <adw:AdwToolbarView.bottomBar>
+        <adw:AdwHeaderBar>
+          <adw:AdwHeaderBar.startBox>
+            <adw:AdwImageButton id="add" />
+          </adw:AdwHeaderBar.startBox>
+          <adw:AdwHeaderBar.titleWidget>
+            <adw:AdwWindowTitle title="Selection: none" />
+          </adw:AdwHeaderBar.titleWidget>
+          <adw:AdwHeaderBar.endBox>
+            <adw:AdwImageButton id="share" />
+          </adw:AdwHeaderBar.endBox>
+        </adw:AdwHeaderBar>
+      </adw:AdwToolbarView.bottomBar>
+    </adw:AdwToolbarView>
     ```
   </Fragment>
 </AdwWidget>
@@ -564,19 +593,28 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+    // app/adwaita.ts — the module the template's `xmlns:adw="~/adwaita"` resolves to.
+    export { AdwButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
 
-    const wrap = new AdwWrapBox();
-    wrap.childSpacing = 8;
-    wrap.lineSpacing = 8;
+    // app/views/wrap-box.ts — the loader. A fixed run of chips is a tree, so it is
+    // the template's; build the children here instead when the run comes from data.
+    import { Builder } from '@nativescript/core';
 
-    const tags = ['Design', 'Adwaita', 'GNOME', 'GTK', 'Typescript', 'Storybook', 'Wrapping', 'Layout'];
-    for (const tag of tags) {
-        const chip = new AdwButton();
-        chip.text = tag;
-        chip.variant = 'pill';
-        wrap.add(chip);
-    }
+    export const wrapBox = Builder.load({ path: '~/views', name: 'wrap-box' });
+    ```
+  </Fragment>
+  <Fragment slot="nativescript-xml">
+    ```xml
+    <adw:AdwWrapBox xmlns:adw="~/adwaita" childSpacing="8" lineSpacing="8">
+      <adw:AdwButton text="Design" variant="pill" />
+      <adw:AdwButton text="Adwaita" variant="pill" />
+      <adw:AdwButton text="GNOME" variant="pill" />
+      <adw:AdwButton text="GTK" variant="pill" />
+      <adw:AdwButton text="Typescript" variant="pill" />
+      <adw:AdwButton text="Storybook" variant="pill" />
+      <adw:AdwButton text="Wrapping" variant="pill" />
+      <adw:AdwButton text="Layout" variant="pill" />
+    </adw:AdwWrapBox>
     ```
   </Fragment>
 </AdwWidget>

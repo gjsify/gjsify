@@ -1800,11 +1800,15 @@ gjsify trust --dry-run
 
 ### `gjsify onboard`
 
-Make sure every publishable workspace is both published on npm and has a Trusted Publisher configured, doing only the missing work. It folds the whole manual first-publish and trust bootstrap into one idempotent sweep.
+Make sure every publishable package in a monorepo is both published on npm and has a Trusted Publisher configured, doing only the missing work. It folds the whole manual first-publish and trust bootstrap into one idempotent sweep.
+
+Nothing about it is specific to a gjsify project. It works on any npm or yarn workspace out of the box, and `--packages` extends it to a monorepo that has no workspace manifest at all — a repo whose package directories simply sit next to each other.
 
 ```bash
 gjsify onboard                       # publish and trust whatever is missing
 gjsify onboard --dry-run             # report the plan
+gjsify onboard --packages '*'        # a monorepo with no root package.json
+gjsify onboard --exclude '@acme/*'   # filter the set by package name
 gjsify onboard --otp 123456          # seed the shared 2FA code
 gjsify onboard --json                # machine-readable summary as the last stdout line
 gjsify onboard --yes                 # non-interactive
@@ -1812,14 +1816,30 @@ gjsify onboard --yes                 # non-interactive
 
 | Option | Default | Description |
 |---|---|---|
+| `--packages <glob>` | root manifest `workspaces` | Directory glob naming package folders, resolved against the repo root. Repeatable. Merged with the root manifest's own globs when it has any. A pattern that matches no directory is a hard error. |
+| `--include <glob>` | all | Include packages by name. Repeatable. |
+| `--exclude <glob>` | none | Exclude packages by name. Repeatable. |
 | `--repository <owner/repo>` | inferred from `origin` | GitHub repo the Trusted Publisher is scoped to. |
 | `--workflow <file>` | `release.yml` | Workflow allowed to publish via OIDC. Basename only. |
 | `--environment <env>` | none | GitHub Actions environment the workflow must run in. |
+| `--access <a>` | `public` | npm access for a package this sweep publishes for the first time. An already-published package keeps the access it has. |
+| `--build` / `--no-build` | `--build` | Run a to-be-published package's `build` script first. Turn it off for a repo whose packages are generated artifacts. |
 | `--registry <url>` | scope-aware `.npmrc` lookup | Registry override. |
 | `--otp <code>` | prompted once on demand | The initial shared 2FA code. |
 | `--concurrency <n>` | `4` | How many packages to read state for in parallel. Kept small so one token does not burst npm; the first read is always serial, to prompt for the shared code once. |
+| `-v, --verbose` | `false` | List every package in the plan, not just the rows that need work. The counts always cover all of them. |
 | `--dry-run` | `false` | Report the plan without changing anything. |
 | `--json` | `false` | Emit a summary object as the final stdout line. |
 | `--yes` | `false` | Never prompt. Fail clearly if a login or an OTP is needed and not supplied. |
 
-What it does, in order: check the token is live (running the [`login`](#gjsify-login) flow only if it is not), enumerate the publishable workspaces, read each package's Trusted Publisher state concurrently, then act only on the gaps. One 2FA code is reused across every publish and trust operation, so a sweep of many packages usually asks you for a code once. Re-running when everything is already published and trusted does nothing and exits 0.
+What it does, in order: check the token is live (running the [`login`](#gjsify-login) flow only if it is not), enumerate the publishable packages, read each package's Trusted Publisher state concurrently, then act only on the gaps. One 2FA code is reused across every publish and trust operation, so a sweep of many packages usually asks you for a code once. Re-running when everything is already published and trusted does nothing and exits 0.
+
+A package whose own `package.json` names a **different** `repository` than the one being
+configured is refused, with the foreign repo and the count. A workspace of a repo is not the same
+claim as a package published from it: `gjsify/ts-for-gir` has 703 generated `@girs/*` workspaces
+that publish from `gjsify/types`, and a Trusted Publisher scoped to the wrong repository points
+that package's OIDC exchange at a workflow that never publishes it. Narrow the set with
+`--exclude` / `--include`, or point `--repository` at the repo that does publish them. A package
+that declares no repository is not evidence of a mismatch, and passes.
+
+The first line of output names the repo root and every enumeration source with its count — `root=/src/types | packages(*)=703`. That is worth reading before you let a sweep write to npm: the package list is the whole blast radius, and a total on its own cannot tell the right tree from a plausible wrong one. `--json` carries the same three fields (`root`, `sources`, `discovered`) in its summary object.

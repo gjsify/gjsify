@@ -25,6 +25,13 @@
 
 import { GridLayout, ItemSpec, StackLayout, View } from '@nativescript/core';
 import { AdwWindowTitle } from './adw-window-title.js';
+import { resolveBuilderSlot } from './builder-slots.js';
+
+/**
+ * The slots a template may name, spelled as this widget's own properties —
+ * `<AdwHeaderBar.titleWidget>`, `<AdwHeaderBar.startBox>`, `<AdwHeaderBar.endBox>`.
+ */
+const HEADER_BAR_SLOTS = ['titleWidget', 'startBox', 'endBox'] as const;
 
 export class AdwHeaderBar extends GridLayout {
     /** The start (left) slot — a horizontal stack. */
@@ -135,6 +142,30 @@ export class AdwHeaderBar extends GridLayout {
         GridLayout.setColumn(view, 1);
         this.addChild(view);
         this._titleWidget = view;
+    }
+
+    /**
+     * XML inflation — route a template's child through the packing API.
+     *
+     * NativeScript spells a slot as a complex property, so `<AdwHeaderBar.endBox>`
+     * arrives here as `endBox`; a bare child arrives under its element name and
+     * takes the fallback, `packStart`. Without this the `GridLayout` default added
+     * the view straight to the grid at column 0: measured on Android, a header bar
+     * written in markup left `startBox` and `endBox` empty while the button still
+     * appeared, so it LOOKED packed and was not — a second one would have been
+     * drawn on top of the first rather than beside it.
+     */
+    _addChildFromBuilder(name: string, view: View): void {
+        switch (resolveBuilderSlot(name, HEADER_BAR_SLOTS, 'startBox')) {
+            case 'titleWidget':
+                this.setTitleWidget(view);
+                return;
+            case 'endBox':
+                this.packEnd(view);
+                return;
+            default:
+                this.packStart(view);
+        }
     }
 
     /** The centered title widget. */
