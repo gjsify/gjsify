@@ -405,3 +405,45 @@ export function concreteWidgets(namespaces: readonly GirNamespace[], root = 'Gtk
     }
     return out;
 }
+
+/**
+ * The placement carriers: concrete classes that are NOT widgets and yet hold one.
+ *
+ * GTK4's list widgets do not take children. A `Gtk.ListView` installs no `append`,
+ * `add`, `insert`, `prepend`, `remove` or `set_child` at all — measured against its
+ * prototype — because what it takes is a factory, and the factory hands back a
+ * carrier whose `child` is where a row's subtree goes. Those carriers are plain
+ * `GObject.Object` descendants: `GObject.type_is_a(Gtk.ListItem, Gtk.Widget)` is
+ * FALSE, measured on gjs 1.88.1 / GTK 4.22.4.
+ *
+ * So "every concrete descendant of GtkWidget" is one class short of the set a
+ * renderer must be able to name, and this is the other half. It is a RULE and not a
+ * list on purpose: a hand-written list is the kind of curated data ADR 0028 § 2
+ * reserves for what the GIR cannot express, and the GIR expresses this perfectly
+ * well — a carrier is a concrete non-widget that declares both halves of a
+ * one-child slot.
+ *
+ * Measured across Gtk-4.0 + Adw-1, the rule selects exactly four:
+ * `GtkListItem`, `GtkListHeader`, `GtkColumnViewCell` and `AdwToggle`. The fourth is
+ * the argument for the rule — it was not on the hand-written list that preceded it,
+ * has the identical shape, and would have been an arbitrary gap.
+ *
+ * What this does NOT do is give them a policy. A generated row is always
+ * `uncurated`; which method adopts the child stays curated, exactly as for widgets.
+ */
+export function placementCarriers(namespaces: readonly GirNamespace[]): GirClass[] {
+    const index = indexClasses(namespaces);
+    const out: GirClass[] = [];
+    for (const ns of namespaces) {
+        for (const cls of ns.classes) {
+            if (cls.abstract) continue;
+            const chain = [cls, ...ancestors(cls, index)];
+            // A widget is served by `concreteWidgets`; emitting it twice would put a
+            // duplicate gtype in the table, which `assertInjective` is right to refuse.
+            if (chain.some((c) => c.gtype === 'GtkWidget')) continue;
+            const methods = new Set(chain.flatMap((c) => c.methods));
+            if (methods.has('set_child') && methods.has('get_child')) out.push(cls);
+        }
+    }
+    return out;
+}

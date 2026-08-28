@@ -9,7 +9,7 @@
 import GObject from 'gi://GObject';
 import type Gtk from '@girs/gtk-4.0';
 
-import { err } from './errors.js';
+import { err, GtkHostError } from './errors.js';
 import {
     addressOf,
     insertChild,
@@ -694,10 +694,27 @@ function holdsOursInSlot(parent: HostElement, slot: string | null): boolean {
     return false;
 }
 
-/** `indexed` parents address a wrapper row; create it once, before first placement. */
+/**
+ * `indexed` parents address a wrapper row; create it once, before first placement.
+ *
+ * The try/catch is `insertChild`'s, repeated here rather than shared, because this
+ * runs BEFORE it and the wrapper's `set_child` is the first call that can be refused.
+ * Measured: `listbox.insert(<gtk-list-item>)` threw GTK's own
+ * "Object is of type Gtk.ListItem - cannot convert to GtkWidget" — accurate, and
+ * naming neither the parent nor the child — while the same insert into a `gtk-box`
+ * came back as a named `rejected-child`. Until the placement carriers joined the
+ * table every tag in it was a `Gtk.Widget`, so `makeWrapper` could not be handed
+ * something a `GtkListBoxRow` refuses, and the gap did not exist to find.
+ */
 function ensureWrapper(parent: HostElement, child: HostElement): void {
     if (child.wrapper) return;
-    const wrapper = makeWrapper(parent.descriptor.children, child.widget as unknown as Gtk.Widget);
+    let wrapper: Gtk.Widget | null;
+    try {
+        wrapper = makeWrapper(parent.descriptor.children, child.widget as unknown as Gtk.Widget);
+    } catch (e) {
+        if (e instanceof GtkHostError) throw e;
+        throw err.rejectedChild(parent.descriptor.gtype, child.descriptor.gtype, (e as Error).message);
+    }
     if (wrapper) child.wrapper = wrapper;
 }
 
@@ -955,7 +972,7 @@ export function destroy(node: HostNode): void {
  * `GObject.registerClass` subclass inherits its ancestor's policy. Guessing a
  * method name here would be the generic `add` that GTK4 deliberately removed.
  */
-export function mountRoot(el: HostElement, container: Gtk.Widget): void {
+export function mountRoot(el: HostElement, container: GObject.Object): void {
     materialize(el);
     const parent = adopt(container);
     // `adopt` recorded what the container already held and `attach` offsets past
@@ -1010,7 +1027,7 @@ export const createDetachedContainer = (): HostElement => adopt(makeDetachedCont
  * through `nearestRegistered`, so an application's own `GObject.registerClass`
  * subclass inherits its ancestor's placement rules instead of failing.
  */
-export function adopt(container: Gtk.Widget): HostElement {
+export function adopt(container: GObject.Object): HostElement {
     const gtype = (container as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype;
     const descriptor = nearestRegistered(gtype);
     if (!descriptor) throw err.unknownTag(gtypeNameOf(container));
@@ -1050,12 +1067,14 @@ export function adopt(container: Gtk.Widget): HostElement {
  * snapshot therefore reports application chrome that does not exist — and for a
  * slot that REPLACES there is no offset to compute from it anyway.
  */
-function adoptedChildren(container: Gtk.Widget, descriptor: WidgetDescriptor): Gtk.Widget[] {
+function adoptedChildren(container: GObject.Object, descriptor: WidgetDescriptor): Gtk.Widget[] {
     const slots = setterSlots(descriptor.children);
-    if (slots.length === 0) return directChildren(container);
+    // `directChildren` asks the object for `get_first_child` and answers `[]` when
+    // there is none, so a non-widget carrier costs no branch of its own here.
+    if (slots.length === 0) return directChildren(container as unknown as Gtk.Widget);
     const out: Gtk.Widget[] = [];
     for (const setter of slots) {
-        const occupant = appOccupant(container, descriptor, setter);
+        const occupant = appOccupant(container as unknown as Gtk.Widget, descriptor, setter);
         if (occupant) out.push(occupant);
     }
     return out;

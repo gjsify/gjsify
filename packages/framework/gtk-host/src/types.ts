@@ -158,14 +158,14 @@ export type ChildPolicy =
      * Generated, not curated: the tag exists, its placement rule does not.
      *
      * The generated table adds every concrete GtkWidget descendant the GIR
-     * describes — 164 of them — while the curated table measures placement for a
+     * describes, plus the placement carriers, while the curated table measures placement for a
      * fraction. Guessing an adder for the rest would be the worst of the three
      * options: `add` and `append` and `set_child` all exist somewhere in GTK, and
      * calling the wrong one is a warning at exit 0.
      *
      * So the honest state is spelled out. Such a widget can be CREATED and given
      * properties and handlers; inserting a child raises a named error that says
-     * which tag needs a curated policy. A leaf widget — most of the 164 — needs
+     * which tag needs a curated policy. A leaf widget — most of the table — needs
      * nothing more.
      */
     | { kind: 'uncurated' };

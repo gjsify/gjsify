@@ -5,6 +5,16 @@ import Adw from 'gi://Adw?version=1';
 import type { WidgetDescriptor } from '../types.js';
 
 export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
+    // A placement carrier like GTK's three, and it arrives here for the same reason:
+    // `placementCarriers` selects a concrete non-widget that declares both halves of
+    // a one-child slot, and this is the fourth and only Adw member of that set. It
+    // was NOT on the hand-written list that preceded the rule — which is the argument
+    // for having a rule.
+    {
+        gtype: 'AdwToggle',
+        ctor: () => Adw.Toggle,
+        children: { kind: 'single', set: 'set_child' },
+    },
     {
         gtype: 'AdwApplicationWindow',
         ctor: () => Adw.ApplicationWindow,

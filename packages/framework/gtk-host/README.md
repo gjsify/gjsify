@@ -486,11 +486,14 @@ contain, and a reader who concludes `@gjsify/gtk-host/testing` exists.
 
 ## The widget table, and the type surfaces
 
-The table is **generated from the GIR** and committed. 164 concrete GtkWidget
-descendants (Gtk 102, Adw 62), each with its GType name, its kebab tag and a lazy
-`ctor`; 35 of them also carry a **curated** placement rule (Gtk 18, Adw 17 —
-`tableProvenance()` reports the live figure), and the generator may
-only ever ADD a tag, never contradict one. A tag with no curated rule gets
+The table is **generated from the GIR** and committed, from TWO rules: every concrete
+`GtkWidget` descendant, plus the concrete non-widgets that hold one — GTK4's list
+carriers, which take no children of their own but whose `child` is where a row's
+subtree goes (ADR 0028 § Amendment). Each row carries its GType name, its kebab tag and
+a lazy `ctor`; some also carry a **curated** placement rule, and the generator may
+only ever ADD a tag, never contradict one. `tableProvenance()` reports every live
+figure — the counts are deliberately not stamped here, because the pair that used to
+stand in this sentence was wrong in both halves. A tag with no curated rule gets
 `children: { kind: 'uncurated' }` — the widget can be created, given properties and
 given handlers, while inserting a child raises an error naming the tag that needs a
 policy. Guessing is not on offer: `add`, `append` and `set_child` all exist

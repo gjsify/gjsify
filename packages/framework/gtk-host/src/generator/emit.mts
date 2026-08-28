@@ -172,14 +172,23 @@ export function emitWidgets(input: EmitInput, floor = 100): EmitResult {
 // Provenance: ${provenance}
 //
 // What this file is, and what it is NOT: every concrete descendant of GtkWidget
-// the GIR describes, with its GType name and its kebab tag. It carries no
+// the GIR describes, PLUS the concrete non-widgets that hold one — GTK4's list
+// carriers, selected by rule rather than by list (\`placementCarriers\`, which asks
+// the GIR for a class that declares both halves of a one-child slot and is not on
+// GtkWidget's chain). Each with its GType name and its kebab tag. It carries no
 // placement rule, no text sink and no event alias — those are CURATED, in
 // descriptors/, and the generator may only ever ADD a tag (ADR 0028 § 1).
 //
 // A tag here that the curated table does not cover can be CREATED but not filled:
 // its child policy is \`uncurated\`, so inserting into it raises a named error
 // instead of guessing an adder. That is the honest state — ${input.widgets.length} tags a
-// renderer can name, ${input.curated.length} of them with measured placement rules.
+// renderer can name.
+//
+// How many of those carry a measured placement rule is deliberately NOT stamped
+// here. That is a fact about descriptors/, not about this file, and a stamped copy
+// drifts the moment a curated row is added without regenerating — this header said
+// 26 against a curated table of 35, and nothing read the sentence. The live answer
+// is \`tableProvenance().curated\`.
 
 ${used.map((ns) => `import ${ns} from '${modules[ns]}';`).join('\n')}
 

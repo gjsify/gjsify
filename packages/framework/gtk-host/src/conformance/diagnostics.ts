@@ -78,7 +78,7 @@ let installed: DiagnosticsGate | null = null;
  * arrive without one. The first version answered `String(raw ?? '')`, so such a
  * record was counted and then described as nothing: a CI run failed with
  * `GTK reported 1 diagnostic(s) that would have passed at exit 0:` followed by a
- * BLANK LIST, over a test that had just constructed 164 widgets. A gate that can
+ * BLANK LIST, over a test that had just constructed the whole table. A gate that can
  * count a failure but not name it sends the reader back to guessing, which is the
  * state this whole module exists to end.
  *

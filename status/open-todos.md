@@ -2933,6 +2933,22 @@ left to this paragraph. `keyboard-operable.spec.ts` pins
 `AdwToggle.observedAttributes` to exactly `['label', 'icon-name']`, so the commit
 that adds `enabled` fails until someone reads this entry.
 
+**Four siblings surfaced with it (2026-08-28), and the reason they were invisible is the
+point.** `check-adwaita-element-properties.mjs` holds an `adw-*` element against its
+WIDGET's GIR properties — and `AdwToggle` had no entry in the widget table to be held
+against, because that table meant "concrete `GtkWidget` descendant" and `AdwToggle` is
+not one. The moment the placement-carrier rule gave it a tag (ADR 0028 § Amendment), the
+check started comparing and named five gaps at once: `enabled`, plus `description`,
+`name`, `tooltip` and `use-underline`. None is new; the ability to see them is. All five
+are in that script's `KNOWN_GAPS` ratchet, so closing one now fails until it leaves the
+list.
+
+That is worth generalising beyond this element: **a gate that compares two surfaces is
+blind wherever one of them has no entry**, and widening a table is therefore also a way
+of discovering what a check was never asked. The vocabulary-alignment gate found the same
+thing in the same PR, from the other side — `<adw-toggle>` had been declared web-only
+with the reason "descends from GObject.Object, not GtkWidget", which stopped being true.
+
 `orientation` is the second thing missing, and it is not cosmetic. `AdwToggleGroup`
 implements `GtkOrientable` (`adw-toggle-group.c:187`), installs `PROP_ORIENTATION`
 (`:202`), reorients its layout manager (`:929`) and every separator (`:873`,

@@ -329,7 +329,7 @@ export async function runAdapterVectors(harness: VectorHarness, gate: Diagnostic
         // --- the uncurated refusal, through a framework ----------------------
 
         await it('an uncurated container refuses a child by name', async () => {
-            // The only safety property 138 of the 164 generated widgets have, and it
+            // The only safety property the UNCURATED majority of the table has, and it
             // had ZERO tests: `grep uncurated-placement` found two throw sites and the
             // constructor. `GtkExpander` is generated-only and really does hold one
             // child, so this is the shape a user hits first — and every plausible
