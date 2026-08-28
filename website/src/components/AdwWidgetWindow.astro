@@ -63,7 +63,7 @@ interface Props {
      * expressible: the pane prints `<tag>` above the names, and a tag left behind
      * would have rendered `<null>` over a correct list, on a page that still builds.
      */
-    attributes?: { tag: string; names: string[] } | null;
+    attributes?: { tag: string; names: string[]; sample: Map<string, string | null> } | null;
 }
 
 const {
@@ -109,6 +109,26 @@ if (panes < 2 && preview !== null) {
             'window declares its own markup tab, so this means AdwWidget stopped passing it.',
     );
 }
+
+/**
+ * One row per observed attribute, with its cell RESOLVED here rather than in the markup.
+ *
+ * Not a style choice. The Astro compiler cannot parse a JSX expression nested inside a
+ * `.map()` callback (this file's header records the measurement), and a cell that is either
+ * a value, the word "set", or the words "not used" is exactly that shape. Resolving it to a
+ * string plus a class keeps the table body one level deep, and the class carries the
+ * monospace a `<code>` would have.
+ */
+const attrRows =
+    attributes === null
+        ? []
+        : attributes.names.map((name) => {
+              if (!attributes.sample.has(name)) return { name, text: 'not used', kind: 'absent' };
+              const value = attributes.sample.get(name);
+              // HTML's own distinction: a bare attribute is present with no value, and that is
+              // how `can-shrink` is written where `label` is written with one.
+              return value === null ? { name, text: 'set', kind: 'bare' } : { name, text: value, kind: 'value' };
+          });
 
 // The attribute pane is the LIVE window's — it is that window's element being
 // described. Asserted because nothing downstream would notice: on a code-only window
@@ -208,26 +228,32 @@ if (attributes !== null && preview === null) {
                 {attributes !== null && (
                     <adw-tab-page title="Attributes">
                         <div class="adw-widget-attrs not-content">
-                            {/* WHAT IT WATCHES, not everything it reads. "set anything else and it
-                                never hears about it" was the first wording, and the fence one tab to
-                                the LEFT refutes it: the `<adw-combo-row>` preview on
-                                /adwaita/boxed-lists/ sets `items`, which is none of the three that
-                                row observes and which its `connectedCallback` reads anyway. An
-                                attribute taken once at connect is heard — just never again. */}
-                            <p>
-                                <code>{`<${attributes.tag}>`}</code> observes {attributes.names.length}
-                                {attributes.names.length === 1 ? ' attribute' : ' attributes'} in the browser port:
-                                change one on a live element and it re-renders. That is the list it watches, not every
-                                attribute it reads, and not another port's — the windows below name their own, GObject
-                                properties on GTK, NativeScript's own spelling on a phone.
-                            </p>
-                            <ul>
-                                {attributes.names.map((attr) => (
-                                    <li>
-                                        <code>{attr}</code>
-                                    </li>
-                                ))}
-                            </ul>
+                            {/* OBSERVES is the precise word and the caption spends one sentence on
+                                what it means, because the looser wording was wrong. "Set anything
+                                else and it never hears about it" was the first version, and the
+                                fence one tab to the LEFT refutes it: the `<adw-combo-row>` preview
+                                on /adwaita/boxed-lists/ sets `items`, which the row does not
+                                observe and which its `connectedCallback` reads anyway. */}
+                            <table>
+                                <caption>
+                                    <code>{`<${attributes.tag}>`}</code> observes these in the browser port. Changing
+                                    one re-renders the element. The other windows name their own properties.
+                                </caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Attribute</th>
+                                        <th scope="col">In this preview</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {attrRows.map((row) => (
+                                        <tr>
+                                            <th scope="row">{row.name}</th>
+                                            <td class={`is-${row.kind}`}>{row.text}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </adw-tab-page>
                 )}
