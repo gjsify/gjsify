@@ -241,10 +241,9 @@ export function listRows<Row extends ListRowKey>(
                 return {
                     show(next: Row | null, at: number): void {
                         // BATCHED, because the two writes are one event. Unbatched, the
-                        // index lands first and the row's effects run once against the
-                        // row that is on its way out — on `unbind` that index is GTK's
-                        // invalid-position sentinel, so the row repaints with it before
-                        // disappearing.
+                        // index lands first and every effect reading it runs once
+                        // against the row that is on its way out — visible work for a
+                        // state no frame will ever show.
                         //
                         // `setRow` takes the updater form: a `Row` may itself be
                         // callable, and the value form would run it as one.

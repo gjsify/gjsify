@@ -235,10 +235,13 @@ export class ListController<Row extends ListRowKey, Handle> {
     #unbind(item: Gtk.ListItem): void {
         const handle = this.#handles.get(item);
         if (handle === undefined) return;
-        // `null` rather than reading the carrier back: GTK emits `unbind` while the
-        // item still answers `get_item()`, so asking would show the row that is being
-        // taken away. The position goes along unchanged, which is what a dialect
-        // animating a departure would need.
+        // `null` rather than reading the carrier back, and MEASURED rather than
+        // assumed (gtk 4.22.4 / gjs 1.88.1): at `unbind` the item still answers
+        // `get_item()` with its carrier and `get_position()` with the REAL position —
+        // it is `setup` and `teardown` that see GTK's invalid-position sentinel
+        // (4294967295), and `teardown` that sees a null item. So reading the carrier
+        // here would show the row being taken away, while the position is honest and
+        // goes along, which is what a dialect animating a departure needs.
         this.#sink.showRow(handle, null, item.get_position());
     }
 
