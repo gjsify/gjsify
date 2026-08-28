@@ -74,7 +74,7 @@ import {
     isPlatformPackageManifest,
     prebuildOwnership,
 } from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
-import { posixRelative } from '../packages/infra/manifest-conformance/lib/index.mjs';
+import { posixRelative, sourceExtensionRe } from '../packages/infra/manifest-conformance/lib/index.mjs';
 import { adwaitaNativeScriptWidgets, adwaitaWebElements, coreReach, elementName } from './adwaita-elements.mjs';
 
 // ─── Authored-data model ────────────────────────────────────────────────────
@@ -585,7 +585,10 @@ export function loadStatusData(root, facts) {
     if (todoHeadings.length > 0) {
         const ANCHOR = /open-todos:\s*([^)\n*]+?)\s*(?:\)|$)/g;
         const SKIP = new Set(['node_modules', 'lib', 'dist', 'refs', 'prebuilds', '.git', 'build-dir', 'tmp']);
-        const SRC = /\.(?:ts|mts|cts|js|mjs|cjs)$/;
+        // From the shared vocabulary, not a literal: this one omitted `tsx` and `jsx`, so a
+        // dangling anchor in a `.tsx` file could not be reported — and the whole point of the
+        // rule is that an anchor pointing at nothing stays green forever.
+        const SRC = sourceExtensionRe();
         /** @param {string} dir @param {(f: string) => void} onFile */
         const walkSources = (dir, onFile) => {
             let entries;

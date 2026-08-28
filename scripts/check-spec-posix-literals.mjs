@@ -23,6 +23,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { CODE_SOURCE_EXTENSIONS } from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SEARCH_ROOTS = ['packages', 'tests'];
 const SKIP_DIRS = new Set(['node_modules', 'lib', 'dist', '.git', 'refs', 'build', 'out', 'coverage']);
@@ -37,6 +39,14 @@ const FLAG_LITERAL = /\b(?:const|let|var)\s+(O_[A-Z0-9_]+)\s*=\s*(0[xXoO][0-9a-f
  */
 const ERRNO_LITERAL = /\.errno\b/;
 const ERRNO_ASSERT = /\.(?:toBe|toEqual|toStrictEqual)\(\s*-\d+\s*\)/;
+
+/**
+ * A spec, at any extension the repository calls a source. The `m?ts|m?js` pair written
+ * here before could not match `.spec.tsx` — nothing spells one today, and a walker that
+ * silently stops being a walker the day one arrives is the failure this pattern's three
+ * siblings were fixed for.
+ */
+const SPEC_RE = new RegExp(`\\.spec\\.(${CODE_SOURCE_EXTENSIONS.join('|')})$`);
 
 /** `// posix-literal-ok: <reason>` — the declared exception. */
 const OPT_OUT = /\/\/\s*posix-literal-ok:/;
@@ -54,7 +64,7 @@ function* walk(dir) {
         if (entry.isDirectory()) {
             if (SKIP_DIRS.has(entry.name)) continue;
             yield* walk(full);
-        } else if (/\.spec\.(?:m?ts|m?js)$/.test(entry.name)) {
+        } else if (SPEC_RE.test(entry.name)) {
             yield full;
         }
     }

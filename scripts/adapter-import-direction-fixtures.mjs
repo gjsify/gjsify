@@ -22,10 +22,10 @@
 // indict. `/'/` was the loud half: an odd apostrophe left string state open, after which `//`
 // stopped being a comment and PROSE was reported as a placement method. Neither could be seen
 // by running the real scan. Fixing them needed a third fixture of its own, `jsx-closing-tag`:
-// `.tsx` is in SOURCE_EXT, and knowing a regex means deciding what `</div>` is.
+// `.tsx` is a source here, and knowing a regex means deciding what `</div>` is.
 //
 // The last one is not a pattern but a PRESCRIPTION. `unreadable-file` said "add the extension
-// to SOURCE_EXT", and doing that for `.vue` — the extension the fixture below uses — makes this
+// to the vocabulary", and doing that for `.vue` — the extension the fixture below uses — makes this
 // suite fail, so the check still exits 1: a two-step remedy written as one. A remedy that does
 // not work is a defect in the check, so a fixture now asserts what the message NAMES.
 //
@@ -281,7 +281,7 @@ export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
         expect: { files: 2, problems: ['placement-method@2'], blockers: [] },
     },
     {
-        // The guard the regex fix itself needed. `.tsx` is in SOURCE_EXT and a React adapter is
+        // The guard the regex fix itself needed. `.tsx` is a source here and a React adapter is
         // named as next work, and JSX is full of `/` that no expression precedes: measured with
         // `<` and `>` left out of the "ends an expression" set, `</div>` opened regex state and
         // the `//` comment after it was reported as a placement method — defect class restored
@@ -317,7 +317,7 @@ export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
     },
     {
         // Vector 8: the REMEDY an error prescribes is part of the check. The blocker above used
-        // to say "add the extension to SOURCE_EXT, or move the file out of the adapters tree" —
+        // to say "add the extension, or move the file out of the adapters tree" —
         // and following the first half for `.vue` was measured to produce a SELF-TEST FAILURE,
         // because the fixture above IS a `.vue` file. The check still exits 1, so a one-step
         // remedy sent a reader into a dead end while every kind and count was right.
@@ -331,7 +331,7 @@ export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
             files: 1,
             problems: [],
             blockers: ['unreadable-file'],
-            mentions: ['SOURCE_EXT', 'adapter-import-direction-fixtures.mjs'],
+            mentions: ['source-extensions.mjs', 'adapter-import-direction-fixtures.mjs'],
         },
     },
     {

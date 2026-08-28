@@ -36,6 +36,10 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+    CODE_SOURCE_EXTENSIONS,
+    sourceExtensionRe,
+} from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
 import { POSIX_PATH_SLICE_EXCEPTIONS } from './posix-path-slice-exceptions.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -76,11 +80,18 @@ function* walk(dir) {
         if (entry.isDirectory()) {
             if (SKIP_DIRS.has(entry.name)) continue;
             yield* walk(full);
-        } else if (/\.(?:m?ts|m?js)$/.test(entry.name) && !/\.spec\.(?:m?ts|m?js)$/.test(entry.name)) {
+        } else if (SOURCE_RE.test(entry.name) && !SPEC_RE.test(entry.name)) {
             yield full;
         }
     }
 }
+
+// From the shared vocabulary, not the `m?ts|m?js` pair written here before: that pattern
+// matched neither `.tsx` nor `.cts` nor `.cjs`, and all three are tracked under `packages`
+// today — 12 `.tsx` type-tests, one `.d.cts`, five `.cjs` — so a `lastIndexOf('/')` in any
+// of them was graded by nothing while the check reported on everything around it.
+const SOURCE_RE = sourceExtensionRe();
+const SPEC_RE = new RegExp(`\\.spec\\.(${CODE_SOURCE_EXTENSIONS.join('|')})$`);
 
 const findings = [];
 /** Ledger keys seen slicing something, so a stale entry can be told from a live one. */

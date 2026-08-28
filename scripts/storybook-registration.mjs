@@ -37,7 +37,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 
-import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
+import { resolveLocalSource, toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
 import { ADWAITA_NS_STORY_SRC, ADWAITA_STORY_SRC, storyFilesWith, stripComments } from './adwaita-elements.mjs';
 
 /** The showcase whose `gjsify.storybook.stories` decides what the GTK glob scans. */
@@ -116,8 +116,15 @@ function storyNameOf(specifier, suffix) {
     return file.endsWith(emitted) ? file.slice(0, -emitted.length) : null;
 }
 
-/** A TS source importing its emitted `.js` sibling; the file on disk is `.ts`. */
-const onDisk = (from, specifier) => resolve(from, '..', specifier.replace(/\.js$/, '.ts'));
+/**
+ * A TS source importing its emitted `.js` sibling; the file on disk is the TypeScript
+ * one. `resolveLocalSource` asks the DISK across the whole shared extension set rather
+ * than rewriting the suffix to `.ts` and hoping — the rewrite silently produces a path
+ * that does not exist for anything written as `.mts` or `.tsx`, and a specifier that
+ * resolves to nothing drops the edge without a word.
+ */
+const onDisk = (from, specifier) =>
+    resolveLocalSource(from, specifier) ?? resolve(from, '..', specifier.replace(/\.js$/, '.ts'));
 
 /**
  * {@link STORY_FILE} under `dir` — `name` → absolute path.

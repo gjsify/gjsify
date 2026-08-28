@@ -44,6 +44,12 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
+import {
+    CODE_SOURCE_EXTENSIONS,
+    isDeclarationFile,
+    sourcePathspecs,
+} from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+
 const BUDGET_FILE = 'status/comment-budget.json';
 
 // Not ours to shape: vendored upstream sources, generator output, build products.
@@ -76,12 +82,28 @@ const AREAS = [
     'website',
 ];
 
+/** The area a path is budgeted under, or `undefined` if it is outside every tree. */
+const areaOf = (file) => AREAS.find((a) => file.startsWith(`${a}/`));
+
+/**
+ * The files this budget counts.
+ *
+ * The extension list used to be five literals here — `'*.ts' '*.mts' '*.mjs' '*.js'
+ * '*.cjs'` — written before the tree had a `.tsx` file in it. Measured on 2026-08-28:
+ * 19 tracked `.tsx` files went uncounted, 12 in `packages/framework` and 7 in
+ * `showcases/gtk`, and folding them in moves `showcases` from 0.153 to 0.170 against a
+ * ceiling of 0.158 that had been reading as 78 lines of headroom. A budget that does
+ * not open a file cannot hold it to anything.
+ */
 function sourceFiles() {
-    return execSync("git ls-files -- '*.ts' '*.mts' '*.mjs' '*.js' '*.cjs'", { maxBuffer: 1 << 28 })
+    const pathspecs = sourcePathspecs(CODE_SOURCE_EXTENSIONS)
+        .map((spec) => `'${spec}'`)
+        .join(' ');
+    return execSync(`git ls-files -- ${pathspecs}`, { maxBuffer: 1 << 28 })
         .toString()
         .trim()
         .split('\n')
-        .filter((f) => f && !f.endsWith('.d.ts') && !EXCLUDED.some((r) => r.test(f)));
+        .filter((f) => f && !isDeclarationFile(f) && !EXCLUDED.some((r) => r.test(f)) && areaOf(f) !== undefined);
 }
 
 /**
@@ -125,7 +147,7 @@ function countLines(src) {
 function measure() {
     const totals = new Map(AREAS.map((a) => [a, { code: 0, comment: 0, files: 0 }]));
     for (const file of sourceFiles()) {
-        const area = AREAS.find((a) => file.startsWith(`${a}/`));
+        const area = areaOf(file);
         if (!area) continue;
         let src;
         try {

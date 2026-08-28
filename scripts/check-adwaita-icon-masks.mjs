@@ -69,6 +69,8 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { CODE_SOURCE_EXTENSIONS } from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+
 import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
 
 const args = process.argv.slice(2);
@@ -209,7 +211,11 @@ const SOURCES = [
     { root: 'website/src', shapes: ['markup', 'maskClass'] },
 ];
 
-const EXTENSIONS = ['.ts', '.mts', '.scss', '.astro', '.mdx', '.html'];
+// The source half comes from the shared vocabulary and the rest are the markup and
+// style formats these roots hold. The hand-written pair `.ts`/`.mts` was one `.tsx`
+// showcase away from going blind — `showcases/gtk/adwaita-gallery-react/src/app.tsx` is
+// one directory from a root already listed above.
+const EXTENSIONS = [...CODE_SOURCE_EXTENSIONS.map((ext) => `.${ext}`), '.scss', '.astro', '.vue', '.mdx', '.html'];
 
 /** `normalizeIconName` from `@gjsify/adwaita-core`, in the spelling a script can read. */
 const ICON_NAME_TOKEN = /^[A-Za-z0-9_-]+$/;

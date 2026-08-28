@@ -71,6 +71,8 @@ import {
     runRules,
     toPosixPath,
     selectRules,
+    SOURCE_EXTENSIONS,
+    sourceExtensionRe,
     walkEntryGraph,
 } from '../packages/infra/manifest-conformance/lib/index.mjs';
 import { UNCHECKED_FIELDS } from './manifest-conformance/unchecked-fields.mjs';
@@ -194,6 +196,9 @@ async function scanSourceTree(pkgDir) {
     return signals;
 }
 
+const SOURCE_EXT_RE = sourceExtensionRe(SOURCE_EXTENSIONS);
+const GJS_SPEC_RE = new RegExp(`\\.gjs\\.spec\\.(${SOURCE_EXTENSIONS.join('|')})$`);
+
 async function walkSource(dir, signals) {
     let entries;
     try {
@@ -212,10 +217,13 @@ async function walkSource(dir, signals) {
         if (entry.name === 'test.browser.mts' || entry.name === 'test.browser.ts') {
             signals.has_browser_entry = true;
         }
-        // TS/MTS only, and skip `*.gjs.spec.ts` — specs are allowed to exercise
-        // GJS-only paths.
-        if (!/\.(ts|mts)$/.test(entry.name)) continue;
-        if (/\.gjs\.spec\.(ts|mts)$/.test(entry.name)) continue;
+        // TS sources only, and skip `*.gjs.spec.*` — specs are allowed to exercise
+        // GJS-only paths. The extension set is `source-graph.mjs`'s, not a second
+        // literal: this walk skipped `.tsx` while `listSourceFiles` was fixed to read
+        // it, and two walks disagreeing about what a source IS is how one of them ends
+        // up guarding nothing.
+        if (!SOURCE_EXT_RE.test(entry.name)) continue;
+        if (GJS_SPEC_RE.test(entry.name)) continue;
         signals.file_count++;
         const text = await readFile(full, 'utf8');
         if (GIRS_VALUE_RE.test(text)) signals.girs_value = true;

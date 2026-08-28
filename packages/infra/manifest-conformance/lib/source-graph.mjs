@@ -21,6 +21,8 @@ import { existsSync, readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
+import { TS_SOURCE_EXTENSIONS, isDeclarationFile, sourceExtensionRe } from './source-extensions.mjs';
+
 /** A VALUE import of a `@girs/*` type package — it resolves to a `gi://` body. */
 export const GIRS_VALUE_RE = /^\s*import\s+(?!type\b)[^;]*from\s+['"]@girs\//m;
 export const GI_URL_RE = /from\s+['"]gi:\/\//;
@@ -51,12 +53,27 @@ export const SIDE_EFFECT_RE = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g;
 /** `import type … from` / `export type { … } from` erase at compile time. */
 export const TYPE_ONLY_RE = /(?:^|\n)\s*(?:import|export)\s+type\s/;
 
+/**
+ * The TypeScript extensions every walk in this file agrees on, taken from the one
+ * repository-wide vocabulary rather than spelled again here.
+ *
+ * A JSX source is a source: `@gjsify/adwaita-react-native` put the first `.tsx` files
+ * into a package `src` tree and every scan here skipped them, so an
+ * `import Adw from 'gi://Adw'` in `clamp.gtk.tsx` was invisible to the ADR 0014
+ * reachability audit while the identical line in a `.ts` file failed it — measured,
+ * both ways.
+ */
+export const SOURCE_EXTENSIONS = TS_SOURCE_EXTENSIONS;
+const SOURCE_EXT_RE = sourceExtensionRe(SOURCE_EXTENSIONS);
+const SPEC_RE = new RegExp(`\\.spec\\.(${SOURCE_EXTENSIONS.join('|')})$`);
+const TEST_ENTRY_RE = new RegExp(`^test(\\..*)?\\.(${SOURCE_EXTENSIONS.join('|')})$`);
+
 /** Source files that never ship in a target bundle. */
 export function isNonShippingSource(fileName) {
-    return /\.spec\.(ts|mts)$/.test(fileName) || /^test(\..*)?\.(ts|mts)$/.test(fileName) || fileName.endsWith('.d.ts');
+    return SPEC_RE.test(fileName) || TEST_ENTRY_RE.test(fileName) || isDeclarationFile(fileName);
 }
 
-/** Every `.ts`/`.mts` file under `dir`, recursively (skips node_modules). */
+/** Every TypeScript source under `dir`, recursively (skips node_modules). */
 export function listSourceFiles(dir, out = []) {
     let entries;
     try {
@@ -71,7 +88,7 @@ export function listSourceFiles(dir, out = []) {
             listSourceFiles(full, out);
             continue;
         }
-        if (!ent.isFile() || !/\.(ts|mts)$/.test(ent.name)) continue;
+        if (!ent.isFile() || !SOURCE_EXT_RE.test(ent.name)) continue;
         if (isNonShippingSource(ent.name)) continue;
         out.push(full);
     }
@@ -81,8 +98,10 @@ export function listSourceFiles(dir, out = []) {
 /** Resolve a relative ESM specifier (`./x.js`) to an on-disk TS source. */
 export function resolveLocalSource(fromFile, spec) {
     const base = resolve(fromFile, '..', spec).replace(/\.(js|mjs)$/, '');
-    for (const cand of [`${base}.ts`, `${base}.mts`, join(base, 'index.ts'), join(base, 'index.mts')]) {
-        if (existsSync(cand)) return cand;
+    for (const ext of SOURCE_EXTENSIONS) {
+        for (const cand of [`${base}.${ext}`, join(base, `index.${ext}`)]) {
+            if (existsSync(cand)) return cand;
+        }
     }
     return null;
 }
@@ -112,9 +131,11 @@ export function sourceForBuiltPath(pkgDir, rel) {
         .replace(/^(?:lib\/esm|lib\/types|lib|dist)\//, '')
         .replace(/\.d\.ts$/, '')
         .replace(/\.(js|mjs)$/, '');
-    for (const cand of [`${stripped}.ts`, `${stripped}.mts`, join(stripped, 'index.ts')]) {
-        const abs = join(pkgDir, 'src', cand);
-        if (existsSync(abs)) return abs;
+    for (const ext of SOURCE_EXTENSIONS) {
+        for (const cand of [`${stripped}.${ext}`, join(stripped, `index.${ext}`)]) {
+            const abs = join(pkgDir, 'src', cand);
+            if (existsSync(abs)) return abs;
+        }
     }
     return null;
 }
