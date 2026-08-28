@@ -1,7 +1,7 @@
 import type { NativeScriptConfig } from '@nativescript/core';
 
 export default {
-    id: 'studio.artandcode.gjsify.nstest',
+    id: 'org.gjsify.NsTest',
     appPath: 'app',
     appResourcesPath: 'App_Resources',
     // Build through Vite → @gjsify/nativescript-vite's `defineNativescriptConfig()`

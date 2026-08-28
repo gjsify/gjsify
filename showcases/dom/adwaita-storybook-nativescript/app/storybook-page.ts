@@ -8,7 +8,7 @@ import { type NavigatedData, type Page, Application, ContentView, Frame } from '
 import { installStorybookDevtools, runStorybook } from '@gjsify/storybook-nativescript';
 import { stories } from '../src/stories';
 
-const APP_ID = 'studio.artandcode.gjsify.adwaita.storybook';
+const APP_ID = 'org.gjsify.AdwaitaStorybook';
 
 export function onNavigatingTo(args: NavigatedData): void {
     const page = args.object as Page;

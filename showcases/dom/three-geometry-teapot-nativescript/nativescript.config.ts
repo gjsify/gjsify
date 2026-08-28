@@ -1,7 +1,7 @@
 import type { NativeScriptConfig } from '@nativescript/core';
 
 export default {
-    id: 'studio.artandcode.gjsify.teapot',
+    id: 'org.gjsify.Teapot',
     appPath: 'app',
     appResourcesPath: 'App_Resources',
     // Use Vite as the bundler. The actual Vite config (vite.config.ts) is

@@ -604,6 +604,15 @@ jobs:
       - name: Check the NativeScript accent override covers the theme
         run: node scripts/check-nativescript-accent-rules.mjs
 
+      # An application id is what `adb` installs, launches and uninstalls. A device
+      # PROBE built into the storybook showcase's app directory took its id, was left
+      # installed under it, and the launcher icon then opened a throwaway XML probe
+      # calling itself the storybook — the storybook was reported broken. The three NS
+      # projects also sat under `studio.artandcode.*`, another organisation's
+      # reverse-DNS, while every other app id here is `org.gjsify.<PascalName>`.
+      - name: Check the NativeScript application ids
+        run: node scripts/check-nativescript-app-ids.mjs
+
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform
       # fields the filter reads. That is how this repo installed every platform's
@@ -1114,6 +1123,15 @@ jobs:
       # which reads as "the accent almost works" and is invisible in a diff.
       - name: Check the NativeScript accent override covers the theme
         run: node scripts/check-nativescript-accent-rules.mjs
+
+      # An application id is what `adb` installs, launches and uninstalls. A device
+      # PROBE built into the storybook showcase's app directory took its id, was left
+      # installed under it, and the launcher icon then opened a throwaway XML probe
+      # calling itself the storybook — the storybook was reported broken. The three NS
+      # projects also sat under `studio.artandcode.*`, another organisation's
+      # reverse-DNS, while every other app id here is `org.gjsify.<PascalName>`.
+      - name: Check the NativeScript application ids
+        run: node scripts/check-nativescript-app-ids.mjs
 
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform

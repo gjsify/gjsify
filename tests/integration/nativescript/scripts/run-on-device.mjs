@@ -29,7 +29,7 @@ const platform = process.argv[2] ?? 'android';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const nsBin = join(root, 'node_modules', '.bin', 'nativescript');
 const logFile = join(root, `logcat.${platform}.log`);
-const APP_ID = 'studio.artandcode.gjsify.nstest';
+const APP_ID = 'org.gjsify.NsTest';
 
 function run(cmd, args, opts = {}) {
     return spawnSync(cmd, args, { stdio: 'inherit', cwd: root, ...opts });
