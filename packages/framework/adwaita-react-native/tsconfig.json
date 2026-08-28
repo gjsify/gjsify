@@ -1,0 +1,38 @@
+{
+    "compilerOptions": {
+        "outDir": "lib",
+        "declarationDir": "lib/types",
+        "rootDir": "src",
+        "tsBuildInfoFile": "tmp/.tsbuildinfo",
+        "target": "es2020",
+        "declaration": true,
+        "emitDeclarationOnly": true,
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "esModuleInterop": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "removeComments": false,
+        "sourceMap": true,
+        "skipLibCheck": true,
+        "composite": true,
+        "incremental": true,
+        "types": ["node"],
+        "lib": ["es2020", "DOM"],
+        "strict": true,
+        // The GTK element list, so `<adw-clamp>` resolves and `<div>` is a TS2339
+        // rather than a tag that type-checks and renders nothing (ADR 0028 § 8).
+        // Every platform module states its own source in a per-file pragma anyway —
+        // measured: the pragma beats this option — and the split gate requires it, so
+        // this value is the safe DEFAULT for a file that is neither half, never the
+        // thing either half relies on.
+        "jsx": "react-jsx",
+        "jsxImportSource": "@gjsify/gtk-host/react"
+    },
+    "include": [
+        "src",
+        "../../../node_modules/@girs/adw-1/adw-1-ambient.d.ts",
+        "../../../node_modules/@girs/gtk-4.0/gtk-4.0-ambient.d.ts"
+    ],
+    "exclude": ["src/test.mts", "src/test.node.mts"]
+}
