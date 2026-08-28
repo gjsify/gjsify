@@ -148,22 +148,37 @@ export default async () => {
         });
     });
 
-    await describe('AdwClamp on React Native — the property range GObject enforces', async () => {
+    await describe('AdwClamp on React Native — the property range both halves answer alike', async () => {
         // `maximum-size` and `tightening-threshold` are `g_param_spec_int (…, 0, G_MAXINT,
-        // …)`, and on GTK that range is enforced before libadwaita runs. Each expectation
-        // below is what the real `Adw.Clamp` was measured doing with the same input in a
-        // 1000-point window; without `normalizeClampSize` this half answered differently
-        // in both rows.
+        // …)`. GObject's handling of a value outside that range is neither uniform nor
+        // the same on both of its own paths — measured through the GTK component itself:
+        // `new Adw.Clamp({'maximum-size': NaN})` STORES 0, `set_property` with the same
+        // NaN leaves the property alone and logs a critical, and a negative keeps the
+        // default on both paths and logs one too. So BOTH halves run
+        // `normalizeClampSize` and neither half asks GObject to answer this question.
+        //
+        // Each row below is asserted against the same authored value in
+        // `clamp.gtk.spec.tsx`'s describe of the same name, where it is read off the
+        // real widget's property. Before that describe existed the GTK behaviour was a
+        // COMMENT here, and it was wrong in both rows.
         await it('truncates a fractional maximum, as an int property does', async () => {
             const child = onlyChild(settled(<AdwClamp maximumSize={400.7}>{null}</AdwClamp>, FRAME_WIDTH));
             expect(child.props.style as Style).toStrictEqual({ width: 400, marginStart: 300 });
         });
 
-        await it('keeps the default for a value GObject would refuse', async () => {
-            // GTK: the assignment is rejected and `maximum-size` stays 600. Here the
-            // fallback has to come from the normaliser, because `??` sees a number.
+        await it('falls back to libadwaita’s default for a value GObject cannot store', async () => {
+            // The fallback has to come from the normaliser, because `??` sees a number.
+            // GTK reads `maximum-size` back as 600 for the same input.
             const child = onlyChild(settled(<AdwClamp maximumSize={Number.NaN}>{null}</AdwClamp>, FRAME_WIDTH));
             expect(child.props.style as Style).toStrictEqual({ width: 600, marginStart: 200 });
+        });
+
+        await it('takes a negative to the range floor, which GTK now reads back as 0', async () => {
+            // The child SIZE is 0 here and is the label's intrinsic minimum on GTK —
+            // `childMin`, the divergence the README names, not this rule. What both
+            // halves agree on is the property: 0.
+            const child = onlyChild(settled(<AdwClamp maximumSize={-5}>{null}</AdwClamp>, FRAME_WIDTH));
+            expect(child.props.style as Style).toStrictEqual({ width: 0, marginStart: 500 });
         });
     });
 };

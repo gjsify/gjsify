@@ -163,6 +163,42 @@ export default async () => {
             });
         });
 
+        // The other half of the pair `clamp.native.spec.tsx` calls "the property range
+        // both halves answer alike". Until this describe existed, that half asserted a
+        // NUMBER for React Native and a GTK behaviour in a COMMENT — and the comment was
+        // wrong in both rows measured here: a raw `maximum-size={NaN}` reached the widget
+        // as 0 rather than leaving the default, and a raw `maximum-size={-5}` kept 600
+        // where the React Native half answered 0. `installDiagnosticsGate` makes the
+        // third claim — that neither value costs a `GLib-GObject-CRITICAL` — an
+        // assertion rather than a hope; before `clamp.gtk.tsx` normalised, the negative
+        // row raised one.
+        //
+        // The PROPERTY is read here rather than the allocation, and that matters only
+        // for the negative row: `maximum-size` 0 allocates the child its own intrinsic
+        // minimum on GTK and 0 on React Native, which is the `childMin` divergence the
+        // README names and not this rule.
+        await gated('the property range both halves answer alike', async () => {
+            const authored = (value: number, body: (clamp: Adw.Clamp) => void): void =>
+                laidOut(
+                    <AdwClamp maximumSize={value}>
+                        <gtk-label label="inside" />
+                    </AdwClamp>,
+                    (container) => body(find(container, 'AdwClamp') as Adw.Clamp),
+                );
+
+            await it('truncates a fractional maximum, as an int property does', async () => {
+                authored(400.7, (clamp) => expect(clamp.maximumSize).toBe(400));
+            });
+
+            await it('falls back to libadwaita’s default for a value GObject cannot store', async () => {
+                authored(Number.NaN, (clamp) => expect(clamp.maximumSize).toBe(600));
+            });
+
+            await it('takes a negative to the range floor instead of GObject’s refusal', async () => {
+                authored(-5, (clamp) => expect(clamp.maximumSize).toBe(0));
+            });
+        });
+
         if (display !== null) {
             await gated('the picture, not only the setter', async () => {
                 await it('clamps and centres the child at the shared numbers', async () => {

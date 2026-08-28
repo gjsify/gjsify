@@ -9,16 +9,22 @@
 // libadwaita at the two ends of the curve and nowhere in the middle, and would make
 // the two halves of this package disagree exactly where nobody looks.
 //
-// THE PROPERTIES GO THROUGH `normalizeClampSize`, NOT `?? default`. Both are
-// `g_param_spec_int (…, 0, G_MAXINT, …)` on GTK, and GObject enforces that range before
-// libadwaita ever sees the value — so the two halves disagree on anything outside it
-// unless this half applies the same rule. Measured against the real `Adw.Clamp` in a
-// 1000-point window: `maximumSize={400.7}` allocates 400 there (an int property
-// truncates) and `?? default` gave 401 here; `maximumSize={NaN}` keeps the default 600
-// there (GObject refuses the assignment) and `?? default` propagated the `NaN` into a
-// `width: NaN` style. `normalizeClampSize` — the same function `@gjsify/adwaita-web`'s
-// `<adw-clamp>` and `@gjsify/adwaita-nativescript` already run before `clampAllocate` —
-// gives 400 and 600. A fourth private normalisation would be the drift, not the fix.
+// THE PROPERTIES GO THROUGH `normalizeClampSize`, NOT `?? default` — and so does the
+// GTK half. Both are `g_param_spec_int (…, 0, G_MAXINT, …)`, and the tempting sentence
+// "GObject enforces that range, so this half only has to apply the same rule" is false
+// as a description of GObject. Measured through `clamp.gtk.tsx` against libadwaita
+// 1.9.3: `new Adw.Clamp({'maximum-size': NaN})` STORES 0, `set_property` with that same
+// NaN refuses and logs a `GLib-GObject-CRITICAL`, and a negative keeps the previous
+// value on both paths and logs one too. One authored value, three answers. So the rule
+// lives in `@gjsify/adwaita-core` and BOTH halves run it before anything else sees the
+// number; the GTK widget is handed a value it has nothing to refuse.
+//
+// `?? default` was the first version and it is wrong twice over: `maximumSize={400.7}`
+// gave 401 where an int property truncates to 400, and `maximumSize={NaN}` propagated
+// the NaN into a `width: NaN` style. `normalizeClampSize` — the same function
+// `@gjsify/adwaita-web`'s `<adw-clamp>` and `@gjsify/adwaita-nativescript` already run
+// before `clampAllocate` — gives 400 and 600. A fourth private normalisation would be
+// the drift, not the fix.
 //
 // THE SIZE SOURCE IS `onLayout`, NOT `useWindowDimensions()`. Every renderer of this
 // design binds to the size of the VIEW, never the window — NativeScript to
