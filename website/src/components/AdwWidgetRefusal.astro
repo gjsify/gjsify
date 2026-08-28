@@ -1,0 +1,47 @@
+---
+/**
+ * Why a gallery block has no Solid, Vue or React snippet.
+ *
+ * Its own component because it renders in TWO places in `AdwWidgetWindow` — as a tab
+ * page beside other panes, and as the whole window when it is the only pane, which is
+ * the ordinary case for the 19 blocks that carry a reason instead of a snippet. Two
+ * copies of this prose is exactly the drift the gallery keeps paying for elsewhere.
+ */
+interface Props {
+    /** The block's title, e.g. `Gtk.DropDown`. */
+    widget: string;
+    /** The recorded reason, from `ADWAITA_FRAMEWORK_REFUSALS`. */
+    reason: string;
+}
+
+const { widget, reason } = Astro.props;
+---
+
+<div class="adw-widget-refusal not-content">
+    <p>
+        No Solid, Vue or React snippet for <code>{widget}</code>: {reason}
+    </p>
+    <p>
+        Every snippet in this gallery was compiled and run before it was written down. Where a widget is built
+        imperatively rather than declared — a <code>Gio.MenuModel</code>, a dialog opened with <code>present()</code>,
+        a container with no child policy — there is nothing for the three dialects to differ about, so the reason is
+        recorded here rather than the tab being quietly absent.
+    </p>
+</div>
+
+<style>
+    .adw-widget-refusal {
+        padding: 1rem 1.25rem;
+    }
+
+    .adw-widget-refusal p {
+        margin: 0 0 0.75rem;
+        color: var(--sl-color-gray-2);
+        font-size: var(--sl-text-sm);
+        line-height: 1.6;
+    }
+
+    .adw-widget-refusal p:last-child {
+        margin-bottom: 0;
+    }
+</style>

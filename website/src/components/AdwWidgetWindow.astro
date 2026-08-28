@@ -36,6 +36,9 @@
 // Whatever the original failure was, it is not this rule — and a rule with a wrong
 // reason is thrown out together with its reason the first time someone checks it.
 
+import { Code } from '@astrojs/starlight/components';
+
+import AdwWidgetRefusal from './AdwWidgetRefusal.astro';
 import { attributeCells } from './attr-sample.mjs';
 
 interface Props {
@@ -49,6 +52,28 @@ interface Props {
     impls: string;
     /** One tab per port this block filled: the Adw.TabBar label and the rendered snippet. */
     tabs: { label: string; html: string }[];
+    /**
+     * Panes rendered from DATA rather than from a page's slot — the Solid, Vue and
+     * React snippets, which are generated from three running showcases.
+     *
+     * They carry SOURCE and not HTML, unlike {@link tabs}, because a page's slot has
+     * already been through Expressive Code by the time this component sees it and a
+     * data pane has not. Starlight's `<Code>` is that same renderer, so the two kinds
+     * of pane look identical to a reader — which is the point, and the reason this is
+     * not a `<pre>`.
+     */
+    code?: { id: string; label: string; lang: string; source: string }[];
+    /**
+     * Why this block has no framework snippet — rendered INSTEAD of {@link code},
+     * never beside it.
+     *
+     * Its own data file gives the reason: "a missing tab and a tab that cannot exist
+     * look identical, and only one of them is a fact". A `Gio.MenuModel` built
+     * imperatively is not markup in any dialect, and a reader who meets an absent
+     * window learns the wrong thing about the dialects instead of the right thing
+     * about the widget.
+     */
+    refusal?: string | null;
     /** The markup the first pane mounts, or null on a window that only shows code. */
     preview?: string | null;
     /** Padding around the preview widget — see AdwWidget. */
@@ -80,10 +105,13 @@ const {
     scroll = false,
     stage,
     attributes = null,
+    code = [],
+    refusal = null,
 } = Astro.props;
 
 /** The preview is a pane like any other, so it counts like one. And so is the attribute list. */
-const panes = tabs.length + (preview === null ? 0 : 1) + (attributes === null ? 0 : 1);
+const panes =
+    tabs.length + code.length + (refusal === null ? 0 : 1) + (preview === null ? 0 : 1) + (attributes === null ? 0 : 1);
 
 // NO PANES AT ALL is a header bar over nothing, and it renders exactly that way at
 // exit 0. `AdwWidget` is what prevents it — it skips a window none of whose tab
@@ -220,6 +248,21 @@ if (attributes !== null && preview === null) {
                 {tabs.map((tab) => (
                     <adw-tab-page title={tab.label} set:html={tab.html} />
                 ))}
+                {/* AFTER the slot tabs and BEFORE the attribute pane, because
+                    `data-impls` in AdwWidget is positional and lists them in exactly
+                    that order. The two have to be read together; a reader picking
+                    "Vue" would otherwise move every other window to a pane that is
+                    not its Vue one. */}
+                {code.map((pane) => (
+                    <adw-tab-page title={pane.label}>
+                        <Code code={pane.source} lang={pane.lang} />
+                    </adw-tab-page>
+                ))}
+                {refusal !== null && (
+                    <adw-tab-page title="Why not">
+                        <AdwWidgetRefusal widget={widget} reason={refusal} />
+                    </adw-tab-page>
+                )}
                 {attributes !== null && (
                     <adw-tab-page title="Attributes">
                         <div class="adw-widget-attrs not-content">
@@ -265,9 +308,19 @@ if (attributes !== null && preview === null) {
         )
     }
 
-    {
-        panes === 1 && (
-            <div class="adw-widget-window-pane" set:html={tabs[0].html} />
-        )
-    }
+    {/* The bare pane, with no tab bar over it. It used to read `tabs[0]` because
+        every pane was a slot; a window can now be one DATA pane — the frameworks
+        window on the 19 blocks that carry a reason instead of a snippet is exactly
+        that, and it is the ordinary case rather than an edge one. */}
+    {panes === 1 && tabs.length === 1 && <div class="adw-widget-window-pane" set:html={tabs[0].html} />}
+    {panes === 1 && code.length === 1 && (
+        <div class="adw-widget-window-pane">
+            <Code code={code[0].source} lang={code[0].lang} />
+        </div>
+    )}
+    {panes === 1 && refusal !== null && (
+        <div class="adw-widget-window-pane">
+            <AdwWidgetRefusal widget={widget} reason={refusal} />
+        </div>
+    )}
 </div>
