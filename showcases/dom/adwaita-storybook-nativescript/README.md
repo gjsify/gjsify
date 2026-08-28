@@ -34,7 +34,7 @@ npm run run:android        # or: npm run debug:android  (serves the V8 CDP inspe
 
 ## What it demonstrates
 
-- A complete component browser — 35 stories, sidebar navigation, live two-way controls — running as a **real native Android app**
+- A complete component browser — every story the GTK and browser targets render, sidebar navigation, live two-way controls — running as a **real native Android app**
 - The SAME stories on three renderers from ONE renderer-agnostic `*.meta.ts` source, imported across package boundaries via the GTK showcase's `./metas` export — so a control added once shows up on all three
 - Native Adwaita widgets on NativeScript (`@gjsify/adwaita-nativescript`), styled with the Adwaita CSS theme + Adwaita Sans, with no webview anywhere
 - The narrow-width shell: a collapsed `AdwNavigationSplitView` (story list ↔ detail + back button), matching the GTK `NavigationSplitView` at phone width
