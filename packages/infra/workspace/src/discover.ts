@@ -9,7 +9,11 @@ import { expandPattern, globToRegex } from './glob.js';
 import type { Workspace, WorkspaceManifest } from './types.js';
 
 export interface DiscoverWorkspacesOptions {
-    /** Override the patterns read from the root package.json. */
+    /**
+     * Override the patterns read from the root package.json. Supplying them
+     * also makes the root package.json OPTIONAL — the patterns are the package
+     * set, so a repo with no root manifest at all is still discoverable.
+     */
     patterns?: string[];
     /**
      * Include the root package as a workspace itself. Yarn does not do this
@@ -26,10 +30,19 @@ export interface DiscoverWorkspacesOptions {
  */
 export function discoverWorkspaces(root: string, options: DiscoverWorkspacesOptions = {}): Workspace[] {
     const rootManifestPath = join(root, 'package.json');
-    if (!existsSync(rootManifestPath)) {
+    const hasRootManifest = existsSync(rootManifestPath);
+    // Explicit `patterns` ARE the package set, so they make the root manifest
+    // optional: a repo can be a monorepo without being an npm/yarn workspace.
+    // `gjsify/types` is 703 package directories under a root whose only tracked
+    // file is `.gitignore`, and it is exactly the repo a publish sweep has to
+    // reach. Without patterns the manifest is the only source of a package set
+    // there is, so its absence stays an error.
+    if (!hasRootManifest && !options.patterns) {
         throw new Error(`@gjsify/workspace: no package.json at ${root}`);
     }
-    const rootManifest = JSON.parse(readFileSync(rootManifestPath, 'utf-8')) as WorkspaceManifest;
+    const rootManifest: WorkspaceManifest = hasRootManifest
+        ? (JSON.parse(readFileSync(rootManifestPath, 'utf-8')) as WorkspaceManifest)
+        : {};
     const patterns = options.patterns ?? extractWorkspacePatterns(rootManifest);
 
     // `!`-prefixed patterns are exclusions (npm/yarn-compatible) — e.g.

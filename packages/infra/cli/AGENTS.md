@@ -17,7 +17,7 @@ gjsify run <script>                       # root script; gjsify run dist/gjs.js 
 gjsify run --node-script <file.mjs>       # an unbundled Node-style script, on the host runtime (bundled for GJS on the fly)
 gjsify tsc …                              # Node-free tsc via the @gjsify/tsc bundle (args verbatim)
 gjsify publish|whoami|login|logout        # Node-free npm publish/auth (npm-otp header, no web-OAuth)
-gjsify trust [pkg] | gjsify onboard       # Trusted-Publisher config / full first-publish+trust sweep (one shared OTP)
+gjsify trust [pkg] | gjsify onboard [--packages <glob>]  # Trusted-Publisher / publish+trust sweep, ANY monorepo
 gjsify upgrade [--latest|--minor|--patch|--align|--check] [-p glob]   # workspace-wide dep upgrades; --check = CI drift gate
 gjsify ship [--target deb,rpm,flatpak] [--stage]   # phase 1: assemble ONE staged payload (ADR 0024)
 gjsify ship --from-stage <dir> [--expect-target <os>-<arch>]   # phase 2: pack a stage, no project needed
