@@ -6,15 +6,29 @@ import { discoverBundles } from '../scripts/discover-bundles.mjs';
 // registered.
 //
 // WHAT IT MEASURED. `customElements.define` upgrades every matching element already in
-// the document, immediately, so the two calls at the foot of
-// `packages/web/adwaita-web/src/elements/adw-tab-view.ts` are a sequence, not a pair.
-// With the page defined first, each declared `<adw-tab-page>` ran its
-// `attributeChangedCallback` while its `<adw-tab-view>` parent was still an ordinary
+// the document, immediately, so two `define` calls at the foot of one module are a
+// sequence, not a pair. With the page defined first, each declared `<adw-tab-page>` ran
+// its `attributeChangedCallback` while its `<adw-tab-view>` parent was still an ordinary
 // HTMLElement — and the callback reaches for that parent. On the built documentation
-// site `/getting-started/` (five `CommandTabs` windows, 19 pages) that was 19 uncaught
-// `this.closest(...)?.syncDeclaredPage is not a function`, against 0 on
-// `/adwaita/theming/`, which declares none. The fixture below is the same shape at
-// three pages and reported three.
+// site that was 337 uncaught `syncDeclaredPage is not a function` across 22 pages, one
+// per declared page: 36 on `/adwaita/boxed-lists/`, 32 on the home page, 19 on
+// `/getting-started/`. The control is `/adwaita/` — it LOADS the package and declares no
+// tab markup, so its count is attributable; `/adwaita/theming/` is not a control, it
+// never loads adwaita-web at all and would read 0 with the widget on fire.
+//
+// BOTH PAIRS, because the shape is the defect and `adw-tab-view.ts` was only the first
+// place it was read. `adw-navigation-page` reaches `closest('adw-navigation-view')` the
+// same way and was registered the same way round; it reproduced here at four uncaught
+// `syncPageProperty is not a function` and never showed on the site only because the
+// gallery clones its navigation markup out of a `<template>` after both names exist.
+//
+// WHAT THIS FILE CANNOT HOLD, so that nobody reads it as holding it: the define ORDER.
+// The guard makes the order unobservable — with `instanceof` in place, registering the
+// page first renders identically, because the view reads every attribute back off the
+// element when it adopts it, and this test passes. Measured, by swapping the defines
+// back. The order is held by `scripts/check-adwaita-upgrade-order.mjs`, which reads the
+// text; what IS held here is that the two together leave nothing uncaught and the markup
+// still becomes the widget.
 //
 // `page.setContent` is the instrument, not a fixture file: it writes the markup into a
 // document that already has the harness's origin, and a `type="module"` script is
@@ -38,13 +52,19 @@ const DECLARED_MARKUP = `<div id="declared">
         <adw-tab-page title="Two"><p>second</p></adw-tab-page>
         <adw-tab-page title="Three"><p>third</p></adw-tab-page>
     </adw-tab-view>
+    <adw-navigation-view>
+        <adw-navigation-page title="Alpha" tag="alpha"><p>alpha</p></adw-navigation-page>
+        <adw-navigation-page title="Beta" tag="beta"><p>beta</p></adw-navigation-page>
+    </adw-navigation-view>
 </div>`;
 
 const adwaita = discoverBundles().find((bundle) => bundle.packageName === 'adwaita-web');
 
 // BOUND TO THE STAGED SET, as `unit.spec.ts` and `adwaita-keyboard.spec.ts` are: a
 // selective CI run stages only the affected closure, so an unconditional test would fail
-// a PR over a package it never touched.
+// a PR over a package it never touched. The other half — that this file must not vanish
+// unnoticed — is `scripts/check-adwaita-upgrade-order.mjs`, which asserts it exists and
+// runs on every PR rather than only on the ones that stage this bundle.
 if (adwaita === undefined) {
     test('adwaita-web declared-markup upgrade order — bundle not staged', () => {
         console.warn(
@@ -70,17 +90,27 @@ if (adwaita === undefined) {
 
         expect(errors, `uncaught errors on a page of declared adwaita markup:\n  ${errors.join('\n  ')}`).toEqual([]);
 
-        // Not merely quiet — the markup became the widget. Asserted after the fact
-        // because a guard that only swallowed the notification would satisfy the count
-        // above while leaving the tabs untitled.
+        // Not merely quiet — the markup became the widget. This does NOT distinguish a
+        // guard that swallows the notification, and the earlier claim that it would leave
+        // the tabs untitled is measurably false: with `syncDeclaredPage` stubbed to return
+        // immediately, the chips below still read One/Two/Three, because on this path the
+        // titles come from `_adoptDeclaredPage` and never from the notification at all.
+        // That mutation is caught by the LIVE-title test in `adw-tab-view.spec.ts`. What
+        // these assertions DO catch is the adopt path itself going quiet — a widget that
+        // reports nothing and renders nothing is the failure this file is named for.
         const rendered = await page.evaluate(() => {
             const view = document.querySelector('#declared adw-tab-view');
+            const nav = document.querySelector('#declared adw-navigation-view');
             return {
                 chips: Array.from(view?.querySelectorAll('.adw-tab-title') ?? []).map((n) => n.textContent),
                 shown: Array.from(view?.querySelectorAll('.adw-tab-page') ?? []).map((n) => !(n as HTMLElement).hidden),
+                // The declared navigation pages became the stack: `add` auto-pushes into
+                // an empty one, so both are registered and the first is visible.
+                navPages: nav?.querySelectorAll('.adw-navigation-page').length ?? 0,
             };
         });
         expect(rendered.chips).toEqual(['One', 'Two', 'Three']);
         expect(rendered.shown).toEqual([true, false, false]);
+        expect(rendered.navPages).toBe(2);
     });
 }
