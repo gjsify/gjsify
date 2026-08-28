@@ -60,6 +60,11 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+    TS_SOURCE_EXTENSIONS,
+    sourceExtensionRe,
+} from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI_SRC = join(REPO_ROOT, 'packages/infra/cli/src');
 const RESOLVER = 'utils/publish-headers.ts';
@@ -90,12 +95,22 @@ const BINDS_OWN_LOCATION = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=[^\n]*impo
 /** How far above a manifest read a location binding still counts as feeding it. */
 const BINDING_WINDOW = 4;
 
+/**
+ * Every TypeScript source under the CLI, specs aside.
+ *
+ * `.ts`-only was a live blind spot, not a hypothetical one: `packages/infra/cli/src/test.mts`
+ * is tracked and was never opened, and the version read this check exists to hold is a
+ * `.mts` file away from being unchecked.
+ */
+const SOURCE_RE = sourceExtensionRe(TS_SOURCE_EXTENSIONS);
+const SPEC_RE = new RegExp(`\\.spec\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`);
+
 function walk(dir) {
     const out = [];
     for (const entry of readdirSync(dir)) {
         const full = join(dir, entry);
         if (statSync(full).isDirectory()) out.push(...walk(full));
-        else if (entry.endsWith('.ts') && !entry.endsWith('.spec.ts')) out.push(full);
+        else if (SOURCE_RE.test(entry) && !SPEC_RE.test(entry)) out.push(full);
     }
     return out;
 }

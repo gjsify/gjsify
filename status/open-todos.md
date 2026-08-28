@@ -1397,6 +1397,47 @@ Two sites load the optional native HTTP/2 dispatcher through a bare `require(...
 
 So it needs a real design decision inside `@gjsify/http2` (e.g. resolving the dispatcher during an already-async phase, or an explicit async opt-in), not a lint fix. Both sites carry an `oxlint-disable-next-line typescript/no-require-imports` with the reason inline; they are the only sanctioned disables of that rule in the tree.
 
+### `showcases` is 193 comment lines over its ceiling, and always was
+
+`check-comment-budget.mjs` globbed `'*.ts' '*.mts' '*.mjs' '*.js' '*.cjs'` — a list
+written before this tree had a `.tsx` file in it — so it never opened the 19 tracked
+ones. Reading them changes two rows, and both numbers are what those trees have had all
+along:
+
+- **`showcases` 0.153 → 0.170** against a ceiling of **0.158**, which had been printing
+  78 lines of SPARE. Seven files: the four host-counter / gallery apps and the three
+  `rn-design-system` modules, 2434 code lines carrying 657 comment lines.
+- **`packages/framework` 0.344 → 0.352** against 0.244. Already over before; the 12
+  `gtk-host/type-tests/**` files add 114 code lines and 402 comment lines, a ratio of
+  3.5 — a type-test is mostly prose about what `tsc` has to reject, which is the material
+  a whole-tree ratio suits least.
+
+**The ceiling was not raised, and `--update` cannot raise it** (it writes
+`min(stored, measured)`). The gate REPORTS rather than gates: `--warn`, which is what CI
+runs, exits 0 over an above-ceiling tree, so the honest number is what landed and
+`showcases` now raises an Actions warning it did not raise before. Closing it means
+cutting genuine restatement in those seven showcase files, or deciding a showcase's job
+IS to be commented and saying so in a reviewed ceiling change. Not by moving full-line
+comments onto code lines — the script's own header records that ~1670 trailing comments
+are already invisible to it, so that direction buys a number and no clarity.
+
+### 18 specs in five packages are registered by nothing, because their entry is one directory down
+
+`readSuiteRegistration` looks for `src/test*.{ts,mts,cts,tsx}` at the TOP of `src/` only
+and returns an empty result when it finds none; `check-node-test-registration.mjs` and
+`check-browser-test-registration.mjs` then skip the package outright. Five keep their
+entry a level down — `packages/framework/webgl/src/test/`, and `src/ts/` in
+`lightningcss-native`, `http2-native`, `sab-native`, `tls-native` — so their 18
+`*.spec.ts` files are held to nothing at all. A spec no entry imports would still report
+as reachable there, because the reader never looked.
+
+Found by `scripts/check-source-visibility.mjs`: its first registration of that walker
+declared the scope as "every spec under a package `src`" and reported these 18 as blind,
+and the scope had to be narrowed to the walker's own subject to go green. It is NOT the
+extension class it was found beside — nothing here turns on a suffix — and closing it
+changes what those two gates ASSERT (18 newly graded specs, plausibly with findings), so
+it wants its own commit.
+
 ### Manifest-conformance follow-ups
 
 The five standalone declaration-vs-reality scripts are now one rule registry (`@gjsify/manifest-conformance` + `scripts/manifest-conformance/`). Three things were deliberately left out of that refactor so it stayed a refactor.

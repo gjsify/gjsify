@@ -28,7 +28,12 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 
-import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
+import {
+    TS_SOURCE_EXTENSIONS,
+    resolveLocalSource,
+    sourceExtensionRe,
+    toPosixPath,
+} from '../packages/infra/manifest-conformance/lib/index.mjs';
 
 /** Repo-relative source roots, so callers can name them in their own messages. */
 export const ADWAITA_WEB_SRC = 'packages/web/adwaita-web/src';
@@ -138,7 +143,20 @@ export function adwaitaWebSources(root) {
     return sourceFiles(join(root, ADWAITA_WEB_SRC));
 }
 
-/** Every `.ts` under `dir` — elements live outside `elements/` too (`source-view/`). */
+/**
+ * Every TypeScript source under `dir` — elements live outside `elements/` too
+ * (`source-view/`).
+ *
+ * This walk feeds FOURTEEN gates (the five `check-adwaita-*` contracts, the four
+ * storybook parity checks, vocabulary alignment, the two website checks,
+ * `generate-status` and `storybook-registration`), so the `.ts`-only filter it carried
+ * would have taken all fourteen blind at once the day an element was written as `.mts`
+ * or `.tsx`. It throws when the set is EMPTY and says nothing when the set merely
+ * shrinks, which is the half that costs.
+ */
+const SOURCE_RE = sourceExtensionRe(TS_SOURCE_EXTENSIONS);
+const SPEC_RE = new RegExp(`\\.spec\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`);
+
 function sourceFiles(dir) {
     const found = [];
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -146,7 +164,7 @@ function sourceFiles(dir) {
         if (entry.name === 'node_modules') continue;
         const path = join(dir, entry.name);
         if (entry.isDirectory()) found.push(...sourceFiles(path));
-        else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) found.push(path);
+        else if (SOURCE_RE.test(entry.name) && !SPEC_RE.test(entry.name)) found.push(path);
     }
     return found;
 }
@@ -482,8 +500,10 @@ export function coreReach(rendererFiles, root) {
         }
     };
     const importsCore = (text) => valueImports(text).some((spec) => spec.startsWith(CORE_PACKAGE));
-    // TS sources import the EMITTED `.js` sibling; the file on disk is `.ts`.
-    const sibling = (file, spec) => resolve(file, '..', spec.replace(/\.js$/, '.ts'));
+    // TS sources import the EMITTED `.js` sibling; the file on disk is the TypeScript
+    // one, and which extension that is comes from the disk rather than from a suffix
+    // rewrite that can only ever land on `.ts`.
+    const sibling = (file, spec) => resolveLocalSource(file, spec) ?? resolve(file, '..', spec.replace(/\.js$/, '.ts'));
     const byImport = (file) => {
         const text = read(file);
         if (importsCore(text)) return true;
@@ -625,8 +645,14 @@ function verifyCoreVia(files, elements, root) {
 
 // `adw-button.ts`, plus the `.android`/`.ios` halves NativeScript splits a module into
 // (`icons.android.ts` beside `icons.ios.ts` here already): two files, one widget. Any
-// other dotted name — `adw-button.d.ts` — is not a widget name and is not read as one.
-const NS_WIDGET_FILE = /^adw-([a-z0-9-]+)(?:\.(?:android|ios))?\.ts$/;
+// other dotted name — `adw-button.d.ts` — is not a widget name and is not read as one,
+// which the `[a-z0-9-]+` base still guarantees.
+//
+// The extension comes from the shared vocabulary because `.ts` alone CONTRADICTED the
+// rule one layer down: `nativescript-platforms.mjs` declares `VARIANT_EXTENSIONS`
+// including `tsx` and `mts` for this very naming scheme, so the build resolves a
+// `adw-button.android.tsx` that this scan could not see.
+const NS_WIDGET_FILE = new RegExp(`^adw-([a-z0-9-]+)(?:\\.(?:android|ios))?\\.(?:${TS_SOURCE_EXTENSIONS.join('|')})$`);
 
 /** Declaring a class AT ALL is what makes a file a widget file — the word in prose is not. */
 const CLASS_DECLARATION = /^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+[A-Za-z0-9_]+/m;

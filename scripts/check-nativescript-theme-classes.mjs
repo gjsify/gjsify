@@ -88,6 +88,12 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+    TS_SOURCE_EXTENSIONS,
+    isDeclarationFile,
+    sourceExtensionRe,
+} from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
@@ -134,6 +140,12 @@ const MIN_REASON = 40;
 
 const isTracked = (name) => name.startsWith('adw-') || UNPREFIXED.has(name);
 
+// The shared vocabulary. `.ts` alone contradicted the layer below it:
+// `nativescript-platforms.mjs` blesses `tsx` and `mts` as platform-variant extensions for
+// these very widgets, so a `.tsx` widget could set classes that nothing styled and nothing
+// reported.
+const SOURCE_RE = sourceExtensionRe(TS_SOURCE_EXTENSIONS);
+
 function widgetSources(roots) {
     const found = [];
     const walk = (dir) => {
@@ -141,7 +153,7 @@ function widgetSources(roots) {
             const path = join(dir, entry.name);
             if (entry.isDirectory()) {
                 if (entry.name !== 'theme') walk(path);
-            } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts') && !entry.name.includes('.spec.')) {
+            } else if (SOURCE_RE.test(entry.name) && !isDeclarationFile(entry.name) && !entry.name.includes('.spec.')) {
                 found.push(path);
             } else if (entry.name.endsWith('.xml')) {
                 found.push(path);

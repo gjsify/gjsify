@@ -42,7 +42,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { registeredSymbols, resolveToSource, stripComments } from './suite-registration.mjs';
+import { isSpecFile, registeredSymbols, resolveToSource, stripComments } from './suite-registration.mjs';
 
 const args = process.argv.slice(2);
 const rootIndex = args.indexOf('--root');
@@ -103,13 +103,18 @@ function browserPackages() {
     return { found, unpaired };
 }
 
-/** Every `*.spec.ts` below `dir`, at any depth. */
+/**
+ * Every spec below `dir`, at any depth — `isSpecFile` is `suite-registration.mjs`'s, so
+ * the browser gate and the node gate cannot disagree about what a spec IS. They already
+ * held two copies of `endsWith('.spec.ts')`, and a fourth copy of that literal lived in
+ * this repository besides.
+ */
 function specFiles(dir) {
     const found = [];
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const path = join(dir, entry.name);
         if (entry.isDirectory()) found.push(...specFiles(path));
-        else if (entry.name.endsWith('.spec.ts')) found.push(path);
+        else if (isSpecFile(entry.name)) found.push(path);
     }
     return found;
 }
@@ -153,7 +158,9 @@ function registeredKeys(source) {
 function delegatedEntry(src, source) {
     const target = /(?:^|\n)\s*(?:import|export\s+\*\s+from)\s+['"]\.\/(test\.m?js)['"]/.exec(source);
     if (target === null) return undefined;
-    const candidate = join(src, target[1].replace(/\.mjs$/, '.mts').replace(/\.js$/, '.ts'));
+    // Through the shared resolver, given the directory, so a delegated entry written at
+    // any TypeScript extension is found rather than guessed at `.ts`/`.mts` and missed.
+    const candidate = join(src, resolveToSource(target[1], src));
     return existsSync(candidate) ? candidate : undefined;
 }
 

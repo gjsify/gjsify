@@ -34,6 +34,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
+import { TS_SOURCE_EXTENSIONS } from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+
 /** Directories that never hold first-party sources. */
 export const SKIP = new Set(['node_modules', 'dist', 'lib', '.git', 'refs', 'tmp']);
 
@@ -64,15 +66,28 @@ export function packageDirs(dir, out = []) {
     return out;
 }
 
+/** `foo.spec.ts`, `foo.spec.tsx`, … — the spec-file half of the vocabulary. */
+export const SPEC_RE = new RegExp(`\\.spec\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`);
+const ENTRY_EXT_RE = new RegExp(`\\.(${TS_SOURCE_EXTENSIONS.join('|')})$`);
+
+/** A `*.spec.*` file, at any of the TypeScript extensions. @param {string} name */
+export const isSpecFile = (name) => SPEC_RE.test(name);
+
 /**
  * `src/test.mts`, `src/test.browser.mts`, `src/test.node-gi.mts` — and `src/test.ts`,
  * which `packages/node/url` and `packages/node/util` use for the same job. Both
  * extensions, or those two packages' node specs read as orphans while they run on
  * every PR.
+ *
+ * The extension set is the shared vocabulary rather than the `.mts`/`.ts` pair written
+ * here before: a spec or an entry that renders JSX is a `.tsx` file, and a walker that
+ * does not open it reports the same green as one that found nothing wrong.
+ *
+ * @param {string} name
  */
 export function isTestEntry(name) {
-    if (!name.startsWith('test') || name.endsWith('.spec.ts') || name.endsWith('.spec.tsx')) return false;
-    return name.endsWith('.mts') || name.endsWith('.ts');
+    if (!name.startsWith('test') || isSpecFile(name)) return false;
+    return ENTRY_EXT_RE.test(name);
 }
 
 /**
@@ -124,20 +139,22 @@ export function stripComments(source) {
  * reported `packages/infra/tsc`'s one spec as an orphan while it ran on every PR — a
  * false violation is how a checker teaches people to ignore it.
  */
-export function resolveToSource(specifier, fromDir = '.') {
-    const exists = (candidate) => existsSync(resolve(fromDir, candidate));
-    if (specifier.endsWith('.ts') || specifier.endsWith('.tsx') || specifier.endsWith('.mts')) return specifier;
-    if (specifier.endsWith('.mjs')) return `${specifier.slice(0, -4)}.mts`;
-    // `.tsx` is tried FIRST for a `.js` specifier and probed on disk rather than
-    // guessed, because a JSX spec is invisible to this reader otherwise — measured:
-    // `@gjsify/adwaita-react-native` added two `*.spec.tsx` and the gate's own count
-    // rose by the two `.ts` ones alone, so a JSX spec that no entry imported would
-    // never have been reported. Nothing else in the repository would have said so.
-    if (specifier.endsWith('.js')) {
-        const tsx = `${specifier.slice(0, -3)}.tsx`;
-        return exists(tsx) ? tsx : `${specifier.slice(0, -3)}.ts`;
+export function resolveToSource(specifier, fromDir = null) {
+    if (ENTRY_EXT_RE.test(specifier)) return specifier;
+    const base = specifier.replace(/\.m?js$/, '');
+    const preferred = specifier.endsWith('.mjs') ? `${base}.mts` : `${base}.ts`;
+    // The two-line mapping this replaced could only ever name `.ts` and `.mts`, so a
+    // `foo.spec.tsx` imported as `./foo.spec.js` resolved to a path that does not exist
+    // and the spec read as an orphan — loud rather than silent, and still wrong. `fromDir`
+    // is how a caller lets the disk decide; without it the historical guess stands, which
+    // is what keeps this a pure string function for the callers that pass no directory.
+    if (fromDir === null) return preferred;
+    if (existsSync(join(fromDir, preferred))) return preferred;
+    for (const ext of TS_SOURCE_EXTENSIONS) {
+        const candidate = `${base}.${ext}`;
+        if (existsSync(join(fromDir, candidate))) return candidate;
     }
-    return exists(`${specifier}.tsx`) ? `${specifier}.tsx` : `${specifier}.ts`;
+    return preferred;
 }
 
 /**
@@ -305,7 +322,7 @@ export function readSuiteRegistration(pkgDir) {
         .filter(isTestEntry)
         .map((name) => join(src, name));
     if (entries.length === 0) return empty;
-    const specs = walk(src, (name) => name.endsWith('.spec.ts') || name.endsWith('.spec.tsx'));
+    const specs = walk(src, isSpecFile);
     if (specs.length === 0) return { ...empty, entries };
 
     const isSpec = new Set(specs);

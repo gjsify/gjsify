@@ -60,6 +60,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+    TS_SOURCE_EXTENSIONS,
+    sourceExtensionRe,
+} from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+
 import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
 import {
     ADWAITA_NS_WIDGETS,
@@ -282,14 +287,19 @@ function todoAnchors() {
     return todoSections(readFileSync(join(ROOT, OPEN_TODOS), 'utf8'));
 }
 
-/** Every `.ts` under `dir`, specs INCLUDED — a conformance table is driven from a spec. */
+/**
+ * Every TypeScript source under `dir`, specs INCLUDED — a conformance table is driven
+ * from a spec. The extension set is the shared one; `.ts` alone would drop a `.mts` or
+ * `.tsx` widget out of the coverage ledger as though it did not exist.
+ */
+const SOURCE_RE = sourceExtensionRe(TS_SOURCE_EXTENSIONS);
 function typescriptFiles(dir) {
     const found = [];
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
         if (entry.name === 'node_modules') continue;
         const path = join(dir, entry.name);
         if (entry.isDirectory()) found.push(...typescriptFiles(path));
-        else if (entry.name.endsWith('.ts')) found.push(path);
+        else if (SOURCE_RE.test(entry.name)) found.push(path);
     }
     return found;
 }

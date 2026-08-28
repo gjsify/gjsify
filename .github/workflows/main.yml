@@ -378,6 +378,25 @@ jobs:
       - name: Check the lint gate sees every tracked file
         run: su testuser -c 'node scripts/check-lint-visibility.mjs'
 
+      # The same question of the repository's own SOURCE WALKERS, which the step above
+      # cannot ask: oxlint reading a file says nothing about whether the reach audit, the
+      # comment budget or the spec-registration reader ever opened it. `.tsx` arrived and
+      # three of them kept grading the files they were handed — the reach audit could not
+      # see `@gjsify/adwaita-react-native`'s four widget implementations at all (measured on
+      # `feat/adwaita-react-native`, where that package lives), so setting its `react-native`
+      # runtime slot to `polyfill`, `partial` or `none` was exit 0 for each; and on this
+      # branch the comment budget did not count 19 tracked `.tsx` files, which took
+      # `showcases` from 0.153 to 0.170 against a ceiling that had shown headroom.
+      # Each carried its own extension literal, so fixing one taught the others nothing.
+      #
+      # One vocabulary now (`source-extensions.mjs`), and this holds it: every extension
+      # oxlint reads on a tracked file is in it or declared with a reason, and each
+      # registered walker is asked which files its OWN scope holds and which of those it
+      # actually reads. It runs here, beside the lint it borrows as an oracle, for the same
+      # reason that step does — `audit-runtimes.yml` installs nothing.
+      - name: Check every source walker sees the source
+        run: su testuser -c 'node scripts/check-source-visibility.mjs'
+
       # A formatter with a config and no gate formats nothing. `.oxfmtrc.json`
       # had been maintained all along while nothing enforced it, and the drift
       # just accumulated: 388 files were unformatted against the version the

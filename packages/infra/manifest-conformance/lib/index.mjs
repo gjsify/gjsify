@@ -42,6 +42,7 @@ export {
     isPlatformPackageManifest,
     prebuildOwnership,
 } from './platform-packages.mjs';
+export * from './source-extensions.mjs';
 export * from './source-graph.mjs';
 export { renderReport, formatFindings } from './report.mjs';
 

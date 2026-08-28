@@ -66,6 +66,10 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } 
 import { tmpdir } from 'node:os';
 import { basename, extname, join, relative, sep } from 'node:path';
 
+import {
+    CODE_SOURCE_EXTENSIONS,
+    sourceExtensionRe,
+} from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
 import { ADAPTER_IMPORT_DIRECTION_FIXTURES, materializeFixture } from './adapter-import-direction-fixtures.mjs';
 
 /** The package that owns the host, its table and its adapters. */
@@ -75,8 +79,18 @@ const PKG = 'packages/framework/gtk-host';
 const ADAPTERS = join('src', 'adapters');
 const PUBLISHED_ADAPTER = /^\.\/lib\/esm\/(adapters\/.+)\.js$/;
 
-/** Exactly the extensions this package BUILDS (`src/**\/*.{ts,js}` plus the module variants). */
-const SOURCE_EXT = new Set(['.ts', '.mts', '.cts', '.tsx', '.js', '.mjs', '.cjs', '.jsx']);
+/**
+ * Every extension this repository calls a source, read from the ONE vocabulary rather
+ * than listed again here — the list this file used to carry was right and the three
+ * walkers that carried their own were not, which is the argument for having one.
+ *
+ * It is deliberately WIDER than what the package builds: `build:gjsify` globs
+ * `src/**\/*.{ts,js}`, so a `.tsx` adapter would be read by this check and never
+ * compiled. That gap is real and belongs to the manifest, not here — a published
+ * `./lib/esm/adapters/*.js` with no artifact behind it is what `verify-package-outputs`
+ * is for. Narrowing this check to match the build would only mean reading less.
+ */
+const SOURCE_EXT = new Set(CODE_SOURCE_EXTENSIONS.map((ext) => `.${ext}`));
 
 /** Prose and data. Any OTHER extension is a file this check could not read — a blocker. */
 const NON_CODE_EXT = new Set(['.md', '.json']);
@@ -507,7 +521,8 @@ function evaluate(pkgDir) {
                 `${path} is in the adapters tree and this check does not read its extension. ` +
                 'A file it cannot read reports the same green as a clean one. Either move it out of ' +
                 'the adapters tree, or teach the check to read it — and that is TWO steps, not one: ' +
-                'add the extension to SOURCE_EXT AND move the fixtures in ' +
+                'add the extension to the shared vocabulary in ' +
+                '`packages/infra/manifest-conformance/lib/source-extensions.mjs` AND move the fixtures in ' +
                 'adapter-import-direction-fixtures.mjs that MEASURE this blocker onto an extension ' +
                 'the walk still cannot read. Both of them spell it .vue today, so adding .vue alone ' +
                 'was measured to turn them into a SELF-TEST FAILURE: the check still exits 1, and ' +

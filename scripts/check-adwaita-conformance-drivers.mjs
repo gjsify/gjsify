@@ -113,6 +113,10 @@ import { fileURLToPath } from 'node:url';
 
 import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
 import { readSuiteRegistration, walk as walkFiles } from './suite-registration.mjs';
+import {
+    TS_SOURCE_EXTENSIONS,
+    sourceExtensionRe,
+} from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
 
 // Every repo-relative path below is COMPARED against a `/`-spelled literal and printed into a
 // finding. On win32 `relative()` hands back `packages\web\…`, so the module arm matched nothing
@@ -210,7 +214,11 @@ const GAP_REASON = /\bGAP\b/;
 const GAP_ANCHOR = /#\d+/;
 const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
-const walk = (dir) => walkFiles(dir, (name) => name.endsWith('.ts'));
+// The shared vocabulary, not `.ts`: a conformance table or the spec that drives it is
+// a TypeScript source whatever its extension, and a `.mts` table read as ABSENT is
+// reported here as "driven by nothing", which is the loud half of the same blindness.
+const SOURCE_RE = sourceExtensionRe(TS_SOURCE_EXTENSIONS);
+const walk = (dir) => walkFiles(dir, (name) => SOURCE_RE.test(name));
 
 /**
  * Every exported vector table, with the text ABOVE its declaration — back to the

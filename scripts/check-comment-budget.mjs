@@ -37,12 +37,21 @@
 //   node scripts/check-comment-budget.mjs --warn     # report + annotate (CI)
 //   node scripts/check-comment-budget.mjs --check    # gate (local, cleanup commits)
 //   node scripts/check-comment-budget.mjs --update   # re-baseline after a cleanup
+//   node scripts/check-comment-budget.mjs --files    # the files it counts
+//   node scripts/check-comment-budget.mjs --scope    # the tracked files it is ABOUT,
+//                                                    # before the extension question
 //
 // Raising a ceiling is a reviewed, one-line commit. Lowering one is free, and
 // `--update` after a cleanup does it — so the budget only tightens.
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+
+import {
+    CODE_SOURCE_EXTENSIONS,
+    isDeclarationFile,
+    sourcePathspecs,
+} from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
 
 const BUDGET_FILE = 'status/comment-budget.json';
 
@@ -76,12 +85,45 @@ const AREAS = [
     'website',
 ];
 
-function sourceFiles() {
-    return execSync("git ls-files -- '*.ts' '*.mts' '*.mjs' '*.js' '*.cjs'", { maxBuffer: 1 << 28 })
+/** The area a path is budgeted under, or `undefined` if it is outside every tree. */
+const areaOf = (file) => AREAS.find((a) => file.startsWith(`${a}/`));
+
+/**
+ * Tracked files this budget is ABOUT, before any extension question is asked —
+ * `scripts/check-source-visibility.mjs` reads this through `--scope` and asks the
+ * shared vocabulary which of them are source, so the two halves of that check are
+ * this script's own scoping and one repository-wide extension list, never a second
+ * copy of either.
+ *
+ * Which is why `isDeclarationFile` is NOT applied here and `sourceFiles` applies it
+ * instead: it is an extension question, and asking it on both sides of that check made
+ * the difference circular. Measured — widened to swallow `.tsx`, it dropped the same 19
+ * files from the scope and from the count together, and `check-source-visibility` exited
+ * 0 over the exact blindness it exists to end.
+ *
+ * @param {readonly string[] | null} pathspecs
+ */
+function trackedFiles(pathspecs) {
+    const spec = pathspecs === null ? '' : ` -- ${pathspecs.map((p) => `'${p}'`).join(' ')}`;
+    return execSync(`git ls-files${spec}`, { maxBuffer: 1 << 28 })
         .toString()
         .trim()
         .split('\n')
-        .filter((f) => f && !f.endsWith('.d.ts') && !EXCLUDED.some((r) => r.test(f)));
+        .filter((f) => f && !EXCLUDED.some((r) => r.test(f)) && areaOf(f) !== undefined);
+}
+
+/**
+ * The files this budget counts.
+ *
+ * The extension list used to be five literals here — `'*.ts' '*.mts' '*.mjs' '*.js'
+ * '*.cjs'` — written before the tree had a `.tsx` file in it. Measured on 2026-08-28:
+ * 19 tracked `.tsx` files went uncounted, 12 in `packages/framework` and 7 in
+ * `showcases/gtk`, and folding them in moves `showcases` from 0.153 to 0.170 against a
+ * ceiling of 0.158 that had been reading as 78 lines of headroom. A budget that does
+ * not open a file cannot hold it to anything.
+ */
+function sourceFiles() {
+    return trackedFiles(sourcePathspecs(CODE_SOURCE_EXTENSIONS)).filter((f) => !isDeclarationFile(f));
 }
 
 /**
@@ -125,7 +167,7 @@ function countLines(src) {
 function measure() {
     const totals = new Map(AREAS.map((a) => [a, { code: 0, comment: 0, files: 0 }]));
     for (const file of sourceFiles()) {
-        const area = AREAS.find((a) => file.startsWith(`${a}/`));
+        const area = areaOf(file);
         if (!area) continue;
         let src;
         try {
@@ -173,6 +215,29 @@ const allowedComments = (ceiling, code) => Math.floor((ceiling + TOLERANCE) * co
  * @param {number} comment @param {number} ceiling
  */
 const codeToFit = (comment, ceiling) => Math.ceil(comment / (ceiling + TOLERANCE));
+
+/**
+ * Answer a visibility probe and stop, before anything is measured — these are what
+ * `check-source-visibility.mjs` diffs, and a probe that had to run the whole budget
+ * first would make that gate pay for this one's file reads.
+ *
+ * `writeFileSync(1, …)` and NOT `process.stdout.write`: on Linux a piped stdout is an
+ * ASYNC stream, so `process.exit()` beside it drops whatever has not drained. Measured
+ * here — the 5097-line `--scope` answer came back truncated at a different point on
+ * different runs, and the reader differenced a complete `--files` list against a partial
+ * scope and reported the tail as files the walker reads outside its own scope. A
+ * truncated answer is the same defect this whole gate is about, one layer down: the
+ * consumer cannot tell "not in scope" from "you stopped talking".
+ *
+ * @param {string[]} files
+ */
+function answerProbe(files) {
+    writeFileSync(1, files.length === 0 ? '' : `${files.join('\n')}\n`);
+    process.exit(0);
+}
+
+if (process.argv.includes('--files')) answerProbe(sourceFiles());
+if (process.argv.includes('--scope')) answerProbe(trackedFiles(null));
 
 const mode = process.argv.includes('--check')
     ? 'check'

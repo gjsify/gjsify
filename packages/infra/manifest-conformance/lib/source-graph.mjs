@@ -21,6 +21,8 @@ import { existsSync, readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
+import { TS_SOURCE_EXTENSIONS, isDeclarationFile, sourceExtensionRe } from './source-extensions.mjs';
+
 /** A VALUE import of a `@girs/*` type package — it resolves to a `gi://` body. */
 export const GIRS_VALUE_RE = /^\s*import\s+(?!type\b)[^;]*from\s+['"]@girs\//m;
 export const GI_URL_RE = /from\s+['"]gi:\/\//;
@@ -52,27 +54,28 @@ export const SIDE_EFFECT_RE = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g;
 export const TYPE_ONLY_RE = /(?:^|\n)\s*(?:import|export)\s+type\s/;
 
 /**
- * The source extensions every walk in this file agrees on.
+ * The TypeScript extensions every walk in this file agrees on, taken from the one
+ * repository-wide vocabulary rather than spelled again here.
  *
- * `tsx` is in the list because a JSX source is a source: `@gjsify/adwaita-react-native`
- * put the first `.tsx` files into a package `src` tree and every scan here skipped them,
- * so a `import Adw from 'gi://Adw'` in `clamp.gtk.tsx` was invisible to the ADR 0014
- * reachability audit while the identical line in a `.ts` file failed it (measured, both
- * ways). Naming the set ONCE is the point — the same class was fixed for
- * `scripts/suite-registration.mjs` and left standing here, because each walk carried its
- * own literal.
+ * A JSX source is a source: `@gjsify/adwaita-react-native` put the first `.tsx` files
+ * into a package `src` tree and every scan here skipped them, so an
+ * `import Adw from 'gi://Adw'` in `clamp.gtk.tsx` was invisible to the ADR 0014
+ * reachability audit while the identical line in a `.ts` file failed it — measured,
+ * both ways, on `feat/adwaita-react-native`. On `main` the widening is a no-op: no
+ * `.tsx` lives under a package `src`, and this walk returns the same 1354 files with
+ * either extension set. It is here so the arriving file is seen, not to fix a count.
  */
-export const SOURCE_EXTENSIONS = ['ts', 'mts', 'tsx'];
-const SOURCE_EXT_RE = new RegExp(`\\.(${SOURCE_EXTENSIONS.join('|')})$`);
+export const SOURCE_EXTENSIONS = TS_SOURCE_EXTENSIONS;
+const SOURCE_EXT_RE = sourceExtensionRe(SOURCE_EXTENSIONS);
 const SPEC_RE = new RegExp(`\\.spec\\.(${SOURCE_EXTENSIONS.join('|')})$`);
 const TEST_ENTRY_RE = new RegExp(`^test(\\..*)?\\.(${SOURCE_EXTENSIONS.join('|')})$`);
 
 /** Source files that never ship in a target bundle. */
 export function isNonShippingSource(fileName) {
-    return SPEC_RE.test(fileName) || TEST_ENTRY_RE.test(fileName) || fileName.endsWith('.d.ts');
+    return SPEC_RE.test(fileName) || TEST_ENTRY_RE.test(fileName) || isDeclarationFile(fileName);
 }
 
-/** Every `.ts`/`.mts`/`.tsx` file under `dir`, recursively (skips node_modules). */
+/** Every TypeScript source under `dir`, recursively (skips node_modules). */
 export function listSourceFiles(dir, out = []) {
     let entries;
     try {

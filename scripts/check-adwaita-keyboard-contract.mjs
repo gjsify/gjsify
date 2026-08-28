@@ -52,7 +52,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ADWAITA_WEB_SRC, adwaitaWebElements, adwaitaWebSources, stripComments } from './adwaita-elements.mjs';
-import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
+import { resolveLocalSource, toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
 
 const args = process.argv.slice(2);
 const rootIndex = args.indexOf('--root');
@@ -138,8 +138,8 @@ function relativeImports(code) {
     return found;
 }
 
-/** A TS source importing `./x.js` means `./x.ts` on disk. */
-const sibling = (file, spec) => resolve(file, '..', spec.replace(/\.js$/, '.ts'));
+/** A TS source importing `./x.js` means its TypeScript sibling, whichever extension that is. */
+const sibling = (file, spec) => resolveLocalSource(file, spec) ?? resolve(file, '..', spec.replace(/\.js$/, '.ts'));
 
 const sources = adwaitaWebSources(ROOT);
 if (sources.length === 0) {

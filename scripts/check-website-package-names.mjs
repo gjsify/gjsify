@@ -20,6 +20,8 @@
 import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
+import { CODE_SOURCE_EXTENSIONS } from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+
 const tracked = (glob) =>
     execSync(`git ls-files -- ${glob}`, { maxBuffer: 1 << 28 })
         .toString()
@@ -42,7 +44,13 @@ for (const f of tracked("'**/package.json'").filter((f) => f && !f.includes('nod
 const QUOTED = /['"`](@gjsify\/[a-z0-9][a-z0-9._/-]*)['"`]/g;
 
 const bad = [];
-for (const file of tracked('website/src').filter((f) => /\.(ts|mts|js|mjs|astro|json|md|mdx)$/.test(f))) {
+// The source half is the shared vocabulary plus the website's own markup and data
+// formats. The hand-written list here named neither `.tsx` nor `.vue`, and a Starlight
+// site gains `.tsx` islands as a matter of course — an install name a reader copies out
+// of one would have been the one name nothing verified.
+const WEBSITE_FILE = new RegExp(`\\.(${[...CODE_SOURCE_EXTENSIONS, 'astro', 'vue', 'json', 'md', 'mdx'].join('|')})$`);
+
+for (const file of tracked('website/src').filter((f) => WEBSITE_FILE.test(f))) {
     let src;
     try {
         src = readFileSync(file, 'utf8');
