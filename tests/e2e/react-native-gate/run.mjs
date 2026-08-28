@@ -32,6 +32,27 @@ import { createTestEnvironment, cleanupTestEnvironment, setupProject } from '../
 const RN_PKG = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'packages', 'framework', 'react-native');
 
 /**
+ * Every name this layer adds on top of React Native's surface, read out of the
+ * generated module `isImportable` itself reads.
+ *
+ * `own.ts` already proves the gate accepts ONE of them — `configureStyle`, through
+ * the `@gjsify/react-native` spelling. This list is for the other axis. The gate
+ * watches BOTH specifiers, and the aliased one is what an unmodified ported
+ * application writes; an own export reaching the gate as `react-native` was the
+ * cell no vector occupied. Thirteen names rather than a sample, because the defect
+ * that put `own.ts` here was in the names nobody thought to write down.
+ */
+function ownExportNames() {
+    const source = readFileSync(join(RN_PKG, 'src', 'generated', 'own-exports.ts'), 'utf8');
+    const names = [...source.matchAll(/^ {4}'([A-Za-z_$][\w$]*)',$/gm)].map((match) => match[1]);
+    assert.ok(
+        names.length > 0,
+        'no own exports could be read from src/generated/own-exports.ts — the fixture would prove nothing',
+    );
+    return names;
+}
+
+/**
  * The refused name this suite builds against — DERIVED, never written down.
  *
  * It used to be `FlatList`, and that is exactly the bug: the fixture's premise is
@@ -89,6 +110,8 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
     let projectDir;
     /** `{ name, gtk }` of the planned entry this run builds against. */
     let planned;
+    /** Every name the layer adds on top of React Native's surface. */
+    let own;
 
     before(() => {
         planned = pickPlannedName();
@@ -99,15 +122,17 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
         const src = join(projectDir, 'src');
         mkdirSync(src, { recursive: true });
 
-        // Names whose support-table status is supported/partial. `View` and `Text`
-        // are the two the measured application uses most; `useColorScheme` is the
-        // only fully `supported` entry among them.
+        // Both populations, through the ALIASED specifier. React Native's own names
+        // on the first line; the layer's own on the second, where `own.ts` covers
+        // only the `@gjsify/react-native` spelling of one of them.
+        own = ownExportNames();
         writeFileSync(
             join(src, 'ok.ts'),
             [
                 "import { View, Text, useColorScheme } from 'react-native';",
+                `import { ${own.join(', ')} } from 'react-native';`,
                 "export const marker = 'RN_OK_BUILT';",
-                'export const parts = [View, Text, useColorScheme];',
+                `export const parts = [View, Text, useColorScheme, ${own.join(', ')}];`,
                 '',
             ].join('\n'),
         );
@@ -244,7 +269,7 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
         );
     });
 
-    it('WITH the opt-in, a supported-only import builds through the alias', () => {
+    it('WITH the opt-in, BOTH populations build through the alias', () => {
         const { status, output } = build(projectDir, [
             'src/ok.ts',
             '--app',
@@ -266,6 +291,14 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
             'no bare `react-native` import may survive into the bundle',
         );
         assert.ok(bundle.length > 100_000, `the layer must be bundled, got ${bundle.length} bytes`);
+        // Named individually: `exit 0` is also what a gate that stopped running
+        // produces. If an own export is refused again, this says WHICH.
+        for (const name of own) {
+            assert.ok(
+                !output.includes(`"${name}"`),
+                `the layer's own export ${name} must not be refused through the alias.\n${output}`,
+            );
+        }
     });
 
     // The one thing the gate has over the runtime backstop: the file and the line,
