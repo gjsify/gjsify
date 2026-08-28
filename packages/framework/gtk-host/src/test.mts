@@ -13,6 +13,7 @@ import propsSuite from './props.spec.js';
 import gtkCssSuite from './style/gtk-css.spec.js';
 import gtkPropsSuite from './style/gtk-props.spec.js';
 import layoutSuite from './style/layout.spec.js';
+import listSuite from './list/list.spec.js';
 import paintSuite from './style/paint.spec.js';
 import sheetSuite from './style/sheet.spec.js';
 
@@ -29,6 +30,7 @@ run({
     conformanceSuite,
     generatorSuite,
     generatedSuite,
+    listSuite,
     solidSuite,
     vueSuite,
     reactSuite,

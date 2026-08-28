@@ -14,6 +14,10 @@
             "types": "./lib/types/style/index.d.ts",
             "default": "./lib/esm/style/index.js"
         },
+        "./list": {
+            "types": "./lib/types/list/index.d.ts",
+            "default": "./lib/esm/list/index.js"
+        },
         "./vue": {
             "types": "./lib/types/adapters/vue.d.ts",
             "default": "./lib/esm/adapters/vue.js"
