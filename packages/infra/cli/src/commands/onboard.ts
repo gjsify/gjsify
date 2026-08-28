@@ -38,6 +38,7 @@ import { filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { hasAnyCredential, loadNpmrc } from '../utils/load-npmrc.js';
 import { OtpProvider } from '../utils/npm-otp.js';
+import { writeAroundPrompt } from '../utils/prompt-output.js';
 import { publishWorkspace } from './publish.js';
 import { createTrustRequester } from './trust.js';
 import { runLogin, LoginError } from './login.js';
@@ -202,7 +203,10 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
             // In --json mode keep stdout clean for the final summary object;
             // route progress to stderr.
             if (asJson) process.stderr.write(`${msg}\n`);
-            else process.stdout.write(`${msg}\n`);
+            // Through the prompt arbiter: a concurrent worker's notice must not
+            // land inside the OTP the user is typing. Held, not dropped — those
+            // notices are what explain why the sweep is slow.
+            else writeAroundPrompt(`${msg}\n`);
         };
 
         let npmrc = await loadNpmrc(cwd);
@@ -343,6 +347,16 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         // (task #60). The first read is serial (prompts for the shared OTP once,
         // before the burst); the rest run at a SMALL concurrency cap so a single
         // token never faces a 127-wide parallel read.
+        // Progress, because this phase is otherwise SILENT for minutes. It is
+        // paced by count rather than by time so the interval is reproducible
+        // between runs, and it carries the running TALLY rather than a bare
+        // counter: "600/703 — 590 to trust" says both that the sweep is alive
+        // and what it is about to do, which is what a reader is deciding on.
+        const progressEvery = Math.max(1, Math.min(50, Math.ceil(selected.length / 10)));
+        let toTrustSoFar = 0;
+        let doneSoFar = 0;
+        let blockedSoFar = 0;
+        if (selected.length > progressEvery) log(`Reading trust state for ${selected.length} package(s)…`);
         const plans = await probeAllTrustStates(
             trustRequest,
             selected,
@@ -353,7 +367,20 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                 repository,
                 workflow,
             },
-            pacing,
+            {
+                ...pacing,
+                onProgress: (n, total, plan) => {
+                    if (plan.action === 'trust' || plan.action === 'publish-and-trust') toTrustSoFar++;
+                    else if (plan.action === 'skip') doneSoFar++;
+                    else blockedSoFar++;
+                    // Always report the LAST one, so the phase visibly ends.
+                    if (n % progressEvery !== 0 && n !== total) return;
+                    if (total <= progressEvery) return;
+                    const parts = [`${toTrustSoFar} to do`, `${doneSoFar} already done`];
+                    if (blockedSoFar > 0) parts.push(`${blockedSoFar} unreadable`);
+                    log(`  read ${n}/${total} — ${parts.join(', ')}`);
+                },
+            },
         );
 
         // Summary table (published✓ / trusted✓ vs work to do).
@@ -450,6 +477,7 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         // pacing is worth trading that for.
         const trustBody = githubTrustBody({ repository, workflow, environment });
         const writeConcurrency = Math.max(1, args['write-concurrency']);
+        const writeTotal = toPublish.length + toTrust.length;
 
         // Results are written by INDEX rather than pushed, so a concurrent phase
         // still reports in plan order — a summary whose order depends on which
@@ -458,20 +486,27 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         let failed = 0;
 
         /** POST the Trusted Publisher config for one package and record the outcome. */
+        let written = 0;
+        let throttledWrites = 0;
         const configureTrust = async (p: PkgPlan, i: number, publishedNow: boolean): Promise<void> => {
             // Through the rate-limit-aware wrapper: a 703-package sweep that gets
             // throttled on its READS gets throttled on its WRITES too, and a bare
             // 429 here would be recorded as `trust failed` — a failure attributed
             // to the package rather than to the pacing.
             const created = await requestWaitingOutRateLimit(trustRequest, 'POST', p.url, trustBody, pacing);
+            // `n/total` on every line, because the pace of a sweep is the thing a
+            // reader is judging while it runs — and the OTP prompt that
+            // interrupts it needs a nearby answer to "did the last code get
+            // anywhere?".
+            const at = `${++written}/${writeTotal}`;
             if (created.status >= 200 && created.status < 300) {
-                log(`  trusted ${p.ws.name}`);
+                log(`  [${at}] trusted ${p.ws.name}`);
                 indexed[i] = { name: p.ws.name, result: publishedNow ? 'published+trusted' : 'trusted' };
             } else if (created.status === 409) {
                 indexed[i] = { name: p.ws.name, result: publishedNow ? 'published+trusted' : 'trusted' };
             } else if (created.status === 404) {
                 // Freshly-published package not yet provisioned for trust config.
-                log(`  ${p.ws.name}: published but not yet trust-configurable (re-run onboard)`);
+                log(`  [${at}] ${p.ws.name}: published but not yet trust-configurable (re-run onboard)`);
                 indexed[i] = {
                     name: p.ws.name,
                     result: publishedNow ? 'published' : 'failed',
@@ -479,8 +514,9 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                 };
                 if (!publishedNow) failed++;
             } else {
-                log(`  trust failed (HTTP ${created.status}) — ${p.ws.name}`);
+                log(`  [${at}] trust failed (HTTP ${created.status}) — ${p.ws.name}`);
                 indexed[i] = { name: p.ws.name, result: 'failed', detail: `trust HTTP ${created.status}` };
+                if (created.status === 429) throttledWrites++;
                 failed++;
             }
         };
@@ -549,6 +585,21 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         }
 
         for (const r of indexed) if (r) results.push(r);
+
+        // Name the cause at the END too, not only in the plan. A write is
+        // throttled minutes after the plan was printed and scrolled away, and
+        // "73 failed" on its own reads as 73 broken packages.
+        if (throttledWrites > 0) {
+            log();
+            log(
+                `${throttledWrites} of the failures are npm rate limits (HTTP 429) that outlasted the wait, ` +
+                    'not a problem with those packages.',
+            );
+            log(
+                '  Re-run to pick them up — the sweep is idempotent and skips everything already configured. ' +
+                    `A lower --write-concurrency (currently ${writeConcurrency}) provokes the limit less.`,
+            );
+        }
 
         finish(results, plans, { asJson, dryRun, failed, root, sources, discovered: all.length });
     },

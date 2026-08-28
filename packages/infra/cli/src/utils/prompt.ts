@@ -16,6 +16,8 @@
 // Non-TTY stdin (piped input, CI) keeps a plain line read so
 // `printf 'user\npass\n' | gjsify login` still works.
 
+import { beginPrompt, endPrompt } from './prompt-output.js';
+
 const CTRL_C = '\x03'; // ETX (Ctrl-C)
 const DEL = '\x7f'; // DEL (Backspace on most terminals)
 const BACKSPACE = '\x08'; // BS
@@ -126,8 +128,18 @@ async function runRawSession<T>(fn: (read: ReadKey) => Promise<T>): Promise<T> {
 
     const read: ReadKey = (question, mask) =>
         new Promise<string>((resolve) => {
+            // A prompt owns the last line: hold back every other writer until it
+            // closes, or their output lands inside the digits being typed.
+            beginPrompt();
             out.write(question);
-            pending = { mask, buf: '', resolve };
+            pending = {
+                mask,
+                buf: '',
+                resolve: (value) => {
+                    endPrompt();
+                    resolve(value);
+                },
+            };
         });
 
     try {
@@ -167,8 +179,16 @@ function readLine(): Promise<string> {
 /** Print a question and read one visible line. */
 export async function promptLine(question: string): Promise<string> {
     if (!isTtyStdin()) {
+        // Non-TTY holds back other writers too: the interleaving is not visible
+        // here, but a transcript in which a notice sits between the question and
+        // the answer is just as hard to read afterwards.
+        beginPrompt();
         process.stdout.write(question);
-        return readLine();
+        try {
+            return await readLine();
+        } finally {
+            endPrompt();
+        }
     }
     return runRawSession((read) => read(question, false));
 }

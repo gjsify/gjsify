@@ -597,6 +597,37 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
         }
     });
 
+    it('reports progress through the silent probe phase and numbers the writes', async () => {
+        // The probe phase reads every package's state and, before this, printed
+        // NOTHING between the header and the plan — minutes of silence on a
+        // 703-package sweep, broken only by the occasional 2FA prompt. A working
+        // sweep and a wedged one looked identical, and the prompt is exactly the
+        // moment a user needs to know the previous code accomplished something.
+        pkgState = {
+            '@onb/published-trusted': { published: true, trusted: true },
+            '@onb/published-untrusted': { published: true, trusted: false },
+            '@onb/unpublished-a': { published: true, trusted: false },
+            '@onb/unpublished-b': { published: true, trusted: false },
+            '@onb/never-published-2xx': { published: true, trusted: false },
+        };
+        const { root, npmrcPath } = scaffoldMonorepo(LIVE_TOKEN);
+        try {
+            // 5 packages with the progress interval forced to 1 by the small set.
+            const { code, stdout } = await runOnboard(root, npmrcPath, ['--write-concurrency', '1']);
+            assert.equal(code, 0, `onboard should exit 0; stdout:\n${stdout}`);
+
+            // The phase announces itself, ticks, and visibly ENDS on the last one.
+            assert.match(stdout, /Reading trust state for 5 package\(s\)/);
+            assert.match(stdout, /read 5\/5 — 4 to do, 1 already done/);
+
+            // Every write line carries its position, so the pace is readable.
+            assert.match(stdout, /\[1\/4\] trusted @onb\//);
+            assert.match(stdout, /\[4\/4\] trusted @onb\//);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
     it('--yes fails clearly when a dead token would need an interactive login', async () => {
         pkgState = freshState();
         const { root, npmrcPath } = scaffoldMonorepo(DEAD_TOKEN);

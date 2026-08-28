@@ -1834,6 +1834,11 @@ gjsify onboard --yes                 # non-interactive
 
 What it does, in order: check the token is live (running the [`login`](#gjsify-login) flow only if it is not), enumerate the publishable packages, read each package's Trusted Publisher state concurrently, then act only on the gaps. One 2FA code is reused across every publish and trust operation, so a sweep of many packages usually asks you for a code once. Re-running when everything is already published and trusted does nothing and exits 0.
 
+The sweep reports progress through both phases: the state-read phase ticks (`read 600/703 — 590 to
+do, 10 already done`) and every write is numbered (`[123/662] trusted @acme/x`). Nothing else
+writes to the terminal while a 2FA prompt is open — such messages are held and flushed once you
+have answered, so a notice from a concurrent worker cannot land inside the digits you are typing.
+
 One 2FA code covers the whole sweep, and it is asked for **once at a time** — concurrent probes
 share the prompt rather than each opening their own. npm codes expire on their ~30-second window,
 so a long sweep may ask again later; each such expiry costs exactly one prompt.
@@ -1849,8 +1854,12 @@ it lands on the *tail* of the list — which reads as "these packages are specia
 that the sweep asked too fast. A 429 **anywhere pauses everywhere**: retrying one throttled request in isolation leaves the rest
 of the sweep provoking the very limit that retry is waiting out, which is how a real run spent its
 retry budget and reported `trust failed (HTTP 429)`. Reads and writes share one cool-down, so the
-sweep self-paces down to whatever npm will serve. Only throttling that outlasts the backoff is
-reported, and the summary then says so and suggests a lower `--concurrency`.
+sweep self-paces down to whatever npm will serve. The wait is a TIME budget (5 minutes per request), not an
+attempt count: a fixed number of doubling retries is only ~30 seconds of patience, npm's window is
+longer than that, and a real 703-package sweep consequently failed its last 73 writes inside a
+single cooldown. Only throttling that outlasts the budget is reported — in the plan AND in the
+closing summary, since a write is throttled long after the plan has scrolled away and `73 failed`
+on its own reads as 73 broken packages.
 
 npm advertises no budget ahead of time — there are no `X-RateLimit-*` headers on ordinary
 responses — so the first 429 of a run prints what the registry actually said, including when it

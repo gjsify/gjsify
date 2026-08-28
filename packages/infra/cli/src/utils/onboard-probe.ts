@@ -39,8 +39,8 @@ export interface ProbeOptions {
     retryOn401?: boolean;
     /** Backoff before the single 401 retry. Default {@link PROBE_RETRY_DELAY_MS}. */
     retryDelayMs?: number;
-    /** How many times to wait out an HTTP 429. Default {@link RATE_LIMIT_MAX_RETRIES}. */
-    maxRateLimitRetries?: number;
+    /** Total time to spend waiting out HTTP 429s. Default {@link RATE_LIMIT_MAX_WAIT_MS}. */
+    maxRateLimitWaitMs?: number;
     /** First backoff for a 429; doubles per attempt. Default {@link RATE_LIMIT_BASE_DELAY_MS}. */
     rateLimitBaseDelayMs?: number;
     /**
@@ -55,6 +55,17 @@ export interface ProbeOptions {
      * nothing, so this delay is ours").
      */
     onRateLimit?: (info: { url: string; headers: string; waitMs: number; fromRetryAfter: boolean }) => void;
+    /**
+     * Called after each state read with what is known SO FAR.
+     *
+     * The probe phase is the silent half of a sweep: 703 packages take minutes
+     * and, until this existed, printed nothing at all between the header and the
+     * plan. The only output in that window was the occasional 2FA prompt, which
+     * makes a working sweep and a wedged one look identical — and the prompt is
+     * the moment a user most needs to know the previous code accomplished
+     * something.
+     */
+    onProgress?: (done: number, total: number, plan: PkgPlan) => void;
     /** Injected delay (tests pass a no-op). Default: real `setTimeout`. */
     sleep?: (ms: number) => Promise<void>;
     /**
@@ -79,8 +90,25 @@ export const PROBE_RETRY_DELAY_MS = 400;
  * Waiting is the whole fix, and it has to be bounded: an unbounded wait turns a
  * throttled sweep into a hang with no output.
  */
-export const RATE_LIMIT_MAX_RETRIES = 4;
+/**
+ * A TIME budget, not an attempt count — and generous, because npm tells us
+ * nothing.
+ *
+ * The attempt count was the wrong unit and the real sweep proved it: 4 attempts
+ * with a doubling 2s base is 30 seconds of patience, npm's window is longer than
+ * that, so every in-flight request spent its budget inside one cooldown and
+ * `Done: 502 trusted … 73 failed` — all 73 at the tail, all 429, none of them a
+ * fact about those packages.
+ *
+ * With no `Retry-After` and no rate-limit headers to read (measured), waiting is
+ * the only instrument there is. Five minutes per request is worth it: the
+ * alternative is failing packages that then need another sweep, which is itself
+ * throttled. Bounded all the same, so a throttled sweep still ENDS.
+ */
+export const RATE_LIMIT_MAX_WAIT_MS = 300_000;
 export const RATE_LIMIT_BASE_DELAY_MS = 2000;
+/** Ceiling for a single backoff step, so escalation stays legible. */
+export const RATE_LIMIT_MAX_STEP_MS = 60_000;
 
 /**
  * What npm told us about pacing on a 429 — verbatim, so the answer to "how fast
@@ -228,7 +256,7 @@ export async function requestWaitingOutRateLimit(
     opts: ProbeOptions = {},
 ): Promise<TrustRequestResult> {
     const sleep = opts.sleep ?? defaultSleep;
-    const maxRetries = opts.maxRateLimitRetries ?? RATE_LIMIT_MAX_RETRIES;
+    const budgetMs = opts.maxRateLimitWaitMs ?? RATE_LIMIT_MAX_WAIT_MS;
     const baseDelay = opts.rateLimitBaseDelayMs ?? RATE_LIMIT_BASE_DELAY_MS;
     const gate = opts.gate;
 
@@ -236,9 +264,13 @@ export async function requestWaitingOutRateLimit(
     // attempt. Without this the sweep keeps provoking the limit it is waiting on.
     if (gate) await gate.wait();
     let res = await request(method, url, body);
-    for (let attempt = 0; res.status === 429 && attempt < maxRetries; attempt++) {
+
+    let waited = 0;
+    for (let attempt = 0; res.status === 429 && waited < budgetMs; attempt++) {
         const advised = retryAfterMs(res.headers);
-        const delay = advised ?? baseDelay * 2 ** attempt;
+        const step = Math.min(advised ?? baseDelay * 2 ** attempt, RATE_LIMIT_MAX_STEP_MS);
+        // Never overshoot the budget: the last wait is whatever is left of it.
+        const delay = Math.min(step, budgetMs - waited);
         opts.onRateLimit?.({
             url,
             headers: describeRateLimitHeaders(res.headers),
@@ -248,6 +280,7 @@ export async function requestWaitingOutRateLimit(
         // Tell everyone, not just this call.
         gate?.penalize(delay);
         await (gate ? gate.wait() : sleep(delay));
+        waited += delay;
         res = await request(method, url, body);
     }
     return res;
@@ -325,9 +358,16 @@ export async function probeAllTrustStates(
     opts: ProbeOptions = {},
 ): Promise<PkgPlan[]> {
     if (selected.length === 0) return [];
-    const first = await probeTrustState(request, selected[0], ctx, opts);
-    const rest = await mapWithConcurrency(selected.slice(1), Math.max(1, concurrency), (ws) =>
-        probeTrustState(request, ws, ctx, opts),
+    const total = selected.length;
+    let done = 0;
+    const report = (plan: PkgPlan): PkgPlan => {
+        done++;
+        opts.onProgress?.(done, total, plan);
+        return plan;
+    };
+    const first = report(await probeTrustState(request, selected[0], ctx, opts));
+    const rest = await mapWithConcurrency(selected.slice(1), Math.max(1, concurrency), async (ws) =>
+        report(await probeTrustState(request, ws, ctx, opts)),
     );
     return [first, ...rest];
 }
