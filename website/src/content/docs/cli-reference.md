@@ -1311,6 +1311,7 @@ gjsify ship --skip-build        # package what is already built
 gjsify ship --target deb        # one format
 gjsify ship --target flatpak    # a single-file Flatpak bundle (needs flatpak-builder)
 gjsify ship --stage             # produce the payload and stop
+gjsify ship --from-stage ./ship/stage   # pack a payload assembled elsewhere
 gjsify ship --arch arm64        # package for another architecture
 ```
 
@@ -1319,6 +1320,8 @@ gjsify ship --arch arm64        # package for another architecture
 | `--target <fmt..>` | `gjsify.ship.targets`, else `deb,rpm` | Formats to build. Comma-separated or repeated. `flatpak` is available and opt-in — it is the one format that needs tooling on the packing host. |
 | `--out <dir>` | `gjsify.ship.outDir`, else `ship` | Output root, relative to the project. |
 | `--stage` | `false` | Produce the staged payload and stop, packing nothing. |
+| `--from-stage <dir>` | — | Pack a payload an earlier `--stage` run wrote. Needs no project: no `package.json`, no config, no built bundle. |
+| `--expect-target <os>-<arch>` | — | With `--from-stage`: refuse a stage assembled for a different matrix leg, e.g. `linux-arm64`. Compares against what the stage recorded, not against this host. |
 | `--skip-build` | `false` | Do not run the project's `build` script first. |
 | `--arch <arch>` | this host | Target architecture, in `process.arch` spelling. |
 | `--verbose` | `false` | Print every staged file and the GI namespaces the bundle imports. |
@@ -1327,6 +1330,7 @@ What lands under `ship/`:
 
 ```
 ship/stage/            the prefix-relative payload: bin/, lib/<name>/, share/
+ship/stage/.gjsify-ship-stage.json   the closure a packing host needs when it is not this one
 ship/overlay/<format>/ per-format additions, such as the licence where each format wants it
 ship/flatpak/          --target flatpak only: the generated manifest, the build dir, the export repo
 ship/out/              the artifacts
@@ -1379,6 +1383,8 @@ No runtime is bundled on Linux: GJS and GTK come from the distribution, so the p
 | `minGjsVersion` | `1.86` | Minimum GJS the emitted dependency asks for. |
 | `depends` | `{}` | Extra runtime dependencies per format, appended to the derived set. For things that are not typelibs. |
 | `typelibPackages` | `{}` | GI namespace to the package shipping its typelib. This is what unblocks an unknown namespace. |
+| `bundledTypelibs` | `[]` | Directories whose `*.typelib` and `lib*.so*` the package carries itself, for GI libraries that arrive as npm prebuilds rather than distro packages. Staged into `lib/<name>/gi/`, with the launcher pointing `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` there. |
+| `localeDir` | — | Directory of COMPILED gettext catalogues in `<lang>/LC_MESSAGES/<domain>.mo` layout. Staged into `share/locale/`; the launcher exports `GJSIFY_LOCALE_DIR`. `.po` sources are refused — `bindtextdomain` reads `.mo` only. |
 | `extraFiles` | `{}` | Extra payload entries: prefix-relative destination to project-relative source. |
 | `execArgs` | `[]` | Arguments the launcher appends before the user's own. |
 | `flatpak` | derived | The Flatpak half: `runtime` (`gnome`/`freedesktop`), `runtimeVersion`, `branch` (`stable`), `sdkExtensions`, `appendPath`, `finishArgs`, `cleanup`. |
