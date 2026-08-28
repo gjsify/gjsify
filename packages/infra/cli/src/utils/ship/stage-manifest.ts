@@ -68,8 +68,15 @@ export const STAGE_MANIFEST_FILE = '.gjsify-ship-stage.json';
  * `settings.flatpak` would not skip a field, it would pack a Flatpak against
  * whatever runtime IT defaults to — a different `org.gnome.Platform` version
  * than the project asked for, at exit 0.
+ *
+ * 3 added `settings.minNodeVersion`, and it is the same case for the same
+ * reason. An older reader ignoring it does not skip a field: it has no concept
+ * of a Node dependency at all, so it packs a `--app node` payload with no
+ * `nodejs` / `nodejs(engine)` requirement — an install that succeeds and an app
+ * that dies at `exec node`, at exit 0. Bumping is what turns that into the
+ * refusal `readStageManifest` already knows how to give.
  */
-export const STAGE_SCHEMA_VERSION = 2;
+export const STAGE_SCHEMA_VERSION = 3;
 
 /**
  * The OS whose layout `planStage` produces.
