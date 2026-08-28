@@ -13,7 +13,7 @@ each of them the imperative form is also available and shorter to type:
 | runtime | declarative | imperative |
 |---|---|---|
 | GTK / GJS | Blueprint `.blp`, compiled to a `GtkBuilder` template | `new Adw.Clamp({ child: … })` |
-| NativeScript | XML markup over `registerElement`-registered classes | `new AdwWrapBox(); box.add(pill)` |
+| NativeScript | XML markup, resolved through an `xmlns` module barrel | `new AdwWrapBox(); box.add(pill)` |
 | Browser | `adw-*` custom elements in HTML | `document.createElement('adw-clamp')` |
 
 The two forms are not equivalent in what they cost a reader. A template is a tree
@@ -69,10 +69,23 @@ this project refuses hand-maintained tables elsewhere.
 - A reader comparing two runtimes compares two trees, not a tree against a script.
 - `Adw.init()` and the final-type constraint above become part of what an example has to
   get right — which is a cost, and is why they are recorded here rather than rediscovered.
-- **What is NOT yet proven:** NativeScript's XML path. `registerAdwaitaElements()` in
-  `@gjsify/adwaita-nativescript` registers every widget with the `registerElement` global,
-  so `<AdwSwitchRow title="…" />` should resolve — but this repository contains **zero**
-  XML views, and the storybook builds every view in code. The declarative NativeScript
-  form is therefore *declared and unrun*. It is being measured on an Android emulator
-  before any XML appears in the documentation; if it does not render, this ADR's table
-  loses a row rather than the documentation gaining a false example.
+- **NativeScript's XML path: measured, and the row stays** — by a different mechanism than
+  this ADR first wrote down, and only after a package fix. Android emulator, API 37,
+  `@nativescript/core` 9.1.0-alpha.11, `@nativescript/vite` 8.0.0-alpha.57, 2026-08-28.
+
+  `registerAdwaitaElements()` is not the way in. `typeof registerElement` is `undefined`
+  in a plain NativeScript app — `@nativescript/core` 9.1 does not contain the identifier
+  anywhere; it belongs to `@nativescript/angular` / `nativescript-vue` — so the function
+  took its documented no-op branch and `<AdwSwitchRow>` resolved to nothing. What does
+  work is NativeScript's own rule: a namespace is a MODULE, and the builder reads the
+  element name off its exports. `xmlns:adw="~/adwaita"` over an app-local barrel resolves;
+  `xmlns:adw="@gjsify/adwaita-nativescript"` does not.
+
+  Resolving the class was only half. Every child then went through
+  `LayoutBase._addChildFromBuilder`, which ignores the slot name and calls `addChild` —
+  so a toolbar view's top bar and content were painted on top of each other in row 0, a
+  header bar's buttons never reached `startBox`/`endBox`, a clamp's child left `child`
+  null and clamped nothing, and preferences rows landed beside the boxed list rather than
+  in it. All four rendered SOMETHING, which is why nothing caught them. Fixed in
+  `@gjsify/adwaita-nativescript`; the four Layout widgets are now documented from
+  templates that were rendered and screenshotted before they were written down.

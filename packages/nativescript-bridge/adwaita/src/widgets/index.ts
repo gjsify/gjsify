@@ -1,11 +1,22 @@
 // Widget barrel for @gjsify/adwaita-nativescript.
 //
-// Re-exports every Adwaita NativeScript widget AND wires them into NativeScript's
-// XML element registry via the global `registerElement` so they can be used from
-// markup: `<AdwPreferencesGroup>`, `<AdwActionRow>`, `<AdwSwitchRow>`, etc. The
-// barrel itself has NO top-level side effects — registration is explicit via
-// `registerAdwaitaElements()` (mirroring the `/register` convention spirit), so
-// importing a widget class does not eagerly touch the runtime.
+// Re-exports every Adwaita NativeScript widget. The barrel has NO top-level side
+// effects, so importing a widget class does not eagerly touch the runtime.
+//
+// USING THESE FROM XML. A plain NativeScript app resolves `<ns:Widget>` by loading
+// the module its `xmlns` names and reading `Widget` off the exports
+// (`component-builder`'s `createComponentInstance`), so the way in is an
+// app-local barrel and a namespace:
+//
+//   // app/adwaita.ts
+//   export { AdwClamp, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+//
+//   <adw:AdwWrapBox xmlns:adw="~/adwaita" childSpacing="8"> … </adw:AdwWrapBox>
+//
+// `@gjsify/vite-plugin-gjsify` registers exactly those `xmlns="~/MOD"` barrels
+// (see packages/nativescript-bridge/AGENTS.md). A BARE package specifier does not
+// work — measured on Android 2026-08-28, `xmlns:adw="@gjsify/adwaita-nativescript"`
+// fails with `Module 'AdwWrapBox' not found for element`.
 
 export { AdwPreferencesPage } from './adw-preferences-page.js';
 export { AdwPreferencesGroup } from './adw-preferences-group.js';
@@ -355,13 +366,20 @@ const ELEMENTS = {
 let registered = false;
 
 /**
- * Register all Adwaita widgets as NativeScript XML elements (idempotent).
+ * Register all Adwaita widgets as UNPREFIXED NativeScript XML elements, where a
+ * framework integration provides the `registerElement` global (idempotent).
  *
- * After calling this once at app bootstrap, markup like
- * `<AdwSwitchRow title="Dark mode" />` resolves to the corresponding class.
- * No-op (returns silently) when the `registerElement` runtime global is absent
- * — i.e. off NativeScript, or when the bundler context has not injected it yet —
- * so the call is safe to make unconditionally.
+ * That global is NOT part of NativeScript itself: `@nativescript/core` 9.1 does
+ * not contain the identifier at all, and it is `undefined` in a plain app built
+ * with `@nativescript/vite` — measured on an Android emulator, 2026-08-28, where
+ * this function therefore returned silently and `<AdwSwitchRow>` resolved to
+ * nothing. It comes from `@nativescript/angular` / `nativescript-vue`, which is
+ * where this call earns its keep; a plain XML app uses the `xmlns` barrel above
+ * instead and needs no registration at all.
+ *
+ * The no-op is the safe branch of that split, not a fallback: it is why the call
+ * can be made unconditionally, and why it must never be the only thing an app
+ * does before writing `<AdwSwitchRow>` in markup.
  */
 export function registerAdwaitaElements(): void {
     if (registered) return;

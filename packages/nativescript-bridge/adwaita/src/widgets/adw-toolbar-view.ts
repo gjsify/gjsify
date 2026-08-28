@@ -30,6 +30,7 @@ import {
     defaultToolbarViewProps,
     toolbarViewClassNames,
 } from './chrome.js';
+import { resolveBuilderSlot } from './builder-slots.js';
 import { observeWindowInsets } from './window-insets-source.js';
 import { NO_INSETS, type WindowInsets, toolbarViewInsetPadding } from './window-insets.js';
 
@@ -39,6 +40,12 @@ const BASE_CLASSES = {
     topBar: 'adw-toolbar-view-top',
     bottomBar: 'adw-toolbar-view-bottom',
 };
+
+/**
+ * The slots a template may name, spelled as this widget's own properties —
+ * `<AdwToolbarView.topBar>`, `<AdwToolbarView.bottomBar>`, `<AdwToolbarView.content>`.
+ */
+const TOOLBAR_VIEW_SLOTS = ['topBar', 'bottomBar', 'content'] as const;
 
 export class AdwToolbarView extends GridLayout {
     /** The top-bar slot (row 0) — stack of header bars / toolbars. */
@@ -124,6 +131,28 @@ export class AdwToolbarView extends GridLayout {
         }
         // The content was just added last, so it would paint over an extended bar.
         this._restackBars();
+    }
+
+    /**
+     * XML inflation — route a template's child through the slot API.
+     *
+     * `<AdwToolbarView.topBar>` / `.bottomBar` / `.content` arrive here as those
+     * names; anything else (a bare child) is the content, which is the one slot a
+     * toolbar view cannot do without. Without this the `GridLayout` default put
+     * every child in row 0: measured on Android, a top bar and the content were
+     * painted ON TOP OF EACH OTHER in the bar row while row 1 stayed empty.
+     */
+    _addChildFromBuilder(name: string, view: View): void {
+        switch (resolveBuilderSlot(name, TOOLBAR_VIEW_SLOTS, 'content')) {
+            case 'topBar':
+                this.addTopBar(view);
+                return;
+            case 'bottomBar':
+                this.addBottomBar(view);
+                return;
+            default:
+                this.setContent(view);
+        }
     }
 
     /** The currently-installed content view, or `null`. */
