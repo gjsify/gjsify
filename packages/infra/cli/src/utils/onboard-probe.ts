@@ -43,6 +43,18 @@ export interface ProbeOptions {
     maxRateLimitRetries?: number;
     /** First backoff for a 429; doubles per attempt. Default {@link RATE_LIMIT_BASE_DELAY_MS}. */
     rateLimitBaseDelayMs?: number;
+    /**
+     * Cool-down shared across the sweep. Pass ONE instance to every call so a
+     * 429 anywhere holds back everywhere; omit for an isolated request.
+     */
+    gate?: RateLimitGate;
+    /**
+     * Called on every 429 with what npm actually sent and how long we will wait.
+     * The caller decides how loud to be; reporting the FIRST one is enough to
+     * turn "we got throttled" into "npm asked for N seconds" (or into "npm said
+     * nothing, so this delay is ours").
+     */
+    onRateLimit?: (info: { url: string; headers: string; waitMs: number; fromRetryAfter: boolean }) => void;
     /** Injected delay (tests pass a no-op). Default: real `setTimeout`. */
     sleep?: (ms: number) => Promise<void>;
     /**
@@ -69,6 +81,24 @@ export const PROBE_RETRY_DELAY_MS = 400;
  */
 export const RATE_LIMIT_MAX_RETRIES = 4;
 export const RATE_LIMIT_BASE_DELAY_MS = 2000;
+
+/**
+ * What npm told us about pacing on a 429 — verbatim, so the answer to "how fast
+ * may we go" comes from the registry rather than from a guess.
+ *
+ * Measured 2026-08-28: npm serves NO `X-RateLimit-*` headers on ordinary
+ * responses, so there is no budget to read ahead of time. `Retry-After` on the
+ * 429 itself is the only channel, and whether npm populates it on the trust
+ * endpoint is exactly what this reports the first time it happens.
+ */
+export function describeRateLimitHeaders(headers: Headers | undefined): string {
+    if (!headers) return 'no headers captured';
+    const seen: string[] = [];
+    headers.forEach((value, key) => {
+        if (/^retry-after$/i.test(key) || /ratelimit/i.test(key)) seen.push(`${key}: ${value}`);
+    });
+    return seen.length > 0 ? seen.join(', ') : 'npm sent no Retry-After and no rate-limit headers';
+}
 
 /** Seconds to wait per npm's `Retry-After`, or null when it said nothing usable. */
 export function retryAfterMs(headers: Headers | undefined): number | null {
@@ -139,6 +169,46 @@ function defaultSleep(ms: number): Promise<void> {
 }
 
 /**
+ * A cool-down shared by every in-flight request of a sweep.
+ *
+ * Retrying ONE throttled request in isolation is not enough, and the measured
+ * run shows why: at serial pace `gjsify/types` was already being 429'd, so every
+ * other worker kept hammering the registry through the very window the retry was
+ * waiting out — and the retry budget then expired against a limit nobody had
+ * stopped provoking. `trust failed (HTTP 429)` was the result.
+ *
+ * A 429 anywhere therefore pauses EVERYWHERE. That also makes concurrency safe
+ * to raise: the sweep self-paces down to whatever npm is willing to serve
+ * instead of the operator guessing a number.
+ */
+export class RateLimitGate {
+    private until = 0;
+    private readonly now: () => number;
+    private readonly sleeper: (ms: number) => Promise<void>;
+
+    constructor(opts: { now?: () => number; sleep?: (ms: number) => Promise<void> } = {}) {
+        this.now = opts.now ?? (() => Date.now());
+        this.sleeper = opts.sleep ?? defaultSleep;
+    }
+
+    /** Block while a cool-down is in effect. */
+    async wait(): Promise<void> {
+        const remaining = this.until - this.now();
+        if (remaining > 0) await this.sleeper(remaining);
+    }
+
+    /** Hold every request back for at least `ms` from now. */
+    penalize(ms: number): void {
+        this.until = Math.max(this.until, this.now() + ms);
+    }
+
+    /** Milliseconds still owed, for tests and for reporting. */
+    remainingMs(): number {
+        return Math.max(0, this.until - this.now());
+    }
+}
+
+/**
  * Issue a request, waiting out an HTTP 429 rather than reporting it as a state.
  *
  * Used by BOTH the probe GET and the act-phase trust POST, because a sweep long
@@ -160,9 +230,24 @@ export async function requestWaitingOutRateLimit(
     const sleep = opts.sleep ?? defaultSleep;
     const maxRetries = opts.maxRateLimitRetries ?? RATE_LIMIT_MAX_RETRIES;
     const baseDelay = opts.rateLimitBaseDelayMs ?? RATE_LIMIT_BASE_DELAY_MS;
+    const gate = opts.gate;
+
+    // Respect a cool-down somebody else is already serving BEFORE spending an
+    // attempt. Without this the sweep keeps provoking the limit it is waiting on.
+    if (gate) await gate.wait();
     let res = await request(method, url, body);
     for (let attempt = 0; res.status === 429 && attempt < maxRetries; attempt++) {
-        await sleep(retryAfterMs(res.headers) ?? baseDelay * 2 ** attempt);
+        const advised = retryAfterMs(res.headers);
+        const delay = advised ?? baseDelay * 2 ** attempt;
+        opts.onRateLimit?.({
+            url,
+            headers: describeRateLimitHeaders(res.headers),
+            waitMs: delay,
+            fromRetryAfter: advised !== null,
+        });
+        // Tell everyone, not just this call.
+        gate?.penalize(delay);
+        await (gate ? gate.wait() : sleep(delay));
         res = await request(method, url, body);
     }
     return res;

@@ -14,8 +14,10 @@ import {
     mapWithConcurrency,
     probeAllTrustStates,
     probeTrustState,
+    RateLimitGate,
     requestWaitingOutRateLimit,
     retryAfterMs,
+    describeRateLimitHeaders,
     type ProbeContext,
 } from './onboard-probe.js';
 
@@ -341,6 +343,79 @@ export default async () => {
             });
             expect(plan.action).toBe('blocked');
             expect(plan.httpStatus).toBe(429);
+        });
+    });
+
+    await describe('RateLimitGate — a 429 anywhere pauses everywhere', async () => {
+        await it('holds a later caller back for the penalty another one earned', async () => {
+            let clock = 0;
+            const slept: number[] = [];
+            const gate = new RateLimitGate({
+                now: () => clock,
+                sleep: async (ms) => {
+                    slept.push(ms);
+                    clock += ms;
+                },
+            });
+            expect(gate.remainingMs()).toBe(0);
+            gate.penalize(5000);
+            expect(gate.remainingMs()).toBe(5000);
+            await gate.wait();
+            expect(slept).toStrictEqual([5000]);
+            // The cool-down is served, not re-served.
+            expect(gate.remainingMs()).toBe(0);
+        });
+
+        await it('takes the LONGEST outstanding penalty, never the latest', async () => {
+            let clock = 0;
+            const gate = new RateLimitGate({ now: () => clock, sleep: async () => {} });
+            gate.penalize(10_000);
+            gate.penalize(1000); // a shorter one must not shorten the wait
+            expect(gate.remainingMs()).toBe(10_000);
+        });
+
+        await it('a throttled request waits on the SHARED gate', async () => {
+            let clock = 0;
+            const slept: number[] = [];
+            const gate = new RateLimitGate({
+                now: () => clock,
+                sleep: async (ms) => {
+                    slept.push(ms);
+                    clock += ms;
+                },
+            });
+            let calls = 0;
+            const req: TrustRequester = async () => {
+                calls++;
+                return calls === 1
+                    ? { status: 429, json: undefined, text: '', headers: new Headers({ 'retry-after': '3' }) }
+                    : { status: 200, json: [], text: '[]' };
+            };
+            const res = await requestWaitingOutRateLimit(req, 'GET', 'https://r/x', undefined, { gate });
+            expect(res.status).toBe(200);
+            // npm asked for 3s and that is what the whole sweep waited.
+            expect(slept).toStrictEqual([3000]);
+        });
+
+        await it('reports what npm actually said, so the pacing is not a guess', async () => {
+            const seen: string[] = [];
+            let calls = 0;
+            const withHeader: TrustRequester = async () => {
+                calls++;
+                return calls === 1
+                    ? { status: 429, json: undefined, text: '', headers: new Headers({ 'retry-after': '2' }) }
+                    : { status: 200, json: [], text: '[]' };
+            };
+            await requestWaitingOutRateLimit(withHeader, 'GET', 'https://r/x', undefined, {
+                sleep: async () => {},
+                onRateLimit: (i) => seen.push(`${i.fromRetryAfter}|${i.headers}|${i.waitMs}`),
+            });
+            expect(seen).toStrictEqual(['true|retry-after: 2|2000']);
+
+            // And the honest report when npm advertises nothing: measured
+            // 2026-08-28, npm serves no X-RateLimit-* headers at all.
+            expect(describeRateLimitHeaders(new Headers())).toBe('npm sent no Retry-After and no rate-limit headers');
+            expect(describeRateLimitHeaders(undefined)).toBe('no headers captured');
         });
     });
 };

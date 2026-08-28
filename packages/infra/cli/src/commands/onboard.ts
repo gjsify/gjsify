@@ -58,7 +58,9 @@ import {
 } from '../utils/trust-registry.js';
 import {
     DEFAULT_PROBE_CONCURRENCY,
+    mapWithConcurrency,
     probeAllTrustStates,
+    RateLimitGate,
     requestWaitingOutRateLimit,
     type PkgPlan,
 } from '../utils/onboard-probe.js';
@@ -70,6 +72,7 @@ interface OnboardOptions {
     registry?: string;
     otp?: string;
     concurrency: number;
+    'write-concurrency': number;
     packages?: string[];
     include?: string[];
     exclude?: string[];
@@ -80,6 +83,15 @@ interface OnboardOptions {
     json?: boolean;
     yes?: boolean;
 }
+
+/**
+ * How many Trusted-Publisher writes run in parallel by default.
+ *
+ * Deliberately the same small number as the read probe: one token, one registry,
+ * and a 429 costs a backoff. The win is not really throughput — it is that four
+ * writes per npm 2FA window means a quarter as many codes typed by hand.
+ */
+const DEFAULT_WRITE_CONCURRENCY = 4;
 
 /** Per-package outcome after the act phase (for the JSON summary). */
 interface PkgResult {
@@ -158,6 +170,12 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                     'How many packages to probe (read state) in parallel (kept small so a single token does not burst npm; the first read is always serial to prompt for the shared OTP once).',
                 type: 'number',
                 default: DEFAULT_PROBE_CONCURRENCY,
+            })
+            .option('write-concurrency', {
+                description:
+                    "How many Trusted-Publisher writes to issue in parallel. It buys FEWER 2FA PROMPTS more than it buys speed: an npm code lives about 30 seconds, so a serial sweep crosses a code boundary every ~38 packages. Raising it does not beat npm's rate limit — a 429 anywhere now pauses the whole sweep, so it self-paces down to whatever the registry will serve. Publishes are unaffected: they stay serial, because publish ORDER is a correctness property.",
+                type: 'number',
+                default: DEFAULT_WRITE_CONCURRENCY,
             })
             .option('dry-run', {
                 description: 'Report the plan (what would be published / trusted) without changing anything.',
@@ -297,6 +315,27 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         });
         const trustRequest = createTrustRequester({ npmrc, otpProvider });
 
+        // ONE cool-down for the whole sweep: a 429 on any request holds back
+        // every other one. Retrying a throttled request in isolation is not
+        // enough — the rest of the sweep keeps provoking the very limit the
+        // retry is waiting out, which is how a 703-package run spent its retry
+        // budget and reported `trust failed (HTTP 429)`.
+        const gate = new RateLimitGate();
+        let rateLimitReported = false;
+        const onRateLimit = (info: { url: string; headers: string; waitMs: number; fromRetryAfter: boolean }): void => {
+            if (rateLimitReported) return;
+            rateLimitReported = true;
+            // Report the FIRST one only. It answers the question that matters —
+            // does npm tell us how fast we may go? — and repeating it per request
+            // would bury the sweep's own output.
+            log(
+                `  npm rate limit hit. ${info.headers}. Waiting ${Math.round(info.waitMs / 1000)}s ` +
+                    `(${info.fromRetryAfter ? "npm's Retry-After" : 'our backoff — npm advised nothing'}), ` +
+                    'and holding the whole sweep back while it lasts.',
+            );
+        };
+        const pacing = { gate, onRateLimit };
+
         // 3. Determine per-package state. Reads run through the SAME
         // `TrustRequester` path `gjsify trust` uses (identical endpoint + auth +
         // OTP handling) — so a 2FA-gated trust-state read is answered with the
@@ -304,12 +343,18 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         // (task #60). The first read is serial (prompts for the shared OTP once,
         // before the burst); the rest run at a SMALL concurrency cap so a single
         // token never faces a 127-wide parallel read.
-        const plans = await probeAllTrustStates(trustRequest, selected, Math.max(1, args.concurrency), {
-            registryOverride: args.registry,
-            npmrc,
-            repository,
-            workflow,
-        });
+        const plans = await probeAllTrustStates(
+            trustRequest,
+            selected,
+            Math.max(1, args.concurrency),
+            {
+                registryOverride: args.registry,
+                npmrc,
+                repository,
+                workflow,
+            },
+            pacing,
+        );
 
         // Summary table (published✓ / trusted✓ vs work to do).
         const toPublish = plans.filter((p) => p.action === 'publish-and-trust');
@@ -380,94 +425,130 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
             return;
         }
 
-        // 4. Act on the gaps, minimally. Publishes + trust POSTs run SERIALLY so
-        // the shared OTP is prompted at most once (and reused everywhere) —
-        // reusing the `otpProvider` + `trustRequest` built for the probe phase.
+        // 4. Act on the gaps, minimally.
+        //
+        // The two kinds of work are paced DIFFERENTLY, on purpose.
+        //
+        // A trust POST is independent of every other trust POST, so they run at
+        // `--write-concurrency`. They used to be serial for one reason — "so the
+        // shared OTP is prompted at most once" — and that reason is gone now
+        // that `OtpProvider.refresh()` is single-flight: concurrent writers share
+        // one prompt instead of stacking N of them.
+        //
+        // What this buys is PROMPTS, not throughput, and the distinction is
+        // measured rather than assumed: the real `gjsify/types` run was already
+        // being 429'd at SERIAL pace, so npm — not the loop — sets the ceiling.
+        // What serial cost was 2FA codes: one lives ~30 s, so the sweep crossed a
+        // code boundary every ~38 packages, ~18 codes typed by hand for 703
+        // packages. Fewer wall-clock seconds per code means fewer codes.
+        // The shared `RateLimitGate` is what makes raising this safe rather than
+        // merely faster-to-fail.
+        //
+        // A publish stays SERIAL. Publish order is a correctness property
+        // (docs/publishing.md: an aborted parallel sweep can leave a live bridge
+        // pinning a platform child that does not exist), and nothing about OTP
+        // pacing is worth trading that for.
         const trustBody = githubTrustBody({ repository, workflow, environment });
+        const writeConcurrency = Math.max(1, args['write-concurrency']);
 
+        // Results are written by INDEX rather than pushed, so a concurrent phase
+        // still reports in plan order — a summary whose order depends on which
+        // request happened to answer first is harder to diff between runs.
+        const indexed: (PkgResult | undefined)[] = Array.from({ length: plans.length });
         let failed = 0;
-        for (const p of plans) {
+
+        /** POST the Trusted Publisher config for one package and record the outcome. */
+        const configureTrust = async (p: PkgPlan, i: number, publishedNow: boolean): Promise<void> => {
+            // Through the rate-limit-aware wrapper: a 703-package sweep that gets
+            // throttled on its READS gets throttled on its WRITES too, and a bare
+            // 429 here would be recorded as `trust failed` — a failure attributed
+            // to the package rather than to the pacing.
+            const created = await requestWaitingOutRateLimit(trustRequest, 'POST', p.url, trustBody, pacing);
+            if (created.status >= 200 && created.status < 300) {
+                log(`  trusted ${p.ws.name}`);
+                indexed[i] = { name: p.ws.name, result: publishedNow ? 'published+trusted' : 'trusted' };
+            } else if (created.status === 409) {
+                indexed[i] = { name: p.ws.name, result: publishedNow ? 'published+trusted' : 'trusted' };
+            } else if (created.status === 404) {
+                // Freshly-published package not yet provisioned for trust config.
+                log(`  ${p.ws.name}: published but not yet trust-configurable (re-run onboard)`);
+                indexed[i] = {
+                    name: p.ws.name,
+                    result: publishedNow ? 'published' : 'failed',
+                    detail: 'trust config deferred (404)',
+                };
+                if (!publishedNow) failed++;
+            } else {
+                log(`  trust failed (HTTP ${created.status}) — ${p.ws.name}`);
+                indexed[i] = { name: p.ws.name, result: 'failed', detail: `trust HTTP ${created.status}` };
+                failed++;
+            }
+        };
+
+        // 4a. Bookkeeping-only rows, and the serial publish path.
+        const trustOnly: { p: PkgPlan; i: number }[] = [];
+        for (let i = 0; i < plans.length; i++) {
+            const p = plans[i];
             if (p.action === 'skip') {
-                results.push({ name: p.ws.name, result: 'already-done' });
+                indexed[i] = { name: p.ws.name, result: 'already-done' };
                 continue;
             }
             if (p.action === 'blocked') {
                 log(`→ ${p.ws.name}: cannot read trust state (HTTP ${p.httpStatus}) — skipped`);
-                results.push({ name: p.ws.name, result: 'failed', detail: `state HTTP ${p.httpStatus}` });
+                indexed[i] = { name: p.ws.name, result: 'failed', detail: `state HTTP ${p.httpStatus}` };
                 failed++;
                 continue;
             }
-
-            let publishedNow = false;
-            if (p.action === 'publish-and-trust') {
-                log(`→ ${p.ws.name}: building + publishing…`);
-                try {
-                    if (args.build !== false) await buildIfPresent(p.ws, log);
-                } catch (err) {
-                    const msg = err instanceof Error ? err.message : String(err);
-                    log(`  build failed: ${msg}`);
-                    results.push({ name: p.ws.name, result: 'failed', detail: `build: ${msg}` });
-                    failed++;
-                    continue;
-                }
-                const pub = await publishWorkspace({
-                    wsDir: p.ws.location,
-                    tag: 'latest',
-                    access: args.access,
-                    provenance: false,
-                    tolerate: true, // a concurrent/racey publish is harmless
-                    tolerateUntrustedNew: false,
-                    trustedFlag: undefined,
-                    registry: p.registry,
-                    verbose: false,
-                    json: false,
-                    otpProvider,
-                    seedOtpFirst: false,
-                });
-                if (!pub.ok) {
-                    const detail = describePublishFailure(pub);
-                    log(`  publish failed: ${detail}`);
-                    results.push({ name: p.ws.name, result: 'failed', detail: `publish: ${detail}` });
-                    failed++;
-                    continue;
-                }
-                publishedNow = pub.action !== 'skipped-untrusted-new';
-                log(`  published ${pub.name}@${'version' in pub ? pub.version : ''}`);
+            if (p.action === 'trust') {
+                trustOnly.push({ p, i });
+                continue;
             }
 
-            // Configure the Trusted Publisher. Through the rate-limit-aware
-            // wrapper: a 703-package sweep that gets throttled on its READS gets
-            // throttled on its WRITES too, and a bare 429 here would be recorded
-            // as `trust failed` — a failure attributed to the package rather
-            // than to the pacing.
-            const created = await requestWaitingOutRateLimit(trustRequest, 'POST', p.url, trustBody);
-            if (created.status >= 200 && created.status < 300) {
-                log(`  trusted ${p.ws.name}`);
-                results.push({
-                    name: p.ws.name,
-                    result: publishedNow ? 'published+trusted' : 'trusted',
-                });
-            } else if (created.status === 409) {
-                results.push({ name: p.ws.name, result: publishedNow ? 'published+trusted' : 'trusted' });
-            } else if (created.status === 404) {
-                // Freshly-published package not yet provisioned for trust config.
-                log(`  ${p.ws.name}: published but not yet trust-configurable (re-run onboard)`);
-                results.push({
-                    name: p.ws.name,
-                    result: publishedNow ? 'published' : 'failed',
-                    detail: 'trust config deferred (404)',
-                });
-                if (!publishedNow) failed++;
-            } else {
-                log(`  trust failed (HTTP ${created.status})`);
-                results.push({
-                    name: p.ws.name,
-                    result: 'failed',
-                    detail: `trust HTTP ${created.status}`,
-                });
+            // publish-and-trust — serial, see above.
+            log(`→ ${p.ws.name}: building + publishing…`);
+            try {
+                if (args.build !== false) await buildIfPresent(p.ws, log);
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                log(`  build failed: ${msg}`);
+                indexed[i] = { name: p.ws.name, result: 'failed', detail: `build: ${msg}` };
                 failed++;
+                continue;
             }
+            const pub = await publishWorkspace({
+                wsDir: p.ws.location,
+                tag: 'latest',
+                access: args.access,
+                provenance: false,
+                tolerate: true, // a concurrent/racey publish is harmless
+                tolerateUntrustedNew: false,
+                trustedFlag: undefined,
+                registry: p.registry,
+                verbose: false,
+                json: false,
+                otpProvider,
+                seedOtpFirst: false,
+            });
+            if (!pub.ok) {
+                const detail = describePublishFailure(pub);
+                log(`  publish failed: ${detail}`);
+                indexed[i] = { name: p.ws.name, result: 'failed', detail: `publish: ${detail}` };
+                failed++;
+                continue;
+            }
+            log(`  published ${pub.name}@${'version' in pub ? pub.version : ''}`);
+            await configureTrust(p, i, pub.action !== 'skipped-untrusted-new');
         }
+
+        // 4b. The trust-only packages, concurrently.
+        if (trustOnly.length > 0) {
+            if (trustOnly.length > 1) {
+                log(`→ configuring ${trustOnly.length} Trusted Publisher(s), ${writeConcurrency} at a time…`);
+            }
+            await mapWithConcurrency(trustOnly, writeConcurrency, async ({ p, i }) => configureTrust(p, i, false));
+        }
+
+        for (const r of indexed) if (r) results.push(r);
 
         finish(results, plans, { asJson, dryRun, failed, root, sources, discovered: all.length });
     },

@@ -1838,11 +1838,23 @@ One 2FA code covers the whole sweep, and it is asked for **once at a time** — 
 share the prompt rather than each opening their own. npm codes expire on their ~30-second window,
 so a long sweep may ask again later; each such expiry costs exactly one prompt.
 
+Trusted-Publisher **writes** run at `--write-concurrency` (default 4); **publishes** stay serial,
+because publish order is a correctness property. Raising the write concurrency buys fewer 2FA
+prompts rather than raw speed — measured against a 703-package repo, npm rate-limits the sweep at
+serial pace already, so the registry sets the ceiling, not the loop. What serial cost was codes:
+one lives about 30 seconds, so the sweep crossed a code boundary roughly every 38 packages.
+
 An HTTP 429 is waited out, not reported. npm throttles a long sweep, and because it is cumulative
 it lands on the *tail* of the list — which reads as "these packages are special" when the truth is
-that the sweep asked too fast. Rate-limited reads and trust writes back off (honouring
-`Retry-After`) and retry; only throttling that outlasts the backoff is reported, and the summary
-then says so and suggests a lower `--concurrency`. Re-running is safe: the sweep is idempotent and
+that the sweep asked too fast. A 429 **anywhere pauses everywhere**: retrying one throttled request in isolation leaves the rest
+of the sweep provoking the very limit that retry is waiting out, which is how a real run spent its
+retry budget and reported `trust failed (HTTP 429)`. Reads and writes share one cool-down, so the
+sweep self-paces down to whatever npm will serve. Only throttling that outlasts the backoff is
+reported, and the summary then says so and suggests a lower `--concurrency`.
+
+npm advertises no budget ahead of time — there are no `X-RateLimit-*` headers on ordinary
+responses — so the first 429 of a run prints what the registry actually said, including when it
+said nothing and the delay is the CLI's own. Re-running is safe: the sweep is idempotent and
 skips whatever already landed.
 
 A package whose own `package.json` names a **different** `repository` than the one being
