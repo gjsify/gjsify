@@ -24,6 +24,7 @@ import { Button, GridLayout, ItemSpec, Label, type EventData } from '@nativescri
 import { bannerButtonText, bannerButtonVisible, parseBannerButtonStyle } from '@gjsify/adwaita-core';
 import type { AdwBannerButtonStyle } from '@gjsify/adwaita-core';
 import { bannerButtonClassName, bannerTitleText, bannerVisibility, defaultBannerProps } from './chrome.js';
+import { xmlBoolean } from './xml-values.js';
 
 /** Event name emitted when the banner's action button is tapped. */
 export const BUTTON_CLICKED = 'buttonClicked';
@@ -95,8 +96,8 @@ export class AdwBanner extends GridLayout {
         return this._props.useMarkup;
     }
 
-    set useMarkup(value: boolean) {
-        this._props.useMarkup = !!value;
+    set useMarkup(value: boolean | string) {
+        this._props.useMarkup = xmlBoolean(value, false);
         this._renderTitle();
     }
 
@@ -144,8 +145,8 @@ export class AdwBanner extends GridLayout {
         return this._props.revealed;
     }
 
-    set revealed(value: boolean) {
-        this._props.revealed = !!value;
+    set revealed(value: boolean | string) {
+        this._props.revealed = xmlBoolean(value, false);
         this.visibility = bannerVisibility(this._props.revealed);
     }
 

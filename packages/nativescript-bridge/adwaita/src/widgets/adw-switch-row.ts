@@ -23,6 +23,7 @@
 import { Switch, type EventData } from '@nativescript/core';
 import { AdwActionRow } from './adw-action-row.js';
 import { SwitchRowState } from './row-state.js';
+import { xmlBoolean } from './xml-values.js';
 
 /** Event name emitted when {@link AdwSwitchRow.active} changes. Mirrors GObject `notify::active`. */
 export const NOTIFY_ACTIVE = 'notify::active';
@@ -65,8 +66,8 @@ export class AdwSwitchRow extends AdwActionRow {
         return this._switchState.active;
     }
 
-    set active(value: boolean) {
-        this._apply(this._switchState.setActive(value));
+    set active(value: boolean | string) {
+        this._apply(this._switchState.setActive(xmlBoolean(value, false)));
     }
 
     /**

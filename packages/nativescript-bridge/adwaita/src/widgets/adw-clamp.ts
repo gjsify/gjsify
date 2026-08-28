@@ -26,6 +26,7 @@ import {
     defaultClampProps,
     normalizeClampProp,
 } from './chrome.js';
+import { xmlNumber } from './xml-values.js';
 
 export { DEFAULT_CLAMP_MAX_SIZE, DEFAULT_CLAMP_TIGHTENING_THRESHOLD };
 
@@ -95,8 +96,8 @@ export class AdwClamp extends GridLayout {
         return this._props.maximumSize;
     }
 
-    set maximumSize(value: number) {
-        this._props.maximumSize = normalizeClampProp(value, DEFAULT_CLAMP_MAX_SIZE);
+    set maximumSize(value: number | string) {
+        this._props.maximumSize = normalizeClampProp(xmlNumber(value, DEFAULT_CLAMP_MAX_SIZE), DEFAULT_CLAMP_MAX_SIZE);
         this._allocate();
     }
 
@@ -110,8 +111,11 @@ export class AdwClamp extends GridLayout {
         return this._props.tighteningThreshold;
     }
 
-    set tighteningThreshold(value: number) {
-        this._props.tighteningThreshold = normalizeClampProp(value, DEFAULT_CLAMP_TIGHTENING_THRESHOLD);
+    set tighteningThreshold(value: number | string) {
+        this._props.tighteningThreshold = normalizeClampProp(
+            xmlNumber(value, DEFAULT_CLAMP_TIGHTENING_THRESHOLD),
+            DEFAULT_CLAMP_TIGHTENING_THRESHOLD,
+        );
         this._allocate();
     }
 

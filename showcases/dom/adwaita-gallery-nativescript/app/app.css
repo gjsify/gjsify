@@ -1,0 +1,20 @@
+/* NativeScript core theme (resets / base widget styling). */
+@import '@nativescript/theme/css/core.css';
+
+/* The Libadwaita look for the widgets. Copied out of
+   @gjsify/adwaita-nativescript/theme/adwaita.css by `sync:theme`, which every
+   android script runs — a tracked copy is six weeks of silent drift, which is
+   the lesson the storybook showcase beside this one already paid for. */
+@import '~/adwaita.css';
+
+/* NO app/fonts/ and no font-family rule, unlike the storybook showcase beside this
+   one. This app asserts a view TREE — the class each element became, the value each
+   attribute reached, the slot each child landed in — and none of that is a typeface.
+   Two TTFs committed for a probe nobody looks at is a megabyte with no reader. */
+
+/* The probe's own verdict line, which is the only chrome this app has. */
+.probe-verdict {
+    font-size: 18;
+    font-weight: bold;
+    padding: 12;
+}

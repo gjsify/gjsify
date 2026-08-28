@@ -30,6 +30,7 @@ import { windowCloseSymbolic } from '@gjsify/adwaita-icons/ui';
 import type { SearchPreferencesOptions } from '@gjsify/adwaita-core';
 import { AdwImageButton } from './adw-image-button.js';
 import { searchNsPreferences, type NsPreferencesSearchResult, type NsSearchablePage } from './preferences-search.js';
+import { xmlBoolean } from './xml-values.js';
 
 /** Event name emitted when the dialog is closed. */
 export const CLOSED = 'closed';
@@ -110,6 +111,15 @@ export class AdwPreferencesDialog extends GridLayout {
         this._body.addChild(view);
     }
 
+    /**
+     * An XML child is a page in the dialog BODY, not a child of the grid the dialog
+     * builds its header and scroller in — which is where `LayoutBase`'s inherited
+     * `_addChildFromBuilder` would have put it, on top of the title bar.
+     */
+    _addChildFromBuilder(_name: string, view: View): void {
+        this.add(view);
+    }
+
     /** Remove a previously-added page from the body. */
     remove(view: View): void {
         this._body.removeChild(view);
@@ -160,8 +170,8 @@ export class AdwPreferencesDialog extends GridLayout {
         return this.visibility === 'visible';
     }
 
-    set open(value: boolean) {
-        if (value) this.present();
+    set open(value: boolean | string) {
+        if (xmlBoolean(value, false)) this.present();
         else this.close();
     }
 

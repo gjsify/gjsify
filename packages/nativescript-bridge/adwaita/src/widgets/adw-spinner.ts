@@ -26,6 +26,7 @@ import { ActivityIndicator, GridLayout, ItemSpec } from '@nativescript/core';
 import { resolveSpinnerSize, spinnerGeometry } from '@gjsify/adwaita-core';
 
 import { DEFAULT_SPINNER_SIZE } from './chrome.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 export { DEFAULT_SPINNER_SIZE };
 
@@ -94,8 +95,8 @@ export class AdwSpinner extends GridLayout {
         return this._spinning;
     }
 
-    set spinning(value: boolean) {
-        this._spinning = !!value;
+    set spinning(value: boolean | string) {
+        this._spinning = xmlBoolean(value, false);
         this._applySpinning();
     }
 
@@ -112,8 +113,8 @@ export class AdwSpinner extends GridLayout {
         return this._size;
     }
 
-    set size(value: number) {
-        this._size = resolveSpinnerSize(value);
+    set size(value: number | string) {
+        this._size = resolveSpinnerSize(xmlNumber(value, DEFAULT_SPINNER_SIZE));
         this._applySize();
     }
 

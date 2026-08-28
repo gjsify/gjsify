@@ -62,6 +62,13 @@
         "showcases/gtk/adwaita-gallery-solid/src/app.tsx",
         "showcases/gtk/adwaita-gallery-react/src/app.tsx",
         "showcases/gtk/adwaita-gallery-vue/src/app.ts",
+        // Same arrangement one port over: the NativeScript XML templates and the two
+        // TypeScript modules the probe app reads them through, all emitted by
+        // `scripts/generate-adwaita-nativescript-templates.mjs`, which formats nothing
+        // because the jobs that check it have no `node_modules`.
+        "website/src/data/adwaita-nativescript-templates.ts",
+        "showcases/dom/adwaita-gallery-nativescript/app/expected.ts",
+        "showcases/dom/adwaita-gallery-nativescript/app/adwaita.ts",
         "**/cli.gjs.mjs",
         "**/test.gjs.mjs",
         "**/test.node.mjs",

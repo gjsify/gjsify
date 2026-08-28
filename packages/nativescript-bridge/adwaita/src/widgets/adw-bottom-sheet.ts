@@ -46,6 +46,8 @@ import {
     sheetVisibility,
     type NotifyOpenEventData,
 } from './bottom-sheet-state.js';
+import { resolveBuilderSlot } from './builder-slots.js';
+import { xmlBoolean } from './xml-values.js';
 
 export { CLOSE_ATTEMPT, NOTIFY_OPEN, SHEET_CLOSE };
 export type { NotifyOpenEventData };
@@ -54,6 +56,9 @@ export type { NotifyOpenEventData };
 const CONTENT_CLASS = 'adw-bottom-sheet-content';
 /** Marker class applied to the view handed to {@link AdwBottomSheet.setSheet}. */
 const SHEET_CLASS = 'adw-bottom-sheet-sheet';
+
+/** The two layers an XML child of a bottom sheet can ask for. */
+const BOTTOM_SHEET_SLOTS = ['sheet', 'content'] as const;
 
 export class AdwBottomSheet extends GridLayout {
     /** The always-visible content layer. */
@@ -135,6 +140,34 @@ export class AdwBottomSheet extends GridLayout {
         }
     }
 
+    /**
+     * An XML child asks for the sheet or for the content, and a bare one is CONTENT —
+     * the always-visible layer, which is what a sheet with nothing behind it would be
+     * missing. `LayoutBase`'s inherited default would put either into the grid
+     * alongside the sheet panel, where it neither paints under the sheet nor moves
+     * with it.
+     */
+    _addChildFromBuilder(name: string, view: View): void {
+        if (resolveBuilderSlot(name, BOTTOM_SHEET_SLOTS, 'content') === 'sheet') this.setSheet(view);
+        else this.setContent(view);
+    }
+
+    /**
+     * The always-visible content layer, or `null`.
+     *
+     * A read-back for `setContent`: a write-only pane cannot be asserted, and the XML
+     * door made that concrete — the gallery probe has to ask the widget where the
+     * child it declared actually went.
+     */
+    get content(): View | null {
+        return this._content;
+    }
+
+    /** The sheet panel's child, or `null` — the read-back for `setSheet`. */
+    get sheet(): View | null {
+        return this._sheetChild;
+    }
+
     /** Open the sheet programmatically. */
     open(): void {
         this.openState = true;
@@ -153,8 +186,8 @@ export class AdwBottomSheet extends GridLayout {
         return this._state.open;
     }
 
-    set openState(value: boolean) {
-        this._state.setOpen(value);
+    set openState(value: boolean | string) {
+        this._state.setOpen(xmlBoolean(value, false));
     }
 
     /**

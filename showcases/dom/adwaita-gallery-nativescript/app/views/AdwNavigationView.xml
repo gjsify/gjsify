@@ -1,0 +1,27 @@
+<adw:AdwNavigationView
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+>
+  <adw:AdwToolbarView>
+    <adw:AdwToolbarView.topBar>
+      <adw:AdwHeaderBar title="Contacts" />
+    </adw:AdwToolbarView.topBar>
+    <adw:AdwToolbarView.content>
+      <adw:AdwStatusPage
+        title="Contacts"
+        description="Push a page to see the transition."
+      />
+    </adw:AdwToolbarView.content>
+  </adw:AdwToolbarView>
+  <adw:AdwToolbarView>
+    <adw:AdwToolbarView.topBar>
+      <adw:AdwHeaderBar title="Ada Lovelace" />
+    </adw:AdwToolbarView.topBar>
+    <adw:AdwToolbarView.content>
+      <adw:AdwStatusPage
+        title="Ada Lovelace"
+        description="Mathematician and writer, the first computer programmer."
+      />
+    </adw:AdwToolbarView.content>
+  </adw:AdwToolbarView>
+</adw:AdwNavigationView>

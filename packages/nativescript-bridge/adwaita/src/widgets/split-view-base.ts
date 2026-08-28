@@ -38,6 +38,7 @@ import {
 import { splitViewColumns } from './split-view-state.js';
 import type { AdwPackType, NsShowSidebarNotification, NsSplitViewState } from './split-view-state.js';
 import type { AdwTextDirection } from '@gjsify/adwaita-core';
+import { resolveBuilderSlot } from './builder-slots.js';
 
 /** Event name emitted when the sidebar visibility changes. */
 export const NOTIFY_SHOW_SIDEBAR = 'notify::show-sidebar';
@@ -48,6 +49,9 @@ export interface NotifyShowSidebarEventData extends EventData {
     /** Whether the view is in its collapsed (narrow) mode. */
     collapsed: boolean;
 }
+
+/** The two panes an XML child of a split view can ask for. */
+const SPLIT_VIEW_SLOTS = ['sidebar', 'content'] as const;
 
 export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplitViewState> extends GridLayout {
     protected _sidebar: View | null = null;
@@ -219,6 +223,19 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         }
         this._state.setPaneMounted('content', view !== null);
         this._applyLayout();
+    }
+
+    /**
+     * An XML child asks for `sidebar` or `content`, and a bare one is CONTENT.
+     *
+     * The fallback follows the widget's own collapsed behaviour: a lone child stays
+     * visible whatever `show-content` says, so the pane a template gives without
+     * naming one is the one a reader will see. Without this override, `LayoutBase`'s
+     * default drops both panes into column 0 of the grid, stacked.
+     */
+    _addChildFromBuilder(name: string, view: View): void {
+        if (resolveBuilderSlot(name, SPLIT_VIEW_SLOTS, 'content') === 'sidebar') this.setSidebar(view);
+        else this.setContent(view);
     }
 
     /** Show the sidebar (relevant in collapsed mode). */

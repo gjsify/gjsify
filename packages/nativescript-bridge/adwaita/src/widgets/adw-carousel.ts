@@ -142,6 +142,18 @@ export class AdwCarousel extends GridLayout {
     }
 
     /**
+     * An XML child is a PAGE, appended in document order.
+     *
+     * The name is ignored: a carousel has one kind of child. Without this,
+     * `LayoutBase`'s default puts the view straight into the grid the carousel builds
+     * its scroller and dots in — on top of the track rather than on it, and the page
+     * never gets a width, a `adw-carousel-page` class or a dot.
+     */
+    _addChildFromBuilder(_name: string, view: View): void {
+        this.addPage(view);
+    }
+
+    /**
      * Insert a page at `position` — `adw_carousel_insert` (adw-carousel.c:1370-1407).
      * `-1` or a position past the end appends. Returns whether it was added.
      */
@@ -215,6 +227,13 @@ export class AdwCarousel extends GridLayout {
     /** One keynav step — `navigate_to_direction` (adw-carousel.c:475-508). */
     navigate(direction: 'back' | 'forward'): boolean {
         return this._state.navigate(direction);
+    }
+
+    /** The pages on the track, in order — the read-back for `addPage`/`insertPage`. */
+    get pages(): readonly View[] {
+        const out: View[] = [];
+        for (let i = 0; i < this._track.getChildrenCount(); i++) out.push(this._track.getChildAt(i));
+        return out;
     }
 
     /** The number of pages. */

@@ -24,6 +24,7 @@ import { valueDecreaseSymbolic, valueIncreaseSymbolic } from '@gjsify/adwaita-ic
 import { SpinState } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { AdwImageButton } from './adw-image-button.js';
+import { xmlNumber } from './xml-values.js';
 
 // Re-export the headless state machine so consumers can reach it from
 // `@gjsify/adwaita-nativescript` unchanged.
@@ -105,8 +106,8 @@ export class AdwSpinRow extends AdwActionRow {
         return this._state.value;
     }
 
-    set value(v: number) {
-        this._state.setValue(v);
+    set value(v: number | string) {
+        this._state.setValue(xmlNumber(v, this._state.value));
     }
 
     /** Lower bound. Re-clamps the current value if it now falls below. */
@@ -114,8 +115,8 @@ export class AdwSpinRow extends AdwActionRow {
         return this._state.min;
     }
 
-    set min(v: number) {
-        this._state.setMin(v);
+    set min(v: number | string) {
+        this._state.setMin(xmlNumber(v, this._state.min));
     }
 
     /** Upper bound. Re-clamps the current value if it now falls above. */
@@ -123,8 +124,8 @@ export class AdwSpinRow extends AdwActionRow {
         return this._state.max;
     }
 
-    set max(v: number) {
-        this._state.setMax(v);
+    set max(v: number | string) {
+        this._state.setMax(xmlNumber(v, this._state.max));
     }
 
     /** Increment/decrement step applied per button press. */
@@ -132,7 +133,7 @@ export class AdwSpinRow extends AdwActionRow {
         return this._state.step;
     }
 
-    set step(v: number) {
-        this._state.setStep(v);
+    set step(v: number | string) {
+        this._state.setStep(xmlNumber(v, this._state.step));
     }
 }

@@ -93,6 +93,19 @@ export class AdwNavigationView extends GridLayout {
     }
 
     /**
+     * An XML child is a PAGE, registered in document order — so the first one is
+     * pushed and the rest wait behind it, exactly as `add` already promises.
+     *
+     * A page's `tag` is not readable off the markup: NativeScript sets the child's
+     * OWN properties before handing it over, so a template gives the page an `id` and
+     * the loader beside it does `view.pushByTag`. What the tree needs is the
+     * registration, and that is what this is.
+     */
+    _addChildFromBuilder(_name: string, view: View): void {
+        this.add(view);
+    }
+
+    /**
      * Remove a page (`AdwNavigationView.remove`). One that is on the stack is
      * removed once it is POPPED. Named `removePage` rather than `remove` so the
      * widget never shadows a member of NativeScript's own `ViewBase`, the same

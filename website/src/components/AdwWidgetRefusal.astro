@@ -1,32 +1,36 @@
 ---
 /**
- * Why a gallery block has no Solid, Vue or React snippet.
+ * Why a gallery block has no snippet in one window's dialect.
  *
  * Its own component because it renders in TWO places in `AdwWidgetWindow` — as a tab
  * page beside other panes, and as the whole window when it is the only pane, which is
- * the ordinary case for the 19 blocks that carry a reason instead of a snippet. Two
+ * the ordinary case for the blocks that carry a reason instead of a snippet. Two
  * copies of this prose is exactly the drift the gallery keeps paying for elsewhere.
+ *
+ * The wording is a PROP and not a constant, because two windows use it now: the
+ * frameworks window speaks of a Solid/Vue/React snippet, the NativeScript one of an
+ * XML template, and each carries its own second paragraph in `AdwWidget`'s window
+ * table beside the map its reason comes out of.
  */
 interface Props {
     /** The block's title, e.g. `Gtk.DropDown`. */
     widget: string;
-    /** The recorded reason, from `ADWAITA_FRAMEWORK_REFUSALS`. */
+    /** What this window would have shown, e.g. `NativeScript XML template`. */
+    missing: string;
+    /** The recorded reason, from the window's refusal map. */
     reason: string;
+    /** One paragraph on why this KIND of widget has no markup in this dialect. */
+    note: string;
 }
 
-const { widget, reason } = Astro.props;
+const { widget, missing, reason, note } = Astro.props;
 ---
 
 <div class="adw-widget-refusal not-content">
     <p>
-        No Solid, Vue or React snippet for <code>{widget}</code>: {reason}
+        No {missing} for <code>{widget}</code>: {reason}
     </p>
-    <p>
-        Every snippet in this gallery was compiled and run before it was written down. Where a widget is built
-        imperatively rather than declared — a <code>Gio.MenuModel</code>, a dialog opened with <code>present()</code>,
-        a container with no child policy — there is nothing for the three dialects to differ about, so the reason is
-        recorded here rather than the tab being quietly absent.
-    </p>
+    <p>{note}</p>
 </div>
 
 <style>

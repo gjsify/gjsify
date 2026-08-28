@@ -1,0 +1,6 @@
+<adw:AdwWindowTitle
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+  title="Inbox"
+  subtitle="3 unread messages"
+/>

@@ -1,0 +1,6 @@
+<adw:AdwPreferencesGroup
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+>
+  <adw:AdwButtonRow title="Add account" />
+</adw:AdwPreferencesGroup>

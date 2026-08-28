@@ -1,0 +1,10 @@
+<adw:AdwPreferencesGroup
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+>
+  <adw:AdwActionRow
+    title="Wi-Fi"
+    subtitle="Connected to Highgarden 5GHz"
+    activatable="true"
+  />
+</adw:AdwPreferencesGroup>

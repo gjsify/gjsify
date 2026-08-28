@@ -1,0 +1,14 @@
+# NativeScript build artifacts
+platforms/
+hooks/
+.ns-vite-build/
+node_modules/
+package-lock.json
+*.apk
+*.aab
+*.log
+
+# Copied out of the bridge package by `sync:theme`, which every android script runs
+# before it builds. A file regenerated on every build cannot drift if it is not in
+# git — the lesson the storybook showcase beside this one already paid for.
+app/adwaita.css

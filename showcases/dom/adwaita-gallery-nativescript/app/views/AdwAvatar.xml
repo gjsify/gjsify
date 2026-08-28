@@ -1,0 +1,6 @@
+<adw:AdwAvatar
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+  text="Ada Lovelace"
+  size="96"
+/>

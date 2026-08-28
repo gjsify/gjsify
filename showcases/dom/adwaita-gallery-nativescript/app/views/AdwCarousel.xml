@@ -1,0 +1,17 @@
+<adw:AdwCarousel
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+>
+  <adw:AdwStatusPage
+    iconText="①"
+    title="Welcome"
+  />
+  <adw:AdwStatusPage
+    iconText="②"
+    title="Sync"
+  />
+  <adw:AdwStatusPage
+    iconText="③"
+    title="Done"
+  />
+</adw:AdwCarousel>

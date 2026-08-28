@@ -1,0 +1,23 @@
+<adw:AdwHeaderBar
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+>
+  <adw:AdwHeaderBar.startBox>
+    <adw:AdwButton
+      text="‹"
+      variant="flat"
+    />
+  </adw:AdwHeaderBar.startBox>
+  <adw:AdwHeaderBar.titleWidget>
+    <adw:AdwWindowTitle
+      title="Text Editor"
+      subtitle="notes.md"
+    />
+  </adw:AdwHeaderBar.titleWidget>
+  <adw:AdwHeaderBar.endBox>
+    <adw:AdwButton
+      text="≡"
+      variant="flat"
+    />
+  </adw:AdwHeaderBar.endBox>
+</adw:AdwHeaderBar>

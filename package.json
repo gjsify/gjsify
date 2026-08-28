@@ -157,6 +157,7 @@
         "showcases/dom/*",
         "!showcases/dom/three-geometry-teapot-nativescript",
         "!showcases/dom/adwaita-storybook-nativescript",
+        "!showcases/dom/adwaita-gallery-nativescript",
         "showcases/node/*",
         "showcases/gtk/*",
         "tests/browser",

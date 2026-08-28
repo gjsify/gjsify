@@ -54,6 +54,7 @@ import {
     wrapBoxSpacingChanges,
     type WrapBoxFlexInput,
 } from './wrap-box-layout.js';
+import { xmlNumber } from './xml-values.js';
 
 /** Every `notify::` an `Adw.WrapBox` emits (adw-wrap-box.c:284-497). */
 export type AdwWrapBoxProperty =
@@ -170,9 +171,10 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._childSpacing;
     }
 
-    set childSpacing(value: number) {
-        if (!wrapBoxSpacingChanges(this._childSpacing, value)) return;
-        this._childSpacing = normalizeWrapBoxSpacing(value);
+    set childSpacing(value: number | string) {
+        const spacing = xmlNumber(value, this._childSpacing);
+        if (!wrapBoxSpacingChanges(this._childSpacing, spacing)) return;
+        this._childSpacing = normalizeWrapBoxSpacing(spacing);
         this._applyChildren();
         this._notify('child-spacing');
     }
@@ -195,9 +197,10 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._lineSpacing;
     }
 
-    set lineSpacing(value: number) {
-        if (!wrapBoxSpacingChanges(this._lineSpacing, value)) return;
-        this._lineSpacing = normalizeWrapBoxSpacing(value);
+    set lineSpacing(value: number | string) {
+        const spacing = xmlNumber(value, this._lineSpacing);
+        if (!wrapBoxSpacingChanges(this._lineSpacing, spacing)) return;
+        this._lineSpacing = normalizeWrapBoxSpacing(spacing);
         this._applyChildren();
         this._notify('line-spacing');
     }
