@@ -1467,6 +1467,93 @@ export default async () => {
                 expect(replacement.get_parent()).not.toBe(null);
             });
 
+            await it('adopts a Gtk.ListItem, which is not a Gtk.Widget at all', async () => {
+                // The first curated descriptor whose gtype is NOT a `Gtk.Widget`
+                // subclass — measured: `GObject.type_is_a(Gtk.ListItem, Gtk.Widget)`
+                // is FALSE, which is also why it is absent from the generated table.
+                // `adopt` takes a `GObject.Object` for exactly this reason.
+                const item = new Gtk.ListItem();
+                const root = adopt(item);
+                const label = createElement('GtkLabel', { label: 'row' });
+                insert(label, root);
+                expect(item.get_child()).toBe(widgetOf(label));
+
+                // …and it behaves like every other `single` slot in BOTH directions.
+                // Replacing our OWN child is the ordinary path — a first draft of this
+                // vector expected a refusal here and was wrong about the host, not
+                // about the carrier.
+                const second = createElement('GtkLabel', { label: 'replacement' });
+                insert(second, root);
+                expect(item.get_child()).toBe(widgetOf(second));
+
+                // An APP-owned occupant is what the slot refuses, and it refuses it
+                // here exactly as it does on a `Gtk.ScrolledWindow`.
+                const foreign = new Gtk.ListItem();
+                foreign.set_child(new Gtk.Label({ label: 'APP' }));
+                let code = 'none';
+                try {
+                    insert(createElement('GtkLabel'), adopt(foreign));
+                } catch (e) {
+                    code = (e as { code?: string }).code ?? 'no-code';
+                }
+                expect(code).toBe('occupied-slot');
+            });
+
+            await it('takes the item a REAL Gtk.ListView factory hands out', async () => {
+                // The path the descriptors exist for, and the reason it needs a
+                // window: MEASURED on gtk 4.22.4, a `Gtk.ListView` with a model and a
+                // factory binds NOTHING while detached — not in a `Gtk.ScrolledWindow`,
+                // not after `measure()`, not after `allocate()`, not after 50 main-loop
+                // iterations — and binds every row the moment it is rooted in a window,
+                // with no `present()`, no map and no main loop.
+                //
+                // The window is CONSTRUCTED and never presented, so nothing here needs
+                // a compositor beyond the `Gtk.init()` this gate already requires.
+                const window = new Gtk.Window();
+                const factory = new Gtk.SignalListItemFactory();
+                const seen: string[] = [];
+                const handler = factory.connect('setup', (_f, object) => {
+                    // GTK made this object; the host takes it as a parent.
+                    const carrier = adopt(object as unknown as GObject.Object);
+                    const label = createElement('GtkLabel', { label: `row ${seen.length}` });
+                    insert(label, carrier);
+                    seen.push((object as unknown as Gtk.ListItem).get_child() === widgetOf(label) ? 'placed' : 'lost');
+                });
+                try {
+                    const view = new Gtk.ListView({
+                        model: new Gtk.NoSelection({ model: new Gtk.StringList({ strings: ['a', 'b', 'c'] }) }),
+                        factory,
+                    });
+                    window.set_child(view);
+                    // Rooting is the trigger; nothing below waits on a frame.
+                    expect(seen.length > 0).toBe(true);
+                    expect(seen.every((r) => r === 'placed')).toBe(true);
+                } finally {
+                    // Order is load-bearing: disconnecting BEFORE the window dies keeps
+                    // GJS from blocking a JS callback during GC sweeping, which it
+                    // reports as a `Gjs-CRITICAL` per handler — and every spec here
+                    // asserts zero GTK diagnostics.
+                    factory.disconnect(handler);
+                    window.destroy();
+                }
+            });
+
+            await it('leaves Gtk.ListView itself refusing a child, which is correct', async () => {
+                // Curating the carriers must NOT curate the view. Measured against its
+                // prototype, a `Gtk.ListView` installs no `append`, `add`, `insert`,
+                // `prepend`, `remove` or `set_child` — there is no method to name, so
+                // `uncurated` is the honest state and the refusal is the feature.
+                const view = createElement('GtkListView');
+                materialize(view);
+                let message = '';
+                try {
+                    insert(createElement('GtkLabel'), view);
+                } catch (e) {
+                    message = String((e as { message?: string }).message ?? '');
+                }
+                expect(message).toContain('GtkListView');
+            });
+
             await it('refuses to overwrite the app widget, naming container and fix', async () => {
                 // Measured: `win.set_child(chrome); mount(() => label, win)` left
                 // `chrome.get_parent() === null` — no throw, no GTK warning, empty

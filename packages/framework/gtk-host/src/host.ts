@@ -1010,7 +1010,7 @@ export const createDetachedContainer = (): HostElement => adopt(makeDetachedCont
  * through `nearestRegistered`, so an application's own `GObject.registerClass`
  * subclass inherits its ancestor's placement rules instead of failing.
  */
-export function adopt(container: Gtk.Widget): HostElement {
+export function adopt(container: GObject.Object): HostElement {
     const gtype = (container as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype;
     const descriptor = nearestRegistered(gtype);
     if (!descriptor) throw err.unknownTag(gtypeNameOf(container));
@@ -1050,12 +1050,14 @@ export function adopt(container: Gtk.Widget): HostElement {
  * snapshot therefore reports application chrome that does not exist — and for a
  * slot that REPLACES there is no offset to compute from it anyway.
  */
-function adoptedChildren(container: Gtk.Widget, descriptor: WidgetDescriptor): Gtk.Widget[] {
+function adoptedChildren(container: GObject.Object, descriptor: WidgetDescriptor): Gtk.Widget[] {
     const slots = setterSlots(descriptor.children);
-    if (slots.length === 0) return directChildren(container);
+    // `directChildren` asks the object for `get_first_child` and answers `[]` when
+    // there is none, so a non-widget carrier costs no branch of its own here.
+    if (slots.length === 0) return directChildren(container as unknown as Gtk.Widget);
     const out: Gtk.Widget[] = [];
     for (const setter of slots) {
-        const occupant = appOccupant(container, descriptor, setter);
+        const occupant = appOccupant(container as unknown as Gtk.Widget, descriptor, setter);
         if (occupant) out.push(occupant);
     }
     return out;

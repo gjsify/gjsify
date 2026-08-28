@@ -112,7 +112,16 @@ const WEB_ELEMENT_ALIGNMENT = {
     'adw-sidebar-item': { webOnly: 'AdwSidebarItem descends from GObject.Object, not GtkWidget' },
     'adw-sidebar-section': { webOnly: 'AdwSidebarSection descends from GObject.Object, not GtkWidget' },
     'adw-tab-page': { webOnly: 'AdwTabPage descends from GObject.Object, not GtkWidget' },
-    'adw-toggle': { webOnly: 'AdwToggle descends from GObject.Object, not GtkWidget' },
+    // `adw-toggle` USED to be here, with the same reason. It left when the generated
+    // table stopped meaning "concrete GtkWidget descendant" (ADR 0028 § Amendment,
+    // 2026-08-28): `AdwToggle` still descends from GObject.Object, but it declares
+    // both halves of a one-child slot and is therefore a placement carrier, so it now
+    // has a GTK tag and the two surfaces share the spelling.
+    //
+    // The four entries around it did NOT follow, and that is the rule working rather
+    // than an inconsistency: none of them holds a child. Measured across Gtk-4.0 and
+    // Adw-1, exactly four classes satisfy the carrier rule, and `AdwToggle` is the
+    // only Adw one.
     'adw-view-stack-page': { webOnly: 'AdwViewStackPage descends from GObject.Object, not GtkWidget' },
     // Declarative children with no GObject of their own: on GTK these are method calls.
     'adw-alert-response': { webOnly: 'a declarative form of Adw.AlertDialog.add_response()' },

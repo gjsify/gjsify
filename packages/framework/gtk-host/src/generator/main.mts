@@ -29,7 +29,7 @@ import { methodsOf } from '../conformance/index.js';
 import { CURATED_DESCRIPTORS } from '../descriptors/index.js';
 import { emitWidgets } from './emit.mjs';
 import { emitProps, emitSurfaceData, type EmittedFile } from './emit-types.mjs';
-import { concreteWidgets, readNamespace, type GirNamespace } from './gir.mjs';
+import { concreteWidgets, placementCarriers, readNamespace, type GirNamespace } from './gir.mjs';
 import { buildSurface } from './surface.mjs';
 import { buildUniverse } from './tsmap.mjs';
 
@@ -159,7 +159,12 @@ function main(argv: readonly string[]): number {
     // RESOLVE types, not to contribute tags — Gio and GObject carry classes that
     // are not widgets, and Gdk carries none at all.
     const widgetNamespaces = namespaces.filter((ns) => ns.name === 'Gtk' || ns.name === 'Adw');
-    const widgets = concreteWidgets(widgetNamespaces);
+    // Two rules, one table. `concreteWidgets` answers "what can be created and
+    // shown"; `placementCarriers` answers "what else can HOLD one" — the GTK4 list
+    // carriers, which are not widgets at all. Neither overlaps the other: the
+    // carrier rule excludes anything on `GtkWidget`'s chain, so `assertInjective`
+    // over the merged gtypes stays true.
+    const widgets = [...concreteWidgets(widgetNamespaces), ...placementCarriers(widgetNamespaces)];
     const provenance = namespaces.map((ns) => `${ns.name}-${ns.version}`).join(' ');
 
     const table = emitWidgets({

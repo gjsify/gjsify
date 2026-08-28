@@ -5,8 +5,8 @@
 // The type surface: one interface per GIR declaration, mirroring GIR's own
 // inheritance, plus the two tag maps the dialect adapters build on.
 //
-// 190 interfaces for 164 widgets — the widgets have 6768 writable
-// property slots between them and 561 distinct property names, which is the whole
+// 194 interfaces for 168 widgets — the widgets have 6789 writable
+// property slots between them and 564 distinct property names, which is the whole
 // reason this is a hierarchy and not one flat interface per tag.
 
 import type Adw from '@girs/adw-1';
@@ -1969,6 +1969,36 @@ export interface AdwToggleGroupProps
     onNotifyHomogeneous?: NotifyHandler;
 }
 
+/** A toggle within [class@ToggleGroup]. */
+export interface AdwToggleProps extends GObjectProps {
+    /** The toggle child. */
+    child?: Gtk.Widget | null;
+    /** The description of the toggle. */
+    description?: string;
+    /** Whether this toggle is enabled. */
+    enabled?: boolean;
+    /** The toggle icon name. */
+    iconName?: string;
+    'icon-name'?: string;
+    /** The toggle label. */
+    label?: string;
+    /** The toggle name. */
+    name?: string;
+    /** The tooltip of the toggle. */
+    tooltip?: string;
+    /** Whether an embedded underline in the label indicates a mnemonic. */
+    useUnderline?: boolean;
+    'use-underline'?: boolean;
+    onNotifyChild?: NotifyHandler;
+    onNotifyDescription?: NotifyHandler;
+    onNotifyEnabled?: NotifyHandler;
+    onNotifyIconName?: NotifyHandler;
+    onNotifyLabel?: NotifyHandler;
+    onNotifyName?: NotifyHandler;
+    onNotifyTooltip?: NotifyHandler;
+    onNotifyUseUnderline?: NotifyHandler;
+}
+
 /** A widget containing a page, as well as top and/or bottom bars. */
 export interface AdwToolbarViewProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
@@ -2761,6 +2791,16 @@ export interface GtkColorDialogButtonProps
     onActivate?: () => void;
     onNotifyDialog?: NotifyHandler;
     onNotifyRgba?: NotifyHandler;
+}
+
+/** Represents items in a cell in [class@Gtk.ColumnView]. */
+export interface GtkColumnViewCellProps extends GtkListItemProps {
+    /** Widget used for display. */
+    child?: Gtk.Widget | null;
+    /** If the item can be focused with the keyboard. */
+    focusable?: boolean;
+    onNotifyChild?: NotifyHandler;
+    onNotifyFocusable?: NotifyHandler;
 }
 
 /** Presents a large dynamic list of items using multiple columns with headers. */
@@ -4013,6 +4053,37 @@ export interface GtkListBoxRowProps
     onActivate?: () => void;
     onNotifyActivatable?: NotifyHandler;
     onNotifyChild?: NotifyHandler;
+    onNotifySelectable?: NotifyHandler;
+}
+
+/** Used by list widgets to represent the headers they display. */
+export interface GtkListHeaderProps extends GObjectProps {
+    /** Widget used for display. */
+    child?: Gtk.Widget | null;
+    onNotifyChild?: NotifyHandler;
+}
+
+/** Used by list widgets to represent items in a [iface@Gio.ListModel]. */
+export interface GtkListItemProps extends GObjectProps {
+    /** The accessible description to set on the listitem. */
+    accessibleDescription?: string;
+    'accessible-description'?: string;
+    /** The accessible label to set on the listitem. */
+    accessibleLabel?: string;
+    'accessible-label'?: string;
+    /** If the item can be activated by the user. */
+    activatable?: boolean;
+    /** Widget used for display. */
+    child?: Gtk.Widget | null;
+    /** If the item can be focused with the keyboard. */
+    focusable?: boolean;
+    /** If the item can be selected by the user. */
+    selectable?: boolean;
+    onNotifyAccessibleDescription?: NotifyHandler;
+    onNotifyAccessibleLabel?: NotifyHandler;
+    onNotifyActivatable?: NotifyHandler;
+    onNotifyChild?: NotifyHandler;
+    onNotifyFocusable?: NotifyHandler;
     onNotifySelectable?: NotifyHandler;
 }
 
@@ -5902,6 +5973,7 @@ export interface WidgetPropsByTag {
     'adw-tab-overview': AdwTabOverviewProps;
     'adw-tab-view': AdwTabViewProps;
     'adw-toast-overlay': AdwToastOverlayProps;
+    'adw-toggle': AdwToggleProps;
     'adw-toggle-group': AdwToggleGroupProps;
     'adw-toolbar-view': AdwToolbarViewProps;
     'adw-view-stack': AdwViewStackProps;
@@ -5931,6 +6003,7 @@ export interface WidgetPropsByTag {
     'gtk-color-chooser-widget': GtkColorChooserWidgetProps;
     'gtk-color-dialog-button': GtkColorDialogButtonProps;
     'gtk-column-view': GtkColumnViewProps;
+    'gtk-column-view-cell': GtkColumnViewCellProps;
     'gtk-combo-box': GtkComboBoxProps;
     'gtk-combo-box-text': GtkComboBoxTextProps;
     'gtk-dialog': GtkDialogProps;
@@ -5965,6 +6038,8 @@ export interface WidgetPropsByTag {
     'gtk-link-button': GtkLinkButtonProps;
     'gtk-list-box': GtkListBoxProps;
     'gtk-list-box-row': GtkListBoxRowProps;
+    'gtk-list-header': GtkListHeaderProps;
+    'gtk-list-item': GtkListItemProps;
     'gtk-list-view': GtkListViewProps;
     'gtk-lock-button': GtkLockButtonProps;
     'gtk-media-controls': GtkMediaControlsProps;
@@ -6070,6 +6145,7 @@ export interface WidgetPropsByGType {
     AdwTabOverview: AdwTabOverviewProps;
     AdwTabView: AdwTabViewProps;
     AdwToastOverlay: AdwToastOverlayProps;
+    AdwToggle: AdwToggleProps;
     AdwToggleGroup: AdwToggleGroupProps;
     AdwToolbarView: AdwToolbarViewProps;
     AdwViewStack: AdwViewStackProps;
@@ -6099,6 +6175,7 @@ export interface WidgetPropsByGType {
     GtkColorChooserWidget: GtkColorChooserWidgetProps;
     GtkColorDialogButton: GtkColorDialogButtonProps;
     GtkColumnView: GtkColumnViewProps;
+    GtkColumnViewCell: GtkColumnViewCellProps;
     GtkComboBox: GtkComboBoxProps;
     GtkComboBoxText: GtkComboBoxTextProps;
     GtkDialog: GtkDialogProps;
@@ -6133,6 +6210,8 @@ export interface WidgetPropsByGType {
     GtkLinkButton: GtkLinkButtonProps;
     GtkListBox: GtkListBoxProps;
     GtkListBoxRow: GtkListBoxRowProps;
+    GtkListHeader: GtkListHeaderProps;
+    GtkListItem: GtkListItemProps;
     GtkListView: GtkListViewProps;
     GtkLockButton: GtkLockButtonProps;
     GtkMediaControls: GtkMediaControlsProps;
@@ -6187,7 +6266,7 @@ export interface WidgetPropsByGType {
 /**
  * Kebab keys for the widgets Volar's camelize cannot reach from their GType name.
  *
- * 1 of 164. Generated, not curated: any future GType with two adjacent
+ * 1 of 168. Generated, not curated: any future GType with two adjacent
  * capitals lands here by itself instead of becoming a bug report.
  */
 export interface WidgetPropsVueAliases {
@@ -6256,6 +6335,7 @@ export interface WidgetClassByTag {
     'adw-tab-overview': Adw.TabOverview;
     'adw-tab-view': Adw.TabView;
     'adw-toast-overlay': Adw.ToastOverlay;
+    'adw-toggle': Adw.Toggle;
     'adw-toggle-group': Adw.ToggleGroup;
     'adw-toolbar-view': Adw.ToolbarView;
     'adw-view-stack': Adw.ViewStack;
@@ -6285,6 +6365,7 @@ export interface WidgetClassByTag {
     'gtk-color-chooser-widget': Gtk.ColorChooserWidget;
     'gtk-color-dialog-button': Gtk.ColorDialogButton;
     'gtk-column-view': Gtk.ColumnView;
+    'gtk-column-view-cell': Gtk.ColumnViewCell;
     'gtk-combo-box': Gtk.ComboBox;
     'gtk-combo-box-text': Gtk.ComboBoxText;
     'gtk-dialog': Gtk.Dialog;
@@ -6319,6 +6400,8 @@ export interface WidgetClassByTag {
     'gtk-link-button': Gtk.LinkButton;
     'gtk-list-box': Gtk.ListBox;
     'gtk-list-box-row': Gtk.ListBoxRow;
+    'gtk-list-header': Gtk.ListHeader;
+    'gtk-list-item': Gtk.ListItem;
     'gtk-list-view': Gtk.ListView;
     'gtk-lock-button': Gtk.LockButton;
     'gtk-media-controls': Gtk.MediaControls;

@@ -119,6 +119,46 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
         ctor: () => Gtk.ListBoxRow,
         children: { kind: 'single', set: 'set_child' },
     },
+    // The three list-item carriers, and they are the first curated entries that are
+    // NOT `Gtk.Widget` subclasses — measured: `GObject.type_is_a(Gtk.ListItem,
+    // Gtk.Widget)` is FALSE for all three, and they are absent from the generated
+    // table for exactly that reason (its criterion is "concrete GtkWidget
+    // descendant"). Curating them needs no change to that criterion: `gate1` in the
+    // generator already states that "an abstract or non-widget class can still be
+    // curated as a MOUNT container", and `mergeGenerated` carries a curated row the
+    // generated set does not know.
+    //
+    // WHY they are wanted: a `Gtk.ListView` installs no child-insertion method at
+    // all — no `append`, `add`, `insert`, `prepend`, `remove` or `set_child`,
+    // measured against its prototype — so it stays `uncurated` and its refusal is
+    // correct. What GTK gives a renderer instead is a factory that hands back one of
+    // these carriers, whose `child` is where a row's subtree goes. Curating them is
+    // what lets that subtree be placed through the host's own `single` policy rather
+    // than through a `set_child` call inside one framework's list controller.
+    //
+    // These are ADOPTED, never constructed by the host: GTK's factory makes them.
+    // They construct bare anyway (measured, `child` is null), so nothing here is a
+    // special case in `materialize`.
+    //
+    // `Gtk.ColumnViewRow` is deliberately ABSENT, and that is a measurement rather
+    // than an omission: unlike its three siblings it installs neither `set_child` nor
+    // `get_child`, so a `single` policy naming them would be a claim
+    // `descriptorProblems()` is right to reject.
+    {
+        gtype: 'GtkListItem',
+        ctor: () => Gtk.ListItem,
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
+        gtype: 'GtkListHeader',
+        ctor: () => Gtk.ListHeader,
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
+        gtype: 'GtkColumnViewCell',
+        ctor: () => Gtk.ColumnViewCell,
+        children: { kind: 'single', set: 'set_child' },
+    },
     {
         gtype: 'GtkStack',
         ctor: () => Gtk.Stack,

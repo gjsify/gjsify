@@ -1,6 +1,6 @@
 # 28. GIR-generated widget table, runtime ParamSpec for values
 
-- Status: **Accepted**
+- Status: **Accepted** — amended 2026-08-28, see § Amendment
 - Date: 2026-08-22
 - Deciders: Pascal Garber
 - Related: [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0019 (ts-for-gir as a library)](0019-ts-for-gir-as-library.md), [ADR 0023 (which GTK a node-gi process uses)](0023-gtk-source-precedence.md)
@@ -217,6 +217,47 @@ coercer and the verifier.**
     shift, and unreadable, so annotating `number` is an error at that position.
     `caller-allocates="1"` is the opposite case and keeps its type —
     `Gtk.Overlay::get-child-position` is handed a live `Gdk.Rectangle` to FILL.
+
+## Amendment, 2026-08-28 — the table is two rules, not one
+
+§ 1 said the generated table is "every concrete descendant of `GtkWidget`", and that
+description was one class short of the set a renderer must be able to name.
+
+**The measurement.** A `Gtk.ListView` takes no children — measured against its prototype
+on gjs 1.88.1 / GTK 4.22.4, it installs no `append`, no `add`, no `insert`, no `prepend`,
+no `remove` and no `set_child`. What GTK4 gives a renderer instead is a factory that hands
+back a *carrier*, and the carrier's `child` is where a row's subtree goes. Those carriers
+are not widgets: `GObject.type_is_a(Gtk.ListItem, Gtk.Widget)` is **FALSE**. So the
+generated table did not carry them, and `generated.spec.ts`'s invariant — every curated
+gtype is one the generator also found — made curating them impossible without changing
+this ADR. That invariant is right and stays; the *criterion under it* was too narrow.
+
+**The decision.** The generated table is the union of two rules over the same GIR:
+
+1. `concreteWidgets` — every concrete descendant of `GtkWidget`. Unchanged.
+2. `placementCarriers` — every concrete class NOT on `GtkWidget`'s chain that declares
+   both halves of a one-child slot (`set_child` and `get_child`, on itself or an
+   ancestor).
+
+**It is a rule and not a list, and that is the load-bearing part.** A hand-written list of
+carrier gtypes would be exactly the curated data § 2 reserves for what the GIR cannot
+express — and the GIR expresses this perfectly well. The rule was written after a
+hand-written list of three (`GtkListItem`, `GtkListHeader`, `GtkColumnViewCell`), and
+selecting by rule instead returned **four**: `AdwToggle` has the identical shape, was not
+on the list, and would have been an arbitrary gap. That fourth member is the argument for
+the rule, not a bonus.
+
+**What does not change.** A generated row still carries no policy — `children:
+{ kind: 'uncurated' }` — so which method adopts the child stays curated, exactly as for
+widgets, and the generator still may only ADD a gtype (§ 1). The two rules cannot collide:
+the carrier rule excludes anything on `GtkWidget`'s chain, so `assertInjective` over the
+merged gtypes holds without a de-duplication step. Table size moves 164 → 168.
+
+**A consequence worth stating because it is easy to reach for.** `Gtk.ListView` itself
+stays `uncurated`, and its refusal to take a child is the correct behaviour rather than a
+gap to fill. Nothing in this amendment makes a list an element whose children are its rows;
+what it makes possible is placing a row's subtree through the host rather than through a
+`set_child` call inside one framework's list controller.
 
 ## Consequences
 

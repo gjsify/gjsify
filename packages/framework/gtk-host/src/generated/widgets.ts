@@ -3,14 +3,23 @@
 // Provenance: Gtk-4.0 Adw-1
 //
 // What this file is, and what it is NOT: every concrete descendant of GtkWidget
-// the GIR describes, with its GType name and its kebab tag. It carries no
+// the GIR describes, PLUS the concrete non-widgets that hold one — GTK4's list
+// carriers, selected by rule rather than by list (`placementCarriers`, which asks
+// the GIR for a class that declares both halves of a one-child slot and is not on
+// GtkWidget's chain). Each with its GType name and its kebab tag. It carries no
 // placement rule, no text sink and no event alias — those are CURATED, in
 // descriptors/, and the generator may only ever ADD a tag (ADR 0028 § 1).
 //
 // A tag here that the curated table does not cover can be CREATED but not filled:
 // its child policy is `uncurated`, so inserting into it raises a named error
-// instead of guessing an adder. That is the honest state — 164 tags a
-// renderer can name, 26 of them with measured placement rules.
+// instead of guessing an adder. That is the honest state — 168 tags a
+// renderer can name.
+//
+// How many of those carry a measured placement rule is deliberately NOT stamped
+// here. That is a fact about descriptors/, not about this file, and a stamped copy
+// drifts the moment a curated row is added without regenerating — this header said
+// 26 against a curated table of 35, and nothing read the sentence. The live answer
+// is `tableProvenance().curated`.
 
 import Adw from 'gi://Adw?version=1';
 import Gtk from 'gi://Gtk?version=4.0';
@@ -72,6 +81,7 @@ export const GENERATED_WIDGETS: readonly GeneratedWidget[] = [
     { gtype: 'AdwTabOverview', tag: 'adw-tab-overview', ctor: () => Adw.TabOverview },
     { gtype: 'AdwTabView', tag: 'adw-tab-view', ctor: () => Adw.TabView },
     { gtype: 'AdwToastOverlay', tag: 'adw-toast-overlay', ctor: () => Adw.ToastOverlay },
+    { gtype: 'AdwToggle', tag: 'adw-toggle', ctor: () => Adw.Toggle },
     { gtype: 'AdwToggleGroup', tag: 'adw-toggle-group', ctor: () => Adw.ToggleGroup },
     { gtype: 'AdwToolbarView', tag: 'adw-toolbar-view', ctor: () => Adw.ToolbarView },
     { gtype: 'AdwViewStack', tag: 'adw-view-stack', ctor: () => Adw.ViewStack },
@@ -101,6 +111,7 @@ export const GENERATED_WIDGETS: readonly GeneratedWidget[] = [
     { gtype: 'GtkColorChooserWidget', tag: 'gtk-color-chooser-widget', ctor: () => Gtk.ColorChooserWidget },
     { gtype: 'GtkColorDialogButton', tag: 'gtk-color-dialog-button', ctor: () => Gtk.ColorDialogButton },
     { gtype: 'GtkColumnView', tag: 'gtk-column-view', ctor: () => Gtk.ColumnView },
+    { gtype: 'GtkColumnViewCell', tag: 'gtk-column-view-cell', ctor: () => Gtk.ColumnViewCell },
     { gtype: 'GtkComboBox', tag: 'gtk-combo-box', ctor: () => Gtk.ComboBox },
     { gtype: 'GtkComboBoxText', tag: 'gtk-combo-box-text', ctor: () => Gtk.ComboBoxText },
     { gtype: 'GtkDialog', tag: 'gtk-dialog', ctor: () => Gtk.Dialog },
@@ -135,6 +146,8 @@ export const GENERATED_WIDGETS: readonly GeneratedWidget[] = [
     { gtype: 'GtkLinkButton', tag: 'gtk-link-button', ctor: () => Gtk.LinkButton },
     { gtype: 'GtkListBox', tag: 'gtk-list-box', ctor: () => Gtk.ListBox },
     { gtype: 'GtkListBoxRow', tag: 'gtk-list-box-row', ctor: () => Gtk.ListBoxRow },
+    { gtype: 'GtkListHeader', tag: 'gtk-list-header', ctor: () => Gtk.ListHeader },
+    { gtype: 'GtkListItem', tag: 'gtk-list-item', ctor: () => Gtk.ListItem },
     { gtype: 'GtkListView', tag: 'gtk-list-view', ctor: () => Gtk.ListView },
     { gtype: 'GtkLockButton', tag: 'gtk-lock-button', ctor: () => Gtk.LockButton },
     { gtype: 'GtkMediaControls', tag: 'gtk-media-controls', ctor: () => Gtk.MediaControls },
