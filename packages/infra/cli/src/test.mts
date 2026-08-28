@@ -11,6 +11,8 @@ import bundlerPickSuite from './bundler-pick.spec.js';
 import reflectionTransformOrderSuite from './reflection-transform-order.spec.js';
 import cliFailSuite from './cli-fail.spec.js';
 import shipPlanSuite from './utils/ship/plan.spec.js';
+import shipLayoutSuite from './utils/ship/layout.spec.js';
+import shipLauncherSuite from './utils/ship/launcher.spec.js';
 import shipSettingsSuite from './utils/ship/settings.spec.js';
 import shipLocalesSuite from './utils/ship/discover-locales.spec.js';
 import shipMimeSuite from './utils/ship/mime.spec.js';
@@ -208,6 +210,8 @@ run(
         reflectionTransformOrderSuite,
         cliFailSuite,
         shipPlanSuite,
+        shipLayoutSuite,
+        shipLauncherSuite,
         shipSettingsSuite,
         shipLocalesSuite,
         shipMimeSuite,

@@ -18,6 +18,7 @@ import {
     warnAboutNodeFloor,
 } from './depends.js';
 import { resolveFormats } from './formats.js';
+import { LAYOUTS } from './layout.js';
 import { parseGiSpecifier, scanGiNamespaces } from './gi-namespaces.js';
 
 const base = { hasIcons: true, hasSchemas: false, interpreter: 'gjs' as const, extra: [] };
@@ -258,13 +259,16 @@ export default async () => {
 
     await describe('resolveFormats', async () => {
         await it('splits, deduplicates and sorts', async () => {
-            expect(resolveFormats(['rpm,deb', 'deb']).map((format) => format.id)).toStrictEqual(['deb', 'rpm']);
+            expect(resolveFormats(['rpm,deb', 'deb'], LAYOUTS.linux).map((format) => format.id)).toStrictEqual([
+                'deb',
+                'rpm',
+            ]);
         });
 
         await it('refuses an unknown target and an empty one', async () => {
-            expect(() => resolveFormats(['snap'])).toThrow('unknown target');
+            expect(() => resolveFormats(['snap'], LAYOUTS.linux)).toThrow('unknown target');
             // An empty list would stage the payload, pack nothing and exit 0.
-            expect(() => resolveFormats([])).toThrow('named no format');
+            expect(() => resolveFormats([], LAYOUTS.linux)).toThrow('named no format');
         });
     });
 

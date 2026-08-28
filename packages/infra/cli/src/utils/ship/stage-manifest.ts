@@ -40,9 +40,11 @@ import { join, sep } from 'node:path';
 
 import { cliVersion } from '../publish-headers.js';
 import { FORMAT_IDS } from './formats.js';
+import { resolveLayout, LAYOUT_NAMES } from './layout.js';
 import type {
     FormatDescriptor,
     FormatId,
+    HostOs,
     PackSettings,
     ShipFlatpakSettings,
     ShipSettings,
@@ -92,20 +94,10 @@ export const STAGE_MANIFEST_FILE = '.gjsify-ship-stage.json';
  */
 export const STAGE_SCHEMA_VERSION = 4;
 
-/**
- * The OS whose layout `planStage` produces.
- *
- * A constant rather than a measurement, because it is a property of the PLAN
- * (`bin/`, `lib/<name>/`, `share/…` is the Linux/XDG layout), not of the host
- * that ran it — assembling is cross-platform (ADR 0024 § A1). When
- * `gjsify ship darwin --stage` lands this becomes the positional's value, and
- * this constant is where the compiler will point.
- */
-export const STAGE_LAYOUT_OS = 'linux';
-
 /** What this stage was assembled FOR, in the repo-wide `${process.platform}-${process.arch}` spelling. */
 export interface StageTarget {
-    os: string;
+    /** The layout the stage carries, in the `process.platform` spelling — `win32`, never `windows`. */
+    os: HostOs;
     arch: string;
 }
 
@@ -220,7 +212,13 @@ export function writeStageManifest(input: StageManifestInput): StageManifest {
     const manifest: StageManifest = {
         schema: STAGE_SCHEMA_VERSION,
         tool: { name: '@gjsify/cli', version: cliVersion() },
-        target: { os: STAGE_LAYOUT_OS, arch: input.settings.arch },
+        // The POSITIONAL's value, not a constant. It used to be the literal
+        // `'linux'`, correct while the planner produced exactly one layout and
+        // wrong the moment it produced three — and wrong SILENTLY, because a
+        // darwin stage labelled `linux-arm64` passes every structural check in
+        // `readStageManifest` and would be accepted by `--expect-target
+        // linux-arm64` on a leg that wanted the Linux one.
+        target: { os: input.settings.layoutOs, arch: input.settings.arch },
         formats: input.formats.map((format) => format.id),
         mtime: input.mtime,
         namespaces: [...input.namespaces],
@@ -304,7 +302,13 @@ export function readStageManifest(stageDir: string): StageManifest {
             version: expectString(tool.version, at('tool.version')),
         },
         target: {
-            os: expectString(target.os, at('target.os')),
+            // Through `resolveLayout`, so an unreadable `target.os` is refused
+            // HERE rather than reaching the layout lookup as a lie. The value
+            // decides which shape every staged path has; a manifest naming an OS
+            // this gjsify has no layout for is a manifest it cannot pack. Wrapped
+            // so the refusal names the FIELD, as every other one in this function
+            // does — `resolveLayout` speaks about a command-line word.
+            os: expectLayoutOs(expectString(target.os, at('target.os')), at('target.os')),
             arch: expectString(target.arch, at('target.arch')),
         },
         formats: expectArray(data.formats, at('formats')).map((entry, index) => {
@@ -366,6 +370,27 @@ export function readStageManifest(stageDir: string): StageManifest {
         });
     }
     return manifest;
+}
+
+/**
+ * `target.os`, resolved to a layout.
+ *
+ * The catch is here to REPLACE the message, not to swallow it: `resolveLayout`
+ * speaks about a command-line word a user typed, and this one is a field in a
+ * file that arrived from another host, so the fix is different and so is the
+ * sentence. Every other field in `readStageManifest` names its own location the
+ * same way.
+ */
+function expectLayoutOs(value: string, where: string): HostOs {
+    try {
+        return resolveLayout(value).os;
+    } catch {
+        throw new Error(
+            `gjsify ship: ${where} is "${value}", and this gjsify has no layout for it. ` +
+                `Known: ${LAYOUT_NAMES.join(', ')}. A stage carries exactly one OS's layout and every path ` +
+                "in it has that OS's shape, so there is nothing to pack here. Re-run the `--stage` phase.",
+        );
+    }
 }
 
 /** The overlay for one format, in the shape `writeStage` takes. */

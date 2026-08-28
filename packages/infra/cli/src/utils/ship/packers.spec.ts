@@ -59,6 +59,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         outDir: 'ship',
         arch: 'x64',
         app: 'gjs' as const,
+        layoutOs: 'linux',
         minGjsVersion: '1.86',
         minNodeVersion: '24',
         ...overrides,

@@ -51,15 +51,54 @@ point of the two-phase split.
 
 Two consequences of a host-bound format existing at all:
 
-- **`DEFAULT_FORMAT_IDS` is a second derivation from the same table.** `FORMAT_IDS` used to be both
-  "every format that exists" and "every format built by default", which was one list only while
-  every format was `'any'`. Putting `flatpak` in `FORMAT_IDS` alone would have made a bare
+- **`defaultFormatIds(os)` is a second derivation from the same table.** `FORMAT_IDS` used to be
+  both "every format that exists" and "every format built by default", which was one list only
+  while every format was `'any'`. Putting `flatpak` in `FORMAT_IDS` alone would have made a bare
   `gjsify ship` demand `flatpak-builder` of every project that ever packaged a `.deb` — including
-  `release-cut.yml`, which packs `@gjsify/cli` itself on a bare `ubuntu-latest` runner.
+  `release-cut.yml`, which packs `@gjsify/cli` itself on a bare `ubuntu-latest` runner. It gained a
+  SECOND criterion — `layoutOs` — when the layout axis landed; see below.
 - **`packOne`'s dispatch branches WRITE the artifact** instead of returning bytes. Returning bytes
   is the right shape only while every packer is a byte writer: a Flatpak's bytes exist as a file
   before this process could hold them, and reading a bundle back into memory to hand it to one
   `writeFileSync` would be a copy for the sake of a signature.
+
+## The layout axis: a format wraps ONE OS's tree
+
+`gjsify ship <os>` (ADR 0024 § A2) chooses which operating system's LAYOUT to assemble;
+`utils/ship/layout.ts` holds the three rows, and `place()` is the map from the prefix-relative plan
+to a stage-relative path. `planStage` still produces exactly one plan, in the Linux/XDG shape, and
+that split is what makes ADR 0024 § 2's claim checkable rather than rhetorical:
+`tests/e2e/ship-layout` assembles one project three ways and asserts the file SET and every file's
+BYTES agree modulo a map written out in the suite itself.
+
+`Contents/MacOS` is the first layout that is not a `prefix` substitution. The carried GI files
+(`gjsify.ship.bundledTypelibs`) sit inside `lib/<name>/` on Linux and leave the bundle directory
+entirely on macOS for `Contents/Frameworks`, and the launcher's own NAME changes on Windows
+(`<binaryName>.cmd`). What is the OS's and what is the app's:
+
+| | fixed by the OS | from the consumer's `gjsify.ship` |
+|---|---|---|
+| macOS | `Contents/{MacOS,Resources,Frameworks}`, the `.app` suffix | the bundle directory's name (`name`), the executable inside it (`binaryName`), everything the data tree is keyed on (`appId`) |
+| Windows | `%~dp0`, CRLF, `.cmd`, `PATH` as the loader's path | `binaryName`, and the same data tree |
+
+Two things follow, and both are refusals rather than filters:
+
+- **`FormatDescriptor.layoutOs` is not `host.finishOn`.** One says which staged tree a format wraps,
+  the other where the container can be produced. They look like one field while only Linux formats
+  exist; the `.app` zip (`finishOn: 'any'`) beside the `.dmg` (`['darwin']`) is the pair that
+  separates them. `defaultFormatIds(os)` filters on BOTH, which is why adding layouts did not make
+  a bare `gjsify ship` on Linux emit anything new.
+- **`--target deb` under `gjsify ship darwin` is an error**, not a silent empty build. Filtering it
+  away would stage the tree, pack nothing and exit 0 — the shape the empty-`--target` refusal
+  already exists to prevent, arriving through a different door.
+
+The launcher has three forms because neither other OS runs the Linux one, and two of the
+differences are measured rather than stylistic: `readlink -f` is GNU coreutils' and the BSD
+`readlink` macOS ships has no `-f` (so under `set -e` the first line would end the launcher), and
+SIP strips an inherited `DYLD_*` at the `/bin/sh` exec, so a macOS launcher structurally cannot
+hand the loader a library path — ADR 0024 § 3 puts that half in-process instead. Which interpreter
+each execs is DERIVED from the OS (`Layout.app`, ADR 0024 § 4): `gjs` on Linux, `node` on macOS and
+Windows, because there is no GJS host on Windows and no relocatable GJS on macOS.
 
 ## `DistroFormatId` is not `FormatId`
 

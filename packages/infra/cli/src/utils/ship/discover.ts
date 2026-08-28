@@ -72,7 +72,15 @@ function discoverTypelibs(projectDir: string, dirs: string[] | undefined): strin
             );
         }
         for (const file of listFilesRecursive(root)) {
-            if (/\.typelib$|\.so(\.\d+)*$/.test(file)) out.push(join(root, file));
+            // Every shared-library spelling, not only ELF's. A typelib is
+            // useless without its library on macOS and Windows too, and the
+            // `.so`-only test dropped `libgwebgl.dylib` and `gwebgl-0.dll` while
+            // staging the `.typelib` beside them — a package that installs and
+            // dies at the first import, with nothing in the output saying so.
+            // The layout axis (ADR 0024 § 2) is what put those two files in
+            // reach: they land in `Contents/Frameworks` and in the program
+            // directory's `lib\`.
+            if (/\.(typelib|dylib|dll)$|\.so(\.\d+)*$/.test(file)) out.push(join(root, file));
         }
     }
     return out;

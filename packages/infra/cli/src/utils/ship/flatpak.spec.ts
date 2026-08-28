@@ -13,7 +13,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import {
     assertHostCanFinish,
     assertToolsInstalled,
-    DEFAULT_FORMAT_IDS,
+    defaultFormatIds,
     FORMATS,
     FORMAT_IDS,
     resolveFormats,
@@ -25,6 +25,7 @@ import {
     resolveShipFlatpakSettings,
 } from './flatpak-config.js';
 import { renderShipFlatpakManifest } from './flatpak.js';
+import { LAYOUTS } from './layout.js';
 import type { PackSettings } from './types.js';
 
 function packSettings(overrides: Partial<PackSettings> = {}): PackSettings {
@@ -170,12 +171,16 @@ export default async () => {
             // every project that ever packaged a `.deb` — including
             // `release-cut.yml`, which packs @gjsify/cli on a bare ubuntu runner.
             expect(FORMAT_IDS).toContain('flatpak');
-            expect(DEFAULT_FORMAT_IDS).toStrictEqual(['deb', 'rpm']);
+            expect(defaultFormatIds('linux')).toStrictEqual(['deb', 'rpm']);
         });
 
         await it('resolves flatpak only when it is asked for', async () => {
-            expect(resolveFormats(['flatpak']).map((f) => f.id)).toStrictEqual(['flatpak']);
-            expect(resolveFormats(['deb,rpm,flatpak']).map((f) => f.id)).toStrictEqual(['deb', 'flatpak', 'rpm']);
+            expect(resolveFormats(['flatpak'], LAYOUTS.linux).map((f) => f.id)).toStrictEqual(['flatpak']);
+            expect(resolveFormats(['deb,rpm,flatpak'], LAYOUTS.linux).map((f) => f.id)).toStrictEqual([
+                'deb',
+                'flatpak',
+                'rpm',
+            ]);
         });
 
         await it('gives every tool-needing format a way to install them', async () => {
@@ -236,7 +241,7 @@ export default async () => {
 
     await describe('host requirements', async () => {
         await it('packs deb and rpm anywhere, with no tools at all', async () => {
-            for (const id of DEFAULT_FORMAT_IDS) {
+            for (const id of defaultFormatIds('linux')) {
                 assertHostCanFinish(FORMATS[id], 'darwin');
                 assertToolsInstalled(FORMATS[id], () => false);
             }

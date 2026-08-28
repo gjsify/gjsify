@@ -330,6 +330,27 @@ against what the stage RECORDED rather than against the packing host, because pa
 runner is a supported path. The discriminating proof is a deletion: `tests/e2e/ship-from-stage` stages into a
 tmpdir, deletes the project tree, packs, and asserts byte-equality with the single-host artifact.
 
+**Landed since that, and it is § 2's own claim rather than a stage: the LAYOUT axis** (#1354 M1).
+`gjsify ship <linux|darwin|windows>` is § A2's positional, and it decides which OS's layout is
+assembled — `<App>.app/Contents/{MacOS,Resources,Frameworks}` and a Windows program directory
+beside the prefix-relative Linux one. `utils/ship/layout.ts` holds the three rows and the map;
+`planStage` still produces ONE plan, in the Linux/XDG shape, which is what makes the § 2 claim an
+equality a test can check: `tests/e2e/ship-layout` assembles the same project three ways and
+asserts the file set and every file's bytes agree modulo a map written out in the suite (importing
+`place()` would have compared the implementation with itself and passed for any map at all).
+`STAGE_LAYOUT_OS` — the constant `'linux'` this document's § A2 predicted would become the
+positional's value — is gone; the manifest's `target.os` is the layout's, so `--expect-target
+darwin-arm64` now names something. Three things the axis forced that § 2 did not predict:
+`Contents/MacOS` is the first layout difference that is NOT a `prefix` substitution (the carried GI
+files leave the bundle directory for `Contents/Frameworks`, and the launcher's own name changes on
+Windows); the launcher needs three FORMS, two of them for measured reasons — the BSD `readlink`
+macOS ships has no `-f`, and SIP strips an inherited `DYLD_*` at the `/bin/sh` exec, which is § 3's
+in-process answer arriving as a launcher constraint; and `FormatDescriptor` needed a `layoutOs`
+field distinct from `host.finishOn`, which is what settles open question 3 (a `.app` zip is
+`finishOn: 'any'` with `layoutOs: 'darwin'`, so the two are not one field). No format wraps the two
+new layouts yet — they are `--stage` only, and a pack is refused by name rather than exiting 0
+having produced nothing.
+
 That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
 stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`
 and deliberately not `--dry-run`, because the run worth having is the one that lays bytes down — then `dpkg --verify`

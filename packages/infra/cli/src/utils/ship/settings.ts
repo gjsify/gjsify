@@ -17,7 +17,7 @@ import type { AppMetadata, ConfigDataFlatpak, ConfigDataShip, DescriptionBlock }
 import { DEFAULT_GJS_FLOOR, DEFAULT_NODE_FLOOR } from './depends.js';
 import { resolveShipFlatpakSettings } from './flatpak-config.js';
 import { assertRelease, normaliseVersion } from './version.js';
-import type { ShipSettings } from './types.js';
+import type { HostOs, ShipSettings } from './types.js';
 
 /** The subset of `package.json` the resolver reads. */
 export interface ShipPackageManifest {
@@ -54,7 +54,17 @@ export interface SettingsInput {
     ship: ConfigDataShip;
     /** Metadata fallback — `gjsify.flatpak` already carries these fields for many projects. */
     flatpak: ConfigDataFlatpak;
-    cli: { outDir?: string; arch?: string };
+    /**
+     * What the command line decided before any config was read.
+     *
+     * `layoutOs` is REQUIRED, unlike its two neighbours, and the asymmetry is the
+     * point: `outDir` and `arch` have derived defaults that are correct when
+     * nobody says anything, while the layout is chosen by `gjsify ship <os>` (or
+     * by the host) before this function is reached. Making it optional would put
+     * a fourth default for it in here, and a second place that decides the layout
+     * is how the manifest's `target.os` and the staged paths come apart.
+     */
+    cli: { outDir?: string; arch?: string; layoutOs: HostOs };
     discovered: DiscoveredPayload;
     /**
      * `gjsify.app` as DECLARED — `undefined` when the project declares nothing.
@@ -190,6 +200,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         outDir: input.cli.outDir ?? ship.outDir ?? 'ship',
         arch: input.cli.arch ?? process.arch,
         app,
+        layoutOs: input.cli.layoutOs,
         minGjsVersion: ship.minGjsVersion ?? DEFAULT_GJS_FLOOR,
         minNodeVersion: ship.minNodeVersion ?? DEFAULT_NODE_FLOOR,
         flatpak: flatpakSettings.settings,

@@ -28,6 +28,13 @@ export interface StageInputs {
  * The result is deduplicated by path (last write wins, so `extraFiles` can
  * override anything the defaults staged) and sorted, which makes the tree —
  * and therefore every artifact built from it — deterministic.
+ *
+ * ONE plan, in the Linux/XDG shape, for every OS. Where those paths end up is
+ * `utils/ship/layout.ts`'s `placeStage`, applied afterwards by the caller, and
+ * keeping the two steps apart is what makes ADR 0024 § 2's "one payload, a
+ * handful of layouts" checkable: `tests/e2e/ship-layout` asserts the three
+ * staged trees agree modulo that map. A planner that took the layout would have
+ * three code paths to keep in agreement instead.
  */
 export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFile[] {
     const files: StagedFile[] = [];
