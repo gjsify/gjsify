@@ -358,6 +358,24 @@ jobs:
       - name: Check the React Native support table covers react-native (self-testing)
         run: node scripts/check-rn-surface.mjs
 
+      # `@gjsify/adwaita-react-native` ships one API surface with two implementations,
+      # and which one a consumer gets is decided by a HAND-MAINTAINED `exports` map plus
+      # three hand-maintained barrels. That arrangement is only admissible with this
+      # gate: it is the class that drifted three separate times in one day here (the
+      # gallery against the storybook, the stories against their registration, the
+      # descriptors against GIR).
+      # It exists because the obvious mechanism does not work for a published library:
+      # measured against `metro-resolver@0.83.5`, `.native` beats the base file only for
+      # EXTENSIONLESS specifiers, and `lib/esm/*.js` imports carry the extension — so
+      # Metro would load the base module and never look at the native one. The map is
+      # what forks the halves, so the map is what has to be checked.
+      # Both directions, both halves: a widget missing either platform module, an
+      # `exports` entry naming a file that does not exist, a base module that re-exports
+      # a sibling instead of refusing, and the per-file `@jsxImportSource` pragma — which
+      # the two halves need OPPOSITE values of, so neither may inherit the project one.
+      - name: Check the Adwaita React Native platform split
+        run: node scripts/check-adwaita-rn-platform-split.mjs
+
       # The step above settles which `adw-*` element names which widget. This one asks
       # whether the element carries that widget's SCALAR GIR properties — the half that
       # was missing when `<adw-alert-dialog>` shipped observing 4 of Adw.AlertDialog's 8

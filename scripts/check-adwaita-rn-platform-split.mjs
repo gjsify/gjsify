@@ -1,0 +1,405 @@
+#!/usr/bin/env node
+// A widget exists on BOTH platforms, the `exports` map names both, and the base module
+// refuses — or `@gjsify/adwaita-react-native` is not what it says it is.
+//
+// THE INCIDENT THIS EXISTS BEFORE, not after
+//
+// The package ships one API surface with two implementations: the real `Adw.*` widget
+// on GTK4, React Native primitives on a phone. Which one a consumer gets is decided by
+// the `exports` map's `react-native` condition, and every barrel names its platform
+// files LITERALLY (`./widgets/clamp.native.js`, `./widgets/clamp.gtk.js`) rather than
+// relying on a resolver to pick a sibling.
+//
+// That is a correction, and it is what makes this gate load-bearing. The design
+// originally forked by FILE NAME — gjsify's `.gtk` chain on the desktop, Metro's
+// `.native` step on the phone. Measured against `metro-resolver@0.83.5`:
+// `resolveSourceFile` calls `resolveSourceFileForAllExts(context, '')` FIRST, with no
+// platform and an empty source extension, which skips both the platform branch and the
+// `preferNativePlatform` branch and resolves the literal path — extension included. Our
+// shipped modules import each other WITH the `.js` extension, so Metro finds
+// `clamp.js` and never looks at `clamp.native.js`. `.native` wins only for
+// extensionless specifiers, which a `lib/esm` build does not emit.
+//
+// The replacement works — a package of this exact shape resolved through the real
+// resolver with `@react-native/metro-config@0.87.1`'s `unstable_conditionNames:
+// ['react-native']` lands on `clamp.native.js`, and without that condition on
+// `clamp.gtk.js` — but it moved the correctness from a resolver's algorithm into a
+// HAND-MAINTAINED map and three hand-maintained barrels. That is the class that
+// drifted three separate times in this repository in one day: the gallery against the
+// storybook, the stories against their registration, the descriptors against GIR. So
+// the gate is not a nicety here. It is the condition under which naming the files by
+// hand is an admissible design at all.
+//
+// WHAT A MISSING HALF ACTUALLY COSTS, and why "half a widget" is worse than none.
+// On the GTK path the specifier `react-native` is aliased onto `@gjsify/react-native`.
+// A widget whose `.gtk` module is missing and whose base module re-exported the native
+// one would therefore RUN on GTK — as a working, worse copy of the widget beside the
+// real one. No import error, no type error, no failing test; a window that is subtly
+// wrong. Hence rule 3 below: a base module refuses, and may not re-export a sibling.
+//
+// WHAT IT CHECKS — six rules, each falsified in both directions before landing:
+//
+//   1. Every widget has all three modules (base, `.gtk.tsx`, `.native.tsx`), and no
+//      platform module exists without the other two. Both directions, because a
+//      `.gtk.tsx` with no `.native.tsx` and a `.native.tsx` with no `.gtk.tsx` are
+//      different bugs with the same fix.
+//   2. Every widget has an `exports` entry naming BOTH platform builds under the right
+//      conditions, and every path an `exports` entry names has a source module behind
+//      it. A map entry pointing at a file that does not exist is a resolution failure
+//      in a consumer's bundler and nowhere else.
+//   3. The base module refuses: it calls the named-throw helper and imports or
+//      re-exports NO platform sibling.
+//   4. Every platform module carries an explicit `@jsxImportSource` pragma, and the
+//      right one. Measured: the per-file pragma beats the tsconfig option, and the two
+//      halves need OPPOSITE values — `@gjsify/gtk-host/react` so `<div>` is a TS2339
+//      on GTK, plain `react` so a phone bundle carries no GTK import. Neither half may
+//      be right by inheriting a project default the other half contradicts.
+//   5. The three barrels are complete: the base barrel names every base module, the
+//      GTK barrel every `.gtk`, the native barrel every `.native`.
+//   6. `module`/`main` point at the BASE barrel — the entry a condition-blind tool
+//      falls back to, which is the only audience the refusal has left.
+//   7. `parity.spec.ts` carries a type-level assertion per widget per platform, and
+//      `PARITY_ASSERTIONS` lists exactly those. That spec is what makes "one API
+//      surface" a thing `tsc` refuses rather than a sentence, and it is per-widget —
+//      so a widget added without its two aliases is a widget nothing holds to the
+//      surface, and the spec would go on passing. Nothing else can see that.
+//
+// A SCOPE THAT FINDS NOTHING IS A FAILURE. Zero widgets means a renamed directory or a
+// reader that stopped matching, and printing OK over a tree nothing looked at is the
+// same vacuity `check-adwaita-keyboard-contract.mjs` and
+// `check-nativescript-theme-classes.mjs` both fail on. The count is asserted.
+//
+// Usage: node scripts/check-adwaita-rn-platform-split.mjs [--root <dir>]
+
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const args = process.argv.slice(2);
+const rootFlag = args.indexOf('--root');
+if (rootFlag !== -1 && args[rootFlag + 1] === undefined) {
+    console.error('check-adwaita-rn-platform-split: --root needs a directory.');
+    process.exit(2);
+}
+const ROOT =
+    rootFlag === -1
+        ? resolve(dirname(fileURLToPath(import.meta.url)), '..')
+        : resolve(process.cwd(), args[rootFlag + 1]);
+
+const PACKAGE_DIR = join(ROOT, 'packages', 'framework', 'adwaita-react-native');
+const WIDGETS_DIR = join(PACKAGE_DIR, 'src', 'widgets');
+
+/**
+ * The two platforms, and everything that differs between them in one place.
+ *
+ * A second list of suffixes anywhere in this file is how the `exports` half and the
+ * pragma half would come to know different platforms — the shape
+ * `resolve-npm/lib/runtime-aliases.mjs` calls out as the reason its own target list is
+ * exported rather than retyped.
+ */
+const PLATFORMS = [
+    {
+        name: 'gtk',
+        suffix: '.gtk.tsx',
+        /** The `exports` condition that selects it. `default`, i.e. everything else. */
+        condition: 'default',
+        buildSuffix: '.gtk.js',
+        barrel: 'index.gtk.ts',
+        jsxImportSource: '@gjsify/gtk-host/react',
+    },
+    {
+        name: 'native',
+        suffix: '.native.tsx',
+        condition: 'react-native',
+        buildSuffix: '.native.js',
+        barrel: 'index.native.ts',
+        jsxImportSource: 'react',
+    },
+];
+
+/** The helper a base module must route through. Named once; rule 3 reads it. */
+const REFUSAL_HELPER = 'refuseBaseModule';
+
+const problems = [];
+const fail = (rule, message) => problems.push(`[${rule}] ${message}`);
+
+const read = (path) => readFileSync(path, 'utf8');
+
+/**
+ * Module specifiers a file actually IMPORTS, comments excluded.
+ *
+ * A substring search was the first version and it was wrong in the direction that
+ * costs most: `bin.ts`'s doc comment names `./bin.gtk.js` while explaining what the
+ * parity assertion holds, and the gate reported the file as re-exporting its sibling.
+ * A false alarm teaches the next reader to loosen the rule, which is how a gate stops
+ * gating. So comments are removed FIRST — string-aware, because a `//` inside a
+ * literal would otherwise swallow the rest of a line and turn this into a reader that
+ * under-detects, which is the same failure pointing the other way.
+ */
+function moduleSpecifiers(source) {
+    let code = '';
+    let index = 0;
+    while (index < source.length) {
+        const char = source[index];
+        const next = source[index + 1];
+        if (char === '/' && next === '/') {
+            while (index < source.length && source[index] !== '\n') index += 1;
+            continue;
+        }
+        if (char === '/' && next === '*') {
+            index += 2;
+            while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) index += 1;
+            index += 2;
+            continue;
+        }
+        if (char === '"' || char === "'" || char === '`') {
+            const quote = char;
+            code += char;
+            index += 1;
+            while (index < source.length && source[index] !== quote) {
+                if (source[index] === '\\') {
+                    code += source.slice(index, index + 2);
+                    index += 2;
+                    continue;
+                }
+                code += source[index];
+                index += 1;
+            }
+            code += quote;
+            index += 1;
+            continue;
+        }
+        code += char;
+        index += 1;
+    }
+    const specifiers = new Set();
+    for (const match of code.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]/g)) {
+        specifiers.add(match[1]);
+    }
+    return specifiers;
+}
+
+if (!existsSync(WIDGETS_DIR)) {
+    console.error(
+        `check-adwaita-rn-platform-split: ${WIDGETS_DIR} does not exist.\n` +
+            'The package moved or was renamed. This gate names its own scope, so a moved tree\n' +
+            'makes it silently check nothing — fix the path here in the same change.',
+    );
+    process.exit(2);
+}
+
+const files = readdirSync(WIDGETS_DIR).filter((name) => !name.includes('.spec.'));
+
+/** Widget names, from every spelling on disk — so a stray half is FOUND, not skipped. */
+const widgets = new Set();
+for (const file of files) {
+    if (file.endsWith('.gtk.tsx')) widgets.add(file.slice(0, -'.gtk.tsx'.length));
+    else if (file.endsWith('.native.tsx')) widgets.add(file.slice(0, -'.native.tsx'.length));
+    else if (file.endsWith('.ts')) widgets.add(file.slice(0, -'.ts'.length));
+}
+
+// ─── Rule 1 — all three modules, both directions ────────────────────────────
+for (const widget of [...widgets].sort()) {
+    if (!existsSync(join(WIDGETS_DIR, `${widget}.ts`))) {
+        fail('modules', `${widget}: no base module \`src/widgets/${widget}.ts\``);
+    }
+    for (const platform of PLATFORMS) {
+        if (!existsSync(join(WIDGETS_DIR, `${widget}${platform.suffix}`))) {
+            fail('modules', `${widget}: no ${platform.name} module \`src/widgets/${widget}${platform.suffix}\``);
+        }
+    }
+}
+
+// ─── Rule 3 — the base module refuses, and re-exports no sibling ────────────
+for (const widget of [...widgets].sort()) {
+    const basePath = join(WIDGETS_DIR, `${widget}.ts`);
+    if (!existsSync(basePath)) continue;
+    const source = read(basePath);
+    if (!source.includes(REFUSAL_HELPER)) {
+        fail('refusal', `${widget}: \`src/widgets/${widget}.ts\` never calls \`${REFUSAL_HELPER}\``);
+    }
+    const imported = moduleSpecifiers(source);
+    for (const platform of PLATFORMS) {
+        // A base module that resolves to a platform implementation is the "working
+        // worse copy" case in this file's header, and it is spelled as an ordinary
+        // import — which is why the check is on the specifier and not on a keyword.
+        if (imported.has(`./${widget}${platform.buildSuffix}`)) {
+            fail(
+                'refusal',
+                `${widget}: \`src/widgets/${widget}.ts\` reaches its ${platform.name} sibling ` +
+                    `(\`./${widget}${platform.buildSuffix}\`) instead of refusing`,
+            );
+        }
+    }
+}
+
+// ─── Rule 4 — the right JSX source, per platform module ─────────────────────
+const PRAGMA_RE = /\/\*\*\s*@jsxImportSource\s+(\S+)\s*\*\//;
+for (const widget of [...widgets].sort()) {
+    for (const platform of PLATFORMS) {
+        const path = join(WIDGETS_DIR, `${widget}${platform.suffix}`);
+        if (!existsSync(path)) continue;
+        const match = PRAGMA_RE.exec(read(path));
+        if (match === null) {
+            fail(
+                'jsx-source',
+                `${widget}${platform.suffix}: no \`@jsxImportSource\` pragma — it would inherit the ` +
+                    `tsconfig's, which is the OTHER platform's element list`,
+            );
+        } else if (match[1] !== platform.jsxImportSource) {
+            fail(
+                'jsx-source',
+                `${widget}${platform.suffix}: \`@jsxImportSource ${match[1]}\`, expected ` +
+                    `\`${platform.jsxImportSource}\``,
+            );
+        }
+    }
+}
+
+// ─── Rules 2 and 6 — the `exports` map ──────────────────────────────────────
+const manifest = JSON.parse(read(join(PACKAGE_DIR, 'package.json')));
+const exportsField = manifest.exports ?? {};
+
+/** `./lib/esm/widgets/clamp.gtk.js` → the source module it is built from. */
+const sourceBehind = (target) => {
+    const relative = String(target).replace(/^\.\/lib\/esm\//, '');
+    for (const extension of ['.tsx', '.ts']) {
+        const candidate = join(PACKAGE_DIR, 'src', relative.replace(/\.js$/, extension));
+        if (existsSync(candidate)) return candidate;
+    }
+    return null;
+};
+
+for (const [subpath, entry] of Object.entries(exportsField)) {
+    if (typeof entry !== 'object' || entry === null) {
+        fail('exports', `${subpath}: not a conditional entry, so it can name only one platform`);
+        continue;
+    }
+    for (const [condition, target] of Object.entries(entry)) {
+        if (condition === 'types') continue;
+        if (sourceBehind(target) === null) {
+            fail('exports', `${subpath} → ${condition}: \`${target}\` has no source module under \`src/\``);
+        }
+    }
+}
+
+for (const widget of [...widgets].sort()) {
+    const subpath = `./widgets/${widget}`;
+    const entry = exportsField[subpath];
+    if (entry === undefined) {
+        fail('exports', `${widget}: \`exports["${subpath}"]\` is missing, so no consumer can reach it directly`);
+        continue;
+    }
+    for (const platform of PLATFORMS) {
+        const expected = `./lib/esm/widgets/${widget}${platform.buildSuffix}`;
+        if (entry[platform.condition] !== expected) {
+            fail(
+                'exports',
+                `${widget}: \`exports["${subpath}"]["${platform.condition}"]\` is ` +
+                    `${JSON.stringify(entry[platform.condition])}, expected ${JSON.stringify(expected)}`,
+            );
+        }
+    }
+}
+
+const rootEntry = exportsField['.'] ?? {};
+for (const platform of PLATFORMS) {
+    const expected = `./lib/esm/index${platform.buildSuffix}`;
+    if (rootEntry[platform.condition] !== expected) {
+        fail(
+            'exports',
+            `\`exports["."]["${platform.condition}"]\` is ${JSON.stringify(rootEntry[platform.condition])}, ` +
+                `expected ${JSON.stringify(expected)}`,
+        );
+    }
+}
+for (const field of ['module', 'main']) {
+    const value = manifest[field];
+    if (value !== undefined && value !== 'lib/esm/index.js') {
+        fail(
+            'base-entry',
+            `\`${field}\` is ${JSON.stringify(value)}, expected "lib/esm/index.js" — the base barrel is ` +
+                'what a tool that ignores export conditions falls back to, and the refusal is written for it',
+        );
+    }
+}
+
+// ─── Rule 5 — the barrels are complete ──────────────────────────────────────
+const barrelCheck = (barrel, suffixOf) => {
+    const path = join(PACKAGE_DIR, 'src', barrel);
+    if (!existsSync(path)) {
+        fail('barrels', `\`src/${barrel}\` does not exist`);
+        return;
+    }
+    const imported = moduleSpecifiers(read(path));
+    for (const widget of [...widgets].sort()) {
+        const specifier = `./widgets/${widget}${suffixOf}`;
+        if (!imported.has(specifier)) {
+            fail('barrels', `\`src/${barrel}\` does not name \`${specifier}\``);
+        }
+    }
+};
+barrelCheck('index.ts', '.js');
+for (const platform of PLATFORMS) barrelCheck(platform.barrel, platform.buildSuffix);
+
+// ─── Rule 7 — a parity assertion per widget per platform ────────────────────
+const parityPath = join(PACKAGE_DIR, 'src', 'parity.spec.ts');
+if (!existsSync(parityPath)) {
+    fail('parity', '`src/parity.spec.ts` does not exist — nothing holds the two halves to one surface');
+} else {
+    const parity = read(parityPath);
+    // The alias name a widget's assertion must carry: `clamp` + `native` →
+    // `ClampNativeSatisfiesBase`. Derived rather than listed, so adding a widget cannot
+    // be half-done.
+    const pascal = (name) => name.replace(/(^|[-_])(\w)/g, (_, __, c) => c.toUpperCase());
+    const expected = [];
+    for (const widget of [...widgets].sort()) {
+        for (const platform of PLATFORMS) expected.push(`${pascal(widget)}${pascal(platform.name)}SatisfiesBase`);
+    }
+    for (const alias of expected) {
+        if (!new RegExp(`export type ${alias}\\b`).test(parity)) {
+            fail('parity', `\`src/parity.spec.ts\` exports no \`${alias}\` — that half of that widget is unheld`);
+        }
+        if (!parity.includes(`'${alias}'`)) {
+            fail(
+                'parity',
+                `\`PARITY_ASSERTIONS\` does not list \`${alias}\`, so the runtime completeness check misses it`,
+            );
+        }
+    }
+    // The other direction: a listed name with no alias behind it reads as coverage
+    // that does not exist — the same shape as an `exports` entry naming a missing file.
+    for (const match of parity.matchAll(/'(\w+SatisfiesBase)'/g)) {
+        if (!expected.includes(match[1])) {
+            fail('parity', `\`PARITY_ASSERTIONS\` lists \`${match[1]}\`, which no widget on disk corresponds to`);
+        }
+    }
+}
+
+// ─── Vacuity ────────────────────────────────────────────────────────────────
+if (widgets.size === 0) {
+    console.error(
+        `check-adwaita-rn-platform-split: found NO widgets under ${WIDGETS_DIR}.\n` +
+            'Every rule below is then vacuously satisfied, which is what a broken reader looks\n' +
+            'like from the outside. Fix the reader, not this message.',
+    );
+    process.exit(2);
+}
+
+if (problems.length > 0) {
+    console.error(`check-adwaita-rn-platform-split: ${problems.length} problem(s) in @gjsify/adwaita-react-native.\n`);
+    for (const problem of problems.sort()) console.error(`  ${problem}`);
+    console.error(
+        '\nThe package promises one API surface with two implementations. Each rule above is a\n' +
+            'way for that promise to be false while everything still compiles — the header of\n' +
+            'this file says which one, and what it costs.\n',
+    );
+    process.exit(1);
+}
+
+console.log(
+    `check-adwaita-rn-platform-split: ${widgets.size} widget(s) — ` +
+        `${[...widgets].sort().join(', ')} — each with a base module that refuses, a ` +
+        `${PLATFORMS.map((p) => p.name).join(' and a ')} module, an \`exports\` entry naming both, ` +
+        'and the JSX source its platform needs.',
+);
