@@ -547,6 +547,56 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
         }
     });
 
+    it('trust-only packages are configured CONCURRENTLY, publishes stay serial', async () => {
+        // Serial writes cost prompts, not just time: an npm code lives ~30s, so
+        // a serial sweep crosses a code boundary every ~38 packages (measured on
+        // the real 703-package `gjsify/types` run: ~18 codes typed by hand).
+        // Publishes stay serial because publish ORDER is a correctness property.
+        pkgState = {
+            '@onb/published-trusted': { published: true, trusted: true },
+            '@onb/published-untrusted': { published: true, trusted: false },
+            '@onb/unpublished-a': { published: true, trusted: false },
+            '@onb/unpublished-b': { published: true, trusted: false },
+            '@onb/never-published-2xx': { published: true, trusted: false },
+        };
+        const { root, npmrcPath } = scaffoldMonorepo(LIVE_TOKEN);
+        try {
+            const { code, stdout } = await runOnboard(root, npmrcPath, ['--write-concurrency', '4']);
+            assert.equal(code, 0, `onboard should exit 0; stdout:\n${stdout}`);
+            assert.equal(trustPosts.length, 4, 'the four untrusted packages must be configured');
+            assert.equal(publishPuts.length, 0, 'nothing needs publishing here');
+            // The concurrent path announces itself, so a reader can tell which
+            // pacing ran without inferring it from timings.
+            assert.match(stdout, /configuring 4 Trusted Publisher\(s\), 4 at a time/);
+            assert.ok(
+                !trustPosts.some((p) => p.name === '@onb/published-trusted'),
+                'the already-trusted package must be skipped',
+            );
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('--write-concurrency 1 keeps the writes serial', async () => {
+        pkgState = {
+            '@onb/published-trusted': { published: true, trusted: true },
+            '@onb/published-untrusted': { published: true, trusted: false },
+            '@onb/unpublished-a': { published: true, trusted: false },
+            '@onb/unpublished-b': { published: true, trusted: true },
+            '@onb/never-published-2xx': { published: true, trusted: true },
+        };
+        const { root, npmrcPath } = scaffoldMonorepo(LIVE_TOKEN);
+        try {
+            const { code, stdout } = await runOnboard(root, npmrcPath, ['--write-concurrency', '1']);
+            assert.equal(code, 0, `onboard should exit 0; stdout:\n${stdout}`);
+            assert.deepEqual(trustPosts.map((p) => p.name).sort(), ['@onb/published-untrusted', '@onb/unpublished-a']);
+            // Two writes at concurrency 1 — the banner still names the pacing.
+            assert.match(stdout, /configuring 2 Trusted Publisher\(s\), 1 at a time/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
     it('--yes fails clearly when a dead token would need an interactive login', async () => {
         pkgState = freshState();
         const { root, npmrcPath } = scaffoldMonorepo(DEAD_TOKEN);
