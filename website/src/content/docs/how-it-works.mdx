@@ -437,9 +437,12 @@ The macOS `--app gjs` bundles are built on the Fedora leg and executed on macOS.
 
 Bun and Deno share the `node` runtime slot through the Node-API common ABI, and `main.yml`'s `cross-runtime` job tests that rather than assuming it: one engine-agnostic `--app node` bundle per package, run on all three runtimes. The selection rule matters. A spec that imports `node:path` gets the *host runtime's* builtin, because the `--app node` bundle externalises it, so such a leg would test Bun rather than the polyfill. Every covered package either imports its own package by name, imports a bare Web specifier that the alias table routes to the polyfill, or is infra code that is nobody's builtin.
 
-The four defects that first darwin run found — and the macOS loader fact that invalidates the obvious fix for a
-`dyld` problem — are recorded in
+The four defects that first darwin run found are recorded in
 [ADR 0018](https://github.com/gjsify/gjsify/blob/main/docs/adr/0018-os-axis-declaration.md) § *darwin re-measured*.
+The macOS loader fact that invalidates the obvious fix for a `dyld` problem — SIP strips every `DYLD_*` variable at
+the first `/bin/sh` boundary, so a wrapper cannot hand the loader a path — is
+[ADR 0024](https://github.com/gjsify/gjsify/blob/main/docs/adr/0024-ship-installable-artifacts.md) § 3, and
+`macos-suites.yml` re-measures it on every run.
 
 ## Measuring gjsify on Windows
 
