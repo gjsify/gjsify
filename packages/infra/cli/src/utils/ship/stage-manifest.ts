@@ -155,6 +155,7 @@ export function toPackSettings(settings: ShipSettings): PackSettings {
         extraDepends: settings.extraDepends,
         typelibPackages: settings.typelibPackages,
         minGjsVersion: settings.minGjsVersion,
+        minNodeVersion: settings.minNodeVersion,
         flatpak: settings.flatpak,
     };
 }
@@ -494,6 +495,7 @@ function readPackSettings(data: Record<string, unknown>, at: string): PackSettin
             }),
         ),
         minGjsVersion: expectString(data.minGjsVersion, field('minGjsVersion')),
+        minNodeVersion: expectString(data.minNodeVersion, field('minNodeVersion')),
         flatpak: readFlatpakSettings(record(data.flatpak, field('flatpak')), field('flatpak')),
     };
 }

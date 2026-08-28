@@ -137,7 +137,7 @@ preference.
 | OS | runtime in the artifact | why, measured |
 |---|---|---|
 | Linux · `--app gjs` | none — `Depends: gjs (>= 1.86)` | GJS and GTK come from the distro. Bundling would be ~100 MiB of cargo cult. **Measured caveat: no released Debian satisfies that floor** — Debian went 1.82.3 (trixie) straight to 1.88.1 (forky), skipping 1.84 and 1.86. The honest floor is emitted anyway and warned about; see § Implementation status |
-| Linux · `--app node` | bundled Node | no system Node can be assumed, and the app is Node |
+| Linux · `--app node` | none — `Depends: nodejs (>= 24)` / `Requires: nodejs(engine) >= 24` | **Amended (#1354 M0).** This row read "bundled Node — no system Node can be assumed"; that is true of macOS and Windows and false of Linux, where every distribution ships one. Bundling it would be the same ~100 MiB cargo cult the `--app gjs` row rejects. The rpm spelling is not a style choice: `Requires: nodejs >= 24` is a silent NO-OP on Fedora, whose virtual `nodejs` Provide carries Epoch 1, so `0:24` is satisfied by `1:22.23.1` — measured with `dnf repoquery` on F44. Floor honestly emitted and warned about, exactly like the GJS one |
 | **macOS** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-darwin-<arch>`** | this is the combination CI proves on both arches, with no Homebrew in the picture: the *batteries-included conformance* and *windowing proof* legs of `node-gi.yml` run green against the relocated bundle |
 | **Windows** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-win32-x64`** | **there is no GJS host on Windows** (`docs/ci-selective.md`), so this is not a choice. The *batteries-included conformance* and *Adwaita Storybook proof* legs prove it without gvsbuild |
 | `--app browser` | — | no OS-package question |
@@ -278,6 +278,12 @@ theirs ever builds a package. A `ship` that asserted on rendered YAML would be t
 green-CI-that-checked-nothing class on a new surface. macOS and Windows legs already exist in
 `node-gi.yml` and are where the `.app` and installer proofs belong.
 
+> **Correction (#1354 M0).** "No new published npm name" stopped being true. Carrying an
+> interpreter into a `.app` or a Windows program directory needs one package per target —
+> `@gjsify/node-runtime-{darwin-arm64,darwin-x64,win32-x64}` — and those three ARE a
+> first-publish bootstrap, done by hand before the release that ships them. Linux still costs
+> none: it declares a dependency instead (§ 4, amended).
+
 **What stays open.** Whether the deb/rpm packer is vendored or hand-rolled — `.deb` is `ar`
 plus two tars and `@gjsify/tar` exists, while an `.rpm` header is not worth hand-writing, so
 the answer may differ per format. Whether a bundled Node is fetched at ship time or declared as
@@ -358,6 +364,13 @@ package would have installed and refreshed nothing.
 
 *Bundled Node stays open* (§ 4's `--app node` row). Nothing here needs it, and the question — ship
 time fetch versus a platform package — is unchanged.
+
+> **Settled (#1354 M0).** A platform package, in `@gjsify/gtk-runtime-*`'s shape: hand-written
+> manifest, gitignored payload, `files:` overriding `.gitignore` at pack time. Node 24, three
+> targets, `bin/node` + Node's `LICENSE` and nothing else. Linux gets none and declares
+> `nodejs` / `nodejs(engine)` instead. The one place it diverges from that precedent is the
+> publish topology: gtk-runtime's payload is BUILT on the OS it targets and needs a runner per
+> OS, ours is a digest-verified DOWNLOAD, so all three ride one ubuntu job.
 
 *Architecture is derived, not configured.* A payload with no `.so`/`.node` is `Architecture: all` /
 `BuildArch: noarch`. Claiming `amd64` for a bundle of JavaScript would make apt refuse it on an

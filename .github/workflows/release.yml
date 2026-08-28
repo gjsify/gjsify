@@ -1654,6 +1654,128 @@ jobs:
           PATH="$PWD/node_modules/.bin:$PATH" gjsify publish packages/napi/napi \
             --tolerate-republish --tag latest --access public
 
+  # ---------------------------------------------------------------------------
+  # @gjsify/node-runtime-{darwin-arm64,darwin-x64,win32-x64} — the bundled Node
+  # interpreters a `gjsify ship` artifact carries on macOS and Windows, where no
+  # system Node can be assumed. Linux gets no package: a `.deb`/`.rpm` declares a
+  # dependency on the distribution's Node instead.
+  #
+  # SAME STRUCTURAL SITUATION as node-gi, napi and the gtk-runtime bundles:
+  # `packages/node-runtime/**` is deliberately NOT a root workspace member, so
+  # `gjsify foreach` — the enumerator behind the ubuntu `publish` job's
+  # `gjsify run npm:publish` — never sees it, and the two can never write the
+  # same version. That is what structurally prevents the 0.19.0 incident, where
+  # the workspace sweep overwrote a real bundle with an empty shell. If
+  # `packages/node-runtime/*` is EVER added to the root `workspaces` list, add
+  # `--exclude '@gjsify/node-runtime-*'` to the `npm:publish` script's
+  # `gjsify foreach` so the ubuntu job keeps skipping it.
+  #
+  # ONE UBUNTU JOB FOR ALL THREE, and this is where the design departs from
+  # publish-gtk-runtime-*: those need a macOS and a Windows runner because their
+  # payload is BUILT from an OS-specific closure. Ours is a DOWNLOAD that is
+  # digest-checked against the release's own SHASUMS256.txt, so it is verifiable
+  # anywhere and nothing in the fetcher reads `process.platform`. A matrix leg per
+  # target, on the cheapest runner, with no cross-OS coupling to strand a leg.
+  #
+  # `fail-fast: false` for the reason the darwin bundle matrix records: one
+  # target's failure must not CANCEL another's publish. A failed leg leaves that
+  # one package at its previous version, which a re-dispatch recovers;
+  # cancelling the others is not better.
+  #
+  # `needs: publish` so `@gjsify/cli@<release-version>` is already on npm for the
+  # Node-runnable CLI below.
+  publish-node-runtime:
+    name: Publish @gjsify/node-runtime-${{ matrix.target }} (bundled Node)
+    needs: publish
+    # Same gate as every other publish job: a real release, or a dispatch that
+    # opts INTO publishing; never in verify_only (audit) mode.
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [darwin-arm64, darwin-x64, win32-x64]
+    permissions:
+      # id-token: write = npm Trusted Publishing (OIDC). Each package's Trusted
+      # Publisher is configured for THIS workflow file (release.yml), so an OIDC
+      # exchange from any job in it succeeds. contents: read is for checkout.
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      # Node 24 runs the fetcher (node:crypto/fs + global fetch) and the publish.
+      # No `registry-url` — it makes actions/setup-node inject a placeholder
+      # NODE_AUTH_TOKEN, which `gjsify publish` reads as "token auth requested"
+      # and then skips OIDC (see the ubuntu publish job's note).
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # Populate the gitignored bin/ payload so `files: ["bin"]` ships it. The
+      # fetcher verifies the archive against the release's own SHASUMS256.txt
+      # before it extracts anything, and refuses a LICENSE whose byte length is
+      # neither of the two the release publishes.
+      - name: Fetch the Node interpreter + its LICENSE
+        run: |
+          node packages/node-runtime/scripts/fetch-node-runtime.mjs \
+            --target ${{ matrix.target }} \
+            --out packages/node-runtime/node-runtime-${{ matrix.target }}/bin
+
+      # Gate the publish on the ARTIFACT, a step later — which is a different
+      # question from what the fetcher already asserted while writing: this is
+      # what catches a skipped step, a stale tree, or a leg whose `--out` pointed
+      # at the sibling package. A SCRIPT, not an inline `node -e`: three v0.28.0
+      # bundle publishes died on a quote spliced into a single-quoted shell
+      # string while the bundles themselves were fine.
+      #
+      # ⚠️ The licence assertion inside it is the one that matters. The bare
+      # https://nodejs.org/dist/<v>/win-x64/ path carries NO LICENSE, and taking
+      # that convenient route would ship someone else's binary with no terms
+      # attached and nothing to notice — the same class as the
+      # `test -s "$B/THIRD-PARTY-NOTICES.md"` line in publish-gtk-runtime-darwin.
+      - name: Verify the payload (binary, licence, manifest)
+        run: |
+          node packages/node-runtime/scripts/verify-node-runtime.mjs \
+            --package packages/node-runtime/node-runtime-${{ matrix.target }}
+          echo "--- what will be published ---"
+          ls -la packages/node-runtime/node-runtime-${{ matrix.target }}/bin
+          cat packages/node-runtime/node-runtime-${{ matrix.target }}/bin/manifest.json
+
+      # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
+      # publish. These packages have NO workspace deps, so a standalone pack needs
+      # no `gjsify install`. Verbatim shape from publish-gtk-runtime-darwin.
+      - name: Prepare a Node-runnable @gjsify/cli
+        id: cli
+        run: |
+          CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
+          mkdir -p /tmp/gjsify-node-cli
+          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
+            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
+          echo "bin=/tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js" >> "$GITHUB_OUTPUT"
+          node /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js --version
+
+      # OIDC Trusted Publishing from release.yml — publishes ONLY this package,
+      # WITH the populated bin/. `--tolerate-republish` makes a manual rerun over
+      # an already-published version a no-op instead of a hard 409/403.
+      #
+      # ⚠️ FIRST RELEASE ONLY: these three npm names must be bootstrapped by hand
+      # before the release that ships them (`gjsify onboard`, then `gjsify trust`
+      # targeting release.yml) — OIDC cannot self-bootstrap its own trust, and an
+      # unbootstrapped name 404s on the exchange.
+      - name: Publish @gjsify/node-runtime-${{ matrix.target }} (OIDC, with payload)
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+        run: |
+          node "${{ steps.cli.outputs.bin }}" publish \
+            packages/node-runtime/node-runtime-${{ matrix.target }} \
+            --tolerate-republish --tag latest --access public
+
   # The LAST word on a release: is what npm now serves internally consistent?
   #
   # Every publish job above is fail-fast, and that is correct — but a publish
@@ -1690,6 +1812,7 @@ jobs:
       - publish-gtk-runtime-win32-x64
       - publish-node-gi
       - publish-napi
+      - publish-node-runtime
     if: ${{ !cancelled() && (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 15

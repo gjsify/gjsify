@@ -14,7 +14,7 @@ import { validateMimeTypes } from './mime.js';
 import { basename } from 'node:path';
 
 import type { AppMetadata, ConfigDataFlatpak, ConfigDataShip, DescriptionBlock } from '../../types/config-data.js';
-import { DEFAULT_GJS_FLOOR } from './depends.js';
+import { DEFAULT_GJS_FLOOR, DEFAULT_NODE_FLOOR } from './depends.js';
 import { resolveShipFlatpakSettings } from './flatpak-config.js';
 import { assertRelease, normaliseVersion } from './version.js';
 import type { ShipSettings } from './types.js';
@@ -175,6 +175,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         outDir: input.cli.outDir ?? ship.outDir ?? 'ship',
         arch: input.cli.arch ?? process.arch,
         minGjsVersion: ship.minGjsVersion ?? DEFAULT_GJS_FLOOR,
+        minNodeVersion: ship.minNodeVersion ?? DEFAULT_NODE_FLOOR,
         flatpak: flatpakSettings.settings,
     };
 

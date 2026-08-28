@@ -78,9 +78,43 @@ export interface PayloadFacts {
     hasSchemas: boolean;
     /** The payload installs a `share/mime/packages/*.xml`, so the mime cache needs rebuilding. */
     hasMimeTypes: boolean;
+    /**
+     * The payload installs a `--app node` bundle, so it needs a Node interpreter
+     * the package does not carry.
+     *
+     * DERIVED FROM THE NAME the bundler already writes — `dist/<name>.node.mjs`,
+     * the exact triple `resolveNodeEntry()` probes for (`.node.mjs`, `.node.js`,
+     * `.node.cjs`) — and not from a `gjsify.ship.app` key somebody would have to
+     * author. The module header's rule applies here as hard as anywhere: a
+     * declaration that a package needs Node, kept beside a payload that does
+     * not, is a claim nothing checks; and the reverse, an app whose author
+     * forgot the key, ships a `.deb` that installs and dies at `exec node`.
+     *
+     * A NAME CONVENTION is admittedly weaker than a magic number, and it fails
+     * in the safe direction only for the false POSITIVE (a GJS payload that
+     * happens to contain `foo.node.mjs` declares a `nodejs` dependency it does
+     * not use — harmless, one extra package installed). The false NEGATIVE — a
+     * project that names its `--app node` bundle something else — costs the
+     * dependency, and `gjsify.ship.depends.{deb,rpm}` is the hatch that adds it
+     * back. That trade is only acceptable because the convention is the one this
+     * toolchain itself emits and resolves against, not one invented here.
+     */
+    hasNodeInterpreter: boolean;
     /** Prefix-relative paths of the typelibs the payload carries itself. */
     bundledTypelibs: string[];
 }
+
+/**
+ * The filenames `gjsify build --app node` writes.
+ *
+ * Kept in step with `resolveNodeEntry()`'s candidate list in
+ * `utils/resolve-gjs-entry.ts` — `<stem>.node.mjs`, `<stem>.node.js`,
+ * `<stem>.node.cjs`. Two places spell the same convention because they answer it
+ * from opposite ends (one probes the project tree, one reads a staged payload
+ * that may have arrived from another host, ADR 0024 § A2) and neither can import
+ * the other's filesystem assumptions.
+ */
+const NODE_BUNDLE = /\.node\.(mjs|js|cjs)$/;
 
 /**
  * Read {@link PayloadFacts} off a payload or off a plan.
@@ -97,6 +131,7 @@ export function readPayloadFacts(entries: readonly { path: string }[]): PayloadF
         hasIcons: paths.some((path) => path.startsWith('share/icons/hicolor/')),
         hasSchemas: paths.some((path) => path.startsWith('share/glib-2.0/schemas/') && path.endsWith('.gschema.xml')),
         hasMimeTypes: paths.some((path) => path.startsWith('share/mime/packages/') && path.endsWith('.xml')),
+        hasNodeInterpreter: paths.some((path) => NODE_BUNDLE.test(path)),
         // Anywhere in the payload, not only `lib/<name>/gi/`: `gjsify.ship.extraFiles` can place
         // one elsewhere, and a typelib the package carries is a typelib the package must not also
         // declare a distro dependency for, wherever it sits.

@@ -36,7 +36,7 @@ import {
 import { readPackageJson } from '../utils/pkg-json.js';
 import { describeExit, spawnToCompletion } from '../utils/spawn.js';
 import { buildDeb } from '../utils/ship/deb.js';
-import { deriveDepends, warnAboutGjsFloor } from '../utils/ship/depends.js';
+import { deriveDepends, warnAboutGjsFloor, warnAboutNodeFloor } from '../utils/ship/depends.js';
 import { discoverPayload } from '../utils/ship/discover.js';
 import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
 import {
@@ -277,13 +277,23 @@ async function assemble(args: ShipOptions): Promise<void> {
             namespaces,
             hasIcons: facts.hasIcons,
             hasSchemas: facts.hasSchemas,
+            hasNodeInterpreter: facts.hasNodeInterpreter,
             extra: settings.extraDepends[format.depends],
             typelibPackages: settings.typelibPackages,
             bundledTypelibs: facts.bundledTypelibs,
             minGjsVersion: settings.minGjsVersion,
+            minNodeVersion: settings.minNodeVersion,
         });
         for (const warning of warnAboutGjsFloor(format.depends, settings.minGjsVersion)) {
             console.warn(`${LOG} ${warning}`);
+        }
+        // Only when the payload actually needs an interpreter — the floor is real
+        // either way, but a warning about a dependency this package does not emit
+        // is noise, and a noisy warning is one nobody reads when it matters.
+        if (facts.hasNodeInterpreter) {
+            for (const warning of warnAboutNodeFloor(format.depends, settings.minNodeVersion)) {
+                console.warn(`${LOG} ${warning}`);
+            }
         }
     }
 
@@ -377,11 +387,21 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
     // goes beside the artifacts.
     const outRoot = args.out === undefined ? dirname(stageDir) : resolve(cwd, args.out);
 
+    // From the STAGE's own paths, not from the settings: this phase may be running
+    // on a machine that has never seen the project (ADR 0024 § A2), and the stage is
+    // the only thing that crossed.
+    const stagedFacts = readPayloadFacts(manifest.staged);
+
     const artifacts: ShipArtifact[] = [];
     for (const format of formats) {
         if (format.depends !== null) {
             for (const warning of warnAboutGjsFloor(format.depends, manifest.settings.minGjsVersion)) {
                 console.warn(`${LOG} ${warning}`);
+            }
+            if (stagedFacts.hasNodeInterpreter) {
+                for (const warning of warnAboutNodeFloor(format.depends, manifest.settings.minNodeVersion)) {
+                    console.warn(`${LOG} ${warning}`);
+                }
             }
         }
         artifacts.push(
@@ -441,10 +461,12 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                   namespaces: input.namespaces,
                   hasIcons: facts.hasIcons,
                   hasSchemas: facts.hasSchemas,
+                  hasNodeInterpreter: facts.hasNodeInterpreter,
                   extra: settings.extraDepends[format.depends],
                   typelibPackages: settings.typelibPackages,
                   bundledTypelibs: facts.bundledTypelibs,
                   minGjsVersion: settings.minGjsVersion,
+                  minNodeVersion: settings.minNodeVersion,
               });
 
     // `--arch` is a CLAIM about the payload and nothing else compared it to one:

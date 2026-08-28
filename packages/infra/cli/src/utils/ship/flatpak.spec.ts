@@ -42,6 +42,7 @@ function packSettings(overrides: Partial<PackSettings> = {}): PackSettings {
         extraDepends: { deb: [], rpm: [] },
         typelibPackages: {},
         minGjsVersion: '1.86',
+        minNodeVersion: '24',
         flatpak: {
             runtime: 'org.gnome.Platform',
             runtimeVersion: '50',

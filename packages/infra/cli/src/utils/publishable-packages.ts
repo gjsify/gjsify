@@ -22,6 +22,7 @@ import type { Workspace } from '@gjsify/workspace';
 export const NON_WORKSPACE_PUBLISHABLE_DIRS = [
     ['packages', 'node-gi'], // @gjsify/node-gi + the @gjsify/gtk-runtime-* bundles
     ['packages', 'napi'], // @gjsify/napi (the N-API host in GJS, own napi.yml)
+    ['packages', 'node-runtime'], // the @gjsify/node-runtime-* bundled Node interpreters
 ] as const;
 
 /**

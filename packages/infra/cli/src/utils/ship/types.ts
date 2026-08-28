@@ -240,6 +240,8 @@ export interface PackSettings {
     typelibPackages: Record<string, Record<DistroFormatId, string>>;
     /** Minimum GJS the emitted dependency asks for. */
     minGjsVersion: string;
+    /** Minimum Node major, used only when the payload is a `--app node` bundle. */
+    minNodeVersion: string;
     /** The Flatpak manifest's non-payload half, fully defaulted at stage time. */
     flatpak: ShipFlatpakSettings;
 }

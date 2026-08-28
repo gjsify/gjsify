@@ -19,6 +19,7 @@ import {
     assertPayloadMatchesArch,
     isArchIndependent,
     readBinaryArch,
+    readPayloadFacts,
     readShebangInterpreters,
     type PayloadEntry,
 } from './payload.js';
@@ -57,6 +58,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         outDir: 'ship',
         arch: 'x64',
         minGjsVersion: '1.86',
+        minNodeVersion: '24',
         ...overrides,
     };
 }
@@ -221,6 +223,37 @@ export default async () => {
                 ['bin/c', 0o755, '#!/bin/sh\n'],
             ]);
             expect(readShebangInterpreters(entries)).toStrictEqual(['/bin/sh', '/usr/bin/perl']);
+        });
+    });
+
+    await describe('readPayloadFacts: hasNodeInterpreter', async () => {
+        await it('reads a `--app node` bundle off its filename', async () => {
+            // The convention `gjsify build --app node` writes and
+            // `resolveNodeEntry()` probes for. Derived, not declared: an
+            // authored `gjsify.ship.app` key can be stale in a way nothing
+            // notices until apt installs a package whose launcher execs an
+            // interpreter that was never depended on.
+            expect(readPayloadFacts([{ path: 'lib/demo/app.node.mjs' }]).hasNodeInterpreter).toBe(true);
+            expect(readPayloadFacts([{ path: 'lib/demo/app.node.cjs' }]).hasNodeInterpreter).toBe(true);
+            expect(readPayloadFacts([{ path: 'lib/demo/app.node.js' }]).hasNodeInterpreter).toBe(true);
+        });
+
+        await it('is false for a `--app gjs` payload', async () => {
+            // The case that must stay quiet: a GJS package pulling in a Node
+            // interpreter it never runs is a dependency nobody asked for.
+            const facts = readPayloadFacts([
+                { path: 'bin/demo' },
+                { path: 'lib/demo/app.gjs.mjs' },
+                { path: 'share/applications/eu.example.Demo.desktop' },
+            ]);
+            expect(facts.hasNodeInterpreter).toBe(false);
+        });
+
+        await it('is not fooled by `node` appearing elsewhere in the path', async () => {
+            // `.node.mjs` is a SUFFIX. A directory called `node_modules`, or a
+            // `.node` addon, says nothing about which interpreter runs the app.
+            expect(readPayloadFacts([{ path: 'lib/demo/node_modules/x/index.mjs' }]).hasNodeInterpreter).toBe(false);
+            expect(readPayloadFacts([{ path: 'lib/demo/gi/better_sqlite3.node' }]).hasNodeInterpreter).toBe(false);
         });
     });
 

@@ -1,0 +1,44 @@
+{
+  "name": "@gjsify/node-runtime-darwin-arm64",
+  "version": "0.44.0",
+  "description": "Bundled Node.js interpreter for macOS on Apple silicon — just the `node` binary from a pinned Node 24 LTS release plus its LICENSE, for apps that `gjsify ship` packages where no system Node can be assumed. Platform-gated (darwin/arm64 only). Node.js is a registered trademark of the OpenJS Foundation; this package is not affiliated with, endorsed, or sponsored by the OpenJS Foundation.",
+  "type": "module",
+  "license": "SEE LICENSE IN bin/LICENSE",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./bin/*": "./bin/*"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "bin"
+  ],
+  "gjsify": {
+    "runtimes": {
+      "gjs": "none",
+      "node": "none",
+      "browser": "none",
+      "nativescript": "none"
+    },
+    "tier": 3
+  },
+  "scripts": {
+    "build:bundle": "node ../scripts/fetch-node-runtime.mjs --target darwin-arm64 --out bin"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gjsify/gjsify.git",
+    "directory": "packages/node-runtime/node-runtime-darwin-arm64"
+  }
+}
