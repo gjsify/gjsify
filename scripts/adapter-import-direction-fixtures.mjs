@@ -412,6 +412,65 @@ export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
         omitManifest: true,
         expect: { files: 1, problems: [], blockers: ['no-manifest'] },
     },
+    // ── The OTHER direction of the same idea ────────────────────────────────────
+    //
+    // An adapter must carry no widget knowledge; a subpath published as
+    // framework-NEUTRAL must carry no framework. `@gjsify/gtk-host/list` is the first,
+    // and its header calls that constraint "the whole point" — while nothing checked
+    // it, because this script's only scope was `src/adapters`. These five are that
+    // half's missing check.
+    {
+        name: 'framework-free-clean',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/list/index.ts': `import Gio from 'gi://Gio';\n\nexport const store = () => Gio.ListStore;\n`,
+        },
+        frameworkFree: ['./list'],
+        expect: { files: 1, problems: [], blockers: [] },
+    },
+    {
+        // The violation the rule exists for, in the spelling it would actually arrive in.
+        name: 'framework-free-imports-solid',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/list/index.ts': `import { createSignal } from 'solid-js';\n\nexport const s = createSignal;\n`,
+        },
+        frameworkFree: ['./list'],
+        expect: { files: 1, problems: ['framework-import'], blockers: [] },
+    },
+    {
+        // A TYPE-ONLY import compiles to nothing and is still a violation: the neutral
+        // module would be describing itself in one framework's vocabulary, and the next
+        // edit makes it a value. The seam is generic in its handle so it needs no such type.
+        name: 'framework-free-type-only-import',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/list/index.ts': `import type { Component } from 'vue';\n\nexport type C = Component;\n`,
+        },
+        frameworkFree: ['./list'],
+        expect: { files: 1, problems: ['framework-import'], blockers: [] },
+    },
+    {
+        // The same violation wearing a PATH. Every adapter imports its framework, so a
+        // relative hop into one reaches the framework — and a bare-specifier pattern
+        // alone would report this file clean.
+        name: 'framework-free-via-adapter-hop',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/list/index.ts': `import { render } from '../adapters/solid.js';\n\nexport const r = render;\n`,
+        },
+        frameworkFree: ['./list'],
+        expect: { files: 1, problems: ['framework-import'], blockers: [] },
+    },
+    {
+        // Published and unreadable is the vacuity case: a promise of neutrality whose
+        // source this check never opened is a promise with no ratchet, and it must be a
+        // BLOCKER rather than an empty green scan.
+        name: 'framework-free-declared-but-absent',
+        files: { 'src/adapters/toy.ts': CLEAN_ADAPTER },
+        frameworkFree: ['./list'],
+        expect: { files: 1, problems: [], blockers: ['unscanned-framework-free'] },
+    },
 ];
 
 /** The manifest a fixture publishes: `.` plus one `./lib/esm/adapters/<name>.js` per declared adapter. */
@@ -422,6 +481,17 @@ function fixtureManifest(fixture) {
         exported[subpath] = {
             types: `./lib/types/adapters/${module}.d.ts`,
             default: `./lib/esm/adapters/${module}.js`,
+        };
+    }
+    // A FRAMEWORK-FREE subpath is published as a directory entry (`<dir>/index.js`), not
+    // as an adapter module, and that difference is load-bearing: the check derives the
+    // source directory from this target, so a fixture that spelled it the adapter way
+    // would exercise a path the real manifest never takes.
+    for (const subpath of fixture.frameworkFree ?? []) {
+        const dir = subpath.replace(/^\.\//, '');
+        exported[subpath] = {
+            types: `./lib/types/${dir}/index.d.ts`,
+            default: `./lib/esm/${dir}/index.js`,
         };
     }
     return { name: `@gjsify/fixture-${fixture.name}`, private: true, type: 'module', exports: exported };

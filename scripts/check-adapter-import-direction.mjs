@@ -155,6 +155,37 @@ const PLACEMENT = new RegExp(
 const HOST_INTERNALS = new Set(['descriptors', 'policies', 'registry']);
 
 /**
+ * Published subpaths whose WHOLE POINT is carrying no UI framework, checked here for the
+ * same reason the adapters are: a constraint asserted only in the prose that asserts it
+ * has no ratchet, and this milestone has already paid for that class twice.
+ *
+ * `@gjsify/gtk-host/list` is the first. Its header says it "imports no React, no Solid
+ * and no Vue, and must not — that constraint is the whole point", because the model, the
+ * factory and the key diff behind a `Gtk.ListView` are GTK facts three dialects would
+ * otherwise each own a copy of. Nothing stopped a future `import { createSignal } from
+ * 'solid-js'` there: `src/adapters` is this check's only scope, and `src/list` was
+ * covered by no gate at all.
+ *
+ * A NAME here, not a directory: the source dir is derived from the manifest, so a
+ * subpath that is renamed or that stops being published turns into the
+ * `unscanned-framework-free` blocker rather than into silence. Adding a neutral subpath
+ * to this list is how it gets its ratchet.
+ */
+const FRAMEWORK_FREE_SUBPATHS = ['./list'];
+
+/** `./lib/esm/<dir>/index.js` — where a framework-free subpath's source is, via `src/<dir>`. */
+const PUBLISHED_ENTRY = /^\.\/lib\/esm\/(.+)\/index\.js$/;
+
+/**
+ * A UI framework, as a bare module specifier.
+ *
+ * Anchored and segment-bounded so `react` and `react-dom/client` match while a package
+ * merely NAMED for one (`solid-js-is-not-this`) does not. `@vue/runtime-core` is the
+ * spelling the host's own Vue adapter uses, and `vue` is what an application writes.
+ */
+const FRAMEWORK_SPECIFIER = /^(?:react|react-dom|react-reconciler|solid-js|vue|@vue\/[\w.-]+|preact|svelte)(?:\/|$)/;
+
+/**
  * A `gi://` specifier is a RUNTIME typelib import, and no adapter may hold one.
  *
  * The type layer is `@girs/*` (ADR 0028 § 3), which an adapter imports with
@@ -389,6 +420,32 @@ function importProblems(code) {
     return found;
 }
 
+/**
+ * Framework imports in `code`, which has already been through the comment stripper.
+ *
+ * A TYPE-ONLY import is a violation here and is not one in an adapter, so this is a
+ * separate pass rather than a flag on the one above: `import type { Component } from
+ * 'vue'` compiles to nothing, but it means the neutral module is describing itself in a
+ * framework's vocabulary, and the next edit makes it a value. The seam is generic in its
+ * handle precisely so it needs no such type.
+ */
+function frameworkImports(code) {
+    const found = [];
+    const pattern = new RegExp(SPECIFIER_SOURCE, 'g');
+    let match = pattern.exec(code);
+    while (match !== null) {
+        const specifier = match[2];
+        // A RELATIVE hop into the adapters is the same violation wearing a path: every
+        // adapter imports its framework, so reaching one reaches the framework.
+        const viaAdapter = specifier.startsWith('.') && specifier.split('/').includes('adapters');
+        if (FRAMEWORK_SPECIFIER.test(specifier) || viaAdapter) {
+            found.push({ kind: 'framework-import', specifier, index: match.index });
+        }
+        match = pattern.exec(code);
+    }
+    return found;
+}
+
 /** What each import kind tells the reader to do instead. */
 const IMPORT_ADVICE = {
     'host-internal-import': (specifier) => `imports the host's internals: ${specifier}`,
@@ -397,6 +454,11 @@ const IMPORT_ADVICE = {
         `host ops and never touches GTK itself — take the type from @girs/* with "import type", and ` +
         `if a widget really has to be BUILT, that is a host op (see createDetachedContainer), not an ` +
         `adapter's business.`,
+    'framework-import': (specifier) =>
+        `imports a UI framework: ${specifier}. This subpath is published as framework-NEUTRAL — that ` +
+        `is what lets one measurement serve every renderer instead of one copy per dialect. Put the ` +
+        `framework-shaped half behind the seam the module already publishes (a callback the dialect ` +
+        `supplies), or in that dialect's own adapter under src/adapters.`,
 };
 
 /** Every file under `dir`, recursively, sorted — symlinks resolved so a linked adapter counts. */
@@ -491,6 +553,44 @@ function scanFile(path) {
     return found.sort((a, b) => a.line - b.line);
 }
 
+/** One framework-free source file: no framework import, by value or by type. */
+function scanFrameworkFree(path) {
+    const code = stripComments(readFileSync(path, 'utf8')).join('\n');
+    return frameworkImports(code)
+        .map((hit) => ({
+            kind: hit.kind,
+            line: code.slice(0, hit.index).split('\n').length,
+            path,
+            message: IMPORT_ADVICE[hit.kind](hit.specifier),
+        }))
+        .sort((a, b) => a.line - b.line);
+}
+
+/**
+ * The framework-free subpaths this package publishes, as { subpath, dir } under `src/`.
+ *
+ * Read from the MANIFEST, so a renamed or unpublished subpath becomes a blocker instead
+ * of a silently empty scan.
+ */
+function frameworkFreeDirs(pkgDir, manifestPath) {
+    let manifest;
+    try {
+        manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    } catch {
+        // The adapters pass already reports an unreadable manifest as `no-manifest`;
+        // reporting it twice would say nothing new.
+        return [];
+    }
+    const out = [];
+    for (const subpath of FRAMEWORK_FREE_SUBPATHS) {
+        const target = manifest.exports?.[subpath];
+        const file = typeof target === 'string' ? target : target?.default;
+        const match = typeof file === 'string' ? PUBLISHED_ENTRY.exec(file) : null;
+        out.push({ subpath, dir: match === null ? null : join(pkgDir, 'src', ...match[1].split('/')) });
+    }
+    return out;
+}
+
 /**
  * Scan one package. `blockers` are the reasons a green result would mean nothing — an empty
  * adapter set, a file the walk cannot read, a published adapter whose source it never reached.
@@ -509,7 +609,7 @@ function evaluate(pkgDir) {
         // Every array the reporter reads, even on the path that cannot reach it today: the
         // reporter's `result.specs.length` is a TypeError the moment a non-fatal blocker kind
         // is added, and the self-test below asserts these four exist for exactly that reason.
-        return { dir, scanned: [], specs: [], nonCode: [], unreadable: [], problems, blockers };
+        return { dir, scanned: [], specs: [], nonCode: [], unreadable: [], problems, blockers, neutral: [] };
     }
 
     const { scanned, specs, nonCode, unreadable } = classify(walk(dir));
@@ -569,7 +669,38 @@ function evaluate(pkgDir) {
     }
 
     for (const path of scanned) problems.push(...scanFile(path));
-    return { dir, scanned, specs, nonCode, unreadable, problems, blockers };
+
+    // The framework-free subpaths, held to the OTHER direction of the same idea: an
+    // adapter must carry no widget knowledge, a neutral module must carry no framework.
+    const neutral = [];
+    for (const { subpath, dir: srcDir } of frameworkFreeDirs(pkgDir, join(pkgDir, 'package.json'))) {
+        // A package that does not publish the subpath at all is not in scope — only
+        // gtk-host declares one today, and every fixture below would otherwise blocker.
+        if (srcDir === null) continue;
+        if (!existsSync(srcDir)) {
+            blockers.push({
+                kind: 'unscanned-framework-free',
+                message:
+                    `package.json publishes "${subpath}" as a framework-free subpath and its source ` +
+                    `directory ${srcDir} does not exist. A promise of neutrality with no source read ` +
+                    'is a promise with no ratchet.',
+            });
+            continue;
+        }
+        const files = classify(walk(srcDir));
+        const sources = files.scanned;
+        if (sources.length === 0) {
+            blockers.push({
+                kind: 'unscanned-framework-free',
+                message: `"${subpath}" resolves to ${srcDir} and this check read no source there.`,
+            });
+            continue;
+        }
+        neutral.push(...sources);
+        for (const path of sources) problems.push(...scanFrameworkFree(path));
+    }
+
+    return { dir, scanned, specs, nonCode, unreadable, problems, blockers, neutral };
 }
 
 const kinds = (entries) => entries.map((entry) => entry.kind).sort();
@@ -686,5 +817,6 @@ if (result.problems.length > 0) {
 const skipped = result.specs.length + result.nonCode.length;
 console.log(
     `check-adapter-import-direction: ${result.scanned.length} adapter(s) carry no widget knowledge` +
-        `${skipped > 0 ? ` (${result.specs.length} spec(s), ${result.nonCode.length} non-code file(s) skipped)` : ''}.`,
+        `${skipped > 0 ? ` (${result.specs.length} spec(s), ${result.nonCode.length} non-code file(s) skipped)` : ''}` +
+        `; ${result.neutral.length} framework-free source(s) carry no framework.`,
 );
