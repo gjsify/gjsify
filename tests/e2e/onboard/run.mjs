@@ -106,6 +106,16 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
                 const name = decodeName(trustMatch[1]);
                 if (method === 'GET') {
                     const st = pkgState[name];
+                    // A 401 with NO `www-authenticate: OTP` — not an answerable
+                    // challenge, so the state stays unreadable after the retry.
+                    // This is what an unauthenticated sweep sees for EVERY
+                    // package, and the shape that used to exit 0.
+                    if (st?.unreadable) {
+                        res.statusCode = 401;
+                        res.setHeader('content-type', 'application/json');
+                        res.end(JSON.stringify({ error: 'Unauthorized' }));
+                        return;
+                    }
                     // `emptyWhenAbsent` is what REAL npm does for a name nobody
                     // published: `200` with an empty trust list, indistinguishable
                     // from a published package that has no trusted publisher. The
@@ -222,6 +232,36 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             join(privDir, 'package.json'),
             JSON.stringify({ name: '@onb/private-one', version: '1.0.0', private: true }, null, 2) + '\n',
         );
+
+        const npmrcPath = join(root, 'auth.npmrc');
+        writeFileSync(npmrcPath, `//${host}/:_authToken=${token}\n`);
+        return { root, npmrcPath };
+    }
+
+    /**
+     * Scaffold a monorepo that is NOT an npm/yarn workspace: package directories
+     * at the top level and NO root package.json at all. This is `gjsify/types`
+     * in miniature — 704 `@girs/*` directories under a root whose only tracked
+     * file is `.gitignore` — and it is the shape onboard could not see before
+     * `--packages`: workspace discovery threw on the missing root manifest, so
+     * the sweep never got as far as producing an empty list.
+     */
+    function scaffoldFlatRepo(token) {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-onboard-flat-'));
+        const pkg = (name, dir, extra = {}) => {
+            const d = join(root, dir);
+            mkdirSync(d, { recursive: true });
+            writeFileSync(
+                join(d, 'package.json'),
+                JSON.stringify({ name, version: '4.2.0', type: 'module', ...extra }, null, 2) + '\n',
+            );
+        };
+        pkg('@onb/flat-gtk', 'gtk-4.0');
+        pkg('@onb/flat-adw', 'adw-1');
+        pkg('@onb/flat-gio', 'gio-2.0');
+        pkg('@onb/flat-private', 'private-ns', { private: true });
+        // A directory that is not a package — the glob must skip it silently.
+        mkdirSync(join(root, 'docs'), { recursive: true });
 
         const npmrcPath = join(root, 'auth.npmrc');
         writeFileSync(npmrcPath, `//${host}/:_authToken=${token}\n`);
@@ -415,6 +455,93 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             });
             assert.equal(code, 0, `onboard should recover via login and exit 0; stdout:\n${stdout}`);
             assert.equal(loginHits, 1, 'a dead token must trigger exactly one login');
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('sweeps a monorepo with NO root package.json via --packages', async () => {
+        // The generalization gate. Without `--packages` there is no package set
+        // here at all, and the failure is not "0 packages" — `discoverWorkspaces`
+        // throws before it enumerates, so the sweep cannot even report its gap.
+        pkgState = {};
+        const { root, npmrcPath } = scaffoldFlatRepo(LIVE_TOKEN);
+        try {
+            const { code, stdout } = await runOnboard(root, npmrcPath, ['--packages', '*']);
+            assert.equal(code, 0, `onboard should exit 0; stdout:\n${stdout}`);
+
+            const publishedNames = publishPuts.map((p) => p.name).sort();
+            assert.deepEqual(publishedNames, ['@onb/flat-adw', '@onb/flat-gio', '@onb/flat-gtk']);
+            const trustedNames = trustPosts.map((p) => p.name).sort();
+            assert.deepEqual(trustedNames, ['@onb/flat-adw', '@onb/flat-gio', '@onb/flat-gtk']);
+            // `--no-private` still holds, and a non-package directory is skipped.
+            assert.ok(!publishPuts.some((p) => p.name === '@onb/flat-private'));
+            // The sweep says WHERE its package set came from — a total alone
+            // cannot distinguish the right tree from a plausible wrong one.
+            // Discovery reports what it FOUND (4, the private one included);
+            // the selection line reports what survived `--no-private`. Both
+            // numbers, because "3 packages" alone cannot tell a correct filter
+            // from a glob that silently missed a directory.
+            assert.match(stdout, /packages\(\*\)=4/);
+            assert.match(stdout, /3 of 4 package\(s\) selected/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('--packages matching nothing is a HARD ERROR, not an empty sweep', async () => {
+        // A filter that selects nothing is a typo or a shell-quoting bug. Silently
+        // succeeding on it is the worst outcome available: a bootstrap command
+        // reporting its own gap as closed.
+        pkgState = {};
+        const { root, npmrcPath } = scaffoldFlatRepo(LIVE_TOKEN);
+        try {
+            const { code, stdout, stderr } = await runOnboard(root, npmrcPath, ['--packages', 'packages/*']);
+            assert.notEqual(code, 0, 'a --packages glob that matches nothing must fail');
+            assert.equal(publishPuts.length, 0, 'nothing may be published on a failed discovery');
+            assert.equal(trustPosts.length, 0, 'nothing may be trusted on a failed discovery');
+            // Name the pattern: "0 packages" sends people hunting in the registry
+            // instead of in their own quoting.
+            assert.match(stderr + stdout, /"packages\/\*"/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('--exclude filters by package name (the @girs/* hardcode is now a flag)', async () => {
+        pkgState = {};
+        const { root, npmrcPath } = scaffoldFlatRepo(LIVE_TOKEN);
+        try {
+            const { code } = await runOnboard(root, npmrcPath, ['--packages', '*', '--exclude', '@onb/flat-gio']);
+            assert.equal(code, 0);
+            assert.deepEqual(publishPuts.map((p) => p.name).sort(), ['@onb/flat-adw', '@onb/flat-gtk']);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('--dry-run that could not READ a state exits non-zero', async () => {
+        // The plan is the entire product of a dry-run. Reporting `0 to publish,
+        // 0 to trust` for packages whose state was never read, under exit 0, is
+        // a plan that was never computed wearing the shape of one that found
+        // nothing to do. Measured on `gjsify/types` before this: 703 packages,
+        // 703 unreadable, exit 0.
+        pkgState = {
+            '@onb/published-trusted': { published: true, trusted: true },
+            '@onb/published-untrusted': { published: true, trusted: true },
+            '@onb/unpublished-a': { published: true, trusted: true },
+            '@onb/unpublished-b': { published: true, trusted: true },
+            // Published (so the packument oracle cannot reclassify it) but its
+            // trust state is unreadable.
+            '@onb/never-published-2xx': { published: true, trusted: true, unreadable: true },
+        };
+        const { root, npmrcPath } = scaffoldMonorepo(LIVE_TOKEN);
+        try {
+            const { code, stdout } = await runOnboard(root, npmrcPath, ['--dry-run']);
+            assert.notEqual(code, 0, '--dry-run must not exit 0 when a state could not be read');
+            assert.match(stdout, /INCOMPLETE/);
+            assert.equal(publishPuts.length, 0, '--dry-run still changes nothing');
+            assert.equal(trustPosts.length, 0, '--dry-run still changes nothing');
         } finally {
             rmSync(root, { recursive: true, force: true });
         }
