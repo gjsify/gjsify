@@ -40,6 +40,10 @@
 //      unheld vocabulary: a tag that stops existing, a prop that was never a prop,
 //      or a slot no descriptor declares fails here rather than at render time in
 //      three showcases.
+//   5b. Every `uncurated-placement` refusal is TRUE (its GType still has no curated
+//      descriptor) and is actually PROBED, and every placement the probe measures is
+//      either a gallery refusal or ledgered in the probe itself. Nothing held the two
+//      lists against each other, so a stale claim and an unmeasured one both read green.
 //   6. Every snippet the website ships occurs, line for line, in the probe showcase
 //      that COMPILES AND RUNS it. Both come from one generator run, so today they
 //      cannot disagree — and that is exactly why it is worth asserting: the day a
@@ -394,6 +398,99 @@ if (widgetsSrc === null || propsSrc === null || descriptorFiles.some((f) => f ==
         for (const child of node.children ?? []) walk(child, widget, node);
     };
     for (const tree of ADWAITA_GALLERY_TREES) walk(tree.root, tree.widget, null);
+
+    // ---------------------------------------------------------------------------
+    // 5b. the uncurated-placement claims, and the probe that is supposed to measure
+    // ---------------------------------------------------------------------------
+    //
+    // The SAME rule as the NativeScript refusal arm below — a refusal reason is a
+    // CLAIM, and a claim nothing reads is prose — but a different predicate, because
+    // the two ports refuse for different mechanical reasons. NativeScript's reasons
+    // name a widget MEMBER (an array property, a missing `_addChildFromBuilder`), so
+    // they are checked against the widget classes. These name `uncurated-placement`,
+    // which is `gtk-host`'s own refusal for a child placed into a widget whose
+    // descriptor declares no child policy — a property of the DESCRIPTOR TABLE, which
+    // moves when the table does. One predicate over both would have to be so loose it
+    // checked neither.
+    //
+    // Both directions, because both have gone wrong here before: #1368 curated five
+    // containers and three refusals became stale overnight — `probe:refusals` is what
+    // said so — and the reverse, a reason claiming a placement nothing probes, had
+    // nothing looking at all.
+    const PROBE_REFUSALS = 'showcases/gtk/adwaita-gallery-solid/src/refusals.ts';
+    let probeText = null;
+    try {
+        probeText = readFileSync(join(ROOT, PROBE_REFUSALS), 'utf8');
+    } catch {
+        probeText = null;
+    }
+    if (probeText === null) {
+        failures.push(`${PROBE_REFUSALS} is unreadable — arm 5b would pass vacuously`);
+    } else {
+        const list = /const PLACEMENTS: readonly \[parent: string, child: string\]\[\] = \[([\s\S]*?)\n\];/.exec(
+            probeText,
+        );
+        const probed = new Map(
+            list === null ? [] : [...list[1].matchAll(/\['([^']+)',\s*'([^']+)'\]/g)].map((m) => [m[1], m[2]]),
+        );
+        const ledgerBlock = /PLACEMENTS_NOT_IN_THE_GALLERY: Record<string, string> = \{([\s\S]*?)\n\};/.exec(probeText);
+        const notInGallery = new Set(
+            ledgerBlock === null ? [] : [...ledgerBlock[1].matchAll(/^\s{4}'([^']+)':/gm)].map((m) => m[1]),
+        );
+
+        if (probed.size === 0)
+            failures.push(`${PROBE_REFUSALS}: its PLACEMENTS list read as empty — arm 5b proved nothing`);
+
+        /** `adw-wrap-box` -> `Adw.WrapBox`, the gallery title a placement refuses for. */
+        const titleOfTag = (tag) => {
+            const gtype = gtypeOfTag(tag);
+            return `${gtype.slice(0, 3)}.${gtype.slice(3)}`;
+        };
+
+        for (const [widget, reason] of Object.entries(ADWAITA_GALLERY_REFUSALS)) {
+            if (!reason.includes('uncurated-placement')) continue;
+            const gtype = widget.replace('.', '');
+            if (curatedSlots.has(gtype)) {
+                failures.push(
+                    `"${widget}" is refused as uncurated-placement, but ${gtype} HAS a curated descriptor now. ` +
+                        'The refusal is stale — that block can have a tree. (#1368 turned three of these green ' +
+                        'at once, and only the probe noticed.)',
+                );
+            }
+            const tag = [...probed.keys()].find((t) => titleOfTag(t) === widget);
+            if (tag === undefined) {
+                failures.push(
+                    `"${widget}" claims uncurated-placement and ${PROBE_REFUSALS} probes no placement into it, ` +
+                        'so the claim is never measured. Add the parent/child pair to PLACEMENTS.',
+                );
+            }
+        }
+
+        for (const parent of probed.keys()) {
+            if (notInGallery.has(parent)) continue;
+            const widget = titleOfTag(parent);
+            if (!Object.hasOwn(ADWAITA_GALLERY_REFUSALS, widget)) {
+                failures.push(
+                    `${PROBE_REFUSALS} probes <${parent}>, which is neither a refusal in the gallery ledger ` +
+                        `(as "${widget}") nor an entry in its own PLACEMENTS_NOT_IN_THE_GALLERY. A probe measuring ` +
+                        'something nothing claims is a pass about nothing.',
+                );
+            }
+        }
+
+        for (const parent of notInGallery) {
+            if (!probed.has(parent)) {
+                failures.push(
+                    `${PROBE_REFUSALS}: PLACEMENTS_NOT_IN_THE_GALLERY names <${parent}>, which PLACEMENTS does ` +
+                        'not probe. Drop the entry — a stale exemption reads as considered.',
+                );
+            }
+        }
+        notes.push(
+            `${probed.size} probed placement(s), ${notInGallery.size} ledgered as not-a-gallery-block, ` +
+                'each uncurated-placement refusal measured',
+        );
+    }
     notes.push(
         `${ADWAITA_GALLERY_TREES.length} framework tree(s), ` +
             `${Object.keys(ADWAITA_GALLERY_REFUSALS).length} refusal(s), against ${hostTags.size} gtk-host tag(s)`,

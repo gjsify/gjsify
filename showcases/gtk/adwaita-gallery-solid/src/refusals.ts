@@ -57,6 +57,22 @@ const PLACEMENTS: readonly [parent: string, child: string][] = [
     ['gtk-action-bar', 'gtk-button'],
 ];
 
+/**
+ * Placements probed here that are NOT a gallery block's refusal, with the reason.
+ *
+ * A LEDGER and not a comment, because `check-generated-website-data.mjs` holds this list
+ * and `ADWAITA_GALLERY_REFUSALS` against each other: every placement below is either a
+ * refusal the gallery makes or an entry here. Nothing held the two before, so a refusal
+ * could claim `uncurated-placement` with nothing probing it, and a probe could measure a
+ * placement no page refuses — in both directions, green.
+ */
+export const PLACEMENTS_NOT_IN_THE_GALLERY: Record<string, string> = {
+    'adw-navigation-split-view':
+        'curated by #1368, so this is no longer a PLACEMENT refusal — GTK refuses the child TYPE. Probed because the gallery TREE depends on it: the slots take an Adw.NavigationPage and nothing else.',
+    'gtk-action-bar':
+        "not a gallery block of its own, but the reason Adw.ToolbarView's bottom bar is a styled box in every framework snippet while the GJS and Blueprint tabs use the real thing.",
+};
+
 let refused = 0;
 const accepted: string[] = [];
 for (const [parentTag, childTag] of PLACEMENTS) {
