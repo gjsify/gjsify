@@ -476,12 +476,20 @@ export default async () => {
                 expect(seen).toStrictEqual(['xyz!']);
             });
 
-            await it('does not report an echo our write raised on ANOTHER object', async () => {
-                // Why the guard is a module-wide counter and not
-                // `g_signal_handler_block()` on the widget being written. MEASURED:
-                // writing `active` on one grouped `Gtk.CheckButton` makes the OTHER
-                // emit `notify::active` AND `toggled`. Blocking reaches only the
-                // object in hand, so it would leave this one re-entering.
+            await it('drops the notify our write raised on ANOTHER object, not the rest', async () => {
+                // The two halves of the guard, on ONE pair, because the pair is what
+                // separates them. MEASURED on gjs 1.88.1 / GTK 4.22.4: writing
+                // `active` on one grouped `Gtk.CheckButton` makes the OTHER emit
+                // `notify::active` AND `toggled` — a handler of ours on an object the
+                // writer never touched.
+                //
+                // `notify::active` on B is an echo: it reports a property, and a
+                // property write is the whole of what it can report. `toggled` is
+                // not. It is the only notice B's component will ever get that B
+                // turned itself off, and that component wrote nothing to reconcile
+                // it with — dropping it leaves the component's state disagreeing
+                // with GTK for ever, silently, which is the failure this host
+                // exists to refuse.
                 const a = createElement('GtkCheckButton');
                 const b = createElement('GtkCheckButton');
                 materialize(a);
@@ -490,21 +498,118 @@ export default async () => {
                 (b.widget as unknown as Gtk.CheckButton).set_group(a.widget as unknown as Gtk.CheckButton);
                 setProp(b, 'active', true);
 
-                let echoed = 0;
+                const seen: string[] = [];
                 setEventHandler(b, 'onNotifyActive', () => {
-                    echoed += 1;
+                    seen.push('notify::active');
                 });
                 setEventHandler(b, 'onToggled', () => {
-                    echoed += 1;
+                    seen.push('toggled');
                 });
                 setProp(a, 'active', true);
                 expect((b.widget as unknown as Gtk.CheckButton).get_active()).toBe(false);
-                expect(echoed).toBe(0);
-                // Positive control on the same pair: a change B did not get from us
-                // still reaches both handlers.
+                expect(seen).toStrictEqual(['toggled']);
+                // The control, and it has to cover BOTH handlers: asserting that the
+                // notify half stayed quiet passes just as well when that handler was
+                // never connected. A change B did not get from us reaches both.
+                seen.length = 0;
                 (a.widget as unknown as Gtk.CheckButton).set_active(false);
                 (b.widget as unknown as Gtk.CheckButton).set_active(true);
-                expect(echoed).toBe(2);
+                expect(seen).toStrictEqual(['notify::active', 'toggled']);
+            });
+
+            await it('reports what our write did to a DESCENDANT', async () => {
+                // The quadrant nobody measured when the guard was widened from
+                // `notify::` to every signal: a consequence on an object we did not
+                // write. MEASURED, and the propagation needs no window at all —
+                // writing `sensitive` on a `Gtk.Box` emits `state-flags-changed` on
+                // every descendant, detached, because insensitivity is inherited.
+                //
+                // `visible` is the same shape and the more common one, and it was
+                // measured too: on a presented window a host `visible` write emits
+                // `unmap`/`map` on the descendants. It is not the vector here only
+                // because a mapped widget needs `present()`, and this suite stays off
+                // every question a compositor could ask.
+                const box = createElement('GtkBox');
+                const label = createElement('GtkLabel', { label: 'x' });
+                insert(label, box);
+                materialize(box);
+
+                const seen: string[] = [];
+                setEventHandler(label, 'onStateFlagsChanged', () => {
+                    seen.push('label');
+                });
+                setEventHandler(box, 'onStateFlagsChanged', () => {
+                    seen.push('box');
+                });
+                setProp(box, 'sensitive', false);
+                // The label really did change, and it is the only place that says so.
+                expect((label.widget as unknown as Gtk.Widget).is_sensitive()).toBe(false);
+                // The box's own emission IS the echo of the box's own write, so the
+                // same vector carries the negative control: one name, not two.
+                expect(seen).toStrictEqual(['label']);
+            });
+
+            await it('reports what our write did to a sibling over shared GTK state', async () => {
+                // A `Gtk.Adjustment` shared by two widgets is GTK's own idiom (a
+                // `Gtk.Scale` next to a `Gtk.SpinButton` over one range), and it puts
+                // the consequence on a sibling rather than a child. MEASURED: a
+                // `value` write on the first emits `value-changed` on the second.
+                const adjustment = new Gtk.Adjustment({ lower: 0, upper: 100, value: 0, stepIncrement: 1 });
+                const a = createElement('GtkSpinButton', { adjustment });
+                const b = createElement('GtkSpinButton', { adjustment });
+                materialize(a);
+                materialize(b);
+
+                const seen: string[] = [];
+                setEventHandler(a, 'onValueChanged', () => {
+                    seen.push(`a:${(a.widget as unknown as Gtk.SpinButton).get_value()}`);
+                });
+                setEventHandler(b, 'onValueChanged', () => {
+                    seen.push(`b:${(b.widget as unknown as Gtk.SpinButton).get_value()}`);
+                });
+                setProp(a, 'value', 42);
+                // A's own emission is the echo and stays silent; B's is the news.
+                expect(seen).toStrictEqual(['b:42']);
+                // The control for the half that was quiet: A's handler is connected,
+                // and a write A did not get from us reaches it.
+                seen.length = 0;
+                (a.widget as unknown as Gtk.SpinButton).set_value(7);
+                expect(seen).toStrictEqual(['a:7', 'b:7']);
+            });
+
+            await it('still drops a signal our write raised on the object we wrote, even about another property', async () => {
+                // The COST of the target leg, pinned rather than left to be
+                // rediscovered as a bug. MEASURED: writing `selection-mode` on a
+                // `Gtk.ListBox` clears the selection and emits `row-selected` — a
+                // different property from the one written, on the object we wrote,
+                // so the guard drops it and a component tracking the selection is
+                // left disagreeing with GTK.
+                //
+                // It is not special-cased, and that is the point: from inside this
+                // callback `row-selected` after a `selection-mode` write is
+                // indistinguishable from `Gtk.Editable::changed` after a `text`
+                // write, and THAT one has to stay dropped — it carries an
+                // intermediate empty string a controlled input reads as the user
+                // clearing the field. One of the two has to give, and the rule says
+                // which without asking the caller to know.
+                const list = createElement('GtkListBox');
+                const row = createElement('GtkListBoxRow');
+                insert(row, list);
+                const widget = materialize(list) as unknown as Gtk.ListBox;
+                widget.select_row(row.widget as unknown as Gtk.ListBoxRow);
+
+                let selections = 0;
+                setEventHandler(list, 'onRowSelected', () => {
+                    selections += 1;
+                });
+                setProp(list, 'selection-mode', 'none');
+                expect(widget.get_selected_row()).toBe(null); // GTK really did clear it
+                expect(selections).toBe(0);
+                // The control: the handler is live, and a selection we did not write
+                // reaches it.
+                setProp(list, 'selection-mode', 'single');
+                widget.select_row(row.widget as unknown as Gtk.ListBoxRow);
+                expect(selections).toBe(1);
             });
 
             await it('refuses two props that resolve to one signal', async () => {

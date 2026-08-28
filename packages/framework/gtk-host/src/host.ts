@@ -103,7 +103,11 @@ export function materialize(el: HostElement): GObject.Object {
         const spec = requireSpec(specs, el.descriptor.gtype, name);
         initial[name] = coerce(spec, value, el.descriptor.gtype);
     }
-    beginHostWrite();
+    // No target: the object does not exist yet, so no handler of ours can be on
+    // it. What CAN fire here is a knock-on on some other object — constructing a
+    // grouped `Gtk.CheckButton` deactivates its sibling — and that is news the
+    // sibling's component has no other way to get.
+    beginHostWrite(null);
     try {
         el.widget = new Klass(initial);
     } finally {
@@ -228,7 +232,7 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
     if (!el.widget) return; // buffered until materialisation
     if ((spec.flags & GObject.ParamFlags.CONSTRUCT_ONLY) !== 0) return rebuild(el, name, previouslyRecorded);
 
-    beginHostWrite();
+    beginHostWrite(el.widget);
     try {
         writeProperty(el.widget, name, value);
     } finally {
@@ -506,7 +510,7 @@ function writeTextSink(el: HostElement, text: string): void {
     }
     const specs = paramSpecs(el.descriptor.ctor(), el.descriptor.gtype);
     const spec = requireSpec(specs, el.descriptor.gtype, sink);
-    beginHostWrite();
+    beginHostWrite(el.widget);
     try {
         (el.widget as unknown as { set_property(n: string, v: unknown): void }).set_property(
             sink,
@@ -859,7 +863,7 @@ function restoreTextSink(el: HostElement): void {
     const recorded = el.props[sink] ?? el.props[camel];
     if (typeof recorded !== 'string' || recorded === '') return;
     const spec = requireSpec(paramSpecs(el.descriptor.ctor(), el.descriptor.gtype), el.descriptor.gtype, sink);
-    beginHostWrite();
+    beginHostWrite(el.widget);
     try {
         (el.widget as unknown as { set_property(n: string, v: unknown): void }).set_property(
             sink,

@@ -731,10 +731,19 @@ export const PRIMITIVES: Readonly<Record<string, PrimitiveSpec>> = {
             // emits `changed` TWICE — measured on gtk 4.22.4, `entry.text = 'abc'`
             // over `'xy'` gave `["", "abc"]`, an intermediate EMPTY string that a
             // controlled input would report as the user clearing the field.
-            // `notify::text` gave `["abc"]`. The host additionally suppresses a
-            // `notify::` raised by its OWN property write (`inHostWrite()` in
-            // `signals.ts`), which closes the render → set text → onChangeText →
-            // setState → render loop that `changed` would open.
+            // `notify::text` gave `["abc"]`. The host additionally suppresses an
+            // emission raised by its OWN property write (`signals.ts`), which
+            // closes the render → set text → onChangeText → setState → render loop
+            // that `changed` would open.
+            //
+            // That last sentence is NOT a reason to move the route, and the
+            // measurement that says so is here so the question stops being reopened:
+            // the host guard reaches the host's own writes and nothing else, so a
+            // write the host did not make still emits `changed` twice. Measured
+            // with the guard in place — `entry.set_text('pq')` over existing text
+            // gave `changed` `["", "pq"]` and `notify::text` `["pq"]`. Every
+            // imperative write through a ref is that path, and so is this layer's
+            // own `widgets.spec.ts` vector.
             onChangeText: { to: 'event', signal: 'notify::text', read: 'text' },
             onSubmitEditing: { to: 'event', signal: 'activate' },
         },
