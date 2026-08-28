@@ -1834,6 +1834,11 @@ gjsify onboard --yes                 # non-interactive
 
 What it does, in order: check the token is live (running the [`login`](#gjsify-login) flow only if it is not), enumerate the publishable packages, read each package's Trusted Publisher state concurrently, then act only on the gaps. One 2FA code is reused across every publish and trust operation, so a sweep of many packages usually asks you for a code once. Re-running when everything is already published and trusted does nothing and exits 0.
 
+The sweep reports progress through both phases: the state-read phase ticks (`read 600/703 — 590 to
+do, 10 already done`) and every write is numbered (`[123/662] trusted @acme/x`). Nothing else
+writes to the terminal while a 2FA prompt is open — such messages are held and flushed once you
+have answered, so a notice from a concurrent worker cannot land inside the digits you are typing.
+
 One 2FA code covers the whole sweep, and it is asked for **once at a time** — concurrent probes
 share the prompt rather than each opening their own. npm codes expire on their ~30-second window,
 so a long sweep may ask again later; each such expiry costs exactly one prompt.

@@ -55,6 +55,17 @@ export interface ProbeOptions {
      * nothing, so this delay is ours").
      */
     onRateLimit?: (info: { url: string; headers: string; waitMs: number; fromRetryAfter: boolean }) => void;
+    /**
+     * Called after each state read with what is known SO FAR.
+     *
+     * The probe phase is the silent half of a sweep: 703 packages take minutes
+     * and, until this existed, printed nothing at all between the header and the
+     * plan. The only output in that window was the occasional 2FA prompt, which
+     * makes a working sweep and a wedged one look identical — and the prompt is
+     * the moment a user most needs to know the previous code accomplished
+     * something.
+     */
+    onProgress?: (done: number, total: number, plan: PkgPlan) => void;
     /** Injected delay (tests pass a no-op). Default: real `setTimeout`. */
     sleep?: (ms: number) => Promise<void>;
     /**
@@ -325,9 +336,16 @@ export async function probeAllTrustStates(
     opts: ProbeOptions = {},
 ): Promise<PkgPlan[]> {
     if (selected.length === 0) return [];
-    const first = await probeTrustState(request, selected[0], ctx, opts);
-    const rest = await mapWithConcurrency(selected.slice(1), Math.max(1, concurrency), (ws) =>
-        probeTrustState(request, ws, ctx, opts),
+    const total = selected.length;
+    let done = 0;
+    const report = (plan: PkgPlan): PkgPlan => {
+        done++;
+        opts.onProgress?.(done, total, plan);
+        return plan;
+    };
+    const first = report(await probeTrustState(request, selected[0], ctx, opts));
+    const rest = await mapWithConcurrency(selected.slice(1), Math.max(1, concurrency), async (ws) =>
+        report(await probeTrustState(request, ws, ctx, opts)),
     );
     return [first, ...rest];
 }

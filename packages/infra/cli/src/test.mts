@@ -76,6 +76,7 @@ import npmOtpSuite from './utils/npm-otp.spec.js';
 import npmOtpCacheSuite from './utils/npm-otp-cache.spec.js';
 import onboardProbeSuite from './utils/onboard-probe.spec.js';
 import onboardDiscoverySuite from './utils/onboard-discovery.spec.js';
+import promptOutputSuite from './utils/prompt-output.spec.js';
 import resolvePluginByNameSuite from './utils/resolve-plugin-by-name.spec.js';
 import runtimeSuite from './runtime.spec.js';
 import gjsEntryWrapperSuite from './gjs-entry-wrapper.spec.js';
@@ -266,6 +267,7 @@ run(
         npmOtpCacheSuite,
         onboardProbeSuite,
         onboardDiscoverySuite,
+        promptOutputSuite,
         resolvePluginByNameSuite,
         runtimeSuite,
         gjsEntryWrapperSuite,
