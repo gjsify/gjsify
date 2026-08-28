@@ -107,6 +107,7 @@ interface Props {
 }
 
 import { ADWAITA_ATTRIBUTES } from '../data/adwaita-attributes';
+import { sampleAttributes } from './attr-sample.mjs';
 import AdwWidgetWindow from './AdwWidgetWindow.astro';
 
 const { title = 'Code', padding = 'comfortable', scroll = false, stage, docHref } = Astro.props;
@@ -295,53 +296,11 @@ if (collidingSlot !== undefined) {
     );
 }
 
-/**
- * What the block's own preview markup sets on this element, so the attribute table can
- * show a REAL value beside each name instead of asserting a type.
- *
- * The honest column would be "does this attribute take a value", and it is not available:
- * an element's own source answers it through `hasAttribute` vs `getAttribute`, and measured
- * across all 65 elements, 42 of the 260 attributes call neither or both. A column derived
- * from that would be a guess on one in six rows. The fence one tab to the left is not a
- * guess, and it is already on screen.
- *
- * It scans only the opening tags of THIS element. A quote-aware walk rather than
- * `/<tag[^>]*>/`, because an attribute value may contain `>` — `<adw-data-grid>`'s `columns`
- * carries JSON.
- *
- * A valueless attribute maps to `null`, which is the distinction HTML draws and the table
- * shows: `can-shrink` is written bare, `label` is written with a value.
- */
-const sampleAttributes = (markup: string | null, tag: string): Map<string, string | null> => {
-    const found = new Map<string, string | null>();
-    if (markup === null) return found;
-    for (let i = markup.indexOf(`<${tag}`); i !== -1; i = markup.indexOf(`<${tag}`, i + 1)) {
-        const after = markup[i + tag.length + 1];
-        // `<adw-button-content>` must not match `<adw-button-content-extra>`.
-        if (after !== undefined && !/[\s/>]/.test(after)) continue;
-        let end = i + tag.length + 1;
-        let quote = '';
-        while (end < markup.length && (quote !== '' || markup[end] !== '>')) {
-            const c = markup[end];
-            if (quote === '') {
-                if (c === '"' || c === "'") quote = c;
-            } else if (c === quote) quote = '';
-            end += 1;
-        }
-        for (const m of markup.slice(i + tag.length + 1, end).matchAll(/([a-zA-Z][\w-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'))?/g)) {
-            const name = m[1];
-            if (found.has(name)) continue;
-            found.set(name, m[2] ?? m[3] ?? null);
-        }
-    }
-    return found;
-};
-
 const rendered: {
     id: string;
     title: string;
     live: boolean;
-    attributes: { tag: string; names: string[]; sample: Map<string, string | null> } | null;
+    attributes: { tag: string; names: string[]; sample: Map<string, string> } | null;
     impls: string;
     tabs: { slot: string; label: string; html: string }[];
 }[] = [];
@@ -728,16 +687,19 @@ for (const spec of WINDOWS) {
         border-bottom: 0;
     }
 
-    /* Monospace by CLASS, not by a `<code>` element: the cell is resolved to a string in
-       the frontmatter (see AdwWidgetWindow — a JSX conditional cannot nest inside the
-       `.map()` that renders these rows), so the styling has to travel with it. */
+    /* Monospace by CLASS, not by a `<code>` element: `attr-sample.mjs` resolves each cell
+       to a string plus a class, so the styling has to travel with it. Starlight's own
+       inline-code styling is off in here anyway (`not-content`), so the element bought
+       nothing the class does not. */
     .adw-widget-attrs tbody th,
     .adw-widget-attrs .is-value {
         font-family: var(--__sl-font-mono);
         font-weight: 400;
     }
 
-    /* A row the preview does not exercise is the quieter fact of the two. */
+    /* Neither of these cells is a VALUE — one says the preview writes the attribute with
+       nothing after it, the other that it does not write it at all — so neither takes the
+       monospace above, and both step back from the cells that are. */
     .adw-widget-attrs .is-absent,
     .adw-widget-attrs .is-bare {
         color: var(--sl-color-gray-3);
