@@ -49,7 +49,17 @@ import {
     FORMAT_IDS,
     FORMATS,
 } from '../utils/ship/formats.js';
-import { hostLayout, layoutForOs, resolveLayout, placeStage, LAYOUT_NAMES, type Layout } from '../utils/ship/layout.js';
+import {
+    hostLayout,
+    layoutForOs,
+    place,
+    placeStage,
+    resolveLayout,
+    LAYOUT_NAMES,
+    type Layout,
+} from '../utils/ship/layout.js';
+import { compileSchemasForStage } from '../utils/ship/schemas.js';
+import { buildZip, zipEntriesFromPayload } from '../utils/ship/zip.js';
 import { scanGiNamespaces } from '../utils/ship/gi-namespaces.js';
 import {
     assertLauncherMatchesInterpreter,
@@ -74,7 +84,7 @@ import {
     writeStageManifest,
     STAGE_MANIFEST_FILE,
 } from '../utils/ship/stage-manifest.js';
-import { readStage, writeStage } from '../utils/ship/stage-writer.js';
+import { directorySize, readStage, writePayload, writeStage } from '../utils/ship/stage-writer.js';
 import type {
     FormatDescriptor,
     FormatId,
@@ -198,6 +208,12 @@ async function assemble(args: ShipOptions): Promise<void> {
     const ship = configData.ship ?? {};
     const flatpak = configData.flatpak ?? {};
     assertShippableTarget(configData.app);
+    // Resolved HERE and not from `settings`, because the format list is decided
+    // before anything is built and `resolveShipSettings` runs after. The
+    // defaulting rule is the one `resolveShipSettings` states and must stay the
+    // same one: an undeclared target means `gjs`, never the host runtime this
+    // command happens to run under.
+    const interpreter: 'gjs' | 'node' = configData.app === 'node' ? 'node' : 'gjs';
     const pkg = (readPackageJson(join(projectDir, 'package.json')) ?? {}) as ShipPackageManifest;
 
     // Resolved before anything is built or written: a typo'd `--target`
@@ -213,6 +229,8 @@ async function assemble(args: ShipOptions): Promise<void> {
     // command they had just run. And the derived default can legitimately be
     // EMPTY, which `resolveFormats` refuses — rightly, for a list a caller typed.
     let formats: FormatDescriptor[];
+    /** Formats that wrap this layout and cannot run this project — see the derived branch. */
+    let unusable: FormatDescriptor[] = [];
     if (args.target !== undefined) {
         formats = resolveFormats(args.target, layout);
     } else if (ship.targets !== undefined) {
@@ -229,9 +247,30 @@ async function assemble(args: ShipOptions): Promise<void> {
             );
         }
     } else {
-        formats = defaultFormatIds(layout.os).map((id) => FORMATS[id]);
+        // FILTERED BY THE INTERPRETER, and the third of the same shape as the two
+        // branches above: a derived default is not a claim anybody made, so a
+        // format this project cannot use is dropped rather than refused. It has to
+        // be — every format wrapping the darwin layout is `interpreters: ['node']`
+        // (there is no relocatable GJS to put in a bundle), so without this
+        // `gjsify ship darwin --stage` began exiting 1 on a `--app gjs` project,
+        // which is every project this command has today. Measured on the first cut
+        // of these rows: the whole audience of M1 lost the ability to assemble the
+        // layout M1 added, over a format none of them had asked for.
+        const wraps = defaultFormatIds(layout.os).map((id) => FORMATS[id]);
+        formats = wraps.filter((format) => format.interpreters.includes(interpreter));
+        unusable = wraps.filter((format) => !format.interpreters.includes(interpreter));
+        // SAID, like the layout filter one branch up. A stage whose `formats` is
+        // empty for this reason looks identical to one whose layout nothing wraps,
+        // and the two need different next steps.
+        if (unusable.length > 0) {
+            console.log(
+                `${LOG} ${unusable.map((format) => format.id).join(', ')} wrap the ${layout.name} layout but ` +
+                    `cannot run \`gjsify.app: "${interpreter}"\` — ${unusable[0]?.interpreterGap ?? ''}. ` +
+                    'Assembling the layout only; pass --target to be told the same thing as an error.',
+            );
+        }
     }
-    if (!args.stage) assertPackable(formats, layout, args.os === undefined ? 'host' : 'positional');
+    if (!args.stage) assertPackable(formats, layout, args.os === undefined ? 'host' : 'positional', unusable);
     // BEFORE the build, not before the pack. `gjsify ship` runs the project's
     // own `build` script first, so discovering a missing `flatpak-builder`
     // afterwards costs the whole build for a refusal that was knowable up
@@ -307,7 +346,24 @@ async function assemble(args: ShipOptions): Promise<void> {
     // rather than a slogan: the plan is the payload, `placeStage` is the layout
     // map, and `tests/e2e/ship-layout` asserts the three file sets agree modulo
     // exactly that map.
-    const planned = planStage(settings, stageInputs);
+    //
+    // The ONE prefix-relative addition a layout makes, and it is not a second
+    // plan: a layout with no install step has to carry `gschemas.compiled`,
+    // because every launcher points XDG_DATA_DIRS at the staged `share/` and
+    // GSettings ABORTS on a schema directory that holds only sources. On Linux the
+    // `.deb`/`.rpm` postinst compiles the SYSTEM directory at install time
+    // (`utils/ship/scripts.ts`), where our schemas merge with every other
+    // package's — shipping a prebuilt cache there would be a file the install step
+    // overwrites. So the compile is conditional on the layout and nothing else.
+    const planned = [
+        ...planStage(settings, stageInputs),
+        ...(layout.os === 'linux'
+            ? []
+            : await compileSchemasForStage({
+                  schemaFiles: settings.schemaFiles,
+                  workDir: join(outRoot, 'schemas'),
+              })),
+    ];
     const staged = placeStage(layout, settings, planned);
     writeStage(stageDir, staged);
     console.log(`${LOG} staged ${staged.length} file(s) for ${layout.name} in ${relative(projectDir, stageDir)}/`);
@@ -363,8 +419,26 @@ async function assemble(args: ShipOptions): Promise<void> {
     const namespaces = scanGiNamespaces(readFileSync(settings.bundlePath, 'utf-8'));
     if (args.verbose) console.log(`${LOG} gi namespaces: ${namespaces.join(', ') || '(none)'}`);
 
+    // PLACED, like the payload, and through the same map. `planOverlay` answers a
+    // question about the FORMAT (`share/doc/<pkg>/copyright` for Debian policy,
+    // `share/licenses/<pkg>/LICENSE` for rpm) in the prefix-relative shape every
+    // plan uses; `packOne` then merges the overlay into the payload it reads back,
+    // so the two have to be in one coordinate system. On Linux `place()` is the
+    // identity for `share/…` and nothing moves. On darwin the licence would
+    // otherwise land at the STAGE root, outside `<App>.app` — beside the bundle
+    // rather than in it, where `codesign` later refuses it and no user ever finds
+    // it. `dirs.other`'s doc already names that hazard for `extraFiles`; the
+    // overlay reaches it by the same route.
     const overlay = new Map<FormatId, StagedFile[]>();
-    for (const format of formats) overlay.set(format.id, planOverlay(settings, format, stageInputs));
+    for (const format of formats) {
+        overlay.set(
+            format.id,
+            planOverlay(settings, format, stageInputs).map((file) => ({
+                ...file,
+                path: place(layout, settings, file.path),
+            })),
+        );
+    }
 
     // The dependency derivation runs HERE as well, and its result is thrown
     // away. It is the only check in the pipeline that can refuse a project
@@ -415,9 +489,22 @@ async function assemble(args: ShipOptions): Promise<void> {
 
     if (args.stage) {
         // `(none)` spelled out, because an empty list printed as nothing after
-        // "formats " reads as a truncated line rather than as a fact about the
-        // layout — and for darwin and windows it is the whole story today.
-        const wraps = manifest.formats.join(', ') || '(none yet — ADR 0024 stages 4 and 5)';
+        // "formats " reads as a truncated line rather than as a fact — and for
+        // windows it is still the whole story. WHICH fact it is now depends on the
+        // layout: darwin has two formats, so an empty list there means this project
+        // cannot use them, and printing "none yet" would have told a `--app gjs`
+        // author to wait for a milestone that has already landed.
+        // Three reasons a list can be empty, and each names a different next step:
+        // this project cannot use the formats that wrap the layout; the layout has
+        // none; or the configured `targets` all wrap another one, which the branch
+        // above has already SAID in its own words rather than repeating here.
+        const none =
+            unusable.length > 0
+                ? `(none — ${unusable.map((format) => format.id).join(' and ')} need \`gjsify.app: "node"\`)`
+                : formatIdsFor(layout.os).length === 0
+                  ? `(none yet — no format wraps the ${layout.name} layout, ADR 0024 stage 5)`
+                  : '(none asked for)';
+        const wraps = manifest.formats.join(', ') || none;
         console.log(`${LOG} stage manifest: ${formatTarget(manifest.target)}, formats ${wraps}`);
         return;
     }
@@ -497,12 +584,24 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
     // caller never typed: a stage for a layout no format wraps carries
     // `formats: []`, and the empty-list refusal there names `--target` and the
     // three Linux formats — three sentences about the wrong thing.
-    if (args.target === undefined)
+    // THE STAGE'S list, not the layout's. The two agreed while darwin and windows
+    // had no formats at all, and stopped the moment two rows wrapped darwin: a
+    // `--app gjs` project's darwin stage records `formats: []` against a layout
+    // that now has two. Asking the layout would let that stage past this refusal
+    // and into `resolveFormats([])`, whose message is about a `--target` the caller
+    // never typed.
+    if (args.target === undefined) {
         assertPackable(
-            defaultFormatIds(layout.os).map((id) => FORMATS[id]),
+            manifest.formats.map((id) => FORMATS[id]),
             layout,
             'stage',
+            // What WOULD have wrapped it, so this can tell a `--app gjs` darwin
+            // stage apart from a windows one, which nothing wraps at all.
+            defaultFormatIds(layout.os)
+                .map((id) => FORMATS[id])
+                .filter((format) => !format.interpreters.includes(manifest.settings.app)),
         );
+    }
     const formats = resolveFormats(args.target ?? manifest.formats, layout);
     assertFormatsStaged(manifest, formats);
     for (const format of formats) assertCanPack(format);
@@ -624,12 +723,24 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // that IS architecture-specific.
     assertPayloadMatchesArch(payload, input.arch);
 
-    // The second half of the same idea, on the other label this package carries:
-    // the dependency list says which interpreter runs the app, and until now
-    // nothing compared it to the launcher that will. They CAN disagree — a stage
-    // assembled by one gjsify and packed by another — and a package that depends
-    // on `gjs` while execing `node` installs cleanly and dies at first launch.
-    if (format.depends !== null) assertLauncherMatchesInterpreter(payload, settings.binaryName, settings.app);
+    // The second half of the same idea, on the other label this artifact carries:
+    // something declares which interpreter runs the app, and until now nothing
+    // compared it to the launcher that will. They CAN disagree — a stage assembled
+    // by one gjsify and packed by another — and an artifact that promises one
+    // interpreter and runs another installs cleanly and dies at first launch.
+    //
+    // EVERY FORMAT, not only the ones with a `Depends:`. The guard used to run
+    // behind `format.depends !== null`, which was the right condition while the
+    // only declaration was a package list. The macOS rows have no dependency list
+    // and a HARDER promise instead: `interpreters: ['node']`, because there is no
+    // relocatable GJS to put in a bundle. So the launcher has to be read for them
+    // too. Widening this costs the Flatpak path nothing — its row is
+    // `interpreters: ['gjs']` and `assertFormatCanRunInterpreter` has already
+    // refused anything else — and the check is asymmetric by construction, so a
+    // launcher it cannot resolve stays silent rather than failing a working
+    // artifact.
+    const layout = layoutForOs(format.layoutOs);
+    assertLauncherMatchesInterpreter(payload, layout, settings, settings.app);
 
     const archLabel = format.archName(input.arch, isArchIndependent(payload));
     const common = { settings, payload, prefix: format.prefix, depends, archLabel, mtime };
@@ -670,13 +781,46 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 verbose: input.verbose,
             });
             break;
+        case 'macos-app':
+            // No container at all: a `<App>.app` IS the payload plus this format's
+            // overlay, written out. `writePayload` rather than a directory copy of
+            // the stage, so the same two properties every other packer has hold
+            // here — modes come from the plan (`readStage` has applied them, and
+            // the artifact upload that flattens them cannot reach in between), and
+            // the stage's own sidecar stays out because it was never payload.
+            //
+            // REBASED on the bundle root, which is the difference between the
+            // artifact and a directory containing it. Every staged path here
+            // already begins with `<App>.app/` — that is what `Layout.root` means —
+            // and `format.fileName` names the artifact the same thing, so writing
+            // them verbatim produced `out/Ship Demo.app/Ship Demo.app/Contents/…`:
+            // a folder the Finder does not treat as an application, with a real
+            // bundle hidden one level down. Measured, at exit 0, with `zipinfo` on
+            // the sibling zip showing the correct tree the whole time — the zip
+            // packs the same payload and needs no rebase, because the paths inside
+            // an archive ARE the bundle-rooted ones.
+            writePayload(target, payload, layout.root(settings));
+            break;
+        case 'macos-app-zip':
+            // The SAME payload, in the one container a browser download can be.
+            // Written by this tree (`utils/ship/zip.ts`) so the packing host needs
+            // no `zip(1)` and `zipinfo` stays an independent reader — ADR 0024
+            // § A3's argument for the hand-written deb and rpm, applied again.
+            // The paths inside are the staged ones, so the archive expands to
+            // `<App>.app/…` and not to a bare `Contents/`.
+            writeFileSync(target, buildZip(zipEntriesFromPayload(payload), mtime));
+            break;
         default: {
             const unhandled: never = format.id;
             throw new Error(`gjsify ship: no packer is wired for format "${String(unhandled)}".`);
         }
     }
 
-    return { format: format.id, path: target, size: statSync(target).size };
+    // The SIZE of a directory is not `statSync().size`, which answers 4096 for the
+    // directory entry — so a `.app` with a 20 MiB bundle would be reported as
+    // "4096 bytes". `artifactKind` is on the descriptor for exactly this.
+    const size = format.artifactKind === 'directory' ? directorySize(target) : statSync(target).size;
+    return { format: format.id, path: target, size };
 }
 
 function printArtifacts(base: string, artifacts: readonly ShipArtifact[]): void {
@@ -719,8 +863,21 @@ function assertPackable(
     formats: readonly FormatDescriptor[],
     layout: Layout,
     chosenBy: 'host' | 'positional' | 'stage',
+    unusable: readonly FormatDescriptor[] = [],
 ): void {
     if (formats.length > 0) return;
+    // A DIFFERENT emptiness, and conflating the two sends the reader to the wrong
+    // fix. "No format wraps this layout" is answered by a later milestone; "the
+    // formats that wrap it cannot run this project's interpreter" is answered by
+    // the project, today — and the two produce byte-identical empty lists.
+    if (unusable.length > 0) {
+        throw new Error(
+            `gjsify ship: ${unusable.map((format) => format.id).join(' and ')} wrap the ${layout.name} ` +
+                `layout, and neither can run this project — ${unusable[0]?.interpreterGap ?? ''}.\n` +
+                `    \`gjsify ship ${layout.name} --stage\` assembles the tree anyway; packing it is what ` +
+                'the milestone that stages an interpreter is for (#1354 M2b).',
+        );
+    }
     const linux = defaultFormatIds('linux').join(',');
     // Three callers, three different next steps. Telling a `--from-stage` caller
     // to run `gjsify ship <os> --stage` names the command that PRODUCED the stage
@@ -822,12 +979,12 @@ function assertFormatCanRunInterpreter(format: FormatDescriptor, app: 'gjs' | 'n
     throw new Error(
         `gjsify ship: this project is \`gjsify.app: "${app}"\`, and the ${format.id} runtime cannot run it — ` +
             `it provides ${format.interpreters.join(', ')}.\n` +
-            '    A Flatpak runs against `org.gnome.Platform`, which ships `gjs` and no `node`. Node exists only ' +
-            'as\n' +
-            '    `org.freedesktop.Sdk.Extension.node2x`, and that extension puts node on the BUILD path, not in ' +
-            'the\n' +
-            '    runtime — so the artifact would install and then fail at `exec node`.\n' +
-            `    Build the other formats (\`--target deb,rpm\`), or ship this app as \`gjsify.app: "gjs"\`.`,
+            // The ROW's own sentence, not one written here. Hardcoded, this
+            // paragraph told the first `.app` author about
+            // `org.freedesktop.Sdk.Extension.node2x` and the GNOME runtime.
+            `    ${format.interpreterGap}.\n` +
+            '    Build the formats that wrap this layout and can run it, or ship this app as ' +
+            `\`gjsify.app: "${format.interpreters.join('" / "')}"\`.`,
     );
 }
 

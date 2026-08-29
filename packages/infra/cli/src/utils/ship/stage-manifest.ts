@@ -91,8 +91,24 @@ export const STAGE_MANIFEST_FILE = '.gjsify-ship-stage.json';
  * reader can do about it. At 4 the schema check above catches it first and says
  * "re-run the `--stage` phase with this gjsify", which is the whole reason this
  * constant's header is an argument for bumping whenever a reader could mis-read.
+ *
+ * 5 added `settings.name`, and it was decided against the criterion above rather
+ * than reflexively — #1354 M2a changed two things and only one of them warrants a
+ * bump:
+ *
+ *  - NOT the two new format ids. `formats[]` and `overlay`'s keys carry new
+ *    VALUES in fields whose meaning is unchanged, and `readStageManifest` already
+ *    refuses a `formats[i]` it does not know BY NAME. An older gjsify meeting a
+ *    macOS stage therefore fails closed with a message about the format, which is
+ *    the right message. Adding a member to a validated enum is the case this
+ *    header says not to bump for.
+ *  - YES `settings.name`. It is REQUIRED, so this reader meeting a schema-4 stage
+ *    would fail on `settings.name must be a string` — naming a field instead of
+ *    the one thing the reader can do about it. That is the same shape the 3-to-4
+ *    paragraph describes, and at 5 the schema check above fires first and says
+ *    "re-run the `--stage` phase with this gjsify".
  */
-export const STAGE_SCHEMA_VERSION = 4;
+export const STAGE_SCHEMA_VERSION = 5;
 
 /** What this stage was assembled FOR, in the repo-wide `${process.platform}-${process.arch}` spelling. */
 export interface StageTarget {
@@ -156,6 +172,7 @@ export function toPackSettings(settings: ShipSettings): PackSettings {
     return {
         binaryName: settings.binaryName,
         appId: settings.appId,
+        name: settings.name,
         version: settings.version,
         release: settings.release,
         maintainer: settings.maintainer,
@@ -514,6 +531,7 @@ function readPackSettings(data: Record<string, unknown>, at: string): PackSettin
     return {
         binaryName: expectString(data.binaryName, field('binaryName')),
         appId: expectString(data.appId, field('appId')),
+        name: expectString(data.name, field('name')),
         version: expectString(data.version, field('version')),
         release: expectString(data.release, field('release')),
         maintainer: expectString(data.maintainer, field('maintainer')),

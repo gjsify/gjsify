@@ -14,6 +14,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import { buildDeb } from './deb.js';
 import { FORMATS } from './formats.js';
+import { LAYOUTS } from './layout.js';
 import { buildRpm } from './rpm.js';
 import {
     assertPayloadMatchesArch,
@@ -230,27 +231,46 @@ export default async () => {
     });
 
     await describe('the launcher and the dependency must name the same interpreter', async () => {
-        const launcher = (text: string) => [{ path: 'bin/demo', mode: 0o755, data: encoder.encode(text) }];
+        const IDENTITY = { binaryName: 'demo', name: 'Demo App' };
+        const at = (path: string) => (text: string) => [{ path, mode: 0o755, data: encoder.encode(text) }];
+        const linuxLauncher = at('bin/demo');
+        // Where the SAME launcher sits in the other two layouts. `place()` is not
+        // used to build these: the point is to check the reader against paths a
+        // human wrote down, exactly as `tests/e2e/ship-layout` writes its map out.
+        const darwinLauncher = at('Demo App.app/Contents/MacOS/demo');
+        const windowsLauncher = at('demo.cmd');
         const gjsLauncher = '#!/bin/sh\nset -e\nexec gjs -m "$prefix"/lib/demo/app.gjs.js "$@"\n';
         const nodeLauncher = '#!/bin/sh\nset -e\nexec node "$prefix"/lib/demo/app.node.mjs "$@"\n';
 
         await it('reads the interpreter off the staged launcher', async () => {
-            expect(readLauncherInterpreters(launcher(gjsLauncher), 'demo')).toStrictEqual(['gjs']);
-            expect(readLauncherInterpreters(launcher(nodeLauncher), 'demo')).toStrictEqual(['node']);
+            expect(readLauncherInterpreters(linuxLauncher(gjsLauncher), LAYOUTS.linux, IDENTITY)).toStrictEqual([
+                'gjs',
+            ]);
+            expect(readLauncherInterpreters(linuxLauncher(nodeLauncher), LAYOUTS.linux, IDENTITY)).toStrictEqual([
+                'node',
+            ]);
         });
 
         await it('resolves a launcher this tree did not write', async () => {
             // `gjsify.ship.extraFiles` can replace `bin/<name>` outright, and
             // these are the shapes a hand-written one takes. The raw-token
             // version answered `/usr/bin/gjs` and `env`, and REFUSED both.
-            expect(readLauncherInterpreters(launcher('exec /usr/bin/gjs -m /app/x.js\n'), 'demo')).toStrictEqual([
-                'gjs',
-            ]);
             expect(
-                readLauncherInterpreters(launcher('exec env NODE_OPTIONS=--x node /app/x.mjs\n'), 'demo'),
+                readLauncherInterpreters(linuxLauncher('exec /usr/bin/gjs -m /app/x.js\n'), LAYOUTS.linux, IDENTITY),
+            ).toStrictEqual(['gjs']);
+            expect(
+                readLauncherInterpreters(
+                    linuxLauncher('exec env NODE_OPTIONS=--x node /app/x.mjs\n'),
+                    LAYOUTS.linux,
+                    IDENTITY,
+                ),
             ).toStrictEqual(['node']);
             expect(
-                readLauncherInterpreters(launcher('exec /usr/bin/env -S node --enable-source-maps /a.mjs\n'), 'demo'),
+                readLauncherInterpreters(
+                    linuxLauncher('exec /usr/bin/env -S node --enable-source-maps /a.mjs\n'),
+                    LAYOUTS.linux,
+                    IDENTITY,
+                ),
             ).toStrictEqual(['node']);
         });
 
@@ -260,9 +280,12 @@ export default async () => {
             // with branches, so all of them are collected and the caller decides.
             const branching =
                 '#!/bin/sh\nif [ -n "$WAYLAND_DISPLAY" ]; then\n  exec gjs -m /a.js\nfi\nexec gjs -m /b.js\n';
-            expect(readLauncherInterpreters(launcher(branching), 'demo')).toStrictEqual(['gjs']);
+            expect(readLauncherInterpreters(linuxLauncher(branching), LAYOUTS.linux, IDENTITY)).toStrictEqual(['gjs']);
             const mixed = '#!/bin/sh\nif [ "$X" ]; then\n  exec node /a.mjs\nfi\nexec gjs -m /b.js\n';
-            expect(readLauncherInterpreters(launcher(mixed), 'demo')).toStrictEqual(['node', 'gjs']);
+            expect(readLauncherInterpreters(linuxLauncher(mixed), LAYOUTS.linux, IDENTITY)).toStrictEqual([
+                'node',
+                'gjs',
+            ]);
         });
 
         await it('refuses a package that depends on one interpreter and execs the other', async () => {
@@ -270,12 +293,12 @@ export default async () => {
             // heuristic put `nodejs (>= 24)` in `Depends:` while this line still
             // read `exec gjs -m`. Both files were individually well-formed, so no
             // structural check could see it — only comparing them can.
-            expect(() => assertLauncherMatchesInterpreter(launcher(gjsLauncher), 'demo', 'node')).toThrow(
-                'execs `gjs`',
-            );
-            expect(() => assertLauncherMatchesInterpreter(launcher(nodeLauncher), 'demo', 'gjs')).toThrow(
-                'execs `node`',
-            );
+            expect(() =>
+                assertLauncherMatchesInterpreter(linuxLauncher(gjsLauncher), LAYOUTS.linux, IDENTITY, 'node'),
+            ).toThrow('execs `gjs`');
+            expect(() =>
+                assertLauncherMatchesInterpreter(linuxLauncher(nodeLauncher), LAYOUTS.linux, IDENTITY, 'gjs'),
+            ).toThrow('execs `node`');
         });
 
         await it('names a cause the reader can act on, and not the false one', async () => {
@@ -284,7 +307,7 @@ export default async () => {
             // reproduces it forever.
             let message = '';
             try {
-                assertLauncherMatchesInterpreter(launcher(nodeLauncher), 'demo', 'gjs');
+                assertLauncherMatchesInterpreter(linuxLauncher(nodeLauncher), LAYOUTS.linux, IDENTITY, 'gjs');
             } catch (error) {
                 message = (error as Error).message;
             }
@@ -296,26 +319,73 @@ export default async () => {
             // FAIL ONLY on a positively identified OTHER interpreter. Everything
             // else passes: a guard that turns working packages into failures buys
             // nothing over the defect it prevents.
-            assertLauncherMatchesInterpreter(launcher(gjsLauncher), 'demo', 'gjs');
-            assertLauncherMatchesInterpreter(launcher('exec /usr/bin/gjs -m /a.js\n'), 'demo', 'gjs');
-            assertLauncherMatchesInterpreter(launcher('exec env NODE_OPTIONS=--x node /a.mjs\n'), 'demo', 'node');
-            // Neither interpreter, no exec at all, no launcher, and a branch that
-            // includes the declared one.
-            assertLauncherMatchesInterpreter(launcher('exec /usr/bin/python3 /a.py\n'), 'demo', 'gjs');
-            assertLauncherMatchesInterpreter(launcher('#!/bin/sh\nexit 0\n'), 'demo', 'node');
-            assertLauncherMatchesInterpreter([], 'demo', 'node');
+            assertLauncherMatchesInterpreter(linuxLauncher(gjsLauncher), LAYOUTS.linux, IDENTITY, 'gjs');
             assertLauncherMatchesInterpreter(
-                launcher('#!/bin/sh\nif [ "$X" ]; then\n  exec node /a.mjs\nfi\nexec gjs -m /b.js\n'),
-                'demo',
+                linuxLauncher('exec /usr/bin/gjs -m /a.js\n'),
+                LAYOUTS.linux,
+                IDENTITY,
                 'gjs',
             );
-            expect(readLauncherInterpreters([], 'demo')).toStrictEqual([]);
+            assertLauncherMatchesInterpreter(
+                linuxLauncher('exec env NODE_OPTIONS=--x node /a.mjs\n'),
+                LAYOUTS.linux,
+                IDENTITY,
+                'node',
+            );
+            // Neither interpreter, no exec at all, no launcher, and a branch that
+            // includes the declared one.
+            assertLauncherMatchesInterpreter(
+                linuxLauncher('exec /usr/bin/python3 /a.py\n'),
+                LAYOUTS.linux,
+                IDENTITY,
+                'gjs',
+            );
+            assertLauncherMatchesInterpreter(linuxLauncher('#!/bin/sh\nexit 0\n'), LAYOUTS.linux, IDENTITY, 'node');
+            assertLauncherMatchesInterpreter([], LAYOUTS.linux, IDENTITY, 'node');
+            assertLauncherMatchesInterpreter(
+                linuxLauncher('#!/bin/sh\nif [ "$X" ]; then\n  exec node /a.mjs\nfi\nexec gjs -m /b.js\n'),
+                LAYOUTS.linux,
+                IDENTITY,
+                'gjs',
+            );
+            expect(readLauncherInterpreters([], LAYOUTS.linux, IDENTITY)).toStrictEqual([]);
+        });
+
+        await it("reads the LAYOUT's launcher, not the prefix-relative path, on every OS", async () => {
+            // THE DISCRIMINATOR for a reader that was vacuous off Linux. It looked
+            // up `bin/<binaryName>` — the PREFIX-relative path — which exists in no
+            // non-Linux stage, so both lines below answered `[]` before this was
+            // fixed: a `.app` whose launcher execs the wrong interpreter passed a
+            // check that had found no launcher at all. Run against the old reader
+            // these two `toStrictEqual` calls fail and the two `toThrow`s below
+            // report "expected function to throw".
+            expect(readLauncherInterpreters(darwinLauncher(nodeLauncher), LAYOUTS.darwin, IDENTITY)).toStrictEqual([
+                'node',
+            ]);
+            expect(readLauncherInterpreters(windowsLauncher(gjsLauncher), LAYOUTS.windows, IDENTITY)).toStrictEqual([
+                'gjs',
+            ]);
+            expect(() =>
+                assertLauncherMatchesInterpreter(darwinLauncher(gjsLauncher), LAYOUTS.darwin, IDENTITY, 'node'),
+            ).toThrow('execs `gjs`');
+            expect(() =>
+                assertLauncherMatchesInterpreter(windowsLauncher(nodeLauncher), LAYOUTS.windows, IDENTITY, 'gjs'),
+            ).toThrow('execs `node`');
+            // And the message names the path the reader would go and LOOK at,
+            // which `bin/demo` was not on either of these layouts.
+            let message = '';
+            try {
+                assertLauncherMatchesInterpreter(darwinLauncher(gjsLauncher), LAYOUTS.darwin, IDENTITY, 'node');
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain('Demo App.app/Contents/MacOS/demo');
         });
 
         await it('is not fooled by the word `exec` inside the launcher body', async () => {
             const withNoise =
                 '#!/bin/sh\n# exec gjs is what this used to do\nEXECUTABLE=1\nexec node "$prefix"/lib/demo/a.mjs\n';
-            expect(readLauncherInterpreters(launcher(withNoise), 'demo')).toStrictEqual(['node']);
+            expect(readLauncherInterpreters(linuxLauncher(withNoise), LAYOUTS.linux, IDENTITY)).toStrictEqual(['node']);
         });
     });
 

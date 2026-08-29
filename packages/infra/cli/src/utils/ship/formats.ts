@@ -10,6 +10,7 @@
 
 import { isOnPath } from '../check-system-deps.js';
 import { LAYOUTS, LAYOUT_NAMES, type Layout } from './layout.js';
+import { SCHEMA_COMPILER, SCHEMA_COMPILER_HINT } from './schemas.js';
 import type { FormatDescriptor, FormatId, HostOs, PackSettings } from './types.js';
 
 // `process.arch` → the format's architecture name. Taken from dpkg's own
@@ -82,6 +83,37 @@ function flatpakArch(arch: string, _archIndependent: boolean): string {
     return lookupArch(FLATPAK_ARCH, arch, 'Flatpak');
 }
 
+/**
+ * `process.arch` → the name Apple's tools use.
+ *
+ * Two rows, because two architectures exist: `x86_64` and `arm64` are what
+ * `uname -m`, `lipo -archs` and a Mach-O `cputype` all report on the machines
+ * macOS runs on. Anything else is REFUSED rather than passed through, for the
+ * reason the Flatpak table gives: an unknown value would end up in a filename a
+ * user is asked to download, labelling an artifact for a machine that does not
+ * exist. Note this is not `arm64` verbatim from `process.arch` by coincidence —
+ * it happens to agree, and the day `process.arch` gains a spelling Apple does
+ * not use, this table is where it is caught.
+ */
+const MACOS_ARCH: Record<string, string> = { x64: 'x86_64', arm64: 'arm64' };
+
+/**
+ * A `.app` carries no `noarch`, and unlike Flatpak that is not because the
+ * format forbids one — it is because `archIndependent` answers the wrong
+ * question here.
+ *
+ * `all`/`noarch` exist so apt and dnf do not refuse a pure-JavaScript package on
+ * a machine of another architecture. Nothing gatekeeps a `.app`: it is dragged
+ * into `/Applications` and run. What the label is FOR is the download a user
+ * picks between, and that is a claim about which Mac the bundle runs on — which,
+ * once M2b stages a runtime, is architecture-specific whatever the JavaScript is.
+ * Naming the arch on a payload that happens to be portable is honest; naming
+ * `noarch` on one that will not be is not.
+ */
+function macosArch(arch: string, _archIndependent: boolean): string {
+    return lookupArch(MACOS_ARCH, arch, 'macOS');
+}
+
 /** `.deb` and `.rpm` are written by this tree, so they exec nothing and read back with GNU tools. */
 const WRITTEN_HERE = (readWith: readonly string[]): FormatDescriptor['host'] => ({
     finishOn: 'any',
@@ -97,12 +129,20 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         host: WRITTEN_HERE(['ar', 'tar', 'dpkg-deb', 'lintian']),
         depends: 'deb',
         interpreters: ['gjs', 'node'],
+        // Neither is restricted, because a distro package DECLARES its
+        // interpreter rather than carrying one: `Depends: gjs` and
+        // `Depends: nodejs` are both satisfiable from any distribution's own
+        // archive, so the artifact's runtime is the machine's.
+        interpreterGap:
+            'a distro package declares its interpreter as a dependency instead of carrying one, and every ' +
+            'distribution ships both',
         // Debian policy § 12.5: every package ships its copyright in
         // /usr/share/doc/<package>/copyright, and lintian errors without it.
         licenseDest: (binaryName) => `share/doc/${binaryName}/copyright`,
         licenseKind: 'debian-copyright',
         archName: debArch,
         fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}_${s.version}-${s.release}_${archLabel}.deb`,
+        artifactKind: 'file',
     },
     rpm: {
         id: 'rpm',
@@ -111,10 +151,18 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         host: WRITTEN_HERE(['rpm', 'rpm2cpio', 'cpio']),
         depends: 'rpm',
         interpreters: ['gjs', 'node'],
+        // Neither is restricted, because a distro package DECLARES its
+        // interpreter rather than carrying one: `Depends: gjs` and
+        // `Depends: nodejs` are both satisfiable from any distribution's own
+        // archive, so the artifact's runtime is the machine's.
+        interpreterGap:
+            'a distro package declares its interpreter as a dependency instead of carrying one, and every ' +
+            'distribution ships both',
         licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
         licenseKind: 'plain',
         archName: rpmArch,
         fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.rpm`,
+        artifactKind: 'file',
     },
     flatpak: {
         id: 'flatpak',
@@ -152,6 +200,10 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // GJS ONLY. `org.gnome.Platform` ships `gjs`; Node is a build-time SDK
         // extension, not a runtime — see the field's doc on `FormatDescriptor`.
         interpreters: ['gjs'],
+        interpreterGap:
+            'a Flatpak runs against `org.gnome.Platform`, which ships `gjs` and no `node`. Node exists only ' +
+            'as `org.freedesktop.Sdk.Extension.node2x`, and that extension puts node on the BUILD path, not ' +
+            'in the runtime — so the artifact would install and then fail at `exec node`',
         // No policy demands a location, so this follows rpm's — one fewer shape
         // for a reader to learn, and `/app/share/licenses/<name>/LICENSE` is
         // where the equivalent file sits in the `.rpm` built from the same stage.
@@ -161,6 +213,124 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // Named after the APP ID, not the binary: the id is the ref the file
         // installs as, and it is what `flatpak install ./file.flatpak` prints.
         fileName: (s: PackSettings, archLabel: string) => `${s.appId}-${s.version}-${s.release}.${archLabel}.flatpak`,
+        artifactKind: 'file',
+    },
+    // ── macOS (#1354 M2a) ────────────────────────────────────────────────
+    //
+    // TWO ROWS FOR ONE TREE, and the pair is what `layoutOs` was added for. The
+    // bundle and the zip around it wrap the same staged `<App>.app`; they differ
+    // only in whether the artifact is a directory a user drags or a file a user
+    // downloads. Both are `finishOn: 'any'` — the `.dmg` that is not is ADR 0024
+    // § A6 and milestone M6.
+    //
+    // NEITHER IS SIGNED, and that is a property of M2a rather than an omission
+    // this table hides: `codesign` is macOS-only, so a bundle assembled on Linux
+    // is unsigned by construction. Gatekeeper will quarantine it on a stranger's
+    // Mac. M6 is where a signing host enters, and § A4 already records what it
+    // costs (re-signing the whole Mach-O closure inside the stage).
+    'macos-app': {
+        id: 'macos-app',
+        layoutOs: 'darwin',
+        // The bundle IS the prefix. `Contents/` hangs directly off the artifact,
+        // so unlike `/usr` or `/app` there is nothing above it — and unlike those
+        // two, the launcher does not derive this at runtime: it walks up from
+        // `Contents/MacOS` (see `renderAppBundleLauncher`), because a `.app` can
+        // be anywhere and `/Applications` is a convention, not a path.
+        prefix: '',
+        host: {
+            // Assembled anywhere, packed anywhere: everything here is a file copy.
+            finishOn: 'any',
+            // …with ONE exception, and it is the honest one. A non-Linux layout
+            // has no install step, so `gschemas.compiled` has to be produced while
+            // the tree is being assembled or the bundle aborts at its first
+            // `Gio.Settings.new()` (`utils/ship/schemas.ts`). `glib-compile-schemas`
+            // is GLib's own and runs on all three OSes, so declaring it does NOT
+            // make the format host-bound — `assertToolsInstalled` is deliberately
+            // separate from `assertHostCanFinish` for exactly this shape.
+            requiredTools: [SCHEMA_COMPILER],
+            installHint: SCHEMA_COMPILER_HINT,
+            oracle: {
+                // CPython's `plistlib` — a DIFFERENT implementation family from
+                // the XML this tree writes, and already precedent here
+                // (`.github/ship-oracle/verify-modes.py`). Measured on this
+                // workstation against a plist with a `<key>` and no value:
+                // `plistlib.load` exits 1 naming the line, `plistutil -i` exits 0
+                // and prints `<dict/>`, and `xmllint --noout` exits 0 because
+                // well-formedness is a weaker question. So `plistlib` is the
+                // oracle and the other two are not.
+                readWith: ['python3'],
+                readOn: ['linux', 'darwin'],
+                selfReading: false,
+            },
+        },
+        // No package list. macOS resolves nothing for an app: whatever the bundle
+        // does not carry, it finds on the machine or it does not run — which is
+        // what makes M2b (staging a runtime) the milestone that matters, not a
+        // dependency field.
+        depends: null,
+        // NODE ONLY, and it is a measured limit rather than caution.
+        // `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs` records that GJS
+        // ships no relocation, so there is no relocatable GJS to put inside a
+        // bundle a stranger downloads (ADR 0024 § 4, stage 7). A `--app gjs`
+        // payload therefore cannot be shipped this way, and
+        // `assertFormatCanRunInterpreter` says so by name instead of producing a
+        // bundle that dies at `exec gjs`.
+        interpreters: ['node'],
+        interpreterGap:
+            'a `.app` a stranger downloads has to CARRY its interpreter, and there is no relocatable GJS to ' +
+            'put in one — `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs` records "GJS ships no ' +
+            'relocation", which is why ADR 0024 § 4 derives Node on macOS and stage 7 is what would change it',
+        // Inside `Contents/Resources`, which is where a `.app`'s non-executable
+        // files go. Following rpm's `share/licenses/<name>/LICENSE` shape keeps
+        // one fewer layout for a reader to learn — the layout map turns it into
+        // `Contents/Resources/share/licenses/<name>/LICENSE`.
+        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        licenseKind: 'plain',
+        archName: macosArch,
+        // The DISPLAY name, not the binary: this artifact is the thing a user
+        // drags into `/Applications`, and its name is what the Finder shows.
+        fileName: (s: PackSettings) => `${s.name}.app`,
+        artifactKind: 'directory',
+    },
+    'macos-app-zip': {
+        id: 'macos-app-zip',
+        layoutOs: 'darwin',
+        prefix: '',
+        host: {
+            finishOn: 'any',
+            // The ZIP is written by this tree (`utils/ship/zip.ts`), so the only
+            // tool here is the schema compiler the layout needs — see the row
+            // above. Writing the archive ourselves is what keeps `zipinfo` an
+            // INDEPENDENT reader rather than the other half of a `zip`/`unzip`
+            // round trip; same argument ADR 0024 § A3 makes for the deb and rpm.
+            requiredTools: [SCHEMA_COMPILER],
+            installHint: SCHEMA_COMPILER_HINT,
+            oracle: {
+                // `zipinfo -l`, not `unzip -Z1`. The failure that matters for a
+                // distributed `.app` is a launcher extracted 0644 that will not
+                // run, and `-Z1` prints NAMES ONLY — it is structurally blind to
+                // it. `zipinfo` prints the Unix mode (`-rwxr-xr-x`) and ships in
+                // the same `unzip` package, which is already in the CI image.
+                readWith: ['zipinfo'],
+                readOn: ['linux', 'darwin'],
+                selfReading: false,
+            },
+        },
+        depends: null,
+        interpreters: ['node'],
+        interpreterGap:
+            'a `.app` a stranger downloads has to CARRY its interpreter, and there is no relocatable GJS to ' +
+            'put in one — `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs` records "GJS ships no ' +
+            'relocation", which is why ADR 0024 § 4 derives Node on macOS and stage 7 is what would change it',
+        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        licenseKind: 'plain',
+        archName: macosArch,
+        // The BINARY name here and the display name above, deliberately. This one
+        // is a download: it lands in a browser's downloads folder beside other
+        // files, so it carries the version and the arch, and it avoids the spaces
+        // a display name may contain.
+        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.zip`,
+        artifactKind: 'file',
     },
 };
 

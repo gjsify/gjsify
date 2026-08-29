@@ -43,6 +43,29 @@ that is exactly what made `rpm` available as an independent oracle and caught th
 convention in the very first artifact (§ Implementation status). `flatpak` is
 `finishOn: ['linux']`, `requiredTools: ['flatpak-builder', 'flatpak']`.
 
+`macos-app` and `macos-app-zip` (#1354 M2a) are the pair that shows the three fields really are
+three. Both are `finishOn: 'any'` — a `<App>.app` tree and a zip around it are file copying, and a
+Linux workstation does all of it — and both nonetheless declare
+`requiredTools: ['glib-compile-schemas']`, because a layout with no install step has to compile
+`gschemas.compiled` while the tree is being assembled or the bundle aborts at its first
+`Gio.Settings.new()`. That is a tool requirement without host-boundness, which is the case
+`assertToolsInstalled` is separate from `assertHostCanFinish` for. `glib-compile-schemas` is GLib's
+own and runs on all three OSes, so declaring it does not make the format host-bound.
+
+Their oracles are `python3` and `zipinfo`, and each was chosen against a plausible alternative that
+measures nothing — the reason this field is a required one rather than prose:
+
+| format | the reader that looks right | what it actually does | the reader used |
+|---|---|---|---|
+| `macos-app` | `plutil -lint` | macOS-only, absent here and in the CI image | CPython `plistlib` |
+| `macos-app` | `plistutil -i` | accepts a `<dict>` whose `<key>` has no value and prints `<dict/>` at **exit 0** | " |
+| `macos-app` | `xmllint --noout --valid --nonet` | **exit 4 on a CORRECT plist** — the DTD is a remote URL, so it is a constant, not a reader | " |
+| `macos-app-zip` | `unzip -Z1` | prints names only; blind to a launcher extracted 0644, which is the only failure this format has | `zipinfo -l` |
+
+`bsdtar` was the other zip candidate and is absent here and in the CI image; adding it would trip
+`scripts/check-ci-image-packages.mjs`. `zipinfo` ships in the `unzip` package that is already
+baked.
+
 Both gates (`assertHostCanFinish`, `assertToolsInstalled`) run BEFORE the project's `build` script,
 because discovering an absent `flatpak-builder` afterwards costs the whole build. They are two
 messages on purpose: the wrong OS needs another machine, a missing tool needs a package. Both are
@@ -139,23 +162,45 @@ entirely on macOS for `Contents/Frameworks`, and the launcher's own NAME changes
   what it says — and `assertPackable` names the one-word replacement (`gjsify ship linux`) rather
   than leaving it as a regression.
 
-### The launcher has three forms, and execs one interpreter
+### The launcher has three forms, and two questions about the interpreter
 
 Two of the differences are measured rather than stylistic: `readlink -f` is GNU coreutils' and the
 BSD `readlink` macOS ships has no `-f` (so under `set -e` the first line would end the launcher),
-and SIP strips an inherited `DYLD_*` at the `/bin/sh` exec, so a macOS launcher structurally cannot
-hand the loader a library path — ADR 0024 § 3 puts that half in-process instead.
+and the macOS launcher exports no `DYLD_*` — a rule whose stated reason was corrected in #1354 M2a
+rather than the rule. It used to read "SIP strips an inherited `DYLD_*` at the `/bin/sh` exec, so a
+wrapper structurally cannot hand the loader a library path", which is stronger than what was
+measured, and this repository depends on the difference in two places green on the darwin legs
+today (`utils/bin-shim.ts`'s `dyldFallbackPreamble`, `node-gi`'s `maybeReexecForGtkRuntime`): an
+INHERITED `DYLD_*` is stripped when a PROTECTED binary is exec'd, while what a shim exports itself
+survives into an unprotected child. The reason that holds points the same way and is one milestone
+out — a hardened-runtime, Developer-ID-signed main executable IS restricted, so a launcher depending
+on `DYLD_*` works unsigned and breaks the day the bundle is signed. ADR 0024 § 3 puts that half
+in-process instead.
 
-All three exec **`gjs -m`**. ADR 0024 § 4 derives Node for macOS and Windows, and that answer lives
-on `Layout.shippedRuntime` as DATA — it describes the runtime a SHIPPED ARTIFACT carries, which
-issue #1354 M0 implements by bundling one. Until then the only interpreter that can read the payload
-is the one it was built for, and `assertShippableTarget` (layout-independent, `gjs` only) guarantees
-that is GJS. The first cut of this axis read § 4 as a per-layout requirement and got both halves
-wrong at once: `gjsify.app: "gjs"` — the only declaration `ship` supports — was refused for the
-macOS layout, while a project declaring nothing staged `exec node …/gjs.js` in front of a bundle
-whose first line is `import Gtk from 'gi://Gtk?version=4.0'`. `Layout.runtimeGap` is the honest
-remainder: one sentence per OS saying why the launcher cannot name `shippedRuntime` yet, printed on
-every non-Linux stage.
+All three exec whatever `gjsify.app` names — `gjs -m`, or `node` for a `--app node` project.
+ADR 0024 § 4 derives Node for macOS and Windows, and that answer lives on
+`Layout.shippedRuntime` as DATA: it describes the runtime a SHIPPED ARTIFACT carries, which
+#1354 M0 implements by bundling one and M2b is what will stage it. Until then the only interpreter
+that can read the payload is the one it was BUILT for, and `assertShippableTarget`
+(layout-independent) guarantees that is `gjs` or `node`.
+
+**And that is where the FORMAT's answer differs from the LAYOUT's** (#1354 M2a). `macos-app` and
+`macos-app-zip` are `interpreters: ['node']`, because a bundle a stranger downloads must carry its
+interpreter and there is no relocatable GJS to put in one. So the two questions are asked in two
+places and give two different answers for one project: the launcher execs what the payload was built
+for, and the FORMAT says what its runtime can provide. A `--app gjs` project therefore stages the
+darwin layout and cannot pack it — and the distinction between those is load-bearing rather than
+pedantic. A DERIVED default set is filtered by the interpreter, with the dropped formats and the
+reason printed; a typed `--target macos-app` is refused by name. The first cut refused both, which
+made `gjsify ship darwin --stage` exit 1 for every project this command has.
+
+That is the SECOND time this pair of questions has been collapsed into one, and the first is worth
+keeping beside it because the two failures are mirror images. The first cut of the LAYOUT axis read
+§ 4 as a per-layout requirement and got both halves wrong at once: `gjsify.app: "gjs"` was refused
+for the macOS layout, while a project declaring nothing staged `exec node …/gjs.js` in front of a
+bundle whose first line is `import Gtk from 'gi://Gtk?version=4.0'`. `Layout.runtimeGap` is the
+honest remainder: one sentence per OS saying why the launcher cannot name `shippedRuntime` yet,
+printed on every non-Linux stage.
 
 ### What the file-set equality cannot see
 
@@ -165,6 +210,15 @@ the Linux tree carries `share/glib-2.0/schemas/*.gschema.xml`, `share/mime/packa
 compiles or reindexes them at install time (`utils/ship/scripts.ts`). An uncompiled schema makes
 GSettings abort at runtime. Two more — the `.desktop` entry and the AppStream component — are
 freedesktop metadata neither other OS reads at all.
+
+**One of those five is now answered** (#1354 M2a): the schema directory. `utils/ship/schemas.ts`
+runs `glib-compile-schemas --strict` at ASSEMBLY time for every non-Linux layout and adds
+`share/glib-2.0/schemas/gschemas.compiled` to the prefix-relative plan, so it goes through the same
+layout map as everything else. Linux still gets none — there the postinst compiles the SYSTEM
+directory, where this app's schemas merge with every other package's, and a prebuilt cache would be
+a file the install step overwrites. The rule did not become a comment: `SHARE_VERDICTS`'s schema row
+is a FUNCTION of the payload, so a stage whose cache was removed classifies as `aborts` again, and
+`tests/e2e/ship-layout` asserts both directions.
 
 `linuxInstallDependent()` in `utils/ship/payload.ts` is that list. An earlier version of this
 paragraph said the rules were "keyed on the same prefixes `cacheRefreshCommands` guards so the two

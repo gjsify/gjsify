@@ -13,7 +13,7 @@
 // stopped being impossible and became a transfer failure — and every way of
 // papering over it produces an artifact that installs.
 
-import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, sep } from 'node:path';
 
 import { listFilesRecursive } from './discover.js';
@@ -127,4 +127,77 @@ export function readStage(roots: readonly string[], plan: readonly StagePlanEntr
         );
     }
     return [...byPath.values()].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
+/**
+ * Materialise a PAYLOAD — bytes already in hand — under `root`, replacing it.
+ *
+ * The twin of {@link writeStage}, and the difference is what each takes.
+ * `writeStage` writes a PLAN, whose sources are paths on the assembling host or
+ * strings; this writes what {@link readStage} handed back, which is the only shape
+ * available on a host that has the stage and nothing else.
+ *
+ * It exists for the one artifact in `FORMATS` that is a DIRECTORY: a `<App>.app`
+ * is not a container around the payload, it IS the payload plus the format's own
+ * overlay, laid out on disk. Writing it through this function rather than by
+ * copying the stage directory keeps the same two properties every other packer
+ * has — the modes come from the plan (`readStage` has already applied them, and
+ * the artifact upload that flattens them cannot reach in between), and the
+ * stage's own `.gjsify-ship-stage.json` stays out, because it was never in the
+ * payload.
+ *
+ * `root` is WIPED first, exactly as `writeStage` wipes: a `.app` left over from a
+ * previous run with a file the current payload no longer names would otherwise be
+ * signed, zipped and shipped.
+ *
+ * `stripPrefix` is what makes it the ARTIFACT rather than a directory holding
+ * one, and leaving it out produced exactly that: every staged darwin path already
+ * begins with `<App>.app/` — that is what `Layout.root` means — so writing them
+ * verbatim under an artifact called `<App>.app` gave
+ * `out/Ship Demo.app/Ship Demo.app/Contents/…`. The Finder shows the outer
+ * directory as a plain folder, so the failure is a bundle that is not one, and it
+ * is invisible to every reader that walks the tree looking for `Contents/`.
+ * Measured on the WIP this replaces; the discriminator is the depth assertion in
+ * `tests/e2e/ship-macos`.
+ *
+ * A path OUTSIDE `stripPrefix` throws rather than being written somewhere near
+ * the artifact. The alternative — pass it through — would put a file beside the
+ * bundle instead of inside it, which is the shape ADR 0024 § A4 records
+ * `codesign` refusing, and it would be silent.
+ */
+export function writePayload(root: string, payload: readonly PayloadEntry[], stripPrefix: string): void {
+    // `''` means "the payload is already artifact-relative"; anything else is a
+    // directory name and gets its separator here rather than at three call sites.
+    const strip = stripPrefix === '' ? '' : `${stripPrefix}/`;
+    rmSync(root, { recursive: true, force: true, maxRetries: 5 });
+    mkdirSync(root, { recursive: true });
+    for (const entry of payload) {
+        if (!entry.path.startsWith(strip)) {
+            throw new Error(
+                `gjsify ship: ${entry.path} is outside ${stripPrefix || 'the artifact'}, which this artifact ` +
+                    'IS — so there is nowhere inside it for the file to go. A payload file that escaped the ' +
+                    'bundle would ship beside it, unsigned and unfound.',
+            );
+        }
+        const target = join(root, entry.path.slice(strip.length).split('/').join(sep));
+        mkdirSync(dirname(target), { recursive: true });
+        writeFileSync(target, entry.data);
+        chmodSync(target, entry.mode);
+    }
+}
+
+/**
+ * Total bytes of the regular files under `root`.
+ *
+ * What `packOne` reports for a `FormatDescriptor.artifactKind: 'directory'`.
+ * `statSync` on a directory answers the directory ENTRY's size — 4096 on ext4 —
+ * so a `.app` carrying a 20 MiB bundle would be printed as "4096 bytes", which is
+ * not a rounding error but a different number. Directory entries themselves are
+ * deliberately not counted: what a user wants to know is how much payload they
+ * are about to move.
+ */
+export function directorySize(root: string): number {
+    let total = 0;
+    for (const rel of listFilesRecursive(root)) total += statSync(join(root, rel.split('/').join(sep))).size;
+    return total;
 }

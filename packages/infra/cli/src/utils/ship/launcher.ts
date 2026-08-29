@@ -147,13 +147,29 @@ function renderPrefixLauncher(settings: ShipSettings, bundleRelPath: string, lay
  *     `set -e` exits before it does anything. It needs none either: LaunchServices,
  *     `open(1)` and Finder all exec `Contents/MacOS/<name>` at its real path
  *     inside the bundle, and the staged tree holds no symlink to resolve.
- *  2. **No `DYLD_*`.** SIP strips an inherited `DYLD_*` at the `/bin/sh` exec, so
- *     a wrapper structurally cannot hand the loader a library path — measured on
- *     the macOS 15.7.9 VM and written down as ADR 0024 § 3. `GI_TYPELIB_PATH` is
- *     not a `DYLD_` variable and does survive, so the half that CAN be handed
- *     over is; the other half is `GIRepository.Repository.prepend_library_path`
- *     from inside the process, which is ADR 0021's decision for prebuilds applied
- *     to the app's own runtime.
+ *  2. **No `DYLD_*`.** THE RULE STANDS AND ITS OLD REASON DID NOT, so the reason
+ *     is replaced rather than the rule. This comment used to say a wrapper
+ *     "structurally cannot hand the loader a library path" because SIP strips an
+ *     inherited `DYLD_*` at the `/bin/sh` exec — which is stronger than what was
+ *     measured, and this repository depends on the difference in two places that
+ *     are green on the darwin legs today (`utils/bin-shim.ts`'s
+ *     `dyldFallbackPreamble`, `packages/node-gi`'s `maybeReexecForGtkRuntime`).
+ *     The narrow fact is that an INHERITED `DYLD_*` is stripped when a PROTECTED
+ *     binary is exec'd; what a shim exports ITSELF survives into an unprotected
+ *     child.
+ *
+ *     The reason that holds is one milestone away and points the same way: a
+ *     hardened-runtime, Developer-ID-signed main executable IS restricted, so the
+ *     variable is stripped there. A launcher depending on `DYLD_*` therefore
+ *     works unsigned and breaks on the day the bundle is signed (#1354 M6,
+ *     ADR 0024 § A4) — the worst possible day to find out. `GI_TYPELIB_PATH` is
+ *     not a `DYLD_` variable and is stripped under neither rule, so the half that
+ *     CAN be handed over is; the other half is
+ *     `GIRepository.Repository.prepend_library_path` from inside the process,
+ *     which is ADR 0021's decision for prebuilds applied to the app's own runtime.
+ *
+ *     Corrected rather than deleted, because a rule whose stated reason is wrong
+ *     gets "simplified" back into the bug the first time somebody checks it.
  */
 function renderAppBundleLauncher(settings: ShipSettings, bundleRelPath: string, layout: Layout): string {
     const contents = `${layout.root(settings)}/Contents`;

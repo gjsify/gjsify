@@ -49,7 +49,22 @@ export interface ShipArtifact {
     size: number;
 }
 
-export type FormatId = 'deb' | 'rpm' | 'flatpak';
+/**
+ * The closed vocabulary of formats.
+ *
+ * The two macOS members are spelled `macos-…` rather than `app` / `app-zip`, and
+ * the reason is collision rather than length: the bare word `app` is already
+ * taken three times over in this subsystem — the `gjsify.app` config key,
+ * `ShipSettings.app`, `PackSettings.app` — and every one of them means the
+ * INTERPRETER. A member of this union is also a directory name (`overlay/<id>/`)
+ * and a `--target` value a user types, so the ambiguity would have reached both a
+ * path and a command line.
+ *
+ * `scripts/check-ship-format-vocabulary.mjs` reads the declaration below
+ * TEXTUALLY and fails if a comment gives it a second match, which is why this one
+ * describes the union without quoting its head.
+ */
+export type FormatId = 'deb' | 'rpm' | 'flatpak' | 'macos-app' | 'macos-app-zip';
 
 /**
  * The formats whose ARTIFACT carries a distro dependency list.
@@ -174,6 +189,24 @@ export interface FormatDescriptor {
      * this row can say.
      */
     interpreters: readonly ('gjs' | 'node')[];
+    /**
+     * Why this format's runtime provides {@link interpreters} and no more — the
+     * body of the refusal a project on the wrong interpreter gets.
+     *
+     * On the row rather than inside the refusal, and the incident is one line
+     * old: the refusal carried Flatpak's paragraph about `org.gnome.Platform`
+     * hardcoded, and the first macOS row printed it — telling somebody shipping a
+     * `.app` that `org.freedesktop.Sdk.Extension.node2x` puts node on the build
+     * path. Exactly the shape `installHint` moved out of `assertToolsInstalled`
+     * for, one field over.
+     *
+     * REQUIRED, including on the two rows that accept both interpreters and can
+     * therefore never print it. A row that answers "nothing here is restricted,
+     * and this is why" has ANSWERED; an optional field is one a sixth format can
+     * leave undefined while restricting `interpreters`, and the refusal would go
+     * back to having nothing to say.
+     */
+    interpreterGap: string;
     /** Where the project's licence text goes in this format's overlay. */
     licenseDest: (binaryName: string) => string;
     /**
@@ -192,6 +225,19 @@ export interface FormatDescriptor {
     archName: (arch: string, archIndependent: boolean) => string;
     /** Artifact filename, given the pack-time settings and the resolved arch label. */
     fileName: (settings: PackSettings, archLabel: string) => string;
+    /**
+     * Whether {@link fileName} names a FILE or a DIRECTORY.
+     *
+     * A `.deb`, an `.rpm` and a `.flatpak` are single files; a `<App>.app` is a
+     * directory that macOS treats as one object, and it is the first artifact in
+     * this table that is not a file. Recorded rather than inferred from the
+     * suffix, because `packOne` reports a SIZE and `statSync` on a directory
+     * answers 4096 on ext4 — a `.app` carrying a 20 MiB bundle would be printed
+     * as "4096 bytes", which is not a rounding error but a different number
+     * entirely. A `.dmg` will be `'file'` again, so this is not "macOS is
+     * special", it is a property of the container.
+     */
+    artifactKind: 'file' | 'directory';
 }
 
 /** One shared-mime-info type definition (`gjsify.ship.mimeTypes`). */
@@ -237,12 +283,16 @@ export interface ShipMimeType {
  *    `share/locale/<rel>`, and no packer reads the field. So translations
  *    cross in the payload, where they belong, and the `abs` path does not
  *    cross at all. This list being explicit is what caught that.
- *  - `name`, `kind`, `execArgs` — read by the planner and the metadata
- *    renderers, all of which have run by the time a stage exists. `appId` was
- *    on this line and MOVED: the Flatpak packer needs it at pack time twice
- *    over — it is the manifest's `id` and the ref `flatpak build-bundle`
- *    exports — and neither is derivable from the payload, because the desktop
- *    entry that carries the id is only staged for `kind: 'app'`.
+ *  - `kind`, `execArgs` — read by the planner and the metadata renderers, all of
+ *    which have run by the time a stage exists. `appId` was on this line and
+ *    MOVED: the Flatpak packer needs it at pack time twice over — it is the
+ *    manifest's `id` and the ref `flatpak build-bundle` exports — and neither is
+ *    derivable from the payload, because the desktop entry that carries the id
+ *    is only staged for `kind: 'app'`. `name` was on it too and moved for the
+ *    same kind of reason one milestone later: the macOS artifact IS
+ *    `<name>.app`, so the packing host has to be able to NAME it, and no other
+ *    field in this object can spell it (`binaryName` is the executable inside
+ *    the bundle, not the bundle).
  *  - `arch` — carried by the manifest's `target`, which is also the value a
  *    mismatched stage is refused on, so it lives in exactly one place.
  *  - `mimeTypes` — phase 1 renders the shared-mime-info document into the
@@ -255,6 +305,17 @@ export interface PackSettings {
     binaryName: string;
     /** Reverse-DNS application id — the Flatpak manifest's `id` and the exported ref. */
     appId: string;
+    /**
+     * Human-readable display name — and, on macOS, the `<App>.app` directory itself.
+     *
+     * On this side of the host boundary because the darwin packers cannot work
+     * without it: `macos-app`'s artifact is a directory called `${name}.app` and
+     * `macos-app-zip` wraps that directory, so a finishing host with the stage and
+     * nothing else still has to be able to spell it. Also what `Info.plist`'s
+     * `CFBundleName`/`CFBundleDisplayName` carry — see `layout.ts`'s
+     * `LayoutMetadataInput`.
+     */
+    name: string;
     /** Upstream version, normalised for package managers. */
     version: string;
     /** Package revision within one upstream version (deb revision / rpm release). */
@@ -334,8 +395,6 @@ export interface ShipFlatpakSettings {
 export interface ShipSettings extends PackSettings {
     /** Absolute path to the project being shipped. */
     projectDir: string;
-    /** Human-readable display name. */
-    name: string;
     /** Absolute path to the licence file, when one was found. */
     licenseFile?: string;
     /** `'app'` stages a desktop entry and an icon; `'cli'` stages neither. */

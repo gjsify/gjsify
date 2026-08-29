@@ -23,6 +23,7 @@
 
 import { posix } from 'node:path';
 
+import { BUNDLE_INFO_PLIST, BUNDLE_PKGINFO, renderInfoPlist, renderPkgInfo } from './plist.js';
 import type { HostOs, StagedFile } from './types.js';
 
 /**
@@ -44,6 +45,28 @@ export interface LayoutIdentity {
     binaryName: string;
     /** Human-readable display name — the `<App>.app` directory a user sees in Finder. */
     name: string;
+}
+
+/**
+ * What a layout needs to render the metadata it OWNS.
+ *
+ * `LayoutIdentity` plus the three fields an `Info.plist` names the app by. It
+ * EXTENDS the identity rather than sitting beside it so `placeStage` keeps taking
+ * one argument and `ShipSettings` satisfies it structurally — no call site has to
+ * assemble a second object, and adding a field here is a compile error at exactly
+ * the rows that would have to answer for it.
+ *
+ * Everything here comes from the consumer's own `gjsify.ship` block. Nothing in
+ * this file is derived from gjsify's tree and nothing has a gjsify-specific
+ * default, which is the same line {@link LayoutDirs} draws for directories.
+ */
+export interface LayoutMetadataInput extends LayoutIdentity {
+    /** Reverse-DNS application id — `CFBundleIdentifier`, and what the data tree is keyed on. */
+    appId: string;
+    /** Upstream version — `CFBundleShortVersionString`. */
+    version: string;
+    /** Packaging revision within one upstream version — the second half of `CFBundleVersion`. */
+    release: string;
 }
 
 /** The four places a payload file can belong, as stage-relative directories. */
@@ -123,6 +146,29 @@ export interface Layout {
     root: (identity: LayoutIdentity) => string;
     /** The four destinations, resolved against one app's names. */
     dirs: (identity: LayoutIdentity) => LayoutDirs;
+    /**
+     * Files this layout OWNS, already in stage-relative form — `[]` where it owns none.
+     *
+     * The seam {@link place} structurally cannot provide, and that is why it is a
+     * second function rather than another prefix rule. `Contents/Info.plist` has no
+     * prefix-relative counterpart to be mapped FROM: `planStage` emits one plan in
+     * the Linux/XDG shape, everything unmatched falls to `dirs.other`, and
+     * `assertInsidePrefix` forbids a plan entry from escaping upward — so no
+     * `gjsify.ship.extraFiles` value and no planner rule can put a file at the
+     * bundle root. The layout has to add it.
+     *
+     * REQUIRED on every row, not optional. An optional field is one a fourth OS can
+     * forget; a required one that returns `[]` is a row that has ANSWERED "this
+     * layout owns nothing", which is a different statement and the one worth being
+     * able to read. Linux and Windows both answer that today — a program directory
+     * and a `/usr` prefix have no manifest of their own — so the whole difference
+     * between "no metadata yet" and "no metadata ever" stays visible.
+     *
+     * The result is placed by `placeStage`, which applies the SAME uniqueness check
+     * it applies to mapped files: an `extraFiles` destination that lands on
+     * `Contents/Info.plist` is refused rather than silently replacing it.
+     */
+    metadata: (input: LayoutMetadataInput) => StagedFile[];
 }
 
 /**
@@ -165,6 +211,10 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             data: 'share',
             other: '',
         }),
+        // A `/usr` prefix has no manifest of its own — everything a Linux package
+        // says about itself is in the `.deb`/`.rpm` header or in the freedesktop
+        // files the payload already carries.
+        metadata: () => [],
     },
     darwin: {
         name: 'darwin',
@@ -196,6 +246,22 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
                 other: `${app}/Contents/Resources`,
             };
         },
+        // The two files that make the directory a BUNDLE. Without `Info.plist`
+        // nothing tells LaunchServices which file under `Contents/MacOS` to exec,
+        // and a `*.app` with no `Info.plist` is a folder with a suffix — which is
+        // exactly what M1 staged. `plist.ts` carries the per-key citations.
+        metadata: (input) => [
+            {
+                path: `${appBundleDir(input)}/${BUNDLE_INFO_PLIST}`,
+                mode: 0o644,
+                source: { kind: 'text', text: renderInfoPlist(input) },
+            },
+            {
+                path: `${appBundleDir(input)}/${BUNDLE_PKGINFO}`,
+                mode: 0o644,
+                source: { kind: 'text', text: renderPkgInfo() },
+            },
+        ],
     },
     windows: {
         name: 'windows',
@@ -223,6 +289,12 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // has no rpath — a DLL is found on `PATH`, in the directory of the image
         // that loaded it, or not at all.
         dirs: () => ({ launcher: '', bundle: 'app', native: 'lib', data: 'share', other: '' }),
+        // Nothing yet, and this is the row that shows the field is not a macOS
+        // detail wearing a general name: a Windows installer's metadata lives in
+        // the `.msi`'s own tables, not in a file inside the program directory. If
+        // that turns out to be wrong when a Windows format lands, THIS is where
+        // the answer goes — not a branch in the stager.
+        metadata: () => [],
     },
 };
 
@@ -329,31 +401,44 @@ export function place(layout: Layout, identity: LayoutIdentity, rel: string): st
 }
 
 /**
- * Apply a layout to a whole planned payload.
+ * Apply a layout to a whole planned payload, and add what the layout itself owns.
  *
- * The uniqueness check is not decoration. `planStage` deduplicates on the
- * PREFIX-RELATIVE path — that is how `gjsify.ship.extraFiles` is documented to
- * override a default — but the MAP can bring two distinct prefix-relative paths
- * together: on Windows the launcher becomes `<binaryName>.cmd` at the program
- * root, which an `extraFiles` destination can name directly. Without this the
- * second one silently wins and which one that is depends on plan order — the
- * "installs cleanly, does nothing" class this command is built against.
+ * TWO SOURCES, one destination namespace. The mapped files come from
+ * `planStage`'s prefix-relative plan; {@link Layout.metadata} adds the files that
+ * have no prefix-relative counterpart at all (`Contents/Info.plist`). Both go
+ * through the same uniqueness check, which is what makes the second source safe:
+ * an `extraFiles` destination that maps onto a metadata path is refused by name
+ * instead of silently replacing the file that makes the bundle a bundle.
+ *
+ * The uniqueness check is not decoration for the mapped half either. `planStage`
+ * deduplicates on the PREFIX-RELATIVE path — that is how `gjsify.ship.extraFiles`
+ * is documented to override a default — but the MAP can bring two distinct
+ * prefix-relative paths together: on Windows the launcher becomes
+ * `<binaryName>.cmd` at the program root, which an `extraFiles` destination can
+ * name directly. Without this the second one silently wins and which one that is
+ * depends on plan order — the "installs cleanly, does nothing" class this command
+ * is built against.
  */
-export function placeStage(layout: Layout, identity: LayoutIdentity, files: readonly StagedFile[]): StagedFile[] {
+export function placeStage(layout: Layout, identity: LayoutMetadataInput, files: readonly StagedFile[]): StagedFile[] {
     const byPlaced = new Map<string, string>();
     const out: StagedFile[] = [];
-    for (const file of files) {
-        const path = place(layout, identity, file.path);
+    const claim = (path: string, from: string, file: StagedFile): void => {
         const previous = byPlaced.get(path);
         if (previous !== undefined) {
             throw new Error(
-                `gjsify ship: in the ${layout.name} layout both ${previous} and ${file.path} install as ` +
+                `gjsify ship: in the ${layout.name} layout both ${previous} and ${from} install as ` +
                     `${path}. Two payload files cannot share one destination — one would silently replace the ` +
                     'other. Rename the `gjsify.ship.extraFiles` destination that collides.',
             );
         }
-        byPlaced.set(path, file.path);
+        byPlaced.set(path, from);
         out.push({ ...file, path });
-    }
+    };
+    for (const file of files) claim(place(layout, identity, file.path), file.path, file);
+    // The layout's own files are ALREADY stage-relative — they were never in the
+    // prefix-relative plan, so there is nothing to map. `<layout> metadata` rather
+    // than a path as the origin label, because a collision message naming
+    // `Contents/Info.plist` as both sides would say nothing.
+    for (const file of layout.metadata(identity)) claim(file.path, `the ${layout.name} layout's own metadata`, file);
     return out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }

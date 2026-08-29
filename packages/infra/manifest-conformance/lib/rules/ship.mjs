@@ -40,8 +40,13 @@ const BINARY_NAME = /^[a-z\d][a-z\d+.-]+$/;
  * host: a DECLARATION is legal wherever the format exists, and refusing it here
  * would tell a project its target is unsupported on the very machine that
  * assembles the stage for a different one.
+ *
+ * The two macOS members are in for the same reason one step further out. Neither
+ * needs a macOS host — a `.app` tree and the zip around it are `finishOn: 'any'`
+ * and a Linux workstation assembles both — but even if they did, this rule reads
+ * a package's DECLARATION, and where that package is packed is not its business.
  */
-const TARGETS = new Set(['deb', 'rpm', 'flatpak']);
+const TARGETS = new Set(['deb', 'rpm', 'flatpak', 'macos-app', 'macos-app-zip']);
 /**
  * Keys whose value is a SOURCE path that must exist relative to the package.
  *

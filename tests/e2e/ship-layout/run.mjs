@@ -114,6 +114,45 @@ const LAYOUT_MAP = {
     },
 };
 
+/**
+ * What each layout adds that the map cannot produce — the second half of the
+ * restated invariant (#1354 M2a).
+ *
+ * TWO ROUTES, and they are listed apart because they fail apart. The first is
+ * `Layout.metadata`: files the LAYOUT owns, at the bundle root, with no
+ * prefix-relative counterpart anywhere. The second is the compiled schema cache,
+ * which IS prefix-relative and is added to the plan for any layout with no
+ * install step — so it goes through the map like everything else and is an
+ * addition only relative to Linux.
+ *
+ * Windows has an empty metadata row on purpose: a program directory has no
+ * manifest of its own today, and a row that answers "this layout owns nothing" is
+ * a different statement from a row nobody filled in.
+ */
+const LAYOUT_ADDITIONS = {
+    darwin: [
+        `${APP_NAME}.app/Contents/Info.plist`,
+        `${APP_NAME}.app/Contents/PkgInfo`,
+        `${APP_NAME}.app/Contents/Resources/share/glib-2.0/schemas/gschemas.compiled`,
+    ],
+    windows: ['share/glib-2.0/schemas/gschemas.compiled'],
+};
+
+/**
+ * Why a pack of each non-Linux layout is refused FOR THIS FIXTURE, which is
+ * `--app gjs`.
+ *
+ * The two were one string until #1354 M2a gave darwin two formats. They still
+ * both produce an empty format list, and that is exactly why the messages have to
+ * differ: "wait for a milestone" and "change your project" are not the same
+ * advice, and a test asserting one regex for both would have gone on passing
+ * while the command started giving the wrong one.
+ */
+const UNPACKABLE = {
+    darwin: /wrap the darwin layout, and neither can run this project/,
+    windows: /no format wraps the windows layout yet/,
+};
+
 /** `<os>` → the `${process.platform}-${process.arch}` string its stage manifest records. */
 const TARGET = { linux: `linux-${ARCH}`, darwin: `darwin-${ARCH}`, windows: `win32-${ARCH}` };
 
@@ -209,9 +248,44 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
     });
 
     for (const os of ['darwin', 'windows']) {
-        it(`the ${os} file set is the Linux one modulo the layout map`, () => {
-            const expected = listPayload(stages.linux).map(LAYOUT_MAP[os]).sort();
+        it(`the ${os} file set is the Linux one modulo the map, plus what that layout adds`, () => {
+            // THE INVARIANT IS RESTATED, NOT RELAXED (#1354 M2a). It used to be a
+            // bare `deepEqual` of the mapped sets, and M2a broke it in two
+            // different ways at once — neither of them a bug:
+            //
+            //  * `Contents/Info.plist` and `Contents/PkgInfo` have no Linux
+            //    counterpart to be mapped FROM. `planStage` emits one plan in the
+            //    prefix-relative shape, `place()` sends everything unmatched to
+            //    `dirs.other`, and `assertInsidePrefix` forbids escaping upward —
+            //    so no plan entry and no `extraFiles` value can reach a bundle
+            //    root. `Layout.metadata` is the seam that adds them, and a
+            //    comparison between the three layouts is structurally blind to a
+            //    file only one of them produces.
+            //  * `gschemas.compiled` exists in the non-Linux stages and must NOT
+            //    exist in the Linux one, because there the `.deb`/`.rpm` postinst
+            //    compiles the SYSTEM directory at install time.
+            //
+            // The cheap repair — a subset check — would have stopped this suite
+            // catching a real layout bug, which is the whole reason it exists. So
+            // the additions are ENUMERATED here, by the route each arrives on, and
+            // asserted in BOTH directions: every mapped file is present, every
+            // addition is present, and nothing else is. A third file appearing
+            // from anywhere reds until somebody writes it down.
+            const expected = [...listPayload(stages.linux).map(LAYOUT_MAP[os]), ...LAYOUT_ADDITIONS[os]].sort();
             assert.deepEqual(listPayload(stages[os]), expected);
+        });
+
+        it(`the ${os} additions are absent from the Linux stage, which is what makes them additions`, () => {
+            // Without this the enumeration above could be satisfied by a set that
+            // is simply the Linux one — the mapped half would cover everything and
+            // `LAYOUT_ADDITIONS` could be junk nobody notices.
+            const linux = listPayload(stages.linux);
+            for (const added of LAYOUT_ADDITIONS[os]) {
+                assert.ok(!linux.includes(added), `${added} is in the Linux stage, so it is not an addition`);
+                // …and the prefix-relative shape of it is absent too, which is the
+                // check that catches `gschemas.compiled` leaking into a `.deb`.
+                assert.ok(!linux.some((rel) => rel.endsWith('gschemas.compiled')));
+            }
         });
 
         it(`every ${os} file is byte-identical to its Linux counterpart, except the launcher`, () => {
@@ -315,7 +389,13 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
                 if (os === 'linux') {
                     assert.match(runCliSync(CLI_ENTRY, args, { cwd: projectDir }), /\[gjsify ship\] packing/);
                 } else {
-                    assert.match(shipExpectingFailure(args, projectDir), /no format wraps the .* layout yet/);
+                    // TWO DIFFERENT REFUSALS as of #1354 M2a, and asserting the
+                    // same string for both would have hidden the change: darwin
+                    // now HAS formats and this fixture cannot use them
+                    // (`interpreters: ['node']`, and this project is `--app gjs`),
+                    // while nothing wraps the windows layout at all. Byte-identical
+                    // empty format lists, two different next steps.
+                    assert.match(shipExpectingFailure(args, projectDir), UNPACKABLE[os]);
                 }
             }
         });
@@ -384,10 +464,10 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.deepEqual(listPayload(join(projectDir, 'ship-default', 'stage')), listPayload(stages.linux));
     });
 
-    it('refuses to PACK a layout no format wraps, rather than exiting 0 with nothing', () => {
+    it('refuses to PACK what it cannot pack, rather than exiting 0 with nothing', () => {
         for (const os of ['darwin', 'windows']) {
             const output = shipExpectingFailure(['ship', os, '--skip-build', '--out', `pack-${os}`], projectDir);
-            assert.match(output, /no format wraps the .* layout yet/);
+            assert.match(output, UNPACKABLE[os]);
         }
     });
 
@@ -479,14 +559,40 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         for (const os of ['darwin', 'windows']) {
             const share = listPayload(stages[os]).filter(
                 (rel) =>
-                    /(^|\/)share\//.test(rel) && !rel.includes('/share/locale/') && !rel.startsWith('share/locale/'),
+                    /(^|\/)share\//.test(rel) &&
+                    !rel.includes('/share/locale/') &&
+                    !rel.startsWith('share/locale/') &&
+                    // The compiled cache is the one `share/` file that is not a
+                    // COST — it is what removes one, so `SHARE_PORTABLE` skips it
+                    // and the warning never names it. Reported under a heading
+                    // about files that need a package install step, it would name
+                    // the fix as if it were the problem.
+                    !rel.endsWith('gschemas.compiled'),
             );
             // The classifier reads PREFIX-RELATIVE paths, which is what `assemble`
-            // hands it — the layout map runs after.
-            const carried = linuxInstallDependent(listPayload(stages.linux).map((path) => ({ path })));
+            // hands it — the layout map runs after. Reconstructed here as the
+            // Linux payload PLUS the cache #1354 M2a compiles into every
+            // non-Linux stage, because that is the set `assemble` actually
+            // classifies for these two layouts.
+            const prefixRelative = [...listPayload(stages.linux), 'share/glib-2.0/schemas/gschemas.compiled'];
+            const carried = linuxInstallDependent(prefixRelative.map((path) => ({ path })));
             assert.equal(carried.length, share.length, `${os}: ${share.length} share file(s), ${carried.length} named`);
-            assert.equal(carried.filter((entry) => entry.verdict === 'aborts').length, 1);
-            assert.ok(carried[0].path.includes('glib-2.0/schemas'), 'the aborting entry must come first');
+            // ZERO aborting entries now, where M1 asserted exactly one. The schema
+            // directory is the entry that used to kill the app at its first
+            // `Gio.Settings.new()`, and M2a compiles the cache into the stage
+            // rather than reclassifying the rule — which the next assertion is
+            // what proves.
+            assert.equal(carried.filter((entry) => entry.verdict === 'aborts').length, 0);
+            const schemas = carried.find((entry) => entry.path.includes('glib-2.0/schemas'));
+            assert.equal(schemas.verdict, 'inert');
+            assert.match(schemas.why, /`gschemas\.compiled` is staged beside it/);
+            // THE RULE STILL FIRES, which is the difference between fixing the
+            // tree and deleting the check. Take the cache back out of the set and
+            // the same classifier must say `aborts` again — otherwise M2a would
+            // have bought a quiet warning rather than a working bundle.
+            const withoutCache = linuxInstallDependent(listPayload(stages.linux).map((path) => ({ path })));
+            assert.equal(withoutCache.filter((entry) => entry.verdict === 'aborts').length, 1);
+            assert.ok(withoutCache[0].path.includes('glib-2.0/schemas'), 'the aborting entry must come first');
             // NO entry may be `unknown` for this fixture — every directory it
             // stages has a rule. This is the assertion that catches a rule
             // pointed at a directory matching nothing: the count alone does not,
@@ -531,10 +637,15 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             );
             assert.equal(status, 0);
             assert.match(stderr, /whose Linux correctness comes from a package install step/);
-            // The severity marker, which is the difference between "this app will
-            // not start" and "this file is ignored".
-            assert.match(stderr, /ABORTS: share\/glib-2\.0\/schemas\/.*\.gschema\.xml/);
-            assert.match(stderr, /GSettings ABORTS on a schema directory with no `gschemas\.compiled`/);
+            // NO SEVERITY MARKER ANY MORE, and this is the assertion that changed
+            // hands at #1354 M2a. M1 asserted `ABORTS:` here, because the staged
+            // schema directory really did kill the app at its first
+            // `Gio.Settings.new()`. M2a compiles the cache into the stage, so the
+            // marker would now be a lie — and the warning that keeps its severity
+            // after the severity is gone is the one nobody reads when it comes
+            // back.
+            assert.ok(!stderr.includes('ABORTS:'), 'the schema directory no longer aborts — the marker must go');
+            assert.match(stderr, /`gschemas\.compiled` is staged beside it and that is what GSettings reads/);
             assert.match(stderr, gap);
             // The citation is ADR 0024 § 4 and not `docs/ci-selective.md`, which
             // contains no occurrence of the fact this string asserts.

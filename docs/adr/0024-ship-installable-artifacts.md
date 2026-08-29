@@ -1,6 +1,6 @@
 # 24. `gjsify ship` — one payload, a runtime policy per OS, several install formats
 
-- Status: **Accepted** — stages 1, 2, 3 and 6 of § Implementation have landed; see § Implementation status
+- Status: **Accepted** — stages 1, 2, 3 and 6 have landed, and the first half of stage 4; see § Implementation status
 - Date: 2026-08-14 (accepted 2026-08-15)
 - Deciders: Pascal Garber
 - Related: [ADR 0017 (native distribution)](0017-native-package-distribution.md), [ADR 0018 (OS-axis declaration)](0018-os-axis-declaration.md), [ADR 0021 (in-process prebuild resolution)](0021-launcher-free-prebuild-resolution.md), [ADR 0023 (which GTK a process uses)](0023-gtk-source-precedence.md), [docs/publishing.md](../publishing.md), `status/open-todos.md` § *gjsify on Flatpak — remaining roadmap*
@@ -349,9 +349,10 @@ Windows); the launcher needs three FORMS, two of them for measured reasons — t
 macOS ships has no `-f`, and SIP strips an inherited `DYLD_*` at the `/bin/sh` exec, which is § 3's
 in-process answer arriving as a launcher constraint; and `FormatDescriptor` needed a `layoutOs`
 field distinct from `host.finishOn`, which is what settles open question 3 (a `.app` zip is
-`finishOn: 'any'` with `layoutOs: 'darwin'`, so the two are not one field). No format wraps the two
-new layouts yet — they are `--stage` only, and a pack is refused by name rather than exiting 0
-having produced nothing.
+`finishOn: 'any'` with `layoutOs: 'darwin'`, so the two are not one field). ~~No format wraps the
+two new layouts yet — they are `--stage` only, and a pack is refused by name rather than exiting 0
+having produced nothing.~~ **Superseded for darwin by #1354 M2a below**; still true of windows, and
+the refusal is still by name.
 
 **And three corrections the first cut of that axis needed, all of the same shape — reading a
 statement about a SHIPPED ARTIFACT as a statement about an assembly step.** (a) § 4 derives the
@@ -381,6 +382,72 @@ string literals, so the claim is now a mechanism or it is not made. Deciding wha
 needs the container, i.e. stages 4 and 5.
 Flagged for stage 4 and not measured here: a loose `.typelib` in `Contents/Frameworks` is the
 classic codesign/notarization complaint.
+
+**Landed since, and it is the first half of stage 4: the macOS bundle SHAPE** (#1354 M2a). The
+`<App>.app` the layout axis staged was a directory whose name ends in `.app` and nothing more —
+`Contents/Info.plist` was absent, so LaunchServices had nothing to tell it which file under
+`Contents/MacOS` to exec and the Finder shows a folder. M2a writes that file and `Contents/PkgInfo`,
+adds a deterministic in-tree ZIP writer, and gives darwin two format rows (`macos-app`,
+`macos-app-zip`, both `finishOn: 'any'`, `layoutOs: 'darwin'`). Assembled on Linux, unsigned. Six
+things worth recording, because each was a decision and not a detail:
+
+- **The seam is `Layout.metadata`, not another prefix rule.** `Contents/Info.plist` has no
+  prefix-relative counterpart to be mapped FROM: `planStage` emits one plan in the Linux/XDG shape,
+  `place()` sends everything unmatched to `dirs.other`, and `assertInsidePrefix` forbids escaping
+  upward — so no planner rule and no `gjsify.ship.extraFiles` value can put a file at a bundle root.
+  Required on every row, `[]` on the two that own nothing, so "no metadata yet" and "no metadata
+  ever" stay different statements.
+- **Eleven plist keys, every one cited to a file in `refs/node`** that a real macOS toolchain
+  produced or consumes (`test/fixtures/macos-app-sandbox/Info.plist`, `deps/v8/gni/Info.plist`,
+  `tools/gyp/pylib/gyp/mac_tool.py`). Keys that are merely plausible are not emitted, and the
+  measurement behind that has a stated SCOPE: `grep -r … refs/` answers cheerfully after reading
+  almost nothing, because 89 of 95 declared submodules are not checked out. Six were; the five
+  candidate keys return 0 files across them against 3 for `CFBundleSignature` as the control.
+- **`plutil` is macOS-only and its obvious Linux substitute is a trap.** Measured on Fedora 44
+  against a `<dict>` whose `<key>` has no value: `plistutil` prints `<dict/>` at exit 0, and
+  `xmllint --noout --valid --nonet` exits 4 on a CORRECT plist because the DTD is a remote URL — a
+  constant, not a reader. The oracle is CPython's `plistlib`, a different implementation family,
+  already precedent here, and already in the CI image. Same shape one format over:
+  `unzip -Z1` prints names only and is blind to the single failure a distributed `.app` has, so the
+  zip's reader is `zipinfo -l`, which shows the Unix mode and ships in the same `unzip` package.
+- **`share/glib-2.0/schemas` aborted, and now does not.** Every launcher exports `XDG_DATA_DIRS` at
+  the staged `share/`, and GSettings aborts on a schema directory with no `gschemas.compiled`; a
+  `.app` has no postinst to compile one. It is compiled AT STAGE TIME — `requiredTools:
+  ['glib-compile-schemas']` with `finishOn` still `'any'`, which is what `assertToolsInstalled`
+  being separate from `assertHostCanFinish` is for. `--strict` is load-bearing and was measured:
+  without it a malformed schema is skipped at exit 0 and a cache is written without it, so the stage
+  looks compiled and the app still aborts on the schema that was dropped. Whether `gschemas.compiled`
+  is host-endian is UNVERIFIED; it does not bite because both darwin targets and every runner here
+  are little-endian.
+- **M1's equality assertion is restated, not weakened.** `tests/e2e/ship-layout` deep-equals the two
+  new file sets against the Linux one mapped through a hand-written map, and M2a adds files no map
+  can produce. The invariant is now *identical modulo the map, plus an enumerated per-layout
+  addition set*, asserted in both directions — the additions must also be ABSENT from Linux, which
+  is what catches `gschemas.compiled` leaking into a `.deb`. Relaxing the `deepEqual` to a subset
+  check was the cheap repair and would have stopped the suite catching a real layout bug.
+- **Two things the first cut got wrong, both measured rather than reviewed.** `writePayload` was
+  handed the staged paths verbatim, and every darwin path already begins with `<App>.app/` — so the
+  artifact came out as `out/<App>.app/<App>.app/Contents/…`, a folder holding a bundle one level
+  down, at exit 0, with the sibling zip correct the whole time. And `interpreters: ['node']` on both
+  rows made `assertFormatCanRunInterpreter` refuse the DERIVED default set, so
+  `gjsify ship darwin --stage` began exiting 1 for every `--app gjs` project — which is every
+  project this command has, and the whole audience of the layout M1 added. A derived default is not
+  a claim anybody made, so it is filtered with the reason printed; a typed `--target` is still
+  refused by name.
+
+`STAGE_SCHEMA_VERSION` went 4 → 5, decided against its own header's criterion rather than
+reflexively. NOT for the two new format ids: `formats[]` carries new VALUES in a field whose meaning
+is unchanged, and `readStageManifest` already refuses an unknown one by name, so an older gjsify
+meeting a macOS stage fails closed with the right message. YES for `settings.name`, which is
+REQUIRED — this reader meeting a schema-4 stage would fail on "name must be a string" instead of on
+the one thing the reader can do about it.
+
+What M2a does NOT do, stated so the milestone is not read as more than it is: nothing stages an
+interpreter or a GTK closure into the bundle, so the `.app` runs only where `node` is already on
+`PATH`. `resolveNodeRuntime` still has no caller outside its own spec, and `plan.ts` flattens
+`bundledTypelibs` with `basename()`, which pointed at a `gtk-runtime-darwin-*` tree would destroy
+every relative relation the relocation depends on. That is M2b, and it is why "unzip it on
+macos-latest and open a window" is not a leg bolted onto this one.
 
 That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
 stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`
@@ -624,6 +691,16 @@ aborts the load.
   packages. Until then, one authored `.wxs` with a host-selected backend, cross-checked between
   `wixl` (Linux) and WiX (Windows) so the producer and the reader are not the same package —
   `msitools` ships both `wixl` and `msiinfo`, so a wixl-only path would be a self-oracle.
+- **An `.icns` icon in the bundle.** *Every other file a `.app` carries is one this tree either
+  copied or wrote in a format it can read back. An ICNS would be neither: `png2icns`, `icnsutil` and
+  `iconutil` are all absent from this workstation and from the CI image, so an icon written here
+  could only be checked by a reader written here — `oracle.selfReading: true`, which the format
+  table lets a row DECLARE and `flatpak.spec.ts` reds for every row that does. So M2a ships no
+  `.icns` and emits no `CFBundleIconFile`, and the hicolor PNG/SVG the payload already carries stays
+  the only icon, unread on macOS: a bundle with no icon shows a generic one, which is visibly
+  incomplete, where a bundle with a malformed one is a bug nobody on Linux can see.* Unblocker: an
+  independent Linux ICNS reader in the CI image — `icnsutil` is the candidate — after which the key
+  and the file land together, in one commit, with the reader gating them.
 - **MSIX.** An unsigned one cannot be installed at all, and the property under test — "installs on a
   machine that never saw our certificate" — cannot be measured by the leg that holds the
   certificate. A self-signed cert in `TrustedPeople` buys a green leg that proves nothing.

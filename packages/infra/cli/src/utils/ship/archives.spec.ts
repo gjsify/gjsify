@@ -14,6 +14,7 @@ import { createArArchive } from './ar.js';
 import { createCpioArchive, S_IFREG } from './cpio.js';
 import { ancestorDirectories } from './deb.js';
 import { buildRpmHeader, buildRpmLead, padToEight, RpmType, RPM_TAG_HEADERIMMUTABLE } from './rpm-header.js';
+import { buildZip, crc32, dosDateTime } from './zip.js';
 import { readPayloadFacts } from './payload.js';
 import { cacheRefreshCommands, renderDebScripts, renderRpmScriptlets } from './scripts.js';
 
@@ -221,6 +222,141 @@ export default async () => {
                 expect(line).toContain('command -v');
                 expect(line).toContain('|| true');
             }
+        });
+    });
+
+    // ── the ZIP writer (#1354 M2a) ────────────────────────────────────────
+    //
+    // `tests/e2e/ship-macos` reads a real archive back with `zipinfo -l` and
+    // `unzip`, which settles whether the file is a zip and whether the mode
+    // survived. What an independent reader CANNOT settle is the input it is never
+    // given: a caller order that differs from the sorted one, a timestamp before
+    // 1980, an odd second, a payload past the 32-bit fields. Those are the four
+    // places a well-formed archive comes out wrong, and this is where they are
+    // pinned.
+    await describe('buildZip', async () => {
+        const entry = (path: string, mode: number, text: string) => ({
+            path,
+            mode,
+            data: new TextEncoder().encode(text),
+        });
+        /** The offsets of every central-directory header, by signature. */
+        const centralOffsets = (zip: Uint8Array): number[] => {
+            const out: number[] = [];
+            const at = view(zip);
+            for (let i = 0; i + 4 <= zip.byteLength; i++) {
+                if (at.getUint32(i, true) === 0x02014b50) out.push(i);
+            }
+            return out;
+        };
+
+        await it('matches the CRC-32 vector every implementation of this polynomial agrees on', async () => {
+            // `123456789` → 0xCBF43926 is the check value published with the
+            // CRC-32/ISO-HDLC parameters, and it is the only assertion here that
+            // does not depend on anything this repository wrote. A table built
+            // with the un-reversed polynomial passes a self-consistent round trip
+            // and fails this.
+            expect(crc32(new TextEncoder().encode('123456789'))).toBe(0xcbf43926);
+            expect(crc32(new Uint8Array(0))).toBe(0);
+        });
+
+        await it('puts the POSIX mode in the HIGH 16 bits, with the regular-file type', async () => {
+            // The field the whole writer exists for. `unzip` reads it as a POSIX
+            // mode only when `version made by` says Unix — high byte 3 — so both
+            // halves are asserted together: with the DOS value the same bits are
+            // read as DOS attribute flags and every file extracts at the umask
+            // default, which is a `.app` that does not start.
+            const zip = buildZip([entry('App.app/Contents/MacOS/demo', 0o755, '#!/bin/sh\n')], 1_700_000_000);
+            const [central] = centralOffsets(zip);
+            const at = view(zip);
+            expect(at.getUint16((central as number) + 4, true)).toBe(0x0314);
+            // `S_IFREG | 0755` in the top half; the low half is DOS attributes and
+            // is deliberately zero.
+            expect(at.getUint32((central as number) + 38, true) >>> 16).toBe(0o100755);
+            expect(at.getUint32((central as number) + 38, true) & 0xffff).toBe(0);
+        });
+
+        await it('sorts by path, so the caller order cannot reach the bytes', async () => {
+            // `readdir` order is a filesystem's opinion, and two runs over one
+            // payload have to produce one byte sequence. Asserted by building the
+            // SAME entries in two orders and comparing the whole file rather than
+            // the listing: a writer that sorted its central directory and not its
+            // local headers would pass a name comparison.
+            const files = [entry('b.txt', 0o644, 'B'), entry('a.txt', 0o644, 'A'), entry('c.txt', 0o644, 'C')];
+            const forward = buildZip(files, 1_700_000_000);
+            const shuffled = buildZip([files[2] as never, files[0] as never, files[1] as never], 1_700_000_000);
+            expect([...shuffled]).toStrictEqual([...forward]);
+        });
+
+        await it('stores rather than deflates, and says the two sizes are one size', async () => {
+            // STORE is a first cut and legitimate — but it has to be DECLARED as
+            // one. A method field of 8 with uncompressed bytes behind it is an
+            // archive `unzip` reads as a corrupt deflate stream.
+            const zip = buildZip([entry('a.txt', 0o644, 'hello')], 1_700_000_000);
+            const at = view(zip);
+            expect(at.getUint16(8, true)).toBe(0);
+            expect(at.getUint32(18, true)).toBe(5);
+            expect(at.getUint32(22, true)).toBe(5);
+            // Bit 11 of the general-purpose flags: the name is UTF-8. Without it
+            // the name is CP437, which cannot spell a display name that is not
+            // ASCII — and `<App>.app` carries the display name.
+            expect(at.getUint16(6, true) & 0x0800).toBe(0x0800);
+        });
+
+        await it('takes the timestamp from the caller and writes it as UTC', async () => {
+            // Never `Date.now()` — the rule `buildTimestamp` and
+            // `gzipDeterministic` already follow. UTC and not local time, because
+            // a DOS stamp carries no zone: reading it back as the packing host's
+            // zone would make two runners in different regions produce different
+            // bytes from one stage.
+            //
+            // 2023-11-14T22:13:20Z: year 43 past 1980, month 11, day 14, hour 22,
+            // minute 13, second 20 → 10 in the half-second field.
+            const stamp = dosDateTime(1_700_000_000);
+            expect(stamp.date).toBe((43 << 9) | (11 << 5) | 14);
+            expect(stamp.time).toBe((22 << 11) | (13 << 5) | 10);
+        });
+
+        await it('clamps before 1980 and floors an odd second, rather than refusing either', async () => {
+            // The format is from 1980 and its seconds field holds HALF-seconds, so
+            // neither is representable. Both are METADATA no reader in this
+            // repository asserts on, and failing a build because
+            // `SOURCE_DATE_EPOCH` named 1979 would reject an artifact over a
+            // display field — which is the opposite trade from the ZIP64 refusal
+            // below, where the field is load-bearing and silence is the danger.
+            expect(dosDateTime(0)).toStrictEqual({ date: (0 << 9) | (1 << 5) | 1, time: 0 });
+            expect(dosDateTime(1_700_000_001).time).toBe(dosDateTime(1_700_000_000).time);
+        });
+
+        await it('refuses past the 32-bit fields instead of wrapping into a valid-looking archive', async () => {
+            // A LOUD limit. Past 65535 entries the non-ZIP64 central directory
+            // records the count in 16 bits and simply wraps, and what comes out is
+            // well-formed and wrong — the same argument `assertPayloadMatchesArch`
+            // makes one field over, where a label nothing compared to the payload
+            // produced an artifact `rpm` confirmed.
+            const many = Array.from({ length: 0x10000 }, (_unused, i) => entry(`f${i}.txt`, 0o644, ''));
+            expect(() => buildZip(many, 1_700_000_000)).toThrow('ZIP64');
+        });
+
+        await it('writes one central header per entry and an EOCD that agrees with them', async () => {
+            const zip = buildZip(
+                [entry('a.txt', 0o644, 'A'), entry('b.txt', 0o755, 'B'), entry('c.txt', 0o600, 'C')],
+                1_700_000_000,
+            );
+            const centrals = centralOffsets(zip);
+            expect(centrals.length).toBe(3);
+            const at = view(zip);
+            const eocd = zip.byteLength - 22;
+            expect(at.getUint32(eocd, true)).toBe(0x06054b50);
+            // Both count fields — "this disk" and "total" — because a reader picks
+            // whichever it likes and a writer that filled one is a writer whose
+            // archive some tools see as empty.
+            expect(at.getUint16(eocd + 8, true)).toBe(3);
+            expect(at.getUint16(eocd + 10, true)).toBe(3);
+            // And the central directory's offset really points at the first
+            // central header, which is the field `unzip` seeks to before it reads
+            // anything else.
+            expect(at.getUint32(eocd + 16, true)).toBe(centrals[0]);
         });
     });
 };

@@ -8,6 +8,8 @@
 
 import { statSync } from 'node:fs';
 
+import { launcherPath, type Layout, type LayoutIdentity } from './layout.js';
+import { SCHEMA_CACHE } from './schemas.js';
 import { isUnder, SHARE } from './share-dirs.js';
 
 /** One file in the payload, with its bytes. */
@@ -143,8 +145,19 @@ export function readPayloadFacts(entries: readonly { path: string }[]): PayloadF
  * a dependency on `gjs`" — a working artifact rejected over a parser, which is
  * exactly what the `null` branch was written to prevent and did not.
  */
-export function readLauncherInterpreters(payload: readonly PayloadEntry[], binaryName: string): string[] {
-    const launcher = payload.find((entry) => entry.path === `bin/${binaryName}`);
+export function readLauncherInterpreters(
+    payload: readonly PayloadEntry[],
+    layout: Layout,
+    identity: LayoutIdentity,
+): string[] {
+    // THE LAYOUT'S launcher, which is what this function's doc has always claimed
+    // and what it did not do. It looked up `bin/<binaryName>` — the PREFIX-RELATIVE
+    // path — so off Linux it matched nothing and returned `[]`, i.e. it was vacuous
+    // for the darwin tree (`<App>.app/Contents/MacOS/<name>`) and the windows one
+    // (`<name>.cmd`). Harmless while every format that called it wrapped the Linux
+    // layout; a real hole the moment a darwin format exists, because `[]` is the
+    // value `assertLauncherMatchesInterpreter` treats as "nothing to check".
+    const launcher = payload.find((entry) => entry.path === launcherPath(layout, identity));
     if (launcher === undefined) return [];
     const text = new TextDecoder().decode(launcher.data);
     const found: string[] = [];
@@ -217,16 +230,17 @@ function basenameOf(token: string): string {
  */
 export function assertLauncherMatchesInterpreter(
     payload: readonly PayloadEntry[],
-    binaryName: string,
+    layout: Layout,
+    identity: LayoutIdentity,
     interpreter: 'gjs' | 'node',
 ): void {
-    const found = readLauncherInterpreters(payload, binaryName);
+    const found = readLauncherInterpreters(payload, layout, identity);
     if (found.length === 0 || found.includes(interpreter)) return;
     const other = interpreter === 'gjs' ? 'node' : 'gjs';
     if (!found.includes(other)) return;
     throw new Error(
-        `gjsify ship: the launcher bin/${binaryName} execs \`${other}\`, but this package would declare a ` +
-            `dependency on \`${interpreter}\`.\n` +
+        `gjsify ship: the launcher ${launcherPath(layout, identity)} execs \`${other}\`, but this package ` +
+            `would declare a dependency on \`${interpreter}\`.\n` +
             '    An installed package that depends on one interpreter and runs another installs cleanly and ' +
             'fails\n' +
             "    at first launch, on the user's machine.\n" +
@@ -241,10 +255,14 @@ export function assertLauncherMatchesInterpreter(
  *
  * `aborts` and `inert` are not one severity, and printing them as one was a
  * measured presentation defect: every launcher exports `XDG_DATA_DIRS` at the
- * staged `share/`, so a `.app` built from this stage points GSettings at a schema
- * directory holding an `.xml` and no `gschemas.compiled` — `g_settings_new()`
- * ABORTS. The other four merely do nothing. Ranking them identically in a list of
- * five buried the one that stops the app.
+ * staged `share/`, so a `.app` built from a stage with an UNCOMPILED schema
+ * directory points GSettings at an `.xml` with no `gschemas.compiled` beside it —
+ * `g_settings_new()` ABORTS. The others merely do nothing. Ranking them
+ * identically in a list of five buried the one that stops the app.
+ *
+ * #1354 M2a compiles that cache into every non-Linux stage, so `aborts` is empty
+ * for a stage this gjsify wrote. The variant STAYS, and reachable — see
+ * {@link SHARE_VERDICTS}'s schema row.
  */
 export type ShareVerdict = 'aborts' | 'inert' | 'unknown';
 
@@ -253,6 +271,12 @@ export interface CarriedShareEntry {
     path: string;
     verdict: ShareVerdict;
     why: string;
+}
+
+/** What the classifier knows about the payload as a WHOLE, rather than per path. */
+interface ShareContext {
+    /** The tree carries `share/glib-2.0/schemas/gschemas.compiled`. */
+    hasCompiledSchemas: boolean;
 }
 
 /**
@@ -264,28 +288,56 @@ export interface CarriedShareEntry {
  * prose over five independent string literals, and pointing one rule at a
  * directory matching nothing silently dropped a file from the printed warning
  * with the whole suite green at exit 0.
+ *
+ * The verdict is a FUNCTION of the payload rather than a constant, and exactly
+ * one row uses that: the schema directory's cost depends on whether the compiled
+ * cache is in the tree with it. Making it a function keeps that in the table
+ * instead of as a branch in the loop — one place still answers "what does this
+ * directory cost", which is the property the five string literals cost us.
  */
-const SHARE_VERDICTS: ReadonlyArray<readonly [string, ShareVerdict, string]> = [
+const SHARE_VERDICTS: ReadonlyArray<readonly [string, (context: ShareContext) => readonly [ShareVerdict, string]]> = [
     [
         SHARE.schemas,
-        'aborts',
-        'needs `glib-compile-schemas` at install, and the launcher points XDG_DATA_DIRS here — ' +
-            'GSettings ABORTS on a schema directory with no `gschemas.compiled`',
+        // The `aborts` branch is what #1354 M2a removed the cause of, and it is
+        // deliberately still REACHABLE: a stage assembled before the compile step
+        // existed, or one whose cache was deleted, classifies as `aborts` again
+        // with no rule to remember to re-add. A rule that can no longer fire is a
+        // comment; this one is a mechanism.
+        ({ hasCompiledSchemas }) =>
+            hasCompiledSchemas
+                ? [
+                      'inert',
+                      'the schema SOURCE; `gschemas.compiled` is staged beside it and that is what ' +
+                          'GSettings reads, so this file is carried and never opened',
+                  ]
+                : [
+                      'aborts',
+                      'needs `glib-compile-schemas`, and the launcher points XDG_DATA_DIRS here — ' +
+                          'GSettings ABORTS on a schema directory with no `gschemas.compiled`',
+                  ],
     ],
-    [SHARE.mime, 'inert', 'needs `update-mime-database`; detection runs off the compiled cache'],
-    [SHARE.icons, 'inert', 'needs `gtk-update-icon-cache`; neither OS reads the hicolor theme'],
-    [SHARE.applications, 'inert', 'a freedesktop desktop entry; neither OS reads one'],
-    [SHARE.metainfo, 'inert', 'an AppStream component; neither OS reads one'],
+    [SHARE.mime, () => ['inert', 'needs `update-mime-database`; detection runs off the compiled cache']],
+    [SHARE.icons, () => ['inert', 'needs `gtk-update-icon-cache`; neither OS reads the hicolor theme']],
+    [SHARE.applications, () => ['inert', 'a freedesktop desktop entry; neither OS reads one']],
+    [SHARE.metainfo, () => ['inert', 'an AppStream component; neither OS reads one']],
 ];
 
 /**
- * Directories that survive the trip, so the rule below can be an INVERSE one.
+ * Paths that survive the trip, so the rule below can be an INVERSE one.
  *
- * Only gettext qualifies today: a `.mo` is read straight off disk by
- * `bindtextdomain`, with no install step anywhere, and the launcher hands its
- * directory over on all three layouts.
+ * Two entries and they are different SHAPES, which is why the check below tests
+ * both containment and equality:
+ *
+ *  - `share/locale` is a DIRECTORY. A `.mo` is read straight off disk by
+ *    `bindtextdomain`, with no install step anywhere, and the launcher hands the
+ *    directory over on all three layouts.
+ *  - `gschemas.compiled` is one FILE, and it is here because it is not a cost —
+ *    it is the thing that removes one. Reported under a warning headed "whose
+ *    Linux correctness comes from a package install step" it would name the fix
+ *    as if it were the problem, and it would be the sixth line of a five-line
+ *    list nobody asked to grow.
  */
-const SHARE_PORTABLE: readonly string[] = [SHARE.locale];
+const SHARE_PORTABLE: readonly string[] = [SHARE.locale, SCHEMA_CACHE];
 
 /**
  * Every `share/` entry a non-Linux layout carries, classified — including the
@@ -308,28 +360,40 @@ const SHARE_PORTABLE: readonly string[] = [SHARE.locale];
  * and it went unnamed. Anything under `share/` that is neither classified nor
  * known-portable comes back as `unknown` rather than silently passing.
  *
- * Deciding what each one BECOMES — a compiled `gschemas.compiled` in the bundle,
- * an `Info.plist` `CFBundleDocumentTypes`, a Windows registry association, or
- * simply dropped — is ADR 0024 stages 4 and 5, and it needs the container that
- * does not exist yet.
+ * ONE ENTRY IS ANSWERED BY THE SET, not by its own path: the GSettings schema
+ * directory aborts the app when it holds a source `.gschema.xml` and no compiled
+ * cache, and is merely inert when the cache is beside it. #1354 M2a compiles that
+ * cache into every non-Linux stage, so the `aborts` branch is empty for a stage
+ * this gjsify wrote — and it is still REACHABLE, which is the point: a stage
+ * assembled before the compile step existed, or one whose cache was removed,
+ * classifies as `aborts` again with no rule to remember to re-add.
+ *
+ * What the rest BECOME — an `Info.plist` `CFBundleDocumentTypes`, a Windows
+ * registry association, or nothing — is ADR 0024 stages 4 and 5. The `.app`
+ * container exists as of M2a; the file-type and icon halves do not.
  */
 export function linuxInstallDependent(entries: readonly { path: string }[]): CarriedShareEntry[] {
     const out: CarriedShareEntry[] = [];
+    // Asked of the WHOLE payload once, not per entry: "does this tree carry a
+    // compiled schema cache" is a fact about the set, and asking it inside the
+    // loop would make the answer depend on iteration order.
+    const context: ShareContext = { hasCompiledSchemas: entries.some((entry) => entry.path === SCHEMA_CACHE) };
     for (const entry of entries) {
         if (!isUnder(entry.path, 'share')) continue;
-        if (SHARE_PORTABLE.some((dir) => isUnder(entry.path, dir))) continue;
+        if (SHARE_PORTABLE.some((portable) => entry.path === portable || isUnder(entry.path, portable))) continue;
         const rule = SHARE_VERDICTS.find(([dir]) => isUnder(entry.path, dir));
-        out.push(
-            rule === undefined
-                ? {
-                      path: entry.path,
-                      verdict: 'unknown',
-                      why:
-                          'nothing here classifies this directory — it may need an install step no ' +
-                          'non-Linux layout runs, or it may be inert; say which before shipping it',
-                  }
-                : { path: entry.path, verdict: rule[1], why: rule[2] },
-        );
+        if (rule === undefined) {
+            out.push({
+                path: entry.path,
+                verdict: 'unknown',
+                why:
+                    'nothing here classifies this directory — it may need an install step no ' +
+                    'non-Linux layout runs, or it may be inert; say which before shipping it',
+            });
+            continue;
+        }
+        const [verdict, why] = rule[1](context);
+        out.push({ path: entry.path, verdict, why });
     }
     // `aborts` first: a list sorted by path buried the one entry that stops the
     // application behind four that merely do nothing.
