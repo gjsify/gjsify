@@ -11,11 +11,21 @@
 // validator to notice they are gone.
 //
 // The msgfmt constraints this rests on live in `../msgfmt-merge.ts`, which runs
-// the chain for `gjsify gettext` too. One more is local to here: the catalogues
-// reach us as `.mo` and msgfmt reads `.po` — handing it a `.mo` gives
-// `de.mo:1:2: syntax error`, exit 1. `msgunfmt` (same `gettext` package, so no
-// new dependency) converts back, and the round trip is exact for the
-// msgid/msgstr pairs these two formats consume.
+// the chain for `gjsify gettext` too. Two more are local to here, both from what
+// a STAGED locale tree may hold that a `po/` directory cannot:
+//
+//   * The catalogues reach us as `.mo` and msgfmt reads `.po` — handing it a
+//     `.mo` gives `de.mo:1:2: syntax error`, exit 1. `msgunfmt` converts back,
+//     and the round trip is exact for the msgid/msgstr pairs these two formats
+//     consume.
+//   * One language may arrive as SEVERAL catalogues, because the tree is keyed by
+//     `<lang>/LC_MESSAGES/<domain>.mo` and a package may ship more than one text
+//     domain. `msgcat --use-first` folds those into one before the chain sees
+//     them — the alternative is `msgfmt-merge.ts` constraint 5, an invalid file
+//     out of nothing but exit-0 calls.
+//
+// Both tools are in the same `gettext` package as `msgfmt`, so neither adds a
+// dependency the fold did not already have.
 
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -84,14 +94,34 @@ export function localizeMetadata(
         // Sorted so the emitted `Name[xx]=` order — and therefore the artifact's
         // bytes — does not depend on directory-read order. `listFilesRecursive`
         // already sorts; relying on that from here would put the determinism of this
-        // file's output in another module's keeping.
-        const catalogues: MsgfmtCatalogue[] = [...localeFiles]
-            .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0))
-            .map((file, index) => {
-                const po = join(workDir, `${index}.po`);
-                execFileSync('msgunfmt', [file.abs, '--output-file', po], { stdio: 'pipe' });
-                return { locale: localeOf(file.rel), po };
-            });
+        // file's output in another module's keeping. The sort ALSO fixes which
+        // domain wins below, so `--use-first` is a choice and not a coin toss.
+        const sorted = [...localeFiles].sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+
+        // Grouped by LOCALE, not one entry per file. `discoverLocales` accepts every
+        // `<lang>/LC_MESSAGES/<domain>.mo`, and a package that ships two text domains
+        // (its own plus a bundled library's) therefore hands us two catalogues for one
+        // language. Chained as-is that is `msgfmt-merge.ts` constraint 5: two exit-0
+        // calls and a file both validators reject — `multiple keys named "Name[de]"`
+        // (exit 1) and `tag-duplicated name (lang=de)` (exit 3). Measured.
+        const byLocale = new Map<string, string[]>();
+        for (const [index, file] of sorted.entries()) {
+            const po = join(workDir, `${index}.po`);
+            execFileSync('msgunfmt', [file.abs, '--output-file', po], { stdio: 'pipe' });
+            const locale = localeOf(file.rel);
+            byLocale.set(locale, [...(byLocale.get(locale) ?? []), po]);
+        }
+
+        const catalogues: MsgfmtCatalogue[] = [...byLocale].map(([locale, files]) => ({
+            locale,
+            // `--use-first` rather than a plain concatenation: two domains translating
+            // the same source string is not an error a packager can act on, and the
+            // alternatives are both worse. msgfmt given both files at once refuses
+            // outright (`duplicate message definition`, 2 fatal errors, exit 1), and a
+            // plain `msgcat` writes `#-#-#-#-#` conflict markers straight into the
+            // `Name=` a user reads. First in the sort above wins, deterministically.
+            po: files.length === 1 ? (files[0] as string) : msgcat(files, join(workDir, `${locale}.merged.po`)),
+        }));
 
         return {
             metainfo: fold('--xml', metadata.metainfo, '.metainfo.xml', catalogues, workDir),
@@ -107,12 +137,18 @@ export function localizeMetadata(
     }
 }
 
+/** Fold several `.po` for ONE language into one, first translation wins. Returns its path. */
+function msgcat(files: readonly string[], out: string): string {
+    execFileSync('msgcat', ['--use-first', '--output-file', out, ...files], { stdio: 'pipe' });
+    return out;
+}
+
 /** One actionable line for a failed merge, naming the tool the host is missing. */
 function describeFailure(error: unknown, count: number): string {
     const e = error as { code?: unknown; stderr?: Buffer | string };
     if (e?.code === 'ENOENT') {
         return (
-            'gjsify ship: `msgfmt`/`msgunfmt` are not on PATH, but the package stages ' +
+            'gjsify ship: `msgfmt`/`msgunfmt`/`msgcat` are not on PATH, but the package stages ' +
             `${count} gettext catalogue(s). Install them (package: gettext) — shipping the metadata ` +
             'untranslated would install an English app menu entry for a translated app, which nothing ' +
             'downstream can detect.'

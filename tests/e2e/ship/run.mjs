@@ -144,7 +144,7 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
     let localisedStage;
 
     before(() => {
-        for (const tool of ['msgfmt', 'msgunfmt', 'desktop-file-validate', 'appstreamcli']) probe(tool);
+        for (const tool of ['msgfmt', 'msgunfmt', 'msgcat', 'desktop-file-validate', 'appstreamcli']) probe(tool);
         localisedStage = stageLocalised('localised');
     });
 
@@ -234,6 +234,54 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         const staged = listPayload(localisedStage);
         assert.ok(staged.includes(`share/locale/de/LC_MESSAGES/${APP_ID}.mo`));
         assert.ok(staged.includes(`share/locale/fr/LC_MESSAGES/${APP_ID}.mo`));
+    });
+
+    it('folds ONE key per language when a project ships two text domains', () => {
+        // `discoverLocales` keys the tree on `<lang>/LC_MESSAGES/<domain>.mo` and puts
+        // no bound on the domain, so a package that carries its own catalogue AND a
+        // bundled library's hands the fold two catalogues for one language. Chained
+        // once per file, msgfmt APPENDS both — two exit-0 calls, and a file BOTH
+        // oracles reject: `multiple keys named "Name[de]"` (desktop-file-validate,
+        // exit 1) and `tag-duplicated name (lang=de)` (appstreamcli, exit 3).
+        //
+        // This is the one case in this block where the validators are the primary
+        // assertion rather than a companion: the defect ADDS a translated key, so the
+        // presence checks above all still pass on the broken file.
+        const dir = scaffold(join(tmpDir, 'two-domains'), (pkg, projectRoot) => {
+            pkg.gjsify.ship.localeDir = 'dist/locale';
+            plantCatalogue(projectRoot, 'de', TRANSLATIONS.de);
+            // A SECOND domain for the same language, translating the same source
+            // string differently — so a duplicate is visible in the bytes and not
+            // only in the key count.
+            plantCatalogue(projectRoot, 'de', { 'Ship Demo': 'Zweite Domäne' }, 'bundled-lib');
+        });
+        runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage'], { cwd: dir });
+        const stage = join(dir, 'ship', 'stage');
+
+        const entry = readFileSync(join(stage, 'share', 'applications', `${APP_ID}.desktop`), 'utf-8');
+        assert.strictEqual(entry.match(/^Name\[de\]=/gm)?.length, 1, `two Name[de] keys in:\n${entry}`);
+        const xml = readFileSync(join(stage, 'share', 'metainfo', `${APP_ID}.metainfo.xml`), 'utf-8');
+        assert.strictEqual(xml.match(/<name xml:lang="de">/g)?.length, 1, `two <name xml:lang="de"> in:\n${xml}`);
+
+        // The sort in `localize-metadata.ts` decides WHICH domain wins, so assert the
+        // winner and not merely that there is one: `bundled-lib` sorts before the app
+        // id, and `--use-first` takes the first.
+        assert.match(entry, /^Name\[de\]=Zweite Domäne$/m);
+        // And the losing domain is still READ, not dropped — `msgcat` unions the
+        // msgids and only conflicts fall to `--use-first`. `Comment` exists in the app
+        // domain alone, so it survives only if both files reached msgfmt.
+        assert.match(entry, /^Comment\[de\]=Beweise, dass gjsify ship funktioniert$/m);
+
+        execFileSync('desktop-file-validate', [join(stage, 'share', 'applications', `${APP_ID}.desktop`)], {
+            stdio: 'pipe',
+        });
+        execFileSync(
+            'appstreamcli',
+            ['validate', '--no-net', join(stage, 'share', 'metainfo', `${APP_ID}.metainfo.xml`)],
+            {
+                stdio: 'pipe',
+            },
+        );
     });
 
     // ── the .deb ──────────────────────────────────────────────────────────

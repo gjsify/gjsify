@@ -191,13 +191,17 @@ const REQUIRED_ON_LINUX = new Set([
     'rpm',
     'ar',
     'tar',
-    // The freedesktop-metadata tools, all four baked into `.docker/ci-fedora.Dockerfile`.
-    // `msgfmt`/`msgunfmt` BUILD the catalogues a localisation assertion needs, and the two
-    // validators are the independent readers for what `ship` generated from them. Required
-    // rather than probed for the usual reason: the interesting failure is metadata that is
-    // valid AND untranslated, so a skipped oracle leaves the suite green having read nothing.
+    // The freedesktop-metadata tools, all five baked into `.docker/ci-fedora.Dockerfile`
+    // (the three gettext ones arrive together in the `gettext` package). `msgfmt` BUILDS
+    // the catalogues a localisation assertion needs; `msgunfmt`/`msgcat` are what `ship`
+    // runs to read them back and to fold two text domains of one language into one; and
+    // the two validators are the independent readers for what `ship` generated from them.
+    // Required rather than probed for the usual reason: the interesting failure is metadata
+    // that is valid AND untranslated, so a skipped oracle leaves the suite green having
+    // read nothing.
     'msgfmt',
     'msgunfmt',
+    'msgcat',
     'desktop-file-validate',
     'appstreamcli',
 ]);
