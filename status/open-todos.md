@@ -205,6 +205,94 @@ And `bindEmptySections` derives SYNCHRONOUSLY, so it must run AFTER the router's
 only un-hides a microtask later, after `_syncClasses` has measured a bar at
 `offsetHeight` 0. That cost 8 real failures once; the three call sites now say so.
 
+### One vocabulary is a rule for EVERY surface, and three of the four do not hold it
+
+`scripts/check-vocabulary-alignment.mjs` reads exactly one of the four widget-bearing
+surfaces. It holds `adwaita-web`'s `adw-*` elements against the GIR-derived tag set and
+does not read `@gjsify/adwaita-nativescript` or `@gjsify/adwaita-react-native` at all
+(`grep -ic nativescript scripts/check-vocabulary-alignment.mjs` → 0, against 3 for
+`adwaita-web`). Where each stands:
+
+| surface | GIR naming | namespace export | declared |
+|---|---|---|---|
+| `gtk-host` | holds by construction (`src/tags.ts:18`) | n/a | n/a |
+| `adwaita-web` | 10 elements violate it (`adw-entry` is `GtkEntry`) | absent | half — the 10 aliases carry no reason |
+| `adwaita-nativescript` | 4 violate it; 4 more have no counterpart | absent | not at all — outside the check |
+| `adwaita-react-native` | holds (`AdwBin`, `AdwClamp`) | absent | not checked |
+
+**The clearest instance needs no cross-runtime argument**: `gtk-host` says `<gtk-entry>`
+for Solid, Vue and React alike and `adwaita-web` says `<adw-entry>` for the same widget,
+both on the same gallery page under one block titled `Gtk.Entry`. They differ in render
+target (GTK vs DOM) and not in what the widget is, and ADR 0027 § 9's goal names both.
+
+**[ADR 0034](../docs/adr/0034-widget-vocabulary-convergence.md) proposes the cut** — the
+rule stated once and surface-neutral (named from the GIR · exported as a namespace · every
+divergence declared with a reason), convergence with a DECLARED remainder rather than a
+bijection, and the namespace as a re-export layer rather than a rename.
+
+**The staging follows the cost curve, not the severity.** Measured: `adwaita-nativescript`
+is 49 published versions and 3 761 downloads/month; `adwaita-react-native` is **two widgets
+and not published at all** (`npm view @gjsify/adwaita-react-native version` → 404), landed
+in one PR (#1380), `private: false` at 0.44.0 — so it publishes on the next release cut and
+adopting the rule there is free until then. That is stage 1. adwaita-web's alias reason is
+stage 2; the NativeScript ledger is stage 3; the docs split is stage 5.
+
+Two things whoever picks this up should not re-derive. `WEB_ELEMENT_ALIGNMENT`'s `gtk:`
+entries carry **no reason field**, so an alias passes permanently and silently — the same
+hole `webOnly` was given a reason to close. And `collectAdwaitaCoverage`
+(`scripts/generate-status.mjs:223-225`) joins the renderers on the BARE name and says the
+vocabularies agree on it; that join is true only because they all flattened, so any rename
+has to carry it or the widget matrix grows false gaps.
+
+**Two things ADR 0034 measured but deliberately did not change.**
+
+*The docs file GTK widgets under an Adwaita heading.* `website/` has one top-level widget
+section, `Adwaita`, and no `Gtk` one. `controls.mdx` carries **zero** `Adw.*` gallery
+blocks and two `Gtk.*` ones; `buttons.mdx` carries 3 and 2. The section's own rename
+comment (`website/astro.config.mjs:18-20`) already argues the rule — name it after the
+thing that owns it, *"beside it rather than under it"* — and its premise ("only ever
+covered Adwaita") has stopped holding. ADR 0034 stage 5: a `Gtk` section beside `Adwaita`,
+`controls.mdx` moving whole, redirects the way the `/widgets/*` rename already did.
+
+*Stale hand-written widget counts.* `grep -c "gtype: '" …/generated/widgets.ts` is **168**;
+`164` (the count before ADR 0028's 2026-08-28 amendment admitted placement carriers) still
+stands in `docs/adr/0028-widget-table-provenance.md:322,333`,
+`packages/framework/AGENTS.md:66` — in a sentence that itself warns *"a literal here
+drifted twice"* — and `scripts/check-vocabulary-alignment.mjs:37`.
+(`status/open-todos.md`'s own 164 above is framed "at the time it landed" and is fine.) The
+GENERATED header is NOT drifted, and the constant 4-wide gap between it and
+`grep -c '^export interface '` is not an off-by-four bug: `emit-types.mts:144` emits
+`model.declarations.size` (194) and the file additionally emits four tag maps
+(`WidgetPropsByTag`, `WidgetPropsByGType`, `WidgetPropsVueAliases`, `WidgetClassByTag`)
+that the header's own sentence already excludes. 198 - 4 = 194, and the same subtraction
+held at the previous revision (190 + 4). One real generator nit beside it: that header says
+*"the **two** tag maps"* while it emits four — a one-word fix in `emit-types.mts`, worth
+its own PR rather than a docs change.
+
+*How this was nearly got wrong.* Both wrong readings came from a shared checkout sitting 43
+commits behind `main` (branch `chore/refs-metro`), which reported 190/164 where `main` says
+194/168. Every count in ADR 0034 now states where it was read, and the `@girs` type-surface
+numbers pin `@girs/gtk-4.0@4.1.0` — `^4.1.0` resolves to 4.3.0 today and the counts move.
+
+**A stronger oracle, priced, for whoever wants one.** `@ts-for-gir/lib` exports
+`src/index.ts` with no build step (ADR 0019 § 1) and re-exports `./gir/index.ts` +
+`./gir-module.ts`, so a gate could parse the `.gir` directly instead of reading our emitted
+types — a second READER of the same source, not a second source, and it needs
+`node_modules`, so it belongs in `tree-checks`. Shipping the `.gir` inside `@girs/*` is
+already rejected by ADR 0019 § 2 (*"never with the type package"*), and the numbers back
+it, with the denominator from the registry: `@girs/gtk-4.0@4.1.0` unpacks to 5.86 MB (4.3.0
+to 6.12 MB) against a `Gtk-4.0.gir` of 6.20 MB, so bundling roughly doubles the package;
+705 `.gir` files / 379 MB across a full pool. The capability is still real — nicks live only in the typelib and
+documentation only in the XML — so if it is wanted the shape is a companion artifact and
+the venue is `gjsify/ts-for-gir` (`gjsify/types` has issues disabled; no existing issue
+found).
+
+The measurable distance, for when stage 6 prints it: across the 42 NativeScript widgets
+with a GIR counterpart, 137 settable properties, of which **92 already agree with the
+counterpart's `ConstructorProps` and 45 do not** (16 with a candidate GIR spelling, 29 with
+none). A full `tsc` conformance check is the right oracle on the wrong instrument —
+`Gtk.Entry` is 509 members, and the gate job runs `checkout` + `setup-node` with no install.
+
 ### The `@girs/*` widget surface exists but gtk-host cannot consume it yet
 
 ADR 0029 moves the GIR-derived widget vocabulary to `@girs/<ns>/surface`. The
