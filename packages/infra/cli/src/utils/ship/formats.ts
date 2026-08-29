@@ -114,6 +114,61 @@ function macosArch(arch: string, _archIndependent: boolean): string {
     return lookupArch(MACOS_ARCH, arch, 'macOS');
 }
 
+/**
+ * `process.arch` → the name Windows and everything that targets it use.
+ *
+ * ONE ROW, and it is not caution: `wingtk/gvsbuild` hardcodes
+ * `self.platform = "x64"` and publishes no arm64 GTK, so there is nothing to build
+ * `@gjsify/gtk-runtime-win32-arm64` out of and no GTK for a Windows/ARM artifact
+ * to load (#1117). `Layout.arches` refuses the same value one phase earlier, at
+ * stage time, with that reason spelled out; this table is the second half — the
+ * one that stops a stage assembled by an older gjsify from acquiring a label here.
+ *
+ * `x64` maps to itself, and unlike the macOS table that is not a coincidence to be
+ * caught later: `x64` is the spelling Node's own release archives use
+ * (`node-v24.20.0-win-x64.zip`), the spelling gvsbuild's assets use
+ * (`GTK4_Gvsbuild_<v>_x64.zip`), and the spelling a `windows-latest x64` runner
+ * label uses. `%PROCESSOR_ARCHITECTURE%` says `AMD64` and nothing a user downloads
+ * is named after it.
+ */
+const WINDOWS_ARCH: Record<string, string> = { x64: 'x64' };
+
+function windowsArch(arch: string, _archIndependent: boolean): string {
+    return lookupArch(WINDOWS_ARCH, arch, 'Windows');
+}
+
+/**
+ * Characters a Windows program-directory name may not contain.
+ *
+ * The Win32 reserved set. Refused HERE rather than on the Windows machine that
+ * would fail to create the directory, because that machine is on the other side of
+ * a download: a `*` or a `?` in `gjsify.ship.name` produces a zip that assembles at
+ * exit 0 on Linux, uploads, and cannot be extracted at all by Explorer or by
+ * `Expand-Archive`. Same shape and same reason as `layout.ts`'s
+ * `BUNDLE_NAME_FORBIDDEN`, one OS over — and a wider set, because Windows reserves
+ * more than HFS+ does.
+ */
+const WINDOWS_NAME_FORBIDDEN = /[<>:"/\\|?*]/;
+
+/**
+ * The directory `windows-dir` produces, and the top level `windows-dir-zip` puts
+ * its entries under.
+ *
+ * ONE function with TWO readers, deliberately: the zip has to expand to the same
+ * directory the other row writes, and two literals would be two names a user is
+ * asked to believe are one.
+ */
+export function windowsProgramDirName(settings: PackSettings): string {
+    if (WINDOWS_NAME_FORBIDDEN.test(settings.name)) {
+        throw new Error(
+            `gjsify ship: the windows layout would put this app in a directory called "${settings.name}", ` +
+                'and Windows reserves < > : " / \\ | ? * in a file name — the artifact would assemble here and ' +
+                'be unextractable there. Set `gjsify.ship.name` to the display name you want on disk.',
+        );
+    }
+    return settings.name;
+}
+
 /** `.deb` and `.rpm` are written by this tree, so they exec nothing and read back with GNU tools. */
 const WRITTEN_HERE = (readWith: readonly string[]): FormatDescriptor['host'] => ({
     finishOn: 'any',
@@ -329,6 +384,136 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // is a download: it lands in a browser's downloads folder beside other
         // files, so it carries the version and the arch, and it avoids the spaces
         // a display name may contain.
+        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.zip`,
+        artifactKind: 'file',
+    },
+    // ── Windows (#1354 M3) ───────────────────────────────────────────────
+    //
+    // THE SAME PAIR ONE OS OVER, and the differences from the macOS pair are all
+    // the OS's rather than ours:
+    //
+    //   * the DIRECTORY is not the stage root. A `<App>.app` is dragged to
+    //     `/Applications` as one object, so `Layout.root` puts it in the stage; a
+    //     Windows program directory is laid INTO `C:\Program Files\<Publisher>\<App>`
+    //     by an installer that picks the parent, so the stage IS its contents
+    //     (`layout.ts` records that asymmetry). Which means the ZIP has to
+    //     SYNTHESISE the top level the `.app` zip inherits — without it the archive
+    //     expands to a bare `app\`, `share\` and `<name>.cmd` scattered into
+    //     whatever directory the user was in.
+    //   * there is no `Info.plist` and no metadata file at all: what a Windows
+    //     installer says about an application lives in the `.msi`'s own tables
+    //     (#1354 M5), which is why `Layout.metadata` answers `[]` here.
+    //   * `x64` alone, and the blocker is upstream — see `WINDOWS_ARCH`.
+    //
+    // NEITHER IS SIGNED, and Windows is the softer of the two asymmetries ADR 0024
+    // § A5 records: Gatekeeper BLOCKS an unsigned `.app`, while SmartScreen only
+    // WARNS until per-file download reputation accrues. So an unsigned program
+    // directory is a usable artifact in a way an unsigned `.app` is not. Signing is
+    // #1354 M6; the `.msi` around this tree is M5.
+    'windows-dir': {
+        id: 'windows-dir',
+        layoutOs: 'win32',
+        // The program directory IS the prefix, and — unlike `/usr` or `/app` — the
+        // launcher derives it at run time from `%~dp0` rather than having it baked,
+        // because an installer, a portable unzip and a build tree put it in three
+        // different places.
+        prefix: '',
+        host: {
+            // Assembled anywhere, packed anywhere: everything here is a file copy.
+            // Windows enters at the RUNNING proof, not at the packing.
+            finishOn: 'any',
+            // The same one exception the `.app` has, for the same reason: a non-Linux
+            // layout has no install step, so `gschemas.compiled` is produced while
+            // the tree is assembled or the app aborts at its first `Gio.Settings.new()`.
+            requiredTools: [SCHEMA_COMPILER],
+            installHint: SCHEMA_COMPILER_HINT,
+            oracle: {
+                // TWO READERS, because the artifact has two halves and no single
+                // reader covers both.
+                //
+                // `cmd` is the authoritative one and it runs on exactly one OS:
+                // `cmd.exe` is the only thing that reads a batch launcher, and
+                // nothing on Linux parses one. That is why M3's proof is a
+                // `windows-latest` leg that unzips this directory and starts the
+                // app — assert-the-toolkit-is-absent-first, like
+                // `windows-batteries-included`.
+                //
+                // `python3` is the Linux-runnable half: CPython reads the PE
+                // headers of everything the directory CARRIES (`node.exe`, the
+                // gvsbuild DLL closure), which is a different implementation
+                // family from both PE readers in this repository — the CLI's
+                // `readBinaryArch` and `manifest-conformance/lib/binary.mjs`. It
+                // reads what the staging DID; it cannot read what the launcher
+                // MEANS.
+                readWith: ['cmd', 'python3'],
+                readOn: ['linux', 'win32'],
+                selfReading: false,
+            },
+        },
+        // No package list. Windows resolves nothing for an application: whatever
+        // the directory does not carry, it finds on the machine or it does not run
+        // — and on Windows "on the machine" is emptier than on macOS, since there
+        // is no Homebrew and no system GTK at all.
+        depends: null,
+        // NODE ONLY, and here it is not even a relocation question: there is NO GJS
+        // host on Windows at all (ADR 0024 § 4), so a `--app gjs` payload has
+        // nothing anywhere that could run it.
+        interpreters: ['node'],
+        interpreterGap:
+            'there is no GJS host on Windows at all (ADR 0024 § 4) — not a system one to depend on and not a ' +
+            'relocatable one to carry — so a `--app gjs` payload cannot be shipped this way. That is why ' +
+            '§ 4 derives Node here, and why `@gjsify/node-runtime-win32-x64` exists',
+        // rpm's `share/licenses/<name>/LICENSE` shape, the same one the macOS rows
+        // follow — one layout for a reader to learn, and the map turns it into
+        // `share\licenses\<name>\LICENSE` inside the program directory.
+        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        licenseKind: 'plain',
+        archName: windowsArch,
+        // The DISPLAY name: this artifact is the directory an installer lays down
+        // and a user browses to, so it is named the way the application is.
+        fileName: (s: PackSettings) => windowsProgramDirName(s),
+        artifactKind: 'directory',
+    },
+    'windows-dir-zip': {
+        id: 'windows-dir-zip',
+        layoutOs: 'win32',
+        prefix: '',
+        host: {
+            finishOn: 'any',
+            requiredTools: [SCHEMA_COMPILER],
+            installHint: SCHEMA_COMPILER_HINT,
+            oracle: {
+                // `zipinfo -l`, the same independent reader the `.app` zip uses and
+                // for the same reason: this tree WRITES the archive
+                // (`utils/ship/zip.ts`), so a `zip`/`unzip` round trip would be the
+                // two halves of one package agreeing with each other.
+                //
+                // What it is asked here is a DIFFERENT question, though, and the
+                // difference is the OS's: a POSIX mode means nothing to Windows,
+                // which decides executability from the extension. What can go wrong
+                // with THIS archive is the top level — entries written at the root
+                // expand into whatever directory the user was in — so the reader is
+                // pointed at the names first and the modes second (the modes still
+                // matter to anyone unzipping the artifact on Linux or macOS to
+                // inspect it).
+                readWith: ['zipinfo'],
+                readOn: ['linux', 'darwin'],
+                selfReading: false,
+            },
+        },
+        depends: null,
+        interpreters: ['node'],
+        interpreterGap:
+            'there is no GJS host on Windows at all (ADR 0024 § 4) — not a system one to depend on and not a ' +
+            'relocatable one to carry — so a `--app gjs` payload cannot be shipped this way. That is why ' +
+            '§ 4 derives Node here, and why `@gjsify/node-runtime-win32-x64` exists',
+        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        licenseKind: 'plain',
+        archName: windowsArch,
+        // The BINARY name here and the display name above, exactly as the macOS
+        // pair splits them: this one is a download that lands in a browser's
+        // folder beside other files, so it carries the version and the arch and
+        // avoids the spaces a display name may contain.
         fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.zip`,
         artifactKind: 'file',
     },

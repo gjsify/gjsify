@@ -17,10 +17,13 @@ import { LAYOUTS } from './layout.js';
 import type { ShipSettings } from './types.js';
 
 /** What `stageAppRuntime` hands the launcher when all three pieces were staged. */
-const CARRIED = (() => {
-    const paths = appRuntimePaths(LAYOUTS.darwin, { binaryName: 'hello', name: 'Hello' }, 'darwin-arm64');
+const carried = (layout: (typeof LAYOUTS)[keyof typeof LAYOUTS], target: 'darwin-arm64' | 'win32-x64') => {
+    const paths = appRuntimePaths(layout, { binaryName: 'hello', name: 'Hello' }, target);
     return { interpreter: paths.interpreterPath, gtkRuntimeDir: paths.gtkDir, nodeGiAddon: paths.addonPath };
-})();
+};
+
+const CARRIED = carried(LAYOUTS.darwin, 'darwin-arm64');
+const CARRIED_WIN = carried(LAYOUTS.windows, 'win32-x64');
 
 function settings(execArgs: string[]): ShipSettings {
     return {
@@ -141,6 +144,55 @@ export default async () => {
             expect(renderLauncher(settings([]), 'gjs.js', LAYOUTS.darwin).includes('GJSIFY_GI_LIBRARY_PATH')).toBe(
                 false,
             );
+        });
+
+        await it('runs "%HERE%node.exe" instead of a name Windows cannot resolve', () => {
+            // Same fact as the `.app`, harder: Windows ships no Node AND no GJS, so
+            // a launcher naming either off `PATH` fails with `'node' is not
+            // recognized as an internal or external command`. `%~dp0` already ends
+            // in a separator, which is why the token concatenates with none — the
+            // dialect difference `readLauncherInterpreters` has to know.
+            const node = { ...settings([]), app: 'node' } as ShipSettings;
+            const rendered = renderLauncher(node, 'app.node.mjs', LAYOUTS.windows, CARRIED_WIN);
+            expect(rendered.includes('"%HERE%node.exe" "%HERE%app\\app.node.mjs" %*')).toBe(true);
+            // `.exe`, not `node`: the file staged beside the launcher is the one
+            // `@gjsify/node-runtime-win32-x64` carries, and a launcher naming the
+            // extensionless spelling would find it only by PATHEXT — from `%HERE%`,
+            // which is a path and not a search.
+            expect(rendered.includes('"%HERE%node" ')).toBe(false);
+        });
+
+        await it('sets the two locators node-gi resolves the bundle with, quoted', () => {
+            const node = { ...settings([]), app: 'node' } as ShipSettings;
+            const rendered = renderLauncher(node, 'app.node.mjs', LAYOUTS.windows, CARRIED_WIN);
+            expect(rendered.includes('set "GJSIFY_GTK_RUNTIME=%HERE%lib\\node-gi\\prebuilds\\win32-x64\\gtk"')).toBe(
+                true,
+            );
+            expect(
+                rendered.includes('set "NODE_GI_NATIVE=%HERE%lib\\node-gi\\prebuilds\\win32-x64\\node_gi.node"'),
+            ).toBe(true);
+        });
+
+        await it('does NOT put the carried closure on PATH — node-gi does that itself', () => {
+            // The Windows counterpart of the `.app` form's "no DYLD_*", with the
+            // opposite reason and therefore worth a test of its own:
+            // `maybePrependGtkRuntimeDllPath()` runs at node-gi's index.js top
+            // level, ABOVE `loadNative()`, because Windows re-reads the DLL search
+            // path at every `LoadLibrary`. A launcher-set `PATH` would be a second
+            // copy of a directory node-gi already derives from `GJSIFY_GTK_RUNTIME`.
+            const node = { ...settings([]), app: 'node' } as ShipSettings;
+            const rendered = renderLauncher(node, 'app.node.mjs', LAYOUTS.windows, CARRIED_WIN);
+            expect(rendered.includes('PATH=%HERE%lib\\node-gi')).toBe(false);
+        });
+
+        await it('CRLF, and only CRLF', () => {
+            // `cmd.exe` re-seeks a batch file by byte OFFSET while it runs, which is
+            // where the documented `goto` and block-parsing failures on LF-only
+            // files come from. The runtime lines are new; a lone `\n` among them
+            // would be invisible in every string assertion above.
+            const node = { ...settings([]), app: 'node' } as ShipSettings;
+            const rendered = renderLauncher(node, 'app.node.mjs', LAYOUTS.windows, CARRIED_WIN);
+            expect(rendered.replace(/\r\n/g, '').includes('\n')).toBe(false);
         });
 
         await it('leaves the Linux launcher byte-identical, runtime or not', () => {

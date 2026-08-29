@@ -24,9 +24,10 @@
 // promise to a caller that does not exist yet". It exists: the macOS layout stages
 // `nodePath` into `Contents/MacOS/node` and `licensePath` beside it, and the
 // `null`-not-throw contract is what lets that caller stage the GTK closure it DID
-// find while naming the interpreter package it did not. Windows still has none —
-// its layout has no launcher form for a carried interpreter yet — so the seam
-// this module is stays half-used, which is a different statement from unused.
+// find while naming the interpreter package it did not. #1354 M3 adds the second
+// caller — the Windows program directory stages `node.exe` beside its `.cmd` — so
+// both non-Linux rows of the table above are now used, and this paragraph no
+// longer has a "still has none" half to record.
 //
 // The tests keep the by-name claim honest independently of any caller: they
 // resolve a real installed package out of a throwaway consumer tree holding
@@ -60,8 +61,16 @@ export function nodeRuntimePackageName(target: NodeRuntimeTarget): string {
  * is a supported path (ADR 0024 § A1 — the packers are pure JavaScript and run
  * anywhere), and a host-derived name would look for `node` inside the win32
  * package, find nothing, and report it as a missing payload.
+ *
+ * `string`, not {@link NodeRuntimeTarget}, and the widening is what keeps this
+ * ONE rule: `utils/ship/app-runtime.ts` has to name the interpreter's file inside
+ * the ARTIFACT and holds a `GtkRuntimeTarget` when it does. Those two unions are
+ * deliberately separate tables (see `GTK_RUNTIME_TARGETS`), so a narrow parameter
+ * here would have forced a second `startsWith('win32-')` over there — and a stage
+ * whose source is `node.exe` and whose destination is `node` is a program
+ * directory whose launcher execs a file nothing staged.
  */
-export function nodeRuntimeBinaryName(target: NodeRuntimeTarget): string {
+export function nodeRuntimeBinaryName(target: string): string {
     return target.startsWith('win32-') ? 'node.exe' : 'node';
 }
 

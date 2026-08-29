@@ -241,6 +241,15 @@ export default async () => {
         const windowsLauncher = at('demo.cmd');
         const gjsLauncher = '#!/bin/sh\nset -e\nexec gjs -m "$prefix"/lib/demo/app.gjs.js "$@"\n';
         const nodeLauncher = '#!/bin/sh\nset -e\nexec node "$prefix"/lib/demo/app.node.mjs "$@"\n';
+        // The Windows launcher is a `.cmd`, and until #1354 M3 these fixtures put
+        // the POSIX text above at `demo.cmd` — a file no `cmd.exe` could run, which
+        // made this an assertion about a reader applied to a launcher that does not
+        // exist. The reader is dialect-aware now (batch has no `exec`, `%~dp0`
+        // carries its own separator, and the file is `node.exe`), so the fixture has
+        // to be the thing it reads.
+        const cmdGjsLauncher = '@echo off\r\nsetlocal\r\nset "HERE=%~dp0"\r\ngjs -m "%HERE%app\\app.gjs.js" %*\r\n';
+        const cmdNodeLauncher =
+            '@echo off\r\nsetlocal\r\nset "HERE=%~dp0"\r\n"%HERE%node.exe" "%HERE%app\\app.node.mjs" %*\r\n';
 
         await it('reads the interpreter off the staged launcher', async () => {
             expect(readLauncherInterpreters(linuxLauncher(gjsLauncher), LAYOUTS.linux, IDENTITY)).toStrictEqual([
@@ -362,14 +371,14 @@ export default async () => {
             expect(readLauncherInterpreters(darwinLauncher(nodeLauncher), LAYOUTS.darwin, IDENTITY)).toStrictEqual([
                 'node',
             ]);
-            expect(readLauncherInterpreters(windowsLauncher(gjsLauncher), LAYOUTS.windows, IDENTITY)).toStrictEqual([
+            expect(readLauncherInterpreters(windowsLauncher(cmdGjsLauncher), LAYOUTS.windows, IDENTITY)).toStrictEqual([
                 'gjs',
             ]);
             expect(() =>
                 assertLauncherMatchesInterpreter(darwinLauncher(gjsLauncher), LAYOUTS.darwin, IDENTITY, 'node'),
             ).toThrow('execs `gjs`');
             expect(() =>
-                assertLauncherMatchesInterpreter(windowsLauncher(nodeLauncher), LAYOUTS.windows, IDENTITY, 'gjs'),
+                assertLauncherMatchesInterpreter(windowsLauncher(cmdNodeLauncher), LAYOUTS.windows, IDENTITY, 'gjs'),
             ).toThrow('execs `node`');
             // And the message names the path the reader would go and LOOK at,
             // which `bin/demo` was not on either of these layouts.

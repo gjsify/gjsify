@@ -169,6 +169,35 @@ export interface Layout {
      * `Contents/Info.plist` is refused rather than silently replacing it.
      */
     metadata: (input: LayoutMetadataInput) => StagedFile[];
+    /**
+     * The `process.arch` values this layout can be assembled for, or `null` when
+     * it imposes no limit of its own.
+     *
+     * REQUIRED on every row, like {@link metadata}, and for the same reason: `null`
+     * is an ANSWER ("this layout constrains nothing"), while an optional field is
+     * one a fourth OS forgets and then silently inherits Linux's answer. Linux is
+     * the `null` row — a `.deb` exists for every architecture Debian has, and
+     * `DEBIAN_ARCH`/`RPM_ARCH` in `formats.ts` already refuse the ones this project
+     * has no name for.
+     *
+     * WHY IT IS ON THE LAYOUT AND NOT ONLY ON THE FORMAT. `FormatDescriptor.archName`
+     * refuses an unknown architecture too, but it runs at PACK time — so
+     * `gjsify ship windows --stage --arch arm64` would assemble a whole tree,
+     * record `target: win32-arm64`, and fail on the far side of a handoff, on
+     * another host, with the reason two milestones away from the flag that caused
+     * it. The constraint is a fact about the layout's RUNTIME story (which GTK
+     * closure and which interpreter exist for it), so it belongs where the layout
+     * is chosen.
+     */
+    arches: LayoutArches | null;
+}
+
+/** The architectures one layout is assemblable for, and why the others are not. */
+export interface LayoutArches {
+    /** `process.arch` spellings — the same vocabulary `--arch` takes. */
+    only: readonly string[];
+    /** What a reader must know to act on the refusal: who blocks it, and where it is tracked. */
+    why: string;
 }
 
 /**
@@ -215,6 +244,9 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // says about itself is in the `.deb`/`.rpm` header or in the freedesktop
         // files the payload already carries.
         metadata: () => [],
+        // Every architecture Debian and rpm have a name for, which is what
+        // `DEBIAN_ARCH`/`RPM_ARCH` already enumerate — the layout adds nothing.
+        arches: null,
     },
     darwin: {
         name: 'darwin',
@@ -262,6 +294,15 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
                 source: { kind: 'text', text: renderPkgInfo() },
             },
         ],
+        // The two architectures macOS runs on, which is also exactly what
+        // `@gjsify/gtk-runtime-darwin-*` and `@gjsify/node-runtime-darwin-*` are
+        // published for. Nothing upstream blocks a third; there is no third.
+        arches: {
+            only: ['x64', 'arm64'],
+            why:
+                'macOS runs on x86_64 and Apple silicon and nothing else, so those are the two ' +
+                '`@gjsify/gtk-runtime-darwin-*` and `@gjsify/node-runtime-darwin-*` targets that exist',
+        },
     },
     windows: {
         name: 'windows',
@@ -277,9 +318,10 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // bad citation came in from the ADR's own § 4 table and was promoted into
         // a user-visible string, which is the worst place for one.
         runtimeGap:
-            'the staged launcher execs an interpreter off `PATH`, and Windows ships neither: there is NO ' +
-            'GJS host on Windows at all (ADR 0024 § 4) — so this tree cannot run there yet. § 4 derives ' +
-            'Node; it arrives with `@gjsify/node-runtime-win32-x64` and a `--app node` payload (#1354 M0).',
+            'the staged launcher execs an interpreter off `PATH`, which a downloaded program directory ' +
+            'cannot assume — Windows ships neither, and there is NO GJS host on Windows at all ' +
+            '(ADR 0024 § 4), so § 4 derives Node here. A self-contained directory needs ' +
+            '`@gjsify/node-runtime-win32-x64` and a `--app node` payload (#1354 M3).',
         // `.cmd`, not `.bat`: the two differ in whether a failing built-in (`set`,
         // `path`, `append`) sets ERRORLEVEL, and `.cmd` is the one where it does.
         launcherExt: '.cmd',
@@ -289,12 +331,29 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // has no rpath — a DLL is found on `PATH`, in the directory of the image
         // that loaded it, or not at all.
         dirs: () => ({ launcher: '', bundle: 'app', native: 'lib', data: 'share', other: '' }),
-        // Nothing yet, and this is the row that shows the field is not a macOS
-        // detail wearing a general name: a Windows installer's metadata lives in
-        // the `.msi`'s own tables, not in a file inside the program directory. If
-        // that turns out to be wrong when a Windows format lands, THIS is where
-        // the answer goes — not a branch in the stager.
+        // Nothing, and this is the row that shows the field is not a macOS detail
+        // wearing a general name: a Windows installer's metadata lives in the
+        // `.msi`'s own tables (#1354 M5), not in a file inside the program
+        // directory. Two format rows now wrap this layout and neither added one,
+        // which is the answer holding rather than the question being unasked. If
+        // the `.msi` turns out to need a file here, THIS is where it goes — not a
+        // branch in the stager.
         metadata: () => [],
+        // ONE, and the blocker is a project we do not own. `wingtk/gvsbuild`
+        // hardcodes `self.platform = "x64"` in `utils/base_project.py` and its last
+        // five releases publish exactly two assets each, both x64 — so there is no
+        // arm64 GTK to build `@gjsify/gtk-runtime-win32-arm64` OUT OF, and on
+        // Windows that bundle is the only GTK there is. `@gjsify/node-gi` declares
+        // `win32-x64` only for the same reason. Tracked in #1117, which also
+        // records why an exploratory arm64 leg must NOT be added: its first step
+        // downloads a ZIP that does not exist, so it would be red by construction.
+        arches: {
+            only: ['x64'],
+            why:
+                'gvsbuild publishes no arm64 GTK (it hardcodes `self.platform = "x64"`), so there is nothing ' +
+                'to build `@gjsify/gtk-runtime-win32-arm64` out of and no GTK for a Windows/ARM artifact to ' +
+                'load — the blocker is upstream and is tracked in gjsify/gjsify#1117',
+        },
     },
 };
 
@@ -378,6 +437,33 @@ export function hostLayout(platform: string = process.platform): Layout {
         );
     }
     return layout;
+}
+
+/**
+ * Refuse an architecture this layout cannot be assembled for, naming the blocker.
+ *
+ * AT STAGE TIME, which is the whole point — see {@link Layout.arches}. The
+ * message carries the row's own `why` rather than a generic "unsupported", because
+ * the two refusals a reader can act on are different jobs: `x64` is what a Windows
+ * artifact is built for TODAY, and `win32-arm64` is blocked in a repository we do
+ * not own. Telling an author "unknown architecture" for the second one would send
+ * them to look for a flag.
+ *
+ * `process.arch` spelling on both sides, so the value quoted back is the one the
+ * user typed after `--arch`.
+ */
+export function assertLayoutSupportsArch(layout: Layout, arch: string): void {
+    const arches = layout.arches;
+    if (arches === null || arches.only.includes(arch)) return;
+    throw new Error(
+        `gjsify ship: the ${layout.name} layout is not assemblable for \`--arch ${arch}\` — ` +
+            `${arches.only.length === 1 ? 'the only architecture it has' : 'the architectures it has'} ` +
+            `${arches.only.length === 1 ? 'is' : 'are'} ${arches.only.join(', ')}.\n` +
+            `    ${arches.why}.\n` +
+            '    `--arch` names the architecture the PAYLOAD was built for and cross-compiles nothing, so ' +
+            'there is no\n' +
+            '    flag that makes this work — the artifact would carry a runtime that does not exist.',
+    );
 }
 
 /**

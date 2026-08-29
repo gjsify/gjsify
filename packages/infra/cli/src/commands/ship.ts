@@ -48,10 +48,12 @@ import {
     defaultFormatIds,
     formatIdsFor,
     resolveFormats,
+    windowsProgramDirName,
     FORMAT_IDS,
     FORMATS,
 } from '../utils/ship/formats.js';
 import {
+    assertLayoutSupportsArch,
     hostLayout,
     layoutForOs,
     place,
@@ -445,6 +447,22 @@ async function assemble(args: ShipOptions): Promise<void> {
         if (runtime.launcher.interpreter === undefined && layout.runtimeGap !== undefined) {
             console.warn(`${LOG} ${layout.runtimeGap}`);
         }
+        // THE OTHER AXIS, warned about HERE and refused in `packOne`, and the split
+        // is the same one `runtimeGap` and `assertFormatCanRunInterpreter` already
+        // draw. A stage is a build intermediate, and assembling one for an
+        // architecture no runtime exists for is what `tests/e2e/ship-layout` does on
+        // purpose: it proves the layout MAP over one payload, and that payload's
+        // native file has an architecture. What must not leave is an ARTIFACT — so
+        // the refusal sits where an artifact is about to be written and the author
+        // is told here, at the `--arch` that caused it, rather than only on the far
+        // side of a handoff.
+        if (layout.arches !== null && !layout.arches.only.includes(settings.arch)) {
+            console.warn(
+                `${LOG} this stage is labelled ${settings.arch} and the ${layout.name} layout has no runtime ` +
+                    `for it — ${layout.arches.why}. Nothing can pack this stage; ` +
+                    `\`--arch ${layout.arches.only.join('|')}\` is what produces an artifact.`,
+            );
+        }
     }
 
     // Scanned from the BUILD TREE's bundle, which is why it has to be recorded:
@@ -813,6 +831,26 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     const layout = layoutForOs(format.layoutOs);
     assertLauncherMatchesInterpreter(payload, layout, settings, settings.app);
 
+    // The label against the LAYOUT, which is the question one level up from
+    // `assertPayloadMatchesArch`: that one asks whether the bytes agree with the
+    // label, this asks whether an artifact for that label can exist at all. They
+    // are not the same check, and the windows row is where they come apart — a
+    // payload of x64 DLLs labelled `arm64` fails the first, while a payload of pure
+    // JavaScript labelled `arm64` passes it and still produces a program directory
+    // no Windows/ARM machine has a GTK for (#1117).
+    //
+    // HERE and not at `--stage`, which is the same split `Layout.runtimeGap` draws:
+    // a stage is a build intermediate and assembling one for a foreign arch is what
+    // `tests/e2e/ship-layout` does on purpose (one payload, three layouts, and that
+    // payload's native file has an architecture). What must not leave is an
+    // ARTIFACT. `assemble` warns at the `--arch` that caused it.
+    //
+    // And BEFORE `archName`, deliberately: that function refuses an unknown value
+    // too, with a message about a table. This one names the blocker and where it is
+    // tracked, which is the difference between "unsupported" and "here is what
+    // would have to change".
+    assertLayoutSupportsArch(layout, input.arch);
+
     const archLabel = format.archName(input.arch, isArchIndependent(payload));
     const common = { settings, payload, prefix: format.prefix, depends, archLabel, mtime };
 
@@ -880,6 +918,24 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             // The paths inside are the staged ones, so the archive expands to
             // `<App>.app/…` and not to a bare `Contents/`.
             writeFileSync(target, buildZip(zipEntriesFromPayload(payload), mtime));
+            break;
+        case 'windows-dir':
+            // No container, like the `.app` — the program directory IS the payload
+            // plus this format's overlay, written out. And NO REBASE, which is the
+            // one place the two rows differ: `Layout.root` is `''` here, because an
+            // installer chooses `C:\Program Files\<Publisher>\<App>` and lays the
+            // stage's CONTENTS into it. Stripping a prefix that is not there would
+            // throw; adding one would double the path on the far side.
+            writePayload(target, payload, layout.root(settings));
+            break;
+        case 'windows-dir-zip':
+            // The same payload, with the top level the layout deliberately does not
+            // carry. `windowsProgramDirName` is the same function the row above
+            // names the directory with, so unzipping this archive and running the
+            // installer put the app at the same relative path — and a user who
+            // unzips it in `Downloads` gets one directory rather than `app\`,
+            // `share\` and a `.cmd` loose in it.
+            writeFileSync(target, buildZip(zipEntriesFromPayload(payload, windowsProgramDirName(settings)), mtime));
             break;
         default: {
             const unhandled: never = format.id;

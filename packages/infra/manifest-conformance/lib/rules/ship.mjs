@@ -46,7 +46,7 @@ const BINARY_NAME = /^[a-z\d][a-z\d+.-]+$/;
  * and a Linux workstation assembles both — but even if they did, this rule reads
  * a package's DECLARATION, and where that package is packed is not its business.
  */
-const TARGETS = new Set(['deb', 'rpm', 'flatpak', 'macos-app', 'macos-app-zip']);
+const TARGETS = new Set(['deb', 'rpm', 'flatpak', 'macos-app', 'macos-app-zip', 'windows-dir', 'windows-dir-zip']);
 /**
  * Keys whose value is a SOURCE path that must exist relative to the package.
  *

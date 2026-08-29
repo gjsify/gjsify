@@ -78,6 +78,7 @@ import { dirname, join, posix, sep } from 'node:path';
 
 import { listFilesRecursive } from './discover.js';
 import type { Layout, LayoutIdentity } from './layout.js';
+import { nodeRuntimeBinaryName } from './node-runtime.js';
 import { isExecutableAsset } from './plan.js';
 import { resolveInstalledPackage, type ResolveInstalledPackageOptions } from '../resolve-npm-package.js';
 import type { StagedFile } from './types.js';
@@ -330,9 +331,12 @@ export interface AppRuntimePaths {
     gtkDir: string;
     /** `<prebuildDir>/node_gi.node` — what `NODE_GI_NATIVE` pins. */
     addonPath: string;
-    /** `<App>.app/Contents/MacOS/node` — beside the launcher that execs it. */
+    /**
+     * `<App>.app/Contents/MacOS/node`, or `<program dir>/node.exe` — beside the
+     * launcher that execs it, under the name the target's own release uses.
+     */
     interpreterPath: string;
-    /** Node's own LICENSE, under `Contents/Resources`. */
+    /** Node's own LICENSE, under `Contents/Resources` (macOS) or `share/` (Windows). */
     interpreterLicensePath: string;
 }
 
@@ -349,8 +353,17 @@ export function appRuntimePaths(layout: Layout, identity: LayoutIdentity, target
         // `Contents/MacOS`, because that is where a `.app` keeps executables and
         // because `$here` — which the launcher already computes — is then the whole
         // path expression. `Contents/Frameworks` would work for dyld and would make
-        // the launcher walk back up for the one file it execs.
-        interpreterPath: posix.join(dirs.launcher, 'node'),
+        // the launcher walk back up for the one file it execs. On Windows
+        // `dirs.launcher` is the program directory itself, so the interpreter lands
+        // beside the `.cmd` for the same reason.
+        //
+        // THE LEAF COMES FROM `node-runtime.ts`, which is the module that already
+        // decided it for the SOURCE file — `node.exe` on win32, `node` elsewhere,
+        // read off the TARGET and never `process.platform` (assembling a Windows
+        // program directory on Linux is the supported path). Restating the rule here
+        // would let the two drift into a stage that copies `node.exe` to `node` and a
+        // launcher that execs neither.
+        interpreterPath: posix.join(dirs.launcher, nodeRuntimeBinaryName(target)),
         // rpm's `share/licenses/<name>/LICENSE` shape, which the `macos-app` row
         // already uses for the app's own licence — one layout for a reader to learn,
         // and `node` is a name no `binaryName` can collide with silently: `placeStage`
