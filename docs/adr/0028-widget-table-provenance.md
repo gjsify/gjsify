@@ -63,10 +63,35 @@ coercer and the verifier.**
    What a ParamSpec CANNOT do is enumerate the legal nicks, and the type surfaces
    need exactly that. Measured under gjs 1.88.1: `GEnumClass.values` is not
    introspectable from GJS (`ec.values` is `undefined`) and
-   `GObject.enum_to_string` returns the C identifier, not the nick. The GIR — and
-   the typelib, via `ValueInfo.get_name()` — is the only source of the nick list.
-   That does not contradict this item, it delimits it: the ParamSpec validates a
-   value, the GIR enumerates the vocabulary.
+   `GObject.enum_to_string` returns the C identifier, not the nick. **The GIR is the
+   only source of the nick list.** That does not contradict this item, it delimits
+   it: the ParamSpec validates a value, the GIR enumerates the vocabulary.
+
+   ~~"and the typelib, via `ValueInfo.get_name()`"~~ — **struck 2026-08-29, it was
+   backwards.** A `.typelib` is a LOSSY SUBSET of the `.gir`, never a supplement:
+   `g-ir-compiler` compiles the XML into it, so nothing can come out that did not go
+   in. Measured by decompiling one back with `g-ir-generate --includedir=girs`:
+
+   ```
+   Adw-1.gir                        2 310 423 B, glib:nick = 120
+   g-ir-generate < Adw-1.typelib      577 131 B, glib:nick =   0
+   ```
+
+   `Gtk-4.0.gir` carries 799 `glib:nick`, 18 327 `<doc>` and 986 `default-value`; the
+   typelib carries none of the three. The only attribute it has that the GIR lacks is
+   `offset=` (struct field byte offsets), which no type surface wants.
+
+   So `ValueInfo.get_name()` returns the typelib's member NAME — byte-identical to the
+   GIR's `name` attribute, because the compiler copied it there. That is the underscore
+   substitution, not the nick. It is a near-perfect proxy and not a source: over the
+   corpus, 40 940 members carry `glib:nick` and **97** of them contradict
+   `name.replace('_', '-')` (Avahi-0.6 35, AgsAudio-6.0 16, AgsAudio-8.0 16, GES-1.0 12,
+   Gom-1.0 7). That 97-over-40 940 is the same measurement issue #1338 already carries.
+
+   The real SECOND source is not the typelib file but the **runtime** — constructed
+   defaults, `ParamSpec` min/max, CSS name, accessible role, template children, and
+   whether the installed library has the member at all. Item 5 below already reads the
+   installed typelib for existence checks, which is a different question from provenance.
 5. The table is checked against the installed typelib on demand
    (`descriptorProblems()`), and it checks the CLAIMS, not only the names: a text
    sink must be writable and a string (a non-string one accepts the write and
