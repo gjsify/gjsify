@@ -416,6 +416,23 @@ if (collidingSlot !== undefined) {
     );
 }
 
+// The OTHER half of that requirement, and it was stated and not held. Two windows
+// sharing a pane id is the same defect as a slot colliding with one, one window over:
+// the stored choice is a bare NAME, `applyPreference` writes it into EVERY window whose
+// `data-impls` contains it, and a reader who picked the frameworks window's reason would
+// land on the NativeScript window's reason on the next block. {@link REFUSAL_PANES} is
+// exactly where that becomes tempting — one `why-not` for both refusal maps reads like
+// deduplication — and nothing downstream would notice, because a duplicate id still
+// renders, still builds, and still leaves every gate green.
+const duplicatePane = OWN_PANES.find((id, index) => OWN_PANES.indexOf(id) !== index);
+if (duplicatePane !== undefined) {
+    throw new Error(
+        `AdwWidget: "${duplicatePane}" is declared as a pane id twice (${OWN_PANES.join(', ')}). ` +
+            'A stored implementation choice is a bare name, so two windows sharing an id makes one of ' +
+            "them answer for the other's panes. Give each window its own.",
+    );
+}
+
 const rendered: {
     id: string;
     title: string;
