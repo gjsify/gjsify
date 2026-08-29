@@ -68,8 +68,9 @@ rewrite the manifest that command commits); the `AppMetadata` half is an alias a
 `layout.ts`'s `place()` is the map — that split is what lets `tests/e2e/ship-layout` state the map
 ITSELF and check § 2's "one payload, a handful of layouts" as an equality — restated by M2a as
 *modulo the map PLUS an enumerated addition set*, never relaxed to a subset check. `utils/ship/app-runtime.ts`
-stages the runtime a `.app` CARRIES — a third source, already stage-relative, tree-preserving
-because `bundledTypelibs` flattens (M2b). **A statement about a
+stages the runtime a `.app` or a Windows program directory CARRIES — a third source, already
+stage-relative, tree-preserving because `bundledTypelibs` flattens (M2b, M3); `Layout.dirs` is what
+sends the same four pieces to two places, and `Layout.arches` is why windows is `x64` alone. **A statement about a
 SHIPPED ARTIFACT is not one about assembly**: reading § 4's runtime table, `--target` and
 `assertPayloadMatchesArch` as if they were cost three measured defects, all in
 [docs/ship-formats.md](../../../docs/ship-formats.md) § The layout axis — read it before touching
