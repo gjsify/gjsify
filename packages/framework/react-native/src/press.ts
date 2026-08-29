@@ -25,10 +25,11 @@
 //
 // BOTH DISPOSERS REALLY DISCONNECT, and that is not tidiness. GJS blocks a JS
 // callback during the sweeping phase of GC — measured in this milestone's own list
-// work, where a `Gtk.SignalListItemFactory` whose handlers were still connected when
-// its view was collected printed six `Gjs-CRITICAL` lines and ran none of the
-// callbacks. A handler that is not disconnected stays connected for the life of the
-// process, and the diagnostics gate counts what that produces.
+// work and written down in `@gjsify/gtk-host/list`'s controller, where a
+// `Gtk.SignalListItemFactory` whose handlers were still connected when its view was
+// collected printed six `Gjs-CRITICAL` lines and ran none of the callbacks. A handler
+// that is not disconnected stays connected for the life of the process, and the
+// diagnostics gate counts what that produces.
 //
 // Values through `gi://`, types through `@girs/*`.
 

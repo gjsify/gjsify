@@ -11,7 +11,18 @@
 // exactly why the host defers materialisation until a widget is actually needed
 // (ADR 0027 § Decision 5). An adapter cannot paper that over; the host has to.
 
-import { For as SolidFor, Index as SolidIndex, Show as SolidShow, onCleanup, splitProps, untrack } from 'solid-js';
+import {
+    For as SolidFor,
+    Index as SolidIndex,
+    Show as SolidShow,
+    batch,
+    createMemo,
+    createRoot,
+    createSignal,
+    onCleanup,
+    splitProps,
+    untrack,
+} from 'solid-js';
 import { createRenderer } from 'solid-js/universal';
 import type Gtk from '@girs/gtk-4.0';
 
@@ -32,6 +43,7 @@ import {
     setText,
     widgetOf,
 } from '../host.js';
+import type { ListRowKey, ListRowSink } from '../list/index.js';
 import type { HostElement, HostNode, HostText } from '../types.js';
 
 const HOST_KINDS = new Set(['element', 'text', 'anchor']);
@@ -176,6 +188,86 @@ export function mount(code: () => HostNode, container: Gtk.Widget): () => void {
         // blocks JS callbacks during GC — an undisconnected handler outlives the
         // tree it belonged to.
         destroyChildren(root);
+    };
+}
+
+/**
+ * What `listRows` keeps for one ROW WIDGET: a way to show a row in it, and a way to
+ * let go. Opaque to the controller, which stores it and hands it back.
+ */
+export interface ListRowHandle<Row extends ListRowKey> {
+    show(row: Row | null, index: number): void;
+    dispose(): void;
+}
+
+/**
+ * Solid's half of a `Gtk.ListView`, for `ListController` in `@gjsify/gtk-host/list`.
+ *
+ * The controller owns the model, the factory and the key diff — none of which has a
+ * framework in it. This supplies the three callbacks it cannot have: what to put in a
+ * row widget, what to show there, and how to let go.
+ *
+ * ONE REACTIVE ROOT PER ROW WIDGET, created in `mountRow` and never again, for two
+ * reasons that are not the same kind of thing. The carrier is taken ONCE because taking
+ * it per bind is REFUSED: `adopt` snapshots what a container already held and cannot
+ * tell our own previous child from application chrome, and the same carrier comes back
+ * on the next show, so the second one reads our own row as someone else's and raises
+ * `occupied-slot` (measured against this seam; `host.spec.ts` pins the same refusal
+ * from the host's side). The row's signals live INSIDE the root rather than beside it
+ * for a documented reason rather than a measured one — Solid never disposes a
+ * computation created with no owner, which for a per-row memo would be one leak per
+ * row.
+ *
+ * What the row sees is an ACCESSOR, not a value, and that is the capability this seam
+ * buys over re-rendering: when `setRows` finds unchanged keys over changed content, the
+ * controller shows every live row again, this writes one signal, and Solid updates the
+ * properties that actually changed — the widgets stay. Only the transition between
+ * "holds a row" and "holds nothing" rebuilds the subtree, which is what `present`
+ * isolates.
+ */
+export function listRows<Row extends ListRowKey>(
+    renderRow: (row: () => Row, index: () => number) => HostNode,
+): ListRowSink<Row, ListRowHandle<Row>> {
+    return {
+        mountRow(item: Gtk.ListItem): ListRowHandle<Row> {
+            const carrier = adopt(item);
+            return createRoot((disposeRoot) => {
+                const [row, setRow] = createSignal<Row | null>(null);
+                const [index, setIndex] = createSignal(0);
+                const present = createMemo(() => row() !== null);
+                // `insert` takes an ACCESSOR — the renderer's own contract, and the
+                // reason nothing here has to re-run `renderRow` on a content change.
+                insert(carrier, () => (present() ? renderRow(row as () => Row, index) : null));
+                return {
+                    show(next: Row | null, at: number): void {
+                        // BATCHED, because the two writes are one event. Unbatched, the
+                        // index lands first and every effect reading it runs once
+                        // against the row that is on its way out — visible work for a
+                        // state no frame will ever show.
+                        //
+                        // `setRow` takes the updater form: a `Row` may itself be
+                        // callable, and the value form would run it as one.
+                        batch(() => {
+                            setIndex(at);
+                            setRow(() => next);
+                        });
+                    },
+                    dispose(): void {
+                        disposeRoot();
+                        // Disposing tears down the reactive scopes and leaves the
+                        // widgets where they are — the same gap `mount`'s disposer
+                        // closes, for the same measured reason.
+                        destroyChildren(carrier);
+                    },
+                };
+            });
+        },
+        showRow(handle: ListRowHandle<Row>, row: Row | null, index: number): void {
+            handle.show(row, index);
+        },
+        disposeRow(handle: ListRowHandle<Row>): void {
+            handle.dispose();
+        },
     };
 }
 

@@ -70,6 +70,26 @@ function unwrapArg(value) {
     if (value !== null && typeof value === 'object' && value[HANDLE] !== undefined) {
         return value[HANDLE];
     }
+    // An ARRAY is a container whose ELEMENTS need the same unwrapping, and until this
+    // line they did not get it: only the top-level argument was unwrapped, so an array
+    // of GObjects reached the engine as an array of JS wrappers and
+    // `NodeGiToGIArgument`'s GI_TYPE_TAG_INTERFACE branch — which accepts nothing but
+    // an External carrying the handle — threw
+    // `expected a GObject handle as a container element`. That is EVERY GI method
+    // taking an array of objects, not one method: measured on
+    // `Gio.ListStore.splice(0, n, [a, b])`, where `append(a)` on the same store
+    // succeeded because one GObject as a top-level arg was always unwrapped.
+    //
+    // `Array.isArray`, not `typeof value === 'object'`: a Uint8Array is a
+    // GByteArray/guint8[] argument the engine reads directly, and mapping over it here
+    // would turn it into a plain Array and lose that.
+    //
+    // Recursive, so a nested array and a GObject inside one are handled by the same
+    // rule rather than by a second one that drifts — and this is now the same shape
+    // `wrapReturn` has carried all along for the OTHER direction. That asymmetry is
+    // why the gap stayed invisible: a container coming BACK had its elements wrapped,
+    // a container going IN did not, and nothing read both lines at once.
+    if (Array.isArray(value)) return value.map(unwrapArg);
     if (typeof value === 'function') return wrapCallbackFn(value);
     return value;
 }

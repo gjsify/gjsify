@@ -349,11 +349,12 @@ export default async () => {
             });
 
             await it('unmounts every row’s root, so nothing is left for GC to block', async () => {
-                // The measured hazard: a factory whose handlers are still connected when
-                // its view is collected produced six `Gjs-CRITICAL` lines — "Attempting
-                // to call back into JSAPI during the sweeping phase of GC … the JS
-                // callback not invoked" — and ran none of them. The diagnostics gate
-                // around this describe is what would report them.
+                // The measured hazard is stated once, in `@gjsify/gtk-host/list`'s
+                // controller: a factory whose handlers are still connected when its
+                // view is collected produces Gjs criticals and runs none of the
+                // callbacks. The diagnostics gate around this describe is what would
+                // report them — from THIS side of the seam, where a row also owns a
+                // React root that the core hands back rather than unmounts.
                 await mounted(async (mount) => {
                     await mount.render(
                         flatList({

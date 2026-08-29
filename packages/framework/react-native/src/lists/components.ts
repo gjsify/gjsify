@@ -37,7 +37,7 @@
 
 import { createElement, useEffect, useRef, type ComponentType, type ReactElement, type ReactNode } from 'react';
 
-import { ListController, onScrollNearEnd, rowKey, type ListRow } from './controller.js';
+import { createListController, onScrollNearEnd, rowKey, type ListRow, type ReactListController } from './controller.js';
 import { nodeProps, usePlan, type CommonProps, type Rendered } from '../components.js';
 import { ParentProvider } from '../parent-context.js';
 import { PrimitiveError } from '../primitives/errors.js';
@@ -158,7 +158,7 @@ function useListFrame(
     const rendered = usePlan(primitive, props);
     const view = useRef<unknown>(null);
     const scroller = useRef<unknown>(null);
-    const controller = useRef<ListController | null>(null);
+    const controller = useRef<ReactListController | null>(null);
     const latestRows = useRef(rows);
     latestRows.current = rows;
 
@@ -170,9 +170,9 @@ function useListFrame(
     useEffect(() => {
         const widget = view.current;
         if (isEmpty || widget === null || widget === undefined) return;
-        const owned = new ListController(onRowError === undefined ? {} : { onRowError });
+        const owned = createListController(onRowError === undefined ? {} : { onRowError });
         controller.current = owned;
-        owned.attach(widget as Parameters<ListController['attach']>[0]);
+        owned.attach(widget as Parameters<ReactListController['attach']>[0]);
         owned.setRows(latestRows.current);
         return () => {
             controller.current = null;

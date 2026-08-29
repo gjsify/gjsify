@@ -117,6 +117,48 @@ attachment point, `layout={{ column, row, columnSpan, rowSpan }}` a `coords` cel
 `layout={{ name, title }}` a `keyed` page. Both are read at placement time, so
 changing either RE-PLACES the child rather than doing nothing.
 
+## Lists — `@gjsify/gtk-host/list`
+
+A `Gtk.ListView` is the one thing in GTK4 that cannot be an element: it installs no
+child-adding method at all (measured against its prototype), and the carrier its
+factory hands back is not a `Gtk.Widget`. What it needs instead is a model, a factory
+and a key diff — none of which has a framework in it, and all of which every dialect
+would otherwise own a copy of. `ListController` is that half, in a subpath rather than
+a package: a `/core` subpath beats a new `-core` package unless a separate NAME buys a
+package-level cycle or an independent external consumer, and neither is in play.
+
+It imports Gtk, GObject and Gio and nothing else — no React, no Solid, no Vue; `Gio`
+is not an oversight in that list but the module's centrepiece, since the model IS a
+`Gio.ListStore`. The constraint that matters is the framework one, and
+`scripts/check-adapter-import-direction.mjs` enforces it rather than this sentence. The
+dialect supplies three callbacks:
+
+| callback | called from | what it owes |
+|---|---|---|
+| `mountRow(item)` | `setup` | take the carrier, put a subtree root in it, return a handle |
+| `showRow(handle, row, index)` | `bind`, `unbind` (with `null`), and a same-key content change | show that row, or empty it |
+| `disposeRow(handle)` | `teardown` and `dispose()` | let go |
+
+**Take the carrier ONCE, in `mountRow`.** GTK recycles a carrier across `bind`/`unbind`,
+and `adopt` snapshots what a container already held without being able to tell the
+host's own previous child from application chrome — so a dialect that adopts per bind
+refuses with `occupied-slot`. `host.spec.ts` pins that
+refusal. The route that reaches it FIRST is not GTK recycling a carrier, which needs
+scrolling: it is `setRows` over unchanged keys, which shows every live row again through
+the same handle with no GTK involvement, so a per-show `adopt` fails on the first content
+change; `list/controller.ts` carries the three measurements the controller's shape
+follows from (the `Gio.ListStore` carrier identity, why a data change SPLICES rather
+than emitting `items-changed`, and why `dispose()` and not GTK's `teardown` is the
+teardown authority).
+
+`@gjsify/gtk-host/solid`'s `listRows` is the Solid half, and it is one reactive root
+per ROW WIDGET rather than per bound row: a row sees an ACCESSOR, so a content change
+behind an unchanged key writes one property and the widget survives — asserted by
+identity in `list/list.spec.ts`. `@gjsify/react-native`'s `lists/controller.ts` is the
+React half, and it defers every row render to a microtask, which is React's constraint
+and not GTK's: the adapter's `render()` refuses a re-entrant flush by name, and GTK
+binds rows from inside React's own commit.
+
 ## Lifetime
 
 `remove` detaches and is reversible, because frameworks move nodes. The wrapper

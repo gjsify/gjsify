@@ -30,6 +30,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { callFunction, callStaticMethod, requireNamespace } from '../index.js';
+import { requireGi } from '../gi.js';
 
 test('GStrv return → string[]: GLib.get_environ()', () => {
     requireNamespace('GLib', '2.0');
@@ -156,4 +157,42 @@ test('null marshals as a NULL array argument (GJS parity)', () => {
     // path) — node-gi used to throw "expected an array for the array argument".
     requireNamespace('GLib', '2.0');
     assert.equal(callFunction('GLib', 'environ_getenv', [null, 'PATH']), null);
+});
+
+// An ARRAY OF GOBJECTS as an IN argument — the direction every case above covers
+// for strings and bytes and none of them covered for objects.
+//
+// It did not work, and the gap was invisible because the single-object path is a
+// different line of code: `unwrapArg` unwrapped a top-level node-gi instance to its
+// handle and returned an Array untouched, so the elements arrived at
+// `NodeGiToGIArgument`'s GI_TYPE_TAG_INTERFACE branch as JS wrappers and it threw
+// `expected a GObject handle as a container element`. Every GI method taking an
+// array of objects was affected; it surfaced through
+// `@gjsify/gtk-host/list`'s `Gio.ListStore.splice`, whose whole design rests on
+// replacing the model in ONE call.
+//
+// `Gio.ListStore` is the right subject headlessly: it is a real GI method with a
+// `GObject**` IN parameter and it needs no display.
+test('array of GObjects IN: Gio.ListStore.splice replaces the model in one call', () => {
+    const Gio = requireGi('Gio', '2.0');
+    const store = Gio.ListStore.new(Gio.SimpleAction.$gtype);
+
+    // The CONTROL, and it is the reason the bug survived: one GObject as a
+    // top-level argument was always unwrapped, so `append` worked throughout.
+    store.append(new Gio.SimpleAction({ name: 'first' }));
+    assert.equal(store.get_n_items(), 1);
+
+    const replacements = [new Gio.SimpleAction({ name: 'a' }), new Gio.SimpleAction({ name: 'b' })];
+    store.splice(0, store.get_n_items(), replacements);
+    assert.equal(store.get_n_items(), 2);
+
+    // The objects that came back are the ones handed in — an array that marshalled
+    // to the wrong pointers would still give a count of 2.
+    assert.equal(store.get_item(0).name, 'a');
+    assert.equal(store.get_item(1).name, 'b');
+
+    // An EMPTY array is the boundary the splice path also takes (clearing a model),
+    // and it must not be read as "no argument".
+    store.splice(0, store.get_n_items(), []);
+    assert.equal(store.get_n_items(), 0);
 });
