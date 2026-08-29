@@ -19,7 +19,7 @@ gjsify tsc …                              # Node-free tsc via the @gjsify/tsc 
 gjsify publish|whoami|login|logout        # Node-free npm publish/auth (npm-otp header, no web-OAuth)
 gjsify trust [pkg] | gjsify onboard [--packages <glob>]  # Trusted-Publisher / publish+trust sweep, ANY monorepo
 gjsify upgrade [--latest|--minor|--patch|--align|--check] [-p glob]   # workspace-wide dep upgrades; --check = CI drift gate
-gjsify ship [linux|darwin|windows] [--target deb,rpm,flatpak] [--stage]   # phase 1: assemble ONE staged payload for that OS's LAYOUT (ADR 0024)
+gjsify ship [linux|darwin|windows] [--target <fmt..>] [--stage]   # phase 1: assemble ONE staged payload for that OS's LAYOUT (ADR 0024)
 gjsify ship --from-stage <dir> [--expect-target <os>-<arch>]   # phase 2: pack a stage, no project needed
 gjsify install [--immutable|--refresh-lockfile] | gjsify dlx <pkg> | gjsify showcase <name> | gjsify storybook | gjsify debug
 gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
@@ -66,7 +66,8 @@ rewrite the manifest that command commits); the `AppMetadata` half is an alias a
 <linux|darwin|windows>` picks the layout, `defaultFormatIds(os)` filters on both, and a bare
 `gjsify ship` on Linux stays `deb` + `rpm`. `planStage` emits ONE prefix-relative plan and
 `layout.ts`'s `place()` is the map — that split is what lets `tests/e2e/ship-layout` state the map
-ITSELF and check § 2's "one payload, a handful of layouts" as an equality. **A statement about a
+ITSELF and check § 2's "one payload, a handful of layouts" as an equality — restated by M2a as
+*modulo the map PLUS an enumerated addition set*, never relaxed to a subset check. **A statement about a
 SHIPPED ARTIFACT is not one about assembly**: reading § 4's runtime table, `--target` and
 `assertPayloadMatchesArch` as if they were cost three measured defects, all in
 [docs/ship-formats.md](../../../docs/ship-formats.md) § The layout axis — read it before touching

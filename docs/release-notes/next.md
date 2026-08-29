@@ -32,82 +32,63 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## What this release is about
 
-**A Flatpak is now a `gjsify ship` target, and meson leaves the sandbox.**
+**`gjsify ship darwin` now produces a real macOS application bundle, assembled on Linux.**
 
 ---
 
-### One payload, and Flatpak is a row in a table
+### A `*.app` directory was not an application
 
-`gjsify ship` has staged one prefix-relative payload since 0.42.0 — `bin/`, `lib/<name>/`,
-`share/` — and wrapped it as a `.deb` and an `.rpm`. ADR 0024 predicted that the whole difference
-between that and a Flatpak would be "a four-line prefix map". Measured, it is `prefix: '/app'`, an
-architecture table with no `noarch` in it, and a filename:
+The layout axis that landed last release staged `<App>.app/Contents/{MacOS,Resources,Frameworks}`
+and stopped there. What it did not stage was `Contents/Info.plist`, and that file is the whole
+difference between an application and a folder whose name ends in `.app`: LaunchServices reads it to
+learn which binary under `Contents/MacOS` to exec and what identity to register the bundle under.
+Without it the Finder shows a folder.
 
-```bash
-gjsify ship --target flatpak
-flatpak install ./ship/out/org.example.MyApp-1.2.3-1.x86_64.flatpak
-```
+`gjsify ship darwin` now writes it, plus `Contents/PkgInfo`, and packs two artifacts out of the same
+staged payload — the `<App>.app` itself and a deterministic zip around it. Both are assembled by a
+Linux host and both are unsigned; signing is a later milestone and an unsigned artifact is a
+legitimate output as long as it says so.
 
-The generated module is the interesting part, because of what is not in it:
+Eleven plist keys, each read off a file a real macOS toolchain produced or consumes rather than
+recalled: the app id becomes `CFBundleIdentifier`, the display name becomes the bundle directory and
+`CFBundleName`, and `CFBundleVersion` carries the packaging release where `CFBundleShortVersionString`
+does not — the one place macOS has a field for a distinction this command already made. Keys that are
+merely plausible are not emitted, and neither is an icon: nothing that can read an `.icns` back
+exists on Linux or in this project's CI image, and an icon only we could check is not a check.
 
-```json
-{
-  "buildsystem": "simple",
-  "build-commands": ["mkdir -p /app", "cp -a stage/. /app/", "cp -a overlay/. /app/"]
-}
-```
+### Your GSettings schemas no longer abort the app
 
-If you have written a Flatpak for a GJS app before, that is the meson glue gone. Learn6502 carried
-158 lines of it whose only job was to call `gjsify build` and copy the results into a prefix, 66 of
-them setting `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` by hand. The launcher `ship` stages works out
-its own prefix at run time, so nothing in the payload needs to know whether it landed in `/usr` or
-`/app`.
+Every launcher points `XDG_DATA_DIRS` at the staged `share/`, and GSettings aborts on a schema
+directory that holds sources with no `gschemas.compiled` beside them. On Linux the `.deb`/`.rpm`
+install step compiles it; a `.app` has no install step, so the bundle would have died at its first
+`Gio.Settings.new()`. The cache is now compiled while the tree is assembled, with `--strict` —
+without that flag a malformed schema is skipped at exit 0 and a cache is written without it, so the
+stage looks compiled and the app aborts on exactly the schema that was dropped.
 
-### A format now says where it can be packed
+Linux still gets no prebuilt cache, deliberately: there the install step compiles the system schema
+directory, where your schemas merge with every other package's.
 
-Flatpak is the first `ship` target that needs tooling: only `flatpak build-bundle` writes an OSTree
-static delta, and it runs on Linux. Rather than making that a footnote, each format declares it —
-where it can be finished, what it execs, and who can read the artifact back — and `ship` refuses
-instead of guessing:
+### The readers are not ours, and both were watched fail
 
-```bash
-gjsify ship --stage --target flatpak                       # here, any OS, offline
-gjsify ship --from-stage ./ship/stage --target flatpak      # there, on a Linux runner
-```
+`plutil` is macOS-only, and the substitute a reader reaches for first is a trap: `plistutil` accepts
+a `<dict>` whose `<key>` has no value and prints an empty dict at exit 0, while
+`xmllint --noout --valid` exits 4 on a *correct* plist because the DTD is a remote URL. So the plist
+is read back with CPython's `plistlib`, and the zip with `zipinfo -l` rather than `unzip -Z1` —
+which prints names only and is blind to the single failure a distributed bundle has, a launcher that
+extracts `0644` and will not run.
 
-Three details are the difference between a declaration and a comment. The checks run **before** your
-`build` script, so an absent `flatpak-builder` does not cost a full build to discover. The wrong OS
-and a missing tool are two different messages, because the fixes are a different machine and a
-package. And `flatpak` is deliberately *not* in the default target set — a bare `gjsify ship` must
-not start demanding `flatpak-builder` of every project that only ever wanted a `.deb`.
+Both readers live in `.github/ship-oracle/`, both are runnable by hand, and both are driven green
+AND red on every pull request: a plist with one wrong character, a plist truncated mid-`<dict>`, a
+bundle with no plist at all, an archive whose launcher was planned `0644`, and an archive that
+carries `0755` under a DOS `version made by` — where the mode is in the file and no extractor will
+ever read it as a mode.
 
-### The `gjsify.flatpak` build keys have a new home, and a window
+### What it does not do yet
 
-`runtime`, `runtimeVersion`, `sdkExtensions`, `appendPath`, `finishArgs` and `cleanup` now live at
-`gjsify.ship.flatpak.*`. The old spelling still resolves, per KEY, so a project can move one at a
-time; `ship` prints one line naming exactly what it inherited and where it goes. They are read from
-`gjsify.flatpak` until 1.0.0.
+The bundle carries no interpreter and no GTK closure, so it runs where `node` is already installed
+and not yet on a stranger's Mac. macOS has GJS but no *relocatable* GJS, which is why the two macOS
+formats accept `gjsify.app: "node"` only — a `gjs` project can assemble the layout and is told, by
+name, why it cannot pack it. The `.dmg`, the Windows installer and signing are still ahead.
 
-What is **not** deprecated: the app metadata — `name`, `summary`, `developer`, `categories`,
-`license`. Both blocks describe the same application and either may carry it, which is the whole
-point of ADR 0024 § 8's "those files are not Flatpak's, they are the app's". And `gjsify flatpak
-<sub>` is untouched: it is still the way to produce the committed manifest and AppStream files a
-Flathub submission wants.
-
-### How this is proven, and what is honestly not
-
-A `.flatpak` is read back with `flatpak build-import-bundle` into a fresh repo and `ostree ls -R`,
-which prints a path, a mode and a size per file — an independent reader, since ostree parses a delta
-this project never wrote. That tier only runs where the tooling and the GNOME runtime are installed,
-and it prints its skip where they are not; this project's Fedora CI image has neither.
-
-So two tiers run everywhere, and both can fail on a real defect. One is structural. The other
-executes the module's own `build-commands` under `sh` against a temporary prefix and compares what
-lands, file by file and mode by mode, against the staged payload — with two negative controls,
-because a comparison that cannot fail proves nothing: dropping the source's `skip` must put the
-stage's own sidecar inside `/app`, and `cp -a stage /app/` without the trailing `/.` must lose the
-launcher.
-
-One measurement worth keeping, because it looks like a gate and is not: `flatpak-builder
---show-manifest` accepted an unknown source property and `buildsystem: "nonsense"` at exit 0. It
-reads and normalises JSON. It validates nothing.
+See [#1354](https://github.com/gjsify/gjsify/issues/1354) and
+`docs/adr/0024-ship-installable-artifacts.md`.

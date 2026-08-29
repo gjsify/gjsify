@@ -1310,6 +1310,8 @@ gjsify ship                     # build the project, then a .deb and an .rpm
 gjsify ship --skip-build        # package what is already built
 gjsify ship --target deb        # one format
 gjsify ship --target flatpak    # a single-file Flatpak bundle (needs flatpak-builder)
+gjsify ship darwin              # a macOS <App>.app and a zip around it (--app node)
+gjsify ship windows --stage     # a Windows program directory; nothing wraps it yet
 gjsify ship --stage             # produce the payload and stop
 gjsify ship --from-stage ./ship/stage   # pack a payload assembled elsewhere
 gjsify ship --arch arm64        # package for another architecture
@@ -1317,7 +1319,7 @@ gjsify ship --arch arm64        # package for another architecture
 
 | Option | Default | Description |
 |---|---|---|
-| `--target <fmt..>` | `gjsify.ship.targets`, else `deb,rpm` | Formats to build. Comma-separated or repeated. `flatpak` is available and opt-in — it is the one format that needs tooling on the packing host. |
+| `--target <fmt..>` | `gjsify.ship.targets`, else every format wrapping the layout that needs no extra tooling | Formats to build. Comma-separated or repeated. On Linux that default is `deb,rpm`; `flatpak` is opt-in because it is the one format that needs a *different host*. `macos-app` and `macos-app-zip` wrap the darwin layout and need `glib-compile-schemas` — a tool, not a host, which is why they are still in the default there. A format wrapping another layout is refused by name. |
 | `--out <dir>` | `gjsify.ship.outDir`, else `ship` | Output root, relative to the project. |
 | `--stage` | `false` | Produce the staged payload and stop, packing nothing. |
 | `--from-stage <dir>` | — | Pack a payload an earlier `--stage` run wrote. Needs no project: no `package.json`, no config, no built bundle. |
@@ -1333,6 +1335,7 @@ ship/stage/            the prefix-relative payload: bin/, lib/<name>/, share/
 ship/stage/.gjsify-ship-stage.json   the closure a packing host needs when it is not this one
 ship/overlay/<format>/ per-format additions, such as the licence where each format wants it
 ship/flatpak/          --target flatpak only: the generated manifest, the build dir, the export repo
+ship/schemas/          off Linux only: where gschemas.compiled is built before it is staged
 ship/out/              the artifacts
 ```
 
@@ -1373,7 +1376,7 @@ No runtime is bundled on Linux: GJS and GTK come from the distribution, so the p
 | `version` | `package.json#version` | Upstream version, normalised. |
 | `release` | `1` | Package revision within one upstream version. |
 | `maintainer` | `package.json#author` | `Maintainer:` and `Packager:`, as `Name <email>`. dpkg refuses a package without one. |
-| `targets` | `["deb", "rpm"]` | Formats built when `--target` is not given. `flatpak` is deliberately not in the default: it needs `flatpak-builder`. |
+| `targets` | every format wrapping the layout that needs no extra tooling (on Linux, `["deb", "rpm"]`) | Formats built when `--target` is not given. `flatpak` is deliberately not in the default: it needs `flatpak-builder`, i.e. a Linux host. A configured list is a project DEFAULT, so formats wrapping another layout are filtered out with a printed note rather than refused — unlike a typed `--target`, which is a claim about one run. |
 | `outDir` | `ship` | Output root. |
 | `bundle` | `gjsify.main`, else `package.json#main` | The built bundle `bin/<name>` executes. Its whole directory is staged into `lib/<name>/`. |
 | `icon` | `data/icons` or `data/icons/hicolor` | Icon file or directory. Sizes are read from the path or the filename. |

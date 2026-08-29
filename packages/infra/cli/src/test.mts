@@ -23,6 +23,7 @@ import shipDependsSuite from './utils/ship/depends.spec.js';
 import shipNodeRuntimeSuite from './utils/ship/node-runtime.spec.js';
 import shipFlatpakSuite from './utils/ship/flatpak.spec.js';
 import installProvenanceSuite from './utils/install-provenance.spec.js';
+import shipPlistSuite from './utils/ship/plist.spec.js';
 import shipArchivesSuite from './utils/ship/archives.spec.js';
 import shipPackersSuite from './utils/ship/packers.spec.js';
 import installProjectEngineSuite from './commands/install-project-engine.spec.js';
@@ -223,6 +224,7 @@ run(
         shipDependsSuite,
         shipNodeRuntimeSuite,
         shipFlatpakSuite,
+        shipPlistSuite,
         installProvenanceSuite,
         shipArchivesSuite,
         shipPackersSuite,
