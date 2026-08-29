@@ -55,6 +55,14 @@ vendored as-is — gjsify ships its own dual (GJS + Node) example/test infra.
   specific target, so each new bundle is found by the mechanism that found the
   first. The loader contract and the per-platform measurements are
   [docs/node-gi-platform-notes.md](../../../docs/node-gi-platform-notes.md).
+- An application that carries **its own** GI library — a typelib plus the shared
+  library behind it, staged beside the app rather than installed — names those
+  directories in `GJSIFY_GI_LIBRARY_PATH` (`:`-separated; `;` on Windows;
+  absolute paths only). node-gi reads it in JS and hands the directories to
+  `gi_repository_prepend_library_path()`, so GI can open the bare leaf its own
+  typelib records. This is the only route that survives on macOS: dyld strips
+  every `DYLD_*` from a restricted process, so a signed `.app` cannot use one.
+  Entries take precedence over the GTK bundle / system GI libdirs.
 
 ## Install
 

@@ -19,7 +19,10 @@ export function activateBundledGtkRuntime(native: {
     prependLibraryPath?: (p: string) => void;
 }): GtkRuntimeBundle | null;
 
-/** Prepend GI's shared-library search path for the GTK the policy chose. */
+/** Absolute directories from `GJSIFY_GI_LIBRARY_PATH` — where an app carries its OWN GI libraries. */
+export function appGiLibraryDirs(opts?: { platform?: NodeJS.Platform | string; env?: NodeJS.ProcessEnv }): string[];
+
+/** Prepend GI's shared-library search path: the app's own dirs, then the GTK the policy chose. */
 export function activateGiLibraryPath(native: { prependLibraryPath?: (p: string) => void }): string[];
 /** TEST-ONLY: allow the activation to run again. */
 export function resetGiLibraryPathForTests(): void;

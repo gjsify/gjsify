@@ -19,12 +19,25 @@
 // leaf is provable only on a real macOS host, which is what the A/B did.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activateGiLibraryPath, resetGiLibraryPathForTests } from '../gtk-runtime.js';
+import { activateGiLibraryPath, appGiLibraryDirs, resetGiLibraryPathForTests } from '../gtk-runtime.js';
 
 /** An addon stub recording what the activation handed to GI. */
 function recordingNative() {
     const calls = [];
     return { calls, prependLibraryPath: (p) => calls.push(p) };
+}
+
+/** Run `body` with `GJSIFY_GI_LIBRARY_PATH` set to `value`, then restore it. */
+function withAppLibraryPath(value, body) {
+    const before = process.env.GJSIFY_GI_LIBRARY_PATH;
+    if (value === undefined) delete process.env.GJSIFY_GI_LIBRARY_PATH;
+    else process.env.GJSIFY_GI_LIBRARY_PATH = value;
+    try {
+        return body();
+    } finally {
+        if (before === undefined) delete process.env.GJSIFY_GI_LIBRARY_PATH;
+        else process.env.GJSIFY_GI_LIBRARY_PATH = before;
+    }
 }
 
 test('an addon without the binding is left completely alone', () => {
@@ -76,4 +89,67 @@ test('on linux it asks GI for nothing', () => {
     const native = recordingNative();
     assert.deepEqual(activateGiLibraryPath(native), []);
     assert.deepEqual(native.calls, []);
+});
+
+// ---------------------------------------------------------------------------
+// GJSIFY_GI_LIBRARY_PATH — where an APPLICATION carries its OWN GI libraries.
+//
+// A shipped app stages its typelib and that typelib's backer into ONE directory
+// and points `GI_TYPELIB_PATH` there, so GI resolves the typelib and then
+// `g_module_open`s a bare leaf nothing has located. The launcher's
+// `LD_LIBRARY_PATH` covers that on linux; on macOS nothing can, because dyld
+// strips every `DYLD_*` from a signed, hardened process. Neither the GTK dirs the
+// block above asserts nor `systemGiLibraryDirs()` cover it — the full record is in
+// `gtk-runtime.js` and docs/node-gi-platform-notes.md.
+
+test('the app dirs reach GI, ahead of whatever the policy found', () => {
+    resetGiLibraryPathForTests();
+    const native = recordingNative();
+    const applied = withAppLibraryPath('/opt/MyApp/gi:/opt/MyApp/extra', () => activateGiLibraryPath(native));
+    assert.deepEqual(applied.slice(0, 2), ['/opt/MyApp/gi', '/opt/MyApp/extra']);
+    // Same claim at the call level: prepend is LAST-wins, so GI's first entry is
+    // the addon's last call.
+    assert.deepEqual([...native.calls].reverse().slice(0, 2), ['/opt/MyApp/gi', '/opt/MyApp/extra']);
+});
+
+test('the CONTROL: with the variable unset, those dirs are absent', () => {
+    // Without this, an empty result is indistinguishable between "the app supplied
+    // nothing" and "the app supplied dirs that were silently discarded" — the
+    // ambiguity that lets a wired-up-looking fix ship doing nothing. Run against the
+    // SAME host state as the test above, so the only difference is the variable.
+    resetGiLibraryPathForTests();
+    const withVar = withAppLibraryPath('/opt/MyApp/gi', () => activateGiLibraryPath(recordingNative()));
+    resetGiLibraryPathForTests();
+    const withoutVar = withAppLibraryPath(undefined, () => activateGiLibraryPath(recordingNative()));
+    assert.ok(withVar.includes('/opt/MyApp/gi'), 'the variable must add its dir');
+    assert.ok(!withoutVar.includes('/opt/MyApp/gi'), 'and nothing else may invent it');
+    assert.deepEqual(withVar.slice(1), withoutVar, 'the policy dirs must be untouched by the variable');
+});
+
+test('a dir the policy already found is not prepended twice', () => {
+    resetGiLibraryPathForTests();
+    const policy = activateGiLibraryPath(recordingNative());
+    if (policy.length === 0) return; // linux: no policy dirs to collide with
+    resetGiLibraryPathForTests();
+    const native = recordingNative();
+    const applied = withAppLibraryPath(policy[0], () => activateGiLibraryPath(native));
+    assert.deepEqual(applied, policy, "a duplicate must collapse, not grow GI's search path");
+    assert.equal(native.calls.length, policy.length);
+});
+
+test('the separator is the OS search-path separator', () => {
+    const env = { GJSIFY_GI_LIBRARY_PATH: 'C:\\App\\gi;C:\\App\\extra' };
+    assert.deepEqual(appGiLibraryDirs({ platform: 'win32', env }), ['C:\\App\\gi', 'C:\\App\\extra']);
+    // `:` on win32 would split a drive letter off its path, which is why the
+    // dialect is a parameter rather than a constant.
+    assert.deepEqual(appGiLibraryDirs({ platform: 'linux', env: { GJSIFY_GI_LIBRARY_PATH: '/a:/b' } }), ['/a', '/b']);
+    assert.deepEqual(appGiLibraryDirs({ platform: 'darwin', env: {} }), []);
+});
+
+test('relative entries are dropped, empties too, duplicates collapse', () => {
+    // A relative entry resolves against the process working directory — `/` for a
+    // double-clicked `.app`. That is the trailing-colon bug the ship launcher
+    // already refuses to emit, and it must not arrive through this door instead.
+    const env = { GJSIFY_GI_LIBRARY_PATH: '/abs:rel:./also-rel::/abs' };
+    assert.deepEqual(appGiLibraryDirs({ platform: 'linux', env }), ['/abs']);
 });

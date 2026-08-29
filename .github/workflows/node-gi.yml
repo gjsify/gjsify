@@ -1013,6 +1013,39 @@ jobs:
         env:
           NODE_GI_NATIVE: build
 
+      # THE APP-CARRIES-ITS-OWN-LIBRARY GATE, and the only place it can be asserted
+      # on the OS it was written for. A shipped app stages its typelib and that
+      # typelib's backing library into one directory of its own; `GI_TYPELIB_PATH`
+      # finds the typelib, and on macOS nothing tells the loader where the library
+      # is — a `.app` launcher cannot use `DYLD_*`, because dyld strips those from a
+      # restricted (hardened-runtime, Developer-ID-signed) process, so a launcher
+      # depending on one works unsigned and breaks at signing time.
+      # `GJSIFY_GI_LIBRARY_PATH` → `gi_repository_prepend_library_path()` is the
+      # env-free answer, and this step measures the RESULT rather than the wiring:
+      # the probe copies a real backer into a scratch dir and reads back which file
+      # dyld actually mapped (`process.report` → `_dyld_get_image_name()`), against
+      # a control run with the variable unset that must map the system copy.
+      #
+      # `env -u` for the same reason as the step above: the Homebrew step exports
+      # DYLD_FALLBACK_LIBRARY_PATH into GITHUB_ENV, and with it set the scratch dir
+      # is not the only way to reach a library — the measurement would still be
+      # valid but the leg would stop proving the env-free path.
+      #
+      # The PASS COUNT is asserted, not the exit code: the probe self-skips when the
+      # GdkPixbuf typelib is unavailable, and a skip exits 0.
+      - name: An app's OWN GI library loads with no loader env (darwin-${{ matrix.arch }})
+        working-directory: packages/node-gi/node-gi
+        run: |
+          set -euo pipefail
+          env -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_LIBRARY_PATH \
+            node --test --test-reporter=tap test/gi-library-path-loads.test.mjs | tee /tmp/app-libpath.tap
+          grep -qx '# pass 1' /tmp/app-libpath.tap || {
+            echo "::error::the app-library-path leg did not PASS 1 test (a SKIP means the gate stopped gating)"
+            exit 1
+          }
+        env:
+          NODE_GI_NATIVE: build
+
       # The display-free conformance subset on Node — the primary proof. Loads the
       # just-built build/Release addon (cross-runtime.mjs defaults NODE_GI_NATIVE to
       # `build`). Same curated list as the Bun/Deno legs (single source of truth).
