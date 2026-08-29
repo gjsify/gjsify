@@ -64,22 +64,29 @@ Two consequences of a host-bound format existing at all:
 
 ### Signing is NOT a `HostRequirement` field (ADR 0024 § A14)
 
+**Unlike everything else on this page, this section is a DECISION and not a description.** Nothing
+in the CLI signs anything yet: `grep -rniE 'codesign|notariz' packages/infra/cli/src` returns 2
+hits, both comments in `utils/ship/layout.ts` and its spec, and neither `--sign` nor
+`gjsify.ship.sign` exists. It is written down here because the shape of the descriptor is decided
+by it — a field not added is as much a design as a field added, and the reason has to survive until
+#1354 M6 implements it.
+
 ADR 0024 § A1 phrased the rule as *"a container is produced where its format's tool lives, and a
 signature where its credentials live — a format declares which of the three it needs"*. Measured,
 a format declares TWO of the three, and the third should not join them:
 
-| question | who answers it | scope |
-|---|---|---|
-| can this host run the packer's tools? | `finishOn` + `requiredTools` | per FORMAT |
-| does this run hold an identity to sign with? | `--sign <identity>`, defaulting to `gjsify.ship.sign.<os>.identity` | per RUN |
+| question | who answers it | scope | today |
+|---|---|---|---|
+| can this host run the packer's tools? | `finishOn` + `requiredTools` | per FORMAT | implemented |
+| does this run hold an identity to sign with? | `--sign <identity>`, defaulting to `gjsify.ship.sign.<os>.identity` | per RUN | decided, not built |
 
 Same shape as the two existing gates being two messages: the wrong OS needs another machine, a
-missing tool needs a package — and a missing identity needs neither, because **no identity is not
-an error**. It skips, says so on stderr, and exits 0 (ADR 0024 § A13). `gjsify ship` never receives
-a certificate at all: it execs `codesign` with a NAME, and the private key stays on the signing
-host (ADR 0024 § A12 records what is measured about that and what is Apple's documented behaviour).
-That is what lets an external developer ship under their own Developer ID with no fork and no
-fixture.
+missing tool needs a package — and a missing identity will need neither, because **no identity is
+not an error**: it will skip, say so on stderr, and exit 0 (ADR 0024 § A13). `gjsify ship` will
+never receive a certificate at all — it will exec `codesign` with a NAME, and the private key stays
+on the signing host (ADR 0024 § A12 records what is measured about that and what is Apple's
+documented behaviour). That is what lets an external developer ship under their own Developer ID
+with no fork and no fixture.
 
 ## The layout axis: a format wraps ONE OS's tree
 

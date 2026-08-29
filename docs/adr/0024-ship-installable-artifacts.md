@@ -168,10 +168,10 @@ output — it just has to say so.
 **Amended 2026-08-21 (§ A1, § A4, § A5) and 2026-08-29 (§ A12-§ A17):** the boundary falls one step
 earlier than this section draws it — a CONTAINER is produced where its format's tool lives, so a
 Linux host assembles the `.app` but cannot write the `.dmg` around it. "SmartScreen will refuse" is
-false: it warns until per-hash reputation accrues, signed or not. And signing is a payload MUTATION, not a wrapper —
-measured, 106 of 106 Mach-O images in the darwin closure already carry a signature. And "asking
-for a signed artifact where neither is available fails" holds only for an identity that was ASKED
-for: no `--sign` at all is a loud skip at exit 0, not a refusal (§ A13).
+false: it warns until per-hash reputation accrues, signed or not. And signing is a payload
+MUTATION, not a wrapper — measured, 106 of 106 Mach-O images in the darwin closure already carry a
+signature. And "asking for a signed artifact where neither is available fails" holds only for an
+identity that was ASKED for: no `--sign` at all is a loud skip at exit 0, not a refusal (§ A13).
 
 ### 6. A dependency that cannot be derived fails the build
 
@@ -466,7 +466,14 @@ image over a real HFS+/APFS volume — and no HFS+/APFS writer exists anywhere i
 `hdiutil` macOS-only. So the amended rule is:
 
 > Assembly is cross-platform. **A container is produced where its format's tool lives, and a
-> signature where its credentials live.** A format declares which of the three it needs.
+> signature where its credentials live.** ~~A format declares which of the three it needs.~~
+
+**Amended 2026-08-29 (§ A14).** The struck sentence overstated the data, and it is struck HERE and
+not only recorded down in § A14, because the reader who stops at this rule is the reader who would
+implement it. Measured, a format declares TWO of the three: `HostRequirement`
+(`packages/infra/cli/src/utils/ship/types.ts:89-119`) has `finishOn`, `requiredTools`,
+`installHint` and `oracle`, and no field for a credential. Read the rule as *a format declares
+where it can be packed; the RUN declares what it can sign with.*
 
 `status/open-todos.md`'s *"assembly is cross-platform … so a Linux host can build both"* is the
 half-sentence this corrects; it is true of the layouts and false of the `.dmg`.
@@ -497,9 +504,12 @@ its own because it touches no payload at all.
 
 **Amended 2026-08-29 (§ A12, § A13, § A15).** Both flags are corrected above from booleans to
 values, and the synopsis in this section carries the corrected form. `--sign` takes an IDENTITY —
-a name `codesign` resolves against a keychain on the signing host, never a certificate or a path to
+an opaque string naming something the signing host already holds, never a certificate or a path to
 one — and `--notarize` takes a second, unrelated credential. Absent, each SKIPS loudly at exit 0;
-unsigned is the default path, not a special case.
+unsigned is the default path, not a special case. (This note read *"a name `codesign` resolves
+against a keychain on the signing host"* until 2026-08-29. That the string resolves against a
+KEYCHAIN is Apple's documented behaviour, not a finding — § A12 marks it, and a summary that drops
+the marking is how an unmeasured claim gets promoted to a measured one.)
 
 Phase 2's only input is a directory, so phase 1 also writes `.gjsify-ship-stage.json` at the stage
 root carrying **the closure, not a settings dump**: `{ settings (with `arch` resolved at stage
@@ -736,10 +746,20 @@ codesign \
 ```
 
 `productsign` takes the same value in the same shape (`refs/node/tools/osx-productsign.sh:12`).
-One value of that string is reserved: `-` means ad-hoc, and this tree already writes it three times
-plus once in the pool — `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs:382` and `:971`
-(`codesign --force --sign -`), `docs/poc/webkit-hardened-runtime-darwin.sh:126` (`codesign --force
--s -`), `refs/node/test/common/sea.js:208` (`codesign --sign -`).
+One value of that string is reserved: `-` means ad-hoc, and this tree already writes it ~~three~~
+**five** times plus once in the pool — `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs:382`
+and `:971`, `packages/node-gi/node-gi/scripts/stage-prebuild.mjs:147` and
+`scripts/relocate-macho.mjs:192` (those four `codesign --force --sign -`),
+`docs/poc/webkit-hardened-runtime-darwin.sh:126` (`codesign --force -s -`), and
+`refs/node/test/common/sea.js:208` (`codesign --sign -`).
+
+**Corrected 2026-08-29: the count was three.** It was assembled from the sites this amendment
+happened to be looking at rather than from a grep, so `stage-prebuild.mjs` and `relocate-macho.mjs`
+— neither of them obscure, both re-signing after `install_name_tool` for the same reason as the
+other three — were simply not in the sample. The count a reader can reproduce is
+`grep -rn "codesign" --include='*.mjs' --include='*.ts' --include='*.sh' . | grep -v '^./refs/'`,
+minus the comment and doc-string hits it also returns. A number nobody can re-derive is the part of
+a citation that rots first, so the command belongs beside it.
 
 What the pool proves is exactly that much: the value is an opaque string, not a path, and `-` is a
 legal one. *Where* `codesign` looks the private key up — a keychain search list — is Apple's
@@ -781,8 +801,11 @@ that was not made. (The reference's own message is copy-pasted: `osx-productsign
 ### A14. `gjsify ship` never sees the certificate — and that is what makes third parties possible
 
 Getting a `.p12` into a keychain is the signing HOST's step: a machine setup or a CI job, not this
-command. `gjsify ship` execs `codesign` with a name and passes no `--keychain` of its own, so whatever
-the session already has is what is used. Three consequences, in the order they matter:
+command. `gjsify ship` will exec `codesign` with a name and pass no `--keychain` of its own, so
+whatever the signing session already holds is what gets used. That sentence is the DECISION and not
+a description: nothing in the CLI signs anything today — `grep -rniE 'codesign|notariz'
+packages/infra/cli/src` returns 2 hits, both of them comments in `utils/ship/layout.ts` and its
+spec. Three consequences, in the order they matter:
 
 1. **No secret ever crosses the CLI's surface.** There is no `--certificate`, no `--p12`, no
    `--password`, and nothing to redact from a log line.
@@ -802,7 +825,15 @@ the session already has is what is used. Three consequences, in the order they m
 
 **Unverified, and marked as such rather than written as measured:** the exact incantation that puts
 a `.p12` into a keychain on a fresh CI runner. `security import` and `security set-key-partition-list`
-appear NOWHERE in `refs/` (grepped across the whole pool). The one adjacent hit is
+return zero files from `refs/node` at the pinned `0618e9f0`, against a control of 16 files for
+`codesign` (`git grep -I -l -F -e <pattern>`). ~~Grepped across the whole pool.~~ **Struck
+2026-08-29:** `refs/` is not greppable as a whole and this claim never measured it — 89 of the 95
+submodules `.gitmodules` declares are uninitialised in a normal checkout and all 95 in a fresh
+worktree, where `grep -rF codesign refs/` returns 0 hits for a string that IS in `refs/node`. The
+gate says so in the same breath: `check-refs-citations` prints *"0 resolved in the 0 of 95 declared
+submodules checked out here"*. `refs/node` is the only pool in the set that carries Apple signing
+tooling at all, so it is the right place to have looked — but the scope reported has to be the
+scope read. The one adjacent hit is
 `refs/node/test/system-ca/README.md:44`, `security create-keychain -p "test" /tmp/node-test-dup.keychain`
 — and it is a CA TRUST-STORE fixture for Node's system-CA tests, not a signing identity, so it
 evidences the verb and not the procedure. Whoever implements M6 measures that step on a real runner
@@ -829,25 +860,43 @@ xcrun notarytool submit \
 The three variables are read by nothing after the guard. So the script skips when the credential it
 does not use is absent, and proceeds when it is present — while the credential it DOES use is a
 keychain profile whose existence nothing checks. Set the three and omit the profile and it does not
-skip; it fails inside `notarytool`. **The rule this repository takes from it: the guard must test the
-credential the command actually consumes, and a skip must be reachable from exactly the input the
-next line reads.** It is the green-CI-that-checked-nothing class § Consequences already names,
-wearing a guard: a check standing in front of something other than what it claims to protect.
+skip — it reaches line 39 with nothing having looked at the profile, and what `notarytool` does
+next is outside what this tree can measure. **The rule this repository takes from it: the guard
+must test the credential the command actually consumes, and a skip must be reachable from exactly
+the input the next line reads.** It is the green-CI-that-checked-nothing class § Consequences
+already names, wearing a guard: a check standing in front of something other than what it claims
+to protect.
 
 **Left open, deliberately, and this is a claim NOT made:** which credential form `--notarize` takes.
-The only shape evidenced in `refs/` is `--keychain-profile <name>` (`osx-notarize.sh:40`), i.e. a
+The only shape evidenced in `refs/node` is `--keychain-profile <name>` (`osx-notarize.sh:40`), i.e. a
 profile a prior `notarytool store-credentials` put in a keychain — that command appears nowhere in
-the pool either. The alternative usually cited, an App Store Connect API key passed as
-`--key`/`--key-id`/`--issuer`, has NO occurrence anywhere under `refs/` (grepped: no `--issuer`
-outside LIEF's PE-signature headers, no `App Store Connect`, no `altool`). Both are file-and-argument
-credentials rather than a keychain identity lookup, which is the load-bearing difference from § A12;
-choosing between them is M6's measurement, not this amendment's assertion.
+`refs/node` either. The alternative usually cited, an App Store Connect API key passed as
+`--key`/`--key-id`/`--issuer`, returns zero files there for `--key-id`, `--issuer`,
+`App Store Connect`, `altool` and `store-credentials`, against the same 16-file `codesign` control.
+Both are file-and-argument credentials rather than a keychain identity lookup, which is the
+load-bearing difference from § A12; choosing between them is M6's measurement, not this amendment's
+assertion. § A5 already writes the pair as *"`.p12` in a keychain plus an App Store Connect
+`.p8`"* — that is what Apple OFFERS, and it is not a measurement of which form `--notarize` should
+take; the two sentences sit at different confidence levels on purpose.
+
+~~Grepped: no occurrence anywhere under `refs/`, and no `--issuer` outside LIEF's PE-signature
+headers.~~ **Struck 2026-08-29, wrong twice over.** The scope is § A14's — `refs/node`, not the
+pool. And the LIEF clause named an exception to an EMPTY set: `--issuer` has zero occurrences, so
+there was nothing outside LIEF to exclude. What hits LIEF's PE-signature headers is the bare word
+`issuer`, in 1 115 files in all (mbedtls, OpenSSL, npm's TLS fixtures) — two patterns were run and
+one sentence was written about both, which is how a clause that reads like a careful exception ends
+up describing neither. (`--key` on its own is no discriminator either, and is reported apart rather
+than folded in: 9 files carry it, every one of them npm's generic *"set a config with `--key val`"*
+placeholder or ngtcp2's TLS example, none Apple.)
 
 ### A16. What the identity does NOT settle: library validation
 
 § A4 establishes that the darwin leg must re-sign all 106 Mach-O images inside the stage, because
 under hardened runtime library validation will not let a Developer-ID-signed main executable load
-ad-hoc-signed dylibs. The obvious alternative is an entitlement, and the honest position is that
+ad-hoc-signed dylibs. Note what § A4 measured and what it reasoned from: the **106 of 106**
+signatures are a reading off the closure, while the loader rule they are fed into is Apple's
+documented behaviour on the same footing as § A12's keychain — unmeasured here, and load-bearing
+for this whole section. The obvious alternative is an entitlement, and the honest position is that
 this repository has **not measured it either way**. What the pool does establish is narrower, and
 worth writing down so nobody re-derives it:
 
@@ -877,7 +926,8 @@ measurement M6 may make; until it does, neither branch is asserted here.
 Ad-hoc signing requires no Apple Developer Program membership: it is what
 `docs/poc/webkit-hardened-runtime-darwin.sh:38-39` uses precisely *"because it needs no developer
 identity, so this runs on any machine and in CI"*, and what `refs/node/test/common/sea.js:208` does
-in a test helper whose only fallback is `common.skip` — no credential appears anywhere in it. So
+in a test helper that skips on failure, or throws when its caller asked to verify the workflow
+(`sea.js:210-216`) — and carries no credential in either branch, nor anywhere else in the file. So
 the whole M6 pipeline — re-sign the closure inside the stage, then check arrival with the
 Mach-O-aware comparator § A4 specifies (every non-Mach-O file byte-identical, every Mach-O
 identical outside `LC_CODE_SIGNATURE` and `LC_UUID`) —
