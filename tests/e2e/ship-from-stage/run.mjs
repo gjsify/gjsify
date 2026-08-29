@@ -44,6 +44,7 @@ import {
     CLI_ENTRY,
     listFiles,
     listPayload,
+    plantCatalogue,
     probe,
     scaffold,
     STAGE_MANIFEST_FILE,
@@ -127,10 +128,11 @@ describe('CLI ship --from-stage E2E', { timeout: 10 * 60 * 1000 }, () => {
         const project = scaffold(join(tmpDir, 'locale-project'), (pkg) => {
             pkg.gjsify.ship.localeDir = 'dist/locale';
         });
-        const catalogue = join(project, 'dist', 'locale', 'de', 'LC_MESSAGES', 'ship-demo.mo');
-        mkdirSync(dirname(catalogue), { recursive: true });
-        // A real `.mo` magic number, so nothing downstream can dismiss it as a stray file.
-        writeFileSync(catalogue, Buffer.from([0xde, 0x12, 0x04, 0x95, 0x00, 0x00, 0x00, 0x00]));
+        // A catalogue msgfmt COMPILED, not eight bytes of `.mo` magic. That stand-in
+        // worked until `ship` began folding the catalogues into the freedesktop
+        // metadata; it now reads these bytes, and the fake failed with
+        // `msgunfmt: … is truncated`. The suite kept its subject and gained a real file.
+        plantCatalogue(project, 'de', { 'Ship Demo': 'Schiffsdemo' }, 'ship-demo');
 
         runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage'], { cwd: project, env: stamped() });
         const staged = join(project, 'ship', 'stage');

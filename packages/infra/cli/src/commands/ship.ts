@@ -39,6 +39,7 @@ import { buildDeb } from '../utils/ship/deb.js';
 import { deriveDepends, warnAboutGjsFloor, warnAboutNodeFloor } from '../utils/ship/depends.js';
 import { discoverPayload } from '../utils/ship/discover.js';
 import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
+import { localizeMetadata } from '../utils/ship/localize-metadata.js';
 import {
     assertHostCanFinish,
     assertToolsInstalled,
@@ -331,11 +332,24 @@ async function assemble(args: ShipOptions): Promise<void> {
         );
     }
 
+    // Rendered in English, then TRANSLATED with the catalogues this package
+    // already stages. Without this step the two halves never met: `share/locale/`
+    // shipped every `.mo` while `Name=` and `<name>` stayed English, so a fully
+    // translated app showed an English entry in the app menu and in Software.
+    // Both files stay valid either way, which is why nobody reported it.
+    const translated = localizeMetadata(
+        {
+            metainfo: settings.kind === 'app' ? renderMetainfoApp(metadataInputs) : renderMetainfoCli(metadataInputs),
+            desktopEntry: settings.kind === 'app' ? renderDesktopEntry(metadataInputs) : undefined,
+        },
+        settings.localeFiles,
+    );
+
     const stageInputs: StageInputs = {
         bundleFiles: discovered.bundleFiles,
         launcher: renderLauncher(settings, basename(settings.bundlePath), layout),
-        metainfo: settings.kind === 'app' ? renderMetainfoApp(metadataInputs) : renderMetainfoCli(metadataInputs),
-        desktopEntry: settings.kind === 'app' ? renderDesktopEntry(metadataInputs) : undefined,
+        metainfo: translated.metainfo,
+        desktopEntry: translated.desktopEntry,
         licenseText: settings.licenseFile === undefined ? undefined : readFileSync(settings.licenseFile, 'utf-8'),
     };
 

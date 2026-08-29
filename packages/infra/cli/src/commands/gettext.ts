@@ -1,18 +1,21 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { Command } from '../types/index.js';
+import { mergeCatalogues } from '../utils/msgfmt-merge.js';
 
 const execFileAsync = promisify(execFile);
 
-type GettextFormat = 'mo' | 'xml' | 'desktop' | 'json';
+type GettextFormat = 'mo' | 'xml' | 'desktop';
 
 interface GettextOptions {
     poDir: string;
     outDir: string;
     domain: string;
     format?: GettextFormat;
+    template?: string;
     metainfo?: string;
     filename?: string;
     removeXmlComments?: boolean;
@@ -44,41 +47,87 @@ async function fileExists(path: string): Promise<boolean> {
     }
 }
 
-async function compileBulkXml(opts: {
+/**
+ * Fold every catalogue into ONE template.
+ *
+ * The chain, and the four measured msgfmt constraints that shape it, live in
+ * `utils/msgfmt-merge.ts` — `gjsify ship` folds the catalogues it stages into the
+ * metadata it generates through the same function, and a second copy of those
+ * constraints here would be the copy that drifts.
+ *
+ * What is local to this command: the output keeps the CALLER's `--filename`,
+ * while every INTERMEDIATE is named after the TEMPLATE. Those have to be two
+ * different names, because msgfmt finds its ITS rules by filename pattern
+ * (constraint 4 over there) and from the second catalogue on the intermediates
+ * ARE templates. Named after `--filename` instead, the command's answer depended
+ * on how many catalogues there were: measured, `--format xml --template
+ * app.metainfo.xml.in --filename out.xml` wrote a translated file for a one-language
+ * `po/` and died on a two-language one with `cannot locate ITS rules for
+ * <tmpdir>/0-out.xml` — naming an internal path over a rule the user could act on.
+ * The template's suffix is what msgfmt validated for call 1, so it is the one
+ * suffix known to work for calls 2..n.
+ */
+async function compileMerged(opts: {
     poDir: string;
     outDir: string;
-    domain: string;
+    format: 'xml' | 'desktop';
     template: string;
     filename: string;
     removeXmlComments: boolean;
     verbose: boolean;
 }): Promise<void> {
+    const languages = await listLanguages(opts.poDir);
+    if (languages.length === 0) {
+        console.warn(`[gjsify gettext] no .po files found in ${opts.poDir}`);
+        return;
+    }
+
     const outputFile = join(opts.outDir, opts.filename);
     await ensureDir(opts.outDir);
 
-    const args = [`--output-file=${outputFile}`, '--xml', `--template=${opts.template}`, '-d', opts.poDir];
-
-    if (opts.verbose) {
-        console.log(`[gjsify gettext] msgfmt ${args.join(' ')}`);
+    const workDir = await mkdtemp(join(tmpdir(), 'gjsify-gettext-'));
+    try {
+        const merged = await readFile(
+            mergeCatalogues({
+                mode: `--${opts.format}`,
+                template: opts.template,
+                // The TEMPLATE's name, minus the `.in` convention — see the header.
+                // `basename`, so an intermediate stays inside `workDir` rather than
+                // following the directory part of the path the user passed.
+                extension: `-${basename(opts.template).replace(/\.in$/, '')}`,
+                catalogues: languages.map((lang) => ({ locale: lang, po: join(opts.poDir, `${lang}.po`) })),
+                workDir,
+                onCall: opts.verbose ? (args) => console.log(`[gjsify gettext] msgfmt ${args.join(' ')}`) : undefined,
+            }),
+            'utf-8',
+        );
+        await writeFile(
+            outputFile,
+            opts.removeXmlComments && opts.format === 'xml' ? stripXmlComments(merged) : merged,
+        );
+    } finally {
+        await rm(workDir, { recursive: true, force: true });
     }
 
-    await execFileAsync('msgfmt', args);
-
-    if (opts.removeXmlComments) {
-        const content = await readFile(outputFile, 'utf-8');
-        await writeFile(outputFile, stripXmlComments(content));
-    }
-
     if (opts.verbose) {
-        console.log(`[gjsify gettext] wrote ${outputFile}`);
+        console.log(`[gjsify gettext] merged ${languages.length} language(s) into ${outputFile}`);
     }
 }
 
-async function compilePerLanguage(opts: {
+/**
+ * Compile each `<lang>.po` into `<outDir>/<lang>/LC_MESSAGES/<filename>`.
+ *
+ * `mo` only. The other two formats SUBSTITUTE a template rather than producing a
+ * catalogue, and there is no per-language file for them to write — which is the
+ * defect this signature now makes unrepresentable: the old shared loop passed
+ * `--desktop`/`--xml` with no `--template`, and msgfmt refuses that outright
+ * (`--desktop requires a "--template template" specification`, exit 1). Every
+ * `gjsify gettext --format=desktop` invocation had therefore always failed; the
+ * only e2e coverage passes `--format mo`, so nothing ever ran the other branch.
+ */
+async function compileCatalogues(opts: {
     poDir: string;
     outDir: string;
-    domain: string;
-    format: GettextFormat;
     filename: string;
     verbose: boolean;
 }): Promise<void> {
@@ -89,18 +138,12 @@ async function compilePerLanguage(opts: {
     }
 
     for (const lang of languages) {
-        const poFile = join(opts.poDir, `${lang}.po`);
-        const langDir = opts.format === 'mo' ? join(opts.outDir, lang, 'LC_MESSAGES') : join(opts.outDir, lang);
+        const langDir = join(opts.outDir, lang, 'LC_MESSAGES');
         await ensureDir(langDir);
-        const outputFile = join(langDir, opts.filename);
 
-        // msgfmt produces the binary .mo format by default — there is no
-        // `--mo` flag (only --xml, --desktop, --properties-output, ...).
-        const args = [`--output-file=${outputFile}`];
-        if (opts.format !== 'mo') {
-            args.push(`--${opts.format}`);
-        }
-        args.push(poFile);
+        // msgfmt produces the binary .mo format by default — there is no `--mo`
+        // flag (only --xml, --desktop, --properties-output, ...).
+        const args = [`--output-file=${join(langDir, opts.filename)}`, join(opts.poDir, `${lang}.po`)];
 
         if (opts.verbose) {
             console.log(`[gjsify gettext] msgfmt ${args.join(' ')}`);
@@ -114,24 +157,22 @@ async function compilePerLanguage(opts: {
     }
 }
 
-function defaultFilename(domain: string, format: GettextFormat, metainfoTemplate?: string): string {
+function defaultFilename(domain: string, format: GettextFormat, template?: string): string {
     switch (format) {
         case 'mo':
             return `${domain}.mo`;
-        case 'json':
-            return `${domain}.json`;
         case 'desktop':
             return `${domain}.desktop`;
         case 'xml': {
             // Mirror the template filename but without the trailing `.in` (convention for
             // pre-processed metainfo templates: `org.foo.Bar.metainfo.xml.in`).
-            if (metainfoTemplate) {
+            if (template) {
                 // `basename`, not a hand-rolled `lastIndexOf('/')`: this is a path the USER
                 // passed, and on win32 it separates with `\`, which the slice read as part
                 // of the name (#1143). `node:path` is the right owner for host tooling —
                 // though it only answers correctly under Node until #1146 makes
                 // `@gjsify/path` select win32 per host.
-                return basename(metainfoTemplate.replace(/\.in$/, ''));
+                return basename(template.replace(/\.in$/, ''));
             }
             return `${domain}.xml`;
         }
@@ -141,7 +182,8 @@ function defaultFilename(domain: string, format: GettextFormat, metainfoTemplate
 export const gettextCommand: Command<unknown, GettextOptions> = {
     command: 'gettext <poDir> <outDir>',
     description:
-        'Compile gettext .po files to .mo (per-language locale tree) or substitute a metainfo template via msgfmt --xml.',
+        'Compile gettext .po files to .mo (per-language locale tree), or merge every catalogue into a ' +
+        '.desktop / AppStream template via msgfmt --desktop / --xml.',
     builder: (yargs) => {
         return yargs
             .positional('poDir', {
@@ -151,7 +193,7 @@ export const gettextCommand: Command<unknown, GettextOptions> = {
                 demandOption: true,
             })
             .positional('outDir', {
-                description: 'Output directory (locale tree for --format=mo, plain dir for xml/desktop/json)',
+                description: 'Output directory (locale tree for --format=mo, plain dir for xml/desktop)',
                 type: 'string',
                 normalize: true,
                 demandOption: true,
@@ -165,13 +207,22 @@ export const gettextCommand: Command<unknown, GettextOptions> = {
             .option('format', {
                 description: 'Output format',
                 type: 'string',
-                choices: ['mo', 'xml', 'desktop', 'json'] as const,
+                choices: ['mo', 'xml', 'desktop'] as const,
                 default: 'mo' as const,
             })
-            .option('metainfo', {
-                description: 'For --format=xml: path to the template (`.metainfo.xml.in`) used as msgfmt --template',
+            .option('template', {
+                description:
+                    'Required for --format=xml|desktop: the file msgfmt substitutes into. Its SUFFIX matters — ' +
+                    'msgfmt --xml finds its ITS rules by filename pattern, so an AppStream template must be ' +
+                    'named `*.metainfo.xml[.in]`.',
                 type: 'string',
                 normalize: true,
+            })
+            .option('metainfo', {
+                description: 'Deprecated alias for --template.',
+                type: 'string',
+                normalize: true,
+                hidden: true,
             })
             .option('filename', {
                 description: 'Override the output filename (defaults to <domain>.<ext>)',
@@ -194,8 +245,12 @@ export const gettextCommand: Command<unknown, GettextOptions> = {
         const outDir = resolve(args.outDir as string);
         const domain = args.domain as string;
         const format = (args.format as GettextFormat | undefined) ?? 'mo';
-        const metainfo = args.metainfo ? resolve(args.metainfo as string) : undefined;
-        const filename = args.filename ?? defaultFilename(domain, format, metainfo);
+        // `--metainfo` predates the option being useful for `.desktop` too. Kept as a
+        // hidden alias rather than removed: it is the spelling `cli-reference.md`
+        // documented, so removing it would break the invocation the docs taught.
+        const templateArg = (args.template as string | undefined) ?? (args.metainfo as string | undefined);
+        const template = templateArg ? resolve(templateArg) : undefined;
+        const filename = args.filename ?? defaultFilename(domain, format, template);
         const verbose = !!args.verbose;
         const removeXmlComments = !!args['remove-xml-comments'];
 
@@ -205,29 +260,36 @@ export const gettextCommand: Command<unknown, GettextOptions> = {
             return;
         }
 
+        // REFUSED, not worked around. `--xml` and `--desktop` substitute into a
+        // template, and msgfmt rejects both without one (`--desktop requires a
+        // "--template template" specification`, exit 1). The old code fell back to a
+        // per-language loop that passed no template at all, so the fallback could only
+        // ever reproduce that same error one layer further down — with the user's
+        // `--format` reported as the thing that failed rather than the missing template.
+        if (format !== 'mo' && template === undefined) {
+            console.error(
+                `[gjsify gettext] --format=${format} needs a template to substitute into: pass ` +
+                    '`--template <file>`. msgfmt has no way to produce this format from .po files alone.' +
+                    (format === 'xml'
+                        ? ' Name it `*.metainfo.xml[.in]` — msgfmt --xml finds its ITS rules by filename pattern.'
+                        : ''),
+            );
+            process.exitCode = 1;
+            return;
+        }
+
         try {
-            if (format === 'xml' && metainfo) {
-                await compileBulkXml({
+            if (format === 'mo') {
+                await compileCatalogues({ poDir, outDir, filename, verbose });
+            } else {
+                await compileMerged({
                     poDir,
                     outDir,
-                    domain,
-                    template: metainfo,
+                    format,
+                    // Narrowed by the refusal above.
+                    template: template as string,
                     filename,
                     removeXmlComments,
-                    verbose,
-                });
-            } else {
-                if (format === 'xml') {
-                    console.warn(
-                        '[gjsify gettext] --format=xml without --metainfo: falling back to per-language XML files',
-                    );
-                }
-                await compilePerLanguage({
-                    poDir,
-                    outDir,
-                    domain,
-                    format,
-                    filename,
                     verbose,
                 });
             }

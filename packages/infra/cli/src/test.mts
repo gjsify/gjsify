@@ -16,6 +16,7 @@ import shipPayloadSuite from './utils/ship/payload.spec.js';
 import shipLauncherSuite from './utils/ship/launcher.spec.js';
 import shipSettingsSuite from './utils/ship/settings.spec.js';
 import shipLocalesSuite from './utils/ship/discover-locales.spec.js';
+import msgfmtMergeSuite from './utils/msgfmt-merge.spec.js';
 import shipTypelibsSuite from './utils/ship/discover-typelibs.spec.js';
 import shipMimeSuite from './utils/ship/mime.spec.js';
 import shipLicenseSuite from './utils/ship/discover-license.spec.js';
@@ -219,6 +220,7 @@ run(
         shipLauncherSuite,
         shipSettingsSuite,
         shipLocalesSuite,
+        msgfmtMergeSuite,
         shipMimeSuite,
         shipLicenseSuite,
         shipDependsSuite,

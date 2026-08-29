@@ -4,7 +4,8 @@
 // scaffold would be a second definition of "a shippable project": the two suites would drift, and
 // the drifted one is the one that keeps passing while proving something else.
 
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -120,6 +121,43 @@ export function scaffold(dir, mutate) {
     return dir;
 }
 
+/**
+ * Compile a REAL catalogue into `<dir>/dist/locale/<lang>/LC_MESSAGES/<domain>.mo`.
+ *
+ * Shared rather than written per suite for the reason this module exists at all —
+ * and, here, for a second one: `ship` READS these bytes now (it folds them into the
+ * `.desktop` entry and the AppStream component), so "a file with the right name" no
+ * longer stands in for a catalogue. `tests/e2e/ship-from-stage` used to plant eight
+ * bytes of `.mo` magic and that stopped working the moment the fold landed —
+ * `msgunfmt: … is truncated`. One planter, one definition of what counts.
+ */
+export function plantCatalogue(projectRoot, lang, entries, domain = APP_ID) {
+    const lcMessages = join(projectRoot, 'dist', 'locale', lang, 'LC_MESSAGES');
+    mkdirSync(lcMessages, { recursive: true });
+    const po = join(lcMessages, `${domain}.po`);
+    writeFileSync(
+        po,
+        [
+            'msgid ""',
+            'msgstr ""',
+            '"Content-Type: text/plain; charset=UTF-8\\n"',
+            `"Language: ${lang}\\n"`,
+            '',
+            ...Object.entries(entries).flatMap(([id, str]) => [
+                `msgid ${JSON.stringify(id)}`,
+                `msgstr ${JSON.stringify(str)}`,
+                '',
+            ]),
+        ].join('\n'),
+    );
+    const mo = join(lcMessages, `${domain}.mo`);
+    execFileSync('msgfmt', [po, '--output-file', mo], { stdio: 'pipe' });
+    // The `.po` source must not remain: `discoverLocales` refuses a locale tree
+    // holding anything `bindtextdomain` will not read.
+    rmSync(po);
+    return mo;
+}
+
 /** Every regular file under `root`, as POSIX-separated relative paths, sorted. */
 export function listFiles(root) {
     const out = [];
@@ -149,7 +187,24 @@ export function listPayload(root) {
  * which is exactly the class these suites exist to avoid.
  * `cpio`/`rpm2cpio` stay optional — they gate one extra cross-check.
  */
-const REQUIRED_ON_LINUX = new Set(['rpm', 'ar', 'tar']);
+const REQUIRED_ON_LINUX = new Set([
+    'rpm',
+    'ar',
+    'tar',
+    // The freedesktop-metadata tools, all five baked into `.docker/ci-fedora.Dockerfile`
+    // (the three gettext ones arrive together in the `gettext` package). `msgfmt` BUILDS
+    // the catalogues a localisation assertion needs; `msgunfmt`/`msgcat` are what `ship`
+    // runs to read them back and to fold two text domains of one language into one; and
+    // the two validators are the independent readers for what `ship` generated from them.
+    // Required rather than probed for the usual reason: the interesting failure is metadata
+    // that is valid AND untranslated, so a skipped oracle leaves the suite green having
+    // read nothing.
+    'msgfmt',
+    'msgunfmt',
+    'msgcat',
+    'desktop-file-validate',
+    'appstreamcli',
+]);
 
 export function probe(cmd) {
     if (hasCommand(cmd)) return true;

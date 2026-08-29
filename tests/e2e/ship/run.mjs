@@ -38,6 +38,7 @@ import {
     listFiles,
     NODE_BUNDLE,
     listPayload,
+    plantCatalogue,
     probe,
     scaffold,
     STAGE_MANIFEST_FILE,
@@ -108,6 +109,179 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         // Nothing in it may name the machine that assembled it — that path will not exist on the
         // host that packs the stage, and seven `ShipSettings` fields are absolute paths.
         assert.ok(!JSON.stringify(manifest).includes(projectDir), 'the manifest must not name the build tree');
+    });
+
+    // ── freedesktop metadata localisation ─────────────────────────────────
+    //
+    // `ship` has always staged the compiled `.mo` catalogues AND generated a
+    // `.desktop` entry and an AppStream component. The two never met: no
+    // `Name[xx]=`, no `xml:lang=`, so a fully translated app showed an English
+    // name in the app menu and in Software.
+    //
+    // Validation alone cannot cover this, and that is the point of the extra
+    // assertions below. Measured on a probe tree: `msgfmt --desktop
+    // --template=app.desktop.in -d po -o out.desktop` exits 0, writes the file
+    // back UNTRANSLATED, and `desktop-file-validate out.desktop` exits 0. An
+    // oracle that accepts the broken output is not an oracle for this defect —
+    // so each test asserts the localised keys are PRESENT, and the validators
+    // additionally prove the localisation did not corrupt the file.
+
+    const TRANSLATIONS = {
+        de: { 'Ship Demo': 'Schiffsdemo', 'Prove that gjsify ship works': 'Beweise, dass gjsify ship funktioniert' },
+        fr: { 'Ship Demo': 'Démo Ship', 'Prove that gjsify ship works': 'Prouver que gjsify ship fonctionne' },
+    };
+
+    /** A staged project whose catalogues translate the metadata strings. */
+    function stageLocalised(name) {
+        const dir = scaffold(join(tmpDir, name), (pkg, projectRoot) => {
+            pkg.gjsify.ship.localeDir = 'dist/locale';
+            for (const [lang, entries] of Object.entries(TRANSLATIONS)) plantCatalogue(projectRoot, lang, entries);
+        });
+        runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage'], { cwd: dir });
+        return join(dir, 'ship', 'stage');
+    }
+
+    let localisedStage;
+
+    before(() => {
+        for (const tool of ['msgfmt', 'msgunfmt', 'msgcat', 'desktop-file-validate', 'appstreamcli']) probe(tool);
+        localisedStage = stageLocalised('localised');
+    });
+
+    it('folds the staged catalogues into the .desktop entry', () => {
+        const entry = readFileSync(join(localisedStage, 'share', 'applications', `${APP_ID}.desktop`), 'utf-8');
+
+        // PRESENCE, not validity. The untranslated file is valid too.
+        assert.match(entry, /^Name\[de\]=Schiffsdemo$/m);
+        assert.match(entry, /^Name\[fr\]=Démo Ship$/m);
+        assert.match(entry, /^Comment\[de\]=Beweise, dass gjsify ship funktioniert$/m);
+        assert.match(entry, /^Comment\[fr\]=Prouver que gjsify ship fonctionne$/m);
+        // The untranslated keys survive as the C-locale fallback.
+        assert.match(entry, /^Name=Ship Demo$/m);
+        assert.match(entry, /^Comment=Prove that gjsify ship works$/m);
+    });
+
+    it('folds the staged catalogues into the AppStream component', () => {
+        const xml = readFileSync(join(localisedStage, 'share', 'metainfo', `${APP_ID}.metainfo.xml`), 'utf-8');
+
+        assert.match(xml, /<name xml:lang="de">Schiffsdemo<\/name>/);
+        assert.match(xml, /<name xml:lang="fr">Démo Ship<\/name>/);
+        assert.match(xml, /<summary xml:lang="de">Beweise, dass gjsify ship funktioniert<\/summary>/);
+        assert.match(xml, /<summary xml:lang="fr">Prouver que gjsify ship fonctionne<\/summary>/);
+        assert.match(xml, /<name>Ship Demo<\/name>/);
+    });
+
+    it('keeps both files readable by their independent validators', () => {
+        // desktop-file-utils and appstream — different implementation families from
+        // ours and from each other. They cannot detect a MISSING translation (see the
+        // section comment); what they prove is that adding one kept the file well-formed,
+        // which is the half a `grep` for `Name[de]` cannot see.
+        execFileSync('desktop-file-validate', [join(localisedStage, 'share', 'applications', `${APP_ID}.desktop`)], {
+            stdio: 'pipe',
+        });
+        // `--no-net`: without it appstreamcli resolves every `<url>` and the fixture's
+        // `https://example.org/ship-demo` returns 404, so the check reported
+        // `url-not-reachable` and exited 3 — a suite whose result depended on the
+        // network reaching a domain that is reserved for examples by definition.
+        execFileSync(
+            'appstreamcli',
+            ['validate', '--no-net', join(localisedStage, 'share', 'metainfo', `${APP_ID}.metainfo.xml`)],
+            { stdio: 'pipe' },
+        );
+    });
+
+    it('leaves the metadata untouched when the project ships no catalogues', () => {
+        // The default fixture declares no `localeDir`, so nothing runs msgfmt at all —
+        // a project without translations must not need the gettext tools.
+        const stage = join(projectDir, 'ship', 'stage');
+        assert.doesNotMatch(
+            readFileSync(join(stage, 'share', 'applications', `${APP_ID}.desktop`), 'utf-8'),
+            /^Name\[/m,
+        );
+        // BOTH files, because they take different code paths: `kind: 'cli'` renders a
+        // component and no desktop entry at all, so a regression that left the XML
+        // chain running unconditionally would be invisible in the entry alone.
+        assert.doesNotMatch(
+            readFileSync(join(stage, 'share', 'metainfo', `${APP_ID}.metainfo.xml`), 'utf-8'),
+            /xml:lang/,
+        );
+    });
+
+    it('folds the catalogues in reproducibly', () => {
+        // The chain runs through a `mkdtemp` directory and merges the catalogues in a
+        // sorted order `localize-metadata.ts` fixes itself. Both are ways for a
+        // run-to-run difference to reach the artifact, and `packs the same build twice
+        // into byte-identical artifacts` below never sees them: its project ships no
+        // catalogues, so its metadata never goes near msgfmt.
+        //
+        // What this does NOT prove: that the sort defends against a differently ordered
+        // `readdir`. Two runs on one machine see the same directory order, so only the
+        // sort's PRESENCE covers that.
+        const second = stageLocalised('localised-again');
+        for (const rel of [
+            join('share', 'applications', `${APP_ID}.desktop`),
+            join('share', 'metainfo', `${APP_ID}.metainfo.xml`),
+        ]) {
+            assert.strictEqual(
+                readFileSync(join(second, rel), 'utf-8'),
+                readFileSync(join(localisedStage, rel), 'utf-8'),
+                `${rel} differed between two runs of the same project`,
+            );
+        }
+    });
+
+    it('stages the catalogues alongside the localised metadata', () => {
+        const staged = listPayload(localisedStage);
+        assert.ok(staged.includes(`share/locale/de/LC_MESSAGES/${APP_ID}.mo`));
+        assert.ok(staged.includes(`share/locale/fr/LC_MESSAGES/${APP_ID}.mo`));
+    });
+
+    it('folds ONE key per language when a project ships two text domains', () => {
+        // `discoverLocales` keys the tree on `<lang>/LC_MESSAGES/<domain>.mo` and puts
+        // no bound on the domain, so a package that carries its own catalogue AND a
+        // bundled library's hands the fold two catalogues for one language. Chained
+        // once per file, msgfmt APPENDS both — two exit-0 calls, and a file BOTH
+        // oracles reject: `multiple keys named "Name[de]"` (desktop-file-validate,
+        // exit 1) and `tag-duplicated name (lang=de)` (appstreamcli, exit 3).
+        //
+        // This is the one case in this block where the validators are the primary
+        // assertion rather than a companion: the defect ADDS a translated key, so the
+        // presence checks above all still pass on the broken file.
+        const dir = scaffold(join(tmpDir, 'two-domains'), (pkg, projectRoot) => {
+            pkg.gjsify.ship.localeDir = 'dist/locale';
+            plantCatalogue(projectRoot, 'de', TRANSLATIONS.de);
+            // A SECOND domain for the same language, translating the same source
+            // string differently — so a duplicate is visible in the bytes and not
+            // only in the key count.
+            plantCatalogue(projectRoot, 'de', { 'Ship Demo': 'Zweite Domäne' }, 'bundled-lib');
+        });
+        runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage'], { cwd: dir });
+        const stage = join(dir, 'ship', 'stage');
+
+        const entry = readFileSync(join(stage, 'share', 'applications', `${APP_ID}.desktop`), 'utf-8');
+        assert.strictEqual(entry.match(/^Name\[de\]=/gm)?.length, 1, `two Name[de] keys in:\n${entry}`);
+        const xml = readFileSync(join(stage, 'share', 'metainfo', `${APP_ID}.metainfo.xml`), 'utf-8');
+        assert.strictEqual(xml.match(/<name xml:lang="de">/g)?.length, 1, `two <name xml:lang="de"> in:\n${xml}`);
+
+        // The sort in `localize-metadata.ts` decides WHICH domain wins, so assert the
+        // winner and not merely that there is one: `bundled-lib` sorts before the app
+        // id, and `--use-first` takes the first.
+        assert.match(entry, /^Name\[de\]=Zweite Domäne$/m);
+        // And the losing domain is still READ, not dropped — `msgcat` unions the
+        // msgids and only conflicts fall to `--use-first`. `Comment` exists in the app
+        // domain alone, so it survives only if both files reached msgfmt.
+        assert.match(entry, /^Comment\[de\]=Beweise, dass gjsify ship funktioniert$/m);
+
+        execFileSync('desktop-file-validate', [join(stage, 'share', 'applications', `${APP_ID}.desktop`)], {
+            stdio: 'pipe',
+        });
+        execFileSync(
+            'appstreamcli',
+            ['validate', '--no-net', join(stage, 'share', 'metainfo', `${APP_ID}.metainfo.xml`)],
+            {
+                stdio: 'pipe',
+            },
+        );
     });
 
     // ── the .deb ──────────────────────────────────────────────────────────
