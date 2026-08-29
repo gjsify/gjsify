@@ -9,7 +9,7 @@
 // uses the host's GTK exactly as before).
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix, win32 } from 'node:path';
 import { existsSync } from 'node:fs';
 import { composeDyldFallback, pathCovers, splitSearchPath, systemGiLibraryDirs } from './system-gi.js';
 import { nativeCandidates, prebuildAddonPath } from './native-paths.js';
@@ -470,8 +470,48 @@ function gstScannerLeaf() {
 let libraryPathActivated = false;
 
 /**
+ * Where an APPLICATION carries the shared libraries ITS OWN typelibs name by bare
+ * leaf — `GJSIFY_GI_LIBRARY_PATH`, `:`-separated (`;` on win32).
+ *
+ * THE GAP THIS CLOSES is a different one from the note below. An app shipping a GI
+ * library of its own (`gjsify.ship.bundledTypelibs`) stages the typelib and its
+ * backer side by side and points `GI_TYPELIB_PATH` there, so GI finds the typelib
+ * and then `g_module_open`s a bare leaf nothing has located. The launcher's
+ * `LD_LIBRARY_PATH` covers that on linux; on macOS no environment variable can,
+ * because dyld strips every `DYLD_*` from a restricted process and a signed,
+ * hardened `.app` IS restricted — so a launcher depending on one works unsigned and
+ * breaks at signing time. The dirs below do not cover it either: they answer "where
+ * is the GTK stack", never "where are this application's own libraries". Neither
+ * does `dirname(GI_TYPELIB_PATH entry)`: {@link systemGiLibraryDirs} derives a
+ * libdir that way because GI's INSTALL layout puts typelibs in
+ * `<libdir>/girepository-1.0/`, and an app stages the pair FLAT, so that derivation
+ * yields the directory's PARENT — a real path holding nothing.
+ *
+ * Only ABSOLUTE entries are kept: a relative one resolves against the working
+ * directory, which for a double-clicked `.app` is `/`. PURE in its inputs, so the
+ * win32 dialect is executable from any host.
+ * @param {object} [opts]
+ * @param {NodeJS.Platform | string} [opts.platform]
+ * @param {NodeJS.ProcessEnv} [opts.env]
+ * @returns {string[]} absolute directories, in the order the variable listed them
+ */
+export function appGiLibraryDirs({ platform = process.platform, env = process.env } = {}) {
+    const isAbsolute = platform === 'win32' ? win32.isAbsolute : posix.isAbsolute;
+    const out = [];
+    for (const dir of splitSearchPath(env.GJSIFY_GI_LIBRARY_PATH, platform === 'win32' ? ';' : ':')) {
+        if (isAbsolute(dir) && !out.includes(dir)) out.push(dir);
+    }
+    return out;
+}
+
+/**
  * Tell GI where the shared libraries its typelibs name by BARE LEAF actually are
- * — for whichever GTK the policy chose, and WITHOUT an environment variable.
+ * — for whichever GTK the policy chose plus whatever the app carries itself, and
+ * WITHOUT a loader environment variable.
+ *
+ * `GJSIFY_GI_LIBRARY_PATH` is not a counter-example: it is read by THIS process, in
+ * JS, and handed to GI through the binding. dyld never sees it — which is the whole
+ * point, because dyld is what refuses to see `DYLD_*` in a signed, hardened app.
  *
  * THE GAP THIS CLOSES. A typelib records its backer as `libgtk-4.1.dylib`, and on
  * macOS neither a relocated bundle's `lib` dir nor Homebrew's `/usr/local/lib` is
@@ -488,10 +528,23 @@ let libraryPathActivated = false;
  * still cover a dylib pulled in by ANOTHER dylib's link closure, which never
  * passes through GI.
  *
- * The dirs come from `gtkSource()`, not a second opinion: the bundle's `libDir`
- * for `bundle`, `systemGiLibraryDirs()` for `system` — the pair the re-exec
- * composes. Mixing them is the two-copies hazard #920 records. Idempotent, and
- * never fatal: an addon predating the binding changes nothing.
+ * The GTK dirs come from `gtkSource()`, not a second opinion: the bundle's
+ * `libDir` for `bundle`, `systemGiLibraryDirs()` for `system` — the pair the
+ * re-exec composes. Mixing them is the two-copies hazard #920 records. The
+ * application's own dirs ({@link appGiLibraryDirs}) are added on TOP of whichever
+ * of those the policy picked, and independently of it: an app carrying its own GI
+ * library needs it found whether the GTK behind it is a bundle, the host's, or —
+ * `source === 'none'` — neither.
+ *
+ * ORDER: the app's entries come FIRST. That only decides an OVERLAP — a leaf both
+ * places hold — since a name only one of them has is found either way. An
+ * explicitly-set variable is consent and outranks an inferred location (the
+ * precedence `GJSIFY_GTK_RUNTIME` already has over the probed bundle candidates),
+ * and on an overlap the app's copy is the one its OWN typelib was compiled against:
+ * the pair ships as a unit, and splitting it is not a missing library but an ABI
+ * mismatch — #910's failure shape, the expensive one.
+ *
+ * Idempotent, and never fatal: an addon predating the binding changes nothing.
  * @param {{ prependLibraryPath?: (p: string) => void }} native the loaded addon
  * @returns {string[]} the directories handed to GI (empty when there was nothing to add)
  */
@@ -501,12 +554,18 @@ export function activateGiLibraryPath(native) {
     if (typeof native?.prependLibraryPath !== 'function') return [];
 
     const source = gtkSource();
-    const dirs =
+    const gtkDirs =
         source === 'bundle' ? [resolveGtkRuntimeBundle()?.libDir] : source === 'system' ? systemGiLibraryDirs() : [];
+    const dirs = [];
+    // Deduplicated: an app that names a directory the policy already found would
+    // otherwise grow GI's search path by a second, identical entry.
+    for (const dir of [...appGiLibraryDirs(), ...gtkDirs.filter(Boolean)]) {
+        if (!dirs.includes(dir)) dirs.push(dir);
+    }
     const applied = [];
     // LAST wins with a prepend, so walking in reverse leaves the array's own
     // order intact in GI's search path.
-    for (const dir of dirs.filter(Boolean).reverse()) {
+    for (const dir of dirs.reverse()) {
         native.prependLibraryPath(dir);
         applied.unshift(dir);
     }
