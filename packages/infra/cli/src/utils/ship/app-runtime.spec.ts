@@ -269,6 +269,89 @@ export default async () => {
         });
     });
 
+    await describe("the runtime's global cache is not the project", async () => {
+        // THE DEFECT THIS FORECLOSES, measured rather than imagined. Under Bun,
+        // `createRequire(<anchor>).resolve('@gjsify/node-gi')` falls back to the
+        // global install cache instead of throwing, so a project with a
+        // `package.json` and no `node_modules` — a fresh clone, or any project
+        // using Bun's auto-install — resolves a package it never declared:
+        //
+        //   node 24.19.0  →  MODULE_NOT_FOUND
+        //   bun 1.3.14    →  ~/.bun/install/cache/@gjsify/node-gi@0.44.0@@@1/index.js
+        //
+        // That answer would have been STAGED: `prebuilds/darwin-arm64/node_gi.node`
+        // exists in the published tarball, so the addon lands in a redistributed
+        // `.app` at whatever version that machine happened to cache, while the
+        // "install `@gjsify/node-gi`" line that should have printed does not. It is
+        // also #910's shape — an addon paired with a closure it was not built
+        // against. Caught on this PR's own CI: `Test CLI on Bun` failed with
+        // `Actual: Ship Demo.app/…/prebuilds/darwin-arm64/node_gi.node`.
+        //
+        // Simulated through the seam rather than by running Bun, so the guard reds
+        // on every runtime instead of only on the one that has the defect.
+        // A REAL directory, populated like the published tarball. The first cut of
+        // this used a plausible-looking string (`/home/u/.bun/install/cache/…`) and
+        // was VACUOUS on Node: `resolveNodeGiAddon` stats the addon before staging
+        // it, a path that does not exist answers `null`, and the case passed with
+        // the guard removed. Watched red on both runtimes now — see the PR body.
+        const cache = () => {
+            const dir = scratch('bun-cache-store');
+            mkdirSync(join(dir, 'prebuilds', 'darwin-arm64'), { recursive: true });
+            writeFileSync(join(dir, 'index.js'), 'export default {};\n');
+            writeFileSync(join(dir, 'prebuilds', 'darwin-arm64', NODE_GI_ADDON_FILENAME), 'the cached addon');
+            return dir;
+        };
+
+        await it('refuses a hit that a directory inside NO project answers identically', async () => {
+            const cwd = scratch('bun-cache');
+            const cached = cache();
+            const cachePath = join(cached, 'index.js');
+            try {
+                const staged = stageAppRuntime({
+                    layout: LAYOUTS.darwin,
+                    identity: IDENTITY,
+                    target: 'darwin-arm64',
+                    cwd,
+                    interpreter: null,
+                    // Bun: the same path from the project and from nowhere.
+                    resolve: (specifier) => (specifier === '@gjsify/node-gi' ? cachePath : null),
+                });
+                expect(staged.launcher.nodeGiAddon).toBe(undefined);
+                expect(staged.files).toStrictEqual([]);
+                // And the author is TOLD, which is the whole point of refusing it.
+                expect(staged.missing.some((line) => line.includes('@gjsify/node-gi'))).toBe(true);
+            } finally {
+                rmSync(cwd, { recursive: true, force: true });
+                rmSync(cached, { recursive: true, force: true });
+            }
+        });
+
+        await it('keeps a hit the project answers differently from nowhere', async () => {
+            // The other direction, so the guard cannot pass by refusing everything:
+            // a package really installed under the project resolves to a path the
+            // control anchor does not produce, and is used exactly as before.
+            const cwd = consumerWithNodeGi('darwin-arm64');
+            const installed = join(cwd, 'node_modules', '@gjsify', 'node-gi', 'index.js');
+            const cached = cache();
+            const cachePath = join(cached, 'index.js');
+            try {
+                const found = resolveNodeGiAddon('darwin-arm64', {
+                    cwd,
+                    env: {},
+                    resolve: (specifier, anchor) =>
+                        specifier === '@gjsify/node-gi' ? (anchor === 'project' ? installed : cachePath) : null,
+                });
+                expect(found?.addonPath.endsWith(join('darwin-arm64', 'node_gi.node'))).toBe(true);
+                // From the PROJECT, not the cache — both hold a `node_gi.node`, so
+                // the leaf name alone would not tell them apart.
+                expect(found?.addonPath.startsWith(cwd)).toBe(true);
+            } finally {
+                rmSync(cwd, { recursive: true, force: true });
+                rmSync(cached, { recursive: true, force: true });
+            }
+        });
+    });
+
     await describe('appRuntimePaths', async () => {
         await it("reproduces node-gi's sibling layout inside Contents/Frameworks", async () => {
             const paths = appRuntimePaths(LAYOUTS.darwin, IDENTITY, 'darwin-arm64');

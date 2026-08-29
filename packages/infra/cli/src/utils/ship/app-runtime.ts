@@ -79,7 +79,7 @@ import { dirname, join, posix, sep } from 'node:path';
 import { listFilesRecursive } from './discover.js';
 import type { Layout, LayoutIdentity } from './layout.js';
 import { isExecutableAsset } from './plan.js';
-import { resolveNpmPackage } from '../resolve-npm-package.js';
+import { resolveInstalledPackage, type ResolveInstalledPackageOptions } from '../resolve-npm-package.js';
 import type { StagedFile } from './types.js';
 
 /**
@@ -136,6 +136,12 @@ export interface ResolveRuntimeOptions {
     cwd?: string;
     /** Environment to read the overrides from. Injected so it is testable. */
     env?: Record<string, string | undefined>;
+    /**
+     * TEST SEAM, passed through to {@link resolveInstalledPackage} — resolve a
+     * specifier from one anchor. A fake answering the SAME path for both anchors
+     * is Bun's global-cache behaviour, which is otherwise unreachable from Node.
+     */
+    resolve?: ResolveInstalledPackageOptions['resolve'];
 }
 
 /**
@@ -190,7 +196,7 @@ export function resolveGtkRuntime(
     }
 
     const packageName = gtkRuntimePackageName(target);
-    const entry = resolveNpmPackage(packageName, { cwd: options.cwd, bundleUrl: import.meta.url });
+    const entry = resolveStagedPackage(packageName, options);
     if (entry !== null) candidates.push({ source: packageName, dir: join(dirname(entry), 'gtk') });
 
     for (const candidate of candidates) {
@@ -229,8 +235,23 @@ export function resolveNodeGiAddon(
 
 /** `@gjsify/node-gi`'s package root, or `null` when it is not resolvable from here. */
 function resolveNodeGiRoot(options: ResolveRuntimeOptions): string | null {
-    const entry = resolveNpmPackage(NODE_GI_PACKAGE, { cwd: options.cwd, bundleUrl: import.meta.url });
+    const entry = resolveStagedPackage(NODE_GI_PACKAGE, options);
     return entry === null ? null : dirname(entry);
+}
+
+/**
+ * Resolve a package whose BYTES this module stages into a redistributed artifact.
+ *
+ * `resolveInstalledPackage`, never `resolveNpmPackage`: under Bun the latter
+ * answers from the runtime's global install cache for a project that merely has a
+ * `package.json` and no `node_modules`, which would put files the author never
+ * declared inside a `.app`. See that function for the measurement.
+ */
+function resolveStagedPackage(specifier: string, options: ResolveRuntimeOptions): string | null {
+    const opts: ResolveInstalledPackageOptions = { bundleUrl: import.meta.url };
+    if (options.cwd !== undefined) opts.cwd = options.cwd;
+    if (options.resolve !== undefined) opts.resolve = options.resolve;
+    return resolveInstalledPackage(specifier, opts);
 }
 
 /** node-gi's JavaScript, as package-relative paths. */
@@ -369,6 +390,8 @@ export interface StageAppRuntimeInput {
     cwd: string;
     /** Injected so the overrides are testable. */
     env?: Record<string, string | undefined>;
+    /** Passed to every discovery below — see {@link ResolveRuntimeOptions.resolve}. */
+    resolve?: ResolveRuntimeOptions['resolve'];
     /** The interpreter, already resolved — see `node-runtime.ts`. `null` when absent. */
     interpreter: { source: string; nodePath: string; licensePath: string } | null;
 }
@@ -421,7 +444,7 @@ export function stageAppRuntime(input: StageAppRuntimeInput): StagedAppRuntime {
         );
     }
 
-    const gtk = resolveGtkRuntime(input.target, { cwd: input.cwd, ...(input.env ? { env: input.env } : {}) });
+    const gtk = resolveGtkRuntime(input.target, discoveryOptions(input));
     if (gtk !== null) {
         for (const rel of listFilesRecursive(gtk.dir)) {
             const abs = join(gtk.dir, rel.split('/').join(sep));
@@ -445,7 +468,7 @@ export function stageAppRuntime(input: StageAppRuntimeInput): StagedAppRuntime {
     // that carries the JS and no addon fails with node-gi's own diagnosis
     // (`load-diagnostics.js`), while one that carries the addon and no JS fails at
     // `require` before anything of node-gi's has run.
-    const js = resolveNodeGiPackage({ cwd: input.cwd, ...(input.env ? { env: input.env } : {}) });
+    const js = resolveNodeGiPackage(discoveryOptions(input));
     if (js !== null) {
         for (const rel of js.files) {
             files.push({
@@ -463,7 +486,7 @@ export function stageAppRuntime(input: StageAppRuntimeInput): StagedAppRuntime {
         );
     }
 
-    const addon = resolveNodeGiAddon(input.target, { cwd: input.cwd, ...(input.env ? { env: input.env } : {}) });
+    const addon = resolveNodeGiAddon(input.target, discoveryOptions(input));
     if (addon !== null) {
         files.push({ path: paths.addonPath, mode: 0o755, source: { kind: 'file', path: addon.addonPath } });
         launcher.nodeGiAddon = paths.addonPath;
@@ -476,6 +499,24 @@ export function stageAppRuntime(input: StageAppRuntimeInput): StagedAppRuntime {
     }
 
     return { files, launcher, found, missing };
+}
+
+/**
+ * The discovery options every piece is looked up with.
+ *
+ * ONE function, so a field added to {@link StageAppRuntimeInput} cannot reach two
+ * of the three lookups and miss the third. It missed all three once already:
+ * `resolve` was declared on the input, spelled correctly at the call site in the
+ * spec, and silently dropped here — `packages/infra/cli/tsconfig.json` excludes
+ * `src/**` + `.spec.ts`, so no excess-property check ever ran on it and the test
+ * that was supposed to red the global-cache guard passed with the guard removed.
+ */
+function discoveryOptions(input: StageAppRuntimeInput): ResolveRuntimeOptions {
+    const options: ResolveRuntimeOptions = {};
+    if (input.cwd !== undefined) options.cwd = input.cwd;
+    if (input.env !== undefined) options.env = input.env;
+    if (input.resolve !== undefined) options.resolve = input.resolve;
+    return options;
 }
 
 /**

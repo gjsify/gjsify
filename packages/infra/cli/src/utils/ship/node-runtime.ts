@@ -36,7 +36,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { resolveNpmPackage } from '../resolve-npm-package.js';
+import { resolveInstalledPackage } from '../resolve-npm-package.js';
 
 /** The targets a bundled interpreter is published for. */
 export const NODE_RUNTIME_TARGETS = ['darwin-arm64', 'darwin-x64', 'win32-x64'] as const;
@@ -127,7 +127,11 @@ export function resolveNodeRuntime(
     }
 
     const packageName = nodeRuntimePackageName(target);
-    const entry = resolveNpmPackage(packageName, { cwd: options.cwd, bundleUrl: import.meta.url });
+    // `resolveInstalledPackage`, because this binary is COPIED into a `.app` that
+    // gets redistributed: under Bun a bare `resolveNpmPackage` answers from the
+    // runtime's global install cache for any project without a `node_modules`, and
+    // an interpreter shipped out of a cache is one the author never declared.
+    const entry = resolveInstalledPackage(packageName, { cwd: options.cwd, bundleUrl: import.meta.url });
     if (entry === null) return null;
     return complete(packageName, join(dirname(entry), 'bin'), binaryName);
 }
