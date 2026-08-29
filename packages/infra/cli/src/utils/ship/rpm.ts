@@ -29,6 +29,7 @@ import {
 } from './rpm-header.js';
 import { gzipDeterministic } from './gzip.js';
 import { renderRpmScriptlets } from './scripts.js';
+import { SHARE } from './share-dirs.js';
 import type { PackSettings } from './types.js';
 
 export interface RpmInputs {
@@ -142,6 +143,11 @@ const RPMLIB_REQUIRES: Array<[string, string]> = [
  * rpmlint noise, not a broken install. The entries that matter are the ones a
  * package would otherwise claim on every install.
  */
+// The three that name a directory `plan.ts` actually stages into are DERIVED, so
+// they cannot drift from it. The rest stay literal on purpose: they are PARENTS
+// (`/usr/share/icons`, `/usr/share/glib-2.0`) or directories this packer never
+// writes (`/etc`, `/opt`, `/var`, `/usr/share/man`), which is a different question
+// from "where does the payload install" and would be wrong to fold into one list.
 const SYSTEM_OWNED_DIRECTORIES = new Set([
     '/usr',
     '/usr/bin',
@@ -150,16 +156,16 @@ const SYSTEM_OWNED_DIRECTORIES = new Set([
     '/usr/libexec',
     '/usr/sbin',
     '/usr/share',
-    '/usr/share/applications',
+    `/usr/${SHARE.applications}`,
     '/usr/share/doc',
     '/usr/share/icons',
     '/usr/share/licenses',
     '/usr/share/man',
-    '/usr/share/metainfo',
+    `/usr/${SHARE.metainfo}`,
     // Owned by glib2 — an app that installs a schema must not claim the
     // directory the whole system's schemas live in. Verified with `rpm -qf`.
     '/usr/share/glib-2.0',
-    '/usr/share/glib-2.0/schemas',
+    `/usr/${SHARE.schemas}`,
     '/etc',
     '/opt',
     '/var',

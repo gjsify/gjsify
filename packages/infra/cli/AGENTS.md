@@ -19,7 +19,7 @@ gjsify tsc …                              # Node-free tsc via the @gjsify/tsc 
 gjsify publish|whoami|login|logout        # Node-free npm publish/auth (npm-otp header, no web-OAuth)
 gjsify trust [pkg] | gjsify onboard [--packages <glob>]  # Trusted-Publisher / publish+trust sweep, ANY monorepo
 gjsify upgrade [--latest|--minor|--patch|--align|--check] [-p glob]   # workspace-wide dep upgrades; --check = CI drift gate
-gjsify ship [--target deb,rpm,flatpak] [--stage]   # phase 1: assemble ONE staged payload (ADR 0024)
+gjsify ship [linux|darwin|windows] [--target deb,rpm,flatpak] [--stage]   # phase 1: assemble ONE staged payload for that OS's LAYOUT (ADR 0024)
 gjsify ship --from-stage <dir> [--expect-target <os>-<arch>]   # phase 2: pack a stage, no project needed
 gjsify install [--immutable|--refresh-lockfile] | gjsify dlx <pkg> | gjsify showcase <name> | gjsify storybook | gjsify debug
 gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
@@ -53,7 +53,7 @@ Implementation status.
 `finishOn`/`requiredTools`/`oracle`, and `flatpak` is the first that is not `'any'`. Four things
 follow, each with a silent-failure story in
 [docs/ship-formats.md](../../../docs/ship-formats.md): the gates fire BEFORE the project's `build`
-script; `DEFAULT_FORMAT_IDS` is a SECOND derivation from `FORMATS`, because a bare `gjsify ship`
+script; `defaultFormatIds(os)` is a SECOND derivation from `FORMATS`, because a bare `gjsify ship`
 must not demand `flatpak-builder` of every project that packaged a `.deb`; `deriveDepends` takes a
 `DistroFormatId`, because a Flatpak has no `Depends:` field at all; and **`flatpak-builder
 --show-manifest` is not a validator** (it took `buildsystem: "nonsense"` at exit 0). Flatpak's whole
@@ -61,6 +61,16 @@ content is one prefix row (`/app`) plus `buildsystem: simple` + `cp -a stage/.` 
 removes meson from the sandbox — and the six `gjsify.flatpak` BUILD keys have a per-KEY deprecation
 window into `gjsify.ship.flatpak` that `flatpak init` resolves too (one-sided, it would silently
 rewrite the manifest that command commits); the `AppMetadata` half is an alias and is NOT deprecated.
+
+**AND WHICH OS'S LAYOUT IT WRAPS** — `FormatDescriptor.layoutOs`, NOT `host.finishOn`; `gjsify ship
+<linux|darwin|windows>` picks the layout, `defaultFormatIds(os)` filters on both, and a bare
+`gjsify ship` on Linux stays `deb` + `rpm`. `planStage` emits ONE prefix-relative plan and
+`layout.ts`'s `place()` is the map — that split is what lets `tests/e2e/ship-layout` state the map
+ITSELF and check § 2's "one payload, a handful of layouts" as an equality. **A statement about a
+SHIPPED ARTIFACT is not one about assembly**: reading § 4's runtime table, `--target` and
+`assertPayloadMatchesArch` as if they were cost three measured defects, all in
+[docs/ship-formats.md](../../../docs/ship-formats.md) § The layout axis — read it before touching
+`layout.ts`.
 
 **`gjsify ship` is TWO PHASES, and the boundary is a TYPE** (ADR 0024 § A2): `--stage` assembles and
 writes `.gjsify-ship-stage.json`, a CLOSURE rather than a settings dump; `--from-stage <dir>` packs it

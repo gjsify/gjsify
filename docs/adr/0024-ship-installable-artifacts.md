@@ -139,7 +139,7 @@ preference.
 | Linux · `--app gjs` | none — `Depends: gjs (>= 1.86)` | GJS and GTK come from the distro. Bundling would be ~100 MiB of cargo cult. **Measured caveat: no released Debian satisfies that floor** — Debian went 1.82.3 (trixie) straight to 1.88.1 (forky), skipping 1.84 and 1.86. The honest floor is emitted anyway and warned about; see § Implementation status |
 | Linux · `--app node` | none — `Depends: nodejs (>= 24)` / `Requires: nodejs(engine) >= 24` | **Amended and IMPLEMENTED (#1354 M0):** the launcher branches on `gjsify.app` and execs `node`, `assertShippableTarget` accepts it, and `assertLauncherMatchesInterpreter` refuses any package whose launcher and dependency disagree. The row read "bundled Node — no system Node can be assumed"; true of macOS and Windows, false of Linux, where every distribution ships one — bundling would be the same ~100 MiB cargo cult the `--app gjs` row rejects. The rpm spelling is not a style choice: `Requires: nodejs >= 24` is a silent NO-OP on Fedora, whose virtual `nodejs` Provide carries Epoch 1, so `0:24` is satisfied by `1:22.23.1` — measured with `dnf repoquery` on F44. ⚠️ And even the correct spelling does not put Node 24 on `PATH`: the alternatives-managed `/usr/bin/node` belongs to whichever `nodejs<stream>-bin` is installed, so `nodejs22-bin` + `nodejs(engine) >= 24` is a satisfiable state with `node` at 22. Floor honestly emitted and warned about, exactly like the GJS one |
 | **macOS** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-darwin-<arch>`** | this is the combination CI proves on both arches, with no Homebrew in the picture: the *batteries-included conformance* and *windowing proof* legs of `node-gi.yml` run green against the relocated bundle |
-| **Windows** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-win32-x64`** | **there is no GJS host on Windows** (`docs/ci-selective.md`), so this is not a choice. The *batteries-included conformance* and *Adwaita Storybook proof* legs prove it without gvsbuild |
+| **Windows** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-win32-x64`** | **there is no GJS host on Windows** — no job in this repository installs one, and the `gjs` mentions in `docs/ci-selective.md` this line used to cite are about the affected-classifier bundle, not about Windows. So this is not a choice. The *batteries-included conformance* and *Adwaita Storybook proof* legs prove it without gvsbuild |
 | `--app browser` | — | no OS-package question |
 | `--app nativescript` | — | APK/IPA is a different pipeline; out of scope |
 
@@ -329,6 +329,56 @@ carries no `/usr/share/doc/<pkg>/copyright`, without `namespaces` its `Depends` 
 against what the stage RECORDED rather than against the packing host, because packing an arm64 stage on an x64
 runner is a supported path. The discriminating proof is a deletion: `tests/e2e/ship-from-stage` stages into a
 tmpdir, deletes the project tree, packs, and asserts byte-equality with the single-host artifact.
+
+**Landed since that, and it is § 2's own claim rather than a stage: the LAYOUT axis** (#1354 M1).
+`gjsify ship <linux|darwin|windows>` is § A2's positional, and it decides which OS's layout is
+assembled — `<App>.app/Contents/{MacOS,Resources,Frameworks}` and a Windows program directory
+beside the prefix-relative Linux one. `utils/ship/layout.ts` holds the three rows and the map;
+`planStage` still produces ONE plan, in the Linux/XDG shape, which is what makes the § 2 claim an
+equality a test can check: `tests/e2e/ship-layout` assembles the same project three ways and
+asserts the file set and every file's bytes agree modulo a map written out in the suite (importing
+`place()` would have compared the implementation with itself and passed for any map at all).
+`STAGE_LAYOUT_OS` — the constant `'linux'` this document's § A2 predicted would become the
+positional's value — is gone; the manifest's `target.os` is the layout's, so `--expect-target
+darwin-arm64` now names something. Three things the axis forced that § 2 did not predict:
+`Contents/MacOS` is the first layout difference that is NOT a `prefix` substitution (the carried GI
+files leave the bundle directory for `Contents/Frameworks`, and the launcher's own name changes on
+Windows); the launcher needs three FORMS, two of them for measured reasons — the BSD `readlink`
+macOS ships has no `-f`, and SIP strips an inherited `DYLD_*` at the `/bin/sh` exec, which is § 3's
+in-process answer arriving as a launcher constraint; and `FormatDescriptor` needed a `layoutOs`
+field distinct from `host.finishOn`, which is what settles open question 3 (a `.app` zip is
+`finishOn: 'any'` with `layoutOs: 'darwin'`, so the two are not one field). No format wraps the two
+new layouts yet — they are `--stage` only, and a pack is refused by name rather than exiting 0
+having produced nothing.
+
+**And three corrections the first cut of that axis needed, all of the same shape — reading a
+statement about a SHIPPED ARTIFACT as a statement about an assembly step.** (a) § 4 derives the
+runtime an artifact CARRIES; taken as a per-layout launcher requirement it refused
+`gjsify.app: "gjs"` — the only build target `ship` supports — for the macOS layout, while a project
+declaring nothing staged `exec node …/gjs.js` in front of a bundle opening with
+`import Gtk from 'gi://Gtk?version=4.0'`. Every launcher execs `gjs -m`; § 4's answer is
+`Layout.shippedRuntime` plus a printed `Layout.runtimeGap`, and it becomes a launcher decision when
+#1354 M0 puts an interpreter in the tree. (b) `gjsify.ship.targets` is a project DEFAULT, not a
+claim about one run, so it is filtered to the layout while a typed `--target` is refused — strict
+for both made `gjsify ship darwin --stage` exit 1 in this repository, whose own
+`packages/infra/cli/package.json` declares `targets`. (c) `assertPayloadMatchesArch` guarded the
+ARTIFACT, and this is the first milestone in which the STAGE is the deliverable, so it now also runs
+in `assemble`: before that, `--stage --arch x64` over an arm64 Mach-O exited 0 and
+`--expect-target darwin-x64` accepted the label.
+
+**What the layout equality cannot see, named rather than discovered later.** Both new trees carry
+the `share/…` files whose Linux correctness comes from a `.deb`/`.rpm` install scriptlet —
+`glib-compile-schemas` above all, without which GSettings aborts at runtime — plus a `.desktop`
+entry and an AppStream component neither OS reads. Sameness IS the defect there, so no file-set
+comparison can reach it. `linuxInstallDependent()` is the list — exhaustive over `share/` rather than an
+allow-list, keyed on one shared `SHARE` constant the four call sites import, and split by severity
+so the schema entry (which ABORTS `g_settings_new()`, because every launcher points `XDG_DATA_DIRS`
+at the staged `share/`) is not ranked with four that merely do nothing. The first version of it
+claimed in prose that its rules could not drift; that was measured false over five independent
+string literals, so the claim is now a mechanism or it is not made. Deciding what each entry becomes
+needs the container, i.e. stages 4 and 5.
+Flagged for stage 4 and not measured here: a loose `.typelib` in `Contents/Frameworks` is the
+classic codesign/notarization complaint.
 
 That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
 stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`

@@ -72,7 +72,24 @@ function discoverTypelibs(projectDir: string, dirs: string[] | undefined): strin
             );
         }
         for (const file of listFilesRecursive(root)) {
-            if (/\.typelib$|\.so(\.\d+)*$/.test(file)) out.push(join(root, file));
+            // Every shared-library spelling, not only ELF's. A typelib is
+            // useless without its library on macOS and Windows too, and the
+            // `.so`-only test dropped `libgwebgl.dylib` and `gwebgl-0.dll` while
+            // staging the `.typelib` beside them — a package that installs and
+            // dies at the first import, with nothing in the output saying so.
+            // The layout axis (ADR 0024 § 2) is what put those two files in
+            // reach: they land in `Contents/Frameworks` and in the program
+            // directory's `lib\`.
+            // Case-insensitive for the extensions that come off case-preserving-
+            // but-INSENSITIVE filesystems — `LIBFOO.DLL` and `Foo.Dylib` are
+            // ordinary names on macOS and Windows, and a lowercase-only test drops
+            // them into exactly the silent failure the paragraph above describes.
+            //
+            // NOT for `.so`, and the asymmetry is the reason rather than an
+            // oversight: ELF sonames come off case-SENSITIVE filesystems where
+            // `libfoo.so` is the only spelling, and `/i` there additionally makes
+            // `README.SO` a shared library. One rationale, one scope.
+            if (/\.(typelib|dylib|dll)$/i.test(file) || /\.so(\.\d+)*$/.test(file)) out.push(join(root, file));
         }
     }
     return out;

@@ -182,6 +182,6 @@ async function run(cmd: string, args: string[], input: FlatpakPackInput, notFoun
         notFound: () => new Error(`gjsify ship: ${notFoundHint}`),
     });
     if (result.code !== 0) {
-        throw new Error(`gjsify ship: ${cmd} failed${describeExit(result)}.`);
+        throw new Error(`gjsify ship: ${cmd} failed with ${describeExit(result)}.`);
     }
 }

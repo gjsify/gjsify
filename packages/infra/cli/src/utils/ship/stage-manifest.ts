@@ -40,9 +40,11 @@ import { join, sep } from 'node:path';
 
 import { cliVersion } from '../publish-headers.js';
 import { FORMAT_IDS } from './formats.js';
+import { layoutForOs, LAYOUTS, LAYOUT_NAMES } from './layout.js';
 import type {
     FormatDescriptor,
     FormatId,
+    HostOs,
     PackSettings,
     ShipFlatpakSettings,
     ShipSettings,
@@ -92,20 +94,10 @@ export const STAGE_MANIFEST_FILE = '.gjsify-ship-stage.json';
  */
 export const STAGE_SCHEMA_VERSION = 4;
 
-/**
- * The OS whose layout `planStage` produces.
- *
- * A constant rather than a measurement, because it is a property of the PLAN
- * (`bin/`, `lib/<name>/`, `share/…` is the Linux/XDG layout), not of the host
- * that ran it — assembling is cross-platform (ADR 0024 § A1). When
- * `gjsify ship darwin --stage` lands this becomes the positional's value, and
- * this constant is where the compiler will point.
- */
-export const STAGE_LAYOUT_OS = 'linux';
-
 /** What this stage was assembled FOR, in the repo-wide `${process.platform}-${process.arch}` spelling. */
 export interface StageTarget {
-    os: string;
+    /** The layout the stage carries, in the `process.platform` spelling — `win32`, never `windows`. */
+    os: HostOs;
     arch: string;
 }
 
@@ -220,7 +212,13 @@ export function writeStageManifest(input: StageManifestInput): StageManifest {
     const manifest: StageManifest = {
         schema: STAGE_SCHEMA_VERSION,
         tool: { name: '@gjsify/cli', version: cliVersion() },
-        target: { os: STAGE_LAYOUT_OS, arch: input.settings.arch },
+        // The POSITIONAL's value, not a constant. It used to be the literal
+        // `'linux'`, correct while the planner produced exactly one layout and
+        // wrong the moment it produced three — and wrong SILENTLY, because a
+        // darwin stage labelled `linux-arm64` passes every structural check in
+        // `readStageManifest` and would be accepted by `--expect-target
+        // linux-arm64` on a leg that wanted the Linux one.
+        target: { os: input.settings.layoutOs, arch: input.settings.arch },
         formats: input.formats.map((format) => format.id),
         mtime: input.mtime,
         namespaces: [...input.namespaces],
@@ -304,7 +302,16 @@ export function readStageManifest(stageDir: string): StageManifest {
             version: expectString(tool.version, at('tool.version')),
         },
         target: {
-            os: expectString(target.os, at('target.os')),
+            // `layoutForOs`, which takes the `process.platform` spelling and NO
+            // alias. `resolveLayout` — the positional's resolver — also accepts
+            // `windows`, and routing this field through it would mean a manifest
+            // literally saying `"windows"` was accepted and then COMPARED as
+            // `win32`: two files with different bytes in the one field
+            // `--expect-target` exists to compare would both match it, on a wire
+            // format whose entire job is to catch a job that downloaded the wrong
+            // artifact. Refused here rather than reaching the layout lookup as a
+            // lie, and named the way every other field in this function is.
+            os: expectLayoutOs(expectString(target.os, at('target.os')), at('target.os')),
             arch: expectString(target.arch, at('target.arch')),
         },
         formats: expectArray(data.formats, at('formats')).map((entry, index) => {
@@ -366,6 +373,28 @@ export function readStageManifest(stageDir: string): StageManifest {
         });
     }
     return manifest;
+}
+
+/**
+ * `target.os`, resolved to a layout, in the one spelling this field may carry.
+ *
+ * The catch REPLACES the message rather than swallowing it: `layoutForOs` speaks
+ * about a token, and this is a named field in a file that arrived from another
+ * host, so the fix is different and so is the sentence. Every other field in
+ * `readStageManifest` names its own location the same way.
+ */
+function expectLayoutOs(value: string, where: string): HostOs {
+    try {
+        return layoutForOs(value).os;
+    } catch {
+        const known = LAYOUT_NAMES.map((name) => LAYOUTS[name].os).join(', ');
+        throw new Error(
+            `gjsify ship: ${where} is "${value}", which is not a layout this gjsify can pack. It carries ` +
+                `the \`process.platform\` spelling and only that — ${known}, so \`win32\` and never ` +
+                "`windows`. A stage holds exactly one OS's layout and every path in it has that OS's shape, " +
+                'so there is nothing to pack here. Re-run the `--stage` phase.',
+        );
+    }
 }
 
 /** The overlay for one format, in the shape `writeStage` takes. */

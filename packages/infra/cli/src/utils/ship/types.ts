@@ -127,6 +127,22 @@ export interface HostRequirement {
  */
 export interface FormatDescriptor {
     id: FormatId;
+    /**
+     * The OS whose LAYOUT this format wraps.
+     *
+     * Not `host.finishOn`, and the two must not be collapsed: `finishOn` says
+     * where the container can be PRODUCED, this says which staged tree it is a
+     * container FOR. A `.dmg` is `finishOn: ['darwin']` and `layoutOs: 'darwin'`,
+     * which makes them look like one field — but the `.app` zip beside it is
+     * `finishOn: 'any'` with the same `layoutOs`, and that is the pair that
+     * proves they are different questions.
+     *
+     * This is what gives `defaultFormatIds` its second criterion. Without it, a
+     * `.app` and a Windows program directory — both `finishOn: 'any'` — would
+     * make a bare `gjsify ship` on Linux emit five artifacts, three of which are
+     * for operating systems the caller did not ask about.
+     */
+    layoutOs: HostOs;
     /** Install prefix the format's contents hang under. */
     prefix: string;
     /** Where this format can be packed, what it execs, and who reads it back. */
@@ -361,4 +377,15 @@ export interface ShipSettings extends PackSettings {
     outDir: string;
     /** Target architecture in `process.arch` spelling. */
     arch: string;
+    /**
+     * The OS whose LAYOUT this run assembles, from the `gjsify ship <os>`
+     * positional (ADR 0024 § A2).
+     *
+     * Beside `arch` and for the same reason: together they are the stage's
+     * `target`, the string `--expect-target <os>-<arch>` is compared against, and
+     * the pair a matrix leg is identified by. Deliberately NOT in
+     * {@link PackSettings} — the manifest's `target` carries it, so it lives in
+     * exactly one place on the far side of the host boundary.
+     */
+    layoutOs: HostOs;
 }

@@ -18,7 +18,7 @@ function input(overrides: Partial<SettingsInput> = {}): SettingsInput {
         pkg: { name: 'hello-app', version: '1.2.3', license: 'MIT', author: 'Dev <dev@example.org>' },
         ship: { appId: 'org.example.Hello' },
         flatpak: {},
-        cli: {},
+        cli: { layoutOs: 'linux' },
         discovered: {
             bundlePath: '/project/dist/gjs.js',
             bundleDir: '/project/dist',

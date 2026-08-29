@@ -8,6 +8,8 @@
 
 import { statSync } from 'node:fs';
 
+import { isUnder, SHARE } from './share-dirs.js';
+
 /** One file in the payload, with its bytes. */
 export interface PayloadEntry {
     /** Prefix-relative path, POSIX-separated, e.g. `bin/learn6502`. */
@@ -101,10 +103,10 @@ export interface PayloadFacts {
 export function readPayloadFacts(entries: readonly { path: string }[]): PayloadFacts {
     const paths = entries.map((entry) => entry.path);
     return {
-        hasDesktopEntry: paths.some((path) => path.startsWith('share/applications/') && path.endsWith('.desktop')),
-        hasIcons: paths.some((path) => path.startsWith('share/icons/hicolor/')),
-        hasSchemas: paths.some((path) => path.startsWith('share/glib-2.0/schemas/') && path.endsWith('.gschema.xml')),
-        hasMimeTypes: paths.some((path) => path.startsWith('share/mime/packages/') && path.endsWith('.xml')),
+        hasDesktopEntry: paths.some((path) => isUnder(path, SHARE.applications) && path.endsWith('.desktop')),
+        hasIcons: paths.some((path) => isUnder(path, SHARE.icons)),
+        hasSchemas: paths.some((path) => isUnder(path, SHARE.schemas) && path.endsWith('.gschema.xml')),
+        hasMimeTypes: paths.some((path) => isUnder(path, SHARE.mime) && path.endsWith('.xml')),
         // Anywhere in the payload, not only `lib/<name>/gi/`: `gjsify.ship.extraFiles` can place
         // one elsewhere, and a typelib the package carries is a typelib the package must not also
         // declare a distro dependency for, wherever it sits.
@@ -232,6 +234,107 @@ export function assertLauncherMatchesInterpreter(
             '`gjsify.ship.extraFiles`,\n' +
             '    that override is what decides which interpreter runs and it must match the declaration.',
     );
+}
+
+/**
+ * How a `share/` entry behaves once it leaves the layout a Linux package installs.
+ *
+ * `aborts` and `inert` are not one severity, and printing them as one was a
+ * measured presentation defect: every launcher exports `XDG_DATA_DIRS` at the
+ * staged `share/`, so a `.app` built from this stage points GSettings at a schema
+ * directory holding an `.xml` and no `gschemas.compiled` — `g_settings_new()`
+ * ABORTS. The other four merely do nothing. Ranking them identically in a list of
+ * five buried the one that stops the app.
+ */
+export type ShareVerdict = 'aborts' | 'inert' | 'unknown';
+
+/** One `share/` entry a non-Linux layout carries, and what happens to it there. */
+export interface CarriedShareEntry {
+    path: string;
+    verdict: ShareVerdict;
+    why: string;
+}
+
+/**
+ * What each known `share/` directory costs a layout with no install step.
+ *
+ * Keyed on {@link SHARE}, so the compiler — not a comment — is what keeps this in
+ * step with where `plan.ts` stages the files and which directory
+ * `cacheRefreshCommands` refreshes. The previous version claimed exactly that in
+ * prose over five independent string literals, and pointing one rule at a
+ * directory matching nothing silently dropped a file from the printed warning
+ * with the whole suite green at exit 0.
+ */
+const SHARE_VERDICTS: ReadonlyArray<readonly [string, ShareVerdict, string]> = [
+    [
+        SHARE.schemas,
+        'aborts',
+        'needs `glib-compile-schemas` at install, and the launcher points XDG_DATA_DIRS here — ' +
+            'GSettings ABORTS on a schema directory with no `gschemas.compiled`',
+    ],
+    [SHARE.mime, 'inert', 'needs `update-mime-database`; detection runs off the compiled cache'],
+    [SHARE.icons, 'inert', 'needs `gtk-update-icon-cache`; neither OS reads the hicolor theme'],
+    [SHARE.applications, 'inert', 'a freedesktop desktop entry; neither OS reads one'],
+    [SHARE.metainfo, 'inert', 'an AppStream component; neither OS reads one'],
+];
+
+/**
+ * Directories that survive the trip, so the rule below can be an INVERSE one.
+ *
+ * Only gettext qualifies today: a `.mo` is read straight off disk by
+ * `bindtextdomain`, with no install step anywhere, and the launcher hands its
+ * directory over on all three layouts.
+ */
+const SHARE_PORTABLE: readonly string[] = [SHARE.locale];
+
+/**
+ * Every `share/` entry a non-Linux layout carries, classified — including the
+ * ones nothing here has a rule for.
+ *
+ * WHY THIS EXISTS, and it is the hole the layout axis opened. `planStage` emits
+ * one prefix-relative plan and every layout carries it, so the darwin and windows
+ * trees hold the same `share/…` files the `.deb` does — and on Linux most of those
+ * are only correct because `cacheRefreshCommands` compiles or reindexes them at
+ * install time (`scripts.ts`), which is a `.deb`/`.rpm` scriptlet and nothing else.
+ *
+ * The equality `tests/e2e/ship-layout` checks — same file set, same bytes, modulo
+ * the map — is structurally blind to all of it, because SAMENESS IS THE DEFECT:
+ * the Linux tree is right for a reason the other two do not have.
+ *
+ * EXHAUSTIVE, not an allow-list, and that direction is the point. A closed list of
+ * five was measured to say "carries 5 file(s)" for a payload carrying six — a
+ * `share/dbus-1/services/*.service` added through `gjsify.ship.extraFiles` is
+ * meaningful on Linux only because the package installs it into a system prefix,
+ * and it went unnamed. Anything under `share/` that is neither classified nor
+ * known-portable comes back as `unknown` rather than silently passing.
+ *
+ * Deciding what each one BECOMES — a compiled `gschemas.compiled` in the bundle,
+ * an `Info.plist` `CFBundleDocumentTypes`, a Windows registry association, or
+ * simply dropped — is ADR 0024 stages 4 and 5, and it needs the container that
+ * does not exist yet.
+ */
+export function linuxInstallDependent(entries: readonly { path: string }[]): CarriedShareEntry[] {
+    const out: CarriedShareEntry[] = [];
+    for (const entry of entries) {
+        if (!isUnder(entry.path, 'share')) continue;
+        if (SHARE_PORTABLE.some((dir) => isUnder(entry.path, dir))) continue;
+        const rule = SHARE_VERDICTS.find(([dir]) => isUnder(entry.path, dir));
+        out.push(
+            rule === undefined
+                ? {
+                      path: entry.path,
+                      verdict: 'unknown',
+                      why:
+                          'nothing here classifies this directory — it may need an install step no ' +
+                          'non-Linux layout runs, or it may be inert; say which before shipping it',
+                  }
+                : { path: entry.path, verdict: rule[1], why: rule[2] },
+        );
+    }
+    // `aborts` first: a list sorted by path buried the one entry that stops the
+    // application behind four that merely do nothing.
+    const rank: Record<ShareVerdict, number> = { aborts: 0, unknown: 1, inert: 2 };
+    return out.sort((a, b) => rank[a.verdict] - rank[b.verdict] || (a.path < b.path ? -1 : 1));
 }
 
 /**

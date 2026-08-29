@@ -13,6 +13,7 @@
 // waved through.
 
 import type { PayloadFacts } from './payload.js';
+import { SHARE } from './share-dirs.js';
 
 /**
  * The cache refreshes this payload makes necessary, each guarded by the tool's
@@ -37,13 +38,13 @@ export function cacheRefreshCommands(facts: PayloadFacts, prefix: string): strin
     if (facts.hasDesktopEntry) {
         refreshes.push({
             probe: 'update-desktop-database',
-            run: `update-desktop-database -q ${prefix}/share/applications`,
+            run: `update-desktop-database -q ${prefix}/${SHARE.applications}`,
         });
     }
     if (facts.hasIcons) {
         refreshes.push({
             probe: 'gtk-update-icon-cache',
-            run: `gtk-update-icon-cache -q -t -f ${prefix}/share/icons/hicolor`,
+            run: `gtk-update-icon-cache -q -t -f ${prefix}/${SHARE.icons}`,
         });
     }
     if (facts.hasMimeTypes) {
@@ -51,13 +52,16 @@ export function cacheRefreshCommands(facts: PayloadFacts, prefix: string): strin
         // off the compiled cache in `share/mime/`, not off the packages directory.
         refreshes.push({
             probe: 'update-mime-database',
+            // The PARENT of `SHARE.mime`, not that directory: `update-mime-database` is
+            // given the mime ROOT and reads `packages/` inside it. Deriving it from
+            // `SHARE.mime` would pass the wrong path, so it stays spelled out.
             run: `update-mime-database ${prefix}/share/mime`,
         });
     }
     if (facts.hasSchemas) {
         refreshes.push({
             probe: 'glib-compile-schemas',
-            run: `glib-compile-schemas ${prefix}/share/glib-2.0/schemas`,
+            run: `glib-compile-schemas ${prefix}/${SHARE.schemas}`,
         });
     }
     return refreshes.map(({ probe, run }) => `if command -v ${probe} >/dev/null 2>&1; then ${run} || true; fi`);

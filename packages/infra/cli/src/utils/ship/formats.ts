@@ -9,6 +9,7 @@
 // a format can be host-bound (§ A3), so `host` is a descriptor field now.
 
 import { isOnPath } from '../check-system-deps.js';
+import { LAYOUTS, LAYOUT_NAMES, type Layout } from './layout.js';
 import type { FormatDescriptor, FormatId, HostOs, PackSettings } from './types.js';
 
 // `process.arch` → the format's architecture name. Taken from dpkg's own
@@ -91,6 +92,7 @@ const WRITTEN_HERE = (readWith: readonly string[]): FormatDescriptor['host'] => 
 export const FORMATS: Record<FormatId, FormatDescriptor> = {
     deb: {
         id: 'deb',
+        layoutOs: 'linux',
         prefix: '/usr',
         host: WRITTEN_HERE(['ar', 'tar', 'dpkg-deb', 'lintian']),
         depends: 'deb',
@@ -104,6 +106,7 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
     },
     rpm: {
         id: 'rpm',
+        layoutOs: 'linux',
         prefix: '/usr',
         host: WRITTEN_HERE(['rpm', 'rpm2cpio', 'cpio']),
         depends: 'rpm',
@@ -115,6 +118,7 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
     },
     flatpak: {
         id: 'flatpak',
+        layoutOs: 'linux',
         // The one-line difference ADR 0024 § 2 promised. Nothing in the payload
         // changes: the launcher derives its prefix at runtime (§ 3), so the same
         // staged `bin/<name>` works under /usr and under /app.
@@ -170,8 +174,8 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
 export const FORMAT_IDS: FormatId[] = Object.keys(FORMATS) as FormatId[];
 
 /**
- * What `gjsify ship` builds when nothing said otherwise — every format that
- * needs no tool and no particular host.
+ * What `gjsify ship <os>` builds when nothing said otherwise — every format that
+ * wraps THAT OS's layout and needs no tool and no particular host.
  *
  * A SECOND derivation from the same table, and it has to be one: `FORMAT_IDS`
  * used to be both "every format that exists" and "every format to build by
@@ -182,8 +186,32 @@ export const FORMAT_IDS: FormatId[] = Object.keys(FORMATS) as FormatId[];
  * packs `@gjsify/cli` itself on a bare ubuntu runner. A host-bound format is
  * opt-in through `--target` or `gjsify.ship.targets`; `--help` still lists all
  * of them.
+ *
+ * `layoutOs` is the SECOND criterion, and it is what the layout axis needed: a
+ * `.app` and its zip and a Windows program directory are all `finishOn: 'any'`,
+ * so on the one criterion a bare `gjsify ship` on Linux would start emitting
+ * five artifacts (ADR 0024 issue #1354, open question 3). Answered with § A2's
+ * positional rather than instead of it — the positional picks the layout, this
+ * picks the formats that wrap it, and `gjsify ship` on Linux keeps emitting
+ * exactly `deb` and `rpm`.
+ *
+ * An EMPTY answer is legal and is what darwin and windows give today: their
+ * layouts assemble (`--stage`) and no format wraps them yet. `assemble` refuses
+ * a pack with nothing to pack rather than exiting 0 having produced no artifact.
  */
-export const DEFAULT_FORMAT_IDS: FormatId[] = FORMAT_IDS.filter((id) => FORMATS[id].host.finishOn === 'any');
+export function defaultFormatIds(layoutOs: HostOs): FormatId[] {
+    return FORMAT_IDS.filter((id) => FORMATS[id].layoutOs === layoutOs && FORMATS[id].host.finishOn === 'any');
+}
+
+/** `process.platform` token → the positional that selects it, so a message says `windows`, not `win32`. */
+const LAYOUT_NAME_BY_OS: Record<string, string> = Object.fromEntries(
+    LAYOUT_NAMES.map((name) => [LAYOUTS[name].os, name]),
+);
+
+/** Every format that wraps one OS's layout, tool-bound ones included. */
+export function formatIdsFor(layoutOs: HostOs): FormatId[] {
+    return FORMAT_IDS.filter((id) => FORMATS[id].layoutOs === layoutOs);
+}
 
 /**
  * Refuse a format this host cannot finish, BEFORE anything is built or written.
@@ -232,8 +260,11 @@ export function assertToolsInstalled(format: FormatDescriptor, present: (cmd: st
     );
 }
 
-/** Parse `--target deb,rpm` into a sorted, deduplicated descriptor list. */
-export function resolveFormats(raw: readonly string[]): FormatDescriptor[] {
+/**
+ * The shared half: names in, `FormatId`s out, with the two refusals that hold for
+ * every caller.
+ */
+function parseFormatNames(raw: readonly string[], source: string): FormatId[] {
     const names = raw
         .flatMap((entry) => entry.split(','))
         .map((entry) => entry.trim())
@@ -244,7 +275,7 @@ export function resolveFormats(raw: readonly string[]): FormatDescriptor[] {
     const unknown = names.filter((name) => !Object.hasOwn(FORMATS, name));
     if (unknown.length > 0) {
         throw new Error(
-            `gjsify ship: unknown target${unknown.length > 1 ? 's' : ''} ${unknown.join(', ')}. ` +
+            `gjsify ship: unknown target${unknown.length > 1 ? 's' : ''} ${unknown.join(', ')} in ${source}. ` +
                 `Known targets: ${FORMAT_IDS.join(', ')}.`,
         );
     }
@@ -252,7 +283,85 @@ export function resolveFormats(raw: readonly string[]): FormatDescriptor[] {
     // An empty list would otherwise stage the payload and pack nothing, exit 0,
     // and print no artifact line — a success that produced no artifact.
     if (unique.length === 0) {
-        throw new Error(`gjsify ship: --target named no format. Known targets: ${FORMAT_IDS.join(', ')}.`);
+        throw new Error(`gjsify ship: ${source} named no format. Known targets: ${FORMAT_IDS.join(', ')}.`);
+    }
+    return unique;
+}
+
+/**
+ * Parse an explicit `--target deb,rpm` into a sorted, deduplicated descriptor list.
+ *
+ * A format belonging to another layout is an ERROR here, not a filter:
+ * `gjsify ship darwin --target deb` is a mistake worth naming, and dropping it
+ * silently would stage the darwin layout, pack nothing and exit 0 — the shape
+ * the empty-list refusal above already exists to prevent, arriving through a
+ * different door.
+ *
+ * The FLAG is what makes that the right answer, and it is the whole difference
+ * from {@link configuredFormats}: a value typed on this command line is a claim
+ * about THIS run.
+ */
+export function resolveFormats(raw: readonly string[], layout: Layout): FormatDescriptor[] {
+    const unique = parseFormatNames(raw, '--target');
+    const foreign = unique.filter((name) => FORMATS[name].layoutOs !== layout.os);
+    if (foreign.length > 0) {
+        const wrap = formatIdsFor(layout.os);
+        // Deduplicated: two formats wrapping the same layout read as
+        // "the linux/linux layout" without it.
+        const foreignLayouts = [...new Set(foreign.map((name) => FORMATS[name].layoutOs))];
+        throw new Error(
+            `gjsify ship: ${foreign.join(', ')} ${foreign.length > 1 ? 'wrap' : 'wraps'} the ` +
+                `${foreignLayouts.join('/')} layout and this run assembles the ${layout.name} one. ` +
+                (wrap.length === 0
+                    ? `No format wraps the ${layout.name} layout yet — \`gjsify ship ${layout.name} --stage\` ` +
+                      'assembles it and stops (ADR 0024 stages 4 and 5).'
+                    : `Formats for this layout: ${wrap.join(', ')}.`) +
+                // One suggestion PER foreign layout. `foreign[0]`'s layout was
+                // being offered for all of them, two lines under the dedup that
+                // exists precisely because several are anticipated — so a mixed
+                // `--target` would have printed a command that fails the same way.
+                ` To build ${foreign.join(', ')}, name the layout each wraps: ` +
+                `${foreignLayouts
+                    .map(
+                        (os) =>
+                            `\`gjsify ship ${LAYOUT_NAME_BY_OS[os] ?? os} --target ` +
+                            `${foreign.filter((name) => FORMATS[name].layoutOs === os).join(',')}\``,
+                    )
+                    .join(', ')}.`,
+        );
     }
     return unique.map((name) => FORMATS[name]);
+}
+
+/**
+ * The same names from `gjsify.ship.targets`, FILTERED to the current layout.
+ *
+ * A configured list is a project-level DEFAULT — "when I ship this, build these"
+ * — written once and read by every run, so it cannot be a claim about a layout
+ * the author had not heard of when they wrote it. Refusing it the way
+ * {@link resolveFormats} refuses a flag makes the new positional unusable in
+ * every project that has the key, and this repository is the proof: with
+ * `targets: ["deb", "rpm"]` in `packages/infra/cli/package.json`,
+ * `gjsify ship darwin --stage` exited 1 telling the author to run
+ * `gjsify ship darwin --stage`. There was no `--target` value that got a darwin
+ * stage out of such a project at all.
+ *
+ * Filtering is safe HERE and only here, because an empty result is not a silent
+ * success: `assemble` refuses a PACK with nothing to pack, and a `--stage` run
+ * legitimately wants exactly this — assemble the layout, wrap nothing.
+ */
+export function configuredFormats(
+    raw: readonly string[],
+    layout: Layout,
+): { formats: FormatDescriptor[]; dropped: FormatId[] } {
+    const named = parseFormatNames(raw, '`gjsify.ship.targets`');
+    const kept = named.filter((name) => FORMATS[name].layoutOs === layout.os);
+    // The dropped names are RETURNED rather than swallowed. The `--target` path
+    // refuses by name; this one silently produced a shorter list, so a project
+    // whose configured formats all belong to another layout got a stage and no
+    // explanation of why nothing was packed.
+    return {
+        formats: kept.map((name) => FORMATS[name]),
+        dropped: named.filter((name) => FORMATS[name].layoutOs !== layout.os),
+    };
 }
