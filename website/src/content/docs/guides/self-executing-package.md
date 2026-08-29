@@ -93,7 +93,7 @@ file.
 
 ```bash
 yarn build
-./bin/my-tool hello Pascal       # Hello, Pascal!
+./bin/my-tool hello world        # Hello, world!
 ```
 
 ## Report the right version
