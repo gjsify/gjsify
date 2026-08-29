@@ -1,5 +1,5 @@
 /**
- * Emit the TYPE surfaces: one interface per GIR declaration, two tag maps.
+ * Emit the TYPE surfaces: one interface per GIR declaration, four tag maps.
  *
  * WHAT THE DIALECTS FORCED, all of it measured rather than assumed (ADR 0028 § 7,
  * and the numbers live there):
@@ -139,7 +139,7 @@ export function emitProps(model: SurfaceModel, provenance: string): EmittedFile 
 
     const text = `${HEADER(
         `The type surface: one interface per GIR declaration, mirroring GIR's own
-// inheritance, plus the two tag maps the dialect adapters build on.
+// inheritance, plus the four tag maps the dialect adapters build on.
 //
 // ${model.declarations.size} interfaces for ${model.widgets.length} widgets — the widgets have ${countSlots(model)} writable
 // property slots between them and ${countDistinct(model)} distinct property names, which is the whole

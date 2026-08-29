@@ -3,7 +3,7 @@
 // Provenance: Gtk-4.0 Adw-1 Gdk-4.0 GObject-2.0 Gio-2.0 GLib-2.0 Pango-1.0
 //
 // The type surface: one interface per GIR declaration, mirroring GIR's own
-// inheritance, plus the two tag maps the dialect adapters build on.
+// inheritance, plus the four tag maps the dialect adapters build on.
 //
 // 194 interfaces for 168 widgets — the widgets have 6789 writable
 // property slots between them and 564 distinct property names, which is the whole
