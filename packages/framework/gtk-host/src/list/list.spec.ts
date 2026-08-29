@@ -28,7 +28,7 @@ import { createElement, effect, listRows, setProp, type ListRowHandle } from '..
 import { gtkChildren, installDiagnosticsGate } from '../conformance/index.js';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
 import { GTK_HOSTS, gated } from '../testing/gate.mjs';
-import { ListController, type ListRowSink } from './controller.js';
+import { ListController, onScrollNearEnd, type ListRowSink } from './index.js';
 import type { HostNode } from '../types.js';
 
 /** The row shape every vector below uses. */
@@ -287,6 +287,47 @@ export default async () => {
                     expect(labels(mount.view)).toStrictEqual([]);
                     expect(mount.census.mounted).toBe(1);
                 });
+            });
+        });
+
+        await gated(diagnostics, 'the scroll edge behind an end-reached callback', async () => {
+            await it('fires once per arrival, and not on a list with nothing to scroll', () => {
+                // `onScrollNearEnd` moved into this subpath with the controller, and its
+                // only test moved the other way: `@gjsify/react-native`'s `onEndReached`
+                // vector reaches it through a re-export, so this package could publish a
+                // broken scroll edge with its own suite green. Its docstring already
+                // claims it is "asserted, in a spec that presents nothing" — this is
+                // that spec, in the package that owns the code.
+                const scroller = new Gtk.ScrolledWindow();
+                const adjustment = scroller.get_vadjustment();
+                const seen: number[] = [];
+                const stop = onScrollNearEnd(scroller, 'vertical', 0.5, (distance) => seen.push(distance));
+
+                // Nothing to scroll (`upper <= page-size`) is the state every list is in
+                // before it has been allocated, and firing there would call the listener
+                // on mount for every list in the application.
+                expect(seen).toStrictEqual([]);
+                adjustment.set_upper(1000);
+                adjustment.set_page_size(100);
+                adjustment.set_value(100);
+                expect(seen).toStrictEqual([]);
+
+                // 1000 - 100 - 880 = 20, inside 0.5 page-lengths of the end.
+                adjustment.set_value(880);
+                expect(seen).toStrictEqual([20]);
+                // ONCE PER ARRIVAL: resting further into the threshold issues no second
+                // call, which is what keeps a "load more" caller from paging per frame.
+                adjustment.set_value(890);
+                expect(seen).toStrictEqual([20]);
+
+                // And the disposer really disconnects — the half nothing watched. GJS
+                // blocks a JS callback during GC sweeping, so a handler left on an
+                // adjustment outlives the list it belonged to for the life of the
+                // process, and the caller has no other way to let go.
+                stop();
+                adjustment.set_value(100);
+                adjustment.set_value(890);
+                expect(seen).toStrictEqual([20]);
             });
         });
     });
