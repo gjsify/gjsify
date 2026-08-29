@@ -667,8 +667,8 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
         assert.ok(staged.includes(`${pkg}/gi.js`));
         // Resolved for real, by Node's own resolver, from the staged bundle's own
         // directory — the question a path assertion only approximates.
-        const bundle = join(stageDir, `${APP_NAME}.app`, 'Contents', 'Resources', 'lib', 'app.node.mjs');
-        const resolved = createRequire(bundle).resolve('@gjsify/node-gi/gi');
+        const bundleFile = join(stageDir, `${APP_NAME}.app`, 'Contents', 'Resources', 'lib', 'app.node.mjs');
+        const resolved = createRequire(bundleFile).resolve('@gjsify/node-gi/gi');
         assert.ok(resolved.startsWith(join(stageDir, `${APP_NAME}.app`)), `resolved outside the bundle: ${resolved}`);
     });
 
