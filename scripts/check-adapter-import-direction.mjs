@@ -166,10 +166,16 @@ const HOST_INTERNALS = new Set(['descriptors', 'policies', 'registry']);
  * 'solid-js'` there: `src/adapters` is this check's only scope, and `src/list` was
  * covered by no gate at all.
  *
- * A NAME here, not a directory: the source dir is derived from the manifest, so a
- * subpath that is renamed or that stops being published turns into the
- * `unscanned-framework-free` blocker rather than into silence. Adding a neutral subpath
- * to this list is how it gets its ratchet.
+ * A NAME here, not a directory: the source dir is derived from the MANIFEST, so what a
+ * package actually publishes is what gets read. That derivation has a hole this list
+ * had to grow a second question to close — a subpath the manifest stops naming derives
+ * to nothing, and nothing was silence. MEASURED: with a real `import { createSignal }
+ * from 'solid-js'` under `src/list/`, deleting the one `"./list"` line from the
+ * package's `exports` took the run from exit 1 to exit 0 printing "0 framework-free
+ * source(s) carry no framework". So `evaluate` also asks whether `src/<name>` is
+ * SITTING THERE, and an unpublished-but-present source is the `unscanned-framework-free`
+ * blocker rather than a skip. Adding a neutral subpath to this list is how it gets its
+ * ratchet; the only way off the ratchet is deleting the source.
  */
 const FRAMEWORK_FREE_SUBPATHS = ['./list'];
 
@@ -182,8 +188,17 @@ const PUBLISHED_ENTRY = /^\.\/lib\/esm\/(.+)\/index\.js$/;
  * Anchored and segment-bounded so `react` and `react-dom/client` match while a package
  * merely NAMED for one (`solid-js-is-not-this`) does not. `@vue/runtime-core` is the
  * spelling the host's own Vue adapter uses, and `vue` is what an application writes.
+ *
+ * THREE OF THESE ARE NOT `node_modules` NAMES, and leaving them out was a hole with a
+ * dialect already standing in it. `react-native` does not match the `react` alternative
+ * — the segment bound is what makes `react` safe — and `@gjsify/react-native` is the
+ * first consumer this seam was extracted FOR, so it is the likeliest wrong import to
+ * arrive here. `@gjsify/gtk-host/react` is the same violation reaching sideways: the
+ * relative hop into `src/adapters` is caught by path, and the identical import spelled
+ * as this package's own published subpath was not.
  */
-const FRAMEWORK_SPECIFIER = /^(?:react|react-dom|react-reconciler|solid-js|vue|@vue\/[\w.-]+|preact|svelte)(?:\/|$)/;
+const FRAMEWORK_SPECIFIER =
+    /^(?:react|react-dom|react-native|react-reconciler|solid-js|vue|@vue\/[\w.-]+|preact|svelte|@gjsify\/react-native|@gjsify\/gtk-host\/(?:react|solid|vue))(?:\/|$)/;
 
 /**
  * A `gi://` specifier is a RUNTIME typelib import, and no adapter may hold one.
@@ -567,10 +582,13 @@ function scanFrameworkFree(path) {
 }
 
 /**
- * The framework-free subpaths this package publishes, as { subpath, dir } under `src/`.
+ * The framework-free subpaths, as { subpath, dir, byName } — TWO paths, not one.
  *
- * Read from the MANIFEST, so a renamed or unpublished subpath becomes a blocker instead
- * of a silently empty scan.
+ * `dir` is what the MANIFEST points at, and it is what gets scanned: a package publishes
+ * `./lib/esm/<dir>/index.js`, so `src/<dir>` is the source behind the promise. `byName`
+ * is where the subpath's source would sit if the manifest stopped pointing at it, and it
+ * exists because `dir` alone made the check switchable from `package.json` — see
+ * `FRAMEWORK_FREE_SUBPATHS` for the measurement.
  */
 function frameworkFreeDirs(pkgDir, manifestPath) {
     let manifest;
@@ -586,7 +604,13 @@ function frameworkFreeDirs(pkgDir, manifestPath) {
         const target = manifest.exports?.[subpath];
         const file = typeof target === 'string' ? target : target?.default;
         const match = typeof file === 'string' ? PUBLISHED_ENTRY.exec(file) : null;
-        out.push({ subpath, dir: match === null ? null : join(pkgDir, 'src', ...match[1].split('/')) });
+        const name = subpath.replace(/^\.\//, '').split('/');
+        out.push({
+            subpath,
+            declared: target !== undefined,
+            dir: match === null ? null : join(pkgDir, 'src', ...match[1].split('/')),
+            byName: join(pkgDir, 'src', ...name),
+        });
     }
     return out;
 }
@@ -673,10 +697,29 @@ function evaluate(pkgDir) {
     // The framework-free subpaths, held to the OTHER direction of the same idea: an
     // adapter must carry no widget knowledge, a neutral module must carry no framework.
     const neutral = [];
-    for (const { subpath, dir: srcDir } of frameworkFreeDirs(pkgDir, join(pkgDir, 'package.json'))) {
-        // A package that does not publish the subpath at all is not in scope — only
-        // gtk-host declares one today, and every fixture below would otherwise blocker.
-        if (srcDir === null) continue;
+    for (const { subpath, declared, dir: srcDir, byName } of frameworkFreeDirs(pkgDir, join(pkgDir, 'package.json'))) {
+        if (srcDir === null) {
+            // A package that does not publish the subpath is not in scope — only
+            // gtk-host declares one today, and every unrelated fixture would otherwise
+            // blocker. UNLESS the source is sitting right there, which is the vacuity
+            // this pass exists against: the manifest is the check's only route to the
+            // directory, so one deleted `exports` line turned a real framework import
+            // under `src/list/` from exit 1 into exit 0 (measured, see
+            // `FRAMEWORK_FREE_SUBPATHS`).
+            if (!existsSync(byName)) continue;
+            blockers.push({
+                kind: 'unscanned-framework-free',
+                message:
+                    `${byName} exists and this check never opened it: package.json ` +
+                    (declared
+                        ? `points "${subpath}" somewhere this check cannot follow — it reads ./lib/esm/<dir>/index.js.`
+                        : `does not publish "${subpath}" at all.`) +
+                    ' A framework-free source with no scan behind it is a promise with no ratchet.' +
+                    ' Publish the subpath at its index, or take the name off FRAMEWORK_FREE_SUBPATHS' +
+                    ' in the same commit that deletes the source.',
+            });
+            continue;
+        }
         if (!existsSync(srcDir)) {
             blockers.push({
                 kind: 'unscanned-framework-free',

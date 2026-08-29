@@ -471,6 +471,55 @@ export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
         frameworkFree: ['./list'],
         expect: { files: 1, problems: [], blockers: ['unscanned-framework-free'] },
     },
+    {
+        // The OTHER half of that vacuity, and the one that was live. The source dir is
+        // derived from the manifest, so a subpath the manifest stops naming derives to
+        // nothing — and nothing was a skip. MEASURED against the real package: with this
+        // exact `solid-js` import under `src/list/`, deleting one `"./list"` line from
+        // `exports` took the run from exit 1 to exit 0 printing "0 framework-free
+        // source(s) carry no framework". Present-but-unpublished is now a blocker.
+        name: 'framework-free-source-unpublished',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/list/index.ts': `import { createSignal } from 'solid-js';\n\nexport const s = createSignal;\n`,
+        },
+        expect: { files: 1, problems: [], blockers: ['unscanned-framework-free'] },
+    },
+    {
+        // Published, but not at the `<dir>/index.js` this check follows. Same silence,
+        // arriving through a rename of the ENTRY rather than of the subpath.
+        name: 'framework-free-published-off-index',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/list/index.ts': `import { createSignal } from 'solid-js';\n\nexport const s = createSignal;\n`,
+        },
+        frameworkFree: ['./list'],
+        frameworkFreeTarget: './lib/esm/list/controller.js',
+        expect: { files: 1, problems: [], blockers: ['unscanned-framework-free'] },
+    },
+    {
+        // `react-native` is not matched by the `react` alternative — the segment bound is
+        // what keeps `react` from flagging every package named after it — and
+        // `@gjsify/react-native` is the first consumer this seam was extracted for.
+        name: 'framework-free-imports-react-native',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/list/index.ts': `import { View } from '@gjsify/react-native';\n\nexport const v = View;\n`,
+        },
+        frameworkFree: ['./list'],
+        expect: { files: 1, problems: ['framework-import'], blockers: [] },
+    },
+    {
+        // The relative hop into `src/adapters` was caught by path; the identical import
+        // spelled as this package's OWN published adapter subpath was not.
+        name: 'framework-free-imports-own-adapter-subpath',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/list/index.ts': `import { createRoot } from '@gjsify/gtk-host/react';\n\nexport const r = createRoot;\n`,
+        },
+        frameworkFree: ['./list'],
+        expect: { files: 1, problems: ['framework-import'], blockers: [] },
+    },
 ];
 
 /** The manifest a fixture publishes: `.` plus one `./lib/esm/adapters/<name>.js` per declared adapter. */
@@ -491,7 +540,10 @@ function fixtureManifest(fixture) {
         const dir = subpath.replace(/^\.\//, '');
         exported[subpath] = {
             types: `./lib/types/${dir}/index.d.ts`,
-            default: `./lib/esm/${dir}/index.js`,
+            // `frameworkFreeTarget` overrides the entry so a fixture can publish the
+            // subpath at something OTHER than its index — the shape the check cannot
+            // follow, and therefore the shape that has to blocker rather than skip.
+            default: fixture.frameworkFreeTarget ?? `./lib/esm/${dir}/index.js`,
         };
     }
     return { name: `@gjsify/fixture-${fixture.name}`, private: true, type: 'module', exports: exported };
