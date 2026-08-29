@@ -305,17 +305,27 @@ export default async () => {
             }
         });
 
-        await it('returns null for a package root with no JavaScript at all', async () => {
-            // A directory that resolved and a runtime that is not there. Staging it
-            // would produce a `.app` that fails at `require` with node-gi's name in
-            // the message and nothing an author can act on.
+        await it('returns null for a package root with no `.js` at all', async () => {
+            // A directory that resolved and a runtime this rule cannot copy. Staging
+            // it would produce a `.app` that fails at `require` with node-gi's name
+            // in the message and nothing an author can act on; the `null` turns that
+            // into a line naming the package before anything is written.
+            //
+            // The fixture's entry is `.mjs` ON PURPOSE, and not to be tidy: the
+            // package has to RESOLVE for this branch to be reachable at all, and a
+            // package that resolves through a `.js` main already has the one file the
+            // floor tests for. `.mjs` is the shape that resolves and copies to
+            // nothing — and it is the shape node-gi would have if it ever renamed its
+            // entry points, which `tests/e2e/ship-macos`'s exports-map gate would
+            // catch first and this would catch second.
             const root = scratch('js-less');
             const dir = join(root, 'node_modules', '@gjsify', 'node-gi');
             mkdirSync(dir, { recursive: true });
             writeFileSync(
                 join(dir, 'package.json'),
-                JSON.stringify({ name: '@gjsify/node-gi', version: '0.44.0', main: './index.js' }),
+                JSON.stringify({ name: '@gjsify/node-gi', version: '0.44.0', type: 'module', main: './index.mjs' }),
             );
+            writeFileSync(join(dir, 'index.mjs'), 'export default {};\n');
             try {
                 expect(resolveNodeGiPackage({ cwd: root, env: {} })).toBe(null);
             } finally {
@@ -434,11 +444,27 @@ export default async () => {
                     cwd,
                     interpreter: null,
                 });
-                expect(staged.files).toStrictEqual([]);
-                expect(staged.launcher).toStrictEqual({});
-                expect(staged.missing.length).toBe(4);
+                // THE COUNT IS NOT ASSERTED, and that is a fact about the resolver
+                // rather than caution. `resolveNpmPackage`'s LAST anchor is the CLI
+                // bundle's own `node_modules` chain — which is what makes "only
+                // `@gjsify/cli` installed, no gjsify checkout" work — so whether
+                // `@gjsify/node-gi` resolves from here is a property of the MACHINE
+                // running this suite: `node-gi.yml`'s consumer jobs link it at the
+                // workspace root, `main.yml`'s do not. Measured: with that link
+                // present this case failed on `missing.length` alone, which is a test
+                // reporting on its environment rather than on its subject.
+                //
+                // What IS asserted is what the fixture controls. The two runtime
+                // packages are published and installed nowhere in this tree, so their
+                // lines are unconditional; `@gjsify/node-gi` is named either way,
+                // because its `prebuilds/` are gitignored and the ADDON is missing
+                // even where the JavaScript resolves.
+                expect(staged.launcher.interpreter).toBe(undefined);
+                expect(staged.launcher.gtkRuntimeDir).toBe(undefined);
+                expect(staged.launcher.nodeGiAddon).toBe(undefined);
+                expect(staged.files.some((file) => file.path.includes('/prebuilds/'))).toBe(false);
                 // Each message names the package to install, because the author
-                // reading it has no other way to know which of the three is meant.
+                // reading it has no other way to know which piece is meant.
                 expect(staged.missing.some((line) => line.includes('@gjsify/node-runtime-darwin-arm64'))).toBe(true);
                 expect(staged.missing.some((line) => line.includes('@gjsify/gtk-runtime-darwin-arm64'))).toBe(true);
                 expect(staged.missing.some((line) => line.includes('@gjsify/node-gi'))).toBe(true);

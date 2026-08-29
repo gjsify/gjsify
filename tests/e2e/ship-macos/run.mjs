@@ -667,6 +667,14 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
         assert.ok(staged.includes(`${pkg}/gi.js`));
         // Resolved for real, by Node's own resolver, from the staged bundle's own
         // directory — the question a path assertion only approximates.
+        //
+        // `startsWith(<the bundle>)` rather than "it resolved", and the difference is
+        // the whole assertion. `require` walks `node_modules` UPWARD, so a bare
+        // "it resolved" would be a statement about every directory above the bundle
+        // as much as about the bundle — and this repository has a tree where that
+        // matters: `node-gi.yml`'s consumer jobs link `@gjsify/node-gi` at the
+        // workspace root. Nothing outside the `.app` can satisfy the predicate below,
+        // so the answer is a fact about the STAGING and not about the machine.
         const bundleFile = join(stageDir, `${APP_NAME}.app`, 'Contents', 'Resources', 'lib', 'app.node.mjs');
         const resolved = createRequire(bundleFile).resolve('@gjsify/node-gi/gi');
         assert.ok(resolved.startsWith(join(stageDir, `${APP_NAME}.app`)), `resolved outside the bundle: ${resolved}`);
@@ -868,6 +876,12 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
             { cwd: bare },
         );
         assert.equal(status, 0, 'a bundle with no runtime is an intermediate, not an error');
+        // The two runtime packages are published and installed NOWHERE in this tree,
+        // so their lines are unconditional; `@gjsify/node-gi` is named either way,
+        // because its `prebuilds/` are gitignored and the ADDON is missing even in a
+        // tree where the JavaScript resolves. What is NOT asserted is that node-gi's
+        // JavaScript went unstaged — `require` walks upward, so that would be a claim
+        // about the machine rather than about this project.
         const output = `${stdout}${stderr}`;
         for (const name of [
             `@gjsify/node-runtime-darwin-${ARCH}`,
@@ -886,23 +900,5 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
             'utf-8',
         );
         assert.match(launcher, /^exec node "\$contents\/Resources\/lib\/app\.node\.mjs" "\$@"$/m);
-        // And the `require` the bundle makes has nowhere to land. Measured on this
-        // workstation against a bundle staged the M2a way and run from an unrelated
-        // directory: `Error: Cannot find module '@gjsify/node-gi/gi'`, from
-        // `Contents/Resources/lib/app.node.mjs`, before any GTK question arises.
-        const bundleFile = join(
-            bare,
-            'ship',
-            'stage',
-            `${APP_NAME}.app`,
-            'Contents',
-            'Resources',
-            'lib',
-            'app.node.mjs',
-        );
-        assert.throws(
-            () => createRequire(bundleFile).resolve('@gjsify/node-gi/gi'),
-            (error) => error.code === 'MODULE_NOT_FOUND' || error.code === 'ERR_MODULE_NOT_FOUND',
-        );
     });
 });
