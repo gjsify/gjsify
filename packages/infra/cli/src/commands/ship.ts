@@ -555,7 +555,7 @@ async function assemble(args: ShipOptions): Promise<void> {
             unusable.length > 0
                 ? `(none — ${unusable.map((format) => format.id).join(' and ')} need \`gjsify.app: "node"\`)`
                 : formatIdsFor(layout.os).length === 0
-                  ? `(none yet — no format wraps the ${layout.name} layout, ADR 0024 stage 5)`
+                  ? `(none — no format wraps the ${layout.name} layout)`
                   : '(none asked for)';
         const wraps = manifest.formats.join(', ') || none;
         console.log(`${LOG} stage manifest: ${formatTarget(manifest.target)}, formats ${wraps}`);
@@ -1022,9 +1022,16 @@ function assertPackable(
             'intermediate, not an artifact. Keep it for the milestone that packs it, or re-assemble with ' +
             '`gjsify ship linux --stage` if a Linux package is what you wanted.',
     }[chosenBy];
+    // UNREACHABLE FROM THE THREE LAYOUTS THAT EXIST, and kept rather than deleted:
+    // every one of them has formats as of #1354 M3, so a `--app gjs` project meets
+    // the INTERPRETER refusal above instead. This branch is what a fourth layout
+    // gets on the day it is added and before a format wraps it — the same state
+    // windows was in between M1 and M3 — and deleting it would make that day's
+    // failure a `TypeError` on an empty list.
     throw new Error(
-        `gjsify ship: no format wraps the ${layout.name} layout yet, so there is nothing to pack. ${advice}` +
-            ' A macOS `.app`/`.dmg` and a Windows program directory plus installer are ADR 0024 stages 4 and 5.',
+        `gjsify ship: no format wraps the ${layout.name} layout, so there is nothing to pack. ${advice}` +
+            ' Every layout this gjsify knows has one (ADR 0024 stages 2-5), so this is a layout added ' +
+            'without a `FORMATS` row.',
     );
 }
 

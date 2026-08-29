@@ -667,9 +667,13 @@ export function resolveFormats(raw: readonly string[], layout: Layout): FormatDe
         throw new Error(
             `gjsify ship: ${foreign.join(', ')} ${foreign.length > 1 ? 'wrap' : 'wraps'} the ` +
                 `${foreignLayouts.join('/')} layout and this run assembles the ${layout.name} one. ` +
+                // The empty branch is unreachable from the three layouts that exist
+                // — all of them have formats as of #1354 M3 — and is kept for the
+                // day a fourth is added before a `FORMATS` row wraps it, which is
+                // the state windows was in between M1 and M3.
                 (wrap.length === 0
-                    ? `No format wraps the ${layout.name} layout yet — \`gjsify ship ${layout.name} --stage\` ` +
-                      'assembles it and stops (ADR 0024 stages 4 and 5).'
+                    ? `No format wraps the ${layout.name} layout — \`gjsify ship ${layout.name} --stage\` ` +
+                      'assembles it and stops.'
                     : `Formats for this layout: ${wrap.join(', ')}.`) +
                 // One suggestion PER foreign layout. `foreign[0]`'s layout was
                 // being offered for all of them, two lines under the dedup that
