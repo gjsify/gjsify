@@ -62,6 +62,25 @@ Two consequences of a host-bound format existing at all:
   before this process could hold them, and reading a bundle back into memory to hand it to one
   `writeFileSync` would be a copy for the sake of a signature.
 
+### Signing is NOT a `HostRequirement` field (ADR 0024 § A14)
+
+ADR 0024 § A1 phrased the rule as *"a container is produced where its format's tool lives, and a
+signature where its credentials live — a format declares which of the three it needs"*. Measured,
+a format declares TWO of the three, and the third should not join them:
+
+| question | who answers it | scope |
+|---|---|---|
+| can this host run the packer's tools? | `finishOn` + `requiredTools` | per FORMAT |
+| does this run hold an identity to sign with? | `--sign <identity>`, defaulting to `gjsify.ship.sign.<os>.identity` | per RUN |
+
+Same shape as the two existing gates being two messages: the wrong OS needs another machine, a
+missing tool needs a package — and a missing identity needs neither, because **no identity is not
+an error**. It skips, says so on stderr, and exits 0 (ADR 0024 § A13). `gjsify ship` never receives
+a certificate at all: it execs `codesign` with a NAME, and the private key stays on the signing
+host (ADR 0024 § A12 records what is measured about that and what is Apple's documented behaviour).
+That is what lets an external developer ship under their own Developer ID with no fork and no
+fixture.
+
 ## The layout axis: a format wraps ONE OS's tree
 
 `gjsify ship <os>` (ADR 0024 § A2) chooses which operating system's LAYOUT to assemble;

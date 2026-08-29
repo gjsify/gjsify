@@ -165,11 +165,13 @@ a signed artifact where neither is available fails with that sentence rather tha
 unsigned file that Gatekeeper or SmartScreen will refuse. An unsigned artifact is a legitimate
 output — it just has to say so.
 
-**Amended 2026-08-21 (§ A1, § A4, § A5):** the boundary falls one step earlier than this section
-draws it — a CONTAINER is produced where its format's tool lives, so a Linux host assembles the
-`.app` but cannot write the `.dmg` around it. "SmartScreen will refuse" is false: it warns until
-per-hash reputation accrues, signed or not. And signing is a payload MUTATION, not a wrapper —
-measured, 106 of 106 Mach-O images in the darwin closure already carry a signature.
+**Amended 2026-08-21 (§ A1, § A4, § A5) and 2026-08-29 (§ A12-§ A17):** the boundary falls one step
+earlier than this section draws it — a CONTAINER is produced where its format's tool lives, so a
+Linux host assembles the `.app` but cannot write the `.dmg` around it. "SmartScreen will refuse" is
+false: it warns until per-hash reputation accrues, signed or not. And signing is a payload MUTATION, not a wrapper —
+measured, 106 of 106 Mach-O images in the darwin closure already carry a signature. And "asking
+for a signed artifact where neither is available fails" holds only for an identity that was ASKED
+for: no `--sign` at all is a loud skip at exit 0, not a refusal (§ A13).
 
 ### 6. A dependency that cannot be derived fails the build
 
@@ -478,8 +480,8 @@ gjsify ship darwin  --stage  [--arch arm64|x64]
 gjsify ship windows --stage  [--arch x64]
 
 # PHASE 2 — finish. On the host the FORMAT declares.
-gjsify ship darwin  --format dmg --from-stage <dir> [--sign] [--notarize]
-gjsify ship windows --format msi --from-stage <dir> [--sign]
+gjsify ship darwin  --format dmg --from-stage <dir> [--sign <identity>] [--notarize <credential>]
+gjsify ship windows --format msi --from-stage <dir> [--sign <identity>]
 
 gjsify ship plan [--json] [--host linux|darwin|win32]
 gjsify ship ci   [--out .github/workflows/gjsify-ship.yml] [--check] [--force]
@@ -492,6 +494,12 @@ stapled. Three verbs force the `.app` to become a durable intermediate that a la
 re-opens without the plan — exactly the divergence `utils/ship/stage-writer.ts` was built to
 prevent. `--sign` / `--notarize` are flags on the finish phase; `ship dispatch` stays a verb of
 its own because it touches no payload at all.
+
+**Amended 2026-08-29 (§ A12, § A13, § A15).** Both flags are corrected above from booleans to
+values, and the synopsis in this section carries the corrected form. `--sign` takes an IDENTITY —
+a name `codesign` resolves against a keychain on the signing host, never a certificate or a path to
+one — and `--notarize` takes a second, unrelated credential. Absent, each SKIPS loudly at exit 0;
+unsigned is the default path, not a special case.
 
 Phase 2's only input is a directory, so phase 1 also writes `.gjsify-ship-stage.json` at the stage
 root carrying **the closure, not a settings dump**: `{ settings (with `arch` resolved at stage
@@ -703,3 +711,188 @@ type name (`update-mime-database` ignores it), a glob with no wildcard (`bauplan
 called exactly that), a type with neither a glob nor a parent (nothing can ever match it), and a
 duplicate definition (which comment wins would depend on document order). An empty `comment` is
 refused too, because a file manager then shows the user the raw type string.
+
+## Amendment, 2026-08-29 — the signing interface is an identity, and unsigned is the default path
+
+§ A2 writes the finish phase's signing surface as two booleans, `[--sign] [--notarize]`. Both are
+the wrong shape, and that line is what #1354 M6 would be implemented against — so it is corrected
+here, before M2 wraps the first container around a stage. Nothing above is reversed. § 5's *"an
+unsigned artifact is a legitimate output"* is promoted from concession to DEFAULT PATH, and § A4's
+re-signing rule is unchanged; what changes is who supplies the credential and where it lives.
+
+### A12. `--sign` takes an IDENTITY, not a certificate
+
+`codesign` is never handed a certificate. It is handed a STRING, and it is the string's job to
+name an identity the signing machine already holds. The reference passes an opaque `$SIGN` straight
+through (`refs/node/tools/osx-codesign.sh:16-21`):
+
+```sh
+codesign \
+  --sign "$SIGN" \
+  --entitlements tools/osx-entitlements.plist \
+  --options runtime \
+  --timestamp \
+  "$PKGDIR"/bin/node
+```
+
+`productsign` takes the same value in the same shape (`refs/node/tools/osx-productsign.sh:12`).
+One value of that string is reserved: `-` means ad-hoc, and this tree already writes it three times
+plus once in the pool — `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs:382` and `:971`
+(`codesign --force --sign -`), `docs/poc/webkit-hardened-runtime-darwin.sh:126` (`codesign --force
+-s -`), `refs/node/test/common/sea.js:208` (`codesign --sign -`).
+
+What the pool proves is exactly that much: the value is an opaque string, not a path, and `-` is a
+legal one. *Where* `codesign` looks the private key up — a keychain search list — is Apple's
+documented behaviour and is **not measured anywhere in this tree**; it is stated here as the reason
+for the interface, not as a finding. The interface holds either way, because the operative fact is
+the negative one: whatever the string resolves against, `gjsify ship` is not given the certificate.
+
+So the flag is neither a boolean nor a path to a `.p12`, and § A2's synopsis is corrected in place:
+
+```
+gjsify ship darwin  --format dmg --from-stage <dir> [--sign <identity>] [--notarize <credential>]
+gjsify ship windows --format msi --from-stage <dir> [--sign <identity>]
+```
+
+The project-level default is `gjsify.ship.sign.<os>.identity`, keyed per OS for the same reason
+`gjsify.ship.flatpak` is keyed per format: a Developer ID string and an Authenticode subject are
+different namespaces and must not share one field. The finish phase already knows which OS it is
+in — `FormatDescriptor.layoutOs`, and the stage manifest's `target.os` — so the resolution needs no
+new input. **Deliberately NOT settled here: an `entitlements` key.** § A16 is why.
+
+### A13. Absent identity ⇒ skip, loudly, exit 0
+
+The reference does this twice, identically, and it is the behaviour to copy
+(`refs/node/tools/osx-codesign.sh:7-9`, `refs/node/tools/osx-productsign.sh:7-9`):
+
+```sh
+[ -z "$SIGN" ] && \
+  echo "No SIGN environment var.  Skipping codesign." >&2 && \
+  exit 0
+```
+
+Three properties, all of them wanted: no identity is not an error; the skip is printed rather than
+silent; and it goes to stderr, so a pipeline that captures the artifact list still shows it. An
+unsigned `.app` is a real deliverable for as long as no certificate exists — which, for this
+project, is today — and § 5's refusal applies to the other direction only: **claiming** a signature
+that was not made. (The reference's own message is copy-pasted: `osx-productsign.sh:8` says
+"Skipping codesign" while skipping `productsign`. Ours names the step it skipped.)
+
+### A14. `gjsify ship` never sees the certificate — and that is what makes third parties possible
+
+Getting a `.p12` into a keychain is the signing HOST's step: a machine setup or a CI job, not this
+command. `gjsify ship` execs `codesign` with a name and passes no `--keychain` of its own, so whatever
+the session already has is what is used. Three consequences, in the order they matter:
+
+1. **No secret ever crosses the CLI's surface.** There is no `--certificate`, no `--p12`, no
+   `--password`, and nothing to redact from a log line.
+2. **External developers use their own identity with no fork and no fixture.** The configuration is
+   the consumer's `gjsify.ship` block plus the flag, and the finish phase runs on the consumer's own
+   macOS host under their own keychain. Nothing about JumpLink's identity is reachable from, or
+   needed by, the code path.
+3. **`HostRequirement` does not cover this, and § A1's rule overstated what the data says.** A1
+   reads *"a container is produced where its format's tool lives, and a signature where its
+   credentials live. A format declares which of the three it needs."* Measured, a format declares
+   TWO of the three: `HostRequirement` (`packages/infra/cli/src/utils/ship/types.ts:89-119`) has
+   `finishOn`, `requiredTools`, `installHint` and `oracle`, and no field for a credential. It is the
+   right omission — `requiredTools: ['codesign']` answers "can this host run the tool", never "does
+   this host hold the identity". The credential is per-RUN, not per-format, so it stays a flag.
+   A1's sentence is amended to: *a format declares where it can be packed; the RUN declares what it
+   can sign with.*
+
+**Unverified, and marked as such rather than written as measured:** the exact incantation that puts
+a `.p12` into a keychain on a fresh CI runner. `security import` and `security set-key-partition-list`
+appear NOWHERE in `refs/` (grepped across the whole pool). The one adjacent hit is
+`refs/node/test/system-ca/README.md:44`, `security create-keychain -p "test" /tmp/node-test-dup.keychain`
+— and it is a CA TRUST-STORE fixture for Node's system-CA tests, not a signing identity, so it
+evidences the verb and not the procedure. Whoever implements M6 measures that step on a real runner
+before writing it down anywhere as fact.
+
+### A15. Notarisation is a SECOND credential, and the reference guards the wrong one
+
+`--notarize` is not `--sign` with a longer wait. The two flags take unrelated inputs: one names an
+identity present on the signing machine, the other an account credential, and the reference keeps
+them in separate scripts with separate guards.
+
+`refs/node/tools/osx-notarize.sh` is the trap to avoid, not the model to copy. It guards on three
+environment variables — `NOTARIZATION_ID` (:14), `NOTARIZATION_PASSWORD` (:19),
+`NOTARIZATION_TEAM_ID` (:24), each with its own skip-and-exit-0 — and then submits with none of them
+(:39-42):
+
+```sh
+xcrun notarytool submit \
+  --keychain-profile "NODE_RELEASE_PROFILE" \
+  --wait \
+  "node-$pkgid.pkg"
+```
+
+The three variables are read by nothing after the guard. So the script skips when the credential it
+does not use is absent, and proceeds when it is present — while the credential it DOES use is a
+keychain profile whose existence nothing checks. Set the three and omit the profile and it does not
+skip; it fails inside `notarytool`. **The rule this repository takes from it: the guard must test the
+credential the command actually consumes, and a skip must be reachable from exactly the input the
+next line reads.** It is the green-CI-that-checked-nothing class § Consequences already names,
+wearing a guard: a check standing in front of something other than what it claims to protect.
+
+**Left open, deliberately, and this is a claim NOT made:** which credential form `--notarize` takes.
+The only shape evidenced in `refs/` is `--keychain-profile <name>` (`osx-notarize.sh:40`), i.e. a
+profile a prior `notarytool store-credentials` put in a keychain — that command appears nowhere in
+the pool either. The alternative usually cited, an App Store Connect API key passed as
+`--key`/`--key-id`/`--issuer`, has NO occurrence anywhere under `refs/` (grepped: no `--issuer`
+outside LIEF's PE-signature headers, no `App Store Connect`, no `altool`). Both are file-and-argument
+credentials rather than a keychain identity lookup, which is the load-bearing difference from § A12;
+choosing between them is M6's measurement, not this amendment's assertion.
+
+### A16. What the identity does NOT settle: library validation
+
+§ A4 establishes that the darwin leg must re-sign all 106 Mach-O images inside the stage, because
+under hardened runtime library validation will not let a Developer-ID-signed main executable load
+ad-hoc-signed dylibs. The obvious alternative is an entitlement, and the honest position is that
+this repository has **not measured it either way**. What the pool does establish is narrower, and
+worth writing down so nobody re-derives it:
+
+- The entitlement is real and named `com.apple.security.cs.disable-library-validation`
+  (`refs/node/tools/osx-entitlements.plist:13`).
+- The reference GRANTS it: that plist is the one `osx-codesign.sh:18` hands to `--entitlements`
+  beside `--options runtime`, and it grants six keys — `allow-jit` (:5),
+  `allow-unsigned-executable-memory` (:7), `disable-executable-page-protection` (:9),
+  `allow-dyld-environment-variables` (:11), `disable-library-validation` (:13),
+  `get-task-allow` (:15).
+- The reference is **not the same case as ours.** That script signs exactly ONE path —
+  `"$PKGDIR"/bin/node` (`osx-codesign.sh:21`) — so nothing in it re-signs a closure at all, and the
+  entitlement is doing a different job there from the one it would have to do here over 106 images
+  shipped inside one artifact.
+
+What is NOT known: whether that entitlement would let a Developer-ID-signed launcher load the
+already-ad-hoc-signed closure unchanged, what it costs at Gatekeeper or notarisation, and whether it
+is even reachable — this project's one hardened-runtime measurement
+(`docs/poc/webkit-hardened-runtime-darwin.sh`, macOS 15.7.8 / x86_64; the three-case table is
+`docs/adr/0022-webkit-on-darwin.md:308-312`)
+was made ad-hoc, and its own header says ad-hoc code has no team identifier while some entitlements
+are keyed on one (`:38-41`). So the design of record stays § A4's re-sign. An entitlement route is a
+measurement M6 may make; until it does, neither branch is asserted here.
+
+### A17. M6 needs no certificate, and neither does its oracle — plus one ordering constraint for M2
+
+Ad-hoc signing requires no Apple Developer Program membership: it is what
+`docs/poc/webkit-hardened-runtime-darwin.sh:38-39` uses precisely *"because it needs no developer
+identity, so this runs on any machine and in CI"*, and what `refs/node/test/common/sea.js:208` does
+in a test helper whose only fallback is `common.skip` — no credential appears anywhere in it. So
+the whole M6 pipeline — re-sign the closure inside the stage, then check arrival with the
+Mach-O-aware comparator § A4 specifies (every non-Mach-O file byte-identical, every Mach-O
+identical outside `LC_CODE_SIGNATURE` and `LC_UUID`) —
+is a green CI leg with **no secret in it**, on a runner with no keychain of ours. A real Developer ID
+later is a different VALUE for the same flag, not a different code path. That is the argument for
+settling the interface now and the credential later, and it is why M6's ordering in #1354 (credential
+question first, code last) does not block M2.
+
+**And one constraint M2 has to respect even though it does no signing.** `--sign` makes the finish
+phase a WRITER on a directory phase 1 produced — until now `--from-stage` only read it. `readStage`
+compares each file's SIZE against `.gjsify-ship-stage.json`
+(`packages/infra/cli/src/utils/ship/stage-writer.ts:85-89`, over `readStage` at `:91`), and that
+comment already cites § A4 as the reason it is a size and not a `sha256`. A size is no more
+re-sign-proof than a digest: whether a Developer ID `LC_CODE_SIGNATURE` is the same length as the
+ad-hoc one it replaces is not measured, and the design must not depend on the answer. So the order
+is fixed rather than bet on — **`readStage` validates the PRE-sign tree, the re-sign runs after it,
+and the container is built after that** — and M2's `.app` packer must leave that seam where a later
+`--sign` can be inserted between the two, instead of reading and packing in one pass.
