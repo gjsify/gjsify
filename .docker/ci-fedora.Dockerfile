@@ -67,7 +67,24 @@ RUN dnf install -y \
 #
 # `glib2` (NOT just `glib2-devel`) ships the `glib-compile-resources` binary
 # that the `gjsify gresource` test hard-requires; `gettext` ships `msgfmt`
-# for the `gjsify gettext` test.
+# for the `gjsify gettext` test — and `msgunfmt`, which `gjsify ship` runs to
+# read a staged `.mo` back before folding it into the freedesktop metadata.
+#
+# `desktop-file-utils` and `appstream` are the two INDEPENDENT readers for the
+# metadata `gjsify ship` generates: `desktop-file-validate` parses the `.desktop`
+# entry and `appstreamcli validate` the AppStream component. Both were missing
+# here, so the only assertions those files ever had were our own — this repo's
+# green-CI-that-checked-nothing class, on the one part of the payload a user sees
+# first (the app menu entry and the Software listing).
+#
+# `appstream` also owns BOTH AppStream ITS files under `/usr/share/gettext/its/`
+# (`rpm -qf` on this image's Fedora: metainfo.its and metainfo.loc are
+# appstream's, not gettext's). gettext resolves AppStream rules only through that
+# pair — `xgettext` when it EXTRACTS msgids from a `*.metainfo.xml`, `msgfmt --xml`
+# when it merges them back — and the failure of the lookup is the measured
+# `cannot locate ITS rules for <file>` (exit 1). `findMetainfoItsPath()` in
+# `@gjsify/vite-plugin-gettext` only `console.warn`s when it cannot find the
+# file, so its absence would degrade extraction quietly.
 #
 # `weston` is Xvfb's WAYLAND twin, and it buys a display AXIS, not a second way
 # to do the same thing: GdkX11 holds no state between a GSource's prepare() and
@@ -86,6 +103,8 @@ RUN dnf install -y \
     glib2 \
     glib2-devel \
     gettext \
+    desktop-file-utils \
+    appstream \
     gobject-introspection-devel \
     gtk4-devel \
     libsoup3-devel \
