@@ -445,17 +445,15 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
         execFileSync('desktop-file-validate', [join(outDir, 'com.test.app.desktop')], { stdio: 'pipe' });
     });
 
-    it('gjsify gettext --format xml merges every catalogue into an AppStream template', () => {
-        assert.ok(hasCommand('msgfmt'), '`msgfmt` is required (package: gettext).');
-
-        const gettextDir = join(projectDir, 'gettext-xml');
-        mkdirSync(gettextDir, { recursive: true });
-        const poDir = writeCatalogues(gettextDir);
-
-        // The `.metainfo.xml` suffix is LOAD-BEARING, not decoration: msgfmt --xml
-        // locates its ITS rules by filename. Named `app.xml.in` the same bytes die
-        // with `cannot locate ITS rules for app.xml` (exit 1).
-        const template = join(gettextDir, 'com.test.app.metainfo.xml.in');
+    /**
+     * A COMPLETE AppStream component under a name msgfmt's ITS lookup accepts.
+     *
+     * Shared by the two `--format xml` cases rather than written twice — and the
+     * second reason is the one that matters: a test that reads its template out of
+     * another test's directory passes only in the order they happen to run.
+     */
+    function writeMetainfoTemplate(root) {
+        const template = join(root, 'com.test.app.metainfo.xml.in');
         writeFileSync(
             template,
             // A COMPLETE component, not the two translatable elements this test is
@@ -485,6 +483,21 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
             ].join('\n'),
         );
 
+        return template;
+    }
+
+    it('gjsify gettext --format xml merges every catalogue into an AppStream template', () => {
+        assert.ok(hasCommand('msgfmt'), '`msgfmt` is required (package: gettext).');
+
+        const gettextDir = join(projectDir, 'gettext-xml');
+        mkdirSync(gettextDir, { recursive: true });
+        const poDir = writeCatalogues(gettextDir);
+
+        // The `.metainfo.xml` suffix is LOAD-BEARING, not decoration: msgfmt --xml
+        // locates its ITS rules by filename. Named `app.xml.in` the same bytes die
+        // with `cannot locate ITS rules for app.xml` (exit 1).
+        const template = writeMetainfoTemplate(gettextDir);
+
         const outDir = join(gettextDir, 'out');
         execFileSync(
             'npx',
@@ -502,6 +515,47 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
         execFileSync('appstreamcli', ['validate', '--no-net', join(outDir, 'com.test.app.metainfo.xml')], {
             stdio: 'pipe',
         });
+    });
+
+    it('gjsify gettext --format xml honours --filename for every catalogue count', () => {
+        // The output name and the ITS lookup are two different questions, and tying
+        // them together made the answer depend on how many `.po` files there were.
+        // msgfmt locates its rules by filename PATTERN, and from the second catalogue
+        // on the chain's own intermediates ARE the template — so intermediates named
+        // after `--filename` worked for one language and failed for two with
+        // `cannot locate ITS rules for <tmpdir>/0-out.xml`, a path the user cannot act
+        // on. `writeCatalogues` plants two languages, which is the case that broke.
+        const gettextDir = join(projectDir, 'gettext-xml-filename');
+        mkdirSync(gettextDir, { recursive: true });
+        const poDir = writeCatalogues(gettextDir);
+        const template = writeMetainfoTemplate(gettextDir);
+
+        const outDir = join(gettextDir, 'out');
+        execFileSync(
+            'npx',
+            [
+                'gjsify',
+                'gettext',
+                poDir,
+                outDir,
+                '--domain',
+                'com.test.app',
+                '--format',
+                'xml',
+                '--template',
+                template,
+                // NOT `*.metainfo.xml`: the name a caller wants the merged component
+                // written under is theirs to choose, and only the template's name has
+                // to satisfy msgfmt.
+                '--filename',
+                'out.xml',
+            ],
+            { cwd: projectDir, stdio: 'pipe', timeout: 60 * 1000 },
+        );
+
+        const produced = readFileSync(join(outDir, 'out.xml'), 'utf-8');
+        assert.match(produced, /<name xml:lang="de">Testanwendung<\/name>/);
+        assert.match(produced, /<name xml:lang="fr">Application de test<\/name>/);
     });
 
     it('gjsify gettext refuses a template-less --format=desktop', () => {

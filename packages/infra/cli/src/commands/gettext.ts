@@ -55,10 +55,17 @@ async function fileExists(path: string): Promise<boolean> {
  * metadata it generates through the same function, and a second copy of those
  * constraints here would be the copy that drifts.
  *
- * What is local to this command: the output keeps the CALLER's filename. That
- * matters for `--format xml` because msgfmt finds its ITS rules by filename
- * pattern, so `--filename app.xml` for an AppStream component fails where
- * `app.metainfo.xml` succeeds (constraint 4 over there).
+ * What is local to this command: the output keeps the CALLER's `--filename`,
+ * while every INTERMEDIATE is named after the TEMPLATE. Those have to be two
+ * different names, because msgfmt finds its ITS rules by filename pattern
+ * (constraint 4 over there) and from the second catalogue on the intermediates
+ * ARE templates. Named after `--filename` instead, the command's answer depended
+ * on how many catalogues there were: measured, `--format xml --template
+ * app.metainfo.xml.in --filename out.xml` wrote a translated file for a one-language
+ * `po/` and died on a two-language one with `cannot locate ITS rules for
+ * <tmpdir>/0-out.xml` — naming an internal path over a rule the user could act on.
+ * The template's suffix is what msgfmt validated for call 1, so it is the one
+ * suffix known to work for calls 2..n.
  */
 async function compileMerged(opts: {
     poDir: string;
@@ -84,9 +91,10 @@ async function compileMerged(opts: {
             mergeCatalogues({
                 mode: `--${opts.format}`,
                 template: opts.template,
-                // `basename`, so an intermediate stays inside `workDir` even when the
-                // caller's `--filename` carries a directory part.
-                extension: `-${basename(opts.filename)}`,
+                // The TEMPLATE's name, minus the `.in` convention — see the header.
+                // `basename`, so an intermediate stays inside `workDir` rather than
+                // following the directory part of the path the user passed.
+                extension: `-${basename(opts.template).replace(/\.in$/, '')}`,
                 catalogues: languages.map((lang) => ({ locale: lang, po: join(opts.poDir, `${lang}.po`) })),
                 workDir,
                 onCall: opts.verbose ? (args) => console.log(`[gjsify gettext] msgfmt ${args.join(' ')}`) : undefined,
