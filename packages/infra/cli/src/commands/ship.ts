@@ -891,23 +891,33 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             });
             break;
         case 'macos-app':
-            // No container at all: a `<App>.app` IS the payload plus this format's
+        case 'windows-dir':
+            // ONE STATEMENT FOR TWO ROWS, folded because the code really is
+            // identical: `Layout.root` is where the two differ, and the first draft
+            // of the windows arm said "NO REBASE, which is the one place the two
+            // rows differ" over a line byte-identical to this one.
+            //
+            // No container at all: the artifact IS the payload plus this format's
             // overlay, written out. `writePayload` rather than a directory copy of
             // the stage, so the same two properties every other packer has hold
             // here — modes come from the plan (`readStage` has applied them, and
             // the artifact upload that flattens them cannot reach in between), and
             // the stage's own sidecar stays out because it was never payload.
             //
-            // REBASED on the bundle root, which is the difference between the
-            // artifact and a directory containing it. Every staged path here
-            // already begins with `<App>.app/` — that is what `Layout.root` means —
-            // and `format.fileName` names the artifact the same thing, so writing
-            // them verbatim produced `out/Ship Demo.app/Ship Demo.app/Contents/…`:
-            // a folder the Finder does not treat as an application, with a real
-            // bundle hidden one level down. Measured, at exit 0, with `zipinfo` on
-            // the sibling zip showing the correct tree the whole time — the zip
-            // packs the same payload and needs no rebase, because the paths inside
-            // an archive ARE the bundle-rooted ones.
+            // REBASED ON `Layout.root`, which is `<App>.app` on darwin and `''` on
+            // windows — the difference between the artifact and a directory
+            // containing it, measured as a defect on the first: every staged darwin
+            // path already begins with `<App>.app/` and `format.fileName` names the
+            // artifact the same thing, so writing them verbatim produced
+            // `out/Ship Demo.app/Ship Demo.app/Contents/…`, a folder the Finder does
+            // not treat as an application with a real bundle hidden one level down,
+            // at exit 0, with `zipinfo` on the sibling zip showing the correct tree
+            // the whole time. On windows the stage IS the directory's contents,
+            // because an installer picks the parent, and `writePayload` documents
+            // `stripPrefix === ''` as a no-op — so the same call is right for both.
+            // Neither zip needs a rebase, and for opposite reasons: the darwin
+            // archive INHERITS its top level from the staged paths, the windows one
+            // SYNTHESISES it (see `windows-dir-zip`).
             writePayload(target, payload, layout.root(settings));
             break;
         case 'macos-app-zip':
@@ -918,15 +928,6 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             // The paths inside are the staged ones, so the archive expands to
             // `<App>.app/…` and not to a bare `Contents/`.
             writeFileSync(target, buildZip(zipEntriesFromPayload(payload), mtime));
-            break;
-        case 'windows-dir':
-            // No container, like the `.app` — the program directory IS the payload
-            // plus this format's overlay, written out. And NO REBASE, which is the
-            // one place the two rows differ: `Layout.root` is `''` here, because an
-            // installer chooses `C:\Program Files\<Publisher>\<App>` and lays the
-            // stage's CONTENTS into it. Stripping a prefix that is not there would
-            // throw; adding one would double the path on the far side.
-            writePayload(target, payload, layout.root(settings));
             break;
         case 'windows-dir-zip':
             // The same payload, with the top level the layout deliberately does not

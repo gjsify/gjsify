@@ -126,7 +126,11 @@ done < <(awk '$1 ~ /^[-dlbcps][-rwxsStT]{9}$/ { print }' <<<"$LISTING")
 while read -r name; do
     case "$name" in
     "$APP"/*) : ;;
-    *) fail "$name is outside $APP/, so unzipping this archive would drop a file beside the artifact instead of inside it. The `.app` zip inherits its top level from the staged paths; the windows one SYNTHESISES it, because a program directory's stage IS its contents." ;;
+    # NO BACKTICKS in this string, and it is not a style rule: a backtick inside a
+    # double-quoted bash word is COMMAND SUBSTITUTION, so the first draft's
+    # "The `.app` zip" ran `.app` and printed "command not found" plus a sentence
+    # with its subject deleted — inside the failure path, where nobody was looking.
+    *) fail "$name is outside $APP/, so unzipping this archive would drop a file beside the artifact instead of inside it. The .app zip inherits its top level from the staged paths; the windows one SYNTHESISES it, because a program directory's stage IS its contents." ;;
     esac
 done < <(unzip -Z1 "$ZIP")
 

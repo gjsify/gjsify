@@ -13,7 +13,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { buildDeb } from './deb.js';
-import { FORMATS } from './formats.js';
+import { FORMATS, windowsProgramDirName } from './formats.js';
 import { LAYOUTS } from './layout.js';
 import { buildRpm } from './rpm.js';
 import {
@@ -418,6 +418,44 @@ export default async () => {
                 expect(nativeName).toContain(format.id === 'deb' ? 'amd64' : 'x86_64');
                 expect(pureName).toContain(format.id === 'deb' ? 'all' : 'noarch');
             }
+        });
+    });
+
+    await describe('windowsProgramDirName', async () => {
+        await it('refuses a name Windows cannot hold, in all three ways it cannot', async () => {
+            // THE CLASS: the artifact assembles at exit 0 on Linux, uploads, and
+            // fails on a stranger's box — which is the whole shape `gjsify ship` is
+            // built against, and the reason this is checked on the ASSEMBLING host.
+            // An earlier draft tested only the reserved characters while calling
+            // itself "the Win32 reserved set", and every name below passed it.
+            for (const bad of [
+                'A<B', // reserved characters
+                'A|B',
+                'A?B',
+                'CON', // reserved DEVICE names — devices at every path
+                'nul',
+                'COM1',
+                'PRN.txt', // …with or without an extension
+                'Demo.', // a trailing dot or space, which Win32 silently STRIPS,
+                'Demo ', // so the directory created is not the one `%~dp0` resolves
+            ]) {
+                expect(() => windowsProgramDirName({ ...settings(), name: bad })).toThrow(
+                    'the windows layout would put this app in a directory called',
+                );
+            }
+            // EMPTY IS ITS OWN MESSAGE, because it is its own defect: an empty name
+            // gives the zip no top level, which is exactly the scattering
+            // `windows-dir-zip` synthesises one to prevent — reproduced at exit 0 by
+            // the function that prevents it. `resolveShipSettings` derives the name
+            // with `??`, which passes `''` straight through.
+            for (const empty of ['', '   ']) {
+                expect(() => windowsProgramDirName({ ...settings(), name: empty })).toThrow(
+                    'has no name to call the program directory',
+                );
+            }
+            // …and the names a third-party app actually has.
+            expect(windowsProgramDirName({ ...settings(), name: 'Ship Demo' })).toBe('Ship Demo');
+            expect(windowsProgramDirName({ ...settings(), name: 'Console' })).toBe('Console');
         });
     });
 

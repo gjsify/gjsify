@@ -183,6 +183,47 @@ export default async () => {
                     APP,
                 ),
             ).toStrictEqual([]);
+            // `if defined gjs (…)` above is the sharp one: the CONDITION names an
+            // interpreter and the body does not, so a reader that reduced to the
+            // wrong token would answer `gjs` for a line that runs `echo`.
+        });
+
+        await it('reads the command an `if`, an `else` or a `for` CARRIES', () => {
+            // THE DEFECT REVIEW FOUND, and it is the POSIX form's un-indented-`exec`
+            // incident in the dialect batch is actually written in. Ruling `if`,
+            // `else` and `for` out as "keywords that carry nothing" made the whole
+            // reader answer `[]` — the value `assertLauncherMatchesInterpreter`
+            // treats as "nothing to check" — for the single-line forms:
+            //
+            //     IF defined X (node x)      → []
+            //     for %f in (*) do node %f   → []
+            //
+            // so an `extraFiles` launcher written that way passed. `batchPrefix`
+            // reduces instead of dropping.
+            const reads = (line: string) => readLauncherInterpreters(cmdLauncher(line), LAYOUTS.windows, APP);
+            expect(reads('IF defined X (node x)')).toStrictEqual(['node']);
+            expect(reads('for %f in (*) do node %f')).toStrictEqual(['node']);
+            expect(reads('if %A% EQU 1 gjs -m a.js')).toStrictEqual(['gjs']);
+            expect(reads('if /i "%A%"=="x" node a.mjs')).toStrictEqual(['node']);
+            // A path with a space in the condition — a program directory lives under
+            // `C:\\Program Files\\…`, so a whitespace split would drop half of it and
+            // leave the rest in the program position.
+            expect(reads('if exist "%HERE%My App\\x" "%HERE%node.exe" a.mjs')).toStrictEqual(['node']);
+            // BOTH ARMS, like the POSIX form's branching case: a reader that saw one
+            // would answer for a branch the user may never take.
+            expect(reads('if defined X (node a.mjs) else (gjs -m b.js)')).toStrictEqual(['node', 'gjs']);
+            // And the block form over three lines, where the closing `)` must not
+            // become an answer of its own.
+            expect(
+                readLauncherInterpreters(
+                    cmdLauncher('if defined X (', '  "%HERE%node.exe" a.mjs', ')'),
+                    LAYOUTS.windows,
+                    APP,
+                ),
+            ).toStrictEqual(['node']);
+            // The construct still carries nothing when its body carries nothing.
+            expect(reads('if defined X (set "Y=1")')).toStrictEqual([]);
+            expect(reads('if errorlevel 1 exit /b 1')).toStrictEqual([]);
         });
 
         await it('leaves `.cmd` and `.bat` unresolved, and an expansion-only token too', () => {

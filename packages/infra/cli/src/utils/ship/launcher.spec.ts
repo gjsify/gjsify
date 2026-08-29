@@ -192,7 +192,12 @@ export default async () => {
             // would be invisible in every string assertion above.
             const node = { ...settings([]), app: 'node' } as ShipSettings;
             const rendered = renderLauncher(node, 'app.node.mjs', LAYOUTS.windows, CARRIED_WIN);
-            expect(rendered.replace(/\r\n/g, '').includes('\n')).toBe(false);
+            // BOTH directions: a lone `\n` and a lone `\r`. Removing the pairs first
+            // and then asserting only about `\n` would pass on `\r\r\n`, which is
+            // the shape a second join would produce.
+            const stripped = rendered.replace(/\r\n/g, '');
+            expect(stripped.includes('\n')).toBe(false);
+            expect(stripped.includes('\r')).toBe(false);
         });
 
         await it('leaves the Linux launcher byte-identical, runtime or not', () => {

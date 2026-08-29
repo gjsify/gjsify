@@ -138,17 +138,46 @@ function windowsArch(arch: string, _archIndependent: boolean): string {
 }
 
 /**
- * Characters a Windows program-directory name may not contain.
+ * What a Windows program-directory name may not be.
  *
- * The Win32 reserved set. Refused HERE rather than on the Windows machine that
- * would fail to create the directory, because that machine is on the other side of
- * a download: a `*` or a `?` in `gjsify.ship.name` produces a zip that assembles at
- * exit 0 on Linux, uploads, and cannot be extracted at all by Explorer or by
- * `Expand-Archive`. Same shape and same reason as `layout.ts`'s
- * `BUNDLE_NAME_FORBIDDEN`, one OS over — and a wider set, because Windows reserves
- * more than HFS+ does.
+ * THREE RULES, not one, because Win32 forbids three different things and an
+ * earlier draft called the character class "the Win32 reserved set" while
+ * `windowsProgramDirName('CON')`, `'Demo.'` and `'Demo '` all sailed through —
+ * each of them producing exactly the failure this check exists to prevent:
+ *
+ *  * the reserved CHARACTERS, plus the control range (a `*` or a `?` cannot be
+ *    created or extracted at all);
+ *  * the reserved DEVICE names, with or without an extension — `CON`, `PRN`,
+ *    `AUX`, `NUL`, `COM1`-`COM9`, `LPT1`-`LPT9` are devices at every path, so
+ *    `CON\app\app.node.mjs` is not a path;
+ *  * a trailing dot or space, which the Win32 API silently STRIPS — so the
+ *    directory an installer creates is not the one the launcher's `%~dp0`
+ *    resolves against.
+ *
+ * Refused HERE rather than on the Windows machine, because that machine is on the
+ * other side of a download: the artifact assembles at exit 0 on Linux, uploads,
+ * and fails on a stranger's box. Same shape and same reason as `layout.ts`'s
+ * `BUNDLE_NAME_FORBIDDEN`, one OS over — and a wider rule, because Windows
+ * reserves more than HFS+ does.
  */
 const WINDOWS_NAME_FORBIDDEN = /[<>:"/\\|?*]/;
+
+const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
+
+/**
+ * Does this name break one of the three rules?
+ *
+ * The control range is a code-point test rather than a fourth character class:
+ * `no-control-regex` refuses `\u0000-\u001f` inside a literal — correctly, since a
+ * control character in a regex is almost always a typo — and the exception here is
+ * that the characters ARE the subject. Saying so in code costs one comparison and
+ * spends no lint suppression.
+ */
+function windowsNameIsUnusable(name: string): boolean {
+    if (WINDOWS_NAME_FORBIDDEN.test(name) || WINDOWS_RESERVED_NAMES.test(name)) return true;
+    if (/[. ]$/.test(name)) return true;
+    return [...name].some((char) => (char.codePointAt(0) ?? 0) < 0x20);
+}
 
 /**
  * The directory `windows-dir` produces, and the top level `windows-dir-zip` puts
@@ -159,14 +188,35 @@ const WINDOWS_NAME_FORBIDDEN = /[<>:"/\\|?*]/;
  * asked to believe are one.
  */
 export function windowsProgramDirName(settings: PackSettings): string {
-    if (WINDOWS_NAME_FORBIDDEN.test(settings.name)) {
+    const name = settings.name;
+    // EMPTY FIRST, and it is not defensive: `resolveShipSettings` derives the name
+    // as `metadata.name ?? titleCase(binaryName)`, and `??` passes `''` straight
+    // through. An empty name makes `windows-dir` write into the output root itself
+    // and gives the zip no top level at all — which is precisely the scattering
+    // `windows-dir-zip` synthesises one to prevent, reproduced at exit 0 by the
+    // function that prevents it. Neither oracle catches it either: `verify-app-zip.sh`
+    // takes `basename` of the directory it is handed and would compare the archive
+    // against the output root.
+    if (name.trim() === '') {
         throw new Error(
-            `gjsify ship: the windows layout would put this app in a directory called "${settings.name}", ` +
-                'and Windows reserves < > : " / \\ | ? * in a file name — the artifact would assemble here and ' +
-                'be unextractable there. Set `gjsify.ship.name` to the display name you want on disk.',
+            'gjsify ship: the windows layout has no name to call the program directory — ' +
+                '`gjsify.ship.name` (or the package name it is derived from) is empty. The artifact IS a ' +
+                'directory and its zip expands into one, so an empty name would unpack `app\\`, `share\\` and ' +
+                'the launcher loose into whatever folder the user was in.',
         );
     }
-    return settings.name;
+    if (windowsNameIsUnusable(name)) {
+        throw new Error(
+            `gjsify ship: the windows layout would put this app in a directory called "${name}", and Windows ` +
+                'cannot hold it: it reserves < > : " / \\ | ? * and the control characters, reserves CON, PRN, ' +
+                'AUX, NUL, COM1-9 and LPT1-9 as device names at every path, and silently strips a trailing dot ' +
+                'or space.\n' +
+                '    The artifact would assemble here and be unextractable — or extract under a different name ' +
+                'than\n' +
+                '    the launcher resolves against. Set `gjsify.ship.name` to the display name you want on disk.',
+        );
+    }
+    return name;
 }
 
 /** `.deb` and `.rpm` are written by this tree, so they exec nothing and read back with GNU tools. */

@@ -180,14 +180,24 @@ export interface Layout {
      * `DEBIAN_ARCH`/`RPM_ARCH` in `formats.ts` already refuse the ones this project
      * has no name for.
      *
-     * WHY IT IS ON THE LAYOUT AND NOT ONLY ON THE FORMAT. `FormatDescriptor.archName`
-     * refuses an unknown architecture too, but it runs at PACK time — so
-     * `gjsify ship windows --stage --arch arm64` would assemble a whole tree,
-     * record `target: win32-arm64`, and fail on the far side of a handoff, on
-     * another host, with the reason two milestones away from the flag that caused
-     * it. The constraint is a fact about the layout's RUNTIME story (which GTK
-     * closure and which interpreter exist for it), so it belongs where the layout
-     * is chosen.
+     * WHY IT IS ON THE LAYOUT AND NOT ONLY ON THE FORMAT, since
+     * {@link assertLayoutSupportsArch} runs in `packOne` — the same phase
+     * `FormatDescriptor.archName` does, and this field buys neither an earlier
+     * refusal nor a different one. It buys the two things a table lookup cannot:
+     *
+     *  * a REASON. `archName` answers "no Windows architecture is known for
+     *    `process.arch` \"arm64\"", which reads as a gap in our table. The truth is
+     *    that gvsbuild publishes no arm64 GTK, the blocker is upstream, and #1117
+     *    is where it is tracked — and the difference between "unsupported" and
+     *    "here is what would have to change" is the whole value of the message.
+     *  * a STAGE-TIME warning at the flag that caused it (`commands/ship.ts`), for
+     *    a phase that deliberately does not refuse — `tests/e2e/ship-layout`
+     *    assembles all three layouts from ONE payload on purpose, and that
+     *    payload's native file has an architecture.
+     *
+     * The constraint is also a fact about the layout's RUNTIME story — which GTK
+     * closure and which interpreter exist for it — rather than about any one
+     * container, which is why the format rows read it back instead of restating it.
      */
     arches: LayoutArches | null;
 }

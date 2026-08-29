@@ -227,6 +227,23 @@ strip one leading `%NAME%`, strip a trailing `.exe` — and only `.exe`, since a
 batch file whose contents this reader has not read. Measured before the branch existed: a `.cmd`
 running `gjs -m` under `gjsify.app: "node"` passed.
 
+**And ruling lines out is not the same as ruling KEYWORDS out**, which is how the same hole reopened
+one round later. The first cut put `if`, `else` and `for` in the built-in list on the grounds that
+they "take no program"; they take a whole command, and batch is routinely written on one line:
+
+```
+IF defined X (node x)        → []      ← the whole reader
+for %f in (*) do node %f     → []
+```
+
+`[]` is the value `assertLauncherMatchesInterpreter` treats as "nothing to check", so
+`if exist "%HERE%gjs.exe" ("%HERE%gjs.exe" -m …)` under `gjsify.app: "node"` passed — the POSIX
+form's un-indented-`exec` incident, in the dialect batch actually uses. Those three REDUCE now, to
+the command they carry, both arms of an `if`/`else` included; the `if` conditions are enumerated
+(three unary forms, `a==b`, six comparison operators) rather than guessed, because the failure mode
+of guessing is not silence but naming whichever token landed in the program position. `call` and
+`start` stay unhandled and stay silent for exactly that reason.
+
 **And that is where the FORMAT's answer differs from the LAYOUT's** (#1354 M2a). `macos-app` and
 `macos-app-zip` are `interpreters: ['node']`, because a bundle a stranger downloads must carry its
 interpreter and there is no relocatable GJS to put in one. The two windows rows say the same thing
@@ -321,7 +338,7 @@ dyld's launch-time capture)". What that function needs from the launcher is the 
 launcher-set `PATH` would be a second copy of a directory node-gi already derives from it: two
 truths, and the stale one wins the day the layout moves. `GJSIFY_GI_LIBRARY_PATH` has no Windows
 half either — `PATH` is what reaches a typelib's bare-leaf backer there, and the launcher already
-prepends `lib\` when the app carries GI libraries of its own.
+prepends `lib\` when `gjsify.ship.bundledTypelibs` put a typelib in it.
 
 ### What the file-set equality cannot see
 

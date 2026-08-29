@@ -2938,13 +2938,13 @@ jobs:
           # and a runner temp directory can differ between the two in case and in
           # short-name form. The claim is "the interpreter is inside the program
           # directory", and the suffix says it.
-          if (-not ($log | Select-String -Pattern 'Ship Window Demo\\node\.exe$')) {
+          if (-not ($log | Select-String -Pattern '^interpreter: .*Ship Window Demo\\node\.exe$')) {
             Write-Host "the app did not run under the interpreter the directory carries:"
             $log | Select-String -Pattern '^interpreter:'
             exit 1
           }
           # The launcher exported the locator, and it points inside the artifact.
-          if (-not ($log | Select-String -Pattern 'Ship Window Demo\\lib\\node-gi\\prebuilds\\win32-x64\\gtk$')) {
+          if (-not ($log | Select-String -Pattern '^gtk-runtime: .*Ship Window Demo\\lib\\node-gi\\prebuilds\\win32-x64\\gtk$')) {
             Write-Host "GJSIFY_GTK_RUNTIME was not exported into the program directory:"
             $log | Select-String -Pattern '^gtk-runtime:'
             exit 1

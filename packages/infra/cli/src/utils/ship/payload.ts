@@ -184,20 +184,31 @@ function shellExecLines(text: string): string[] {
 /**
  * Batch keywords that can never be the program a `.cmd` line runs.
  *
- * The list is what makes {@link batchCommands} a filter rather than a parser. It
- * is deliberately the SHAPE-BEARING half — every one of these either takes no
- * program (`rem`, `echo`, `title`, `pause`) or takes a path that is not an
- * interpreter (`cd`, `goto`, `exit`) — so a keyword missing from it costs a
- * SILENT non-answer, never a wrong one: an unrecognised first word is handed to
- * `interpreterOf`, which resolves it to `gjs`, to `node` or to something
+ * The list is what makes {@link batchCommands} a filter rather than a parser, and
+ * it is deliberately only the keywords that CARRY NOTHING: `rem`, `echo`, `title`
+ * and `pause` take no command at all, `goto` takes a label, `exit` takes a code,
+ * `set`/`setlocal`/`endlocal` take a variable. A keyword missing from it costs a
+ * SILENT non-answer, never a wrong one — an unrecognised first word is handed to
+ * `interpreterOf`, which resolves it to `gjs`, to `node`, or to something
  * `assertLauncherMatchesInterpreter` ignores.
  *
- * `call` and `start` are absent on purpose and are the two that would repay
- * widening: both DO invoke a program, and both also take non-program arguments
- * (`call :label`, `start "title"`). Resolving `call node …` needs a second hop and
- * the same care the POSIX form gives `env`; until a launcher in this tree writes
- * one, guessing at their argument shape would be the parser answering
- * confidently wrong, which is the failure `interpreterOf`'s own doc records.
+ * `if`, `else` and `for` are NOT here, and an earlier draft put them here with a
+ * doc claiming every entry "takes no program". That was false in the way batch
+ * actually gets written, and measured through the built reader:
+ *
+ *     IF defined X (node x)          → []      ← the whole reader, on one line
+ *     for %f in (*) do node %f       → []
+ *
+ * `[]` is the value `assertLauncherMatchesInterpreter` treats as "nothing to
+ * check", so a `gjsify.ship.extraFiles` launcher written as
+ * `if exist "%HERE%gjs.exe" ("%HERE%gjs.exe" -m …)` under `gjsify.app: "node"`
+ * passed. That is the same class as the POSIX form's un-indented-`exec` incident,
+ * one dialect over, so it gets the same treatment: {@link batchPrefix} REDUCES
+ * those three to the command they carry rather than dropping the line.
+ *
+ * `call` and `start` stay unhandled and stay silent: both DO invoke a program and
+ * both also take non-program arguments (`call :label`, `start "title"`), and
+ * guessing at that would be the parser answering confidently wrong.
  */
 const BATCH_NON_PROGRAMS = new Set([
     'rem',
@@ -205,9 +216,6 @@ const BATCH_NON_PROGRAMS = new Set([
     'setlocal',
     'endlocal',
     'echo',
-    'if',
-    'else',
-    'for',
     'goto',
     'exit',
     'title',
@@ -224,7 +232,105 @@ const BATCH_NON_PROGRAMS = new Set([
 ]);
 
 /**
- * Every line of a `.cmd` that could be a command running a program.
+ * One `cmd.exe` command line, split the way `cmd.exe` splits it.
+ *
+ * QUOTE-AWARE, and that is the whole reason it is not `line.split(/\s+/)`: a
+ * condition operand is routinely a path, and a program directory lives under
+ * `C:\Program Files\…`. Splitting `if exist "%HERE%My App\x" node y` on
+ * whitespace and then dropping "two tokens" would drop half the path and leave
+ * the rest as the program.
+ */
+function cmdTokens(line: string): { text: string; end: number }[] {
+    const tokens: { text: string; end: number }[] = [];
+    let at = 0;
+    while (at < line.length) {
+        if (/\s/.test(line[at] as string)) {
+            at += 1;
+            continue;
+        }
+        const start = at;
+        let quoted = false;
+        while (at < line.length && (quoted || !/\s/.test(line[at] as string))) {
+            if (line[at] === '"') quoted = !quoted;
+            at += 1;
+        }
+        tokens.push({ text: line.slice(start, at), end: at });
+    }
+    return tokens;
+}
+
+/**
+ * Split `( … ) rest` into the block's body and whatever follows it.
+ *
+ * Depth-counting and quote-aware, because `(A) else (B)` is how a batch launcher
+ * writes two branches and BOTH have to be read — the POSIX form collects every
+ * `exec`, and a reader that saw one arm of an `if`/`else` would answer for a
+ * branch the user may never take. `null` when the parenthesis is unbalanced,
+ * which is a line this reader cannot honestly split.
+ */
+function splitBatchBlock(line: string): [string, string] | null {
+    let depth = 0;
+    let quoted = false;
+    for (let at = 0; at < line.length; at++) {
+        const ch = line[at];
+        if (ch === '"') quoted = !quoted;
+        else if (!quoted && ch === '(') depth += 1;
+        else if (!quoted && ch === ')') {
+            depth -= 1;
+            if (depth === 0) return [line.slice(1, at).trim(), line.slice(at + 1).trim()];
+        }
+    }
+    return null;
+}
+
+/** Conditions whose operand is one token: `if exist FILE …`, `if defined VAR …`. */
+const BATCH_UNARY_CONDITIONS = new Set(['exist', 'defined', 'errorlevel']);
+
+/** `if a EQU b …` — three tokens where `a==b` is one. */
+const BATCH_COMPARISONS = new Set(['equ', 'neq', 'lss', 'leq', 'gtr', 'geq']);
+
+/**
+ * Strip one batch construct that WRAPS a command, or `null` when the line carries
+ * none this reader can reach.
+ *
+ * Returns the pieces for another round — `if defined X (node a) else (gjs -m b)`
+ * reduces to `["node a", "else (gjs -m b)"]` — which is what makes a compound line
+ * answerable at all, and what keeps BOTH arms of a branch in the answer.
+ * `undefined` means "nothing to strip", i.e. the line already IS the command.
+ *
+ * The `if` conditions are enumerated rather than guessed: three unary forms, the
+ * `a==b` form (one token, because `==` needs no spaces), and the six comparison
+ * operators. A shape not in that list returns `null` rather than a best guess,
+ * because the failure mode of guessing here is not silence — it is naming
+ * whichever token happened to land in the program position.
+ */
+function batchPrefix(line: string): string[] | null | undefined {
+    if (line.startsWith('(')) {
+        const split = splitBatchBlock(line);
+        return split === null ? null : [split[0], split[1]];
+    }
+    const tokens = cmdTokens(line);
+    const word = (index: number): string => (tokens[index]?.text ?? '').toLowerCase();
+    const after = (index: number): string[] => [line.slice(tokens[index]?.end ?? line.length).trim()];
+
+    if (word(0) === 'else') return after(0);
+    if (word(0) === 'for') {
+        const doAt = tokens.findIndex((token) => token.text.toLowerCase() === 'do');
+        return doAt === -1 ? null : after(doAt);
+    }
+    if (word(0) !== 'if') return undefined;
+
+    // `not` and `/i` are modifiers, in either order and both optional.
+    let at = 1;
+    while (word(at) === 'not' || word(at) === '/i') at += 1;
+    if (BATCH_UNARY_CONDITIONS.has(word(at))) return after(at + 1);
+    if (word(at).includes('==')) return after(at);
+    if (BATCH_COMPARISONS.has(word(at + 1))) return after(at + 2);
+    return null;
+}
+
+/**
+ * Every command in a `.cmd` that could run a program.
  *
  * NOT an `exec` scan, because `cmd.exe` has no `exec`: the last command a batch
  * file runs IS what the launcher runs, and its exit status is the script's. So
@@ -236,15 +342,25 @@ const BATCH_NON_PROGRAMS = new Set([
  * the label-abuse comment form, which no first-word test would otherwise catch.
  * Lines are split on CR LF *or* LF: the form this tree writes is CRLF, and a
  * launcher that arrived from `gjsify.ship.extraFiles` may be neither.
+ *
+ * The work list is BOUNDED. `if defined X (if defined Y (node a))` is legal batch
+ * and each round strips one construct; a cap turns a pathological line into a
+ * silent non-answer instead of a hang, which is the same trade `interpreterOf`
+ * makes for `env`.
  */
+const BATCH_REDUCTION_STEPS = 32;
+
 function batchCommands(text: string): string[] {
     const commands: string[] = [];
-    for (const raw of text.split(/\r?\n/)) {
-        const line = raw.trim().replace(/^@+/, '').trim();
-        if (line === '' || line.startsWith('::')) continue;
-        const first = line.split(/\s+/)[0] ?? '';
-        if (BATCH_NON_PROGRAMS.has(first.toLowerCase())) continue;
-        commands.push(line);
+    const pending = text.split(/\r?\n/).map((raw) => raw.trim().replace(/^@+/, '').trim());
+    for (let step = 0; step < BATCH_REDUCTION_STEPS && pending.length > 0; step++) {
+        const line = pending.shift() as string;
+        if (line === '' || line === ')' || line.startsWith('::')) continue;
+        const first = (cmdTokens(line)[0]?.text ?? '').toLowerCase();
+        if (BATCH_NON_PROGRAMS.has(first)) continue;
+        const reduced = batchPrefix(line);
+        if (reduced === undefined) commands.push(line);
+        else if (reduced !== null) pending.unshift(...reduced);
     }
     return commands;
 }
@@ -644,9 +760,14 @@ const MACHO_CPUTYPE_TO_ARCH: Record<number, string> = {
  * PE/COFF `IMAGE_FILE_HEADER.Machine` → `process.arch`.
  *
  * The same three rows `manifest-conformance/lib/binary.mjs` carries, restated
- * rather than imported for the reason that file's own consumers already accept:
- * the CLI must not depend on the conformance package (it is `portable` and runs
- * in downstream trees). The values are the architecture constants, not a choice.
+ * rather than imported because `@gjsify/manifest-conformance` is `"private": true`
+ * and `@gjsify/cli` is published: a published package cannot depend on a workspace
+ * package that is never on npm. (An earlier version of this note said the CLI must
+ * not depend on it because the rules are `portable` — `portable` is a `RuleScope`
+ * on individual conformance RULES, and the ban it states runs the other way: a
+ * portable rule must not import the CLI.) The values themselves are Microsoft's
+ * architecture constants, so agreeing with that file is not agreeing with
+ * ourselves.
  */
 const PE_MACHINE_TO_ARCH: Record<number, string> = {
     0x014c: 'ia32',

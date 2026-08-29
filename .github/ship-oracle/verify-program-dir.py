@@ -54,11 +54,12 @@ Reproduce by hand:
         "ship/out/Ship Demo" ship/stage/.gjsify-ship-stage.json
 
 DISCRIMINATOR (run it, do not trust it): delete the `node.exe` the launcher names
-and this must exit 1 saying the launcher execs a file the directory does not
-carry; rewrite the `.cmd` with LF endings and it must exit 1; swap one staged DLL
-for an arm64 one and the machine check must exit 1 naming the file. All three are
-driven from `tests/e2e/ship-windows/run.mjs` against copies of the artifact, so
-the failure path of this file runs on every PR.
+and this must exit 1 saying the launcher runs a file the directory does not carry;
+rewrite the `.cmd` with LF endings and it must exit 1; replace one staged image
+with an arm64 one and the machine check must exit 1 naming the file; make the
+launcher run a bare name off `PATH` — which is what M1 wrote — and it must exit 1.
+All four are driven from `tests/e2e/ship-windows/run.mjs` against copies of the
+artifact, so the failure path of this file runs on every PR.
 """
 
 import json
@@ -100,7 +101,7 @@ def read_pe(path):
     if len(data) < 0x40 or data[:2] != b"MZ":
         return f"{path.name} does not start with `MZ` — it is not a PE image"
     (pe_off,) = struct.unpack_from("<I", data, 0x3C)
-    if pe_off + 24 > len(data):
+    if pe_off + 24 + 70 > len(data):
         return f"{path.name} has an e_lfanew ({pe_off}) past the end of the file"
     if data[pe_off : pe_off + 4] != b"PE\0\0":
         return f"{path.name} has no `PE\\0\\0` signature at e_lfanew"
@@ -201,6 +202,13 @@ def main(argv):
     # invisible there. Reporting the field is what makes it a number instead of an
     # assumption — see this file's header and status/open-todos.md.
     read = read_pe(interpreter)
+    if isinstance(read, str):
+        # Only reachable when the launcher runs something that is not a PE at all
+        # — `%HERE%app\\run.mjs`, or an extensionless `%HERE%node`, neither of which
+        # section 3's suffix filter looked at. Without this branch the unpack below
+        # raises a ValueError traceback instead of an ::error annotation, which is
+        # a failure a reader of the log cannot act on.
+        return fail(read)
     _machine, subsystem = read
     kind = SUBSYSTEM.get(subsystem, f"subsystem {subsystem}")
 
