@@ -1,6 +1,6 @@
 # 24. `gjsify ship` — one payload, a runtime policy per OS, several install formats
 
-- Status: **Accepted** — stages 1, 2, 3 and 6 have landed, and the first half of stage 4; see § Implementation status
+- Status: **Accepted** — stages 1, 2, 3, 4 (darwin) and 6 have landed; see § Implementation status
 - Date: 2026-08-14 (accepted 2026-08-15)
 - Deciders: Pascal Garber
 - Related: [ADR 0017 (native distribution)](0017-native-package-distribution.md), [ADR 0018 (OS-axis declaration)](0018-os-axis-declaration.md), [ADR 0021 (in-process prebuild resolution)](0021-launcher-free-prebuild-resolution.md), [ADR 0023 (which GTK a process uses)](0023-gtk-source-precedence.md), [docs/publishing.md](../publishing.md), `status/open-todos.md` § *gjsify on Flatpak — remaining roadmap*
@@ -442,12 +442,52 @@ meeting a macOS stage fails closed with the right message. YES for `settings.nam
 REQUIRED — this reader meeting a schema-4 stage would fail on "name must be a string" instead of on
 the one thing the reader can do about it.
 
-What M2a does NOT do, stated so the milestone is not read as more than it is: nothing stages an
+~~What M2a does NOT do, stated so the milestone is not read as more than it is: nothing stages an
 interpreter or a GTK closure into the bundle, so the `.app` runs only where `node` is already on
 `PATH`. `resolveNodeRuntime` still has no caller outside its own spec, and `plan.ts` flattens
 `bundledTypelibs` with `basename()`, which pointed at a `gtk-runtime-darwin-*` tree would destroy
 every relative relation the relocation depends on. That is M2b, and it is why "unzip it on
-macos-latest and open a window" is not a leg bolted onto this one.
+macos-latest and open a window" is not a leg bolted onto this one.~~ **Done — #1354 M2b, below.**
+
+**Landed since, and it completes stage 4's darwin half: the `.app` carries its RUNTIME** (#1354
+M2b). `utils/ship/app-runtime.ts` stages four things, each resolved BY NAME from the project being
+shipped and each `null`-not-throw, so a partial bundle is a reported intermediate rather than a
+failure:
+
+- the interpreter, `@gjsify/node-runtime-darwin-<arch>` → `Contents/MacOS/node` plus Node's own
+  LICENSE. `resolveNodeRuntime` finally has the caller its header said it did not have;
+- the relocated GTK closure, `@gjsify/gtk-runtime-darwin-<arch>` →
+  `Contents/Frameworks/node-gi/prebuilds/darwin-<arch>/gtk/**`;
+- the addon, `@gjsify/node-gi`'s `prebuilds/darwin-<arch>/node_gi.node`, SIBLING to that directory
+  because its `@rpath` is `@loader_path/gtk/lib`;
+- node-gi's JAVASCRIPT → `Contents/Resources/lib/node_modules/@gjsify/node-gi/`. This is the one
+  that is easy to miss: `@gjsify/node-gi/*` is external in every `--app node` bundle by design, so
+  a `gi://Gtk` import compiles to `require('@gjsify/node-gi/gi')` in the shipped file, and a `.app`
+  has no consumer `node_modules`. Measured on a bundle staged the M2a way and run from an unrelated
+  directory: `Error: Cannot find module '@gjsify/node-gi/gi'`, before any GTK question arises.
+
+**TREE-PRESERVING, and that is the whole design.** The closure is staged with every relative path
+carried through unchanged, because every relation inside it is relative — `@loader_path/<leaf>`
+install names, `@loader_path/../../..` in `loaders.cache`, `@loader_path/gtk/lib` on the addon. The
+paragraph above predicted what `bundledTypelibs` would do to it and the prediction was measured
+through the built planner: three inputs at three depths collapse to one directory, and the result
+has neither a `lib/` nor a `girepository-1.0/` for `resolveGtkRuntimeBundle()`'s existence probe.
+`placeStage` therefore takes the staged runtime as already-stage-relative files, through the same
+uniqueness check `Layout.metadata` goes through.
+
+**The launcher gained two locators and still no `DYLD_*`.** `GJSIFY_GTK_RUNTIME` and
+`NODE_GI_NATIVE` (plus `GJSIFY_GI_LIBRARY_PATH` when the app carries GI libraries of its own — the
+writer #1410 shipped a reader for) are read by node-gi in JS and handed to GI through the binding,
+so § A4's signing rule survives: dyld sees none of them. `Contents/Frameworks` is also where
+`codesign` will be pointed at M6, which is why the closure does not live under `Resources` even
+though putting it there would have made both variables unnecessary.
+
+**What M2b does not claim.** The Linux half — `tests/e2e/ship-macos` — reads every staged Mach-O
+back with `binary.mjs`'s `readLibrary()` and asserts the closure resolves inside the bundle; that is
+a claim about the WIRING, on a host that cannot execute one instruction of it. The claim about macOS
+is `node-gi.yml`'s `macos-app-assemble` → `macos-app-selfcontained` pair: assemble on Linux, then
+unzip on `macos-latest` and `macos-15-intel` with no Homebrew gtk4/libadwaita and `PATH` reduced to
+the system directories (so the runner's own Node cannot answer), and open a window.
 
 That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
 stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`

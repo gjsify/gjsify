@@ -1,0 +1,28 @@
+{
+  "name": "ship-window-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A self-contained macOS application bundle, as the proof that gjsify ship builds one.",
+  "author": "JumpLink <hello@jumplink.eu>",
+  "homepage": "https://gjsify.org",
+  "license": "MIT",
+  "main": "dist/app.node.mjs",
+  "scripts": {
+    "build": "gjsify build src/app.ts --app node --outfile dist/app.node.mjs"
+  },
+  "gjsify": {
+    "app": "node",
+    "main": "dist/app.node.mjs",
+    "ship": {
+      "appId": "eu.jumplink.ShipWindowDemo",
+      "name": "Ship Window Demo",
+      "summary": "Open a window from a bundle that carries its own runtime",
+      "description": "A minimal Libadwaita application whose only job is to prove that an unzipped <App>.app opens a window on a Mac with no Homebrew GTK and no Node on PATH.\n\nIt prints the interpreter it is running under, the GTK runtime its launcher pointed it at, the Adwaita widget tree it built, and the size of the PNG its GSK renderer produced.",
+      "developer": { "id": "eu.jumplink", "name": "JumpLink", "email": "hello@jumplink.eu" },
+      "license": { "project": "MIT" },
+      "homepageUrl": "https://gjsify.org",
+      "categories": ["Utility"]
+    }
+  }
+}

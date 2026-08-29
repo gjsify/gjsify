@@ -19,15 +19,19 @@
 // (`depends.ts` → `NODE_PACKAGE`), the way a `--app gjs` package declares `gjs`.
 // Every Linux distribution ships a Node; macOS and Windows ship none.
 //
-// ⚠️ NOTHING CALLS THIS YET, outside its own spec, and that is worth stating
-// rather than leaving a reader to discover. `gjsify ship` targets deb and rpm
-// today, and neither carries an interpreter — the Linux answer is the dependency
-// above. This module is the seam the `.app` / Windows-program-directory layout
-// will stage through, and its `null`-not-throw contract ("the caller decides how
-// loud to be") is therefore a promise to a caller that does not exist yet. The
-// tests are what keep it honest in the meantime: they resolve a real installed
-// package out of a throwaway consumer tree, so the by-name claim in the READMEs
-// is checked even while the staging is not written.
+// THE CALLER IS `utils/ship/app-runtime.ts` (#1354 M2b), and this paragraph used
+// to say there was none — "⚠️ NOTHING CALLS THIS YET, outside its own spec … a
+// promise to a caller that does not exist yet". It exists: the macOS layout stages
+// `nodePath` into `Contents/MacOS/node` and `licensePath` beside it, and the
+// `null`-not-throw contract is what lets that caller stage the GTK closure it DID
+// find while naming the interpreter package it did not. Windows still has none —
+// its layout has no launcher form for a carried interpreter yet — so the seam
+// this module is stays half-used, which is a different statement from unused.
+//
+// The tests keep the by-name claim honest independently of any caller: they
+// resolve a real installed package out of a throwaway consumer tree holding
+// nothing of gjsify, so "an app author adds nothing to `package.json`" is checked
+// against a stranger's layout rather than against this monorepo's.
 
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';

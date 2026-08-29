@@ -30,6 +30,7 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { prebuildDir } from '../helpers.mjs';
+import { machO, LC_ID_DYLIB, LC_LOAD_DYLIB, LC_RPATH, SYSTEM_DYLIB } from '../macho.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
@@ -168,36 +169,12 @@ describe('check-prebuild-loader-path: failure modes', () => {
  * image is a header plus load commands — exactly the part the parser reads — so building one
  * in-process covers the failing shape on every platform, where the real tool would make the
  * one check guarding macOS runnable only ON macOS.
+ *
+ * The writer itself lives in `tests/e2e/macho.mjs`, shared with `tests/e2e/ship-macos`, which
+ * needs the same bytes for the opposite question — a closure whose every dependency RESOLVES.
+ * Two copies of a binary writer are two sets of bytes that drift.
  */
 describe('check-prebuild-loader-path: the build-host leak', () => {
-    const MH_MAGIC_64 = 0xfeedfacf;
-    const CPU_TYPE_X86_64 = 0x01000007;
-    const LC_ID_DYLIB = 0x0d;
-    const LC_LOAD_DYLIB = 0x0c;
-    const LC_RPATH = 0x8000001c;
-
-    /** @param {Array<{cmd: number, str: string}>} commands */
-    function machO(commands) {
-        const header = Buffer.alloc(32);
-        header.writeUInt32LE(MH_MAGIC_64, 0);
-        header.writeUInt32LE(CPU_TYPE_X86_64, 4);
-        header.writeUInt32LE(commands.length, 16);
-
-        const blocks = commands.map(({ cmd, str }) => {
-            // dylib_command has 24 bytes of fixed fields before the string, rpath_command 12.
-            // Padded to an 8-byte multiple exactly as ld does.
-            const strOff = cmd === LC_RPATH ? 12 : 24;
-            const size = Math.ceil((strOff + str.length + 1) / 8) * 8;
-            const b = Buffer.alloc(size);
-            b.writeUInt32LE(cmd >>> 0, 0);
-            b.writeUInt32LE(size, 4);
-            b.writeUInt32LE(strOff, 8);
-            b.write(str, strOff, 'utf8');
-            return b;
-        });
-        return Buffer.concat([header, ...blocks]);
-    }
-
     /** Write one synthetic image into a throwaway prebuild directory. */
     function stage(commands) {
         const dir = mkdtempSync(join(tmpdir(), 'gjsify-loader-path-'));
@@ -205,7 +182,7 @@ describe('check-prebuild-loader-path: the build-host leak', () => {
         return dir;
     }
 
-    const SYSTEM = { cmd: LC_LOAD_DYLIB, str: '/usr/lib/libSystem.B.dylib' };
+    const SYSTEM = SYSTEM_DYLIB;
 
     it('FAILS an absolute dependency outside /usr/lib and /System', () => {
         const dir = stage([

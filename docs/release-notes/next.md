@@ -32,7 +32,8 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## What this release is about
 
-**`gjsify ship darwin` now produces a real macOS application bundle, assembled on Linux.**
+**`gjsify ship darwin` now produces a real macOS application bundle, assembled on Linux — and it
+carries its own interpreter and its own GTK.**
 
 ---
 
@@ -83,12 +84,48 @@ bundle with no plist at all, an archive whose launcher was planned `0644`, and a
 carries `0755` under a DOS `version made by` — where the mode is in the file and no extractor will
 ever read it as a mode.
 
+### The bundle carries what a stranger's Mac does not have
+
+macOS ships no Node and, as far as a downloaded application is concerned, no GTK. So the `.app` now
+carries both: the interpreter at `Contents/MacOS/node` with Node's own LICENSE beside it, and the
+relocated GTK/GObject-Introspection closure under `Contents/Frameworks`, in the sibling layout
+`@gjsify/node-gi` walks — the addon and its `gtk/` directory next to each other, because the addon
+reaches its dylibs as `@loader_path/gtk/lib`. The launcher execs `"$here/node"` instead of a name it
+hopes to find on `PATH`.
+
+**Tree-preserving, and that is the design rather than a detail.** Every relation inside a relocated
+closure is relative: install names are `@loader_path/<leaf>`, the gdk-pixbuf loader cache addresses
+each decoder `@loader_path/../../..` from the bundle's top level, and the addon's search path is
+`@loader_path/gtk/lib`. Staging the closure through the existing `bundledTypelibs` path would have
+flattened all of it to basenames and broken every one of those at once — with a `.app` that ships
+two hundred megabytes and still cannot open a window.
+
+**And a fourth thing, which is easy to miss and fatal to omit.** A `--app node` bundle keeps
+`@gjsify/node-gi/*` external by design, so a `gi://Gtk` import compiles to
+`require('@gjsify/node-gi/gi')` in the shipped file. A `.app` has no `node_modules` to resolve that
+against — measured on a bundle staged the old way and run from an unrelated directory:
+`Error: Cannot find module '@gjsify/node-gi/gi'`, before any GTK question arises. node-gi's
+JavaScript is now staged into one the bundle owns.
+
+**No `DYLD_*` anywhere in the launcher.** Under a hardened runtime a Developer-ID-signed executable
+is restricted and dyld strips those variables, so a launcher depending on one works unsigned and
+breaks the day the bundle is signed. What the launcher exports instead — `GJSIFY_GTK_RUNTIME`,
+`NODE_GI_NATIVE`, `GJSIFY_GI_LIBRARY_PATH` — is read by node-gi in JavaScript and handed to
+GObject-Introspection through the binding. dyld never sees any of them.
+
+**What you add to your own `package.json`** is a real list, not an implicit one:
+`@gjsify/node-runtime-darwin-<arch>` and `@gjsify/gtk-runtime-darwin-<arch>` as `devDependencies`,
+`@gjsify/node-gi` as a `dependency`. None of them is an `optionalDependencies` edge on anything —
+whoever ships an application declares the runtime it ships. `gjsify ship` prints what it staged and,
+for anything missing, the package name to install; a bundle with no runtime still assembles, because
+it is a working intermediate on any machine that already has a Node.
+
 ### What it does not do yet
 
-The bundle carries no interpreter and no GTK closure, so it runs where `node` is already installed
-and not yet on a stranger's Mac. macOS has GJS but no *relocatable* GJS, which is why the two macOS
-formats accept `gjsify.app: "node"` only — a `gjs` project can assemble the layout and is told, by
-name, why it cannot pack it. The `.dmg`, the Windows installer and signing are still ahead.
+The `.dmg`, the Windows installer and its bundled runtime, and signing are still ahead — a bundle
+assembled on Linux is unsigned by construction and Gatekeeper will quarantine it. macOS has GJS but
+no *relocatable* GJS, which is why the two macOS formats accept `gjsify.app: "node"` only; a `gjs`
+project can assemble the layout and is told, by name, why it cannot pack it.
 
 See [#1354](https://github.com/gjsify/gjsify/issues/1354) and
 `docs/adr/0024-ship-installable-artifacts.md`.

@@ -16,13 +16,83 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { linuxInstallDependent } from './payload.js';
+import { LAYOUTS } from './layout.js';
+import { assertLauncherMatchesInterpreter, linuxInstallDependent, readLauncherInterpreters } from './payload.js';
 import { SHARE } from './share-dirs.js';
 
 const at = (...paths: string[]) => paths.map((path) => ({ path }));
 const paths = (entries: readonly { path: string }[]) => entries.map((entry) => entry.path);
 
+const APP = { binaryName: 'hello', name: 'Hello' };
+
+/** One `.app` launcher, as a payload of exactly the file the reader looks for. */
+function appLauncher(execLine: string) {
+    return [
+        {
+            path: 'Hello.app/Contents/MacOS/hello',
+            mode: 0o755,
+            data: new TextEncoder().encode(`#!/bin/sh\nset -e\n${execLine}\n`),
+        },
+    ];
+}
+
 export default async () => {
+    await describe('readLauncherInterpreters: the launcher a `.app` carries', async () => {
+        await it('reads a QUOTED, layout-relative interpreter back to its bare name', () => {
+            // #1354 M2b's launcher execs `"$here/node"` — the interpreter the
+            // bundle carries, named by a path because macOS has no system Node to
+            // find on `PATH`. This reader used to split that token on `/` with the
+            // quotes still attached and answer `node"`, which is neither known
+            // interpreter, so `assertLauncherMatchesInterpreter` took its "a
+            // program that is neither" branch and PASSED. Not a wrong answer — a
+            // vacuous one, on exactly the layout that made the check matter.
+            expect(
+                readLauncherInterpreters(
+                    appLauncher('exec "$here/node" "$contents/Resources/lib/app.node.mjs" "$@"'),
+                    LAYOUTS.darwin,
+                    APP,
+                ),
+            ).toStrictEqual(['node']);
+            // The unquoted and single-quoted spellings of the same thing.
+            expect(readLauncherInterpreters(appLauncher('exec $here/node "$b"'), LAYOUTS.darwin, APP)).toStrictEqual([
+                'node',
+            ]);
+            expect(
+                readLauncherInterpreters(appLauncher('exec \'/opt/x/gjs\' -m "$b"'), LAYOUTS.darwin, APP),
+            ).toStrictEqual(['gjs']);
+        });
+
+        await it('still refuses the mismatch it exists to catch, through a carried interpreter', () => {
+            // The check is only worth having if it fires. A bundle whose launcher
+            // execs the carried `node` while the package declares `gjs` installs
+            // cleanly and fails at first launch — and the quoting fix above is
+            // what keeps this reachable at all.
+            expect(() =>
+                assertLauncherMatchesInterpreter(
+                    appLauncher('exec "$here/node" "$contents/Resources/lib/app.node.mjs" "$@"'),
+                    LAYOUTS.darwin,
+                    APP,
+                    'gjs',
+                ),
+            ).toThrow('execs `node`');
+            assertLauncherMatchesInterpreter(
+                appLauncher('exec "$here/node" "$contents/Resources/lib/app.node.mjs" "$@"'),
+                LAYOUTS.darwin,
+                APP,
+                'node',
+            );
+        });
+
+        await it('strips only a SURROUNDING pair, never a quote inside a word', () => {
+            // A shell token is `"…"`, `'…'` or bare. Removing a lone quote from
+            // the middle of a word would be this reader guessing at a syntax it
+            // does not parse, and the guess would name a program nobody execs.
+            expect(readLauncherInterpreters(appLauncher('exec no"de "$b"'), LAYOUTS.darwin, APP)).toStrictEqual([
+                'no"de',
+            ]);
+        });
+    });
+
     await describe('linuxInstallDependent', async () => {
         await it('names every share/ directory whose Linux correctness is an install step', () => {
             const carried = linuxInstallDependent(

@@ -262,13 +262,57 @@ and `CFBundleName`, and the executable under `Contents/MacOS` is named by
 it is assembled, because a `.app` has no install step to compile them and
 GSettings aborts on a schema directory that has only sources.
 
+**The macOS bundle carries its own runtime, and you say so in `package.json`.**
+An unzipped `.app` runs on a Mac with no Node and no Homebrew GTK — but only if
+the four packages below are installed where you PACKAGE it. They are resolved by
+NAME at ship time, and none of them is an `optionalDependencies` edge on anything:
+whoever ships an app declares the runtime it ships, never the library that uses it.
+Put them in `devDependencies` — they are needed by the packaging host, not by your
+app at runtime:
+
+```jsonc
+{
+  "devDependencies": {
+    // The interpreter. `Contents/MacOS/node`, plus Node's own LICENSE.
+    "@gjsify/node-runtime-darwin-arm64": "^0.44.0",
+    "@gjsify/node-runtime-darwin-x64": "^0.44.0",
+    // The relocated GTK/GObject-Introspection closure, one per architecture.
+    "@gjsify/gtk-runtime-darwin-arm64": "^0.44.0",
+    "@gjsify/gtk-runtime-darwin-x64": "^0.44.0"
+  },
+  "dependencies": {
+    // node-gi's JavaScript AND its `prebuilds/darwin-<arch>/node_gi.node`. A
+    // dependency rather than a devDependency, because a `--app node` bundle keeps
+    // `@gjsify/node-gi/*` external and `require`s it at runtime.
+    "@gjsify/node-gi": "^0.44.0"
+  }
+}
+```
+
+One architecture is enough if you only ship one — `gjsify ship darwin --arch x64`
+looks for the `darwin-x64` packages and nothing else. `GJSIFY_NODE_RUNTIME` and
+`GJSIFY_GTK_RUNTIME` override the first two with a directory, for a maintainer
+holding an unpublished or patched build.
+
+`gjsify ship` names what it staged and what it did not, so an incomplete bundle is
+never a silent one:
+
+```
+[gjsify ship] carries its own interpreter from @gjsify/node-runtime-darwin-arm64
+[gjsify ship] carries its own GTK closure from @gjsify/gtk-runtime-darwin-arm64
+[gjsify ship] carries its own node-gi runtime (16 file(s)) from @gjsify/node-gi
+[gjsify ship] carries its own node-gi addon from @gjsify/node-gi
+```
+
+and, when a package is missing, the name to install instead. A bundle with no
+runtime still assembles — it is a working intermediate on any machine that has a
+Node — so nothing here fails your build; it tells you which artifact you got.
+
 **What it cannot do yet, and `gjsify ship` prints it rather than letting you find
-out:** the bundle carries no interpreter, so it runs where `node` is already on
-`PATH` and not on a stranger's Mac. macOS has GJS but no *relocatable* GJS, and
-Windows has no GJS host at all — which is why the macOS formats accept
-`gjsify.app: "node"` only, and why a `--app gjs` project can stage the layout and
-not pack it. A self-contained artifact on either OS needs a bundled runtime,
-which is the next milestone.
+out:** macOS has GJS but no *relocatable* GJS, and Windows has no GJS host at
+all — which is why the macOS formats accept `gjsify.app: "node"` only, why a
+`--app gjs` project can stage the layout and not pack it, and why Windows is
+`--stage` only for now.
 
 **Where each format can be packed is declared, and the command refuses rather
 than guessing.** `.deb` and `.rpm` are written by `ship` itself — plain
@@ -293,9 +337,9 @@ gjsify ship --from-stage ./ship/stage \
 Missing tooling is a separate message from the wrong OS, because the fixes
 differ, and both fire **before** your build script runs rather than after it.
 
-What is still missing is the `.dmg`, a Windows installer, the bundled runtime
-that would make a `.app` self-contained, and signing — a bundle assembled on
-Linux is unsigned by construction, and Gatekeeper will quarantine it. A `.dmg` is
+What is still missing is the `.dmg`, a Windows installer, a bundled runtime for
+Windows, and signing — a bundle assembled on Linux is unsigned by construction,
+and Gatekeeper will quarantine it. A `.dmg` is
 an image over a real HFS+/APFS volume and will have to be packed on macOS, which
 is the same split one platform over. See
 [Platform Support](/gjsify/platform-support/) for where gjsify apps run at all.

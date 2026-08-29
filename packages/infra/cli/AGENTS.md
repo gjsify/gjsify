@@ -67,7 +67,9 @@ rewrite the manifest that command commits); the `AppMetadata` half is an alias a
 `gjsify ship` on Linux stays `deb` + `rpm`. `planStage` emits ONE prefix-relative plan and
 `layout.ts`'s `place()` is the map — that split is what lets `tests/e2e/ship-layout` state the map
 ITSELF and check § 2's "one payload, a handful of layouts" as an equality — restated by M2a as
-*modulo the map PLUS an enumerated addition set*, never relaxed to a subset check. **A statement about a
+*modulo the map PLUS an enumerated addition set*, never relaxed to a subset check. The RUNTIME a
+`.app` carries (M2b) is a third source `placeStage` takes already stage-relative, never through the
+plan: `utils/ship/app-runtime.ts`, and it is tree-preserving because `bundledTypelibs` flattens. **A statement about a
 SHIPPED ARTIFACT is not one about assembly**: reading § 4's runtime table, `--target` and
 `assertPayloadMatchesArch` as if they were cost three measured defects, all in
 [docs/ship-formats.md](../../../docs/ship-formats.md) § The layout axis — read it before touching
