@@ -3710,6 +3710,18 @@ past the node tools is the mechanism this class wants; it needs a way to derive 
 from the SUITES rather than from the workflow `run:` lines, which is why it is a ledger
 entry and not a one-line change.
 
+What the gap is NOT, so the next reader does not over-buy the fix: an image missing one of
+these tools is a RED e2e run, never a green vacuous one. `tests/e2e/ship/fixture.mjs`'s
+`probe()` throws for every name in `REQUIRED_ON_LINUX`, and the two `cli-only` cases assert
+`hasCommand(...)` instead of branching on it, so no assertion behind them can quietly stop
+running. What is missing is only the EARLIER answer — at image-build time rather than at
+e2e time. That also names the shape of the fix: `REQUIRED_ON_LINUX` already IS the
+declaration, so a check reads it (the way `fixture.mjs` imports `STAGE_MANIFEST_FILE` out
+of the CLI rather than restating it) instead of growing a second list beside it. What it
+still needs is a binary→package answer that is not a hand-kept table — most plausibly a
+smoke step in `build-ci-image.yml` running `command -v` over that same imported set, which
+asks the built IMAGE and therefore cannot drift from what the image contains.
+
 The gap is not theoretical. Measured against a component `renderMetainfoApp` produced
 for the `ship` e2e fixture, using the flag the command actually passes:
 
@@ -3754,7 +3766,12 @@ implementation of the same wrapper:
     plugin cannot have compiled a `.mo` either. It has no test and no in-repo consumer —
     only `resolve-plugin-by-name.ts` documents the `{ "export": "msgfmtPlugin" }` spelling
     — which is how a wrapper that works for none of its formats stayed in a published
-    package.
+    package. Nor could a gate have said so: `scripts/audit-test-scripts.mjs` asks whether a
+    package's `test` script RUNS the per-runtime legs it ships, so a package with no `test`
+    script at all (this one has `clear`/`check`/`build` and nothing else) is outside its
+    question. Which fixes the ORDER of the repair: the test entry is the first commit, not
+    the wrapper. Without one `gjsify foreach test` never reaches the package, and the fix
+    would be green because unrun — the class it is repairing.
 
 `getOutputExtension` also returns `.xml` for the xml format, which trips a third measured
 constraint: gettext finds ITS rules by filename PATTERN (`/usr/share/gettext/its/*.loc`,
