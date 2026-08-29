@@ -1147,17 +1147,23 @@ Needs `glib-compile-schemas` (`glib2-devel` on Fedora, `libglib2.0-dev-bin` on D
 
 ### `gjsify gettext`
 
-Compile gettext `.po` files. It wraps `msgfmt` with the output shapes GNOME apps need: a per-language `.mo` locale tree, and metainfo template substitution.
+Compile gettext `.po` files. It wraps `msgfmt` with the output shapes GNOME apps need: a per-language `.mo` locale tree, and template substitution for a `.desktop` entry or an AppStream component.
 
 ```bash
 # Runtime .mo locale tree
 gjsify gettext translations dist/locale --domain org.example.App
 
-# Substitute a metainfo template
+# Merge every catalogue into an AppStream template
 gjsify gettext translations dist/metainfo \
   --domain org.example.App \
   --format xml \
-  --metainfo data/metainfo/org.example.App.metainfo.xml.in
+  --template data/metainfo/org.example.App.metainfo.xml.in
+
+# …or into a desktop entry
+gjsify gettext translations dist/applications \
+  --domain org.example.App \
+  --format desktop \
+  --template data/org.example.App.desktop.in
 ```
 
 | Option | Default | Description |
@@ -1165,13 +1171,19 @@ gjsify gettext translations dist/metainfo \
 | `<poDir>` | required | Directory holding `<lang>.po` files. |
 | `<outDir>` | required | Output directory. A locale tree for `--format mo`, a plain directory otherwise. |
 | `--domain <id>` | required | Text domain or application id. |
-| `--format <kind>` | `mo` | `mo`, `xml`, `desktop` or `json`. |
-| `--metainfo <path>` | none | For `--format xml`, the `.metainfo.xml.in` template used as `msgfmt --template`. |
+| `--format <kind>` | `mo` | `mo`, `xml` or `desktop`. |
+| `--template <path>` | none | Required for `--format xml` and `--format desktop`: the file `msgfmt` substitutes into. `--metainfo` is a deprecated alias. |
 | `--filename <name>` | `<domain>.<ext>` | Override the output filename. |
 | `--remove-xml-comments` | `true` | For `--format xml`, strip XML comments from the output. |
 | `--verbose` | `false` | Print each `msgfmt` call. |
 
 Needs `msgfmt` (the `gettext` package).
+
+`--format xml` and `--format desktop` **require** `--template`: `msgfmt` cannot produce either shape from `.po` files alone, and refuses with `--desktop requires a "--template template" specification`. The catalogues are merged one at a time with `msgfmt --locale=<lang>`, so no `LINGUAS` file is needed.
+
+For `--format xml`, the template's **filename** matters: `msgfmt --xml` finds its ITS rules by filename *pattern*, not by reading the document. gettext walks `/usr/share/gettext/its/*.loc`, and AppStream's rule there pairs `pattern="*.metainfo.xml"` with the root element `component` — so an AppStream template must be named `*.metainfo.xml` or `*.metainfo.xml.in`. Named `app.xml.in`, the same content fails with `cannot locate ITS rules for app.xml`. Both `metainfo.loc` and `metainfo.its` come from the `appstream` package.
+
+There is no `--format json`: `msgfmt` has no JSON writer. Use `@gjsify/vite-plugin-gettext`'s `po2jsonPlugin`, which parses the catalogues directly.
 
 ## Explore
 

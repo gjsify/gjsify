@@ -344,6 +344,203 @@ describe('CLI-only E2E (no user polyfill deps)', { timeout: 10 * 60 * 1000 }, ()
         assert.ok(moSize > 0, 'compiled .mo file should be non-empty');
     });
 
+    // `--format=desktop` and `--format=xml` SUBSTITUTE into a template, and until now
+    // neither could ever have worked: the shared per-language loop passed no
+    // `--template`, and msgfmt refuses that outright (`--desktop requires a
+    // "--template template" specification`, exit 1). The suite above is the only
+    // coverage the command had, and it passes `--format mo` — so the broken branch
+    // was never executed by anything.
+    //
+    // The replacement chains one msgfmt call per catalogue with `--locale=`. The form
+    // it replaced (`-d <podir>`) fails SILENTLY when no LINGUAS file is present: exit
+    // 0, `po/LINGUAS does not exist` on stderr, and the template written back
+    // untranslated. Both assertions below therefore check the TRANSLATED keys rather
+    // than the exit code.
+
+    /** A `po/` directory with two catalogues translating the same two strings. */
+    function writeCatalogues(root) {
+        const poDir = join(root, 'po');
+        mkdirSync(poDir, { recursive: true });
+        for (const [lang, name, comment] of [
+            ['de', 'Testanwendung', 'Eine Testanwendung'],
+            ['fr', 'Application de test', 'Une application de test'],
+        ]) {
+            writeFileSync(
+                join(poDir, `${lang}.po`),
+                [
+                    'msgid ""',
+                    'msgstr ""',
+                    '"Content-Type: text/plain; charset=UTF-8\\n"',
+                    `"Language: ${lang}\\n"`,
+                    '',
+                    'msgid "Test App"',
+                    `msgstr "${name}"`,
+                    '',
+                    'msgid "A test application"',
+                    `msgstr "${comment}"`,
+                    '',
+                ].join('\n'),
+            );
+        }
+        return poDir;
+    }
+
+    it('gjsify gettext --format desktop merges every catalogue into the template', () => {
+        assert.ok(hasCommand('msgfmt'), '`msgfmt` is required (package: gettext).');
+
+        const gettextDir = join(projectDir, 'gettext-desktop');
+        mkdirSync(gettextDir, { recursive: true });
+        const poDir = writeCatalogues(gettextDir);
+
+        const template = join(gettextDir, 'app.desktop.in');
+        writeFileSync(
+            template,
+            [
+                '[Desktop Entry]',
+                'Type=Application',
+                'Name=Test App',
+                'Comment=A test application',
+                'Exec=test',
+                '',
+            ].join('\n'),
+        );
+
+        const outDir = join(gettextDir, 'out');
+        execFileSync(
+            'npx',
+            [
+                'gjsify',
+                'gettext',
+                poDir,
+                outDir,
+                '--domain',
+                'com.test.app',
+                '--format',
+                'desktop',
+                '--template',
+                template,
+            ],
+            { cwd: projectDir, stdio: 'pipe', timeout: 60 * 1000 },
+        );
+
+        const produced = readFileSync(join(outDir, 'com.test.app.desktop'), 'utf-8');
+        assert.match(produced, /^Name\[de\]=Testanwendung$/m);
+        assert.match(produced, /^Name\[fr\]=Application de test$/m);
+        assert.match(produced, /^Comment\[de\]=Eine Testanwendung$/m);
+        assert.match(produced, /^Comment\[fr\]=Une application de test$/m);
+
+        // An independent reader, from a different implementation family than ours.
+        // It cannot see a missing translation — it accepts the untranslated file at
+        // exit 0 — so it runs BESIDE the assertions above, never instead of them.
+        //
+        // REQUIRED, not probed. It is baked into `.docker/ci-fedora.Dockerfile` and
+        // this suite runs on that image only, so a silent `if (hasCommand(...))`
+        // would let the one independent reader disappear from the run without the
+        // result changing — the same vacuous-green shape `tests/e2e/ship/fixture.mjs`
+        // hard-fails on rather than skips.
+        assert.ok(
+            hasCommand('desktop-file-validate'),
+            '`desktop-file-validate` is required (package: desktop-file-utils).',
+        );
+        execFileSync('desktop-file-validate', [join(outDir, 'com.test.app.desktop')], { stdio: 'pipe' });
+    });
+
+    it('gjsify gettext --format xml merges every catalogue into an AppStream template', () => {
+        assert.ok(hasCommand('msgfmt'), '`msgfmt` is required (package: gettext).');
+
+        const gettextDir = join(projectDir, 'gettext-xml');
+        mkdirSync(gettextDir, { recursive: true });
+        const poDir = writeCatalogues(gettextDir);
+
+        // The `.metainfo.xml` suffix is LOAD-BEARING, not decoration: msgfmt --xml
+        // locates its ITS rules by filename. Named `app.xml.in` the same bytes die
+        // with `cannot locate ITS rules for app.xml` (exit 1).
+        const template = join(gettextDir, 'com.test.app.metainfo.xml.in');
+        writeFileSync(
+            template,
+            // A COMPLETE component, not the two translatable elements this test is
+            // about: `appstreamcli validate` rejects a partial one on
+            // `metadata-license-missing` before it ever looks at the translations,
+            // and an oracle that fails for an unrelated reason proves nothing about
+            // the merge.
+            [
+                '<?xml version="1.0" encoding="UTF-8"?>',
+                '<component type="desktop-application">',
+                '  <id>com.test.app</id>',
+                '  <metadata_license>CC0-1.0</metadata_license>',
+                '  <project_license>MIT</project_license>',
+                '  <name>Test App</name>',
+                '  <summary>A test application</summary>',
+                '  <description>',
+                '    <p>A small application used by the gjsify end-to-end suite to prove catalogue merging.</p>',
+                '  </description>',
+                '  <developer id="com.test">',
+                '    <name translate="no">Test Developer</name>',
+                '  </developer>',
+                '  <url type="homepage">https://example.org/test-app</url>',
+                '  <launchable type="desktop-id">com.test.app.desktop</launchable>',
+                '  <content_rating type="oars-1.1"/>',
+                '</component>',
+                '',
+            ].join('\n'),
+        );
+
+        const outDir = join(gettextDir, 'out');
+        execFileSync(
+            'npx',
+            ['gjsify', 'gettext', poDir, outDir, '--domain', 'com.test.app', '--format', 'xml', '--template', template],
+            { cwd: projectDir, stdio: 'pipe', timeout: 60 * 1000 },
+        );
+
+        const produced = readFileSync(join(outDir, 'com.test.app.metainfo.xml'), 'utf-8');
+        assert.match(produced, /<name xml:lang="de">Testanwendung<\/name>/);
+        assert.match(produced, /<summary xml:lang="fr">Une application de test<\/summary>/);
+
+        // Required for the same reason as `desktop-file-validate` above.
+        assert.ok(hasCommand('appstreamcli'), '`appstreamcli` is required (package: appstream).');
+        // `--no-net` so the assertion does not depend on resolving any `<url>`.
+        execFileSync('appstreamcli', ['validate', '--no-net', join(outDir, 'com.test.app.metainfo.xml')], {
+            stdio: 'pipe',
+        });
+    });
+
+    it('gjsify gettext refuses a template-less --format=desktop', () => {
+        const gettextDir = join(projectDir, 'gettext-no-template');
+        mkdirSync(gettextDir, { recursive: true });
+        const poDir = writeCatalogues(gettextDir);
+
+        // The failure has to NAME the missing template. Before this, the command
+        // reached msgfmt without one and reported the user's `--format` as the thing
+        // that failed, which is the one fact they did not get wrong.
+        let stderr = '';
+        assert.throws(
+            () => {
+                try {
+                    execFileSync(
+                        'npx',
+                        [
+                            'gjsify',
+                            'gettext',
+                            poDir,
+                            join(gettextDir, 'out'),
+                            '--domain',
+                            'com.test.app',
+                            '--format',
+                            'desktop',
+                        ],
+                        { cwd: projectDir, stdio: 'pipe', timeout: 60 * 1000 },
+                    );
+                } catch (error) {
+                    stderr = String(error.stderr ?? '');
+                    throw error;
+                }
+            },
+            undefined,
+            'a template-less --format=desktop must not exit 0',
+        );
+        assert.match(stderr, /--template/);
+    });
+
     // -- Phase C: gjsify dlx (local-path mode) -------------------------------
     // Registry mode (`gjsify dlx <name>`) hits the npm registry and is unsuitable
     // for offline CI. Local-path mode covers entry resolution + `gjs -m` dispatch
