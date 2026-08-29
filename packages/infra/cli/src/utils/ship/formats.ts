@@ -9,6 +9,7 @@
 // a format can be host-bound (§ A3), so `host` is a descriptor field now.
 
 import { isOnPath } from '../check-system-deps.js';
+import { DMG_TOOL } from './dmg.js';
 import { LAYOUTS, LAYOUT_NAMES, type Layout } from './layout.js';
 import { SCHEMA_COMPILER, SCHEMA_COMPILER_HINT } from './schemas.js';
 import type { FormatDescriptor, FormatId, HostOs, PackSettings } from './types.js';
@@ -435,6 +436,98 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // files, so it carries the version and the arch, and it avoids the spaces
         // a display name may contain.
         fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.zip`,
+        artifactKind: 'file',
+    },
+    // ── macOS (#1354 M4) ─────────────────────────────────────────────────
+    //
+    // THE THIRD CONTAINER OVER THE SAME TREE, and the first row in this table
+    // whose `finishOn` is a real restriction rather than a statement about where
+    // the application runs. The two rows above wrap the `<App>.app` in nothing
+    // and in a zip, both of which this tree writes; this one wraps it in a UDIF
+    // image over an HFS+ volume, which nothing in this tree can write and which
+    // `hdiutil` — macOS-only — can. ADR 0024 § A1 is that sentence; § A6 is why
+    // writing one ourselves stays rejected.
+    'macos-app-dmg': {
+        id: 'macos-app-dmg',
+        layoutOs: 'darwin',
+        // The BUNDLE is still the prefix. A `.dmg` is a volume around the same
+        // `<App>.app` the two rows above produce, so nothing in the payload moves
+        // — which is the whole claim ADR 0024 § 2 makes about a new format, and
+        // the third macOS row is where it stops being a prediction.
+        prefix: '',
+        host: {
+            // THE FIRST `finishOn` THAT IS NOT ABOUT THE APPLICATION. Flatpak is
+            // Linux-bound because flatpak runs on Linux; this is darwin-bound
+            // because the only UDIF writer in existence is on darwin. A stage
+            // assembled on Linux crosses with `--stage` / `--from-stage`, and
+            // `assertHostCanFinish`'s refusal names that route.
+            finishOn: ['darwin'],
+            // `hdiutil` ALONE, and the omission is the decision: the two rows
+            // above also declare `glib-compile-schemas`, which is an ASSEMBLY
+            // tool — `schemas.ts` runs it while the tree is staged, because a
+            // non-Linux layout has no install step to run it later. This is the
+            // first row whose pack phase is separated from its assembly by a HOST
+            // boundary, and `assertToolsInstalled` fires on the pack path only. So
+            // declaring the compiler here would refuse a `--from-stage` pack on a
+            // Mac with no GLib — a pack that works, because `gschemas.compiled` is
+            // already in the stage that arrived. The assembly-time absence is
+            // still caught, by `compileSchemasForStage`'s own ENOENT refusal, on
+            // the host that can act on it.
+            requiredTools: [DMG_TOOL],
+            // Not a package name, because there is none: `hdiutil` ships with
+            // macOS and exists nowhere else. `assertHostCanFinish` has already
+            // refused every non-darwin host by the time this can fire, so the only
+            // reader of this hint is on a Mac whose `/usr/bin` is broken.
+            installHint:
+                '`hdiutil` is part of macOS and cannot be installed elsewhere — on a Mac it is /usr/bin/hdiutil, ' +
+                'so an absent one means a broken installation rather than a missing package',
+            oracle: {
+                // NOT `hdiutil verify`, which is hdiutil reading what hdiutil
+                // wrote (ADR 0024 § A3 names this format as the case). THREE
+                // readers, all on Linux, none of them Apple's and none of them
+                // ours:
+                //
+                //   * `7z l` — 7-Zip's own `Dmg` handler over the UDIF container,
+                //     then its `HFS` handler over the volume inside. Measured on
+                //     ubuntu-24.04's 7-Zip 23.01: `Dmg`, `HFS` and `APFS` are all
+                //     in `7z i`.
+                //   * `dmg2img` — an independent UDIF decoder that writes the raw
+                //     volume out, so the next reader gets a filesystem rather than
+                //     an archive listing.
+                //   * `fsck.hfsplus` (hfsprogs) — Apple's fsck_hfs sources built
+                //     for Linux, which walks the catalog, the extents overflow
+                //     file and the volume bitmap. This is the reader that
+                //     distinguishes "a file is listed" from "the volume is
+                //     structurally sound".
+                //
+                // `readOn: ['linux']` and not darwin, deliberately: a reader on
+                // the packing host is worth less, and the leg that runs these is
+                // the bare `ubuntu-latest` one that already reads the `.deb`.
+                readWith: ['7z', 'dmg2img', 'fsck.hfsplus'],
+                readOn: ['linux'],
+                selfReading: false,
+            },
+        },
+        // No package list — macOS resolves nothing for an app, exactly as the two
+        // rows above record.
+        depends: null,
+        // NODE ONLY, inherited from the tree this wraps rather than decided here:
+        // the image carries the same bundle, and there is no relocatable GJS to
+        // put in one.
+        interpreters: ['node'],
+        interpreterGap:
+            'a `.app` a stranger downloads has to CARRY its interpreter, and there is no relocatable GJS to ' +
+            'put in one — `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs` records "GJS ships no ' +
+            'relocation", which is why ADR 0024 § 4 derives Node on macOS and stage 7 is what would change it',
+        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        licenseKind: 'plain',
+        archName: macosArch,
+        // The BINARY name, version and arch — the zip's convention and not the
+        // bundle's, because this artifact is a DOWNLOAD: it lands in a browser's
+        // folder beside other files. The display name is what the VOLUME carries
+        // (`dmgVolumeName`), which is the name a user actually reads, in the
+        // Finder window the image mounts into.
+        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.dmg`,
         artifactKind: 'file',
     },
     // ── Windows (#1354 M3) ───────────────────────────────────────────────

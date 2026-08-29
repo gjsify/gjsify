@@ -24,6 +24,7 @@ import shipDependsSuite from './utils/ship/depends.spec.js';
 import shipNodeRuntimeSuite from './utils/ship/node-runtime.spec.js';
 import shipAppRuntimeSuite from './utils/ship/app-runtime.spec.js';
 import shipFlatpakSuite from './utils/ship/flatpak.spec.js';
+import shipDmgSuite from './utils/ship/dmg.spec.js';
 import installProvenanceSuite from './utils/install-provenance.spec.js';
 import shipPlistSuite from './utils/ship/plist.spec.js';
 import shipArchivesSuite from './utils/ship/archives.spec.js';
@@ -229,6 +230,7 @@ run(
         shipNodeRuntimeSuite,
         shipAppRuntimeSuite,
         shipFlatpakSuite,
+        shipDmgSuite,
         shipPlistSuite,
         installProvenanceSuite,
         shipArchivesSuite,

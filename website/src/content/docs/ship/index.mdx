@@ -1,6 +1,6 @@
 ---
 title: Ship your app
-description: Turn a built GJS app into something other people can install. One command gives you a .deb and an .rpm, `gjsify ship darwin` gives you a macOS .app and a zip, `gjsify ship windows` gives you a program directory and a zip, and `--target flatpak` adds a Flatpak bundle; this page also points at the one-line installer, self-executing bundles and dlx.
+description: Turn a built GJS app into something other people can install. One command gives you a .deb and an .rpm, `gjsify ship darwin` gives you a macOS .app and a zip (and a .dmg on a Mac), `gjsify ship windows` gives you a program directory and a zip, and `--target flatpak` adds a Flatpak bundle; this page also points at the one-line installer, self-executing bundles and dlx.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
@@ -248,6 +248,7 @@ differ:
 gjsify ship                      # this host's layout; on Linux, deb + rpm
 gjsify ship darwin               # <App>.app + a zip, if the app is --app node
 gjsify ship darwin  --stage      # <App>.app/Contents/{MacOS,Resources,Frameworks}
+gjsify ship darwin --target macos-app-dmg   # a .dmg — needs a Mac, see below
 gjsify ship windows              # a program directory + a zip, if the app is --app node
 gjsify ship windows --stage      # app\, lib\, share\ and a .cmd launcher
 ```
@@ -360,17 +361,27 @@ Mac. The macOS `.app`, the Windows program directory and both zips are the same:
 `ship` writes the zips itself, so they pack anywhere too — which is also what keeps `zipinfo` an INDEPENDENT reader
 of them rather than the other half of a round trip. (Name the layout when you
 cross: a bare `gjsify ship` on a Mac assembles the macOS one, and says so.)
-Flatpak
-is different and says so: a bundle is an OSTree static delta, only
-`flatpak-builder` and `flatpak build-bundle` write one, and both are Linux
-tools. Ask for `--target flatpak` on macOS and you get a refusal naming the
+Two formats are different and say so. A Flatpak bundle is an OSTree static
+delta, only `flatpak-builder` and `flatpak build-bundle` write one, and both are
+Linux tools. A `.dmg` is a UDIF image over a real HFS+ volume, and the only
+program that writes one is `hdiutil`, which ships with macOS and exists nowhere
+else. Ask for either on the wrong host and you get a refusal naming the
 two-phase way across, not a broken file:
 
 ```bash
 gjsify ship linux --stage --target flatpak  # here, on any OS, offline
 gjsify ship --from-stage ./ship/stage \
             --target flatpak                # there, on a Linux runner
+
+gjsify ship darwin --stage --target macos-app-dmg   # here, on any OS, offline
+gjsify ship --from-stage ./ship/stage \
+            --target macos-app-dmg                  # there, on a Mac
 ```
+
+Name the format in the `--stage` run as well as in the pack run. The stage
+carries a licence overlay per format, rendered where your project is; a stage
+assembled without `macos-app-dmg` arrives on the Mac and is refused there, in a
+job that has no `LICENSE` to fix it with.
 
 Missing tooling is a separate message from the wrong OS, because the fixes
 differ, and both fire **before** your build script runs rather than after it.
@@ -398,12 +409,11 @@ and the GTK closure a bundle carries is ad-hoc-signed when it arrives.
 `--sign -` signs ad-hoc, which needs no Apple Developer Program membership — it is
 how this project proves the whole pipeline in CI with no key anywhere.
 
-What is still missing is the `.dmg`, the Windows `.msi`, and notarisation. The two
-operating systems also differ in what an unsigned artifact costs you: Gatekeeper
-BLOCKS an unsigned `.app`, while SmartScreen only warns until a download builds
-reputation, so a Windows program directory is usable unsigned in a way the macOS
-bundle is not. A `.dmg` is an image over a real HFS+/APFS volume and will have to
-be packed on macOS, which is the same split one platform over. See
+What is still missing is the Windows `.msi` and notarisation. The two operating
+systems also differ in what an unsigned artifact costs you: Gatekeeper BLOCKS an
+unsigned `.app`, while SmartScreen only warns until a download builds reputation,
+so a Windows program directory is usable unsigned in a way the macOS bundle is
+not. See
 [Platform Support](/gjsify/platform-support/) for where gjsify apps run at all.
 
 ## Next

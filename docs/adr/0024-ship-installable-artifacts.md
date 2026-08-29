@@ -538,6 +538,49 @@ macOS suite's "every dependency resolves inside the artifact" has no Windows cou
 unzip on `windows-latest` with no gvsbuild GTK and `PATH` reduced to the system directories (so the
 runner's own Node cannot answer), and open a window.
 
+**Landed since, and it is the rest of stage 4: the `.dmg`** (#1354 M4). `macos-app-dmg` is the
+third container over the same `<App>.app`, and the FIRST row in the table that is host-bound in
+§ A1's sense: `finishOn: ['darwin']`, `requiredTools: ['hdiutil']`. A hand-written UDIF writer
+stays rejected on § A6's terms; the image is created by `hdiutil create -format UDZO -fs HFS+J
+-srcfolder <volume> -volname <display name> -ov`. Five things worth recording:
+
+- **The oracle is not `hdiutil verify`,** which § A3 already named as the case this field exists
+  for. The chain runs on LINUX and has four links, and they are not redundant: `7z l -slt` over the
+  UDIF container; `7z t`, which DECOMPRESSES what the container stores and is therefore the only
+  link that sees a byte flipped inside a compressed run; `dmg2img`, a second and unrelated UDIF
+  decoder, which writes the raw volume out; and `fsck.hfsplus -f -n`, Apple's own fsck_hfs sources
+  built for Linux, which walks the catalog and the volume bitmap. The listing then goes against
+  `.gjsify-ship-stage.json` by name and size. `.github/ship-oracle/verify-dmg.py`.
+- **`-fs HFS+J` is a decision, not a default.** A current `hdiutil` reaches for APFS when nothing
+  says otherwise, and against an APFS volume `dmg2img` produces nothing usable and `fsck.hfsplus`
+  has no subject at all — two of the three readers would silently stop reading, on a host no Linux
+  contributor can inspect. `-format UDZO` (zlib) is the same kind of decision one level down:
+  `ubuntu-latest` is ubuntu-24.04 and ships 7-Zip 23.01, not a contributor workstation's 26.02.
+- **"Flip a byte" is not a negative control.** Measured on ubuntu-24.04 against an 8 MiB
+  `mkfs.hfsplus -J` volume: one byte flipped at offset 1028, 1100 or 2048 left BOTH `fsck.hfsplus`
+  and `7z l` at exit 0, while the same flip at 1024 — the `H+` volume signature — gave fsck exit 8
+  and 7z exit 2. So the discriminator is three mutants, one per reader, each corrupting something a
+  named reader reads: the UDIF trailer's magic, a byte inside the data fork, and the HFS+ signature
+  in the converted volume. Plus a positive control on the untouched volume, so a `--kind volume`
+  path that refused everything could not pass as a discriminator.
+- **The row declares `hdiutil` and NOT `glib-compile-schemas`,** which its two siblings do. The
+  compiler is an assembly tool and `assertToolsInstalled` fires on the pack path; this is the first
+  row whose pack is separated from its assembly by a host boundary, so declaring it would refuse a
+  `--from-stage` pack on a Mac with no GLib — a pack that works, because the compiled cache is
+  already in the stage that arrived.
+- **The packer takes the STAGE, never the `.app` artifact beside it.** Three reasons, and the third
+  is § A17's: a `--target macos-app-dmg` run alone must produce an image, so depending on another
+  row having run would make the alphabetical order of `resolveFormats` a load-bearing invariant
+  nothing states; the modes must come from the plan rather than from a directory a CI round trip
+  touched; and § A17 fixes the seam for a later `--sign` between `readStage` and the container, which
+  a packer that opened an artifact would put on the wrong side of a tree nothing validated.
+
+**What M4 does not claim.** No leg mounts the image or drags the bundle out of it; `hdiutil`
+produced it and three Linux readers agree on what is inside, and that is the whole claim. The
+listing is also blind to POSIX modes — 7-Zip's HFS handler reports `Mode = 0---------`, measured —
+so the executable bit is covered for the same payload by `verify-app-zip.sh` over the `.app` zip and
+nowhere in the `.dmg` chain. And the image is not signed or notarised: that is M6.
+
 That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
 stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`
 and deliberately not `--dry-run`, because the run worth having is the one that lays bytes down — then `dpkg --verify`
