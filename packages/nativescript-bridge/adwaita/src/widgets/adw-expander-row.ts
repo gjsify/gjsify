@@ -29,6 +29,8 @@ import { panDownSymbolic, panUpSymbolic } from '@gjsify/adwaita-icons/ui';
 import { ExpanderState } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { AdwIcon } from './adw-icon.js';
+import { resolveBuilderSlot } from './builder-slots.js';
+import { xmlBoolean } from './xml-values.js';
 
 // Re-export the headless state machine so consumers can reach it from
 // `@gjsify/adwaita-nativescript` unchanged.
@@ -43,6 +45,9 @@ export interface NotifyExpandedEventData extends EventData {
     /** The new expanded state. */
     expanded: boolean;
 }
+
+/** What an XML child of an expander row can ask for; anything else is a disclosure row. */
+const EXPANDER_ROW_SLOTS = ['prefix', 'suffix'] as const;
 
 export class AdwExpanderRow extends AdwActionRow {
     /** `AdwExpanderRow` derives from `AdwPreferencesRow` in C
@@ -147,12 +152,41 @@ export class AdwExpanderRow extends AdwActionRow {
         this._disclosure.removeChild(view);
     }
 
+    /**
+     * An XML child is a ROW inside the disclosure — the one placement an expander row
+     * adds over its base, and the reason this overrides `AdwActionRow`'s prefix/suffix
+     * rule rather than inheriting it. The two edges stay reachable by name.
+     */
+    _addChildFromBuilder(name: string, view: View): void {
+        const slot = resolveBuilderSlot(name, EXPANDER_ROW_SLOTS, 'row');
+        if (slot === 'row') this.addRow(view);
+        else super._addChildFromBuilder(slot, view);
+    }
+
+    /**
+     * The rows inside the disclosure, in order — the read-back for `addRow`.
+     *
+     * NOT `rows`, which is what it was called first. `GridLayoutBase` declares `rows`
+     * as a SETTER-ONLY accessor (its getter is `rowsInternal`), so a getter of that
+     * name on a subclass shadows it: `expanderRow.rows = 'auto,*'` then throws
+     * `TypeError: Cannot set property rows … which has only a getter` in strict mode,
+     * which every NativeScript bundle is. Measured against that prototype shape, and
+     * it would have broken apps that never touch XML. `rows` and `columns` are the
+     * only two accessors of that shape on the bases this package extends —
+     * `scripts/check-nativescript-accessor-shadowing.mjs` holds both.
+     */
+    get disclosureRows(): readonly View[] {
+        const out: View[] = [];
+        for (let i = 0; i < this._disclosure.getChildrenCount(); i++) out.push(this._disclosure.getChildAt(i));
+        return out;
+    }
+
     /** Whether the disclosure is revealed. */
     get expanded(): boolean {
         return this._state.expanded;
     }
 
-    set expanded(value: boolean) {
-        this._state.setExpanded(value);
+    set expanded(value: boolean | string) {
+        this._state.setExpanded(xmlBoolean(value, false));
     }
 }

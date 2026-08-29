@@ -1,0 +1,9 @@
+<adw:AdwPreferencesGroup
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+>
+  <adw:AdwEntryRow
+    title="Display name"
+    text="Ada Lovelace"
+  />
+</adw:AdwPreferencesGroup>

@@ -64,16 +64,17 @@ interface Props {
      */
     code?: { id: string; label: string; lang: string; source: string }[];
     /**
-     * Why this block has no framework snippet — rendered INSTEAD of {@link code},
-     * never beside it.
+     * Why this block has no snippet in this window's dialect — rendered INSTEAD of
+     * {@link code}, never beside it.
      *
-     * Its own data file gives the reason: "a missing tab and a tab that cannot exist
-     * look identical, and only one of them is a fact". A `Gio.MenuModel` built
-     * imperatively is not markup in any dialect, and a reader who meets an absent
-     * window learns the wrong thing about the dialects instead of the right thing
-     * about the widget.
+     * Both refusal maps give the reason, and both say why they exist: "a missing tab
+     * and a tab that cannot exist look identical, and only one of them is a fact". A
+     * `Gio.MenuModel` built imperatively is not markup in any dialect, and an array of
+     * options is not an XML attribute in any spelling; a reader who meets an absent
+     * window learns the wrong thing about the port instead of the right thing about
+     * the widget. The wording comes with the reason because two windows use it.
      */
-    refusal?: string | null;
+    refusal?: { pane: string; missing: string; note: string; reason: string } | null;
     /** The markup the first pane mounts, or null on a window that only shows code. */
     preview?: string | null;
     /** Padding around the preview widget — see AdwWidget. */
@@ -282,7 +283,12 @@ if (attributes !== null && preview === null) {
                 ))}
                 {refusal !== null && (
                     <adw-tab-page title="Why not">
-                        <AdwWidgetRefusal widget={widget} reason={refusal} />
+                        <AdwWidgetRefusal
+                            widget={widget}
+                            missing={refusal.missing}
+                            reason={refusal.reason}
+                            note={refusal.note}
+                        />
                     </adw-tab-page>
                 )}
                 {attributes !== null && (
@@ -342,7 +348,7 @@ if (attributes !== null && preview === null) {
     )}
     {panes === 1 && refusal !== null && (
         <div class="adw-widget-window-pane">
-            <AdwWidgetRefusal widget={widget} reason={refusal} />
+            <AdwWidgetRefusal widget={widget} missing={refusal.missing} reason={refusal.reason} note={refusal.note} />
         </div>
     )}
 </div>

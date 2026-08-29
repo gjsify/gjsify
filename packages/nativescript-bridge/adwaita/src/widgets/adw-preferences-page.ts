@@ -19,6 +19,7 @@
 
 import { ScrollView, StackLayout, View } from '@nativescript/core';
 import type { NsSearchableGroup, NsSearchablePage } from './preferences-search.js';
+import { xmlBoolean } from './xml-values.js';
 
 export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
     /** The vertical stack that actually holds the groups. */
@@ -83,8 +84,8 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
         return this._useUnderline;
     }
 
-    set useUnderline(value: boolean) {
-        this._useUnderline = value === true;
+    set useUnderline(value: boolean | string) {
+        this._useUnderline = xmlBoolean(value, false);
     }
 
     /** Append a preferences group (or any view) to the page. */
@@ -95,6 +96,15 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
     /** Remove a previously-added group from the page. */
     removeGroup(view: View): void {
         this._content.removeChild(view);
+    }
+
+    /**
+     * An XML child is a GROUP. `ScrollView`'s inherited `_addChildFromBuilder` sets
+     * `content`, which would REPLACE the page's own scroll body — one group in place
+     * of all of them, and no error.
+     */
+    _addChildFromBuilder(_name: string, view: View): void {
+        this.addGroup(view);
     }
 
     /**

@@ -1,0 +1,7 @@
+<adw:AdwStatusPage
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+  iconText="📁"
+  title="No Documents"
+  description="Documents you create or open will appear here."
+/>

@@ -24,8 +24,13 @@ way: an XML template holds the tree and the TypeScript beside it is the loader.
 A NativeScript template reaches these widgets through its `xmlns`, and the namespace
 is a MODULE: NativeScript loads it and reads the element name off its exports, so
 `xmlns:adw="~/adwaita"` needs an app-local `app/adwaita.ts` that re-exports what the
-markup names. A bare package specifier there does not resolve. The four templates
-below were rendered on an Android device before they were written down.
+markup names. A bare package specifier there does not resolve. Every XML tab in this
+gallery was inflated on an Android device before it was written down —
+[`adwaita-gallery-nativescript`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-gallery-nativescript)
+loads each template through NativeScript's own `Builder` and asserts the view tree it
+built, which is the only way to tell a template that renders from one that renders
+something else: an attribute arrives as a string, and a child a widget has no slot for
+is added to the layout anyway.
 
 The third, **UI frameworks**, is on all four as well. The clamp, the header bar and
 the toolbar view show the same widget written in Solid, Vue and React through
@@ -155,15 +160,6 @@ at a comfortable measure on a large display without wasting room on a small one.
     export const clamp = Builder.load({ path: '~/views', name: 'clamp' });
     ```
   </Fragment>
-  <Fragment slot="nativescript-xml">
-    ```xml
-    <adw:AdwClamp xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:adw="~/adwaita"
-      maximumSize="400" tighteningThreshold="300">
-      <Label class="card" textWrap="true"
-        text="This content is clamped: it stops growing past the maximum size and stays centred." />
-    </adw:AdwClamp>
-    ```
-  </Fragment>
 </AdwWidget>
 
 ## Header Bar
@@ -263,21 +259,6 @@ the trailing one.
     import { Builder } from '@nativescript/core';
 
     export const headerBar = Builder.load({ path: '~/views', name: 'header-bar' });
-    ```
-  </Fragment>
-  <Fragment slot="nativescript-xml">
-    ```xml
-    <adw:AdwHeaderBar xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:adw="~/adwaita">
-      <adw:AdwHeaderBar.startBox>
-        <adw:AdwButton text="&#8249;" variant="flat" />
-      </adw:AdwHeaderBar.startBox>
-      <adw:AdwHeaderBar.titleWidget>
-        <adw:AdwWindowTitle title="Text Editor" subtitle="notes.md" />
-      </adw:AdwHeaderBar.titleWidget>
-      <adw:AdwHeaderBar.endBox>
-        <adw:AdwButton text="&#8801;" variant="flat" />
-      </adw:AdwHeaderBar.endBox>
-    </adw:AdwHeaderBar>
     ```
   </Fragment>
 </AdwWidget>
@@ -468,32 +449,6 @@ the view moves.
     view.getViewById<AdwImageButton>('share').icon = sendToSymbolic;
     ```
   </Fragment>
-  <Fragment slot="nativescript-xml">
-    ```xml
-    <adw:AdwToolbarView xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:adw="~/adwaita">
-      <adw:AdwToolbarView.topBar>
-        <adw:AdwHeaderBar title="Documents" subtitle="12 items" />
-      </adw:AdwToolbarView.topBar>
-      <adw:AdwToolbarView.content>
-        <adw:AdwStatusPage id="library" title="Your library"
-          description="Content sits between the toolbars and scrolls independently of them." />
-      </adw:AdwToolbarView.content>
-      <adw:AdwToolbarView.bottomBar>
-        <adw:AdwHeaderBar>
-          <adw:AdwHeaderBar.startBox>
-            <adw:AdwImageButton id="add" />
-          </adw:AdwHeaderBar.startBox>
-          <adw:AdwHeaderBar.titleWidget>
-            <adw:AdwWindowTitle title="Selection: none" />
-          </adw:AdwHeaderBar.titleWidget>
-          <adw:AdwHeaderBar.endBox>
-            <adw:AdwImageButton id="share" />
-          </adw:AdwHeaderBar.endBox>
-        </adw:AdwHeaderBar>
-      </adw:AdwToolbarView.bottomBar>
-    </adw:AdwToolbarView>
-    ```
-  </Fragment>
 </AdwWidget>
 
 ## Wrap Box
@@ -602,20 +557,6 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
     import { Builder } from '@nativescript/core';
 
     export const wrapBox = Builder.load({ path: '~/views', name: 'wrap-box' });
-    ```
-  </Fragment>
-  <Fragment slot="nativescript-xml">
-    ```xml
-    <adw:AdwWrapBox xmlns:adw="~/adwaita" childSpacing="8" lineSpacing="8">
-      <adw:AdwButton text="Design" variant="pill" />
-      <adw:AdwButton text="Adwaita" variant="pill" />
-      <adw:AdwButton text="GNOME" variant="pill" />
-      <adw:AdwButton text="GTK" variant="pill" />
-      <adw:AdwButton text="Typescript" variant="pill" />
-      <adw:AdwButton text="Storybook" variant="pill" />
-      <adw:AdwButton text="Wrapping" variant="pill" />
-      <adw:AdwButton text="Layout" variant="pill" />
-    </adw:AdwWrapBox>
     ```
   </Fragment>
 </AdwWidget>

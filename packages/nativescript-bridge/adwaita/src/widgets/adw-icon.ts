@@ -16,6 +16,7 @@ import { Image } from '@nativescript/core';
 import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { renderSymbolicIcon } from './icons.js';
+import { xmlNumber } from './xml-values.js';
 
 /** Default decorative-icon size, in DIPs — the Adwaita 16px symbolic grid. */
 export const DEFAULT_ADW_ICON_SIZE = 16;
@@ -92,7 +93,8 @@ export class AdwIcon extends Image {
         return this._iconSize;
     }
 
-    set iconSize(value: number) {
+    set iconSize(raw: number | string) {
+        const value = xmlNumber(raw, this.iconSize);
         this._iconSize = Number.isFinite(value) && value > 0 ? value : DEFAULT_ADW_ICON_SIZE;
         this.width = this._iconSize;
         this.height = this._iconSize;

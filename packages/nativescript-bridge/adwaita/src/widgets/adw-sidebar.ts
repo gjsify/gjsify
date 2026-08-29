@@ -25,6 +25,7 @@ import { GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } 
 import { attachRowPressFeedback } from './row-press.js';
 import { SidebarState, sidebarRowClassName, sidebarSectionsFromLabels } from './sidebar-model.js';
 import type { AdwSidebarItemSpec, AdwSidebarSectionSpec, SidebarItemFilter } from './sidebar-model.js';
+import { xmlNumber } from './xml-values.js';
 
 /** Event name emitted when {@link AdwSidebar.selected} changes. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
@@ -187,7 +188,8 @@ export class AdwSidebar extends ScrollView {
         return this._state.selected;
     }
 
-    set selected(value: number) {
+    set selected(raw: number | string) {
+        const value = xmlNumber(raw, this.selected);
         this._state.setSelected(value);
     }
 

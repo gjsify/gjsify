@@ -1,4 +1,4 @@
-# NativeScript bridge — platform notes (window insets, host ownership)
+# NativeScript bridge — measured notes (window insets, host ownership, derived counts)
 
 > Detail for [packages/nativescript-bridge/AGENTS.md](../packages/nativescript-bridge/AGENTS.md).
 > These are measured results, not design intent — each paragraph is the record of a
@@ -91,3 +91,21 @@ wired to the loser reads zero forever. Observed: the shell's panes get the readi
 story's own `AdwToolbarView` gets none. The Android host-inset variant therefore refuses to
 release the page's top edge until it holds a non-zero reading to pay with — a guard around
 the duplication, not a fix for it (`status/open-todos.md`).
+
+## A count written by hand, next to a count that is derived
+
+**The widget matrix in `AGENTS.md` said 44 while the tree held 45.**
+
+The per-widget matrix and its total are DERIVED into `STATUS.md` from the sources. A
+number typed beside them in `AGENTS.md` is a second truth about the same tree, and it
+drifted the moment a widget landed — silently, because nothing compares prose to a
+generator's output and nothing ever will: the two are not the same kind of artefact.
+
+That is why the rule in the cell is "the count is derived" and the count itself is not
+there. The incident is here rather than in the cell for the same reason the cell is
+short: it is what makes the rule survive somebody deciding a number would be handy, and
+it is not something an agent needs on every turn.
+
+`scripts/check-storybook-widget-coverage.mjs` explains separately why the matrix is not
+machine-checked against the same reader that generates it — `f(x)` against `f(x)` is
+green for every tree.

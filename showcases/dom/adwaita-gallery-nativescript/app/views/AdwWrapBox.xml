@@ -1,0 +1,31 @@
+<adw:AdwWrapBox
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+  childSpacing="8"
+  lineSpacing="8"
+>
+  <adw:AdwButton
+    text="Design"
+    variant="pill"
+  />
+  <adw:AdwButton
+    text="Adwaita"
+    variant="pill"
+  />
+  <adw:AdwButton
+    text="GNOME"
+    variant="pill"
+  />
+  <adw:AdwButton
+    text="GTK"
+    variant="pill"
+  />
+  <adw:AdwButton
+    text="TypeScript"
+    variant="pill"
+  />
+  <adw:AdwButton
+    text="Storybook"
+    variant="pill"
+  />
+</adw:AdwWrapBox>

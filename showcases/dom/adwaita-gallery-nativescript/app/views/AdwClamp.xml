@@ -1,0 +1,12 @@
+<adw:AdwClamp
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+  maximumSize="400"
+  tighteningThreshold="300"
+>
+  <Label
+    class="card"
+    textWrap="true"
+    text="This content is clamped: it stops growing past the maximum size and stays centred."
+  />
+</adw:AdwClamp>

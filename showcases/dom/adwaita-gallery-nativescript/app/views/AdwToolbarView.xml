@@ -1,0 +1,25 @@
+<adw:AdwToolbarView
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+>
+  <adw:AdwToolbarView.topBar>
+    <adw:AdwHeaderBar
+      title="Documents"
+      subtitle="12 items"
+    />
+  </adw:AdwToolbarView.topBar>
+  <adw:AdwToolbarView.content>
+    <adw:AdwStatusPage
+      id="library"
+      title="Your library"
+      description="Content sits between the toolbars and scrolls independently of them."
+    />
+  </adw:AdwToolbarView.content>
+  <adw:AdwToolbarView.bottomBar>
+    <adw:AdwHeaderBar>
+      <adw:AdwHeaderBar.titleWidget>
+        <adw:AdwWindowTitle title="Selection: none" />
+      </adw:AdwHeaderBar.titleWidget>
+    </adw:AdwHeaderBar>
+  </adw:AdwToolbarView.bottomBar>
+</adw:AdwToolbarView>

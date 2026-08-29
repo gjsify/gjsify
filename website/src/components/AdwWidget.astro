@@ -115,6 +115,10 @@ import {
     ADWAITA_FRAMEWORK_SNIPPETS,
     type FrameworkDialect,
 } from '../data/adwaita-framework-snippets';
+import {
+    ADWAITA_NATIVESCRIPT_REFUSALS,
+    ADWAITA_NATIVESCRIPT_TEMPLATES,
+} from '../data/adwaita-nativescript-templates';
 import { sampleAttributes } from './attr-sample.mjs';
 import AdwWidgetWindow from './AdwWidgetWindow.astro';
 
@@ -191,6 +195,20 @@ const FRAMEWORK_PANES: readonly { id: FrameworkDialect; label: string; lang: str
 ];
 
 /**
+ * The XML half of the NativeScript window, from `data/adwaita-nativescript-templates.ts`.
+ *
+ * A SLOT until now, and filled on four blocks of forty — which is the shape this
+ * gallery has been told twice that it cannot keep: written per page, a snippet is a
+ * copy, and thirty-six of them were simply never written. The generator behind this
+ * data emits the same bytes into `showcases/dom/adwaita-gallery-nativescript`, which
+ * inflates each one through NativeScript's own `Builder` on an Android device and
+ * asserts the view tree it built.
+ */
+const NATIVESCRIPT_PANES: readonly { id: string; label: string; lang: string }[] = [
+    { id: 'nativescript-xml', label: 'XML', lang: 'xml' },
+];
+
+/**
  * The windows, in order, and every port this component renders.
  *
  * A window says what KIND it is in its TITLE, and nothing else: the claims that
@@ -263,20 +281,46 @@ const WINDOWS = [
         // {@link REFUSAL_PANE}. 21 + 19 is every block, which is the property that
         // makes an empty frameworks window a bug rather than a gap.
         code: FRAMEWORK_PANES,
-        refusals: true,
+        codeOf: (widget: string, pane: string) =>
+            ADWAITA_FRAMEWORK_SNIPPETS[widget]?.[pane as FrameworkDialect],
+        refusalOf: (widget: string) => ADWAITA_FRAMEWORK_REFUSALS[widget],
+        refusal: {
+            pane: 'why-not',
+            missing: 'Solid, Vue or React snippet',
+            note:
+                'Every snippet in this gallery was compiled and run before it was written down. Where a widget is ' +
+                'built imperatively rather than declared — a Gio.MenuModel, a dialog opened with present(), a ' +
+                'container with no child policy — there is nothing for the three dialects to differ about, so the ' +
+                'reason is recorded here rather than the tab being quietly absent.',
+        },
     },
     {
         id: 'nativescript',
         title: 'NativeScript',
-        tabs: [
-            { slot: 'nativescript', label: 'TypeScript' },
-            // The XML template is a FILE of the same program, exactly as Blueprint
-            // is above it: NativeScript resolves `<adw:AdwClamp>` by loading the
-            // module the template's `xmlns` names, and the TypeScript beside it is
-            // the loader that mounts the template and does what markup cannot say.
-            // Standing alone, either half is not a program.
-            { slot: 'nativescript-xml', label: 'XML' },
-        ],
+        tabs: [{ slot: 'nativescript', label: 'TypeScript' }],
+        // The XML template is a FILE of the same program, exactly as Blueprint is on
+        // the window above: NativeScript resolves `<adw:AdwClamp>` by loading the
+        // module the template's `xmlns` names, and the TypeScript beside it is the
+        // loader that mounts the template and does what markup cannot say. Standing
+        // alone, either half is not a program.
+        //
+        // DATA and no longer a slot, and the two are not interchangeable here: an XML
+        // template is the one dialect where "it renders" cannot be read off the text.
+        // NativeScript's Builder assigns an attribute verbatim (`open="false"` opened
+        // a dialog) and `LayoutBase` adds a child a widget cannot place anyway (a
+        // header bar painted over the content). Both at exit 0. Only a run says which.
+        code: NATIVESCRIPT_PANES,
+        codeOf: (widget: string) => ADWAITA_NATIVESCRIPT_TEMPLATES[widget],
+        refusalOf: (widget: string) => ADWAITA_NATIVESCRIPT_REFUSALS[widget],
+        refusal: {
+            pane: 'why-no-xml',
+            missing: 'NativeScript XML template',
+            note:
+                'NativeScript\u2019s Builder reaches a widget through an attribute, which is always a string, and ' +
+                'through a child, which lands only where the widget declares a slot for it. A property that is an ' +
+                'array of options or a reference to another view fits through neither, so the TypeScript beside ' +
+                'this window is where that widget is built.',
+        },
     },
 ];
 
@@ -337,16 +381,15 @@ const LIVE_PANE = 'live';
 const ATTRS_PANE = 'attributes';
 
 /**
- * The pane that says why a block has NO framework snippet.
+ * The panes that say why a block has NO snippet in a window's dialect.
  *
- * `ADWAITA_FRAMEWORK_REFUSALS` exists for this and says so in its own header: "a
- * missing tab and a tab that cannot exist look identical, and only one of them is a
- * fact". Nineteen of the forty blocks are the second kind — a `Gio.MenuModel` built
- * imperatively, a dialog opened with `present()`, a container with no child policy —
- * and rendering nothing there teaches a reader that the dialects are half-finished
- * rather than that the widget is not markup.
+ * Both refusal maps exist for this and say so in their own headers: "a missing tab
+ * and a tab that cannot exist look identical, and only one of them is a fact". Each
+ * window names its own pane id, because `data-impls` is positional and looked up by
+ * name — one shared `why-not` would give a reader who picked it on one window the
+ * OTHER window's reason on the next block.
  */
-const REFUSAL_PANE = 'why-not';
+const REFUSAL_PANES = WINDOWS.flatMap((win) => (win.refusal === undefined ? [] : [win.refusal.pane]));
 
 // That requirement, held rather than stated. `data-impls` is POSITIONAL and the
 // script below looks a pane up by name with `indexOf`, so a pane id equal to a
@@ -355,7 +398,13 @@ const REFUSAL_PANE = 'why-not';
 // it would move every OTHER preview window to its Preview pane instead. Nothing
 // else notices — the ids never leave `data-impls`, so the site builds, both tabs
 // render, and every gate stays green.
-const OWN_PANES = [LIVE_PANE, ATTRS_PANE, REFUSAL_PANE, ...FRAMEWORK_PANES.map((pane) => pane.id)];
+const OWN_PANES = [
+    LIVE_PANE,
+    ATTRS_PANE,
+    ...REFUSAL_PANES,
+    ...FRAMEWORK_PANES.map((pane) => pane.id),
+    ...NATIVESCRIPT_PANES.map((pane) => pane.id),
+];
 const collidingSlot = WINDOWS.flatMap((win) => win.tabs.map((tab) => tab.slot)).find((slot) =>
     OWN_PANES.includes(slot),
 );
@@ -367,6 +416,23 @@ if (collidingSlot !== undefined) {
     );
 }
 
+// The OTHER half of that requirement, and it was stated and not held. Two windows
+// sharing a pane id is the same defect as a slot colliding with one, one window over:
+// the stored choice is a bare NAME, `applyPreference` writes it into EVERY window whose
+// `data-impls` contains it, and a reader who picked the frameworks window's reason would
+// land on the NativeScript window's reason on the next block. {@link REFUSAL_PANES} is
+// exactly where that becomes tempting — one `why-not` for both refusal maps reads like
+// deduplication — and nothing downstream would notice, because a duplicate id still
+// renders, still builds, and still leaves every gate green.
+const duplicatePane = OWN_PANES.find((id, index) => OWN_PANES.indexOf(id) !== index);
+if (duplicatePane !== undefined) {
+    throw new Error(
+        `AdwWidget: "${duplicatePane}" is declared as a pane id twice (${OWN_PANES.join(', ')}). ` +
+            'A stored implementation choice is a bare name, so two windows sharing an id makes one of ' +
+            "them answer for the other's panes. Give each window its own.",
+    );
+}
+
 const rendered: {
     id: string;
     title: string;
@@ -375,7 +441,7 @@ const rendered: {
     impls: string;
     tabs: { slot: string; label: string; html: string }[];
     code: { id: string; label: string; lang: string; source: string }[];
-    refusal: string | null;
+    refusal: { pane: string; missing: string; note: string; reason: string } | null;
 }[] = [];
 let previewMarkup: string | null = null;
 
@@ -415,14 +481,15 @@ for (const spec of WINDOWS) {
     // is missing a dialect shows the dialects it has, because a pane rendering an
     // empty fence is worse than an absent one.
     const code = (spec.code ?? [])
-        .map((pane) => ({ ...pane, source: ADWAITA_FRAMEWORK_SNIPPETS[title]?.[pane.id] ?? '' }))
+        .map((pane) => ({ ...pane, source: spec.codeOf?.(title, pane.id) ?? '' }))
         .filter((pane) => pane.source !== '');
 
     // A block with no snippet gets the RECORDED REASON, never silence. The two maps
     // partition the gallery, so exactly one of `code` and `refusal` is non-empty on
     // the frameworks window — and a block in NEITHER map leaves the window absent,
     // which arm 4 of `check-generated-website-data.mjs` is what refuses.
-    const refusal = spec.refusals === true && code.length === 0 ? (ADWAITA_FRAMEWORK_REFUSALS[title] ?? null) : null;
+    const reason = spec.refusal === undefined || code.length > 0 ? undefined : spec.refusalOf?.(title);
+    const refusal = spec.refusal === undefined || reason === undefined ? null : { ...spec.refusal, reason };
 
     // All three, because a window can now be entirely data: measured on the built
     // site, the frameworks window fills on all 40 blocks while only 3 of them
@@ -453,7 +520,7 @@ for (const spec of WINDOWS) {
             ...(live ? [LIVE_PANE] : []),
             ...tabs.map((t) => t.slot),
             ...code.map((c) => c.id),
-            ...(refusal === null ? [] : [REFUSAL_PANE]),
+            ...(refusal === null ? [] : [refusal.pane]),
             ...(attrs === null ? [] : [ATTRS_PANE]),
         ].join(','),
         tabs,

@@ -1,0 +1,7 @@
+<adw:AdwBanner
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+  title="Metered connection: updates paused"
+  buttonLabel="Resume"
+  revealed="true"
+/>

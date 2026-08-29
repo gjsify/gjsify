@@ -1,0 +1,22 @@
+<StackLayout
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+  orientation="horizontal"
+>
+  <adw:AdwButton
+    text="Pill"
+    variant="pill"
+  />
+  <adw:AdwButton
+    text="Suggested"
+    variant="suggested"
+  />
+  <adw:AdwButton
+    text="Delete"
+    variant="destructive"
+  />
+  <adw:AdwButton
+    text="Flat"
+    variant="flat"
+  />
+</StackLayout>

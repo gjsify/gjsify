@@ -42,6 +42,7 @@ import {
     type ViewSwitcherKind,
     type ViewSwitcherNotifyPayload,
 } from './view-switcher-model.js';
+import { xmlNumber } from './xml-values.js';
 
 // Re-exported so the widget module stays the one import site for the page type.
 export type { AdwViewPage };
@@ -287,7 +288,8 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         return this._state.selected;
     }
 
-    set selected(value: number) {
+    set selected(raw: number | string) {
+        const value = xmlNumber(raw, this.selected);
         this._state.setSelected(value);
     }
 

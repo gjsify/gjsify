@@ -1,0 +1,28 @@
+<adw:AdwOverlaySplitView
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+>
+  <adw:AdwOverlaySplitView.sidebar>
+    <adw:AdwToolbarView>
+      <adw:AdwToolbarView.topBar>
+        <adw:AdwHeaderBar title="Library" />
+      </adw:AdwToolbarView.topBar>
+      <adw:AdwToolbarView.content>
+        <adw:AdwStatusPage title="Sections" />
+      </adw:AdwToolbarView.content>
+    </adw:AdwToolbarView>
+  </adw:AdwOverlaySplitView.sidebar>
+  <adw:AdwOverlaySplitView.content>
+    <adw:AdwToolbarView>
+      <adw:AdwToolbarView.topBar>
+        <adw:AdwHeaderBar title="Your Library" />
+      </adw:AdwToolbarView.topBar>
+      <adw:AdwToolbarView.content>
+        <adw:AdwStatusPage
+          title="Your Library"
+          description="Toggle the sidebar to browse sections."
+        />
+      </adw:AdwToolbarView.content>
+    </adw:AdwToolbarView>
+  </adw:AdwOverlaySplitView.content>
+</adw:AdwOverlaySplitView>

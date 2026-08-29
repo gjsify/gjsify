@@ -29,6 +29,7 @@ import { PasswordEntryRowState, type PasswordEntryRowRenderState } from '@gjsify
 import { AdwEntryRow } from './adw-entry-row.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { NS_PASSWORD_ENTRY_ROW_CLASS, applyPasswordEntryRowState } from './entry-row-view.js';
+import { xmlBoolean } from './xml-values.js';
 
 // Re-exported so consumers reach the headless state machine from
 // `@gjsify/adwaita-nativescript` without a second import path.
@@ -88,8 +89,8 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
         return this._password.revealed;
     }
 
-    set revealed(value: boolean) {
-        this._password.setRevealed(value);
+    set revealed(value: boolean | string) {
+        this._password.setRevealed(xmlBoolean(value, false));
     }
 
     /**
@@ -101,8 +102,8 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
         return this._password.revealed;
     }
 
-    set peeking(value: boolean) {
-        this._password.setRevealed(value);
+    set peeking(value: boolean | string) {
+        this._password.setRevealed(xmlBoolean(value, false));
     }
 
     /** Flip masked↔revealed — `show_text_clicked_cb` (C:90-97). */

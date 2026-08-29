@@ -95,7 +95,7 @@ export class AdwClamp extends GridLayout {
         return this._props.maximumSize;
     }
 
-    set maximumSize(value: number) {
+    set maximumSize(value: number | string) {
         this._props.maximumSize = normalizeClampProp(value, DEFAULT_CLAMP_MAX_SIZE);
         this._allocate();
     }
@@ -110,7 +110,7 @@ export class AdwClamp extends GridLayout {
         return this._props.tighteningThreshold;
     }
 
-    set tighteningThreshold(value: number) {
+    set tighteningThreshold(value: number | string) {
         this._props.tighteningThreshold = normalizeClampProp(value, DEFAULT_CLAMP_TIGHTENING_THRESHOLD);
         this._allocate();
     }

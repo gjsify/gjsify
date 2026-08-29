@@ -54,6 +54,7 @@ import {
     wrapBoxSpacingChanges,
     type WrapBoxFlexInput,
 } from './wrap-box-layout.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 /** Every `notify::` an `Adw.WrapBox` emits (adw-wrap-box.c:284-497). */
 export type AdwWrapBoxProperty =
@@ -170,9 +171,10 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._childSpacing;
     }
 
-    set childSpacing(value: number) {
-        if (!wrapBoxSpacingChanges(this._childSpacing, value)) return;
-        this._childSpacing = normalizeWrapBoxSpacing(value);
+    set childSpacing(value: number | string) {
+        const spacing = xmlNumber(value, this._childSpacing);
+        if (!wrapBoxSpacingChanges(this._childSpacing, spacing)) return;
+        this._childSpacing = normalizeWrapBoxSpacing(spacing);
         this._applyChildren();
         this._notify('child-spacing');
     }
@@ -195,9 +197,10 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._lineSpacing;
     }
 
-    set lineSpacing(value: number) {
-        if (!wrapBoxSpacingChanges(this._lineSpacing, value)) return;
-        this._lineSpacing = normalizeWrapBoxSpacing(value);
+    set lineSpacing(value: number | string) {
+        const spacing = xmlNumber(value, this._lineSpacing);
+        if (!wrapBoxSpacingChanges(this._lineSpacing, spacing)) return;
+        this._lineSpacing = normalizeWrapBoxSpacing(spacing);
         this._applyChildren();
         this._notify('line-spacing');
     }
@@ -220,7 +223,8 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._align;
     }
 
-    set align(value: number) {
+    set align(raw: number | string) {
+        const value = xmlNumber(raw, this.align);
         const next = normalizeWrapBoxAlign(value);
         if (next === this._align) return;
         this._align = next;
@@ -246,7 +250,8 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._justifyLastLine;
     }
 
-    set justifyLastLine(value: boolean) {
+    set justifyLastLine(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.justifyLastLine);
         const next = !!value;
         if (next === this._justifyLastLine) return;
         this._justifyLastLine = next;
@@ -259,7 +264,8 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._lineHomogeneous;
     }
 
-    set lineHomogeneous(value: boolean) {
+    set lineHomogeneous(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.lineHomogeneous);
         const next = !!value;
         if (next === this._lineHomogeneous) return;
         this._lineHomogeneous = next;
@@ -272,7 +278,8 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._wrapReverse;
     }
 
-    set wrapReverse(value: boolean) {
+    set wrapReverse(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.wrapReverse);
         const next = !!value;
         if (next === this._wrapReverse) return;
         this._wrapReverse = next;
@@ -329,7 +336,8 @@ export class AdwWrapBox extends FlexboxLayout {
         return this._naturalLineLength;
     }
 
-    set naturalLineLength(value: number) {
+    set naturalLineLength(raw: number | string) {
+        const value = xmlNumber(raw, this.naturalLineLength);
         const next = normalizeNaturalLineLength(value);
         if (next === this._naturalLineLength) return;
         this._naturalLineLength = next;

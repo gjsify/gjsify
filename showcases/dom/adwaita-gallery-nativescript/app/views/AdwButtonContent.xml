@@ -1,0 +1,6 @@
+<adw:AdwButtonContent
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+  id="download"
+  label="Download"
+/>

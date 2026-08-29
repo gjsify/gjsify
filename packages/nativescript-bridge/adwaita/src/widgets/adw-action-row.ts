@@ -19,9 +19,14 @@
 
 import { GridLayout, ItemSpec, StackLayout, Label, View, type EventData } from '@nativescript/core';
 import { ActionRowState, isViewSensitive, rowLabelVisuals } from './row-state.js';
+import { xmlBoolean } from './xml-values.js';
+import { resolveBuilderSlot } from './builder-slots.js';
 
 /** Event name emitted when the row is activated. Mirrors `Adw.ActionRow::activated`. */
 export const ACTIVATED = 'activated';
+
+/** The edges an XML child of an action row can ask for. */
+const ACTION_ROW_SLOTS = ['prefix', 'suffix'] as const;
 
 export class AdwActionRow extends GridLayout {
     /**
@@ -140,6 +145,24 @@ export class AdwActionRow extends GridLayout {
         return this._suffix;
     }
 
+    /**
+     * An XML child goes to a named edge, and a bare one to the SUFFIX.
+     *
+     * The fallback is libadwaita's: `AdwActionRow`'s buildable adds an untyped child
+     * with `adw_action_row_add_suffix`. Without this override, `LayoutBase`'s default
+     * `addChild` drops the child into the grid with no `adw-row-prefix` /
+     * `adw-row-suffix` class and no column, so it lands on top of the title.
+     *
+     * The subclasses inherit it, and that is deliberate but sharp-edged: a switch row
+     * builds its own `Switch` as the suffix in its constructor, and `setSuffix`
+     * REPLACES. An explicit `<AdwSwitchRow.suffix>` therefore takes the switch's
+     * place, which is what "set the suffix" has to mean.
+     */
+    _addChildFromBuilder(name: string, view: View): void {
+        if (resolveBuilderSlot(name, ACTION_ROW_SLOTS, 'suffix') === 'prefix') this.setPrefix(view);
+        else this.setSuffix(view);
+    }
+
     /** `Adw.ActionRow:activatable-widget` — the widget this row activates. */
     get activatableWidget(): View | null {
         return this._rowState.activatableWidget;
@@ -168,8 +191,8 @@ export class AdwActionRow extends GridLayout {
         return this._rowState.activatable;
     }
 
-    set activatable(value: boolean) {
-        this._rowState.setActivatable(value);
+    set activatable(value: boolean | string) {
+        this._rowState.setActivatable(xmlBoolean(value, false));
     }
 
     /**

@@ -28,6 +28,7 @@ import type { AdwComboOption } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { AdwIcon } from './adw-icon.js';
 import { attachRowPressFeedback } from './row-press.js';
+import { xmlNumber } from './xml-values.js';
 
 // Re-export the headless state machine + the option type so consumers can reach
 // them from `@gjsify/adwaita-nativescript` unchanged.
@@ -146,7 +147,8 @@ export class AdwComboRow extends AdwActionRow {
         return this._state.selectedIndex;
     }
 
-    set selectedIndex(value: number) {
+    set selectedIndex(raw: number | string) {
+        const value = xmlNumber(raw, this.selectedIndex);
         this._state.setSelectedIndex(value);
     }
 

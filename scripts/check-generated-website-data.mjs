@@ -40,13 +40,32 @@
 //      unheld vocabulary: a tag that stops existing, a prop that was never a prop,
 //      or a slot no descriptor declares fails here rather than at render time in
 //      three showcases.
+//   5b. Every `uncurated-placement` refusal is TRUE (its GType still has no curated
+//      descriptor) and is actually PROBED, and every placement the probe measures is
+//      either a gallery refusal or ledgered in the probe itself. Nothing held the two
+//      lists against each other, so a stale claim and an unmeasured one both read green.
 //   6. Every snippet the website ships occurs, line for line, in the probe showcase
 //      that COMPILES AND RUNS it. Both come from one generator run, so today they
 //      cannot disagree — and that is exactly why it is worth asserting: the day a
 //      hand edits one of the two generated files, or an emitter grows a branch that
 //      only the website takes, the site would publish markup nothing ever ran. That
 //      is the claim the whole arrangement rests on, so it is the one to hold.
-//   7. Every generated output is still EXEMPT in `.oxfmtrc.json`. The generator
+//   7. Every gallery block reaches the NativeScript template source too: a template
+//      in `adwaita-gallery-ns-templates.mjs` or a REFUSAL naming why it has none.
+//      Same partition as (4), one port over.
+//   8. Every element, property and slot in those templates is one
+//      `@gjsify/adwaita-nativescript` actually has — read out of the widget sources.
+//      And, because NativeScript's Builder assigns an attribute VERBATIM, every
+//      non-string property must go through `xmlNumber`/`xmlBoolean` in its setter,
+//      and every child must land in a widget that OVERRIDES `_addChildFromBuilder`.
+//      Both were measured failing on device before this arm existed: `open="false"`
+//      opened a dialog, and a header bar declared as a toolbar view's top bar painted
+//      over the content.
+//   9. Every template the website ships is BYTE-IDENTICAL to the view file the probe
+//      loads. Same claim as (6), and the stronger one here — a template nobody
+//      inflated is not a snippet nobody compiled, it is markup that renders SOMETHING
+//      either way.
+//  10. Every generated output is still EXEMPT in `.oxfmtrc.json`. The generator
 //      emits its final bytes itself and nothing formats them — it used to shell out
 //      to `node_modules/.bin/oxfmt`, which does not exist in this job or in
 //      `Manifest checks (Windows)`, because both are `checkout` + `setup-node` and
@@ -65,6 +84,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { observedAttributes } from './adwaita-elements.mjs';
+import { ADWAITA_GALLERY_NS_REFUSALS, ADWAITA_GALLERY_NS_TEMPLATES } from './adwaita-gallery-ns-templates.mjs';
 import { ADWAITA_GALLERY_REFUSALS, ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
 import {
     gtypeOfTag,
@@ -72,6 +92,27 @@ import {
     PROBE_SOURCES,
     snippetLines,
 } from './generate-adwaita-framework-snippets.mjs';
+import {
+    NS_GENERATED,
+    NS_OXFMT_EXEMPT_OUTPUTS,
+    templateFor,
+    viewNameOf,
+} from './generate-adwaita-nativescript-templates.mjs';
+// The SAME reader `check-nativescript-xml-doors.mjs` holds the whole package with. Two
+// parsers over one source would be two truths about it, and the narrower corpus here is
+// the point: that gate says every setter is safe, this one says every template is honest
+// about the setter it names.
+import {
+    attributeKind,
+    chainOf,
+    coerces,
+    COERCERS,
+    membersOf,
+    readElements,
+    readTypeSources,
+    readWidgets,
+    setterOf,
+} from './nativescript-xml-doors.mjs';
 
 const rootFlag = process.argv.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : process.argv[rootFlag + 1];
@@ -107,6 +148,10 @@ const GENERATORS = [
     // and run them, from one tree per widget. Both outputs are committed, so both
     // can drift from the source and from each other.
     'scripts/generate-adwaita-framework-snippets.mjs',
+    // Emits the NativeScript XML template for every block that has one, AND the
+    // `app/views/*.xml` the probe showcase inflates plus the barrel and expected tree
+    // it reads them through. Four committed outputs, four ways to drift.
+    'scripts/generate-adwaita-nativescript-templates.mjs',
 ];
 
 /**
@@ -353,6 +398,99 @@ if (widgetsSrc === null || propsSrc === null || descriptorFiles.some((f) => f ==
         for (const child of node.children ?? []) walk(child, widget, node);
     };
     for (const tree of ADWAITA_GALLERY_TREES) walk(tree.root, tree.widget, null);
+
+    // ---------------------------------------------------------------------------
+    // 5b. the uncurated-placement claims, and the probe that is supposed to measure
+    // ---------------------------------------------------------------------------
+    //
+    // The SAME rule as the NativeScript refusal arm below — a refusal reason is a
+    // CLAIM, and a claim nothing reads is prose — but a different predicate, because
+    // the two ports refuse for different mechanical reasons. NativeScript's reasons
+    // name a widget MEMBER (an array property, a missing `_addChildFromBuilder`), so
+    // they are checked against the widget classes. These name `uncurated-placement`,
+    // which is `gtk-host`'s own refusal for a child placed into a widget whose
+    // descriptor declares no child policy — a property of the DESCRIPTOR TABLE, which
+    // moves when the table does. One predicate over both would have to be so loose it
+    // checked neither.
+    //
+    // Both directions, because both have gone wrong here before: #1368 curated five
+    // containers and three refusals became stale overnight — `probe:refusals` is what
+    // said so — and the reverse, a reason claiming a placement nothing probes, had
+    // nothing looking at all.
+    const PROBE_REFUSALS = 'showcases/gtk/adwaita-gallery-solid/src/refusals.ts';
+    let probeText = null;
+    try {
+        probeText = readFileSync(join(ROOT, PROBE_REFUSALS), 'utf8');
+    } catch {
+        probeText = null;
+    }
+    if (probeText === null) {
+        failures.push(`${PROBE_REFUSALS} is unreadable — arm 5b would pass vacuously`);
+    } else {
+        const list = /const PLACEMENTS: readonly \[parent: string, child: string\]\[\] = \[([\s\S]*?)\n\];/.exec(
+            probeText,
+        );
+        const probed = new Map(
+            list === null ? [] : [...list[1].matchAll(/\['([^']+)',\s*'([^']+)'\]/g)].map((m) => [m[1], m[2]]),
+        );
+        const ledgerBlock = /PLACEMENTS_NOT_IN_THE_GALLERY: Record<string, string> = \{([\s\S]*?)\n\};/.exec(probeText);
+        const notInGallery = new Set(
+            ledgerBlock === null ? [] : [...ledgerBlock[1].matchAll(/^\s{4}'([^']+)':/gm)].map((m) => m[1]),
+        );
+
+        if (probed.size === 0)
+            failures.push(`${PROBE_REFUSALS}: its PLACEMENTS list read as empty — arm 5b proved nothing`);
+
+        /** `adw-wrap-box` -> `Adw.WrapBox`, the gallery title a placement refuses for. */
+        const titleOfTag = (tag) => {
+            const gtype = gtypeOfTag(tag);
+            return `${gtype.slice(0, 3)}.${gtype.slice(3)}`;
+        };
+
+        for (const [widget, reason] of Object.entries(ADWAITA_GALLERY_REFUSALS)) {
+            if (!reason.includes('uncurated-placement')) continue;
+            const gtype = widget.replace('.', '');
+            if (curatedSlots.has(gtype)) {
+                failures.push(
+                    `"${widget}" is refused as uncurated-placement, but ${gtype} HAS a curated descriptor now. ` +
+                        'The refusal is stale — that block can have a tree. (#1368 turned three of these green ' +
+                        'at once, and only the probe noticed.)',
+                );
+            }
+            const tag = [...probed.keys()].find((t) => titleOfTag(t) === widget);
+            if (tag === undefined) {
+                failures.push(
+                    `"${widget}" claims uncurated-placement and ${PROBE_REFUSALS} probes no placement into it, ` +
+                        'so the claim is never measured. Add the parent/child pair to PLACEMENTS.',
+                );
+            }
+        }
+
+        for (const parent of probed.keys()) {
+            if (notInGallery.has(parent)) continue;
+            const widget = titleOfTag(parent);
+            if (!Object.hasOwn(ADWAITA_GALLERY_REFUSALS, widget)) {
+                failures.push(
+                    `${PROBE_REFUSALS} probes <${parent}>, which is neither a refusal in the gallery ledger ` +
+                        `(as "${widget}") nor an entry in its own PLACEMENTS_NOT_IN_THE_GALLERY. A probe measuring ` +
+                        'something nothing claims is a pass about nothing.',
+                );
+            }
+        }
+
+        for (const parent of notInGallery) {
+            if (!probed.has(parent)) {
+                failures.push(
+                    `${PROBE_REFUSALS}: PLACEMENTS_NOT_IN_THE_GALLERY names <${parent}>, which PLACEMENTS does ` +
+                        'not probe. Drop the entry — a stale exemption reads as considered.',
+                );
+            }
+        }
+        notes.push(
+            `${probed.size} probed placement(s), ${notInGallery.size} ledgered as not-a-gallery-block, ` +
+                'each uncurated-placement refusal measured',
+        );
+    }
     notes.push(
         `${ADWAITA_GALLERY_TREES.length} framework tree(s), ` +
             `${Object.keys(ADWAITA_GALLERY_REFUSALS).length} refusal(s), against ${hostTags.size} gtk-host tag(s)`,
@@ -398,7 +536,290 @@ notes.push(`${checkedSnippets} snippet(s) found verbatim in the showcase that co
 if (checkedSnippets === 0) failures.push('no snippet was matched against a probe — arm 6 proved nothing');
 
 // ---------------------------------------------------------------------------
-// 7. the formatter still leaves the generated outputs alone
+// 7 + 8 + 9. the NativeScript XML templates
+// ---------------------------------------------------------------------------
+
+/**
+ * NativeScript-core properties a template may name that no widget source declares.
+ *
+ * Checked back like {@link NO_ATTRIBUTE_PANE}: an entry whose widget later grows a
+ * setter of its own fails here, so the list cannot quietly outlive its reason. These
+ * are `Property` objects on NativeScript's own base classes, which DO carry a
+ * `valueConverter` — which is why arm 8 does not demand `xmlNumber`/`xmlBoolean` of
+ * them.
+ */
+const NS_CORE_PROPS = {
+    id: 'ViewBase.id — the handle a code-behind reaches a template child by.',
+    class: 'ViewBase.className, spelled `class` in markup.',
+    text: 'TextBase.text — AdwButton extends NativeScript Button, whose label IS `text`.',
+    textWrap: 'TextBase.textWrap.',
+    orientation: 'LayoutBase orientation on StackLayout.',
+};
+
+let nsSources = new Map();
+let nsTypes = [];
+let nsElements = new Set();
+try {
+    ({ sources: nsSources } = readWidgets(ROOT));
+    nsTypes = readTypeSources(ROOT);
+    nsElements = readElements(ROOT);
+} catch {
+    // Reported below: an empty index would make arm 8 pass vacuously.
+}
+
+if (nsSources.size === 0) {
+    failures.push('no @gjsify/adwaita-nativescript widget source was readable — arm 8 would prove nothing');
+} else {
+    if (nsElements.size === 0) {
+        failures.push("the widgets barrel's ELEMENTS map read as empty — arm 8 cannot judge a tag");
+    }
+
+    /**
+     * The XML slots a class declares, and whether it can place a child at all.
+     *
+     * TWO ways to take one, and only one of them can hear a slot NAME.
+     * `_addChildFromBuilder(name, view)` is the named door. Overriding `addChild` is
+     * the other: `AdwWrapBox` does exactly that and says so — the inflation "ends
+     * here" because a wrap box has one destination — so demanding the named door of
+     * it would report a working widget as broken. A SLOTTED child still needs the
+     * named one, because `addChild` never sees which slot was asked for.
+     */
+    const slotsOf = (tag) => {
+        const slots = new Set();
+        let named = false;
+        let anyChild = false;
+        for (const text of chainOf(nsSources, tag)) {
+            if (/^\s{4}_addChildFromBuilder\(/m.test(text)) {
+                named = true;
+                anyChild = true;
+            }
+            if (/^\s{4}addChild\(/m.test(text)) anyChild = true;
+            for (const [, body] of text.matchAll(/const \w*_SLOTS = \[([^\]]*)\]/g)) {
+                for (const [, slot] of body.matchAll(/'([^']+)'/g)) slots.add(slot);
+            }
+        }
+        return { slots, named, anyChild };
+    };
+
+    /** What a template literal is, in the vocabulary `attributeKind` answers in. */
+    const literalKind = (value) =>
+        typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'boolean' : 'string';
+
+    const walkNs = (node, widget, parent) => {
+        const own = node.tag.startsWith('Adw');
+        if (own && !nsSources.has(node.tag)) {
+            failures.push(`${widget}: <${node.tag}> is not a widget class in @gjsify/adwaita-nativescript.`);
+            return;
+        }
+        if (own && nsElements.size > 0 && !nsElements.has(node.tag)) {
+            failures.push(
+                `${widget}: <${node.tag}> is not in the widgets barrel's ELEMENTS map, so it is not an ` +
+                    'element the port offers for XML use.',
+            );
+        }
+        for (const [name, value] of Object.entries(node.props ?? {})) {
+            const setter = own ? setterOf(nsSources, node.tag, name) : null;
+            if (setter === null) {
+                if (!Object.hasOwn(NS_CORE_PROPS, name)) {
+                    failures.push(
+                        `${widget}: <${node.tag}> has no setter "${name}" in @gjsify/adwaita-nativescript, and ` +
+                            'it is not a NativeScript-core property — say which in NS_CORE_PROPS.',
+                    );
+                }
+                continue;
+            }
+            // The WIDGET's declared type decides, never the JS literal in the source.
+            // Keying on the literal was a hole big enough to drive the whole defect
+            // through: `{ flat: 'false' }` and `{ flat: false }` emit byte-identical
+            // XML, and only the second was checked — so the evadable spelling was the
+            // one that could ship an uncoerced boolean.
+            const kind = attributeKind(nsTypes, setter.annotation);
+            if (kind === null) {
+                failures.push(
+                    `${widget}: <${node.tag}> declares ${name} as \`${setter.annotation}\`, which an XML ` +
+                        'attribute cannot carry — it arrives as a string. This block belongs in ' +
+                        'ADWAITA_GALLERY_NS_REFUSALS.',
+                );
+                continue;
+            }
+            if (literalKind(value) !== kind) {
+                failures.push(
+                    `${widget}: <${node.tag}> declares ${name} as \`${setter.annotation}\` (${kind}), but the ` +
+                        `template writes the ${literalKind(value)} ${JSON.stringify(value)}. Write it as a ` +
+                        `${kind} — the two emit the same XML, so the spelling is the only thing that can say ` +
+                        'which rule applies.',
+                );
+            }
+            if (!coerces(setter, kind)) {
+                failures.push(
+                    `${widget}: <${node.tag} ${name}="${value}"> — the setter does not go through ` +
+                        `${COERCERS[kind]}(). NativeScript assigns an attribute VERBATIM, so the widget would ` +
+                        'receive the STRING: a number falls back to the default and "false" is truthy. ' +
+                        '(check-nativescript-xml-doors.mjs holds this for the whole package.)',
+                );
+            }
+        }
+        if (parent !== null && parent.tag.startsWith('Adw')) {
+            const { slots, named, anyChild } = slotsOf(parent.tag);
+            if (!anyChild) {
+                failures.push(
+                    `${widget}: <${parent.tag}> overrides neither _addChildFromBuilder nor addChild, so ` +
+                        `<${node.tag}> inside it takes LayoutBase's default and lands in the layout — it belongs ` +
+                        'in ADWAITA_GALLERY_NS_REFUSALS, not in a template.',
+                );
+            } else if (node.slot !== undefined && !named) {
+                failures.push(
+                    `${widget}: <${parent.tag}> takes a child through addChild, which never sees a slot NAME, ` +
+                        `so <${node.tag} slot="${node.slot}"> cannot reach "${node.slot}".`,
+                );
+            } else if (node.slot !== undefined && !slots.has(node.slot)) {
+                failures.push(
+                    `${widget}: <${parent.tag}> declares no XML slot "${node.slot}" ` +
+                        `(known: ${slots.size === 0 ? 'none — it takes only a default child' : [...slots].join(', ')}).`,
+                );
+            }
+        }
+        for (const child of node.children ?? []) walkNs(child, widget, node);
+    };
+
+    const templated = new Map(ADWAITA_GALLERY_NS_TEMPLATES.map((t) => [t.widget, t]));
+    for (const title of seenTitles) {
+        const hasTemplate = templated.has(title);
+        const hasRefusal = Object.hasOwn(ADWAITA_GALLERY_NS_REFUSALS, title);
+        if (hasTemplate && hasRefusal) {
+            failures.push(
+                `"${title}" has BOTH a template and a refusal in adwaita-gallery-ns-templates.mjs. ` +
+                    'One of them is wrong, and the XML tab the page shows does not say which.',
+            );
+        } else if (!hasTemplate && !hasRefusal) {
+            failures.push(
+                `"${title}" has neither a template nor a refusal in adwaita-gallery-ns-templates.mjs, so its ` +
+                    'NativeScript XML tab is silently absent — indistinguishable from one that cannot exist.',
+            );
+        }
+    }
+    for (const title of [...templated.keys(), ...Object.keys(ADWAITA_GALLERY_NS_REFUSALS)]) {
+        if (!seenTitles.has(title)) {
+            failures.push(`adwaita-gallery-ns-templates.mjs names "${title}", which no gallery page has a block for.`);
+        }
+    }
+    for (const template of ADWAITA_GALLERY_NS_TEMPLATES) walkNs(template.root, template.widget, null);
+
+    // An exemption earns its place per (element, property) and not per NAME: `text`
+    // is `AdwEntryRow`'s own setter AND NativeScript `Button`'s, and testing the name
+    // alone reported the entry as stale while `<AdwButton text="Pill">` still needed
+    // it. Stale means NO use in the templates falls through to core.
+    for (const name of Object.keys(NS_CORE_PROPS)) {
+        let uses = 0;
+        let fellThrough = 0;
+        for (const template of ADWAITA_GALLERY_NS_TEMPLATES) {
+            const walk = (node) => {
+                if (node.tag.startsWith('Adw') && Object.hasOwn(node.props ?? {}, name)) {
+                    uses += 1;
+                    if (setterOf(nsSources, node.tag, name) === null) fellThrough += 1;
+                }
+                for (const child of node.children ?? []) walk(child);
+            };
+            walk(template.root);
+        }
+        if (uses > 0 && fellThrough === 0) {
+            failures.push(
+                `NS_CORE_PROPS names "${name}", and every widget using it in the templates declares its OWN ` +
+                    'setter. Drop the entry — a stale exemption reads as considered.',
+            );
+        }
+    }
+
+    // A REFUSAL is a claim about the port, and until this arm existed nothing read one.
+    // Three of the twelve named something that does not exist: two said a view switcher's
+    // `stack` was the blocker when neither class has a `stack` at all (it is `views`),
+    // and the toast reason described `AdwToast` — "not a View" — while the block's widget
+    // is `AdwToastOverlay`, which IS a View and IS offered for XML use. A true sentence
+    // about the wrong object is the most durable kind of wrong, because every reader
+    // checks the sentence and not the object.
+    for (const [widget, reason] of Object.entries(ADWAITA_GALLERY_NS_REFUSALS)) {
+        const mentions = [...reason.matchAll(/\b(Adw[A-Z]\w*)(?:\.(\w+))?/g)];
+        if (mentions.length === 0) {
+            failures.push(
+                `the refusal for "${widget}" names no widget class, so nothing can hold it against the port. ` +
+                    'Say which class refuses, and which member is the reason.',
+            );
+            continue;
+        }
+        for (const [, tag, member] of mentions) {
+            if (!nsSources.has(tag)) {
+                failures.push(`the refusal for "${widget}" names ${tag}, which is not a class in the package.`);
+                continue;
+            }
+            if (member === undefined) continue;
+            if (!membersOf(nsSources, tag).has(member)) {
+                failures.push(
+                    `the refusal for "${widget}" names ${tag}.${member}, which ${tag} does not have. ` +
+                        'A reason that names the wrong member reads as considered and is not.',
+                );
+                continue;
+            }
+            // And where the reason is "an attribute cannot carry this", the setter has
+            // to agree — otherwise the refusal is STALE and the block could have a
+            // template. This is the same reading arm 8 does, asked the other way round.
+            const setter = setterOf(nsSources, tag, member);
+            if (setter !== null && attributeKind(nsTypes, setter.annotation) !== null) {
+                failures.push(
+                    `the refusal for "${widget}" rests on ${tag}.${member}, but its declared type ` +
+                        `\`${setter.annotation}\` IS something an XML attribute can carry. The refusal is ` +
+                        'stale — this block can have a template.',
+                );
+            }
+        }
+        if (reason.includes('_addChildFromBuilder')) {
+            const [, tag] = /\b(Adw[A-Z]\w*)/.exec(reason) ?? [];
+            if (
+                tag !== undefined &&
+                chainOf(nsSources, tag).some((text) => /^\s{4}_addChildFromBuilder\(/m.test(text))
+            ) {
+                failures.push(
+                    `the refusal for "${widget}" says ${tag} overrides no _addChildFromBuilder, and it does. ` +
+                        'The refusal is stale — this block can have a template.',
+                );
+            }
+        }
+    }
+    notes.push(`${Object.keys(ADWAITA_GALLERY_NS_REFUSALS).length} refusal reason(s) held against the widget classes`);
+
+    // Arm 9: the bytes a reader copies are the bytes the probe inflated.
+    let checkedTemplates = 0;
+    for (const template of ADWAITA_GALLERY_NS_TEMPLATES) {
+        const rel = `${NS_GENERATED.views}/${viewNameOf(template.widget)}.xml`;
+        let have = null;
+        try {
+            have = readFileSync(join(ROOT, rel), 'utf8');
+        } catch {
+            failures.push(`${template.widget}: ${rel} is missing, so its template was inflated nowhere.`);
+            continue;
+        }
+        if (have === templateFor(template.root, template.note)) {
+            checkedTemplates += 1;
+            continue;
+        }
+        failures.push(
+            `${template.widget}: the shipped template and ${rel} differ, so the website would publish XML ` +
+                'that nothing loaded. Re-run the generator.',
+        );
+    }
+    notes.push(`${checkedTemplates} XML template(s) byte-identical to the view the probe app inflates`);
+    if (checkedTemplates === 0) failures.push('no XML template was matched against a view file — arm 9 proved nothing');
+
+    notes.push(
+        `${ADWAITA_GALLERY_NS_TEMPLATES.length} NativeScript template(s), ` +
+            `${Object.keys(ADWAITA_GALLERY_NS_REFUSALS).length} refusal(s), against ${nsSources.size} widget class(es)`,
+    );
+}
+
+if (ADWAITA_GALLERY_NS_TEMPLATES.length === 0)
+    failures.push('no NativeScript template at all — arms 7-9 proved nothing');
+
+// ---------------------------------------------------------------------------
+// 10. the formatter still leaves the generated outputs alone
 // ---------------------------------------------------------------------------
 
 const OXFMT_CONFIG = '.oxfmtrc.json';
@@ -420,15 +841,17 @@ try {
     if (!Array.isArray(ignored) || ignored.length === 0) {
         failures.push(`${OXFMT_CONFIG}: no ignorePatterns array — arm 7 cannot judge anything`);
     } else {
-        for (const rel of OXFMT_EXEMPT_OUTPUTS) {
+        for (const rel of [...OXFMT_EXEMPT_OUTPUTS, ...NS_OXFMT_EXEMPT_OUTPUTS]) {
             if (ignored.includes(rel)) continue;
             failures.push(
-                `${OXFMT_CONFIG} no longer exempts ${rel}. It is GENERATED — its bytes come from ` +
-                    'generate-adwaita-framework-snippets.mjs, which formats nothing because the jobs ' +
-                    'running this check have no node_modules. Re-add the exemption; do not reformat the file.',
+                `${OXFMT_CONFIG} no longer exempts ${rel}. It is GENERATED — its bytes come from a generator ` +
+                    'that formats nothing, because the jobs running this check have no node_modules. Re-add ' +
+                    'the exemption; do not reformat the file.',
             );
         }
-        notes.push(`${OXFMT_EXEMPT_OUTPUTS.length} generated output(s) exempt from ${OXFMT_CONFIG}`);
+        notes.push(
+            `${OXFMT_EXEMPT_OUTPUTS.length + NS_OXFMT_EXEMPT_OUTPUTS.length} generated output(s) exempt from ${OXFMT_CONFIG}`,
+        );
     }
 } catch (error) {
     failures.push(`${OXFMT_CONFIG} is unreadable (${error.message}) — arm 7 would pass vacuously`);

@@ -1,0 +1,28 @@
+<adw:AdwNavigationSplitView
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+>
+  <adw:AdwNavigationSplitView.sidebar>
+    <adw:AdwToolbarView>
+      <adw:AdwToolbarView.topBar>
+        <adw:AdwHeaderBar title="Mailboxes" />
+      </adw:AdwToolbarView.topBar>
+      <adw:AdwToolbarView.content>
+        <adw:AdwStatusPage title="Mailboxes" />
+      </adw:AdwToolbarView.content>
+    </adw:AdwToolbarView>
+  </adw:AdwNavigationSplitView.sidebar>
+  <adw:AdwNavigationSplitView.content>
+    <adw:AdwToolbarView>
+      <adw:AdwToolbarView.topBar>
+        <adw:AdwHeaderBar title="All Mail" />
+      </adw:AdwToolbarView.topBar>
+      <adw:AdwToolbarView.content>
+        <adw:AdwStatusPage
+          title="All Mail"
+          description="Select a conversation from the list to read it here."
+        />
+      </adw:AdwToolbarView.content>
+    </adw:AdwToolbarView>
+  </adw:AdwNavigationSplitView.content>
+</adw:AdwNavigationSplitView>

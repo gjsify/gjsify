@@ -40,6 +40,7 @@ import {
     normalizeCarouselPageWidth,
     type CarouselNotifyPayload,
 } from './carousel-state.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 // Re-exported so the widget module stays the one import site, as
 // `widgets/index.ts` and every consumer already expect.
@@ -142,6 +143,18 @@ export class AdwCarousel extends GridLayout {
     }
 
     /**
+     * An XML child is a PAGE, appended in document order.
+     *
+     * The name is ignored: a carousel has one kind of child. Without this,
+     * `LayoutBase`'s default puts the view straight into the grid the carousel builds
+     * its scroller and dots in — on top of the track rather than on it, and the page
+     * never gets a width, a `adw-carousel-page` class or a dot.
+     */
+    _addChildFromBuilder(_name: string, view: View): void {
+        this.addPage(view);
+    }
+
+    /**
      * Insert a page at `position` — `adw_carousel_insert` (adw-carousel.c:1370-1407).
      * `-1` or a position past the end appends. Returns whether it was added.
      */
@@ -217,6 +230,13 @@ export class AdwCarousel extends GridLayout {
         return this._state.navigate(direction);
     }
 
+    /** The pages on the track, in order — the read-back for `addPage`/`insertPage`. */
+    get pages(): readonly View[] {
+        const out: View[] = [];
+        for (let i = 0; i < this._track.getChildrenCount(); i++) out.push(this._track.getChildAt(i));
+        return out;
+    }
+
     /** The number of pages. */
     get nPages(): number {
         return this._state.nPages;
@@ -235,7 +255,8 @@ export class AdwCarousel extends GridLayout {
      * `get_page_at_position` rule used everywhere else, so 0.5 lands on page 0
      * where the old `Math.round` picked page 1.
      */
-    set position(value: number) {
+    set position(raw: number | string) {
+        const value = xmlNumber(raw, this.position);
         if (!Number.isFinite(value)) return;
         const page = this._state.pageAt(value);
         if (page >= 0) this.scrollToPage(page);
@@ -251,7 +272,8 @@ export class AdwCarousel extends GridLayout {
         return this._state.interactive;
     }
 
-    set interactive(value: boolean) {
+    set interactive(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.interactive);
         this._state.setInteractive(value);
     }
 
@@ -264,7 +286,8 @@ export class AdwCarousel extends GridLayout {
         return this._pageWidth;
     }
 
-    set pageWidth(value: number) {
+    set pageWidth(raw: number | string) {
+        const value = xmlNumber(raw, this.pageWidth);
         this._pageWidth = normalizeCarouselPageWidth(value);
         for (const view of this._views.values()) view.width = this._pageWidth;
     }

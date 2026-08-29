@@ -28,6 +28,7 @@ import { GridLayout, type View } from '@nativescript/core';
 import { AdwSplitViewBase } from './split-view-base.js';
 import { NsNavigationSplitViewState, splitViewColumns } from './split-view-state.js';
 import type { NavigationActionResult } from '@gjsify/adwaita-core';
+import { xmlBoolean } from './xml-values.js';
 
 /** Push/pop duration (ms) — matches Adwaita's ~200 ms navigation transition. */
 const NAV_ANIM_MS = 200;
@@ -204,7 +205,8 @@ export class AdwNavigationSplitView extends AdwSplitViewBase<NsNavigationSplitVi
         return this._state.showContent;
     }
 
-    set showContent(value: boolean) {
+    set showContent(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.showContent);
         this._state.showContent = value;
     }
 }

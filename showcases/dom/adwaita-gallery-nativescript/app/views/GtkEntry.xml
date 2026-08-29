@@ -1,0 +1,5 @@
+<adw:AdwEntry
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+  placeholder="Search files…"
+/>

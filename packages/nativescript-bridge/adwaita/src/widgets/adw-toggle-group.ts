@@ -27,6 +27,7 @@
 import { Label, StackLayout, type EventData } from '@nativescript/core';
 import { ToggleGroupState } from '@gjsify/adwaita-core';
 import { AdwIcon } from './adw-icon.js';
+import { xmlNumber } from './xml-values.js';
 
 // Re-export the headless state machine so consumers can reach it from
 // `@gjsify/adwaita-nativescript` unchanged.
@@ -139,7 +140,8 @@ export class AdwToggleGroup extends StackLayout {
         return this._state.selected;
     }
 
-    set selected(value: number) {
+    set selected(raw: number | string) {
+        const value = xmlNumber(raw, this.selected);
         this._state.setSelected(value);
     }
 

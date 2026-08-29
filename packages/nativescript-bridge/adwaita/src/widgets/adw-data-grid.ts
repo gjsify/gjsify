@@ -71,6 +71,7 @@ import {
     dataGridShapeKey,
     dataGridTracksKey,
 } from './data-grid-model.js';
+import { xmlBoolean } from './xml-values.js';
 
 /** Event name emitted when an interactive row is tapped. Mirrors the browser's `row-activated`. */
 export const ROW_ACTIVATED = 'row-activated';
@@ -139,7 +140,8 @@ export class AdwDataGrid extends GridLayout {
         return this._interactive;
     }
 
-    set interactive(value: boolean) {
+    set interactive(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.interactive);
         this._interactive = !!value;
         this._paint();
     }

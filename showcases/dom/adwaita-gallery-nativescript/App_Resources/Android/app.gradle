@@ -1,0 +1,37 @@
+// You can add your native dependencies here
+dependencies {
+//  implementation 'androidx.multidex:multidex:2.0.1'
+}
+
+android {
+  compileSdkVersion 36
+  buildToolsVersion "36"
+  // ndkVersion ""
+
+  defaultConfig {
+    // 26 (Android 8.0) rather than 24: it costs 0.5 points of reach (96.6% → 96.1%)
+    // and drops two years of legacy. NOT a prerequisite for edge-to-edge —
+    // WindowInsetsCompat works down to 21 — the two just travel together.
+    minSdkVersion 26
+    // 36 because Play requires it for updates from 2026-08-31 and there is no reason
+    // to sit on 35. Edge-to-edge is enforced from 35 either way, which is why the
+    // inset work (#1128) was needed before this bump, not because of it.
+    targetSdkVersion 36
+
+    // Version Information
+    versionCode 1
+    versionName "1.0.0"
+
+    generatedDensities = []
+
+    // Spike: build only the emulator's ABI to keep the APK small (the
+    // @nativescript/canvas native libs ship 4 ABIs → ~218 MB otherwise).
+    ndk {
+      abiFilters "x86_64"
+    }
+  }
+
+  aaptOptions {
+    additionalParameters "--no-version-vectors"
+  }
+}

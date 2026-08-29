@@ -12,7 +12,7 @@ import { describe, it, expect } from '@gjsify/unit';
 // `./index.js`. The package root re-exports the widget classes, whose modules
 // `import { GridLayout } from '@nativescript/core'` at top level — that bare specifier
 // is unresolvable off NativeScript and fails the test bundle before any guard can run.
-import { AVATAR_COLORS, flattenAvatarGradient } from '@gjsify/adwaita-core';
+import { AVATAR_COLORS, flattenAvatarGradient, normalizeClampSize, resolveSpinnerSize } from '@gjsify/adwaita-core';
 import { AVATAR_COLOR_VECTORS, AVATAR_INITIALS_VECTORS, COMBO_CHOOSER_VECTORS } from '@gjsify/adwaita-core/conformance';
 import { assertNativeScript, isNativeScript } from '@gjsify/native-platform';
 import { avatarColor, avatarInitials } from './widgets/avatar-color.js';
@@ -26,9 +26,13 @@ import {
 import { attachRowPressFeedback } from './widgets/row-press.js';
 import type { TouchGestureEventData, View } from '@nativescript/core';
 import { extractIconPaths, extractPathData, normalizeArcFlags } from './widgets/icon-path.js';
-// `builder-slots.js` is pure too — no `@nativescript/core` — so the rule the four
-// XML-inflating widgets share is driven HERE rather than through a mock of it.
+// `builder-slots.js` is pure too — no `@nativescript/core` — so the rule every
+// XML-inflating widget shares is driven HERE rather than through a mock of it.
 import { resolveBuilderSlot } from './widgets/builder-slots.js';
+// `xml-values.js` is pure too, and it is the other half of the same door: XML hands a
+// plain accessor a STRING, and the four shapes below are what the gallery probe
+// measured going wrong on device.
+import { xmlBoolean, xmlNumber } from './widgets/xml-values.js';
 import { DEFAULT_ICON_COLOR, DEFAULT_ICON_COLOR_DARK } from './widgets/icon-path.js';
 // Color scheme + breakpoints are HEADLESS in `@gjsify/adwaita-core` and specced THERE;
 // imported through the NS re-export shims to pin the no-consumer-break guarantee. The
@@ -382,6 +386,64 @@ export default async () => {
             // report nothing.
             expect(resolveBuilderSlot('topbar', TOOLBAR, 'content')).toBe('content');
             expect(resolveBuilderSlot('top-bar', TOOLBAR, 'content')).toBe('content');
+        });
+    });
+
+    await describe('XML attribute values (xml-values)', async () => {
+        // NativeScript's Builder assigns an attribute verbatim, so every one of these
+        // is a STRING on the way in. All four failures below were measured on an
+        // Android emulator by showcases/dom/adwaita-gallery-nativescript.
+        await it('parses a numeric attribute rather than substituting the default', () => {
+            // `<AdwAvatar size="96">` rendered at 48: Number.isFinite('96') is false.
+            expect(xmlNumber('96', 48)).toBe(96);
+            expect(xmlNumber('3', 0)).toBe(3);
+            expect(xmlNumber(-4, 0)).toBe(-4);
+        });
+
+        await it('keeps a real number untouched, so the TypeScript caller is unchanged', () => {
+            expect(xmlNumber(96, 48)).toBe(96);
+            expect(xmlNumber(0, 48)).toBe(0);
+        });
+
+        await it('refuses what is not a number instead of letting NaN through', () => {
+            expect(xmlNumber('', 48)).toBe(48);
+            expect(xmlNumber('   ', 48)).toBe(48);
+            expect(xmlNumber('later', 48)).toBe(48);
+            expect(xmlNumber(Number.NaN, 48)).toBe(48);
+            expect(xmlNumber(Number.POSITIVE_INFINITY, 48)).toBe(48);
+            expect(xmlNumber(null, 48)).toBe(48);
+        });
+
+        await it('reads "false" as false — the truthiness that revealed a password', () => {
+            // `<AdwPasswordEntryRow revealed="false">` revealed it, and
+            // `<AdwAboutDialog open="false">` opened on load: !!'false' is true.
+            expect(xmlBoolean('false', true)).toBe(false);
+            expect(xmlBoolean('true', false)).toBe(true);
+            expect(xmlBoolean('False', true)).toBe(false);
+        });
+
+        await it('a spelling that is neither takes the fallback, not its truthiness', () => {
+            expect(xmlBoolean('yes', false)).toBe(false);
+            expect(xmlBoolean('1', false)).toBe(false);
+            expect(xmlBoolean('', true)).toBe(true);
+            expect(xmlBoolean(undefined, true)).toBe(true);
+        });
+
+        await it('keeps a real boolean untouched', () => {
+            expect(xmlBoolean(true, false)).toBe(true);
+            expect(xmlBoolean(false, true)).toBe(false);
+        });
+
+        // Two setters deliberately do NOT use the helpers above: `AdwSpinner.size` and
+        // `AdwClamp.maximumSize` delegate to normalizers that already take a string and
+        // parse it with `Number.parseFloat`, so a CSS-ish length is a length. Wrapping
+        // them in `xmlNumber` swapped that for `Number` and both fell to the default —
+        // a regression that shipped once and that `check-nativescript-xml-doors.mjs`
+        // now refuses by name. These pin the tolerance the refusal protects.
+        await it('the loose normalizers parse a CSS-ish length, which xmlNumber must not be asked to', () => {
+            expect(resolveSpinnerSize('24px')).toBe(24);
+            expect(normalizeClampSize('50%', 400)).toBe(50);
+            expect(xmlNumber('24px', 48)).toBe(48);
         });
     });
 

@@ -35,6 +35,7 @@ import {
     splitButtonArrowSvg,
     toMenuEntries,
 } from './split-button.js';
+import { xmlBoolean } from './xml-values.js';
 
 /** Event name emitted when the main action part is tapped. Mirrors `Adw.SplitButton::clicked`. */
 export const CLICKED = 'clicked';
@@ -260,7 +261,8 @@ export class AdwSplitButton extends GridLayout {
         return this._state.useUnderline;
     }
 
-    set useUnderline(value: boolean) {
+    set useUnderline(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.useUnderline);
         this._state.setUseUnderline(!!value);
     }
 
@@ -269,7 +271,8 @@ export class AdwSplitButton extends GridLayout {
         return this._disabled;
     }
 
-    set disabled(value: boolean) {
+    set disabled(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.disabled);
         const next = !!value;
         if (next === this._disabled) return;
         this._disabled = next;

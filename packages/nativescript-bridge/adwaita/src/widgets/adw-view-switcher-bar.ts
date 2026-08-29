@@ -37,6 +37,7 @@ import { AdwIcon } from './adw-icon.js';
 import { AdwViewStack, NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { createViewSwitcherBarState, nsIconSvg } from './view-switcher-model.js';
+import { xmlBoolean } from './xml-values.js';
 
 /** The per-button NS nodes, so a selection change repaints instead of rebuilding. */
 interface BarButtonNodes {
@@ -108,7 +109,8 @@ export class AdwViewSwitcherBar extends GridLayout {
         return this._barState.reveal;
     }
 
-    set reveal(value: boolean) {
+    set reveal(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.reveal);
         this._barState.setReveal(value);
     }
 

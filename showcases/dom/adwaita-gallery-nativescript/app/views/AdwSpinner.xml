@@ -1,0 +1,6 @@
+<adw:AdwSpinner
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+  spinning="true"
+  size="48"
+/>

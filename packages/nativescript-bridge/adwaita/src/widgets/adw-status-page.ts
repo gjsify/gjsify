@@ -185,4 +185,14 @@ export class AdwStatusPage extends GridLayout {
     get child(): View | null {
         return this._child;
     }
+
+    /**
+     * The one destination an XML child can have: the slot under the description,
+     * where `AdwStatusPage:child` goes. The name is ignored because
+     * `<AdwStatusPage.child>` and a bare child mean the same thing — the shape
+     * `AdwClamp` already has.
+     */
+    _addChildFromBuilder(_name: string, view: View): void {
+        this.setChild(view);
+    }
 }

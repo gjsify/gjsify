@@ -21,6 +21,7 @@
 
 import { aboutDialogVisibility } from '@gjsify/adwaita-core';
 import { Button, GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
+import { xmlBoolean } from './xml-values.js';
 
 /** Event name emitted when the dialog is closed. */
 export const CLOSED = 'closed';
@@ -222,8 +223,8 @@ export class AdwAboutDialog extends GridLayout {
         return this.visibility === 'visible';
     }
 
-    set open(value: boolean) {
-        if (value) this.present();
+    set open(value: boolean | string) {
+        if (xmlBoolean(value, false)) this.present();
         else this.close();
     }
 }

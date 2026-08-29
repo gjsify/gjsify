@@ -1,0 +1,10 @@
+<Page navigatingTo="onNavigatingTo" class="adw-window" actionBarHidden="true" xmlns="http://schemas.nativescript.org/tns.xsd">
+    <!-- The probe mounts each inflated template into this host in turn. The verdict
+         Label beside it is the visual fallback: the AUTHORITATIVE result is the
+         __GJSIFY_NS__ marker grammar in logcat, which scripts/run-on-device.mjs
+         parses — a screen a person has to read is not a gate. -->
+    <GridLayout rows="auto, *">
+        <Label id="verdict" row="0" class="probe-verdict" text="running…" />
+        <ContentView id="host" row="1" />
+    </GridLayout>
+</Page>

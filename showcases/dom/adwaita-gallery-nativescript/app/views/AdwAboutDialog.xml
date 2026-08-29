@@ -1,0 +1,11 @@
+<adw:AdwAboutDialog
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+  applicationName="Adwaita Gallery"
+  version="1.0.0"
+  developerName="The GNOME Project"
+  comments="A tour of the Adwaita widgets on NativeScript."
+  website="https://gjsify.org"
+  copyright="© 2026 The GNOME Project"
+  open="false"
+/>

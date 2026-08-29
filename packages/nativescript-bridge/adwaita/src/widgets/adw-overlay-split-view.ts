@@ -25,6 +25,7 @@
 import { GridLayout } from '@nativescript/core';
 import { AdwSplitViewBase } from './split-view-base.js';
 import { NsOverlaySplitViewState, splitViewColumns } from './split-view-state.js';
+import { xmlBoolean } from './xml-values.js';
 
 /** Slide/fade duration (ms) — matches Adwaita's ~200 ms sidebar reveal. */
 const OVERLAY_ANIM_MS = 200;
@@ -47,7 +48,8 @@ export class AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewStat
         return this._state.pinSidebar;
     }
 
-    set pinSidebar(value: boolean) {
+    set pinSidebar(raw: boolean | string) {
+        const value = xmlBoolean(raw, this.pinSidebar);
         this._state.setPinSidebar(!!value);
     }
 

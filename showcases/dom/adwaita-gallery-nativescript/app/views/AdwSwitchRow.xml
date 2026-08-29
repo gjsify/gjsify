@@ -1,0 +1,10 @@
+<adw:AdwPreferencesGroup
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adwaita"
+>
+  <adw:AdwSwitchRow
+    title="Automatic updates"
+    subtitle="Download and install updates without asking"
+    active="true"
+  />
+</adw:AdwPreferencesGroup>

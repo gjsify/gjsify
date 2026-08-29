@@ -27,6 +27,7 @@ import {
     type AdwViewStackPage,
     type ViewStackNotifyPayload,
 } from './view-stack-state.js';
+import { xmlNumber } from './xml-values.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
@@ -119,7 +120,8 @@ export class AdwViewStack extends GridLayout {
         return this._state.visibleIndex;
     }
 
-    set visibleChildIndex(value: number) {
+    set visibleChildIndex(raw: number | string) {
+        const value = xmlNumber(raw, this.visibleChildIndex);
         this._state.setVisibleIndex(value);
     }
 

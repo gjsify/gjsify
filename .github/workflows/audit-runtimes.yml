@@ -576,8 +576,26 @@ jobs:
       # join the attribute tables ride on — a `<AdwWidget title>` that resolves to no
       # element renders no table and looks documented anyway, which is the same thing
       # as "this widget has no attributes" from the page's side.
+      #
+      # It runs BETWEEN two `git status` snapshots, and that is not belt-and-braces.
+      # The check IMPORTS the generators it verifies, and a generator whose writer
+      # runs at module scope then rewrites every committed output — with the GATE's
+      # `process.argv`, which carries no `--check` — before the gate looks at it. This
+      # repository has paid for that shape twice: a hand-edited probe passed, and later
+      # a hand-edited `app/views/*.xml` passed while the file was silently restored.
+      # Each generator now carries a run-as-program guard, and a guard FAILS OPEN:
+      # omit it once more and every gate is green again. A tree that changed while a
+      # read-only check ran is the one signal that does not depend on remembering.
       - name: Check the website's generated data is current
-        run: node scripts/check-generated-website-data.mjs
+        shell: bash
+        run: |
+          git status --porcelain --untracked-files=all > "$RUNNER_TEMP/tree-before.txt"
+          node scripts/check-generated-website-data.mjs
+          git status --porcelain --untracked-files=all > "$RUNNER_TEMP/tree-after.txt"
+          if ! diff -u "$RUNNER_TEMP/tree-before.txt" "$RUNNER_TEMP/tree-after.txt"; then
+            echo "::error::check-generated-website-data.mjs MODIFIED the working tree. It imports the generators it verifies; one of them is writing on import again, so the check repaired what it was about to check and proved nothing."
+            exit 1
+          fi
 
       # The attribute TABLE on those pages goes one step further than the generated
       # list: its second column prints the value the block's own preview markup sets,
@@ -622,6 +640,18 @@ jobs:
       # which reads as "the accent almost works" and is invisible in a diff.
       - name: Check the NativeScript accent override covers the theme
         run: node scripts/check-nativescript-accent-rules.mjs
+
+      # XML is the door with no type system behind it: `setPropertyValue` ends in
+      # `instance[name] = value`, so a `number` or `boolean` setter is handed the raw
+      # STRING and fails silently in both directions — `<AdwAvatar size="96">` rendered
+      # at 48 and `<AdwAboutDialog open="false">` OPENED the dialog, both at exit 0. The
+      # gallery's own check holds the 28 templates it ships; this holds all 70 setters on
+      # every class the port offers for XML use, which is what a consumer writing their
+      # own markup against the published package actually meets. It also refuses a GETTER
+      # named after a NativeScript setter-only accessor — `get rows()` on a GridLayout
+      # subclass shadows `GridLayoutBase.rows` and makes `widget.rows = 'auto,*'` throw.
+      - name: Check both NativeScript XML doors
+        run: node scripts/check-nativescript-xml-doors.mjs
 
       # An application id is what `adb` installs, launches and uninstalls. A device
       # PROBE built into the storybook showcase's app directory took its id, was left
@@ -1105,8 +1135,26 @@ jobs:
       # join the attribute tables ride on — a `<AdwWidget title>` that resolves to no
       # element renders no table and looks documented anyway, which is the same thing
       # as "this widget has no attributes" from the page's side.
+      #
+      # It runs BETWEEN two `git status` snapshots, and that is not belt-and-braces.
+      # The check IMPORTS the generators it verifies, and a generator whose writer
+      # runs at module scope then rewrites every committed output — with the GATE's
+      # `process.argv`, which carries no `--check` — before the gate looks at it. This
+      # repository has paid for that shape twice: a hand-edited probe passed, and later
+      # a hand-edited `app/views/*.xml` passed while the file was silently restored.
+      # Each generator now carries a run-as-program guard, and a guard FAILS OPEN:
+      # omit it once more and every gate is green again. A tree that changed while a
+      # read-only check ran is the one signal that does not depend on remembering.
       - name: Check the website's generated data is current
-        run: node scripts/check-generated-website-data.mjs
+        shell: bash
+        run: |
+          git status --porcelain --untracked-files=all > "$RUNNER_TEMP/tree-before.txt"
+          node scripts/check-generated-website-data.mjs
+          git status --porcelain --untracked-files=all > "$RUNNER_TEMP/tree-after.txt"
+          if ! diff -u "$RUNNER_TEMP/tree-before.txt" "$RUNNER_TEMP/tree-after.txt"; then
+            echo "::error::check-generated-website-data.mjs MODIFIED the working tree. It imports the generators it verifies; one of them is writing on import again, so the check repaired what it was about to check and proved nothing."
+            exit 1
+          fi
 
       # The attribute TABLE on those pages goes one step further than the generated
       # list: its second column prints the value the block's own preview markup sets,
@@ -1151,6 +1199,18 @@ jobs:
       # which reads as "the accent almost works" and is invisible in a diff.
       - name: Check the NativeScript accent override covers the theme
         run: node scripts/check-nativescript-accent-rules.mjs
+
+      # XML is the door with no type system behind it: `setPropertyValue` ends in
+      # `instance[name] = value`, so a `number` or `boolean` setter is handed the raw
+      # STRING and fails silently in both directions — `<AdwAvatar size="96">` rendered
+      # at 48 and `<AdwAboutDialog open="false">` OPENED the dialog, both at exit 0. The
+      # gallery's own check holds the 28 templates it ships; this holds all 70 setters on
+      # every class the port offers for XML use, which is what a consumer writing their
+      # own markup against the published package actually meets. It also refuses a GETTER
+      # named after a NativeScript setter-only accessor — `get rows()` on a GridLayout
+      # subclass shadows `GridLayoutBase.rows` and makes `widget.rows = 'auto,*'` throw.
+      - name: Check both NativeScript XML doors
+        run: node scripts/check-nativescript-xml-doors.mjs
 
       # An application id is what `adb` installs, launches and uninstalls. A device
       # PROBE built into the storybook showcase's app directory took its id, was left

@@ -27,6 +27,7 @@ import { GridLayout, ItemSpec, Label } from '@nativescript/core';
 import { avatarMaxFontSize } from '@gjsify/adwaita-core';
 
 import { avatarColor, avatarInitials } from './avatar-color.js';
+import { xmlNumber } from './xml-values.js';
 
 /** Default avatar diameter in DIPs (Adwaita's common avatar size). */
 export const DEFAULT_AVATAR_SIZE = 48;
@@ -100,8 +101,9 @@ export class AdwAvatar extends GridLayout {
         return this._size;
     }
 
-    set size(value: number) {
-        this._size = Number.isFinite(value) && value > 0 ? value : DEFAULT_AVATAR_SIZE;
+    set size(value: number | string) {
+        const size = xmlNumber(value, DEFAULT_AVATAR_SIZE);
+        this._size = size > 0 ? size : DEFAULT_AVATAR_SIZE;
         this._applySize();
     }
 }
