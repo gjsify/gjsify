@@ -52,6 +52,24 @@ Linux workstation does all of it — and both nonetheless declare
 `assertToolsInstalled` is separate from `assertHostCanFinish` for. `glib-compile-schemas` is GLib's
 own and runs on all three OSes, so declaring it does not make the format host-bound.
 
+`windows-dir` and `windows-dir-zip` (#1354 M3) are the same pair one OS over and carry the same
+`requiredTools` for the same reason. The one row-level difference is the ARTIFACT: a `<App>.app`
+carries its own directory in the stage (`Layout.root`), because it is dragged to `/Applications` as
+one object, while a Windows program directory does not — an installer chooses
+`C:\Program Files\<Publisher>\<App>` and lays the stage's CONTENTS into it. So `windows-dir` writes
+the payload with no rebase, and `windows-dir-zip` SYNTHESISES the top level the `.app` zip inherits.
+Without that synthesis the archive expands into whatever directory the user was in, scattering
+`app\`, `share\` and a loose `.cmd` across it — and every entry would be individually correct, so
+no listing of names reads as wrong.
+
+`windows-dir` is also the row where `archName` is one value: `wingtk/gvsbuild` hardcodes
+`self.platform = "x64"` and publishes no arm64 GTK, so there is nothing to build
+`@gjsify/gtk-runtime-win32-arm64` out of and no GTK for a Windows/ARM artifact to load
+([#1117](https://github.com/gjsify/gjsify/issues/1117)). `Layout.arches` carries the same refusal
+one phase earlier, with the blocker named; `--stage` warns instead of refusing, because assembling a
+foreign-arch layout is what `tests/e2e/ship-layout` does on purpose — it proves the layout MAP over
+one payload, and that payload's native file has an architecture.
+
 Their oracles are `python3` and `zipinfo`, and each was chosen against a plausible alternative that
 measures nothing — the reason this field is a required one rather than prose:
 
@@ -61,6 +79,9 @@ measures nothing — the reason this field is a required one rather than prose:
 | `macos-app` | `plistutil -i` | accepts a `<dict>` whose `<key>` has no value and prints `<dict/>` at **exit 0** | " |
 | `macos-app` | `xmllint --noout --valid --nonet` | **exit 4 on a CORRECT plist** — the DTD is a remote URL, so it is a constant, not a reader | " |
 | `macos-app-zip` | `unzip -Z1` | prints names only; blind to a launcher extracted 0644, which is the only failure this format has | `zipinfo -l` |
+| `windows-dir` | `file(1)` | not baked into the CI image, and a job using a tool the image never carries trips `scripts/check-ci-image-packages.mjs` | CPython `struct` + `cmd.exe` |
+| `windows-dir` | our own `binary.mjs` | it is the reader under test — a PE read by the same family that staged it is not an oracle | " |
+| `windows-dir-zip` | `unzip -Z1` | as above; and here it is also blind to the archive's own failure, entries written at the ROOT | `zipinfo -l` |
 
 `bsdtar` was the other zip candidate and is absent here and in the CI image; adding it would trip
 `scripts/check-ci-image-packages.mjs`. `zipinfo` ships in the `unzip` package that is already
@@ -190,9 +211,45 @@ the basename, and that is not tidiness: without it `"$here/node"` read back as `
 neither known interpreter, so `assertLauncherMatchesInterpreter` took its "a program that is
 neither" branch and passed. A vacuous green, on exactly the layout that made the check matter.
 
+**`cmd.exe` is a third dialect, and it was vacuous three ways at once** (#1354 M3). Reading the
+`.cmd` with the POSIX rules found nothing, and each of the three reasons is on its own enough to
+make the check pass over a launcher that runs the wrong interpreter:
+
+1. batch has no `exec` to anchor on — the LAST command a batch file runs is what it runs, and its
+   exit status is the script's — so the `\nexec ` scan matched nothing and the reader returned `[]`,
+   which `assertLauncherMatchesInterpreter` treats as "nothing to check";
+2. `%~dp0` already ends in a separator, so the renderer concatenates with none and `%HERE%node.exe`
+   has no `/` or `\` to take a basename at;
+3. the file is `node.exe` and the declared vocabulary is `node`.
+
+So the reader has a `cmd` branch: rule the batch built-ins OUT (there is no keyword to rule in),
+strip one leading `%NAME%`, strip a trailing `.exe` — and only `.exe`, since a `.cmd` or `.bat` is a
+batch file whose contents this reader has not read. Measured before the branch existed: a `.cmd`
+running `gjs -m` under `gjsify.app: "node"` passed.
+
+**And ruling lines out is not the same as ruling KEYWORDS out**, which is how the same hole reopened
+one round later. The first cut put `if`, `else` and `for` in the built-in list on the grounds that
+they "take no program"; they take a whole command, and batch is routinely written on one line:
+
+```
+IF defined X (node x)        → []      ← the whole reader
+for %f in (*) do node %f     → []
+```
+
+`[]` is the value `assertLauncherMatchesInterpreter` treats as "nothing to check", so
+`if exist "%HERE%gjs.exe" ("%HERE%gjs.exe" -m …)` under `gjsify.app: "node"` passed — the POSIX
+form's un-indented-`exec` incident, in the dialect batch actually uses. Those three REDUCE now, to
+the command they carry, both arms of an `if`/`else` included; the `if` conditions are enumerated
+(three unary forms, `a==b`, six comparison operators) rather than guessed, because the failure mode
+of guessing is not silence but naming whichever token landed in the program position. `call` and
+`start` stay unhandled and stay silent for exactly that reason.
+
 **And that is where the FORMAT's answer differs from the LAYOUT's** (#1354 M2a). `macos-app` and
 `macos-app-zip` are `interpreters: ['node']`, because a bundle a stranger downloads must carry its
-interpreter and there is no relocatable GJS to put in one. So the two questions are asked in two
+interpreter and there is no relocatable GJS to put in one. The two windows rows say the same thing
+for a harder reason (#1354 M3): there is no GJS host on Windows AT ALL — not a system one to depend
+on and not a relocatable one to carry — so a `--app gjs` payload has nothing anywhere that could run
+it. So the two questions are asked in two
 places and give two different answers for one project: the launcher execs what the payload was built
 for, and the FORMAT says what its runtime can provide. A `--app gjs` project therefore stages the
 darwin layout and cannot pack it — and the distinction between those is load-bearing rather than
@@ -208,17 +265,31 @@ bundle whose first line is `import Gtk from 'gi://Gtk?version=4.0'`. `Layout.run
 honest remainder: one sentence per OS saying why the launcher cannot name `shippedRuntime` yet,
 printed on every non-Linux stage.
 
-### What a self-contained `.app` carries, and who declares it (#1354 M2b)
+### What a self-contained artifact carries, and who declares it (#1354 M2b, M3)
 
-`utils/ship/app-runtime.ts` stages four things into the darwin layout, each resolved BY NAME from
-the project being shipped and each `null`-not-throw:
+`utils/ship/app-runtime.ts` stages four things into a non-Linux layout, each resolved BY NAME from
+the project being shipped and each `null`-not-throw. The paths come from `Layout.dirs`, so the two
+rows below are one table read through two maps rather than two stagers:
 
-| Piece | Package | Where it lands |
-|---|---|---|
-| the interpreter | `@gjsify/node-runtime-darwin-<arch>` | `Contents/MacOS/node` + `Contents/Resources/share/licenses/node/LICENSE` |
-| the relocated GTK closure | `@gjsify/gtk-runtime-darwin-<arch>` | `Contents/Frameworks/node-gi/prebuilds/darwin-<arch>/gtk/**` |
-| the node-gi addon | `@gjsify/node-gi` (`prebuilds/darwin-<arch>/node_gi.node`) | beside that closure, as its SIBLING |
-| node-gi's JavaScript | `@gjsify/node-gi` | `Contents/Resources/lib/node_modules/@gjsify/node-gi/` |
+| Piece | Package | `.app` (M2b) | program directory (M3) |
+|---|---|---|---|
+| the interpreter | `@gjsify/node-runtime-<target>` | `Contents/MacOS/node` | `node.exe` at the root |
+| its licence | " | `Contents/Resources/share/licenses/node/LICENSE` | `share\licenses\node\LICENSE` |
+| the relocated GTK closure | `@gjsify/gtk-runtime-<target>` | `Contents/Frameworks/node-gi/prebuilds/<target>/gtk/**` | `lib\node-gi\prebuilds\<target>\gtk\**` |
+| the node-gi addon | `@gjsify/node-gi` (`prebuilds/<target>/node_gi.node`) | beside that closure, as its SIBLING | same |
+| node-gi's JavaScript | `@gjsify/node-gi` | `Contents/Resources/lib/node_modules/@gjsify/node-gi/` | `app\node_modules\@gjsify\node-gi\` |
+
+The interpreter's FILENAME comes from `nodeRuntimeBinaryName(target)` — the same function that
+decided the source file's name — so `node.exe` stays `node.exe` across the copy. A stage that
+renamed it would be a launcher execing a file nothing wrote, and nothing else in the pipeline
+compares the two.
+
+⚠️ **`@gjsify/node-runtime-*` is not published yet** — all three targets 404 on npm as of 0.44.0,
+and the payload is gitignored, so an in-repo checkout resolves the package and finds no binary
+(`resolveNodeRuntime` answers `null` for exactly that, by design). `packages/node-runtime/scripts/fetch-node-runtime.mjs`
+populates one from a pinned Node release, verifying its SHA-256, and that is what
+`node-gi.yml`'s two assemble legs run. `@gjsify/gtk-runtime-win32-x64` IS published (0.44.0,
+81 250 039 B unpacked over 1 027 files), as are both darwin siblings.
 
 **Not one of them is an `optionalDependencies` edge**, which is `docs/publishing.md`'s rule (#910,
 reverted in #920): whoever SHIPS an app declares the runtime, never the library that uses it. So the
@@ -256,6 +327,18 @@ accepts, and it returns a pinned path ALONE, so the bundle's addon is not merely
 that reader with no writer anywhere in this pipeline, and this launcher is it. All three are read by
 node-gi in JS and handed to GI through the binding; dyld never sees one, which is why the rule above
 survives signing.
+
+**The `.cmd` exports the same two locators and deliberately no `PATH`** (#1354 M3), which is the
+Windows counterpart of that rule with the opposite reason — so it is written down rather than
+inferred. Windows has no rpath: a DLL is found on `PATH`, in the directory of the image that loaded
+it, or not at all. But node-gi puts the closure there ITSELF, in-process, before it `require`s the
+addon — `maybePrependGtkRuntimeDllPath()` runs at `packages/node-gi/node-gi/index.js` top level,
+above `loadNative()`, "because Windows re-reads the DLL search path at every LoadLibrary (unlike
+dyld's launch-time capture)". What that function needs from the launcher is the LOCATOR, and a
+launcher-set `PATH` would be a second copy of a directory node-gi already derives from it: two
+truths, and the stale one wins the day the layout moves. `GJSIFY_GI_LIBRARY_PATH` has no Windows
+half either — `PATH` is what reaches a typelib's bare-leaf backer there, and the launcher already
+prepends `lib\` when `gjsify.ship.bundledTypelibs` put a typelib in it.
 
 ### What the file-set equality cannot see
 

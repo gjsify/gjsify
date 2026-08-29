@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Read the `<App>.app` zip this project WROTE with a reader that can see the mode.
+# Read a zip this project WROTE with a reader that can see the mode.
+#
+# Two formats, one script: the `<App>.app` archive (#1354 M2a) and the Windows
+# program-directory archive (#1354 M3). See THE THIRD ARGUMENT below.
 #
 # WHY THIS FILE EXISTS. `gjsify ship` writes the archive by hand
 # (`packages/infra/cli/src/utils/ship/zip.ts`) — no `zip(1)`, no dependency,
@@ -35,6 +38,8 @@
 #
 #   bash .github/ship-oracle/verify-app-zip.sh \
 #       "ship/out/ship-demo-1.2.3-1.arm64.zip" "ship/out/Ship Demo.app"
+#   bash .github/ship-oracle/verify-app-zip.sh \
+#       "ship/out/ship-demo-1.2.3-1.x64.zip" "ship/out/Ship Demo" "program directory"
 #
 # THE SECOND ARGUMENT IS THE `.app` ARTIFACT, not the stage, and the difference is
 # one file: both darwin formats pack the staged payload PLUS the format's licence
@@ -42,6 +47,17 @@
 # would red on a correct pair. Comparing the two artifacts is also the stronger
 # claim — `macos-app` and `macos-app-zip` are two rows over one payload, and this
 # is the only place anything checks that they agree.
+#
+# THE THIRD ARGUMENT NAMES THE KIND, and it is why this file is not two files.
+# #1354 M3 adds `windows-dir` + `windows-dir-zip`, the same pair one OS over, and
+# every question below is the same question: one top level, no directory entries,
+# no sidecar, modes that survived the writer, bytes that round-trip. What differs
+# is only what a failure MEANS — a `.app` whose launcher extracts 0644 does not
+# start, while Windows decides executability from the extension and the mode
+# matters to whoever unzips the artifact on Linux to look at it. So the kind is a
+# parameter of the WORDING, not of the checks; a second copy of this script would
+# be a second set of assertions that drift, and the drifted one is the one that
+# keeps passing.
 #
 # DISCRIMINATOR (run it, do not trust it): rebuild the archive with the launcher
 # planned 0644 and this must exit 1 naming it; drop the mode out of the external
@@ -56,11 +72,12 @@
 # `verify-deb.sh`.
 set -euo pipefail
 
-ZIP=${1:?usage: verify-app-zip.sh <artifact.zip> <App.app artifact directory>}
-BUNDLE=${2:?usage: verify-app-zip.sh <artifact.zip> <App.app artifact directory>}
+ZIP=${1:?usage: verify-app-zip.sh <artifact.zip> <artifact directory> [kind]}
+BUNDLE=${2:?usage: verify-app-zip.sh <artifact.zip> <artifact directory> [kind]}
+KIND=${3:-.app}
 
 fail() {
-    echo "::error title=Ship .app zip::$*"
+    echo "::error title=Ship $KIND zip::$*"
     exit 1
 }
 
@@ -77,7 +94,7 @@ require() {
 require zipinfo unzip stat find sort awk cmp
 
 [ -f "$ZIP" ] || fail "$ZIP does not exist"
-[ -d "$BUNDLE" ] || fail "$BUNDLE is not a directory — this script compares the archive against the .app artifact"
+[ -d "$BUNDLE" ] || fail "$BUNDLE is not a directory — this script compares the archive against the $KIND artifact"
 
 APP=$(basename "$BUNDLE")
 
@@ -109,7 +126,11 @@ done < <(awk '$1 ~ /^[-dlbcps][-rwxsStT]{9}$/ { print }' <<<"$LISTING")
 while read -r name; do
     case "$name" in
     "$APP"/*) : ;;
-    *) fail "$name is outside $APP/, so unzipping this archive would drop a file beside the bundle instead of inside it" ;;
+    # NO BACKTICKS in this string, and it is not a style rule: a backtick inside a
+    # double-quoted bash word is COMMAND SUBSTITUTION, so the first draft's
+    # "The `.app` zip" ran `.app` and printed "command not found" plus a sentence
+    # with its subject deleted — inside the failure path, where nobody was looking.
+    *) fail "$name is outside $APP/, so unzipping this archive would drop a file beside the artifact instead of inside it. The .app zip inherits its top level from the staged paths; the windows one SYNTHESISES it, because a program directory's stage IS its contents." ;;
     esac
 done < <(unzip -Z1 "$ZIP")
 
@@ -135,7 +156,7 @@ EXECUTABLES=0
 while read -r perms _ver _os _size _tx _csize _method _date _time name; do
     rel=${name#"$APP"/}
     disk="$BUNDLE/$rel"
-    [ -f "$disk" ] || fail "$name is in the archive and not in $BUNDLE — the two formats pack different bundles"
+    [ -f "$disk" ] || fail "$name is in the archive and not in $BUNDLE — the two formats pack different trees"
     want=$(stat -c '%a' "$disk")
     # `zipinfo`'s permission string → the octal the file has on disk. Only the
     # nine mode bits are compared: setuid/sticky have no meaning for a payload
@@ -150,19 +171,19 @@ while read -r perms _ver _os _size _tx _csize _method _date _time name; do
         printf "%o", n
     }')
     [ "$got" = "$want" ] ||
-        fail "$name is $got in the archive and $want in the .app artifact — the external attributes did not survive the writer"
+        fail "$name is $got in the archive and $want in the $KIND artifact — the external attributes did not survive the writer"
     case "$perms" in
     *x*) EXECUTABLES=$((EXECUTABLES + 1)) ;;
     esac
 done < <(awk '$1 ~ /^[-dlbcps][-rwxsStT]{9}$/ { print }' <<<"$LISTING")
 
-# THE DISCRIMINATOR FOR THIS WHOLE FILE. An archive of a `.app` in which nothing
-# is executable is an archive of an application that does not start, and every
+# THE DISCRIMINATOR FOR THIS WHOLE FILE. An archive in which nothing is executable
+# is an archive of a tree that never had a launcher or an interpreter, and every
 # assertion above would pass on it: the modes would agree with a staged tree that
-# is itself wrong. At least one entry has to carry `x`, and it has to be the one
-# `Info.plist` names.
+# is itself wrong. At least one entry has to carry `x` — on darwin that is the file
+# `Info.plist` names, on windows the `node.exe` the `.cmd` runs.
 [ "$EXECUTABLES" -gt 0 ] ||
-    fail "no entry in the archive is executable. A .app whose launcher extracts 0644 will not run, and that is the only failure this format has."
+    fail "no entry in the archive is executable, so the staged tree carries neither a launcher nor an interpreter with a mode. On macOS that is a .app that will not start; on Windows it is an archive whose modes never reached the writer at all."
 
 # ── 4. round trip: extract and compare bytes ─────────────────────────────────
 # STORE-only, so a difference here is the writer's framing and not a compressor's
@@ -173,13 +194,13 @@ unzip -qq "$ZIP" -d "$OUT"
 COUNT=0
 while read -r rel; do
     cmp -s "$BUNDLE/$rel" "$OUT/$APP/$rel" ||
-        fail "$rel differs between the .app artifact and the extracted archive"
+        fail "$rel differs between the $KIND artifact and the extracted archive"
     COUNT=$((COUNT + 1))
 done < <(cd "$BUNDLE" && find . -type f -printf '%P\n' | sort)
 
 STAGED=$(cd "$BUNDLE" && find . -type f | wc -l)
 ENTRIES=$(unzip -Z1 "$ZIP" | wc -l)
 [ "$STAGED" = "$ENTRIES" ] ||
-    fail "the bundle holds $STAGED file(s) and the archive $ENTRIES entr(y|ies) — one of them is carrying something the other is not"
+    fail "the directory holds $STAGED file(s) and the archive $ENTRIES entr(y|ies) — one of them is carrying something the other is not"
 
 echo "verify-app-zip.sh: $COUNT file(s) round-tripped byte for byte, $EXECUTABLES executable, modes read as POSIX"

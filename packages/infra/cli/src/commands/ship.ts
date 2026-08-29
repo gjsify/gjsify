@@ -48,10 +48,12 @@ import {
     defaultFormatIds,
     formatIdsFor,
     resolveFormats,
+    windowsProgramDirName,
     FORMAT_IDS,
     FORMATS,
 } from '../utils/ship/formats.js';
 import {
+    assertLayoutSupportsArch,
     hostLayout,
     layoutForOs,
     place,
@@ -445,6 +447,22 @@ async function assemble(args: ShipOptions): Promise<void> {
         if (runtime.launcher.interpreter === undefined && layout.runtimeGap !== undefined) {
             console.warn(`${LOG} ${layout.runtimeGap}`);
         }
+        // THE OTHER AXIS, warned about HERE and refused in `packOne`, and the split
+        // is the same one `runtimeGap` and `assertFormatCanRunInterpreter` already
+        // draw. A stage is a build intermediate, and assembling one for an
+        // architecture no runtime exists for is what `tests/e2e/ship-layout` does on
+        // purpose: it proves the layout MAP over one payload, and that payload's
+        // native file has an architecture. What must not leave is an ARTIFACT — so
+        // the refusal sits where an artifact is about to be written and the author
+        // is told here, at the `--arch` that caused it, rather than only on the far
+        // side of a handoff.
+        if (layout.arches !== null && !layout.arches.only.includes(settings.arch)) {
+            console.warn(
+                `${LOG} this stage is labelled ${settings.arch} and the ${layout.name} layout has no runtime ` +
+                    `for it — ${layout.arches.why}. Nothing can pack this stage; ` +
+                    `\`--arch ${layout.arches.only.join('|')}\` is what produces an artifact.`,
+            );
+        }
     }
 
     // Scanned from the BUILD TREE's bundle, which is why it has to be recorded:
@@ -537,7 +555,7 @@ async function assemble(args: ShipOptions): Promise<void> {
             unusable.length > 0
                 ? `(none — ${unusable.map((format) => format.id).join(' and ')} need \`gjsify.app: "node"\`)`
                 : formatIdsFor(layout.os).length === 0
-                  ? `(none yet — no format wraps the ${layout.name} layout, ADR 0024 stage 5)`
+                  ? `(none — no format wraps the ${layout.name} layout)`
                   : '(none asked for)';
         const wraps = manifest.formats.join(', ') || none;
         console.log(`${LOG} stage manifest: ${formatTarget(manifest.target)}, formats ${wraps}`);
@@ -813,6 +831,26 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     const layout = layoutForOs(format.layoutOs);
     assertLauncherMatchesInterpreter(payload, layout, settings, settings.app);
 
+    // The label against the LAYOUT, which is the question one level up from
+    // `assertPayloadMatchesArch`: that one asks whether the bytes agree with the
+    // label, this asks whether an artifact for that label can exist at all. They
+    // are not the same check, and the windows row is where they come apart — a
+    // payload of x64 DLLs labelled `arm64` fails the first, while a payload of pure
+    // JavaScript labelled `arm64` passes it and still produces a program directory
+    // no Windows/ARM machine has a GTK for (#1117).
+    //
+    // HERE and not at `--stage`, which is the same split `Layout.runtimeGap` draws:
+    // a stage is a build intermediate and assembling one for a foreign arch is what
+    // `tests/e2e/ship-layout` does on purpose (one payload, three layouts, and that
+    // payload's native file has an architecture). What must not leave is an
+    // ARTIFACT. `assemble` warns at the `--arch` that caused it.
+    //
+    // And BEFORE `archName`, deliberately: that function refuses an unknown value
+    // too, with a message about a table. This one names the blocker and where it is
+    // tracked, which is the difference between "unsupported" and "here is what
+    // would have to change".
+    assertLayoutSupportsArch(layout, input.arch);
+
     const archLabel = format.archName(input.arch, isArchIndependent(payload));
     const common = { settings, payload, prefix: format.prefix, depends, archLabel, mtime };
 
@@ -853,23 +891,33 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             });
             break;
         case 'macos-app':
-            // No container at all: a `<App>.app` IS the payload plus this format's
+        case 'windows-dir':
+            // ONE STATEMENT FOR TWO ROWS, folded because the code really is
+            // identical: `Layout.root` is where the two differ, and the first draft
+            // of the windows arm said "NO REBASE, which is the one place the two
+            // rows differ" over a line byte-identical to this one.
+            //
+            // No container at all: the artifact IS the payload plus this format's
             // overlay, written out. `writePayload` rather than a directory copy of
             // the stage, so the same two properties every other packer has hold
             // here — modes come from the plan (`readStage` has applied them, and
             // the artifact upload that flattens them cannot reach in between), and
             // the stage's own sidecar stays out because it was never payload.
             //
-            // REBASED on the bundle root, which is the difference between the
-            // artifact and a directory containing it. Every staged path here
-            // already begins with `<App>.app/` — that is what `Layout.root` means —
-            // and `format.fileName` names the artifact the same thing, so writing
-            // them verbatim produced `out/Ship Demo.app/Ship Demo.app/Contents/…`:
-            // a folder the Finder does not treat as an application, with a real
-            // bundle hidden one level down. Measured, at exit 0, with `zipinfo` on
-            // the sibling zip showing the correct tree the whole time — the zip
-            // packs the same payload and needs no rebase, because the paths inside
-            // an archive ARE the bundle-rooted ones.
+            // REBASED ON `Layout.root`, which is `<App>.app` on darwin and `''` on
+            // windows — the difference between the artifact and a directory
+            // containing it, measured as a defect on the first: every staged darwin
+            // path already begins with `<App>.app/` and `format.fileName` names the
+            // artifact the same thing, so writing them verbatim produced
+            // `out/Ship Demo.app/Ship Demo.app/Contents/…`, a folder the Finder does
+            // not treat as an application with a real bundle hidden one level down,
+            // at exit 0, with `zipinfo` on the sibling zip showing the correct tree
+            // the whole time. On windows the stage IS the directory's contents,
+            // because an installer picks the parent, and `writePayload` documents
+            // `stripPrefix === ''` as a no-op — so the same call is right for both.
+            // Neither zip needs a rebase, and for opposite reasons: the darwin
+            // archive INHERITS its top level from the staged paths, the windows one
+            // SYNTHESISES it (see `windows-dir-zip`).
             writePayload(target, payload, layout.root(settings));
             break;
         case 'macos-app-zip':
@@ -880,6 +928,15 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             // The paths inside are the staged ones, so the archive expands to
             // `<App>.app/…` and not to a bare `Contents/`.
             writeFileSync(target, buildZip(zipEntriesFromPayload(payload), mtime));
+            break;
+        case 'windows-dir-zip':
+            // The same payload, with the top level the layout deliberately does not
+            // carry. `windowsProgramDirName` is the same function the row above
+            // names the directory with, so unzipping this archive and running the
+            // installer put the app at the same relative path — and a user who
+            // unzips it in `Downloads` gets one directory rather than `app\`,
+            // `share\` and a `.cmd` loose in it.
+            writeFileSync(target, buildZip(zipEntriesFromPayload(payload, windowsProgramDirName(settings)), mtime));
             break;
         default: {
             const unhandled: never = format.id;
@@ -966,9 +1023,16 @@ function assertPackable(
             'intermediate, not an artifact. Keep it for the milestone that packs it, or re-assemble with ' +
             '`gjsify ship linux --stage` if a Linux package is what you wanted.',
     }[chosenBy];
+    // UNREACHABLE FROM THE THREE LAYOUTS THAT EXIST, and kept rather than deleted:
+    // every one of them has formats as of #1354 M3, so a `--app gjs` project meets
+    // the INTERPRETER refusal above instead. This branch is what a fourth layout
+    // gets on the day it is added and before a format wraps it — the same state
+    // windows was in between M1 and M3 — and deleting it would make that day's
+    // failure a `TypeError` on an empty list.
     throw new Error(
-        `gjsify ship: no format wraps the ${layout.name} layout yet, so there is nothing to pack. ${advice}` +
-            ' A macOS `.app`/`.dmg` and a Windows program directory plus installer are ADR 0024 stages 4 and 5.',
+        `gjsify ship: no format wraps the ${layout.name} layout, so there is nothing to pack. ${advice}` +
+            ' Every layout this gjsify knows has one (ADR 0024 stages 2-5), so this is a layout added ' +
+            'without a `FORMATS` row.',
     );
 }
 

@@ -142,15 +142,20 @@ const LAYOUT_ADDITIONS = {
  * Why a pack of each non-Linux layout is refused FOR THIS FIXTURE, which is
  * `--app gjs`.
  *
- * The two were one string until #1354 M2a gave darwin two formats. They still
- * both produce an empty format list, and that is exactly why the messages have to
- * differ: "wait for a milestone" and "change your project" are not the same
- * advice, and a test asserting one regex for both would have gone on passing
- * while the command started giving the wrong one.
+ * The two were one string until #1354 M2a gave darwin two formats, and they were
+ * two DIFFERENT strings until M3 gave windows two — "wait for a milestone" and
+ * "change your project" are not the same advice, and a test asserting one regex
+ * for both would have gone on passing while the command started giving the wrong
+ * one. They are the same sentence again now, and that is the milestone landing
+ * rather than the distinction dissolving: both layouts have formats, both sets are
+ * `interpreters: ['node']`, and this fixture is `--app gjs`. The "no format wraps
+ * this layout yet" branch is still REACHABLE — `assertPackable` prints it for any
+ * layout `formatIdsFor` answers empty for — it is simply no longer reachable from
+ * any of the three that exist, which is what stages 4 and 5 being done means.
  */
 const UNPACKABLE = {
     darwin: /wrap the darwin layout, and neither can run this project/,
-    windows: /no format wraps the windows layout yet/,
+    windows: /wrap the windows layout, and neither can run this project/,
 };
 
 /** `<os>` → the `${process.platform}-${process.arch}` string its stage manifest records. */

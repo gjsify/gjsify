@@ -13,7 +13,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { buildDeb } from './deb.js';
-import { FORMATS } from './formats.js';
+import { FORMATS, windowsProgramDirName } from './formats.js';
 import { LAYOUTS } from './layout.js';
 import { buildRpm } from './rpm.js';
 import {
@@ -241,6 +241,15 @@ export default async () => {
         const windowsLauncher = at('demo.cmd');
         const gjsLauncher = '#!/bin/sh\nset -e\nexec gjs -m "$prefix"/lib/demo/app.gjs.js "$@"\n';
         const nodeLauncher = '#!/bin/sh\nset -e\nexec node "$prefix"/lib/demo/app.node.mjs "$@"\n';
+        // The Windows launcher is a `.cmd`, and until #1354 M3 these fixtures put
+        // the POSIX text above at `demo.cmd` — a file no `cmd.exe` could run, which
+        // made this an assertion about a reader applied to a launcher that does not
+        // exist. The reader is dialect-aware now (batch has no `exec`, `%~dp0`
+        // carries its own separator, and the file is `node.exe`), so the fixture has
+        // to be the thing it reads.
+        const cmdGjsLauncher = '@echo off\r\nsetlocal\r\nset "HERE=%~dp0"\r\ngjs -m "%HERE%app\\app.gjs.js" %*\r\n';
+        const cmdNodeLauncher =
+            '@echo off\r\nsetlocal\r\nset "HERE=%~dp0"\r\n"%HERE%node.exe" "%HERE%app\\app.node.mjs" %*\r\n';
 
         await it('reads the interpreter off the staged launcher', async () => {
             expect(readLauncherInterpreters(linuxLauncher(gjsLauncher), LAYOUTS.linux, IDENTITY)).toStrictEqual([
@@ -362,14 +371,14 @@ export default async () => {
             expect(readLauncherInterpreters(darwinLauncher(nodeLauncher), LAYOUTS.darwin, IDENTITY)).toStrictEqual([
                 'node',
             ]);
-            expect(readLauncherInterpreters(windowsLauncher(gjsLauncher), LAYOUTS.windows, IDENTITY)).toStrictEqual([
+            expect(readLauncherInterpreters(windowsLauncher(cmdGjsLauncher), LAYOUTS.windows, IDENTITY)).toStrictEqual([
                 'gjs',
             ]);
             expect(() =>
                 assertLauncherMatchesInterpreter(darwinLauncher(gjsLauncher), LAYOUTS.darwin, IDENTITY, 'node'),
             ).toThrow('execs `gjs`');
             expect(() =>
-                assertLauncherMatchesInterpreter(windowsLauncher(nodeLauncher), LAYOUTS.windows, IDENTITY, 'gjs'),
+                assertLauncherMatchesInterpreter(windowsLauncher(cmdNodeLauncher), LAYOUTS.windows, IDENTITY, 'gjs'),
             ).toThrow('execs `node`');
             // And the message names the path the reader would go and LOOK at,
             // which `bin/demo` was not on either of these layouts.
@@ -409,6 +418,44 @@ export default async () => {
                 expect(nativeName).toContain(format.id === 'deb' ? 'amd64' : 'x86_64');
                 expect(pureName).toContain(format.id === 'deb' ? 'all' : 'noarch');
             }
+        });
+    });
+
+    await describe('windowsProgramDirName', async () => {
+        await it('refuses a name Windows cannot hold, in all three ways it cannot', async () => {
+            // THE CLASS: the artifact assembles at exit 0 on Linux, uploads, and
+            // fails on a stranger's box — which is the whole shape `gjsify ship` is
+            // built against, and the reason this is checked on the ASSEMBLING host.
+            // An earlier draft tested only the reserved characters while calling
+            // itself "the Win32 reserved set", and every name below passed it.
+            for (const bad of [
+                'A<B', // reserved characters
+                'A|B',
+                'A?B',
+                'CON', // reserved DEVICE names — devices at every path
+                'nul',
+                'COM1',
+                'PRN.txt', // …with or without an extension
+                'Demo.', // a trailing dot or space, which Win32 silently STRIPS,
+                'Demo ', // so the directory created is not the one `%~dp0` resolves
+            ]) {
+                expect(() => windowsProgramDirName({ ...settings(), name: bad })).toThrow(
+                    'the windows layout would put this app in a directory called',
+                );
+            }
+            // EMPTY IS ITS OWN MESSAGE, because it is its own defect: an empty name
+            // gives the zip no top level, which is exactly the scattering
+            // `windows-dir-zip` synthesises one to prevent — reproduced at exit 0 by
+            // the function that prevents it. `resolveShipSettings` derives the name
+            // with `??`, which passes `''` straight through.
+            for (const empty of ['', '   ']) {
+                expect(() => windowsProgramDirName({ ...settings(), name: empty })).toThrow(
+                    'has no name to call the program directory',
+                );
+            }
+            // …and the names a third-party app actually has.
+            expect(windowsProgramDirName({ ...settings(), name: 'Ship Demo' })).toBe('Ship Demo');
+            expect(windowsProgramDirName({ ...settings(), name: 'Console' })).toBe('Console');
         });
     });
 

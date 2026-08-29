@@ -160,27 +160,226 @@ export function readLauncherInterpreters(
     const launcher = payload.find((entry) => entry.path === launcherPath(layout, identity));
     if (launcher === undefined) return [];
     const text = new TextDecoder().decode(launcher.data);
+    const dialect = layout.name === 'windows' ? 'cmd' : 'sh';
     const found: string[] = [];
-    // `[ \t]*` because a branching launcher indents the `exec` inside its `if`,
-    // and a pattern anchored hard to the newline silently sees only the last,
-    // unindented one — measured: a two-branch script reported `gjs` alone. A
-    // comment (`# exec gjs …`) still cannot match, since `#` is not whitespace.
-    for (const match of `\n${text}`.matchAll(/\n[ \t]*exec\s+([^\n]*)/g)) {
-        const name = interpreterOf((match[1] as string).trim());
+    for (const command of dialect === 'cmd' ? batchCommands(text) : shellExecLines(text)) {
+        const name = interpreterOf(command, dialect);
         if (name !== null) found.push(name);
     }
     return [...new Set(found)];
 }
 
 /**
- * The program an `exec` line runs, as a bare name, or `null` when the line is
+ * The argument of every `exec` in a POSIX-shell launcher.
+ *
+ * `[ \t]*` because a branching launcher indents the `exec` inside its `if`, and a
+ * pattern anchored hard to the newline silently sees only the last, unindented one
+ * — measured: a two-branch script reported `gjs` alone. A comment (`# exec gjs …`)
+ * still cannot match, since `#` is not whitespace.
+ */
+function shellExecLines(text: string): string[] {
+    return [...`\n${text}`.matchAll(/\n[ \t]*exec\s+([^\n]*)/g)].map((match) => (match[1] as string).trim());
+}
+
+/**
+ * Batch keywords that can never be the program a `.cmd` line runs.
+ *
+ * The list is what makes {@link batchCommands} a filter rather than a parser, and
+ * it is deliberately only the keywords that CARRY NOTHING: `rem`, `echo`, `title`
+ * and `pause` take no command at all, `goto` takes a label, `exit` takes a code,
+ * `set`/`setlocal`/`endlocal` take a variable. A keyword missing from it costs a
+ * SILENT non-answer, never a wrong one — an unrecognised first word is handed to
+ * `interpreterOf`, which resolves it to `gjs`, to `node`, or to something
+ * `assertLauncherMatchesInterpreter` ignores.
+ *
+ * `if`, `else` and `for` are NOT here, and an earlier draft put them here with a
+ * doc claiming every entry "takes no program". That was false in the way batch
+ * actually gets written, and measured through the built reader:
+ *
+ *     IF defined X (node x)          → []      ← the whole reader, on one line
+ *     for %f in (*) do node %f       → []
+ *
+ * `[]` is the value `assertLauncherMatchesInterpreter` treats as "nothing to
+ * check", so a `gjsify.ship.extraFiles` launcher written as
+ * `if exist "%HERE%gjs.exe" ("%HERE%gjs.exe" -m …)` under `gjsify.app: "node"`
+ * passed. That is the same class as the POSIX form's un-indented-`exec` incident,
+ * one dialect over, so it gets the same treatment: {@link batchPrefix} REDUCES
+ * those three to the command they carry rather than dropping the line.
+ *
+ * `call` and `start` stay unhandled and stay silent: both DO invoke a program and
+ * both also take non-program arguments (`call :label`, `start "title"`), and
+ * guessing at that would be the parser answering confidently wrong.
+ */
+const BATCH_NON_PROGRAMS = new Set([
+    'rem',
+    'set',
+    'setlocal',
+    'endlocal',
+    'echo',
+    'goto',
+    'exit',
+    'title',
+    'pause',
+    'shift',
+    'cd',
+    'chdir',
+    'pushd',
+    'popd',
+    'color',
+    'cls',
+    'verify',
+    'prompt',
+]);
+
+/**
+ * One `cmd.exe` command line, split the way `cmd.exe` splits it.
+ *
+ * QUOTE-AWARE, and that is the whole reason it is not `line.split(/\s+/)`: a
+ * condition operand is routinely a path, and a program directory lives under
+ * `C:\Program Files\…`. Splitting `if exist "%HERE%My App\x" node y` on
+ * whitespace and then dropping "two tokens" would drop half the path and leave
+ * the rest as the program.
+ */
+function cmdTokens(line: string): { text: string; end: number }[] {
+    const tokens: { text: string; end: number }[] = [];
+    let at = 0;
+    while (at < line.length) {
+        if (/\s/.test(line[at] as string)) {
+            at += 1;
+            continue;
+        }
+        const start = at;
+        let quoted = false;
+        while (at < line.length && (quoted || !/\s/.test(line[at] as string))) {
+            if (line[at] === '"') quoted = !quoted;
+            at += 1;
+        }
+        tokens.push({ text: line.slice(start, at), end: at });
+    }
+    return tokens;
+}
+
+/**
+ * Split `( … ) rest` into the block's body and whatever follows it.
+ *
+ * Depth-counting and quote-aware, because `(A) else (B)` is how a batch launcher
+ * writes two branches and BOTH have to be read — the POSIX form collects every
+ * `exec`, and a reader that saw one arm of an `if`/`else` would answer for a
+ * branch the user may never take. `null` when the parenthesis is unbalanced,
+ * which is a line this reader cannot honestly split.
+ */
+function splitBatchBlock(line: string): [string, string] | null {
+    let depth = 0;
+    let quoted = false;
+    for (let at = 0; at < line.length; at++) {
+        const ch = line[at];
+        if (ch === '"') quoted = !quoted;
+        else if (!quoted && ch === '(') depth += 1;
+        else if (!quoted && ch === ')') {
+            depth -= 1;
+            if (depth === 0) return [line.slice(1, at).trim(), line.slice(at + 1).trim()];
+        }
+    }
+    return null;
+}
+
+/** Conditions whose operand is one token: `if exist FILE …`, `if defined VAR …`. */
+const BATCH_UNARY_CONDITIONS = new Set(['exist', 'defined', 'errorlevel']);
+
+/** `if a EQU b …` — three tokens where `a==b` is one. */
+const BATCH_COMPARISONS = new Set(['equ', 'neq', 'lss', 'leq', 'gtr', 'geq']);
+
+/**
+ * Strip one batch construct that WRAPS a command, or `null` when the line carries
+ * none this reader can reach.
+ *
+ * Returns the pieces for another round — `if defined X (node a) else (gjs -m b)`
+ * reduces to `["node a", "else (gjs -m b)"]` — which is what makes a compound line
+ * answerable at all, and what keeps BOTH arms of a branch in the answer.
+ * `undefined` means "nothing to strip", i.e. the line already IS the command.
+ *
+ * The `if` conditions are enumerated rather than guessed: three unary forms, the
+ * `a==b` form (one token, because `==` needs no spaces), and the six comparison
+ * operators. A shape not in that list returns `null` rather than a best guess,
+ * because the failure mode of guessing here is not silence — it is naming
+ * whichever token happened to land in the program position.
+ */
+function batchPrefix(line: string): string[] | null | undefined {
+    if (line.startsWith('(')) {
+        const split = splitBatchBlock(line);
+        return split === null ? null : [split[0], split[1]];
+    }
+    const tokens = cmdTokens(line);
+    const word = (index: number): string => (tokens[index]?.text ?? '').toLowerCase();
+    const after = (index: number): string[] => [line.slice(tokens[index]?.end ?? line.length).trim()];
+
+    if (word(0) === 'else') return after(0);
+    if (word(0) === 'for') {
+        const doAt = tokens.findIndex((token) => token.text.toLowerCase() === 'do');
+        return doAt === -1 ? null : after(doAt);
+    }
+    if (word(0) !== 'if') return undefined;
+
+    // `not` and `/i` are modifiers, in either order and both optional.
+    let at = 1;
+    while (word(at) === 'not' || word(at) === '/i') at += 1;
+    if (BATCH_UNARY_CONDITIONS.has(word(at))) return after(at + 1);
+    if (word(at).includes('==')) return after(at);
+    if (BATCH_COMPARISONS.has(word(at + 1))) return after(at + 2);
+    return null;
+}
+
+/**
+ * Every command in a `.cmd` that could run a program.
+ *
+ * NOT an `exec` scan, because `cmd.exe` has no `exec`: the last command a batch
+ * file runs IS what the launcher runs, and its exit status is the script's. So
+ * where the POSIX form has a keyword to anchor on, this one has to rule lines OUT
+ * — see {@link BATCH_NON_PROGRAMS} for why ruling one out too few is the safe
+ * direction and ruling one out too many is not.
+ *
+ * `@` comes off first (`@echo off` is `echo` with output suppressed), and `::` is
+ * the label-abuse comment form, which no first-word test would otherwise catch.
+ * Lines are split on CR LF *or* LF: the form this tree writes is CRLF, and a
+ * launcher that arrived from `gjsify.ship.extraFiles` may be neither.
+ *
+ * The work list is BOUNDED. `if defined X (if defined Y (node a))` is legal batch
+ * and each round strips one construct; a cap turns a pathological line into a
+ * silent non-answer instead of a hang, which is the same trade `interpreterOf`
+ * makes for `env`.
+ */
+const BATCH_REDUCTION_STEPS = 32;
+
+function batchCommands(text: string): string[] {
+    const commands: string[] = [];
+    const pending = text.split(/\r?\n/).map((raw) => raw.trim().replace(/^@+/, '').trim());
+    for (let step = 0; step < BATCH_REDUCTION_STEPS && pending.length > 0; step++) {
+        const line = pending.shift() as string;
+        if (line === '' || line === ')' || line.startsWith('::')) continue;
+        const first = (cmdTokens(line)[0]?.text ?? '').toLowerCase();
+        if (BATCH_NON_PROGRAMS.has(first)) continue;
+        const reduced = batchPrefix(line);
+        if (reduced === undefined) commands.push(line);
+        else if (reduced !== null) pending.unshift(...reduced);
+    }
+    return commands;
+}
+
+/**
+ * The program a command line runs, as a bare name, or `null` when the line is
  * not one this reader can honestly resolve.
+ *
+ * TWO DIALECTS, because the two launchers are two languages and the difference is
+ * not cosmetic — it is what made the first Windows reading VACUOUS. See
+ * {@link cmdProgramOf}.
  *
  * `env` is followed through because it is the documented way to pass variables
  * to an interpreter and says nothing about which one runs. Everything past the
- * first non-assignment word is arguments, so the walk stops there.
+ * first non-assignment word is arguments, so the walk stops there. There is no
+ * `env` on Windows, so the hop is the POSIX branch's alone.
  */
-function interpreterOf(line: string): string | null {
+function interpreterOf(line: string, dialect: 'sh' | 'cmd'): string | null {
+    if (dialect === 'cmd') return cmdProgramOf(line);
     let words = line.split(/\s+/).filter((word) => word.length > 0);
     for (let hop = 0; hop < 2 && words.length > 0; hop++) {
         const program = basenameOf(words[0] as string);
@@ -191,6 +390,42 @@ function interpreterOf(line: string): string | null {
         words = words.slice(1).filter((word) => !word.startsWith('-') && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
     }
     return null;
+}
+
+/**
+ * The program one `cmd.exe` command line runs, as a bare, extension-free name.
+ *
+ * THREE DIALECT RULES, and every one of them is the difference between a check
+ * and a vacuous pass. Measured on the launcher `gjsify ship windows` writes
+ * (`"%HERE%node.exe" "%HERE%app\app.node.mjs" %*`), reading it with the POSIX
+ * path alone:
+ *
+ *   1. there is no `exec` keyword in batch, so the scan matched NOTHING and the
+ *      whole reader returned `[]` — the value `assertLauncherMatchesInterpreter`
+ *      treats as "nothing to check". {@link batchCommands} is that half.
+ *   2. `%~dp0` ALREADY ENDS IN A SEPARATOR, so the renderer concatenates with
+ *      none: the token is `%HERE%node.exe`, which splits on `[/\\]` to itself.
+ *      Stripping one leading `%NAME%` is what makes the basename a basename —
+ *      and a token that is nothing BUT an expansion (`%NODE%`) strips to empty
+ *      and stays `null`, which is the honest answer.
+ *   3. Windows executables carry `.exe` and this vocabulary does not
+ *      (`'gjs' | 'node'`). PATHEXT makes `node` and `node.exe` the same program,
+ *      so the suffix comes off. `.cmd` and `.bat` deliberately do NOT: those are
+ *      batch files, not interpreters, and resolving one to a bare name would be
+ *      this reader claiming to know what that script runs.
+ *
+ * The first token is taken the way `cmd.exe` takes it — a quoted run up to the
+ * closing quote, otherwise up to the first whitespace — rather than by splitting
+ * on spaces, because a program directory under `C:\Program Files\…` is exactly
+ * the case a naive split gets wrong.
+ */
+function cmdProgramOf(line: string): string | null {
+    const quoted = /^"([^"]*)"/.exec(line);
+    const token = quoted !== null ? (quoted[1] as string) : (line.split(/\s+/)[0] ?? '');
+    const expanded = token.replace(/^%[^%\s]*%/, '');
+    const leaf = expanded.split(/[/\\]/).pop() ?? '';
+    const bare = leaf.replace(/\.exe$/i, '');
+    return bare === '' ? null : bare;
 }
 
 /**
@@ -522,14 +757,44 @@ const MACHO_CPUTYPE_TO_ARCH: Record<number, string> = {
 };
 
 /**
+ * PE/COFF `IMAGE_FILE_HEADER.Machine` → `process.arch`.
+ *
+ * The same three rows `manifest-conformance/lib/binary.mjs` carries, restated
+ * rather than imported because `@gjsify/manifest-conformance` is `"private": true`
+ * and `@gjsify/cli` is published: a published package cannot depend on a workspace
+ * package that is never on npm. (An earlier version of this note said the CLI must
+ * not depend on it because the rules are `portable` — `portable` is a `RuleScope`
+ * on individual conformance RULES, and the ban it states runs the other way: a
+ * portable rule must not import the CLI.) The values themselves are Microsoft's
+ * architecture constants, so agreeing with that file is not agreeing with
+ * ourselves.
+ */
+const PE_MACHINE_TO_ARCH: Record<number, string> = {
+    0x014c: 'ia32',
+    0x8664: 'x64',
+    0xaa64: 'arm64',
+};
+
+/**
  * The `process.arch` token an image says it is built for, or `null` when the
  * question cannot be answered from the bytes.
  *
- * `null` covers three different things on purpose, and all three must stay
- * silent: a file that is not a native binary at all (most of a payload), a PE
- * (whose COFF machine field this tree has never parsed — `isNativeBinary` reads
- * `MZ` and stops), and a Mach-O fat archive, which carries several
- * architectures and therefore matches any label a caller could pass.
+ * `null` still covers three different things on purpose, and all three must stay
+ * silent: a file that is not a native binary at all (most of a payload), an image
+ * whose machine constant is not in the tables above, and a Mach-O fat archive,
+ * which carries several architectures and therefore matches any label a caller
+ * could pass.
+ *
+ * PE WAS A FOURTH, AND IT WAS THE WORST ONE. This comment used to say PE was
+ * silent because "this tree has never parsed" the COFF machine field — true, and
+ * it made `assertPayloadMatchesArch` VACUOUS on the one layout whose native format
+ * IS PE. #1354 M2b made that check non-vacuous for darwin by staging Mach-O into a
+ * `.app`; M3 stages `node.exe` and a win32 GTK closure into a Windows program
+ * directory, so a windows stage built with the wrong `--arch` would have carried
+ * x64 DLLs under an `arm64` label with nothing to notice. Two reads — `e_lfanew`
+ * at 0x3c, then `Machine` four bytes past the `PE\0\0` signature — close it. A
+ * truncated `MZ` with no reachable PE header stays `null`, which is what
+ * `packers.spec.ts` has always asserted and still does.
  */
 export function readBinaryArch(data: Uint8Array): string | null {
     if (data.byteLength < 20) return null;
@@ -545,6 +810,16 @@ export function readBinaryArch(data: Uint8Array): string | null {
     }
     if (magic === 0xcefaedfe || magic === 0xcffaedfe) {
         return MACHO_CPUTYPE_TO_ARCH[((data[7]! << 24) | (data[6]! << 16) | (data[5]! << 8) | data[4]!) >>> 0] ?? null;
+    }
+    // PE/COFF: `MZ`, then `IMAGE_DOS_HEADER.e_lfanew` at 0x3c points at `PE\0\0`,
+    // and `IMAGE_FILE_HEADER.Machine` is the u16 right after it. Every field here
+    // is little-endian regardless of the machine it names.
+    if (data[0] === 0x4d && data[1] === 0x5a && data.byteLength >= 0x40) {
+        const peOffset = (data[0x3c]! | (data[0x3d]! << 8) | (data[0x3e]! << 16) | (data[0x3f]! << 24)) >>> 0;
+        if (peOffset + 6 > data.byteLength) return null;
+        const signature = (data[peOffset]! | (data[peOffset + 1]! << 8) | (data[peOffset + 2]! << 16)) >>> 0;
+        if (signature !== 0x004550 || data[peOffset + 3] !== 0x00) return null;
+        return PE_MACHINE_TO_ARCH[data[peOffset + 4]! | (data[peOffset + 5]! << 8)] ?? null;
     }
     return null;
 }

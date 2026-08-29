@@ -2721,6 +2721,249 @@ jobs:
           NODE_GI_NATIVE: prebuild
         run: node --test test/gst-elements.test.mjs
 
+  # ── #1354 M3: the Windows program directory, assembled and then RUN ──────────
+  #
+  # The same pair as `macos-app-assemble` → `macos-app-selfcontained`, one OS over,
+  # and modelled on it line for line. Everything here runs on Linux and is a claim
+  # about our WIRING; the job below it unzips the artifact on a Windows runner that
+  # has no gvsbuild GTK and no Node on `PATH`, and opens a window with it.
+  windows-dir-assemble:
+    name: Assemble a self-contained Windows program directory (Linux / win32-x64)
+    runs-on: ubuntu-latest
+    needs: [windows, windows-gtk-windowing-runtime]
+    if: ${{ !cancelled() && needs.windows-gtk-windowing-runtime.result != 'skipped' }}
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/gjsify/ci-fedora:44
+    steps:
+      # Official nodejs.org build, NOT Fedora's dnf node (which crashes rolldown's
+      # prebuilt napi binding). Same rationale as `build-test` and `consumer-suites`.
+      - name: Use official Node.js (Fedora's dnf node crashes the bundler)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install the gjsify workspace (published CLI, Node-free)
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
+
+      # The bootstrap recipe `consumer-suites` uses, for the reason it states: a job
+      # that builds with the LAST RELEASE cannot observe a change to the bundler in
+      # THIS checkout, and this milestone lives entirely in this checkout's CLI.
+      - name: Bootstrap a Node bundler + link node-gi, then switch to this checkout's cli
+        run: |
+          CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
+          mkdir -p /tmp/gjsify-node-cli
+          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
+            && "${GITHUB_WORKSPACE}/.github/scripts/install-published-cli.sh" "${CLI_VERSION}" )
+          ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
+          mkdir -p node_modules/@gjsify
+          ln -sfn ../../packages/node-gi/node-gi node_modules/@gjsify/node-gi
+          PATH="$PWD/node_modules/.bin:$PATH" node_modules/.bin/gjsify run build:infra
+          ln -sfn "$PWD/packages/infra/cli/lib/index.js" node_modules/.bin/gjsify
+          echo "Node bundler (this checkout): $(node_modules/.bin/gjsify --version)"
+
+      # The SIBLING layout `resolveGtkRuntimeBundle()` walks — candidate 2 of its
+      # four, and the one `gjsify ship` resolves through here. Downloading the
+      # bundle and the addon into node-gi's own `prebuilds/win32-x64/` is exactly
+      # what `windows-batteries-included` and `windows-gtk-windowing` do before a
+      # conformance run, so a job prepared for one is prepared for this.
+      - name: Download FULL-windowing GTK runtime bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: gtk-runtime-win32-x64-windowing
+          path: packages/node-gi/node-gi/prebuilds/win32-x64/gtk
+
+      - name: Download node-gi addon prebuild (from the windows job)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-win32-x64
+          path: packages/node-gi/node-gi/prebuilds/win32-x64
+
+      # The interpreter. A DOWNLOAD rather than a build, which is why all three
+      # `@gjsify/node-runtime-*` targets ride one Linux job in `release.yml` — the
+      # script verifies the release's own SHA-256 and copies Node's LICENSE beside
+      # the binary. `gjsify ship` resolves the package BY NAME from here.
+      - name: Fetch the bundled Node interpreter for win32-x64
+        run: |
+          node packages/node-runtime/scripts/fetch-node-runtime.mjs \
+            --target win32-x64 \
+            --out packages/node-runtime/node-runtime-win32-x64/bin
+          mkdir -p node_modules/@gjsify
+          ln -sfn ../../packages/node-runtime/node-runtime-win32-x64 \
+            node_modules/@gjsify/node-runtime-win32-x64
+
+      # `--arch` names the architecture the PAYLOAD was built for and cross-compiles
+      # nothing; it is also what selects the closure. `x64` is the only value this
+      # layout has — gvsbuild publishes no arm64 GTK (#1117) — and
+      # `assertPayloadMatchesArch` reads the staged tree back and refuses a PE whose
+      # COFF machine disagrees with the label.
+      - name: Assemble the program directory + zip
+        working-directory: tests/e2e/ship-macos/fixtures/window-app
+        run: |
+          export PATH="${GITHUB_WORKSPACE}/node_modules/.bin:$PATH"
+          gjsify ship windows --arch x64
+          echo "--- what the directory carries ---"
+          find "ship/out/Ship Window Demo/lib" -maxdepth 5 -type d | head -20
+          du -sh "ship/out/Ship Window Demo"
+
+      # The launcher, quoted into the log. It is a dozen lines and it is the
+      # interface between everything above and everything the next job runs, so a
+      # reader diagnosing that job should not have to unzip an artifact to see it.
+      - name: Show the launcher, and read the artifact back with CPython
+        working-directory: tests/e2e/ship-macos/fixtures/window-app
+        run: |
+          cat "ship/out/Ship Window Demo/ship-window-demo.cmd"
+          python3 "${GITHUB_WORKSPACE}/.github/ship-oracle/verify-program-dir.py" \
+            "ship/out/Ship Window Demo" ship/stage/.gjsify-ship-stage.json
+          bash "${GITHUB_WORKSPACE}/.github/ship-oracle/verify-app-zip.sh" \
+            ship/out/ship-window-demo-1.0.0-1.x64.zip "ship/out/Ship Window Demo" "program directory"
+          test -f "ship/out/Ship Window Demo/node.exe" || {
+            echo "the directory carries no interpreter — the next job would run the runner's node"; exit 1
+          }
+
+      # THE ONE MEASUREMENT NO LEG BELOW CAN MAKE, taken here on the REAL binary.
+      # `node.exe` is a CONSOLE-subsystem image and the Node release ships no
+      # `nodew.exe`, so a GUI launch of this artifact pops a console window — and
+      # every Windows leg starts the app from a shell and therefore inherits one,
+      # which is why this is a PRINTED number and not a check anywhere. Recorded in
+      # `status/open-todos.md`; do not add a leg that appears to cover it.
+      - name: Record the interpreter's PE subsystem (the console-window gap)
+        working-directory: tests/e2e/ship-macos/fixtures/window-app
+        run: |
+          python3 "${GITHUB_WORKSPACE}/.github/ship-oracle/verify-program-dir.py" \
+            "ship/out/Ship Window Demo" ship/stage/.gjsify-ship-stage.json | tail -1
+
+      - name: Upload the assembled program-directory zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-dir-selfcontained-win32-x64
+          path: tests/e2e/ship-macos/fixtures/window-app/ship/out/*.zip
+          # error, not warn: an empty upload hands the next job a downloadable
+          # nothing and fails there as a missing file rather than here as a
+          # missing artifact.
+          if-no-files-found: error
+
+  # THE HALF THAT EARNS THE MILESTONE. Everything before this runs on Linux and is
+  # a claim about our WIRING; this one unzips the artifact on a Windows runner that
+  # never installed gvsbuild, strips Node off `PATH`, and opens a window with it.
+  windows-dir-selfcontained:
+    name: Self-contained program directory opens a window (no gvsbuild, no node / windows-latest x64)
+    runs-on: windows-latest
+    needs: windows-dir-assemble
+    if: ${{ !cancelled() && needs.windows-dir-assemble.result != 'skipped' }}
+    timeout-minutes: 20
+    steps:
+      # NO `actions/setup-node`, and NO checkout. This job runs a downloaded
+      # artifact and nothing else — the shape a stranger is in.
+      #
+      # Never installs gvsbuild. Hard-fail if a gvsbuild GTK tree is present (it
+      # would muddy the proof — the carried closure must be the ONLY GTK), which is
+      # the assertion `windows-batteries-included` and `windows-gtk-windowing` both
+      # open with and the reason either of them means anything.
+      - name: Assert gvsbuild GTK is NOT present (clean batteries-included host)
+        shell: pwsh
+        run: |
+          if (Test-Path 'C:\gtk-build\gtk\x64\release\bin\glib-2.0-0.dll') {
+            Write-Host "gvsbuild GTK is present — not a clean batteries-included test"
+            exit 1
+          }
+          Write-Host "clean host — gvsbuild GTK was never installed in this job"
+
+      - name: Download the assembled program-directory zip
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-dir-selfcontained-win32-x64
+          path: ${{ runner.temp }}/app
+
+      # Unzipped OUTSIDE any checkout, because a program directory beside a
+      # repository can resolve things a downloaded one cannot:
+      # `require('@gjsify/node-gi/gi')` walks `node_modules` UPWARD from the staged
+      # bundle, so a tree sitting under one that has it is not the artifact a user
+      # receives.
+      - name: Unzip the program directory
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/app
+        run: |
+          Expand-Archive -Path (Get-ChildItem -Filter *.zip)[0].FullName -DestinationPath . -Force
+          Get-ChildItem "Ship Window Demo"
+          Write-Host "--- the launcher, as assembled on Linux ---"
+          Get-Content "Ship Window Demo\ship-window-demo.cmd"
+
+      # THE OTHER ABSENCE, and the reason this job is worth anything. The runner
+      # image ships a Node; a launcher running the bare name would pass here and
+      # fail on every Windows machine that has none. Reducing `PATH` to the two
+      # system directories is what makes the run measure the artifact rather than
+      # the image.
+      - name: Assert there is NO node on PATH once PATH is the system one
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:SystemRoot\system32;$env:SystemRoot"
+          if (Get-Command node -ErrorAction SilentlyContinue) {
+            Write-Host "a system node exists on the reduced PATH — this leg cannot prove the artifact carries one"
+            exit 1
+          }
+          Write-Host "no node on the system PATH — whatever runs must come from inside the program directory"
+
+      # The run. Every locator unset, `PATH` reduced to the system one, no gvsbuild
+      # GTK on the machine: what the app finds, it brought. `GSK_RENDERER=cairo`
+      # forces software rendering, as every other windowing leg here does.
+      - name: Open a window from the unzipped program directory
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/app
+        env:
+          GSK_RENDERER: cairo
+        run: |
+          foreach ($name in 'GJSIFY_GTK_RUNTIME','NODE_GI_NATIVE','GJSIFY_GI_LIBRARY_PATH','GI_TYPELIB_PATH','XDG_DATA_DIRS','GSETTINGS_SCHEMA_DIR','NODE_PATH','GDK_PIXBUF_MODULE_FILE') {
+            Remove-Item "env:$name" -ErrorAction SilentlyContinue
+          }
+          $env:PATH = "$env:SystemRoot\system32;$env:SystemRoot"
+          & "$PWD\Ship Window Demo\ship-window-demo.cmd" 2>&1 | Tee-Object -FilePath run.log
+          exit $LASTEXITCODE
+
+      # Read back what it printed, line by line, because an exit code of 0 is also
+      # what an app that never activated returns.
+      - name: Assert what the run proved
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/app
+        run: |
+          $log = Get-Content run.log
+          # The interpreter is inside THIS artifact. Matched by the artifact-relative
+          # SUFFIX rather than by an absolute path: `%~dp0` is the launcher's own
+          # directory as cmd.exe spells it and `process.execPath` is `uv_exepath`,
+          # and a runner temp directory can differ between the two in case and in
+          # short-name form. The claim is "the interpreter is inside the program
+          # directory", and the suffix says it.
+          if (-not ($log | Select-String -Pattern '^interpreter: .*Ship Window Demo\\node\.exe$')) {
+            Write-Host "the app did not run under the interpreter the directory carries:"
+            $log | Select-String -Pattern '^interpreter:'
+            exit 1
+          }
+          # The launcher exported the locator, and it points inside the artifact.
+          if (-not ($log | Select-String -Pattern '^gtk-runtime: .*Ship Window Demo\\lib\\node-gi\\prebuilds\\win32-x64\\gtk$')) {
+            Write-Host "GJSIFY_GTK_RUNTIME was not exported into the program directory:"
+            $log | Select-String -Pattern '^gtk-runtime:'
+            exit 1
+          }
+          # The Adwaita tree built and wired through the engine.
+          if (-not ($log | Select-String -Pattern '^chrome: ok$')) {
+            Write-Host "the Adwaita widget tree is incomplete:"; $log | Select-String -Pattern '^chrome:'; exit 1
+          }
+          # And a real GdkSurface was allocated and a GSK render tree rasterised. On
+          # win32 the display gate is IMPLICIT — the GdkWin32 backend supplies it, so
+          # unlike Linux there is no surface-less branch to excuse here.
+          if (-not ($log | Select-String -Pattern '^render: \d+x\d+ \d+$')) {
+            Write-Host "the window did not realize + render:"; $log | Select-String -Pattern '^render:'; exit 1
+          }
+          if (-not ($log | Select-String -Pattern '^done: 0$')) {
+            Write-Host "app.run() returned non-zero:"; $log | Select-String -Pattern '^done:'; exit 1
+          }
+          Write-Host "a downloaded program directory opened and rendered a window on a Windows host with no gvsbuild GTK and no node on PATH"
+
   # Adwaita Storybook capstone — BUILD the `--app node` bundle. The full
   # @gjsify/storybook Libadwaita component gallery (showcases/gtk/adwaita-storybook,
   # 35 *.story.ts) built for the node-gi reverse bridge via

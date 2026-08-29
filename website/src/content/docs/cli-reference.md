@@ -1331,7 +1331,7 @@ gjsify ship --arch arm64        # package for another architecture
 
 | Option | Default | Description |
 |---|---|---|
-| `--target <fmt..>` | `gjsify.ship.targets`, else every format wrapping the layout that needs no extra tooling | Formats to build. Comma-separated or repeated. On Linux that default is `deb,rpm`; `flatpak` is opt-in because it is the one format that needs a *different host*. `macos-app` and `macos-app-zip` wrap the darwin layout and need `glib-compile-schemas` — a tool, not a host, which is why they are still in the default there. A format wrapping another layout is refused by name. |
+| `--target <fmt..>` | `gjsify.ship.targets`, else every format wrapping the layout that needs no extra tooling | Formats to build. Comma-separated or repeated. On Linux that default is `deb,rpm`; `flatpak` is opt-in because it is the one format that needs a *different host*. `macos-app`/`macos-app-zip` wrap the darwin layout and `windows-dir`/`windows-dir-zip` the windows one; all four need `glib-compile-schemas` — a tool, not a host, which is why they are still in the default there. A format wrapping another layout is refused by name. |
 | `--out <dir>` | `gjsify.ship.outDir`, else `ship` | Output root, relative to the project. |
 | `--stage` | `false` | Produce the staged payload and stop, packing nothing. |
 | `--from-stage <dir>` | — | Pack a payload an earlier `--stage` run wrote. Needs no project: no `package.json`, no config, no built bundle. |

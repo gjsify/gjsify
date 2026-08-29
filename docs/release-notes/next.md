@@ -32,8 +32,8 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## What this release is about
 
-**`gjsify ship darwin` now produces a real macOS application bundle, assembled on Linux — and it
-carries its own interpreter and its own GTK.**
+**`gjsify ship` now produces a real macOS application bundle AND a real Windows program directory,
+both assembled on Linux, and both carrying their own interpreter and their own GTK.**
 
 ---
 
@@ -120,12 +120,45 @@ whoever ships an application declares the runtime it ships. `gjsify ship` prints
 for anything missing, the package name to install; a bundle with no runtime still assembles, because
 it is a working intermediate on any machine that already has a Node.
 
+### The same thing one operating system over
+
+`gjsify ship windows` produces a program directory and a zip around it, and the runtime staging is
+the same module: what differs is where each piece lands, which is the layout's answer and not a
+second code path. The interpreter sits beside the launcher as `node.exe` — under the name the Node
+release uses, derived from the same function that found the source file — and the GTK closure under
+`lib\node-gi\prebuilds\win32-x64\`. Windows is the harder of the two cases, not the easier one:
+macOS at least has a GJS you could install, and Windows has no GJS host at all.
+
+**The zip carries a top level the directory does not.** A `<App>.app` is dragged to `/Applications`
+as one object, so the bundle directory is part of what is staged. A Windows program directory is
+not: an installer picks `C:\Program Files\<Publisher>\<App>` and lays the contents into it. So the
+archive synthesises the directory — without it, unzipping scatters `app\`, `share\` and a loose
+`.cmd` into whatever folder you were in, with every file individually in the right place.
+
+**The launcher sets no `PATH` for the bundled GTK, and that is deliberate.** Windows has no rpath, so
+`PATH` is where a DLL is found — but node-gi already prepends the closure's `bin\` in-process,
+before it loads its addon, because Windows re-reads the DLL search path at every `LoadLibrary`. What
+the launcher owes it is the locator, and a second copy of that directory would be the one that goes
+stale.
+
+**`win32-x64` only.** `gvsbuild` publishes no arm64 GTK — it hardcodes the platform — so there is
+nothing to build a Windows/ARM runtime bundle out of, and on Windows that bundle is the only GTK
+there is. `gjsify ship windows --arch arm64` says so and names the upstream issue.
+
+**One thing to know if you ship this to a user.** `node.exe` is a console-subsystem program and the
+Node release ships no windowed variant, so starting the application from a shortcut leaves a console
+window open behind it. It is recorded rather than hidden: no CI leg can observe the defect (every
+Windows job starts the app from a shell and already has a console), so the assemble job prints the
+subsystem it read off the binary instead of pretending to check it.
+
 ### What it does not do yet
 
-The `.dmg`, the Windows installer and its bundled runtime, and signing are still ahead — a bundle
-assembled on Linux is unsigned by construction and Gatekeeper will quarantine it. macOS has GJS but
-no *relocatable* GJS, which is why the two macOS formats accept `gjsify.app: "node"` only; a `gjs`
-project can assemble the layout and is told, by name, why it cannot pack it.
+The `.dmg`, the Windows `.msi` and signing are still ahead — an artifact assembled on Linux is
+unsigned by construction. The asymmetry is worth knowing: Gatekeeper BLOCKS an unsigned `.app`,
+while SmartScreen only warns until a download builds reputation, so the Windows directory is usable
+today in a way the macOS bundle is not. macOS has GJS but no *relocatable* GJS and Windows has no
+GJS at all, which is why all four new formats accept `gjsify.app: "node"` only; a `gjs` project can
+assemble either layout and is told, by name, why it cannot pack it.
 
 See [#1354](https://github.com/gjsify/gjsify/issues/1354) and
 `docs/adr/0024-ship-installable-artifacts.md`.

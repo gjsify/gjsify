@@ -351,8 +351,11 @@ in-process answer arriving as a launcher constraint; and `FormatDescriptor` need
 field distinct from `host.finishOn`, which is what settles open question 3 (a `.app` zip is
 `finishOn: 'any'` with `layoutOs: 'darwin'`, so the two are not one field). ~~No format wraps the
 two new layouts yet — they are `--stage` only, and a pack is refused by name rather than exiting 0
-having produced nothing.~~ **Superseded for darwin by #1354 M2a below**; still true of windows, and
-the refusal is still by name.
+having produced nothing.~~ **Superseded for darwin by #1354 M2a below and for windows by #1354 M3**;
+both layouts have formats now, so the refusal a `--app gjs` project meets is the INTERPRETER one on
+either. The "no format wraps this layout" branch stays reachable — `assertPackable` prints it for
+any layout `formatIdsFor` answers empty for — and is simply not reachable from any of the three
+layouts that exist, which is what stages 4 and 5 being done means.
 
 **And three corrections the first cut of that axis needed, all of the same shape — reading a
 statement about a SHIPPED ARTIFACT as a statement about an assembly step.** (a) § 4 derives the
@@ -488,6 +491,52 @@ a claim about the WIRING, on a host that cannot execute one instruction of it. T
 is `node-gi.yml`'s `macos-app-assemble` → `macos-app-selfcontained` pair: assemble on Linux, then
 unzip on `macos-latest` and `macos-15-intel` with no Homebrew gtk4/libadwaita and `PATH` reduced to
 the system directories (so the runner's own Node cannot answer), and open a window.
+
+**Landed since, and it is stage 5: the Windows program directory** (#1354 M3). `windows-dir` and
+`windows-dir-zip`, `layoutOs: 'win32'`, both `finishOn: 'any'`, assembled on Linux, unsigned. It is
+the same shape as stage 4 and the differences are all the OS's:
+
+- **The stage IS the artifact's contents.** A `<App>.app` carries its own directory in the stage,
+  because it is dragged to `/Applications` as one object; a Windows program directory does not,
+  because an installer chooses `C:\Program Files\<Publisher>\<App>` and lays the contents into it.
+  So `windows-dir` writes the payload with no rebase — and the ZIP has to SYNTHESISE the top level
+  the `.app` zip inherits, or the archive expands into whatever directory the user was in with every
+  entry individually correct.
+- **There is no metadata file, and `Layout.metadata` answers `[]` because that is the answer.** A
+  Windows installer's metadata lives in the `.msi`'s own tables, which is stage 5's second half and
+  #1354 M5. Two format rows now wrap this layout and neither needed one.
+- **The `.cmd` runs `"%HERE%node.exe"` and sets `GJSIFY_GTK_RUNTIME` + `NODE_GI_NATIVE`**, and
+  deliberately does NOT put the carried closure on `PATH`. That is the counterpart of the `.app`
+  form's "no `DYLD_*`" with the opposite reason: node-gi prepends the closure's `bin\` ITSELF,
+  in-process, above its own `loadNative()`, because Windows re-reads the DLL search path at every
+  `LoadLibrary`. A launcher-set `PATH` would be a second copy of a directory node-gi already derives
+  from the locator.
+- **Three vacuities closed, all on this layout.** `readLauncherInterpreters` read a `.cmd` with the
+  POSIX rules and found nothing — batch has no `exec`, `%~dp0` carries its own separator, and the
+  file is `node.exe` where the vocabulary is `node` — so `assertLauncherMatchesInterpreter` passed
+  over a launcher running `gjs` under `gjsify.app: "node"`. And `readBinaryArch` recognised `MZ` and
+  stopped, which made `assertPayloadMatchesArch` vacuous on the one layout whose native format IS
+  PE. Both are measured in `tests/e2e/ship-windows`, red before green.
+- **`win32-x64` only, and the blocker is upstream.** `wingtk/gvsbuild` hardcodes
+  `self.platform = "x64"`; there is no arm64 GTK to build `@gjsify/gtk-runtime-win32-arm64` out of,
+  and on Windows that bundle is the only GTK there is (#1117). `Layout.arches` carries the refusal
+  and names it. `--stage` warns rather than refusing, because assembling a foreign-arch layout is
+  what `tests/e2e/ship-layout` does on purpose.
+- **One measurement no leg can make, and M3 does not pretend otherwise.** `node.exe` is a
+  CONSOLE-subsystem image (Subsystem=3 at offset 0xD4; measured on v24.20.0's, and the issue records
+  the same for v24.19.0) and the win-x64 release contains exactly one `.exe` — there is no
+  `nodew.exe`. So a GUI launch of this artifact pops a console window, and every Windows CI leg
+  starts the app from a shell and therefore inherits one: no leg can observe it. The assemble leg
+  PRINTS the subsystem it read off the real binary; `status/open-todos.md` carries the gap.
+
+**What M3 does not claim.** The Linux half — `tests/e2e/ship-windows` — reads every staged PE back
+with `binary.mjs`, and there it stops: a PE records its imports in a data directory reached through
+the section table, which that reader deliberately does not parse (`inspectable: false`). So the
+macOS suite's "every dependency resolves inside the artifact" has no Windows counterpart, and
+"every DLL this directory needs is inside it" has exactly one reader, `LoadLibrary`. That is
+`node-gi.yml`'s `windows-dir-assemble` → `windows-dir-selfcontained` pair: assemble on Linux, then
+unzip on `windows-latest` with no gvsbuild GTK and `PATH` reduced to the system directories (so the
+runner's own Node cannot answer), and open a window.
 
 That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
 stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`

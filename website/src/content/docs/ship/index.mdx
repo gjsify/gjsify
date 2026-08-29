@@ -1,6 +1,6 @@
 ---
 title: Ship your app
-description: Turn a built GJS app into something other people can install. One command gives you a .deb and an .rpm, `gjsify ship darwin` gives you a macOS .app and a zip, and `--target flatpak` adds a Flatpak bundle; this page also points at the one-line installer, self-executing bundles and dlx.
+description: Turn a built GJS app into something other people can install. One command gives you a .deb and an .rpm, `gjsify ship darwin` gives you a macOS .app and a zip, `gjsify ship windows` gives you a program directory and a zip, and `--target flatpak` adds a Flatpak bundle; this page also points at the one-line installer, self-executing bundles and dlx.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
@@ -62,7 +62,9 @@ ship/
     ├── my-app-1.2.3-1.noarch.rpm
     ├── org.example.MyApp-1.2.3-1.x86_64.flatpak
     ├── My App.app/                        gjsify ship darwin
-    └── my-app-1.2.3-1.arm64.zip           the same bundle, zipped
+    ├── my-app-1.2.3-1.arm64.zip           the same bundle, zipped
+    ├── My App/                            gjsify ship windows
+    └── my-app-1.2.3-1.x64.zip             the same directory, zipped
 ```
 
 The payload in `ship/stage/` is built once, and both packers read it back off
@@ -245,13 +247,13 @@ differ:
 gjsify ship                      # this host's layout; on Linux, deb + rpm
 gjsify ship darwin               # <App>.app + a zip, if the app is --app node
 gjsify ship darwin  --stage      # <App>.app/Contents/{MacOS,Resources,Frameworks}
-gjsify ship windows --stage      # a program directory + a .cmd launcher
+gjsify ship windows              # a program directory + a zip, if the app is --app node
+gjsify ship windows --stage      # app\, lib\, share\ and a .cmd launcher
 ```
 
-Windows is `--stage` only: the tree is assembled, and nothing wraps it yet. The
-launcher each layout carries is that OS's — `/bin/sh` without `readlink -f` and
-without a `DYLD_*` inside a `.app`, a CRLF `.cmd` on Windows — and each execs the
-interpreter your bundle was BUILT for, `gjs -m` or `node`.
+The launcher each layout carries is that OS's — `/bin/sh` without `readlink -f`
+and without a `DYLD_*` inside a `.app`, a CRLF `.cmd` on Windows — and each execs
+the interpreter your bundle was BUILT for, `gjs -m` or `node`.
 
 **The macOS bundle is a real bundle.** `Contents/Info.plist` and
 `Contents/PkgInfo` are what make a directory ending in `.app` an application
@@ -262,9 +264,18 @@ and `CFBundleName`, and the executable under `Contents/MacOS` is named by
 it is assembled, because a `.app` has no install step to compile them and
 GSettings aborts on a schema directory that has only sources.
 
-**The macOS bundle carries its own runtime, and you say so in `package.json`.**
-An unzipped `.app` runs on a Mac with no Node and no Homebrew GTK — but only if
-the four packages below are installed where you PACKAGE it. They are resolved by
+**The Windows artifact is a program directory, not a bundle.** There is no
+metadata file in it: what a Windows installer says about an application lives in
+the `.msi`'s own tables, which is a later milestone. The `.cmd` at its root finds
+the directory from `%~dp0`, so the tree works unzipped anywhere and works again
+once an installer lays it into `C:\Program Files\<Publisher>\<App>`. The ZIP
+carries a top level the staged tree does not — without it, unzipping would scatter
+`app\`, `share\` and a loose `.cmd` into whatever folder you were in.
+
+**Both artifacts carry their own runtime, and you say so in `package.json`.**
+An unzipped `.app` runs on a Mac with no Node and no Homebrew GTK, and an unzipped
+program directory runs on a Windows machine with no Node and no GTK at all — but
+only if the packages below are installed where you PACKAGE it. They are resolved by
 NAME at ship time, and none of them is an `optionalDependencies` edge on anything:
 whoever ships an app declares the runtime it ships, never the library that uses it.
 Put them in `devDependencies` — they are needed by the packaging host, not by your
@@ -278,7 +289,12 @@ app at runtime:
     "@gjsify/node-runtime-darwin-x64": "^0.44.0",
     // The relocated GTK/GObject-Introspection closure, one per architecture.
     "@gjsify/gtk-runtime-darwin-arm64": "^0.44.0",
-    "@gjsify/gtk-runtime-darwin-x64": "^0.44.0"
+    "@gjsify/gtk-runtime-darwin-x64": "^0.44.0",
+    // Windows, if you ship there. `win32-x64` is the only target: gvsbuild
+    // publishes no arm64 GTK, so there is nothing to build a Windows/ARM
+    // runtime bundle out of.
+    "@gjsify/node-runtime-win32-x64": "^0.44.0",
+    "@gjsify/gtk-runtime-win32-x64": "^0.44.0"
   },
   "dependencies": {
     // node-gi's JavaScript AND its `prebuilds/darwin-<arch>/node_gi.node`. A
@@ -290,7 +306,8 @@ app at runtime:
 ```
 
 One architecture is enough if you only ship one — `gjsify ship darwin --arch x64`
-looks for the `darwin-x64` packages and nothing else. `GJSIFY_NODE_RUNTIME` and
+looks for the `darwin-x64` packages and nothing else, and `gjsify ship windows`
+looks for the `win32-x64` ones. `GJSIFY_NODE_RUNTIME` and
 `GJSIFY_GTK_RUNTIME` override the first two with a directory, for a maintainer
 holding an unpublished or patched build.
 
@@ -310,16 +327,20 @@ Node — so nothing here fails your build; it tells you which artifact you got.
 
 **What it cannot do yet, and `gjsify ship` prints it rather than letting you find
 out:** macOS has GJS but no *relocatable* GJS, and Windows has no GJS host at
-all — which is why the macOS formats accept `gjsify.app: "node"` only, why a
-`--app gjs` project can stage the layout and not pack it, and why Windows is
-`--stage` only for now.
+all — which is why all four of those formats accept `gjsify.app: "node"` only, and
+why a `--app gjs` project can stage either layout and not pack it.
+
+One more thing to know before you hand a Windows build to a user: `node.exe` is a
+console program and the Node release ships no windowed variant, so starting the
+app from a shortcut leaves a console window open behind it. Nothing here hides
+that — the artifact's own reader prints the subsystem it found.
 
 **Where each format can be packed is declared, and the command refuses rather
 than guessing.** `.deb` and `.rpm` are written by `ship` itself — plain
 JavaScript, no `dpkg-deb`, no `rpmbuild` — so those two really do pack
 anywhere, and `gjsify ship linux` on a Mac gets you a Linux package built on a
-Mac. The macOS `.app` and its zip are the same: `ship` writes the zip itself, so
-they pack anywhere too — which is also what keeps `zipinfo` an INDEPENDENT reader
+Mac. The macOS `.app`, the Windows program directory and both zips are the same:
+`ship` writes the zips itself, so they pack anywhere too — which is also what keeps `zipinfo` an INDEPENDENT reader
 of them rather than the other half of a round trip. (Name the layout when you
 cross: a bare `gjsify ship` on a Mac assembles the macOS one, and says so.)
 Flatpak
@@ -337,9 +358,11 @@ gjsify ship --from-stage ./ship/stage \
 Missing tooling is a separate message from the wrong OS, because the fixes
 differ, and both fire **before** your build script runs rather than after it.
 
-What is still missing is the `.dmg`, a Windows installer, a bundled runtime for
-Windows, and signing — a bundle assembled on Linux is unsigned by construction,
-and Gatekeeper will quarantine it. A `.dmg` is
+What is still missing is the `.dmg`, the Windows `.msi`, and signing — an artifact
+assembled on Linux is unsigned by construction. The two operating systems differ
+in what that costs you: Gatekeeper BLOCKS an unsigned `.app`, while SmartScreen
+only warns until a download builds reputation, so a Windows program directory is
+usable today in a way the macOS bundle is not. A `.dmg` is
 an image over a real HFS+/APFS volume and will have to be packed on macOS, which
 is the same split one platform over. See
 [Platform Support](/gjsify/platform-support/) for where gjsify apps run at all.

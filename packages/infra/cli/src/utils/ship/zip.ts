@@ -261,7 +261,19 @@ export function buildZip(entries: readonly ZipEntry[], mtime: number): Uint8Arra
     return out.finish();
 }
 
-/** The payload as zip entries, keeping each file's planned mode. */
-export function zipEntriesFromPayload(payload: readonly PayloadEntry[]): ZipEntry[] {
-    return payload.map((entry) => ({ path: entry.path, mode: entry.mode, data: entry.data }));
+/**
+ * The payload as zip entries, keeping each file's planned mode.
+ *
+ * `topLevel` names a directory every entry goes UNDER, and `''` means the payload
+ * paths already carry one. The two callers differ because their layouts do:
+ * a `<App>.app`'s staged paths already begin with the bundle directory
+ * (`Layout.root`), while a Windows program directory's do not — the stage IS its
+ * contents, because an installer chooses the parent. An archive without a top
+ * level expands into whatever directory the user happened to be in, scattering
+ * `app\`, `share\` and the launcher across it, and no listing of NAMES reads as
+ * wrong: every entry is individually correct.
+ */
+export function zipEntriesFromPayload(payload: readonly PayloadEntry[], topLevel = ''): ZipEntry[] {
+    const prefix = topLevel === '' ? '' : `${topLevel}/`;
+    return payload.map((entry) => ({ path: `${prefix}${entry.path}`, mode: entry.mode, data: entry.data }));
 }
