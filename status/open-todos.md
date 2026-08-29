@@ -3693,3 +3693,110 @@ So the decision to make first is a policy one: do published packages ship their
 specs at all? Once that has an answer, the check belongs in
 `verify-tarball-outputs.mjs`, which already computes the packed set per package
 from `gjsify pack`'s own oracle and needs no new CI step.
+
+### `gjsify flatpak check` has never run the real appstreamcli
+
+`flatpak check` shells out to `appstreamcli validate --strict`, and no test has ever
+fed it a component this repo actually GENERATED. `tests/e2e/flatpak/run.mjs` drives the
+command through `writeShim(stubBinDir, 'appstreamcli', 'APPSTREAMCLI_CALLS')` and hands
+it the string `<component/>` as the metainfo file, so the suite asserts the CALL SHAPE
+(`validate --strict …metainfo.xml.in`) and nothing about the XML. Both linters are
+stubbed the same way, and `appstreamcli` was absent from `.docker/ci-fedora.Dockerfile`
+until the commit that added this entry, so no CI job could have run the real one either.
+And no gate could have said so: `scripts/check-ci-image-packages.mjs` asks "does a job USE
+a tool the image never carries" only for `NODE_TOOLS = ['node', 'npx', 'npm', 'corepack']`,
+so a suite reaching for `appstreamcli` is outside what it looks at. Widening that question
+past the node tools is the mechanism this class wants; it needs a way to derive tool use
+from the SUITES rather than from the workflow `run:` lines, which is why it is a ledger
+entry and not a one-line change.
+
+The gap is not theoretical. Measured against a component `renderMetainfoApp` produced
+for the `ship` e2e fixture, using the flag the command actually passes:
+
+    appstreamcli validate --strict --no-net <stage>/share/metainfo/org.example.ShipDemo.metainfo.xml
+    I: org.example.ShipDemo:10: description-first-para-too-short
+    ✘ Validation failed: infos: 1, pedantic: 2      # exit 3
+
+`--strict` fails on anything above pedantic severity, so an INFO-level hint is enough.
+The same file passes plain `appstreamcli validate --no-net` at exit 0. Two things are
+therefore unknown: whether `gjsify flatpak check` passes on any real project, and
+whether `--strict` is the severity this command wants — a first description paragraph
+under a certain length is a house-style hint, not a defect that should block a build.
+
+Also worth folding in: the command validates the `.in` TEMPLATE rather than the merged
+output. Since `gjsify gettext --format=xml` now produces a real translated component
+(`msgfmt --xml`, per-catalogue `--locale=` chaining), the file worth validating is the
+merged one — the template is missing every `xml:lang` attribute the merge adds.
+
+Fix: drop the appstreamcli shim from that suite, scaffold a project through the real
+`flatpak init` renderer, and run the real binary with `--no-net` (its absence otherwise
+makes the assertion depend on resolving every `<url>`). Then decide `--strict` on the
+evidence that produces.
+
+### `@gjsify/vite-plugin-gettext`'s msgfmt plugin carries both gettext defects
+
+The two defects fixed in `gjsify gettext` (see `packages/infra/cli/src/commands/gettext.ts`)
+exist unchanged in `packages/infra/vite-plugin-gettext/src/msgfmt.ts`, which is a second
+implementation of the same wrapper:
+
+  * **Bulk mode, silent.** `msgfmtPlugin`'s `format === 'xml' && templateFile` branch builds
+    `['--output-file=' + outputFile, '--xml', '--template=' + templateFile, '-d', poDirectory]`.
+    With no `LINGUAS` file beside the `.po` files that exits 0, prints `<podir>/LINGUAS does
+    not exist`, and writes the template back untranslated. Measured on a probe tree with
+    gettext 0.26.
+  * **Per-language mode, impossible — for EVERY format, the default included.** The other
+    branch builds ``['--output-file=' + outputFile, `--${format}`, poFile]`` with no guard,
+    so it passes `--desktop`/`--xml` without a template
+    (`--desktop requires a "--template template" specification`, exit 1) and, for the
+    plugin's DEFAULT `format = 'mo'`, passes a flag that does not exist:
+    `msgfmt --mo` → `unrecognized option '--mo'`, exit 1 (gettext 0.26). The CLI's version
+    of this loop carried the `if (format !== 'mo')` guard; this copy never did, so the
+    plugin cannot have compiled a `.mo` either. It has no test and no in-repo consumer —
+    only `resolve-plugin-by-name.ts` documents the `{ "export": "msgfmtPlugin" }` spelling
+    — which is how a wrapper that works for none of its formats stayed in a published
+    package.
+
+`getOutputExtension` also returns `.xml` for the xml format, which trips a third measured
+constraint: gettext finds ITS rules by filename PATTERN (`/usr/share/gettext/its/*.loc`,
+AppStream's being `pattern="*.metainfo.xml"` + `localName="component"`), so a component not
+named `*.metainfo.xml` fails with `cannot locate ITS rules for <file>`.
+
+The fix is the one the CLI now uses: chain one `msgfmt --locale=<lang>` call per catalogue,
+each output becoming the next template, writing through intermediates so the template and
+the output are never the same path. msgfmt truncates `--output-file` before reading the
+template, so chaining in place destroys it: measured, `--desktop` writes a 0-byte file and
+exits 0, `--xml` prints `cannot read <file>: Document is empty` and dies on SIGSEGV
+(exit 139). Only the first is invisible to a caller that checks the exit code, which is the
+same shape as the `-d` defect above.
+
+Not folded into the CLI fix because it is a separate package with its own build and
+consumers; doing both in one change would have made the diff harder to review than the
+defect is to describe.
+
+### `gjsify ship` does not localise the MIME package it generates
+
+The freedesktop-metadata localisation added in `packages/infra/cli/src/utils/ship/localize-metadata.ts`
+covers the two files `commands/ship.ts` renders into `StageInputs` — the `.desktop` entry
+and the AppStream component. It does NOT cover the third generated file a user sees a
+string from: `renderMimePackage()` writes a shared-mime-info document whose `<comment>` is
+what a file manager shows in place of the raw type string (`mime.ts` refuses an empty one
+for exactly that reason), and it stays English for every language.
+
+It is not blocked on anything gettext cannot do. Measured with the same tools:
+
+    msgfmt --xml --template=mime.xml --locale=de --output-file=mime-de.xml po/de.po   # exit 0
+    →  <comment>A test application</comment>
+       <comment xml:lang="de">Eine Testanwendung</comment>
+
+Note the plain `.xml` name: `shared-mime-info.loc` pairs `pattern="*.xml"` with
+`localName="mime-info"`, so this file needs none of the `*.metainfo.xml` suffix care the
+AppStream template does. The `.its`/`.loc` pair belongs to the `shared-mime-info` package
+(`rpm -qf /usr/share/gettext/its/shared-mime-info.its`), which `.docker/ci-fedora.Dockerfile`
+does NOT install — so this cannot be tested in CI until that package is added, and adding a
+package for a capability nothing yet uses would be a dependency with no assertion behind it.
+
+Left out of the localisation change on scope: the MIME document is produced inside
+`utils/ship/plan.ts` (`source: { kind: 'text', text: renderMimePackage(...) }`) rather than
+passed through `StageInputs`, so folding it in means moving where that text is rendered —
+in the file that neighbours the layout/stage-writer work. Doing it later costs one call
+site; doing it in the same change would have crossed into a tree being rewritten.
