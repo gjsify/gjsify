@@ -150,6 +150,74 @@ export function chainOf(sources, tag) {
     return chain;
 }
 
+/** The index of the `)` closing the `(` at {@link open}, or -1 when nothing does. */
+function matchingParen(text, open) {
+    let depth = 0;
+    for (let i = open; i < text.length; i += 1) {
+        if (text[i] === '(') depth += 1;
+        else if (text[i] === ')') {
+            depth -= 1;
+            if (depth === 0) return i;
+        }
+    }
+    return -1;
+}
+
+/**
+ * EVERY setter a source declares, read by scanning rather than by one regex — including
+ * the ones no regex over `([^)]+)` can spell.
+ *
+ * Two shapes were INVISIBLE to the single-regex reader this replaces, and both went
+ * green with an uncoerced setter because a setter it could not parse produced no
+ * finding and did not even move the counter:
+ *
+ *   · `set x(value)` with no annotation at all. This package compiles with
+ *     `"strict": false`, so an implicit `any` parameter is not a type error — the
+ *     one shape where a setter is provably unchecked is also the one the reader
+ *     dropped.
+ *   · `set x(value: (typeof SIZES)[number])`. A type containing a parenthesis cannot
+ *     match `\(([^)]+)\)`, and that is the exact spelling `@gjsify/adwaita-core` uses
+ *     for its `as const` sets.
+ *
+ * So {@link annotation} is `null` rather than absent when the parameter carries no
+ * type, and the caller REPORTS that instead of skipping it. A reader that cannot read
+ * a declaration has to say so; silence is indistinguishable from a clean bill.
+ *
+ * The BODY ends at the first line indented four spaces — the closing `}` of a
+ * conventionally formatted setter, or the next member of the class. The old bound
+ * (`indexOf('\n    }')`) ran past a one-line setter into whatever followed, so
+ * `set x(v: number) { this._x = v; }` sitting above a setter that DOES coerce read as
+ * coercing itself: a false pass, counted, with the arm reporting one more setter held.
+ */
+export function settersOf(text) {
+    const setters = [];
+    for (const match of text.matchAll(/^ {4}set (\w+)\(/gm)) {
+        const open = match.index + match[0].length - 1;
+        const close = matchingParen(text, open);
+        if (close === -1) {
+            setters.push({ name: match[1], params: null, annotation: null, body: '', executable: '' });
+            continue;
+        }
+        const params = text.slice(open + 1, close).trim();
+        const brace = text.indexOf('{', close);
+        // The body's own statements are indented eight spaces or more, so the first
+        // four-space line after the opening brace is where this member ends.
+        const after = new RegExp('\\n {4}\\S', 'g');
+        after.lastIndex = brace === -1 ? close : brace;
+        const end = after.exec(text)?.index ?? text.length;
+        const body = text.slice(match.index, end);
+        const typed = /^(\w+)\s*:\s*([\s\S]+)$/.exec(params);
+        setters.push({
+            name: match[1],
+            params,
+            annotation: typed === null ? null : typed[2].trim(),
+            body,
+            executable: executable(body),
+        });
+    }
+    return setters;
+}
+
 /**
  * One setter, as the DECLARED type it accepts and the code that runs.
  *
@@ -158,13 +226,16 @@ export function chainOf(sources, tag) {
  * and `{ flat: false }` emitted byte-identical XML while only one of them was checked.
  * What an attribute may carry is a property of the WIDGET, never of how a template
  * happened to spell it.
+ *
+ * An UNTYPED setter answers `null` here, exactly as a missing one does, because a
+ * caller asking "what may this attribute carry" has no answer either way. The gate that
+ * holds the whole package uses {@link settersOf} instead and reports the difference.
  */
 export function setterOf(sources, tag, name) {
     for (const text of chainOf(sources, tag)) {
-        const found = new RegExp(`^ {4}set ${name}\\((\\w+): ([^)]+)\\) \\{`, 'm').exec(text);
-        if (found === null) continue;
-        const body = text.slice(found.index, text.indexOf('\n    }', found.index));
-        return { annotation: found[2].trim(), body, executable: executable(body) };
+        const found = settersOf(text).find((setter) => setter.name === name);
+        if (found === undefined) continue;
+        return found.annotation === null ? null : found;
     }
     return null;
 }
@@ -180,7 +251,12 @@ export function setterOf(sources, tag, name) {
  * "an attribute can carry it".
  */
 function stringUnion(texts, name, seen = new Set()) {
-    if (seen.has(name)) return false;
+    // An identifier or nothing. A union member can be any TYPE EXPRESSION — splitting
+    // `readonly (string | AdwMenuEntry)[]` on `|` yields `readonly (string`, and
+    // interpolating that into a pattern threw `Unterminated group` and took the whole
+    // gate down. A resolver that CRASHES on a type it does not know is the same defect
+    // as one that guesses, one exit code louder.
+    if (!/^\w+$/.test(name) || seen.has(name)) return false;
     seen.add(name);
     for (const text of texts) {
         const decl = new RegExp(`export type ${name} =([^;]+);`).exec(text);
@@ -208,6 +284,41 @@ function stringUnion(texts, name, seen = new Set()) {
     return false;
 }
 
+/** The right-hand side of `export type <name> = …;`, or `null` where nothing declares it. */
+function aliasRhs(texts, name) {
+    if (!/^\w+$/.test(name)) return null;
+    for (const text of texts) {
+        const decl = new RegExp(`export type ${name} =([^;]+);`).exec(text);
+        if (decl !== null) return decl[1].trim();
+    }
+    return null;
+}
+
+/**
+ * What the members of an `as const` array are, as an attribute kind.
+ *
+ * `(typeof ARRAY)[number]` is how `@gjsify/adwaita-core` spells a closed set, and the
+ * elements decide: `['pill', 'flat']` is a string, `[1, 2, 3]` is a NUMBER and still
+ * arrives as one. Reading the spelling instead would answer "number" for both, because
+ * the index type is literally `number`.
+ */
+function arrayLiteralKind(texts, name) {
+    for (const text of texts) {
+        const arr = new RegExp(`const ${name} = \\[([^\\]]*)\\]`).exec(text);
+        if (arr === null) continue;
+        const items = arr[1]
+            .split(',')
+            .map((i) => i.trim())
+            .filter((i) => i !== '');
+        if (items.length === 0) return null;
+        if (items.every((i) => /^'[^']*'$/.test(i))) return 'string';
+        if (items.every((i) => /^-?\d+(?:\.\d+)?$/.test(i))) return 'number';
+        if (items.every((i) => i === 'true' || i === 'false')) return 'boolean';
+        return null;
+    }
+    return null;
+}
+
 /**
  * `'number'`, `'boolean'`, `'string'` — or `null` when an attribute cannot carry it.
  *
@@ -215,8 +326,25 @@ function stringUnion(texts, name, seen = new Set()) {
  * Keying on the JS literal a template happened to write instead left a hole the size of
  * the defect: `{ flat: 'false' }` and `{ flat: false }` emit byte-identical XML, and
  * only one of the two was ever checked.
+ *
+ * THE LITERAL SPELLINGS ARE NOT DECORATION. A number reaches this port through more
+ * spellings than the word `number`, and each one that answered `null` was a setter the
+ * coercion rule silently did not apply to — MEASURED with an uncoerced probe setter on
+ * `AdwAvatar`, three times green: `1 | 2 | 3`, an alias `export type Pixels = number`,
+ * and `(typeof SIZES)[number]`. `null` has to mean "an attribute cannot carry this",
+ * never "I could not tell", which is why the alias is RESOLVED rather than shrugged at.
  */
-export function attributeKind(sources, texts, annotation) {
+export function attributeKind(texts, annotation, seen = new Set()) {
+    const list = [...texts];
+    // BEFORE the `number` test, because the index type of `(typeof SIZES)[number]` is
+    // spelled `number` while the values are whatever the array holds — usually strings.
+    const inline = /^\(typeof (\w+)\)\[number\]$/.exec(annotation.trim());
+    if (inline !== null) return arrayLiteralKind(list, inline[1]);
+    // A CALLBACK is not an attribute in any spelling, and it is refused BEFORE the
+    // primitive tests because its parameter list is full of primitive words:
+    // `SidebarItemFilter` is `(item: AdwSidebarItemSpec, index: number) => boolean`,
+    // and asking `/\bnumber\b/` about it answers "number" for a function.
+    if (/=>/.test(annotation)) return null;
     if (/\bnumber\b/.test(annotation)) return 'number';
     if (/\bboolean\b/.test(annotation)) return 'boolean';
     const parts = annotation
@@ -224,8 +352,23 @@ export function attributeKind(sources, texts, annotation) {
         .map((p) => p.trim())
         .filter((p) => p !== 'null' && p !== 'undefined');
     if (parts.length === 0) return null;
-    const list = [...texts];
     if (parts.every((p) => p === 'string' || /^'[^']*'$/.test(p) || stringUnion(list, p))) return 'string';
+    if (parts.every((p) => /^-?\d+(?:\.\d+)?$/.test(p))) return 'number';
+    if (parts.every((p) => p === 'true' || p === 'false')) return 'boolean';
+    // One named alias left: resolve it and ask the same question of what it stands for.
+    // `seen` is what keeps `type A = B; type B = A;` from recurring forever.
+    if (parts.length === 1 && /^\w+$/.test(parts[0]) && !seen.has(parts[0])) {
+        seen.add(parts[0]);
+        const rhs = aliasRhs(list, parts[0]);
+        if (rhs === null) return null;
+        const derived = /^\(typeof (\w+)\)\[number\]$/.exec(rhs);
+        if (derived !== null) return arrayLiteralKind(list, derived[1]);
+        // A PLAIN type expression or nothing. Anything with a bracket in it — a
+        // function, a generic, an object shape, an array — is not an attribute, and
+        // recursing into it would read the primitives in its INTERIOR as the kind.
+        if (/[=(){}[\]<>]/.test(rhs)) return null;
+        return attributeKind(list, rhs, seen);
+    }
     return null;
 }
 

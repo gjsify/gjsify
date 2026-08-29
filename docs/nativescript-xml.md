@@ -92,3 +92,12 @@ static half, and the probe is what turns a template from a claim into a measurem
 template happens to use, and a template that writes `active="true"` passes whether or not
 the setter coerces, because `'true'` is truthy. The gate reads the setter's DECLARED type
 instead, so it judges the widget rather than the sample.
+
+**And a declaration it cannot read is a failure, not a skip.** A number reaches this port
+through more spellings than the word `number` — an alias, a union of literals,
+`(typeof SIZES)[number]`, or no annotation at all, which this package's `"strict": false`
+makes legal. Each of those went green with a deliberately uncoerced setter while the
+reader was one regex, and three of the four did not even move the counter. So every
+declaration is parsed, an unparseable one fails by name, and a type an attribute genuinely
+cannot carry is counted rather than passed over: the totals have to add up to the setters
+that exist, or "all of them coerce" is a claim about the parser and not about the port.

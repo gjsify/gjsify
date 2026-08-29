@@ -20,6 +20,18 @@
 //      is false, and `<AdwAboutDialog open="false">` OPENED the dialog because
 //      `!!'false'` is true. `'true'` working by accident is why this is a rule and not
 //      four repairs.
+//
+//      AND EVERY SETTER IS ACCOUNTED FOR, which is the half that was missing. The first
+//      version read declarations with one regex and dropped whatever it could not spell,
+//      without a word: MEASURED by putting an uncoerced setter on `AdwAvatar` in four
+//      spellings and watching the gate exit 0 each time — `set x(value)` with no
+//      annotation (this package compiles with `"strict": false`, so that is legal),
+//      `value: Pixels` where `Pixels` is `number`, `value: 1 | 2 | 3`, and
+//      `value: (typeof SIZES)[number]`, whose parenthesis no `\(([^)]+)\)` can match.
+//      Three of the four did not even move the counter. So the reader parses every
+//      declaration, an unreadable one is a FAILURE rather than a skip, and a type an
+//      attribute genuinely cannot carry is COUNTED — the totals have to add up to the
+//      setters that exist, or "all of them coerce" is a claim about the parser.
 //   2. No accessor in the package is a GETTER named after one of NativeScript's
 //      setter-only accessors. `GridLayoutBase.rows` and `.columns` have setters and no
 //      getters, so a same-named getter on a subclass shadows the setter and assignment
@@ -47,7 +59,7 @@ import {
     readTypeSources,
     readWidgets,
     SETTER_ONLY_ON_BASE,
-    setterOf,
+    settersOf,
     stringTolerant,
     STRING_TOLERANT,
 } from './nativescript-xml-doors.mjs';
@@ -86,15 +98,37 @@ for (const tag of elements) {
 }
 
 let checked = 0;
+let uncarryable = 0;
 for (const tag of [...reachable].sort()) {
     const { file, text } = sources.get(tag);
     // Only the setters this class DECLARES; an inherited one is checked on its owner.
-    for (const [, name, annotation] of text.matchAll(/^ {4}set (\w+)\(\w+: ([^)]+)\) \{/gm)) {
-        const kind = attributeKind(sources, types, annotation.trim());
-        if (kind === null || kind === 'string') continue;
+    // EVERY one of them, read by {@link settersOf} rather than by a regex that could
+    // only spell some: a declaration the reader cannot parse is REPORTED here, because
+    // the alternative — the shape this loop used to have — is a setter that produces no
+    // finding, does not move the counter, and leaves the arm claiming it held them all.
+    for (const setter of settersOf(text)) {
+        const { name } = setter;
+        if (setter.annotation === null) {
+            failures.push(
+                `${file}: \`set ${name}(${setter.params ?? '…'})\` declares no type for its parameter, so ` +
+                    'nothing here can tell whether an XML attribute may carry it. This package compiles with ' +
+                    '`"strict": false`, so the implicit `any` is not a type error either — annotate the ' +
+                    'parameter, and the coercion rule applies to it like every other setter.',
+            );
+            continue;
+        }
+        const annotation = setter.annotation;
+        const kind = attributeKind(types, annotation);
+        if (kind === 'string') continue;
+        // `null` is "an XML attribute cannot carry this" — an array of options, another
+        // View. COUNTED rather than passed over, so the arm's totals add up to the
+        // setters it read: a skip nobody counts is how a resolver that stopped
+        // understanding a type reads exactly like a package with nothing to check.
+        if (kind === null) {
+            uncarryable += 1;
+            continue;
+        }
         checked += 1;
-        const setter = setterOf(sources, tag, name);
-        if (setter === null) continue;
         // A setter that delegates to a LOOSE normalizer must not also narrow it. Both
         // `resolveSpinnerSize` and `normalizeClampSize` `Number.parseFloat`, so
         // `size="24px"` and `maximum-size="50%"` are lengths; wrapping the argument in
@@ -112,13 +146,14 @@ for (const tag of [...reachable].sort()) {
         }
         if (coerces(setter, kind)) continue;
         failures.push(
-            `${file}: ${tag}.${name} is declared \`${annotation.trim()}\` and does not go through ` +
+            `${file}: ${tag}.${name} is declared \`${annotation}\` and does not go through ` +
                 `${COERCERS[kind]}(). NativeScript hands a plain accessor the raw STRING, so a number falls ` +
                 'back to the default and "false" is truthy — both silently, both rendering.',
         );
     }
 }
 notes.push(`${checked} non-string setter(s) on ${reachable.size} XML-reachable class(es), all coercing`);
+notes.push(`${uncarryable} setter(s) typed as something no XML attribute can carry, held by no rule and counted`);
 if (checked === 0) failures.push('no non-string setter was found at all — arm 1 proved nothing');
 
 // ---------------------------------------------------------------------------

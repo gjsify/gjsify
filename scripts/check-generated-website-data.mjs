@@ -633,7 +633,7 @@ if (nsSources.size === 0) {
             // through: `{ flat: 'false' }` and `{ flat: false }` emit byte-identical
             // XML, and only the second was checked — so the evadable spelling was the
             // one that could ship an uncoerced boolean.
-            const kind = attributeKind(nsSources, nsTypes, setter.annotation);
+            const kind = attributeKind(nsTypes, setter.annotation);
             if (kind === null) {
                 failures.push(
                     `${widget}: <${node.tag}> declares ${name} as \`${setter.annotation}\`, which an XML ` +
@@ -763,7 +763,7 @@ if (nsSources.size === 0) {
             // to agree — otherwise the refusal is STALE and the block could have a
             // template. This is the same reading arm 8 does, asked the other way round.
             const setter = setterOf(nsSources, tag, member);
-            if (setter !== null && attributeKind(nsSources, nsTypes, setter.annotation) !== null) {
+            if (setter !== null && attributeKind(nsTypes, setter.annotation) !== null) {
                 failures.push(
                     `the refusal for "${widget}" rests on ${tag}.${member}, but its declared type ` +
                         `\`${setter.annotation}\` IS something an XML attribute can carry. The refusal is ` +
