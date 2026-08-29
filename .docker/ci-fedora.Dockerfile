@@ -86,6 +86,27 @@ RUN dnf install -y \
 # `@gjsify/vite-plugin-gettext` only `console.warn`s when it cannot find the
 # file, so its absence would degrade extraction quietly.
 #
+# `msitools` is the Windows-installer half of the same idea, and it is TWO
+# programs that must not be confused with each other. `wixl` COMPILES an authored
+# `.wxs` into an `.msi` — a second implementation of WiX v3's schema, so it
+# validates the document this tree writes against something Microsoft did not
+# write. `msiinfo` READS an `.msi` back: `tables`, `streams`, `export <table>`,
+# `suminfo`. Measured on `fedora:44`, `msitools-0.106.58-1.fc44` provides both
+# plus `msibuild`, and `msiinfo suminfo` prints the producer
+# (`Application: msitools 0.106.58-a155`), which is what lets a leg prove WHICH
+# implementation wrote the file it is reading.
+#
+# The pair is deliberately never used as writer-and-reader of the same file —
+# that is one package agreeing with itself, ADR 0024 § A3's `selfReading`. What
+# they are for is the cross-check #1354 M5 needs: `wixl` writes the `.msi` a
+# `windows-latest` leg installs with `msiexec`, and `msiinfo` reads back the one
+# WiX 3.14 produced on that runner from the SAME authored `.wxs`.
+#
+# Baked here rather than `dnf install`ed per job because `tests/e2e/ship-msi`
+# runs in the shared e2e shards, where a probed-and-skipped reader would leave
+# every assertion behind it vacuous — the same reason `desktop-file-utils` and
+# `appstream` are above and not optional.
+#
 # `weston` is Xvfb's WAYLAND twin, and it buys a display AXIS, not a second way
 # to do the same thing: GdkX11 holds no state between a GSource's prepare() and
 # check(), GdkWayland holds libwayland's reader slot there, so #1145 (the uv
@@ -105,6 +126,7 @@ RUN dnf install -y \
     gettext \
     desktop-file-utils \
     appstream \
+    msitools \
     gobject-introspection-devel \
     gtk4-devel \
     libsoup3-devel \
