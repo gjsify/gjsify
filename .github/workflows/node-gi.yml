@@ -2020,15 +2020,18 @@ jobs:
       - name: Assert what the run proved
         working-directory: ${{ runner.temp }}/app
         run: |
-          node --version >/dev/null 2>&1 || true
-          APP="$PWD/Ship Window Demo.app"
-          # The interpreter that ran is the one inside the bundle. This is the
-          # assertion the stripped PATH above makes non-vacuous.
-          grep -q "^interpreter: ${APP}/Contents/MacOS/node$" run.log || {
+          # Matched by the BUNDLE-RELATIVE suffix, not by an absolute path. The
+          # launcher computes `$here` logically (`cd … && pwd`) while
+          # `process.execPath` is `uv_exepath`, which realpath()s — so an absolute
+          # comparison is a bet on no component of the runner's temp directory
+          # being a symlink, and `/var` → `/private/var` is exactly that bet lost
+          # on macOS. The claim is "the interpreter is inside THIS bundle", and
+          # the suffix says it.
+          grep -q '^interpreter: .*/Ship Window Demo\.app/Contents/MacOS/node$' run.log || {
             echo "the app did not run under the interpreter the bundle carries:"; grep '^interpreter:' run.log; exit 1
           }
           # The launcher exported the locator, and it points inside the bundle.
-          grep -qE "^gtk-runtime: ${APP}/Contents/Frameworks/node-gi/prebuilds/darwin-[a-z0-9]+/gtk$" run.log || {
+          grep -qE '^gtk-runtime: .*/Ship Window Demo\.app/Contents/Frameworks/node-gi/prebuilds/darwin-[a-z0-9]+/gtk$' run.log || {
             echo "GJSIFY_GTK_RUNTIME was not exported into the bundle:"; grep '^gtk-runtime:' run.log; exit 1
           }
           # The Adwaita tree built and wired through the engine.
