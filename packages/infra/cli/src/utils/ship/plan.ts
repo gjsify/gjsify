@@ -276,8 +276,13 @@ function assertInsidePrefix(dest: string): string {
  * planner is pure and has no bytes to look at. The two answer different
  * questions — "should this be 0755" versus "is this package portable" — and
  * getting this one wrong costs a mode bit, not an unusable package.
+ *
+ * EXPORTED for `utils/ship/app-runtime.ts`, which stages a relocated GTK closure
+ * that never passes through this plan and needs the same answer for the same
+ * files. A second copy of the pattern there would be a second answer to "is this
+ * a shared library", and the drifted one is the one that stages a `.dylib` 0644.
  */
-function isExecutableAsset(rel: string): boolean {
+export function isExecutableAsset(rel: string): boolean {
     return /\.(so|node|dylib)(\.\d+)*$/.test(rel);
 }
 

@@ -403,12 +403,22 @@ export function place(layout: Layout, identity: LayoutIdentity, rel: string): st
 /**
  * Apply a layout to a whole planned payload, and add what the layout itself owns.
  *
- * TWO SOURCES, one destination namespace. The mapped files come from
+ * THREE SOURCES, one destination namespace. The mapped files come from
  * `planStage`'s prefix-relative plan; {@link Layout.metadata} adds the files that
- * have no prefix-relative counterpart at all (`Contents/Info.plist`). Both go
- * through the same uniqueness check, which is what makes the second source safe:
- * an `extraFiles` destination that maps onto a metadata path is refused by name
- * instead of silently replacing the file that makes the bundle a bundle.
+ * have no prefix-relative counterpart at all (`Contents/Info.plist`); `carried`
+ * adds the runtime the artifact ships inside itself (#1354 M2b — the interpreter,
+ * the relocated GTK closure, the node-gi addon). All three go through the same
+ * uniqueness check, which is what makes the other two safe: an `extraFiles`
+ * destination that maps onto a metadata path is refused by name instead of
+ * silently replacing the file that makes the bundle a bundle.
+ *
+ * `carried` is already stage-relative and deliberately NOT mapped. A relocated
+ * closure's every internal relation is relative — `@loader_path/<leaf>` install
+ * names, `@loader_path/../../..` in `loaders.cache`, `@loader_path/gtk/lib` on the
+ * addon — so the tree survives the copy only if it is copied as a tree. Routing it
+ * through the prefix-relative plan would put it through
+ * `gjsify.ship.bundledTypelibs`'s flattening (`plan.ts`: `posix.join(libDir, 'gi',
+ * basename(file))`), which destroys all three at once.
  *
  * The uniqueness check is not decoration for the mapped half either. `planStage`
  * deduplicates on the PREFIX-RELATIVE path — that is how `gjsify.ship.extraFiles`
@@ -419,7 +429,12 @@ export function place(layout: Layout, identity: LayoutIdentity, rel: string): st
  * depends on plan order — the "installs cleanly, does nothing" class this command
  * is built against.
  */
-export function placeStage(layout: Layout, identity: LayoutMetadataInput, files: readonly StagedFile[]): StagedFile[] {
+export function placeStage(
+    layout: Layout,
+    identity: LayoutMetadataInput,
+    files: readonly StagedFile[],
+    carried: readonly StagedFile[] = [],
+): StagedFile[] {
     const byPlaced = new Map<string, string>();
     const out: StagedFile[] = [];
     const claim = (path: string, from: string, file: StagedFile): void => {
@@ -440,5 +455,10 @@ export function placeStage(layout: Layout, identity: LayoutMetadataInput, files:
     // than a path as the origin label, because a collision message naming
     // `Contents/Info.plist` as both sides would say nothing.
     for (const file of layout.metadata(identity)) claim(file.path, `the ${layout.name} layout's own metadata`, file);
+    // A THIRD source, and stage-relative like the second: the runtime the bundle
+    // CARRIES (`utils/ship/app-runtime.ts`). It goes through `claim` for the reason
+    // the metadata does — an `extraFiles` destination landing on a staged dylib
+    // would otherwise replace it silently, and the bundle would look complete.
+    for (const file of carried) claim(file.path, `the runtime staged into the ${layout.name} artifact`, file);
     return out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }

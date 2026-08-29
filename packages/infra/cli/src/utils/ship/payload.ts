@@ -193,10 +193,35 @@ function interpreterOf(line: string): string | null {
     return null;
 }
 
-/** Last path segment, POSIX or Windows — a launcher is generated text, not a path object. */
+/**
+ * Last path segment of a shell TOKEN, POSIX or Windows.
+ *
+ * The quotes come off first, and that is not cosmetic. #1354 M2b makes the macOS
+ * launcher exec `"$here/node"` — the interpreter the bundle carries, named by a
+ * layout-relative path because macOS has no system Node to find on `PATH`.
+ * Without the strip this reader answered `node"`, which is neither `node` nor
+ * `gjs`, so {@link assertLauncherMatchesInterpreter} took its "a program that is
+ * neither" branch and passed. Not a wrong answer — a VACUOUS one, on exactly the
+ * layout that made the check matter, and green.
+ *
+ * Both quote characters, and only as a surrounding pair: a shell token is
+ * `"…"`, `'…'` or bare, and stripping a lone quote from the middle of a word
+ * would be this function guessing at a syntax it does not parse. The `$here`
+ * inside survives as a literal, which is fine — this reader wants the last
+ * SEGMENT, and no expansion can change which segment that is.
+ */
 function basenameOf(token: string): string {
-    const parts = token.split(/[/\\]/);
+    const parts = unquote(token).split(/[/\\]/);
     return parts[parts.length - 1] ?? '';
+}
+
+/** `"x"` and `'x'` → `x`; everything else unchanged. */
+function unquote(token: string): string {
+    const first = token[0];
+    if ((first === '"' || first === "'") && token.length > 1 && token[token.length - 1] === first) {
+        return token.slice(1, -1);
+    }
+    return token;
 }
 
 /**

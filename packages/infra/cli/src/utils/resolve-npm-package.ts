@@ -24,6 +24,7 @@
 
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { findWorkspaceRoot } from './workspace-root.js';
 
@@ -102,6 +103,98 @@ function tryResolveFromDir(specifier: string, dir: string): string | null {
         const req = createRequire(sentinel);
         return req.resolve(specifier);
     } catch {
+        return null;
+    }
+}
+
+/**
+ * The anchor a resolution was asked from — see {@link resolveInstalledPackage}.
+ *
+ * `'nowhere'` is a directory inside no project. Under Node it can only fail;
+ * under Bun it is where the sixth anchor shows itself.
+ */
+export type PackageAnchor = 'project' | 'nowhere';
+
+export interface ResolveInstalledPackageOptions extends ResolveNpmPackageOptions {
+    /**
+     * TEST SEAM — resolve `specifier` from one anchor, or `null`.
+     *
+     * Injected so Bun's behaviour below is reproducible from Node: a fake that
+     * answers the SAME path for both anchors is exactly what Bun does for a
+     * package the project never installed, and it is the only way to red this
+     * guard on a runtime that does not have the defect.
+     */
+    resolve?: (specifier: string, anchor: PackageAnchor) => string | null;
+}
+
+/**
+ * A directory that is inside no project, for the control probe.
+ *
+ * It does not have to EXIST — measured under bun 1.3.14, a non-existent path
+ * still reaches the cache, so this costs no filesystem access. It must have a
+ * parent, though: an anchor at the filesystem root (`/__r__.js`) throws even
+ * under Bun, which would make the control silently useless.
+ */
+const CONTROL_ANCHOR = join(tmpdir(), '.gjsify-nonexistent-control-anchor', '__gjsify_resolve__.js');
+
+/**
+ * Resolve a bare specifier the way {@link resolveNpmPackage} does, but refuse an
+ * answer the RUNTIME invented rather than the project provided.
+ *
+ * THE SIXTH ANCHOR, which the list above does not mention because it is not
+ * ours. Bun auto-installs: `createRequire(<anchor>).resolve('<name>')` falls back
+ * to Bun's global install cache instead of throwing, so a package the project
+ * never declared resolves anyway. Measured, bun 1.3.14 vs node 24.19.0, asking
+ * for `@gjsify/node-gi` from a scratch directory:
+ *
+ *     node  →  MODULE_NOT_FOUND
+ *     bun   →  ~/.bun/install/cache/@gjsify/node-gi@0.44.0@@@1/index.js
+ *
+ * And it is not only the empty-directory case. A real project with a
+ * `package.json` and no `node_modules` — a fresh clone, or any Bun project
+ * relying on auto-install — gets the same cache hit, as does one that DECLARES
+ * the dependency without installing it. Only a `package.json` beside an EMPTY
+ * `node_modules` throws.
+ *
+ * WHY THAT MATTERS HERE AND NOT FOR {@link resolveNpmPackage}'s other callers.
+ * Resolving `rolldown` from a cache is fine: it is a TOOL, it runs and is
+ * forgotten. `@gjsify/node-gi`, `@gjsify/gtk-runtime-*` and
+ * `@gjsify/node-runtime-*` are PAYLOAD — `utils/ship/app-runtime.ts` copies
+ * their bytes into a `.app` that gets redistributed. A cache hit there ships
+ * files the project never declared, at whatever version that runtime happened to
+ * cache, and silently: the "install `<name>`" line that should have been printed
+ * never is. It is also #910's shape one level up, an addon paired with a closure
+ * it was not built against.
+ *
+ * THE DISCRIMINATOR IS A CONTROL, not a list of cache paths. Hardcoding
+ * `~/.bun/install/cache` would be this file guessing at another runtime's
+ * layout and going stale the first time Bun moves it. Asking the same question
+ * from a directory inside no project asks the RUNTIME instead: if both anchors
+ * answer with the identical path, the project contributed nothing to that
+ * answer. Under Node the control can only throw, so this is a strict no-op
+ * there — the resolution it returns is byte-identical to `resolveNpmPackage`'s.
+ */
+export function resolveInstalledPackage(specifier: string, opts: ResolveInstalledPackageOptions = {}): string | null {
+    const resolve =
+        opts.resolve ??
+        ((spec: string, anchor: PackageAnchor): string | null =>
+            anchor === 'project'
+                ? resolveNpmPackage(spec, { cwd: opts.cwd, bundleUrl: opts.bundleUrl })
+                : tryResolveFromFile(spec, CONTROL_ANCHOR));
+
+    const hit = resolve(specifier, 'project');
+    if (hit === null) return null;
+    const control = resolve(specifier, 'nowhere');
+    return control !== null && control === hit ? null : hit;
+}
+
+/** `createRequire(<file>).resolve(specifier)`, or `null`. The file need not exist. */
+function tryResolveFromFile(specifier: string, anchorFile: string): string | null {
+    try {
+        return createRequire(pathToFileURL(anchorFile).href).resolve(specifier);
+    } catch {
+        // Not resolvable from a directory in no project — which is the answer
+        // this probe wants on every runtime without a global-cache fallback.
         return null;
     }
 }

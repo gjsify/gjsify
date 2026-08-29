@@ -180,9 +180,15 @@ in-process instead.
 All three exec whatever `gjsify.app` names — `gjs -m`, or `node` for a `--app node` project.
 ADR 0024 § 4 derives Node for macOS and Windows, and that answer lives on
 `Layout.shippedRuntime` as DATA: it describes the runtime a SHIPPED ARTIFACT carries, which
-#1354 M0 implements by bundling one and M2b is what will stage it. Until then the only interpreter
-that can read the payload is the one it was BUILT for, and `assertShippableTarget`
+#1354 M0 implements by bundling one and **#1354 M2b stages** — the macOS launcher execs
+`"$here/node"` when the stage carries one, and the bare name when it does not. The only interpreter
+that can read the payload is still the one it was BUILT for, and `assertShippableTarget`
 (layout-independent) guarantees that is `gjs` or `node`.
+
+`utils/ship/payload.ts`'s `readLauncherInterpreters` strips a surrounding shell quote before taking
+the basename, and that is not tidiness: without it `"$here/node"` read back as `node"`, which is
+neither known interpreter, so `assertLauncherMatchesInterpreter` took its "a program that is
+neither" branch and passed. A vacuous green, on exactly the layout that made the check matter.
 
 **And that is where the FORMAT's answer differs from the LAYOUT's** (#1354 M2a). `macos-app` and
 `macos-app-zip` are `interpreters: ['node']`, because a bundle a stranger downloads must carry its
@@ -201,6 +207,55 @@ for the macOS layout, while a project declaring nothing staged `exec node …/gj
 bundle whose first line is `import Gtk from 'gi://Gtk?version=4.0'`. `Layout.runtimeGap` is the
 honest remainder: one sentence per OS saying why the launcher cannot name `shippedRuntime` yet,
 printed on every non-Linux stage.
+
+### What a self-contained `.app` carries, and who declares it (#1354 M2b)
+
+`utils/ship/app-runtime.ts` stages four things into the darwin layout, each resolved BY NAME from
+the project being shipped and each `null`-not-throw:
+
+| Piece | Package | Where it lands |
+|---|---|---|
+| the interpreter | `@gjsify/node-runtime-darwin-<arch>` | `Contents/MacOS/node` + `Contents/Resources/share/licenses/node/LICENSE` |
+| the relocated GTK closure | `@gjsify/gtk-runtime-darwin-<arch>` | `Contents/Frameworks/node-gi/prebuilds/darwin-<arch>/gtk/**` |
+| the node-gi addon | `@gjsify/node-gi` (`prebuilds/darwin-<arch>/node_gi.node`) | beside that closure, as its SIBLING |
+| node-gi's JavaScript | `@gjsify/node-gi` | `Contents/Resources/lib/node_modules/@gjsify/node-gi/` |
+
+**Not one of them is an `optionalDependencies` edge**, which is `docs/publishing.md`'s rule (#910,
+reverted in #920): whoever SHIPS an app declares the runtime, never the library that uses it. So the
+list above is what a third-party author adds to their own `package.json` — the first two as
+`devDependencies` (the packaging host needs them, the app does not), `@gjsify/node-gi` as a
+`dependency`. `website/src/content/docs/ship/index.mdx` carries the copy-pasteable block, and
+`tests/e2e/ship-macos` proves it: every fixture installs those packages into a throwaway project's
+own `node_modules` and nothing of gjsify's, so a resolution that only worked from inside this
+monorepo would fail there.
+
+**The closure is staged TREE-PRESERVING, and it cannot go through `gjsify.ship.bundledTypelibs`.**
+`plan.ts` stages a bundled typelib as `posix.join(libDir, 'gi', basename(file))` — the basename —
+while `discoverTypelibs` walks its directory recursively, so three inputs at three depths collapse
+into one directory. Measured through the built planner:
+
+```
+gtk/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-svg.so → lib/<name>/gi/libpixbufloader-svg.so
+gtk/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache                  → lib/<name>/gi/loaders.cache
+gtk/girepository-1.0/Gtk-4.0.typelib                         → lib/<name>/gi/Gtk-4.0.typelib
+```
+
+Every relation inside a relocated closure is relative — `@loader_path/<leaf>` install names,
+`@loader_path/../../..` in `loaders.cache`, `@loader_path/gtk/lib` on the addon — so flattening
+breaks all three at once, and the result has neither a `lib/` nor a `girepository-1.0/` for
+`resolveGtkRuntimeBundle()`'s existence probe. `placeStage` therefore takes the staged runtime as
+already-stage-relative files, through the same uniqueness check `Layout.metadata` goes through.
+
+**The launcher exports two locators and still no `DYLD_*`.** `GJSIFY_GTK_RUNTIME` is candidate 1 of
+`resolveGtkRuntimeBundle()`'s four (candidates 2–4 walk node-gi's package directory or
+`node_modules`, and in a shipped `.app` node-gi's package root is
+`Contents/Resources/lib/node_modules/@gjsify/node-gi`, so every probed path lands under `Resources`
+rather than in `Frameworks`); `NODE_GI_NATIVE` is the absolute-path form `nativeCandidates()`
+accepts, and it returns a pinned path ALONE, so the bundle's addon is not merely preferred.
+`GJSIFY_GI_LIBRARY_PATH` joins them when the app carries GI libraries of its own — #1410 shipped
+that reader with no writer anywhere in this pipeline, and this launcher is it. All three are read by
+node-gi in JS and handed to GI through the binding; dyld never sees one, which is why the rule above
+survives signing.
 
 ### What the file-set equality cannot see
 

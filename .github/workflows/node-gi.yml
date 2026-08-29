@@ -1809,6 +1809,242 @@ jobs:
           NODE_GI_NATIVE: prebuild
         run: node --test test/gst-elements.test.mjs
 
+  # ── #1354 M2b: a `.app` that RUNS on a Mac carrying neither Node nor GTK ─────
+  #
+  # The pair below is the two halves of ADR 0024 § A2 pointed at one artifact:
+  # phase 1 assembles the bundle where the toolchain is (Linux), phase 2 runs it
+  # on the OS it was assembled FOR. Splitting it that way is not a convenience —
+  # it is the claim. A leg that built the app on the same Mac that runs it would
+  # prove the Mac has a working GTK, which is the opposite of what is wanted.
+  #
+  # Modelled on `macos-gtk-batteries-included` / `macos-gtk-windowing` above, and
+  # it takes their discipline literally: ASSERT THE TOOLKIT IS ABSENT FIRST. Those
+  # jobs hard-fail when `brew list --formula` shows gtk4 or libadwaita, because
+  # without that the leg proves the runner had GTK. This one adds the second
+  # absence the milestone is actually about — a Node on `PATH` — for the same
+  # reason: macOS ships none, the GitHub runner image does, and a launcher that
+  # execs the bare name `node` would pass on the runner and fail on every Mac a
+  # stranger downloads it to.
+  macos-app-assemble:
+    name: Assemble a self-contained macOS .app (Linux / darwin-${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    needs: macos-gtk-windowing-runtime
+    if: ${{ !cancelled() && needs.macos-gtk-windowing-runtime.result != 'skipped' }}
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/gjsify/ci-fedora:44
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+          - arch: x64
+    steps:
+      # Official nodejs.org build, NOT Fedora's dnf node (which crashes rolldown's
+      # prebuilt napi binding). Same rationale as `build-test` and `consumer-suites`.
+      - name: Use official Node.js (Fedora's dnf node crashes the bundler)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install the gjsify workspace (published CLI, Node-free)
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
+
+      # The bootstrap recipe `consumer-suites` uses, for the reason it states: a job
+      # that builds with the LAST RELEASE cannot observe a change to the bundler in
+      # THIS checkout, and this milestone lives entirely in this checkout's CLI.
+      - name: Bootstrap a Node bundler + link node-gi, then switch to this checkout's cli
+        run: |
+          CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
+          mkdir -p /tmp/gjsify-node-cli
+          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
+            && "${GITHUB_WORKSPACE}/.github/scripts/install-published-cli.sh" "${CLI_VERSION}" )
+          ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
+          mkdir -p node_modules/@gjsify
+          ln -sfn ../../packages/node-gi/node-gi node_modules/@gjsify/node-gi
+          PATH="$PWD/node_modules/.bin:$PATH" node_modules/.bin/gjsify run build:infra
+          ln -sfn "$PWD/packages/infra/cli/lib/index.js" node_modules/.bin/gjsify
+          echo "Node bundler (this checkout): $(node_modules/.bin/gjsify --version)"
+
+      # The SIBLING layout `resolveGtkRuntimeBundle()` walks — candidate 2 of its
+      # four, and the one `gjsify ship` resolves through here. Downloading the
+      # bundle and the addon into node-gi's own `prebuilds/darwin-<arch>/` is
+      # exactly what `macos-gtk-batteries-included` and `macos-gtk-windowing` do
+      # before a conformance run, so a job prepared for one is prepared for this.
+      - name: Download WINDOWING GTK runtime bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: gtk-runtime-darwin-${{ matrix.arch }}-windowing
+          path: packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}/gtk
+
+      - name: Download relocated node-gi addon (windowing)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-addon-relocated-darwin-${{ matrix.arch }}-windowing
+          path: packages/node-gi/node-gi/prebuilds/darwin-${{ matrix.arch }}
+
+      # The interpreter. A DOWNLOAD rather than a build, which is why all three
+      # `@gjsify/node-runtime-*` targets ride one Linux job in `release.yml` — the
+      # script verifies the release's own SHA-256 and copies Node's LICENSE beside
+      # the binary. `gjsify ship` resolves the package BY NAME from here.
+      - name: Fetch the bundled Node interpreter for darwin-${{ matrix.arch }}
+        run: |
+          node packages/node-runtime/scripts/fetch-node-runtime.mjs \
+            --target darwin-${{ matrix.arch }} \
+            --out packages/node-runtime/node-runtime-darwin-${{ matrix.arch }}/bin
+          mkdir -p node_modules/@gjsify
+          ln -sfn ../../packages/node-runtime/node-runtime-darwin-${{ matrix.arch }} \
+            node_modules/@gjsify/node-runtime-darwin-${{ matrix.arch }}
+
+      # `--arch` names the architecture the PAYLOAD was built for and cross-compiles
+      # nothing; it is also what selects the closure, so a `darwin-arm64` bundle can
+      # only be assembled with `--arch arm64`. `assertPayloadMatchesArch` reads the
+      # staged tree back and refuses a Mach-O whose `cputype` disagrees.
+      - name: Assemble the .app + zip
+        working-directory: tests/e2e/ship-macos/fixtures/window-app
+        run: |
+          export PATH="${GITHUB_WORKSPACE}/node_modules/.bin:$PATH"
+          gjsify ship darwin --arch ${{ matrix.arch }}
+          echo "--- what the bundle carries ---"
+          find "ship/out/Ship Window Demo.app/Contents/Frameworks" -maxdepth 5 -type d | head -20
+          du -sh "ship/out/Ship Window Demo.app"
+
+      # The launcher, quoted into the log. It is 20 lines and it is the interface
+      # between everything above and everything the next job runs, so a reader who
+      # is diagnosing that job should not have to unzip an artifact to see it.
+      - name: Show the launcher, and assert it names no DYLD variable
+        working-directory: tests/e2e/ship-macos/fixtures/window-app
+        run: |
+          cat "ship/out/Ship Window Demo.app/Contents/MacOS/ship-window-demo"
+          if grep -q 'DYLD_' "ship/out/Ship Window Demo.app/Contents/MacOS/ship-window-demo"; then
+            echo "the launcher names a DYLD_ variable — it works unsigned and breaks at signing (ADR 0024 A4/A16)"
+            exit 1
+          fi
+          test -x "ship/out/Ship Window Demo.app/Contents/MacOS/node" || {
+            echo "the bundle carries no interpreter — the next job would exec the runner's node"; exit 1
+          }
+
+      - name: Upload the assembled .app zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app-selfcontained-darwin-${{ matrix.arch }}
+          path: tests/e2e/ship-macos/fixtures/window-app/ship/out/*.zip
+          # error, not warn: an empty upload hands the next job a downloadable
+          # nothing and fails there as a missing file rather than here as a
+          # missing artifact.
+          if-no-files-found: error
+
+  # THE HALF THAT EARNS THE MILESTONE. Everything before this runs on Linux and is
+  # a claim about our WIRING; this one unzips the artifact on a Mac that has no
+  # Homebrew GTK and no Node on `PATH`, and opens a window with it.
+  macos-app-selfcontained:
+    name: Self-contained .app opens a window (no brew GTK, no node / darwin-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    needs: macos-app-assemble
+    if: ${{ !cancelled() && needs.macos-app-assemble.result != 'skipped' }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel
+    steps:
+      # NO `actions/setup-node`, and NO checkout. This job runs a downloaded
+      # artifact and nothing else — the shape a stranger is in.
+      - name: Assert the GTK toolkit is NOT installed (clean batteries-included host)
+        run: |
+          echo "--- GTK-related Homebrew formulae present (informational) ---"
+          brew list --formula 2>/dev/null | grep -iE 'gtk|pango|cairo|graphene|gdk|glib|gobject|harfbuzz' || echo "(none)"
+          if brew list --formula 2>/dev/null | grep -qE '^(gtk4|libadwaita)$'; then
+            echo "gtk4/libadwaita is installed — not a clean batteries-included test"; exit 1
+          fi
+          echo "clean host — the GTK toolkit was never brew-installed in this job"
+
+      - name: Download the assembled .app zip
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-app-selfcontained-darwin-${{ matrix.arch }}
+          path: ${{ runner.temp }}/app
+
+      # Unzipped OUTSIDE any checkout, because a `.app` beside a repository can
+      # resolve things a downloaded one cannot: `require('@gjsify/node-gi/gi')`
+      # walks `node_modules` UPWARD from the bundle, so a bundle sitting under a
+      # tree that has one is not the artifact a user receives.
+      - name: Unzip the bundle
+        working-directory: ${{ runner.temp }}/app
+        run: |
+          unzip -q ./*.zip
+          # Nothing here sets the quarantine bit (this is a direct download, not a
+          # browser one), but stripping it costs nothing and removes one difference
+          # between this run and a user's.
+          xattr -dr com.apple.quarantine "Ship Window Demo.app" 2>/dev/null || true
+          ls -la "Ship Window Demo.app/Contents/MacOS"
+          echo "--- the launcher, as assembled on Linux ---"
+          cat "Ship Window Demo.app/Contents/MacOS/ship-window-demo"
+
+      # THE OTHER ABSENCE, and the reason this job is worth anything. The runner
+      # image ships a Node; a launcher execing the bare name would pass here and
+      # fail on every Mac that has none. Stripping `PATH` down to the four system
+      # directories is what makes the run measure the bundle rather than the image.
+      - name: Assert there is NO node on PATH once PATH is the system one
+        run: |
+          if PATH=/usr/bin:/bin:/usr/sbin:/sbin command -v node; then
+            echo "a system node exists at that path — this leg cannot prove the bundle carries one"; exit 1
+          fi
+          echo "no node on the system PATH — whatever runs must come from inside the .app"
+
+      # The run. Every loader variable unset, `PATH` reduced to the system one, no
+      # Homebrew GTK on the machine: what the app finds, it brought.
+      - name: Open a window from the unzipped .app
+        working-directory: ${{ runner.temp }}/app
+        env:
+          GSK_RENDERER: cairo
+        run: |
+          set -o pipefail
+          env -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_LIBRARY_PATH -u GI_TYPELIB_PATH \
+              -u GJSIFY_GTK_RUNTIME -u NODE_GI_NATIVE -u GJSIFY_GI_LIBRARY_PATH \
+              -u XDG_DATA_DIRS -u GSETTINGS_SCHEMA_DIR -u NODE_PATH \
+              PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+              "./Ship Window Demo.app/Contents/MacOS/ship-window-demo" 2>&1 | tee run.log
+
+      # Read back what it printed, line by line, because an exit code of 0 is also
+      # what an app that never activated returns.
+      - name: Assert what the run proved
+        working-directory: ${{ runner.temp }}/app
+        run: |
+          # Matched by the BUNDLE-RELATIVE suffix, not by an absolute path. The
+          # launcher computes `$here` logically (`cd … && pwd`) while
+          # `process.execPath` is `uv_exepath`, which realpath()s — so an absolute
+          # comparison is a bet on no component of the runner's temp directory
+          # being a symlink, and `/var` → `/private/var` is exactly that bet lost
+          # on macOS. The claim is "the interpreter is inside THIS bundle", and
+          # the suffix says it.
+          grep -q '^interpreter: .*/Ship Window Demo\.app/Contents/MacOS/node$' run.log || {
+            echo "the app did not run under the interpreter the bundle carries:"; grep '^interpreter:' run.log; exit 1
+          }
+          # The launcher exported the locator, and it points inside the bundle.
+          grep -qE '^gtk-runtime: .*/Ship Window Demo\.app/Contents/Frameworks/node-gi/prebuilds/darwin-[a-z0-9]+/gtk$' run.log || {
+            echo "GJSIFY_GTK_RUNTIME was not exported into the bundle:"; grep '^gtk-runtime:' run.log; exit 1
+          }
+          # The Adwaita tree built and wired through the engine.
+          grep -q '^chrome: ok$' run.log || { echo "the Adwaita widget tree is incomplete:"; grep '^chrome:' run.log; exit 1; }
+          # And a real GdkSurface was allocated and a GSK render tree rasterised.
+          # macOS supplies the display through the quartz backend, so unlike Linux
+          # there is no surface-less branch to excuse here.
+          grep -qE '^render: [0-9]+x[0-9]+ [0-9]+$' run.log || {
+            echo "the window did not realize + render:"; grep '^render:' run.log; exit 1
+          }
+          grep -q '^done: 0$' run.log || { echo "app.run() returned non-zero:"; grep '^done:' run.log; exit 1; }
+          echo "a downloaded .app opened and rendered a window on a Mac with no Homebrew GTK and no node on PATH"
+
   # Windows proof (Phase 1 — the reverse bridge BUILDS + RUNS on windows-latest).
   # The whole team is Linux-only, so a windows-latest runner is the only way to
   # validate. Sibling of the macOS proof (its `macos` job above is the template).

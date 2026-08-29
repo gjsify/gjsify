@@ -37,6 +37,7 @@ import { readPackageJson } from '../utils/pkg-json.js';
 import { describeExit, spawnToCompletion } from '../utils/spawn.js';
 import { buildDeb } from '../utils/ship/deb.js';
 import { deriveDepends, warnAboutGjsFloor, warnAboutNodeFloor } from '../utils/ship/depends.js';
+import { isGtkRuntimeTarget, stageAppRuntime, type StagedAppRuntime } from '../utils/ship/app-runtime.js';
 import { discoverPayload } from '../utils/ship/discover.js';
 import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
 import { localizeMetadata } from '../utils/ship/localize-metadata.js';
@@ -59,6 +60,7 @@ import {
     LAYOUT_NAMES,
     type Layout,
 } from '../utils/ship/layout.js';
+import { isNodeRuntimeTarget, resolveNodeRuntime } from '../utils/ship/node-runtime.js';
 import { compileSchemasForStage } from '../utils/ship/schemas.js';
 import { buildZip, zipEntriesFromPayload } from '../utils/ship/zip.js';
 import { scanGiNamespaces } from '../utils/ship/gi-namespaces.js';
@@ -91,6 +93,7 @@ import type {
     FormatId,
     PackSettings,
     ShipArtifact,
+    ShipSettings,
     StagedFile,
     StagePlanEntry,
 } from '../utils/ship/types.js';
@@ -345,9 +348,17 @@ async function assemble(args: ShipOptions): Promise<void> {
         settings.localeFiles,
     );
 
+    // BEFORE the launcher is rendered, because the launcher's exec line and its two
+    // locators are functions of what the stage carries (#1354 M2b). Nothing is
+    // resolved for a layout whose interpreter is a package dependency: on Linux the
+    // `.deb`/`.rpm` `Depends:` is the promise that `node` or `gjs` is on `PATH`, and
+    // carrying a second copy inside the payload would be a private interpreter no
+    // distribution update ever patches.
+    const runtime = resolveCarriedRuntime(layout, settings, projectDir);
+
     const stageInputs: StageInputs = {
         bundleFiles: discovered.bundleFiles,
-        launcher: renderLauncher(settings, basename(settings.bundlePath), layout),
+        launcher: renderLauncher(settings, basename(settings.bundlePath), layout, runtime.launcher),
         metainfo: translated.metainfo,
         desktopEntry: translated.desktopEntry,
         licenseText: settings.licenseFile === undefined ? undefined : readFileSync(settings.licenseFile, 'utf-8'),
@@ -378,7 +389,7 @@ async function assemble(args: ShipOptions): Promise<void> {
                   workDir: join(outRoot, 'schemas'),
               })),
     ];
-    const staged = placeStage(layout, settings, planned);
+    const staged = placeStage(layout, settings, planned, runtime.files);
     writeStage(stageDir, staged);
     console.log(`${LOG} staged ${staged.length} file(s) for ${layout.name} in ${relative(projectDir, stageDir)}/`);
     if (args.verbose) for (const file of staged) console.log(`${LOG}   ${file.path}`);
@@ -423,7 +434,17 @@ async function assemble(args: ShipOptions): Promise<void> {
                 console.warn(`${LOG}   ${marker[verdict] ?? ''}${path} — ${why}`);
             }
         }
-        if (layout.runtimeGap !== undefined) console.warn(`${LOG} ${layout.runtimeGap}`);
+        // WHAT THE BUNDLE CARRIES, and what it still does not. Printed where the
+        // layout's other honesty lives, and the `runtimeGap` is now CONDITIONAL:
+        // that string says "the staged launcher execs an interpreter off `PATH`,
+        // which a downloaded `.app` cannot assume", and printing it over a stage
+        // that carries its own interpreter would be the command telling the author
+        // something untrue about the tree it had just written.
+        for (const line of runtime.found) console.log(`${LOG} carries its own ${line}`);
+        for (const line of runtime.missing) console.warn(`${LOG} ${line}`);
+        if (runtime.launcher.interpreter === undefined && layout.runtimeGap !== undefined) {
+            console.warn(`${LOG} ${layout.runtimeGap}`);
+        }
     }
 
     // Scanned from the BUILD TREE's bundle, which is why it has to be recorded:
@@ -541,6 +562,42 @@ async function assemble(args: ShipOptions): Promise<void> {
         );
     }
     printArtifacts(projectDir, artifacts);
+}
+
+/**
+ * The runtime this artifact carries INSIDE itself, or an empty answer.
+ *
+ * THE GATE IS THE LAYOUT AND THE INTERPRETER, both. A Linux package declares
+ * `Depends: nodejs` and takes the distribution's — carrying a second copy would be
+ * a private interpreter no security update ever reaches. And a `--app gjs` payload
+ * gets nothing even on macOS: there is no relocatable GJS to put in a bundle
+ * (`build-gtk-runtime-darwin.mjs`: "GJS ships no relocation"), which is what
+ * `macos-app`'s `interpreters: ['node']` already records, so staging a NODE
+ * interpreter in front of a GJS bundle would be an interpreter that cannot read
+ * its own payload.
+ *
+ * `${layout.os}-${settings.arch}` — the target the PAYLOAD was built for, never
+ * the host's. Assembling a `darwin-arm64` bundle on a Linux x64 workstation is the
+ * supported path (ADR 0024 § A1) and is what this project's own CI does; a
+ * host-derived target would resolve the wrong closure, and the mismatch would only
+ * surface as a dlopen failure on the user's machine. `assertPayloadMatchesArch`
+ * reads the staged tree back afterwards and refuses a closure whose Mach-O
+ * `cputype` disagrees with the label — a check the carried runtime is the first
+ * thing to make non-vacuous on this layout, since a JavaScript bundle has no
+ * cputype to disagree with.
+ */
+function resolveCarriedRuntime(layout: Layout, settings: ShipSettings, projectDir: string): StagedAppRuntime {
+    const empty: StagedAppRuntime = { files: [], launcher: {}, found: [], missing: [] };
+    if (layout.os === 'linux' || settings.app !== 'node') return empty;
+    const target = `${layout.os}-${settings.arch}`;
+    if (!isGtkRuntimeTarget(target)) return empty;
+    return stageAppRuntime({
+        layout,
+        identity: settings,
+        target,
+        cwd: projectDir,
+        interpreter: isNodeRuntimeTarget(target) ? resolveNodeRuntime(target, { cwd: projectDir }) : null,
+    });
 }
 
 /**

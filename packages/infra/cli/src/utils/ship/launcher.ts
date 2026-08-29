@@ -35,6 +35,7 @@
 
 import { posix } from 'node:path';
 
+import type { LauncherRuntime } from './app-runtime.js';
 import type { Layout } from './layout.js';
 import type { ShipSettings } from './types.js';
 
@@ -74,13 +75,23 @@ function cmdQuote(value: string): string {
  * `bundleRelPath` is the bundle's path inside the layout's BUNDLE directory —
  * `lib/<binaryName>/` on Linux, `Contents/Resources/lib/` in a `.app`, `app\` in
  * a Windows program directory.
+ *
+ * `runtime` names what the stage CARRIES (`utils/ship/app-runtime.ts`), as
+ * stage-relative paths, and is empty when it carries nothing. Only the macOS form
+ * reads it today, and the default is what keeps every other caller — and the
+ * Linux one, whose interpreter is a package dependency — byte-unchanged.
  */
-export function renderLauncher(settings: ShipSettings, bundleRelPath: string, layout: Layout): string {
+export function renderLauncher(
+    settings: ShipSettings,
+    bundleRelPath: string,
+    layout: Layout,
+    runtime: LauncherRuntime = {},
+): string {
     switch (layout.name) {
         case 'linux':
             return renderPrefixLauncher(settings, bundleRelPath, layout);
         case 'darwin':
-            return renderAppBundleLauncher(settings, bundleRelPath, layout);
+            return renderAppBundleLauncher(settings, bundleRelPath, layout, runtime);
         case 'windows':
             return renderWindowsLauncher(settings, bundleRelPath, layout);
         default: {
@@ -140,7 +151,16 @@ function renderPrefixLauncher(settings: ShipSettings, bundleRelPath: string, lay
 }
 
 /**
- * macOS: `Contents/MacOS/<name>`, and two things it must NOT do.
+ * macOS: `Contents/MacOS/<name>` — what a self-contained bundle's launcher says,
+ * and two things it must still NOT do.
+ *
+ * IT EXECS WHAT THE BUNDLE CARRIES. `runtime` comes from
+ * `utils/ship/app-runtime.ts` and names the interpreter, the relocated GTK
+ * closure and the node-gi addon staged inside `Contents/` — so the exec line is
+ * `"$here/node"` and the two locators below point into `Contents/Frameworks`.
+ * When the stage carries none of them every line here is byte-identical to what
+ * M2a wrote, which is what keeps a bundle assembled without the runtime packages
+ * exactly as (un)usable as it was rather than differently broken.
  *
  *  1. **No `readlink -f`.** That flag is GNU coreutils'; the BSD `readlink` macOS
  *     ships does not have it, and a launcher whose first command fails under
@@ -170,15 +190,35 @@ function renderPrefixLauncher(settings: ShipSettings, bundleRelPath: string, lay
  *
  *     Corrected rather than deleted, because a rule whose stated reason is wrong
  *     gets "simplified" back into the bug the first time somebody checks it.
+ *
+ *     What this function exports INSTEAD is the point of the distinction, not an
+ *     exception to it: `GJSIFY_GTK_RUNTIME`, `NODE_GI_NATIVE`,
+ *     `GJSIFY_GI_LIBRARY_PATH`, `GI_TYPELIB_PATH`. Every one is read by node-gi
+ *     or by GLib in JS or in the process, none by dyld, so none is stripped from
+ *     a restricted process and the bundle behaves the same signed and unsigned.
+ *     The dylibs themselves need no variable at all: `install_name_tool` rewrote
+ *     every install name to `@loader_path/<leaf>` when the closure was built, and
+ *     the addon's `@rpath` is `@loader_path/gtk/lib` — which is exactly why the
+ *     closure has to be staged as a TREE and not flattened.
  */
-function renderAppBundleLauncher(settings: ShipSettings, bundleRelPath: string, layout: Layout): string {
-    const contents = `${layout.root(settings)}/Contents`;
+function renderAppBundleLauncher(
+    settings: ShipSettings,
+    bundleRelPath: string,
+    layout: Layout,
+    runtime: LauncherRuntime,
+): string {
+    const root = layout.root(settings);
+    const contents = `${root}/Contents`;
     const dirs = layout.dirs(settings);
     // Every path is expressed relative to `Contents/`, which the launcher finds by
     // going one directory up from `Contents/MacOS`. Deriving them from the
     // layout's own directories is what keeps the two from drifting: they are the
     // same strings the planner placed the files with.
     const under = (dir: string): string => posix.relative(contents, dir);
+    // …and the interpreter relative to `$here`, which is `Contents/MacOS` itself.
+    // Two anchors rather than one because the launcher already computes both, and
+    // `"$here/node"` is the shortest true expression for a file beside it.
+    const beside = (path: string): string => posix.relative(dirs.launcher, path);
 
     const lines = [
         '#!/bin/sh',
@@ -190,17 +230,60 @@ function renderAppBundleLauncher(settings: ShipSettings, bundleRelPath: string, 
         'export XDG_DATA_DIRS',
     ];
 
+    // The two locators a carried runtime needs, and both are read by node-gi ITSELF
+    // rather than by a loader — which is the whole reason they are allowed here at
+    // all (see this function's second numbered note).
+    //
+    // `GJSIFY_GTK_RUNTIME` is candidate 1 of `resolveGtkRuntimeBundle()`'s four.
+    // Candidates 2–4 walk from `@gjsify/node-gi`'s own package directory or through
+    // `node_modules`, and a shipped `.app` has neither: its JavaScript is one
+    // bundled file under `Contents/Resources/lib`, so `import.meta.url` there
+    // resolves node-gi's "package root" to the bundle's directory and every probed
+    // path lands beside the bundle instead of in `Contents/Frameworks`.
+    //
+    // `NODE_GI_NATIVE` is the same problem for the addon: `prebuildAddonPath()`
+    // joins `prebuilds/<target>/node_gi.node` onto that same wrong root
+    // (`packages/node-gi/node-gi/native-paths.js`). An absolute path is one of the
+    // three values that variable takes (`'build'`, `'prebuild'`, or a path), and
+    // `nativeCandidates()` resolves it and returns it ALONE — so the bundle's addon
+    // is not merely preferred, nothing else is tried.
+    if (runtime.gtkRuntimeDir !== undefined) {
+        lines.push(`GJSIFY_GTK_RUNTIME="$contents/${under(runtime.gtkRuntimeDir)}"`, 'export GJSIFY_GTK_RUNTIME');
+    }
+    if (runtime.nodeGiAddon !== undefined) {
+        lines.push(`NODE_GI_NATIVE="$contents/${under(runtime.nodeGiAddon)}"`, 'export NODE_GI_NATIVE');
+    }
+
     if (settings.typelibFiles.length > 0) {
         lines.push(
             `GI_TYPELIB_PATH="$contents/${under(dirs.native)}"\${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}`,
             'export GI_TYPELIB_PATH',
+        );
+        // The other half of the same pair, and the half no loader variable can
+        // carry here. GI resolves the typelib and then `g_module_open`s the bare
+        // leaf it records; `LD_LIBRARY_PATH` answers that on Linux and `DYLD_*`
+        // cannot answer it in a signed bundle. `GJSIFY_GI_LIBRARY_PATH` is read by
+        // node-gi in JS and handed to `gi_repository_prepend_library_path()`, so
+        // dyld never sees it (#1410). Written here for the first time: that fix
+        // shipped the READER with no writer anywhere in this pipeline.
+        lines.push(
+            `GJSIFY_GI_LIBRARY_PATH="$contents/${under(dirs.native)}"\${GJSIFY_GI_LIBRARY_PATH:+:$GJSIFY_GI_LIBRARY_PATH}`,
+            'export GJSIFY_GI_LIBRARY_PATH',
         );
     }
     if (settings.localeFiles.length > 0) {
         lines.push(`GJSIFY_LOCALE_DIR="$contents/${under(dirs.data)}/locale"`, 'export GJSIFY_LOCALE_DIR');
     }
 
-    lines.push(`exec ${execLine(layout, `"$contents/${under(dirs.bundle)}/${bundleRelPath}"`, settings)} "$@"`, '');
+    // `"$here/node"`, not `node`. The bare name is true of a developer's machine
+    // and false of a `.app` a stranger downloads, and the difference is not a
+    // degraded experience: macOS ships no Node at all, so the launcher's first act
+    // would be `exec: node: not found`.
+    const interpreter = runtime.interpreter === undefined ? undefined : `"$here/${beside(runtime.interpreter)}"`;
+    lines.push(
+        `exec ${execLine(layout, `"$contents/${under(dirs.bundle)}/${bundleRelPath}"`, settings, interpreter)} "$@"`,
+        '',
+    );
     return lines.join('\n');
 }
 
@@ -283,18 +366,31 @@ function windowsPath(rel: string): string {
  * prints it.
  *
  * `gjs` needs `-m` to treat the bundle as an ES module; `node` decides from the
- * extension and rejects the flag. The interpreter NAME, not a path: both are
- * found on `PATH`, which is what the emitted dependency guarantees is there —
- * and on Fedora `/usr/bin/node` is an alternatives symlink whose target is
- * whichever stream package won, so hardcoding a path would pin the launcher to a
- * layout the dependency does not promise. macOS and Windows have no system Node
- * and no dependency to declare, which is what `@gjsify/node-runtime-<target>`
- * exists for; the day a stage carries one, THIS is the line that names it by a
- * layout-relative path instead.
+ * extension and rejects the flag.
+ *
+ * THE NAME OR A PATH, and which one is a fact about the STAGE. On Linux it stays
+ * the bare name, because the emitted dependency is what guarantees the
+ * interpreter is on `PATH` — and on Fedora `/usr/bin/node` is an alternatives
+ * symlink whose target is whichever stream package won, so hardcoding a path
+ * there would pin the launcher to a layout the dependency does not promise. macOS
+ * and Windows have no system Node and no dependency to declare, which is what
+ * `@gjsify/node-runtime-<target>` exists for; this comment used to say "the day a
+ * stage carries one, THIS is the line that names it by a layout-relative path
+ * instead", and #1354 M2b is that day — `utils/ship/app-runtime.ts` stages the
+ * interpreter into `Contents/MacOS/node` and the `.app` launcher execs
+ * `"$here/node"`.
+ *
+ * `utils/ship/payload.ts`'s `readLauncherInterpreters` reads that quoted,
+ * variable-bearing token back to the bare name `node`, which is what keeps
+ * `assertLauncherMatchesInterpreter` a check rather than a vacuous pass.
  */
-function execLine(layout: Layout, bundle: string, settings: ShipSettings): string {
+function execLine(layout: Layout, bundle: string, settings: ShipSettings, interpreter?: string): string {
     const quote = layout.name === 'windows' ? cmdQuote : shellQuote;
     const args = settings.execArgs.map(quote).join(' ');
-    const head = settings.app === 'node' ? 'node' : 'gjs -m';
-    return `${head} ${bundle}${args ? ` ${args}` : ''}`;
+    // The NAME when the stage carries no interpreter, the layout-relative PATH
+    // when it does. `-m` stays attached to `gjs` in both branches: it tells the
+    // interpreter to read the bundle as a module and has nothing to do with how
+    // the interpreter was found.
+    const program = interpreter ?? (settings.app === 'node' ? 'node' : 'gjs');
+    return `${settings.app === 'node' ? program : `${program} -m`} ${bundle}${args ? ` ${args}` : ''}`;
 }

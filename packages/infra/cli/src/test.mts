@@ -22,6 +22,7 @@ import shipMimeSuite from './utils/ship/mime.spec.js';
 import shipLicenseSuite from './utils/ship/discover-license.spec.js';
 import shipDependsSuite from './utils/ship/depends.spec.js';
 import shipNodeRuntimeSuite from './utils/ship/node-runtime.spec.js';
+import shipAppRuntimeSuite from './utils/ship/app-runtime.spec.js';
 import shipFlatpakSuite from './utils/ship/flatpak.spec.js';
 import installProvenanceSuite from './utils/install-provenance.spec.js';
 import shipPlistSuite from './utils/ship/plist.spec.js';
@@ -225,6 +226,7 @@ run(
         shipLicenseSuite,
         shipDependsSuite,
         shipNodeRuntimeSuite,
+        shipAppRuntimeSuite,
         shipFlatpakSuite,
         shipPlistSuite,
         installProvenanceSuite,

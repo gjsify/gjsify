@@ -28,7 +28,7 @@ Shape is `@gjsify/gtk-runtime-*`'s (hand-written manifest, gitignored payload, `
 ### Two declarations that are choices, not derivations
 
 |`gjsify.runtimes.node` is **`polyfill`**, copied from `@gjsify/gtk-runtime-*` rather than reasoned to. The drift check sees neither family (`axis: "unknown"`, `file_count: 0`), so nothing would have caught a divergence — and a structurally identical sibling declaring something different is exactly the drift no checker covers. `none` is in any case false: `index.js` imports `node:fs`/`node:path`/`node:url` and exists to be read from a Node process.
-|`resolveNodeRuntime()` in `packages/infra/cli/src/utils/ship/node-runtime.ts` has **no caller outside its own spec** and returns `null` rather than throwing "so the caller can decide how loud to be". Both are true and the second is a promise to a caller that does not exist yet: staging the interpreter into a `.app` / Windows program directory is the layout axis, not M0. Say so when touching it; do not quietly give it a caller that ignores the `null`.
+|`resolveNodeRuntime()` (CLI: `utils/ship/node-runtime.ts`) returns `null` rather than throwing "so the caller can decide how loud to be". Its caller is `utils/ship/app-runtime.ts` (#1354 M2b), which stages the interpreter into `<App>.app/Contents/MacOS/node` — and USES the `null`: it stages the GTK closure it did find and names the interpreter package it did not, instead of failing. Windows has none yet; do not give it one that ignores the `null`.
 
 ### Bumping the Node version
 
