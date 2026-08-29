@@ -54,6 +54,7 @@ the TODO records the *what's left*.
 | [0031](0031-node-gi-napi-outside-the-workspace.md) | `node-gi` and `napi` stay outside the npm workspace | Accepted |
 | [0032](0032-react-native-on-the-gtk-host.md) | A React Native view layer over the GTK host, split so every binding can use the shared half | Proposed |
 | [0033](0033-declarative-templates-preferred.md) | A widget tree is declared in a template file; TypeScript holds the behaviour | Proposed |
+| [0034](0034-widget-vocabulary-convergence.md) | Every widget surface: named from the GIR, exported as a namespace, remainder declared | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
