@@ -1421,7 +1421,7 @@ Which one is emitted comes from `gjsify.app`, the same field the build uses, and
 
 That floor excludes every current DEB stable and LTS — trixie ships 20, Ubuntu 24.04 ships 18, Ubuntu 26.04 ships 22; only forky has 24 — so `gjsify ship` warns about it, for the same reason it warns about the GJS floor. Set `gjsify.ship.minNodeVersion` if your bundle genuinely runs on an older Node.
 
-On **macOS and Windows** there is no system Node to depend on, so the artifact carries its own from `@gjsify/node-runtime-<target>`. You add nothing to `package.json`: the packages are resolved **by name** at ship time, the same rule the GTK runtime bundles follow, and `GJSIFY_NODE_RUNTIME` overrides the lookup with a directory.
+On **macOS and Windows** there is no system Node to depend on, so the artifact carries its own from `@gjsify/node-runtime-<target>`. You declare it yourself, as a `devDependency` of the project you package — *gjsify* adds no `optionalDependencies` edge to it, which is a different statement from "nothing to add": the package is resolved **by name** out of your project's own `node_modules` at ship time, the same rule the GTK runtime bundles follow, and it has to be installed there for the lookup to find it. [Ship](/gjsify/ship/) carries the copy-pasteable block. `GJSIFY_NODE_RUNTIME` overrides the lookup with a directory — which is also the way to get a complete artifact today, because the three `@gjsify/node-runtime-*` names are not published yet.
 
 #### Where each format can be packed
 

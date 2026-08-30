@@ -291,6 +291,29 @@ populates one from a pinned Node release, verifying its SHA-256, and that is wha
 `node-gi.yml`'s two assemble legs run. `@gjsify/gtk-runtime-win32-x64` IS published (0.44.0,
 81 250 039 B unpacked over 1 027 files), as are both darwin siblings.
 
+What a publish would upload, per target — `npm pack --dry-run --json` in each package
+directory after the fetcher has run, 8 files each:
+
+| Package | packed | unpacked | interpreter | Node's `LICENSE` |
+|---|---|---|---|---|
+| `@gjsify/node-runtime-darwin-arm64` | 40 292 475 B | 122 082 467 B | `bin/node` 121 911 744 B | `bin/LICENSE` 157 609 B |
+| `@gjsify/node-runtime-darwin-x64` | 41 287 805 B | 124 456 499 B | `bin/node` 124 285 824 B | `bin/LICENSE` 157 609 B |
+| `@gjsify/node-runtime-win32-x64` | 35 796 451 B | 93 554 864 B | `bin/node.exe` 93 381 448 B | `bin/LICENSE` 160 555 B |
+
+The licence TRAVELS, and that is a `files:` property rather than a good intention:
+`files: ["index.js", "index.d.ts", "bin"]` ships the whole `bin/`, so Node's own
+`LICENSE` is in the tarball beside the binary it covers — measured in the pack listing
+above, and digest-recorded in `bin/manifest.json`. The package's own 1 556 B `LICENSE`
+is MIT and says in its own text that it covers the SOURCE only, so the two cannot be
+read as one claim. Node is redistributable and its terms are the only obligation the
+fetcher takes on: it copies `LICENSE` and nothing else from the distribution,
+deliberately leaving the 149 further licence files that belong to npm's bundled
+`node_modules`, which this package does not ship.
+
+`scripts/check-shipped-runtime-packages.mjs` keeps this warning honest — while a name
+is in its `PENDING_BOOTSTRAP` ledger, every file declaring a dependency on it must say
+it is not published, and the entry itself fails once the package goes live.
+
 **Not one of them is an `optionalDependencies` edge**, which is `docs/publishing.md`'s rule (#910,
 reverted in #920): whoever SHIPS an app declares the runtime, never the library that uses it. So the
 list above is what a third-party author adds to their own `package.json` — the first two as

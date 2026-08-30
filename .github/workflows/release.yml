@@ -1767,7 +1767,25 @@ jobs:
       # ⚠️ FIRST RELEASE ONLY: these three npm names must be bootstrapped by hand
       # before the release that ships them (`gjsify onboard`, then `gjsify trust`
       # targeting release.yml) — OIDC cannot self-bootstrap its own trust, and an
-      # unbootstrapped name 404s on the exchange.
+      # unbootstrapped name 404s on the exchange. As of 0.44.0 that bootstrap is
+      # STILL PENDING for all three, which `scripts/check-shipped-runtime-packages.mjs`
+      # now reports on every push instead of leaving it to this job.
+      #
+      # ⚠️ `--tolerate-untrusted-new` IS DELIBERATELY ABSENT, and adding it to
+      # silence a red leg would be the bug. That flag exists for the SERIALIZED
+      # `gjsify foreach publish` sweep in `npm:publish`, where one unbootstrapped name
+      # aborts every alphabetically later package (the v0.4.20 incident:
+      # `@gjsify/tls-native` unbootstrapped, 60+ packages stuck at 0.4.19). Nothing of
+      # that applies here. This is a three-leg matrix with `fail-fast: false`; no job
+      # `needs:` it except `verify-release-closure`, which runs on `!cancelled()`. So a
+      # failed leg publishes nothing, cancels nothing, and leaves that one package at
+      # its previous version — loudly.
+      #
+      # With the flag, an unbootstrapped name would exit 0 having published NOTHING,
+      # and the release would go out green while `gjsify ship` on macOS and Windows
+      # still had no interpreter to stage and the docs still told authors to depend on
+      # it. A missing bootstrap is exactly the thing this job must not be able to
+      # report as done. Bootstrap the name; do not tolerate its absence.
       - name: Publish @gjsify/node-runtime-${{ matrix.target }} (OIDC, with payload)
         env:
           GJSIFY_PUBLISH_DEBUG: '1'
