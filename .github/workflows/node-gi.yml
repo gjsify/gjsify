@@ -2891,6 +2891,24 @@ jobs:
             "ship/out/Ship Window Demo" \
             msitools
 
+      # STAGED INTO ONE DIRECTORY FIRST, and that is not tidiness — it is the
+      # difference between a flat artifact and a nested one. `actions/upload-artifact`
+      # roots the archive at the LEAST COMMON ANCESTOR of everything its `path:`
+      # matched, so two globs in different directories (`ship/out/*.msi` and
+      # `ship/msi/*.wxs`) produce an artifact containing `out/` and `msi/`, not two
+      # files. Measured the hard way: the consuming job's
+      # `Get-ChildItem "$env:RUNNER_TEMP\msi" -Filter *.msi` found nothing and died on
+      # `Cannot index into a null array` — a PowerShell error that says nothing about
+      # the cause. One glob over one directory has an unambiguous ancestor, and the
+      # `ls -l` makes the layout readable in the log rather than inferable from the
+      # action's semantics.
+      - name: Stage the installer and its document for upload
+        working-directory: tests/e2e/ship-macos/fixtures/window-app
+        run: |
+          mkdir -p ship/upload
+          cp ship/out/*.msi ship/msi/*.wxs ship/upload/
+          ls -l ship/upload
+
       # The installer AND the document it was compiled from. The `.wxs` is not a
       # by-product here: the windows job compiles this exact file a SECOND time with
       # WiX v3, which is what makes the cross-check a cross-check. Its `Source=`
@@ -2900,9 +2918,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-msi-win32-x64
-          path: |
-            tests/e2e/ship-macos/fixtures/window-app/ship/out/*.msi
-            tests/e2e/ship-macos/fixtures/window-app/ship/msi/*.wxs
+          path: tests/e2e/ship-macos/fixtures/window-app/ship/upload/*
           if-no-files-found: error
 
   # THE HALF THAT EARNS THE MILESTONE. Everything before this runs on Linux and is
@@ -3113,7 +3129,18 @@ jobs:
       - name: Install it with msiexec, into a prefix this job owns
         shell: pwsh
         run: |
-          $msi = (Get-ChildItem "${{ runner.temp }}\msi" -Filter *.msi)[0].FullName
+          # RESOLVED WITH A COUNT, never `[0]`. Indexing an empty result gives
+          # `Cannot index into a null array` — a PowerShell error that names the line
+          # and not the cause, which is what the artifact-layout defect surfaced as.
+          # `-Recurse` so a nested archive is found anyway, and the assertion is on
+          # the COUNT so an unexpected layout says what it is.
+          $found = @(Get-ChildItem "${{ runner.temp }}\msi" -Recurse -Filter *.msi)
+          if ($found.Count -ne 1) {
+            Write-Host "expected exactly one .msi in the downloaded artifact, found $($found.Count):"
+            Get-ChildItem "${{ runner.temp }}\msi" -Recurse | Select-Object -First 30 -ExpandProperty FullName
+            exit 1
+          }
+          $msi = $found[0].FullName
           $prefix = "${{ runner.temp }}\prefix"
           Write-Host "installing $msi into $prefix"
           $p = Start-Process msiexec.exe -ArgumentList @(
@@ -3215,7 +3242,7 @@ jobs:
       - name: Uninstall it, and assert nothing is left behind
         shell: pwsh
         run: |
-          $msi = (Get-ChildItem "${{ runner.temp }}\msi" -Filter *.msi)[0].FullName
+          $msi = @(Get-ChildItem "${{ runner.temp }}\msi" -Recurse -Filter *.msi)[0].FullName
           $prefix = "${{ runner.temp }}\prefix"
           $p = Start-Process msiexec.exe -ArgumentList @(
             '/x', "`"$msi`"", '/qn', '/l*v', "`"${{ runner.temp }}\uninstall.log`""
@@ -3272,11 +3299,21 @@ jobs:
         shell: pwsh
         working-directory: ${{ runner.temp }}/msi
         run: |
-          Expand-Archive -Path (Get-ChildItem -Filter *.zip)[0].FullName -DestinationPath . -Force
+          $zips = @(Get-ChildItem -Recurse -Filter *.zip)
+          $wxs  = @(Get-ChildItem -Recurse -Filter *.wxs)
+          if ($zips.Count -ne 1 -or $wxs.Count -ne 1) {
+            Write-Host "expected exactly one .zip and one .wxs, found $($zips.Count) and $($wxs.Count):"
+            Get-ChildItem -Recurse | Select-Object -First 30 -ExpandProperty FullName
+            exit 1
+          }
+          Expand-Archive -Path $zips[0].FullName -DestinationPath . -Force
+          # `root/` is what the document's relative `Source=` attributes resolve
+          # against, and rebuilding it from the ZIP is a check in its own right: the
+          # installer and the archive have to carry the same tree.
           Move-Item "Ship Window Demo" root
           Get-ChildItem root | Select-Object -First 10
-          candle.exe -nologo -arch x64 -out obj\ ship-window-demo.wxs
-          light.exe -nologo -out wix.msi obj\ship-window-demo.wixobj
+          candle.exe -nologo -arch x64 -out obj\ $wxs[0].FullName
+          light.exe -nologo -out wix.msi obj\$($wxs[0].BaseName).wixobj
           Get-Item wix.msi | Select-Object Name, Length
 
       - name: Upload the WiX-built installer (for the Linux cross-read)
