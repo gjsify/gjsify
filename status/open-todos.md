@@ -3879,3 +3879,56 @@ Left out of the localisation change on scope: the MIME document is produced insi
 passed through `StageInputs`, so folding it in means moving where that text is rendered —
 in the file that neighbours the layout/stage-writer work. Doing it later costs one call
 site; doing it in the same change would have crossed into a tree being rewritten.
+
+### `verify-msi.sh`'s three component assertions pass on an empty Component table
+
+An empty herestring is still one line. `COMPONENT_ROWS=$(awk … <<<"$COMPONENTS" | sort)`
+is the empty string when the `Component` parse matches nothing, and `wc -l <<<""` is
+**1** — so all three component arms of `.github/ship-oracle/verify-msi.sh` are satisfied
+by a table that yielded no rows, provided `ROWS` is 1. Measured, with the exact
+expressions from lines 173-186 under `set -euo pipefail`:
+
+    wc -l <<<"$COMPONENT_ROWS" = 1   (an empty herestring is still ONE line)
+      line 175 one-component-per-file  : PASSES on zero components
+      line 177 component-in-feature   : PASSES on two empty sets
+      sort -u <<<"" | wc -l = 1
+      line 185 distinct-GUIDs         : PASSES on zero GUIDs
+
+The seam is bounded and is NOT open today: it needs a single-file installer, and with a
+realistic `ROWS=14` line 175 reds on `1 != 14`, which is why the shipped fixture closes
+it by accident rather than by design. What makes it worth an entry is that the closing
+condition is a property of the FIXTURE, not of the oracle — a future one-file artifact,
+or a `msiinfo` output change that stops the `NF >= 6` shape matching, reopens all three
+arms at once and reports "one component per file" about nothing.
+
+The repair is the one this repo already applies elsewhere: count the rows explicitly and
+refuse zero, rather than comparing two line counts that both degrade to 1. `File` already
+has that floor one block up (`[ "$ROWS" -gt 0 ] || fail …`); `Component` has none.
+Deliberately not fixed in the audit that found it — the release was being cut, and a
+shell edit to a gating oracle is exactly the change whose cost cannot be priced in time.
+
+### The registry gate's vacuity control fires on the transition it exists for
+
+`scripts/check-shipped-runtime-packages.mjs` ends with a control asserting that the
+disclosure rule has a subject: if `PENDING_BOOTSTRAP` is non-empty and
+`dependencySitesSeen === 0`, it reports that "the dependency-line pattern no longer
+matches". `dependencySitesSeen` is only incremented on the `live === false && declared`
+branch — the `live === true && declared` branch fails and `continue`s above it. So when a
+pending name is PUBLISHED, which is the one transition the bidirectional ledger exists to
+catch, the control fires as well and blames the regex.
+
+It is a false positive, measured against the tree it accused at the time:
+
+    dependency-line regex matches index.mdx: true
+    DISCLOSURE present in index.mdx: true
+
+Observed live: with all three `@gjsify/node-runtime-*` names published and still listed,
+the gate reported four problems, of which three were real and the fourth was this. The
+cost is not a wrong verdict — the check is correctly red either way — it is a maintainer
+sent to debug a working regex while the actual instruction ("delete the entry") sits three
+lines above.
+
+The repair is one line: count sites on the published-and-declared branch too, before the
+`continue`. Left open rather than applied for the same reason as the entry above, and
+because #1427 emptied the ledger, so the control is dormant until the next bootstrap —
+which is precisely when someone will meet it cold.
