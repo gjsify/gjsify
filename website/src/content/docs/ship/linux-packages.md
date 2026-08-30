@@ -1,65 +1,32 @@
 ---
-title: deb & rpm packages
-description: "The practical guide to `gjsify ship`: prerequisites, every flag, what the staged payload looks like, how to install the result and how to pick the architecture."
+title: Linux packages
+description: "gjsify ship linux builds a .deb, an .rpm and a Flatpak bundle. What lands on disk, which dependencies are derived from your bundle, how to pick the architecture, and what to do when the build refuses."
 ---
 
-`gjsify ship` turns a built GJS app into a `.deb` and an `.rpm`. Run it in your
-project root:
+`gjsify ship linux` turns a built app into a `.deb` and an `.rpm`. Run it in
+your project root:
 
 ```bash
 gjsify ship
 ```
 
-It runs your `build` script, stages one payload, and packs that same payload
-into each format. Everything else on this page is about what it needs from you
-and what you can change.
+```text
+ship/out/my-app_1.2.3-1_all.deb
+ship/out/my-app-1.2.3-1.noarch.rpm
+```
 
-## Get your project ready
+A bare `gjsify ship` assembles the layout of the host you are on, so on a Linux
+machine those two are what you get. Name `linux` explicitly when you are
+packaging from a Mac or from Windows, which works: both packers are plain
+JavaScript and run anywhere.
 
-`gjsify ship` derives almost everything, but a few things it cannot guess.
-Check these before the first run:
+Nothing about gjsify needs to be on the user's machine. The package depends on
+the distribution's own `gjs` or `nodejs`, GTK and typelib packages, and
+`gjsify ship` works out which ones by reading your built bundle.
 
-| package.json | Needed for | Override |
-|---|---|---|
-| `name` | the package name and the `bin/` entry | `gjsify.ship.binaryName` |
-| `version` | `Version:` in both formats | `gjsify.ship.version` |
-| `license` (an SPDX id like `"MIT"`) | a required field in both formats | `gjsify.ship.license.project` |
-| `author` as `"Name <you@example.org>"` | `Maintainer:` / `Packager:`; dpkg refuses a package without one | `gjsify.ship.maintainer` |
-| `gjsify.main` (or `main`) | the bundle the launcher executes | `gjsify.ship.bundle` |
-| — | the human-readable display name: the `.desktop` `Name=`, the AppStream `<name>`, and the `<name>.app` directory a macOS layout is staged into | `gjsify.ship.name` (defaults to a title-cased `binaryName`) |
-| `scripts.build` | the build step that runs first | pass `--skip-build` instead |
-
-Your `version` is rewritten on the way in, because npm and dpkg disagree about
-what a prerelease is. A leading `v` is dropped, `+buildmetadata` is dropped with
-a warning, and `1.2.0-rc.1` becomes `1.2.0~rc.1`. That last one matters: both
-dpkg and rpm sort `1.2.0~rc.1` *before* `1.2.0`, the way npm does, while they
-read `1.2.0-rc.1` as release `rc.1` of version `1.2.0` and sort it *after*, so a
-prerelease published that way would never upgrade to the release. A version
-neither format can spell stops the run instead of being guessed at.
-
-You also need a reverse-DNS **app id**, because it names the desktop entry, the
-AppStream component and the installed icon. Set `gjsify.ship.appId`, or let it
-fall back to `gjsify.flatpak.appId` if you already ship a Flatpak. If your
-package name is itself reverse-DNS (`org.example.MyApp`), that is used.
-
-Two more things are picked up automatically when they follow the usual GNOME
-layout, and are worth having:
-
-- **Icons** from `data/icons/` or `data/icons/hicolor/`, or wherever
-  `gjsify.ship.icon` points (a single file or a directory). SVGs land in
-  `scalable`; for PNGs the size is read from a `128x128/` path component or from
-  a trailing number in the filename (`icon-128.png`). Without an icon your app
-  shows a placeholder in menus and app stores, and ship warns about it.
-- **GSettings schemas**: any `*.gschema.xml` under `data/`, or under
-  `gjsify.ship.schemas`. Every installed schema on the system shares one
-  directory, so each file's name has to start with your app id.
-
-A `LICENSE`, `LICENSE.md`, `LICENSE.txt`, `COPYING` or `COPYING.md` in the
-project root is found on its own and installed where each format expects it.
-
-Finally, your project has to build for GJS. If `gjsify.app` is set to anything
-other than `"gjs"`, ship refuses instead of producing a package that installs
-and then fails to start.
+Set up your `package.json` first. [Ship your app](/gjsify/ship/#what-ship-reads-from-your-packagejson)
+lists the fields all three operating systems share, and the two you have to set
+yourself.
 
 ## Build the packages
 
@@ -72,27 +39,27 @@ bundle, which is the quickest way to see whether the payload is what you think
 it is:
 
 ```text
-[gjsify ship] staged 6 file(s) in ship/stage/
+[gjsify ship] staged 7 file(s) for linux in ship/stage/
 [gjsify ship]   bin/my-app
 [gjsify ship]   lib/my-app/gjs.js
 [gjsify ship]   share/applications/org.example.MyApp.desktop
 [gjsify ship]   share/glib-2.0/schemas/org.example.MyApp.gschema.xml
 [gjsify ship]   share/icons/hicolor/scalable/apps/org.example.MyApp.svg
 [gjsify ship]   share/metainfo/org.example.MyApp.metainfo.xml
+[gjsify ship]   share/mime/packages/org.example.MyApp.xml
 [gjsify ship] gi namespaces: Adw-1, Gtk-4.0
-[gjsify ship] deb: ship/out/my-app_1.2.3-1_all.deb (2524 bytes)
-[gjsify ship] rpm: ship/out/my-app-1.2.3-1.noarch.rpm (5117 bytes)
+[gjsify ship] deb: ship/out/my-app_1.2.3-1_all.deb (2876 bytes)
+[gjsify ship] rpm: ship/out/my-app-1.2.3-1.noarch.rpm (5976 bytes)
 ```
 
 A real run prints more than this, and none of it is an error. Anything missing
-from the AppStream component (`gjsify.ship.developer`, `summary`, `description`,
-`license.project`, `homepageUrl`) is reported as a warning, because the package
-still installs and still runs; it is app *stores* that will object, which is a
-different day's problem. Fill them in before you submit anywhere. You will also
-see a warning about the GJS version this asks for on Debian; see
-[Choose the GJS floor](#choose-the-gjs-floor).
+from the AppStream component (`gjsify.ship.developer`, `summary`,
+`description`, `license.project`, `homepageUrl`) is a warning, because the
+package still installs and still runs. App stores are what will object. Fill
+those in before you submit anywhere. You will also see a warning about the GJS
+version this asks for on Debian; see [Choose the GJS floor](#choose-the-gjs-floor).
 
-Already built? Skip the build step:
+Already built? Skip the build step.
 
 ```bash
 gjsify ship --skip-build
@@ -105,13 +72,9 @@ gjsify ship --target deb     # one format
 gjsify ship --stage          # write ship/stage/ and stop
 ```
 
-The same payload also becomes a Flatpak — `gjsify ship --target flatpak`, opt-in
-because it is the only format that needs `flatpak-builder` on the packing host.
-That one is covered in [Ship your app](/gjsify/ship/#the-flatpak-target).
-
 ## Read the staged payload
 
-Everything lands under `ship/` (change it with `--out`):
+Everything lands under `ship/`, which `--out` moves.
 
 ```text
 ship/
@@ -127,27 +90,27 @@ ship/
     └── my-app-1.2.3-1.noarch.rpm
 ```
 
-`stage/` is the whole app: the launcher in `bin/`, your bundle in `lib/<name>/`,
-and the desktop entry, icon, AppStream metainfo and schemas in `share/`.
-`overlay/` holds what one format wants somewhere of its own, which today is the
-licence and nothing else. Debian policy puts it in `share/doc/<pkg>/copyright`,
-rewrapped as a machine-readable copyright file; RPM puts the plain text in
-`share/licenses/<pkg>/`. A project with no licence file gets no overlay at all.
+`stage/` is the whole app. The launcher in `bin/`, your bundle in
+`lib/<name>/`, and the desktop entry, icon, AppStream metainfo, MIME types and
+schemas in `share/`. `overlay/` holds what one format wants somewhere of its
+own, which today is the licence and nothing else. Debian policy puts it in
+`share/doc/<pkg>/copyright`, rewrapped as a machine-readable copyright file;
+RPM puts the plain text in `share/licenses/<pkg>/`. A project with no licence
+file gets no overlay at all.
 
 Both packers read `stage/` back off disk rather than keeping it in memory, so
-what you inspect is what a user installs. That also means `gjsify ship --stage`
-and a full run write the same `stage/` tree.
+what you inspect is what a user installs.
 
-Two details worth knowing:
+Two details worth knowing.
 
-**The whole bundle directory is staged.** `gjsify.main: "dist/gjs.js"` stages all
-of `dist/` into `lib/my-app/`. Keep build leftovers out of that directory, or
-point `gjsify.ship.bundle` at a clean one.
+**The whole bundle directory is staged.** `gjsify.main: "dist/gjs.js"` stages
+all of `dist/` into `lib/my-app/`. Keep build leftovers out of that directory,
+or point `gjsify.ship.bundle` at a clean one.
 
 **`bin/my-app` is a small shell launcher.** It works out its own install prefix
 from its own path, prepends `<prefix>/share` to `XDG_DATA_DIRS`, and then execs
-`gjs -m` on your bundle. Because no path is baked in, the same payload works
-installed under `/usr`, under `/app`, or anywhere else.
+`gjs -m` or `node` on your bundle. Because no path is baked in, the same
+payload works installed under `/usr`, under `/app`, or anywhere else.
 
 ## Install and check the result
 
@@ -157,12 +120,12 @@ sudo apt install ./ship/out/my-app_1.2.3-1_all.deb        # Debian, Ubuntu
 ```
 
 Then run `my-app`, or find it in your application menu. Uninstalling is
-`dnf remove my-app` / `apt remove my-app`, and the package refreshes the desktop
-database, the icon cache and the compiled GSettings schemas on the way in and
-out.
+`dnf remove my-app` or `apt remove my-app`, and the package refreshes the
+desktop database, the icon cache, the MIME database and the compiled GSettings
+schemas on the way in and out.
 
-Before publishing, it is worth reading the artifact back with the distro's own
-tools rather than trusting the packer:
+Before publishing, read the artifact back with the distribution's own tools
+rather than trusting the packer:
 
 ```bash
 rpm -qp --info     ship/out/my-app-1.2.3-1.noarch.rpm   # name, version, licence, summary
@@ -173,7 +136,7 @@ ar t               ship/out/my-app_1.2.3-1_all.deb      # the three .deb members
 ```
 
 For the app in the output above, `rpm -qp --requires` lists these first, ahead
-of the `/bin/sh` its scriptlets need and rpm's own `rpmlib` internals:
+of the `/bin/sh` its scriptlets need and rpm's own internals:
 
 ```text
 gjs >= 1.86
@@ -183,37 +146,113 @@ hicolor-icon-theme
 glib2
 ```
 
-None of that was configured. The GTK and libadwaita entries come from the
-`gi://` imports in the built bundle, `hicolor-icon-theme` because this is a GUI
-app rather than a `kind: "cli"` tool, and `glib2` (`libglib2.0-bin` on Debian)
+You configured none of it. The GTK and libadwaita entries come from the `gi://`
+imports in the built bundle, `hicolor-icon-theme` because this is a GUI app
+rather than a `kind: "cli"` tool, and `glib2` (`libglib2.0-bin` on Debian)
 because the payload installs a GSettings schema that has to be compiled at
 install time.
 
-### Build it reproducibly
+Packing the same build twice gives byte-identical artifacts, which
+[How It Works](/gjsify/how-it-works/#reproducible-ship-artifacts) explains.
 
-Packing the same build twice gives byte-identical artifacts. Timestamps come
-from your bundle's mtime, or from `SOURCE_DATE_EPOCH` when that is set, which is
-what makes two different checkouts of the same source produce identical bytes:
+## Translate the menu entry and the store listing
 
-```bash
-SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) gjsify ship
+Point `gjsify.ship.localeDir` at a directory of compiled gettext catalogues in
+`<lang>/LC_MESSAGES/<domain>.mo` layout, and `gjsify ship` folds them into the
+generated freedesktop metadata:
+
+```jsonc
+"gjsify": { "ship": { "localeDir": "dist/locale" } }
 ```
 
-This holds per JS runtime. The payload is gzipped through the Web
-`CompressionStream`, whose output is implementation-defined, so an artifact
-built under Node and one built under GJS need not match each other byte for
-byte.
+```text
+[Desktop Entry]
+Name[de]=Versand-Demo
+Name=My App
+Comment[de]=Beweist, dass gjsify ship funktioniert
+Comment=Prove that gjsify ship works
+```
+
+The AppStream component gets the matching `xml:lang` attributes. Both files stay
+valid without the translations, and `desktop-file-validate` and
+`appstreamcli validate` pass an untranslated file, so nothing else would have
+told you they were missing.
+
+`.po` sources are refused, because `bindtextdomain` reads `.mo` only. Compile
+them first with [`gjsify gettext`](/gjsify/cli-reference/#gjsify-gettext). The
+catalogues are staged into `share/locale/` and the launcher exports
+`GJSIFY_LOCALE_DIR`.
+
+## The Flatpak bundle
+
+The same payload also becomes a single-file Flatpak.
+
+```bash
+gjsify ship --target flatpak
+flatpak install ./ship/out/org.example.MyApp-1.2.3-1.x86_64.flatpak
+```
+
+It is not in the default set, because it is the one Linux format that needs
+tooling on your machine. Install `flatpak-builder` and `flatpak` first, on
+Fedora with `sudo dnf install flatpak flatpak-builder` and on Debian or Ubuntu
+with `sudo apt install flatpak flatpak-builder`. A missing tool is a message
+naming the package, before your build script runs.
+
+The payload does not change. Ship stages one prefix-relative tree and the
+launcher works out its own prefix at run time, so the same tree is `/usr` in a
+`.deb` and `/app` in a Flatpak. That is why the generated Flatpak module is
+three shell commands with no build system in it:
+
+```json
+{
+  "name": "my-app",
+  "buildsystem": "simple",
+  "build-commands": ["mkdir -p /app", "cp -a stage/. /app/", "cp -a overlay/. /app/"]
+}
+```
+
+The runtime and the sandbox permissions are the only things left to configure,
+and every one has a default:
+
+```jsonc
+"gjsify": {
+  "ship": {
+    "appId": "org.example.MyApp",
+    "flatpak": {
+      "runtime": "gnome",
+      "runtimeVersion": "50",
+      "branch": "stable",
+      "finishArgs": ["--device=dri", "--share=ipc", "--socket=fallback-x11", "--socket=wayland"]
+    }
+  }
+}
+```
+
+`finishArgs` defaults to that GUI set for an app and to nothing at all for a
+`kind: "cli"` tool. The app id names the exported ref, which is why the artifact
+is `org.example.MyApp-1.2.3-1.x86_64.flatpak`.
+
+An existing `gjsify.flatpak` block keeps working. `runtime`, `runtimeVersion`,
+`sdkExtensions`, `appendPath`, `finishArgs` and `cleanup` are read from there
+too, and ship prints one line naming the keys it inherited and where to move
+them. Moving them is safe, because `gjsify flatpak init` and `flatpak ci` read
+the new spelling as well. The app metadata (`name`, `summary`, `developer`,
+`categories`, `license`) is not deprecated. Both blocks describe the same
+application, and either may carry it.
+
+For a Flathub submission you want [`gjsify flatpak init`](/gjsify/guides/flatpak-app/)
+instead, which commits the manifest and the AppStream files to your repository.
 
 ## Pick the architecture
 
-You usually do not have to. `gjsify ship` looks at the bytes in the payload: if
-nothing in it is a native binary, the package is `Architecture: all` (deb) and
-`BuildArch: noarch` (rpm). A bundle of pure JavaScript really does install
-everywhere, and claiming `amd64` would make apt refuse it on an arm64 machine it
-runs on perfectly.
+You usually do not have to. `gjsify ship` looks at the bytes in the payload. If
+nothing in it is a native binary, the package is `Architecture: all` on deb and
+`BuildArch: noarch` on rpm. A bundle of pure JavaScript really does install
+everywhere, and claiming `amd64` would make apt refuse it on an arm64 machine
+it runs on perfectly.
 
 As soon as the payload carries a `.so`, a `.node` or any other native binary,
-the package is labelled for one architecture: this host by default, or whatever
+the package is labelled for one architecture. This host by default, or whatever
 `--arch` says.
 
 ```bash
@@ -232,22 +271,25 @@ gjsify ship --arch arm64
 | `ppc64` | `ppc64el` | `ppc64le` |
 | `s390x` | `s390x` | `s390x` |
 
-It labels the artifact; it does not cross-build the payload. Use it when you
-have already produced a payload for that architecture, typically from a CI job
-running on that machine.
+It labels the artifact and cross-builds nothing. Use it when you have already
+produced a payload for that architecture, typically from a CI job running on
+that machine.
 
 ## Look up a flag
 
 | Flag | Default | What it does |
 |---|---|---|
-| `--target <fmt..>` | `gjsify.ship.targets`, else `deb,rpm` | Formats to build. Comma-separated or repeated. An unknown name fails before anything is built, and so does a format belonging to another OS's layout — `gjsify ship darwin --target deb` is an error. `gjsify.ship.targets` is treated differently on purpose: it is a project default, so a name that wraps another layout is dropped with a printed note rather than failing the run. |
+| `--target <fmt..>` | `gjsify.ship.targets`, else `deb,rpm` | Formats to build. Comma-separated or repeated. An unknown name fails before anything is built, and so does a format belonging to another operating system's layout. |
 | `--out <dir>` | `gjsify.ship.outDir`, else `ship` | Output root, relative to the project. |
 | `--stage` | `false` | Write the staged payload and stop, packing nothing. |
-| `--from-stage <dir>` | — | Pack a payload an earlier `--stage` run wrote. Needs no project: no `package.json`, no config, no built bundle. |
-| `--expect-target <os>-<arch>` | — | With `--from-stage`: refuse a stage assembled for a different matrix leg. Compares against what the stage recorded, not against this host. |
+| `--from-stage <dir>` | none | Pack a payload an earlier `--stage` run wrote. Needs no project. |
+| `--expect-target <os>-<arch>` | none | With `--from-stage`, refuse a stage assembled for a different matrix leg. |
 | `--skip-build` | `false` | Package what is already built instead of running the project's `build` script. |
 | `--arch <arch>` | this host | Target architecture in `process.arch` spelling. |
-| `--verbose` | `false` | Print each staged file and the GI namespaces the bundle imports. |
+| `--verbose` | `false` | Print each staged file, the GI namespaces the bundle imports, and every tool a packer runs. |
+
+`--sign` and `--notarize` belong to the macOS and Windows layouts. See
+[Sign your artifacts](/gjsify/ship/signing/).
 
 ## Add a typelib ship does not know
 
@@ -258,11 +300,11 @@ a namespace the built-in table has never heard of, the build stops and names it:
 
 ```text
 gjsify ship: the bundle imports gi://Nautilus, and no deb package is known to
-ship that typelib. [...] Fill the gap in package.json: [...]
+ship that typelib.
 ```
 
-That is deliberate. A missing runtime dependency does not fail at package time;
-it fails on a user's machine, after the download, and reads like a bug in your
+That is deliberate. A missing runtime dependency does not fail at package time.
+It fails on a user's machine, after the download, and reads like a bug in your
 app. Add the row yourself:
 
 ```jsonc
@@ -275,19 +317,20 @@ app. Add the row yourself:
 }
 ```
 
-If you find a mapping that others will need too, a pull request adding it to
-gjsify's own table saves the next person the same detour.
+A mapping others will need too is worth a pull request against gjsify's own
+table, which saves the next person the same detour.
 
-`gjsify.ship.depends` is a different key for a different job: it appends
-dependencies that are not typelibs at all (`dconf`, a helper binary, a font).
-It does not silence the failure above.
+`gjsify.ship.depends` is a different key for a different job. It appends
+dependencies that are not typelibs at all (`dconf`, a helper binary, a font),
+and it does not silence the failure above.
 
 ## Choose the GJS floor
 
-The emitted dependency is `gjs (>= 1.86)`, which is the GJS the bundler targets.
-**No released Debian satisfies it.** Debian went from 1.82.3 in trixie straight
-to 1.88.1 in forky, skipping 1.84 and 1.86, so apt on trixie will refuse your
-`.deb`. Fedora, forky, sid and current rolling distributions are fine.
+The emitted dependency is `gjs (>= 1.86)`, which is the GJS the bundler
+targets. **No released Debian satisfies it.** Debian went from 1.82.3 in trixie
+straight to 1.88.1 in forky, skipping 1.84 and 1.86, so apt on trixie will
+refuse your `.deb`. Fedora, forky, sid and current rolling distributions are
+fine.
 
 `gjsify ship` prints this rather than quietly lowering the number, because a
 package apt refuses is a better outcome than one that installs and then dies on
@@ -299,64 +342,53 @@ If your bundle genuinely runs on an older GJS, say so:
 "gjsify": { "ship": { "minGjsVersion": "1.82.3" } }
 ```
 
-Test it on that version before you do. Lowering the floor to make apt happy,
-without checking, is how you turn a clean refusal into a crash on first launch.
+Test it on that version before you do. Lowering the floor to make apt happy
+without checking is how you turn a clean refusal into a crash on first launch.
 
-## Choose the Node floor — only for `--app node`
+## Choose the Node floor, for `--app node` only
 
 A `--app gjs` package declares no Node dependency at all, and this section does
-not apply to it. A **`--app node`** bundle needs an interpreter, and on Linux it
-is depended on rather than shipped:
+not apply to it. A `--app node` bundle needs an interpreter, and on Linux it is
+depended on rather than shipped:
 
-```
+```text
 Depends: nodejs (>= 24)          # deb
 Requires: nodejs(engine) >= 24   # rpm
 ```
 
-`gjsify ship` picks the interpreter from `gjsify.app` — the same field your build
-already uses — and the launcher it writes execs that one and no other. A package
-therefore declares exactly one interpreter, and `gjsify ship` refuses to build one
-whose launcher and dependency disagree.
+`gjsify ship` picks the interpreter from `gjsify.app`, the same field your build
+already uses, and the launcher it writes execs that one and no other. A package
+therefore declares exactly one interpreter, and ship refuses to build one whose
+launcher and dependency disagree.
 
-**The two names are not interchangeable, and getting rpm's wrong fails
-silently.** `Requires: nodejs >= 24` is a no-op on Fedora: the virtual `nodejs`
-Provide carries Epoch 1, so a bare `>= 24` desugars to `0:24` and is satisfied by
-`1:22.23.1`. Measured with `dnf repoquery` on Fedora 44 — `--whatprovides 'nodejs
->= 24'` answers **nodejs22**, while `--whatprovides 'nodejs(engine) >= 24'`
-answers nodejs24. `gjsify ship` emits the correct spelling for you; the reason is
-written down here because a hand-written spec file will get it wrong.
+The `>= 24` default excludes every current Debian stable and Ubuntu LTS:
 
-The `>= 24` default excludes **every current DEB stable and LTS**:
-
-| suite | Node |
+| Suite | Node |
 | --- | --- |
 | Debian 13 trixie (stable) | 20 |
 | Debian 14 forky (testing) | 24 |
 | Ubuntu 24.04 LTS | 18 |
 | Ubuntu 26.04 LTS | 22 |
-| Fedora 43 / 44 / 45 | 22 by default, 24 installable from the base repo |
+| Fedora 43, 44, 45 | 22 by default, 24 installable from the base repo |
 
-`gjsify ship` prints that rather than lowering the number quietly. If your bundle
-genuinely runs on an older Node, say so — and test it there first:
+`gjsify ship` prints that rather than lowering the number quietly. If your
+bundle genuinely runs on an older Node, say so, and test it there first:
 
 ```jsonc
 "gjsify": { "ship": { "minNodeVersion": "20" } }
 ```
 
-⚠️ **A satisfied `Requires:` is not the same as Node 24 on `PATH`.** Fedora's
+**A satisfied `Requires:` is not the same as Node 24 on `PATH`.** Fedora's
 streams are parallel-installable and `/usr/bin/node` is an alternatives symlink
-owned by whichever `nodejs<stream>-bin` package is installed — so
-`nodejs22-bin` plus `nodejs(engine) >= 24` is a perfectly valid state in which
-`node` is still 22. Measured with `dnf install --assumeno` on Fedora 44. No
-dependency any packager can emit closes that; an app that truly requires 24 has to
-check `process.versions.node` at startup and say so.
+owned by whichever `nodejs<stream>-bin` package is installed, so `nodejs22-bin`
+plus `nodejs(engine) >= 24` is a valid state in which `node` is still 22.
+Measured with `dnf install --assumeno` on Fedora 44. No dependency any packager
+can emit closes that. An app that truly requires 24 has to check
+`process.versions.node` at startup and say so.
 
 macOS and Windows have no system Node to depend on, so an artifact for those
-carries its own interpreter from `@gjsify/node-runtime-<target>`. You declare that
-package yourself, as a `devDependency`: it is resolved **by name** out of your own
-`node_modules` at ship time, and what gjsify does not add is an
-`optionalDependencies` edge, not the declaration. See [Ship](/gjsify/ship/) for the
-list and for the note that those three names are not published yet.
+carries its own. See [macOS app bundles](/gjsify/ship/macos/) and
+[Windows artifacts](/gjsify/ship/windows/).
 
 ## Configure it in package.json
 
@@ -378,6 +410,10 @@ already ships a Flatpak often needs no `gjsify.ship` block at all.
     "categories": ["Utility"],             // also decides deb Section: and rpm Group:
     "release": "1",                        // package revision within one app version
     "minGjsVersion": "1.86",
+    "localeDir": "dist/locale",            // compiled .mo catalogues
+    "mimeTypes": [                         // shared-mime-info types your app opens
+      { "type": "application/x-my-app", "comment": "My App document", "globs": ["*.myapp"] }
+    ],
     "depends": { "rpm": ["dconf"] },       // appended to the derived set
     "extraFiles": {                        // prefix-relative destination: project-relative source
       "share/my-app/data.json": "assets/data.json"
@@ -387,7 +423,7 @@ already ships a Flatpak often needs no `gjsify.ship` block at all.
 }
 ```
 
-`kind: "cli"` is the one switch that changes the shape of the payload: a console
+`kind: "cli"` is the one switch that changes the shape of the payload. A console
 AppStream component, no `.desktop` entry, and no icon requirement.
 
 ## Fix a failed run
@@ -397,24 +433,26 @@ to set. The ones you are most likely to meet:
 
 | Message says | Fix |
 |---|---|
-| no version / licence / maintainer | add `version`, `license`, `author` to package.json |
+| no version, licence or maintainer | add `version`, `license`, `author` to package.json |
 | not a usable package version | set `gjsify.ship.version` to something starting with a digit, using only letters, digits, `.`, `+` and `~` |
 | no application id | set `gjsify.ship.appId` to a reverse-DNS id |
-| no bundle to ship | nothing declares one: point `gjsify.main` (or `main`) at the built bundle |
-| the bundle … does not exist | it is declared but not built: run the build, or drop `--skip-build` |
+| no bundle to ship | point `gjsify.main` (or `main`) at the built bundle |
+| the bundle does not exist | it is declared but not built, so run the build or drop `--skip-build` |
 | no `build` script to run | add one, or pass `--skip-build` |
 | a schema must be named after the app id | rename it to `<app-id>.gschema.xml` |
 | cannot tell what size an icon is | use an SVG, a `128x128/` directory, or `icon-128.png` |
 | a file in the bundle directory is a symlink | replace it with the real file; the payload has to stand alone |
 | no package is known to ship a typelib | see [Add a typelib ship does not know](#add-a-typelib-ship-does-not-know) |
-| a `<fmt>` artifact is packed on … and this host is … | that format is host-bound: `--stage` here, `--from-stage` on the host it names |
-| packing a `<fmt>` needs … not on PATH | install the named tool, or drop that target — `deb` and `rpm` need none |
+| a `<fmt>` artifact is packed on … and this host is … | that format is host-bound, so `--stage` here and `--from-stage` there |
+| packing a `<fmt>` needs … not on PATH | install the named tool, or drop that target; `deb` and `rpm` need none |
 
 ## Where to next
 
-- [Ship your app](/gjsify/ship/) compares this with Flatpak, the one-line
-  installer, self-executing bundles and dlx.
+- [Ship your app](/gjsify/ship/) compares this with the one-line installer,
+  self-executing bundles and dlx.
+- [macOS app bundles](/gjsify/ship/macos/) and [Windows artifacts](/gjsify/ship/windows/)
+  cover the other two operating systems.
 - [CLI Reference → `gjsify ship`](/gjsify/cli-reference/#gjsify-ship) is the
-  condensed flag and config reference.
+  condensed flag and configuration reference.
 - [Flatpak: GUI app](/gjsify/guides/flatpak-app/) if you also want a Flathub
   listing. It reads the same metadata fields, so nothing is duplicated.
