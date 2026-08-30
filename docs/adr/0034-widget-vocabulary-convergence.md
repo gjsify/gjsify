@@ -980,8 +980,11 @@ for p in @gjsify/adwaita-web @gjsify/adwaita-nativescript @gjsify/adwaita-react-
   curl -s "https://api.npmjs.org/downloads/point/last-month/$p"
 done
 npm view @gjsify/adwaita-react-native time --json     # 0.44.0: 2026-08-30T07:13:40.828Z
-grep -rlE "from '@gjsify/adwaita-nativescript(/[a-z-]+)?'" --include='*.ts' --include='*.tsx' . \
-  | grep -v node_modules | wc -l                      # 49
+for pkg in adwaita-web adwaita-nativescript; do                  # 11, then 49
+  grep -rlE "from '@gjsify/$pkg(/[a-z-]+)?'" --include='*.ts' --include='*.tsx' . \
+    | grep -v node_modules | wc -l
+done
+grep -rl 'adw:' --include='*.xml' . | grep -v node_modules | wc -l   # 28
 grep -rn '@gjsify/adwaita-react-native' --include='*.ts' --include='*.tsx' packages showcases tests website \
   | grep -v node_modules | grep -v '^packages/framework/adwaita-react-native/' | wc -l   # 0
 ```
