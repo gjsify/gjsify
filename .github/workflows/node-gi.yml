@@ -3138,15 +3138,25 @@ jobs:
       - name: Assert the Add/Remove Programs entry exists
         shell: pwsh
         run: |
-          $keys = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
-            Where-Object { $_.DisplayName -eq 'Ship Window Demo' }
-          if (-not $keys) {
+          # `@(...)` so the count is a count even for one match, and the count is
+          # itself an assertion: TWO entries is what a `ProductCode` that did not
+          # move — or an `UpgradeCode` that did — produces, and it is the failure
+          # the derived GUIDs exist to prevent. Reading `.DisplayVersion` off a bare
+          # `$keys` would also have been a filter rather than a comparison the
+          # moment there were two.
+          $keys = @(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq 'Ship Window Demo' })
+          if ($keys.Count -eq 0) {
             Write-Host "no Add/Remove Programs entry named 'Ship Window Demo' — the package installed and cannot be found"
             exit 1
           }
           $keys | Select-Object DisplayName, DisplayVersion, Publisher, UninstallString | Format-List
-          if ($keys.DisplayVersion -ne '1.0.0') {
-            Write-Host "the entry reports version '$($keys.DisplayVersion)', not the 1.0.0 the project declares"
+          if ($keys.Count -ne 1) {
+            Write-Host "$($keys.Count) Add/Remove Programs entries carry this DisplayName — one install produced several products"
+            exit 1
+          }
+          if ($keys[0].DisplayVersion -ne '1.0.0') {
+            Write-Host "the entry reports version '$($keys[0].DisplayVersion)', not the 1.0.0 the project declares"
             exit 1
           }
 
