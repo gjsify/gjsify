@@ -594,6 +594,11 @@ this one was the expensive one — it would have removed a check rather than add
 produced it and three Linux readers agree on what is inside, and that is the whole claim. And the
 image is not signed or notarised: that is M6.
 
+That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
+stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`
+and deliberately not `--dry-run`, because the run worth having is the one that lays bytes down — then `dpkg --verify`
+against the package's own md5sums, `dpkg --purge`, and `lintian` as a third reader.
+
 **Stage 5's second half is landed too (#1354 M5): `msi`.** The third row over the windows layout,
 and the first format in this table whose producer is not this tree. `utils/ship/msi.ts` renders one
 authored `.wxs` in WiX v3's schema and hands it to a host-selected compiler — `wixl` (msitools) on
@@ -630,11 +635,6 @@ Linux, `candle`+`light` (WiX Toolset v3.14, preinstalled on `windows-latest`) on
 - **The console-window gap is NOT closed by the shortcut**, and it cannot be by anything here: the
   shortcut points at the same `.cmd`, and `node.exe` is still a CONSOLE-subsystem image with no
   `nodew.exe` beside it.
-
-That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
-stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`
-and deliberately not `--dry-run`, because the run worth having is the one that lays bytes down — then `dpkg --verify`
-against the package's own md5sums, `dpkg --purge`, and `lintian` as a third reader.
 
 **Stage 1 (the ELF glibc floor) was already landed when this ADR was written**, and this paragraph
 previously said the opposite. Both halves are in the tree and have been since 2026-08-01,
