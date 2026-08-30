@@ -1,0 +1,93 @@
+---
+title: Gtk
+description: The GTK 4 widgets a GNOME app uses and libadwaita does not ship, one page per family, with a live preview and the TypeScript, Blueprint and NativeScript code.
+---
+
+import AdwGalleryCard from '../../../components/AdwGalleryCard.astro';
+
+Your app is a GTK 4 program. Libadwaita adds a design system on top of GTK
+instead of replacing it, so a GNOME app draws widgets from both libraries. There
+is no `Adw.Entry`, no `Adw.DropDown` and no `Adw.MenuButton`. An app that needs
+one of those uses GTK's own widget, and the Adwaita stylesheet paints it.
+
+This section holds those widgets. A widget is documented under the library that
+owns its GType, which is the rule
+[`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host)
+already uses to name its tags. So `Gtk.Entry` is here and `Adw.EntryRow` is under
+[Adwaita](/gjsify/adwaita/), and the two are different widgets one namespace
+apart.
+
+Pick a category below. Every widget on those pages runs live in your browser, in a
+window whose second tab holds the markup that paints it, followed by one window per
+kind of implementation: **Native TypeScript**, the `@girs` program that runs
+unchanged on GJS, Node, Bun and Deno, with a Blueprint declaration beside it, **UI
+frameworks**, the same widget written in Solid, Vue and React through
+`@gjsify/gtk-host`, and **NativeScript**, the port that runs on a phone, whose XML
+template holds the tree with the TypeScript beside it as the loader. Choose a tab once
+and every widget block on the site follows it.
+
+## Get the widgets
+
+On the desktop the widgets come from the GTK 4 library already installed on the
+machine. `@girs/gtk-4.0` is the type package for it, and nothing else is needed:
+
+```ts
+import Gtk from '@girs/gtk-4.0';
+
+const entry = new Gtk.Entry({ placeholderText: 'Search files…' });
+```
+
+For the browser, install the Adwaita port and import it once. That registers
+every element and applies the stylesheet, so from there you write HTML:
+
+```bash
+gjsify install @gjsify/adwaita-web
+```
+
+```ts
+import '@gjsify/adwaita-web';
+```
+
+```html
+<adw-entry placeholder="Search files…"></adw-entry>
+```
+
+One package carries the whole Adwaita-styled widget set, so every element it
+registers is spelled `adw-`, whatever library owns the GType. `Gtk.Entry` is
+`<adw-entry>` and `Gtk.MenuButton` is `<adw-menu-button>`. The same holds for
+[`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita),
+where they are `AdwEntry` and `AdwMenuButton`.
+
+## Browse the widgets
+
+<div class="adw-gallery-grid">
+  <AdwGalleryCard title="Controls" href="/gjsify/gtk/controls/" description="The standalone entry and drop down, whose row twins are in the Adwaita boxed lists.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:240px;">
+        <adw-entry placeholder="Search files…" style="width:100%;"></adw-entry>
+        <adw-drop-down options='["Automatic","Always","Never"]' selected="0"></adw-drop-down>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Buttons" href="/gjsify/gtk/buttons/" description="The plain button, the style classes that shape it, and the menu button that opens a popover.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;">
+        <adw-button label="Suggested" suggested></adw-button>
+        <adw-button label="Delete" destructive></adw-button>
+        <adw-button icon="list-add" circular></adw-button>
+        <adw-menu-button icon-name="open-menu" menu-title="Document" menu='[{"label":"Save as…"},{"label":"Export"}]'></adw-menu-button>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+</div>
+
+## Where the Adwaita widgets are
+
+Everything libadwaita ships has its own section: boxed lists and their rows,
+header bars and clamps, split views, view switchers, avatars, banners and
+dialogs. Start at [Adwaita](/gjsify/adwaita/).
+
+The [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/) carries both sets
+in one component browser, so you can change a widget's properties from a controls
+panel and watch it update. Run it as a native window with `gjsify storybook`, or
+use the version embedded on that page.

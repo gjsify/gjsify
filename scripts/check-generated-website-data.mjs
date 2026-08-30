@@ -117,7 +117,13 @@ import {
 const rootFlag = process.argv.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : process.argv[rootFlag + 1];
 
-const DOCS_DIR = join(ROOT, 'website/src/content/docs/adwaita');
+/**
+ * The gallery's section directories, one per widget library. Two since ADR 0034 § 1
+ * put `Gtk` beside `Adwaita`; arm 4 below counts BLOCKS, so reading one directory
+ * would report a smaller gallery than the site ships and call it complete.
+ */
+const DOCS_SECTIONS = ['adwaita', 'gtk'];
+const docsDir = (section) => join(ROOT, 'website/src/content/docs', section);
 
 /**
  * The generators whose output is committed, each with the `--check` mode that
@@ -181,7 +187,7 @@ const notes = [];
 // throws first, and a Node stack trace reads like a broken gate instead of a bad
 // argument.
 for (const [label, path] of [
-    ['the Adwaita gallery pages', DOCS_DIR],
+    ...DOCS_SECTIONS.map((section) => [`the ${section} gallery pages`, docsDir(section)]),
     ['the element reader', join(ROOT, 'scripts/adwaita-elements.mjs')],
 ]) {
     if (!existsSync(path)) {
@@ -235,8 +241,14 @@ const seenTitles = new Set();
 let blocks = 0;
 let tabled = 0;
 
-for (const page of readdirSync(DOCS_DIR).filter((f) => f.endsWith('.mdx'))) {
-    const text = readFileSync(join(DOCS_DIR, page), 'utf8');
+for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
+    readdirSync(docsDir(section))
+        .filter((f) => f.endsWith('.mdx'))
+        // `buttons.mdx` now exists in both sections, so a bare filename in a failure
+        // no longer says which page it is.
+        .map((f) => ({ page: `${section}/${f}`, file: join(docsDir(section), f) })),
+)) {
+    const text = readFileSync(file, 'utf8');
     for (const [, title] of text.matchAll(/<AdwWidget\s+title="([^"]+)"/g)) {
         blocks++;
         seenTitles.add(title);

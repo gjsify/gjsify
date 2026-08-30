@@ -99,7 +99,17 @@ import { fileURLToPath } from 'node:url';
 const rootFlag = process.argv.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : process.argv[rootFlag + 1];
 
-const DOCS_DIR = join(ROOT, 'website/src/content/docs/adwaita');
+/**
+ * The gallery's section directories, one per widget library.
+ *
+ * Two since ADR 0034 § 1 put `Gtk` beside `Adwaita`. A fence under `gtk/` compiles
+ * and resolves exactly like one under `adwaita/`, so a single-directory scan would
+ * simply stop reading four blocks on the day they moved. It would stay green over a
+ * set smaller than the one it names.
+ */
+const DOCS_SECTIONS = ['adwaita', 'gtk'];
+const docsDir = (section) => join(ROOT, 'website/src/content/docs', section);
+
 /**
  * Scanned by the TOKENS arm ONLY, and the narrowness is deliberate: three of the
  * four blank snippets were here rather than in the gallery, and widening the whole
@@ -576,7 +586,7 @@ const exempt = new Set(Object.keys(ledger.exemptions ?? {}));
 // A missing root is "could not look", not "found nothing" — and it crashed with a
 // Node stack trace, which reads like a broken gate rather than a bad argument.
 for (const [label, dir] of [
-    ['the Adwaita docs', DOCS_DIR],
+    ...DOCS_SECTIONS.map((section) => [`the ${section} gallery pages`, docsDir(section)]),
     ['@gjsify/adwaita-icons', ICONS_PKG],
     ["adwaita-web's scss", WEB_SCSS],
 ]) {
@@ -592,9 +602,11 @@ const webIcons = readWebIconNames();
 const styled = readStyledClasses();
 
 const sources = [
-    ...readdirSync(DOCS_DIR)
-        .filter((f) => f.endsWith('.mdx'))
-        .map((f) => `website/src/content/docs/adwaita/${f}`),
+    ...DOCS_SECTIONS.flatMap((section) =>
+        readdirSync(docsDir(section))
+            .filter((f) => f.endsWith('.mdx'))
+            .map((f) => `website/src/content/docs/${section}/${f}`),
+    ),
     ...EXTRA_SOURCES,
 ];
 

@@ -22,7 +22,9 @@ and every widget block on the site follows it.
 
 Adwaita is one design system GJSify supports, not a requirement. Your app is an
 ordinary GTK 4 program, so you can mix in plain `Gtk.*` widgets or style your
-own, and the browser components live in a package you opt into.
+own, and the browser components live in a package you opt into. Libadwaita ships
+no entry, drop down, plain button or menu button, and those GTK widgets are
+documented under [Gtk](/gjsify/gtk/).
 
 ## Get the widgets
 
@@ -71,21 +73,14 @@ To change how any of it looks, set the [design tokens](./theming/).
       </adw-preferences-group>
     </Fragment>
   </AdwGalleryCard>
-  <AdwGalleryCard title="Controls" href="/gjsify/adwaita/controls/" description="The standalone entry and drop down — GTK widgets Adwaita styles, with row twins in the boxed lists.">
+  <AdwGalleryCard title="Buttons" href="/gjsify/adwaita/buttons/" description="Button content, split buttons and linked toggle groups.">
     <Fragment slot="preview">
-      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:240px;">
-        <adw-entry placeholder="Search files…" style="width:100%;"></adw-entry>
-        <adw-drop-down options='["Automatic","Always","Never"]' selected="0"></adw-drop-down>
-      </div>
-    </Fragment>
-  </AdwGalleryCard>
-  <AdwGalleryCard title="Buttons" href="/gjsify/adwaita/buttons/" description="Button content, the style classes, menu buttons, split buttons and linked toggle groups.">
-    <Fragment slot="preview">
-      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;">
-        <adw-button label="Suggested" suggested></adw-button>
-        <adw-button label="Delete" destructive></adw-button>
-        <adw-button icon="list-add" circular></adw-button>
-        <adw-button label="Pill" pill></adw-button>
+      <div style="display:flex;flex-direction:column;gap:8px;justify-content:center;align-items:center;width:100%;max-width:240px;">
+        <adw-split-button label="Save" icon-name="document-save" menu='[{"label":"Save as…"},{"label":"Export"}]'></adw-split-button>
+        <adw-toggle-group active="0">
+          <adw-toggle label="List" icon-name="view-list"></adw-toggle>
+          <adw-toggle label="Grid" icon-name="view-grid"></adw-toggle>
+        </adw-toggle-group>
       </div>
     </Fragment>
   </AdwGalleryCard>

@@ -1,16 +1,18 @@
 ---
 title: Buttons
-description: "Adwaita buttons: icon-plus-label content, the style classes, menu buttons, split buttons and toggle groups. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "Adwaita buttons, icon-plus-label content, split buttons and toggle groups. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 
-A button is the most direct control Adwaita has: you press it and something
-happens. This page covers the five things you will want from one. Give it an
-**icon plus a label**, apply a **style class** to set its shape and intent, use a
-**menu button** when the press should only open a menu, a **split button** to
-pair an action with a menu of alternatives, or a **toggle group** when a row of
-linked buttons should act as a single-choice selector.
+Libadwaita adds three button widgets to GTK's own. Put an **icon plus a label**
+on a button with button content, use a **split button** to pair an action with a
+menu of alternatives, or reach for a **toggle group** when a row of linked
+buttons should act as a single-choice selector.
+
+The plain button and the menu button belong to GTK. They are `Gtk.Button` and
+`Gtk.MenuButton`, documented under [Gtk Buttons](/gjsify/gtk/buttons/) with the
+style classes that shape them.
 
 Each block below is a stack of windows. The first one RUNS the widget: the preview
 is the live browser port, so it follows the light and dark toggle the way a real
@@ -98,210 +100,6 @@ short.
     button.orientation = 'horizontal';
     button.className = 'adw-button suggested-action pill';
     button.addChild(content);
-    ```
-  </Fragment>
-</AdwWidget>
-
-## Button Styles
-
-Add a **style class** to restyle any button. `.pill` makes it rounded and
-prominent, `.circular` suits an icon-only button, `.suggested-action` and
-`.destructive-action` colour an affirmative or a dangerous action, and `.flat`
-drops the visible background. They compose with each other and mean the same
-thing everywhere in the toolkit, so a `.destructive-action` in a header bar reads
-like one in a dialog.
-
-<AdwWidget title="Gtk.Button">
-  <Fragment slot="preview">
-    ```html
-    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
-      <adw-button label="Pill" pill></adw-button>
-      <adw-button icon="list-add" circular></adw-button>
-      <adw-button label="Suggested" suggested></adw-button>
-      <adw-button label="Delete" destructive></adw-button>
-      <adw-button label="Flat" flat></adw-button>
-    </div>
-    ```
-  </Fragment>
-  <Fragment slot="gjs">
-    ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
-
-    const box = new Adw.WrapBox({ childSpacing: 12, lineSpacing: 12, halign: Gtk.Align.CENTER });
-
-    const pill = new Gtk.Button({ label: 'Pill' });
-    pill.add_css_class('pill');
-    box.append(pill);
-
-    const circular = new Gtk.Button({ iconName: 'list-add-symbolic' });
-    circular.add_css_class('circular');
-    box.append(circular);
-
-    const suggested = new Gtk.Button({ label: 'Suggested' });
-    suggested.add_css_class('suggested-action');
-    box.append(suggested);
-
-    const destructive = new Gtk.Button({ label: 'Delete' });
-    destructive.add_css_class('destructive-action');
-    box.append(destructive);
-
-    const flat = new Gtk.Button({ label: 'Flat' });
-    flat.add_css_class('flat');
-    box.append(flat);
-    ```
-  </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-    using Adw 1;
-
-    Adw.WrapBox {
-      child-spacing: 12;
-      line-spacing: 12;
-      halign: center;
-
-      Gtk.Button {
-        label: _("Pill");
-
-        styles ["pill"]
-      }
-
-      Gtk.Button {
-        icon-name: "list-add-symbolic";
-
-        styles ["circular"]
-      }
-
-      Gtk.Button {
-        label: _("Suggested");
-
-        styles ["suggested-action"]
-      }
-
-      Gtk.Button {
-        label: _("Delete");
-
-        styles ["destructive-action"]
-      }
-
-      Gtk.Button {
-        label: _("Flat");
-
-        styles ["flat"]
-      }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
-    ```ts
-    import { AdwButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
-
-    const box = new AdwWrapBox();
-    box.childSpacing = 12;
-    box.lineSpacing = 12;
-
-    const pill = new AdwButton();
-    pill.text = 'Pill';
-    pill.variant = 'pill';
-    box.add(pill);
-
-    const suggested = new AdwButton();
-    suggested.text = 'Suggested';
-    suggested.variant = 'suggested-action';
-    box.add(suggested);
-
-    const destructive = new AdwButton();
-    destructive.text = 'Delete';
-    destructive.variant = 'destructive-action';
-    box.add(destructive);
-
-    const flat = new AdwButton();
-    flat.text = 'Flat';
-    flat.variant = 'flat';
-    box.add(flat);
-    ```
-  </Fragment>
-</AdwWidget>
-
-## Menu Button
-
-When a button's only job is to open a menu, use a **menu button**. It is the
-hamburger at the end of a header bar: no primary action of its own, every choice
-in the popover it opens. Libadwaita ships no menu button — this is
-`Gtk.MenuButton`, which the Adwaita stylesheet gives its flat, rounded-square
-shape.
-
-<AdwWidget title="Gtk.MenuButton">
-  <Fragment slot="preview">
-    ```html
-    <adw-menu-button
-      icon-name="open-menu"
-      menu-title="Document"
-      menu='[{"label":"Save as…"},{"label":"Export"},{"label":"Print"}]'
-    ></adw-menu-button>
-    ```
-  </Fragment>
-  <Fragment slot="gjs">
-    ```ts
-    import Gio from '@girs/gio-2.0';
-    import Gtk from '@girs/gtk-4.0';
-
-    const menu = new Gio.Menu();
-    menu.append('Save as…', 'app.save-as');
-    menu.append('Export', 'app.export');
-    menu.append('Print', 'app.print');
-
-    const button = new Gtk.MenuButton({
-        iconName: 'open-menu-symbolic',
-        menuModel: menu,
-        primary: true, // opens on F10, the way an app menu should
-    });
-    button.add_css_class('flat');
-    ```
-  </Fragment>
-  <Fragment slot="blueprint">
-    ```blueprint
-    using Gtk 4.0;
-
-    Gtk.MenuButton {
-      icon-name: "open-menu-symbolic";
-      primary: true;
-      menu-model: primary-menu;
-
-      styles ["flat"]
-    }
-
-    menu primary-menu {
-      section {
-        item {
-          label: _("Save as…");
-          action: "app.save-as";
-        }
-
-        item {
-          label: _("Export");
-          action: "app.export";
-        }
-
-        item {
-          label: _("Print");
-          action: "app.print";
-        }
-      }
-    }
-    ```
-  </Fragment>
-  <Fragment slot="nativescript">
-    ```ts
-    import { AdwMenuButton } from '@gjsify/adwaita-nativescript';
-    import { openMenuSymbolic } from '@gjsify/adwaita-icons/actions';
-
-    const button = new AdwMenuButton();
-    button.icon = openMenuSymbolic; // an Adwaita symbolic icon (SVG string)
-    button.menuTitle = 'Document';
-    button.menuItems = [{ label: 'Save as…' }, { label: 'Export' }, { label: 'Print' }];
-    // NativeScript has no popover, so the menu opens as the platform action sheet.
     ```
   </Fragment>
 </AdwWidget>
@@ -474,6 +272,8 @@ once set", and the only setter is class-level.
 
 ## Related
 
+- [Gtk Buttons](/gjsify/gtk/buttons/): the plain button, its style classes and
+  the menu button.
 - [Boxed Lists](../boxed-lists/): rows that embed these buttons and reuse the
   same style classes.
 - [Layout](../layout/): the containers that arrange buttons within a window.

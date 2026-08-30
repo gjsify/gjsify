@@ -1,20 +1,19 @@
 ---
 title: Controls
-description: "Adwaita's standalone controls: the text entry and the drop down. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+description: "GTK's standalone controls, the text entry and the drop down. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 
-Two controls on this page stand on their own rather than inside a boxed list: a
-single-line **entry** for typed text, and a **drop down** for picking one value
-out of a list. Both have a boxed-list twin — `Adw.EntryRow` and `Adw.ComboRow` —
-and which one you want is a question about the surrounding layout, not about the
-control: a preferences page uses the rows, a toolbar or a dialog uses these.
+Two controls on this page stand on their own rather than inside a boxed list. A
+single-line **entry** takes typed text, and a **drop down** picks one value out
+of a list. Both belong to GTK. They are `Gtk.Entry` and `Gtk.DropDown`,
+libadwaita ships neither, and the Adwaita stylesheet gives them their GNOME look.
 
-Neither carries an `Adw` prefix, and that is the point worth knowing about them:
-Libadwaita ships no entry and no drop down of its own. They are `Gtk.Entry` and
-`Gtk.DropDown`, and what makes them look Adwaita is the stylesheet. The widgets
-with an `Adw` prefix are the row variants built on top.
+Each has a boxed-list twin, `Adw.EntryRow` and `Adw.ComboRow`, documented under
+[Boxed Lists](/gjsify/adwaita/boxed-lists/). Which one you want is a question
+about the surrounding layout rather than about the control. A preferences page
+uses the rows, a toolbar or a dialog uses these.
 
 Each block below is a stack of windows. The first one RUNS the widget: the preview
 is the live browser port, so it follows the light and dark toggle the way a real
@@ -28,11 +27,12 @@ than declared, the recorded reason it has no such snippet — and **NativeScript
 the port that runs on a phone. That last window splits the way the first one does. An
 XML template holds the tree, and the TypeScript beside it is the loader.
 
-Libadwaita is the reference here, typed by
-[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
-[`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
-and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its own window says so.
+GTK 4 is the reference here, typed by
+[`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). The browser and
+NativeScript ports spell both controls with an `adw` prefix, `<adw-entry>` and
+`<adw-drop-down>` in the browser, `AdwEntry` and `AdwDropDown` on NativeScript.
+Each ships one Adwaita-styled widget set and does not divide it by owning
+library. Where a port behaves differently, its own window says so.
 
 :::note
 The previews run the browser port, so behaviour the toolkits drive natively can
@@ -47,8 +47,8 @@ which has no search field.
 A single-line text field. Give it a **placeholder** to say what belongs in it
 while it is empty, a **value** for the text itself, and `disabled` when it should
 be read-only. For a field that belongs in a preferences group, use
-[Entry Row](../boxed-lists/#entry-row) instead — same control, row presentation,
-and the label doubles as the row title.
+[Entry Row](/gjsify/adwaita/boxed-lists/#entry-row) instead. It is the same
+control in row presentation, and the label doubles as the row title.
 
 <AdwWidget title="Gtk.Entry">
   <Fragment slot="preview">
@@ -104,7 +104,8 @@ and the label doubles as the row title.
 Pick one value from a list. The button shows the current selection and the list
 opens in a popover; **selected** is the zero-based index of the chosen option,
 and `enable-search` adds a filter field for a long list. For the same choice
-presented as a boxed-list row, use [Combo Row](../boxed-lists/#combo-row).
+presented as a boxed-list row, use
+[Combo Row](/gjsify/adwaita/boxed-lists/#combo-row).
 
 <AdwWidget title="Gtk.DropDown">
   <Fragment slot="preview">
@@ -154,9 +155,9 @@ presented as a boxed-list row, use [Combo Row](../boxed-lists/#combo-row).
 
 ## Related
 
-- [Boxed Lists](../boxed-lists/): the row twins of both controls — entry row,
-  password entry row, combo row and spin row.
-- [Buttons](../buttons/): the menu button and split button, the other two
-  controls that open a popover.
-- [Adwaita Storybook](../../showcases/adwaita-storybook/): the same widgets in a
-  live component browser you can poke at.
+- [Buttons](../buttons/): the plain button, its style classes and the menu
+  button.
+- [Boxed Lists](/gjsify/adwaita/boxed-lists/): the row twins of both controls,
+  entry row, password entry row, combo row and spin row.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
+  a live component browser you can poke at.
