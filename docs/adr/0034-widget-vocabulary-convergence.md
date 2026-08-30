@@ -1028,12 +1028,16 @@ Reproducible, and deliberately not restated anywhere else — `node
 scripts/check-vocabulary-alignment.mjs`:
 
 ```
-self-test green — 31 failing vector(s), 11 reader vector(s). 168 GTK tags across 3 dialect
+self-test green — 32 failing vector(s), 11 reader vector(s). 168 GTK tags across 3 dialect
 surfaces + the runtime table + the surface data; 65 adw-* web elements — 44 share a
 spelling, 10 alias one, 11 declared web-only; 46 NativeScript Adw* widgets — 38 share a
 spelling, 6 should converge, 2 declared own, 0 undecided. Distance to one vocabulary on
 NativeScript: 6 widget name(s), and it can only go down.
 ```
+
+That is the output at the landing commit, quoted rather than summarised. Re-run it before
+quoting any of these numbers elsewhere: this file's own § *How the numbers here were
+obtained* is about the ones that did not survive being copied.
 
 **6, not 4.** § Context counts *four* NativeScript widgets wearing an `Adw` prefix over a
 GTK type and *four* with no tag under either spelling; the printed distance is the widgets
