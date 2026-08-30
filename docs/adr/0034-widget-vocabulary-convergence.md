@@ -49,7 +49,7 @@ Anything unmeasured is marked UNVERIFIED.
 
 ### The same widget, four spellings, on one documentation page
 
-`website/src/content/docs/adwaita/controls.mdx:52-98` renders one gallery block whose
+`website/src/content/docs/gtk/controls.mdx:52-98` renders one gallery block whose
 title is `Gtk.Entry`. Inside it:
 
 | fence | how the widget is named |
@@ -71,7 +71,11 @@ titled `Adw.*` and 4 titled `Gtk.*` — and the four are exactly `Gtk.Button`,
 `Gtk.DropDown`, `Gtk.Entry`, `Gtk.MenuButton`.
 
 ```sh
-grep -rhoE '<AdwWidget title="[A-Za-z.]+"' website/src/content/docs/adwaita/ \
+# The gallery lived in one directory when this was measured. #1433 split it,
+# so the glob names both -- the totals are unchanged, because nothing was added
+# or removed, only moved.
+grep -rhoE '<AdwWidget title="[A-Za-z.]+"' \
+    website/src/content/docs/adwaita/ website/src/content/docs/gtk/ \
   | sed 's/.*title="//;s/"//' | sed 's/\..*//' | sort | uniq -c
 ```
 
@@ -269,7 +273,7 @@ gallery pages that carry widget blocks:
 | the other six | 33 | 0 |
 
 ```sh
-for f in website/src/content/docs/adwaita/*.mdx; do
+for f in website/src/content/docs/adwaita/*.mdx website/src/content/docs/gtk/*.mdx; do
   printf '%-22s Adw=%s Gtk=%s\n' "$(basename $f)" \
     "$(grep -c '<AdwWidget title="Adw\.' $f)" "$(grep -c '<AdwWidget title="Gtk\.' $f)"
 done
