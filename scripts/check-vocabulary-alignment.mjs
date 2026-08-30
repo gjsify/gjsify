@@ -583,6 +583,18 @@ export function alignmentProblems(world) {
     // emits the tag table reads neither. Every failure names the CLASS, because that is
     // what a consumer imports and what a `.mdx` fence or an XML element spells.
     const nsDeclared = new Set(Object.keys(nsTable));
+    // The keys are read back through `elementName`/`widgetClass`, which assume the `adw-`
+    // rule the reader enforces. A key that does not follow it throws inside THAT module,
+    // naming a file the author never edited — a failure attributed to the wrong place
+    // teaches the next person to distrust the reader, so it is refused here by name.
+    const malformed = [...nsDeclared].filter((widget) => !/^adw-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(widget));
+    if (malformed.length > 0) {
+        problems.push(
+            'the alignment table is keyed on the widget file spelling (adw-drop-down), and ' +
+                `${malformed.join(', ')} is not one — fix the key in ${NS_TABLE_SOURCE}`,
+        );
+        return problems;
+    }
     for (const widget of nsWidgets) {
         const klass = widgetClass(elementName(widget));
         const entry = nsTable[widget];
@@ -882,6 +894,11 @@ const VECTORS = [
         'a stale entry for a widget that is gone',
         (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-vanished': { own: FIXTURE_REASON } } }),
         'AdwVanished, which @gjsify/adwaita-nativescript no longer ships',
+    ],
+    [
+        'a key outside the adw- spelling the readers assume',
+        (w) => ({ ...w, nsTable: { ...w.nsTable, AdwButton: { own: FIXTURE_REASON } } }),
+        'AdwButton is not one',
     ],
 ];
 
