@@ -121,11 +121,15 @@ has — and the three tools arrive by `apt-get install -y 7zip dmg2img hfsprogs`
 "does a job use a tool the image lacks" question covers `NODE_TOOLS` only, and it skips a job with
 no `container:` outright.
 
-**What the `.dmg` oracle does not claim.** 7-Zip's HFS handler reports `Mode = 0---------` for
-every entry — measured on ubuntu-24.04 / 7-Zip 23.01 — so the image listing is blind to the
-executable bit. That question is answered for the SAME payload by `verify-app-zip.sh` over the
-`.app` zip, which refuses an archive whose launcher is 0644. A `.dmg` leg that claimed mode
-coverage would be the weaker reader quietly standing in for the stronger one.
+**A measurement taken on a stand-in is a measurement about the stand-in.** The first cut of this
+section said the `.dmg` chain was blind to POSIX modes, because `7z l -slt` reports
+`Mode = 0---------` on an empty `mkfs.hfsplus` volume. That did not survive a real artifact: on the
+`hdiutil` image the same reader printed `Mode = -rwxr-xr-x` for `Contents/MacOS/<binary>` and
+`-rw-r--r--` for the other seven (run 33283043393). So the oracle compares modes against the
+sidecar's `staged[].mode` too — which matters more here than anywhere else, since the artifact
+upload flattens every staged file to 0644 and the sidecar is the only surviving record. Kept as the
+record rather than deleted, because the wrong claim was the kind that removes an assertion: a doc
+saying "this cannot be checked" is how a checkable thing stops being checked.
 
 Both gates (`assertHostCanFinish`, `assertToolsInstalled`) run BEFORE the project's `build` script,
 because discovering an absent `flatpak-builder` afterwards costs the whole build. They are two

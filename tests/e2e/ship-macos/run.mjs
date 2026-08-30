@@ -925,9 +925,10 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
 //     ADR 0024 § 2's claim is false at exactly the row that first tested it.
 //
 // The artifact itself is read back by `.github/ship-oracle/verify-dmg.py` on the
-// bare-ubuntu leg — `7z l`, then `dmg2img`, then `fsck.hfsplus -f -n`, three
-// implementations and none of them `hdiutil`. Its red run is there too, because
-// the byte it flips has to be flipped in a real image.
+// bare-ubuntu leg — `7z l`, `7z t`, `dmg2img` and `fsck.hfsplus -f -n`, three
+// implementations and none of them `hdiutil` — and the listing goes against the
+// sidecar by name, size AND mode. Its red runs are there too, because the byte
+// each one flips has to be flipped in a real image.
 
 describe('CLI ship macOS .dmg E2E (the Linux half)', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;

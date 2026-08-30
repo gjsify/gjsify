@@ -11,13 +11,20 @@ Linux with `7z` plus `dmg2img` -> `fsck.hfsplus -n`*.  This is that sentence.
 
 THE CHAIN, and what each link is for — they are not redundant:
 
-  1. `7z l -slt <dmg>`      7-Zip's own `Dmg` handler over the UDIF container.  Reads
-                            the koly trailer and the blkx table.  Structure only.
+  1. `7z l -slt <dmg>`      7-Zip's own `Dmg` handler over the UDIF container, which
+                            AUTO-NESTS into the HFS volume inside it and lists the
+                            files directly.  Measured on ubuntu-24.04 / 7-Zip 23.01
+                            against a real `hdiutil` image: two archive headers
+                            (`Type = Dmg`, then `Type = HFS` with `Method = HFS+`),
+                            one nested-entry block for `4.hfs`, then the records.
+                            That pair of types is the assertion that `-format UDZO
+                            -fs HFS+J` took: an APFS image would say `Type = APFS`.
   2. `7z t <dmg>`           DECOMPRESSES every run and checks what it stored.  `l` is
                             a table-of-contents read and is structurally blind to a
                             byte flipped inside a compressed run — the same shape as
-                            `unzip -Z1` being blind to a mode.  This is the link that
-                            sees the payload.
+                            `unzip -Z1` being blind to a mode.  The Dmg entry reports
+                            `Method = Zero0 Zero2 ZLIB CRC`, so there is a stored
+                            checksum for this to disagree with.
   3. `dmg2img`              A SECOND, unrelated UDIF decoder, which writes the raw
                             volume out.  Two decoders agreeing is worth more than one
                             decoder twice, and it is what turns the next link's
@@ -26,17 +33,18 @@ THE CHAIN, and what each link is for — they are not redundant:
                             Walks the catalog file, the extents overflow file and the
                             volume bitmap.  This is the only link that distinguishes
                             "a name appears in a listing" from "the volume is sound".
-  5. `7z l -slt <volume>`   The file listing, out of the converted volume, compared
-                            against `.gjsify-ship-stage.json` — the same sidecar
-                            `verify-modes.py` holds the `.deb` against.
+  5. `7z l -slt <volume>`   The same listing again, out of the volume the OTHER decoder
+                            wrote.  Both go against `.gjsify-ship-stage.json` — the
+                            same sidecar `verify-modes.py` holds the `.deb` against.
 
-WHAT THIS ORACLE DOES NOT CLAIM, stated so nobody reads it as more.  **It says nothing
-about POSIX modes.**  7-Zip's HFS handler reports `Mode = 0---------` for entries in an
-HFS+ volume — measured on ubuntu-24.04 / 7-Zip 23.01 against a `mkfs.hfsplus` image —
-so the executable bit on `Contents/MacOS/<binary>` is invisible here.  That question is
-answered for the same payload by `verify-app-zip.sh`, which reads the `.app` zip with
-`zipinfo -l` and refuses an archive whose launcher is 0644.  A `.dmg` leg that pretended
-to cover it would be the weaker reader silently replacing the stronger one.
+MODES ARE COMPARED, and the first draft of this file said they could not be.  That claim
+came from an EMPTY `mkfs.hfsplus` volume, where 7-Zip reports `Mode = 0---------`, and it
+did not survive contact with a real image: on an `hdiutil` volume the same reader prints
+`Mode = -rwxr-xr-x` for `Contents/MacOS/<binary>` and `-rw-r--r--` for the rest
+(measured, run 33283043393).  A measurement taken on a stand-in is a measurement about
+the stand-in — so the mode plan in the sidecar is checked here too, which means this
+chain covers the one failure a distributed bundle really has: a launcher that arrives
+0644 and will not run.
 
 WHY THE VERIFY PATH NEVER LOOKS AT THE BYTES ITSELF.  Nothing below reads a magic
 number or an offset: every refusal comes from one of the three external readers or from
@@ -48,12 +56,14 @@ of the program and never runs during a verification.
 
 THE TWO JOURNAL FILES ARE EXPECTED AND THE LIST IS CLOSED.  `hdiutil -fs HFS+J` makes a
 journaled volume, and a journaled HFS+ volume carries `.journal` and
-`.journal_info_block` at its root — measured on ubuntu-24.04 against
-`mkfs.hfsplus -J -v ShipDemo`, where `7z l` listed exactly those two beside the volume
-directory.  They are filesystem bookkeeping, not payload.  They are named here rather
-than skipped by a pattern: a glob over dotfiles would also swallow a `.DS_Store` or an
-`.fseventsd` that hdiutil put in the image, which is a real extra file in a user's
-download and something this comparison exists to notice.
+`.journal_info_block` at its root — measured on ubuntu-24.04 against both
+`mkfs.hfsplus -J` and a real `hdiutil` image.  They are filesystem bookkeeping, not
+payload.  They are named here rather than skipped by a pattern: a glob over dotfiles
+would also swallow a `.DS_Store` or an `.fseventsd` that hdiutil put in the image, which
+is a real extra file in a user's download and something this comparison exists to notice.
+The two HFS+ hard-link stores an `hdiutil` volume also carries — `.HFS+ Private Directory
+Data` and `[HFS+ Private Data]` — need no allowance at all: both are DIRECTORIES, and the
+comparison below is over files.
 
 DISCRIMINATOR (run it, do not trust it).  `--mutate` writes a corrupted COPY and prints
 what it changed; re-running the verification on that copy must exit 1.  Three mutants,
@@ -134,33 +144,55 @@ def run(argv: list[str], *, what: str, allow_fail: bool = False) -> subprocess.C
     return proc
 
 
-def parse_7z_slt(text: str) -> tuple[dict[str, str], list[dict[str, str]]]:
-    """Split `7z l -slt` into its archive header and one record per entry.
+def parse_7z_slt(text: str) -> tuple[list[str], list[str], list[dict[str, str]]]:
+    """Split `7z l -slt` into its archive header TYPES, its methods, and one record per entry.
 
-    `-slt` and not the human table, for the reason every parser in this repository
-    that reads a tool's output gives: the table's columns are laid out for a person
-    and a path with two spaces in it is not recoverable from them. `-slt` is 7-Zip's
-    own scripting form — one `Key = Value` per line, blank line between records —
-    and the header block is separated from the records by a line of dashes.
+    `-slt` and not the human table, for the reason every parser in this repository that
+    reads a tool's output gives: the table's columns are laid out for a person and a path
+    with two spaces in it is not recoverable from them. `-slt` is 7-Zip's own scripting
+    form — one `Key = Value` per line, blank line between records.
+
+    THE SEPARATOR IS THE LAST ONE, not the first, and the first draft got that wrong in a
+    way that is worth keeping. 7-Zip AUTO-NESTS: handed a `.dmg` it opens the UDIF
+    container, finds one partition, opens THAT, and prints two archive headers — so the
+    text carries `Type = Dmg` and then `Type = HFS`, with the ten-dash separator appearing
+    only once, after the second. Partitioning on the FIRST occurrence put both headers in
+    the head block, the later key overwrote the earlier, and the check that meant to
+    assert "this is a UDIF image" reported `7-Zip identified this file as HFS, not Dmg`
+    against a perfectly good image (run 33281879121 → 33283043393).
+
+    Which turns the header into a BETTER assertion than the one it replaced. The type
+    SEQUENCE is what `-format UDZO -fs HFS+J` produces, and an APFS image — the default a
+    modern `hdiutil` reaches for — would read `['Dmg', 'APFS']` right here.
     """
-    head, sep, body = text.partition("\n----------\n")
-    if not sep:
-        # A listing with no records is legal (an empty volume) and is NOT decided
-        # here — the caller's expected-file comparison is what refuses it. But a
-        # listing this parser could not find its own delimiter in must FAIL: silently
-        # returning "no entries" would read as "the image is empty", which is the
-        # parse-stopped-matching class `check-ship-format-vocabulary.mjs` names.
+    marker = "\n----------\n"
+    at = text.rfind(marker)
+    if at == -1:
+        # A listing with no records is legal (an empty volume) and is NOT decided here —
+        # the caller's expected-file comparison is what refuses it. But a listing this
+        # parser could not find its own delimiter in must FAIL: silently returning "no
+        # entries" would read as "the image is empty", which is the parse-stopped-matching
+        # class `check-ship-format-vocabulary.mjs` names.
         if "\n--\n" not in text:
             fail(
                 "`7z l -slt` printed no header block this parser recognises, so it read nothing. "
                 "A parse that stops matching must fail rather than report an empty archive."
             )
         head, body = text, ""
-    header: dict[str, str] = {}
+    else:
+        head, body = text[:at], text[at + len(marker) :]
+
+    types: list[str] = []
+    methods: list[str] = []
     for line in head.splitlines():
         key, eq, value = line.partition(" = ")
-        if eq:
-            header[key.strip()] = value.strip()
+        if not eq:
+            continue
+        if key.strip() == "Type":
+            types.append(value.strip())
+        elif key.strip() == "Method":
+            methods.append(value.strip())
+
     records: list[dict[str, str]] = []
     current: dict[str, str] = {}
     for line in body.splitlines():
@@ -174,10 +206,26 @@ def parse_7z_slt(text: str) -> tuple[dict[str, str], list[dict[str, str]]]:
             current[key.strip()] = value.strip()
     if current:
         records.append(current)
-    return header, records
+    return types, methods, records
 
 
-def expected_files(manifest_path: str) -> tuple[str, dict[str, int]]:
+def octal_mode(mode: str) -> int | None:
+    """`-rwxr-xr-x` → 0o755, and `None` for anything that is not a mode string.
+
+    `None` rather than a guess: 7-Zip prints `0---------` for an entry whose catalog
+    record carries no permissions (an empty `mkfs.hfsplus` volume's root is one), and
+    reading that as 0 would compare a real plan against a number nobody wrote.
+    """
+    if len(mode) != 10 or mode[0] not in "-dl":
+        return None
+    bits = 0
+    for index, char in enumerate(mode[1:]):
+        if char != "-":
+            bits |= 1 << (8 - index)
+    return bits
+
+
+def expected_files(manifest_path: str) -> tuple[str, dict[str, tuple[int, int]]]:
     """The volume name and every file the image must carry, with its size.
 
     Both come out of `.gjsify-ship-stage.json` rather than out of arguments: the
@@ -185,6 +233,11 @@ def expected_files(manifest_path: str) -> tuple[str, dict[str, int]]:
     the artifact against it is comparing the artifact against what it was made from.
     A volume name passed on the command line would be this script and the workflow
     agreeing with each other.
+
+    THE MODE TRAVELS TOO, and it is the field the artifact upload cannot carry: every
+    staged file arrives on the packing host 0644, so the sidecar's `staged[].mode` is the
+    only surviving record of what each mode should be — the same sentence
+    `stage-writer.ts`'s `readStage` doc makes, one host further on.
 
     TWO SOURCES, and the second one is the interesting one. `staged[]` is the payload;
     `overlay["macos-app-dmg"]` is the licence file `planOverlay` rendered on the
@@ -199,9 +252,9 @@ def expected_files(manifest_path: str) -> tuple[str, dict[str, int]]:
     if not isinstance(name, str) or name.strip() == "":
         fail(f"{manifest_path} carries no `settings.name`, so nothing knows what the volume is called.")
 
-    files: dict[str, int] = {}
+    files: dict[str, tuple[int, int]] = {}
     for entry in manifest["staged"]:
-        files[f"{name}/{entry['path']}"] = int(entry["bytes"])
+        files[f"{name}/{entry['path']}"] = (int(entry["bytes"]), int(entry["mode"]) & 0o777)
     overlay = manifest.get("overlay", {}).get(FORMAT_ID)
     if not overlay:
         fail(
@@ -213,52 +266,37 @@ def expected_files(manifest_path: str) -> tuple[str, dict[str, int]]:
         # UTF-8 BYTES, not characters. The rendered licence in this repository's own
         # fixture ends `free of charge…` — one character, three bytes — so a `len()`
         # over the string reports a size two short and reds a correct image.
-        files[f"{name}/{entry['path']}"] = len(entry["text"].encode("utf-8"))
+        files[f"{name}/{entry['path']}"] = (
+            len(entry["text"].encode("utf-8")),
+            int(entry["mode"]) & 0o777,
+        )
     return name, files
 
 
-def verify_volume(volume: str, manifest_path: str) -> None:
-    """Links 4 and 5: the filesystem, then its contents against the sidecar."""
-    proc = run(["fsck.hfsplus", "-f", "-n", volume], what="fsck.hfsplus -f -n")
-    # The exit code alone is not the whole assertion: fsck_hfs prints its verdict, and
-    # a run that checked a volume it did not understand is a different thing from a
-    # clean one. `-f` forces the check on a volume marked clean; `-n` answers "no" to
-    # every repair, so nothing here can write to the image it is reading.
-    if "appears to be OK" not in proc.stdout:
-        fail(
-            "fsck.hfsplus exited 0 without saying the volume appears to be OK. Its output is above — "
-            "an exit code that agrees with no verdict is the shape a reader takes when it read nothing."
-        )
-
-    header, records = parse_7z_slt(run(["7z", "l", "-slt", volume], what="7z l -slt <volume>").stdout)
-    if header.get("Type") != "HFS":
-        fail(
-            f"7-Zip identified the converted volume as `{header.get('Type')}`, not `HFS`. "
-            "`hdiutil` was asked for `-fs HFS+J`; an APFS volume here means the flag did not take, and "
-            "two of this chain's three readers have no subject."
-        )
-
+def compare_listing(records: list[dict[str, str]], manifest_path: str, where: str) -> int:
+    """Hold one `7z l -slt` listing against the stage sidecar: names, sizes AND modes."""
     name, expected = expected_files(manifest_path)
 
-    found: dict[str, int] = {}
+    found: dict[str, tuple[int, int | None]] = {}
     for record in records:
+        # DIRECTORIES ARE OUT, and that is what makes the extra-file allowance short:
+        # an `hdiutil` volume carries `.HFS+ Private Directory Data` and
+        # `[HFS+ Private Data]` — the HFS+ hard-link stores — and both are folders.
         if record.get("Folder") == "+":
             continue
         path = record.get("Path", "")
         size = record.get("Size", "")
-        found[path] = int(size) if size.isdigit() else -1
+        found[path] = (int(size) if size.isdigit() else -1, octal_mode(record.get("Mode", "")))
 
-    # THE VOLUME NAME, asserted as its own sentence rather than left to fall out of
-    # the file comparison. `7z l -slt` emits no `Volume Name` key for HFS — measured
-    # on ubuntu-24.04 / 7-Zip 23.01, where the header carried Type, Physical Size,
-    # Method, Cluster Size, Free Space and the two timestamps and nothing else — so
-    # the name reaches a reader only as the first component of every path. Left
-    # implicit, a wrong `-volname` would surface as "11 files are missing and 11
-    # files are extra", which is the same diagnosis as a wholly wrong image.
+    # THE VOLUME NAME, asserted as its own sentence rather than left to fall out of the
+    # file comparison. `7z l -slt` emits no `Volume Name` key for HFS, so the name reaches
+    # a reader only as the first component of every path. Left implicit, a wrong
+    # `-volname` would surface as "8 files are missing and 8 files are extra", which is
+    # the same diagnosis as a wholly wrong image.
     roots = {path.split("/", 1)[0] for path in found}
     if roots != {name}:
         fail(
-            f"the image mounts as {sorted(roots)} and the stage names the volume `{name}`. "
+            f"{where}: the image mounts as {sorted(roots)} and the stage names the volume `{name}`. "
             "`hdiutil -volname` and `gjsify.ship.name` have to be the same string — the volume and the "
             "bundle inside it are the two names a user reads in one Finder window."
         )
@@ -268,46 +306,96 @@ def verify_volume(volume: str, manifest_path: str) -> None:
     extra = sorted(set(found) - set(expected) - allowed_extra)
     if missing:
         fail(
-            f"{len(missing)} file(s) the stage names are not in the image: {', '.join(missing[:5])}"
-            f"{', …' if len(missing) > 5 else ''}. A `.dmg` mounts and shows a window either way."
+            f"{where}: {len(missing)} file(s) the stage names are not in the image: "
+            f"{', '.join(missing[:5])}{', …' if len(missing) > 5 else ''}. "
+            "A `.dmg` mounts and shows a window either way."
         )
     if extra:
         fail(
-            f"{len(extra)} file(s) are in the image and not in the stage: {', '.join(extra[:5])}"
-            f"{', …' if len(extra) > 5 else ''}. `hdiutil -srcfolder` copies whatever it finds, so an "
-            "extra file means the volume root held something besides the bundle."
+            f"{where}: {len(extra)} file(s) are in the image and not in the stage: "
+            f"{', '.join(extra[:5])}{', …' if len(extra) > 5 else ''}. "
+            "`hdiutil -srcfolder` copies whatever it finds, so an extra file means the volume root "
+            "held something besides the bundle."
         )
 
-    wrong = [
-        f"{path} is {found[path]} bytes in the image and {size} in the stage"
-        for path, size in sorted(expected.items())
-        if found[path] != size
-    ]
+    wrong = []
+    executables = 0
+    for path, (size, mode) in sorted(expected.items()):
+        got_size, got_mode = found[path]
+        if got_size != size:
+            wrong.append(f"{path} is {got_size} bytes in the image and {size} in the stage")
+        # THE MODE, and it is the assertion this format nearly shipped without. A `.app`
+        # whose `Contents/MacOS/<binary>` arrives 0644 does not start, and every other
+        # check here passes on it. `None` is a mode 7-Zip could not read, which is a
+        # different failure from a wrong one and says so.
+        elif got_mode is None:
+            wrong.append(f"{path} carries no readable mode in the image, and the stage plans {oct(mode)}")
+        elif got_mode != mode:
+            wrong.append(f"{path} is {oct(got_mode)} in the image and {oct(mode)} in the stage")
+        elif got_mode & 0o111:
+            executables += 1
     if wrong:
-        fail("; ".join(wrong[:5]) + (", …" if len(wrong) > 5 else ""))
+        fail(f"{where}: " + "; ".join(wrong[:5]) + (", …" if len(wrong) > 5 else ""))
 
-    # THE DISCRIMINATOR FOR THE COMPARISON ITSELF. An empty expectation set makes every
-    # loop above vacuous and every assertion pass — the shape a manifest parse failure
-    # would take if it ever returned `{}` instead of throwing.
+    # THE DISCRIMINATOR FOR THE COMPARISON ITSELF, twice over. An empty expectation set
+    # makes every loop above vacuous; and a payload in which nothing is executable is a
+    # tree that never had a launcher, where the mode comparison would agree with a staged
+    # tree that is itself wrong.
     if len(expected) == 0:
-        fail("the stage manifest named no files, so nothing above compared anything")
-    print(
-        f"verify-dmg.py: {len(expected)} file(s) in volume `{name}` match the stage manifest "
-        f"by name and size; fsck.hfsplus walked the catalog and called the volume OK"
-    )
+        fail(f"{where}: the stage manifest named no files, so nothing above compared anything")
+    if executables == 0:
+        fail(
+            f"{where}: no file in the image is executable, so the volume carries no launcher — "
+            "a `.app` that cannot start, with every name and size correct."
+        )
+    print(f"{where}: {len(expected)} file(s) match the stage by name, size and mode ({executables} executable)")
+    return len(expected)
+
+
+def verify_volume(volume: str, manifest_path: str, where: str = "volume") -> None:
+    """Links 4 and 5: the filesystem, then its contents against the sidecar."""
+    proc = run(["fsck.hfsplus", "-f", "-n", volume], what="fsck.hfsplus -f -n")
+    # The exit code alone is not the whole assertion: fsck_hfs prints its verdict, and a
+    # run that checked a volume it did not understand is a different thing from a clean
+    # one. `-f` forces the check on a volume marked clean; `-n` answers "no" to every
+    # repair, so nothing here can write to the image it is reading.
+    if "appears to be OK" not in proc.stdout:
+        fail(
+            "fsck.hfsplus exited 0 without saying the volume appears to be OK. Its output is above — "
+            "an exit code that agrees with no verdict is the shape a reader takes when it read nothing."
+        )
+
+    types, methods, records = parse_7z_slt(run(["7z", "l", "-slt", volume], what="7z l -slt <volume>").stdout)
+    if types != ["HFS"]:
+        fail(f"7-Zip identified the converted volume as {types}, not ['HFS'].")
+    if "HFS+" not in methods:
+        fail(f"7-Zip reports the volume's method as {methods}, with no `HFS+` among them.")
+    compare_listing(records, manifest_path, where)
 
 
 def verify_dmg(image: str, manifest_path: str) -> None:
-    """Links 1-3, then the volume half."""
-    header, _ = parse_7z_slt(run(["7z", "l", "-slt", image], what="7z l -slt <dmg>").stdout)
-    if header.get("Type") != "Dmg":
+    """The whole chain: the container, its payload, a second decoder, the filesystem."""
+    types, methods, records = parse_7z_slt(run(["7z", "l", "-slt", image], what="7z l -slt <dmg>").stdout)
+    # THE TYPE SEQUENCE, not one type. 7-Zip auto-nests, so a UDIF image over an HFS+
+    # volume reads exactly like this — and an APFS one, which is what a modern `hdiutil`
+    # makes when `-fs` says nothing, would read `['Dmg', 'APFS']` and be refused here
+    # rather than two links later as "dmg2img produced nothing".
+    if types != ["Dmg", "HFS"]:
         fail(
-            f"7-Zip identified this file as `{header.get('Type')}`, not `Dmg`. The artifact is not a UDIF "
-            "image — `hdiutil create -format UDZO` writes one, and every reader below expects it."
+            f"7-Zip read this file as {types}, not ['Dmg', 'HFS']. The artifact has to be a UDIF image "
+            "over an HFS+ volume — `hdiutil create -format UDZO -fs HFS+J` writes one, and the two "
+            "readers after this are an HFS+ chain with nothing to read otherwise."
         )
-    # LINK 2, and it is the one an `l`-only chain would be missing: `7z t` inflates
-    # every stored run, so a byte flipped inside the compressed data is refused here
-    # and nowhere earlier.
+    if "HFS+" not in methods:
+        fail(f"7-Zip reports the methods as {methods}, with no `HFS+` among them — the volume is not HFS+.")
+
+    # The listing 7-Zip's own Dmg→HFS chain produced, against the sidecar.
+    compare_listing(records, manifest_path, "7z over the .dmg")
+
+    # LINK 2, and it is the one an `l`-only chain would be missing: `7z t` inflates every
+    # stored run, so a byte flipped inside the compressed data is refused here and nowhere
+    # earlier. The Dmg entry advertises `Method = … ZLIB CRC`, so there is a stored
+    # checksum for it to disagree with.
     run(["7z", "t", image], what="7z t <dmg>")
 
     with tempfile.TemporaryDirectory() as work:
@@ -318,7 +406,10 @@ def verify_dmg(image: str, manifest_path: str) -> None:
                 "dmg2img exited 0 and produced no volume. An exit code without an output file is the "
                 "shape a decoder takes when it recognised nothing."
             )
-        verify_volume(volume, manifest_path)
+        # THE SAME COMPARISON AGAIN, over the volume the OTHER decoder wrote. Not a
+        # duplicate: 7-Zip's chain and dmg2img are two independent UDIF implementations,
+        # and the thing worth knowing is that they agree about the bytes inside.
+        verify_volume(volume, manifest_path, "dmg2img + fsck.hfsplus")
 
 
 def mutate(image: str, kind: str, out: str) -> None:

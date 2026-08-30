@@ -19,9 +19,10 @@
 // WHICH MAKES THE ORACLE THE INTERESTING PART, because `hdiutil verify` is
 // `hdiutil` reading what `hdiutil` wrote. The reader is a chain that runs on
 // LINUX — `7z l` (7-Zip 23.01 on ubuntu-24.04 carries `Dmg`, `HFS` and `APFS`),
-// then `dmg2img` to a raw volume, then `fsck.hfsplus -f -n` over it — driven by
-// `.github/ship-oracle/verify-dmg.py` and compared against the stage manifest.
-// Three implementations, none of them Apple's and none of them ours.
+// `7z t` to inflate what it stores, then `dmg2img` to a raw volume and
+// `fsck.hfsplus -f -n` over that — driven by `.github/ship-oracle/verify-dmg.py`
+// and compared against the stage manifest by name, size and MODE. Three
+// implementations, none of them Apple's and none of them ours.
 //
 // TWO hdiutil FLAGS ARE DECISIONS AND NOT DEFAULTS:
 //

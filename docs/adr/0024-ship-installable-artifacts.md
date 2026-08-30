@@ -575,11 +575,17 @@ stays rejected on § A6's terms; the image is created by `hdiutil create -format
   touched; and § A17 fixes the seam for a later `--sign` between `readStage` and the container, which
   a packer that opened an artifact would put on the wrong side of a tree nothing validated.
 
+**And one claim this section made and then had to retract, kept as the record.** It said the `.dmg`
+listing was blind to POSIX modes, on the strength of `7z l -slt` reporting `Mode = 0---------`
+against an empty `mkfs.hfsplus` volume. Measured against a real `hdiutil` image, the same reader
+prints `-rwxr-xr-x` for `Contents/MacOS/<binary>` and `-rw-r--r--` for the rest — so the mode plan
+IS checked, which is the assertion that matters most for a downloaded bundle. The lesson is § 7's
+shape: a measurement taken on a stand-in is a measurement about the stand-in, and the direction of
+this one was the expensive one — it would have removed a check rather than added a wrong one.
+
 **What M4 does not claim.** No leg mounts the image or drags the bundle out of it; `hdiutil`
-produced it and three Linux readers agree on what is inside, and that is the whole claim. The
-listing is also blind to POSIX modes — 7-Zip's HFS handler reports `Mode = 0---------`, measured —
-so the executable bit is covered for the same payload by `verify-app-zip.sh` over the `.app` zip and
-nowhere in the `.dmg` chain. And the image is not signed or notarised: that is M6.
+produced it and three Linux readers agree on what is inside, and that is the whole claim. And the
+image is not signed or notarised: that is M6.
 
 That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
 stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`
