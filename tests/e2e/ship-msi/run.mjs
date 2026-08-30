@@ -57,7 +57,7 @@ const ORACLE = join(MONOREPO_ROOT, '.github', 'ship-oracle');
  * broken image and not a lean one — and a silent skip would leave every assertion
  * below vacuous, which is `fixture.mjs`'s `probe()` rule for exactly this family.
  */
-const READERS = ['wixl', 'msiinfo', 'msiextract'];
+const READERS = ['wixl', 'msiinfo', 'msiextract', 'msibuild'];
 
 function oracle(args) {
     return execFileSync('bash', [join(ORACLE, 'verify-msi.sh'), ...args], { encoding: 'utf-8' });
@@ -345,6 +345,40 @@ describe('CLI ship Windows installer E2E', () => {
         writeFileSync(join(tampered, `${BINARY}.cmd`), 'not what was packed\r\n');
         const out = oracleExpectingFailure([msi, tampered, 'msitools']);
         assert.match(out, new RegExp(`${BINARY}\\.cmd differs`));
+    });
+
+    it('the oracle ACCEPTS a database its own package did not write', () => {
+        // THE BRANCH `windows-msi-crossread` DEPENDS ON, and until this case it had
+        // never run in its accepting direction — only in its refusing one. A `!`
+        // expectation that was structurally wrong would have made that job fail
+        // confusingly on a correct artifact, on the one leg the whole two-compiler
+        // design exists for.
+        //
+        // What is SIMULATED here is the producer FIELD and nothing else: `msibuild
+        // -i` rewrites `_SummaryInformation`'s PropertyId 18 (the creating
+        // application) on a copy, which is what `msiinfo suminfo` reads. The bytes
+        // are still wixl's. This is coverage of the oracle's dispatch, not evidence
+        // about WiX — that is the Windows leg, and nothing here stands in for it.
+        const wixish = join(tmpDir, 'wix-ish.msi');
+        cpSync(msi, wixish);
+        const idt = join(tmpDir, 'suminfo.idt');
+        // The IDT text format: column names, column types, `<table>\t<key>`, rows —
+        // CRLF-terminated, which is the same terminator that cost `verify-msi.sh` a
+        // run when it was read rather than written.
+        writeFileSync(
+            idt,
+            'PropertyId\tValue\r\ni2\tl255\r\n_SummaryInformation\tPropertyId\r\n' +
+                '18\tWindows Installer XML Toolset (3.14.1.8722)\r\n',
+        );
+        execFileSync('msibuild', [wixish, '-i', idt], { encoding: 'utf-8' });
+        const suminfo = execFileSync('msiinfo', ['suminfo', wixish], { encoding: 'utf-8' });
+        assert.match(suminfo, /Application: Windows Installer XML Toolset/);
+
+        const out = oracle([wixish, programDir, '!msitools']);
+        assert.match(out, /is NOT msitools — this read is cross-family/);
+        // …and it still checks everything else, rather than short-circuiting on the
+        // producer question.
+        assert.match(out, /round-tripped byte for byte out of the embedded cabinet/);
     });
 
     it('the oracle refuses a file it cannot read at all', () => {
