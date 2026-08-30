@@ -3084,8 +3084,11 @@ jobs:
             Write-Host "so the second compiler does not exist and the cross-check would be msitools reading msitools."
             exit 1
           }
-          Write-Host "WiX v3 bin: $($candle.DirectoryName)"
-          & $candle.FullName -? | Select-Object -First 2
+          # The version off the FILE, not out of `candle -?`. GitHub's pwsh wrapper
+          # ends every block with `exit $LASTEXITCODE`, and a help switch that exits
+          # non-zero would fail this step for printing a version — a step that fails
+          # for the wrong reason is worse than one that prints nothing.
+          Write-Host "WiX v3 $($candle.VersionInfo.ProductVersion) in $($candle.DirectoryName)"
           Add-Content -Path $env:GITHUB_PATH -Value $candle.DirectoryName
 
       # THE OTHER ABSENCE, and the reason the run below is worth anything. The
