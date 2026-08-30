@@ -3987,3 +3987,20 @@ The repair is one line: count sites on the published-and-declared branch too, be
 `continue`. Left open rather than applied for the same reason as the entry above, and
 because #1427 emptied the ledger, so the control is dormant until the next bootstrap —
 which is precisely when someone will meet it cold.
+
+### An in-repo `path:line` citation is checked by nothing
+
+`scripts/check-refs-citations.mjs` holds every `refs/<submodule>/<path>` cited as provenance
+against the filesystem. A citation of a path **inside this repository** is covered by no gate at
+all, and #1433 proved it costs something: moving `website/src/content/docs/adwaita/controls.mdx`
+to `gtk/` left ADR 0034 § Context pointing at a file that no longer exists, plus two reproduction
+commands whose glob had silently narrowed. Nothing failed; the ADR simply stopped being
+re-runnable, which is the failure this repository cares about most.
+
+Both were repaired by hand (the glob now names both directories and reproduces the same `36 Adw`
+/ `4 Gtk`). The gate was NOT written, deliberately: it was found during a release window, and a
+new check landing hours before a cut is the change nobody can price. The shape is already
+available — `check-refs-citations` resolves with `statSync` and would extend to repo-relative
+paths cheaply — and the harder half is the same one it already declines: it asks whether the FILE
+exists, never whether the LINE says what the citation claims. A moved file is caught by the cheap
+half; a moved line is not, and that is the case that bit `stage.ts:35` three times.
