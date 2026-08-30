@@ -243,3 +243,47 @@ itself.
 
 See [#1354](https://github.com/gjsify/gjsify/issues/1354) and
 `docs/adr/0024-ship-installable-artifacts.md`.
+
+---
+
+### Lists no framework owns
+
+A `Gio.ListStore` of carriers, a `Gtk.SignalListItemFactory`, a key diff and a teardown authority
+are GTK and GObject facts, not React ones. They used to live in the React Native renderer, which is
+why Vue and Solid had no lists at all.
+
+`@gjsify/gtk-host/list` is the neutral half, reachable through three callbacks: `mountRow` takes the
+carrier and returns a handle, `showRow` shows a row or empties it, `disposeRow` lets go. It imports
+GTK and GObject and nothing else.
+
+`@gjsify/gtk-host/solid`'s `listRows` is the second consumer, and it is not a demo. It keeps one
+reactive root per row WIDGET rather than per bound row, so a content change behind an unchanged key
+writes one property instead of rebuilding the row. The test asserts that by widget identity across
+an update, which React's equivalent cannot do because its row rebuilds a React tree.
+
+One thing stayed with React, visibly: its rows render on a microtask, because GTK binds from inside
+React's own commit where `render()` refuses re-entry by name. Solid needs no deferral.
+
+### Your `.desktop` entry and AppStream metadata are translated
+
+`gjsify ship` staged your compiled `.mo` catalogues and generated the `.desktop` entry and the
+AppStream component, and the two never met. A fully translated application showed an English name
+in the GNOME app menu and in Software, which nothing reports because nothing is broken.
+
+The catalogues are now folded in: `Name[de]=` in the entry, `<name xml:lang="de">` in the
+component. Each catalogue is merged by name with `msgfmt --locale=`, one call per language, rather
+than the bulk `-d <podir>` form. That form prints `po/LINGUAS does not exist` on stderr, writes an
+untranslated file and exits 0, and `desktop-file-validate` then passes it.
+
+Two `gjsify gettext` defects fell out of the same work. `--format=desktop` and `--format=xml` never
+passed `--template`, which `msgfmt` requires for both, so neither could ever have worked;
+`--format=json` was advertised and is not an option `msgfmt` has.
+
+### The widget gallery shows your framework
+
+Every widget page now carries a tab per framework: Solid, Vue and React beside the native
+TypeScript, and an XML template tab for NativeScript. Where a framework deliberately does not offer
+a widget, the pane says so and why, rather than leaving a gap you have to interpret.
+
+"Vanilla TypeScript" is now "Native TypeScript", because the code in it is the GTK one.
+
