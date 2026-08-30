@@ -2838,6 +2838,11 @@ jobs:
           python3 "${GITHUB_WORKSPACE}/.github/ship-oracle/verify-program-dir.py" \
             "ship/out/Ship Window Demo" ship/stage/.gjsify-ship-stage.json | tail -1
 
+      # UPLOADED BEFORE THE INSTALLER IS COMPILED, deliberately. The two `.msi`
+      # steps below are the only ones in this job that need a tool, and
+      # `windows-dir-selfcontained` needs nothing from them — so an image without
+      # `msitools` costs the M5 legs and leaves M3's chain intact, instead of
+      # failing the whole job before this upload runs.
       - name: Upload the assembled program-directory zip
         uses: actions/upload-artifact@v4
         with:
@@ -2846,6 +2851,74 @@ jobs:
           # error, not warn: an empty upload hands the next job a downloadable
           # nothing and fails there as a missing file rather than here as a
           # missing artifact.
+          if-no-files-found: error
+
+      # ── #1354 M5: the installer, as its OWN step ────────────────────────────
+      #
+      # A SECOND `gjsify ship` INVOCATION rather than a third `--target` on the one
+      # above, and the reason is failure ATTRIBUTION. `msi` is the only format here
+      # that needs a tool, and `assertToolsInstalled` refuses BEFORE anything is
+      # packed — so folding it into the run above would mean an image without
+      # `msitools` produces no program directory either, and M3's whole
+      # `windows-dir-selfcontained` chain fails on a missing MSI compiler. Two steps,
+      # two failures, each naming its own cause. `ship/out/` is not wiped between
+      # runs, so the second one adds the `.msi` beside the directory and the zip.
+      #
+      # `msitools` is baked into `.docker/ci-fedora.Dockerfile`; `wixl --version` is
+      # printed first so a failure here is attributable to the image rather than to
+      # the document.
+      - name: Compile the installer with wixl
+        working-directory: tests/e2e/ship-macos/fixtures/window-app
+        run: |
+          export PATH="${GITHUB_WORKSPACE}/node_modules/.bin:$PATH"
+          wixl --version
+          gjsify ship windows --arch x64 --target msi
+          ls -l ship/out/*.msi
+
+      # THE INSTALLER, READ BACK — and this read is deliberately NOT the oracle.
+      # `wixl` wrote the file and `msiinfo` reads it, which is one package agreeing
+      # with itself (ADR 0024 § A3's `selfReading`). What it IS worth is the pair of
+      # questions nothing else asks on this side: does the database describe the
+      # program directory sitting next to it, and do the bytes in its embedded
+      # cabinet come back out unchanged. The independence is bought by the two jobs
+      # below — `msiexec` installs THIS file on Windows, and `msiinfo` reads back
+      # the one WiX built there from the same `.wxs`.
+      - name: Read the installer back against the program directory (same family)
+        working-directory: tests/e2e/ship-macos/fixtures/window-app
+        run: |
+          bash "${GITHUB_WORKSPACE}/.github/ship-oracle/verify-msi.sh" \
+            ship/out/ship-window-demo-1.0.0-1.x64.msi \
+            "ship/out/Ship Window Demo" \
+            msitools
+
+      # STAGED INTO ONE DIRECTORY FIRST, and that is not tidiness — it is the
+      # difference between a flat artifact and a nested one. `actions/upload-artifact`
+      # roots the archive at the LEAST COMMON ANCESTOR of everything its `path:`
+      # matched, so two globs in different directories (`ship/out/*.msi` and
+      # `ship/msi/*.wxs`) produce an artifact containing `out/` and `msi/`, not two
+      # files. Measured the hard way: the consuming job's
+      # `Get-ChildItem "$env:RUNNER_TEMP\msi" -Filter *.msi` found nothing and died on
+      # `Cannot index into a null array` — a PowerShell error that says nothing about
+      # the cause. One glob over one directory has an unambiguous ancestor, and the
+      # `ls -l` makes the layout readable in the log rather than inferable from the
+      # action's semantics.
+      - name: Stage the installer and its document for upload
+        working-directory: tests/e2e/ship-macos/fixtures/window-app
+        run: |
+          mkdir -p ship/upload
+          cp ship/out/*.msi ship/msi/*.wxs ship/upload/
+          ls -l ship/upload
+
+      # The installer AND the document it was compiled from. The `.wxs` is not a
+      # by-product here: the windows job compiles this exact file a SECOND time with
+      # WiX v3, which is what makes the cross-check a cross-check. Its `Source=`
+      # attributes are relative (`root/…`), so that job reconstructs `root/` by
+      # expanding the zip above.
+      - name: Upload the installer and the .wxs it was compiled from
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi-win32-x64
+          path: tests/e2e/ship-macos/fixtures/window-app/ship/upload/*
           if-no-files-found: error
 
   # THE HALF THAT EARNS THE MILESTONE. Everything before this runs on Linux and is
@@ -2963,6 +3036,338 @@ jobs:
             Write-Host "app.run() returned non-zero:"; $log | Select-String -Pattern '^done:'; exit 1
           }
           Write-Host "a downloaded program directory opened and rendered a window on a Windows host with no gvsbuild GTK and no node on PATH"
+
+  # ── #1354 M5: the installer, INSTALLED — and compiled a second time ─────────
+  #
+  # THE HALF THAT EARNS THE MILESTONE, and it is two claims, not one.
+  #
+  #   1. `msiexec /i /qn` puts the wixl-built database in front of Windows
+  #      Installer — Microsoft's implementation, a different family from the one
+  #      that wrote it — and this job then RUNS what it installed and REMOVES it.
+  #      Installing and not running would prove the file parses; removing and not
+  #      checking would leave "it uninstalls" an assumption. An installer that
+  #      cannot be removed is worse than none.
+  #   2. WiX Toolset v3.14 — preinstalled on this runner image — compiles the SAME
+  #      authored `.wxs` the Linux job compiled with `wixl`. That file is uploaded
+  #      for `windows-msi-crossread`, where `msiinfo` reads back a database
+  #      msitools did not write. That pair is what ADR 0024 § A6 means by "the
+  #      producer and the reader are not the same package".
+  #
+  # NO CHECKOUT, like the M3 leg: this job runs downloaded artifacts and nothing
+  # else, which is the shape a stranger is in. The one thing it does need from the
+  # repository is the `.wxs`, and that arrives as an artifact.
+  windows-msi-install:
+    name: MSI installs, runs and uninstalls (windows-latest x64)
+    runs-on: windows-latest
+    needs: windows-dir-assemble
+    if: ${{ !cancelled() && needs.windows-dir-assemble.result != 'skipped' }}
+    timeout-minutes: 25
+    steps:
+      # The same absence the M3 leg opens with, and the reason either means
+      # anything: the carried closure must be the ONLY GTK on the machine.
+      - name: Assert gvsbuild GTK is NOT present (clean batteries-included host)
+        shell: pwsh
+        run: |
+          if (Test-Path 'C:\gtk-build\gtk\x64\release\bin\glib-2.0-0.dll') {
+            Write-Host "gvsbuild GTK is present — not a clean batteries-included test"
+            exit 1
+          }
+          Write-Host "clean host — gvsbuild GTK was never installed in this job"
+
+      - name: Download the installer and the .wxs
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-msi-win32-x64
+          path: ${{ runner.temp }}/msi
+
+      - name: Download the program-directory zip (the WiX compile's payload)
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-dir-selfcontained-win32-x64
+          path: ${{ runner.temp }}/msi
+
+      # MEASURED, not assumed. The image's software list says WiX Toolset
+      # 3.14.1.8722; whether its `bin` is on `PATH` is a different question and this
+      # is where it gets answered out loud. A job that silently skipped the WiX
+      # compile would leave the cross-read below reading a file wixl wrote.
+      - name: Locate WiX v3 and put it on PATH
+        shell: pwsh
+        run: |
+          $candle = Get-ChildItem 'C:\Program Files (x86)\WiX Toolset*' -Recurse -Filter candle.exe -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $candle) {
+            Write-Host "no candle.exe under 'C:\Program Files (x86)\WiX Toolset*' — this runner image has no WiX v3,"
+            Write-Host "so the second compiler does not exist and the cross-check would be msitools reading msitools."
+            exit 1
+          }
+          # The version off the FILE, not out of `candle -?`. GitHub's pwsh wrapper
+          # ends every block with `exit $LASTEXITCODE`, and a help switch that exits
+          # non-zero would fail this step for printing a version — a step that fails
+          # for the wrong reason is worse than one that prints nothing.
+          Write-Host "WiX v3 $($candle.VersionInfo.ProductVersion) in $($candle.DirectoryName)"
+          Add-Content -Path $env:GITHUB_PATH -Value $candle.DirectoryName
+
+      # THE OTHER ABSENCE, and the reason the run below is worth anything. The
+      # runner image ships a Node; the installed launcher must use the one the
+      # package laid down.
+      - name: Assert there is NO node on PATH once PATH is the system one
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:SystemRoot\system32;$env:SystemRoot"
+          if (Get-Command node -ErrorAction SilentlyContinue) {
+            Write-Host "a system node exists on the reduced PATH — this leg cannot prove the artifact carries one"
+            exit 1
+          }
+          Write-Host "no node on the system PATH — whatever runs must come from inside what the installer laid down"
+
+      # ── 1. INSTALL ──────────────────────────────────────────────────────────
+      #
+      # `INSTALLDIR=` overrides the directory whose id is that public property, so
+      # nothing lands in Program Files and the uninstall assertion below has an
+      # unambiguous tree to look at. `/l*v` because a silent MSI failure is a
+      # number, and the log is the only place that says which action produced it.
+      - name: Install it with msiexec, into a prefix this job owns
+        shell: pwsh
+        run: |
+          # RESOLVED WITH A COUNT, never `[0]`. Indexing an empty result gives
+          # `Cannot index into a null array` — a PowerShell error that names the line
+          # and not the cause, which is what the artifact-layout defect surfaced as.
+          # `-Recurse` so a nested archive is found anyway, and the assertion is on
+          # the COUNT so an unexpected layout says what it is.
+          $found = @(Get-ChildItem "${{ runner.temp }}\msi" -Recurse -Filter *.msi)
+          if ($found.Count -ne 1) {
+            Write-Host "expected exactly one .msi in the downloaded artifact, found $($found.Count):"
+            Get-ChildItem "${{ runner.temp }}\msi" -Recurse | Select-Object -First 30 -ExpandProperty FullName
+            exit 1
+          }
+          $msi = $found[0].FullName
+          $prefix = "${{ runner.temp }}\prefix"
+          Write-Host "installing $msi into $prefix"
+          $p = Start-Process msiexec.exe -ArgumentList @(
+            '/i', "`"$msi`"", '/qn', "INSTALLDIR=`"$prefix`"", '/l*v', "`"${{ runner.temp }}\install.log`""
+          ) -Wait -PassThru
+          Write-Host "msiexec exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) {
+            Get-Content "${{ runner.temp }}\install.log" -Tail 80
+            exit 1
+          }
+          if (-not (Test-Path "$prefix\ship-window-demo.cmd")) {
+            Write-Host "the launcher is not at $prefix — INSTALLDIR was not honoured, or nothing was installed:"
+            Get-ChildItem $prefix -ErrorAction SilentlyContinue
+            Get-Content "${{ runner.temp }}\install.log" -Tail 80
+            exit 1
+          }
+          Get-ChildItem $prefix
+
+      # The entry a user removes it BY. Generated by Windows Installer from
+      # ProductName/ProductVersion/Manufacturer, so its absence means an installed
+      # product nobody can find again in Settings.
+      - name: Assert the Add/Remove Programs entry exists
+        shell: pwsh
+        run: |
+          # `@(...)` so the count is a count even for one match, and the count is
+          # itself an assertion: TWO entries is what a `ProductCode` that did not
+          # move — or an `UpgradeCode` that did — produces, and it is the failure
+          # the derived GUIDs exist to prevent. Reading `.DisplayVersion` off a bare
+          # `$keys` would also have been a filter rather than a comparison the
+          # moment there were two.
+          $keys = @(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq 'Ship Window Demo' })
+          if ($keys.Count -eq 0) {
+            Write-Host "no Add/Remove Programs entry named 'Ship Window Demo' — the package installed and cannot be found"
+            exit 1
+          }
+          $keys | Select-Object DisplayName, DisplayVersion, Publisher, UninstallString | Format-List
+          if ($keys.Count -ne 1) {
+            Write-Host "$($keys.Count) Add/Remove Programs entries carry this DisplayName — one install produced several products"
+            exit 1
+          }
+          if ($keys[0].DisplayVersion -ne '1.0.0') {
+            Write-Host "the entry reports version '$($keys[0].DisplayVersion)', not the 1.0.0 the project declares"
+            exit 1
+          }
+
+      # ── 2. RUN WHAT WAS INSTALLED ───────────────────────────────────────────
+      #
+      # The point of the whole milestone. Same reduced PATH and same unset locators
+      # as `windows-dir-selfcontained`: what the app finds, the installer brought.
+      - name: Open a window from the INSTALLED program directory
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        env:
+          GSK_RENDERER: cairo
+        run: |
+          foreach ($name in 'GJSIFY_GTK_RUNTIME','NODE_GI_NATIVE','GJSIFY_GI_LIBRARY_PATH','GI_TYPELIB_PATH','XDG_DATA_DIRS','GSETTINGS_SCHEMA_DIR','NODE_PATH','GDK_PIXBUF_MODULE_FILE') {
+            Remove-Item "env:$name" -ErrorAction SilentlyContinue
+          }
+          $env:PATH = "$env:SystemRoot\system32;$env:SystemRoot"
+          & "${{ runner.temp }}\prefix\ship-window-demo.cmd" 2>&1 | Tee-Object -FilePath run.log
+          exit $LASTEXITCODE
+
+      # Line by line, because exit 0 is also what an app that never activated
+      # returns. The same four claims the M3 leg makes, against a tree an installer
+      # laid down rather than one a zip expanded.
+      - name: Assert what the installed app proved
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $log = Get-Content run.log
+          if (-not ($log | Select-String -Pattern '^interpreter: .*prefix\\node\.exe$')) {
+            Write-Host "the app did not run under the interpreter the installer laid down:"
+            $log | Select-String -Pattern '^interpreter:'
+            exit 1
+          }
+          if (-not ($log | Select-String -Pattern '^gtk-runtime: .*prefix\\lib\\node-gi\\prebuilds\\win32-x64\\gtk$')) {
+            Write-Host "GJSIFY_GTK_RUNTIME was not exported into the installed tree:"
+            $log | Select-String -Pattern '^gtk-runtime:'
+            exit 1
+          }
+          if (-not ($log | Select-String -Pattern '^chrome: ok$')) {
+            Write-Host "the Adwaita widget tree is incomplete:"; $log | Select-String -Pattern '^chrome:'; exit 1
+          }
+          if (-not ($log | Select-String -Pattern '^render: \d+x\d+ \d+$')) {
+            Write-Host "the window did not realize + render:"; $log | Select-String -Pattern '^render:'; exit 1
+          }
+          if (-not ($log | Select-String -Pattern '^done: 0$')) {
+            Write-Host "app.run() returned non-zero:"; $log | Select-String -Pattern '^done:'; exit 1
+          }
+          Write-Host "an MSI-installed application opened and rendered a window with no gvsbuild GTK and no node on PATH"
+
+      # ── 3. REMOVE IT, AND CHECK WHAT IS LEFT ────────────────────────────────
+      #
+      # The claim `windows-dir` cannot make at all. `/x` by package rather than by
+      # ProductCode, so nothing here has to know a GUID; the assertions are about
+      # what is on disk and in the registry afterwards, which is the only form of
+      # "it uninstalls cleanly" that is not an assumption.
+      - name: Uninstall it, and assert nothing is left behind
+        shell: pwsh
+        run: |
+          $msi = @(Get-ChildItem "${{ runner.temp }}\msi" -Recurse -Filter *.msi)[0].FullName
+          $prefix = "${{ runner.temp }}\prefix"
+          $p = Start-Process msiexec.exe -ArgumentList @(
+            '/x', "`"$msi`"", '/qn', '/l*v', "`"${{ runner.temp }}\uninstall.log`""
+          ) -Wait -PassThru
+          Write-Host "msiexec /x exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { Get-Content "${{ runner.temp }}\uninstall.log" -Tail 80; exit 1 }
+
+          # Every FILE the package installed must be gone. Reported as a list rather
+          # than a boolean: "something is left" without naming it is a finding
+          # nobody can act on.
+          if (Test-Path $prefix) {
+            $left = Get-ChildItem $prefix -Recurse -File -ErrorAction SilentlyContinue
+            if ($left) {
+              Write-Host "$($left.Count) file(s) survived the uninstall:"
+              $left | Select-Object -First 40 -ExpandProperty FullName
+              exit 1
+            }
+            # An EMPTY directory tree is a weaker defect than a file, and it is
+            # recorded rather than tolerated silently: Windows Installer removes a
+            # directory it created once the last component in it goes, so anything
+            # here means a directory nothing owned.
+            $dirs = Get-ChildItem $prefix -Recurse -Directory -ErrorAction SilentlyContinue
+            Write-Host "the install root still exists and holds no files; empty directories left: $($dirs.Count)"
+            $dirs | Select-Object -First 20 -ExpandProperty FullName
+            exit 1
+          }
+          Write-Host "the install root is gone"
+
+          $keys = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq 'Ship Window Demo' }
+          if ($keys) {
+            Write-Host "the Add/Remove Programs entry survived the uninstall"
+            $keys | Select-Object DisplayName, UninstallString | Format-List
+            exit 1
+          }
+          Write-Host "the Add/Remove Programs entry is gone"
+
+          $menu = Get-ChildItem "$env:ProgramData\Microsoft\Windows\Start Menu\Programs" -Filter 'Ship Window Demo*' -ErrorAction SilentlyContinue
+          if ($menu) {
+            Write-Host "a Start-Menu shortcut survived the uninstall:"
+            $menu | Select-Object -ExpandProperty FullName
+            exit 1
+          }
+          Write-Host "no Start-Menu shortcut left"
+
+      # ── 4. THE SECOND COMPILER ──────────────────────────────────────────────
+      #
+      # The same document, compiled by the other family. `Source=` is relative to
+      # the directory holding the `.wxs` (`root/…`), so `root/` is reconstructed
+      # here by expanding the program-directory zip and renaming its top level —
+      # which is also a check in its own right that the zip and the installer carry
+      # the same tree.
+      - name: Compile the SAME .wxs with WiX v3
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/msi
+        run: |
+          $zips = @(Get-ChildItem -Recurse -Filter *.zip)
+          $wxs  = @(Get-ChildItem -Recurse -Filter *.wxs)
+          if ($zips.Count -ne 1 -or $wxs.Count -ne 1) {
+            Write-Host "expected exactly one .zip and one .wxs, found $($zips.Count) and $($wxs.Count):"
+            Get-ChildItem -Recurse | Select-Object -First 30 -ExpandProperty FullName
+            exit 1
+          }
+          Expand-Archive -Path $zips[0].FullName -DestinationPath . -Force
+          # `root/` is what the document's relative `Source=` attributes resolve
+          # against, and rebuilding it from the ZIP is a check in its own right: the
+          # installer and the archive have to carry the same tree.
+          Move-Item "Ship Window Demo" root
+          Get-ChildItem root | Select-Object -First 10
+          candle.exe -nologo -arch x64 -out obj\ $wxs[0].FullName
+          light.exe -nologo -out wix.msi obj\$($wxs[0].BaseName).wixobj
+          Get-Item wix.msi | Select-Object Name, Length
+
+      - name: Upload the WiX-built installer (for the Linux cross-read)
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi-wix-win32-x64
+          path: ${{ runner.temp }}/msi/wix.msi
+          if-no-files-found: error
+
+  # THE OTHER HALF OF THE CROSS-CHECK. `msiinfo` — msitools — reads back a database
+  # WiX wrote, which is the one read in this milestone where the reader's package
+  # and the writer's package are genuinely different. `verify-msi.sh`'s third
+  # argument is `!msitools`: the script refuses the file if its summary information
+  # says msitools produced it, so a job pointed at the wrong artifact fails instead
+  # of passing as a self-oracle.
+  windows-msi-crossread:
+    name: WiX-built MSI read back by msitools (Linux / win32-x64)
+    runs-on: ubuntu-latest
+    needs: windows-msi-install
+    if: ${{ !cancelled() && needs.windows-msi-install.result == 'success' }}
+    timeout-minutes: 20
+    container:
+      image: ghcr.io/gjsify/ci-fedora:44
+    steps:
+      - name: Checkout (for the reader script)
+        uses: actions/checkout@v4
+
+      - name: Download the WiX-built installer
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-msi-wix-win32-x64
+          path: incoming
+
+      - name: Download the program-directory zip it should describe
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-dir-selfcontained-win32-x64
+          path: incoming
+
+      - name: Unpack the program directory
+        working-directory: incoming
+        run: |
+          unzip -qq "$(ls *.zip | head -1)"
+          ls -l
+
+      # `wixl` is not used here and that is the point: this job's msitools only
+      # READS. The version is printed so a failure can be attributed to a reader
+      # change rather than to the file.
+      - name: Read the WiX-built database with msitools
+        working-directory: incoming
+        run: |
+          msiinfo -v
+          bash "${GITHUB_WORKSPACE}/.github/ship-oracle/verify-msi.sh" \
+            wix.msi "Ship Window Demo" '!msitools'
 
   # Adwaita Storybook capstone — BUILD the `--app node` bundle. The full
   # @gjsify/storybook Libadwaita component gallery (showcases/gtk/adwaita-storybook,

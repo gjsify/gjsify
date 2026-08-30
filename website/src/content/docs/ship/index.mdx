@@ -232,10 +232,12 @@ your options.
 
 ## What ship covers today
 
-**Installable artifacts: Linux and macOS.** `.deb`, `.rpm` and a Flatpak bundle
-on Linux; a `<App>.app` bundle and a zip around it on macOS, assembled from this
-Linux workstation, and signed on a macOS host when you pass an identity. The build
-target is enforced rather than assumed:
+**Installable artifacts: Linux, macOS and Windows.** `.deb`, `.rpm` and a Flatpak
+bundle on Linux; a `<App>.app` bundle, a zip around it and a `.dmg` on macOS; a
+program directory, a zip and an `.msi` installer on Windows. All of them are
+assembled from this Linux workstation — the two that are not are the `.dmg`, which
+needs `hdiutil` on a Mac, and a signature, which needs the host holding the key.
+The build target is enforced rather than assumed:
 a project declaring anything but `gjsify.app: "gjs"` or `"node"` is refused with a
 message saying so, instead of producing a package that installs and then fails to
 start.
@@ -268,11 +270,30 @@ GSettings aborts on a schema directory that has only sources.
 
 **The Windows artifact is a program directory, not a bundle.** There is no
 metadata file in it: what a Windows installer says about an application lives in
-the `.msi`'s own tables, which is a later milestone. The `.cmd` at its root finds
-the directory from `%~dp0`, so the tree works unzipped anywhere and works again
-once an installer lays it into `C:\Program Files\<Publisher>\<App>`. The ZIP
-carries a top level the staged tree does not — without it, unzipping would scatter
-`app\`, `share\` and a loose `.cmd` into whatever folder you were in.
+the `.msi`'s own tables. The `.cmd` at its root finds the directory from `%~dp0`,
+so the tree works unzipped anywhere and works again once an installer lays it into
+`C:\Program Files\<App>`. The ZIP carries a top level the staged tree does not —
+without it, unzipping would scatter `app\`, `share\` and a loose `.cmd` into
+whatever folder you were in.
+
+**And there is an installer around it.** `--target msi` wraps the same program
+directory in a Windows Installer package: it lands under `C:\Program Files\<App>`,
+adds one Start-Menu entry, and appears in Add/Remove Programs so a user can take it
+off again. Nothing about the payload changes — the installed tree is the same tree
+the zip expands to.
+
+```bash
+gjsify ship windows --target windows-dir,windows-dir-zip,msi
+```
+
+`msi` is opt-in rather than part of a bare `gjsify ship windows`, because it is the
+one format here that needs a tool: `msitools` on Linux (`sudo dnf install
+msitools`, `sudo apt install msitools`) or [WiX Toolset
+v3.14](https://github.com/wixtoolset/wix3/releases) on Windows. `ship` writes the
+installer's source document itself and lets whichever of those you have compile
+it, so you can build a Windows installer from a Linux workstation — or from
+Windows, without installing anything from the Linux side. Missing either one is a
+message naming the package, before your build runs.
 
 **Both artifacts carry their own runtime, and you say so in `package.json`.**
 An unzipped `.app` runs on a Mac with no Node and no Homebrew GTK, and an unzipped
@@ -350,8 +371,9 @@ why a `--app gjs` project can stage either layout and not pack it.
 
 One more thing to know before you hand a Windows build to a user: `node.exe` is a
 console program and the Node release ships no windowed variant, so starting the
-app from a shortcut leaves a console window open behind it. Nothing here hides
-that — the artifact's own reader prints the subsystem it found.
+app from a shortcut leaves a console window open behind it — including the
+shortcut the `.msi` writes. Nothing here hides that; the artifact's own reader
+prints the subsystem it found.
 
 **Where each format can be packed is declared, and the command refuses rather
 than guessing.** `.deb` and `.rpm` are written by `ship` itself — plain
@@ -409,8 +431,9 @@ and the GTK closure a bundle carries is ad-hoc-signed when it arrives.
 `--sign -` signs ad-hoc, which needs no Apple Developer Program membership — it is
 how this project proves the whole pipeline in CI with no key anywhere.
 
-What is still missing is the Windows `.msi` and notarisation. The two operating
-systems also differ in what an unsigned artifact costs you: Gatekeeper BLOCKS an
+What is still missing is notarisation — every container the design named now
+exists. The two operating systems also differ in what an unsigned artifact costs
+you: Gatekeeper BLOCKS an
 unsigned `.app`, while SmartScreen only warns until a download builds reputation,
 so a Windows program directory is usable unsigned in a way the macOS bundle is
 not. See

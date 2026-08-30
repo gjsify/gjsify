@@ -27,6 +27,7 @@ import shipFlatpakSuite from './utils/ship/flatpak.spec.js';
 import shipDmgSuite from './utils/ship/dmg.spec.js';
 import installProvenanceSuite from './utils/install-provenance.spec.js';
 import shipPlistSuite from './utils/ship/plist.spec.js';
+import shipMsiSuite from './utils/ship/msi.spec.js';
 import shipArchivesSuite from './utils/ship/archives.spec.js';
 import shipPackersSuite from './utils/ship/packers.spec.js';
 import shipSigningSuite from './utils/ship/signing.spec.js';
@@ -232,6 +233,7 @@ run(
         shipFlatpakSuite,
         shipDmgSuite,
         shipPlistSuite,
+        shipMsiSuite,
         installProvenanceSuite,
         shipArchivesSuite,
         shipPackersSuite,

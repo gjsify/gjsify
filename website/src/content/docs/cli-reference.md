@@ -1324,7 +1324,8 @@ gjsify ship --target deb        # one format
 gjsify ship --target flatpak    # a single-file Flatpak bundle (needs flatpak-builder)
 gjsify ship darwin              # a macOS <App>.app and a zip around it (--app node)
 gjsify ship darwin --target macos-app-dmg   # a .dmg — on macOS only, see below
-gjsify ship windows --stage     # a Windows program directory; nothing wraps it yet
+gjsify ship windows             # a program directory + its zip
+gjsify ship windows --target msi  # …and a Windows Installer package (needs wixl or WiX v3)
 gjsify ship --stage             # produce the payload and stop
 gjsify ship --from-stage ./ship/stage   # pack a payload assembled elsewhere
 gjsify ship --from-stage ./stage --sign -   # ad-hoc sign the payload (macOS, no certificate needed)
@@ -1333,7 +1334,7 @@ gjsify ship --arch arm64        # package for another architecture
 
 | Option | Default | Description |
 |---|---|---|
-| `--target <fmt..>` | `gjsify.ship.targets`, else every format wrapping the layout that needs no extra tooling | Formats to build. Comma-separated or repeated. On Linux that default is `deb,rpm`; `flatpak` is opt-in because it is the one format that needs a *different host*. `macos-app`/`macos-app-zip` wrap the darwin layout and `windows-dir`/`windows-dir-zip` the windows one; all four need `glib-compile-schemas` — a tool, not a host, which is why they are still in the default there. `macos-app-dmg` wraps the darwin layout too and is opt-in for the same reason `flatpak` is: it needs a different host. A UDIF image is written by `hdiutil`, which is macOS-only, so on any other host the route is `gjsify ship darwin --stage` here and `gjsify ship --from-stage <dir> --target macos-app-dmg` on a Mac. A format wrapping another layout is refused by name. |
+| `--target <fmt..>` | `gjsify.ship.targets`, else every format wrapping the layout that needs no extra tooling | Formats to build. Comma-separated or repeated. On Linux that default is `deb,rpm`; `flatpak` is opt-in because it is the one format that needs a *different host*. `macos-app`/`macos-app-zip` wrap the darwin layout and `windows-dir`/`windows-dir-zip` the windows one; all four need `glib-compile-schemas` — a tool, not a host, which is why they are still in the default there. `macos-app-dmg` wraps the darwin layout too and is opt-in for the same reason `flatpak` is: it needs a different host. A UDIF image is written by `hdiutil`, which is macOS-only, so on any other host the route is `gjsify ship darwin --stage` here and `gjsify ship --from-stage <dir> --target macos-app-dmg` on a Mac. `msi` wraps the windows layout too and is opt-in for a third reason again: it needs a TOOL on either of two hosts — `wixl` from `msitools` on Linux, WiX Toolset v3.14 on Windows — so it is `finishOn: ['linux', 'win32']` rather than `'any'` or one OS. A format wrapping another layout is refused by name. |
 | `--out <dir>` | `gjsify.ship.outDir`, else `ship` | Output root, relative to the project. |
 | `--stage` | `false` | Produce the staged payload and stop, packing nothing. |
 | `--from-stage <dir>` | — | Pack a payload an earlier `--stage` run wrote. Needs no project: no `package.json`, no config, no built bundle. |

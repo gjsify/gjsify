@@ -60,6 +60,13 @@ export const POSIX_PATH_SLICE_EXCEPTIONS = {
         'to open, then reads the same paths back. A both-separator helper would corrupt a ' +
         'legitimate Linux filename containing a backslash, and the signed payload has to come ' +
         'back keyed on exactly the identifiers it went in under or the packer would not find it.',
+    'packages/infra/cli/src/utils/ship/msi.ts':
+        'An INSTALLER path — `MsiFile.path` is the same `/`-separated payload identifier ' +
+        '`stage-writer.ts` and `rpm.ts` split, one format over, and here it never becomes a host ' +
+        'path at all: the components go into the MSI `Directory` table, whose rows describe the ' +
+        "TARGET machine's tree. A `.msi` compiled on Linux installs `C:\\Program Files\\App\\app` " +
+        'on Windows, so the build host has no say in the separator. Splitting on both would also ' +
+        'corrupt a legitimate Linux filename containing a backslash into two directory rows.',
     'packages/infra/workspace/src/changed-files.ts':
         'A git path from `git diff --name-only`, which git emits `/`-separated on every platform ' +
         '(core.quotePath notwithstanding) — including on Windows, where the working tree uses `\\`.',

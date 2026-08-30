@@ -29,7 +29,7 @@ measurements split three ways:
 | field | what it answers | why not derived |
 |---|---|---|
 | `finishOn` | which OSes can pack this | not the LAYOUT — a `<App>.app` tree assembles anywhere while the `.dmg` around it needs macOS |
-| `requiredTools` | what the packer EXECS | not implied by `finishOn` — an `.msi` we wrote ourselves would be `'any'` with no tools |
+| `requiredTools` | what the packer EXECS | not implied by `finishOn` — `.deb` and `.rpm` are written by this tree and exec nothing at all |
 | `installHint` | how to install those tools | the refusal is one generic function; hardcoded there the hint said `dnf install flatpak flatpak-builder` for every format that will ever need a tool |
 | `oracle` | who reads the artifact back, and where | derivable from neither; a format built by the platform's own tool forfeits independence unless a reader from another implementation family exists |
 
@@ -149,6 +149,88 @@ sidecar's `staged[].mode` too — which matters more here than anywhere else, si
 upload flattens every staged file to 0644 and the sidecar is the only surviving record. Kept as the
 record rather than deleted, because the wrong claim was the kind that removes an assertion: a doc
 saying "this cannot be checked" is how a checkable thing stops being checked.
+
+### `msi`: the row where `requiredTools` stopped being one list (#1354 M5)
+
+`msi` is the third format over the windows layout and the first one this tree does not write. It
+renders an authored `.wxs` (`utils/ship/msi.ts`) and hands it to a compiler, which is exactly the
+independence the hand-written `.deb`/`.rpm` writers bought and this format cannot. ADR 0024 § A6
+records the shape that buys it back instead: **one document, two compilers, and each one's output
+read by the other's family.**
+
+| | Linux | Windows |
+|---|---|---|
+| compiler | `wixl` (`msitools`) | WiX Toolset v3.14 (`candle.exe` + `light.exe`) |
+| what reads its output | `msiexec` on the `windows-msi-install` leg — it INSTALLS the file and the leg then RUNS the installed launcher and REMOVES it | `msiinfo` on the `windows-msi-crossread` leg, over the file WiX built |
+
+So `finishOn: ['linux', 'win32']` — and that is not § A5's either/or ("`'any'` if we write it and
+`['win32']` if WiX does") but the third option, which is what makes both legs possible. `darwin` is
+absent deliberately: Homebrew packages `msitools`, but nothing in this repository has ever run it
+there, and a row claiming a host no leg exercises fails at pack time on somebody's Mac.
+
+WiX **v3** and not v4/v5, and it is forced: `wixl` implements a subset of the 2006 schema
+(`http://schemas.microsoft.com/wix/2006/wi`) while WiX v4 moved to
+`http://wixtoolset.org/schemas/v4/wxs` with renamed elements. One document cannot be in two
+namespaces. v3.14.1.8722 is what `windows-latest` ships.
+
+**`requiredTools` became a union for this row and this row only.** Five of the eight formats exec
+one tool or none, so a per-OS map everywhere would make five rows say three times over what one row
+says once; but a flat list here is wrong in both directions — the union of both backends demands
+`wixl` of a Windows host that will never run it, and either half alone claims the other OS needs
+nothing. `requiredToolsOn(tools, host)` is the one resolver and `assertToolsInstalled` takes the
+host it resolves for, so both branches are testable from either OS.
+
+```ts
+requiredTools: {
+    linux: [SCHEMA_COMPILER, 'wixl'],
+    win32: [SCHEMA_COMPILER, 'candle.exe', 'light.exe'],
+},
+```
+
+`candle.exe`/`light.exe` carry their extension because `isOnPath` does `existsSync(join(dir, cmd))`
+and appends nothing: on Windows the bare word `candle` is not a file, so a row spelling it that way
+would refuse a host that has WiX installed.
+
+**What the installer does, and the one thing it does not.** It lays the program directory under
+`%ProgramFiles%\<App>` (overridable with `msiexec INSTALLDIR=…`, which is how the CI leg installs
+into a prefix it owns), writes one advertised Start-Menu shortcut aimed at the same `.cmd` the zip's
+user double-clicks, and removes all three on `msiexec /x`. There is deliberately no publisher level:
+the installed tree is then byte-for-byte the tree `windows-dir-zip` expands to, which is what lets
+the two artifacts be compared against each other at all.
+
+It does NOT close the console-window gap. `node.exe` is a CONSOLE-subsystem image and the Node
+release ships no `nodew.exe`, so a shortcut to the `.cmd` pops a console behind the GUI exactly as
+the `.cmd` does — and no CI leg can observe it, because every Windows leg starts the app from a
+shell and already has one.
+
+**Five things were measured against `msitools 0.106.58-1.fc44` before the renderer was written**,
+each with a plausible wrong answer: `wixl -a x64` sets `msidbComponentAttributes64bit` (256) by
+itself so no row needs `Win64="yes"`; an absolute `Source=` resolves (and the renderer writes
+RELATIVE ones anyway, because the same document is compiled on a second machine); an explicit
+`Product/@Id` GUID is honoured, so the artifact is deterministic where `Id="*"` would reroll the
+`ProductCode` every build; a `<Shortcut Advertise="yes">` nested inside `<File>` compiles, which
+keeps the shortcut in the launcher's own per-machine component instead of a second one with an HKCU
+key path; and `Property/@Secure` is accepted and IGNORED by wixl, so the renderer emits none rather
+than diverge between backends for nothing.
+
+**The GUIDs are derived, not random.** `UpgradeCode` = UUIDv5 over the app id alone, so it is the
+same for every version — that is what `MajorUpgrade` compares, and one that moved would leave every
+old version installed beside the new one. `ProductCode` = UUIDv5 over app id + version + release +
+arch, because Windows Installer refuses a second package carrying a code it already has, so one that
+did not move would make an upgrade a no-op. Component GUIDs are UUIDv5 over the app id and the
+file's path.
+
+**A prerelease version is REFUSED rather than truncated.** `normaliseVersion` produces `1.2.0~rc.1`
+for dpkg and rpm; MSI's `ProductVersion` is `major.minor.build` and has no spelling for it. Dropping
+the suffix would make `1.2.0~rc.1` and `1.2.0` the same version — indistinguishable to
+`MajorUpgrade`, so installing the release over the candidate leaves both on the machine.
+
+**A hand-written MSI stays rejected** (§ A6), and the reason is specific rather than effort: the
+three constraints that forced the hand-written `.deb`/`.rpm` writers — must run under GJS, must run
+offline, the CI image is Fedora — have no subject here, because § 4 records there is no GJS host on
+Windows at all. **MSIX stays rejected** until a certificate exists: an unsigned one cannot be
+installed, and a self-signed cert in `TrustedPeople` buys a green leg that proves the leg trusts
+itself.
 
 Both gates (`assertHostCanFinish`, `assertToolsInstalled`) run BEFORE the project's `build` script,
 because discovering an absent `flatpak-builder` afterwards costs the whole build. They are two
