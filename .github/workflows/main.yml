@@ -2481,15 +2481,23 @@ jobs:
         run: |
           hdiutil imageinfo "$DMG" | sed -n '1,40p' || true
 
+      # THE STEP OUTPUT, not a glob, and the first draft's glob is why. `ship
+      # --out artifacts` writes the artifact to `artifacts/out/`, not to
+      # `artifacts/` — `packOne` joins `out` onto the output root — so
+      # `path: artifacts/*.dmg` matched nothing and the upload failed with "No
+      # files were found with the provided path". `ship-pack-linux` never noticed
+      # the same layout because it locates its artifacts with a RECURSIVE `find`.
+      # The locate step above already derived the exact path; reading it back is
+      # one spelling of the layout instead of two.
+      #
+      # `if-no-files-found: error` stays, and it is what turned that mistake into
+      # a red step here rather than a missing file in the reader job two jobs on.
       - name: Upload the .dmg
         uses: actions/upload-artifact@v7
         with:
           name: ship-dmg-darwin-arm64
-          path: artifacts/*.dmg
+          path: ${{ steps.art.outputs.dmg }}
           retention-days: 1
-          # error, not warn: an empty upload hands the reader job a downloadable
-          # nothing and fails there as a missing file rather than here as a
-          # missing artifact.
           if-no-files-found: error
 
   # THE HALF THAT EARNS THE MILESTONE. Everything above runs on the machine that
@@ -2507,7 +2515,7 @@ jobs:
   ship-read-dmg:
     needs: [ship-stage, ship-pack-dmg]
     if: ${{ always() && needs.ship-pack-dmg.result == 'success' }}
-    name: Read the .dmg back on Linux (7z + dmg2img + fsck.hfsplus)
+    name: Ship read .dmg back (bare ubuntu, 7z + dmg2img + fsck.hfsplus)
     runs-on: ubuntu-latest
     permissions:
       contents: read

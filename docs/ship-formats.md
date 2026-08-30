@@ -52,16 +52,6 @@ Linux workstation does all of it — and both nonetheless declare
 `assertToolsInstalled` is separate from `assertHostCanFinish` for. `glib-compile-schemas` is GLib's
 own and runs on all three OSes, so declaring it does not make the format host-bound.
 
-`windows-dir` and `windows-dir-zip` (#1354 M3) are the same pair one OS over and carry the same
-`requiredTools` for the same reason. The one row-level difference is the ARTIFACT: a `<App>.app`
-carries its own directory in the stage (`Layout.root`), because it is dragged to `/Applications` as
-one object, while a Windows program directory does not — an installer chooses
-`C:\Program Files\<Publisher>\<App>` and lays the stage's CONTENTS into it. So `windows-dir` writes
-the payload with no rebase, and `windows-dir-zip` SYNTHESISES the top level the `.app` zip inherits.
-Without that synthesis the archive expands into whatever directory the user was in, scattering
-`app\`, `share\` and a loose `.cmd` across it — and every entry would be individually correct, so
-no listing of names reads as wrong.
-
 `macos-app-dmg` (#1354 M4) is the FIRST row that is host-bound by its container rather than by its
 application. Flatpak is `finishOn: ['linux']` because flatpak runs on Linux — the format is bound
 the way the app is. A `.dmg` is a UDIF image over a real HFS+/APFS volume, no HFS+/APFS writer
@@ -82,6 +72,16 @@ Two things about the row read as inconsistencies and are not:
   `assertHostCanFinish` has already refused every non-darwin host by the time the tool check can
   fire — so the only reader of that hint is somebody on a Mac whose `/usr/bin` is broken, and a
   hint sending them to `brew` would be worse than none.
+
+`windows-dir` and `windows-dir-zip` (#1354 M3) are the `macos-app`/`macos-app-zip` pair one OS
+over and carry the same `requiredTools` for the same reason. The one row-level difference is the ARTIFACT: a `<App>.app`
+carries its own directory in the stage (`Layout.root`), because it is dragged to `/Applications` as
+one object, while a Windows program directory does not — an installer chooses
+`C:\Program Files\<Publisher>\<App>` and lays the stage's CONTENTS into it. So `windows-dir` writes
+the payload with no rebase, and `windows-dir-zip` SYNTHESISES the top level the `.app` zip inherits.
+Without that synthesis the archive expands into whatever directory the user was in, scattering
+`app\`, `share\` and a loose `.cmd` across it — and every entry would be individually correct, so
+no listing of names reads as wrong.
 
 `windows-dir` is also the row where `archName` is one value: `wingtk/gvsbuild` hardcodes
 `self.platform = "x64"` and publishes no arm64 GTK, so there is nothing to build
