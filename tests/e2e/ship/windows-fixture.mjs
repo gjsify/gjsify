@@ -86,7 +86,10 @@ export function closureFiles(arch = ARCH) {
  * what `.github/workflows/node-gi.yml`'s assemble leg fetches, and the console
  * subsystem it reports there is the measurement that matters.
  */
-export function installRuntimePackages(projectDir, { closure = true, interpreter = true, addon = true, arch = ARCH } = {}) {
+export function installRuntimePackages(
+    projectDir,
+    { closure = true, interpreter = true, addon = true, arch = ARCH } = {},
+) {
     const modules = join(projectDir, 'node_modules', '@gjsify');
     const manifest = (dir, name, exports) => {
         mkdirSync(dir, { recursive: true });

@@ -2802,20 +2802,14 @@ jobs:
       # layout has — gvsbuild publishes no arm64 GTK (#1117) — and
       # `assertPayloadMatchesArch` reads the staged tree back and refuses a PE whose
       # COFF machine disagrees with the label.
-      # THREE TARGETS, and the third is #1354 M5. `msi` is NOT in the default set
-      # (`finishOn: ['linux', 'win32']`, so `defaultFormatIds` filters it out), which
-      # is why every target is named here rather than relying on the bare run.
-      # `wixl` comes from `msitools`, baked into `.docker/ci-fedora.Dockerfile`.
-      - name: Assemble the program directory, its zip and the installer
+      - name: Assemble the program directory + zip
         working-directory: tests/e2e/ship-macos/fixtures/window-app
         run: |
           export PATH="${GITHUB_WORKSPACE}/node_modules/.bin:$PATH"
-          wixl --version
-          gjsify ship windows --arch x64 --target windows-dir,windows-dir-zip,msi
+          gjsify ship windows --arch x64
           echo "--- what the directory carries ---"
           find "ship/out/Ship Window Demo/lib" -maxdepth 5 -type d | head -20
           du -sh "ship/out/Ship Window Demo"
-          ls -l ship/out/*.msi
 
       # The launcher, quoted into the log. It is a dozen lines and it is the
       # interface between everything above and everything the next job runs, so a
@@ -2844,6 +2838,43 @@ jobs:
           python3 "${GITHUB_WORKSPACE}/.github/ship-oracle/verify-program-dir.py" \
             "ship/out/Ship Window Demo" ship/stage/.gjsify-ship-stage.json | tail -1
 
+      # UPLOADED BEFORE THE INSTALLER IS COMPILED, deliberately. The two `.msi`
+      # steps below are the only ones in this job that need a tool, and
+      # `windows-dir-selfcontained` needs nothing from them — so an image without
+      # `msitools` costs the M5 legs and leaves M3's chain intact, instead of
+      # failing the whole job before this upload runs.
+      - name: Upload the assembled program-directory zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-dir-selfcontained-win32-x64
+          path: tests/e2e/ship-macos/fixtures/window-app/ship/out/*.zip
+          # error, not warn: an empty upload hands the next job a downloadable
+          # nothing and fails there as a missing file rather than here as a
+          # missing artifact.
+          if-no-files-found: error
+
+      # ── #1354 M5: the installer, as its OWN step ────────────────────────────
+      #
+      # A SECOND `gjsify ship` INVOCATION rather than a third `--target` on the one
+      # above, and the reason is failure ATTRIBUTION. `msi` is the only format here
+      # that needs a tool, and `assertToolsInstalled` refuses BEFORE anything is
+      # packed — so folding it into the run above would mean an image without
+      # `msitools` produces no program directory either, and M3's whole
+      # `windows-dir-selfcontained` chain fails on a missing MSI compiler. Two steps,
+      # two failures, each naming its own cause. `ship/out/` is not wiped between
+      # runs, so the second one adds the `.msi` beside the directory and the zip.
+      #
+      # `msitools` is baked into `.docker/ci-fedora.Dockerfile`; `wixl --version` is
+      # printed first so a failure here is attributable to the image rather than to
+      # the document.
+      - name: Compile the installer with wixl
+        working-directory: tests/e2e/ship-macos/fixtures/window-app
+        run: |
+          export PATH="${GITHUB_WORKSPACE}/node_modules/.bin:$PATH"
+          wixl --version
+          gjsify ship windows --arch x64 --target msi
+          ls -l ship/out/*.msi
+
       # THE INSTALLER, READ BACK — and this read is deliberately NOT the oracle.
       # `wixl` wrote the file and `msiinfo` reads it, which is one package agreeing
       # with itself (ADR 0024 § A3's `selfReading`). What it IS worth is the pair of
@@ -2859,16 +2890,6 @@ jobs:
             ship/out/ship-window-demo-1.0.0-1.x64.msi \
             "ship/out/Ship Window Demo" \
             msitools
-
-      - name: Upload the assembled program-directory zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-dir-selfcontained-win32-x64
-          path: tests/e2e/ship-macos/fixtures/window-app/ship/out/*.zip
-          # error, not warn: an empty upload hands the next job a downloadable
-          # nothing and fails there as a missing file rather than here as a
-          # missing artifact.
-          if-no-files-found: error
 
       # The installer AND the document it was compiled from. The `.wxs` is not a
       # by-product here: the windows job compiles this exact file a SECOND time with
@@ -3264,9 +3285,6 @@ jobs:
     needs: windows-msi-install
     if: ${{ !cancelled() && needs.windows-msi-install.result == 'success' }}
     timeout-minutes: 20
-    permissions:
-      contents: read
-      packages: read
     container:
       image: ghcr.io/gjsify/ci-fedora:44
     steps:

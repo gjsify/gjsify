@@ -58,10 +58,26 @@ import { pathToFileURL } from 'node:url';
 
 import { pe, SUBSYSTEM } from '../pe.mjs';
 import { runCli, runCliSync } from '../mock-registry.mjs';
-import { CLI_ENTRY, listFiles, listPayload, MONOREPO_ROOT, probe, scaffold, STAGE_MANIFEST_FILE } from '../ship/fixture.mjs';
+import {
+    CLI_ENTRY,
+    listFiles,
+    listPayload,
+    MONOREPO_ROOT,
+    probe,
+    scaffold,
+    STAGE_MANIFEST_FILE,
+} from '../ship/fixture.mjs';
 // The SUBJECT, shared with `tests/e2e/ship-msi`: one definition of the Windows
 // project both suites pack and of the runtime packages it resolves through.
-import { APP_NAME, ARCH, BINARY, closureFiles, installRuntimePackages, scaffoldNodeApp, TARGET } from '../ship/windows-fixture.mjs';
+import {
+    APP_NAME,
+    ARCH,
+    BINARY,
+    closureFiles,
+    installRuntimePackages,
+    scaffoldNodeApp,
+    TARGET,
+} from '../ship/windows-fixture.mjs';
 
 const ZIP_NAME = `${BINARY}-1.2.3-1.${ARCH}.zip`;
 
@@ -108,7 +124,6 @@ function shipExpectingFailure(args, cwd, env) {
     }
     return assert.fail(`expected \`gjsify ${args.join(' ')}\` to fail`);
 }
-
 
 describe('CLI ship Windows program directory E2E', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;

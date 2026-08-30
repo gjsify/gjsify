@@ -123,11 +123,9 @@ describe('CLI ship Windows installer E2E', () => {
         // BOTH ROWS, in one run. `windows-dir` is what the installer is compared
         // against — the whole point of the format is that it carries the same tree
         // — so asking for only `msi` would leave nothing to compare with.
-        runCliSync(
-            CLI_ENTRY,
-            ['ship', 'windows', '--skip-build', '--arch', ARCH, '--target', 'windows-dir,msi'],
-            { cwd: projectDir },
-        );
+        runCliSync(CLI_ENTRY, ['ship', 'windows', '--skip-build', '--arch', ARCH, '--target', 'windows-dir,msi'], {
+            cwd: projectDir,
+        });
         programDir = join(projectDir, 'ship', 'out', APP_NAME);
         msi = join(projectDir, 'ship', 'out', MSI_NAME);
         wxs = join(projectDir, 'ship', 'msi', `${BINARY}.wxs`);
@@ -275,6 +273,29 @@ describe('CLI ship Windows installer E2E', () => {
         // …and names the one-word replacement, which is the difference between a
         // refusal and a dead end.
         assert.match(out, /gjsify ship windows --target msi/);
+    });
+
+    it('packs the installer in a SECOND run, beside what the first produced', () => {
+        // The shape `node-gi.yml`'s assemble job uses, and it is a shape rather
+        // than a convenience: `msi` is the only format over this layout that needs
+        // a tool, and `assertToolsInstalled` refuses BEFORE anything is packed — so
+        // one `--target windows-dir,windows-dir-zip,msi` on a host without a
+        // compiler produces no program DIRECTORY either, and the leg that only
+        // wanted the directory fails on a missing MSI compiler. Two runs is what
+        // makes those two failures separable, and it only works because `ship/out/`
+        // is not wiped between them.
+        const twice = join(tmpDir, 'twice');
+        cpSync(projectDir, twice, { recursive: true });
+        rmSync(join(twice, 'ship'), { recursive: true, force: true });
+        runCliSync(CLI_ENTRY, ['ship', 'windows', '--skip-build', '--arch', ARCH], { cwd: twice });
+        runCliSync(CLI_ENTRY, ['ship', 'windows', '--skip-build', '--arch', ARCH, '--target', 'msi'], { cwd: twice });
+        const out = join(twice, 'ship', 'out');
+        assert.ok(existsSync(join(out, MSI_NAME)), 'the second run produced no installer');
+        assert.ok(existsSync(join(out, APP_NAME)), 'the second run removed the first run\u2019s directory');
+        assert.ok(existsSync(join(out, `${BINARY}-1.2.3-1.${ARCH}.zip`)), 'the second run removed the zip');
+        // And the installer the second run built describes the directory the first
+        // one did — which is the claim the CI leg's oracle call depends on.
+        oracle([join(out, MSI_NAME), join(out, APP_NAME), 'msitools']);
     });
 
     it('keeps the installer OUT of a bare `gjsify ship windows`', () => {
