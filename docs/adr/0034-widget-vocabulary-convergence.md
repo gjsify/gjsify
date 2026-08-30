@@ -1,6 +1,7 @@
 # 34. Every widget surface: named from the GIR, exported as a namespace, remainder declared
 
-- Status: **Proposed**
+- Status: **Proposed** — amended 2026-08-30, see § Amendment (the premise under the stage
+  order moved; stages 2 and 3 landed first)
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -239,7 +240,11 @@ grep -ic adwaita-web   scripts/check-vocabulary-alignment.mjs   # 3  <- the cont
 ```
 
 That is why no gate could have caught the four flattened GTK widgets: the surface that
-carries them is outside the check's world.
+carries them is outside the check's world. (**Closed 2026-08-30**: the first grep no
+longer answers 0 — 22 lines at the landing commit against 6 for the control, a line count
+that moves with any edit to the file, which is why the load-bearing form of the claim is
+"not zero". The measurement is kept as written because it is the evidence for the gap, and
+a fixed gap with its evidence deleted is a rule with no reason left.)
 
 ### The flattening is load-bearing today, and that has to be paid for
 
@@ -321,6 +326,8 @@ grep -rn "164 widgets\|164 tags\|164 GTK tags" docs/ packages/framework/AGENTS.m
 
 `docs/adr/0028:322,333`, `packages/framework/AGENTS.md:66` — in a sentence that itself
 warns *"a literal here drifted twice"* — and `scripts/check-vocabulary-alignment.mjs:37`.
+(That third one is gone as of 2026-08-30: the header now carries no count at all and the
+summary line derives every number it prints. The first two stand.)
 (`status/open-todos.md:181` also says 164 and is not wrong: it is explicitly framed *"at
 the time it landed"*.) One genuine generator nit alongside them: that header says *"the
 **two** tag maps"* while it emits four; a one-word fix in `emit-types.mts`, its own PR.
@@ -340,6 +347,10 @@ makes one surface nearly free **today and not for much longer**:
 | `@gjsify/adwaita-web` | 65 | published (0.44.0) | 5 127 | the gallery, the storybook |
 | `@gjsify/adwaita-nativescript` | 46 | **49** | **3 761** | 49 TS import sites, 50 `.mdx` fence lines / 9 pages, 108 XML tags / 28 files |
 | `@gjsify/adwaita-react-native` | **2** | **none — npm 404s** | **0** | **0 outside the package** (5 specs inside it) |
+
+> **Superseded on 2026-08-30**: the third row published that morning. The row is left as
+> written because the § Amendment below is about what happens when a premise moves, and
+> deleting the premise deletes the correction. Re-measured figures are there.
 
 ```sh
 npm view @gjsify/adwaita-nativescript versions --json | tr -d '[]" ' | tr ',' '\n' | grep -c .
@@ -919,8 +930,8 @@ under which the free adoption stays free.
 | # | stage | surface | breaks | what goes red if it is wrong |
 |---|---|---|---|---|
 | 1 | Adopt all three clauses on `@gjsify/adwaita-react-native` **before its first publish**: export `Adw`, add the (empty) ledger, wire the reader. Two widgets, both already correctly named. | RN | nothing — 0 published versions, 0 in-repo consumers outside the package | a third widget whose name is not its GType's; a widget absent from the namespace object; a namespace member with no widget behind it |
-| 2 | Require a `why` on `gtk:` entries in `WEB_ELEMENT_ALIGNMENT` and fill the ten. The clearest instance of the defect, on a table that already exists. | web | nothing | an alias with no reason — the same rule `webOnly` has carried since it was written |
-| 3 | Widen `check-vocabulary-alignment` with `NS_WIDGET_ALIGNMENT`: the 4 GTK-named widgets get `gir:`, the 4 counterpart-less ones get `composes:`/`own:`, with reasons. Self-test vectors first, as the file already requires. | NS | nothing | an undeclared NativeScript widget; a `gir:` target that is not a tag; a stale entry; a redundant entry — plus the check's own synthetic vectors, which must fail before real data is read |
+| 2 | **LANDED 2026-08-30** (ahead of 1, see § Amendment). Require a `why` on `gtk:` entries in `WEB_ELEMENT_ALIGNMENT` and fill the ten. The clearest instance of the defect, on a table that already exists. | web | nothing | an alias with no reason — the same rule `webOnly` has carried since it was written |
+| 3 | **LANDED 2026-08-30** (ahead of 1, see § Amendment). Widen `check-vocabulary-alignment` with `NS_WIDGET_ALIGNMENT`: the 4 GTK-named widgets get `gir:`, the 4 counterpart-less ones get `composes:`/`own:`, with reasons. Self-test vectors first, as the file already requires. | NS | nothing | an undeclared NativeScript widget; a `gir:` target that is not a tag; a stale entry; a redundant entry — plus the check's own synthetic vectors, which must fail before real data is read |
 | 4 | Make enrolment the property rather than the list: a declared widget surface that no reader covers fails. | all | nothing | a package declaring itself a widget surface with no reader — the arm that makes the rule reach a port nobody has written |
 | 5 | A `Gtk` docs section **beside** `Adwaita`: `controls.mdx` moves whole (0 Adwaita blocks on it), the two `Gtk.*` blocks on `buttons.mdx` follow, `redirects` keeps the old URLs the way the `/widgets/*` rename already does. | docs | old URLs, unless redirected — which is why the redirect is part of the stage | a `Gtk.*` block under the `Adwaita` heading, or an `Adw.*` block under `Gtk`; a moved page with no redirect entry |
 | 6 | Extend the tables to properties, read against `packages/framework/gtk-host/src/generated/props.ts` (in-repo, GIR-derived, no install). Print the count. | all | nothing | a settable property that is neither a `ConstructorProps` key of its counterpart nor declared — 45 today, and any 46th |
@@ -935,6 +946,105 @@ reachable before the ledger exists.
 
 **Stage 1 has an expiry.** `@gjsify/adwaita-react-native` is `private: false` at 0.44.0 and
 publishes on the next release cut; after that it is a fourth published surface and stage 1
-acquires the same shape as the rename this ADR rejects.
+acquires the same shape as the rename this ADR rejects. **That expiry fired the next
+morning** — see § Amendment.
 
 Follow-up is tracked in `status/open-todos.md` per governance; this ADR records the *why*.
+
+## Amendment, 2026-08-30 — the expiry fired, and the order it justified is now wrong
+
+Stages **2** (a reason on every `gtk:` alias) and **3** (`NS_WIDGET_ALIGNMENT`) landed
+first, ahead of stage 1. This section records why rather than reordering the table above
+quietly, because the thing worth keeping is not the new order — it is that the order came
+off a measurement, the measurement moved, and the order was re-derived instead of defended.
+
+### What moved
+
+`@gjsify/adwaita-react-native` was published at **0.44.0 on 2026-08-30T07:13:40Z**, about
+sixteen hours after this ADR was written. The whole of stage 1's priority was the sentence
+*"adopting the rule there today costs a namespace export and a ledger with no entries in
+it; adopting it after the cut costs what the NativeScript rename costs"*, and the cut has
+happened.
+
+Re-measured the same morning, from the registry and this repository at `main`:
+
+| surface | widgets | published versions | latest | downloads / month | in-repo import sites |
+|---|---:|---:|---|---:|---:|
+| `@gjsify/adwaita-web` | 65 | 137 | 0.44.0 | 5 006 | 11 |
+| `@gjsify/adwaita-nativescript` | 46 | 49 | 0.44.0 | 3 598 | 49 TS · 28 XML files |
+| `@gjsify/adwaita-react-native` | 2 | **1** | 0.44.0 | **no record** | **0** outside the package |
+
+```sh
+for p in @gjsify/adwaita-web @gjsify/adwaita-nativescript @gjsify/adwaita-react-native; do
+  npm view "$p" versions --json | tr -d '[]" ' | tr ',' '\n' | grep -c .
+  curl -s "https://api.npmjs.org/downloads/point/last-month/$p"
+done
+npm view @gjsify/adwaita-react-native time --json     # 0.44.0: 2026-08-30T07:13:40.828Z
+grep -rlE "from '@gjsify/adwaita-nativescript(/[a-z-]+)?'" --include='*.ts' --include='*.tsx' . \
+  | grep -v node_modules | wc -l                      # 49
+grep -rn '@gjsify/adwaita-react-native' --include='*.ts' --include='*.tsx' packages showcases tests website \
+  | grep -v node_modules | grep -v '^packages/framework/adwaita-react-native/' | wc -l   # 0
+```
+
+**"no record" is not "0 measured".** The point endpoint answers
+`{"error":"package @gjsify/adwaita-react-native not found"}` — npm has no download row for
+a package published that morning. Writing it as a zero would be claiming a measurement
+nobody took, which is the failure the § *How the numbers here were obtained* header exists
+to prevent.
+
+### Why the order changes, and why it is not simply "severity wins after all"
+
+The original ordering was **cost-curve**, and its live term was not *how cheap* React
+Native is but *that its cheapness was expiring on a date somebody else sets*. Nothing
+else in the ADR was rising. With the cut behind us, no stage's cost is rising any more:
+NativeScript's is flat and large, React Native's is flat and small. **The term that
+ordered the stages has gone to zero, so the ordering it produced no longer follows from
+anything.**
+
+What the remaining stages are ranked by is then the thing the original ordering
+deliberately set aside — and two independent reasons put 2 and 3 in front, neither of
+them "the worst surface first":
+
+1. **Stage 1 has a dependency the table did not show.** Stage 1 is "export `Adw`, add the
+   (empty) ledger, wire the reader". The *shape* of that ledger — the discriminated kinds,
+   the required reason, the floor, which side of the comparison carries information — is
+   what stages 2 and 3 build. Doing stage 1 first means inventing that shape once for a
+   surface with no entries in it, then meeting the real cases afterwards. An empty ledger
+   is a poor place to decide what a ledger is.
+2. **Stage 1's red condition is now cheap to state and was not before.** Its failure mode
+   is *"a third widget whose name is not its GType's"* — which is precisely the rule stage
+   3 implements against a live widget corpus. After stage 3 the React Native reader is the
+   only new part; before it, stage 1 would have carried the rules too.
+
+React Native did **not** get more expensive in the way the ADR feared. Both its names,
+`AdwBin` and `AdwClamp`, are already correct under clause 1, so nothing there needs a
+rename at any price; what publication cost is the *"nothing it can ever have to undo"*
+guarantee, which was the argument for hurrying and is now spent. Stage 1 stays worth
+doing and is no longer worth doing first.
+
+### What the gate prints once stages 2 and 3 have landed
+
+Reproducible, and deliberately not restated anywhere else — `node
+scripts/check-vocabulary-alignment.mjs`:
+
+```
+self-test green — 31 failing vector(s), 11 reader vector(s). 168 GTK tags across 3 dialect
+surfaces + the runtime table + the surface data; 65 adw-* web elements — 44 share a
+spelling, 10 alias one, 11 declared web-only; 46 NativeScript Adw* widgets — 38 share a
+spelling, 6 should converge, 2 declared own, 0 undecided. Distance to one vocabulary on
+NativeScript: 6 widget name(s), and it can only go down.
+```
+
+**6, not 4.** § Context counts *four* NativeScript widgets wearing an `Adw` prefix over a
+GTK type and *four* with no tag under either spelling; the printed distance is the widgets
+that have a GIR counterpart and do not share its spelling, which is those four plus
+`AdwIcon` (`gir: GtkImage`) and `AdwImageButton` (`composes: GtkButton + GtkImage`). The
+two numbers answer different questions and the check answers the one that can go down.
+
+### What this does not change
+
+The rule in § 1, the four declaration kinds, and the refusal to rename anything published.
+Stage 1 keeps its place in the list; only its position moves. And the ADR's own § Risks
+entry — *"the cheap stage is skipped because it is the least urgent-looking"* — is now the
+live risk on this ADR rather than a hypothetical, so it is recorded in
+`status/open-todos.md` with the re-measured price rather than left to the reader.

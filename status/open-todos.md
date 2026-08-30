@@ -205,20 +205,30 @@ And `bindEmptySections` derives SYNCHRONOUSLY, so it must run AFTER the router's
 only un-hides a microtask later, after `_syncClasses` has measured a bar at
 `offsetHeight` 0. That cost 8 real failures once; the three call sites now say so.
 
-### One vocabulary is a rule for EVERY surface, and three of the four do not hold it
+### One vocabulary is a rule for EVERY surface — two of the four now hold clause 3
 
-`scripts/check-vocabulary-alignment.mjs` reads exactly one of the four widget-bearing
-surfaces. It holds `adwaita-web`'s `adw-*` elements against the GIR-derived tag set and
-does not read `@gjsify/adwaita-nativescript` or `@gjsify/adwaita-react-native` at all
-(`grep -ic nativescript scripts/check-vocabulary-alignment.mjs` → 0, against 3 for
-`adwaita-web`). Where each stands:
+**ADR 0034 stages 2 and 3 have landed** (ahead of stage 1; the re-priced order is in that
+ADR's § Amendment). `scripts/check-vocabulary-alignment.mjs` now reads TWO widget-bearing
+surfaces and prints, every run:
+
+```
+168 GTK tags …; 65 adw-* web elements — 44 share a spelling, 10 alias one, 11 declared
+web-only; 46 NativeScript Adw* widgets — 38 share a spelling, 6 should converge, 2 declared
+own, 0 undecided. Distance to one vocabulary on NativeScript: 6 widget name(s).
+```
+
+Every one of those numbers is derived at run time. None of them is written in the check's
+header any more, because the count that used to sit there (`164`) was quoted into ADR 0034
+after it had already drifted.
+
+Where each stands:
 
 | surface | GIR naming | namespace export | declared |
 |---|---|---|---|
 | `gtk-host` | holds by construction (`src/tags.ts:18`) | n/a | n/a |
-| `adwaita-web` | 10 elements violate it (`adw-entry` is `GtkEntry`) | absent | half — the 10 aliases carry no reason |
-| `adwaita-nativescript` | 4 violate it; 4 more have no counterpart | absent | not at all — outside the check |
-| `adwaita-react-native` | holds (`AdwBin`, `AdwClamp`) | absent | not checked |
+| `adwaita-web` | 10 elements violate it (`adw-entry` is `GtkEntry`) | absent | **held** — all 21 declared, all 21 with a reason |
+| `adwaita-nativescript` | 4 violate it; 4 more have no counterpart | absent | **held** — 8 entries, `gir`/`composes`/`own`, each with a reason |
+| `adwaita-react-native` | holds (`AdwBin`, `AdwClamp`) | absent | not checked — stage 1, still open |
 
 **The clearest instance needs no cross-runtime argument**: `gtk-host` says `<gtk-entry>`
 for Solid, Vue and React alike and `adwaita-web` says `<adw-entry>` for the same widget,
@@ -230,19 +240,30 @@ rule stated once and surface-neutral (named from the GIR · exported as a namesp
 divergence declared with a reason), convergence with a DECLARED remainder rather than a
 bijection, and the namespace as a re-export layer rather than a rename.
 
-**The staging follows the cost curve, not the severity.** Measured: `adwaita-nativescript`
-is 49 published versions and 3 761 downloads/month; `adwaita-react-native` is **two widgets
-and not published at all** (`npm view @gjsify/adwaita-react-native version` → 404), landed
-in one PR (#1380), `private: false` at 0.44.0 — so it publishes on the next release cut and
-adopting the rule there is free until then. That is stage 1. adwaita-web's alias reason is
-stage 2; the NativeScript ledger is stage 3; the docs split is stage 5.
+**The staging followed the cost curve, and the term that ordered it has expired.** ADR 0034
+put React Native first because it had zero published versions and would acquire the
+NativeScript rename's cost at the next cut. **It published at 0.44.0 on 2026-08-30T07:13:40Z**
+(`npm view @gjsify/adwaita-react-native time --json`), so nothing is rising any more and
+the ordering no longer follows from anything. Re-measured that morning: `adwaita-web` 137
+versions / 5 006 downloads a month / 11 in-repo import sites; `adwaita-nativescript` 49 /
+3 598 / 49 TS + 28 XML files; `adwaita-react-native` 1 / **no download record at all** (the
+point endpoint 404s for a package published that morning — not a measured zero) / 0 import
+sites outside the package.
 
-Two things whoever picks this up should not re-derive. `WEB_ELEMENT_ALIGNMENT`'s `gtk:`
-entries carry **no reason field**, so an alias passes permanently and silently — the same
-hole `webOnly` was given a reason to close. And `collectAdwaitaCoverage`
+**Stage 1 is still worth doing and is no longer urgent**, and that is exactly the risk ADR
+0034 § Risks named ("the cheap stage is skipped because it is the least urgent-looking"),
+so it is written down here with its price rather than left to be re-derived. What it costs
+now: an `Adw` namespace export plus a React Native reader in the widened check. What it no
+longer buys: the guarantee that the rule costs that package nothing it can ever undo. Both
+its names are already correct, so no rename is in it at any price.
+
+One thing whoever picks this up should not re-derive: `collectAdwaitaCoverage`
 (`scripts/generate-status.mjs:223-225`) joins the renderers on the BARE name and says the
 vocabularies agree on it; that join is true only because they all flattened, so any rename
-has to carry it or the widget matrix grows false gaps.
+has to carry it or the widget matrix grows false gaps. (The other one — that
+`WEB_ELEMENT_ALIGNMENT`'s `gtk:` entries carried no reason field — is closed: all ten now
+carry one, eight moved from the element headers and two derived from `generated/props.ts`
+and the storybook coverage ledger, and an alias with no reason is a failing rule.)
 
 **Two things ADR 0034 measured but deliberately did not change.**
 
@@ -256,9 +277,10 @@ covered Adwaita") has stopped holding. ADR 0034 stage 5: a `Gtk` section beside 
 
 *Stale hand-written widget counts.* `grep -c "gtype: '" …/generated/widgets.ts` is **168**;
 `164` (the count before ADR 0028's 2026-08-28 amendment admitted placement carriers) still
-stands in `docs/adr/0028-widget-table-provenance.md:322,333`,
+stands in `docs/adr/0028-widget-table-provenance.md:322,333` and
 `packages/framework/AGENTS.md:66` — in a sentence that itself warns *"a literal here
-drifted twice"* — and `scripts/check-vocabulary-alignment.mjs:37`.
+drifted twice"*. The third site, `scripts/check-vocabulary-alignment.mjs:37`, is fixed: the
+header carries no count at all now and the summary line derives every number it prints.
 (`status/open-todos.md`'s own 164 above is framed "at the time it landed" and is fine.) The
 GENERATED header is NOT drifted, and the constant 4-wide gap between it and
 `grep -c '^export interface '` is not an off-by-four bug: `emit-types.mts:144` emits
