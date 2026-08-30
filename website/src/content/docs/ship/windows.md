@@ -56,20 +56,6 @@ machine that runs it.
 }
 ```
 
-:::caution[`@gjsify/node-runtime-win32-x64` is not yet published to npm]
-Measured against the registry on 2026-08-30, with `@gjsify/cli@0.44.0` as the
-control: `@gjsify/gtk-runtime-win32-x64` and `@gjsify/node-gi` resolve at
-`0.44.0`, and `@gjsify/node-runtime-win32-x64` answers 404. The first publish of
-a new name is a manual maintainer step, because npm Trusted Publishing needs the
-package to exist before CI can publish to it. It is queued.
-
-Until it lands, `npm install` fails on that line. Drop it and the rest of the
-block still gets you a program directory carrying its GTK closure and node-gi.
-What it will not carry is the interpreter, and `gjsify ship` says so on every run
-rather than letting you find out from a user. `GJSIFY_NODE_RUNTIME` points the
-lookup at a directory holding `node.exe` and its `LICENSE`, which is how to get a
-complete directory today.
-:::
 
 `GJSIFY_GTK_RUNTIME` overrides the GTK lookup with a directory holding `bin/`
 and `girepository-1.0/`. When either package is missing, ship names it and still
@@ -200,7 +186,7 @@ A project on any operating system, producing all three Windows artifacts. The
 
 ```bash
 # 1. Declare the runtime, on the packaging host.
-npm install --save-dev @gjsify/gtk-runtime-win32-x64
+npm install --save-dev @gjsify/node-runtime-win32-x64 @gjsify/gtk-runtime-win32-x64
 npm install --save @gjsify/node-gi
 
 # 2. Install the MSI compiler.
@@ -211,10 +197,10 @@ gjsify ship windows \
   --target windows-dir,windows-dir-zip,msi --verbose
 ```
 
-Step 1 omits `@gjsify/node-runtime-win32-x64`, because that name still answers
-404. Point `GJSIFY_NODE_RUNTIME` at a directory holding `node.exe` and its
-`LICENSE` to get a directory that runs on a Windows machine with no Node
-installed.
+Step 1 is a `devDependency` because the packaging host needs those two, not the
+shipped app. To point the lookup somewhere else -- a patched interpreter, or a
+build you produced yourself -- set `GJSIFY_NODE_RUNTIME` to a directory holding
+`node.exe` and its `LICENSE`.
 
 To split the work instead, assemble here and pack on Windows:
 
