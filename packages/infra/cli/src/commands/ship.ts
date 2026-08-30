@@ -75,6 +75,15 @@ import {
     readPayloadFacts,
 } from '../utils/ship/payload.js';
 import { assertOverlayIsLicensed, planOverlay, planStage, type StageInputs } from '../utils/ship/plan.js';
+import {
+    assertHostCanSign,
+    notarizeArtifact,
+    resolveNotaryPlan,
+    resolveSignPlan,
+    signPayload,
+    type NotaryPlan,
+    type SignPlan,
+} from '../utils/ship/signing.js';
 import { renderLauncher } from '../utils/ship/launcher.js';
 import { buildRpm } from '../utils/ship/rpm.js';
 import { declaredBundlePath, resolveShipSettings, type ShipPackageManifest } from '../utils/ship/settings.js';
@@ -109,6 +118,8 @@ interface ShipOptions {
     'expect-target'?: string;
     'skip-build': boolean;
     arch?: string;
+    sign?: string;
+    notarize?: string;
     verbose: boolean;
 }
 
@@ -176,6 +187,42 @@ export const shipCommand: Command<unknown, ShipOptions> = {
             .option('arch', {
                 type: 'string',
                 description: 'Target architecture in `process.arch` spelling. Default: this host.',
+            })
+            .option('sign', {
+                type: 'string',
+                // `requiresArg`, and it is not tidiness. `-` is the RESERVED
+                // ad-hoc identity — the one value of this flag that needs no
+                // developer identity and the only one this project's own CI can
+                // use — and yargs-parser treats a lone `-` as a positional by
+                // convention (stdin), so `--sign -` parsed as `sign: ''` plus a
+                // stray `-` and the strict-mode refusal was "Unknown argument: -".
+                // Measured on the first cut of this flag. The cost is that a bare
+                // `--sign` with no value is now "Not enough arguments following"
+                // rather than the empty-identity skip; that skip stays reachable
+                // through `--sign ''` and through the config key, which is where
+                // an unset CI variable actually lands.
+                requiresArg: true,
+                // An IDENTITY, never a certificate (ADR 0024 § A12): `codesign`
+                // and `signtool` are both handed a NAME and look the private key
+                // up themselves, so this command is never given a secret and has
+                // nothing to redact. Deliberately no `default:` — a yargs default
+                // is indistinguishable from a value the user typed and would
+                // clobber `gjsify.ship.sign.<os>.identity`.
+                description:
+                    'Sign the payload with this identity, e.g. a Developer ID name or SHA-1 fingerprint. ' +
+                    '`-` signs ad-hoc and needs no developer identity. Default: ' +
+                    '`gjsify.ship.sign.<darwin|win32>.identity`; absent means unsigned, which is a ' +
+                    'legitimate output.',
+            })
+            .option('notarize', {
+                type: 'string',
+                // Same reason as `--sign` one option up, applied for consistency
+                // rather than for a measured case: a credential that begins with
+                // a dash is not a shape anybody should have to think about.
+                requiresArg: true,
+                description:
+                    'Submit the signed artifact to Apple with this `notarytool` keychain profile. Needs ' +
+                    '--sign; darwin only.',
             })
             .option('verbose', {
                 type: 'boolean',
@@ -277,6 +324,23 @@ async function assemble(args: ShipOptions): Promise<void> {
         }
     }
     if (!args.stage) assertPackable(formats, layout, args.os === undefined ? 'host' : 'positional', unusable);
+    // BEFORE the build, beside `assertCanPack` and for the same reason: a
+    // `--sign` this host cannot honour — wrong OS, no tool, a layout that has no
+    // signature at all — is knowable up front, and discovering it after the
+    // project's own build has run costs the whole build for a refusal nothing
+    // learned from building.
+    //
+    // `ship.sign` is read HERE and nowhere on the `--from-stage` path, and that
+    // asymmetry is § A14's amendment to § A1: a format declares where it can be
+    // packed, the RUN declares what it can sign with. The finishing host has no
+    // project to read a default out of, so there it is the flag or nothing.
+    const sign = resolveSignPlan({ flag: args.sign, config: ship.sign, layoutOs: layout.os });
+    const notarize = resolveNotaryPlan({ flag: args.notarize, layoutOs: layout.os, sign });
+    if (args.stage) assertNothingToSignYet(args);
+    if (!args.stage) {
+        announceSigning(sign, notarize);
+        if (sign.kind === 'sign') assertHostCanSign(sign.signer);
+    }
     // BEFORE the build, not before the pack. `gjsify ship` runs the project's
     // own `build` script first, so discovering a missing `flatpak-builder`
     // afterwards costs the whole build for a refusal that was knowable up
@@ -575,11 +639,47 @@ async function assemble(args: ShipOptions): Promise<void> {
                 outRoot,
                 namespaces,
                 mtime,
+                sign,
+                notarize,
                 verbose: args.verbose,
             }),
         );
     }
     printArtifacts(projectDir, artifacts);
+}
+
+/**
+ * Refuse `--sign` / `--notarize` on the phase that produces no artifact.
+ *
+ * `--stage` writes a build intermediate, and a signature over one would be
+ * invalidated by the very next thing that happens to it — the packer reads the
+ * tree back and the container is built around it (ADR 0024 § A17 fixes that
+ * order for the opposite reason: `readStage` compares SIZES, and a re-signed
+ * file has a new one). Silently accepting the flag would produce a stage nobody
+ * could tell from an unsigned one.
+ */
+function assertNothingToSignYet(args: ShipOptions): void {
+    const given = args.sign !== undefined ? '--sign' : args.notarize !== undefined ? '--notarize' : undefined;
+    if (given === undefined) return;
+    throw new Error(
+        `gjsify ship: ${given} belongs to the finish phase, and --stage produces no artifact to sign — it ` +
+            'writes the tree a packing host reads back. Assemble here, then run ' +
+            '`gjsify ship --from-stage <dir> --sign <identity>` on the host that holds the identity ' +
+            '(ADR 0024 § A2, § A14).',
+    );
+}
+
+/**
+ * Say what this run will do about signatures, once, before any of it happens.
+ *
+ * PRINTED rather than silent, and to stderr, because ADR 0024 § A13 makes the
+ * skip the visible half of "unsigned is the default path": a pipeline that
+ * captures the artifact list still shows the line, and an unsigned artifact
+ * nobody was told about is how a signature gets claimed that was never made.
+ */
+function announceSigning(sign: SignPlan, notarize: NotaryPlan): void {
+    if (sign.kind === 'skip') console.warn(`${LOG} ${sign.message}`);
+    if (notarize.kind === 'skip' && sign.kind === 'sign') console.warn(`${LOG} ${notarize.message}`);
 }
 
 /**
@@ -695,6 +795,16 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
     assertFormatsStaged(manifest, formats);
     for (const format of formats) assertCanPack(format);
 
+    // NO `config` — this phase has no project, by construction (`tests/e2e/
+    // ship-from-stage` deletes the project tree between the two phases). So the
+    // identity is the flag or nothing, which is also the right answer: § A14
+    // amends § A1 to *a format declares where it can be packed; the RUN declares
+    // what it can sign with*, and this run is the one holding the keychain.
+    const sign = resolveSignPlan({ flag: args.sign, layoutOs: layout.os });
+    const notarize = resolveNotaryPlan({ flag: args.notarize, layoutOs: layout.os, sign });
+    announceSigning(sign, notarize);
+    if (sign.kind === 'sign') assertHostCanSign(sign.signer);
+
     for (const warning of warnOnToolSkew(manifest)) console.warn(`${LOG} ${warning}`);
     const { mtime, warnings } = resolveStageMtime(manifest);
     for (const warning of warnings) console.warn(`${LOG} ${warning}`);
@@ -743,6 +853,8 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
                 outRoot,
                 namespaces: manifest.namespaces,
                 mtime,
+                sign,
+                notarize,
                 verbose: args.verbose,
             }),
         );
@@ -765,6 +877,10 @@ interface PackInput {
     stageDir: string;
     outRoot: string;
     namespaces: readonly string[];
+    /** What this RUN can sign with — resolved once, never per format. */
+    sign: SignPlan;
+    /** What this RUN can notarise with. */
+    notarize: NotaryPlan;
     /** Print each tool invocation a host-bound packer makes. */
     verbose: boolean;
 }
@@ -777,11 +893,19 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     const overlayDir = join(outRoot, 'overlay', format.id);
     writeStage(overlayDir, input.overlay);
 
-    const payload = readStage([stageDir, overlayDir], [...input.staged, ...input.overlay]);
+    // THE PRE-SIGN TREE, and the name says which one it is (ADR 0024 § A17).
+    // `readStage` holds each file's SIZE against the stage manifest, and a size is
+    // no more re-sign-proof than a digest would be — measured on this tree:
+    // append one byte to a staged file and it refuses with "… is 6 bytes in the
+    // stage and 5 in its manifest". So the validation runs over what phase one
+    // wrote, and the signer below takes its OUTPUT: the signed bytes are computed
+    // from the validated ones and therefore cannot exist before them, which is
+    // what makes the order structural rather than a comment somebody may reorder.
+    const assembled = readStage([stageDir, overlayDir], [...input.staged, ...input.overlay]);
     // What the package installs, read off what it installs. The three questions
     // this answers used to be answered from the project's file lists, which are
     // absolute paths on the build host and therefore unavailable here.
-    const facts = readPayloadFacts(payload);
+    const facts = readPayloadFacts(assembled);
     const depends =
         format.depends === null
             ? []
@@ -810,7 +934,7 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // asserting afterwards would compare against a label that no longer names an
     // architecture, and the mismatch that matters is exactly the one on a payload
     // that IS architecture-specific.
-    assertPayloadMatchesArch(payload, input.arch);
+    assertPayloadMatchesArch(assembled, input.arch);
 
     // The second half of the same idea, on the other label this artifact carries:
     // something declares which interpreter runs the app, and until now nothing
@@ -829,7 +953,7 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // launcher it cannot resolve stays silent rather than failing a working
     // artifact.
     const layout = layoutForOs(format.layoutOs);
-    assertLauncherMatchesInterpreter(payload, layout, settings, settings.app);
+    assertLauncherMatchesInterpreter(assembled, layout, settings, settings.app);
 
     // The label against the LAYOUT, which is the question one level up from
     // `assertPayloadMatchesArch`: that one asks whether the bytes agree with the
@@ -850,6 +974,34 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // tracked, which is the difference between "unsupported" and "here is what
     // would have to change".
     assertLayoutSupportsArch(layout, input.arch);
+
+    // AFTER every check above and BEFORE any container below — the seam § A17
+    // asks M2's packer to leave, filled. Signing is a MUTATION of the payload
+    // (§ A4): what the packers get back is new bytes, not a wrapper, because a
+    // Developer-ID-signed main executable will not load ad-hoc-signed dylibs
+    // under library validation and all 106 images in the shipped darwin closure
+    // are ad-hoc today.
+    //
+    // Per FORMAT rather than once per run, and that costs darwin a second
+    // `codesign` pass over the same images (`macos-app` and `macos-app-zip` are
+    // two calls). It is not avoidable by hoisting: the payload a format signs
+    // includes that format's own overlay — on darwin the licence, which lands
+    // INSIDE `<App>.app` — so two formats have two payloads.
+    //
+    // `signed/<id>/` is scratch this function owns. The arriving stage is never
+    // written to: `writeStage` wipes what it is pointed at, and a re-signed file
+    // in it would fail the very `readStage` above on the next run.
+    const payload =
+        input.sign.kind === 'sign'
+            ? await signPayload({
+                  payload: assembled,
+                  identity: input.sign.identity,
+                  signer: input.sign.signer,
+                  workDir: join(outRoot, 'signed', format.id),
+                  verbose: input.verbose,
+                  log: (line) => console.log(`${LOG} ${line}`),
+              })
+            : assembled;
 
     const archLabel = format.archName(input.arch, isArchIndependent(payload));
     const common = { settings, payload, prefix: format.prefix, depends, archLabel, mtime };
@@ -948,6 +1100,29 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // directory entry — so a `.app` with a 20 MiB bundle would be reported as
     // "4096 bytes". `artifactKind` is on the descriptor for exactly this.
     const size = format.artifactKind === 'directory' ? directorySize(target) : statSync(target).size;
+
+    // LAST, on the artifact that landed — notarisation is a check on a finished,
+    // signed container and there is nothing to submit before one exists.
+    //
+    // A DIRECTORY IS SKIPPED, not refused. `notarytool` takes an archive or an
+    // installer, so a `<App>.app` has no submittable form of its own; on darwin
+    // the zip beside it is the one that goes. Refusing here would make
+    // `--notarize` unusable with the default format set, which is both rows.
+    if (input.notarize.kind === 'notarize') {
+        if (format.artifactKind === 'directory') {
+            console.warn(
+                `${LOG} ${format.id} is a directory, and notarytool submits an archive or an installer — ` +
+                    'not notarised. The container format beside it is what carries the ticket.',
+            );
+        } else {
+            await notarizeArtifact({
+                plan: input.notarize,
+                artifact: target,
+                verbose: input.verbose,
+                log: (line) => console.log(`${LOG} ${line}`),
+            });
+        }
+    }
     return { format: format.id, path: target, size };
 }
 

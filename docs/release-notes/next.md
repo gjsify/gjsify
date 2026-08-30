@@ -158,10 +158,45 @@ window open behind it. It is recorded rather than hidden: no CI leg can observe 
 Windows job starts the app from a shell and already has a console), so the assemble job prints the
 subsystem it read off the binary instead of pretending to check it.
 
+### Signing takes an identity, not a certificate — and it is proven with neither
+
+`gjsify ship --sign <identity>` signs the payload on the finish phase. What it takes is the STRING
+`codesign` and `signtool` look a private key up by, never a certificate: there is no
+`--certificate`, no `--p12`, no `--password`, and nothing on this surface can leak into a log line.
+Getting a key into a keychain is the signing host's job. The project default is
+`gjsify.ship.sign.<darwin|win32>.identity`, keyed per OS because a Developer ID string and an
+Authenticode subject are different namespaces.
+
+**Absent identity skips, loudly, at exit 0.** Unsigned stays the default path and a legitimate
+deliverable. What is refused is the other direction — claiming a signature that was not made — so
+the skip is printed to stderr and names the step it skipped.
+
+**Signing is a mutation of the payload, not a wrapper around it.** Under a hardened runtime a
+Developer-ID-signed executable will not load ad-hoc-signed dylibs, and all 106 Mach-O images in the
+shipped darwin GTK closure are ad-hoc today — they have to be, because relocating them invalidates
+whatever signature they arrived with. So the darwin leg re-signs every image inside the payload and
+the packers receive new bytes. The order is fixed rather than bet on: the staged tree is validated
+against its manifest FIRST — that check compares file SIZES, and a size is no more re-sign-proof
+than a digest — then the payload is signed, then the container is built. The arriving stage is never
+written to, so a `--from-stage --sign` run can be repeated.
+
+**And the whole thing is proven in CI with no secret in it.** `codesign --sign -` is ad-hoc and
+needs no Apple Developer Program membership, so a macOS leg signs a real Mach-O payload and two
+readers check the result: Apple's own `codesign --verify`, and a new arrival comparator that answers
+the question no verifier does — every non-Mach-O file byte-identical, every Mach-O identical outside
+its signature. A real Developer ID later is a different value for the same flag, not a different
+code path.
+
+`--notarize <keychain-profile>` is there too, and it is honest about itself: notarisation needs an
+Apple account, which is exactly the credential this milestone does without, so the flag, the guard
+and both refusals are covered and the submission has never run. The Windows half is in the same
+position for the same reason — `signtool` has no ad-hoc mode. Both gaps are written down in
+`status/open-todos.md` with what WAS measured for each.
+
 ### What it does not do yet
 
-The `.dmg`, the Windows `.msi` and signing are still ahead — an artifact assembled on Linux is
-unsigned by construction. The asymmetry is worth knowing: Gatekeeper BLOCKS an unsigned `.app`,
+The `.dmg` and the Windows `.msi` are still ahead, and so is notarisation. The asymmetry between the
+two platforms is worth knowing: Gatekeeper BLOCKS an unsigned `.app`,
 while SmartScreen only warns until a download builds reputation, so the Windows directory is usable
 today in a way the macOS bundle is not. macOS has GJS but no *relocatable* GJS and Windows has no
 GJS at all, which is why all four new formats accept `gjsify.app: "node"` only; a `gjs` project can

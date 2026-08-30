@@ -3,7 +3,7 @@
     "packages/dom/AGENTS.md": 2081,
     "packages/framework/AGENTS.md": 31887,
     "packages/infra/AGENTS.md": 1131,
-    "packages/infra/cli/AGENTS.md": 21205,
+    "packages/infra/cli/AGENTS.md": 21828,
     "packages/infra/resolve-npm/AGENTS.md": 6734,
     "packages/infra/rolldown-plugin-gjsify/AGENTS.md": 23558,
     "packages/napi/AGENTS.md": 7179,
