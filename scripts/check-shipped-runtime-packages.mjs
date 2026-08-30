@@ -106,15 +106,10 @@ const retryDelayMs = Math.max(0, Number(flag('--retry-delay-ms', '5000')) || 0);
 // packument exists, a stale entry here FAILS this check.
 // ---------------------------------------------------------------------------
 const PENDING_BOOTSTRAP = new Map([
-    [
-        '@gjsify/node-runtime-darwin-arm64',
-        'first publish queued — see docs/publishing.md § New @gjsify/* package (#1418)',
-    ],
-    [
-        '@gjsify/node-runtime-darwin-x64',
-        'first publish queued — see docs/publishing.md § New @gjsify/* package (#1418)',
-    ],
-    ['@gjsify/node-runtime-win32-x64', 'first publish queued — see docs/publishing.md § New @gjsify/* package (#1420)'],
+    // Empty, and that is the point rather than an oversight. Every by-name ship
+    // runtime package went live at 0.44.0 on 2026-08-30, and a name published while
+    // still listed here FAILS the check -- so this list empties itself on bootstrap
+    // instead of rotting into a permanent exemption nobody rereads.
 ]);
 
 // A file that declares a dependency on a pending name must contain one of these.
