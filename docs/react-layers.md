@@ -101,12 +101,13 @@ differs only in how it receives its rows, because a `Gtk.ListView` takes no chil
 `append`, `add`, `insert`, `prepend`, `remove` or `set_child` on its prototype. The host's
 placement policies are data naming a method, so there is no method to name.
 
-Most of what follows from that is **not React's**. The model, the factory, the key diff and the
-teardown authority live in `@gjsify/gtk-host/list`, where Vue and Solid reach the same three
-measurements — the `Gio.ListStore` carrier identity, why a data change splices the model instead
-of announcing it, and why `dispose()` rather than GTK's own `teardown` signal is what disconnects.
-That module's header states each of them once; nothing restates them here, because a second copy
-is the one that goes stale.
+Most of what follows from that is not React's. The model, the factory, the key diff and the
+teardown authority live in `@gjsify/gtk-host/list`, which imports GTK and GObject and no
+framework. Solid reaches it through `listRows`; Vue has no binding over it yet. That module's
+header states its three measurements once, the `Gio.ListStore` carrier identity, why a data
+change splices the model instead of announcing it, and why `dispose()` rather than GTK's own
+`teardown` signal is what disconnects. Nothing restates them here, because a second copy is the
+one that goes stale.
 
 What is React's is the deferral: a row's tree is rendered on a microtask, because GTK binds rows
 from inside React's own commit and the adapter's `render()` refuses a re-entrant flush by name.
