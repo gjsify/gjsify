@@ -105,6 +105,7 @@ measures nothing — the reason this field is a required one rather than prose:
 | `windows-dir-zip` | `unzip -Z1` | as above; and here it is also blind to the archive's own failure, entries written at the ROOT | `zipinfo -l` |
 | `macos-app-dmg` | `hdiutil verify` / `hdiutil imageinfo` | hdiutil reading what hdiutil wrote — ADR 0024 § A3 names this format as the case the field exists for | `7z l` + `7z t` + `dmg2img` + `fsck.hfsplus -f -n`, on **Linux** |
 | `macos-app-dmg` | `7z l` alone | a table-of-contents read; blind to a byte flipped inside a compressed run, which is why `7z t` is in the chain | " |
+| `macos-app-dmg` | `dmg2img in.dmg out.img` | writes the whole GPT-partitioned DISK (measured: eight partitions), so the HFS+ volume header is not at offset 1024 and `fsck.hfsplus` exits 8 on a correct image | `dmg2img -l` to find the `Apple_HFS` partition, then `dmg2img -p <n>` |
 
 `bsdtar` was the other zip candidate and is absent here and in the CI image; adding it would trip
 `scripts/check-ci-image-packages.mjs`. `zipinfo` ships in the `unzip` package that is already

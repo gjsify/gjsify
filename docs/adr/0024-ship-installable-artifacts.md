@@ -550,7 +550,11 @@ stays rejected on § A6's terms; the image is created by `hdiutil create -format
   link that sees a byte flipped inside a compressed run; `dmg2img`, a second and unrelated UDIF
   decoder, which writes the raw volume out; and `fsck.hfsplus -f -n`, Apple's own fsck_hfs sources
   built for Linux, which walks the catalog and the volume bitmap. The listing then goes against
-  `.gjsify-ship-stage.json` by name and size. `.github/ship-oracle/verify-dmg.py`.
+  `.gjsify-ship-stage.json` by name, size and MODE. `.github/ship-oracle/verify-dmg.py`. Two things
+  about that chain were only learnable from a real artifact: `7z l -slt` AUTO-NESTS Dmg into HFS, so
+  the header carries two `Type` values and the assertion is the SEQUENCE `['Dmg', 'HFS']`; and
+  `dmg2img in.dmg out.img` writes the whole GPT-partitioned DISK, so the volume has to be named with
+  `-l` + `-p <n>` or `fsck.hfsplus` exits 8 on a correct image.
 - **`-fs HFS+J` is a decision, not a default.** A current `hdiutil` reaches for APFS when nothing
   says otherwise, and against an APFS volume `dmg2img` produces nothing usable and `fsck.hfsplus`
   has no subject at all — two of the three readers would silently stop reading, on a host no Linux

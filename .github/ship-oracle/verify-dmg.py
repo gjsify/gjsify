@@ -24,11 +24,23 @@ THE CHAIN, and what each link is for — they are not redundant:
                             byte flipped inside a compressed run — the same shape as
                             `unzip -Z1` being blind to a mode.  The Dmg entry reports
                             `Method = Zero0 Zero2 ZLIB CRC`, so there is a stored
-                            checksum for this to disagree with.
-  3. `dmg2img`              A SECOND, unrelated UDIF decoder, which writes the raw
+                            checksum for this to disagree with.  Measured on a real
+                            image: `Everything is Ok / Folders: 17 / Files: 10 /
+                            Size: 532312 / Compressed: 31662`.
+  3. `dmg2img -l` / `-p N`  A SECOND, unrelated UDIF decoder, which writes the raw
                             volume out.  Two decoders agreeing is worth more than one
                             decoder twice, and it is what turns the next link's
                             subject from an archive listing into a filesystem.
+                            THE PARTITION IS NAMED, and the first cut did not name it:
+                            `hdiutil` writes a GPT-partitioned disk (primary header,
+                            primary table, the `Apple_HFS` volume, `Apple_Free`, the
+                            backup table — `hdiutil imageinfo` lists them, and dmg2img
+                            decompressed EIGHT partitions into one file), so a plain
+                            `dmg2img in.dmg out.img` produces a DISK, the HFS+ volume
+                            header is not at offset 1024 of it, and `fsck.hfsplus`
+                            exits 8 on a perfectly good image.  `-l` prints
+                            `partition <n>: <name>` and `-p <n>` extracts one — the
+                            tool's own vocabulary, so nothing here parses a GPT.
   4. `fsck.hfsplus -f -n`   Apple's own fsck_hfs sources, built for Linux (hfsprogs).
                             Walks the catalog file, the extents overflow file and the
                             volume bitmap.  This is the only link that distinguishes
@@ -90,6 +102,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -352,6 +365,50 @@ def compare_listing(records: list[dict[str, str]], manifest_path: str, where: st
     return len(expected)
 
 
+def extract_hfs_partition(image: str, out: str) -> None:
+    """Write the image's HFS+ partition — not the whole disk — with dmg2img.
+
+    `hdiutil` produces a GPT-partitioned DISK: a primary GPT header and table, the
+    `Apple_HFS` volume, an `Apple_Free` run and the backup table. A bare
+    `dmg2img in.dmg out.img` decodes ALL of them into one file (measured on a real
+    image: "opening partition 0 …" through 7), so the HFS+ volume header is not at
+    offset 1024 of the result and `fsck.hfsplus` exits 8 on a correct artifact —
+    which is exactly the failure this function exists to have already had.
+
+    THE PARTITION IS FOUND IN dmg2img'S OWN WORDS. `-l` prints
+    `partition <n>: <name>`, the name carrying the plist's `Name` key
+    (`disk image (Apple_HFS : 4)`), and `-p <n>` extracts that one. Parsing a GPT
+    here instead would put a reader we wrote in the middle of a chain whose whole
+    point is that we wrote none of it.
+
+    EXACTLY ONE match is required. An image with two HFS+ partitions is not
+    something `gjsify ship` produces, and picking the first would be a guess in the
+    one place this file refuses to guess.
+    """
+    listing = run(["dmg2img", "-l", image], what="dmg2img -l").stdout
+    partitions = [
+        (int(m.group(1)), m.group(2).strip()) for m in re.finditer(r"^partition (\d+): (.*)$", listing, re.M)
+    ]
+    if not partitions:
+        fail(
+            "`dmg2img -l` listed no partition this parser recognises, so it read nothing. Its output is "
+            "above; the expected shape is `partition <n>: <name>`."
+        )
+    hfs = [index for index, name in partitions if "Apple_HFS" in name]
+    if len(hfs) != 1:
+        fail(
+            f"`dmg2img -l` found {len(hfs)} Apple_HFS partition(s) among {len(partitions)}: {partitions}. "
+            "`hdiutil create -fs HFS+J` writes exactly one, and which one to check is not a thing to "
+            "guess at."
+        )
+    run(["dmg2img", "-p", str(hfs[0]), image, out], what=f"dmg2img -p {hfs[0]}")
+    if not os.path.exists(out) or os.path.getsize(out) == 0:
+        fail(
+            "dmg2img exited 0 and produced no volume. An exit code without an output file is the shape a "
+            "decoder takes when it recognised nothing."
+        )
+
+
 def verify_volume(volume: str, manifest_path: str, where: str = "volume") -> None:
     """Links 4 and 5: the filesystem, then its contents against the sidecar."""
     proc = run(["fsck.hfsplus", "-f", "-n", volume], what="fsck.hfsplus -f -n")
@@ -400,12 +457,7 @@ def verify_dmg(image: str, manifest_path: str) -> None:
 
     with tempfile.TemporaryDirectory() as work:
         volume = os.path.join(work, "volume.img")
-        run(["dmg2img", image, volume], what="dmg2img")
-        if not os.path.exists(volume) or os.path.getsize(volume) == 0:
-            fail(
-                "dmg2img exited 0 and produced no volume. An exit code without an output file is the "
-                "shape a decoder takes when it recognised nothing."
-            )
+        extract_hfs_partition(image, volume)
         # THE SAME COMPARISON AGAIN, over the volume the OTHER decoder wrote. Not a
         # duplicate: 7-Zip's chain and dmg2img are two independent UDIF implementations,
         # and the thing worth knowing is that they agree about the bytes inside.
@@ -422,9 +474,11 @@ def mutate(image: str, kind: str, out: str) -> None:
     if kind == "volume":
         # The mutant is a raw volume rather than an image, because `fsck.hfsplus`'s
         # subject is the filesystem and the only way to hand it one is to convert
-        # first. Verify it with `--kind volume`.
+        # first. THE SAME extraction the verify path uses — a whole-disk mutant would red
+        # for the wrong reason (no volume header at offset 1024) and read as a working
+        # discriminator. Verify it with `--kind volume`.
         require("dmg2img")
-        run(["dmg2img", image, out], what="dmg2img")
+        extract_hfs_partition(image, out)
         with open(out, "r+b") as handle:
             handle.seek(HFS_SIGNATURE_OFFSET)
             before = handle.read(1)
