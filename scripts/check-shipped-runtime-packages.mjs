@@ -204,11 +204,40 @@ if (publishArguments.length === 0) {
     );
 }
 
+// Matrix values, collected from the workflow's own `matrix:` blocks in both shapes it
+// uses: inline `target: [darwin-arm64, …]` and list-of-mappings `- arch: arm64`.
+//
+// The placeholder must expand to THE VALUES THAT EXIST, not to a wildcard. A wildcard
+// made `packages/node-runtime/node-runtime-${{ matrix.target }}` match a hypothetical
+// `node-runtime-linux-arm64` that no leg would ever publish — the rule reported a
+// publish leg that does not exist, which is the failure shape it was written to catch.
+const matrixValues = new Map();
+for (const line of releaseYml) {
+    let m = /^\s*([A-Za-z_][\w-]*):\s*\[([^\]]+)\]\s*$/.exec(line);
+    if (m) {
+        const values = m[2].split(',').map((v) => v.trim().replace(/^['"]|['"]$/g, ''));
+        for (const v of values) if (v) (matrixValues.get(m[1]) ?? matrixValues.set(m[1], new Set()).get(m[1])).add(v);
+        continue;
+    }
+    m = /^\s*-\s+([A-Za-z_][\w-]*):\s*(['"]?)([\w.-]+)\2\s*$/.exec(line);
+    if (m) (matrixValues.get(m[1]) ?? matrixValues.set(m[1], new Set()).get(m[1])).add(m[3]);
+}
+
 /** `packages/node-runtime/node-runtime-${{ matrix.target }}` → a regex over real dirs. */
-const argumentMatcher = (pattern) =>
-    new RegExp(
-        `^${pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\$\\\{\\\{[^}]*\\\}\\\}/g, '[A-Za-z0-9._-]+')}$`,
-    );
+const argumentMatcher = (pattern) => {
+    const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Put each `${{ matrix.<key> }}` back as an alternation of that key's real values.
+    // A placeholder naming a key with no collected values cannot be decided, so it
+    // matches nothing — a rule that cannot decide must not report a pass.
+    const body = escaped.replace(/\\\$\\\{\\\{\s*matrix\\?\.([\w-]+)\s*\\\}\\\}/g, (_all, key) => {
+        const values = [...(matrixValues.get(key) ?? [])];
+        return values.length === 0
+            ? '(?!)'
+            : `(?:${values.map((v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`;
+    });
+    // Any OTHER `${{ … }}` (a step output, an env) stays undecidable for the same reason.
+    return new RegExp(`^${body.replace(/\\\$\\\{\\\{[^}]*\\\}\\\}/g, '(?!)')}$`);
+};
 
 const matchers = publishArguments.map((a) => argumentMatcher(a.pattern));
 for (const pkg of all) {
