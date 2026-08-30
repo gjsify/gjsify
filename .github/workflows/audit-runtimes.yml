@@ -236,6 +236,19 @@ jobs:
       - name: Check website package names resolve
         run: node scripts/check-website-package-names.mjs
 
+      # The check above asks whether a quoted `@gjsify/*` name is a package OF THIS
+      # WORKSPACE. The registry is a different question, and until now nothing asked it:
+      # `@gjsify/node-runtime-{darwin-arm64,darwin-x64,win32-x64}` shipped in 0.44.0 as
+      # a copy-pasteable `devDependencies` block on the ship page while all three
+      # answered 404 on npm. Every CI leg that stages an interpreter symlinks the
+      # package out of the tree, so the pipeline was green and an outside author
+      # following the same docs got E404. `verify-published-closure.mjs` structurally
+      # cannot see this family — no `optionalDependencies` edge to walk, and they are
+      # not root workspace members — so its guard was "their own publish jobs", i.e. the
+      # release itself. This moves the report to the PR that adds the package.
+      - name: Check by-name ship runtime packages exist on npm
+        run: node scripts/check-shipped-runtime-packages.mjs
+
       # Starlight lays out `.sl-markdown-content` as prose: every element FOLLOWING a
       # sibling gets `margin-top: 1rem` unless it is under `.not-content`. On a widget
       # that reads as anything but a margin bug: a gallery card's first button 8px

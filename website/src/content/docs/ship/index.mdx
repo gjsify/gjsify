@@ -305,6 +305,22 @@ app at runtime:
 }
 ```
 
+:::caution[The three `@gjsify/node-runtime-*` packages are not published yet]
+Measured against the registry on 2026-08-30, with `@gjsify/cli@0.44.0` as the control:
+all three `@gjsify/gtk-runtime-*` packages resolve at `0.44.0`, and all three
+`@gjsify/node-runtime-*` names answer **404**. Their first publish is a manual
+maintainer action — npm Trusted Publishing needs the package to exist before CI can
+publish to it — and it is queued, not forgotten.
+
+Until it lands, `npm install` fails on those three lines. Drop them, and the rest of
+the block still gets you a `.app` or a program directory that carries its own GTK
+closure and node-gi; what it will not carry is the interpreter, and `gjsify ship` says
+so on every stage rather than letting you find out. To get a complete artifact today,
+point `GJSIFY_NODE_RUNTIME` at a directory holding the binary — the repository's
+`packages/node-runtime/scripts/fetch-node-runtime.mjs` populates one from a pinned Node
+release and verifies its SHA-256 against the release's own `SHASUMS256.txt`.
+:::
+
 One architecture is enough if you only ship one — `gjsify ship darwin --arch x64`
 looks for the `darwin-x64` packages and nothing else, and `gjsify ship windows`
 looks for the `win32-x64` ones. `GJSIFY_NODE_RUNTIME` and

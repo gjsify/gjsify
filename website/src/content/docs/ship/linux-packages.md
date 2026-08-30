@@ -352,8 +352,11 @@ dependency any packager can emit closes that; an app that truly requires 24 has 
 check `process.versions.node` at startup and say so.
 
 macOS and Windows have no system Node to depend on, so an artifact for those
-carries its own interpreter from `@gjsify/node-runtime-<target>`. You add nothing
-to `package.json`: those packages are resolved **by name** at ship time.
+carries its own interpreter from `@gjsify/node-runtime-<target>`. You declare that
+package yourself, as a `devDependency`: it is resolved **by name** out of your own
+`node_modules` at ship time, and what gjsify does not add is an
+`optionalDependencies` edge, not the declaration. See [Ship](/gjsify/ship/) for the
+list and for the note that those three names are not published yet.
 
 ## Configure it in package.json
 
