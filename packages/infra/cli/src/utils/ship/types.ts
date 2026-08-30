@@ -266,8 +266,8 @@ export interface FormatDescriptor {
      * suffix, because `packOne` reports a SIZE and `statSync` on a directory
      * answers 4096 on ext4 — a `.app` carrying a 20 MiB bundle would be printed
      * as "4096 bytes", which is not a rounding error but a different number
-     * entirely. A `.dmg` will be `'file'` again, so this is not "macOS is
-     * special", it is a property of the container.
+     * entirely. The `.dmg` over that same tree is `'file'` again, which is what
+     * makes this a property of the CONTAINER rather than "macOS is special".
      */
     artifactKind: 'file' | 'directory';
 }

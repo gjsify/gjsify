@@ -343,11 +343,12 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         dirs: () => ({ launcher: '', bundle: 'app', native: 'lib', data: 'share', other: '' }),
         // Nothing, and this is the row that shows the field is not a macOS detail
         // wearing a general name: a Windows installer's metadata lives in the
-        // `.msi`'s own tables (#1354 M5), not in a file inside the program
-        // directory. Two format rows now wrap this layout and neither added one,
-        // which is the answer holding rather than the question being unasked. If
-        // the `.msi` turns out to need a file here, THIS is where it goes — not a
-        // branch in the stager.
+        // `.msi`'s own tables, not in a file inside the program directory. THREE
+        // format rows wrap this layout now, and the installer — the one that could
+        // have needed a file here — did not: `msi.ts` puts every such fact in the
+        // `Product`/`Package` attributes of the document it renders. So the answer
+        // held rather than the question going unasked, and if a fourth row ever
+        // needs a file, THIS is where it goes — not a branch in the stager.
         metadata: () => [],
         // ONE, and the blocker is a project we do not own. `wingtk/gvsbuild`
         // hardcodes `self.platform = "x64"` in `utils/base_project.py` and its last

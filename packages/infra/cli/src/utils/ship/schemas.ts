@@ -11,16 +11,19 @@
 // against.
 //
 // AT STAGE TIME, not at pack time, and that is the decision worth stating.
-// A stage is the deliverable for a layout no format wrapped until now, and the
-// warning `gjsify ship` prints about it is a claim about the TREE — leaving the
-// compile to a packer would keep `--stage` producing an aborting bundle while
-// the message said otherwise.
+// A stage is a deliverable in its own right — it is what crosses to the host
+// that finishes a `.dmg` or an `.msi` — and the warning `gjsify ship` prints
+// about it is a claim about the TREE. Leaving the compile to a packer would keep
+// `--stage` producing an aborting bundle while the message said otherwise.
 //
 // The cost is that assembly now execs one tool for a non-Linux layout with
 // schemas in the payload. That does not make assembly host-BOUND (ADR 0024 § A1):
 // `glib-compile-schemas` is GLib's and runs on all three OSes, which is why the
-// two macOS format rows stay `finishOn: 'any'` and declare the tool through
-// `requiredTools` instead.
+// four rows that ASSEMBLE a non-Linux tree — the `.app`, its zip, the Windows
+// program directory and its zip — stay `finishOn: 'any'` and declare the tool
+// through `requiredTools` instead. The `.dmg` and the `.msi` deliberately do not
+// declare it: they wrap a tree that is already assembled, so a `--from-stage`
+// pack of one needs no GLib at all (the `macos-app-dmg` row says so).
 
 import { execFile } from 'node:child_process';
 import { basename, join } from 'node:path';

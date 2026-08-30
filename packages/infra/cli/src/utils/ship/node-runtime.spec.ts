@@ -3,8 +3,9 @@
 // half of the three `@gjsify/node-runtime-*` packages.
 //
 // The claim these tests exist to hold up is a claim about somebody else's
-// project: an app author adds NOTHING to `package.json`, and the shipper finds
-// the interpreter by name. A test that only exercised this monorepo could not
+// project: the shipper finds the interpreter BY NAME in the consumer's own
+// `node_modules`, with no dependency edge from anything of gjsify's reaching it.
+// A test that only exercised this monorepo could not
 // distinguish that from "it works because it is sitting in our tree" — so every
 // case below builds a throwaway consumer whose `node_modules` contains exactly
 // one package and nothing of gjsify at all.
