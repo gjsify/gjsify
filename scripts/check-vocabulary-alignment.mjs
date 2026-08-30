@@ -11,7 +11,7 @@
 // actually go red" — and `status/open-todos.md` carried it as the missing piece, cheap
 // once the generator existed. The generator exists. This is that check.
 //
-// THE TWO HALVES, and why only one of them can find a surprise
+// THE THREE PARTS, and which of them can find a surprise
 //
 //  1. THE THREE DIALECTS. `jsx-runtime.ts`, `react-jsx-runtime.ts` and
 //     `vue-components.ts` are mapped types over the GENERATED maps, so asking whether
@@ -32,21 +32,68 @@
 //
 //  2. THE WEB ELEMENTS. `packages/web/adwaita-web` registers its `adw-*` custom elements
 //     from its own source, with no reference to the GIR, the descriptor table or any
-//     generated file. It is the one INDEPENDENT source in the arrangement, and therefore
-//     the only half whose failure carries information. Measured today: 65 `adw-*`
-//     elements against 164 GTK tags, 43 sharing a spelling exactly, 22 not — and each of
-//     those 22 has to be declared, either as naming the same widget under a different
-//     spelling or as deliberately web-only.
+//     generated file. Two independent sources, so this half can carry a surprise. Every
+//     element whose spelling is not a GTK tag has to be declared — as naming the same
+//     widget under a different spelling, or as deliberately web-only — and either way
+//     WITH A REASON.
+//
+//     No count is written in this header any more. The one that used to be here ("65
+//     elements against 164 GTK tags, 43 sharing a spelling exactly") was already wrong
+//     when ADR 0034 cited this line: the generated table grew to 168 the same week and
+//     the prose did not follow. Every number is DERIVED and printed by the summary at
+//     the bottom of this file, which is the only place that cannot drift.
+//
+//  3. THE NATIVESCRIPT WIDGETS. `packages/nativescript-bridge/adwaita` names widgets
+//     too — an `Adw<Widget>` class per `adw-<name>.ts` — and appeared in this check
+//     nowhere, which is how four GTK widgets came to wear an `Adw` prefix there
+//     unnoticed: `AdwButton`, `AdwDropDown`, `AdwEntry`, `AdwMenuButton`, none of which
+//     libadwaita subclasses. The surface carrying the defect sat outside the world of
+//     the check that would have found it, so no gate could have failed. ADR 0034 § 5
+//     widens the check to every widget surface for exactly that reason, and this is the
+//     NativeScript half of it. Nothing is renamed: the port is published, and a rename
+//     is a separate decision the ledger exists to give a number to.
+//
+// WHICH HALF CAN GO RED — INCLUDING THE PARTS ADDED LAST
+//
+// The § 1 argument above is that a rule comparing a mapped type with its own source is
+// green by construction. Every rule added since has to answer the same question, so:
+//
+//   CAN go red, because two independent sources disagree. Both Adwaita surfaces spell
+//   their widget names BY HAND — in `customElements.define('adw-…')` on the web and in
+//   the `adw-<name>.ts` filename plus its exported class on NativeScript — while the
+//   widget table is emitted from the GIR by a generator that reads neither. A widget
+//   with no GIR counterpart and no entry fails; an entry whose target stops being a GIR
+//   type or a tag fails; an entry for a widget the surface no longer ships fails; an
+//   entry for a widget whose spelling already matches fails as redundant. This is the
+//   half that would have caught the four flattened GTK widgets, and the half that goes
+//   red the first time either surface grows a widget under a name that is not its
+//   GType's.
+//
+//   CANNOT go red, said here rather than left to be assumed. The REASON rules — `why`
+//   required on an alias, the minimum length, `#NNNN` on a `gap` — hold a table in this
+//   file against a constant in this file. They can only fail on an edit to this file and
+//   can never notice anything about the tree: they refuse a shortcut, they do not
+//   measure. Worth having (an alias with no reason is indistinguishable from a decision
+//   nobody made, which is the hole ADR 0034 § 1 closes) and NOT evidence about the
+//   repository. The empty-corpus guards cannot fire against real data either: both
+//   readers in `adwaita-elements.mjs` THROW on an empty scan, so those two rules exist
+//   only to keep `alignmentProblems` from passing vacuously over a world some future
+//   caller built by hand — which is what the self-test does.
+//
+//   WHAT NO HALF PROVES: behaviour. `<adw-checkbox>` is DECLARED to mean
+//   `gtk-check-button` and `AdwEntry` is DECLARED to be `GtkEntry`; nothing here asserts
+//   either behaves like one. The closing criterion stays ADR 0027 § 9's conformance
+//   vectors, and every surface added to this file inherits that limit unchanged.
 //
 // WHY THE TABLE IS NOT gtkx's `omittedProps`
 //
 // ADR 0029 § 4 refuses to copy gtkx's 40 hand-typed omissions because they are "two
 // parallel hand-maintained tables joined by a shared `string[]` with no consistency
-// check". The table below is hand-written too; the difference is that every entry is held
-// against two live sets in both directions. A `gtk:` target that stops being a tag fails.
-// An entry for an element that no longer exists fails. An element the table does not
-// mention fails. An entry for an element whose spelling already matches a GTK tag fails as
-// redundant. The table cannot rot quietly, which is the whole objection.
+// check". The two tables below are hand-written too; the difference is that every entry
+// is held against two live sets in both directions. A target that stops being a tag or a
+// GType fails. An entry for a widget that no longer exists fails. A widget the table does
+// not mention fails. An entry for a widget whose spelling already matches fails as
+// redundant. Neither table can rot quietly, which is the whole objection.
 //
 // SELF-TEST FIRST
 //
@@ -58,7 +105,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { adwaitaWebElements } from './adwaita-elements.mjs';
+import { adwaitaNativeScriptWidgets, adwaitaWebElements, elementName, widgetClass } from './adwaita-elements.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = join('packages', 'framework', 'gtk-host', 'src');
@@ -79,8 +126,26 @@ const DIALECTS = [
     { name: 'vue', file: join(HOST, 'vue-components.ts'), needs: ['WidgetPropsByGType', 'WidgetPropsVueAliases'] },
 ];
 
-/** Named in every failure that asks for an edit to the table below. */
+/** Named in every failure that asks for an edit to one of the tables below. */
 const TABLE_SOURCE = 'WEB_ELEMENT_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
+const NS_TABLE_SOURCE = 'NS_WIDGET_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
+
+/**
+ * The floor a declared divergence has to clear, borrowed rather than invented:
+ * `check-storybook-widget-coverage.mjs` and `check-nativescript-theme-classes.mjs` both
+ * buy an exemption with a sentence and both set it here. It refuses a blank; it judges
+ * nothing, and it cannot — see the header on which rules can go red.
+ */
+const MIN_REASON = 40;
+
+/**
+ * The four kinds a NativeScript entry may be, and the one shape a `gap` may point at.
+ *
+ * Order is the order they are offered in a failure message, weakest last: `gap` is the
+ * only kind that records no verdict, so it reads as the last resort it is.
+ */
+const NS_KINDS = ['gir', 'composes', 'own', 'gap'];
+const GAP_ISSUE = /^#\d+$/;
 
 /**
  * Every `adw-*` element whose spelling is NOT a GTK tag, and what it is instead.
@@ -88,6 +153,13 @@ const TABLE_SOURCE = 'WEB_ELEMENT_ALIGNMENT in scripts/check-vocabulary-alignmen
  * `gtk` — the same widget under a different name, so the vocabularies agree on the THING
  * and differ on the spelling. `webOnly` — no GTK widget behind it at all, with the reason,
  * because "web-only" without one is indistinguishable from an oversight.
+ *
+ * BOTH KINDS CARRY A REASON, and the `gtk` half did not until ADR 0034 § 1. An alias
+ * satisfied this check permanently and silently, so a divergence and a decision looked
+ * identical in the data — the same hole `webOnly` was given a reason to close, left open
+ * on the kind that has ten entries. The ten reasons below were MOVED, not invented: eight
+ * are the element header stating what the widget is, and the remaining two are derived
+ * from `generated/props.ts` and from the storybook coverage ledger, both cited in place.
  *
  * The GObject-but-not-GtkWidget group is the interesting one: `AdwToggle`,
  * `AdwTabPage`, `AdwViewStackPage`, `AdwSidebarItem` and `AdwSidebarSection` are real
@@ -97,17 +169,49 @@ const TABLE_SOURCE = 'WEB_ELEMENT_ALIGNMENT in scripts/check-vocabulary-alignmen
  * HTML.
  */
 const WEB_ELEMENT_ALIGNMENT = {
-    // Same widget, different spelling.
-    'adw-button': { gtk: 'gtk-button' },
-    'adw-checkbox': { gtk: 'gtk-check-button' },
-    'adw-drop-down': { gtk: 'gtk-drop-down' },
-    'adw-entry': { gtk: 'gtk-entry' },
-    'adw-icon': { gtk: 'gtk-image' },
-    'adw-menu-button': { gtk: 'gtk-menu-button' },
-    'adw-popover': { gtk: 'gtk-popover' },
-    'adw-progress-bar': { gtk: 'gtk-progress-bar' },
-    'adw-radio': { gtk: 'gtk-check-button' },
-    'adw-switch': { gtk: 'gtk-switch' },
+    // Same widget, different spelling. The `why` says what the widget IS and where that
+    // was read; the shared half of the answer — that libadwaita subclasses none of these
+    // and reaches them through a stylesheet partial instead — is the comment above.
+    'adw-button': {
+        gtk: 'gtk-button',
+        why: 'libadwaita subclasses no button: the Adwaita look is style classes over GtkButton (.suggested-action / .destructive-action / .flat / .pill in refs/libadwaita/src/stylesheet/widgets/_buttons.scss), which is exactly what this element applies. adw-button.ts:1-7 cites that partial as its reference. The adw- prefix names the design system, not the widget.',
+    },
+    'adw-checkbox': {
+        gtk: 'gtk-check-button',
+        why: 'GTK4 has one check widget, GtkCheckButton, and libadwaita adds only _checks.scss on top of it. adw-checks.ts:1-5 defines this element and <adw-radio> in one module for the same reason upstream keeps one partial: everything but the corner radius, the glyph and the group is shared.',
+    },
+    'adw-drop-down': {
+        gtk: 'gtk-drop-down',
+        why: 'The element header states the identity outright: "the web counterpart of Gtk.DropDown" (adw-drop-down.ts:1-2). libadwaita ships no drop down; _dropdowns.scss styles the GTK one. AdwComboRow is the boxed-list ROW form and is a genuine Adw type, which is why it is not in this table.',
+    },
+    'adw-entry': {
+        gtk: 'gtk-entry',
+        why: 'libadwaita ships no entry — _entries.scss styles GtkEntry — and the element mirrors the Gtk.Entry activate signal by name (adw-entry.ts:4-5). The documentation already tells readers this in prose, on the page whose markup fence says adw-: website/src/content/docs/adwaita/controls.mdx:14-17.',
+    },
+    'adw-icon': {
+        gtk: 'gtk-image',
+        why: 'There is no Adwaita icon widget on any surface. On GTK a symbolic icon is a Gtk.Image with an icon-name, drawn inline; here it is a CSS-masked box whose glyph comes from a generated .adw-icon--<name> class (adw-icon.ts:1-5). check-storybook-widget-coverage.mjs records the same verdict for the storybook: "GTK draws a Gtk.Image inline".',
+    },
+    'adw-menu-button': {
+        gtk: 'gtk-menu-button',
+        why: 'The header says it and names the reason: "the web counterpart of Gtk.MenuButton, which libadwaita styles but never subclassed" (adw-menu-button.ts:1-2). website/src/components/AdwWidget.astro states the same mismatch in the comment where it derives the adw- prefix from a page title.',
+    },
+    'adw-popover': {
+        gtk: 'gtk-popover',
+        why: '"the web counterpart of GtkPopover as libadwaita styles it" (adw-popover.ts:1-2). _popovers.scss is a stylesheet partial over the GTK type and there is no AdwPopover; this is the ONE popover the package has, which is what keeps the radius, the shadow and the dismissal machine in one place.',
+    },
+    'adw-progress-bar': {
+        gtk: 'gtk-progress-bar',
+        why: 'libadwaita vendors no adw-progress-bar.c — the element header records that while explaining which GtkProgressBar pulse semantics it therefore cannot reproduce (adw-progress-bar.ts:9-14). _progress-bar.scss styles the GTK widget and adds no type.',
+    },
+    'adw-radio': {
+        gtk: 'gtk-check-button',
+        why: 'GTK4 has no radio TYPE. A radio is a GtkCheckButton with its group property set — "The check button whose group this widget belongs to", generated/props.ts on GtkCheckButtonProps.group — so two web elements legitimately alias one GTK tag. The exclusivity the browser gets free from <input type=radio name> is RadioGroupState in adwaita-core (adw-checks.ts:10-14).',
+    },
+    'adw-switch': {
+        gtk: 'gtk-switch',
+        why: 'libadwaita has no switch type; _switch.scss styles GtkSwitch, and this element is that stylesheet as a 44x24 track over a hidden checkbox. Its header already reasons about the GtkSwitch two-phase active/state pair and records that neither renderer models it (adw-switch.ts:9-14).',
+    },
     // A libadwaita GObject that is not a GtkWidget, so it has no tag here.
     'adw-sidebar-item': { webOnly: 'AdwSidebarItem descends from GObject.Object, not GtkWidget' },
     'adw-sidebar-section': { webOnly: 'AdwSidebarSection descends from GObject.Object, not GtkWidget' },
@@ -137,6 +241,74 @@ const WEB_ELEMENT_ALIGNMENT = {
     'adw-card': { webOnly: 'the .adw-card style class as an element; GTK styles a container instead' },
     'adw-data-grid': { webOnly: 'a presentational aligned grid; the GTK counterpart is a plain Gtk.Grid' },
     'adw-source-view': { webOnly: 'GtkSourceView lives in the GtkSource namespace, outside the Gtk+Adw table' },
+};
+
+/**
+ * Every NativeScript widget whose `adw-<name>` spelling is NOT a GTK tag, and what it is.
+ *
+ * KEYED ON THE FILE SPELLING (`adw-entry`, the class `AdwEntry` in `adw-entry.ts`) rather
+ * than on the class, so the key lives in the same namespace as the tag set it is held
+ * against and the "already shares a spelling" comparison is a lookup rather than a second
+ * transformation. The class name is what a consumer imports, so every failure prints both.
+ *
+ * A DISCRIMINATED union, following `check-storybook-widget-coverage.mjs` rather than one
+ * free-text field, because telling these apart is the entire value of the ledger — two of
+ * the four widgets with no tag under either spelling ARE a GTK widget under another name
+ * or another assembly and should converge, and two genuinely have no counterpart. ADR 0034
+ * § 1 fixes the four kinds:
+ *
+ *   { gir: '<GType>', why }        the same widget under another spelling. It should
+ *                                  converge; the `why` says what it is and why it has not.
+ *   { composes: ['<GType>', …], why }
+ *                                  the same UI, assembled differently because the platform
+ *                                  forces it. Converges in NAME, never in shape.
+ *   { own: '<reason>' }            no counterpart type at all. Declared and left.
+ *   { gap: '#NNNN' }               nobody has decided. Not a reason — a pointer.
+ *
+ * `gir` and `composes` name a GTYPE and are held against the runtime table's GType keys,
+ * not against a tag: `AdwIcon` is `GtkImage`, whose tag is `gtk-image`, and deriving one
+ * spelling from the other would be this file inventing a mapping instead of reading one.
+ *
+ * THE FOUR `gir` ENTRIES ARE NOT A RENAME AND MUST NOT BECOME ONE HERE. The port is
+ * published at 49 versions with an XML element vocabulary whose failure on a phone is a
+ * silent unresolved module, and ADR 0034 rejects the rename on that cost while giving the
+ * gap a number instead. What this table changes is that the gap is now countable.
+ */
+const NS_WIDGET_ALIGNMENT = {
+    // GTK widgets wearing an Adw prefix. libadwaita subclasses none of the four; it
+    // styles the GTK type through a stylesheet partial, which is what each port mirrors.
+    'adw-button': {
+        gir: 'GtkButton',
+        why: 'It extends the real NativeScript Button and applies the Adwaita style classes, which the file gives as its reason: it "Mirrors how libadwaita buttons get their look from a CSS style class rather than a distinct widget" (adw-button.ts:5-6). That is GtkButton plus _buttons.scss, so the widget is GtkButton.',
+    },
+    'adw-drop-down': {
+        gir: 'GtkDropDown',
+        why: 'libadwaita vendors no adw-drop-down.c and ships no drop down type — the file says exactly that while listing which GtkDropDown behaviour it therefore cannot reproduce (adw-drop-down.ts:19-20). AdwComboRow is the boxed-list row form, a genuine Adw type, and keeps its own spelling.',
+    },
+    'adw-entry': {
+        gir: 'GtkEntry',
+        why: 'The header states the identity: the bare input, "what Gtk.Entry is", and the counterpart of the adwaita-web <adw-entry> (adw-entry.ts:2-5). libadwaita styles GtkEntry in _entries.scss and subclasses nothing; AdwEntryRow is the row form and is a real Adw type.',
+    },
+    'adw-menu-button': {
+        gir: 'GtkMenuButton',
+        why: 'It mirrors Gtk.MenuButton driven by a Gio.Menu model, with the popover approximated by the platform action sheet, and the file states the naming fact itself: "libadwaita has no menu button of its own; it styles the GTK one" (adw-menu-button.ts:7-8).',
+    },
+    // No tag under either spelling — and that is three different situations, read from
+    // the files rather than inferred from the names.
+    'adw-icon': {
+        gir: 'GtkImage',
+        why: 'A non-interactive NativeScript Image rendering an Adwaita symbolic SVG (adw-icon.ts:1-3, `export class AdwIcon extends Image` at :24). That is Gtk.Image with an icon-name. adwaita-web declares the same target for its own <adw-icon> in the table above, so both renderers already agree on the widget and disagree only on the spelling.',
+    },
+    'adw-image-button': {
+        composes: ['GtkButton', 'GtkImage'],
+        why: 'Upstream .image-button is a style CLASS on button (refs/libadwaita/src/stylesheet/widgets/_buttons.scss:66, pin 42f647ff), not a type, so on GTK this is a Gtk.Button holding a Gtk.Image. The NativeScript Button is text-only and cannot host a child view, so the port builds a tappable GridLayout around a centred Image instead (adw-image-button.ts:6-8). Converges in NAME, never in shape.',
+    },
+    'adw-slider-row': {
+        own: 'libadwaita declares no AdwSliderRow: `grep -ric sliderrow refs/libadwaita | grep -v :0 | wc -l` is 0 at pin 42f647ff, against 5 files for the AdwSpinRow control string — an empty grep and a grep that searched nothing look identical, hence the control. It is a composite the port assembles, a title-and-live-value header over a Slider, as the NS counterpart of the GTK storybook Gtk.Scale range card (adw-slider-row.ts:3-6). Nothing to converge towards; declared and left.',
+    },
+    'adw-data-grid': {
+        own: 'An original @gjsify widget rather than a port, and the file says so: "the grid itself is a @gjsify/adwaita-* widget, not a port" (adw-data-grid.ts:51). The GTK counterpart would be a hand-assembled plain Gtk.Grid, which is an assembly and not a type to name. adwaita-web declares its own copy web-only with the same verdict in the table above.',
+    },
 };
 
 // ------------------------------------------------------------------ readers
@@ -225,6 +397,40 @@ function readDialect(source) {
 // ------------------------------------------------------------------ rules
 
 /**
+ * A declared divergence has to say WHY, in a sentence rather than a word.
+ *
+ * ONE helper for both tables and every kind, so an alias cannot be held to a weaker
+ * standard than a `webOnly`. That asymmetry is what ADR 0034 § 1 found: the `gtk:` entries
+ * carried no reason at all, so a divergence and a decision had the same shape in the data
+ * and an alias satisfied the check permanently, silently, for as long as nobody read it.
+ *
+ * This rule can only fail on an edit to a table in this file — see the header on which
+ * half can go red. It refuses a shortcut; it measures nothing.
+ *
+ * @param {string} subject what the failure is about, already phrased
+ * @param {string|undefined} reason the field as written
+ * @param {string} field how to spell the field in the fix
+ * @param {string} source the table to edit
+ * @returns {string[]}
+ */
+function reasonProblems(subject, reason, field, source) {
+    const written = typeof reason === 'string' ? reason.trim() : '';
+    if (written === '') {
+        return [
+            `${subject} with no reason. Add ${field} to ${source} saying what the widget IS and where ` +
+                'that was read — a divergence with no reason is indistinguishable from a decision nobody made.',
+        ];
+    }
+    if (written.length < MIN_REASON) {
+        return [
+            `${subject} with a ${written.length}-character reason, under the ${MIN_REASON}-character floor ` +
+                `the sibling ledgers set: "${written}". Say what it is and cite where, in ${source}.`,
+        ];
+    }
+    return [];
+}
+
+/**
  * Every rule, as one pure function over plain data.
  *
  * Pure so the self-test can hand it a broken world without materialising files, and so a
@@ -235,13 +441,16 @@ function readDialect(source) {
  *   byTag: Map<string,string>|null, byGType: Map<string,string>|null,
  *   classByTag: Map<string,string>|null, vueAliases: Map<string,string>|null,
  *   dialects: {name: string, needs: string[], imported: Set<string>, literals: string[]}[],
- *   webElements: string[], table: Record<string, {gtk?: string, webOnly?: string}>,
+ *   webElements: string[], table: Record<string, {gtk?: string, webOnly?: string, why?: string}>,
+ *   nsWidgets: string[],
+ *   nsTable: Record<string, {gir?: string, composes?: string[], own?: string, gap?: string, why?: string}>,
  * }} world
  * @returns {string[]} problems, empty when aligned
  */
 export function alignmentProblems(world) {
     const problems = [];
     const { runtime, tags, byTag, byGType, classByTag, vueAliases, dialects, webElements, table } = world;
+    const { nsWidgets, nsTable } = world;
 
     // A reader that found nothing makes every set difference empty, so the whole check
     // passes vacuously. That is the one failure this file exists to avoid.
@@ -256,6 +465,9 @@ export function alignmentProblems(world) {
         if (map === null) problems.push(`${name} not found — the generated shape changed and this reader did not`);
     }
     if (webElements.length === 0) problems.push('no adw-* web elements found — the independent half is not being read');
+    if (nsWidgets.length === 0) {
+        problems.push('no NativeScript Adw* widgets found — the NativeScript half is not being read');
+    }
     if (problems.length > 0) return problems;
 
     const runtimeTags = new Set(runtime.values());
@@ -343,6 +555,17 @@ export function alignmentProblems(world) {
             problems.push(`<${element}> aliases '${entry.gtk}', which is not a tag in the widget table`);
         } else if (!entry.gtk && !entry.webOnly) {
             problems.push(`<${element}> has an alignment entry with neither a 'gtk' target nor a 'webOnly' reason`);
+        } else if (entry.gtk) {
+            problems.push(...reasonProblems(`<${element}> aliases '${entry.gtk}'`, entry.why, "a 'why'", TABLE_SOURCE));
+        } else {
+            problems.push(
+                ...reasonProblems(
+                    `<${element}> is declared web-only`,
+                    entry.webOnly,
+                    "a 'webOnly' reason",
+                    TABLE_SOURCE,
+                ),
+            );
         }
     }
     const present = new Set(webElements);
@@ -355,29 +578,140 @@ export function alignmentProblems(world) {
         }
     }
 
+    // The NativeScript half. The same shape over a second independent source: these names
+    // are a widget FILENAME plus the class it exports, hand-typed, and the generator that
+    // emits the tag table reads neither. Every failure names the CLASS, because that is
+    // what a consumer imports and what a `.mdx` fence or an XML element spells.
+    const nsDeclared = new Set(Object.keys(nsTable));
+    for (const widget of nsWidgets) {
+        const klass = widgetClass(elementName(widget));
+        const entry = nsTable[widget];
+        if (runtimeTags.has(widget)) {
+            if (entry) {
+                problems.push(
+                    `${klass} already shares its spelling with the GTK tag '${widget}', so its alignment ` +
+                        `entry is redundant — delete it from ${NS_TABLE_SOURCE} rather than leaving two answers`,
+                );
+            }
+            continue;
+        }
+        if (!entry) {
+            problems.push(
+                `${klass} (${widget}) has no GTK tag of the same name and no alignment entry. Add one to ` +
+                    `${NS_TABLE_SOURCE}: 'gir' if it is the same widget under another spelling, 'composes' ` +
+                    "if the platform forces a different assembly, 'own' if there is no counterpart type at " +
+                    "all, or 'gap' with an issue number if nobody has decided yet.",
+            );
+            continue;
+        }
+        const kinds = NS_KINDS.filter((kind) => entry[kind] !== undefined);
+        if (kinds.length !== 1) {
+            problems.push(
+                `${klass} has an alignment entry declaring ${kinds.length === 0 ? 'no kind at all' : kinds.join(' and ')} — ` +
+                    `exactly one of ${NS_KINDS.map((kind) => `'${kind}'`).join(', ')} says what the widget is, ` +
+                    'and two answers is none',
+            );
+            continue;
+        }
+        if (entry.gir !== undefined) {
+            if (!runtimeGTypes.has(entry.gir)) {
+                problems.push(`${klass} is declared to be '${entry.gir}', which is not a GType in the widget table`);
+            } else {
+                problems.push(
+                    ...reasonProblems(
+                        `${klass} is declared to be '${entry.gir}'`,
+                        entry.why,
+                        "a 'why'",
+                        NS_TABLE_SOURCE,
+                    ),
+                );
+            }
+        } else if (entry.composes !== undefined) {
+            const missing = entry.composes.filter((gtype) => !runtimeGTypes.has(gtype));
+            if (entry.composes.length < 2) {
+                problems.push(
+                    `${klass} composes ${entry.composes.length} GType(s), and a composition is at least ` +
+                        "two — one GType under another spelling is a 'gir' alias, which is the entry that " +
+                        'says it should converge',
+                );
+            } else if (missing.length > 0) {
+                problems.push(`${klass} composes ${missing.join(', ')}, not a GType in the widget table`);
+            } else {
+                problems.push(
+                    ...reasonProblems(
+                        `${klass} composes ${entry.composes.join(' + ')}`,
+                        entry.why,
+                        "a 'why'",
+                        NS_TABLE_SOURCE,
+                    ),
+                );
+            }
+        } else if (entry.own !== undefined) {
+            problems.push(
+                ...reasonProblems(
+                    `${klass} is declared to have no GIR counterpart`,
+                    entry.own,
+                    "an 'own' reason",
+                    NS_TABLE_SOURCE,
+                ),
+            );
+        } else if (!GAP_ISSUE.test(entry.gap)) {
+            problems.push(
+                `${klass} points its gap at '${entry.gap}', which is not an issue number. A gap is a ` +
+                    'POINTER at tracked work and never a reason: the moment "it would be work" is allowed ' +
+                    'to sit in a reason field, every gap can be spelled as one and nothing is recorded.',
+            );
+        }
+    }
+    const nsPresent = new Set(nsWidgets);
+    for (const widget of nsDeclared) {
+        if (!nsPresent.has(widget)) {
+            problems.push(
+                `the alignment table declares ${widgetClass(elementName(widget))}, which ` +
+                    `@gjsify/adwaita-nativescript no longer ships — drop the entry from ${NS_TABLE_SOURCE}`,
+            );
+        }
+    }
+
     return problems;
 }
 
 // ------------------------------------------------------------------ self-test
 
+/**
+ * A reason long enough to clear {@link MIN_REASON}, so the fixtures test the rule the
+ * vectors are about rather than accidentally tripping the reason floor first.
+ */
+const FIXTURE_REASON = 'a fixture reason, written long enough to clear the floor this file sets';
+
+/**
+ * `AdwBin` is in the fixture on purpose: without a widget whose spelling ALREADY matches
+ * a tag there is nothing for the redundancy rules to be redundant about, on either
+ * surface, and both would be vectorless.
+ */
 const WORLD = () => ({
     runtime: new Map([
+        ['AdwBin', 'adw-bin'],
         ['GtkBox', 'gtk-box'],
         ['GtkButton', 'gtk-button'],
     ]),
     tags: new Map([
+        ['AdwBin', 'adw-bin'],
         ['GtkBox', 'gtk-box'],
         ['GtkButton', 'gtk-button'],
     ]),
     byTag: new Map([
+        ['adw-bin', 'AdwBinProps'],
         ['gtk-box', 'GtkBoxProps'],
         ['gtk-button', 'GtkButtonProps'],
     ]),
     byGType: new Map([
+        ['AdwBin', 'AdwBinProps'],
         ['GtkBox', 'GtkBoxProps'],
         ['GtkButton', 'GtkButtonProps'],
     ]),
     classByTag: new Map([
+        ['adw-bin', 'Adw.Bin'],
         ['gtk-box', 'Gtk.Box'],
         ['gtk-button', 'Gtk.Button'],
     ]),
@@ -385,8 +719,17 @@ const WORLD = () => ({
     dialects: [
         { name: 'jsx/solid', needs: ['WidgetPropsByTag'], imported: new Set(['WidgetPropsByTag']), literals: [] },
     ],
-    webElements: ['adw-box', 'adw-button'],
-    table: { 'adw-box': { webOnly: 'a fixture' }, 'adw-button': { gtk: 'gtk-button' } },
+    webElements: ['adw-bin', 'adw-box', 'adw-button'],
+    table: {
+        'adw-box': { webOnly: FIXTURE_REASON },
+        'adw-button': { gtk: 'gtk-button', why: FIXTURE_REASON },
+    },
+    nsWidgets: ['adw-bin', 'adw-button', 'adw-icon-button', 'adw-grid'],
+    nsTable: {
+        'adw-button': { gir: 'GtkButton', why: FIXTURE_REASON },
+        'adw-icon-button': { composes: ['GtkButton', 'GtkBox'], why: FIXTURE_REASON },
+        'adw-grid': { own: FIXTURE_REASON },
+    },
 });
 
 /** Each vector breaks exactly one rule, and names the substring its failure must contain. */
@@ -402,7 +745,7 @@ const VECTORS = [
     ],
     [
         'a runtime row the props map lost',
-        (w) => ({ ...w, byTag: new Map([['gtk-box', 'GtkBoxProps']]) }),
+        (w) => ({ ...w, byTag: new Map([...w.byTag].filter(([tag]) => tag !== 'gtk-button')) }),
         'WidgetPropsByTag is missing 1',
     ],
     [
@@ -454,6 +797,91 @@ const VECTORS = [
         'an entry that is both an alias and web-only',
         (w) => ({ ...w, table: { ...w.table, 'adw-button': { gtk: 'gtk-button', webOnly: 'both' } } }),
         'both an alias and web-only',
+    ],
+    // ADR 0034 § 1: the reason is required on the alias kind too. Before this, an alias
+    // satisfied the check permanently and a divergence looked exactly like a decision.
+    [
+        'an alias with no reason at all',
+        (w) => ({ ...w, table: { ...w.table, 'adw-button': { gtk: 'gtk-button' } } }),
+        "<adw-button> aliases 'gtk-button' with no reason",
+    ],
+    [
+        'an alias whose reason is one word',
+        (w) => ({ ...w, table: { ...w.table, 'adw-button': { gtk: 'gtk-button', why: 'legacy' } } }),
+        "<adw-button> aliases 'gtk-button' with a 6-character reason",
+    ],
+    [
+        'a web-only reason under the floor',
+        (w) => ({ ...w, table: { ...w.table, 'adw-box': { webOnly: 'because' } } }),
+        '<adw-box> is declared web-only with a 7-character reason',
+    ],
+    // The NativeScript half.
+    ['no NativeScript widgets at all', (w) => ({ ...w, nsWidgets: [] }), 'NativeScript half is not being read'],
+    [
+        'an undeclared NativeScript widget',
+        (w) => ({ ...w, nsTable: {} }),
+        'AdwButton (adw-button) has no GTK tag of the same name and no alignment entry',
+    ],
+    [
+        'a gir target that is not a GType in the table',
+        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-button': { gir: 'GtkGhost', why: FIXTURE_REASON } } }),
+        "AdwButton is declared to be 'GtkGhost', which is not a GType",
+    ],
+    [
+        'a gir alias with no reason',
+        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-button': { gir: 'GtkButton' } } }),
+        "AdwButton is declared to be 'GtkButton' with no reason",
+    ],
+    [
+        'a composes member that is not a GType',
+        (w) => ({
+            ...w,
+            nsTable: { ...w.nsTable, 'adw-icon-button': { composes: ['GtkButton', 'GtkGhost'], why: FIXTURE_REASON } },
+        }),
+        'AdwIconButton composes GtkGhost, not a GType',
+    ],
+    [
+        'a composition of one',
+        (w) => ({
+            ...w,
+            nsTable: { ...w.nsTable, 'adw-icon-button': { composes: ['GtkButton'], why: FIXTURE_REASON } },
+        }),
+        'a composition is at least',
+    ],
+    [
+        'a composition with no reason',
+        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-icon-button': { composes: ['GtkButton', 'GtkBox'] } } }),
+        'AdwIconButton composes GtkButton + GtkBox with no reason',
+    ],
+    [
+        'an own entry whose reason is a word',
+        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-grid': { own: 'none' } } }),
+        'AdwGrid is declared to have no GIR counterpart with a 4-character reason',
+    ],
+    [
+        'a NativeScript entry answering twice',
+        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-grid': { gir: 'GtkBox', own: FIXTURE_REASON } } }),
+        'declaring gir and own',
+    ],
+    [
+        'a NativeScript entry answering not at all',
+        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-grid': { why: FIXTURE_REASON } } }),
+        'declaring no kind at all',
+    ],
+    [
+        'a gap pointing at prose instead of tracked work',
+        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-grid': { gap: 'someone should look at this' } } }),
+        'not an issue number',
+    ],
+    [
+        'a redundant entry for a widget that already matches',
+        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-bin': { own: FIXTURE_REASON } } }),
+        "AdwBin already shares its spelling with the GTK tag 'adw-bin'",
+    ],
+    [
+        'a stale entry for a widget that is gone',
+        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-vanished': { own: FIXTURE_REASON } } }),
+        'AdwVanished, which @gjsify/adwaita-nativescript no longer ships',
     ],
 ];
 
@@ -545,6 +973,10 @@ try {
         dialects: DIALECTS.map((dialect) => ({ ...dialect, ...readDialect(read(dialect.file)) })),
         webElements: [...adwaitaWebElements(ROOT).keys()],
         table: WEB_ELEMENT_ALIGNMENT,
+        // The reader returns bare names; the table is keyed in the tag namespace it is
+        // held against, so the `adw-` goes back on exactly once, here.
+        nsWidgets: [...adwaitaNativeScriptWidgets(ROOT).keys()].map((name) => `adw-${name}`),
+        nsTable: NS_WIDGET_ALIGNMENT,
     };
 } catch (error) {
     console.error(`check-vocabulary-alignment: cannot read an input — ${error.message}`);
@@ -559,13 +991,25 @@ if (problems.length > 0) {
     process.exit(1);
 }
 
-const aliased = Object.values(WEB_ELEMENT_ALIGNMENT).filter((entry) => entry.gtk).length;
-const webOnly = Object.values(WEB_ELEMENT_ALIGNMENT).filter((entry) => entry.webOnly).length;
-const shared = world.webElements.filter((element) => new Set(world.runtime.values()).has(element)).length;
+// EVERY NUMBER HERE IS DERIVED. The literals this line replaced sat in the header, were
+// quoted from there into ADR 0034, and were wrong in both places within a week — the tag
+// table went 164 → 168 and the prose did not. A count nothing recomputes is folklore.
+const tagSet = new Set(world.runtime.values());
+const kindCount = (table, kind) => Object.values(table).filter((entry) => entry[kind] !== undefined).length;
+const aliased = kindCount(WEB_ELEMENT_ALIGNMENT, 'gtk');
+const webOnly = kindCount(WEB_ELEMENT_ALIGNMENT, 'webOnly');
+const shared = world.webElements.filter((element) => tagSet.has(element)).length;
+const nsShared = world.nsWidgets.filter((widget) => tagSet.has(widget)).length;
+const nsConverge = kindCount(NS_WIDGET_ALIGNMENT, 'gir') + kindCount(NS_WIDGET_ALIGNMENT, 'composes');
+const nsOwn = kindCount(NS_WIDGET_ALIGNMENT, 'own');
+const nsGap = kindCount(NS_WIDGET_ALIGNMENT, 'gap');
 console.log(
     `check-vocabulary-alignment: self-test green — ${VECTORS.length - 1} failing vector(s), ` +
         `${READER_VECTORS.length} reader vector(s). ` +
         `${world.runtime.size} GTK tags across ${DIALECTS.length} dialect surfaces + the runtime table + the ` +
         `surface data; ${world.webElements.length} adw-* web elements — ${shared} share a spelling, ` +
-        `${aliased} alias one, ${webOnly} declared web-only.`,
+        `${aliased} alias one, ${webOnly} declared web-only; ` +
+        `${world.nsWidgets.length} NativeScript Adw* widgets — ${nsShared} share a spelling, ` +
+        `${nsConverge} should converge, ${nsOwn} declared own, ${nsGap} undecided. ` +
+        `Distance to one vocabulary on NativeScript: ${nsConverge} widget name(s), and it can only go down.`,
 );
