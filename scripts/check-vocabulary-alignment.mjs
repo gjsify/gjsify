@@ -53,6 +53,29 @@
 //     NativeScript half of it. Nothing is renamed: the port is published, and a rename
 //     is a separate decision the ledger exists to give a number to.
 //
+//  4. THE PROPERTY LEDGER. One level below the names. `NS_PROPERTY_ALIGNMENT` holds every
+//     settable property of a NativeScript widget that its GIR counterpart's props
+//     interface has no key for — `AdwEntry.placeholder` against
+//     `Gtk.Entry:placeholder-text` — and each one is a different SPELLING for the same
+//     control (it should converge), a control the counterpart's writable surface cannot
+//     express (declared and left), or undecided, which is what fails. Collapsing those
+//     into one bucket would leave a number nobody can act on.
+//
+//     The comparison target is `packages/framework/gtk-host/src/generated/props.ts`,
+//     resolved through its `extends` chain. It is a second READER of our own source, not
+//     a second source — that file imports `@girs/*`, and ADR 0034 says so in the section
+//     the ledger's own header cites. Held to one surface, named in the summary.
+//
+//  5. ENROLMENT. Which surfaces exist is a per-package DECLARATION —
+//     `gjsify.widgetVocabulary` — joined to the readers in `scripts/widget-surfaces.mjs`,
+//     and a declared surface with no reader FAILS. Before that, this file knew about its
+//     surfaces because they were named in it, and a list binds exactly what is on it: the
+//     NativeScript port, the surface carrying the defect, sat outside the list for its
+//     whole life. `manifest-conformance`'s `field-coverage` rule then refuses any
+//     `gjsify.*` key no rule claims, so the declaration arrived with
+//     `scripts/manifest-conformance/rules/widget-vocabulary.mjs` beside it — the same
+//     mechanism, one level up.
+//
 // WHICH HALF CAN GO RED — INCLUDING THE PARTS ADDED LAST
 //
 // The § 1 argument above is that a rule comparing a mapped type with its own source is
@@ -69,9 +92,22 @@
 //   red the first time either surface grows a widget under a name that is not its
 //   GType's.
 //
+//   CAN go red, on the property half, for the same reason one level down. The setters are
+//   hand-typed accessors in the port; `generated/props.ts` is emitted from the GIR by a
+//   generator that reads none of them. A settable property that is neither a key nor
+//   declared fails; a convergence target that stops being a key fails; an entry for a
+//   property the widget no longer sets fails; an entry for a property that IS a key fails
+//   as redundant. This half goes red the first time somebody adds an accessor under a
+//   name GTK does not use — which is the event the 52 entries below all are.
+//
+//   CAN go red, on enrolment, in BOTH directions, because the declarations live in
+//   `package.json` files and the readers live in `scripts/widget-surfaces.mjs`. A package
+//   that declares itself a widget surface with no reader fails; a reader whose package
+//   stopped declaring fails; two references, or no renderer, fails.
+//
 //   CANNOT go red, said here rather than left to be assumed. The REASON rules — `why`
-//   required on an alias, the minimum length, `#NNNN` on a `gap` — hold a table in this
-//   file against a constant in this file. They can only fail on an edit to this file and
+//   required on an alias, the minimum length, `#NNNN` on a `gap`, and the same three on
+//   every property entry — hold a table in this file against a constant in this file. They can only fail on an edit to this file and
 //   can never notice anything about the tree: they refuse a shortcut, they do not
 //   measure. Worth having (an alias with no reason is indistinguishable from a decision
 //   nobody made, which is the hole ADR 0034 § 1 closes) and NOT evidence about the
@@ -80,9 +116,17 @@
 //   only to keep `alignmentProblems` from passing vacuously over a world some future
 //   caller built by hand — which is what the self-test does.
 //
+//   CANNOT go red, second instance, and it is the one worth naming twice: the PROPERTY
+//   counts are held against a file this repository generates from the same `.gir`
+//   ts-for-gir reads. Agreement between them is evidence about two hand-typed
+//   vocabularies and is NOT evidence about GTK. `AdwSpinner`'s empty writable surface is
+//   a fact about `generated/props.ts`, which is a fact about the GIR — one source, read
+//   twice.
+//
 //   WHAT NO HALF PROVES: behaviour. `<adw-checkbox>` is DECLARED to mean
-//   `gtk-check-button` and `AdwEntry` is DECLARED to be `GtkEntry`; nothing here asserts
-//   either behaves like one. The closing criterion stays ADR 0027 § 9's conformance
+//   `gtk-check-button`, `AdwEntry` is DECLARED to be `GtkEntry`, and
+//   `AdwEntry.placeholder` is DECLARED to be `placeholder-text`; nothing here asserts any
+//   of the three behaves like one. The closing criterion stays ADR 0027 § 9's conformance
 //   vectors, and every surface added to this file inherits that limit unchanged.
 //
 // WHY THE TABLE IS NOT gtkx's `omittedProps`
@@ -105,7 +149,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { adwaitaNativeScriptWidgets, adwaitaWebElements, elementName, widgetClass } from './adwaita-elements.mjs';
+import {
+    adwaitaNativeScriptWidgets,
+    elementName,
+    settablePropertiesOfClass,
+    widgetClass,
+} from './adwaita-elements.mjs';
+import { WIDGET_SURFACE_READERS, declaredWidgetSurfaces, enrolmentProblems } from './widget-surfaces.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = join('packages', 'framework', 'gtk-host', 'src');
@@ -129,6 +179,8 @@ const DIALECTS = [
 /** Named in every failure that asks for an edit to one of the tables below. */
 const TABLE_SOURCE = 'WEB_ELEMENT_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
 const NS_TABLE_SOURCE = 'NS_WIDGET_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
+const RN_TABLE_SOURCE = 'RN_WIDGET_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
+const NS_PROPERTY_TABLE_SOURCE = 'NS_PROPERTY_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
 
 /**
  * The floor a declared divergence has to clear, borrowed rather than invented:
@@ -146,6 +198,16 @@ const MIN_REASON = 40;
  */
 const NS_KINDS = ['gir', 'composes', 'own', 'gap'];
 const GAP_ISSUE = /^#\d+$/;
+
+/**
+ * The three kinds a PROPERTY entry may be — the widget union minus `composes`.
+ *
+ * A composition is something a WIDGET can be (one class assembled from several GTypes);
+ * a property is a name, so the same case — `AdwSpinRow.min`/`max`/`step` against one
+ * `Gtk.Adjustment` — is several `gir` entries pointing at one key. Weakest last, as
+ * above: `gap` records no verdict and reads as the last resort it is.
+ */
+const PROPERTY_KINDS = ['gir', 'own', 'gap'];
 
 /**
  * Every `adw-*` element whose spelling is NOT a GTK tag, and what it is instead.
@@ -311,6 +373,277 @@ const NS_WIDGET_ALIGNMENT = {
     },
 };
 
+/**
+ * The React Native surface's divergences — empty, and that is a measurement.
+ *
+ * Both widgets `@gjsify/adwaita-react-native` ships, `AdwBin` and `AdwClamp`, already
+ * share a spelling with a GTK tag, so there is nothing to declare. The table exists
+ * anyway because the rules below run over it: the first widget added there under a name
+ * that is not its GType's fails HERE, on the day it is added, which is the state the
+ * NativeScript port never had. Same four kinds as `NS_WIDGET_ALIGNMENT`, same reasons.
+ */
+const RN_WIDGET_ALIGNMENT = {};
+
+/**
+ * Every settable property of a NativeScript widget that its GIR counterpart's props
+ * interface has no key for, and what it is instead.
+ *
+ * THE WIDGET NAMES ARE HELD; THE PROPERTY NAMES WERE NOT. `NS_WIDGET_ALIGNMENT` above
+ * makes a widget spelling countable and prints the distance. One level down, the same
+ * surface hand-types a property name per accessor, against a generated interface nobody
+ * compared it with — which is how `AdwEntry.placeholder` sits beside
+ * `GtkEntry:placeholder-text` with every gate green.
+ *
+ * KEYED `<widget-tag>.<property>`, so a key names one row of the comparison and can be
+ * held in both directions: an entry for a widget the port no longer ships fails, an entry
+ * for a property the widget no longer sets fails, and an entry for a property that IS a
+ * key fails as redundant.
+ *
+ * THE COMPARISON TARGET is `packages/framework/gtk-host/src/generated/props.ts`, resolved
+ * through its `extends` chain — in-repo, GIR-derived, no install. **It is a second READER
+ * of our own source, not a second source**, and ADR 0034 § *How large is the gap against
+ * `@girs`* says so outright: that file imports `@girs/adw-1` and six siblings, so
+ * ts-for-gir's derivation is already inside the surface being compared against and both
+ * derivations read the same `.gir`. Agreement here is evidence about two hand-typed
+ * vocabularies, never proof about GTK.
+ *
+ * THREE KINDS, the widget ledger's minus one:
+ *
+ *   { gir: '<key>', why }   the counterpart expresses this control, under `<key>`. It
+ *                           SHOULD converge; the `why` says what differs — spelling,
+ *                           value type, or shape — and why it has not. The count of these
+ *                           is the printed property distance.
+ *   { own: '<reason>' }     the counterpart's WRITABLE surface has no key for it. Four
+ *                           situations, and the reason says which: GTK has no such
+ *                           concept; GTK expresses it as a method; GTK exposes it
+ *                           read-only (this file compares against writable slots only);
+ *                           or GTK expresses it on a DIFFERENT type. Declared and left.
+ *   { gap: '#NNNN' }        nobody has decided. Not a reason — a pointer.
+ *
+ * NO `composes` KIND, and the reason is not that the case does not arise. It does:
+ * `AdwSpinRow.min`/`max`/`step` are one `Gtk.Adjustment` on GTK. A composition of GTYPES
+ * is what a WIDGET can be; a property is a name, so the same case is three `gir` entries
+ * pointing at one key — the many-to-one the web table already carries with `adw-checkbox`
+ * and `adw-radio` both aliasing `gtk-check-button`. Inventing a fourth kind for it would
+ * be a second way to say what the table can already say.
+ *
+ * AN UNDECLARED DISAGREEMENT IS UNDECIDED, AND UNDECIDED FAILS. That is the whole
+ * mechanism: `gap` is the tracked deferral, absence is not.
+ *
+ * ONE SURFACE, DELIBERATELY. `@gjsify/adwaita-web`'s attribute vocabulary and
+ * `@gjsify/adwaita-react-native`'s prop types are two further corpora and are NOT in this
+ * table; the summary line names the surface it measured for that reason. A distance
+ * printed without its surface would be the "measurement narrower than the claim" this
+ * file's header already refuses elsewhere.
+ */
+const NS_PROPERTY_ALIGNMENT = {
+    // ── The same control under another spelling. This is the printed distance. ────────
+    'adw-bottom-sheet.openState': {
+        gir: 'open',
+        why: '`Adw.BottomSheet:open` is the same slot, and the port says so in its own doc ("Whether the sheet is open", adw-bottom-sheet.ts:185). It is spelled `openState` because the class also carries `open()` and `close()` methods and one JS class cannot hold both under one name — so converging renames the METHODS, not the property.',
+    },
+    'adw-button.variant': {
+        gir: 'cssClasses',
+        why: 'On GTK the Adwaita button variants are STYLE CLASSES over GtkButton — `.suggested-action` / `.destructive-action` / `.flat` / `.pill` in refs/libadwaita/src/stylesheet/widgets/_buttons.scss — which is what `GtkWidget:css-classes` carries. The setter swaps exactly one such class (adw-button.ts:48), so the control is the class list under an enum-shaped name.',
+    },
+    'adw-button-content.icon': {
+        gir: 'iconName',
+        why: '`Adw.ButtonContent:icon-name` is the same slot and `AdwButtonContentProps.iconName` is the key. The port stores an Adwaita symbolic SVG STRING there rather than a theme name, because NativeScript resolves no icon theme (adw-button-content.ts:104-108) — a value-type difference under one name, not a second property.',
+    },
+    'adw-button-row.startIcon': {
+        gir: 'startIconName',
+        why: '`Adw.ButtonRow:start-icon-name`, whose key is `startIconName` in AdwButtonRowProps. Same slot; the port holds an inline symbolic SVG string because there is no icon theme to name into (adw-button-row.ts:130-134).',
+    },
+    'adw-button-row.endIcon': {
+        gir: 'endIconName',
+        why: 'The doc names the counterpart itself — "`Adw.ButtonRow:end-icon-name`" (adw-button-row.ts:142) — and `endIconName` is the key in AdwButtonRowProps. Same slot, an SVG string instead of a theme name.',
+    },
+    'adw-combo-row.options': {
+        gir: 'model',
+        why: '`Adw.ComboRow:model` is where the selectable items live on GTK: a `Gio.ListModel` walked by a factory. The port takes a plain array because NativeScript has no list model and its `action()` sheet takes strings (adw-combo-row.ts:137-141). Same slot, a different container.',
+    },
+    'adw-combo-row.selectedIndex': {
+        gir: 'selected',
+        why: '`Adw.ComboRow:selected` IS the index — a uint position into the model — and it is the key in AdwComboRowProps. This is the plainest rename in the table: the two names mean the same number (adw-combo-row.ts:146-150).',
+    },
+    'adw-drop-down.options': {
+        gir: 'model',
+        why: '`Gtk.DropDown:model` holds the items on GTK, and `model` is the key in GtkDropDownProps. The port keeps a plain array for the same reason `AdwComboRow` does: no list model on NativeScript, and the native chooser takes strings (adw-drop-down.ts:121-125).',
+    },
+    'adw-entry.placeholder': {
+        gir: 'placeholderText',
+        why: '`Gtk.Entry:placeholder-text` — "The text that will be displayed in the `GtkEntry` when it is empty and unfocused", generated/props.ts on GtkEntryProps. Nothing differs but the spelling, and this is the example ADR 0034 opens the property section with (adw-entry.ts:137-141).',
+    },
+    'adw-header-bar.title': {
+        gir: 'titleWidget',
+        why: 'GTK puts no string on the header bar: `Adw.HeaderBar:title-widget` holds a widget, conventionally an `Adw.WindowTitle`, whose own `title` carries the text. The port forwards to exactly that default (adw-header-bar.ts:81-85), so the slot is `title-widget` and the string is the shortcut into it.',
+    },
+    'adw-header-bar.subtitle': {
+        gir: 'titleWidget',
+        why: "The second half of the same slot: `Adw.WindowTitle:subtitle` inside the header bar's `title-widget`, which the port forwards to (adw-header-bar.ts:92-96). Two NativeScript names reaching one GIR key is the many-to-one the web table already carries for `adw-checkbox`/`adw-radio`.",
+    },
+    'adw-header-bar.flat': {
+        gir: 'cssClasses',
+        why: 'The port\'s own doc says what this is — "matching `Adw.HeaderBar`\'s `.flat` style. Toggling swaps the `flat` class" (adw-header-bar.ts:106). A style class is `GtkWidget:css-classes` on GTK, the same slot `AdwButton.variant` above reaches.',
+    },
+    'adw-icon.icon': {
+        gir: 'iconName',
+        why: '`AdwIcon` is declared to be `GtkImage` by NS_WIDGET_ALIGNMENT above, and a symbolic icon on GTK is `Gtk.Image:icon-name`. The port holds the SVG string itself because it resolves no icon theme (adw-icon.ts:69-73) — the same value-type difference as every other icon slot here.',
+    },
+    'adw-image-button.icon': {
+        gir: 'iconName',
+        why: 'The widget composes `GtkButton` + `GtkImage`, and the icon half of that assembly is `Gtk.Image:icon-name` (also `Gtk.Button:icon-name` on the button half, one key either way). The port stores the symbolic SVG string (adw-image-button.ts:92-96).',
+    },
+    'adw-menu-button.menuItems': {
+        gir: 'menuModel',
+        why: '`Gtk.MenuButton:menu-model` is the slot: a `Gio.MenuModel` GTK builds the popover from. NativeScript has no `Gio.MenuModel` and opens a native `action()` sheet, so the port holds the items as a list (adw-menu-button.ts:62-66). Same slot, a different container.',
+    },
+    'adw-spin-row.min': {
+        gir: 'adjustment',
+        why: 'GTK keeps the whole range in one object: `Adw.SpinRow:adjustment`, a `Gtk.Adjustment` whose `lower` this is. The port carries three scalars instead because NativeScript has no adjustment type (adw-spin-row.ts:114-118). Three names into one key, which is what convergence here would collapse them to.',
+    },
+    'adw-spin-row.max': {
+        gir: 'adjustment',
+        why: 'The `upper` of the same `Gtk.Adjustment` that `Adw.SpinRow:adjustment` holds (adw-spin-row.ts:123-127). Split out for the same reason as `min`: there is no adjustment object on NativeScript to put it in.',
+    },
+    'adw-spin-row.step': {
+        gir: 'adjustment',
+        why: 'The `step-increment` of the same `Gtk.Adjustment` (adw-spin-row.ts:132-136). Named `step` because the port applies it directly per button press; on GTK the button press reads it off the adjustment.',
+    },
+    'adw-split-button.actionIcon': {
+        gir: 'iconName',
+        why: "`Adw.SplitButton:icon-name` is the action half's icon, and `iconName` is the key in AdwSplitButtonProps. The port stores the symbolic SVG string and enforces the same label/icon mutual exclusion the C does, which its doc cites at adw-split-button.c:749-771 (adw-split-button.ts:220-224).",
+    },
+    'adw-split-button.menu': {
+        gir: 'menuModel',
+        why: "`Adw.SplitButton:menu-model` is the dropdown half's model. NativeScript opens a native `action()` sheet and holds the entries as a list (adw-split-button.ts:229-233) — the same slot as `AdwMenuButton.menuItems` above, under a shorter name.",
+    },
+    'adw-split-button.disabled': {
+        gir: 'sensitive',
+        why: 'GTK spells the same state `GtkWidget:sensitive`, with the opposite polarity — "dimmed, and emitting neither signal" (adw-split-button.ts:270) is `sensitive: false`. A convergence here is a rename AND an inversion, which is why it is recorded rather than done quietly.',
+    },
+    'adw-status-page.icon': {
+        gir: 'iconName',
+        why: '`Adw.StatusPage:icon-name` is the slot, and the port\'s own doc says it "Matches `Adw.StatusPage`\'s themed icon" (adw-status-page.ts:107-111). The value is a symbolic SVG string rather than a theme name, for the same reason as every other icon slot on this surface.',
+    },
+    'adw-tab-view.selected': {
+        gir: 'selectedPage',
+        why: "`Adw.TabView:selected-page` is the same slot, holding an `Adw.TabPage` where the port holds its index (adw-tab-view.ts:173-177). NativeScript has no tab-page object to hand back, so the index is the port's shape of the same selection.",
+    },
+    'adw-toggle-group.selected': {
+        gir: 'active',
+        why: '`Adw.ToggleGroup:active` IS the index of the active toggle, and it is the key in AdwToggleGroupProps (`activeName` is the by-name sibling). The port calls the same number `selected` (adw-toggle-group.ts:139-143).',
+    },
+    'adw-view-stack.visibleChildIndex': {
+        gir: 'visibleChildName',
+        why: 'GTK selects the page by widget (`visible-child`) or by name (`visible-child-name`); the port selects it by index (adw-view-stack.ts:119-123). The convergent spelling is the NAME one, because a name is a string and a string is what survives an XML attribute — the same argument ADR 0034 § 4 makes for enum nicks.',
+    },
+
+    // ── The counterpart's writable surface has no key for it. Declared and left. ──────
+    'adw-about-dialog.open': {
+        own: 'GTK presents and dismisses a dialog with METHODS — `adw_dialog_present()` / `adw_dialog_close()` — and AdwAboutDialogProps carries no `open`. The port keeps both methods and adds this boolean on top of them (adw-about-dialog.ts:222-226) because an XML builder assigns attributes and calls nothing.',
+    },
+    'adw-preferences-dialog.open': {
+        own: 'The same method-versus-property split as `adw-about-dialog.open`: presentation is `adw_dialog_present()` on GTK, and AdwPreferencesDialogProps has no `open` key. The boolean exists so the dialog is reachable from an XML attribute (adw-preferences-dialog.ts:169-173).',
+    },
+    'adw-button-content.hostButton': {
+        own: 'On GTK the button ancestor is FOUND, not set: `adw_button_content_root()` walks up the widget tree, which is why AdwButtonContentProps has no such key. NativeScript gives a view no equivalent root hook, so the port takes an explicit back-reference and applies `image-text-button` through it (adw-button-content.ts:84-88).',
+    },
+    'adw-button-content.iconColor': {
+        own: 'GTK recolours a symbolic icon through the stylesheet — the icon node inherits `color` — so no GIR type carries an icon-colour property at all. The port pre-colours the bitmap and therefore has to expose the colour (adw-button-content.ts:119-123); its own doc records that CSS cannot recolour it afterwards.',
+    },
+    'adw-button-row.startIconColor': {
+        own: 'The same stylesheet-versus-bitmap split as `adw-button-content.iconColor`, and the port states it in place: "the icon bitmap is pre-coloured, so CSS cannot recolour it" (adw-button-row.ts:156). GTK has no icon-colour property to converge towards on any type.',
+    },
+    'adw-icon.iconColor': {
+        own: 'No GIR type has an icon-colour property; on GTK a symbolic icon takes its colour from the CSS `color` of its node. The port pins a hex value into the rendered SVG so a context colour survives both schemes (adw-icon.ts:81-85).',
+    },
+    'adw-image-button.iconColor': {
+        own: 'Same as the other three icon colours on this surface: a stylesheet concern on GTK, with no writable key on `Gtk.Image` or `Gtk.Button` to name. The port pins it because the SVG is rendered rather than themed (adw-image-button.ts:105-109).',
+    },
+    'adw-status-page.iconColor': {
+        own: 'The fourth instance of the same fact, on `Adw.StatusPage`: GTK colours the symbolic through CSS, AdwStatusPageProps has no icon-colour key, and the port has to expose the value it bakes into the SVG (adw-status-page.ts:137-141).',
+    },
+    'adw-carousel.position': {
+        own: '`Adw.Carousel:position` exists in the GIR and is READ-ONLY, so it is not a writable slot and not a key here — generated/props.ts emits writable properties only. GTK moves the carousel with `adw_carousel_scroll_to()`, a method; the port drives its own scroll offsets and therefore sets the number (adw-carousel.ts:246-258).',
+    },
+    'adw-carousel.pageWidth': {
+        own: 'GTK sizes carousel pages from the allocation, so there is no page-width property on `Adw.Carousel` to converge towards. The port needs an explicit DIP number because its scroll arithmetic is its own — "Set this to the carousel\'s on-screen width so `scrollToPage` lands cleanly" (adw-carousel.ts:285-289).',
+    },
+    'adw-combo-row.selectedValue': {
+        own: "GTK exposes the selected ITEM as `Adw.ComboRow:selected-item`, which is read-only and therefore not a writable key. The port returns the selected option's `value`, or `''` when out of range (adw-combo-row.ts:156-160) — a convenience over the index, with nothing settable on the GTK side to name it after.",
+    },
+    'adw-drop-down.selectedValue': {
+        own: 'The same read-only counterpart as `adw-combo-row.selectedValue`: `Gtk.DropDown:selected-item` is not writable, so GtkDropDownProps has no key for it. The port derives the string from its own options array (adw-drop-down.ts:140-144).',
+    },
+    'adw-drop-down.chooserTitle': {
+        own: 'A declared SUBSTITUTION rather than a port: the file says so itself — "GTK\'s popover has no title, but a bare native sheet gives no clue what is being chosen" (adw-drop-down.ts:158). There is no popover-title property anywhere in GtkDropDownProps to converge towards.',
+    },
+    'adw-menu-button.menuTitle': {
+        own: 'The sibling of `adw-drop-down.chooserTitle` and the same substitution: a native action sheet needs a heading where a `Gtk.Popover` needs none, and `Gtk.MenuButton` has no title property (adw-menu-button.ts:71-75).',
+    },
+    'adw-navigation-split-view.sidebarTag': {
+        own: "`tag` is a property of `Adw.NavigationPage`, the CHILD, not of the split view — AdwNavigationSplitViewProps holds `sidebar` (a page) and no tag. The port ships no navigation-page type, so it flattens the child's tag onto the parent (adw-navigation-split-view.ts:169-173).",
+    },
+    'adw-navigation-split-view.contentTag': {
+        own: 'The content half of the same flattening: `Adw.NavigationPage:tag` lives on the page GTK puts in `content`, and the port has no page type to put it on (adw-navigation-split-view.ts:178-182).',
+    },
+    'adw-password-entry-row.revealed': {
+        own: 'AdwPasswordEntryRowProps is EMPTY in generated/props.ts — the row adds no writable property of its own. Clear text is `Gtk.Text:visibility` on the inner text widget, a different type, which the port cites in place (adw-password-entry-row.ts:88-92).',
+    },
+    'adw-password-entry-row.peeking': {
+        own: 'An explicitly legacy spelling of `revealed`, and the file says neither name is in the C: "The web port called it `revealed`, this one called it `peeking` … kept so existing NativeScript callers keep working while `revealed` is the shared name" (adw-password-entry-row.ts:101). The published alias is the reason it is declared rather than deleted.',
+    },
+    'adw-sidebar.items': {
+        own: 'Items are ADDED on GTK — `adw_sidebar_append()` — and AdwSidebarProps carries no item list (its writable keys are `dropPreload`, `filter`, `menuModel`, `mode`, `placeholder`, `selected`). The port takes the labels as a flat array because its list view is index-driven (adw-sidebar.ts:165-169).',
+    },
+    'adw-sidebar.sections': {
+        own: 'The same method-shaped construction one level up: sections are `Adw.SidebarSection` objects appended on GTK, with no writable key on the sidebar. `AdwSidebarSection` is also one of the types the web table declares web-only for descending from `GObject.Object` (adw-sidebar.ts:174-178).',
+    },
+    'adw-spinner.spinning': {
+        own: 'MEASURED: AdwSpinnerProps is empty — `Adw.Spinner` declares no writable property at all and animates while it is mapped. `Gtk.Spinner:spinning` belongs to a different type, and this widget is not one. The port gates its own animation and must expose the gate (adw-spinner.ts:94-98).',
+    },
+    'adw-spinner.size': {
+        own: 'GTK sizes a spinner with `width-request`/`height-request`, which are MINIMA; this is an exact box size floored at 16 and not capped (adw-spinner.ts:112-116). ADR 0034 measured that non-equivalence — "`View.width` is an *exact* size where GTK\'s `width-request` is a *minimum*" — so naming this `widthRequest` would claim an equivalence that was checked and refused.',
+    },
+    'adw-status-page.iconText': {
+        own: 'A glyph fallback with no GIR counterpart: `Adw.StatusPage` takes `icon-name` or a `paintable`, never a text glyph. The port keeps it for callers that have no symbolic SVG and declares it mutually exclusive with `icon` (adw-status-page.ts:125-129).',
+    },
+    'adw-tab-view.autohide': {
+        own: '`autohide` is `Adw.TabBar:autohide` — a property of the tab BAR, a separate GType the port merges into this widget, which the file cites at adw-tab-bar.c:142-164. AdwTabViewProps has no such key, so there is nothing on this counterpart to converge towards (adw-tab-view.ts:329-333).',
+    },
+    'adw-tab-view.views': {
+        own: 'Pages are appended on GTK (`adw_tab_view_append()`, returning an `Adw.TabPage`), and `Adw.TabView:pages` is a read-only selection model, so neither is a writable key. The port takes the pages as a plain list because it has no tab-page type (adw-tab-view.ts:375-383).',
+    },
+    'adw-tab-view.tabs': {
+        own: 'A second name for `views` on the same surface — "Alias of {@link views}, matching the widget\'s own vocabulary" (adw-tab-view.ts:388). It inherits `views`\' answer: there is no writable page-list key on `Adw.TabView` for either spelling to converge towards.',
+    },
+    'adw-toggle-group.options': {
+        own: 'Toggles are `Adw.Toggle` objects added with `adw_toggle_group_add()`; AdwToggleGroupProps has no list key (`active`, `activeName`, `canShrink`, `homogeneous` are the writable ones). The port rebuilds the group from a label array instead (adw-toggle-group.ts:82-86).',
+    },
+};
+
+/**
+ * Which alignment table each declared RENDERER's widget names are held against.
+ *
+ * Keyed on the package name, so it joins to `WIDGET_SURFACE_READERS` and therefore to the
+ * per-package declaration: a surface that enrols and gets a reader but no table would be
+ * READ and never COMPARED, which is the same hole enrolment closes one level up wearing a
+ * different hat. `alignmentProblems` fails on a declared renderer missing from here.
+ *
+ * `@gjsify/adwaita-web` is deliberately absent and is held by its own half above:
+ * `WEB_ELEMENT_ALIGNMENT` predates the four-kind union and spells its kinds `gtk`/
+ * `webOnly`. Converging the two tables is a rename of a declaration vocabulary and is a
+ * separate decision — this file's rule is that nothing is renamed to make a check tidier.
+ */
+const RENDERER_TABLES = {
+    '@gjsify/adwaita-nativescript': { table: NS_WIDGET_ALIGNMENT, source: NS_TABLE_SOURCE },
+    '@gjsify/adwaita-react-native': { table: RN_WIDGET_ALIGNMENT, source: RN_TABLE_SOURCE },
+};
+
+/** The surface the web half above holds, named once so the coverage rule can see it. */
+const WEB_SURFACE = '@gjsify/adwaita-web';
+
 // ------------------------------------------------------------------ readers
 
 /**
@@ -342,6 +675,78 @@ function readMembers(text, name) {
     }
     return out;
 }
+
+/**
+ * Every `export interface <Name>Props … { … }` in the generated props file, as
+ * `name → { bases, own }`.
+ *
+ * BRACE-MATCHED, not `indexOf('\n}')` like {@link interfaceBody} above, and the
+ * difference is not stylistic: `export interface AdwSpinnerProps extends … {}` closes on
+ * its own line, so the cheaper reader ran past it and swallowed the NEXT interface's
+ * body. `AdwSpinner` then appeared to declare `Adw.SplitButton`'s nine properties, and
+ * `AdwPasswordEntryRow` `Adw.PreferencesDialog`'s three. Both are widgets this file
+ * compares against; the wrong key set makes a real divergence read as agreement, silently.
+ * Measured on the real file while writing the property half — two of 198 interfaces.
+ *
+ * Comments are stripped first so a `{` inside a doc block cannot open a body.
+ */
+function readInterfaces(text) {
+    const code = stripComments(text);
+    /** @type {Map<string, {bases: string[], own: Set<string>}>} */
+    const interfaces = new Map();
+    const declaration = /^export interface (\w+)((?:[^{])*)\{/gm;
+    let match;
+    while ((match = declaration.exec(code)) !== null) {
+        const open = declaration.lastIndex - 1;
+        let depth = 0;
+        let close = -1;
+        for (let i = open; i < code.length; i++) {
+            if (code[i] === '{') depth++;
+            else if (code[i] === '}' && --depth === 0) {
+                close = i;
+                break;
+            }
+        }
+        if (close < 0) break;
+        const own = new Set();
+        for (const [, quoted, bare] of code
+            .slice(open + 1, close)
+            .matchAll(/^\s*(?:'([^']+)'|([A-Za-z_$][\w$]*))\??:/gm)) {
+            own.add(quoted ?? bare);
+        }
+        interfaces.set(match[1], {
+            bases: [...match[2].matchAll(/\b(\w+Props)\b/g)].map(([, base]) => base),
+            own,
+        });
+        declaration.lastIndex = close;
+    }
+    return interfaces;
+}
+
+/**
+ * Every key an interface offers, its `extends` chain resolved.
+ *
+ * GIR's own inheritance is what the generated file mirrors, so `GtkEntryProps` alone
+ * carries 37 of its 228 keys and `text`/`editable` come from `GtkEditableProps` four
+ * levels away. Comparing against the OWN members only would report a widget's inherited
+ * properties as divergences, which is a false red — the more expensive kind, because the
+ * fix that makes it green is deleting the rule.
+ *
+ * Cycle-guarded: a `Props` chain is a DAG in the generated file today, and a guard that
+ * only holds while that stays true is the kind of assumption this file writes down.
+ */
+function interfaceKeys(interfaces, name, seen = new Set()) {
+    if (seen.has(name)) return new Set();
+    seen.add(name);
+    const record = interfaces.get(name);
+    if (record === undefined) return new Set();
+    const keys = new Set(record.own);
+    for (const base of record.bases) for (const key of interfaceKeys(interfaces, base, seen)) keys.add(key);
+    return keys;
+}
+
+/** `placeholderText` → `placeholder-text`: the second spelling the generated file emits. */
+const kebab = (name) => name.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`);
 
 /** The runtime table: GType -> tag, from the emitted rows. */
 function readRuntimeTable(text) {
@@ -431,6 +836,306 @@ function reasonProblems(subject, reason, field, source) {
 }
 
 /**
+ * One renderer surface's widget names, held against the GIR tag set in both directions.
+ *
+ * Lifted out of `alignmentProblems` when the React Native surface was enrolled, rather
+ * than copied: the NativeScript block had already grown four rules the web block above it
+ * does not have, and a third hand-written copy is how those sets drift apart. Every
+ * failure names the CLASS, because that is what a consumer imports and what a `.mdx`
+ * fence or an XML element spells.
+ *
+ * @param {{
+ *   package: string, widgets: string[], table: Record<string, object>, tableSource: string,
+ *   runtimeTags: Set<string>, runtimeGTypes: Set<string>,
+ * }} surface
+ * @returns {string[]}
+ */
+function rendererWidgetProblems(surface) {
+    const { widgets, table, tableSource, runtimeTags, runtimeGTypes } = surface;
+    const problems = [];
+    const declared = new Set(Object.keys(table));
+    // The keys are read back through `elementName`/`widgetClass`, which assume the `adw-`
+    // rule the reader enforces. A key that does not follow it throws inside THAT module,
+    // naming a file the author never edited — a failure attributed to the wrong place
+    // teaches the next person to distrust the reader, so it is refused here by name.
+    const malformed = [...declared].filter((widget) => !/^adw-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(widget));
+    if (malformed.length > 0) {
+        return [
+            'the alignment table is keyed on the widget file spelling (adw-drop-down), and ' +
+                `${malformed.join(', ')} is not one — fix the key in ${tableSource}`,
+        ];
+    }
+    for (const widget of widgets) {
+        const klass = widgetClass(elementName(widget));
+        const entry = table[widget];
+        if (runtimeTags.has(widget)) {
+            if (entry) {
+                problems.push(
+                    `${klass} already shares its spelling with the GTK tag '${widget}', so its alignment ` +
+                        `entry is redundant — delete it from ${tableSource} rather than leaving two answers`,
+                );
+            }
+            continue;
+        }
+        if (!entry) {
+            problems.push(
+                `${klass} (${widget}) has no GTK tag of the same name and no alignment entry. Add one to ` +
+                    `${tableSource}: 'gir' if it is the same widget under another spelling, 'composes' ` +
+                    "if the platform forces a different assembly, 'own' if there is no counterpart type at " +
+                    "all, or 'gap' with an issue number if nobody has decided yet.",
+            );
+            continue;
+        }
+        const kinds = NS_KINDS.filter((kind) => entry[kind] !== undefined);
+        if (kinds.length !== 1) {
+            problems.push(
+                `${klass} has an alignment entry declaring ${kinds.length === 0 ? 'no kind at all' : kinds.join(' and ')} — ` +
+                    `exactly one of ${NS_KINDS.map((kind) => `'${kind}'`).join(', ')} says what the widget is, ` +
+                    'and two answers is none',
+            );
+            continue;
+        }
+        if (entry.gir !== undefined) {
+            if (!runtimeGTypes.has(entry.gir)) {
+                problems.push(`${klass} is declared to be '${entry.gir}', which is not a GType in the widget table`);
+            } else {
+                problems.push(
+                    ...reasonProblems(`${klass} is declared to be '${entry.gir}'`, entry.why, "a 'why'", tableSource),
+                );
+            }
+        } else if (entry.composes !== undefined) {
+            const missing = entry.composes.filter((gtype) => !runtimeGTypes.has(gtype));
+            if (entry.composes.length < 2) {
+                problems.push(
+                    `${klass} composes ${entry.composes.length} GType(s), and a composition is at least ` +
+                        "two — one GType under another spelling is a 'gir' alias, which is the entry that " +
+                        'says it should converge',
+                );
+            } else if (missing.length > 0) {
+                problems.push(`${klass} composes ${missing.join(', ')}, not a GType in the widget table`);
+            } else {
+                problems.push(
+                    ...reasonProblems(
+                        `${klass} composes ${entry.composes.join(' + ')}`,
+                        entry.why,
+                        "a 'why'",
+                        tableSource,
+                    ),
+                );
+            }
+        } else if (entry.own !== undefined) {
+            problems.push(
+                ...reasonProblems(
+                    `${klass} is declared to have no GIR counterpart`,
+                    entry.own,
+                    "an 'own' reason",
+                    tableSource,
+                ),
+            );
+        } else if (!GAP_ISSUE.test(entry.gap)) {
+            problems.push(
+                `${klass} points its gap at '${entry.gap}', which is not an issue number. A gap is a ` +
+                    'POINTER at tracked work and never a reason: the moment "it would be work" is allowed ' +
+                    'to sit in a reason field, every gap can be spelled as one and nothing is recorded.',
+            );
+        }
+    }
+    const present = new Set(widgets);
+    for (const widget of declared) {
+        if (!present.has(widget)) {
+            problems.push(
+                `the alignment table declares ${widgetClass(elementName(widget))}, which ` +
+                    `${surface.package} no longer ships — drop the entry from ${tableSource}`,
+            );
+        }
+    }
+    return problems;
+}
+
+/**
+ * Which GIR type(s) a renderer widget is measured against, from the widget ledger.
+ *
+ * A widget whose spelling already IS a tag answers for itself; a `gir` entry names one
+ * GType; a `composes` entry names several and the key sets are unioned, because the UI is
+ * assembled from all of them. `own` and `gap` return null: there is nothing to compare
+ * against, and comparing against nothing is how a blind side passes.
+ */
+function counterpartsOf(widget, table, tagToGType) {
+    if (tagToGType.has(widget)) return [tagToGType.get(widget)];
+    const entry = table[widget];
+    if (entry?.gir !== undefined) return [entry.gir];
+    if (entry?.composes !== undefined) return entry.composes;
+    return null;
+}
+
+/**
+ * What the property comparison actually found, counted rather than inferred.
+ *
+ * The summary used to be able to say "agree" as `settable - declared`, which is only true
+ * while every rule above holds — i.e. it would report the right number exactly when
+ * nothing was wrong, and an arbitrary one otherwise. A count that is a consequence of the
+ * check passing is not a measurement. This walks the same two sides and counts.
+ *
+ * @param {object} world
+ * @returns {{widgets: number, settable: number, shared: number, diverging: number}}
+ */
+function propertyCensus(world) {
+    const { interfaces, byGType, runtime, nsWidgets, nsTable, nsProperties } = world;
+    const tagToGType = new Map([...runtime].map(([gtype, tag]) => [tag, gtype]));
+    let widgets = 0;
+    let settable = 0;
+    let shared = 0;
+    for (const widget of nsWidgets) {
+        const counterparts = counterpartsOf(widget, nsTable, tagToGType);
+        if (counterparts === null) continue;
+        widgets++;
+        const keys = new Set();
+        for (const gtype of counterparts) {
+            for (const key of interfaceKeys(interfaces, byGType.get(gtype) ?? '')) keys.add(key);
+        }
+        for (const property of nsProperties.get(widget) ?? []) {
+            settable++;
+            if (keys.has(property) || keys.has(kebab(property))) shared++;
+        }
+    }
+    return { widgets, settable, shared, diverging: settable - shared };
+}
+
+/**
+ * The property half: every settable property of a NativeScript widget WITH a counterpart
+ * is a key of that counterpart's props interface, or it is declared.
+ *
+ * @param {object} world the same world `alignmentProblems` reads
+ * @returns {string[]}
+ */
+function propertyProblems(world) {
+    const { interfaces, byGType, runtime, nsWidgets, nsTable, nsProperties, propertyTable } = world;
+    const tagToGType = new Map([...runtime].map(([gtype, tag]) => [tag, gtype]));
+    const problems = [];
+
+    // The controls. A comparison is blind wherever one side has no entry, and each of
+    // these three would make the whole half pass while measuring nothing.
+    if (interfaces.size === 0) {
+        problems.push('no interfaces read from generated/props.ts — the property half has no comparison target');
+    }
+    const measured = nsWidgets.filter((widget) => counterpartsOf(widget, nsTable, tagToGType) !== null);
+    if (measured.length === 0) {
+        problems.push('no NativeScript widget has a GIR counterpart — the property half has nothing to measure');
+    }
+    if (measured.some((widget) => nsProperties.get(widget) === null)) {
+        const unreadable = measured.filter((widget) => nsProperties.get(widget) === null);
+        problems.push(
+            `the settable-property reader found no class for ${unreadable.join(', ')} — a widget whose ` +
+                'accessors cannot be read drops out of the comparison as an aligned one',
+        );
+    }
+    if (problems.length > 0) return problems;
+
+    const settableTotal = measured.reduce((sum, widget) => sum + nsProperties.get(widget).length, 0);
+    if (settableTotal === 0) {
+        problems.push(
+            'no settable property found on any counterpart-bearing NativeScript widget — the reader or the ' +
+                'accessor convention moved, and an empty side agrees with everything',
+        );
+        return problems;
+    }
+
+    const declared = new Set(Object.keys(propertyTable));
+    const seen = new Set();
+    for (const widget of measured) {
+        const counterparts = counterpartsOf(widget, nsTable, tagToGType);
+        const keys = new Set();
+        for (const gtype of counterparts) {
+            for (const key of interfaceKeys(interfaces, byGType.get(gtype) ?? '')) keys.add(key);
+        }
+        const klass = widgetClass(elementName(widget));
+        const against = counterparts.join(' + ');
+        for (const property of nsProperties.get(widget)) {
+            const key = `${widget}.${property}`;
+            seen.add(key);
+            const entry = propertyTable[key];
+            if (keys.has(property) || keys.has(kebab(property))) {
+                if (entry) {
+                    problems.push(
+                        `${klass}.${property} is already a key of ${against}, so its property entry is ` +
+                            `redundant — delete '${key}' from ${NS_PROPERTY_TABLE_SOURCE} rather than leaving ` +
+                            'two answers',
+                    );
+                }
+                continue;
+            }
+            if (!entry) {
+                problems.push(
+                    `${klass}.${property} is settable and is not a key of ${against}, and nothing declares ` +
+                        `what it is. Add '${key}' to ${NS_PROPERTY_TABLE_SOURCE}: 'gir' with the key it ` +
+                        "should converge to, 'own' with the reason the counterpart has no key for it, or " +
+                        "'gap' with an issue number. An undeclared divergence is an undecided one, and " +
+                        'undecided is what fails here.',
+                );
+                continue;
+            }
+            const kinds = PROPERTY_KINDS.filter((kind) => entry[kind] !== undefined);
+            if (kinds.length !== 1) {
+                problems.push(
+                    `${klass}.${property} has a property entry declaring ${kinds.length === 0 ? 'no kind at all' : kinds.join(' and ')} — ` +
+                        `exactly one of ${PROPERTY_KINDS.map((kind) => `'${kind}'`).join(', ')} says what the ` +
+                        'property is, and two answers is none',
+                );
+                continue;
+            }
+            if (entry.gir !== undefined) {
+                if (entry.gir === property) {
+                    problems.push(
+                        `${klass}.${property} declares it should converge to '${entry.gir}', which is its own ` +
+                            'name. A convergence target that is the property itself records no decision — if ' +
+                            `the key exists the entry is redundant, and if it does not the target is wrong.`,
+                    );
+                } else if (!keys.has(entry.gir) && !keys.has(kebab(entry.gir))) {
+                    problems.push(
+                        `${klass}.${property} declares it should converge to '${entry.gir}', which is not a ` +
+                            `key of ${against} in generated/props.ts. A convergence target nothing offers is ` +
+                            'not a target.',
+                    );
+                } else {
+                    problems.push(
+                        ...reasonProblems(
+                            `${klass}.${property} should converge to '${entry.gir}'`,
+                            entry.why,
+                            "a 'why'",
+                            NS_PROPERTY_TABLE_SOURCE,
+                        ),
+                    );
+                }
+            } else if (entry.own !== undefined) {
+                problems.push(
+                    ...reasonProblems(
+                        `${klass}.${property} is declared to have no counterpart key`,
+                        entry.own,
+                        "an 'own' reason",
+                        NS_PROPERTY_TABLE_SOURCE,
+                    ),
+                );
+            } else if (!GAP_ISSUE.test(entry.gap)) {
+                problems.push(
+                    `${klass}.${property} points its gap at '${entry.gap}', which is not an issue number. A ` +
+                        'gap is a POINTER at tracked work and never a reason — the same rule the widget ' +
+                        'ledger sets, for the same reason.',
+                );
+            }
+        }
+    }
+    for (const key of declared) {
+        if (seen.has(key)) continue;
+        problems.push(
+            `the property ledger declares '${key}', which no counterpart-bearing NativeScript widget sets ` +
+                `any more — drop the entry from ${NS_PROPERTY_TABLE_SOURCE}. A ledger describing a property ` +
+                'that does not exist tells the next reader something false.',
+        );
+    }
+    return problems;
+}
+
+/**
  * Every rule, as one pure function over plain data.
  *
  * Pure so the self-test can hand it a broken world without materialising files, and so a
@@ -450,7 +1155,24 @@ function reasonProblems(subject, reason, field, source) {
 export function alignmentProblems(world) {
     const problems = [];
     const { runtime, tags, byTag, byGType, classByTag, vueAliases, dialects, webElements, table } = world;
-    const { nsWidgets, nsTable } = world;
+    const { renderers, surfaces, held } = world;
+
+    // ENROLMENT FIRST. Every rule below reads a surface, and which surfaces exist is now a
+    // per-package DECLARATION rather than a list in this file (ADR 0034 § 5). A declared
+    // surface with no reader means the sets below are incomplete in a way no other rule
+    // can see, so this half runs before anything is compared and stops the run.
+    problems.push(...enrolmentProblems(surfaces));
+    // …and being READ is not being COMPARED. A renderer with a reader but no alignment
+    // table would contribute its widget names to the summary and be held against nothing.
+    for (const { name, declaration } of surfaces.declared) {
+        if (declaration?.role !== 'renderer' || held.includes(name)) continue;
+        problems.push(
+            `${name} is a declared widget-vocabulary renderer and no half of this check compares its ` +
+                'widget names against the GIR tag table — it is read and never held. Add it to ' +
+                'RENDERER_TABLES in scripts/check-vocabulary-alignment.mjs with an alignment table of its own.',
+        );
+    }
+    if (problems.length > 0) return problems;
 
     // A reader that found nothing makes every set difference empty, so the whole check
     // passes vacuously. That is the one failure this file exists to avoid.
@@ -465,8 +1187,10 @@ export function alignmentProblems(world) {
         if (map === null) problems.push(`${name} not found — the generated shape changed and this reader did not`);
     }
     if (webElements.length === 0) problems.push('no adw-* web elements found — the independent half is not being read');
-    if (nsWidgets.length === 0) {
-        problems.push('no NativeScript Adw* widgets found — the NativeScript half is not being read');
+    for (const surface of renderers) {
+        if (surface.widgets.length === 0) {
+            problems.push(`no Adw* widgets found for ${surface.package} — that surface is not being read`);
+        }
     }
     if (problems.length > 0) return problems;
 
@@ -578,112 +1302,17 @@ export function alignmentProblems(world) {
         }
     }
 
-    // The NativeScript half. The same shape over a second independent source: these names
-    // are a widget FILENAME plus the class it exports, hand-typed, and the generator that
-    // emits the tag table reads neither. Every failure names the CLASS, because that is
-    // what a consumer imports and what a `.mdx` fence or an XML element spells.
-    const nsDeclared = new Set(Object.keys(nsTable));
-    // The keys are read back through `elementName`/`widgetClass`, which assume the `adw-`
-    // rule the reader enforces. A key that does not follow it throws inside THAT module,
-    // naming a file the author never edited — a failure attributed to the wrong place
-    // teaches the next person to distrust the reader, so it is refused here by name.
-    const malformed = [...nsDeclared].filter((widget) => !/^adw-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(widget));
-    if (malformed.length > 0) {
-        problems.push(
-            'the alignment table is keyed on the widget file spelling (adw-drop-down), and ' +
-                `${malformed.join(', ')} is not one — fix the key in ${NS_TABLE_SOURCE}`,
-        );
-        return problems;
+    // The RENDERER halves. The same shape over a second independent source per surface:
+    // these names are a widget FILENAME plus the class it exports (NativeScript) or a
+    // barrel export line (React Native), all hand-typed, and the generator that emits the
+    // tag table reads none of them. ONE function over both, because a third copy of this
+    // loop is how the second surface came to differ from the first in the details.
+    for (const surface of renderers) {
+        problems.push(...rendererWidgetProblems({ ...surface, runtimeTags, runtimeGTypes }));
     }
-    for (const widget of nsWidgets) {
-        const klass = widgetClass(elementName(widget));
-        const entry = nsTable[widget];
-        if (runtimeTags.has(widget)) {
-            if (entry) {
-                problems.push(
-                    `${klass} already shares its spelling with the GTK tag '${widget}', so its alignment ` +
-                        `entry is redundant — delete it from ${NS_TABLE_SOURCE} rather than leaving two answers`,
-                );
-            }
-            continue;
-        }
-        if (!entry) {
-            problems.push(
-                `${klass} (${widget}) has no GTK tag of the same name and no alignment entry. Add one to ` +
-                    `${NS_TABLE_SOURCE}: 'gir' if it is the same widget under another spelling, 'composes' ` +
-                    "if the platform forces a different assembly, 'own' if there is no counterpart type at " +
-                    "all, or 'gap' with an issue number if nobody has decided yet.",
-            );
-            continue;
-        }
-        const kinds = NS_KINDS.filter((kind) => entry[kind] !== undefined);
-        if (kinds.length !== 1) {
-            problems.push(
-                `${klass} has an alignment entry declaring ${kinds.length === 0 ? 'no kind at all' : kinds.join(' and ')} — ` +
-                    `exactly one of ${NS_KINDS.map((kind) => `'${kind}'`).join(', ')} says what the widget is, ` +
-                    'and two answers is none',
-            );
-            continue;
-        }
-        if (entry.gir !== undefined) {
-            if (!runtimeGTypes.has(entry.gir)) {
-                problems.push(`${klass} is declared to be '${entry.gir}', which is not a GType in the widget table`);
-            } else {
-                problems.push(
-                    ...reasonProblems(
-                        `${klass} is declared to be '${entry.gir}'`,
-                        entry.why,
-                        "a 'why'",
-                        NS_TABLE_SOURCE,
-                    ),
-                );
-            }
-        } else if (entry.composes !== undefined) {
-            const missing = entry.composes.filter((gtype) => !runtimeGTypes.has(gtype));
-            if (entry.composes.length < 2) {
-                problems.push(
-                    `${klass} composes ${entry.composes.length} GType(s), and a composition is at least ` +
-                        "two — one GType under another spelling is a 'gir' alias, which is the entry that " +
-                        'says it should converge',
-                );
-            } else if (missing.length > 0) {
-                problems.push(`${klass} composes ${missing.join(', ')}, not a GType in the widget table`);
-            } else {
-                problems.push(
-                    ...reasonProblems(
-                        `${klass} composes ${entry.composes.join(' + ')}`,
-                        entry.why,
-                        "a 'why'",
-                        NS_TABLE_SOURCE,
-                    ),
-                );
-            }
-        } else if (entry.own !== undefined) {
-            problems.push(
-                ...reasonProblems(
-                    `${klass} is declared to have no GIR counterpart`,
-                    entry.own,
-                    "an 'own' reason",
-                    NS_TABLE_SOURCE,
-                ),
-            );
-        } else if (!GAP_ISSUE.test(entry.gap)) {
-            problems.push(
-                `${klass} points its gap at '${entry.gap}', which is not an issue number. A gap is a ` +
-                    'POINTER at tracked work and never a reason: the moment "it would be work" is allowed ' +
-                    'to sit in a reason field, every gap can be spelled as one and nothing is recorded.',
-            );
-        }
-    }
-    const nsPresent = new Set(nsWidgets);
-    for (const widget of nsDeclared) {
-        if (!nsPresent.has(widget)) {
-            problems.push(
-                `the alignment table declares ${widgetClass(elementName(widget))}, which ` +
-                    `@gjsify/adwaita-nativescript no longer ships — drop the entry from ${NS_TABLE_SOURCE}`,
-            );
-        }
-    }
+
+    // The PROPERTY half — one level down, on the surface where it was measured.
+    problems.push(...propertyProblems(world));
 
     return problems;
 }
@@ -701,6 +1330,13 @@ const FIXTURE_REASON = 'a fixture reason, written long enough to clear the floor
  * a tag there is nothing for the redundancy rules to be redundant about, on either
  * surface, and both would be vectorless.
  */
+const FIXTURE_NS_WIDGETS = ['adw-bin', 'adw-button', 'adw-icon-button', 'adw-grid'];
+const FIXTURE_NS_TABLE = {
+    'adw-button': { gir: 'GtkButton', why: FIXTURE_REASON },
+    'adw-icon-button': { composes: ['GtkButton', 'GtkBox'], why: FIXTURE_REASON },
+    'adw-grid': { own: FIXTURE_REASON },
+};
+
 const WORLD = () => ({
     runtime: new Map([
         ['AdwBin', 'adw-bin'],
@@ -736,13 +1372,81 @@ const WORLD = () => ({
         'adw-box': { webOnly: FIXTURE_REASON },
         'adw-button': { gtk: 'gtk-button', why: FIXTURE_REASON },
     },
-    nsWidgets: ['adw-bin', 'adw-button', 'adw-icon-button', 'adw-grid'],
-    nsTable: {
-        'adw-button': { gir: 'GtkButton', why: FIXTURE_REASON },
-        'adw-icon-button': { composes: ['GtkButton', 'GtkBox'], why: FIXTURE_REASON },
-        'adw-grid': { own: FIXTURE_REASON },
+    nsWidgets: FIXTURE_NS_WIDGETS,
+    nsTable: FIXTURE_NS_TABLE,
+    surfaces: {
+        declared: [
+            { name: '@gjsify/fixture-host', rel: 'packages/fixture-host', declaration: { role: 'reference' } },
+            {
+                name: '@gjsify/adwaita-nativescript',
+                rel: 'packages/fixture-ns',
+                declaration: { role: 'renderer' },
+            },
+        ],
+        readers: {
+            '@gjsify/fixture-host': { role: 'reference' },
+            '@gjsify/adwaita-nativescript': { role: 'renderer' },
+        },
+    },
+    held: ['@gjsify/adwaita-nativescript', '@gjsify/adwaita-react-native'],
+    renderers: [
+        {
+            package: '@gjsify/adwaita-nativescript',
+            widgets: FIXTURE_NS_WIDGETS,
+            table: FIXTURE_NS_TABLE,
+            tableSource: NS_TABLE_SOURCE,
+        },
+        // A second renderer with an EMPTY table, so the shape a newly enrolled surface
+        // has — every widget already sharing a spelling, nothing to declare — is a state
+        // the rules are exercised over rather than one they meet first in the real tree.
+        {
+            package: '@gjsify/adwaita-react-native',
+            widgets: ['adw-bin'],
+            table: {},
+            tableSource: RN_TABLE_SOURCE,
+        },
+    ],
+    // The property half. `GtkButtonProps` extends `GtkWidgetProps`, so `sensitive` is only
+    // reachable through the chain — without an inherited key in the fixture, a reader that
+    // ignored `extends` would pass every vector and report a widget's inherited properties
+    // as divergences against the real tree.
+    interfaces: new Map([
+        ['AdwBinProps', { bases: [], own: new Set(['child', 'margin-top']) }],
+        ['GtkBoxProps', { bases: [], own: new Set(['spacing']) }],
+        ['GtkWidgetProps', { bases: [], own: new Set(['sensitive']) }],
+        ['GtkButtonProps', { bases: ['GtkWidgetProps'], own: new Set(['label', 'iconName']) }],
+    ]),
+    nsProperties: new Map([
+        // `marginTop` is a key only in its kebab spelling, which is the join the generated
+        // file forces and the one a camelCase-only comparison would report as a divergence.
+        ['adw-bin', ['child', 'marginTop']],
+        ['adw-button', ['label', 'sensitive', 'variant']],
+        ['adw-icon-button', ['spacing', 'icon']],
+        // No counterpart, so never measured — a widget the property half must SKIP rather
+        // than report as 100 % divergent.
+        ['adw-grid', ['rows']],
+    ]),
+    propertyTable: {
+        'adw-icon-button.icon': { gir: 'iconName', why: FIXTURE_REASON },
+        'adw-button.variant': { own: FIXTURE_REASON },
     },
 });
+
+/**
+ * The NativeScript surface lives in the world TWICE — as `nsWidgets`/`nsTable` for the
+ * property half and inside `renderers` for the widget half — so a vector that changes one
+ * and not the other tests a world that cannot exist. This is the only way to change it.
+ */
+const withNs = (world, changes) => {
+    const nsWidgets = changes.nsWidgets ?? world.nsWidgets;
+    const nsTable = changes.nsTable ?? world.nsTable;
+    return {
+        ...world,
+        nsWidgets,
+        nsTable,
+        renderers: [{ ...world.renderers[0], widgets: nsWidgets, table: nsTable }, ...world.renderers.slice(1)],
+    };
+};
 
 /** Each vector breaks exactly one rule, and names the substring its failure must contain. */
 const VECTORS = [
@@ -828,77 +1532,274 @@ const VECTORS = [
         '<adw-box> is declared web-only with a 7-character reason',
     ],
     // The NativeScript half.
-    ['no NativeScript widgets at all', (w) => ({ ...w, nsWidgets: [] }), 'NativeScript half is not being read'],
+    [
+        'no NativeScript widgets at all',
+        (w) => withNs(w, { nsWidgets: [] }),
+        'no Adw* widgets found for @gjsify/adwaita-nativescript',
+    ],
     [
         'an undeclared NativeScript widget',
-        (w) => ({ ...w, nsTable: {} }),
+        (w) => withNs(w, { nsTable: {} }),
         'AdwButton (adw-button) has no GTK tag of the same name and no alignment entry',
     ],
     [
         'a gir target that is not a GType in the table',
-        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-button': { gir: 'GtkGhost', why: FIXTURE_REASON } } }),
+        (w) => withNs(w, { nsTable: { ...w.nsTable, 'adw-button': { gir: 'GtkGhost', why: FIXTURE_REASON } } }),
         "AdwButton is declared to be 'GtkGhost', which is not a GType",
     ],
     [
         'a gir alias with no reason',
-        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-button': { gir: 'GtkButton' } } }),
+        (w) => withNs(w, { nsTable: { ...w.nsTable, 'adw-button': { gir: 'GtkButton' } } }),
         "AdwButton is declared to be 'GtkButton' with no reason",
     ],
     [
         'a composes member that is not a GType',
-        (w) => ({
-            ...w,
-            nsTable: { ...w.nsTable, 'adw-icon-button': { composes: ['GtkButton', 'GtkGhost'], why: FIXTURE_REASON } },
-        }),
+        (w) =>
+            withNs(w, {
+                nsTable: {
+                    ...w.nsTable,
+                    'adw-icon-button': { composes: ['GtkButton', 'GtkGhost'], why: FIXTURE_REASON },
+                },
+            }),
         'AdwIconButton composes GtkGhost, not a GType',
     ],
     [
         'a composition of one',
-        (w) => ({
-            ...w,
-            nsTable: { ...w.nsTable, 'adw-icon-button': { composes: ['GtkButton'], why: FIXTURE_REASON } },
-        }),
+        (w) =>
+            withNs(w, {
+                nsTable: { ...w.nsTable, 'adw-icon-button': { composes: ['GtkButton'], why: FIXTURE_REASON } },
+            }),
         'a composition is at least',
     ],
     [
         'a composition with no reason',
-        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-icon-button': { composes: ['GtkButton', 'GtkBox'] } } }),
+        (w) => withNs(w, { nsTable: { ...w.nsTable, 'adw-icon-button': { composes: ['GtkButton', 'GtkBox'] } } }),
         'AdwIconButton composes GtkButton + GtkBox with no reason',
     ],
     [
         'an own entry whose reason is a word',
-        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-grid': { own: 'none' } } }),
+        (w) => withNs(w, { nsTable: { ...w.nsTable, 'adw-grid': { own: 'none' } } }),
         'AdwGrid is declared to have no GIR counterpart with a 4-character reason',
     ],
     [
         'a NativeScript entry answering twice',
-        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-grid': { gir: 'GtkBox', own: FIXTURE_REASON } } }),
+        (w) => withNs(w, { nsTable: { ...w.nsTable, 'adw-grid': { gir: 'GtkBox', own: FIXTURE_REASON } } }),
         'declaring gir and own',
     ],
     [
         'a NativeScript entry answering not at all',
-        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-grid': { why: FIXTURE_REASON } } }),
+        (w) => withNs(w, { nsTable: { ...w.nsTable, 'adw-grid': { why: FIXTURE_REASON } } }),
         'declaring no kind at all',
     ],
     [
         'a gap pointing at prose instead of tracked work',
-        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-grid': { gap: 'someone should look at this' } } }),
+        (w) => withNs(w, { nsTable: { ...w.nsTable, 'adw-grid': { gap: 'someone should look at this' } } }),
         'not an issue number',
     ],
     [
         'a redundant entry for a widget that already matches',
-        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-bin': { own: FIXTURE_REASON } } }),
+        (w) => withNs(w, { nsTable: { ...w.nsTable, 'adw-bin': { own: FIXTURE_REASON } } }),
         "AdwBin already shares its spelling with the GTK tag 'adw-bin'",
     ],
     [
         'a stale entry for a widget that is gone',
-        (w) => ({ ...w, nsTable: { ...w.nsTable, 'adw-vanished': { own: FIXTURE_REASON } } }),
+        (w) => withNs(w, { nsTable: { ...w.nsTable, 'adw-vanished': { own: FIXTURE_REASON } } }),
         'AdwVanished, which @gjsify/adwaita-nativescript no longer ships',
     ],
     [
         'a key outside the adw- spelling the readers assume',
-        (w) => ({ ...w, nsTable: { ...w.nsTable, AdwButton: { own: FIXTURE_REASON } } }),
+        (w) => withNs(w, { nsTable: { ...w.nsTable, AdwButton: { own: FIXTURE_REASON } } }),
         'AdwButton is not one',
+    ],
+    // A SECOND renderer, enrolled by declaration rather than by being named here. Its
+    // table is empty, which is the shape every new surface starts in.
+    [
+        'a second renderer with no widgets read',
+        (w) => ({ ...w, renderers: [w.renderers[0], { ...w.renderers[1], widgets: [] }] }),
+        'no Adw* widgets found for @gjsify/adwaita-react-native',
+    ],
+    [
+        'a widget on the second renderer under a name that is not a tag',
+        (w) => ({ ...w, renderers: [w.renderers[0], { ...w.renderers[1], widgets: ['adw-novel'] }] }),
+        'AdwNovel (adw-novel) has no GTK tag of the same name and no alignment entry',
+    ],
+    // ── The property half (ADR 0034 stage 6). ────────────────────────────────────────
+    [
+        'no interfaces read from the generated props file',
+        (w) => ({ ...w, interfaces: new Map() }),
+        'no interfaces read from generated/props.ts',
+    ],
+    [
+        'no NativeScript widget with a counterpart',
+        (w) => withNs(w, { nsWidgets: ['adw-grid'] }),
+        'the property half has nothing to measure',
+    ],
+    [
+        'a widget class the settable-property reader could not find',
+        (w) => ({ ...w, nsProperties: new Map([...w.nsProperties, ['adw-button', null]]) }),
+        'the settable-property reader found no class for adw-button',
+    ],
+    [
+        'no settable property anywhere on the surface',
+        (w) => ({ ...w, nsProperties: new Map([...w.nsProperties].map(([tag]) => [tag, []])) }),
+        'no settable property found on any counterpart-bearing NativeScript widget',
+    ],
+    [
+        'an undeclared settable property',
+        (w) => ({ ...w, propertyTable: {} }),
+        'AdwButton.variant is settable and is not a key of GtkButton, and nothing declares what it is',
+    ],
+    [
+        'a property entry for a property that is already a key',
+        (w) => ({ ...w, propertyTable: { ...w.propertyTable, 'adw-button.label': { own: FIXTURE_REASON } } }),
+        'AdwButton.label is already a key of GtkButton, so its property entry is redundant',
+    ],
+    [
+        'a property entry only reachable through the extends chain',
+        (w) => ({ ...w, propertyTable: { ...w.propertyTable, 'adw-button.sensitive': { own: FIXTURE_REASON } } }),
+        'AdwButton.sensitive is already a key of GtkButton',
+    ],
+    [
+        'a stale property entry',
+        (w) => ({ ...w, propertyTable: { ...w.propertyTable, 'adw-button.vanished': { own: FIXTURE_REASON } } }),
+        "the property ledger declares 'adw-button.vanished'",
+    ],
+    [
+        'a convergence target that is not a key of the counterpart',
+        (w) => ({
+            ...w,
+            propertyTable: { ...w.propertyTable, 'adw-icon-button.icon': { gir: 'ghost', why: FIXTURE_REASON } },
+        }),
+        "should converge to 'ghost', which is not a key of GtkButton + GtkBox",
+    ],
+    [
+        'a convergence target that is the property itself',
+        (w) => ({
+            ...w,
+            propertyTable: { ...w.propertyTable, 'adw-icon-button.icon': { gir: 'icon', why: FIXTURE_REASON } },
+        }),
+        'which is its own name',
+    ],
+    [
+        'a convergence entry with no reason',
+        (w) => ({ ...w, propertyTable: { ...w.propertyTable, 'adw-icon-button.icon': { gir: 'iconName' } } }),
+        "AdwIconButton.icon should converge to 'iconName' with no reason",
+    ],
+    [
+        'an own property reason under the floor',
+        (w) => ({ ...w, propertyTable: { ...w.propertyTable, 'adw-button.variant': { own: 'none' } } }),
+        'AdwButton.variant is declared to have no counterpart key with a 4-character reason',
+    ],
+    [
+        'a property entry answering twice',
+        (w) => ({
+            ...w,
+            propertyTable: { ...w.propertyTable, 'adw-button.variant': { gir: 'label', own: FIXTURE_REASON } },
+        }),
+        'AdwButton.variant has a property entry declaring gir and own',
+    ],
+    [
+        'a property entry answering not at all',
+        (w) => ({ ...w, propertyTable: { ...w.propertyTable, 'adw-button.variant': { why: FIXTURE_REASON } } }),
+        'AdwButton.variant has a property entry declaring no kind at all',
+    ],
+    [
+        'a property gap pointing at prose instead of tracked work',
+        (w) => ({ ...w, propertyTable: { ...w.propertyTable, 'adw-button.variant': { gap: 'later maybe' } } }),
+        "AdwButton.variant points its gap at 'later maybe', which is not an issue number",
+    ],
+    // ── Enrolment (ADR 0034 stage 4). These run FIRST and stop the run. ──────────────
+    [
+        'a declared renderer no half of the check compares',
+        (w) => ({
+            ...w,
+            surfaces: {
+                declared: [
+                    ...w.surfaces.declared,
+                    { name: '@gjsify/fixture-rn', rel: 'packages/fixture-rn', declaration: { role: 'renderer' } },
+                ],
+                readers: { ...w.surfaces.readers, '@gjsify/fixture-rn': { role: 'renderer' } },
+            },
+        }),
+        '@gjsify/fixture-rn is a declared widget-vocabulary renderer and no half of this check compares',
+    ],
+    [
+        'a surface that declares itself and has no reader',
+        (w) => ({
+            ...w,
+            surfaces: {
+                ...w.surfaces,
+                declared: [
+                    ...w.surfaces.declared,
+                    { name: '@gjsify/fixture-next', rel: 'packages/fixture-next', declaration: { role: 'renderer' } },
+                ],
+            },
+        }),
+        '@gjsify/fixture-next declares `gjsify.widgetVocabulary` and NO reader covers it',
+    ],
+    [
+        'a reader whose package stopped declaring itself',
+        (w) => ({
+            ...w,
+            surfaces: { ...w.surfaces, readers: { ...w.surfaces.readers, '@gjsify/ghost': { role: 'renderer' } } },
+        }),
+        'reads @gjsify/ghost, which declares no `gjsify.widgetVocabulary`',
+    ],
+    [
+        'a declaration that is not an object',
+        (w) => ({
+            ...w,
+            surfaces: {
+                ...w.surfaces,
+                declared: [w.surfaces.declared[0], { ...w.surfaces.declared[1], declaration: true }],
+            },
+        }),
+        'must be an object with a `role`',
+    ],
+    [
+        'a surface declaring an unknown role',
+        (w) => ({
+            ...w,
+            surfaces: {
+                ...w.surfaces,
+                declared: [w.surfaces.declared[0], { ...w.surfaces.declared[1], declaration: { role: 'both' } }],
+            },
+        }),
+        'expected one of',
+    ],
+    [
+        'a role the reader disagrees with',
+        (w) => ({
+            ...w,
+            surfaces: {
+                ...w.surfaces,
+                readers: { ...w.surfaces.readers, '@gjsify/adwaita-nativescript': { role: 'reference' } },
+            },
+        }),
+        "declares role 'renderer' and",
+    ],
+    [
+        'two packages declaring themselves the reference',
+        (w) => ({
+            ...w,
+            surfaces: {
+                ...w.surfaces,
+                declared: [w.surfaces.declared[0], { ...w.surfaces.declared[1], declaration: { role: 'reference' } }],
+                readers: { ...w.surfaces.readers, '@gjsify/adwaita-nativescript': { role: 'reference' } },
+            },
+        }),
+        "2 package(s) declare role 'reference'",
+    ],
+    [
+        'no package declaring itself a renderer',
+        (w) => ({
+            ...w,
+            surfaces: {
+                declared: [w.surfaces.declared[0]],
+                readers: { '@gjsify/fixture-host': { role: 'reference' } },
+            },
+        }),
+        "no package declares role 'renderer'",
     ],
 ];
 
@@ -980,6 +1881,24 @@ const read = (relativePath) => readFileSync(join(ROOT, relativePath), 'utf8');
 let world;
 try {
     const props = read(PROPS);
+    // EVERY surface is read THROUGH the enrolment registry, so "declared" and "read" are
+    // the same act rather than two lists that agree today. A declared surface with no
+    // reader simply produces nothing here, and `enrolmentProblems` is what says so.
+    const surfaceWidgets = new Map(
+        Object.entries(WIDGET_SURFACE_READERS)
+            .filter(([, reader]) => reader.widgets !== null)
+            .map(([name, reader]) => [name, reader.widgets(ROOT)]),
+    );
+    const nsFiles = adwaitaNativeScriptWidgets(ROOT);
+    const nsWidgets = surfaceWidgets.get('@gjsify/adwaita-nativescript') ?? [];
+    const renderers = Object.entries(RENDERER_TABLES)
+        .filter(([name]) => surfaceWidgets.has(name))
+        .map(([name, { table, source }]) => ({
+            package: name,
+            widgets: surfaceWidgets.get(name),
+            table,
+            tableSource: source,
+        }));
     world = {
         runtime: readRuntimeTable(read(WIDGETS)),
         tags: readTagsConst(read(SURFACE_DATA)),
@@ -988,12 +1907,29 @@ try {
         classByTag: readMembers(props, 'WidgetClassByTag'),
         vueAliases: readMembers(props, 'WidgetPropsVueAliases'),
         dialects: DIALECTS.map((dialect) => ({ ...dialect, ...readDialect(read(dialect.file)) })),
-        webElements: [...adwaitaWebElements(ROOT).keys()],
+        webElements: surfaceWidgets.get(WEB_SURFACE) ?? [],
         table: WEB_ELEMENT_ALIGNMENT,
-        // The reader returns bare names; the table is keyed in the tag namespace it is
-        // held against, so the `adw-` goes back on exactly once, here.
-        nsWidgets: [...adwaitaNativeScriptWidgets(ROOT).keys()].map((name) => `adw-${name}`),
+        // The reader returns bare names; the tables are keyed in the tag namespace they
+        // are held against, so the `adw-` goes back on exactly once, here.
+        nsWidgets,
         nsTable: NS_WIDGET_ALIGNMENT,
+        // The declaration half. `declaredWidgetSurfaces` reads the manifests and
+        // `WIDGET_SURFACE_READERS` is what this repository can read; the rule is the JOIN,
+        // so a fourth surface enrols by declaring itself and fails until it is readable.
+        surfaces: { declared: declaredWidgetSurfaces(ROOT), readers: WIDGET_SURFACE_READERS },
+        renderers,
+        held: [WEB_SURFACE, ...renderers.map((surface) => surface.package)],
+        // The property half's two sides: the GIR-derived interfaces, and what each
+        // NativeScript widget class lets a caller set. `null` for a class the reader could
+        // not find is deliberate — see the control in `propertyProblems`.
+        interfaces: readInterfaces(props),
+        nsProperties: new Map(
+            [...nsFiles].map(([name, file]) => {
+                const setters = settablePropertiesOfClass(read(file), widgetClass(name));
+                return [`adw-${name}`, setters === null ? null : [...setters]];
+            }),
+        ),
+        propertyTable: NS_PROPERTY_ALIGNMENT,
     };
 } catch (error) {
     console.error(`check-vocabulary-alignment: cannot read an input — ${error.message}`);
@@ -1011,22 +1947,43 @@ if (problems.length > 0) {
 // EVERY NUMBER HERE IS DERIVED. The literals this line replaced sat in the header, were
 // quoted from there into ADR 0034, and were wrong in both places within a week — the tag
 // table went 164 → 168 and the prose did not. A count nothing recomputes is folklore.
+//
+// The RENDERER segment is derived per enrolled surface rather than written once per
+// surface, for the same reason enrolment itself is a declaration: a fifth surface joins
+// this line by declaring itself, not by somebody remembering to extend a sentence.
 const tagSet = new Set(world.runtime.values());
 const kindCount = (table, kind) => Object.values(table).filter((entry) => entry[kind] !== undefined).length;
 const aliased = kindCount(WEB_ELEMENT_ALIGNMENT, 'gtk');
 const webOnly = kindCount(WEB_ELEMENT_ALIGNMENT, 'webOnly');
 const shared = world.webElements.filter((element) => tagSet.has(element)).length;
-const nsShared = world.nsWidgets.filter((widget) => tagSet.has(widget)).length;
-const nsConverge = kindCount(NS_WIDGET_ALIGNMENT, 'gir') + kindCount(NS_WIDGET_ALIGNMENT, 'composes');
-const nsOwn = kindCount(NS_WIDGET_ALIGNMENT, 'own');
-const nsGap = kindCount(NS_WIDGET_ALIGNMENT, 'gap');
+const rendererLines = world.renderers.map((surface) => {
+    const same = surface.widgets.filter((widget) => tagSet.has(widget)).length;
+    const converge = kindCount(surface.table, 'gir') + kindCount(surface.table, 'composes');
+    return (
+        `${surface.widgets.length} ${surface.package} widgets — ${same} share a spelling, ` +
+        `${converge} should converge, ${kindCount(surface.table, 'own')} declared own, ` +
+        `${kindCount(surface.table, 'gap')} undecided`
+    );
+});
+const widgetDistance = world.renderers.reduce(
+    (total, surface) => total + kindCount(surface.table, 'gir') + kindCount(surface.table, 'composes'),
+    0,
+);
+const census = propertyCensus(world);
+const propConverge = kindCount(NS_PROPERTY_ALIGNMENT, 'gir');
 console.log(
     `check-vocabulary-alignment: self-test green — ${VECTORS.length - 1} failing vector(s), ` +
         `${READER_VECTORS.length} reader vector(s). ` +
+        `${world.surfaces.declared.length} declared widget surface(s), every one of them read. ` +
         `${world.runtime.size} GTK tags across ${DIALECTS.length} dialect surfaces + the runtime table + the ` +
         `surface data; ${world.webElements.length} adw-* web elements — ${shared} share a spelling, ` +
         `${aliased} alias one, ${webOnly} declared web-only; ` +
-        `${world.nsWidgets.length} NativeScript Adw* widgets — ${nsShared} share a spelling, ` +
-        `${nsConverge} should converge, ${nsOwn} declared own, ${nsGap} undecided. ` +
-        `Distance to one vocabulary on NativeScript: ${nsConverge} widget name(s), and it can only go down.`,
+        `${rendererLines.join('; ')}. ` +
+        `Properties, on @gjsify/adwaita-nativescript only: ${census.widgets} widgets with a GIR counterpart set ` +
+        `${census.settable} settable propert(y|ies) between them — ${census.shared} already agree with the ` +
+        `counterpart's ConstructorProps, ${census.diverging} do not (${propConverge} should converge, ` +
+        `${kindCount(NS_PROPERTY_ALIGNMENT, 'own')} declared own, ` +
+        `${kindCount(NS_PROPERTY_ALIGNMENT, 'gap')} undecided). ` +
+        `Distance to one vocabulary: ${widgetDistance} widget name(s) and ${propConverge} property name(s), ` +
+        'and both can only go down.',
 );

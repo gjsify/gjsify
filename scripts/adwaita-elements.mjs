@@ -443,6 +443,38 @@ export const settableProperties = (text) => {
 };
 
 /**
+ * The properties ONE class lets a caller set — `set <name>(` inside its own body.
+ *
+ * {@link settableProperties} answers the same question for a whole FILE, which is the
+ * right unit for the web pillar (a module registers several elements and the question is
+ * "can this target honour that control at all"). The property LEDGER needs the finer
+ * unit: every disagreement it records is attributed to one widget, and a helper class
+ * sharing a file would put its setters on the widget's row. Measured today at 0 files
+ * with two classes under the NativeScript widget directory — which is exactly when a
+ * reader should stop depending on that being true.
+ *
+ * Sliced between class declarations, the same way {@link observedAttributesByClass}
+ * partitions a file. Returns `null` when the class is not there at all: a reader that
+ * silently answered "no settable properties" would make a widget's whole row vanish from
+ * the comparison, and an empty row is indistinguishable from an aligned one.
+ *
+ * @param {string} text the module source
+ * @param {string} className the class to read
+ * @returns {Set<string>|null}
+ */
+export function settablePropertiesOfClass(text, className) {
+    const code = stripComments(text);
+    const classes = [...code.matchAll(/\bclass\s+([A-Za-z0-9_$]+)/g)];
+    const at = classes.findIndex(([, name]) => name === className);
+    if (at < 0) return null;
+    const from = classes[at].index;
+    const to = at + 1 < classes.length ? classes[at + 1].index : code.length;
+    return new Set(
+        [...code.slice(from, to).matchAll(/\bset\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)].map(([, name]) => name),
+    );
+}
+
+/**
  * What a module imports or re-exports AS VALUES — comments out, and BOTH `type`
  * spellings out: the statement-level `import type { X } from` and the inline
  * `import { type X } from`, which emits nothing either ({@link bindsOnlyTypes}).
@@ -710,5 +742,64 @@ export function adwaitaNativeScriptWidgets(root) {
     }
 
     verifyCoreVia(files, elements, root);
+    return new Map([...widgets].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/** The React Native surface: one barrel, and the base module each widget lives in. */
+export const ADWAITA_RN_SRC = 'packages/framework/adwaita-react-native/src';
+
+/** `export { AdwClamp } from './widgets/clamp.js';` — the only shape the barrel uses. */
+const RN_BARREL_EXPORT = /export\s*\{\s*(Adw[A-Za-z0-9]*)\s*\}\s*from\s*'\.\/widgets\/([a-z0-9-]+)\.js'/g;
+
+/**
+ * Every widget `@gjsify/adwaita-react-native` ships → its repo-relative base module.
+ *
+ * A THIRD naming convention, because the package has neither of the other two: no
+ * `customElements.define`, and its modules are `clamp.ts` rather than `adw-clamp.ts`
+ * (the `Adw` lives in the exported component, and the platform split puts
+ * `clamp.gtk.tsx` beside it). So the widget set is the BASE BARREL's export list,
+ * which is also what `exports['.']` resolves for a condition-blind tool and what
+ * `check-adwaita-rn-platform-split.mjs` rule 5 already holds for completeness.
+ *
+ * The class name is held against the module name the same way the other two readers
+ * hold theirs: `export { AdwClamp } from './widgets/bin.js'` is refused rather than
+ * recorded, because a widget under a name its module does not promise drops out of
+ * every set derived from here with nothing failing.
+ *
+ * @param {string} root repository root
+ * @returns {Map<string, string>} bare widget name → repo-relative base module
+ */
+export function adwaitaReactNativeWidgets(root) {
+    const barrel = join(root, ADWAITA_RN_SRC, 'index.ts');
+    const text = stripComments(readFileSync(barrel, 'utf8'));
+    /** @type {Map<string, string>} */
+    const widgets = new Map();
+    for (const [, exported, module] of text.matchAll(RN_BARREL_EXPORT)) {
+        const expected = widgetClass(module);
+        if (exported !== expected) {
+            throw new Error(
+                `${ADWAITA_RN_SRC}/index.ts exports ${exported} from ./widgets/${module}.js, not ${expected}. ` +
+                    'A widget and its module are renamed together or not at all: rename one alone and the ' +
+                    'widget leaves the set this reader feeds with no gate failing.',
+            );
+        }
+        const source = resolveLocalSource(barrel, `./widgets/${module}.js`);
+        if (source === null) {
+            throw new Error(
+                `${ADWAITA_RN_SRC}/index.ts exports ${exported} from ./widgets/${module}.js, which resolves ` +
+                    'to no source file. The barrel names the type authority for both platform halves, so a ' +
+                    'specifier with nothing behind it is a widget nothing can read.',
+            );
+        }
+        widgets.set(module, toPosixPath(relative(root, source)));
+    }
+
+    if (widgets.size === 0) {
+        throw new Error(
+            `no \`export { Adw… } from './widgets/…'\` line in ${ADWAITA_RN_SRC}/index.ts. ` +
+                'Either the barrel moved or its export shape changed — a scan that finds nothing ' +
+                'passes vacuously, so this is a failure, not a pass.',
+        );
+    }
     return new Map([...widgets].sort(([a], [b]) => a.localeCompare(b)));
 }

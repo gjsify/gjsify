@@ -348,12 +348,22 @@ jobs:
       # Two halves. The generated maps, the runtime table and the test-only surface data are
       # four separately emitted artifacts across three files: a tag in `WidgetPropsByTag`
       # with no row in `generated/widgets.ts` is a tag JSX accepts and `createElement`
-      # refuses. And `adwaita-web`'s 65 `adw-*` custom elements are the one INDEPENDENT
-      # source in the arrangement — derived from no GIR and no generated file — so each one
-      # either shares its spelling with a GTK tag (43 do), names the same widget under
-      # another spelling, or is declared web-only WITH a reason. That table is held against
-      # both live sets in both directions, which is the difference between it and gtkx's
-      # 40 hand-typed omissions that ADR 0029 § 4 refuses to copy.
+      # refuses. And the Adwaita renderers are the INDEPENDENT source in the arrangement —
+      # `adw-*` custom elements, `adw-<name>.ts` classes and a React Native barrel, derived
+      # from no GIR and no generated file — so each widget either shares its spelling with a
+      # GTK tag, names the same widget under another spelling, or is declared own WITH a
+      # reason. Those tables are held against both live sets in both directions, which is
+      # the difference between them and gtkx's 40 hand-typed omissions that ADR 0029 § 4
+      # refuses to copy. No count is written in this comment: every one of them is printed
+      # by the step, and the one that used to sit here had already drifted (43, now 44).
+      # ADR 0034 stages 6 and 4 added two more halves. PROPERTIES: every settable property
+      # of a NativeScript widget with a GIR counterpart is a key of that counterpart in
+      # `generated/props.ts` or it is declared — a different spelling that should converge,
+      # or one the counterpart's writable surface has no key for. ENROLMENT: which surfaces
+      # exist is `gjsify.widgetVocabulary` per package, not a list in the check, and a
+      # declared surface with no reader fails — which is what makes the rule reach a port
+      # nobody has written. The manifest half of that is the `widget-vocabulary` rule in the
+      # conformance step above.
       # Self-tests before it reads the repository, for the reason the step above spells out:
       # no run of the real scan can show a rule that cannot fail.
       - name: Check the widget vocabulary is aligned across surfaces (self-testing)

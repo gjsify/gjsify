@@ -153,8 +153,9 @@ const refHref = docHref === false ? null : (docHref ?? deriveRef(title));
 // `hostButton`, `iconColor`, `iconIsFallback` and `ellipsize`, none of which any
 // attribute here names — and it does carry `useUnderline` and `canShrink`, so the
 // two lists are neither the same set nor disjoint. A different surface, not the same
-// one renamed; `check-vocabulary-alignment.mjs` holds 22 of the 65 element names as
-// not sharing a spelling across the renderers. Under the last window this list read
+// one renamed; `check-vocabulary-alignment.mjs` declares every element name that does
+// not share a spelling across the renderers, and PRINTS how many — the literal that
+// used to sit here was already one off (22 against a measured 21). Under the last window this list read
 // as the block's SUMMARY, which is a claim about all four ports that no generator
 // here can make. The page's own contract is that where a port differs, ITS window
 // says so.

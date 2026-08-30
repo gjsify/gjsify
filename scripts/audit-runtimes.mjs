@@ -87,6 +87,7 @@ import './manifest-conformance/rules/pr-trigger-parity.mjs';
 import './manifest-conformance/rules/workflow-rev-pin.mjs';
 import './manifest-conformance/rules/stylesheet-font-families.mjs';
 import './manifest-conformance/rules/bundler-plugins.mjs';
+import './manifest-conformance/rules/widget-vocabulary.mjs';
 
 // Re-exported for `tests/e2e/prebuild-declaration-invariant`, which drives the prebuild
 // invariant against SYNTHETIC packages: proving that a MISSING prebuild directory fails
@@ -1577,6 +1578,12 @@ const CHECK_RULES = [
     // a missing or wrong `directory` still resolves — to the tree root or to a sibling
     // package — which is a defect nobody reports because the link looks fine.
     'repository-directory',
+    // Reads only `gjsify.widgetVocabulary` out of each manifest and joins it to the reader
+    // table in `scripts/widget-surfaces.mjs`. No install, no build. It belongs on every PR
+    // because the thing it guards is a package JOINING the tree: a new widget surface that
+    // declares itself and has no reader is invisible to the vocabulary gate, which is the
+    // state the NativeScript port sat in for its whole life.
+    'widget-vocabulary',
     'field-coverage',
     'status-data',
 ];
@@ -1694,6 +1701,7 @@ async function main() {
         // are what the other order cost twice.
         const bundlerPlugins = byId.get('bundler-plugins');
         const repositoryDirectory = byId.get('repository-directory');
+        const widgetVocabulary = byId.get('widget-vocabulary');
         const reach = reachability.reach;
 
         if (run.ok) {
@@ -1713,6 +1721,7 @@ async function main() {
             console.log(stylesheetFontFamilies.summary);
             console.log(bundlerPlugins.summary);
             console.log(repositoryDirectory.summary);
+            console.log(widgetVocabulary.summary);
             console.log(prTriggerParity.summary);
             console.log(workflowRevPin.summary);
             console.log(coverage.summary);
@@ -2104,6 +2113,23 @@ async function main() {
             );
             console.error('');
         }
+        if ((widgetVocabulary.failures ?? []).length > 0) {
+            console.error(`WIDGET-VOCABULARY FAILURES on ${widgetVocabulary.failures.length} finding(s):`);
+            for (const line of widgetVocabulary.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                'Enrolment in the widget vocabulary is a DECLARATION, not a list inside the gate (ADR 0034 § 5). ' +
+                    'A package declaring `gjsify.widgetVocabulary` promises that `check-vocabulary-alignment.mjs` ' +
+                    'holds its widget names against the GIR-derived table; a declaration with no reader is that ' +
+                    'promise unkept, and a reader whose package stopped declaring is the enrolment silently ' +
+                    'dropped. Fix by adding the reader to `WIDGET_SURFACE_READERS` in ' +
+                    '`scripts/widget-surfaces.mjs`, or by removing the declaration from a package that is not a ' +
+                    'widget surface.',
+            );
+            console.error('');
+        }
         for (const note of bundlerPlugins.notes ?? []) console.error(`  · ${note}`);
         for (const note of coverage.notes ?? []) console.error(`  · ${note}`);
         renderReachabilityNotes(reach);
@@ -2152,6 +2178,7 @@ async function main() {
             'stylesheet-font-families',
             'bundler-plugins',
             'repository-directory',
+            'widget-vocabulary',
         ]);
         const unreported = run.results.filter(
             ({ rule, result }) => (result.failures ?? []).length > 0 && !REPORTED_RULE_IDS.has(rule.id),

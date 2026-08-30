@@ -77,7 +77,10 @@
         "nativescriptPlatforms": [
             "android",
             "ios"
-        ]
+        ],
+        "widgetVocabulary": {
+            "role": "renderer"
+        }
     },
     "license": "MIT",
     "repository": {
