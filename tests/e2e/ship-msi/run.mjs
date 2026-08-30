@@ -100,7 +100,11 @@ function table(msi, name) {
         .map((line) => line.split('\t'));
 }
 
-describe('CLI ship Windows installer E2E', () => {
+// The same explicit budget its sibling carries. Six full `gjsify ship` runs
+// here (2.4 s on this workstation), and a suite that hangs instead of failing
+// would be reported by the SHARD's 60-minute timeout — which names the shard,
+// not the suite.
+describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;
     let projectDir;
     let programDir;
