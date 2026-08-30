@@ -1315,40 +1315,41 @@ The browser is built on [`@gjsify/iframe`](https://www.npmjs.com/package/@gjsify
 
 ### `gjsify ship`
 
-Turn a built application into something a stranger can install. The payload is staged once, then wrapped per format.
+Turn a built application into something a stranger can install. The payload is staged once, then wrapped per format. Full walkthroughs live under [Ship your app](/gjsify/ship/), one page per operating system.
 
 ```bash
-gjsify ship                     # build the project, then a .deb and an .rpm
+gjsify ship                     # this host's layout; on Linux, a .deb and an .rpm
+gjsify ship linux               # the same two, from a Mac or from Windows
+gjsify ship linux --target flatpak         # a single-file Flatpak bundle (needs flatpak-builder)
+gjsify ship darwin --arch arm64            # a macOS <App>.app and a zip around it
+gjsify ship darwin --target macos-app-dmg  # a .dmg, on macOS only
+gjsify ship windows                        # a program directory and its zip
+gjsify ship windows --target msi           # a Windows Installer package (needs wixl or WiX v3)
 gjsify ship --skip-build        # package what is already built
-gjsify ship --target deb        # one format
-gjsify ship --target flatpak    # a single-file Flatpak bundle (needs flatpak-builder)
-gjsify ship darwin              # a macOS <App>.app and a zip around it (--app node)
-gjsify ship darwin --target macos-app-dmg   # a .dmg — on macOS only, see below
-gjsify ship windows             # a program directory + its zip
-gjsify ship windows --target msi  # …and a Windows Installer package (needs wixl or WiX v3)
 gjsify ship --stage             # produce the payload and stop
-gjsify ship --from-stage ./ship/stage   # pack a payload assembled elsewhere
-gjsify ship --from-stage ./stage --sign -   # ad-hoc sign the payload (macOS, no certificate needed)
-gjsify ship --arch arm64        # package for another architecture
+gjsify ship --from-stage ./ship/stage      # pack a payload assembled elsewhere
+gjsify ship --from-stage ./stage --sign -  # ad-hoc sign the payload (macOS, no certificate)
 ```
+
+The positional names the operating system whose LAYOUT to assemble: `linux`, `darwin`, `windows` (`win32` is accepted too). It defaults to this host. Assembling is not host-bound, so any layout can be staged anywhere.
 
 | Option | Default | Description |
 |---|---|---|
-| `--target <fmt..>` | `gjsify.ship.targets`, else every format wrapping the layout that needs no extra tooling | Formats to build. Comma-separated or repeated. On Linux that default is `deb,rpm`; `flatpak` is opt-in because it is the one format that needs a *different host*. `macos-app`/`macos-app-zip` wrap the darwin layout and `windows-dir`/`windows-dir-zip` the windows one; all four need `glib-compile-schemas` — a tool, not a host, which is why they are still in the default there. `macos-app-dmg` wraps the darwin layout too and is opt-in for the same reason `flatpak` is: it needs a different host. A UDIF image is written by `hdiutil`, which is macOS-only, so on any other host the route is `gjsify ship darwin --stage` here and `gjsify ship --from-stage <dir> --target macos-app-dmg` on a Mac. `msi` wraps the windows layout too and is opt-in for a third reason again: it needs a TOOL on either of two hosts — `wixl` from `msitools` on Linux, WiX Toolset v3.14 on Windows — so it is `finishOn: ['linux', 'win32']` rather than `'any'` or one OS. A format wrapping another layout is refused by name. |
+| `--target <fmt..>` | `gjsify.ship.targets`, else every format wrapping the target layout that needs no extra tooling | Formats to build. Comma-separated or repeated. Naming a format that wraps another layout is an error; a configured `gjsify.ship.targets` drops such a name with a printed note instead, because it is a project default rather than a claim about one run. |
 | `--out <dir>` | `gjsify.ship.outDir`, else `ship` | Output root, relative to the project. |
 | `--stage` | `false` | Produce the staged payload and stop, packing nothing. |
-| `--from-stage <dir>` | — | Pack a payload an earlier `--stage` run wrote. Needs no project: no `package.json`, no config, no built bundle. |
-| `--expect-target <os>-<arch>` | — | With `--from-stage`: refuse a stage assembled for a different matrix leg, e.g. `linux-arm64`. Compares against what the stage recorded, not against this host. |
+| `--from-stage <dir>` | none | Pack a payload an earlier `--stage` run wrote. It needs no project at all, so no `package.json`, no config and no built bundle. |
+| `--expect-target <os>-<arch>` | none | Used with `--from-stage`. Refuses a stage assembled for a different matrix leg, such as `linux-arm64`. Compares against what the stage recorded, not against this host. |
 | `--skip-build` | `false` | Do not run the project's `build` script first. |
-| `--arch <arch>` | this host | Target architecture, in `process.arch` spelling. |
-| `--sign <identity>` | `gjsify.ship.sign.<os>.identity` | Sign the payload with this identity — a NAME `codesign`/`signtool` looks the private key up by, never a certificate. `-` signs ad-hoc and needs no developer identity. Absent means unsigned, which is a legitimate output; the skip is printed to stderr. darwin and win32 only; on Linux the artifact is signed by the repository that serves it, so `--sign` there is refused. |
-| `--notarize <profile>` | — | Submit the signed artifact with `xcrun notarytool submit --keychain-profile`. Needs `--sign`; darwin only. |
+| `--arch <arch>` | this host | Target architecture, in `process.arch` spelling. Labels the artifact and picks the runtime packages; cross-builds nothing. |
+| `--sign <identity>` | `gjsify.ship.sign.<os>.identity` | Sign the payload with this identity, a NAME `codesign` or `signtool` looks the private key up by, never a certificate. `-` signs ad-hoc. Absent means unsigned, which is a legitimate output, and the skip is printed to stderr. darwin and win32 only. |
+| `--notarize <profile>` | none | Submit the signed artifact with `xcrun notarytool submit --keychain-profile <p> --wait`. Needs `--sign`, and runs on darwin only. |
 | `--verbose` | `false` | Print every staged file, the GI namespaces the bundle imports, and every tool invocation. |
 
 What lands under `ship/`:
 
 ```
-ship/stage/            the prefix-relative payload: bin/, lib/<name>/, share/
+ship/stage/            the payload for one layout
 ship/stage/.gjsify-ship-stage.json   the closure a packing host needs when it is not this one
 ship/overlay/<format>/ per-format additions, such as the licence where each format wants it
 ship/flatpak/          --target flatpak only: the generated manifest, the build dir, the export repo
@@ -1356,17 +1357,43 @@ ship/schemas/          off Linux only: where gschemas.compiled is built before i
 ship/out/              the artifacts
 ```
 
-`ship/out/` is packed by reading `ship/stage/` back, so what you inspect is what ships, and both artifacts carry the identical payload.
+`ship/out/` is packed by reading `ship/stage/` back, so what you inspect is what ships.
+
+#### The formats, and where each one packs
+
+| Format | Layout | In the default set | Packs on | Needs installed |
+|---|---|---|---|---|
+| `deb` | linux | yes | any host | nothing |
+| `rpm` | linux | yes | any host | nothing |
+| `flatpak` | linux | no | linux | `flatpak-builder`, `flatpak` |
+| `macos-app` | darwin | yes | any host | `glib-compile-schemas` |
+| `macos-app-zip` | darwin | yes | any host | `glib-compile-schemas` |
+| `macos-app-dmg` | darwin | no | darwin | `hdiutil`, part of macOS |
+| `windows-dir` | win32 | yes | any host | `glib-compile-schemas` |
+| `windows-dir-zip` | win32 | yes | any host | `glib-compile-schemas` |
+| `msi` | win32 | no | linux or win32 | `wixl` from `msitools`, or WiX Toolset v3.14 |
+
+`.deb`, `.rpm` and both zips are written by `ship` itself, with no `dpkg-deb`, no `rpmbuild` and no `zip`. `glib-compile-schemas` is a tool rather than a host, so the formats that declare it still pack anywhere; a non-Linux layout has no install step, so the schemas are compiled while the tree is assembled.
+
+Ask for a format this host cannot finish and you get a refusal naming the two-phase way across, never a broken file:
+
+```bash
+gjsify ship darwin --stage --target macos-app-dmg   # here, any OS, offline
+gjsify ship --from-stage ./ship/stage \
+            --target macos-app-dmg                  # there, on a Mac
+```
+
+Name the format in the `--stage` run as well: phase one renders one licence overlay per format, and a stage that never saw a format is refused when that format is asked for. A missing tool is a separate message from the wrong host, because the fixes differ, and both fire before your `build` script runs.
 
 #### What it works out for you
 
 - **Runtime dependencies** come from the `gi://` imports in your built bundle, mapped to the package that ships each typelib (`gir1.2-gtk-4.0` on Debian, `gtk4` on Fedora). A namespace the table does not know fails the build and names itself, because an undeclared runtime dependency otherwise fails on a user's machine after the download. Fill the gap with `gjsify.ship.typelibPackages`.
-- **Architecture** is `all` or `noarch` unless the payload contains a `.so` or `.node`. A pure-JS GJS app really does install everywhere, and claiming `amd64` would make apt refuse it on a machine it runs on.
-- **The launcher** works out its own prefix at runtime, so one payload works under `/usr`, under `/app`, or anywhere else. That is the entire difference between the `.rpm` and the Flatpak: the Flatpak module is `buildsystem: simple` plus `cp -a stage/. /app/`, with no meson and no build system inside the sandbox.
-- **`Section:` and `Group:`** follow from `categories`, and the version is normalised so a prerelease (`1.2.0-rc.1`) still sorts before the release in both package managers (`1.2.0~rc.1`).
+- **Architecture** is `all` or `noarch` unless the payload contains a `.so` or `.node`. A pure-JS app really does install everywhere, and claiming `amd64` would make apt refuse it on a machine it runs on. Where the payload does carry a native image, `ship` reads its ELF `e_machine` or Mach-O `cputype` back and refuses a label that contradicts it.
+- **The launcher** works out its own location at run time, so one payload works under `/usr`, under `/app`, inside a `.app` and inside a Windows program directory. It execs the interpreter your bundle was built for, and `ship` refuses a package whose launcher and dependency disagree.
+- **Localised metadata** is folded in from `gjsify.ship.localeDir`. The compiled `.mo` catalogues become `Name[xx]=` in the `.desktop` entry and `xml:lang` in the AppStream component.
 - **Metadata** falls back to `gjsify.flatpak`, so a project that already ships a Flatpak usually needs no `gjsify.ship` block at all.
 
-No runtime is bundled on Linux: GJS and GTK come from the distribution, so the package depends on `gjs` instead of carrying around 100 MiB of it. Packing the same build twice gives byte-identical files, which is explained in [How It Works](/gjsify/how-it-works/#reproducible-ship-artifacts).
+Packing the same build twice gives byte-identical files, which is explained in [How It Works](/gjsify/how-it-works/#reproducible-ship-artifacts).
 
 #### Configure it
 
@@ -1388,97 +1415,55 @@ No runtime is bundled on Linux: GJS and GTK come from the distribution, so the p
 
 | Key | Default | What it does |
 |---|---|---|
-| `appId` | `gjsify.flatpak.appId`, else `package.json#name` | Reverse-DNS id. Names the desktop entry, the AppStream component and the installed icon, so it cannot be guessed. |
-| `binaryName` | package name, scope stripped and lowercased | Package name and the `bin/` entry. |
-| `version` | `package.json#version` | Upstream version, normalised. |
+| `appId` | `gjsify.flatpak.appId`, else `package.json#name` | Reverse-DNS id. Names the desktop entry, the AppStream component, the installed icon, `CFBundleIdentifier` and the MSI upgrade code, so it cannot be guessed. |
+| `binaryName` | package name, scope stripped and lowercased | Package name and the launcher's filename. |
+| `name` | title-cased `binaryName` | Display name. The `.desktop` `Name=`, `CFBundleName`, the `<App>.app` directory and the Windows program directory. |
+| `version` | `package.json#version` | Upstream version, normalised. An `.msi` needs a plain `major.minor.build` and refuses a prerelease. |
 | `release` | `1` | Package revision within one upstream version. |
-| `maintainer` | `package.json#author` | `Maintainer:` and `Packager:`, as `Name <email>`. dpkg refuses a package without one. |
-| `targets` | every format wrapping the layout that needs no extra tooling (on Linux, `["deb", "rpm"]`) | Formats built when `--target` is not given. `flatpak` is deliberately not in the default: it needs `flatpak-builder`, i.e. a Linux host. A configured list is a project DEFAULT, so formats wrapping another layout are filtered out with a printed note rather than refused — unlike a typed `--target`, which is a claim about one run. |
+| `maintainer` | `package.json#author` | `Maintainer:`, `Packager:` and the MSI's `Publisher`, as `Name <email>`. dpkg refuses a package without one. |
+| `targets` | every format wrapping the target layout that needs no extra tooling | Formats built when `--target` is not given. |
 | `outDir` | `ship` | Output root. |
-| `bundle` | `gjsify.main`, else `package.json#main` | The built bundle `bin/<name>` executes. Its whole directory is staged into `lib/<name>/`. |
+| `bundle` | `gjsify.main`, else `package.json#main` | The built bundle the launcher executes. Its whole directory is staged. |
 | `icon` | `data/icons` or `data/icons/hicolor` | Icon file or directory. Sizes are read from the path or the filename. |
 | `schemas` | `data` | A `*.gschema.xml` file or a directory of them. |
 | `licenseFile` | first of `LICENSE`, `LICENSE.md`, `LICENSE.txt`, `COPYING` | Licence file to ship. |
 | `section` / `group` | derived from `categories` | deb `Section:` and rpm `Group:`. |
+| `mimeTypes` | `[]` | shared-mime-info types the app opens. Rendered into `share/mime/packages/` and into the desktop entry's `MimeType=`. |
 | `minGjsVersion` | `1.86` | Minimum GJS the emitted dependency asks for. |
-| `minNodeVersion` | `24` | Minimum Node the emitted dependency asks for. Only used when the payload is an `--app node` bundle — a `--app gjs` package declares no Node at all. |
+| `minNodeVersion` | `24` | Minimum Node the emitted dependency asks for. Only used when the payload is an `--app node` bundle on Linux. |
 | `depends` | `{}` | Extra runtime dependencies per format, appended to the derived set. For things that are not typelibs. |
 | `typelibPackages` | `{}` | GI namespace to the package shipping its typelib. This is what unblocks an unknown namespace. |
-| `bundledTypelibs` | `[]` | Directories whose `*.typelib` and `*.so` (with or without a numeric soversion) the package carries itself, for GI libraries that arrive as npm prebuilds rather than distro packages. Staged into `lib/<name>/gi/`, with the launcher pointing `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` there. |
-| `localeDir` | — | Directory of COMPILED gettext catalogues in `<lang>/LC_MESSAGES/<domain>.mo` layout. Staged into `share/locale/`; the launcher exports `GJSIFY_LOCALE_DIR`. `.po` sources are refused — `bindtextdomain` reads `.mo` only. |
+| `bundledTypelibs` | `[]` | Directories whose `*.typelib` and `*.so` the package carries itself, for GI libraries that arrive as npm prebuilds rather than distro packages. Staged into `lib/<name>/gi/`, with the launcher pointing `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` there. |
+| `localeDir` | none | Directory of COMPILED gettext catalogues in `<lang>/LC_MESSAGES/<domain>.mo` layout. Staged into `share/locale/`; the launcher exports `GJSIFY_LOCALE_DIR`. `.po` sources are refused, because `bindtextdomain` reads `.mo` only. |
 | `extraFiles` | `{}` | Extra payload entries: prefix-relative destination to project-relative source. |
 | `execArgs` | `[]` | Arguments the launcher appends before the user's own. |
 | `flatpak` | derived | The Flatpak half: `runtime` (`gnome`/`freedesktop`), `runtimeVersion`, `branch` (`stable`), `sdkExtensions`, `appendPath`, `finishArgs`, `cleanup`. |
-| `sign` | — | Default signing identity per OS: `{ "darwin": { "identity": "…" }, "win32": { "identity": "…" } }`. An IDENTITY only — there is no key here, and no path to one. `linux` is not a valid key and is refused, because a `.deb`/`.rpm` is signed by the repository that serves it. |
+| `sign` | none | Default signing identity per OS: `{ "darwin": { "identity": "…" }, "win32": { "identity": "…" } }`. An IDENTITY only. `linux` is not a valid key and is refused, because a `.deb` or `.rpm` is signed by the repository that serves it. |
 
 Metadata keys (`name`, `summary`, `description`, `developer`, `license`, `categories`, `keywords`, `homepageUrl`, `screenshots`, and the rest) are shared with `gjsify.flatpak` and listed under [`flatpak init`](#gjsify-flatpak-init).
 
 #### Signing
 
-`--sign` takes an **identity**, never a certificate. `codesign` and `signtool` are both handed a string and look the private key up themselves, so `gjsify ship` is never given a secret and there is nothing to redact from a log. Getting a key into a keychain or a certificate store is the signing host's job — a machine setup or a CI step, not this command.
-
-```bash
-gjsify ship darwin --stage --arch arm64                     # assemble anywhere
-gjsify ship --from-stage ./ship/stage --sign -              # ad-hoc, no developer identity
-gjsify ship --from-stage ./ship/stage \
-            --sign "Developer ID Application: You (TEAMID)" # on a macOS host with the key
-```
+`--sign` takes an **identity**, never a certificate. `codesign` and `signtool` are both handed a string and look the private key up themselves, so `gjsify ship` is never given a secret and there is nothing to redact from a log.
 
 | | darwin | win32 | linux |
 |---|---|---|---|
-| tool | `codesign` | `signtool` | — |
+| tool | `codesign` | `signtool` | none |
 | what it signs | every Mach-O image in the payload | every PE image in the payload | nothing |
-| runs on | macOS | Windows | — |
+| runs on | macOS | Windows | none |
 | project default | `gjsify.ship.sign.darwin.identity` | `gjsify.ship.sign.win32.identity` | refused |
 
-**With no identity the run skips, prints why on stderr, and exits 0.** An unsigned artifact is a legitimate deliverable; what is refused is the other direction — claiming a signature that was not made. `--sign` on the `--stage` phase is refused too: that phase produces no artifact, and the tree it writes is read back and repacked afterwards.
+With no identity the run skips, prints why on stderr, and exits 0. `--sign` on the `--stage` phase is refused, because that phase produces no artifact. `--sign -` signs ad-hoc and needs no Apple Developer Program membership.
 
-**Signing mutates the payload rather than wrapping it.** Under a hardened runtime a Developer-ID-signed executable will not load ad-hoc-signed libraries, and the GTK closure a macOS bundle carries arrives ad-hoc-signed — relocating a dylib invalidates whatever signature it had. So the darwin leg re-signs every image *inside* the payload, and the container is built from the signed bytes. The staged tree itself is never written to, so a `--from-stage --sign` run can be repeated.
+`--notarize <keychain-profile>` is darwin-only and needs `--sign`. It does not staple, and no run in this repository has ever invoked it against a real Apple account. [Sign your artifacts](/gjsify/ship/signing/) is the full picture.
 
-`--sign -` signs ad-hoc and needs no Apple Developer Program membership, which is how this project proves the pipeline in CI with no key anywhere: a macOS leg signs a real Mach-O payload, `codesign --verify` reads the signature back, and `.github/ship-oracle/verify-signed-arrival.mjs` checks the claim no verifier makes — every non-Mach-O file byte-identical, every Mach-O identical outside its signature.
+#### Where the interpreter comes from
 
-`--notarize <keychain-profile>` submits the signed artifact with `xcrun notarytool submit --keychain-profile <p> --wait`. It is darwin-only, needs `--sign`, and skips loudly when no credential is given. It has never been run against a real Apple account — notarisation needs one, and ad-hoc signing deliberately does not — so treat it as untested. The Windows invocation is in the same position: `signtool` has no ad-hoc mode.
+On **Linux** it is depended on, not shipped: `gjs (>= 1.86)`, or `nodejs (>= 24)` on deb and `nodejs(engine) >= 24` on rpm for an `--app node` bundle. Both floors exclude current Debian stable, and `gjsify ship` warns rather than lowering them; set `gjsify.ship.minGjsVersion` or `minNodeVersion` if your bundle genuinely runs on an older one.
 
-#### The GJS floor on Debian
+On **macOS and Windows** there is no system interpreter to depend on, so the artifact carries its own from `@gjsify/node-runtime-<target>`, with the GTK closure from `@gjsify/gtk-runtime-<target>` and the addon from `@gjsify/node-gi`. You declare all three yourself in the project you package. They are resolved **by name** out of your own `node_modules` at ship time, so they have to be installed there. `GJSIFY_NODE_RUNTIME` and `GJSIFY_GTK_RUNTIME` override the first two with a directory. `@gjsify/node-runtime-win32-x64` is not yet published to npm; the other five names are. [macOS app bundles](/gjsify/ship/macos/) and [Windows artifacts](/gjsify/ship/windows/) carry the copy-pasteable blocks.
 
-The emitted dependency is `gjs (>= 1.86)`, which is what the bundler targets. No released Debian satisfies it: Debian went from 1.82.3 (trixie) straight to 1.88.1 (forky). `gjsify ship` tells you rather than lowering the floor quietly, because a `.deb` that apt refuses beats one that installs and then dies on a syntax error. Set `gjsify.ship.minGjsVersion` if your bundle genuinely runs on an older GJS.
-
-#### The Node floor, and where the interpreter comes from
-
-`--app node` needs an interpreter, and where it comes from depends on the operating system.
-
-On **Linux** it is depended on, not shipped: the emitted dependency is `nodejs (>= 24)` on deb and `nodejs(engine) >= 24` on rpm. The two names genuinely differ, and the rpm one is not a style choice — `Requires: nodejs >= 24` is a **silent no-op on Fedora**, because the virtual `nodejs` Provide carries Epoch 1 and a bare `>= 24` desugars to `0:24`, which `1:22.23.1` satisfies. Measured with `dnf repoquery` on Fedora 44: `--whatprovides 'nodejs >= 24'` answers **nodejs22**.
-
-Which one is emitted comes from `gjsify.app`, the same field the build uses, and the launcher `gjsify ship` writes execs that one — `exec gjs -m <bundle>` or `exec node <bundle>`. A package that declared one and ran the other is refused before it is written.
-
-That floor excludes every current DEB stable and LTS — trixie ships 20, Ubuntu 24.04 ships 18, Ubuntu 26.04 ships 22; only forky has 24 — so `gjsify ship` warns about it, for the same reason it warns about the GJS floor. Set `gjsify.ship.minNodeVersion` if your bundle genuinely runs on an older Node.
-
-On **macOS and Windows** there is no system Node to depend on, so the artifact carries its own from `@gjsify/node-runtime-<target>`. You declare it yourself, as a `devDependency` of the project you package — *gjsify* adds no `optionalDependencies` edge to it, which is a different statement from "nothing to add": the package is resolved **by name** out of your project's own `node_modules` at ship time, the same rule the GTK runtime bundles follow, and it has to be installed there for the lookup to find it. [Ship](/gjsify/ship/) carries the copy-pasteable block. `GJSIFY_NODE_RUNTIME` overrides the lookup with a directory — which is also the way to get a complete artifact today, because the three `@gjsify/node-runtime-*` names are not published yet.
-
-#### Where each format can be packed
-
-Declared per format, and checked before your `build` script runs rather than after it.
-
-| Format | Packed by | Runs on | Read back with |
-|---|---|---|---|
-| `deb` | `ship` itself — no `dpkg-deb` | any host, offline | GNU `ar` + `tar`, `dpkg-deb`, `lintian` |
-| `rpm` | `ship` itself — no `rpmbuild` | any host, offline | `rpm` |
-| `flatpak` | `flatpak-builder` + `flatpak build-bundle` | Linux, tools installed | `flatpak build-import-bundle` + `ostree` |
-
-Ask for a format this host cannot finish and you get a refusal naming the two-phase way across, never a broken file:
-
-```bash
-gjsify ship --stage --target flatpak                          # here, any OS, offline
-gjsify ship --from-stage ./ship/stage --target flatpak        # there, on Linux
-```
-
-A missing tool is a separate message from the wrong OS, because the fixes differ.
-
-The six Flatpak build keys also resolve from a legacy `gjsify.flatpak` block, with one warning line naming what was inherited; they are removed from there in 1.0.0. `gjsify flatpak init` and `flatpak ci` read both spellings too, so moving them does not change the manifest those commands write. The app metadata in `gjsify.flatpak` is shared by design and is not deprecated.
-
-#### Scope today
-
-Linux and `--app gjs`. A project declaring any other `gjsify.app` is refused, because the launcher runs `gjs -m <bundle>`. macOS and Windows artifacts are later stages.
+That is also why the four macOS and Windows formats accept `gjsify.app: "node"` only. There is no relocatable GJS to put inside a downloadable bundle, and there is no GJS host on Windows at all.
 
 ### `gjsify flatpak`
 

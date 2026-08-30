@@ -1,15 +1,12 @@
 ---
 title: Ship your app
-description: Turn a built GJS app into something other people can install. One command gives you a .deb and an .rpm, `gjsify ship darwin` gives you a macOS .app and a zip (and a .dmg on a Mac), `gjsify ship windows` gives you a program directory and a zip, and `--target flatpak` adds a Flatpak bundle; this page also points at the one-line installer, self-executing bundles and dlx.
+description: Turn a built app into something other people can install. One command per operating system gives you a .deb and an .rpm on Linux, a macOS .app with a zip and a .dmg, and a Windows program directory with a zip and an .msi.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
 
 Your app runs on your machine. This section is about getting it onto someone
 else's.
-
-The shortest path is `gjsify ship`. Run it in your project and you get a `.deb`
-and an `.rpm`, ready to hand to a Linux user:
 
 <CommandTabs title="Ship it">
   <Fragment slot="gjsify">
@@ -35,415 +32,196 @@ and an `.rpm`, ready to hand to a Linux user:
 </CommandTabs>
 
 That runs your project's `build` script, collects everything the app needs into
-one payload, and wraps that payload once per format. There is no manifest to
-write, no meson, and no packaging file to keep in your repo.
+one payload under `ship/stage/`, and wraps that payload once per format into
+`ship/out/`. You write no manifest, no meson file and no spec file.
 
-Ask for a Flatpak and you get one out of the same payload:
+## One command per operating system
 
-```bash
-gjsify ship --target flatpak      # a single-file bundle, from the same stage
-```
+`gjsify ship <os>` names whose layout to assemble. A bare `gjsify ship`
+assembles the layout of the host you are sitting at, so name the operating
+system whenever you want one you are not on.
 
-That one is not in the default set, because it is the only format that needs
-tooling on your machine — `flatpak-builder` and `flatpak`. Everything below
-about assembling and packing separately exists for exactly that.
+| Command | What lands in `ship/out/` | Your app declares |
+|---|---|---|
+| `gjsify ship linux` | `my-app_1.2.3-1_all.deb`, `my-app-1.2.3-1.noarch.rpm` | `gjsify.app: "gjs"` or `"node"` |
+| `gjsify ship darwin` | `My App.app`, `my-app-1.2.3-1.arm64.zip` | `gjsify.app: "node"` |
+| `gjsify ship windows` | `My App/`, `my-app-1.2.3-1.x64.zip` | `gjsify.app: "node"` |
 
-## What comes out
+Assembling is never host-bound, so one workstation produces all three artifact
+sets. Packing is a different question, and two formats out of nine answer it
+differently. See [where each format can be packed](#where-each-format-can-be-packed).
 
-```
-ship/
-├── stage/              the payload: bin/, lib/<name>/, share/
-│   └── .gjsify-ship-stage.json   what a packing host needs, if it is not this one
-├── overlay/<format>/   what one format wants elsewhere (today: the licence)
-├── flatpak/            only with --target flatpak: the generated manifest, the build dir, the repo
-├── schemas/            only off Linux: where gschemas.compiled is built before staging
-└── out/
-    ├── my-app_1.2.3-1_all.deb
-    ├── my-app-1.2.3-1.noarch.rpm
-    ├── org.example.MyApp-1.2.3-1.x86_64.flatpak
-    ├── My App.app/                        gjsify ship darwin
-    ├── my-app-1.2.3-1.arm64.zip           the same bundle, zipped
-    ├── My App/                            gjsify ship windows
-    └── my-app-1.2.3-1.x64.zip             the same directory, zipped
-```
+A Linux package declares its interpreter and its GTK libraries as dependencies
+and takes them from the distribution. The macOS bundle and the Windows program
+directory carry a Node interpreter and a GTK closure inside themselves, because
+neither operating system ships one. That is why those two accept
+`gjsify.app: "node"` only, and why they need extra packages in your
+`package.json`.
 
-The payload in `ship/stage/` is built once, and both packers read it back off
-disk. Whatever you find in there is what a user gets, so it is worth a look
-before you publish anything.
+- [Linux packages](/gjsify/ship/linux-packages/) covers `.deb`, `.rpm` and the
+  Flatpak bundle.
+- [macOS app bundles](/gjsify/ship/macos/) covers the `.app`, its zip and the
+  `.dmg`.
+- [Windows artifacts](/gjsify/ship/windows/) covers the program directory, its
+  zip and the `.msi`.
+- [Sign your artifacts](/gjsify/ship/signing/) covers `--sign` and `--notarize`.
+
+## What ship reads from your package.json
+
+The same fields feed all three operating systems. Set these before the first
+run.
+
+| package.json | What it becomes | Override |
+|---|---|---|
+| `name` | the package name and the launcher's filename | `gjsify.ship.binaryName` |
+| `version` | the version in every artifact | `gjsify.ship.version` |
+| `license` (an SPDX id such as `"MIT"`) | a required field in `.deb` and `.rpm` | `gjsify.ship.license.project` |
+| `author` as `"Name <you@example.org>"` | `Maintainer:`, `Packager:` and the MSI's `Publisher` | `gjsify.ship.maintainer` |
+| `gjsify.main` (or `main`) | the built bundle the launcher runs | `gjsify.ship.bundle` |
+| `gjsify.app` | the interpreter the launcher execs, `gjs -m` or `node`. Ship refuses a package whose launcher and declared dependency disagree | none |
+| `scripts.build` | the build step ship runs first | pass `--skip-build` instead |
+
+Two more you have to set yourself, because nothing can derive them:
+
+- **`gjsify.ship.appId`**, a reverse-DNS id such as `org.example.MyApp`. It
+  names the desktop entry, the AppStream component, the installed icon, the
+  macOS `CFBundleIdentifier` and the MSI upgrade code. `gjsify.flatpak.appId`
+  is used when it is set, and a reverse-DNS package name is used after that.
+- **`gjsify.ship.name`**, the display name. It becomes the `.desktop` `Name=`,
+  the `<App>.app` directory, the Windows program directory and the Start-Menu
+  entry. Without it ship title-cases the binary name.
+
+Icons under `data/icons/`, GSettings schemas under `data/`, and a `LICENSE`,
+`COPYING` or `LICENSE.md` in the project root are found on their own.
+
+Your `version` is rewritten on the way in, because npm and dpkg disagree about
+prereleases. A leading `v` is dropped, `+buildmetadata` is dropped with a
+warning, and `1.2.0-rc.1` becomes `1.2.0~rc.1`. Both dpkg and rpm sort
+`1.2.0~rc.1` before `1.2.0`, the way npm does, while they read `1.2.0-rc.1` as
+release `rc.1` of version `1.2.0` and sort it after. A version neither format
+can spell stops the run.
+
+## Where each format can be packed
+
+Nine formats wrap three layouts. Seven of them pack on any host, offline, with
+no tool outside this CLI. Two do not, and ship refuses those on the wrong host
+rather than writing a broken file.
+
+| Format | Layout | In the default set | Packs on | Needs installed |
+|---|---|---|---|---|
+| `deb` | linux | yes | any host | nothing |
+| `rpm` | linux | yes | any host | nothing |
+| `flatpak` | linux | no | Linux | `flatpak-builder`, `flatpak` |
+| `macos-app` | darwin | yes | any host | `glib-compile-schemas` |
+| `macos-app-zip` | darwin | yes | any host | `glib-compile-schemas` |
+| `macos-app-dmg` | darwin | no | macOS | `hdiutil`, which is part of macOS |
+| `windows-dir` | windows | yes | any host | `glib-compile-schemas` |
+| `windows-dir-zip` | windows | yes | any host | `glib-compile-schemas` |
+| `msi` | windows | no | Linux or Windows | `wixl` from `msitools`, or WiX Toolset v3.14 |
+
+`glib-compile-schemas` ships in `glib2` on Fedora and `libglib2.0-bin` on
+Debian and Ubuntu. It is a tool rather than a host, so the four formats that
+declare it still pack anywhere. A layout other than Linux has no install step to
+compile your GSettings schemas later, so ship compiles them while it assembles.
+
+A missing tool and a wrong host are separate messages, because the fixes
+differ, and both fire before your `build` script runs. Asking for a format that
+wraps another operating system's layout is an error by name, so
+`gjsify ship darwin --target deb` stops immediately.
 
 ## Assemble here, pack there
 
-`gjsify ship --stage` stops after the payload and writes
-`ship/stage/.gjsify-ship-stage.json` beside it. That file is the closure the
-packing step needs — the file modes, the pre-rendered licence overlay, the GI
-namespaces read out of your bundle, and the build stamp — so the tree can be
-handed to another machine and packed there:
+The `.dmg` needs a Mac and the `.msi` needs `wixl` or WiX. `--stage` and
+`--from-stage` are how you produce them from a host that has neither.
 
 ```bash
-gjsify ship linux --stage                        # anywhere, under GJS, offline
-gjsify ship --from-stage ./stage                 # on the host the format needs
+gjsify ship darwin --stage --target macos-app,macos-app-zip,macos-app-dmg
+# move ship/stage/ to a Mac, then:
+gjsify ship --from-stage ./stage --target macos-app-dmg
 ```
 
-The `linux` there is the layout, and it is worth naming when you are not on
-Linux: without it `gjsify ship` assembles the layout of the host you are sitting
-at. `--from-stage` takes none — the stage already is one OS's layout, and
-`--expect-target` is how you assert which.
+`--stage` writes the payload and stops, plus `ship/stage/.gjsify-ship-stage.json`
+beside it. That file records the file modes, the pre-rendered licence overlays,
+the GI namespaces read out of your bundle and the build stamp, so a packing host
+needs nothing else. `--from-stage` reads no project at all. No `package.json`,
+no config, no built bundle. That is what lets one CI job assemble and another
+finish.
 
-`--from-stage` needs no project: no `package.json`, no config, no built bundle.
-That is what lets one CI job assemble and another finish on the host a format
-belongs to. The modes come from the recorded plan, so a stage that travelled
-through an artifact upload — which stores no POSIX mode at all — still installs
-an executable `bin/` entry.
+Name every format you intend to pack in the `--stage` run. Phase one renders one
+licence overlay per format, and a format the stage never saw is refused on the
+packing host:
 
-`--expect-target <os>-<arch>` is available on the finish step and does exactly
-one job: it refuses a stage assembled for a different matrix leg, so a job that
-downloaded the wrong artifact stops instead of packing it.
+```text
+gjsify ship: this stage was assembled for deb, and --target names rpm.
+```
+
+`--expect-target <os>-<arch>` on the finish step refuses a stage assembled for a
+different matrix leg, so a job that downloaded the wrong artifact stops instead
+of packing it. It compares against the value the stage recorded, not against the
+machine you are packing on, because packing an `arm64` stage on an `x64` runner
+is a supported path.
 
 ```bash
-gjsify ship --from-stage ./stage --expect-target linux-x64
+gjsify ship --from-stage ./stage --expect-target darwin-arm64
 ```
 
-It compares against the value the stage recorded, not against the machine you
-are packing on — packing an `arm64` stage on an `x64` runner is a supported
-path and a host check would refuse it. It is therefore **not** a check that the
-label matches the bytes. That one is unconditional and needs no flag: if the
-payload carries a native image whose ELF `e_machine` or Mach-O `cputype`
-contradicts the architecture the package is being labelled with, `gjsify ship`
-refuses and names the file and both architectures.
+One check needs no flag and cannot be turned off. If the payload carries a
+native image whose ELF `e_machine` or Mach-O `cputype` contradicts the
+architecture the artifact is being labelled with, ship refuses and names the
+file and both architectures.
 
-Note that `--arch` only reaches the label when the payload contains a native
-image at all. A pure-JS payload is `Architecture: all` / `BuildArch: noarch`
-whatever you pass, because that is what it honestly is.
+## Look at what you are about to publish
 
-## The Flatpak target
+Everything lands under `ship/`, which `--out <dir>` moves.
 
-The payload does not change. `ship` stages one prefix-relative tree — `bin/`,
-`lib/<name>/`, `share/` — and the launcher inside it works out its own prefix at
-run time, so the same tree is `/usr` in a `.deb` and `/app` in a Flatpak. That
-is the whole difference, and it is why the generated Flatpak module is three
-shell commands with no build system in it:
-
-```json
-{
-  "name": "my-app",
-  "buildsystem": "simple",
-  "build-commands": ["mkdir -p /app", "cp -a stage/. /app/", "cp -a overlay/. /app/"]
-}
+```text
+ship/
+├── stage/              the payload, exactly as a user gets it
+│   └── .gjsify-ship-stage.json
+├── overlay/<format>/   what one format wants elsewhere, today the licence
+├── schemas/            off Linux: where gschemas.compiled is built
+├── flatpak/            --target flatpak: the generated manifest and repo
+└── out/                the artifacts
 ```
 
-If you have written a Flatpak for a GJS app before, that is the meson glue gone.
-Learn6502 carried 158 lines of it whose only job was to call `gjsify build` and
-copy the results into a prefix, 66 of them setting `GI_TYPELIB_PATH` and
-`LD_LIBRARY_PATH` by hand.
-
-The runtime and the sandbox permissions are the only things left to configure,
-and every one has a default:
-
-```json
-"gjsify": {
-  "ship": {
-    "appId": "org.example.MyApp",
-    "flatpak": {
-      "runtime": "gnome",
-      "runtimeVersion": "50",
-      "branch": "stable",
-      "finishArgs": ["--device=dri", "--share=ipc", "--socket=wayland"]
-    }
-  }
-}
-```
-
-`finishArgs` defaults to that GUI set for an app and to nothing at all for a
-`kind: "cli"` tool. The app id names the exported ref, so the artifact is
-`org.example.MyApp-1.2.3-1.x86_64.flatpak` and installs with
-`flatpak install ./that-file`.
-
-**Already have a `gjsify.flatpak` block?** It keeps working. `runtime`,
-`runtimeVersion`, `sdkExtensions`, `appendPath`, `finishArgs` and `cleanup` are
-read from there too, and `ship` prints one line naming the keys it inherited and
-where to move them. Moving them is safe: `gjsify flatpak init` and `flatpak ci`
-read the new spelling as well, so the manifest those commands generate does not
-change under you. The app metadata — `name`, `summary`, `developer`,
-`categories`, `license` — is *not* deprecated: both blocks describe the same
-application, and either may carry it.
-
-## Give it to someone
-
-<CommandTabs title="Install the artifact" group="distro">
-  <Fragment slot="fedora">
-    ```bash
-    sudo dnf install ./ship/out/my-app-1.2.3-1.noarch.rpm
-    ```
-  </Fragment>
-  <Fragment slot="debian">
-    ```bash
-    sudo apt install ./ship/out/my-app_1.2.3-1_all.deb
-    ```
-  </Fragment>
-</CommandTabs>
-
-The app lands in `/usr/bin/my-app`, its desktop entry and icon show up in the
-menu, and `dnf remove` / `apt remove` takes it all away again. Nothing about
-GJSify needs to be on that machine: the package depends on the distribution's
-own `gjs`, GTK and typelib packages, and `gjsify ship` works out which ones by
-reading your built bundle.
-
-Full walkthrough, including every flag and what to do when the build refuses:
-[deb & rpm packages](/gjsify/ship/linux-packages/).
+Both packers read `ship/stage/` back off disk rather than keeping it in memory,
+so what you inspect there is what a user installs. `--verbose` prints every
+staged file, the GI namespaces the bundle imports, and every tool a packer runs.
 
 ## Pick your distribution channel
 
-`gjsify ship` is one option of several, and they answer different questions.
-They also stack: the same built bundle feeds all of them.
+`gjsify ship` is one option of several, and they stack. The same built bundle
+feeds all of them.
 
 | You want | Reach for | Guide |
 |---|---|---|
-| A file a Linux user installs with their own package manager | `gjsify ship` | [deb & rpm packages](/gjsify/ship/linux-packages/) |
-| A single Flatpak file, sandboxed, with a pinned GTK on every distro | `gjsify ship --target flatpak` | this page |
+| A file a Linux user installs with their own package manager | `gjsify ship linux` | [Linux packages](/gjsify/ship/linux-packages/) |
+| A single Flatpak file, sandboxed, with a pinned GTK on every distro | `gjsify ship linux --target flatpak` | [Linux packages](/gjsify/ship/linux-packages/#the-flatpak-bundle) |
+| An application a Mac user drags into `/Applications` | `gjsify ship darwin` | [macOS app bundles](/gjsify/ship/macos/) |
+| An installer a Windows user double-clicks | `gjsify ship windows --target msi` | [Windows artifacts](/gjsify/ship/windows/) |
 | A GUI app on Flathub, with the manifest and metadata files in your repo | `gjsify flatpak init` | [Flatpak: GUI app](/gjsify/guides/flatpak-app/) |
 | The same for a headless command-line tool | `gjsify flatpak init --kind cli` | [Flatpak: CLI tool](/gjsify/guides/flatpak-cli-tool/) |
 | A `curl … \| gjs` one-liner that installs into `~/.local`, no root | `gjsify generate-installer` | [One-line installer](/gjsify/guides/distributing-gjs-apps/) |
 | A single executable file people download, `chmod +x` and run | `gjsify build --shebang` | [Self-executing bundle](/gjsify/guides/self-executing-package/) |
 | No installation at all, run it straight from npm | publish a `dlx`-friendly package | [Run via dlx](/gjsify/guides/dlx-packaging/) |
 
-A rough rule of thumb. Choose **`gjsify ship`** when you want a user to type
-`dnf install` once, or to double-click one Flatpak file, and forget about it.
-Choose **`gjsify flatpak init`** on top of it when you are submitting to
-Flathub, which wants the manifest and the AppStream files committed in your
-repository. Choose the **one-line installer** while you are still iterating
-quickly and your users are early adopters. Choose **dlx** for a tool nobody
-wants permanently installed.
+Choose `gjsify ship` when you want a user to install once and forget about it.
+Choose `gjsify flatpak init` on top of it when you are submitting to Flathub,
+which wants the manifest and the AppStream files committed in your repository.
+Choose the one-line installer while you are still iterating and your users are
+early adopters. Choose dlx for a tool nobody wants permanently installed.
 
-**Looking for an AppImage?** There isn't one, and the nearest thing that exists
-is the Flatpak bundle above: one file, no repository, works offline.
-
-```bash
-gjsify ship --target flatpak
-flatpak install ./ship/out/org.example.MyApp-1.2.3-1.x86_64.flatpak
-```
-
-One thing to weigh before you promise a `.deb`: the dependency `gjsify ship`
-emits is `gjs (>= 1.86)`, and no released Debian satisfies that yet. Debian went
-from 1.82.3 in trixie straight to 1.88.1 in forky, skipping 1.84 and 1.86. Your
-package installs on forky, on sid, on Fedora and on anything else with a current
-GJS; on trixie apt will refuse it. `gjsify ship` prints this at package time, and
-[Choose the GJS floor](/gjsify/ship/linux-packages/#choose-the-gjs-floor) covers
-your options.
-
-## What ship covers today
-
-**Installable artifacts: Linux, macOS and Windows.** `.deb`, `.rpm` and a Flatpak
-bundle on Linux; a `<App>.app` bundle, a zip around it and a `.dmg` on macOS; a
-program directory, a zip and an `.msi` installer on Windows. All of them are
-assembled from this Linux workstation — the two that are not are the `.dmg`, which
-needs `hdiutil` on a Mac, and a signature, which needs the host holding the key.
-The build target is enforced rather than assumed:
-a project declaring anything but `gjsify.app: "gjs"` or `"node"` is refused with a
-message saying so, instead of producing a package that installs and then fails to
-start.
-
-**Staged layouts: all three.** `gjsify ship <os>` names which operating system's
-LAYOUT to assemble, and the payload is the same one either way — only the places
-differ:
-
-```bash
-gjsify ship                      # this host's layout; on Linux, deb + rpm
-gjsify ship darwin               # <App>.app + a zip, if the app is --app node
-gjsify ship darwin  --stage      # <App>.app/Contents/{MacOS,Resources,Frameworks}
-gjsify ship darwin --target macos-app-dmg   # a .dmg — needs a Mac, see below
-gjsify ship windows              # a program directory + a zip, if the app is --app node
-gjsify ship windows --stage      # app\, lib\, share\ and a .cmd launcher
-```
-
-The launcher each layout carries is that OS's — `/bin/sh` without `readlink -f`
-and without a `DYLD_*` inside a `.app`, a CRLF `.cmd` on Windows — and each execs
-the interpreter your bundle was BUILT for, `gjs -m` or `node`.
-
-**The macOS bundle is a real bundle.** `Contents/Info.plist` and
-`Contents/PkgInfo` are what make a directory ending in `.app` an application
-rather than a folder, and both are written from your `gjsify.ship` block: the app
-id becomes `CFBundleIdentifier`, the display name becomes the `.app` directory
-and `CFBundleName`, and the executable under `Contents/MacOS` is named by
-`CFBundleExecutable`. Your GSettings schemas are compiled into the bundle while
-it is assembled, because a `.app` has no install step to compile them and
-GSettings aborts on a schema directory that has only sources.
-
-**The Windows artifact is a program directory, not a bundle.** There is no
-metadata file in it: what a Windows installer says about an application lives in
-the `.msi`'s own tables. The `.cmd` at its root finds the directory from `%~dp0`,
-so the tree works unzipped anywhere and works again once an installer lays it into
-`C:\Program Files\<App>`. The ZIP carries a top level the staged tree does not —
-without it, unzipping would scatter `app\`, `share\` and a loose `.cmd` into
-whatever folder you were in.
-
-**And there is an installer around it.** `--target msi` wraps the same program
-directory in a Windows Installer package: it lands under `C:\Program Files\<App>`,
-adds one Start-Menu entry, and appears in Add/Remove Programs so a user can take it
-off again. Nothing about the payload changes — the installed tree is the same tree
-the zip expands to.
-
-```bash
-gjsify ship windows --target windows-dir,windows-dir-zip,msi
-```
-
-`msi` is opt-in rather than part of a bare `gjsify ship windows`, because it is the
-one format here that needs a tool: `msitools` on Linux (`sudo dnf install
-msitools`, `sudo apt install msitools`) or [WiX Toolset
-v3.14](https://github.com/wixtoolset/wix3/releases) on Windows. `ship` writes the
-installer's source document itself and lets whichever of those you have compile
-it, so you can build a Windows installer from a Linux workstation — or from
-Windows, without installing anything from the Linux side. Missing either one is a
-message naming the package, before your build runs.
-
-**Both artifacts carry their own runtime, and you say so in `package.json`.**
-An unzipped `.app` runs on a Mac with no Node and no Homebrew GTK, and an unzipped
-program directory runs on a Windows machine with no Node and no GTK at all — but
-only if the packages below are installed where you PACKAGE it. They are resolved by
-NAME at ship time, and none of them is an `optionalDependencies` edge on anything:
-whoever ships an app declares the runtime it ships, never the library that uses it.
-Put them in `devDependencies` — they are needed by the packaging host, not by your
-app at runtime:
-
-```jsonc
-{
-  "devDependencies": {
-    // The interpreter. `Contents/MacOS/node`, plus Node's own LICENSE.
-    "@gjsify/node-runtime-darwin-arm64": "^0.44.0",
-    "@gjsify/node-runtime-darwin-x64": "^0.44.0",
-    // The relocated GTK/GObject-Introspection closure, one per architecture.
-    "@gjsify/gtk-runtime-darwin-arm64": "^0.44.0",
-    "@gjsify/gtk-runtime-darwin-x64": "^0.44.0",
-    // Windows, if you ship there. `win32-x64` is the only target: gvsbuild
-    // publishes no arm64 GTK, so there is nothing to build a Windows/ARM
-    // runtime bundle out of.
-    "@gjsify/node-runtime-win32-x64": "^0.44.0",
-    "@gjsify/gtk-runtime-win32-x64": "^0.44.0"
-  },
-  "dependencies": {
-    // node-gi's JavaScript AND its `prebuilds/darwin-<arch>/node_gi.node`. A
-    // dependency rather than a devDependency, because a `--app node` bundle keeps
-    // `@gjsify/node-gi/*` external and `require`s it at runtime.
-    "@gjsify/node-gi": "^0.44.0"
-  }
-}
-```
-
-:::caution[The three `@gjsify/node-runtime-*` packages are not published yet]
-Measured against the registry on 2026-08-30, with `@gjsify/cli@0.44.0` as the control:
-all three `@gjsify/gtk-runtime-*` packages resolve at `0.44.0`, and all three
-`@gjsify/node-runtime-*` names answer **404**. Their first publish is a manual
-maintainer action — npm Trusted Publishing needs the package to exist before CI can
-publish to it — and it is queued, not forgotten.
-
-Until it lands, `npm install` fails on those three lines. Drop them, and the rest of
-the block still gets you a `.app` or a program directory that carries its own GTK
-closure and node-gi; what it will not carry is the interpreter, and `gjsify ship` says
-so on every stage rather than letting you find out. To get a complete artifact today,
-point `GJSIFY_NODE_RUNTIME` at a directory holding the binary — the repository's
-`packages/node-runtime/scripts/fetch-node-runtime.mjs` populates one from a pinned Node
-release and verifies its SHA-256 against the release's own `SHASUMS256.txt`.
-:::
-
-One architecture is enough if you only ship one — `gjsify ship darwin --arch x64`
-looks for the `darwin-x64` packages and nothing else, and `gjsify ship windows`
-looks for the `win32-x64` ones. `GJSIFY_NODE_RUNTIME` and
-`GJSIFY_GTK_RUNTIME` override the first two with a directory, for a maintainer
-holding an unpublished or patched build.
-
-`gjsify ship` names what it staged and what it did not, so an incomplete bundle is
-never a silent one:
-
-```
-[gjsify ship] carries its own interpreter from @gjsify/node-runtime-darwin-arm64
-[gjsify ship] carries its own GTK closure from @gjsify/gtk-runtime-darwin-arm64
-[gjsify ship] carries its own node-gi runtime (16 file(s)) from @gjsify/node-gi
-[gjsify ship] carries its own node-gi addon from @gjsify/node-gi
-```
-
-and, when a package is missing, the name to install instead. A bundle with no
-runtime still assembles — it is a working intermediate on any machine that has a
-Node — so nothing here fails your build; it tells you which artifact you got.
-
-**What it cannot do yet, and `gjsify ship` prints it rather than letting you find
-out:** macOS has GJS but no *relocatable* GJS, and Windows has no GJS host at
-all — which is why all four of those formats accept `gjsify.app: "node"` only, and
-why a `--app gjs` project can stage either layout and not pack it.
-
-One more thing to know before you hand a Windows build to a user: `node.exe` is a
-console program and the Node release ships no windowed variant, so starting the
-app from a shortcut leaves a console window open behind it — including the
-shortcut the `.msi` writes. Nothing here hides that; the artifact's own reader
-prints the subsystem it found.
-
-**Where each format can be packed is declared, and the command refuses rather
-than guessing.** `.deb` and `.rpm` are written by `ship` itself — plain
-JavaScript, no `dpkg-deb`, no `rpmbuild` — so those two really do pack
-anywhere, and `gjsify ship linux` on a Mac gets you a Linux package built on a
-Mac. The macOS `.app`, the Windows program directory and both zips are the same:
-`ship` writes the zips itself, so they pack anywhere too — which is also what keeps `zipinfo` an INDEPENDENT reader
-of them rather than the other half of a round trip. (Name the layout when you
-cross: a bare `gjsify ship` on a Mac assembles the macOS one, and says so.)
-Two formats are different and say so. A Flatpak bundle is an OSTree static
-delta, only `flatpak-builder` and `flatpak build-bundle` write one, and both are
-Linux tools. A `.dmg` is a UDIF image over a real HFS+ volume, and the only
-program that writes one is `hdiutil`, which ships with macOS and exists nowhere
-else. Ask for either on the wrong host and you get a refusal naming the
-two-phase way across, not a broken file:
-
-```bash
-gjsify ship linux --stage --target flatpak  # here, on any OS, offline
-gjsify ship --from-stage ./ship/stage \
-            --target flatpak                # there, on a Linux runner
-
-gjsify ship darwin --stage --target macos-app-dmg   # here, on any OS, offline
-gjsify ship --from-stage ./ship/stage \
-            --target macos-app-dmg                  # there, on a Mac
-```
-
-Name the format in the `--stage` run as well as in the pack run. The stage
-carries a licence overlay per format, rendered where your project is; a stage
-assembled without `macos-app-dmg` arrives on the Mac and is refused there, in a
-job that has no `LICENSE` to fix it with.
-
-Missing tooling is a separate message from the wrong OS, because the fixes
-differ, and both fire **before** your build script runs rather than after it.
-
-**Signing takes an identity, not a certificate.** `--sign <identity>` passes a
-NAME to `codesign` (macOS) or `signtool` (Windows) and lets the tool find the
-private key itself, so `gjsify ship` never sees a certificate: there is no
-`--certificate`, no `--p12` and no `--password`. Set a default in
-`gjsify.ship.sign.darwin.identity` / `.win32.identity`. Signing runs on the finish
-phase and on the host that holds the key:
-
-```bash
-gjsify ship darwin --stage --arch arm64    # here, on any OS, offline
-gjsify ship --from-stage ./ship/stage \
-            --sign "Developer ID Application: You (TEAMID)"   # there, on macOS
-```
-
-With no identity the run skips signing, says so on stderr, and exits 0 — an
-unsigned artifact is a legitimate output, and the thing that is refused is
-claiming a signature that was not made. On macOS the signature goes on every
-Mach-O image inside the payload, not on a wrapper around it: under a hardened
-runtime a Developer-ID-signed executable will not load ad-hoc-signed libraries,
-and the GTK closure a bundle carries is ad-hoc-signed when it arrives.
-
-`--sign -` signs ad-hoc, which needs no Apple Developer Program membership — it is
-how this project proves the whole pipeline in CI with no key anywhere.
-
-What is still missing is notarisation — every container the design named now
-exists. The two operating systems also differ in what an unsigned artifact costs
-you: Gatekeeper BLOCKS an
-unsigned `.app`, while SmartScreen only warns until a download builds reputation,
-so a Windows program directory is usable unsigned in a way the macOS bundle is
-not. See
-[Platform Support](/gjsify/platform-support/) for where gjsify apps run at all.
+There is no AppImage target. The nearest thing that exists is the Flatpak
+bundle, which is also one file, needs no repository and works offline.
 
 ## Next
 
-- [deb & rpm packages](/gjsify/ship/linux-packages/) walks through the
-  prerequisites, every flag, the staged tree and the configuration block.
+- [Linux packages](/gjsify/ship/linux-packages/), [macOS app bundles](/gjsify/ship/macos/)
+  and [Windows artifacts](/gjsify/ship/windows/) walk through one operating
+  system each.
+- [Sign your artifacts](/gjsify/ship/signing/) covers `--sign`, `--notarize`,
+  and why unsigned is a legitimate result.
 - [CLI Reference → `gjsify ship`](/gjsify/cli-reference/#gjsify-ship) is the
-  terse version of the same material.
-- [How It Works](/gjsify/how-it-works/) explains what a `gjsify build` bundle
-  contains, which is what ends up inside the package.
+  terse flag and configuration reference.
+- [How It Works](/gjsify/how-it-works/#reproducible-ship-artifacts) explains why
+  packing the same build twice gives byte-identical files.
