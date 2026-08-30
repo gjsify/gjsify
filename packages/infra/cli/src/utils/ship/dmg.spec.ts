@@ -10,12 +10,20 @@
 // belongs to the darwin pack leg and the Linux reader leg behind it
 // (`.github/ship-oracle/verify-dmg.py`), and neither is a claim this file makes.
 //
+// AND NO PATH IN THIS FILE IS SPELLED WITH A `/`. The two absolute strings below
+// are opaque INPUTS `hdiutilCreateArgs` passes through untouched, so they compare
+// to themselves on any host; every path this file builds or inspects goes through
+// `join`/`sep`. That rule is here because breaking it cost a red `win32` leg — see
+// `the volume is assembled apart from the artifact` below.
+//
 // SO WHAT IS LEFT IS THE HALF THAT CAN STILL BE WRONG WITHOUT ANY OF THAT: the
 // flag vector, the volume name, and the two refusals that decide whether this
 // packer ever runs. A wrong `-fs` produces an APFS image that the whole Linux
 // reader chain cannot open, at exit 0, on a Mac — the failure would surface two
 // jobs later as "dmg2img: not a valid dmg" and read as a broken artifact rather
 // than as a wrong flag.
+
+import { join, sep } from 'node:path';
 
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -180,9 +188,30 @@ export default async () => {
             // previous run's `.dmg` INSIDE this run's image — and the reader that
             // would catch it is the same listing comparison that would then have
             // to be taught to ignore it.
-            const dir = dmgVolumeDir('/out/ship');
-            expect(dir.includes('/out/ship/dmg')).toBe(true);
-            expect(dir.endsWith('/out')).toBe(false);
+            //
+            // SPELLED WITH `join`/`sep`, and the first draft was not — it compared
+            // against the literal `/out/ship/dmg`, which is what `path.join`
+            // answers on two of the three operating systems this repository ships
+            // for. `dmgVolumeDir` builds a path on the PACKING HOST (the directory
+            // `hdiutil` is pointed at, and the parent that becomes the spawn's
+            // `cwd`), so it uses `node:path`'s `join` and gives `\` on Windows: the
+            // implementation was right and the ASSERTION was Linux-shaped. It went
+            // red on `windows-suites.yml`'s `@gjsify/cli` leg and nowhere else,
+            // which is the whole reason that leg exists — a `.dmg` is darwin-only,
+            // but the code deciding where the volume goes is compiled and unit-
+            // tested on every host.
+            //
+            // And it is the PROPERTY that is asserted, not the implementation
+            // restated: the volume must not BE the artifact directory, must not be
+            // INSIDE it, and must still be under the run's output root. A
+            // `dmgVolumeDir` returning `join(outRoot, 'out', 'volume')` or
+            // `outRoot` itself reds here.
+            const outRoot = join('build', 'ship');
+            const artifacts = join(outRoot, 'out');
+            const dir = dmgVolumeDir(outRoot);
+            expect(dir === artifacts).toBe(false);
+            expect(dir.startsWith(`${artifacts}${sep}`)).toBe(false);
+            expect(dir.startsWith(`${outRoot}${sep}`)).toBe(true);
         });
     });
 
