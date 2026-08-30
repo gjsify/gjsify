@@ -246,10 +246,11 @@ Three rules hold there, and the layer states each of them by refusing rather tha
   element directly under one is the root of its React tree and is told so.
 - **The container needs a curated child policy.** gtk-host will not guess how a widget adopts a
   child: `add`, `append` and `set_child` all exist somewhere in GTK and the wrong one is a
-  warning at exit 0. 35 of the 164 tags carry such a rule — `tableProvenance()` reports the live
-  figure, and this count has drifted twice — with toolbar view, header bar, clamp, both split
-  views, status page, navigation view, preferences page and action row among them. Wrap box and
-  action bar are not, and refuse a child by name until someone writes their policy.
+  warning at exit 0. 39 of the 168 tags carry such a rule, among them toolbar view, header bar,
+  clamp, both split views, status page, navigation view, preferences page and action row. Wrap
+  box and action bar do not, and refuse a child by name until someone writes their policy. Call
+  `tableProvenance()` from `@gjsify/gtk-host` for the live figure; this count has now drifted
+  three times.
 
 The [Layout page](/gjsify/adwaita/layout/) of the Adwaita gallery carries this as a **React
 Native on GTK** tab beside the GJS, Blueprint, web and NativeScript ones — on the clamp, the
@@ -415,5 +416,5 @@ function Notes() {
   for the generated per-name support listing
 - [`rn-design-system`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/rn-design-system)
   for a design-system layer rendered unmodified into an Adwaita window
-- [How the React layers work](/gjsify/internals/react-layers/) for the measurements behind the
-  primitives, the lists and the router
+- [How the React layers work](https://github.com/gjsify/gjsify/blob/main/docs/react-layers.md)
+  for the measurement behind each rule about the primitives, the lists and the router

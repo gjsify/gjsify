@@ -1,15 +1,13 @@
----
-title: How the React layers work
-description: The measurements and decisions behind the React adapter, the React Native primitives and the router.
----
+# How the React layers work
 
-This page is optional. You can build and ship a React or React Native app on gjsify without
-reading a line of it, and the [React](/gjsify/frameworks/react/) and
-[React Native](/gjsify/frameworks/react-native/) pages are the ones that tell you how.
-
-Read this when a rule on one of those pages looks arbitrary and you want the number behind it, or
-when you are changing this part of gjsify and need to know which decisions were paid for. Each
-section stands alone.
+> The measurements and decisions behind the React adapter, the React Native primitives and the
+> router. Detail for [ADR 0032](adr/0032-react-native-on-the-gtk-host.md).
+>
+> Nobody has to read this to build an app. The website's
+> [React](https://gjsify.github.io/gjsify/frameworks/react/) and
+> [React Native](https://gjsify.github.io/gjsify/frameworks/react-native/) pages carry every
+> rule an app author follows; this file carries the number behind each rule, for whoever
+> changes this part of gjsify. Each section stands alone.
 
 Versions matter here. Unless a section says otherwise, the measurements are GTK 4.22.4, gjs
 1.88.1, libadwaita 1.9.3 and `react-reconciler` 0.33.0.
@@ -27,7 +25,7 @@ React's.
 
 Solid has the same `jsxImportSource` trap one package over, and a worse one: its pre-declared
 element list includes MathML, which the React one does not.
-[ADR 0028, item 8](https://github.com/gjsify/gjsify/blob/main/docs/adr/0028-widget-table-provenance.md)
+[ADR 0028, item 8](adr/0028-widget-table-provenance.md)
 measures it.
 
 ## What holds the build recipe
@@ -103,12 +101,13 @@ differs only in how it receives its rows, because a `Gtk.ListView` takes no chil
 `append`, `add`, `insert`, `prepend`, `remove` or `set_child` on its prototype. The host's
 placement policies are data naming a method, so there is no method to name.
 
-Most of what follows from that is **not React's**. The model, the factory, the key diff and the
-teardown authority live in `@gjsify/gtk-host/list`, where Vue and Solid reach the same three
-measurements — the `Gio.ListStore` carrier identity, why a data change splices the model instead
-of announcing it, and why `dispose()` rather than GTK's own `teardown` signal is what disconnects.
-That module's header states each of them once; nothing restates them here, because a second copy
-is the one that goes stale.
+Most of what follows from that is not React's. The model, the factory, the key diff and the
+teardown authority live in `@gjsify/gtk-host/list`, which imports GTK and GObject and no
+framework. Solid reaches it through `listRows`; Vue has no binding over it yet. That module's
+header states its three measurements once, the `Gio.ListStore` carrier identity, why a data
+change splices the model instead of announcing it, and why `dispose()` rather than GTK's own
+`teardown` signal is what disconnects. Nothing restates them here, because a second copy is the
+one that goes stale.
 
 What is React's is the deferral: a row's tree is rendered on a microtask, because GTK binds rows
 from inside React's own commit and the adapter's `render()` refuses a re-entrant flush by name.
@@ -206,7 +205,7 @@ because it is the older and machine-checked one.
 
 ## Platform files
 
-[ADR 0032 § 9](https://github.com/gjsify/gjsify/blob/main/docs/adr/0032-react-native-on-the-gtk-host.md)
+[ADR 0032 § 9](adr/0032-react-native-on-the-gtk-host.md)
 declares the resolution order a shared codebase should get:
 
 ```
@@ -229,7 +228,7 @@ the file, so an author's fork cannot become dead code with nothing saying so.
 
 ## Related
 
-- [ADR 0032](https://github.com/gjsify/gjsify/blob/main/docs/adr/0032-react-native-on-the-gtk-host.md)
+- [ADR 0032](adr/0032-react-native-on-the-gtk-host.md)
   for the decision record this page reports the measurements of
-- [How gjsify works](/gjsify/how-it-works/) for the global scanner and the build in general
-- [Contributing](/gjsify/contributing/development-setup/) if you want to change any of it
+- [How gjsify works](https://gjsify.github.io/gjsify/how-it-works/) for the global scanner and the build in general
+- [Contributing](https://gjsify.github.io/gjsify/contributing/development-setup/) if you want to change any of it

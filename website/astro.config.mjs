@@ -208,7 +208,6 @@ export default defineConfig({
                     collapsed: true,
                     items: [
                         { slug: 'how-it-works' },
-                        { slug: 'internals/react-layers', label: 'How the React layers work' },
                         { slug: 'projects/ts-for-gir' },
                         { slug: 'projects/node-gi' },
                         { slug: 'projects/napi' },
