@@ -1326,6 +1326,7 @@ gjsify ship darwin              # a macOS <App>.app and a zip around it (--app n
 gjsify ship windows --stage     # a Windows program directory; nothing wraps it yet
 gjsify ship --stage             # produce the payload and stop
 gjsify ship --from-stage ./ship/stage   # pack a payload assembled elsewhere
+gjsify ship --from-stage ./stage --sign -   # ad-hoc sign the payload (macOS, no certificate needed)
 gjsify ship --arch arm64        # package for another architecture
 ```
 
@@ -1338,7 +1339,9 @@ gjsify ship --arch arm64        # package for another architecture
 | `--expect-target <os>-<arch>` | — | With `--from-stage`: refuse a stage assembled for a different matrix leg, e.g. `linux-arm64`. Compares against what the stage recorded, not against this host. |
 | `--skip-build` | `false` | Do not run the project's `build` script first. |
 | `--arch <arch>` | this host | Target architecture, in `process.arch` spelling. |
-| `--verbose` | `false` | Print every staged file and the GI namespaces the bundle imports. |
+| `--sign <identity>` | `gjsify.ship.sign.<os>.identity` | Sign the payload with this identity — a NAME `codesign`/`signtool` looks the private key up by, never a certificate. `-` signs ad-hoc and needs no developer identity. Absent means unsigned, which is a legitimate output; the skip is printed to stderr. darwin and win32 only; on Linux the artifact is signed by the repository that serves it, so `--sign` there is refused. |
+| `--notarize <profile>` | — | Submit the signed artifact with `xcrun notarytool submit --keychain-profile`. Needs `--sign`; darwin only. |
+| `--verbose` | `false` | Print every staged file, the GI namespaces the bundle imports, and every tool invocation. |
 
 What lands under `ship/`:
 
@@ -1404,8 +1407,35 @@ No runtime is bundled on Linux: GJS and GTK come from the distribution, so the p
 | `extraFiles` | `{}` | Extra payload entries: prefix-relative destination to project-relative source. |
 | `execArgs` | `[]` | Arguments the launcher appends before the user's own. |
 | `flatpak` | derived | The Flatpak half: `runtime` (`gnome`/`freedesktop`), `runtimeVersion`, `branch` (`stable`), `sdkExtensions`, `appendPath`, `finishArgs`, `cleanup`. |
+| `sign` | — | Default signing identity per OS: `{ "darwin": { "identity": "…" }, "win32": { "identity": "…" } }`. An IDENTITY only — there is no key here, and no path to one. `linux` is not a valid key and is refused, because a `.deb`/`.rpm` is signed by the repository that serves it. |
 
 Metadata keys (`name`, `summary`, `description`, `developer`, `license`, `categories`, `keywords`, `homepageUrl`, `screenshots`, and the rest) are shared with `gjsify.flatpak` and listed under [`flatpak init`](#gjsify-flatpak-init).
+
+#### Signing
+
+`--sign` takes an **identity**, never a certificate. `codesign` and `signtool` are both handed a string and look the private key up themselves, so `gjsify ship` is never given a secret and there is nothing to redact from a log. Getting a key into a keychain or a certificate store is the signing host's job — a machine setup or a CI step, not this command.
+
+```bash
+gjsify ship darwin --stage --arch arm64                     # assemble anywhere
+gjsify ship --from-stage ./ship/stage --sign -              # ad-hoc, no developer identity
+gjsify ship --from-stage ./ship/stage \
+            --sign "Developer ID Application: You (TEAMID)" # on a macOS host with the key
+```
+
+| | darwin | win32 | linux |
+|---|---|---|---|
+| tool | `codesign` | `signtool` | — |
+| what it signs | every Mach-O image in the payload | every PE image in the payload | nothing |
+| runs on | macOS | Windows | — |
+| project default | `gjsify.ship.sign.darwin.identity` | `gjsify.ship.sign.win32.identity` | refused |
+
+**With no identity the run skips, prints why on stderr, and exits 0.** An unsigned artifact is a legitimate deliverable; what is refused is the other direction — claiming a signature that was not made. `--sign` on the `--stage` phase is refused too: that phase produces no artifact, and the tree it writes is read back and repacked afterwards.
+
+**Signing mutates the payload rather than wrapping it.** Under a hardened runtime a Developer-ID-signed executable will not load ad-hoc-signed libraries, and the GTK closure a macOS bundle carries arrives ad-hoc-signed — relocating a dylib invalidates whatever signature it had. So the darwin leg re-signs every image *inside* the payload, and the container is built from the signed bytes. The staged tree itself is never written to, so a `--from-stage --sign` run can be repeated.
+
+`--sign -` signs ad-hoc and needs no Apple Developer Program membership, which is how this project proves the pipeline in CI with no key anywhere: a macOS leg signs a real Mach-O payload, `codesign --verify` reads the signature back, and `.github/ship-oracle/verify-signed-arrival.mjs` checks the claim no verifier makes — every non-Mach-O file byte-identical, every Mach-O identical outside its signature.
+
+`--notarize <keychain-profile>` submits the signed artifact with `xcrun notarytool submit --keychain-profile <p> --wait`. It is darwin-only, needs `--sign`, and skips loudly when no credential is given. It has never been run against a real Apple account — notarisation needs one, and ad-hoc signing deliberately does not — so treat it as untested. The Windows invocation is in the same position: `signtool` has no ad-hoc mode.
 
 #### The GJS floor on Debian
 

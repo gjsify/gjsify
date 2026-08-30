@@ -1112,3 +1112,105 @@ ad-hoc one it replaces is not measured, and the design must not depend on the an
 is fixed rather than bet on — **`readStage` validates the PRE-sign tree, the re-sign runs after it,
 and the container is built after that** — and M2's `.app` packer must leave that seam where a later
 `--sign` can be inserted between the two, instead of reading and packing in one pass.
+
+## Amendment, 2026-08-30 — M6 landed, and three of its measurements amend § A15 and § A17
+
+The interface § A12–§ A17 fixed is implemented (#1354 M6): `--sign <identity>` and
+`--notarize <credential>` on the finish phase, `gjsify.ship.sign.<os>.identity` as the project
+default, `utils/ship/signing.ts` holding the per-OS signer table, and
+`.github/ship-oracle/verify-signed-arrival.mjs` as the comparator § A17 specifies. Nothing above is
+reversed. Three things were MEASURED that those sections left as reasoning, and one claim made in
+this document's own voice turns out to have been narrower than the pool.
+
+### A18. `readStage` does refuse a re-signed tree, so § A17's ordering is not a precaution
+
+§ A17 argues the order from "a size is no more re-sign-proof than a digest". Measured rather than
+argued, on this tree: append one byte to a staged file and `readStage` throws
+*"… is 6 bytes in the stage and 5 in its manifest. The stage arrived truncated or was edited after
+it was assembled."* So a signer that wrote into the arriving stage would break the very next
+`--from-stage` run of it, and the order § A17 fixes is load-bearing rather than tidy.
+
+**It is enforced structurally and not by convention**, which is what § A17 asked M2's packer to make
+possible. `signPayload` TAKES what `readStage` returned and RETURNS what the packer consumes, so the
+signed bytes are computed from the validated ones and cannot exist before them. The mutation happens
+in a scratch directory the finish phase owns (`<outRoot>/signed/<format>/`); the stage is never
+written to, and a `--from-stage --sign` run is therefore repeatable — which is itself an e2e
+assertion, because it passes only for that reason.
+
+The rule's ONE cost, recorded so nobody removes it as waste: signing runs per FORMAT, so a darwin
+run that builds both rows signs the same images twice. It cannot be hoisted — each format's payload
+carries that format's own overlay, and on darwin the licence lands INSIDE `<App>.app`.
+
+### A19. The comparator's rule needs a third exemption, and it is a consequence rather than a concession
+
+§ A17 specifies *"every Mach-O identical outside `LC_CODE_SIGNATURE` and `LC_UUID`"*. Implemented
+against real load commands, that list is one short: `__LINKEDIT`'s `LC_SEGMENT_64` record carries
+`filesize` and `vmsize`, and the signature blob lives INSIDE that segment by construction — a
+signature of a different length moves the segment's end and nothing else. So the comparator masks
+four regions, not two, and the fourth is the same fact as the first read off the segment that
+contains what the first describes. Everything else — the mach header, every other load command,
+every section, `__TEXT`, `__DATA` and the rest of `__LINKEDIT` — must match byte for byte, and
+`dataoff` must be EQUAL in both images: a moved signature means the content in front of it changed
+length, which no re-sign does.
+
+It is `compareMachOAfterResign` in `packages/infra/manifest-conformance/lib/binary.mjs`, extended
+there rather than built beside it because that file's header says *extend this file; never add a
+second parser* — and because the alternative, a CPython twin in `.github/ship-oracle/`, would leave
+two Mach-O parsers with nothing holding them to each other. Independence is not lost by that
+choice: the other oracles in that directory read documents THIS TREE WRITES, where our own reader
+would agree with itself, while here the mutation is made by Apple's `codesign` and the parser knows
+nothing about it. The artifact is additionally read back by `codesign --verify --strict`, which
+answers the other question — ours says the mutation was confined, Apple's says the signature is
+valid.
+
+### A20. Stapling IS evidenced — § A15 stopped quoting three lines early
+
+§ A15 quotes `refs/node/tools/osx-notarize.sh:39-42` and this repository's implementation notes
+initially recorded stapling as unevidenced. That was wrong, and the correction is the same shape as
+the two § A12 and § A15 already carry: a claim assembled from the lines that were being looked at
+rather than from a grep.
+
+Measured on `refs/node` at the pinned `0618e9f0`, initialised in the worktree (89 of 95 submodules
+are not, which is the trap § A14 was struck for), with `grep -rIl` and § A14's own control of **16
+files for `codesign`**:
+
+| pattern | files | what it is |
+|---|---|---|
+| `codesign` | 16 | the control |
+| `--keychain-profile` | 1 | `tools/osx-notarize.sh` — as § A15 records |
+| `notarytool` | 4 | that script plus three changelog entries |
+| `stapler` | 4 | **`tools/osx-notarize.sh:58` plus three changelog entries** |
+| `store-credentials` | 0 | as § A15 records |
+| `--key-id` / `--issuer` | 0 / 0 | as § A15 records |
+| `security import` / `set-key-partition-list` | 0 / 0 | as § A14 records |
+
+`osx-notarize.sh:58` is `xcrun stapler staple "node-$pkgid.pkg"`, three lines past where § A15
+stopped, preceded by an `xcrun spctl --assess --type install` gate at `:52`. So the reference's
+sequence is submit → assess → staple, and only the first of the three is implemented here.
+
+**What stays UNVERIFIED, and it is not the spelling.** The reference staples a `.pkg`; the only
+file-shaped darwin artifact `gjsify ship` produces is a `.zip`, and whether `stapler` accepts one is
+not measured anywhere in this tree. Adding a call that may refuse the single artifact it would ever
+run on is code no run has exercised, deciding something it cannot justify — so it is an open item
+with its measurement attached (`status/open-todos.md`) rather than a line of code. The same holds
+one level up: `notarytool submit` itself has never run here, because notarisation needs an Apple
+account and § A17's whole argument is that M6 does not.
+
+### A21. What the ad-hoc proof does and does not reach
+
+The darwin leg is green with no secret in it, as § A17 predicted: two real dylibs compiled by `cc`,
+pre-signed the way the shipped closure arrives (`install_name_tool` invalidates the original, the
+relocator re-signs — § A4's 106 of 106), staged into a `.app`, signed by the finish phase, and read
+back by both oracles. `GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN=1` is what stops that leg passing on a
+host with no `codesign`, and it is watched red on Linux.
+
+Two limits, stated rather than implied. It runs over TWO images, not 106 — it measures the pipeline
+and the comparator, not the scale. And an ad-hoc signature over an unchanged file is reproducible,
+so one of the two fixtures carries a marker `--identifier` purely to guarantee that the re-signed
+blob DIFFERS; without it a correct run could report every image `identical` and the comparator's
+`signature-only` branch would never execute.
+
+§ A16 is untouched: the `.app` bundle is not sealed and no entitlements are granted. The seal is
+additionally blocked by something measurable on our side — the payload round trip is bytes plus mode
+and carries no extended attributes, which is where a script main-executable's signature would have
+to live.

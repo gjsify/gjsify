@@ -53,6 +53,13 @@ export const POSIX_PATH_SLICE_EXCEPTIONS = {
         "one payload description serves every format. The `split('/')` is the identifier side " +
         'of the conversion and `join(sep)` is what turns it into a host path — this is the one ' +
         'place that crossing happens, which is why it reads as a split.',
+    'packages/infra/cli/src/utils/ship/signing.ts':
+        'The same prefix-relative PAYLOAD path as `stage-writer.ts` one file over, and the same ' +
+        'crossing: the signer materialises `PayloadEntry.path` — POSIX-separated by its own type ' +
+        'contract, built with `posix.join` — into a host path so `codesign`/`signtool` has a file ' +
+        'to open, then reads the same paths back. A both-separator helper would corrupt a ' +
+        'legitimate Linux filename containing a backslash, and the signed payload has to come ' +
+        'back keyed on exactly the identifiers it went in under or the packer would not find it.',
     'packages/infra/workspace/src/changed-files.ts':
         'A git path from `git diff --name-only`, which git emits `/`-separated on every platform ' +
         '(core.quotePath notwithstanding) — including on Windows, where the working tree uses `\\`.',

@@ -840,3 +840,226 @@ export function checkPrebuildDir(dir, { verbose = true } = {}) {
     }
     return problems;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The signed-arrival comparator (ADR 0024 § A4, § A17 — issue #1354 M6).
+//
+// WHAT IT IS FOR. `gjsify ship --sign` re-signs every Mach-O image INSIDE the
+// payload before the container is built, because under hardened runtime a
+// Developer-ID-signed main executable will not load ad-hoc-signed dylibs and all
+// 106 images in the shipped darwin GTK closure are ad-hoc today. That makes
+// signing a MUTATION of a tree somebody already inspected — so the claim that
+// has to be checkable is not "the artifact is signed" (Apple's own `codesign
+// --verify` answers that) but "signing changed NOTHING ELSE".
+//
+// Two file classes, two rules, and the second is the whole reason this lives in
+// a parser rather than in `sha256sum`:
+//
+//   * a file that is not a Mach-O image must arrive BYTE-IDENTICAL. A launcher,
+//     an `Info.plist`, a `.mo` catalogue, the JavaScript bundle: the signer has
+//     no business in any of them, and a digest is the right instrument.
+//   * a Mach-O image must be identical OUTSIDE its signature. A digest is
+//     structurally unable to say that — every one of the 106 changes — so this
+//     reads the load commands and compares what the signature does not own.
+//
+// WHAT A RE-SIGN IS ALLOWED TO CHANGE, and each entry is a consequence rather
+// than a concession made to get a test green:
+//
+//   1. `LC_CODE_SIGNATURE`'s own record — `dataoff` and `datasize` describe the
+//      blob and nothing else.
+//   2. the blob at `[dataoff, dataoff + datasize)`.
+//   3. `LC_UUID` — named by ADR 0024 § A17's specification of this comparator.
+//   4. `__LINKEDIT`'s `filesize`/`vmsize`, because the blob lives inside that
+//      segment BY CONSTRUCTION: a signature of a different length moves the
+//      segment's end and nothing else. Not in § A17's two-item list, and stated
+//      here rather than folded in silently — it is the same fact as (1), read
+//      off the segment that contains the thing (1) describes.
+//
+// Everything else — the mach header, every other load command, every section,
+// the whole of `__TEXT` and `__DATA`, and the rest of `__LINKEDIT` — must match
+// byte for byte. A change there is a re-signer that rewrote the program.
+//
+// THIS IS AN INDEPENDENT READER despite living in our own tree, and the
+// distinction is worth being exact about because the other `.github/ship-oracle`
+// scripts are foreign implementations on purpose. Those check documents THIS
+// TREE WRITES (an `Info.plist`, a zip central directory), where our own writer
+// would be agreeing with itself. Here the mutation is made by Apple's
+// `codesign`, which knows nothing about this file; reading its output with our
+// parser compares two independent things. Building a second Mach-O parser in
+// CPython beside this one would be the thing this module's header forbids —
+// *extend this file; never add a second parser* — and would leave two parsers
+// with nothing holding them to each other.
+
+/** `LC_SEGMENT_64`. */
+const LC_SEGMENT_64 = 0x19;
+/** `LC_UUID`. */
+const LC_UUID = 0x1b;
+
+/**
+ * @typedef {object} MachOCommand
+ * @property {number} cmd the `cmd` field
+ * @property {number} offset file offset of the load-command record
+ * @property {number} size `cmdsize`
+ */
+
+/**
+ * @typedef {object} MachOLayout
+ * @property {boolean} le little-endian
+ * @property {number} ncmds
+ * @property {number} sizeofcmds
+ * @property {MachOCommand[]} commands
+ * @property {{offset: number, dataoff: number, datasize: number} | null} codeSignature
+ * @property {MachOCommand | null} uuid
+ * @property {{offset: number} | null} linkedit the `__LINKEDIT` `LC_SEGMENT_64` record
+ */
+
+/**
+ * The load-command LAYOUT of a thin 64-bit Mach-O, with file offsets.
+ *
+ * A second reader beside {@link readMachO} rather than a widening of it, and the
+ * split is the same one `openElfSections` documents one screen up: `readMachO`
+ * is a shipped, load-bearing check that answers "what does this image DEPEND
+ * on", and it must not change behaviour as a side effect of adding a comparator.
+ * This one answers "where is each record in the file", which is a different
+ * question and the only one a byte-level diff can be built on.
+ *
+ * @param {Buffer} data
+ * @returns {MachOLayout}
+ */
+export function readMachOLayout(data) {
+    const magic = data.readUInt32LE(0);
+    if (magic === FAT_MAGIC || magic === FAT_CIGAM) {
+        throw new Error('universal (fat) Mach-O images are not supported by this comparator');
+    }
+    const le = magic === MH_MAGIC_64;
+    if (!le && magic !== MH_CIGAM_64) throw new Error(`not a 64-bit Mach-O image (magic 0x${magic.toString(16)})`);
+    /** @param {number} off */
+    const u32 = (off) => (le ? data.readUInt32LE(off) : data.readUInt32BE(off));
+
+    const ncmds = u32(16);
+    const sizeofcmds = u32(20);
+    /** @type {MachOCommand[]} */ const commands = [];
+    /** @type {MachOLayout['codeSignature']} */ let codeSignature = null;
+    /** @type {MachOCommand | null} */ let uuid = null;
+    /** @type {{offset: number} | null} */ let linkedit = null;
+    let off = 32; // mach_header_64
+    for (let i = 0; i < ncmds; i++) {
+        const cmd = u32(off);
+        const cmdsize = u32(off + 4);
+        if (cmdsize < 8 || off + cmdsize > data.length) throw new Error('truncated load commands');
+        commands.push({ cmd, offset: off, size: cmdsize });
+        if (cmd === LC_CODE_SIGNATURE) codeSignature = { offset: off, dataoff: u32(off + 8), datasize: u32(off + 12) };
+        if (cmd === LC_UUID) uuid = { cmd, offset: off, size: cmdsize };
+        if (cmd === LC_SEGMENT_64) {
+            // `segname` is 16 bytes at +8, NUL-padded.
+            const name = data.subarray(off + 8, off + 24);
+            const end = name.indexOf(0);
+            if (name.subarray(0, end === -1 ? name.length : end).toString('utf8') === '__LINKEDIT') {
+                linkedit = { offset: off };
+            }
+        }
+        off += cmdsize;
+    }
+    return { le, ncmds, sizeofcmds, commands, codeSignature, uuid, linkedit };
+}
+
+/** Blank `[start, start + length)` of a copy, so a diff cannot see it. */
+function maskInto(buf, start, length) {
+    buf.fill(0, start, Math.min(start + length, buf.length));
+}
+
+/**
+ * Compare two Mach-O images that should differ only by their signature.
+ *
+ * @param {Buffer} before
+ * @param {Buffer} after
+ * @returns {{ verdict: 'identical' | 'signature-only' | 'differs', reasons: string[] }}
+ *   `identical` — the bytes are equal, i.e. nothing signed this image.
+ *   `signature-only` — equal outside the four regions listed in the header.
+ *   `differs` — anything else, with `reasons` naming what and where.
+ */
+export function compareMachOAfterResign(before, after) {
+    if (before.equals(after)) return { verdict: 'identical', reasons: [] };
+    /** @type {string[]} */ const reasons = [];
+    let a;
+    let b;
+    try {
+        a = readMachOLayout(before);
+        b = readMachOLayout(after);
+    } catch (error) {
+        return { verdict: 'differs', reasons: [`not comparable as Mach-O: ${error.message}`] };
+    }
+    if (a.ncmds !== b.ncmds || a.sizeofcmds !== b.sizeofcmds) {
+        // The unsigned→signed case lands here, and it is reported rather than
+        // tolerated: adding `LC_CODE_SIGNATURE` shifts every byte after the
+        // header, so "identical outside the signature" is not a statement that
+        // can be made about it. The caller decides whether that is expected.
+        reasons.push(
+            `the load-command table changed: ${a.ncmds} commands / ${a.sizeofcmds} bytes before, ` +
+                `${b.ncmds} / ${b.sizeofcmds} after (a signature was ADDED or REMOVED, not replaced)`,
+        );
+        return { verdict: 'differs', reasons };
+    }
+    const seqA = a.commands.map((c) => `${c.cmd}:${c.size}`).join(',');
+    const seqB = b.commands.map((c) => `${c.cmd}:${c.size}`).join(',');
+    if (seqA !== seqB) {
+        reasons.push('the load commands are not the same commands in the same order');
+        return { verdict: 'differs', reasons };
+    }
+    if (a.codeSignature === null || b.codeSignature === null) {
+        reasons.push(
+            a.codeSignature === null
+                ? 'the image carried no LC_CODE_SIGNATURE before'
+                : 'the image carries no LC_CODE_SIGNATURE after',
+        );
+        return { verdict: 'differs', reasons };
+    }
+    if (a.codeSignature.dataoff !== b.codeSignature.dataoff) {
+        // Everything that is not the blob ends where the blob starts, so a moved
+        // `dataoff` means the program itself changed length. Nothing a re-sign does.
+        reasons.push(
+            `the signature moved: dataoff ${a.codeSignature.dataoff} before, ${b.codeSignature.dataoff} after — ` +
+                'the content in front of it is not the same length',
+        );
+        return { verdict: 'differs', reasons };
+    }
+    const cut = a.codeSignature.dataoff;
+    const maskedA = Buffer.from(before.subarray(0, cut));
+    const maskedB = Buffer.from(after.subarray(0, cut));
+    for (const [layout, buf] of [
+        [a, maskedA],
+        [b, maskedB],
+    ]) {
+        maskInto(buf, layout.codeSignature.offset, 16); // cmd, cmdsize, dataoff, datasize
+        if (layout.uuid !== null) maskInto(buf, layout.uuid.offset, layout.uuid.size);
+        // `segment_command_64`: cmd, cmdsize, segname[16], vmaddr, vmsize, fileoff, filesize.
+        // `vmsize` is at +32, `filesize` at +48, both 8 bytes.
+        if (layout.linkedit !== null) {
+            maskInto(buf, layout.linkedit.offset + 32, 8);
+            maskInto(buf, layout.linkedit.offset + 48, 8);
+        }
+    }
+    if (maskedA.equals(maskedB)) return { verdict: 'signature-only', reasons: [] };
+
+    // NAME THE OFFSET AND THE COMMAND IT FALLS IN. A comparator that says only
+    // "differs" over a 40 MiB dylib cannot be acted on, and the first thing
+    // anybody would do is write a second script to find out where.
+    let at = -1;
+    for (let i = 0; i < cut; i++) {
+        if (maskedA[i] !== maskedB[i]) {
+            at = i;
+            break;
+        }
+    }
+    const inCmd = a.commands.find((c) => at >= c.offset && at < c.offset + c.size);
+    reasons.push(
+        `first difference outside the signature at file offset ${at} (0x${at.toString(16)}): ` +
+            `0x${maskedA[at].toString(16)} → 0x${maskedB[at].toString(16)}` +
+            (at < 32
+                ? ' — in the mach_header'
+                : inCmd !== undefined
+                  ? ` — inside load command 0x${inCmd.cmd.toString(16)} at +${at - inCmd.offset}`
+                  : ' — in section data or __LINKEDIT'),
+    );
+    return { verdict: 'differs', reasons };
+}

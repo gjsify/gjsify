@@ -234,7 +234,8 @@ your options.
 
 **Installable artifacts: Linux and macOS.** `.deb`, `.rpm` and a Flatpak bundle
 on Linux; a `<App>.app` bundle and a zip around it on macOS, assembled from this
-Linux workstation and unsigned. The build target is enforced rather than assumed:
+Linux workstation, and signed on a macOS host when you pass an identity. The build
+target is enforced rather than assumed:
 a project declaring anything but `gjsify.app: "gjs"` or `"node"` is refused with a
 message saying so, instead of producing a package that installs and then fails to
 start.
@@ -358,13 +359,35 @@ gjsify ship --from-stage ./ship/stage \
 Missing tooling is a separate message from the wrong OS, because the fixes
 differ, and both fire **before** your build script runs rather than after it.
 
-What is still missing is the `.dmg`, the Windows `.msi`, and signing — an artifact
-assembled on Linux is unsigned by construction. The two operating systems differ
-in what that costs you: Gatekeeper BLOCKS an unsigned `.app`, while SmartScreen
-only warns until a download builds reputation, so a Windows program directory is
-usable today in a way the macOS bundle is not. A `.dmg` is
-an image over a real HFS+/APFS volume and will have to be packed on macOS, which
-is the same split one platform over. See
+**Signing takes an identity, not a certificate.** `--sign <identity>` passes a
+NAME to `codesign` (macOS) or `signtool` (Windows) and lets the tool find the
+private key itself, so `gjsify ship` never sees a certificate: there is no
+`--certificate`, no `--p12` and no `--password`. Set a default in
+`gjsify.ship.sign.darwin.identity` / `.win32.identity`. Signing runs on the finish
+phase and on the host that holds the key:
+
+```bash
+gjsify ship darwin --stage --arch arm64    # here, on any OS, offline
+gjsify ship --from-stage ./ship/stage \
+            --sign "Developer ID Application: You (TEAMID)"   # there, on macOS
+```
+
+With no identity the run skips signing, says so on stderr, and exits 0 — an
+unsigned artifact is a legitimate output, and the thing that is refused is
+claiming a signature that was not made. On macOS the signature goes on every
+Mach-O image inside the payload, not on a wrapper around it: under a hardened
+runtime a Developer-ID-signed executable will not load ad-hoc-signed libraries,
+and the GTK closure a bundle carries is ad-hoc-signed when it arrives.
+
+`--sign -` signs ad-hoc, which needs no Apple Developer Program membership — it is
+how this project proves the whole pipeline in CI with no key anywhere.
+
+What is still missing is the `.dmg`, the Windows `.msi`, and notarisation. The two
+operating systems also differ in what an unsigned artifact costs you: Gatekeeper
+BLOCKS an unsigned `.app`, while SmartScreen only warns until a download builds
+reputation, so a Windows program directory is usable unsigned in a way the macOS
+bundle is not. A `.dmg` is an image over a real HFS+/APFS volume and will have to
+be packed on macOS, which is the same split one platform over. See
 [Platform Support](/gjsify/platform-support/) for where gjsify apps run at all.
 
 ## Next

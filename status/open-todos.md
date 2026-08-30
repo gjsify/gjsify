@@ -790,6 +790,48 @@ misled. These are the upstream source of that claim, and a stale comment is how 
 grows back. Left for a commit of its own because both files path-filter CI job
 selection, and editing them from a docs branch is churn where it is riskiest.
 
+### `gjsify ship --sign`: three things M6 did not prove, each with what WAS measured
+
+The signing interface landed whole (ADR 0024 § A12-§ A17) and its darwin half is
+proven ad-hoc in CI with no certificate anywhere. Three gaps are left, and each is
+here rather than in a comment because each has a plausible wrong answer:
+
+1. **Windows is UNVERIFIED.** `signtool` has no ad-hoc mode, so the flag, the
+   config default, the loud skip and every refusal are covered while the
+   INVOCATION has never run. `SIGNERS.win32.args` is unit-tested and that is all
+   it is: an argv nobody has executed. § A5 already records that Gatekeeper
+   genuinely blocks while SmartScreen only WARNS until per-file-hash reputation
+   accrues, signed or not — so the cost of the gap is smaller here than the
+   darwin one would have been, which is why it is a gap and not a blocker.
+   Closing it needs a certificate on a Windows runner and nothing else.
+
+2. **Notarisation has no end-to-end run**, for the reason § A17 makes M6 possible
+   at all: it needs an Apple account, and ad-hoc signing does not.
+   `--notarize <keychain-profile>` builds
+   `xcrun notarytool submit --keychain-profile <p> --wait <artifact>`, the guard
+   tests exactly the value that line reads (§ A15's rule, as a unit test), and
+   the two refusals are e2e-covered. What has never happened is the submission.
+   The App Store Connect API-key form is NOT implemented: measured on `refs/node`
+   at the pinned `0618e9f0`, `--key-id`, `--issuer` and `store-credentials` return
+   0 files each against a control of 16 files for `codesign`, so there is nothing
+   to copy and § A15 says not to invent a spelling.
+
+3. **Stapling is not implemented, and NOT because it is unevidenced.** The same
+   measurement finds `stapler` in 4 files, one of them real code —
+   `refs/node/tools/osx-notarize.sh:58`, `xcrun stapler staple "node-$pkgid.pkg"`,
+   three lines past where § A15 stopped quoting. What is unmeasured is whether it
+   accepts OUR container: the reference staples a `.pkg`, and the only
+   file-shaped darwin artifact `gjsify ship` produces is a `.zip`. Whoever has a
+   notarised artifact in hand should measure that and then either add the call or
+   write down why a zip cannot carry a ticket.
+
+Two more things deliberately left where § A16 left them, and neither is a defect:
+the `.app` BUNDLE is not sealed (the payload round trip carries bytes and mode and
+no extended attributes, so a bundle seal over a script main-executable would not
+survive into the zip), and no entitlements or `--options runtime` are passed
+(§ A16 has not measured library validation either way). Both are stated on
+`utils/ship/signing.ts` with their reasons.
+
 ### ADR 0024 §8, second half: `gjsify flatpak <sub>` + `generate-installer` move under `ship`
 
 The FORMAT half is DONE (stage 6): `gjsify ship --target flatpak` builds a bundle

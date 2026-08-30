@@ -527,6 +527,45 @@ export interface ConfigDataShip extends AppMetadata {
      * NOT move, is `utils/ship/flatpak-config.ts`.
      */
     flatpak?: ShipFlatpakOptions;
+    /**
+     * The signing identity this project uses by default, per OS.
+     *
+     * `--sign <identity>` on the command line wins. Absent means unsigned, which
+     * is the default path and a legitimate output (ADR 0024 § A13).
+     */
+    sign?: ShipSignOptions;
+}
+
+/**
+ * `gjsify.ship.sign` — an IDENTITY per OS, and never a certificate.
+ *
+ * KEYED PER OS, and the two keys must not be one field: a Developer ID string
+ * and an Authenticode subject name live in different namespaces, and the value
+ * that resolves is chosen by the LAYOUT being packed (`FormatDescriptor.layoutOs`
+ * and the stage manifest's `target.os`), not by the host doing the packing
+ * (ADR 0024 § A12).
+ *
+ * `linux` is deliberately absent: a `.deb` and an `.rpm` carry no per-file
+ * signature — the artifact is signed as a whole by the repository that serves
+ * it, with that repository's key. A key here would look like it did something.
+ *
+ * WHAT IS NOT HERE, and each is a decision rather than an omission:
+ *  - a certificate, a `.p12` path or a password. `codesign` and `signtool` are
+ *    handed a NAME and resolve the private key themselves, so `gjsify ship`
+ *    never sees a secret and nothing on this surface has to be redacted from a
+ *    log line (§ A14).
+ *  - an `entitlements` key. § A16 leaves library validation vs. hardened runtime
+ *    explicitly unmeasured, and a config key for an unmeasured mechanism is a
+ *    promise the implementation cannot keep.
+ *  - a notarisation credential. That is a per-RUN account credential, not a
+ *    machine-held identity, and a config key for one is an invitation to commit
+ *    it — `--notarize <keychain-profile>` is the only way to pass it.
+ */
+export interface ShipSignOptions {
+    /** `codesign --sign <identity>`. `'-'` is ad-hoc and needs no developer identity. */
+    darwin?: { identity?: string };
+    /** `signtool sign /n <identity>` — the certificate's SUBJECT NAME in a Windows store. */
+    win32?: { identity?: string };
 }
 
 /**

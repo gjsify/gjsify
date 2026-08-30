@@ -408,6 +408,69 @@ Mach-O, so it proves the LAYOUT and the same Mach-O branch, not the PE case. Clo
 teaching `readBinaryArch` the COFF field (`manifest-conformance`'s `binary.mjs` already reads it);
 `status/open-todos.md` item 5 carries the gap.
 
+## Signing is a payload MUTATION, and its proof needs no certificate (#1354 M6)
+
+`--sign <identity>` is a flag on the FINISH phase, never a verb of its own
+([ADR 0024 § A2](adr/0024-ship-installable-artifacts.md), § A12). What it takes is an IDENTITY —
+the string `codesign` and `signtool` look a private key up by — and never a certificate: there is no
+`--certificate`, no `--p12` and no `--password`, so nothing on this surface can leak. Getting a key
+into a keychain is the signing HOST's job. `-` is the reserved ad-hoc value.
+
+| | darwin | win32 | linux |
+|---|---|---|---|
+| tool | `codesign` | `signtool` | — |
+| invocation | `--force --sign <identity> <file>` | `sign /n <identity> /fd sha256 <file>` | — |
+| runs on | darwin | win32 | — |
+| signs | every Mach-O image in the payload | every PE image in the payload | nothing |
+| project default | `gjsify.ship.sign.darwin.identity` | `gjsify.ship.sign.win32.identity` | refused by name |
+| proven | ad-hoc, end to end, in CI | flag + skip + refusals only — **UNVERIFIED** | n/a |
+
+Linux has no row and `--sign` there is refused with the mechanism rather than a shrug: a `.deb` and
+an `.rpm` ARE signed, by the repository that serves them (`debsigs`, `rpmsign`), with that
+repository's key and not with a build-time identity.
+
+**Absent identity ⇒ skip, loudly, exit 0.** Unsigned is the default path and a legitimate
+deliverable; what ADR 0024 § 5 refuses is the other direction, claiming a signature that was not
+made. The skip goes to stderr and names the step it skipped — the reference's own two scripts both
+say "Skipping codesign" and one of them is skipping `productsign`.
+
+**Why the signer returns bytes rather than wrapping them.** Under hardened runtime a
+Developer-ID-signed main executable will not load ad-hoc-signed dylibs, and § A4 measured **106 of
+106** Mach-O images in the shipped darwin GTK closure already carrying an ad-hoc
+`LC_CODE_SIGNATURE` — they must, because `install_name_tool` invalidates the original during
+relocation. So the darwin leg re-signs the closure and the packers get new bytes.
+
+**The order is structural (§ A17).** `readStage` compares each staged file's SIZE against
+`.gjsify-ship-stage.json`, and a size is no more re-sign-proof than a digest would be — measured:
+append one byte to a staged file and it refuses with *"… is 6 bytes in the stage and 5 in its
+manifest"*. So `packOne` validates the PRE-sign tree, `signPayload` takes that result and returns
+the signed one, and the container is built from the return value. The signed bytes are computed
+from the validated ones and therefore cannot exist before them; the arriving stage is never written
+to, which is also what makes a `--from-stage --sign` run repeatable.
+
+**The oracle.** `.github/ship-oracle/verify-signed-arrival.mjs` compares the staged tree with the
+artifact: every non-Mach-O file byte-identical, every Mach-O identical outside `LC_CODE_SIGNATURE`,
+`LC_UUID` and `__LINKEDIT`'s size fields (that last one is a consequence rather than a concession —
+the signature blob lives inside that segment by construction). The Mach-O half is
+`compareMachOAfterResign` in `packages/infra/manifest-conformance/lib/binary.mjs`, extended there
+rather than reimplemented beside it because that file's header says so: *extend this file; never add
+a second parser*. It is an independent reader despite being ours — the mutation is made by Apple's
+`codesign`, which knows nothing about it.
+
+**Ad-hoc signing needs no Apple Developer Program membership**, which is why the whole pipeline plus
+its oracle is a green CI leg with no secret in it (`macos-suites.yml`, and
+`GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN=1` is what stops that leg passing on a host with no
+`codesign`). A real Developer ID later is a different VALUE for the same flag, not a different code
+path.
+
+**Notarisation is a SECOND, unrelated credential** (§ A15). `--notarize <keychain-profile>` runs
+`xcrun notarytool submit --keychain-profile <p> --wait <artifact>`, and the guard tests exactly the
+value the next line reads — which is the trap `refs/node/tools/osx-notarize.sh` falls into, guarding
+on three environment variables it never uses. It is **UNVERIFIED end to end**: notarisation needs an
+Apple account, which is precisely the credential M6 does without. The App Store Connect API-key form
+is not implemented, and stapling is not implemented — `status/open-todos.md` carries both, with what
+was measured for each.
+
 ## `DistroFormatId` is not `FormatId`
 
 A `.deb` says `Depends: gir1.2-gtk-4.0`, an `.rpm` says `Requires: gtk4`, and both are package

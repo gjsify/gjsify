@@ -864,19 +864,37 @@ export function assertPayloadMatchesArch(payload: readonly PayloadEntry[], arch:
     }
 }
 
-/** ELF, Mach-O (both endiannesses, both widths, and a fat archive) or PE. */
-function isNativeBinary(data: Uint8Array): boolean {
-    if (data.byteLength < 4) return false;
+/**
+ * Which executable format these bytes are, or `null` for anything else.
+ *
+ * The FAMILY and not merely "is it native", because the signer needs the
+ * distinction: `codesign` signs Mach-O and `signtool` signs PE, and an ELF in a
+ * darwin payload is neither — it is a file that should not be there. A caller
+ * asking only "is this native" would have handed one to `codesign`, whose
+ * refusal names a file rather than the mistake.
+ *
+ * Magic numbers rather than suffixes, and that is load-bearing on darwin: a GTK
+ * closure names its images `.dylib`, `.so`, `.node` and nothing at all (the
+ * interpreter), so a suffix list signs three of those four.
+ */
+export function classifyBinary(data: Uint8Array): 'elf' | 'macho' | 'pe' | null {
+    if (data.byteLength < 4) return null;
     const magic = (data[0]! << 24) | (data[1]! << 16) | (data[2]! << 8) | data[3]!;
     switch (magic >>> 0) {
         case 0x7f454c46: // \x7fELF
+            return 'elf';
         case 0xfeedface: // Mach-O 32
         case 0xfeedfacf: // Mach-O 64
         case 0xcefaedfe: // Mach-O 32, byte-swapped
         case 0xcffaedfe: // Mach-O 64, byte-swapped
         case 0xcafebabe: // Mach-O universal binary
-            return true;
+            return 'macho';
         default:
-            return data[0] === 0x4d && data[1] === 0x5a; // MZ — PE/COFF
+            return data[0] === 0x4d && data[1] === 0x5a ? 'pe' : null; // MZ — PE/COFF
     }
+}
+
+/** ELF, Mach-O (both endiannesses, both widths, and a fat archive) or PE. */
+function isNativeBinary(data: Uint8Array): boolean {
+    return classifyBinary(data) !== null;
 }

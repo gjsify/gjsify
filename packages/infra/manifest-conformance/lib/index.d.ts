@@ -167,3 +167,28 @@ export declare const repositoryDirectoryRule: Rule;
 
 /** POSIX-only utilities a script invokes in command position. Empty when portable. */
 export declare function unportableCommands(script: string): string[];
+
+/** One load-command record, with its file offset. */
+export interface MachOCommand {
+    cmd: number;
+    offset: number;
+    size: number;
+}
+
+/** The load-command layout of a thin 64-bit Mach-O, with file offsets. */
+export interface MachOLayout {
+    le: boolean;
+    ncmds: number;
+    sizeofcmds: number;
+    commands: MachOCommand[];
+    codeSignature: { offset: number; dataoff: number; datasize: number } | null;
+    uuid: MachOCommand | null;
+    linkedit: { offset: number } | null;
+}
+
+export declare function readMachOLayout(data: Buffer): MachOLayout;
+
+export declare function compareMachOAfterResign(
+    before: Buffer,
+    after: Buffer,
+): { verdict: 'identical' | 'signature-only' | 'differs'; reasons: string[] };

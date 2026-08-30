@@ -60,6 +60,22 @@ const TARGETS = new Set(['deb', 'rpm', 'flatpak', 'macos-app', 'macos-app-zip', 
  */
 const PATH_KEYS = ['icon', 'schemas', 'licenseFile'];
 
+/**
+ * The OSes `gjsify.ship.sign` may be keyed on.
+ *
+ * The `process.platform` spelling, because the value that resolves is chosen by
+ * the LAYOUT being packed — `FormatDescriptor.layoutOs` and the stage manifest's
+ * `target.os`, both of which are this vocabulary (ADR 0024 § A12). `macos` and
+ * `windows` are the `gjsify ship <os>` POSITIONAL's spelling and are the typo
+ * this refusal exists for: an identity under an unrecognised key resolves to
+ * nothing at all, so the artifact ships unsigned with every gate green — the
+ * silent-until-late class this whole rule is for, in its purest form.
+ *
+ * `linux` is absent on purpose and refused by name: a `.deb` and an `.rpm` carry
+ * no per-file signature, so a key there would look like it did something.
+ */
+const SIGN_OSES = new Set(['darwin', 'win32']);
+
 export function auditShip(ctx) {
     const failures = [];
     let declared = 0;
@@ -116,6 +132,32 @@ export function auditShip(ctx) {
                     `${pkg.rel}/package.json: \`gjsify.ship.targets\` names "${target}", which \`gjsify ship\` cannot ` +
                         `build. Known targets: ${[...TARGETS].join(', ')}.`,
                 );
+            }
+        }
+
+        const sign = block.sign;
+        if (sign !== undefined) {
+            if (sign === null || typeof sign !== 'object' || Array.isArray(sign)) {
+                failures.push(`${pkg.rel}/package.json: \`gjsify.ship.sign\` must be an object keyed by OS.`);
+            } else {
+                for (const [os, row] of Object.entries(sign)) {
+                    if (!SIGN_OSES.has(os)) {
+                        failures.push(
+                            `${pkg.rel}/package.json: \`gjsify.ship.sign.${os}\` is not an OS \`gjsify ship\` signs ` +
+                                `for. Known: ${[...SIGN_OSES].join(', ')} — the \`process.platform\` spelling, not ` +
+                                `the \`gjsify ship <os>\` positional's. An identity under a key nothing reads is an ` +
+                                `artifact that ships UNSIGNED with nothing to say so.`,
+                        );
+                        continue;
+                    }
+                    if (row === null || typeof row !== 'object' || typeof row.identity !== 'string') {
+                        failures.push(
+                            `${pkg.rel}/package.json: \`gjsify.ship.sign.${os}\` needs an \`identity\` string — ` +
+                                `the NAME \`codesign\`/\`signtool\` looks the key up by, never a certificate or a ` +
+                                `path to one (ADR 0024 § A12).`,
+                        );
+                    }
+                }
             }
         }
 

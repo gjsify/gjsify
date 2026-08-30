@@ -28,6 +28,7 @@ import installProvenanceSuite from './utils/install-provenance.spec.js';
 import shipPlistSuite from './utils/ship/plist.spec.js';
 import shipArchivesSuite from './utils/ship/archives.spec.js';
 import shipPackersSuite from './utils/ship/packers.spec.js';
+import shipSigningSuite from './utils/ship/signing.spec.js';
 import installProjectEngineSuite from './commands/install-project-engine.spec.js';
 import giRuntimePathsBannerSuite from './gi-runtime-paths-banner.spec.js';
 import processStubBannerSuite from './process-stub-banner.spec.js';
@@ -232,6 +233,7 @@ run(
         installProvenanceSuite,
         shipArchivesSuite,
         shipPackersSuite,
+        shipSigningSuite,
         installProjectEngineSuite,
         giRuntimePathsBannerSuite,
         processStubBannerSuite,
