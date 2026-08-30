@@ -297,6 +297,72 @@ pays a tail re-append. Its near-identical sibling `Adw.PreferencesPage` does hav
 `insert(group, i)`, so it is `indexed` and places at the index directly. That is why the table
 is measured per widget rather than inherited.
 
+## Long lists
+
+A `Gtk.ListView` takes no children. It installs no `append`, no `add` and no `set_child`, so
+`<gtk-list-view>` is a tag with no adoption rule and it throws when you put a child in it. GTK
+recycles a small number of row widgets over a model instead, which is what keeps a list of
+50 000 rows the same size on screen as a list of 50.
+
+`@gjsify/gtk-host/list` drives that model. It has no framework in it, so one implementation
+serves every adapter:
+
+```ts
+import { ListController, onScrollNearEnd } from '@gjsify/gtk-host/list';
+```
+
+| Export | What it is |
+|---|---|
+| `new ListController(sink)` | the model, the row factory and the key diff behind one `Gtk.ListView` |
+| `ListRowKey` | the one thing a row must carry: a `key` string |
+| `ListRowSink` | the three callbacks your framework supplies: `mountRow`, `showRow`, `disposeRow` |
+| `onScrollNearEnd(scroller, axis, threshold, listener)` | fires once each time the view arrives near the end; returns a disposer |
+
+`setRows(rows)` compares keys. Same keys with changed content shows every live row again and
+leaves the widgets in place. Changed keys splice the model, and GTK rebuilds the rows. Call
+`dispose()` before the window goes away: it disconnects the factory's handlers and releases
+every row.
+
+Solid has the row half already, as `listRows`:
+
+```tsx
+import Gtk from 'gi://Gtk?version=4.0';
+
+import type { HostNode } from '@gjsify/gtk-host';
+import { ListController } from '@gjsify/gtk-host/list';
+import { listRows, type ListRowHandle } from '@gjsify/gtk-host/solid';
+
+type Row = { key: string; title: string };
+
+const body = (row: () => Row, index: () => number): HostNode =>
+    (<gtk-label label={`${index()}: ${row().title}`} />) as HostNode;
+
+const view = new Gtk.ListView();
+const list = new ListController<Row, ListRowHandle<Row>>(listRows<Row>(body));
+
+list.attach(view);
+list.setRows([
+    { key: 'a', title: 'alpha' },
+    { key: 'b', title: 'beta' },
+]);
+```
+
+A row body receives accessors rather than values, so a content change under an unchanged key
+writes one signal and updates one property. The row widget itself survives.
+
+What each adapter has today:
+
+| Adapter | Rows | How |
+|---|---|---|
+| Solid | yes | `listRows` from `@gjsify/gtk-host/solid` |
+| React | through React Native | `<FlatList>` in [`@gjsify/react-native`](/gjsify/frameworks/react-native/), which drives the same controller |
+| Vue | not yet | write a `ListRowSink` against the controller |
+
+Writing a sink is three functions and no GTK model code: `mountRow(item)` takes the carrier the
+factory hands you, `showRow(handle, row, index)` puts a row into it or clears it with `null`,
+and `disposeRow(handle)` lets go. Take the carrier with `adopt()` once, inside `mountRow`. GTK
+reuses a carrier across binds, and adopting the same one twice raises `occupied-slot`.
+
 ## Mount into a window you already own
 
 `adopt(container)` wraps a widget your application built as a host element and **records the
