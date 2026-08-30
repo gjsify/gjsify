@@ -93,6 +93,19 @@ idt() {
 [ -f "$MSI" ] || fail "$MSI does not exist"
 [ -d "$DIR" ] || fail "$DIR is not a directory — this script compares the installer against the program directory it packs"
 
+# ABSOLUTE FROM HERE ON, and this is a measured failure rather than tidiness. The
+# byte round trip at the end runs `msiextract` from INSIDE a temp directory, so a
+# caller-relative path stops resolving the moment it `cd`s. Every call in
+# `tests/e2e/ship-msi` passes absolute paths and the CI leg passes relative ones,
+# so the whole class was invisible until `windows-dir-assemble` reported
+#
+#     app/app.node.mjs is in the program directory and not in the installer's cabinet
+#
+# on a perfectly good installer — a message about the ARTIFACT for a defect in the
+# reader, which is the worst direction for a diagnostic to point.
+MSI=$(cd "$(dirname "$MSI")" && pwd)/$(basename "$MSI")
+DIR=$(cd "$DIR" && pwd)
+
 APP=$(basename "$DIR")
 
 # ── 0. WHO WROTE IT ──────────────────────────────────────────────────────────
@@ -215,6 +228,17 @@ printf '%s\n' "$PROPERTIES" | awk -F'\t' '$1 == "ProductName" || $1 == "ProductV
 OUT=$(mktemp -d)
 trap 'rm -rf "$OUT"' EXIT
 (cd "$OUT" && msiextract "$MSI" >/dev/null)
+# `msiextract` EXITS 0 HAVING EXTRACTED NOTHING when it cannot open the database.
+# Measured: `msiextract does-not-exist.msi` prints `WARNING: open file failed`,
+# writes no file, and returns 0 — so `set -e` does not catch it, and every `cmp`
+# below then fails on the FIRST file with a message about the cabinet. A reader
+# that silently reads nothing is the exact failure this family of scripts exists
+# against, so its output is checked rather than its exit code.
+[ -d "$OUT/$APP" ] ||
+    fail "msiextract wrote no \"$APP\" directory. It exits 0 when it cannot open the database, so this is the READER failing and not the artifact — check that $MSI is readable."
+EXTRACTED=$(find "$OUT" -type f | wc -l)
+[ "$EXTRACTED" -gt 0 ] ||
+    fail "msiextract wrote no files at all out of $MSI, at exit 0. See above: its exit code is not an answer."
 COUNT=0
 while read -r rel; do
     extracted="$OUT/$APP/$rel"
@@ -222,5 +246,10 @@ while read -r rel; do
     cmp -s "$DIR/$rel" "$extracted" || fail "$rel differs between the program directory and the installer's cabinet"
     COUNT=$((COUNT + 1))
 done < <(cd "$DIR" && find . -type f -printf '%P\n' | sort)
+
+# The two counts have to agree as well as the bytes: a cabinet holding files the
+# directory does not is invisible to the loop above, which only walks the directory.
+[ "$EXTRACTED" = "$COUNT" ] ||
+    fail "the cabinet holds $EXTRACTED file(s) and the program directory $COUNT — the installer would lay down something the directory artifact does not have"
 
 echo "verify-msi.sh: $COUNT file(s) round-tripped byte for byte out of the embedded cabinet, $ROWS component(s), 1 Start-Menu shortcut, INSTALLDIR = ProgramFiles64Folder\\$APP"

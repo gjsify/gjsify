@@ -63,6 +63,11 @@ function oracle(args) {
     return execFileSync('bash', [join(ORACLE, 'verify-msi.sh'), ...args], { encoding: 'utf-8' });
 }
 
+/** Run the oracle from a working directory, the way the CI leg does. */
+function oracleFrom(cwd, args) {
+    return execFileSync('bash', [join(ORACLE, 'verify-msi.sh'), ...args], { encoding: 'utf-8', cwd });
+}
+
 function oracleExpectingFailure(args) {
     try {
         oracle(args);
@@ -315,6 +320,39 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
     });
 
     // ── the oracle, watched red ───────────────────────────────────────────────
+
+    it('reads the artifact back through RELATIVE paths, which is how CI calls it', () => {
+        // THE CALL SHAPE THAT BROKE, and every case in this file used the other
+        // one. `node-gi.yml` runs the script from the project directory with
+        // `ship/out/…`; the byte round trip `cd`s into a temp directory to extract,
+        // so a caller-relative path stopped resolving there. `msiextract` then
+        // printed a WARNING, wrote nothing and RETURNED 0 — so `set -e` did not
+        // catch it and the first `cmp` failed instead, blaming the cabinet for a
+        // defect in the reader. Absolute paths hid the whole class.
+        const out = oracleFrom(projectDir, [join('ship', 'out', MSI_NAME), join('ship', 'out', APP_NAME), 'msitools']);
+        assert.match(out, /round-tripped byte for byte out of the embedded cabinet/);
+    });
+
+    it('refuses to report on an extraction that produced nothing', () => {
+        // The second half of the same incident, and the one worth a check of its
+        // own: `msiextract` is a reader whose EXIT CODE is not an answer. Measured
+        // on this machine — `msiextract does-not-exist.msi` exits 0, writes no file
+        // and prints only a WARNING.
+        const probe = execFileSync(
+            'bash',
+            ['-c', 'cd "$(mktemp -d)" && msiextract nope.msi >/dev/null 2>&1; echo "exit=$?"; ls | wc -l'],
+            { encoding: 'utf-8' },
+        );
+        assert.match(probe, /exit=0/, 'msiextract now fails loudly — simplify the guard in verify-msi.sh');
+        assert.match(probe, /^0$/m, 'msiextract wrote something for a file that does not exist');
+        // So the script must check what it WROTE. Pointed at a directory whose name
+        // the database does not carry, the extraction lands elsewhere and the guard
+        // has to say so rather than letting `cmp` blame the cabinet.
+        const wrongName = join(tmpDir, 'wrong-name', 'Not Ship Demo');
+        cpSync(programDir, wrongName, { recursive: true });
+        const failure = oracleExpectingFailure([msi, wrongName, 'msitools']);
+        assert.match(failure, /INSTALLDIR is named/);
+    });
 
     it('the oracle refuses a producer the file does not claim', () => {
         // The third argument is what makes this script something other than
