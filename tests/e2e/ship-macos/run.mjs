@@ -60,8 +60,12 @@ import {
     listPayload,
     MONOREPO_ROOT,
     NODE_BUNDLE,
+    oracle,
+    oracleExpectingFailure,
     probe,
     scaffold,
+    sha256,
+    shipExpectingFailure,
     STAGE_MANIFEST_FILE,
 } from '../ship/fixture.mjs';
 
@@ -78,53 +82,10 @@ const BINARY = 'ship-demo';
 const ARCH = 'arm64';
 const ZIP_NAME = `${BINARY}-1.2.3-1.${ARCH}.zip`;
 
-const ORACLE = join(MONOREPO_ROOT, '.github', 'ship-oracle');
-
 /** The ZIP writer itself, for the two red runs no CLI invocation can produce. */
 const { buildZip } = await import(
     pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'ship', 'zip.js')).href
 );
-
-const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
-
-/**
- * Run one of the `.github/ship-oracle` scripts and return its output.
- *
- * `execFileSync` throws on a non-zero exit, which is what makes the GREEN calls
- * assertions in their own right: a `verify-*` script that starts failing fails
- * this suite without anything here having to inspect its words.
- */
-function oracle(script, args) {
-    const runner = script.endsWith('.py') ? 'python3' : 'bash';
-    return execFileSync(runner, [join(ORACLE, script), ...args], { encoding: 'utf-8' });
-}
-
-/**
- * Run an oracle expecting a REFUSAL, and return everything it printed.
- *
- * `assert.fail` inside the `try` is what makes a run that unexpectedly SUCCEEDS
- * fail the test. Without it, a `verify-*` that stopped checking would read here
- * as a passing assertion about an error that never happened — the exact shape
- * these discriminators exist to rule out.
- */
-function oracleExpectingFailure(script, args) {
-    try {
-        oracle(script, args);
-    } catch (error) {
-        assert.equal(error.status, 1, `${script} must exit 1, not ${error.status}`);
-        return `${error.stdout ?? ''}${error.stderr ?? ''}`;
-    }
-    return assert.fail(`expected ${script} to refuse ${args.join(' ')}`);
-}
-
-function shipExpectingFailure(args, cwd, env) {
-    try {
-        runCliSync(CLI_ENTRY, args, { cwd, ...(env ? { env } : {}) });
-    } catch (error) {
-        return `${error.stdout ?? ''}${error.stderr ?? ''}`;
-    }
-    return assert.fail(`expected \`gjsify ${args.join(' ')}\` to fail`);
-}
 
 /** The `--app node` project both phases of this suite pack. */
 function scaffoldNodeApp(dir) {
@@ -350,7 +311,7 @@ describe('CLI ship macOS bundle E2E', { timeout: 10 * 60 * 1000 }, () => {
     it('a bare `gjsify ship` on Linux still defaults to exactly deb and rpm', () => {
         // The regression these rows are most able to cause. Both are
         // `finishOn: 'any'`, so on that criterion alone a bare `gjsify ship` on
-        // Linux would emit four artifacts; `defaultFormatIds` filters on
+        // Linux would now emit SIX artifacts; `defaultFormatIds` filters on
         // `layoutOs` as a second criterion, which is what keeps this list at two.
         // `tests/e2e/ship-layout` asserts the same thing on a `--app gjs` project,
         // and this one adds the `--app node` half — the interpreter filter added

@@ -43,11 +43,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { runCliSync } from '../mock-registry.mjs';
-import { CLI_ENTRY, listFiles, MONOREPO_ROOT, probe } from '../ship/fixture.mjs';
+import { CLI_ENTRY, listFiles, ORACLE, probe, shipExpectingFailure } from '../ship/fixture.mjs';
 import { APP_NAME, ARCH, BINARY, installRuntimePackages, scaffoldNodeApp } from '../ship/windows-fixture.mjs';
 
 const MSI_NAME = `${BINARY}-1.2.3-1.${ARCH}.msi`;
-const ORACLE = join(MONOREPO_ROOT, '.github', 'ship-oracle');
 
 /**
  * The two programs `msitools` ships, and they are REQUIRED on Linux rather than
@@ -76,15 +75,6 @@ function oracleExpectingFailure(args) {
         return `${error.stdout ?? ''}${error.stderr ?? ''}`;
     }
     return assert.fail(`expected verify-msi.sh to refuse ${args.join(' ')}`);
-}
-
-function shipExpectingFailure(args, cwd) {
-    try {
-        runCliSync(CLI_ENTRY, args, { cwd });
-    } catch (error) {
-        return `${error.stdout ?? ''}${error.stderr ?? ''}`;
-    }
-    return assert.fail(`expected \`gjsify ${args.join(' ')}\` to fail`);
 }
 
 /**

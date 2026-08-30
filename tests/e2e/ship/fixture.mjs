@@ -4,12 +4,15 @@
 // scaffold would be a second definition of "a shippable project": the two suites would drift, and
 // the drifted one is the one that keeps passing while proving something else.
 
+import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { hasCommand } from '../helpers.mjs';
+import { runCliSync } from '../mock-registry.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -205,6 +208,71 @@ const REQUIRED_ON_LINUX = new Set([
     'desktop-file-validate',
     'appstreamcli',
 ]);
+
+/**
+ * The `.github/ship-oracle` scripts every packing suite reads its artifact back with.
+ *
+ * HERE rather than in each suite, and the four copies this replaced are the
+ * argument: `ORACLE`, `sha256`, `oracle` and `oracleExpectingFailure` were
+ * byte-identical in `ship-macos` and `ship-windows` (and `ORACLE` again in
+ * `ship-msi`), because each was written one milestone after the last by somebody
+ * who never saw the file beside it. An oracle helper is the worst thing to keep
+ * two copies of: a suite whose runner quietly stops discriminating still passes.
+ */
+export const ORACLE = join(MONOREPO_ROOT, '.github', 'ship-oracle');
+
+/** A file's SHA-256, for the two-artifacts-one-payload comparisons. */
+export const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
+
+/**
+ * Run one of the `.github/ship-oracle` scripts and return its output.
+ *
+ * `execFileSync` throws on a non-zero exit, which is what makes the GREEN calls
+ * assertions in their own right: a `verify-*` script that starts failing fails
+ * the calling suite without anything there having to inspect its words.
+ */
+export function oracle(script, args) {
+    const runner = script.endsWith('.py') ? 'python3' : 'bash';
+    return execFileSync(runner, [join(ORACLE, script), ...args], { encoding: 'utf-8' });
+}
+
+/**
+ * Run an oracle expecting a REFUSAL, and return everything it printed.
+ *
+ * `assert.fail` after the `try` is what makes a run that unexpectedly SUCCEEDS
+ * fail the test. Without it, a `verify-*` that stopped checking would read as a
+ * passing assertion about an error that never happened — the exact shape these
+ * discriminators exist to rule out.
+ */
+export function oracleExpectingFailure(script, args) {
+    try {
+        oracle(script, args);
+    } catch (error) {
+        assert.equal(error.status, 1, `${script} must exit 1, not ${error.status}`);
+        return `${error.stdout ?? ''}${error.stderr ?? ''}`;
+    }
+    return assert.fail(`expected ${script} to refuse ${args.join(' ')}`);
+}
+
+/**
+ * Run the CLI expecting a REFUSAL, and return everything it said.
+ *
+ * `runCliSync` throws on a non-zero exit and hangs the output off the error, so a
+ * refusal has to be caught to be read. `assert.fail` after the `try` is what makes
+ * a run that unexpectedly SUCCEEDS fail the test — without it, a broken gate reads
+ * as a passing assertion about an error that never happened.
+ *
+ * `env` is optional because three of the four call sites that used to carry their
+ * own copy of this function never passed one.
+ */
+export function shipExpectingFailure(args, cwd, env) {
+    try {
+        runCliSync(CLI_ENTRY, args, { cwd, ...(env ? { env } : {}) });
+    } catch (error) {
+        return `${error.stdout ?? ''}${error.stderr ?? ''}`;
+    }
+    return assert.fail(`expected \`gjsify ${args.join(' ')}\` to fail`);
+}
 
 export function probe(cmd) {
     if (hasCommand(cmd)) return true;

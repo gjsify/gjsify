@@ -63,8 +63,12 @@ import {
     listFiles,
     listPayload,
     MONOREPO_ROOT,
+    oracle,
+    oracleExpectingFailure,
     probe,
     scaffold,
+    sha256,
+    shipExpectingFailure,
     STAGE_MANIFEST_FILE,
 } from '../ship/fixture.mjs';
 // The SUBJECT, shared with `tests/e2e/ship-msi`: one definition of the Windows
@@ -81,8 +85,6 @@ import {
 
 const ZIP_NAME = `${BINARY}-1.2.3-1.${ARCH}.zip`;
 
-const ORACLE = join(MONOREPO_ROOT, '.github', 'ship-oracle');
-
 /** The ZIP writer itself, for the red run no CLI invocation can produce. */
 const { buildZip } = await import(
     pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'ship', 'zip.js')).href
@@ -90,40 +92,6 @@ const { buildZip } = await import(
 
 const BINARY_READER = join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'binary.mjs');
 const { readLibrary } = await import(pathToFileURL(BINARY_READER).href);
-
-const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
-
-/**
- * Run one of the `.github/ship-oracle` scripts and return its output.
- *
- * `execFileSync` throws on a non-zero exit, which is what makes the GREEN calls
- * assertions in their own right: a `verify-*` script that starts failing fails
- * this suite without anything here having to inspect its words.
- */
-function oracle(script, args) {
-    const runner = script.endsWith('.py') ? 'python3' : 'bash';
-    return execFileSync(runner, [join(ORACLE, script), ...args], { encoding: 'utf-8' });
-}
-
-/** Run an oracle expecting a REFUSAL, and return everything it printed. */
-function oracleExpectingFailure(script, args) {
-    try {
-        oracle(script, args);
-    } catch (error) {
-        assert.equal(error.status, 1, `${script} must exit 1, not ${error.status}`);
-        return `${error.stdout ?? ''}${error.stderr ?? ''}`;
-    }
-    return assert.fail(`expected ${script} to refuse ${args.join(' ')}`);
-}
-
-function shipExpectingFailure(args, cwd, env) {
-    try {
-        runCliSync(CLI_ENTRY, args, { cwd, ...(env ? { env } : {}) });
-    } catch (error) {
-        return `${error.stdout ?? ''}${error.stderr ?? ''}`;
-    }
-    return assert.fail(`expected \`gjsify ${args.join(' ')}\` to fail`);
-}
 
 describe('CLI ship Windows program directory E2E', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;
