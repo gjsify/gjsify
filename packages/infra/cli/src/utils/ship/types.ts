@@ -98,19 +98,6 @@ export type DistroFormatId = Extract<FormatId, 'deb' | 'rpm'>;
 export type HostOs = 'linux' | 'darwin' | 'win32';
 
 /**
- * Where a format can be FINISHED, and who can read the result back (ADR 0024 § A3).
- *
- * Three fields rather than one `hostOs`, because the three questions have
- * different answers. `finishOn` is not the LAYOUT — a `<App>.app` tree is
- * assembled anywhere while the `.dmg` around it needs macOS. `requiredTools` is
- * not implied by `finishOn` — `.deb` and `.rpm` are written by this tree and
- * exec nothing, which is the whole reason `rpm` could become an independent
- * oracle and catch the dpkg-`$1` defect in the first artifact. And `oracle` is
- * derivable from neither: a format built by the platform's own tool forfeits
- * that independence unless a reader from a DIFFERENT implementation family
- * exists, which is exactly what `selfReading` is the honest confession of.
- */
-/**
  * Commands a packer EXECS — a flat LIST when every host runs the same ones, and
  * a per-OS MAP when the backend is host-SELECTED.
  *
@@ -128,6 +115,19 @@ export type HostOs = 'linux' | 'darwin' | 'win32';
  */
 export type RequiredTools = readonly string[] | Readonly<Partial<Record<HostOs, readonly string[]>>>;
 
+/**
+ * Where a format can be FINISHED, and who can read the result back (ADR 0024 § A3).
+ *
+ * Three fields rather than one `hostOs`, because the three questions have
+ * different answers. `finishOn` is not the LAYOUT — a `<App>.app` tree is
+ * assembled anywhere while the `.dmg` around it needs macOS. `requiredTools` is
+ * not implied by `finishOn` — `.deb` and `.rpm` are written by this tree and
+ * exec nothing, which is the whole reason `rpm` could become an independent
+ * oracle and catch the dpkg-`$1` defect in the first artifact. And `oracle` is
+ * derivable from neither: a format built by the platform's own tool forfeits
+ * that independence unless a reader from a DIFFERENT implementation family
+ * exists, which is exactly what `selfReading` is the honest confession of.
+ */
 export interface HostRequirement {
     /** OSes whose tooling can finish this format. `'any'` = pure JS, under GJS, offline. */
     finishOn: 'any' | readonly HostOs[];
