@@ -41,6 +41,7 @@ import {
     plantCatalogue,
     probe,
     scaffold,
+    shipExpectingFailure,
     STAGE_MANIFEST_FILE,
     STAGE_SCHEMA_VERSION,
 } from './fixture.mjs';
@@ -552,6 +553,28 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         }
         assert.match(output, /no `build` script/);
         assert.match(output, /--skip-build/);
+    });
+
+    it('names the exit code when the project build FAILS', () => {
+        // MEASURED before the fix: `gjsify ship: the project's build script
+        // failedcode 1.` The template was `failed${describeExit(result)}` with no
+        // space and no "with", so the one thing an author needs off this line was
+        // welded to the word before it. All 16 other `describeExit` call sites in
+        // this CLI spell it `... with ${...}`; this is the failure path `gjsify
+        // ship` reaches most often and the only one no test ever read.
+        //
+        // `code 1` and not `code 3`, deliberately: `ship` spawns `gjsify run
+        // build`, which prints the script's own status (the line above this one)
+        // and exits 1. The code named here is the CHILD's, which is what
+        // `describeExit` was handed.
+        const dir = scaffold(join(tmpDir, 'build-fails'), (pkg) => {
+            pkg.scripts.build = 'node -e "process.exit(3)"';
+        });
+        // NOT `runCliExpectingFailure`, which passes `--skip-build` — the one
+        // helper here that could never reach the line under test.
+        const output = shipExpectingFailure(['ship'], dir);
+        assert.match(output, /script "build" exited with code 3/);
+        assert.match(output, /the project's build script failed with code 1\./);
     });
 
     it('refuses a GI namespace it cannot map to a package', () => {

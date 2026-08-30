@@ -88,12 +88,13 @@ const { buildZip } = await import(
 );
 
 /** The `--app node` project both phases of this suite pack. */
-function scaffoldNodeApp(dir) {
+function scaffoldNodeApp(dir, mutate) {
     return scaffold(dir, (pkg, at) => {
         pkg.gjsify.app = 'node';
         pkg.gjsify.main = 'dist/app.node.mjs';
         pkg.main = 'dist/app.node.mjs';
         writeFileSync(join(at, 'dist', 'app.node.mjs'), NODE_BUNDLE);
+        if (mutate) mutate(pkg, at);
     });
 }
 
@@ -321,6 +322,60 @@ describe('CLI ship macOS bundle E2E', { timeout: 10 * 60 * 1000 }, () => {
             readFileSync(join(projectDir, 'ship-default', 'stage', STAGE_MANIFEST_FILE), 'utf-8'),
         );
         assert.deepEqual(manifest.formats, ['deb', 'rpm']);
+    });
+
+    it('tells a stage with NO recorded formats what could pack it', () => {
+        // A REACHED "UNREACHABLE" BRANCH. `assertPackable`'s last throw is
+        // commented "UNREACHABLE FROM THE THREE LAYOUTS THAT EXIST … a layout
+        // added without a `FORMATS` row", and this is the two-command route into
+        // it: a `--app node` project whose `gjsify.ship.targets` name only Linux
+        // formats stages darwin with `formats: []`, and the finishing host has
+        // nothing but that empty list. MEASURED before the fix — three false
+        // sentences in one message:
+        //
+        //     gjsify ship: no format wraps the darwin layout, so there is nothing
+        //     to pack. This stage carries the darwin layout and nothing here can
+        //     wrap it … Keep it for the milestone that packs it … Every layout
+        //     this gjsify knows has one, so this is a layout added without a
+        //     `FORMATS` row.
+        //
+        // Three rows wrap darwin, the milestone that packs them landed, and the
+        // real cause — a configured target list for another layout — is nowhere in
+        // it. `packages/infra/cli/package.json` carries exactly that key, so this
+        // is reachable from inside this repository.
+        const dir = scaffoldNodeApp(join(tmpDir, 'targets-elsewhere'), (pkg) => {
+            pkg.gjsify.ship.targets = ['deb', 'rpm'];
+        });
+        runCliSync(CLI_ENTRY, ['ship', 'darwin', '--skip-build', '--arch', ARCH, '--stage'], { cwd: dir });
+        const manifest = JSON.parse(readFileSync(join(dir, 'ship', 'stage', STAGE_MANIFEST_FILE), 'utf-8'));
+        assert.deepEqual(manifest.formats, []);
+
+        const refusal = shipExpectingFailure(['ship', '--from-stage', 'ship/stage'], dir);
+        assert.doesNotMatch(refusal, /no format wraps the darwin layout/);
+        assert.doesNotMatch(refusal, /layout added without a `FORMATS` row/);
+        assert.match(refusal, /records no formats/);
+        // The three that DO wrap it, named — which is the only thing this host can
+        // say, since the reason the list is empty stayed on the assembling host.
+        assert.match(refusal, /macos-app, macos-app-dmg, macos-app-zip/);
+        assert.match(refusal, /--stage --target/);
+    });
+
+    it('names an EMPTY staged format list as empty, not as an blank gap', () => {
+        // The same stage one flag over. `assertFormatsStaged` renders
+        // `manifest.formats.join(', ')` straight into a sentence, so an empty list
+        // printed as nothing: MEASURED before the fix, `gjsify ship --from-stage
+        // ship/stage --target macos-app` began "this stage was assembled for , and
+        // --target names macos-app". The advice on the end was right; the clause
+        // that says WHY was a comma after a space.
+        const dir = scaffoldNodeApp(join(tmpDir, 'targets-elsewhere-target'), (pkg) => {
+            pkg.gjsify.ship.targets = ['deb', 'rpm'];
+        });
+        runCliSync(CLI_ENTRY, ['ship', 'darwin', '--skip-build', '--arch', ARCH, '--stage'], { cwd: dir });
+
+        const refusal = shipExpectingFailure(['ship', '--from-stage', 'ship/stage', '--target', 'macos-app'], dir);
+        assert.doesNotMatch(refusal, /assembled for , and/);
+        assert.match(refusal, /assembled for no format at all/);
+        assert.match(refusal, /gjsify ship --stage --target macos-app/);
     });
 
     it('refuses a `--app gjs` project by name, and still stages its layout', () => {
