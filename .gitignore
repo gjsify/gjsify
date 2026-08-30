@@ -182,3 +182,8 @@ ship/
 # import it, so a `git add -A` would have landed two suites that die at
 # ERR_MODULE_NOT_FOUND while every local run stayed green.
 !tests/e2e/ship/
+
+# Python bytecode. `.github/ship-oracle/*.py` are oracles a contributor imports
+# by hand when reproducing a leg, and CPython writes `__pycache__/` beside them.
+__pycache__/
+*.pyc

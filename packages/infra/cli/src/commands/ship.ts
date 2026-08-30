@@ -39,6 +39,7 @@ import { buildDeb } from '../utils/ship/deb.js';
 import { deriveDepends, warnAboutGjsFloor, warnAboutNodeFloor } from '../utils/ship/depends.js';
 import { isGtkRuntimeTarget, stageAppRuntime, type StagedAppRuntime } from '../utils/ship/app-runtime.js';
 import { discoverPayload } from '../utils/ship/discover.js';
+import { buildDmgImage, dmgVolumeDir, dmgVolumeName } from '../utils/ship/dmg.js';
 import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
 import { localizeMetadata } from '../utils/ship/localize-metadata.js';
 import {
@@ -1072,6 +1073,43 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             // SYNTHESISES it (see `windows-dir-zip`).
             writePayload(target, payload, layout.root(settings));
             break;
+        case 'macos-app-dmg': {
+            // FROM THE STAGE, never from the `out/<App>.app` the row above
+            // writes, and that is a design decision rather than an accident of
+            // where the bytes were handy. Three reasons, in the order they bite:
+            //
+            //  * a `--target macos-app-dmg` run alone must produce a `.dmg`.
+            //    Reading the sibling artifact would make this row depend on
+            //    another row having run, and the only thing that orders them
+            //    today is `resolveFormats`' alphabetical sort — an invariant
+            //    nothing states and `--target macos-app-dmg` on its own breaks.
+            //  * ADR 0024 § A17 fixes the seam for a later `--sign`: `readStage`
+            //    validates the PRE-sign tree, the re-sign runs after it, and the
+            //    container is built after that. A packer that opened an artifact
+            //    would put its container step on the far side of a directory
+            //    nothing validated.
+            //  * the modes. `writePayload` applies the PLAN's modes, which
+            //    `readStage` has already resolved from the manifest; a directory
+            //    copy would inherit whatever the filesystem — or a CI artifact
+            //    round trip — left behind.
+            //
+            // `stripPrefix: ''` and not `layout.root(settings)`, which is the one
+            // line where this differs from the `macos-app` arm above: that
+            // artifact IS the bundle, so the `<App>.app/` prefix comes off; this
+            // one is the VOLUME, and the bundle has to sit inside it or the image
+            // mounts showing `Contents/` — a window with no application in it.
+            const volumeDir = dmgVolumeDir(outRoot);
+            writePayload(volumeDir, payload, '');
+            await buildDmgImage({
+                settings,
+                volumeName: dmgVolumeName(settings),
+                sourceDir: volumeDir,
+                target,
+                workDir: dirname(volumeDir),
+                verbose: input.verbose,
+            });
+            break;
+        }
         case 'macos-app-zip':
             // The SAME payload, in the one container a browser download can be.
             // Written by this tree (`utils/ship/zip.ts`) so the packing host needs

@@ -538,6 +538,62 @@ macOS suite's "every dependency resolves inside the artifact" has no Windows cou
 unzip on `windows-latest` with no gvsbuild GTK and `PATH` reduced to the system directories (so the
 runner's own Node cannot answer), and open a window.
 
+**Landed since, and it is the rest of stage 4: the `.dmg`** (#1354 M4). `macos-app-dmg` is the
+third container over the same `<App>.app`, and the FIRST row in the table that is host-bound in
+§ A1's sense: `finishOn: ['darwin']`, `requiredTools: ['hdiutil']`. A hand-written UDIF writer
+stays rejected on § A6's terms; the image is created by `hdiutil create -format UDZO -fs HFS+J
+-srcfolder <volume> -volname <display name> -ov`. Five things worth recording:
+
+- **The oracle is not `hdiutil verify`,** which § A3 already named as the case this field exists
+  for. The chain runs on LINUX and has four links, and they are not redundant: `7z l -slt` over the
+  UDIF container; `7z t`, which DECOMPRESSES what the container stores and is therefore the only
+  link that sees a byte flipped inside a compressed run; `dmg2img`, a second and unrelated UDIF
+  decoder, which writes the raw volume out; and `fsck.hfsplus -f -n`, Apple's own fsck_hfs sources
+  built for Linux, which walks the catalog and the volume bitmap. The listing then goes against
+  `.gjsify-ship-stage.json` by name, size and MODE. `.github/ship-oracle/verify-dmg.py`. Two things
+  about that chain were only learnable from a real artifact: `7z l -slt` AUTO-NESTS Dmg into HFS, so
+  the header carries two `Type` values and the assertion is the SEQUENCE `['Dmg', 'HFS']`; and
+  `dmg2img in.dmg out.img` writes the whole GPT-partitioned DISK, so the volume has to be named with
+  `-l` + `-p <n>` or `fsck.hfsplus` exits 8 on a correct image.
+- **`-fs HFS+J` is a decision, not a default.** A current `hdiutil` reaches for APFS when nothing
+  says otherwise, and against an APFS volume `dmg2img` produces nothing usable and `fsck.hfsplus`
+  has no subject at all — two of the three readers would silently stop reading, on a host no Linux
+  contributor can inspect. `-format UDZO` (zlib) is the same kind of decision one level down:
+  `ubuntu-latest` is ubuntu-24.04 and ships 7-Zip 23.01, not a contributor workstation's 26.02.
+- **"Flip a byte" is not a negative control, and where it lands decides more than that.** One byte
+  flipped at each offset of the real 31715-byte artifact, exit codes `7z l`/`7z t`/`dmg2img -p 4`:
+  0 through 4096 → 0/0/0 (the data fork opens with the GPT partitions' zero-fill runs, which store
+  and checksum nothing); 8192-15000 → all three refuse; 16000-20000 → `7z l` blind; 24000 →
+  `dmg2img` blind; 28000+ → nothing notices. So `--mutate payload` reads `dataForkOffset` and
+  `dataForkLength` out of the koly trailer and flips the fork's MIDDLE — its first version used the
+  constant 512, landed in padding, and reported a working chain as broken. Two consequences worth
+  keeping: no single reader covers everything, which is a better argument for the chain than "`7z t`
+  is the link that sees the payload"; and roughly the leading 4 KB plus the trailing 3.7 KB of the
+  file is covered by none of them, which is a limit rather than a feature.
+- **The row declares `hdiutil` and NOT `glib-compile-schemas`,** which its two siblings do. The
+  compiler is an assembly tool and `assertToolsInstalled` fires on the pack path; this is the first
+  row whose pack is separated from its assembly by a host boundary, so declaring it would refuse a
+  `--from-stage` pack on a Mac with no GLib — a pack that works, because the compiled cache is
+  already in the stage that arrived.
+- **The packer takes the STAGE, never the `.app` artifact beside it.** Three reasons, and the third
+  is § A17's: a `--target macos-app-dmg` run alone must produce an image, so depending on another
+  row having run would make the alphabetical order of `resolveFormats` a load-bearing invariant
+  nothing states; the modes must come from the plan rather than from a directory a CI round trip
+  touched; and § A17 fixes the seam for a later `--sign` between `readStage` and the container, which
+  a packer that opened an artifact would put on the wrong side of a tree nothing validated.
+
+**And one claim this section made and then had to retract, kept as the record.** It said the `.dmg`
+listing was blind to POSIX modes, on the strength of `7z l -slt` reporting `Mode = 0---------`
+against an empty `mkfs.hfsplus` volume. Measured against a real `hdiutil` image, the same reader
+prints `-rwxr-xr-x` for `Contents/MacOS/<binary>` and `-rw-r--r--` for the rest — so the mode plan
+IS checked, which is the assertion that matters most for a downloaded bundle. The lesson is § 7's
+shape: a measurement taken on a stand-in is a measurement about the stand-in, and the direction of
+this one was the expensive one — it would have removed a check rather than added a wrong one.
+
+**What M4 does not claim.** No leg mounts the image or drags the bundle out of it; `hdiutil`
+produced it and three Linux readers agree on what is inside, and that is the whole claim. And the
+image is not signed or notarised: that is M6.
+
 That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
 stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`
 and deliberately not `--dry-run`, because the run worth having is the one that lays bytes down — then `dpkg --verify`

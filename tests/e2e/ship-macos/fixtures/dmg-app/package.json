@@ -1,0 +1,25 @@
+{
+  "name": "ship-dmg-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The payload a .dmg is built around, for the leg that reads the image back on Linux.",
+  "author": "JumpLink <hello@jumplink.eu>",
+  "homepage": "https://gjsify.org",
+  "license": "MIT",
+  "main": "app/main.node.mjs",
+  "gjsify": {
+    "app": "node",
+    "main": "app/main.node.mjs",
+    "ship": {
+      "appId": "eu.jumplink.ShipDmgDemo",
+      "name": "Ship Dmg Demo",
+      "summary": "Be wrapped in a UDIF image and read back by three Linux tools",
+      "description": "The smallest complete macOS payload gjsify ship can assemble: a launcher, a bundle, a licence, an icon, a desktop entry and an AppStream component.\n\nIt exists so the .dmg leg measures the CONTAINER. What the same tree does when it carries a Node interpreter and a relocated GTK closure is the macos-app-selfcontained leg's subject, and that leg runs the app.",
+      "developer": { "id": "eu.jumplink", "name": "JumpLink", "email": "hello@jumplink.eu" },
+      "license": { "project": "MIT" },
+      "homepageUrl": "https://gjsify.org",
+      "categories": ["Utility"]
+    }
+  }
+}

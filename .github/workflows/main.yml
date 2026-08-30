@@ -1797,11 +1797,20 @@ jobs:
       # tree this job just wrote — there is no file count written down anywhere,
       # because a written-down count is a second copy that drifts and then lies.
       staged-count: ${{ steps.handover.outputs.staged-count }}
+      # The same number for the darwin tree, which is a DIFFERENT payload and not
+      # a second layout of the first — see the step that stages it.
+      staged-count-darwin: ${{ steps.handover-darwin.outputs.staged-count-darwin }}
     env:
       # ONE definition, read by the run blocks AND by the upload's `path:`
       # (`env` is available in `steps[*].with`). A second literal would be the
       # copy that drifts, and the one it drifts from is the upload.
       SHIP_STAGE: packages/infra/cli/ship/stage
+      # The darwin half, as two values rather than one: the project is where the
+      # command is run and the stage is what the upload takes, and spelling the
+      # second as a suffix of the first would make an `--out` change silently
+      # upload the wrong directory.
+      SHIP_STAGE_DARWIN_PROJECT: tests/e2e/ship-macos/fixtures/dmg-app
+      SHIP_STAGE_DARWIN: tests/e2e/ship-macos/fixtures/dmg-app/ship/stage
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/gjsify-setup
@@ -1897,6 +1906,81 @@ jobs:
         with:
           name: ship-stage-linux-x64
           path: ${{ env.SHIP_STAGE }}
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+      # ── #1354 M4: the payload the `.dmg` is built around ──────────────────
+      #
+      # A SECOND STAGE OUT OF THIS ONE JOB, and a second FIXTURE rather than a
+      # second layout of the one above. `packages/infra/cli` is
+      # `gjsify.app: "gjs"`, and every macOS row is `interpreters: ['node']`
+      # because there is no relocatable GJS to put inside a bundle a stranger
+      # downloads (ADR 0024 § 4) — so `assertFormatCanRunInterpreter` refuses the
+      # project the linux half stages. The darwin half needs a `--app node` one.
+      #
+      # AND IT HAS TO STAGE WITH `--skip-build`, for the same reason the linux
+      # half passes that flag: this job's subject is the STAGER, so a bundler run
+      # in front of it is one more thing that can fail in a job that is not about
+      # bundling. `tests/e2e/ship-macos/fixtures/dmg-app` is built for that — its
+      # "bundle" is a hand-written source file and it has no build step at all.
+      #
+      # WHY THE SMALL FIXTURE IS ENOUGH, and where the big one is. `window-app`
+      # beside it carries a Node interpreter and a relocated GTK closure and
+      # OPENS A WINDOW on a Mac, in `node-gi.yml`'s `macos-app-selfcontained`
+      # leg. What the `.dmg` legs measure is the CONTAINER around a `<App>.app`,
+      # and `tests/e2e/ship-macos` asserts the staged tree is byte-identical
+      # across all three macOS containers — which is what lets the cheap payload
+      # stand for the expensive one here, and is also why this leg must never be
+      # read as a claim that the bundle inside the image runs.
+      #
+      # `--arch arm64` because `macos-latest` is Apple silicon and `macosArch`
+      # never collapses an architecture to `all`: the label is in the artifact's
+      # name, so the pack leg has to be the runner that name claims.
+      - name: Stage the darwin payload a .dmg is built around
+        run: su testuser -c "cd $SHIP_STAGE_DARWIN_PROJECT && gjs -m '$GITHUB_WORKSPACE/packages/infra/cli/dist/cli.gjs.mjs' ship darwin --arch arm64 --skip-build --stage --target macos-app-dmg --verbose"
+
+      # The same handover measurement the linux half makes, and it is not
+      # ceremony: the count travels to the pack job as an output, so "the artifact
+      # store lost a file" is caught there against a number derived here rather
+      # than against one written down somewhere.
+      - name: Record what is being handed over to the Mac
+        id: handover-darwin
+        run: |
+          set -euo pipefail
+          if [ ! -f "$SHIP_STAGE_DARWIN/.gjsify-ship-stage.json" ]; then
+            echo "::error title=Ship stage::the darwin --stage wrote no .gjsify-ship-stage.json at the stage root. Phase 2 has no closure to pack from (ADR 0024 § A2) and MUST refuse rather than re-derive."
+            exit 1
+          fi
+          count=$(find "$SHIP_STAGE_DARWIN" -type f ! -name .gjsify-ship-stage.json | wc -l | tr -d '[:space:]')
+          if [ "$count" -eq 0 ]; then
+            echo "::error title=Ship stage::the darwin stage holds only the sidecar. hdiutil would build a valid image over an empty volume, and the Finder shows one of those as a window with nothing in it."
+            exit 1
+          fi
+          # The OVERLAY, asserted on the producing side. `planOverlay` runs where
+          # the project is; `--from-stage` rehydrates rather than plans, so a
+          # sidecar without this key reaches the Mac and is refused there by
+          # `assertOverlayIsLicensed` — in a job with no LICENSE and no project in
+          # reach to fix it.
+          python3 -c "import json,sys;m=json.load(open(sys.argv[1]));sys.exit(0 if m['overlay'].get('macos-app-dmg') else 1)" \
+            "$SHIP_STAGE_DARWIN/.gjsify-ship-stage.json" || {
+            echo "::error title=Ship stage::the darwin sidecar carries no overlay.macos-app-dmg, so the image would ship no licence file and nothing downstream would say so."
+            exit 1
+          }
+          echo "staged-count-darwin=$count" >> "$GITHUB_OUTPUT"
+          echo "staged darwin payload: $count file(s)"
+          find "$SHIP_STAGE_DARWIN" -type f -printf '  %m %10s %P\n' | sort
+
+      # `include-hidden-files` for the sidecar, `if-no-files-found: error` for an
+      # empty upload — the same two flags and the same two reasons as the linux
+      # stage above. The modes in the listing printed by the step before this one
+      # will NOT survive this upload; that is expected, and `readStage` takes
+      # every mode from the plan inside the sidecar for exactly that reason.
+      - name: Upload the darwin stage
+        uses: actions/upload-artifact@v7
+        with:
+          name: ship-stage-darwin-arm64
+          path: ${{ env.SHIP_STAGE_DARWIN }}
           include-hidden-files: true
           retention-days: 1
           if-no-files-found: error
@@ -2235,6 +2319,350 @@ jobs:
           fi
           echo "all three refusals fired"
 
+  # ── #1354 M4: the `.dmg`, packed where its tool lives and read where it is not ──
+  #
+  # THE PAIR BELOW IS ADR 0024 § A1 AS TWO JOBS. A `.dmg` is a UDIF image over a
+  # real HFS+ volume; no HFS+ writer exists anywhere in this tree and `hdiutil` is
+  # macOS-only, so the container is produced on darwin — the first format in this
+  # table for which that is true. § A6 rejects writing one ourselves (1200-2000
+  # lines against a whole packer surface of ~1243, every mistake silent because
+  # the Finder mounts the image and shows an empty window) and names the price:
+  # the artifact is built by the platform's own tool, so the reader must not be.
+  #
+  # WHICH IS WHY THERE ARE TWO JOBS AND NOT ONE. `hdiutil verify` on the pack leg
+  # would be hdiutil reading what hdiutil wrote, and a green leg proving nothing
+  # is this repository's most expensive failure class. Everything the image is
+  # asserted to be is asserted by `ship-read-dmg` below, on Linux, with three
+  # readers from three unrelated implementations.
+  ship-pack-dmg:
+    # `setup` for the Fedora version in the CLI bundle's artifact name;
+    # `ship-stage` for the darwin stage and the file count to check it against.
+    needs: [setup, ship-stage]
+    if: ${{ always() && needs.ship-stage.result == 'success' }}
+    name: Ship pack .dmg (macos-latest, real hdiutil)
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+      STAGE_DIR: incoming/stage
+      ARTIFACTS: artifacts
+      STAGED_COUNT: ${{ needs.ship-stage.outputs.staged-count-darwin }}
+    steps:
+      # THERE IS DELIBERATELY NO `actions/checkout` IN THIS JOB EITHER, and the
+      # argument is `ship-pack-linux`'s, one OS over: a pack phase standing in a
+      # checkout can re-discover a project and stage it again, and every assertion
+      # downstream would still pass — green, having never exercised the handoff.
+      # Here it also buys the thing that makes the Mac leg cheap: no workspace
+      # install, no `build:infra`, no toolchain. The tool arrives as a bundle and
+      # the payload arrives as a stage.
+      - name: Measure this runner and its image writer
+        run: |
+          set -euo pipefail
+          sw_vers
+          echo "arch:   $(uname -m)"
+          echo "hdiutil: $(command -v hdiutil || echo ABSENT)"
+          # `hdiutil` is part of macOS and cannot be installed, so its absence is a
+          # broken runner rather than a missing package — which is exactly what the
+          # format row's `installHint` says, and this is where that sentence is
+          # measured instead of assumed.
+          command -v hdiutil >/dev/null || {
+            echo "::error title=Ship .dmg::hdiutil is not on PATH on a macOS runner. It ships with the OS; there is no package to install."
+            exit 1
+          }
+
+      # The CLI bundle is `--app gjs`, so the pack host needs a GJS. Homebrew's
+      # is the one `macos-suites.yml` uses, and the symlink below is that
+      # workflow's measured repair rather than a precaution: `GjsPrivate-1.0.typelib`
+      # names its library by BARE LEAF (`libgjs.0.dylib`) and Homebrew's `gjs`
+      # carries exactly one rpath, into GLib's keg. The obvious fix —
+      # `DYLD_LIBRARY_PATH` — cannot work, because SIP strips every `DYLD_*`
+      # variable when a protected binary is exec'd and `/bin/sh` is protected, so
+      # the value dies at the first `run:` boundary. A symlink at the location the
+      # existing rpath already names needs no variable at all.
+      - name: Install GJS, the CLI bundle's interpreter
+        run: brew install gjs
+
+      - name: Make libgjs resolvable without a DYLD_ variable
+        run: |
+          set -euo pipefail
+          prefix="$(brew --prefix)"
+          ln -sfn "$prefix/opt/gjs/lib/libgjs.0.dylib" "$prefix/opt/glib/lib/libgjs.0.dylib"
+          ls -l "$prefix/opt/glib/lib/libgjs.0.dylib"
+          gjs --version
+
+      # Two downloads, two explicit destinations — the same shape and the same
+      # v0.26.1 lesson as `ship-pack-linux`. The bundle artifact is rooted at
+      # `packages/infra` (the LCA of the two paths its producer uploads), so it
+      # lands as `tool/cli/dist/cli.gjs.mjs`.
+      - name: Download the CLI bundle (the tool)
+        uses: actions/download-artifact@v8
+        with:
+          name: bootstrap-bundles-fedora${{ fromJSON(needs.setup.outputs.fedora-matrix)[0].v }}
+          path: tool
+      - name: Download the darwin stage (the payload)
+        uses: actions/download-artifact@v8
+        with:
+          name: ship-stage-darwin-arm64
+          path: incoming/stage
+
+      # The same two hazards `ship-pack-linux` observes on arrival, and they are
+      # not Linux's: the artifact round-trip stores no POSIX mode (so the bundle
+      # has to be chmodded before `gjs` can be pointed at it, and every staged
+      # file arrives 0644), and a directory upload arrives as its CONTENTS (so a
+      # missing sidecar means the archive was rooted somewhere else or the dotfile
+      # was filtered out).
+      - name: Inspect what actually arrived
+        run: |
+          set -euo pipefail
+          chmod 0755 tool/cli/dist/cli.gjs.mjs
+          echo "arriving stage:"
+          find "$STAGE_DIR" -type f -exec stat -f '  %Lp %10z %N' {} \; | sort
+          if [ ! -f "$STAGE_DIR/.gjsify-ship-stage.json" ]; then
+            echo "::error title=Ship handoff::$STAGE_DIR/.gjsify-ship-stage.json did not arrive. actions/upload-artifact excludes hidden files unless include-hidden-files is set, and roots the archive at the least common ancestor of the producer's paths; if either moved, this download's path: has to move with it."
+            exit 1
+          fi
+          arrived=$(find "$STAGE_DIR" -type f ! -name .gjsify-ship-stage.json | wc -l | tr -d '[:space:]')
+          if [ "$arrived" != "$STAGED_COUNT" ]; then
+            echo "::error title=Ship handoff::the stage job staged $STAGED_COUNT payload file(s); $arrived arrived. The artifact store lost or added files."
+            exit 1
+          fi
+          echo "$arrived payload file(s) arrived intact"
+
+      # THE FINISH PHASE. No project on this machine, so everything in the image
+      # came out of the stage. No `--target` either: on the from-stage path an
+      # omitted target means the stage's OWN formats, so this packs exactly what
+      # was assembled and proves that list round-trips through the sidecar —
+      # spelled `macos-app-dmg` here it would be one more hand-maintained copy of
+      # the format vocabulary.
+      #
+      # `--expect-target darwin-arm64` because this leg IS a claim about the
+      # architecture: `macos-latest` is Apple silicon, the artifact's name carries
+      # `arm64`, and a stage cut for the Intel image would otherwise pack happily
+      # and be named after a machine it was not built for.
+      - name: Pack the .dmg from the stage alone
+        run: |
+          set -euo pipefail
+          # The tool, before the work: this is the first thing in this repository
+          # to run the CLI bundle under a Homebrew GJS on macOS, and "gjs cannot
+          # load the bundle" and "the pack failed" are two different diagnoses
+          # that would otherwise arrive as one red step.
+          gjs -m tool/cli/dist/cli.gjs.mjs --version
+          gjs -m tool/cli/dist/cli.gjs.mjs ship --from-stage "$STAGE_DIR" \
+            --expect-target darwin-arm64 --out "$ARTIFACTS" --verbose
+          find "$ARTIFACTS" -type f | sort
+
+      # `find` + a count, never a hardcoded filename: the name carries the version
+      # and the arch label, and "packed nothing" must not be indistinguishable
+      # from "packed everything".
+      - name: Locate exactly one .dmg
+        id: art
+        run: |
+          set -euo pipefail
+          hits=$(find "$ARTIFACTS" -type f -name '*.dmg' | sort)
+          count=$(printf '%s\n' "$hits" | grep -c . || true)
+          if [ "$count" != "1" ]; then
+            echo "::error title=Ship pack::expected exactly one .dmg under $ARTIFACTS, found $count."
+            exit 1
+          fi
+          echo "dmg=$hits" >> "$GITHUB_OUTPUT"
+          ls -l "$hits"
+
+      # INFORMATIONAL AND DELIBERATELY NOT A GATE. `hdiutil imageinfo` is hdiutil
+      # reading what hdiutil wrote — ADR 0024 § A3 names this exact reader as the
+      # one that does not count. It is printed because a human diagnosing the
+      # Linux leg should see what the writer thought it produced, and it is
+      # followed by `|| true` so it can never turn this job green or red.
+      - name: What hdiutil thinks it wrote (not a check)
+        env:
+          DMG: ${{ steps.art.outputs.dmg }}
+        run: |
+          hdiutil imageinfo "$DMG" | sed -n '1,40p' || true
+
+      # THE STEP OUTPUT, not a glob, and the first draft's glob is why. `ship
+      # --out artifacts` writes the artifact to `artifacts/out/`, not to
+      # `artifacts/` — `packOne` joins `out` onto the output root — so
+      # `path: artifacts/*.dmg` matched nothing and the upload failed with "No
+      # files were found with the provided path". `ship-pack-linux` never noticed
+      # the same layout because it locates its artifacts with a RECURSIVE `find`.
+      # The locate step above already derived the exact path; reading it back is
+      # one spelling of the layout instead of two.
+      #
+      # `if-no-files-found: error` stays, and it is what turned that mistake into
+      # a red step here rather than a missing file in the reader job two jobs on.
+      - name: Upload the .dmg
+        uses: actions/upload-artifact@v7
+        with:
+          name: ship-dmg-darwin-arm64
+          path: ${{ steps.art.outputs.dmg }}
+          retention-days: 1
+          if-no-files-found: error
+
+  # THE HALF THAT EARNS THE MILESTONE. Everything above runs on the machine that
+  # WROTE the image; this reads it back somewhere else, with tools from three
+  # unrelated codebases, and compares the result against the sidecar the stage
+  # travelled with.
+  #
+  # BARE `ubuntu-latest`, NO `container:`, and that is what keeps M4 out of the
+  # Dockerfile-then-test ordering trap: `build-ci-image.yml` publishes
+  # `ghcr.io/gjsify/ci-fedora` only on a push to `main`, so a PR that adds a
+  # package to the image AND a test that hard-requires it can never go green. The
+  # three readers arrive by `apt-get` on a runner the image does not own — the
+  # same route `ship-pack-linux` takes for `gjs` and `lintian`, and the reason
+  # this milestone needs no Dockerfile change at all.
+  ship-read-dmg:
+    needs: [ship-stage, ship-pack-dmg]
+    if: ${{ always() && needs.ship-pack-dmg.result == 'success' }}
+    name: Ship read .dmg back (bare ubuntu, 7z + dmg2img + fsck.hfsplus)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    env:
+      STAGE_DIR: incoming/stage
+    steps:
+      # NO CHECKOUT here either. The readers travel as the `ship-oracle` artifact
+      # exactly as they do for the `.deb`, so this job holds the image, the
+      # sidecar and three scripts and nothing else.
+      - name: Measure this runner, then install the three readers
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          echo "os: ${PRETTY_NAME:-unknown}"
+          # INSTALLED, never probed. `tests/e2e/ship`'s `probe()` rule applies
+          # here with force: every assertion in `verify-dmg.py` sits behind one of
+          # these three, so a silently absent reader would leave this job green
+          # having read nothing.
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends 7zip dmg2img hfsprogs
+          # The versions, in the log rather than in a comment. What each is FOR is
+          # in `.github/ship-oracle/verify-dmg.py`'s header; what matters here is
+          # that 7-Zip on ubuntu-24.04 is 23.01 and not this project's
+          # workstation's 26.02 — which is why the image is asked for as UDZO
+          # (zlib) rather than ULFO/ULMO, and why `-fs HFS+J` rather than the
+          # APFS a modern hdiutil defaults to.
+          7z i | sed -n '1,3p'
+          7z i | grep -E '  (Dmg|HFS|APFS) ' || {
+            echo "::error title=Ship .dmg::this 7-Zip advertises no Dmg/HFS/APFS handler, so it cannot be the reader."
+            exit 1
+          }
+          dmg2img -V 2>&1 | head -2 || true
+          fsck.hfsplus -V 2>&1 | head -2 || true
+
+      - name: Download the .dmg
+        uses: actions/download-artifact@v8
+        with:
+          name: ship-dmg-darwin-arm64
+          path: incoming/dmg
+      - name: Download the darwin stage (what the image is compared against)
+        uses: actions/download-artifact@v8
+        with:
+          name: ship-stage-darwin-arm64
+          path: incoming/stage
+      - name: Download the artifact readers
+        uses: actions/download-artifact@v8
+        with:
+          name: ship-oracle
+          path: oracle
+
+      - name: Locate the image that arrived
+        id: art
+        run: |
+          set -euo pipefail
+          hits=$(find incoming/dmg -type f -name '*.dmg' | sort)
+          count=$(printf '%s\n' "$hits" | grep -c . || true)
+          if [ "$count" != "1" ]; then
+            echo "::error title=Ship .dmg::expected exactly one .dmg to arrive, found $count."
+            find incoming -maxdepth 3 | head -50
+            exit 1
+          fi
+          echo "dmg=$hits" >> "$GITHUB_OUTPUT"
+          ls -l "$hits"
+
+      # GREEN. The whole chain: 7-Zip's Dmg handler over the container, `7z t` to
+      # decompress what it stores, dmg2img to a raw volume, `fsck.hfsplus -f -n`
+      # over that, and 7-Zip's HFS handler for the listing — compared against
+      # `.gjsify-ship-stage.json` by name and size.
+      - name: Read the image back and hold it against the stage
+        env:
+          DMG: ${{ steps.art.outputs.dmg }}
+        run: python3 oracle/verify-dmg.py "$DMG" "$STAGE_DIR/.gjsify-ship-stage.json"
+
+      # RED, THREE TIMES, ONE PER READER. Without these the whole job is one
+      # script that could `exit 0` unconditionally, and a green run would say
+      # nothing at all — the failure class this repository pays for most.
+      #
+      # THREE and not one, because a single byte flip does not red them all — and
+      # WHERE it lands decides more than that. Measured on the real 31715-byte
+      # artifact, one byte flipped: at 0/256/512/1024/2048/4096 no reader notices
+      # (the data fork opens with the GPT partitions' zero-fill runs, which store
+      # and checksum nothing), at 16000 `7z l` is blind while `7z t` and dmg2img
+      # refuse, at 24000 dmg2img is blind while both 7-Zip reads refuse, and past
+      # 28000 nothing notices again. `verify-dmg.py` carries the full map; the
+      # consequence here is that `--mutate payload` derives its offset from the
+      # koly trailer's own `dataForkOffset`/`dataForkLength` instead of using a
+      # constant, because the constant it used first landed in padding and the
+      # chain accepted the mutant.
+      - name: RED — the readers refuse a corrupted UDIF trailer
+        env:
+          DMG: ${{ steps.art.outputs.dmg }}
+        run: |
+          set -euo pipefail
+          python3 oracle/verify-dmg.py "$DMG" --mutate koly --out mutant-koly.dmg
+          if python3 oracle/verify-dmg.py mutant-koly.dmg "$STAGE_DIR/.gjsify-ship-stage.json"; then
+            echo "::error title=Ship .dmg::the chain accepted an image whose UDIF trailer magic was corrupted, so it is not reading the container."
+            exit 1
+          fi
+          echo "refused, as it must"
+
+      - name: RED — the readers refuse a corrupted compressed run
+        env:
+          DMG: ${{ steps.art.outputs.dmg }}
+        run: |
+          set -euo pipefail
+          python3 oracle/verify-dmg.py "$DMG" --mutate payload --out mutant-payload.dmg
+          if python3 oracle/verify-dmg.py mutant-payload.dmg "$STAGE_DIR/.gjsify-ship-stage.json"; then
+            echo "::error title=Ship .dmg::the chain accepted an image with a byte flipped at the middle of its data fork — the offset is read from the koly trailer, so it is compressed payload and not padding. See verify-dmg.py's coverage map."
+            exit 1
+          fi
+          echo "refused, as it must"
+
+      - name: RED — fsck.hfsplus refuses a corrupted volume signature
+        env:
+          DMG: ${{ steps.art.outputs.dmg }}
+        run: |
+          set -euo pipefail
+          # The mutant is a raw VOLUME rather than an image: fsck's subject is the
+          # filesystem, and the only way to hand it one is to convert first. That
+          # is what `--kind volume` verifies.
+          python3 oracle/verify-dmg.py "$DMG" --mutate volume --out mutant-volume.img
+          if python3 oracle/verify-dmg.py mutant-volume.img "$STAGE_DIR/.gjsify-ship-stage.json" --kind volume; then
+            echo "::error title=Ship .dmg::fsck.hfsplus called a volume with a corrupted HFS+ signature OK, so the deepest reader in the chain is not reading."
+            exit 1
+          fi
+          echo "refused, as it must"
+
+      # And the positive control for the mutation machinery itself: the UNTOUCHED
+      # volume must still pass the `--kind volume` path. Without it, a `--mutate`
+      # that corrupted the wrong thing — or a `--kind volume` branch that refused
+      # everything — would read as three working discriminators.
+      #
+      # `--extract` AND NOT A BARE `dmg2img`, which is what this step ran first and
+      # what made the control fail with `fsck.hfsplus … exited 8` on a correct
+      # image: `dmg2img <dmg> <out>` writes the whole GPT-partitioned disk, and the
+      # oracle had already been fixed to name the `Apple_HFS` partition while this
+      # step kept its own copy of the wrong call. The extraction has one spelling
+      # now, and it is not this file's.
+      - name: CONTROL — the untouched volume passes the same reader
+        env:
+          DMG: ${{ steps.art.outputs.dmg }}
+        run: |
+          set -euo pipefail
+          python3 oracle/verify-dmg.py "$DMG" --extract control.img
+          python3 oracle/verify-dmg.py control.img "$STAGE_DIR/.gjsify-ship-stage.json" --kind volume
+
   # ── Coverage summary ────────────────────────────────────────────────
   # Answers the question a green PR does NOT answer on its own: what did this
   # run actually check, and what did it deliberately NOT check?
@@ -2259,7 +2687,7 @@ jobs:
   # Never gates. Its output is the step summary, not its exit code.
   ci-summary:
     name: CI coverage summary
-    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux]
+    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -2288,6 +2716,8 @@ jobs:
           R_BROWSER: ${{ needs.browser.result }}
           R_SHIP_STAGE: ${{ needs.ship-stage.result }}
           R_SHIP_PACK: ${{ needs.ship-pack-linux.result }}
+          R_SHIP_DMG_PACK: ${{ needs.ship-pack-dmg.result }}
+          R_SHIP_DMG_READ: ${{ needs.ship-read-dmg.result }}
           C_SKIP_ALL: ${{ needs.changes.outputs.skip-all }}
           C_GLOBAL: ${{ needs.changes.outputs.global }}
           C_INCLUDE: ${{ needs.changes.outputs.include-args }}
@@ -2319,6 +2749,8 @@ jobs:
             printf '| Browser (Playwright/Firefox) | `%s` |\n'  "$R_BROWSER"
             printf '| Ship: stage (assemble) | `%s` |\n'        "$R_SHIP_STAGE"
             printf '| Ship: pack + install (dpkg/rpm) | `%s` |\n' "$R_SHIP_PACK"
+            printf '| Ship: pack .dmg (macOS, hdiutil) | `%s` |\n' "$R_SHIP_DMG_PACK"
+            printf '| Ship: read .dmg back (Linux, 7z/dmg2img/fsck) | `%s` |\n' "$R_SHIP_DMG_READ"
             echo
             echo "### Why"
             echo
@@ -2412,7 +2844,7 @@ jobs:
   # produces a fresh verdict anyway.
   gate:
     name: CI gate (GJS)
-    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux]
+    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -2509,6 +2941,8 @@ jobs:
             browser=${{ needs.browser.result }}
             ship-stage=${{ needs.ship-stage.result }}
             ship-pack-linux=${{ needs.ship-pack-linux.result }}
+            ship-pack-dmg=${{ needs.ship-pack-dmg.result }}
+            ship-read-dmg=${{ needs.ship-read-dmg.result }}
         run: |
           set -euo pipefail
           bad=0

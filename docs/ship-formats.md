@@ -52,8 +52,29 @@ Linux workstation does all of it — and both nonetheless declare
 `assertToolsInstalled` is separate from `assertHostCanFinish` for. `glib-compile-schemas` is GLib's
 own and runs on all three OSes, so declaring it does not make the format host-bound.
 
-`windows-dir` and `windows-dir-zip` (#1354 M3) are the same pair one OS over and carry the same
-`requiredTools` for the same reason. The one row-level difference is the ARTIFACT: a `<App>.app`
+`macos-app-dmg` (#1354 M4) is the FIRST row that is host-bound by its container rather than by its
+application. Flatpak is `finishOn: ['linux']` because flatpak runs on Linux — the format is bound
+the way the app is. A `.dmg` is a UDIF image over a real HFS+/APFS volume, no HFS+/APFS writer
+exists anywhere in this tree, and `hdiutil` is macOS-only — while the `<App>.app` it wraps
+assembles anywhere. So `assertHostCanFinish` refuses it off darwin and names the two-phase route,
+and that route is the whole point of § A2 rather than a consolation.
+
+Two things about the row read as inconsistencies and are not:
+
+- **`requiredTools: ['hdiutil']` and NOT `glib-compile-schemas`**, which its two siblings declare.
+  The compiler is an ASSEMBLY tool — `utils/ship/schemas.ts` runs it while the tree is staged —
+  and `assertToolsInstalled` fires on the PACK path. This is the first row whose pack phase is
+  separated from its assembly by a host boundary, so declaring it would refuse a `--from-stage`
+  pack on a Mac with no GLib: a pack that works, because `gschemas.compiled` is already in the
+  stage that arrived. The assembly-time absence is still caught, by `compileSchemasForStage`'s own
+  `ENOENT` refusal, on the host that can act on it.
+- **The `installHint` names no package.** `hdiutil` ships with macOS and exists nowhere else, and
+  `assertHostCanFinish` has already refused every non-darwin host by the time the tool check can
+  fire — so the only reader of that hint is somebody on a Mac whose `/usr/bin` is broken, and a
+  hint sending them to `brew` would be worse than none.
+
+`windows-dir` and `windows-dir-zip` (#1354 M3) are the `macos-app`/`macos-app-zip` pair one OS
+over and carry the same `requiredTools` for the same reason. The one row-level difference is the ARTIFACT: a `<App>.app`
 carries its own directory in the stage (`Layout.root`), because it is dragged to `/Applications` as
 one object, while a Windows program directory does not — an installer chooses
 `C:\Program Files\<Publisher>\<App>` and lays the stage's CONTENTS into it. So `windows-dir` writes
@@ -82,10 +103,52 @@ measures nothing — the reason this field is a required one rather than prose:
 | `windows-dir` | `file(1)` | not baked into the CI image, and a job using a tool the image never carries trips `scripts/check-ci-image-packages.mjs` | CPython `struct` + `cmd.exe` |
 | `windows-dir` | our own `binary.mjs` | it is the reader under test — a PE read by the same family that staged it is not an oracle | " |
 | `windows-dir-zip` | `unzip -Z1` | as above; and here it is also blind to the archive's own failure, entries written at the ROOT | `zipinfo -l` |
+| `macos-app-dmg` | `hdiutil verify` / `hdiutil imageinfo` | hdiutil reading what hdiutil wrote — ADR 0024 § A3 names this format as the case the field exists for | `7z l` + `7z t` + `dmg2img` + `fsck.hfsplus -f -n`, on **Linux** |
+| `macos-app-dmg` | `7z l` alone | it decodes only what its nested HFS listing needs — measured blind to a byte flipped at offset 16000 of a real image, which `7z t` and `dmg2img` both refuse | " |
+| `macos-app-dmg` | `dmg2img in.dmg out.img` | writes the whole GPT-partitioned DISK (measured: eight partitions), so the HFS+ volume header is not at offset 1024 and `fsck.hfsplus` exits 8 on a correct image | `dmg2img -l` to find the `Apple_HFS` partition, then `dmg2img -p <n>` |
 
 `bsdtar` was the other zip candidate and is absent here and in the CI image; adding it would trip
 `scripts/check-ci-image-packages.mjs`. `zipinfo` ships in the `unzip` package that is already
 baked.
+
+**No single reader in the `.dmg` chain covers everything, and roughly a quarter of the file is
+covered by none of them.** One byte flipped at each offset of the real 31715-byte artifact (data
+fork 0-22939, XML plist 22939-31203, koly trailer 31203-31715), exit codes:
+
+| offset | `7z l` | `7z t` | `dmg2img -p 4` |
+|---|---|---|---|
+| 0 · 256 · 512 · 1024 · 2048 · 4096 | 0 | 0 | 0 |
+| 8192 · 12288 · 15000 | 2 | 2 | 1 |
+| 16000 · 20000 | **0** | 2 | 1 |
+| 24000 | 2 | 2 | **0** |
+| 28000 · 31000 | 0 | 0 | 0 |
+
+The leading kilobytes are the `Zero0`/`Zero2` runs of the GPT header and table partitions, which
+store nothing and checksum nothing; the trailing ones are plist and trailer padding. That is why
+`verify-dmg.py --mutate payload` reads `dataForkOffset`/`dataForkLength` out of the koly trailer and
+flips the fork's MIDDLE — its first version used the constant 512, landed in padding, and reported
+"the readers are not doing their job" about a chain that was working.
+
+The `.dmg` chain is the one set of readers that is NOT in the CI image, and deliberately so.
+`build-ci-image.yml` publishes `ghcr.io/gjsify/ci-fedora` only on a push to `main`, so a PR that
+adds a package to the image AND a test hard-requiring it can never go green. The reader leg is
+therefore a bare `ubuntu-latest` job with no `container:` — the shape `ship-pack-linux` already
+has — and the three tools arrive by `apt-get install -y 7zip dmg2img hfsprogs`. Measured on
+`ubuntu:24.04`: 7zip `23.01+dfsg-11` (whose `7z i` lists `Dmg`, `HFS` and `APFS`), dmg2img
+`1.6.7-1build4`, hfsprogs `540.1.linux3-5build3` providing `/usr/sbin/fsck.hfsplus`. Note that
+`scripts/check-ci-image-packages.mjs` would not have caught the alternative: its
+"does a job use a tool the image lacks" question covers `NODE_TOOLS` only, and it skips a job with
+no `container:` outright.
+
+**A measurement taken on a stand-in is a measurement about the stand-in.** The first cut of this
+section said the `.dmg` chain was blind to POSIX modes, because `7z l -slt` reports
+`Mode = 0---------` on an empty `mkfs.hfsplus` volume. That did not survive a real artifact: on the
+`hdiutil` image the same reader printed `Mode = -rwxr-xr-x` for `Contents/MacOS/<binary>` and
+`-rw-r--r--` for the other seven (run 33283043393). So the oracle compares modes against the
+sidecar's `staged[].mode` too — which matters more here than anywhere else, since the artifact
+upload flattens every staged file to 0644 and the sidecar is the only surviving record. Kept as the
+record rather than deleted, because the wrong claim was the kind that removes an assertion: a doc
+saying "this cannot be checked" is how a checkable thing stops being checked.
 
 Both gates (`assertHostCanFinish`, `assertToolsInstalled`) run BEFORE the project's `build` script,
 because discovering an absent `flatpak-builder` afterwards costs the whole build. They are two

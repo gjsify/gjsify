@@ -64,7 +64,15 @@ export interface ShipArtifact {
  * TEXTUALLY and fails if a comment gives it a second match, which is why this one
  * describes the union without quoting its head.
  */
-export type FormatId = 'deb' | 'rpm' | 'flatpak' | 'macos-app' | 'macos-app-zip' | 'windows-dir' | 'windows-dir-zip';
+export type FormatId =
+    | 'deb'
+    | 'rpm'
+    | 'flatpak'
+    | 'macos-app'
+    | 'macos-app-zip'
+    | 'macos-app-dmg'
+    | 'windows-dir'
+    | 'windows-dir-zip';
 
 /**
  * The formats whose ARTIFACT carries a distro dependency list.

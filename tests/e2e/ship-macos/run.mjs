@@ -902,3 +902,156 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
         assert.match(launcher, /^exec node "\$contents\/Resources\/lib\/app\.node\.mjs" "\$@"$/m);
     });
 });
+
+// ── M4: the `.dmg` around the bundle ──────────────────────────────────────────
+//
+// WHAT THIS HALF CAN CLAIM AND WHERE THE REST LIVES. A `.dmg` is a UDIF image
+// over an HFS+ volume, `hdiutil` is the only writer of one, and `hdiutil` is
+// macOS-only — so on the host this suite runs on there is no image to read and
+// nothing here pretends otherwise. What IS checkable from Linux is the half that
+// decides whether the darwin leg can succeed at all, and every assertion below
+// is a hazard that would otherwise surface two jobs later as an inscrutable
+// failure on a machine no contributor here has:
+//
+//   * the REFUSAL. `--target macos-app-dmg` on Linux must stop before the
+//     project's build script runs and must name the two-phase route, or the
+//     first person who tries it reads "unsupported".
+//   * the STAGE. `--stage` must still assemble — assembly is not host-bound
+//     (ADR 0024 § A1) — and the sidecar must carry this format's own licence
+//     OVERLAY. Without it the Mac gets a stage `assertOverlayIsLicensed` refuses,
+//     after the upload, in a job with no project in reach to fix it.
+//   * the PAYLOAD. Three containers, one tree: the stage assembled for the
+//     `.dmg` has to be byte-identical to the one the `.app` is packed from, or
+//     ADR 0024 § 2's claim is false at exactly the row that first tested it.
+//
+// The artifact itself is read back by `.github/ship-oracle/verify-dmg.py` on the
+// bare-ubuntu leg — `7z l`, `7z t`, `dmg2img` and `fsck.hfsplus -f -n`, three
+// implementations and none of them `hdiutil` — and the listing goes against the
+// sidecar by name, size AND mode. Its red runs are there too, because the byte
+// each one flips has to be flipped in a real image.
+
+describe('CLI ship macOS .dmg E2E (the Linux half)', { timeout: 10 * 60 * 1000 }, () => {
+    let tmpDir;
+    let projectDir;
+
+    before(() => {
+        if (!existsSync(CLI_ENTRY)) throw new Error(`CLI entry not built: ${CLI_ENTRY}`);
+        tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ship-dmg-'));
+        projectDir = scaffoldNodeApp(join(tmpDir, 'app'));
+    });
+
+    after(() => {
+        if (!process.env.GJSIFY_E2E_KEEP_TEMP) rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('refuses to pack a .dmg here, and names the host and the route', () => {
+        const refusal = shipExpectingFailure(
+            ['ship', 'darwin', '--skip-build', '--arch', ARCH, '--target', 'macos-app-dmg'],
+            projectDir,
+        );
+        assert.match(refusal, /a macos-app-dmg artifact is packed on darwin/);
+        // A refusal that stops at "no" sends the reader looking for a feature
+        // flag. These two words are the whole answer.
+        assert.match(refusal, /--stage/);
+        assert.match(refusal, /--from-stage/);
+        // …and it must not be the TOOL refusal, which is a different fix. On this
+        // host `hdiutil` is absent too, so a check that ran the two assertions in
+        // the wrong order would report a missing package to somebody whose problem
+        // is the operating system.
+        assert.doesNotMatch(refusal, /is not on PATH/);
+    });
+
+    it('refuses BEFORE the project build, not after it', () => {
+        // `gjsify ship` runs the project's own `build` script first, and finding
+        // out afterwards that the host is wrong costs the whole build. The
+        // discriminator is the scaffold's real build script: it writes
+        // `dist/gjs.js`, so a file that stays deleted is a build that never ran.
+        // Without `--skip-build`, deliberately — this is the one assertion in the
+        // suite for which the flag would remove the subject.
+        const built = join(projectDir, 'dist', 'gjs.js');
+        rmSync(built, { force: true });
+        shipExpectingFailure(['ship', 'darwin', '--arch', ARCH, '--target', 'macos-app-dmg'], projectDir);
+        assert.ok(!existsSync(built), 'the project was built before the host refusal — the refusal is too late');
+    });
+
+    it('stages the .dmg payload anyway, because assembly is not host-bound', () => {
+        // ADR 0024 § A1's rule, as behaviour: a container is produced where its
+        // format's tool lives, and NOTHING ELSE about the format is. This is the
+        // command the darwin leg's input comes from.
+        runCliSync(
+            CLI_ENTRY,
+            ['ship', 'darwin', '--skip-build', '--stage', '--arch', ARCH, '--target', 'macos-app-dmg', '--out', 'dmg'],
+            { cwd: projectDir },
+        );
+        const stage = join(projectDir, 'dmg', 'stage');
+        const manifest = JSON.parse(readFileSync(join(stage, STAGE_MANIFEST_FILE), 'utf-8'));
+        assert.deepEqual(manifest.formats, ['macos-app-dmg']);
+        assert.ok(listPayload(stage).includes(`${APP_NAME}.app/Contents/Info.plist`));
+    });
+
+    it('carries the .dmg licence overlay, which only this host can render', () => {
+        // THE HAZARD THIS SUITE EXISTS FOR MOST. `planOverlay` runs where the
+        // project is; `--from-stage` never plans anything, it rehydrates what the
+        // sidecar carries. A stage assembled without this format in `--target`
+        // reaches the Mac with `overlay['macos-app-dmg']` absent, and
+        // `assertOverlayIsLicensed` refuses it there — in a job with no LICENSE,
+        // no project and nothing to re-run.
+        const manifest = JSON.parse(readFileSync(join(projectDir, 'dmg', 'stage', STAGE_MANIFEST_FILE), 'utf-8'));
+        const overlay = manifest.overlay['macos-app-dmg'];
+        assert.ok(Array.isArray(overlay) && overlay.length > 0, 'the stage carries no macos-app-dmg overlay');
+        // LAYOUT-MAPPED, not prefix-relative: the overlay travels already placed
+        // (`Contents/Resources/share/...`), which is what lets `writePayload` on
+        // the far host rebase the whole payload against `<App>.app/` in one pass.
+        // A prefix-relative path here would land the licence beside the bundle.
+        assert.deepEqual(
+            overlay.map((file) => file.path),
+            [`${APP_NAME}.app/Contents/Resources/share/licenses/${BINARY}/LICENSE`],
+        );
+    });
+
+    it('is the SAME payload the .app is packed from — one tree, three containers', () => {
+        // ADR 0024 § 2's central claim, at the row that first put it under
+        // pressure: a new format is a descriptor and a packer, never a second
+        // payload. Compared by CONTENT and not by file list, because a list
+        // comparison passes for two trees whose files differ.
+        runCliSync(
+            CLI_ENTRY,
+            ['ship', 'darwin', '--skip-build', '--stage', '--arch', ARCH, '--target', 'macos-app', '--out', 'app'],
+            { cwd: projectDir },
+        );
+        const dmgStage = join(projectDir, 'dmg', 'stage');
+        const appStage = join(projectDir, 'app', 'stage');
+        const digests = (root) => Object.fromEntries(listPayload(root).map((rel) => [rel, sha256(join(root, rel))]));
+        assert.deepEqual(digests(dmgStage), digests(appStage));
+        // The one file that legitimately differs is the sidecar, which is not
+        // payload: it records the format the stage was assembled for.
+        const formatsOf = (root) => JSON.parse(readFileSync(join(root, STAGE_MANIFEST_FILE), 'utf-8')).formats;
+        assert.deepEqual(formatsOf(dmgStage), ['macos-app-dmg']);
+        assert.deepEqual(formatsOf(appStage), ['macos-app']);
+    });
+
+    it('refuses the finish phase here too, so a Linux CI leg cannot pack one by accident', () => {
+        // The SECOND refusal, on the other entry point. `--from-stage` resolves
+        // its formats from the sidecar rather than from a flag, so a check that
+        // only guarded the `--target` path would let a stage assembled for the
+        // `.dmg` be packed by whatever host downloaded it — and `hdiutil`'s
+        // absence would be the only thing stopping it.
+        const refusal = shipExpectingFailure(
+            ['ship', '--from-stage', join(projectDir, 'dmg', 'stage'), '--out', 'nope'],
+            projectDir,
+        );
+        assert.match(refusal, /a macos-app-dmg artifact is packed on darwin/);
+    });
+
+    it('a bare darwin stage still names only the two rows that need no Mac', () => {
+        // The regression the third row is most able to cause. It is host-bound, so
+        // it must stay out of the derived default set exactly as flatpak does —
+        // otherwise `gjsify ship darwin` on a Linux CI runner starts demanding a
+        // Mac of every project that only ever wanted a `.app`.
+        runCliSync(CLI_ENTRY, ['ship', 'darwin', '--skip-build', '--stage', '--arch', ARCH, '--out', 'bare'], {
+            cwd: projectDir,
+        });
+        const manifest = JSON.parse(readFileSync(join(projectDir, 'bare', 'stage', STAGE_MANIFEST_FILE), 'utf-8'));
+        assert.deepEqual(manifest.formats, ['macos-app', 'macos-app-zip']);
+    });
+});
