@@ -114,6 +114,7 @@ filesystem's integrity, not every byte of the file.
 Usage:
     python3 verify-dmg.py <image> <stage manifest.json> [--kind dmg|volume]
     python3 verify-dmg.py <image> --mutate koly|payload|volume --out <path>
+    python3 verify-dmg.py <image> --extract <path>          # the HFS+ volume, unmodified
 """
 
 from __future__ import annotations
@@ -577,11 +578,23 @@ def main() -> None:
     parser.add_argument("manifest", nargs="?")
     parser.add_argument("--kind", choices=["dmg", "volume"], default="dmg")
     parser.add_argument("--mutate", choices=["koly", "payload", "volume"])
+    # The POSITIVE control's input, and it exists so the extraction has ONE spelling.
+    # The first cut left the control step in `main.yml` calling `dmg2img <dmg> <out>`
+    # itself, which writes the whole GPT-partitioned disk — so the control failed with
+    # `fsck.hfsplus … exited 8` on a correct image, after the same defect had already
+    # been fixed inside this file. Corrected in one place and still wrong in the other
+    # is a class, not an accident; the repair is that the workflow cannot spell it.
+    parser.add_argument("--extract", metavar="PATH", help="write the HFS+ volume, unmodified")
     parser.add_argument("--out")
     args = parser.parse_args()
 
     if not os.path.exists(args.image):
         fail(f"{args.image} does not exist")
+
+    if args.extract:
+        require("dmg2img")
+        extract_hfs_partition(args.image, args.extract)
+        return
 
     if args.mutate:
         if not args.out:

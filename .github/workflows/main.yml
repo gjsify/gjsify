@@ -2648,12 +2648,19 @@ jobs:
       # volume must still pass the `--kind volume` path. Without it, a `--mutate`
       # that corrupted the wrong thing — or a `--kind volume` branch that refused
       # everything — would read as three working discriminators.
+      #
+      # `--extract` AND NOT A BARE `dmg2img`, which is what this step ran first and
+      # what made the control fail with `fsck.hfsplus … exited 8` on a correct
+      # image: `dmg2img <dmg> <out>` writes the whole GPT-partitioned disk, and the
+      # oracle had already been fixed to name the `Apple_HFS` partition while this
+      # step kept its own copy of the wrong call. The extraction has one spelling
+      # now, and it is not this file's.
       - name: CONTROL — the untouched volume passes the same reader
         env:
           DMG: ${{ steps.art.outputs.dmg }}
         run: |
           set -euo pipefail
-          dmg2img "$DMG" control.img
+          python3 oracle/verify-dmg.py "$DMG" --extract control.img
           python3 oracle/verify-dmg.py control.img "$STAGE_DIR/.gjsify-ship-stage.json" --kind volume
 
   # ── Coverage summary ────────────────────────────────────────────────
