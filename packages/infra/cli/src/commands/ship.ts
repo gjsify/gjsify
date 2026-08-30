@@ -14,12 +14,14 @@
 // which is what a developer on one machine wants and what the e2e suite
 // compares the split against byte for byte.
 //
-// Scope today is Linux and `--app gjs`: no runtime is bundled, because GJS and
-// GTK come from the distribution and shipping ~100 MiB of them would be cargo
-// cult (ADR 0024 § 4). macOS and Windows layouts, and Flatpak as a target under
-// this command, are the later stages of the same ADR — and they are the reason
-// the split exists at all: a `.dmg` is a UDIF image over a real HFS+/APFS
-// volume and no Linux host in this tree can write one (§ A1).
+// THREE LAYOUTS AND NINE FORMATS as of #1354 M6, which is what the two-phase
+// split was built for. A Linux artifact bundles no runtime — GJS and GTK come
+// from the distribution and shipping ~100 MiB of them would be cargo cult (ADR
+// 0024 § 4) — while a `.app` and a Windows program directory CARRY theirs, since
+// neither OS ships one (`utils/ship/app-runtime.ts`). And the split earns itself
+// on the two rows that are host-bound: a `.dmg` is a UDIF image over a real
+// HFS+/APFS volume that no Linux host in this tree can write (§ A1), and a
+// signature is made where the identity lives (§ A14).
 
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
@@ -608,11 +610,11 @@ async function assemble(args: ShipOptions): Promise<void> {
 
     if (args.stage) {
         // `(none)` spelled out, because an empty list printed as nothing after
-        // "formats " reads as a truncated line rather than as a fact — and for
-        // windows it is still the whole story. WHICH fact it is now depends on the
-        // layout: darwin has two formats, so an empty list there means this project
-        // cannot use them, and printing "none yet" would have told a `--app gjs`
-        // author to wait for a milestone that has already landed.
+        // "formats " reads as a truncated line rather than as a fact. WHICH fact
+        // it is depends on the layout: all three now have formats — three rows each
+        // for darwin and windows — so an empty list means this project cannot use
+        // them, and printing "none yet" would tell a `--app gjs` author to wait for
+        // a milestone that has already landed.
         // Three reasons a list can be empty, and each names a different next step:
         // this project cannot use the formats that wrap the layout; the layout has
         // none; or the configured `targets` all wrap another one, which the branch
@@ -1102,7 +1104,6 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             const volumeDir = dmgVolumeDir(outRoot);
             writePayload(volumeDir, payload, '');
             await buildDmgImage({
-                settings,
                 volumeName: dmgVolumeName(settings),
                 sourceDir: volumeDir,
                 target,
@@ -1255,6 +1256,34 @@ function assertPackable(
                 'the milestone that stages an interpreter is for (#1354 M2b).',
         );
     }
+    // A THIRD emptiness, and the one the last throw in this function used to
+    // mis-diagnose. A layout that HAS formats still reaches here with none
+    // SELECTED: `configuredFormats` filters `gjsify.ship.targets` to the layout
+    // being assembled and returns an empty list when they all wrap another one,
+    // and `--stage` records that empty list for the finishing host to read.
+    //
+    // MEASURED before this branch existed, on a `--app node` project carrying
+    // `targets: ["deb","rpm"]` — the key `packages/infra/cli/package.json` itself
+    // carries — with `gjsify ship darwin --stage` then `gjsify ship --from-stage`:
+    // "no format wraps the darwin layout … Keep it for the milestone that packs it
+    // … this is a layout added without a `FORMATS` row". Three rows wrap darwin,
+    // the milestone landed, and the cause was a configured list for another OS.
+    const wrapping = formatIdsFor(layout.os).sort();
+    if (wrapping.length > 0) {
+        // The assembling host is where the answer is, whichever caller got here:
+        // phase two cannot add a format the stage never rendered an overlay for
+        // (`assertFormatsStaged`), so `--target` HERE is not the fix.
+        const where = chosenBy === 'stage' ? `${layout.name} --stage --target` : `${layout.name} --target`;
+        throw new Error(
+            `gjsify ship: this run records no formats for the ${layout.name} layout, so there is nothing ` +
+                `to pack — and it is not that none exist: ${wrapping.join(', ')} wrap it.\n` +
+                '    An empty list means none were SELECTED. `gjsify.ship.targets` is filtered to the layout ' +
+                'being assembled,\n' +
+                "    so a configured list naming only another OS's formats leaves this one empty and says so " +
+                'at stage time.\n' +
+                `    Name one where the payload is assembled: \`gjsify ship ${where} ${wrapping[0]}\`.`,
+        );
+    }
     const linux = defaultFormatIds('linux').join(',');
     // Three callers, three different next steps. Telling a `--from-stage` caller
     // to run `gjsify ship <os> --stage` names the command that PRODUCED the stage
@@ -1272,12 +1301,17 @@ function assertPackable(
             'intermediate, not an artifact. Keep it for the milestone that packs it, or re-assemble with ' +
             '`gjsify ship linux --stage` if a Linux package is what you wanted.',
     }[chosenBy];
-    // UNREACHABLE FROM THE THREE LAYOUTS THAT EXIST, and kept rather than deleted:
-    // every one of them has formats as of #1354 M3, so a `--app gjs` project meets
-    // the INTERPRETER refusal above instead. This branch is what a fourth layout
-    // gets on the day it is added and before a format wraps it — the same state
-    // windows was in between M1 and M3 — and deleting it would make that day's
-    // failure a `TypeError` on an empty list.
+    // NOW ACTUALLY UNREACHABLE from the three layouts that exist — the branch
+    // above holds every one of them, because `formatIdsFor` answers non-empty for
+    // all three as of #1354 M5. Kept rather than deleted: this is what a fourth
+    // layout gets on the day it is added and before a `FORMATS` row wraps it, the
+    // state windows was in between M1 and M3, and deleting it would make that
+    // day's failure a `TypeError` on an empty list.
+    //
+    // It used to claim this for the whole function while the `targets`-elsewhere
+    // route reached it and got all three of its sentences wrong. A comment saying
+    // "unreachable" is a claim about a predicate; this one now has the predicate
+    // above it in code.
     throw new Error(
         `gjsify ship: no format wraps the ${layout.name} layout, so there is nothing to pack. ${advice}` +
             ' Every layout this gjsify knows has one (ADR 0024 stages 2-5), so this is a layout added ' +
@@ -1317,12 +1351,15 @@ function assertPackable(
  * WHY THIS REFUSES AND `Layout.runtimeGap` ONLY WARNS, since the two describe
  * neighbouring predicaments and get opposite treatment. A target this command
  * cannot package would leave here as an ARTIFACT — a `.deb` a stranger installs,
- * which then fails at startup, with no gate between here and their machine. A
- * windows stage cannot run on any Windows machine either, but it is not an
- * artifact: `assertPackable` refuses to pack it, so the only thing leaving this
- * command is a build intermediate whose consumer is the milestone that wraps it.
- * Refusing would ban assembling the layout at all, which is the whole of M1. The
- * day a Windows format exists, that warning has to become this refusal.
+ * which then fails at startup, with no gate between here and their machine. The
+ * `runtimeGap` warns about something that is not an artifact: it is printed over a
+ * staged tree, and only when that tree carries no interpreter of its own.
+ *
+ * This paragraph used to end "the day a Windows format exists, that warning has to
+ * become this refusal". #1354 M3 is that day, and the refusal it became is
+ * {@link assertFormatCanRunInterpreter} — per FORMAT rather than per layout,
+ * because what a runtime can execute is a property of the container and not of the
+ * tree it wraps. This function stayed exactly as wide as it was.
  *
  * Phase one only. Phase two does not re-read `gjsify.app` — it has no project —
  * but it is not unchecked either: `assertLauncherMatchesInterpreter` compares
@@ -1405,6 +1442,6 @@ async function runProjectBuild(projectDir: string): Promise<void> {
             ),
     });
     if (result.code !== 0) {
-        throw new Error(`gjsify ship: the project's build script failed${describeExit(result)}.`);
+        throw new Error(`gjsify ship: the project's build script failed with ${describeExit(result)}.`);
     }
 }

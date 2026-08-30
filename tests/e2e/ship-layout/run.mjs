@@ -34,7 +34,6 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import {
     copyFileSync,
     existsSync,
@@ -50,7 +49,16 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { runCli, runCliSync } from '../mock-registry.mjs';
-import { APP_ID, CLI_ENTRY, MONOREPO_ROOT, listPayload, scaffold, STAGE_MANIFEST_FILE } from '../ship/fixture.mjs';
+import {
+    APP_ID,
+    CLI_ENTRY,
+    listPayload,
+    MONOREPO_ROOT,
+    scaffold,
+    sha256,
+    shipExpectingFailure,
+    STAGE_MANIFEST_FILE,
+} from '../ship/fixture.mjs';
 
 const { readLibrary } = await import(
     pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'binary.mjs')).href
@@ -161,16 +169,6 @@ const UNPACKABLE = {
 /** `<os>` → the `${process.platform}-${process.arch}` string its stage manifest records. */
 const TARGET = { linux: `linux-${ARCH}`, darwin: `darwin-${ARCH}`, windows: `win32-${ARCH}` };
 
-const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
-
-/**
- * Run the CLI expecting a REFUSAL, and return everything it said.
- *
- * `runCliSync` throws on a non-zero exit and hangs the output off the error, so
- * a refusal has to be caught to be read. `assert.fail` inside the `try` is what
- * makes a run that unexpectedly SUCCEEDS fail the test — without it, a broken
- * gate reads as a passing assertion about an error that never happened.
- */
 /**
  * Run the CLI and return both streams plus the status.
  *
@@ -180,15 +178,6 @@ const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest(
  */
 function runCliCapture(args, cwd) {
     return runCli(CLI_ENTRY, args, { cwd });
-}
-
-function shipExpectingFailure(args, cwd) {
-    try {
-        runCliSync(CLI_ENTRY, args, { cwd });
-    } catch (error) {
-        return `${error.stdout ?? ''}${error.stderr ?? ''}`;
-    }
-    assert.fail(`expected \`gjsify ${args.join(' ')}\` to fail`);
 }
 
 describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
@@ -539,14 +528,15 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             );
             assert.match(output, /the payload is arm64, but the package would be labelled x64/);
         }
-        // WHAT THIS DOES NOT PROVE, and the windows row is the one to read
-        // carefully: the fixture's native file is a Mach-O, so all three legs
-        // exercise the LAYOUT and the same Mach-O branch of `readBinaryArch`.
-        // That reader returns `null` for PE by design (`payload.ts` says so), so
-        // a Windows payload whose only native file is a `.dll` cannot trip this
-        // check at all — the guard is silent there rather than wrong, and closing
-        // it means teaching `readBinaryArch` the COFF machine field.
-        // `status/open-todos.md` item 5 carries it.
+        // WHAT THIS DOES NOT PROVE: the fixture's native file is a Mach-O, so all
+        // three legs exercise the LAYOUT and the same Mach-O branch of
+        // `readBinaryArch`. When this was written that reader answered `null` for
+        // PE, so a Windows payload whose one native file is a `.dll` could not trip
+        // the check at all. #1354 M3 closed that: `readBinaryArch` reads the COFF
+        // machine field now, `payload.spec.ts` covers the three PE machines, and
+        // `tests/e2e/ship-windows` refuses an arm64 closure labelled x64 by name.
+        // So the gap this paragraph recorded is somebody else's test now, not an
+        // open item — what stays true is that THIS suite does not cover it.
     });
 
     it('classifies EVERY share/ entry the map carried, one severity apart', () => {

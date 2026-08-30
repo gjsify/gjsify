@@ -10,9 +10,15 @@
 // stating: `verify-published-closure.mjs` has no edge to check here, so the
 // package's own publish job is the guard.
 //
-// For an app author that means **nothing to add to `package.json`**. The shipper
-// resolves the name for the target it is packaging and copies `nodePath` into the
-// artifact; `GJSIFY_NODE_RUNTIME` overrides it with a directory.
+// WHAT THE ABSENT EDGE DOES AND DOES NOT BUY, because this header used to claim
+// the app author had "nothing to add to `package.json`" and the shipped behaviour
+// says otherwise. What is absent is GJSIFY's edge: installing `@gjsify/cli` drags
+// in no interpreter for a platform nobody is shipping to. Finding one is still the
+// SHIPPER's job and it looks in the consumer's own `node_modules` — which is why
+// `stageAppRuntime` names the package when there is none: "no bundled interpreter
+// — install `@gjsify/node-runtime-<target>`". So an author who wants a
+// self-contained artifact installs, and therefore declares, the runtime for the
+// target they package; `GJSIFY_NODE_RUNTIME` is the override that skips it.
 //
 // LINUX IS ABSENT ON PURPOSE and is not an omission to be filled in later: a
 // `.deb`/`.rpm` declares a dependency on the distribution's Node instead
@@ -31,8 +37,8 @@
 //
 // The tests keep the by-name claim honest independently of any caller: they
 // resolve a real installed package out of a throwaway consumer tree holding
-// nothing of gjsify, so "an app author adds nothing to `package.json`" is checked
-// against a stranger's layout rather than against this monorepo's.
+// nothing of gjsify, so the resolution is checked against a stranger's layout
+// rather than against this monorepo's.
 
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';

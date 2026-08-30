@@ -477,7 +477,12 @@ export function assertFormatsStaged(manifest: StageManifest, formats: readonly F
     const missing = formats.filter((format) => !manifest.formats.includes(format.id)).map((format) => format.id);
     if (missing.length === 0) return;
     throw new Error(
-        `gjsify ship: this stage was assembled for ${manifest.formats.join(', ')}, and --target names ` +
+        // `no format at all` and not an empty join: a stage CAN record zero formats
+        // (`gjsify.ship.targets` filtered to a layout none of them wrap), and the
+        // join printed that as nothing — "assembled for , and --target names …".
+        `gjsify ship: this stage was assembled for ${
+            manifest.formats.length === 0 ? 'no format at all' : manifest.formats.join(', ')
+        }, and --target names ` +
             `${missing.join(', ')}. Phase one renders each format's overlay — rpm wants the licence at ` +
             '`share/licenses/<pkg>/LICENSE`, deb wants a machine-readable copyright at ' +
             '`share/doc/<pkg>/copyright` — so a format the stage never saw would pack without it, and Debian ' +

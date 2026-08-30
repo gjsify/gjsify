@@ -58,12 +58,14 @@ export const DMG_TOOL = 'hdiutil';
 /**
  * Characters an HFS+ volume name may not contain.
  *
- * The same pair `layout.ts` refuses in a bundle DIRECTORY name and for the same
- * measured reason: `/` is the POSIX separator and `:` is HFS+'s, and the Finder
- * shows a stored `:` as a `/` and vice versa. A volume called `Ship/Demo` mounts
- * as `Ship:Demo`, so the name a user is told to look for is not the name they
- * see. `\` is not in this set — it is a perfectly ordinary character on HFS+,
- * and `windowsProgramDirName` is where it is forbidden, for Windows' reasons.
+ * Two of the three `layout.ts` refuses in a bundle DIRECTORY name — its
+ * `BUNDLE_NAME_FORBIDDEN` is `/[/:\\]/` — and for the same measured reason: `/`
+ * is the POSIX separator and `:` is HFS+'s, and the Finder shows a stored `:` as
+ * a `/` and vice versa. A volume called `Ship/Demo` mounts as `Ship:Demo`, so the
+ * name a user is told to look for is not the name they see. `\` is the one that
+ * is NOT here: it is an ordinary character in a volume name, while a bundle
+ * directory refuses it too and `windowsProgramDirName` refuses it for Windows'
+ * own reasons.
  */
 const VOLUME_NAME_FORBIDDEN = /[/:]/;
 
@@ -152,7 +154,6 @@ export function hdiutilCreateArgs(input: DmgCreateInput): string[] {
 }
 
 export interface DmgPackInput extends DmgCreateInput {
-    settings: PackSettings;
     verbose: boolean;
     /** Working root, so the log can name the directory that became the volume. */
     workDir: string;
@@ -161,9 +162,8 @@ export interface DmgPackInput extends DmgCreateInput {
 /**
  * Build the image at `input.target`.
  *
- * The second packer in this tree that execs anything, and — unlike the Flatpak
- * one — the tool cannot be installed where it is missing: `hdiutil` ships with
- * macOS and exists nowhere else. So the `notFound` branch does not say "install
+ * Unlike the Flatpak packer's tool, this one cannot be installed where it is
+ * missing: `hdiutil` ships with macOS and exists nowhere else. So the `notFound` branch does not say "install
  * it"; it says which host this belongs on and how the payload gets there, which
  * is the same two-phase sentence `assertHostCanFinish` prints one step earlier.
  * Reaching this branch at all means `process.platform` said darwin and `hdiutil`

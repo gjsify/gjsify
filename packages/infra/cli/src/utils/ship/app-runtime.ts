@@ -10,11 +10,12 @@
 // run — which is what makes M2b (staging a runtime) the milestone that matters".
 // This module is that staging.
 //
-// THREE PIECES, THREE OWNERS, and none of them is a dependency of anything here:
+// FOUR PIECES, THREE OWNERS — `@gjsify/node-gi` supplies two of them — and none
+// is a dependency of anything here:
 //
 //   * the interpreter — `@gjsify/node-runtime-<target>`, resolved by
-//     {@link resolveNodeRuntime} in `node-runtime.ts`, whose header records that
-//     NOTHING called it. This module is the caller it was written for.
+//     {@link resolveNodeRuntime} in `node-runtime.ts`. This module is the caller
+//     that module was written for, and #1354 M3 gave it a second layout to serve.
 //   * the relocated GTK closure — `@gjsify/gtk-runtime-<target>`'s `gtk/`.
 //   * the node-gi addon built against that closure —
 //     `@gjsify/node-gi`'s `prebuilds/<target>/node_gi.node`, whose `@rpath` is
@@ -47,9 +48,10 @@
 // `…/node_modules/@gjsify/node-gi/prebuilds/<target>/node_gi.node` and
 // `resolveGtkRuntimeBundle()`'s candidate 2 for `…/prebuilds/<target>/gtk`, and
 // neither is where a `.app` may keep loadable code: `Contents/Frameworks` is, and
-// it is where `codesign` will be pointed at M6 (ADR 0024 § A4). Putting the
-// closure under `Resources` to save two `export` lines would trade a correct
-// bundle for a shorter launcher.
+// it is what `codesign` now reaches (ADR 0024 § A4) — M6 landed, and
+// `utils/ship/signing.ts` re-signs every Mach-O in the payload by magic number,
+// which is most of this closure. Putting it under `Resources` to save two
+// `export` lines would trade a correct bundle for a shorter launcher.
 //
 // WHY NOT `gjsify.ship.bundledTypelibs`. Because it FLATTENS. `plan.ts` stages
 // each such file as `posix.join(libDir, 'gi', basename(file))`, and

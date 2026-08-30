@@ -249,6 +249,42 @@ export function allRequiredTools(tools: RequiredTools): readonly string[] {
     return Object.values(tools as Readonly<Partial<Record<HostOs, readonly string[]>>>).flat();
 }
 
+/**
+ * Why a format's runtime provides the interpreters it does — one string per
+ * RUNTIME STORY, three stories under nine rows.
+ *
+ * These are PRINTED: `assertFormatCanRunInterpreter` puts the row's own sentence
+ * in front of an author whose project cannot ship this way. Per row they were
+ * five redundant copies of one paragraph, so a correction on one row would have
+ * left the two beside it telling that author something else about the same fact.
+ */
+// Neither interpreter is restricted on `deb`/`rpm`: `Depends: gjs` and
+// `Depends: nodejs` are both satisfiable from any distribution's own archive, so
+// the artifact's runtime is the machine's.
+const DISTRO_INTERPRETER_GAP =
+    'a distro package declares its interpreter as a dependency instead of carrying one, and every ' +
+    'distribution ships both';
+
+const MACOS_INTERPRETER_GAP =
+    'a `.app` a stranger downloads has to CARRY its interpreter, and there is no relocatable GJS to ' +
+    'put in one — `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs` records "GJS ships no ' +
+    'relocation", which is why ADR 0024 § 4 derives Node on macOS and stage 7 is what would change it';
+
+const WINDOWS_INTERPRETER_GAP =
+    'there is no GJS host on Windows at all (ADR 0024 § 4) — not a system one to depend on and not a ' +
+    'relocatable one to carry — so a `--app gjs` payload cannot be shipped this way. That is why ' +
+    '§ 4 derives Node here, and why `@gjsify/node-runtime-win32-x64` exists';
+
+/**
+ * rpm's `share/licenses/<name>/LICENSE` — eight of the nine rows.
+ *
+ * `deb` is the one that does not, and the one with a POLICY: Debian § 12.5 puts
+ * the copyright at `share/doc/<package>/copyright` and lintian errors without it.
+ * Nothing dictates a location for the other eight, so they share one shape and
+ * the layout map does the rest.
+ */
+const SHARE_LICENSE_DEST = (binaryName: string): string => `share/licenses/${binaryName}/LICENSE`;
+
 /** `.deb` and `.rpm` are written by this tree, so they exec nothing and read back with GNU tools. */
 const WRITTEN_HERE = (readWith: readonly string[]): FormatDescriptor['host'] => ({
     finishOn: 'any',
@@ -264,13 +300,7 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         host: WRITTEN_HERE(['ar', 'tar', 'dpkg-deb', 'lintian']),
         depends: 'deb',
         interpreters: ['gjs', 'node'],
-        // Neither is restricted, because a distro package DECLARES its
-        // interpreter rather than carrying one: `Depends: gjs` and
-        // `Depends: nodejs` are both satisfiable from any distribution's own
-        // archive, so the artifact's runtime is the machine's.
-        interpreterGap:
-            'a distro package declares its interpreter as a dependency instead of carrying one, and every ' +
-            'distribution ships both',
+        interpreterGap: DISTRO_INTERPRETER_GAP,
         // Debian policy § 12.5: every package ships its copyright in
         // /usr/share/doc/<package>/copyright, and lintian errors without it.
         licenseDest: (binaryName) => `share/doc/${binaryName}/copyright`,
@@ -286,14 +316,8 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         host: WRITTEN_HERE(['rpm', 'rpm2cpio', 'cpio']),
         depends: 'rpm',
         interpreters: ['gjs', 'node'],
-        // Neither is restricted, because a distro package DECLARES its
-        // interpreter rather than carrying one: `Depends: gjs` and
-        // `Depends: nodejs` are both satisfiable from any distribution's own
-        // archive, so the artifact's runtime is the machine's.
-        interpreterGap:
-            'a distro package declares its interpreter as a dependency instead of carrying one, and every ' +
-            'distribution ships both',
-        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        interpreterGap: DISTRO_INTERPRETER_GAP,
+        licenseDest: SHARE_LICENSE_DEST,
         licenseKind: 'plain',
         archName: rpmArch,
         fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.rpm`,
@@ -339,10 +363,7 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
             'a Flatpak runs against `org.gnome.Platform`, which ships `gjs` and no `node`. Node exists only ' +
             'as `org.freedesktop.Sdk.Extension.node2x`, and that extension puts node on the BUILD path, not ' +
             'in the runtime — so the artifact would install and then fail at `exec node`',
-        // No policy demands a location, so this follows rpm's — one fewer shape
-        // for a reader to learn, and `/app/share/licenses/<name>/LICENSE` is
-        // where the equivalent file sits in the `.rpm` built from the same stage.
-        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        licenseDest: SHARE_LICENSE_DEST,
         licenseKind: 'plain',
         archName: flatpakArch,
         // Named after the APP ID, not the binary: the id is the ref the file
@@ -355,14 +376,16 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
     // TWO ROWS FOR ONE TREE, and the pair is what `layoutOs` was added for. The
     // bundle and the zip around it wrap the same staged `<App>.app`; they differ
     // only in whether the artifact is a directory a user drags or a file a user
-    // downloads. Both are `finishOn: 'any'` — the `.dmg` that is not is ADR 0024
-    // § A6 and milestone M6.
+    // downloads. Both are `finishOn: 'any'` — the `.dmg` that is not is the third
+    // row below (ADR 0024 § A6, #1354 M4).
     //
-    // NEITHER IS SIGNED, and that is a property of M2a rather than an omission
-    // this table hides: `codesign` is macOS-only, so a bundle assembled on Linux
-    // is unsigned by construction. Gatekeeper will quarantine it on a stranger's
-    // Mac. M6 is where a signing host enters, and § A4 already records what it
-    // costs (re-signing the whole Mach-O closure inside the stage).
+    // NEITHER IS SIGNED BY DEFAULT, and unsigned is a deliverable rather than an
+    // omission this table hides: `codesign` is macOS-only, so a bundle assembled
+    // on Linux is unsigned by construction and Gatekeeper quarantines it on a
+    // stranger's Mac. M6 has since landed and holds the other half — `gjsify ship
+    // --from-stage --sign <identity>` on a macOS host re-signs the whole Mach-O
+    // closure inside the stage (`utils/ship/signing.ts`, § A4). `SIGNERS` is keyed
+    // by LAYOUT, so these two rows cannot disagree about their signature.
     'macos-app': {
         id: 'macos-app',
         layoutOs: 'darwin',
@@ -411,15 +434,8 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // `assertFormatCanRunInterpreter` says so by name instead of producing a
         // bundle that dies at `exec gjs`.
         interpreters: ['node'],
-        interpreterGap:
-            'a `.app` a stranger downloads has to CARRY its interpreter, and there is no relocatable GJS to ' +
-            'put in one — `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs` records "GJS ships no ' +
-            'relocation", which is why ADR 0024 § 4 derives Node on macOS and stage 7 is what would change it',
-        // Inside `Contents/Resources`, which is where a `.app`'s non-executable
-        // files go. Following rpm's `share/licenses/<name>/LICENSE` shape keeps
-        // one fewer layout for a reader to learn — the layout map turns it into
-        // `Contents/Resources/share/licenses/<name>/LICENSE`.
-        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        interpreterGap: MACOS_INTERPRETER_GAP,
+        licenseDest: SHARE_LICENSE_DEST,
         licenseKind: 'plain',
         archName: macosArch,
         // The DISPLAY name, not the binary: this artifact is the thing a user
@@ -453,11 +469,8 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         },
         depends: null,
         interpreters: ['node'],
-        interpreterGap:
-            'a `.app` a stranger downloads has to CARRY its interpreter, and there is no relocatable GJS to ' +
-            'put in one — `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs` records "GJS ships no ' +
-            'relocation", which is why ADR 0024 § 4 derives Node on macOS and stage 7 is what would change it',
-        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        interpreterGap: MACOS_INTERPRETER_GAP,
+        licenseDest: SHARE_LICENSE_DEST,
         licenseKind: 'plain',
         archName: macosArch,
         // The BINARY name here and the display name above, deliberately. This one
@@ -544,11 +557,8 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // the image carries the same bundle, and there is no relocatable GJS to
         // put in one.
         interpreters: ['node'],
-        interpreterGap:
-            'a `.app` a stranger downloads has to CARRY its interpreter, and there is no relocatable GJS to ' +
-            'put in one — `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs` records "GJS ships no ' +
-            'relocation", which is why ADR 0024 § 4 derives Node on macOS and stage 7 is what would change it',
-        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        interpreterGap: MACOS_INTERPRETER_GAP,
+        licenseDest: SHARE_LICENSE_DEST,
         licenseKind: 'plain',
         archName: macosArch,
         // The BINARY name, version and arch — the zip's convention and not the
@@ -577,11 +587,13 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
     //     (#1354 M5), which is why `Layout.metadata` answers `[]` here.
     //   * `x64` alone, and the blocker is upstream — see `WINDOWS_ARCH`.
     //
-    // NEITHER IS SIGNED, and Windows is the softer of the two asymmetries ADR 0024
-    // § A5 records: Gatekeeper BLOCKS an unsigned `.app`, while SmartScreen only
-    // WARNS until per-file download reputation accrues. So an unsigned program
-    // directory is a usable artifact in a way an unsigned `.app` is not. Signing is
-    // #1354 M6; the `.msi` around this tree is M5.
+    // NEITHER IS SIGNED BY DEFAULT, and Windows is the softer of the two asymmetries
+    // ADR 0024 § A5 records: Gatekeeper BLOCKS an unsigned `.app`, while SmartScreen
+    // only WARNS until per-file download reputation accrues. So an unsigned program
+    // directory is a usable artifact in a way an unsigned `.app` is not. `--sign`
+    // reaches these rows through `SIGNERS.win32` (signtool — argv unit-tested, the
+    // invocation itself UNVERIFIED, since no run here has ever held a certificate);
+    // the `.msi` around this tree is the third row below.
     'windows-dir': {
         id: 'windows-dir',
         layoutOs: 'win32',
@@ -631,14 +643,8 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // host on Windows at all (ADR 0024 § 4), so a `--app gjs` payload has
         // nothing anywhere that could run it.
         interpreters: ['node'],
-        interpreterGap:
-            'there is no GJS host on Windows at all (ADR 0024 § 4) — not a system one to depend on and not a ' +
-            'relocatable one to carry — so a `--app gjs` payload cannot be shipped this way. That is why ' +
-            '§ 4 derives Node here, and why `@gjsify/node-runtime-win32-x64` exists',
-        // rpm's `share/licenses/<name>/LICENSE` shape, the same one the macOS rows
-        // follow — one layout for a reader to learn, and the map turns it into
-        // `share\licenses\<name>\LICENSE` inside the program directory.
-        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        interpreterGap: WINDOWS_INTERPRETER_GAP,
+        licenseDest: SHARE_LICENSE_DEST,
         licenseKind: 'plain',
         archName: windowsArch,
         // The DISPLAY name: this artifact is the directory an installer lays down
@@ -675,11 +681,8 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         },
         depends: null,
         interpreters: ['node'],
-        interpreterGap:
-            'there is no GJS host on Windows at all (ADR 0024 § 4) — not a system one to depend on and not a ' +
-            'relocatable one to carry — so a `--app gjs` payload cannot be shipped this way. That is why ' +
-            '§ 4 derives Node here, and why `@gjsify/node-runtime-win32-x64` exists',
-        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        interpreterGap: WINDOWS_INTERPRETER_GAP,
+        licenseDest: SHARE_LICENSE_DEST,
         licenseKind: 'plain',
         archName: windowsArch,
         // The BINARY name here and the display name above, exactly as the macOS
@@ -781,11 +784,8 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // installer does not change that; it moves the same self-contained tree.
         depends: null,
         interpreters: ['node'],
-        interpreterGap:
-            'there is no GJS host on Windows at all (ADR 0024 § 4) — not a system one to depend on and not a ' +
-            'relocatable one to carry — so a `--app gjs` payload cannot be shipped this way. That is why ' +
-            '§ 4 derives Node here, and why `@gjsify/node-runtime-win32-x64` exists',
-        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        interpreterGap: WINDOWS_INTERPRETER_GAP,
+        licenseDest: SHARE_LICENSE_DEST,
         licenseKind: 'plain',
         archName: windowsArch,
         // The BINARY name, like the zip beside it and for the same reason: this is a

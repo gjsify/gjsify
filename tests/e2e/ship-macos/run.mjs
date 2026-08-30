@@ -60,8 +60,12 @@ import {
     listPayload,
     MONOREPO_ROOT,
     NODE_BUNDLE,
+    oracle,
+    oracleExpectingFailure,
     probe,
     scaffold,
+    sha256,
+    shipExpectingFailure,
     STAGE_MANIFEST_FILE,
 } from '../ship/fixture.mjs';
 
@@ -78,61 +82,19 @@ const BINARY = 'ship-demo';
 const ARCH = 'arm64';
 const ZIP_NAME = `${BINARY}-1.2.3-1.${ARCH}.zip`;
 
-const ORACLE = join(MONOREPO_ROOT, '.github', 'ship-oracle');
-
 /** The ZIP writer itself, for the two red runs no CLI invocation can produce. */
 const { buildZip } = await import(
     pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'ship', 'zip.js')).href
 );
 
-const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
-
-/**
- * Run one of the `.github/ship-oracle` scripts and return its output.
- *
- * `execFileSync` throws on a non-zero exit, which is what makes the GREEN calls
- * assertions in their own right: a `verify-*` script that starts failing fails
- * this suite without anything here having to inspect its words.
- */
-function oracle(script, args) {
-    const runner = script.endsWith('.py') ? 'python3' : 'bash';
-    return execFileSync(runner, [join(ORACLE, script), ...args], { encoding: 'utf-8' });
-}
-
-/**
- * Run an oracle expecting a REFUSAL, and return everything it printed.
- *
- * `assert.fail` inside the `try` is what makes a run that unexpectedly SUCCEEDS
- * fail the test. Without it, a `verify-*` that stopped checking would read here
- * as a passing assertion about an error that never happened — the exact shape
- * these discriminators exist to rule out.
- */
-function oracleExpectingFailure(script, args) {
-    try {
-        oracle(script, args);
-    } catch (error) {
-        assert.equal(error.status, 1, `${script} must exit 1, not ${error.status}`);
-        return `${error.stdout ?? ''}${error.stderr ?? ''}`;
-    }
-    return assert.fail(`expected ${script} to refuse ${args.join(' ')}`);
-}
-
-function shipExpectingFailure(args, cwd, env) {
-    try {
-        runCliSync(CLI_ENTRY, args, { cwd, ...(env ? { env } : {}) });
-    } catch (error) {
-        return `${error.stdout ?? ''}${error.stderr ?? ''}`;
-    }
-    return assert.fail(`expected \`gjsify ${args.join(' ')}\` to fail`);
-}
-
 /** The `--app node` project both phases of this suite pack. */
-function scaffoldNodeApp(dir) {
+function scaffoldNodeApp(dir, mutate) {
     return scaffold(dir, (pkg, at) => {
         pkg.gjsify.app = 'node';
         pkg.gjsify.main = 'dist/app.node.mjs';
         pkg.main = 'dist/app.node.mjs';
         writeFileSync(join(at, 'dist', 'app.node.mjs'), NODE_BUNDLE);
+        if (mutate) mutate(pkg, at);
     });
 }
 
@@ -350,7 +312,7 @@ describe('CLI ship macOS bundle E2E', { timeout: 10 * 60 * 1000 }, () => {
     it('a bare `gjsify ship` on Linux still defaults to exactly deb and rpm', () => {
         // The regression these rows are most able to cause. Both are
         // `finishOn: 'any'`, so on that criterion alone a bare `gjsify ship` on
-        // Linux would emit four artifacts; `defaultFormatIds` filters on
+        // Linux would now emit SIX artifacts; `defaultFormatIds` filters on
         // `layoutOs` as a second criterion, which is what keeps this list at two.
         // `tests/e2e/ship-layout` asserts the same thing on a `--app gjs` project,
         // and this one adds the `--app node` half — the interpreter filter added
@@ -360,6 +322,60 @@ describe('CLI ship macOS bundle E2E', { timeout: 10 * 60 * 1000 }, () => {
             readFileSync(join(projectDir, 'ship-default', 'stage', STAGE_MANIFEST_FILE), 'utf-8'),
         );
         assert.deepEqual(manifest.formats, ['deb', 'rpm']);
+    });
+
+    it('tells a stage with NO recorded formats what could pack it', () => {
+        // A REACHED "UNREACHABLE" BRANCH. `assertPackable`'s last throw is
+        // commented "UNREACHABLE FROM THE THREE LAYOUTS THAT EXIST … a layout
+        // added without a `FORMATS` row", and this is the two-command route into
+        // it: a `--app node` project whose `gjsify.ship.targets` name only Linux
+        // formats stages darwin with `formats: []`, and the finishing host has
+        // nothing but that empty list. MEASURED before the fix — three false
+        // sentences in one message:
+        //
+        //     gjsify ship: no format wraps the darwin layout, so there is nothing
+        //     to pack. This stage carries the darwin layout and nothing here can
+        //     wrap it … Keep it for the milestone that packs it … Every layout
+        //     this gjsify knows has one, so this is a layout added without a
+        //     `FORMATS` row.
+        //
+        // Three rows wrap darwin, the milestone that packs them landed, and the
+        // real cause — a configured target list for another layout — is nowhere in
+        // it. `packages/infra/cli/package.json` carries exactly that key, so this
+        // is reachable from inside this repository.
+        const dir = scaffoldNodeApp(join(tmpDir, 'targets-elsewhere'), (pkg) => {
+            pkg.gjsify.ship.targets = ['deb', 'rpm'];
+        });
+        runCliSync(CLI_ENTRY, ['ship', 'darwin', '--skip-build', '--arch', ARCH, '--stage'], { cwd: dir });
+        const manifest = JSON.parse(readFileSync(join(dir, 'ship', 'stage', STAGE_MANIFEST_FILE), 'utf-8'));
+        assert.deepEqual(manifest.formats, []);
+
+        const refusal = shipExpectingFailure(['ship', '--from-stage', 'ship/stage'], dir);
+        assert.doesNotMatch(refusal, /no format wraps the darwin layout/);
+        assert.doesNotMatch(refusal, /layout added without a `FORMATS` row/);
+        assert.match(refusal, /records no formats/);
+        // The three that DO wrap it, named — which is the only thing this host can
+        // say, since the reason the list is empty stayed on the assembling host.
+        assert.match(refusal, /macos-app, macos-app-dmg, macos-app-zip/);
+        assert.match(refusal, /--stage --target/);
+    });
+
+    it('names an EMPTY staged format list as empty, not as an blank gap', () => {
+        // The same stage one flag over. `assertFormatsStaged` renders
+        // `manifest.formats.join(', ')` straight into a sentence, so an empty list
+        // printed as nothing: MEASURED before the fix, `gjsify ship --from-stage
+        // ship/stage --target macos-app` began "this stage was assembled for , and
+        // --target names macos-app". The advice on the end was right; the clause
+        // that says WHY was a comma after a space.
+        const dir = scaffoldNodeApp(join(tmpDir, 'targets-elsewhere-target'), (pkg) => {
+            pkg.gjsify.ship.targets = ['deb', 'rpm'];
+        });
+        runCliSync(CLI_ENTRY, ['ship', 'darwin', '--skip-build', '--arch', ARCH, '--stage'], { cwd: dir });
+
+        const refusal = shipExpectingFailure(['ship', '--from-stage', 'ship/stage', '--target', 'macos-app'], dir);
+        assert.doesNotMatch(refusal, /assembled for , and/);
+        assert.match(refusal, /assembled for no format at all/);
+        assert.match(refusal, /gjsify ship --stage --target macos-app/);
     });
 
     it('refuses a `--app gjs` project by name, and still stages its layout', () => {
