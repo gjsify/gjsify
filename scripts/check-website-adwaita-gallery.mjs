@@ -3,7 +3,7 @@
 //
 // THE INCIDENT
 //
-// `website/src/content/docs/adwaita/` is hand-derived from the storybook: a human
+// `website/src/content/docs/{adwaita,gtk}/` is hand-derived from the storybook: a human
 // reads the `*.meta.ts` set and writes an `<AdwWidget>` block per widget. On
 // 2026-07-24 that was 35 against 35. Five metas landed after it, and on 2026-08-18
 // the gallery pages were RE-AUTHORED wholesale (#1228) — three days later, by
@@ -30,6 +30,23 @@
 //      exists at its URL and is offered to nobody, so the gate would force a page no
 //      reader can reach. `adwaita/controls` was added there by hand in the very
 //      commit that first satisfied arm 1.
+//  11. Every block is filed under the LIBRARY THAT OWNS ITS GTYPE, in both places
+//      the filing is written down: the section directory the page sits in, and the
+//      sidebar GROUP the page's slug is listed in. ADR 0034 § 1.
+//
+//      The gallery documented `Gtk.Entry`, `Gtk.DropDown`, `Gtk.Button` and
+//      `Gtk.MenuButton` under a section named `Adwaita`, and `controls.mdx` carried
+//      no Adwaita widget at all. Arms 1-3 could not see it: each of those blocks has
+//      a title, each title has a meta, and the meta says nothing about which section
+//      the page belongs to.
+//
+//      The SIDEBAR half is the same blindness one level up, and it is the reason arm
+//      4 is not enough. Arm 4 reads Starlight's groups as one flat set of slugs, so a
+//      `gtk/*` page listed inside the `Adwaita` group satisfies it completely, while
+//      the reader meets a GTK page under an Adwaita heading, which is the very defect
+//      this arm is named after, moved from the directory to the navigation. Same shape as
+//      arm 10's known limit, which holds window TITLES and therefore cannot see a new
+//      TAB inside a window whose title is already named.
 //   5. Every `<Fragment slot="…">` inside a block names a slot `AdwWidget` renders.
 //      Astro drops an unmatched slot in SILENCE — no warning, no build failure — so a
 //      misspelled port is a snippet that is written, reviewed, committed and shown to
@@ -106,8 +123,29 @@ const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
 
-/** The gallery: one page per storybook category, each a list of `<AdwWidget>` blocks. */
-const GALLERY = 'website/src/content/docs/adwaita';
+/**
+ * The gallery: one section per widget LIBRARY, each a set of pages of `<AdwWidget>`
+ * blocks.
+ *
+ * ONE declaration carrying all three joins a section has, the directory its pages
+ * live in, the GIR namespace whose widgets belong in it, and the sidebar group it is
+ * navigated by. The three drifting apart is exactly what arm 11 refuses. A third
+ * section (Material, say) is three strings here and nothing else.
+ *
+ * Spelled out rather than globbed over `content/docs`, because most sections there
+ * are not gallery sections and a sweep would ask arm 1 of pages that document no
+ * widget at all.
+ */
+const GALLERY_SECTIONS = [
+    { dir: 'adwaita', namespace: 'Adw', group: 'Adwaita' },
+    { dir: 'gtk', namespace: 'Gtk', group: 'Gtk' },
+];
+
+/** A section's directory, posix-spelled, because failures PRINT it. */
+const sectionDir = (section) => `website/src/content/docs/${section}`;
+
+/** Every section directory, for the messages that say where a scan looked. */
+const GALLERY = GALLERY_SECTIONS.map((section) => sectionDir(section.dir)).join(' and ');
 
 /**
  * Story metas the gallery deliberately does not carry, and why.
@@ -147,21 +185,30 @@ const TITLED_AFTER = {
     },
 };
 
-/** The gallery's own pages — the input to both the title arm and the sidebar arm. */
+/**
+ * The gallery's own pages, the input to the title arm, the sidebar arm and arm 11.
+ *
+ * Each page carries the SECTION it was found in, because that is half of what arm 11
+ * decides and a bare filename cannot say it: `buttons.mdx` exists in both sections
+ * and documents a different library in each.
+ */
 const galleryPages = (root) =>
-    readdirSync(join(root, GALLERY), { withFileTypes: true })
-        .filter((entry) => entry.isFile() && entry.name.endsWith('.mdx'))
-        .map((entry) => entry.name)
-        .sort();
+    GALLERY_SECTIONS.flatMap(({ dir }) =>
+        readdirSync(join(root, sectionDir(dir)), { withFileTypes: true })
+            .filter((entry) => entry.isFile() && entry.name.endsWith('.mdx'))
+            .map((entry) => entry.name)
+            .sort()
+            .map((file) => ({ dir, file, path: `${sectionDir(dir)}/${file}` })),
+    );
 
 /** `<AdwWidget … title="X">` → X, for every page in the gallery. */
 function galleryTitles(root, pages) {
     /** @type {Map<string, string>} */
     const found = new Map();
     for (const page of pages) {
-        const text = readFileSync(join(root, GALLERY, page), 'utf8');
+        const text = readFileSync(join(root, page.path), 'utf8');
         for (const [, title] of text.matchAll(/<AdwWidget\b[^>]*?\btitle="([^"]+)"/g)) {
-            if (!found.has(title)) found.set(title, `${GALLERY}/${page}`);
+            if (!found.has(title)) found.set(title, page.path);
         }
     }
     return found;
@@ -171,10 +218,10 @@ function galleryTitles(root, pages) {
 function widgetBlocks(root, pages) {
     const blocks = [];
     for (const page of pages) {
-        const text = readFileSync(join(root, GALLERY, page), 'utf8');
+        const text = readFileSync(join(root, page.path), 'utf8');
         const shape = /<AdwWidget\b[^>]*?\btitle="([^"]+)"[^>]*>([\s\S]*?)<\/AdwWidget>/g;
         for (const [, title, body] of text.matchAll(shape)) {
-            blocks.push({ page: `${GALLERY}/${page}`, title, body });
+            blocks.push({ page: page.path, dir: page.dir, title, body });
         }
     }
     return blocks;
@@ -314,10 +361,56 @@ const pageProse = (text) =>
 
 /** Where the site's navigation is hand-written, and how a page is spelled in it. */
 const SIDEBAR = 'website/astro.config.mjs';
-const SIDEBAR_SLUG = /\bslug:\s*'(adwaita(?:\/[a-z0-9-]+)?)'/g;
+const SIDEBAR_SLUG = new RegExp(
+    `\\bslug:\\s*'((?:${GALLERY_SECTIONS.map(({ dir }) => dir).join('|')})(?:\\/[a-z0-9-]+)?)'`,
+    'g',
+);
 
-/** `controls.mdx` → `adwaita/controls`; the index page is the bare section slug. */
-const pageSlug = (page) => (page === 'index.mdx' ? 'adwaita' : `adwaita/${page.slice(0, -'.mdx'.length)}`);
+/** The index page of a section is spelled as the bare section slug. */
+const SECTION_INDEX = 'index.mdx';
+
+/** `{dir: 'gtk', file: 'controls.mdx'}` → `gtk/controls`. */
+const pageSlug = (page) =>
+    page.file === SECTION_INDEX ? page.dir : `${page.dir}/${page.file.slice(0, -'.mdx'.length)}`;
+
+/**
+ * The slugs listed inside one hand-written sidebar GROUP, or null if no group of
+ * that label exists.
+ *
+ * Arm 4 reads every `slug:` in the file as one flat set, which is all it needs, since
+ * a page is reachable or it is not. Arm 11's sidebar half needs the group each slug
+ * sits IN, because a `gtk/*` page listed under `Adwaita` is reachable and filed
+ * wrong, and only the second read can tell those apart.
+ *
+ * A Starlight `items:` array here holds one object per line and no nested array, so
+ * the first `]` after the opening one closes it. The vacuity guard below is what
+ * catches the day that stops being true: a group whose slugs come back empty is
+ * reported, not passed over.
+ */
+function sidebarGroup(text, label) {
+    const open = new RegExp(`\\blabel: '${label}',\\s*\\n\\s*items: \\[`).exec(text);
+    if (open === null) return null;
+    const start = open.index + open[0].length;
+    const end = text.indexOf(']', start);
+    if (end === -1) return null;
+    return [...text.slice(start, end).matchAll(/\bslug:\s*'([^']+)'/g)].map(([, slug]) => slug);
+}
+
+// A section declares the GIR namespace its widgets carry, and `bareName` decides
+// which titles the gallery accepts at all. Two hardcoded lists, and if they drift the
+// drift is SILENT in the expensive direction: arm 1 would reject every block of the
+// new section as a malformed title, so the section would look empty rather than
+// misfiled, and arm 11 would have nothing to file. Held here, before any data is read.
+for (const { namespace, group } of GALLERY_SECTIONS) {
+    if (bareName(`${namespace}.Widget`) !== null) continue;
+    console.error(
+        `check-website-adwaita-gallery: the ${group} section declares the namespace "${namespace}", and\n` +
+            `  bareName() does not accept "${namespace}.Widget". Arm 1 would reject every block in that\n` +
+            '  section as a malformed title and arm 11 would file none of them, so the section would be\n' +
+            '  policed by nothing at all. Widen bareName() to the namespaces GALLERY_SECTIONS declares.',
+    );
+    process.exit(1);
+}
 
 /** @type {Map<string, {path: string, file: string, titles: string[], source: string}>} */
 let metas;
@@ -397,12 +490,11 @@ for (const [name, entry] of Object.entries(TITLED_AFTER)) {
     );
 }
 
-const navigated = new Set(
-    [...readFileSync(join(ROOT, SIDEBAR), 'utf8').matchAll(SIDEBAR_SLUG)].map(([, slug]) => slug),
-);
+const sidebarSource = readFileSync(join(ROOT, SIDEBAR), 'utf8');
+const navigated = new Set([...sidebarSource.matchAll(SIDEBAR_SLUG)].map(([, slug]) => slug));
 if (navigated.size === 0) {
     console.error(
-        `check-website-adwaita-gallery: no adwaita entry found in ${SIDEBAR} — that is a broken scan,\n` +
+        `check-website-adwaita-gallery: no gallery entry found in ${SIDEBAR} — that is a broken scan,\n` +
             '  not a site with no navigation.',
     );
     process.exit(1);
@@ -410,7 +502,7 @@ if (navigated.size === 0) {
 for (const page of pages) {
     if (navigated.has(pageSlug(page))) continue;
     failures.push(
-        `${GALLERY}/${page} is in no sidebar group of ${SIDEBAR}. Starlight lists what that array\n` +
+        `${page.path} is in no sidebar group of ${SIDEBAR}. Starlight lists what that array\n` +
             `    names and nothing else, so the page exists at /${pageSlug(page)}/ and is offered to nobody.\n` +
             `    Add { slug: '${pageSlug(page)}' }, in the position the storybook's category order puts it.`,
     );
@@ -558,6 +650,12 @@ if (panePosition !== null) {
  * the pages it introduces. It carried the stale name too, and skipping it would have
  * left the one page a reader meets first outside the rule.
  *
+ * That union is PER SECTION, not over the whole gallery. `gtk/index.mdx` introduces
+ * the GTK pages and nothing else, so a window only the Adwaita pages draw is one its
+ * prose must not name. A gallery-wide union would let a section index describe
+ * windows a reader never meets there, in the exact voice this arm exists to keep
+ * honest.
+ *
  * MEASURED against the four ways it can be wrong, each restored afterwards:
  *
  *   · rename the window in the component alone — exit 1, on all 9 pages, which is
@@ -568,7 +666,6 @@ if (panePosition !== null) {
  *   · break the title read (`title:` -> `heading:`) — exit 1 on the vacuity guard,
  *     not a green run against an empty set
  */
-const SECTION_INDEX = 'index.mdx';
 const titledWindows = windows.filter((window) => window.title !== null);
 if (titledWindows.length === 0) {
     failures.push(
@@ -577,38 +674,127 @@ if (titledWindows.length === 0) {
     );
 }
 
-/** page → the titled windows its own blocks draw. */
-const shownBy = new Map(pages.map((page) => [page, new Set()]));
+/** page path → the titled windows its own blocks draw. */
+const shownBy = new Map(pages.map((page) => [page.path, new Set()]));
 for (const block of blocks) {
-    const page = block.page.slice(`${GALLERY}/`.length);
     const slots = new Set([...block.body.matchAll(/<Fragment slot="([^"]+)"/g)].map(([, slot]) => slot));
     for (const window of titledWindows) {
-        if (window.data || window.slots.some((slot) => slots.has(slot))) shownBy.get(page).add(window.title);
+        if (window.data || window.slots.some((slot) => slots.has(slot))) shownBy.get(block.page).add(window.title);
     }
 }
-const everywhere = new Set([...shownBy.values()].flatMap((titles) => [...titles]));
+/** section dir → the union over that section's own pages, which its index stands for. */
+const sectionWindows = new Map(GALLERY_SECTIONS.map(({ dir }) => [dir, new Set()]));
+for (const page of pages) {
+    for (const title of shownBy.get(page.path)) sectionWindows.get(page.dir).add(title);
+}
 
 for (const page of pages) {
-    const shown = page === SECTION_INDEX ? everywhere : shownBy.get(page);
-    // A page with no block draws nothing, and the index stands for the section.
+    const shown = page.file === SECTION_INDEX ? sectionWindows.get(page.dir) : shownBy.get(page.path);
+    // A page with no block draws nothing, and the index stands for its section.
     if (shown.size === 0) continue;
-    const prose = pageProse(readFileSync(join(ROOT, GALLERY, page), 'utf8'));
+    const prose = pageProse(readFileSync(join(ROOT, page.path), 'utf8'));
     for (const title of titledWindows.map((window) => window.title)) {
         const named = prose.includes(title);
         if (named === shown.has(title)) continue;
         failures.push(
             named
-                ? `${GALLERY}/${page} names the window "${title}" in its prose, and no block on it draws\n` +
+                ? `${page.path} names the window "${title}" in its prose, and no block on it draws\n` +
                       '    that window. A reader is told to look for a window that is not there — and the\n' +
                       '    enumeration is the only place the window titles are explained, so being wrong\n' +
                       '    there is worse than being silent.'
-                : `${GALLERY}/${page} draws the window "${title}" and its prose never names it. Every\n` +
+                : `${page.path} draws the window "${title}" and its prose never names it. Every\n` +
                       `    gallery page introduces the stack of windows by title, and ${WIDGET_COMPONENT}\n` +
                       '    relies on that: what a window title cannot say (the four runtimes, the three\n' +
                       '    dialects) the page says instead. Rename a window here and nowhere else, or grow\n' +
                       '    the stack by one, and the intro describes a page that no longer exists.',
         );
     }
+}
+
+// --- arm 11: a block is filed under the library that owns its GType ---
+//
+// Two reads of the same fact, because the filing is written down twice. The
+// directory is what a page IS; the sidebar group is what a reader MEETS. Getting
+// either one wrong puts a widget under the name of a library it does not belong to,
+// and neither arm above can see it.
+
+/** dir → the section, for the block half. */
+const sectionOf = new Map(GALLERY_SECTIONS.map((section) => [section.dir, section]));
+/** namespace → the section a block of that namespace belongs in. */
+const sectionOfNamespace = new Map(GALLERY_SECTIONS.map((section) => [section.namespace, section]));
+
+/**
+ * The namespace a block's title opens with, built FROM the table.
+ *
+ * A literal `/^(Adw|Gtk)\./` here would be a second list beside `GALLERY_SECTIONS`,
+ * and the day they disagreed arm 11 would skip every block of the unlisted namespace
+ * in silence, which is the one failure mode this arm must not have. The guard above
+ * holds the same pair against `bareName`, so all three move together or one of them
+ * goes red.
+ */
+const TITLE_NAMESPACE = new RegExp(`^(${GALLERY_SECTIONS.map(({ namespace }) => namespace).join('|')})\\.`);
+
+for (const block of blocks) {
+    const namespace = TITLE_NAMESPACE.exec(block.title);
+    // A title outside `Adw.Class` / `Gtk.Class` is already arm 1's failure; reporting
+    // it twice would say the same thing in two voices.
+    if (namespace === null) continue;
+    const belongs = sectionOfNamespace.get(namespace[1]);
+    if (belongs.dir === block.dir) continue;
+    failures.push(
+        `${block.page}: <AdwWidget title="${block.title}"> is a ${namespace[1]} widget filed under the\n` +
+            `    ${sectionOf.get(block.dir)?.group ?? block.dir} section. ADR 0034 § 1 names a widget after the\n` +
+            '    library that owns its GType, and the documentation follows the same split. A widget\n' +
+            '    documented under a library it does not belong to has moved the inconsistency, not removed\n' +
+            `    it. Move the block to ${sectionDir(belongs.dir)}/.`,
+    );
+}
+
+for (const section of GALLERY_SECTIONS) {
+    const listed = sidebarGroup(sidebarSource, section.group);
+    if (listed === null) {
+        failures.push(
+            `${SIDEBAR} declares no sidebar group labelled "${section.group}", so every page under\n` +
+                `    ${sectionDir(section.dir)} is filed under some other library's heading or under none.`,
+        );
+        continue;
+    }
+    if (listed.length === 0) {
+        failures.push(
+            `${SIDEBAR}: the "${section.group}" group parsed to zero slugs, so arm 11's sidebar half would\n` +
+                '    hold this section against an empty set and pass vacuously. The group reader is broken,\n' +
+                '    not the sidebar.',
+        );
+        continue;
+    }
+    for (const slug of listed) {
+        const dir = slug.split('/')[0];
+        if (dir === section.dir) continue;
+        failures.push(
+            `${SIDEBAR}: the "${section.group}" sidebar group lists { slug: '${slug}' }, which is a page of\n` +
+                `    the ${sectionOf.get(dir)?.group ?? dir} section. Arm 4 cannot see this: it reads every group as\n` +
+                '    one flat set, so the page is reachable and still meets the reader under the wrong\n' +
+                '    library.',
+        );
+    }
+    for (const page of pages.filter((entry) => entry.dir === section.dir)) {
+        if (listed.includes(pageSlug(page))) continue;
+        if (!navigated.has(pageSlug(page))) continue; // arm 4 already reports it as unreachable
+        failures.push(
+            `${page.path} is listed in ${SIDEBAR}, but not in the "${section.group}" group its section is\n` +
+                "    named by. It is reachable under another library's heading, which is the defect this\n" +
+                '    section split exists to remove.',
+        );
+    }
+}
+
+for (const section of GALLERY_SECTIONS) {
+    if (blocks.some((block) => block.dir === section.dir)) continue;
+    failures.push(
+        `${sectionDir(section.dir)} holds no <AdwWidget> block at all, so arm 11 polices an empty set for\n` +
+            `    the ${section.group} section. A declared section with no widget in it is a heading offered to\n` +
+            '    the reader with nothing behind it.',
+    );
 }
 
 if (failures.length > 0) {
@@ -627,6 +813,16 @@ console.log(
     `check-website-adwaita-gallery: ${metas.size} story metas — ${metas.size - exempt} documented by ` +
         `${gallery.size} <AdwWidget> blocks across ${pages.length} pages, all of them in the sidebar, ` +
         `${exempt} ledgered with a reason.`,
+);
+console.log(
+    `check-website-adwaita-gallery: ${GALLERY_SECTIONS.length} section(s) — ` +
+        GALLERY_SECTIONS.map(
+            ({ dir, namespace, group }) =>
+                `${group} [${blocks.filter((block) => block.dir === dir).length} ${namespace}.* block(s), ` +
+                `${(sidebarGroup(sidebarSource, group) ?? []).length} sidebar slug(s)]`,
+        ).join(', ') +
+        ' — every block under the library that owns its GType, and every page in the sidebar group its ' +
+        'section is named by.',
 );
 console.log(
     `check-website-adwaita-gallery: ${windows.length} window(s) in ${WIDGET_COMPONENT} — ` +

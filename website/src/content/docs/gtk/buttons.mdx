@@ -1,0 +1,252 @@
+---
+title: Buttons
+description: "GTK's button and menu button, the style classes that shape them and the popover menu. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+
+The two buttons on this page belong to GTK. `Gtk.Button` is the plain button
+every other one is built on, and `Gtk.MenuButton` is the one whose press opens a
+menu. Libadwaita ships neither, and the Adwaita stylesheet gives both their GNOME
+shape.
+
+The buttons libadwaita does ship are on
+[Adwaita Buttons](/gjsify/adwaita/buttons/), which covers button content, the
+split button and the toggle group.
+
+Each block below is a stack of windows. The first one RUNS the widget: the preview
+is the live browser port, so it follows the light and dark toggle the way a real
+window would, and the HTML tab beside it holds the very markup that paints it —
+one `import '@gjsify/adwaita-web'` registers every element in it. Then comes
+one window per kind of implementation — **Native TypeScript**, the `@girs` program
+that runs unchanged on GJS, Node, Bun and Deno, with the matching Blueprint
+declaration beside it, **UI frameworks**, the same widget written in Solid, Vue and
+React through `@gjsify/gtk-host` — or, where the widget is built imperatively rather
+than declared, the recorded reason it has no such snippet — and **NativeScript**,
+the port that runs on a phone. That last window splits the way the first one does. An
+XML template holds the tree, and the TypeScript beside it is the loader.
+
+GTK 4 is the reference here, typed by
+[`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). The browser and
+NativeScript ports spell both buttons with an `adw` prefix, `<adw-button>` and
+`<adw-menu-button>` in the browser, `AdwButton` and `AdwMenuButton` on
+NativeScript. Each ships one Adwaita-styled widget set and does not divide it by
+owning library. Where a port behaves differently, its own window says so.
+
+:::note
+The previews run the browser port, so behaviour the toolkits drive natively can
+be simplified here. Only the menu button diverges. NativeScript has no popover,
+so its menu opens as the platform action sheet.
+:::
+
+## Button Styles
+
+A plain button is `Gtk.Button`. Add a **style class** to restyle it. `.pill`
+makes it rounded and prominent, `.circular` suits an icon-only button,
+`.suggested-action` and `.destructive-action` colour an affirmative or a
+dangerous action, and `.flat` drops the visible background. They compose with
+each other and mean the same thing everywhere in the toolkit, so a
+`.destructive-action` in a header bar reads like one in a dialog.
+
+<AdwWidget title="Gtk.Button">
+  <Fragment slot="preview">
+    ```html
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
+      <adw-button label="Pill" pill></adw-button>
+      <adw-button icon="list-add" circular></adw-button>
+      <adw-button label="Suggested" suggested></adw-button>
+      <adw-button label="Delete" destructive></adw-button>
+      <adw-button label="Flat" flat></adw-button>
+    </div>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+    import Gtk from '@girs/gtk-4.0';
+
+    const box = new Adw.WrapBox({ childSpacing: 12, lineSpacing: 12, halign: Gtk.Align.CENTER });
+
+    const pill = new Gtk.Button({ label: 'Pill' });
+    pill.add_css_class('pill');
+    box.append(pill);
+
+    const circular = new Gtk.Button({ iconName: 'list-add-symbolic' });
+    circular.add_css_class('circular');
+    box.append(circular);
+
+    const suggested = new Gtk.Button({ label: 'Suggested' });
+    suggested.add_css_class('suggested-action');
+    box.append(suggested);
+
+    const destructive = new Gtk.Button({ label: 'Delete' });
+    destructive.add_css_class('destructive-action');
+    box.append(destructive);
+
+    const flat = new Gtk.Button({ label: 'Flat' });
+    flat.add_css_class('flat');
+    box.append(flat);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.WrapBox {
+      child-spacing: 12;
+      line-spacing: 12;
+      halign: center;
+
+      Gtk.Button {
+        label: _("Pill");
+
+        styles ["pill"]
+      }
+
+      Gtk.Button {
+        icon-name: "list-add-symbolic";
+
+        styles ["circular"]
+      }
+
+      Gtk.Button {
+        label: _("Suggested");
+
+        styles ["suggested-action"]
+      }
+
+      Gtk.Button {
+        label: _("Delete");
+
+        styles ["destructive-action"]
+      }
+
+      Gtk.Button {
+        label: _("Flat");
+
+        styles ["flat"]
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+
+    const box = new AdwWrapBox();
+    box.childSpacing = 12;
+    box.lineSpacing = 12;
+
+    const pill = new AdwButton();
+    pill.text = 'Pill';
+    pill.variant = 'pill';
+    box.add(pill);
+
+    const suggested = new AdwButton();
+    suggested.text = 'Suggested';
+    suggested.variant = 'suggested-action';
+    box.add(suggested);
+
+    const destructive = new AdwButton();
+    destructive.text = 'Delete';
+    destructive.variant = 'destructive-action';
+    box.add(destructive);
+
+    const flat = new AdwButton();
+    flat.text = 'Flat';
+    flat.variant = 'flat';
+    box.add(flat);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Menu Button
+
+When a button's only job is to open a menu, use a **menu button**. It is the
+hamburger at the end of a header bar, with no action of its own and every choice
+in the popover it opens. Libadwaita ships no menu button, so this is
+`Gtk.MenuButton`. The Adwaita stylesheet gives it the flat, rounded-square shape.
+
+<AdwWidget title="Gtk.MenuButton">
+  <Fragment slot="preview">
+    ```html
+    <adw-menu-button
+      icon-name="open-menu"
+      menu-title="Document"
+      menu='[{"label":"Save as…"},{"label":"Export"},{"label":"Print"}]'
+    ></adw-menu-button>
+    ```
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gio from '@girs/gio-2.0';
+    import Gtk from '@girs/gtk-4.0';
+
+    const menu = new Gio.Menu();
+    menu.append('Save as…', 'app.save-as');
+    menu.append('Export', 'app.export');
+    menu.append('Print', 'app.print');
+
+    const button = new Gtk.MenuButton({
+        iconName: 'open-menu-symbolic',
+        menuModel: menu,
+        primary: true, // opens on F10, the way an app menu should
+    });
+    button.add_css_class('flat');
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+
+    Gtk.MenuButton {
+      icon-name: "open-menu-symbolic";
+      primary: true;
+      menu-model: primary-menu;
+
+      styles ["flat"]
+    }
+
+    menu primary-menu {
+      section {
+        item {
+          label: _("Save as…");
+          action: "app.save-as";
+        }
+
+        item {
+          label: _("Export");
+          action: "app.export";
+        }
+
+        item {
+          label: _("Print");
+          action: "app.print";
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwMenuButton } from '@gjsify/adwaita-nativescript';
+    import { openMenuSymbolic } from '@gjsify/adwaita-icons/actions';
+
+    const button = new AdwMenuButton();
+    button.icon = openMenuSymbolic; // an Adwaita symbolic icon (SVG string)
+    button.menuTitle = 'Document';
+    button.menuItems = [{ label: 'Save as…' }, { label: 'Export' }, { label: 'Print' }];
+    // NativeScript has no popover, so the menu opens as the platform action sheet.
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Controls](../controls/): the entry and the drop down, the other two GTK
+  widgets the Adwaita stylesheet paints.
+- [Adwaita Buttons](/gjsify/adwaita/buttons/): button content, the split button
+  and the toggle group.
+- [Adwaita Storybook](/gjsify/showcases/adwaita-storybook/): the same widgets in
+  a live component browser you can poke at.

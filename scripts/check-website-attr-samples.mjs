@@ -47,7 +47,13 @@ import { observedAttributes } from './adwaita-elements.mjs';
 
 const rootFlag = process.argv.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : process.argv[rootFlag + 1];
-const DOCS_DIR = join(ROOT, 'website/src/content/docs/adwaita');
+/**
+ * The gallery's section directories, one per widget library. Two since ADR 0034 § 1
+ * put `Gtk` beside `Adwaita`; this gate counts CELLS across gallery blocks, so a
+ * single-directory scan would go green over a set four blocks short of the site's.
+ */
+const DOCS_SECTIONS = ['adwaita', 'gtk'];
+const docsDir = (section) => join(ROOT, 'website/src/content/docs', section);
 
 const failures = [];
 const fail = (what, expected, actual) => failures.push(`${what}\n      expected ${expected}\n      actual   ${actual}`);
@@ -150,8 +156,14 @@ const elementTag = (title) =>
 const { byTag } = observedAttributes(ROOT);
 let blocks = 0;
 let cellsSeen = 0;
-for (const page of readdirSync(DOCS_DIR).filter((f) => f.endsWith('.mdx'))) {
-    const text = readFileSync(join(DOCS_DIR, page), 'utf8');
+for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
+    readdirSync(docsDir(section))
+        .filter((f) => f.endsWith('.mdx'))
+        // `buttons.mdx` now exists in both sections, so a bare filename in a failure
+        // no longer says which page it is.
+        .map((f) => ({ page: `${section}/${f}`, file: join(docsDir(section), f) })),
+)) {
+    const text = readFileSync(file, 'utf8');
     for (const block of text.split('<AdwWidget').slice(1)) {
         const title = /^[^>]*title="([^"]+)"/.exec(block)?.[1];
         if (title === undefined) continue;
