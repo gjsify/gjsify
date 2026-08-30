@@ -104,12 +104,30 @@ measures nothing — the reason this field is a required one rather than prose:
 | `windows-dir` | our own `binary.mjs` | it is the reader under test — a PE read by the same family that staged it is not an oracle | " |
 | `windows-dir-zip` | `unzip -Z1` | as above; and here it is also blind to the archive's own failure, entries written at the ROOT | `zipinfo -l` |
 | `macos-app-dmg` | `hdiutil verify` / `hdiutil imageinfo` | hdiutil reading what hdiutil wrote — ADR 0024 § A3 names this format as the case the field exists for | `7z l` + `7z t` + `dmg2img` + `fsck.hfsplus -f -n`, on **Linux** |
-| `macos-app-dmg` | `7z l` alone | a table-of-contents read; blind to a byte flipped inside a compressed run, which is why `7z t` is in the chain | " |
+| `macos-app-dmg` | `7z l` alone | it decodes only what its nested HFS listing needs — measured blind to a byte flipped at offset 16000 of a real image, which `7z t` and `dmg2img` both refuse | " |
 | `macos-app-dmg` | `dmg2img in.dmg out.img` | writes the whole GPT-partitioned DISK (measured: eight partitions), so the HFS+ volume header is not at offset 1024 and `fsck.hfsplus` exits 8 on a correct image | `dmg2img -l` to find the `Apple_HFS` partition, then `dmg2img -p <n>` |
 
 `bsdtar` was the other zip candidate and is absent here and in the CI image; adding it would trip
 `scripts/check-ci-image-packages.mjs`. `zipinfo` ships in the `unzip` package that is already
 baked.
+
+**No single reader in the `.dmg` chain covers everything, and roughly a quarter of the file is
+covered by none of them.** One byte flipped at each offset of the real 31715-byte artifact (data
+fork 0-22939, XML plist 22939-31203, koly trailer 31203-31715), exit codes:
+
+| offset | `7z l` | `7z t` | `dmg2img -p 4` |
+|---|---|---|---|
+| 0 · 256 · 512 · 1024 · 2048 · 4096 | 0 | 0 | 0 |
+| 8192 · 12288 · 15000 | 2 | 2 | 1 |
+| 16000 · 20000 | **0** | 2 | 1 |
+| 24000 | 2 | 2 | **0** |
+| 28000 · 31000 | 0 | 0 | 0 |
+
+The leading kilobytes are the `Zero0`/`Zero2` runs of the GPT header and table partitions, which
+store nothing and checksum nothing; the trailing ones are plist and trailer padding. That is why
+`verify-dmg.py --mutate payload` reads `dataForkOffset`/`dataForkLength` out of the koly trailer and
+flips the fork's MIDDLE — its first version used the constant 512, landed in padding, and reported
+"the readers are not doing their job" about a chain that was working.
 
 The `.dmg` chain is the one set of readers that is NOT in the CI image, and deliberately so.
 `build-ci-image.yml` publishes `ghcr.io/gjsify/ci-fedora` only on a push to `main`, so a PR that

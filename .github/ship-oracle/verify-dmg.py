@@ -78,19 +78,38 @@ Data` and `[HFS+ Private Data]` — need no allowance at all: both are DIRECTORI
 comparison below is over files.
 
 DISCRIMINATOR (run it, do not trust it).  `--mutate` writes a corrupted COPY and prints
-what it changed; re-running the verification on that copy must exit 1.  Three mutants,
-one per reader, because a single byte flip does not red them all — measured on
-ubuntu-24.04 against an 8 MiB `mkfs.hfsplus -J` volume, flipping one byte at offsets
-1028, 1100 and 2048 left BOTH `fsck.hfsplus` and `7z l` at exit 0, while the same flip
-at 1024 (the `H+` signature) gave fsck exit 8 and 7z exit 2.  "Flip a byte somewhere"
-is not a negative control; flipping a byte that something reads is.
+what it changed; re-running the verification on that copy must exit 1.
 
   koly     one byte of the UDIF trailer's magic.  Links 1 and 3 lose the container.
-  payload  one byte inside the compressed data fork.  Link 2 is the one that sees it;
-           link 1 need not, and that asymmetry is why `7z t` is in the chain.
-  volume   the HFS+ volume signature, in the image dmg2img produces.  Link 4's
+  payload  one byte at the MIDDLE of the data fork, whose offset and length come from
+           the koly trailer rather than from a constant here.
+  volume   the HFS+ volume signature, in the volume dmg2img extracts.  Link 4's
            subject, and the mutant is a raw volume rather than a `.dmg` — pass
            `--kind volume` when verifying it.
+
+"FLIP A BYTE SOMEWHERE" IS NOT A NEGATIVE CONTROL, and the map below is why.  One byte
+flipped at each offset of the real 31715-byte artifact (data fork 0..22939, XML plist
+22939..31203, koly 31203..31715); the columns are exit codes:
+
+    offset                     7z l   7z t   dmg2img -p4
+    0 · 256 · 512 · 1024 ·        0      0        0     <- NOTHING SEES IT
+      2048 · 4096
+    8192 · 12288 · 15000          2      2        1
+    16000 · 20000                 0      2        1     <- `7z l` blind
+    24000                         2      2        0     <- dmg2img blind
+    28000 · 31000                 0      0        0     <- NOTHING SEES IT
+
+Three things follow, and the third is a limit rather than a feature.  (a) The first cut
+of `--mutate payload` used the constant 512 and the chain accepted the mutant, at exit 0,
+reported as "the readers are not doing their job" — the leading kilobytes of the data
+fork are the `Zero0`/`Zero2` runs of the GPT header and table partitions, which store
+nothing and checksum nothing.  (b) NO SINGLE READER COVERS EVERYTHING: `7z l` decodes
+only what its nested HFS listing needs and misses 16000, while dmg2img misses 24000 —
+which is the argument for the chain, and a better one than "`7z t` is the link that sees
+the payload".  (c) A one-byte flip in roughly the leading 4 KB or the trailing 3.7 KB of
+this image is invisible to all three.  That is not fixed here and is not pretended
+otherwise; what the chain covers is the payload, the container's identity and the
+filesystem's integrity, not every byte of the file.
 
 Usage:
     python3 verify-dmg.py <image> <stage manifest.json> [--kind dmg|volume]
@@ -104,6 +123,7 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -511,20 +531,41 @@ def mutate(image: str, kind: str, out: str) -> None:
         return
 
     if kind == "payload":
-        # Inside the DATA FORK: a UDZO image stores its compressed runs from offset 0
-        # and puts the plist + trailer at the end, so a byte a little way in is
-        # compressed data. Deliberately not the midpoint — for a small image the
-        # middle can land in the XML property list, where a flip is a parse error
-        # rather than a decompression one, and the two are different claims.
-        offset = 512
-        if size <= offset + KOLY_TRAILER_BYTES:
-            fail(f"{image} is {size} bytes — too small for offset {offset} to be inside the data fork.")
+        # DERIVED FROM THE IMAGE, not a constant, and the constant is why. The first
+        # cut flipped offset 512 and the chain accepted it — measured on the real
+        # 31715-byte artifact, a flip anywhere in 0..4096 changes nothing any of the
+        # three readers can see, because the UDIF data fork opens with the runs of
+        # the GPT header and table partitions, which are `Zero0`/`Zero2` fills with
+        # nothing stored and nothing checksummed. A negative control that lands in
+        # padding is a green run reported as a red one.
+        #
+        # The koly trailer says where the payload actually is: `dataForkOffset` at
+        # +0x18 and `dataForkLength` at +0x20, both big-endian u64. Its MIDDLE is
+        # compressed data for any image this packer produces, and it moves with the
+        # image instead of going stale the first time the fixture grows.
         with open(out, "r+b") as handle:
+            handle.seek(size - KOLY_TRAILER_BYTES)
+            trailer = handle.read(KOLY_TRAILER_BYTES)
+            if trailer[:4] != KOLY_MAGIC:
+                fail(
+                    f"the last {KOLY_TRAILER_BYTES} bytes of {image} do not begin with `koly` "
+                    f"(found {trailer[:4]!r}), so this mutation cannot find the data fork."
+                )
+            fork_at, fork_len = struct.unpack_from(">QQ", trailer, 0x18)
+            if fork_len < 4096:
+                fail(
+                    f"{image}'s data fork is {fork_len} bytes, which is too small for a midpoint flip to "
+                    "be meaningfully inside a compressed run."
+                )
+            offset = fork_at + fork_len // 2
             handle.seek(offset)
             before = handle.read(1)
             handle.seek(offset)
             handle.write(bytes([before[0] ^ 0xFF]))
-        print(f"mutated {out}: data fork byte at offset {offset}, {before.hex()} -> {before[0] ^ 0xFF:02x}")
+        print(
+            f"mutated {out}: data fork is {fork_len} bytes at {fork_at}; flipped its midpoint, "
+            f"offset {offset}, {before.hex()} -> {before[0] ^ 0xFF:02x}"
+        )
         return
 
     fail(f"unknown mutation `{kind}`")

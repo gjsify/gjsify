@@ -2594,12 +2594,17 @@ jobs:
       # script that could `exit 0` unconditionally, and a green run would say
       # nothing at all — the failure class this repository pays for most.
       #
-      # THREE and not one, because a single byte flip does not red them all:
-      # measured on ubuntu-24.04 against an 8 MiB `mkfs.hfsplus -J` volume,
-      # flipping one byte at offsets 1028, 1100 and 2048 left BOTH `fsck.hfsplus`
-      # and `7z l` at exit 0, while the same flip at 1024 — the `H+` volume
-      # signature — gave fsck exit 8 and 7z exit 2. A negative control has to
-      # corrupt something a reader reads.
+      # THREE and not one, because a single byte flip does not red them all — and
+      # WHERE it lands decides more than that. Measured on the real 31715-byte
+      # artifact, one byte flipped: at 0/256/512/1024/2048/4096 no reader notices
+      # (the data fork opens with the GPT partitions' zero-fill runs, which store
+      # and checksum nothing), at 16000 `7z l` is blind while `7z t` and dmg2img
+      # refuse, at 24000 dmg2img is blind while both 7-Zip reads refuse, and past
+      # 28000 nothing notices again. `verify-dmg.py` carries the full map; the
+      # consequence here is that `--mutate payload` derives its offset from the
+      # koly trailer's own `dataForkOffset`/`dataForkLength` instead of using a
+      # constant, because the constant it used first landed in padding and the
+      # chain accepted the mutant.
       - name: RED — the readers refuse a corrupted UDIF trailer
         env:
           DMG: ${{ steps.art.outputs.dmg }}
@@ -2619,7 +2624,7 @@ jobs:
           set -euo pipefail
           python3 oracle/verify-dmg.py "$DMG" --mutate payload --out mutant-payload.dmg
           if python3 oracle/verify-dmg.py mutant-payload.dmg "$STAGE_DIR/.gjsify-ship-stage.json"; then
-            echo "::error title=Ship .dmg::the chain accepted an image with a byte flipped inside its data fork. A table-of-contents read is blind to that, which is why 7z t is in the chain — this says it is not doing its job."
+            echo "::error title=Ship .dmg::the chain accepted an image with a byte flipped at the middle of its data fork — the offset is read from the koly trailer, so it is compressed payload and not padding. See verify-dmg.py's coverage map."
             exit 1
           fi
           echo "refused, as it must"

@@ -560,13 +560,16 @@ stays rejected on § A6's terms; the image is created by `hdiutil create -format
   has no subject at all — two of the three readers would silently stop reading, on a host no Linux
   contributor can inspect. `-format UDZO` (zlib) is the same kind of decision one level down:
   `ubuntu-latest` is ubuntu-24.04 and ships 7-Zip 23.01, not a contributor workstation's 26.02.
-- **"Flip a byte" is not a negative control.** Measured on ubuntu-24.04 against an 8 MiB
-  `mkfs.hfsplus -J` volume: one byte flipped at offset 1028, 1100 or 2048 left BOTH `fsck.hfsplus`
-  and `7z l` at exit 0, while the same flip at 1024 — the `H+` volume signature — gave fsck exit 8
-  and 7z exit 2. So the discriminator is three mutants, one per reader, each corrupting something a
-  named reader reads: the UDIF trailer's magic, a byte inside the data fork, and the HFS+ signature
-  in the converted volume. Plus a positive control on the untouched volume, so a `--kind volume`
-  path that refused everything could not pass as a discriminator.
+- **"Flip a byte" is not a negative control, and where it lands decides more than that.** One byte
+  flipped at each offset of the real 31715-byte artifact, exit codes `7z l`/`7z t`/`dmg2img -p 4`:
+  0 through 4096 → 0/0/0 (the data fork opens with the GPT partitions' zero-fill runs, which store
+  and checksum nothing); 8192-15000 → all three refuse; 16000-20000 → `7z l` blind; 24000 →
+  `dmg2img` blind; 28000+ → nothing notices. So `--mutate payload` reads `dataForkOffset` and
+  `dataForkLength` out of the koly trailer and flips the fork's MIDDLE — its first version used the
+  constant 512, landed in padding, and reported a working chain as broken. Two consequences worth
+  keeping: no single reader covers everything, which is a better argument for the chain than "`7z t`
+  is the link that sees the payload"; and roughly the leading 4 KB plus the trailing 3.7 KB of the
+  file is covered by none of them, which is a limit rather than a feature.
 - **The row declares `hdiutil` and NOT `glib-compile-schemas`,** which its two siblings do. The
   compiler is an assembly tool and `assertToolsInstalled` fires on the pack path; this is the first
   row whose pack is separated from its assembly by a host boundary, so declaring it would refuse a
