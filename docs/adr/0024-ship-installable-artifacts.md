@@ -1124,11 +1124,19 @@ this document's own voice turns out to have been narrower than the pool.
 
 ### A18. `readStage` does refuse a re-signed tree, so § A17's ordering is not a precaution
 
-§ A17 argues the order from "a size is no more re-sign-proof than a digest". Measured rather than
-argued, on this tree: append one byte to a staged file and `readStage` throws
+§ A17 argues the order from "a size is no more re-sign-proof than a digest" and says the design must
+not bet on the answer. Both halves are now measured, and they agree.
+
+**Does `readStage` refuse a size change?** Yes. Append one byte to a staged file and it throws
 *"… is 6 bytes in the stage and 5 in its manifest. The stage arrived truncated or was edited after
-it was assembled."* So a signer that wrote into the arriving stage would break the very next
-`--from-stage` run of it, and the order § A17 fixes is load-bearing rather than tidy.
+it was assembled."*
+
+**Does an ad-hoc re-sign change the size?** Yes — **34 816 → 34 848 bytes, delta +32**, measured on
+macos-latest/arm64 (2026-08-30) by copying one staged image out of a `.app` and running
+`codesign --force --sign -` on the copy. The suite prints that number on every darwin run and
+asserts nothing about it, because the design must not depend on it; what it settles is that § A17's
+ordering is REQUIRED rather than defensive. A signer that wrote into the arriving stage would break
+the very next `--from-stage` run of it.
 
 **It is enforced structurally and not by convention**, which is what § A17 asked M2's packer to make
 possible. `signPayload` TAKES what `readStage` returned and RETURNS what the packer consumes, so the

@@ -307,6 +307,54 @@ jobs:
       - name: '@gjsify/cli'
         run: node packages/infra/cli/lib/index.js workspace @gjsify/cli run test
 
+      # ── #1354 M6: signing, proven with no certificate in the repository ────
+      #
+      # THE DETERMINATION THIS STEP IS. `gjsify ship --sign` execs the bare name
+      # `codesign`, and whether GitHub's macOS images put one on `PATH` is a fact
+      # about the image rather than something to assume — so it is read here, in
+      # the log, before the leg that depends on it. `xcode-select -p` and `cc`
+      # come along because the suite compiles its own Mach-O fixtures with the
+      # Command Line Tools that ship `codesign`.
+      - name: Show that this host can sign (M6 needs no certificate)
+        run: |
+          command -v codesign
+          echo "developer dir: $(xcode-select -p)"
+          # `sed -n` and not `head`, on a step whose whole job is to be
+          # trustworthy: GitHub runs every `run:` under `bash -eo pipefail`, and
+          # `head` closes the pipe as soon as it has its lines — so a writer that
+          # is still writing takes SIGPIPE, and the pipeline fails on 141 for a
+          # reason that has nothing to do with what was being measured. `sed`
+          # drains the whole stream.
+          cc --version 2>&1 | sed -n 1p
+          # `codesign` has no --version; getting its usage back is the cheapest
+          # proof that the binary on PATH is the real one and runs.
+          codesign --help 2>&1 | sed -n 1,2p || true
+
+      # AD-HOC SIGNING IS THE WHOLE PROOF, and it carries no secret: `codesign
+      # --sign -` needs no Apple Developer Program membership (ADR 0024 § A17,
+      # and `docs/poc/webkit-hardened-runtime-darwin.sh` says so in those words).
+      # The suite compiles two real dylibs, pre-signs them the way the shipped
+      # closure arrives, stages a `.app`, signs the payload INSIDE the finish
+      # phase, and then reads the arrival back two ways — Apple's own `codesign
+      # --verify` on the images, and `.github/ship-oracle/verify-signed-arrival.mjs`
+      # for the claim no verifier makes: that signing changed nothing else.
+      #
+      # `GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN=1` is not decoration. Every darwin
+      # assertion in that file is behind `hasCommand('codesign')`, so on a host
+      # without one the suite passes having proved nothing — this variable turns
+      # that into a failure, which is what stops this step from being the green
+      # leg that checked nothing. Watched red: the same command on Linux fails
+      # exactly that assertion and nothing else.
+      #
+      # WHAT IT DOES NOT PROVE: the 106-image GTK closure. This runs over two
+      # compiled fixtures, so it measures the pipeline and the comparator, not
+      # the scale — and it says nothing about a Developer ID, which is a
+      # different VALUE for the same flag and no other code path.
+      - name: Ad-hoc sign a Mach-O payload and compare its arrival (#1354 M6)
+        env:
+          GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN: '1'
+        run: node --test tests/e2e/ship-signing/run.mjs
+
       # Manifest conformance including `os-axis` — cheap, and it is the check
       # that the declarations these suites back up are still present. It prints
       # every claim below `supported` with its reason, so the log carries the

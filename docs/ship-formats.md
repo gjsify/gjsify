@@ -434,6 +434,14 @@ deliverable; what ADR 0024 § 5 refuses is the other direction, claiming a signa
 made. The skip goes to stderr and names the step it skipped — the reference's own two scripts both
 say "Skipping codesign" and one of them is skipping `productsign`.
 
+**A payload with nothing signable is also a success, and it says so.** A `--app gjs` bundle is
+JavaScript and a launcher, so there is nothing for the loader to validate; the run prints *"nothing
+in this payload is a Mach-O image, so codesign signed 0 file(s). The artifact carries no
+signature."* The consequence is worth knowing rather than discovering: an IDENTITY is only ever
+validated by the tool that consumes it, so a run with nothing to sign cannot tell a real Developer
+ID from a name nobody holds. `tests/e2e/ship-signing` therefore plants a signable image in both
+identity refusals — measured, because without one they passed at exit 0 on macOS.
+
 **Why the signer returns bytes rather than wrapping them.** Under hardened runtime a
 Developer-ID-signed main executable will not load ad-hoc-signed dylibs, and § A4 measured **106 of
 106** Mach-O images in the shipped darwin GTK closure already carrying an ad-hoc
@@ -441,9 +449,11 @@ Developer-ID-signed main executable will not load ad-hoc-signed dylibs, and § A
 relocation. So the darwin leg re-signs the closure and the packers get new bytes.
 
 **The order is structural (§ A17).** `readStage` compares each staged file's SIZE against
-`.gjsify-ship-stage.json`, and a size is no more re-sign-proof than a digest would be — measured:
-append one byte to a staged file and it refuses with *"… is 6 bytes in the stage and 5 in its
-manifest"*. So `packOne` validates the PRE-sign tree, `signPayload` takes that result and returns
+`.gjsify-ship-stage.json`, and a size is no more re-sign-proof than a digest would be. Both halves
+are measured and they agree: append one byte to a staged file and `readStage` refuses with *"… is 6
+bytes in the stage and 5 in its manifest"*, and an ad-hoc re-sign of one staged image took it from
+34 816 to 34 848 bytes (+32, macos-latest/arm64, 2026-08-30). So `packOne` validates the PRE-sign
+tree, `signPayload` takes that result and returns
 the signed one, and the container is built from the return value. The signed bytes are computed
 from the validated ones and therefore cannot exist before them; the arriving stage is never written
 to, which is also what makes a `--from-stage --sign` run repeatable.

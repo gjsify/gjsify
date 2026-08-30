@@ -21,9 +21,11 @@
 //     container around the old ones.
 //  4. THE ORDER IS STRUCTURAL, not conventional (§ A17). `readStage` compares
 //     each file's SIZE against `.gjsify-ship-stage.json`, and a size is no more
-//     re-sign-proof than a digest — measured on this tree: append one byte to a
-//     staged file and `readStage` refuses with "… is 6 bytes in the stage and 5
-//     in its manifest". {@link signPayload} therefore TAKES what `readStage`
+//     re-sign-proof than a digest. BOTH halves are measured and they agree:
+//     append one byte to a staged file and `readStage` refuses with "… is 6
+//     bytes in the stage and 5 in its manifest"; and an ad-hoc `codesign
+//     --force --sign -` over one staged image took it from 34 816 to 34 848
+//     bytes (+32) on macos-latest/arm64. {@link signPayload} therefore TAKES what `readStage`
 //     returned and RETURNS what the packer consumes: the signed bytes cannot
 //     exist before the validation, because they are computed from its output,
 //     and the arriving stage is never written to at all.
