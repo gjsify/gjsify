@@ -72,7 +72,8 @@ export type FormatId =
     | 'macos-app-zip'
     | 'macos-app-dmg'
     | 'windows-dir'
-    | 'windows-dir-zip';
+    | 'windows-dir-zip'
+    | 'msi';
 
 /**
  * The formats whose ARTIFACT carries a distro dependency list.
@@ -109,11 +110,29 @@ export type HostOs = 'linux' | 'darwin' | 'win32';
  * that independence unless a reader from a DIFFERENT implementation family
  * exists, which is exactly what `selfReading` is the honest confession of.
  */
+/**
+ * Commands a packer EXECS — a flat LIST when every host runs the same ones, and
+ * a per-OS MAP when the backend is host-SELECTED.
+ *
+ * The map arrived with the `.msi` and nothing else needs it, which is exactly why
+ * it is a union rather than a map everywhere: five of the eight rows exec one tool
+ * or none, and spelling `{ linux: [], darwin: [], win32: [] }` on each of them
+ * would make five rows say three times over what one row has to say once.
+ *
+ * The `.msi` cannot use the flat form and be honest. It is produced by `wixl` on
+ * Linux and by WiX v3 on Windows out of ONE authored `.wxs` (ADR 0024 § A6), so a
+ * flat list is wrong in both directions: the union of the two demands `wixl` of a
+ * Windows host that will never run it, and either half alone silently claims the
+ * other OS needs nothing. {@link requiredToolsOn} is the one resolver, and
+ * `assertToolsInstalled` takes the host it resolves for.
+ */
+export type RequiredTools = readonly string[] | Readonly<Partial<Record<HostOs, readonly string[]>>>;
+
 export interface HostRequirement {
     /** OSes whose tooling can finish this format. `'any'` = pure JS, under GJS, offline. */
     finishOn: 'any' | readonly HostOs[];
     /** Commands the packer EXECS. Empty iff this tree writes the format itself. */
-    requiredTools: readonly string[];
+    requiredTools: RequiredTools;
     /**
      * How to install {@link requiredTools}, in this format's own words.
      *
@@ -122,8 +141,13 @@ export interface HostRequirement {
      * `assertToolsInstalled`, which is correct for exactly one format and would
      * have told the first `.dmg` or `.msi` user to install flatpak — from the
      * same branchless dispatch this whole table exists to keep branchless.
-     * Required whenever `requiredTools` is non-empty; `flatpak.spec.ts` holds
-     * that, the same way it holds `selfReading`.
+     * Required whenever `requiredTools` is non-empty on ANY host; `flatpak.spec.ts`
+     * holds that, the same way it holds `selfReading`.
+     *
+     * ONE string even for a host-selected backend, and that is not a shortcut: the
+     * refusal already names the tool that is missing, so a hint covering both routes
+     * ("Fedora: … / Windows: …") answers the reader's question without a second
+     * per-OS field to keep in step with the first.
      */
     installHint?: string;
     oracle: {

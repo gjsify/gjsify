@@ -197,10 +197,48 @@ position for the same reason — `signtool` has no ad-hoc mode. Both gaps are wr
 
 The `.dmg` and the Windows `.msi` are still ahead, and so is notarisation. The asymmetry between the
 two platforms is worth knowing: Gatekeeper BLOCKS an unsigned `.app`,
+
+### And a Windows installer around it
+
+`gjsify ship windows --target msi` wraps that same program directory in a Windows Installer
+package. It lands under `C:\Program Files\<App>` — overridable with `msiexec INSTALLDIR=…` — adds
+one Start-Menu entry, and appears in Add/Remove Programs, so a user can take it off again. The
+installed tree is byte-for-byte the tree the zip expands to; there is no publisher level and nothing
+about the payload changes.
+
+`msi` is the first format `ship` does not write itself. It renders one authored `.wxs` and hands it
+to whichever compiler the host has — `wixl` from `msitools` on Linux, WiX Toolset v3.14 on
+Windows — which is why it is opt-in rather than part of a bare `gjsify ship windows`, and why a
+missing compiler is a message naming the package before your build runs. Building a Windows
+installer from a Linux workstation needs `sudo dnf install msitools` (or `sudo apt install
+msitools`) and nothing else.
+
+Two compilers over one document is also what buys the artifact an independent reader. CI installs
+the wixl-built package with `msiexec` on a `windows-latest` runner that has no GTK and no Node on
+`PATH`, opens a window with it, uninstalls it and asserts that no file, no Add/Remove Programs entry
+and no Start-Menu shortcut survives; then it compiles the same `.wxs` with WiX and reads THAT file
+back on Linux with `msiinfo`. Neither leg is a package checking its own output.
+
+The `ProductCode` and `UpgradeCode` are derived from your app id and version rather than rolled at
+random, so two builds of one release are the same artifact and an upgrade actually replaces the
+version before it. A prerelease version is refused rather than truncated: MSI has no spelling for
+`1.2.0-rc.1`, and dropping the suffix would make the candidate and the release indistinguishable —
+installing one over the other would leave both on the machine.
+
+The Start-Menu shortcut does not fix the console window above: it points at the same `.cmd`.
+
+### What it does not do yet
+
+The `.dmg` and signing are still ahead — an artifact assembled on Linux is
+unsigned by construction. The asymmetry is worth knowing: Gatekeeper BLOCKS an unsigned `.app`,
 while SmartScreen only warns until a download builds reputation, so the Windows directory is usable
 today in a way the macOS bundle is not. macOS has GJS but no *relocatable* GJS and Windows has no
-GJS at all, which is why all four new formats accept `gjsify.app: "node"` only; a `gjs` project can
-assemble either layout and is told, by name, why it cannot pack it.
+GJS at all, which is why all five of these formats accept `gjsify.app: "node"` only; a `gjs` project
+can assemble either layout and is told, by name, why it cannot pack it.
+
+MSIX stays rejected until a signing certificate exists: an unsigned one cannot be installed at all,
+and a self-signed certificate in `TrustedPeople` would buy a green CI leg that proves the leg trusts
+itself.
 
 See [#1354](https://github.com/gjsify/gjsify/issues/1354) and
 `docs/adr/0024-ship-installable-artifacts.md`.

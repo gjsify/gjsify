@@ -12,7 +12,7 @@ import { isOnPath } from '../check-system-deps.js';
 import { DMG_TOOL } from './dmg.js';
 import { LAYOUTS, LAYOUT_NAMES, type Layout } from './layout.js';
 import { SCHEMA_COMPILER, SCHEMA_COMPILER_HINT } from './schemas.js';
-import type { FormatDescriptor, FormatId, HostOs, PackSettings } from './types.js';
+import type { FormatDescriptor, FormatId, HostOs, PackSettings, RequiredTools } from './types.js';
 
 // `process.arch` → the format's architecture name. Taken from dpkg's own
 // `data/cputable` and rpm's arch table. `arm` cannot be told apart from
@@ -218,6 +218,35 @@ export function windowsProgramDirName(settings: PackSettings): string {
         );
     }
     return name;
+}
+
+/**
+ * The tools ONE host needs for a format, whichever shape the row declares.
+ *
+ * The one place the union in {@link RequiredTools} is opened, so a caller cannot
+ * read the map and get `undefined.filter` or read the array on a row that has a
+ * map. An OS the map does not name answers `[]` — not because nothing is needed
+ * there, but because {@link assertHostCanFinish} has already refused that host by
+ * the time this is asked, and inventing a tool list for a host that cannot finish
+ * the format would answer a question nobody may ask.
+ */
+export function requiredToolsOn(tools: RequiredTools, host: string): readonly string[] {
+    if (Array.isArray(tools)) return tools as readonly string[];
+    return (tools as Readonly<Partial<Record<HostOs, readonly string[]>>>)[host as HostOs] ?? [];
+}
+
+/**
+ * Every tool any host could need for a format — the question `installHint`'s
+ * presence is gated on.
+ *
+ * Deliberately NOT what {@link assertToolsInstalled} checks. "Does this row need a
+ * hint at all" is a property of the ROW; "is this tool here" is a question about
+ * one machine, and answering the first with the second would let a row declare a
+ * Windows-only tool and no hint, because the gate happened to run on Linux.
+ */
+export function allRequiredTools(tools: RequiredTools): readonly string[] {
+    if (Array.isArray(tools)) return tools as readonly string[];
+    return Object.values(tools as Readonly<Partial<Record<HostOs, readonly string[]>>>).flat();
 }
 
 /** `.deb` and `.rpm` are written by this tree, so they exec nothing and read back with GNU tools. */
@@ -660,6 +689,113 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.zip`,
         artifactKind: 'file',
     },
+    // ── The Windows installer (#1354 M5) ─────────────────────────────────
+    //
+    // The THIRD row over the windows layout, and the first in this table whose
+    // producer is not this tree. It wraps the same program directory the two rows
+    // above wrap; what it adds is the three things a directory cannot do — put
+    // itself somewhere, give a user something to click, and come off again.
+    //
+    // ONE AUTHORED `.wxs`, TWO COMPILERS, and that pair is the whole design (ADR
+    // 0024 § A6). `msitools` ships `wixl` AND `msiinfo`, so a wixl-only path would
+    // be our writer read back by its own package — `selfReading` with extra steps.
+    // Instead the document `utils/ship/msi.ts` renders is compiled by `wixl` on
+    // Linux and by WiX v3 on Windows, and each backend's output is read by the
+    // OTHER family: `msiexec` (Microsoft's own installer service) installs and RUNS
+    // the wixl-built file, `msiinfo` reads back the WiX-built one. Neither leg is a
+    // package agreeing with itself.
+    //
+    // A HAND-WRITTEN MSI STAYS REJECTED, and the reason is specific rather than
+    // effort. The three constraints that forced the hand-written `.deb`/`.rpm`
+    // writers — must run under GJS, must run offline, the CI image is Fedora — have
+    // no subject here: § 4 records that there is NO GJS host on Windows at all, so
+    // there is no sandbox in which an `.msi` would have to be produced without
+    // distro packages. ≈1 300 lines for nothing this milestone can spend.
+    //
+    // MSIX STAYS REJECTED until a certificate exists. An unsigned one cannot be
+    // installed at all, and a self-signed cert dropped into `TrustedPeople` buys a
+    // green leg that proves the leg trusts itself.
+    msi: {
+        id: 'msi',
+        layoutOs: 'win32',
+        // Same empty prefix as the directory it wraps, and for a sharper reason
+        // here: the install location is a RUNTIME decision. `INSTALLDIR` resolves
+        // to `%ProgramFiles%\<App>` by default and to whatever `msiexec
+        // INSTALLDIR=…` names otherwise, so a prefix baked at pack time would be a
+        // claim the installer is free to contradict. The launcher never needed one
+        // anyway — it derives its own from `%~dp0`.
+        prefix: '',
+        host: {
+            // BOTH, and that is the measured answer rather than the ADR's
+            // either/or. § A5 wrote "`.msi` is `'any'` if we write it and
+            // `['win32']` if WiX does", which was the choice between a hand-written
+            // writer and a WiX-only one. The third option is the one that gets an
+            // independent reader on both legs: two backends over one document, so
+            // the format is finishable on Linux AND on Windows and neither host has
+            // to send its stage to the other. `darwin` is deliberately absent —
+            // Homebrew does package `msitools`, but nothing in this repository has
+            // ever run it there, and a row that claims a host no leg exercises is
+            // the shape a `--target msi` on a Mac fails at pack time for.
+            finishOn: ['linux', 'win32'],
+            // A MAP, not a list, and `RequiredTools` exists for this row alone. The
+            // schema compiler is on both sides because it is the LAYOUT's, exactly
+            // as on the two rows above — a windows stage has no install step, so
+            // `gschemas.compiled` is produced while the tree is assembled or the app
+            // aborts at its first `Gio.Settings.new()`.
+            //
+            // `candle.exe`/`light.exe` carry their extension because `isOnPath` does
+            // an `existsSync(join(dir, cmd))` and appends nothing: on Windows the
+            // bare word `candle` is not a file, so a row spelling it that way would
+            // refuse a host that has WiX installed.
+            requiredTools: {
+                linux: [SCHEMA_COMPILER, 'wixl'],
+                win32: [SCHEMA_COMPILER, 'candle.exe', 'light.exe'],
+            },
+            installHint:
+                `${SCHEMA_COMPILER_HINT}; the MSI compiler is Fedora: \`sudo dnf install msitools\`, ` +
+                'Debian/Ubuntu: `sudo apt install msitools`, Windows: WiX Toolset v3.14 ' +
+                '(https://github.com/wixtoolset/wix3/releases) with its `bin` directory on PATH',
+            oracle: {
+                // TWO READERS, ONE PER BACKEND, and each reads the file the OTHER
+                // backend wrote — which is what makes `selfReading: false` true here
+                // rather than merely declared.
+                //
+                // `msiexec` is Windows Installer itself: it INSTALLS the wixl-built
+                // file into a prefix and the leg then runs the installed launcher.
+                // Installing without running would prove the database parses, not
+                // that it laid down something that works — and the artifact's whole
+                // claim is the second one.
+                //
+                // `msiinfo` reads back the WiX-built file on Linux — `tables`,
+                // `streams`, `export <table>`, `suminfo`. `suminfo` is what makes
+                // the cross-check checkable rather than assumed: it prints the
+                // producer (`Application: msitools 0.106.58-a155` on a wixl file),
+                // so a leg can assert the file in front of it was NOT written by the
+                // package reading it.
+                readWith: ['msiexec', 'msiinfo'],
+                readOn: ['win32', 'linux'],
+                selfReading: false,
+            },
+        },
+        // Windows resolves nothing for an application — see `windows-dir`. An
+        // installer does not change that; it moves the same self-contained tree.
+        depends: null,
+        interpreters: ['node'],
+        interpreterGap:
+            'there is no GJS host on Windows at all (ADR 0024 § 4) — not a system one to depend on and not a ' +
+            'relocatable one to carry — so a `--app gjs` payload cannot be shipped this way. That is why ' +
+            '§ 4 derives Node here, and why `@gjsify/node-runtime-win32-x64` exists',
+        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        licenseKind: 'plain',
+        archName: windowsArch,
+        // The BINARY name, like the zip beside it and for the same reason: this is a
+        // download that lands in a browser's folder next to other files, so it
+        // carries the version and the arch and avoids the spaces a display name may
+        // contain. The DISPLAY name is what the installer lays down INSIDE — see
+        // `windowsProgramDirName`, which both this row and `windows-dir` call.
+        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.msi`,
+        artifactKind: 'file',
+    },
 };
 
 // DERIVED, never a second list. `FORMATS` is `Record<FormatId, …>`, so the
@@ -742,15 +878,20 @@ export function assertHostCanFinish(format: FormatDescriptor, host: string = pro
  * a build: `gjsify ship` runs the project's `build` script first, and finding
  * out afterwards that `flatpak-builder` is absent costs the whole build.
  */
-export function assertToolsInstalled(format: FormatDescriptor, present: (cmd: string) => boolean = isOnPath): void {
-    const missing = format.host.requiredTools.filter((tool) => !present(tool));
+export function assertToolsInstalled(
+    format: FormatDescriptor,
+    present: (cmd: string) => boolean = isOnPath,
+    host: string = process.platform,
+): void {
+    const tools = requiredToolsOn(format.host.requiredTools, host);
+    const missing = tools.filter((tool) => !present(tool));
     if (missing.length === 0) return;
     // The install instruction is the DESCRIPTOR's, not this function's: hardcoded
     // here it was `dnf install flatpak flatpak-builder` for every format that
     // will ever need a tool, which is the branch this table exists to avoid.
     const hint = format.host.installHint;
     throw new Error(
-        `gjsify ship: packing a ${format.id} needs ${format.host.requiredTools.join(' and ')}, and ` +
+        `gjsify ship: packing a ${format.id} on ${host} needs ${tools.join(' and ')}, and ` +
             `${missing.join(', ')} ${missing.length > 1 ? 'are' : 'is'} not on PATH. ` +
             `${hint === undefined ? 'Install it' : `Install it (${hint})`}, or drop this target — the other ` +
             `formats need no tools at all. \`gjsify ship --stage\` also works without ${missing.join('/')}: ` +

@@ -594,6 +594,43 @@ this one was the expensive one — it would have removed a check rather than add
 produced it and three Linux readers agree on what is inside, and that is the whole claim. And the
 image is not signed or notarised: that is M6.
 
+**Stage 5's second half is landed too (#1354 M5): `msi`.** The third row over the windows layout,
+and the first format in this table whose producer is not this tree. `utils/ship/msi.ts` renders one
+authored `.wxs` in WiX v3's schema and hands it to a host-selected compiler — `wixl` (msitools) on
+Linux, `candle`+`light` (WiX Toolset v3.14, preinstalled on `windows-latest`) on Windows — so
+`finishOn: ['linux', 'win32']`. § A5 wrote that as an either/or ("`'any'` if we write it and
+`['win32']` if WiX does"); the third option is what the independent reader needed.
+
+- **Each backend's output is read by the OTHER family, which is the whole design.** `msiexec` —
+  Windows Installer itself — installs the wixl-built file on `windows-msi-install`, which then RUNS
+  the installed launcher (four log lines: interpreter inside the install root, the exported
+  `GJSIFY_GTK_RUNTIME`, `chrome: ok`, a real `render:`), and UNINSTALLS it, asserting that no file,
+  no Add/Remove Programs entry and no Start-Menu shortcut survives. `msiinfo` reads back, on Linux,
+  the file WiX v3 compiled from the SAME document on that runner. Neither is a package agreeing with
+  itself; `verify-msi.sh` takes the expected producer as an argument and refuses a file whose
+  summary information says otherwise, so a job pointed at the wrong artifact fails rather than
+  passing as a self-oracle.
+- **`requiredTools` became a union for this row**, `readonly string[] | Partial<Record<HostOs, …>>`,
+  with `requiredToolsOn(tools, host)` as the one resolver. A flat list is wrong in both directions
+  here: the union of both backends demands `wixl` of a Windows host, and either half alone says the
+  other OS needs nothing.
+- **The artifact is DETERMINISTIC.** `Product/@Id` is a UUIDv5 over app id + version + release +
+  arch and `UpgradeCode` one over the app id alone, which is the pair `MajorUpgrade` needs: a
+  `ProductCode` that did not move makes an upgrade a no-op, an `UpgradeCode` that did leaves every
+  old version installed beside the new one. `Id="*"` — what WiX documents — would reroll the
+  `ProductCode` on every build.
+- **A prerelease is refused, not truncated.** MSI's `ProductVersion` has no spelling for
+  `1.2.0~rc.1`, and dropping the suffix makes it equal to `1.2.0` — two products `MajorUpgrade`
+  cannot tell apart, so both end up installed.
+- **What M5 does not claim.** The Linux e2e (`tests/e2e/ship-msi`) compiles with `wixl` and reads
+  with `msiinfo`, two programs out of one package: read as verification that would be
+  `selfReading`, and the suite's own header says so. What it IS is a second implementation
+  VALIDATING the authored document plus a byte round trip out of the embedded cabinet. The oracle is
+  the two legs above, and a Linux-green run is not evidence about Windows.
+- **The console-window gap is NOT closed by the shortcut**, and it cannot be by anything here: the
+  shortcut points at the same `.cmd`, and `node.exe` is still a CONSOLE-subsystem image with no
+  `nodew.exe` beside it.
+
 That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
 stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`
 and deliberately not `--dry-run`, because the run worth having is the one that lays bytes down — then `dpkg --verify`

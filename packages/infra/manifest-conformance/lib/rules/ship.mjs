@@ -41,10 +41,20 @@ const BINARY_NAME = /^[a-z\d][a-z\d+.-]+$/;
  * would tell a project its target is unsupported on the very machine that
  * assembles the stage for a different one.
  *
- * The two macOS members are in for the same reason one step further out. Neither
- * needs a macOS host — a `.app` tree and the zip around it are `finishOn: 'any'`
- * and a Linux workstation assembles both — but even if they did, this rule reads
- * a package's DECLARATION, and where that package is packed is not its business.
+ * The THREE macOS members are in for the same reason one step further out, and
+ * they no longer agree with each other about hosts: a `.app` tree and the zip
+ * around it are `finishOn: 'any'` and a Linux workstation assembles both, while
+ * `macos-app-dmg` is `['darwin']`. That difference is exactly what this rule must
+ * NOT read — it sees a package's DECLARATION, and where that package is packed is
+ * not its business. (This paragraph said "the two macOS members" and "neither
+ * needs a macOS host" for one release after the `.dmg` landed, which is the shape
+ * of every stale comment: still true of the rows it was written about.)
+ *
+ * `msi` is the case that closes the argument, because it fails BOTH gates rather
+ * than one: `finishOn: ['linux', 'win32']` AND a compiler it execs (`wixl` or
+ * WiX v3). On some machine somewhere every axis that could refuse a declaration
+ * does — and it is still legal to declare, because a project says what it ships,
+ * not where the shipping happens.
  */
 const TARGETS = new Set([
     'deb',
@@ -55,6 +65,7 @@ const TARGETS = new Set([
     'macos-app-dmg',
     'windows-dir',
     'windows-dir-zip',
+    'msi',
 ]);
 /**
  * Keys whose value is a SOURCE path that must exist relative to the package.

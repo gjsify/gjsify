@@ -65,6 +65,7 @@ import {
 } from '../utils/ship/layout.js';
 import { isNodeRuntimeTarget, resolveNodeRuntime } from '../utils/ship/node-runtime.js';
 import { compileSchemasForStage } from '../utils/ship/schemas.js';
+import { buildMsi, MSI_PAYLOAD_DIR } from '../utils/ship/msi.js';
 import { buildZip, zipEntriesFromPayload } from '../utils/ship/zip.js';
 import { scanGiNamespaces } from '../utils/ship/gi-namespaces.js';
 import {
@@ -1128,6 +1129,41 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             // `share\` and a `.cmd` loose in it.
             writeFileSync(target, buildZip(zipEntriesFromPayload(payload, windowsProgramDirName(settings)), mtime));
             break;
+        case 'msi': {
+            // The SAME payload again, and the third artifact to carry it —
+            // `payload`, which is `signPayload`'s OUTPUT when an identity was
+            // passed and `assembled` otherwise (§ A17). The installer therefore
+            // packs the signed bytes by construction rather than by ordering: it
+            // cannot read them before the signer has produced them.
+            //
+            // The source document addresses files by PATH, so the tree is written
+            // out once into the work directory and the `.wxs` points at it with
+            // paths RELATIVE to that directory — the same shape the Flatpak packer
+            // uses, where a manifest also names a directory the packer just laid
+            // down. Relative and not absolute because the same document is compiled
+            // a second time by WiX on another machine; see `utils/ship/msi.ts`.
+            // Not a copy of `out/<App>/`: `--target msi` alone must work, and the
+            // directory row may not be in this run's format list at all.
+            const workDir = join(outRoot, 'msi');
+            writePayload(join(workDir, MSI_PAYLOAD_DIR), payload, layout.root(settings));
+            await buildMsi({
+                settings,
+                // POSIX-separated and RELATIVE to `workDir`, so the `.wxs` plus the
+                // tree beside it is a pair that can be handed to a second compiler
+                // on another machine — which is what the WiX half of the
+                // cross-check does with this exact document.
+                files: payload.map((entry) => ({
+                    path: entry.path,
+                    source: `${MSI_PAYLOAD_DIR}/${entry.path}`,
+                })),
+                programDirName: windowsProgramDirName(settings),
+                archLabel,
+                workDir,
+                target,
+                verbose: input.verbose,
+            });
+            break;
+        }
         default: {
             const unhandled: never = format.id;
             throw new Error(`gjsify ship: no packer is wired for format "${String(unhandled)}".`);

@@ -11,11 +11,13 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
+    allRequiredTools,
     assertHostCanFinish,
     assertToolsInstalled,
     defaultFormatIds,
     FORMATS,
     FORMAT_IDS,
+    requiredToolsOn,
     resolveFormats,
 } from './formats.js';
 import {
@@ -187,12 +189,51 @@ export default async () => {
             // The refusal is ONE generic function. Hardcoded in it, the hint said
             // `dnf install flatpak flatpak-builder` — correct for exactly one format,
             // and what the first `.dmg` or `.msi` user would have been told to run.
+            //
+            // `allRequiredTools` and NOT the current host's set: "does this row need
+            // a hint" is a property of the row. Asking `requiredToolsOn(…, 'linux')`
+            // would let a Windows-only tool ship with no hint because the gate ran
+            // on Linux — the exact shape of a check that passes for the wrong reason.
             for (const id of FORMAT_IDS) {
                 const { requiredTools, installHint } = FORMATS[id].host;
-                if (requiredTools.length === 0) continue;
+                if (allRequiredTools(requiredTools).length === 0) continue;
                 expect(typeof installHint).toBe('string');
                 expect((installHint ?? '').length > 0).toBe(true);
             }
+        });
+
+        await it('never names a tool for a host that cannot finish the format', async () => {
+            // The per-OS `requiredTools` map arrived with the `.msi`, and its
+            // failure mode is quiet: a key for an OS `finishOn` excludes is a tool
+            // list nothing will ever read, so it can name anything — a typo, a
+            // retired backend — and no run disagrees. `requiredToolsOn` answers `[]`
+            // off the map for an unlisted host, so the two fields have to agree here
+            // or the disagreement is invisible.
+            for (const id of FORMAT_IDS) {
+                const { finishOn, requiredTools } = FORMATS[id].host;
+                if (Array.isArray(requiredTools)) continue;
+                const named = Object.keys(requiredTools);
+                expect(named.length > 0).toBe(true);
+                for (const host of named) {
+                    expect(finishOn === 'any' || (finishOn as readonly string[]).includes(host)).toBe(true);
+                }
+                // …and the other direction: a host that CAN finish it and is missing
+                // from the map would silently need no tools at all.
+                if (finishOn !== 'any') for (const host of finishOn) expect(named).toContain(host);
+            }
+        });
+
+        await it('resolves the msi backend per host, and refuses the third OS', async () => {
+            // The one row whose tools differ by host. Both halves are asserted from
+            // this machine, which is the whole reason `requiredToolsOn` takes the
+            // host rather than reading `process.platform`.
+            expect(requiredToolsOn(FORMATS.msi.host.requiredTools, 'linux')).toContain('wixl');
+            expect(requiredToolsOn(FORMATS.msi.host.requiredTools, 'win32')).toContain('candle.exe');
+            expect(requiredToolsOn(FORMATS.msi.host.requiredTools, 'win32')).not.toContain('wixl');
+            expect(requiredToolsOn(FORMATS.msi.host.requiredTools, 'darwin')).toStrictEqual([]);
+            // A flat row answers the same list whoever asks.
+            expect(requiredToolsOn(FORMATS.deb.host.requiredTools, 'win32')).toStrictEqual([]);
+            expect(requiredToolsOn(FORMATS.flatpak.host.requiredTools, 'darwin')).toContain('flatpak-builder');
         });
 
         await it('publishes no format without an independent reader', async () => {
@@ -280,6 +321,49 @@ export default async () => {
 
         await it('passes when both tools are present', async () => {
             assertToolsInstalled(FORMATS.flatpak, () => true);
+        });
+
+        await it('packs an msi on either Linux or Windows, and nowhere else', async () => {
+            assertHostCanFinish(FORMATS.msi, 'linux');
+            assertHostCanFinish(FORMATS.msi, 'win32');
+            let message = '';
+            try {
+                assertHostCanFinish(FORMATS.msi, 'darwin');
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            // Named rather than "unsupported": macOS CAN assemble the stage, so
+            // the refusal has to point at the two-phase split and not at a wall.
+            expect(message).toContain('linux or win32');
+            expect(message).toContain('--from-stage');
+        });
+
+        await it('asks each msi host for ITS compiler and no other', async () => {
+            // The defect a flat `requiredTools` would have shipped: the union
+            // demands `wixl` of a Windows host that will never run it. Both
+            // directions are driven from this machine.
+            assertToolsInstalled(FORMATS.msi, (cmd) => cmd !== 'candle.exe', 'linux');
+            assertToolsInstalled(FORMATS.msi, (cmd) => cmd !== 'wixl', 'win32');
+
+            let onLinux = '';
+            try {
+                assertToolsInstalled(FORMATS.msi, (cmd) => cmd !== 'wixl', 'linux');
+            } catch (error) {
+                onLinux = (error as Error).message;
+            }
+            expect(onLinux).toContain('wixl');
+            expect(onLinux).toContain('msitools');
+            expect(onLinux).not.toContain('candle.exe');
+
+            let onWindows = '';
+            try {
+                assertToolsInstalled(FORMATS.msi, (cmd) => cmd !== 'light.exe', 'win32');
+            } catch (error) {
+                onWindows = (error as Error).message;
+            }
+            expect(onWindows).toContain('light.exe');
+            expect(onWindows).toContain('WiX Toolset');
+            expect(onWindows).not.toContain('wixl');
         });
     });
 

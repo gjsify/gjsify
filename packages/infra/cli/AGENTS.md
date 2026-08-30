@@ -50,7 +50,9 @@ on the first artifact: [ADR 0024](../../../docs/adr/0024-ship-installable-artifa
 Implementation status.
 
 **A FORMAT DECLARES WHERE IT CAN BE PACKED** (ADR 0024 § A3) — `FormatDescriptor.host` is
-`finishOn`/`requiredTools`/`oracle`, and `flatpak` is the first that is not `'any'`. Four things
+`finishOn`/`requiredTools`/`oracle`; `flatpak` is the first not `'any'`, `msi` the one whose BACKEND
+is host-selected — so `requiredTools` is a union, read only via `requiredToolsOn(tools, host)`.
+Four things
 follow, each with a silent-failure story in
 [docs/ship-formats.md](../../../docs/ship-formats.md): the gates fire BEFORE the project's `build`
 script; `defaultFormatIds(os)` is a SECOND derivation from `FORMATS`, because a bare `gjsify ship`
