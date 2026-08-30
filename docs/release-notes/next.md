@@ -120,9 +120,10 @@ whoever ships an application declares the runtime it ships. `gjsify ship` prints
 for anything missing, the package name to install; a bundle with no runtime still assembles, because
 it is a working intermediate on any machine that already has a Node.
 
-One caveat on that list, and it is measurable rather than a plan: the three
-`@gjsify/node-runtime-*` names are **not published yet** — they 404 on npm while all three
-`@gjsify/gtk-runtime-*` resolve — so `npm install` fails on those lines until the first publish,
+One caveat on that list, and it is measurable rather than a plan: one
+`@gjsify/node-runtime-*` name is **still unpublished**. Measured 2026-08-30, `darwin-arm64` and
+`darwin-x64` resolve at `0.44.0` alongside all three `@gjsify/gtk-runtime-*`, and `win32-x64`
+answers 404 — so `npm install` fails on that line until the first publish,
 which is a manual maintainer action because npm Trusted Publishing needs the package to exist
 before CI can publish to it. `GJSIFY_NODE_RUNTIME` points the shipper at a directory in the
 meantime. `scripts/check-shipped-runtime-packages.mjs` holds the gap and fails once it closes.

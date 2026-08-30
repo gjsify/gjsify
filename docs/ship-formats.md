@@ -429,8 +429,9 @@ decided the source file's name — so `node.exe` stays `node.exe` across the cop
 renamed it would be a launcher execing a file nothing wrote, and nothing else in the pipeline
 compares the two.
 
-⚠️ **`@gjsify/node-runtime-*` is not published yet** — all three targets 404 on npm as of 0.44.0,
-and the payload is gitignored, so an in-repo checkout resolves the package and finds no binary
+⚠️ **One `@gjsify/node-runtime-*` target is still unpublished.** Measured 2026-08-30 with
+`@gjsify/cli@0.44.0` as the control: `darwin-arm64` and `darwin-x64` resolve at `0.44.0`,
+`win32-x64` answers 404. For every target the payload is gitignored, so an in-repo checkout resolves the package and finds no binary
 (`resolveNodeRuntime` answers `null` for exactly that, by design). `packages/node-runtime/scripts/fetch-node-runtime.mjs`
 populates one from a pinned Node release, verifying its SHA-256, and that is what
 `node-gi.yml`'s two assemble legs run. `@gjsify/gtk-runtime-win32-x64` IS published (0.44.0,

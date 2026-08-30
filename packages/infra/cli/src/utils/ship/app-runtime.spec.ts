@@ -555,5 +555,38 @@ export default async () => {
                 rmSync(cwd, { recursive: true, force: true });
             }
         });
+
+        await it('names the native subdirectory the RESOLVER probes, per target', async () => {
+            // The hint told every reader to build a directory holding `lib/`, while
+            // `resolveGtkRuntimeBundle()` probes `bin/` on win32. Measured: a stand-in
+            // bundle built to the message's own instructions was refused for
+            // `win32-x64` and accepted once `lib/` was renamed to `bin/`. A hint that
+            // is wrong costs more than no hint, because the reader follows it first.
+            const hint = (target) => {
+                const cwd = scratch(`hint-${target}`);
+                try {
+                    const staged = stageAppRuntime({
+                        layout: target.startsWith('win32-') ? LAYOUTS.windows : LAYOUTS.darwin,
+                        identity: IDENTITY,
+                        target,
+                        cwd,
+                        interpreter: null,
+                    });
+                    return staged.missing.find((line) => line.includes('GJSIFY_GTK_RUNTIME')) ?? '';
+                } finally {
+                    rmSync(cwd, { recursive: true, force: true });
+                }
+            };
+
+            const windows = hint('win32-x64');
+            expect(windows.includes('`bin/`')).toBe(true);
+            expect(windows.includes('`lib/`')).toBe(false);
+
+            // The control: the other targets keep `lib/`, so this asserts the value
+            // is DERIVED rather than that one literal was swapped for another.
+            const darwin = hint('darwin-arm64');
+            expect(darwin.includes('`lib/`')).toBe(true);
+            expect(darwin.includes('`bin/`')).toBe(false);
+        });
     });
 };

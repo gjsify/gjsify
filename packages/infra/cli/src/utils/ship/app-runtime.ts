@@ -472,9 +472,15 @@ export function stageAppRuntime(input: StageAppRuntimeInput): StagedAppRuntime {
         launcher.gtkRuntimeDir = paths.gtkDir;
         found.push(`GTK closure from ${gtk.source}`);
     } else {
+        // The native subdirectory is `bin` on win32 and `lib` everywhere else,
+        // exactly as `resolveGtkRuntimeBundle()` probes for it. Naming `lib/`
+        // unconditionally sent a Windows reader to build a directory this very
+        // resolver then refuses -- a hint that is wrong is worse than none,
+        // because it costs the reader the time to follow it first.
+        const nativeSubdir = input.target.startsWith('win32-') ? 'bin' : 'lib';
         missing.push(
             `no GTK closure — install \`${gtkRuntimePackageName(input.target)}\` (or point ` +
-                '`GJSIFY_GTK_RUNTIME` at a bundle directory holding `lib/` and `girepository-1.0/`)',
+                `\`GJSIFY_GTK_RUNTIME\` at a bundle directory holding \`${nativeSubdir}/\` and \`girepository-1.0/\`)`,
         );
     }
 
