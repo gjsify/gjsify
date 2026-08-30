@@ -86,7 +86,10 @@
             "nativescript": "none",
             "react-native": "native"
         },
-        "tier": 3
+        "tier": 3,
+        "widgetVocabulary": {
+            "role": "renderer"
+        }
     },
     "license": "MIT",
     "repository": {

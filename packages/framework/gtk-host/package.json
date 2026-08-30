@@ -138,7 +138,10 @@
             "browser": "none",
             "nativescript": "none"
         },
-        "tier": 3
+        "tier": 3,
+        "widgetVocabulary": {
+            "role": "reference"
+        }
     },
     "license": "MIT",
     "repository": {
