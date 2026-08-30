@@ -1,7 +1,8 @@
 # 34. Every widget surface: named from the GIR, exported as a namespace, remainder declared
 
-- Status: **Proposed** — amended 2026-08-30, see § Amendment (the premise under the stage
-  order moved; stages 2 and 3 landed first)
+- Status: **Proposed** — amended twice on 2026-08-30: § Amendment (the premise under the
+  stage order moved; stages 2 and 3 landed first) and § Amendment 2 (stages 6 and 4 landed;
+  the property numbers were re-measured and moved)
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -580,8 +581,8 @@ without one is indistinguishable from a decision nobody made.
 |---|---|---|---|---|
 | `@gjsify/gtk-host` | **holds by construction** — the prefix is derived from the GType | n/a: the tags *are* the vocabulary, and `@girs` supplies `Gtk`/`Adw` | n/a | none |
 | `@gjsify/adwaita-web` | **violated for 10 elements** (`adw-entry` is `GtkEntry`, …) | **absent** — registers tags, exports no namespace | **half-held**: every one of the 21 is declared, but the 10 aliases carry no reason | 11 web-only, each with a reason |
-| `@gjsify/adwaita-nativescript` | **violated for 4** (`AdwEntry`, `AdwButton`, `AdwDropDown`, `AdwMenuButton`) | **absent** | **not held at all** — the surface is outside the check | 4 with no counterpart; 45 property names |
-| `@gjsify/adwaita-react-native` | **holds** — `AdwBin`, `AdwClamp` | **absent** | **not held** — nothing checks it | none, today |
+| `@gjsify/adwaita-nativescript` | **violated for 4** (`AdwEntry`, `AdwButton`, `AdwDropDown`, `AdwMenuButton`) | **absent** | **held since stage 3** for widget names and **since stage 6** for property names | 2 with no counterpart; property names re-measured in § Amendment 2 |
+| `@gjsify/adwaita-react-native` | **holds** — `AdwBin`, `AdwClamp` | **absent** | **held since stage 4**: it declares itself a surface and is read | none, today |
 | the docs | `controls.mdx` is 100 % GTK under an `Adwaita` heading; 4 `Gtk.*` blocks in all | there is no `Gtk` section | no | — |
 | the next surface | — | — | — | — |
 
@@ -932,15 +933,16 @@ under which the free adoption stays free.
 | 1 | Adopt all three clauses on `@gjsify/adwaita-react-native` **before its first publish**: export `Adw`, add the (empty) ledger, wire the reader. Two widgets, both already correctly named. | RN | nothing — 0 published versions, 0 in-repo consumers outside the package | a third widget whose name is not its GType's; a widget absent from the namespace object; a namespace member with no widget behind it |
 | 2 | **LANDED 2026-08-30** (ahead of 1, see § Amendment). Require a `why` on `gtk:` entries in `WEB_ELEMENT_ALIGNMENT` and fill the ten. The clearest instance of the defect, on a table that already exists. | web | nothing | an alias with no reason — the same rule `webOnly` has carried since it was written |
 | 3 | **LANDED 2026-08-30** (ahead of 1, see § Amendment). Widen `check-vocabulary-alignment` with `NS_WIDGET_ALIGNMENT`: the 4 GTK-named widgets get `gir:`, the 4 counterpart-less ones get `composes:`/`own:`, with reasons. Self-test vectors first, as the file already requires. | NS | nothing | an undeclared NativeScript widget; a `gir:` target that is not a tag; a stale entry; a redundant entry — plus the check's own synthetic vectors, which must fail before real data is read |
-| 4 | Make enrolment the property rather than the list: a declared widget surface that no reader covers fails. | all | nothing | a package declaring itself a widget surface with no reader — the arm that makes the rule reach a port nobody has written |
+| 4 | **LANDED 2026-08-30**, see § Amendment 2. Make enrolment the property rather than the list: `gjsify.widgetVocabulary` per package, joined to the readers in `scripts/widget-surfaces.mjs`, with a `manifest-conformance` rule so `field-coverage` accepts the key. | all | nothing | a package declaring itself a widget surface with no reader; a reader whose package stopped declaring; a declared renderer no half of the check compares; two references, or no renderer at all |
 | 5 | A `Gtk` docs section **beside** `Adwaita`: `controls.mdx` moves whole (0 Adwaita blocks on it), the two `Gtk.*` blocks on `buttons.mdx` follow, `redirects` keeps the old URLs the way the `/widgets/*` rename already does. | docs | old URLs, unless redirected — which is why the redirect is part of the stage | a `Gtk.*` block under the `Adwaita` heading, or an `Adw.*` block under `Gtk`; a moved page with no redirect entry |
-| 6 | Extend the tables to properties, read against `packages/framework/gtk-host/src/generated/props.ts` (in-repo, GIR-derived, no install). Print the count. | all | nothing | a settable property that is neither a `ConstructorProps` key of its counterpart nor declared — 45 today, and any 46th |
+| 6 | **LANDED 2026-08-30**, see § Amendment 2. Extend the tables to properties, read against `packages/framework/gtk-host/src/generated/props.ts` (in-repo, GIR-derived, no install), on the NativeScript surface. Print the count. | NS | nothing | a settable property that is neither a key of its counterpart's props interface nor declared; a convergence target that is not a key; an entry for a property that IS a key, or that nothing sets any more |
 | 7 | Emit `Gtk` / `Adw` namespace objects for `adwaita-web` and `adwaita-nativescript`, plus the `~/gtk` XML barrel, from the § 1 ledger. | web, NS | nothing (additive) | a namespace member with no ledger entry; a ledger entry with a GIR counterpart and no namespace member; an object that disagrees with the **GIR tag set** |
 | 8 | Optional construct-props bag through the declared setters; nick coercion plus a `Gtk.Align` table held against the GIR. | NS | nothing (parameter is optional; XML still calls `new T()`) | an unknown key in the bag reaching a widget without throwing; a nick table member whose number disagrees with the GIR; `check-nativescript-xml-doors.mjs` on a setter that gained a door it did not declare |
 | 9 | The `gi://` arms: `--app nativescript` first, `--app browser` second, each `resolveId` `pre` plus `emptyGirs: false`. | NS, web | nothing | an e2e sibling of `tests/e2e/ns-bridge-bundles` per target that imports `gi://Adw?version=1`, constructs `Adw.ActionRow` and asserts the result — today both produce `Class extends value undefined` |
 
 Stages 1–4 and 6 are ledger-and-gate work; only stage 1 touches a package, and it touches
-one that nothing consumes. Stage 5 is documentation plus redirects. Stage 7 is additive
+one that nothing consumes. (Stage 4 adds a `gjsify.widgetVocabulary` block to four manifests,
+which is a declaration and not code.) Stage 5 is documentation plus redirects. Stage 7 is additive
 code. Stages 8–9 are the only ones that reach a constructor or a bundler, and neither is
 reachable before the ledger exists.
 
@@ -1055,3 +1057,119 @@ Stage 1 keeps its place in the list; only its position moves. And the ADR's own 
 entry — *"the cheap stage is skipped because it is the least urgent-looking"* — is now the
 live risk on this ADR rather than a hypothetical, so it is recorded in
 `status/open-todos.md` with the re-measured price rather than left to the reader.
+
+## Amendment 2, 2026-08-30 — the properties are countable, and enrolment is a declaration
+
+Stages **6** (the property ledger) and **4** (enrolment as a property) landed, in that
+order, on top of stages 2 and 3. Both are gates, declarations and documentation; nothing
+about a shipped API moved, and nothing was renamed — which is the whole point of making
+the gap countable first.
+
+### The property numbers were RE-MEASURED, and they moved
+
+§ *How large is the gap against `@girs`* records **42 widgets, 137 settable properties, 92
+agreeing, 45 not, split 16 with a candidate spelling / 29 without**. Stage 6 measured the
+same question again rather than inheriting it, and the answer is different:
+
+| | § Context, measured with the TypeScript compiler API against `@girs/gtk-4.0@4.1.0` | stage 6, measured against the in-repo `generated/props.ts` |
+|---|---:|---:|
+| NativeScript widgets with a GIR counterpart | 42 | **44** |
+| settable properties on them | 137 | **143** |
+| already a key of the counterpart | 92 | **91** |
+| not | 45 | **52** |
+| …of those, with a candidate GIR spelling | 16 | **25** |
+| …with none | 29 | **27** |
+
+```sh
+node scripts/check-vocabulary-alignment.mjs      # every number above, on one line
+```
+
+**The two readers are not the same reader, so the difference is not a correction of an
+error.** Three things differ, and each is a decision stage 6 makes on purpose:
+
+1. **The counterpart set is bigger because stage 3 exists.** A widget has a counterpart
+   when its spelling IS a GTK tag (38) or when `NS_WIDGET_ALIGNMENT` declares one — the
+   five `gir:` entries plus the one `composes:` entry, which stage 3 wrote. Before that
+   ledger, `AdwIcon` and `AdwImageButton` had nothing to be measured against. 44 = 38 + 6,
+   and the two `own:` widgets (`AdwSliderRow`, `AdwDataGrid`) are correctly excluded: a
+   comparison against nothing is the blind side this repository keeps paying for.
+2. **"Settable" is what the class DECLARES, read per class.** `set <name>(` inside the
+   widget's own body — not a getter, not a helper class sharing the file. `AdwEntry` has
+   five accessors and four setters; `textLength` is read-only, so it is not a settable
+   property and is not counted on either side.
+3. **A "candidate spelling" is now a machine-checked claim.** The 16 were eyeballed. The
+   25 are entries whose `gir:` target must be a key of that widget's counterpart in
+   `generated/props.ts` or the gate fails — which is why three of them are `adjustment`
+   (`AdwSpinRow.min`/`max`/`step`, one `Gtk.Adjustment` on GTK) and two are `cssClasses`
+   (`AdwButton.variant`, `AdwHeaderBar.flat`, both style classes upstream).
+
+**25 is the printed distance and the number that can only go down.** 52 is the size of the
+ledger; 27 of those are declared `own` and are not work.
+
+### What the gate prints now
+
+Reproducible, and deliberately not restated anywhere else — `node
+scripts/check-vocabulary-alignment.mjs`:
+
+```
+self-test green — 57 failing vector(s), 11 reader vector(s). 4 declared widget surface(s),
+every one of them read. 168 GTK tags across 3 dialect surfaces + the runtime table + the
+surface data; 65 adw-* web elements — 44 share a spelling, 10 alias one, 11 declared
+web-only; 46 @gjsify/adwaita-nativescript widgets — 38 share a spelling, 6 should converge,
+2 declared own, 0 undecided; 2 @gjsify/adwaita-react-native widgets — 2 share a spelling,
+0 should converge, 0 declared own, 0 undecided. Properties, on @gjsify/adwaita-nativescript
+only: 44 widgets with a GIR counterpart set 143 settable propert(y|ies) between them — 91
+already agree with the counterpart's ConstructorProps, 52 do not (25 should converge, 27
+declared own, 0 undecided). Distance to one vocabulary: 6 widget name(s) and 25 property
+name(s), and both can only go down.
+```
+
+The renderer segment is derived per ENROLLED surface rather than written once per surface,
+which is why React Native appears in it without anybody extending a sentence — and it is
+the same reason the line names the surface the property numbers were measured on.
+
+### Enrolment: `gjsify.widgetVocabulary`, joined to a reader
+
+```json
+"gjsify": { "widgetVocabulary": { "role": "reference" } }   // @gjsify/gtk-host
+"gjsify": { "widgetVocabulary": { "role": "renderer"  } }   // the three renderers
+```
+
+`role` is the one fact the comparison needs and the one the package owns: which side of it
+the surface is on. `scripts/widget-surfaces.mjs` holds the readers and the pure rule
+function; `scripts/manifest-conformance/rules/widget-vocabulary.mjs` claims the key so
+`field-coverage` accepts it, and calls the same function, so the manifest gate and the
+vocabulary gate cannot answer differently.
+
+Four things go red, all of them against the real tree rather than against a constant in the
+check:
+
+- a package declares `gjsify.widgetVocabulary` and no reader covers it — the arm that makes
+  the rule reach a port nobody has written;
+- a reader names a package that no longer declares itself — enrolment silently dropped;
+- a declared renderer that no half of the check compares (a reader but no alignment table)
+  — read and never held, the same hole one level in;
+- two `reference` roles, no `renderer` at all, or a role neither side recognises.
+
+**React Native was enrolled by this stage, not by stage 1.** It declares itself, its widget
+set is read from the base barrel's `export { Adw… } from './widgets/…'` lines, and both its
+widgets are held against the GIR tag table through an (empty) `RN_WIDGET_ALIGNMENT`. Stage
+1's remaining content is the `Adw` namespace export, clause 2 — the reader and the ledger
+it also listed are done.
+
+### What these stages do NOT prove, stated because the numbers look like more than they are
+
+- **The property comparison is a second READER of our own source, not a second source.**
+  `generated/props.ts` imports `@girs/adw-1` and six siblings; our generator and ts-for-gir
+  both read the same `.gir`. Agreement is evidence about two hand-typed vocabularies and is
+  not evidence about GTK. § *How large is the gap against `@girs`* already said so; the
+  check's header says it again where the count is printed.
+- **One surface.** `@gjsify/adwaita-web`'s attribute vocabulary and
+  `@gjsify/adwaita-react-native`'s prop types are two further property corpora and are not
+  in the ledger. The printed line names the surface for that reason.
+- **The reason rules cannot go red.** `why` required, the 40-character floor, `#NNNN` on a
+  `gap` — on the property entries exactly as on the widget entries, these hold a table in
+  the check against a constant in the check. They refuse a shortcut; they measure nothing.
+- **Behaviour, still.** `AdwEntry.placeholder` is DECLARED to be `placeholder-text`;
+  nothing asserts it behaves like one. The closing criterion stays ADR 0027 § 9's
+  conformance vectors, unchanged.

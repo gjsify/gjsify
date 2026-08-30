@@ -205,16 +205,22 @@ And `bindEmptySections` derives SYNCHRONOUSLY, so it must run AFTER the router's
 only un-hides a microtask later, after `_syncClasses` has measured a bar at
 `offsetHeight` 0. That cost 8 real failures once; the three call sites now say so.
 
-### One vocabulary is a rule for EVERY surface — two of the four now hold clause 3
+### One vocabulary is a rule for EVERY surface — clause 3 holds on all three renderers
 
-**ADR 0034 stages 2 and 3 have landed** (ahead of stage 1; the re-priced order is in that
-ADR's § Amendment). `scripts/check-vocabulary-alignment.mjs` now reads TWO widget-bearing
-surfaces and prints, every run:
+**ADR 0034 stages 2, 3, 6 and 4 have landed** (in that order, ahead of stage 1; the
+re-priced order is in that ADR's § Amendment and § Amendment 2).
+`scripts/check-vocabulary-alignment.mjs` now reads every surface that DECLARES itself one,
+holds widget names on three renderers and property names on one, and prints, every run:
 
 ```
-168 GTK tags …; 65 adw-* web elements — 44 share a spelling, 10 alias one, 11 declared
-web-only; 46 NativeScript Adw* widgets — 38 share a spelling, 6 should converge, 2 declared
-own, 0 undecided. Distance to one vocabulary on NativeScript: 6 widget name(s).
+4 declared widget surface(s), every one of them read. 168 GTK tags …; 65 adw-* web elements
+— 44 share a spelling, 10 alias one, 11 declared web-only; 46 @gjsify/adwaita-nativescript
+widgets — 38 share a spelling, 6 should converge, 2 declared own, 0 undecided; 2
+@gjsify/adwaita-react-native widgets — 2 share a spelling, 0 should converge, 0 declared
+own, 0 undecided. Properties, on @gjsify/adwaita-nativescript only: 44 widgets with a GIR
+counterpart set 143 settable propert(y|ies) between them — 91 already agree with the
+counterpart's ConstructorProps, 52 do not (25 should converge, 27 declared own, 0
+undecided). Distance to one vocabulary: 6 widget name(s) and 25 property name(s).
 ```
 
 Every one of those numbers is derived at run time. None of them is written in the check's
@@ -225,10 +231,18 @@ Where each stands:
 
 | surface | GIR naming | namespace export | declared |
 |---|---|---|---|
-| `gtk-host` | holds by construction (`src/tags.ts:18`) | n/a | n/a |
+| `gtk-host` | holds by construction (`src/tags.ts:18`) | n/a | declares `role: reference` |
 | `adwaita-web` | 10 elements violate it (`adw-entry` is `GtkEntry`) | absent | **held** — all 21 declared, all 21 with a reason |
-| `adwaita-nativescript` | 4 violate it; 4 more have no counterpart | absent | **held** — 8 entries, `gir`/`composes`/`own`, each with a reason |
-| `adwaita-react-native` | holds (`AdwBin`, `AdwClamp`) | absent | not checked — stage 1, still open |
+| `adwaita-nativescript` | 4 violate it; 2 more have no counterpart | absent | **held** — 8 widget entries + 52 property entries, `gir`/`composes`/`own`, each with a reason |
+| `adwaita-react-native` | holds (`AdwBin`, `AdwClamp`) | absent | **held** — declared, read from the base barrel, empty ledger |
+
+**Enrolment is a per-package declaration now, not a list in the gate.** `gjsify.widgetVocabulary`
+(`{ "role": "reference" | "renderer" }`) on each of the four, joined to the readers in
+`scripts/widget-surfaces.mjs`; `scripts/manifest-conformance/rules/widget-vocabulary.mjs`
+claims the key so `field-coverage` accepts it and calls the same pure rule, so the manifest
+gate and the vocabulary gate cannot answer differently. A fifth surface joins the rule by
+declaring itself: a declaration with no reader fails, a reader whose package stopped
+declaring fails, and a declared renderer no half of the check compares fails.
 
 **The clearest instance needs no cross-runtime argument**: `gtk-host` says `<gtk-entry>`
 for Solid, Vue and React alike and `adwaita-web` says `<adw-entry>` for the same widget,
@@ -250,12 +264,15 @@ versions / 5 006 downloads a month / 11 in-repo import sites; `adwaita-nativescr
 point endpoint 404s for a package published that morning — not a measured zero) / 0 import
 sites outside the package.
 
-**Stage 1 is still worth doing and is no longer urgent**, and that is exactly the risk ADR
-0034 § Risks named ("the cheap stage is skipped because it is the least urgent-looking"),
-so it is written down here with its price rather than left to be re-derived. What it costs
-now: an `Adw` namespace export plus a React Native reader in the widened check. What it no
-longer buys: the guarantee that the rule costs that package nothing it can ever undo. Both
-its names are already correct, so no rename is in it at any price.
+**Stage 1 is down to its namespace export, and is still worth doing**, which is exactly the
+risk ADR 0034 § Risks named ("the cheap stage is skipped because it is the least
+urgent-looking"), so it is written down here with its price rather than left to be
+re-derived. Stage 4 took the other two thirds: React Native declares itself a surface, its
+widget set is read from the base barrel's `export { Adw… } from './widgets/…'` lines, and
+its (empty) `RN_WIDGET_ALIGNMENT` is held against the GIR tag table. What is left is clause
+2, the `Adw` namespace export. What stage 1 no longer buys: the guarantee that the rule
+costs that package nothing it can ever undo. Both its names are already correct, so no
+rename is in it at any price.
 
 One thing whoever picks this up should not re-derive: `collectAdwaitaCoverage`
 (`scripts/generate-status.mjs:223-225`) joins the renderers on the BARE name and says the
@@ -309,10 +326,26 @@ documentation only in the XML — so if it is wanted the shape is a companion ar
 the venue is `gjsify/ts-for-gir` (`gjsify/types` has issues disabled; no existing issue
 found).
 
-The measurable distance, for when stage 6 prints it: across the 42 NativeScript widgets
-with a GIR counterpart, 137 settable properties, of which **92 already agree with the
-counterpart's `ConstructorProps` and 45 do not** (16 with a candidate GIR spelling, 29 with
-none). A full `tsc` conformance check is the right oracle on the wrong instrument —
+**Stage 6 prints the property distance now, and re-measuring moved it.** The figure this
+section used to carry — 42 widgets, 137 settable properties, 92/45, split 16 with a
+candidate spelling and 29 without — came from the TypeScript compiler API over
+`@girs/gtk-4.0@4.1.0`. The gate reads the in-repo `generated/props.ts` instead, as stage 6
+specifies, and counts what each widget CLASS declares settable: **44 widgets, 143
+properties, 91 agree, 52 do not, 25 with a machine-checked convergence target and 27
+declared `own`**. Three deliberate differences produce that, and ADR 0034 § Amendment 2
+holds the table: the counterpart set grew because stage 3's ledger gave `AdwIcon` and
+`AdwImageButton` one; "settable" is `set <name>(` in the widget's own class body, so a
+read-only accessor like `AdwEntry.textLength` counts on neither side; and a "candidate
+spelling" is now an entry whose target must be a key of that counterpart or the gate fails.
+Re-run the gate before quoting any of it.
+
+**What is still not measured**, said here because the printed line names one surface for
+exactly this reason: `adwaita-web`'s attribute vocabulary and `adwaita-react-native`'s prop
+types are two further property corpora with no ledger. Neither is hard in the way the
+NativeScript one was — the shape is decided — but both are larger, and a distance printed
+without its surface is a claim wider than its measurement.
+
+A full `tsc` conformance check remains the right oracle on the wrong instrument —
 `Gtk.Entry` is 509 members, and the gate job runs `checkout` + `setup-node` with no install.
 
 ### The `@girs/*` widget surface exists but gtk-host cannot consume it yet
