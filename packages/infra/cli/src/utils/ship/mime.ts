@@ -11,16 +11,7 @@
 // the MIME cache on install (see `scripts.ts`) — an unrefreshed cache is the same silence again.
 
 import type { ShipMimeType } from './types.js';
-
-/** XML text escaping. Only the five that matter in element content and attributes. */
-function esc(value: string): string {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-}
+import { xmlEscape as esc } from './xml.js';
 
 const TYPE_RE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
 

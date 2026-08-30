@@ -69,6 +69,7 @@ import { join, posix } from 'node:path';
 
 import { describeExit, spawnToCompletion } from '../spawn.js';
 import type { HostOs, PackSettings } from './types.js';
+import { xmlEscape } from './xml.js';
 
 /**
  * The UUID namespace every GUID in a generated `.msi` is derived under.
@@ -186,16 +187,6 @@ export function msiIdentifier(prefix: string, path: string): string {
     const safe = path.replace(/[^A-Za-z0-9_.]/g, '_');
     const room = 72 - prefix.length - 2 - digest.length;
     return `${prefix}_${safe.length > room ? safe.slice(safe.length - room) : safe}_${digest}`;
-}
-
-/** XML attribute/text escaping. `'` too, so the renderer may quote either way. */
-export function xmlEscape(value: string): string {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
 }
 
 /**

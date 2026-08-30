@@ -22,8 +22,8 @@ import {
     msiUpgradeCode,
     renderWxs,
     uuid5,
-    xmlEscape,
 } from './msi.js';
+import { xmlEscape } from './xml.js';
 import type { PackSettings } from './types.js';
 
 const SETTINGS: PackSettings = {
