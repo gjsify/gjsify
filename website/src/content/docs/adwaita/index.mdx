@@ -16,8 +16,9 @@ window whose second tab holds the markup that paints it, followed by one window 
 kind of implementation: **Native TypeScript**, the `@girs` program that runs
 unchanged on GJS, Node, Bun and Deno, with a Blueprint declaration beside it, **UI
 frameworks**, the same widget written in Solid, Vue and React through
-`@gjsify/gtk-host`, and **NativeScript**, the port that runs on a phone. Choose a tab once and every widget
-block on the site follows it.
+`@gjsify/gtk-host`, and **NativeScript**, the port that runs on a phone, whose XML
+template holds the tree with the TypeScript beside it as the loader. Choose a tab once
+and every widget block on the site follows it.
 
 Adwaita is one design system GJSify supports, not a requirement. Your app is an
 ordinary GTK 4 program, so you can mix in plain `Gtk.*` widgets or style your
