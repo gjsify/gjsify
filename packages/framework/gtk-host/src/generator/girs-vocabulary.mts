@@ -18,7 +18,7 @@
 
 import GLib from 'gi://GLib?version=2.0';
 
-import type { Declaration, PropMember, SignalMember, SurfaceModel } from './surface.mjs';
+import type { Declaration, PropMember, SignalMember, SurfaceModel } from './model.mjs';
 
 /** The three fields `emit-types.mts` reads off a widget. Not a GIR class any more. */
 export interface WidgetRef {

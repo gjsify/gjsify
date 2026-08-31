@@ -28,7 +28,7 @@ import {
 } from './descriptors/index.js';
 import { createElement, insert, materialize, setEventHandler, setProp } from './host.js';
 import { DECLS, ENUM_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
-import { camelOf, eventPropOf } from './generator/tsmap.mjs';
+import { camelOf, eventPropOf } from './generator/names.mjs';
 import { isWritable, lookupEnumNick, paramSpecs } from './props.js';
 import { isEventProp, toSignalName } from './signals.js';
 import { hasWidget, lookupWidget } from './registry.js';
