@@ -1952,6 +1952,18 @@ const widgetDistance =
         (total, surface) => total + kindCount(surface.table, 'gir') + kindCount(surface.table, 'composes'),
         0,
     );
+
+// ADR 0034 clause 2, measured rather than asserted. A renderer that has not adopted the
+// namespace export is not a failure — it is the work that is left, and the number is
+// printed so it stops living in that ADR's table, where it drifts while the code moves.
+const namespaced = [];
+for (const [name, reader] of Object.entries(WIDGET_SURFACE_READERS)) {
+    if (reader.role !== 'renderer' || typeof reader.namespace !== 'function') continue;
+    const found = reader.namespace(ROOT);
+    if (found) namespaced.push(`${name} exports ${[...found].map(([ns, m]) => `${ns} with ${m.length}`).join(' and ')}`);
+}
+const renderersDeclared = Object.values(WIDGET_SURFACE_READERS).filter((r) => r.role === 'renderer').length;
+
 const census = propertyCensus(world);
 const propConverge = kindCount(NS_PROPERTY_ALIGNMENT, 'gir');
 console.log(
@@ -1967,6 +1979,8 @@ console.log(
         `counterpart's ConstructorProps, ${census.diverging} do not (${propConverge} should converge, ` +
         `${kindCount(NS_PROPERTY_ALIGNMENT, 'own')} declared own, ` +
         `${kindCount(NS_PROPERTY_ALIGNMENT, 'gap')} undecided). ` +
+        `Namespace exports (ADR 0034 clause 2): ${namespaced.length} of ${renderersDeclared} renderer(s)` +
+        `${namespaced.length > 0 ? ` — ${namespaced.join(', ')}` : ''}. ` +
         `Distance to one vocabulary: ${widgetDistance} widget name(s) and ${propConverge} property name(s), ` +
         'and both can only go down.',
 );

@@ -39,7 +39,12 @@
 
 import { createContext } from '../packages/infra/manifest-conformance/lib/index.mjs';
 
-import { adwaitaNativeScriptWidgets, adwaitaReactNativeWidgets, adwaitaWebElements } from './adwaita-elements.mjs';
+import {
+    adwaitaNativeScriptWidgets,
+    adwaitaReactNativeWidgets,
+    adwaitaWebElements,
+    namespaceExport,
+} from './adwaita-elements.mjs';
 
 /** The manifest key, spelled once. Named in every failure that asks for a manifest edit. */
 export const WIDGET_SURFACE_FIELD = 'widgetVocabulary';
@@ -59,25 +64,38 @@ export const SURFACE_ROLES = ['reference', 'renderer'];
  * transformation. The `reference` entry has no reader here: its vocabulary IS the
  * generated table `check-vocabulary-alignment.mjs` reads directly, and a second reader of
  * the same file would be a copy that can drift.
+ *
+ * `namespace(root)` answers ADR 0034 clause 2 — the same vocabulary reachable as
+ * `Adw.Bin`, not only as `AdwBin` — and returns `null` for a surface that exports none.
+ * It REPORTS rather than enforces: two of the three renderers have not adopted the
+ * clause, and a gate that failed on that would only be turned off. Measuring it here
+ * keeps the answer next to the code instead of in an ADR table that goes stale while
+ * the code moves.
  */
 export const WIDGET_SURFACE_READERS = {
     '@gjsify/gtk-host': {
         role: 'reference',
         reads: 'packages/framework/gtk-host/src/generated/widgets.ts (GIR-derived, read by the gate itself)',
         widgets: null,
+        // n/a by construction: the tags ARE the vocabulary here, and `@girs` supplies the
+        // `Gtk`/`Adw` namespaces the reference surface would otherwise have to re-export.
+        namespace: null,
     },
     '@gjsify/adwaita-web': {
         role: 'renderer',
+        namespace: (root) => namespaceExport(root, 'packages/web/adwaita-web/src'),
         reads: "customElements.define('adw-…') across packages/web/adwaita-web/src",
         widgets: (root) => [...adwaitaWebElements(root).keys()],
     },
     '@gjsify/adwaita-nativescript': {
         role: 'renderer',
+        namespace: (root) => namespaceExport(root, 'packages/nativescript-bridge/adwaita/src'),
         reads: 'the adw-<name>.ts widget files under packages/nativescript-bridge/adwaita/src/widgets',
         widgets: (root) => [...adwaitaNativeScriptWidgets(root).keys()].map((name) => `adw-${name}`),
     },
     '@gjsify/adwaita-react-native': {
         role: 'renderer',
+        namespace: (root) => namespaceExport(root, 'packages/framework/adwaita-react-native/src'),
         reads: "the base barrel's `export { Adw… } from './widgets/…'` lines",
         widgets: (root) => [...adwaitaReactNativeWidgets(root).keys()].map((name) => `adw-${name}`),
     },

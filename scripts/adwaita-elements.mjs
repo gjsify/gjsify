@@ -827,3 +827,43 @@ export function adwaitaReactNativeWidgets(root) {
     }
     return new Map([...widgets].sort(([a], [b]) => a.localeCompare(b)));
 }
+
+/**
+ * The namespace object a surface exports, or `null` when it exports none.
+ *
+ * ADR 0034 clause 2: a surface's vocabulary is also reachable as `Adw.Bin`, not only as
+ * `AdwBin`. Read generically from the package's own `src/index.ts` rather than listed
+ * per surface, so a renderer that adopts the clause is picked up by having done it —
+ * the alternative is a table saying who has adopted it, which is the thing that goes
+ * stale while the code moves.
+ *
+ * Reports, never throws on absence: two of the three renderers have no namespace yet,
+ * and that is the state this reader exists to make visible rather than a fault.
+ *
+ * Only the GIR namespace names count. Clause 2 is satisfied by `Adw`/`Gtk`, not by any
+ * exported object literal that happens to start with a capital — matching those would
+ * report a config bag or a lookup table as an adopted namespace, which is worse than
+ * reporting nothing.
+ *
+ * @param {string} root repository root
+ * @param {string} srcDir the package's `src`, repo-relative
+ * @returns {Map<string, string[]> | null} namespace to its members, or null if none
+ */
+export function namespaceExport(root, srcDir) {
+    const path = join(root, srcDir, 'index.ts');
+    if (!existsSync(path)) return null;
+    const code = stripComments(readFileSync(path, 'utf8'));
+    /** @type {Map<string, string[]>} */
+    const found = new Map();
+    for (const [, namespace, body] of code.matchAll(/export const (Adw|Gtk) = \{([^}]*)\}/g)) {
+        found.set(
+            namespace,
+            body
+                .split(',')
+                .map((part) => part.split(':')[0].trim())
+                .filter((name) => name !== '')
+                .sort(),
+        );
+    }
+    return found.size === 0 ? null : found;
+}
