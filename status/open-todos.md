@@ -4,26 +4,6 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
-### The `@girs` exactness gate cannot see the two non-workspace trees
-
-`gjsify upgrade` walks `discoverWorkspaces`, and `packages/node-gi` and `packages/napi`
-are deliberately NOT workspace members (they carry their own CI — see the root
-AGENTS.md § Structure). So `upgrade --check --exact --filter @girs`, which now blocks a
-caret on every other manifest, is blind to three of them: `packages/napi/napi`,
-`packages/node-gi/example-gtk` and `packages/node-gi/example`, holding 14 `@girs`
-declarations between them.
-
-They were pinned by hand in the same change that added the gate, so the tree is uniform
-today. Nothing keeps it that way: the next `@girs` bump touching those three restores the
-caret with no check to notice, and `@gjsify/napi` is published, so its declaration is what
-a stranger installs against.
-
-Two shapes would close it, and the choice is about where the two trees' independence
-matters more than uniformity: teach the reader to accept explicit paths outside the
-workspace set (a `--include-path` the gate passes), or add the same check to `napi.yml`
-and `node-gi.yml`, which already run their own gates. The second keeps the trees
-independent, which is why they are outside the workspace set in the first place.
-
 ### One package, two module instances — a "singleton" the bundle duplicates
 
 `@gjsify/adwaita-nativescript` is bundled **TWICE** into the NativeScript storybook
