@@ -548,6 +548,56 @@ if (!existsSync(parityPath)) {
     }
 }
 
+// ─── Rule 8 — the namespace export mirrors the widgets, in both directions ──
+// ADR 0034 clause 2. `Adw` is a second spelling of the same set, and a second spelling
+// is a second list unless something holds it: the members are derived from the widgets
+// on disk here, so adding a widget without adding its member fails, and a member with
+// no widget behind it fails too. The second direction is the one that matters — a
+// leftover member survives a widget's deletion and reads as coverage that is gone.
+//
+// Held on ALL THREE barrels, because each must build `Adw` from its OWN platform
+// modules. A base-module member on the GTK barrel would hand `Adw.Bin` the component
+// that refuses at first render, which is the exact failure rule 3 exists for, arriving
+// through the one door rule 3 does not watch.
+const namespaceMember = (widget) => widget.replace(/(^|[-_])(\w)/g, (_, __, c) => c.toUpperCase());
+const namespaceCheck = (barrel, suffixOf) => {
+    const path = join(PACKAGE_DIR, 'src', barrel);
+    if (!existsSync(path)) return; // rule 6 already failed for this barrel
+    const source = read(path);
+    const declaration = /export const Adw = \{([^}]*)\}/.exec(source);
+    if (!declaration) {
+        fail('namespace', `\`src/${barrel}\` exports no \`Adw\` namespace — ADR 0034 clause 2 is unheld there`);
+        return;
+    }
+    const members = new Set(
+        declaration[1]
+            .split(',')
+            .map((part) => part.split(':')[0].trim())
+            .filter((name) => name !== ''),
+    );
+    for (const widget of [...widgets].sort()) {
+        const member = namespaceMember(widget);
+        if (!members.has(member)) {
+            fail('namespace', `\`src/${barrel}\`'s \`Adw\` has no \`${member}\`, so that widget is namespace-only in name`);
+        }
+        // The member must come from THIS barrel's platform module, not the base one.
+        const specifier = `./widgets/${widget}${suffixOf}`;
+        if (!new RegExp(`import \\{[^}]*\\bas ${member}\\b[^}]*\\} from '${specifier.replace(/[.]/g, '\\.')}'`).test(source)) {
+            fail(
+                'namespace',
+                `\`src/${barrel}\`'s \`Adw.${member}\` is not bound from \`${specifier}\` — a namespace member ` +
+                    'reaching a different platform half is the refusal rule 3 catches, through a door rule 3 does not watch',
+            );
+        }
+        members.delete(member);
+    }
+    for (const orphan of [...members].sort()) {
+        fail('namespace', `\`src/${barrel}\`'s \`Adw\` names \`${orphan}\`, which no widget on disk corresponds to`);
+    }
+};
+namespaceCheck('index.ts', '.js');
+for (const platform of PLATFORMS) namespaceCheck(platform.barrel, platform.buildSuffix);
+
 // ─── Vacuity ────────────────────────────────────────────────────────────────
 if (widgets.size === 0) {
     console.error(
@@ -573,6 +623,7 @@ console.log(
     `check-adwaita-rn-platform-split: ${widgets.size} widget(s) — ` +
         `${[...widgets].sort().join(', ')} — each with a base module that refuses, a ` +
         `${PLATFORMS.map((p) => p.name).join(' and a ')} module, an \`exports\` entry naming both ` +
-        'in an order that resolves to them, the JSX source its platform needs, and no import ' +
-        'from the other platform.',
+        'in an order that resolves to them, the JSX source its platform needs, no import ' +
+        `from the other platform, and a member of \`Adw\` on each of the ${PLATFORMS.length + 1} barrels bound ` +
+        'from that barrel\'s own module.',
 );

@@ -1182,6 +1182,42 @@ it also listed are done.
   nothing asserts it behaves like one. The closing criterion stays ADR 0027 § 9's
   conformance vectors, unchanged.
 
+## Amendment 3, 2026-09-01 — clause 2 holds on React Native, and what it cost to make it not a second list
+
+Stage 1's remaining content was the `Adw` namespace export. It is done for
+`@gjsify/adwaita-react-native`: all three barrels — base, `.gtk`, `.native` — export
+`Adw`, additive, with `AdwBin` and `AdwClamp` unchanged.
+
+**The three-barrel shape is the whole difficulty, and § 3's sketch does not show it.**
+`export const Adw = { Bin, Clamp }` written once in a shared module would bind the BASE
+components, so `Adw.Bin` on the GTK build would hand back the thing that refuses at
+first render. That is the failure rule 3 of `check-adwaita-rn-platform-split.mjs` exists
+to prevent, arriving through a door rule 3 does not watch: it reads `export … from`
+lines, and a namespace member is neither. So each barrel builds `Adw` from its OWN
+platform modules, and a new rule 8 holds every member against the widgets on disk in
+both directions, per barrel, including which module each member is bound from.
+
+**§ 3 says the object is "generated from the table"; on this surface it is checked
+against the table instead, and the difference is worth stating.** The members are
+written out, because the `export { AdwBin } from './widgets/bin.js'` lines above them
+are load-bearing for a second reader — `adwaitaReactNativeWidgets` derives this
+package's widget set from exactly that form and refuses a line whose exported name and
+module name disagree. Collapsing the two into `import` + `export {}` would generate the
+namespace and destroy that coupling. Two mentions of each module, held equal by a rule,
+beats one mention that no longer says which widget it is.
+
+A/B, each branch separately, real exit codes: a missing member, an invented member and
+a member bound from the wrong platform module each take the check to exit 1; restored,
+exit 0. The check's summary line now states the namespace it verified, so a rule that
+stops finding anything cannot look like a rule that found nothing wrong.
+
+**What is left of clause 2.** `@gjsify/adwaita-web` (44 members plus 10 the alignment
+table already knows) and `@gjsify/adwaita-nativescript` (the largest, and the only one
+whose mapping has to be written before it can be generated). The ordering argument in
+§ 3 still holds for both. What has changed is that the pattern now exists in the
+repository rather than only in this document — including the part the document got
+wrong.
+
 ## Amendment 5, 2026-09-01 — clause 1 holds on the web surface, and the distance was measuring two surfaces out of three
 
 `@gjsify/adwaita-web` names every element it registers after the library that owns the
