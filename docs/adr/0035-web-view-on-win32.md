@@ -200,10 +200,19 @@ or be replaced by an assertion that does not need one.
 
 ## Implementation
 
-Nothing is implemented. The order, once the spike answers:
+Nothing of the backend is implemented. The order, once the spike answers:
 
-1. `docs/poc/webview2-win32-probe.cpp` + the invocation that runs it, answering
-   questions 1, 3 and 5 — the three that do not need a widget.
+1. **The probe is WRITTEN and has NOT been run** — `docs/poc/webview2-win32-probe.cpp`,
+   built and run by `docs/poc/webview2-win32-probe.ps1`, dispatchable as the
+   `WebView2 probe (ADR 0035)` workflow. It answers questions 1, 3 and 5, the three
+   that need no widget, and it links no GLib on purpose: what decides the design is
+   the one property `g_main_loop_run()` has — it does not dispatch Win32 window
+   messages — and a `Sleep()` loop has that property while a second GLib pulled from
+   MSYS2 or gvsbuild would measure a library the shipped bundle is not. It exits
+   non-zero on the outcomes that invalidate this ADR (10: no loop bridge needed;
+   11: no frame captured), so a red run is a result rather than a build to fix.
+   **Until it has run on a Windows host, every number in this ADR about win32 is a
+   question, not a measurement.**
 2. The GObject shim: a C header with every GIR annotation and a C++/WinRT
    implementation, producing the DLL plus `WebKit-6.0.{gir,typelib}` for the
    subset in decision 4, staged into `prebuilds/win32-x64/` per ADR 0017.

@@ -1,0 +1,64 @@
+# ADR 0035's spike, on demand.
+#
+# This is NOT a gate and deliberately has no `push`/`pull_request` trigger. It
+# answers three questions about a platform we do not yet support, and the answers
+# change an ADR rather than a build: whether WebView2 delivers its callbacks
+# without the Win32 message queue being dispatched (the win32 counterpart of the
+# finding that cost ADR 0022 a release), what a `CapturePreviewAsync` frame
+# costs against darwin's 15.8 ms `takeSnapshot`, and whether the Evergreen
+# runtime is present on a stock image.
+#
+# WHAT IT PROVES, AND WHAT IT DOES NOT. It runs a NON-BUNDLED console process,
+# which is the process shape a `gjs` or a `node` host is — no WinMain, no
+# application message loop — because that is the shape the finding has to hold
+# in. It links no GLib: the probe compares a non-pumping wait against a pumping
+# one, which is the one property of `g_main_loop_run()` that decides the design,
+# and `@gjsify/gtk-runtime-win32-x64` ships DLLs and typelibs rather than
+# headers, so a translation unit could not include the bundle's own GLib anyway.
+# It makes NO claim about a visible window: a hosted runner's window station is
+# not an interactive session, and `EnumWindows` from a non-interactive context
+# returns an empty list while a window is on screen.
+#
+# The probe exits non-zero on outcomes that INVALIDATE something written down —
+# 10 when no loop bridge turns out to be needed, 11 when no frame is captured —
+# so a red run here is a result to read, not a build to fix.
+
+name: WebView2 probe (ADR 0035)
+
+on:
+  workflow_dispatch:
+    inputs:
+      webview2-version:
+        description: 'Microsoft.Web.WebView2 NuGet version to pin'
+        required: false
+        default: '1.0.2903.40'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webview2-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: WebView2 in a non-pumping console process (win32-x64)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Report the host this run measured
+        shell: pwsh
+        run: |
+          Write-Host "OS       : $([System.Environment]::OSVersion.VersionString)"
+          Write-Host "Edge     : $((Get-AppxPackage -Name 'Microsoft.MicrosoftEdge.Stable' -ErrorAction SilentlyContinue).Version)"
+          $key = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $pv = (Get-ItemProperty -Path $key -Name pv -ErrorAction SilentlyContinue).pv
+          Write-Host "WebView2 : $(if ($pv) { $pv } else { '(not registered under the Evergreen client GUID)' })"
+
+      - name: Build and run the probe
+        shell: pwsh
+        run: |
+          pwsh -File docs/poc/webview2-win32-probe.ps1 `
+            -WebView2Version '${{ inputs.webview2-version || '1.0.2903.40' }}'
