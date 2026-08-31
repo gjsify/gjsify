@@ -506,12 +506,20 @@ after it had already drifted.
 
 Where each stands:
 
-| surface | GIR naming | namespace export | declared |
-|---|---|---|---|
-| `gtk-host` | holds by construction (`src/tags.ts:18`) | n/a | declares `role: reference` |
-| `adwaita-web` | **holds** — the 10 that violated it took the GIR name (ADR 0034 § Amendment 5) | absent | **held** — 12 web-only declarations, each with a reason |
-| `adwaita-nativescript` | 4 violate it; 2 more have no counterpart | absent | **held** — 8 widget entries + 52 property entries, `gir`/`composes`/`own`, each with a reason |
-| `adwaita-react-native` | holds (`AdwBin`, `AdwClamp`) | absent | **held** — declared, read from the base barrel, empty ledger |
+| surface | GIR naming | declared |
+|---|---|---|
+| `gtk-host` | holds by construction (`src/tags.ts:18`) | declares `role: reference` |
+| `adwaita-web` | **holds** — the 10 that violated it took the GIR name (ADR 0034 § Amendment 5) | **held** — 12 web-only declarations, each with a reason |
+| `adwaita-nativescript` | 4 violate it; 2 more have no counterpart | **held** — 8 widget entries + 52 property entries, `gir`/`composes`/`own`, each with a reason |
+| `adwaita-react-native` | holds (`AdwBin`, `AdwClamp`) | **held** — declared, read from the base barrel, empty ledger |
+
+**The clause 2 column is gone from this table on purpose.** It said `absent` three times,
+and it was already wrong for React Native, which exports `Adw` on all three of its barrels
+(ADR 0034 § Amendment 3). `check-vocabulary-alignment.mjs` now reads each surface's own
+`src/index.ts` for `export const Adw`/`Gtk` and prints the tally on every run — on every run
+`Namespace exports (ADR 0034 clause 2): N of 3 renderer(s)`, with the surfaces named. A column here would be a second
+answer to a question the gate already answers, which is the shape of every count this ledger
+has had to correct.
 
 **Enrolment is a per-package declaration now, not a list in the gate.** `gjsify.widgetVocabulary`
 (`{ "role": "reference" | "renderer" }`) on each of the four, joined to the readers in
