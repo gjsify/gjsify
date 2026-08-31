@@ -75,11 +75,11 @@
         "test:conformance:mem": "sh scripts/conformance-mem.sh"
     },
     "dependencies": {
-        "@girs/glib-2.0": "4.3.0",
-        "@girs/gobject-2.0": "4.3.0"
+        "@girs/glib-2.0": "4.4.0",
+        "@girs/gobject-2.0": "4.4.0"
     },
     "devDependencies": {
-        "@girs/gjs": "4.3.0",
+        "@girs/gjs": "4.4.0",
         "@gjsify/cli": "^0.22.0",
         "@gjsify/unit": "^0.22.0",
         "@ts-for-gir/cli": "^4.1.0",

@@ -35,14 +35,14 @@
         "mcp"
     ],
     "dependencies": {
-        "@girs/adw-1": "4.3.0",
-        "@girs/gdk-4.0": "4.3.0",
-        "@girs/gio-2.0": "4.3.0",
-        "@girs/gjs": "4.3.0",
-        "@girs/glib-2.0": "4.3.0",
-        "@girs/gobject-2.0": "4.3.0",
-        "@girs/graphene-1.0": "4.3.0",
-        "@girs/gtk-4.0": "4.3.0",
+        "@girs/adw-1": "4.4.0",
+        "@girs/gdk-4.0": "4.4.0",
+        "@girs/gio-2.0": "4.4.0",
+        "@girs/gjs": "4.4.0",
+        "@girs/glib-2.0": "4.4.0",
+        "@girs/gobject-2.0": "4.4.0",
+        "@girs/graphene-1.0": "4.4.0",
+        "@girs/gtk-4.0": "4.4.0",
         "@gjsify/devtools-protocol": "workspace:^"
     },
     "devDependencies": {

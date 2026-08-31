@@ -34,11 +34,11 @@
         "gtk"
     ],
     "dependencies": {
-        "@girs/gio-2.0": "4.3.0",
-        "@girs/giounix-2.0": "4.3.0",
-        "@girs/gjs": "4.3.0",
-        "@girs/glib-2.0": "4.3.0",
-        "@girs/soup-3.0": "4.3.0",
+        "@girs/gio-2.0": "4.4.0",
+        "@girs/giounix-2.0": "4.4.0",
+        "@girs/gjs": "4.4.0",
+        "@girs/glib-2.0": "4.4.0",
+        "@girs/soup-3.0": "4.4.0",
         "@gjsify/devtools-protocol": "workspace:^",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "zod": "^4.4.3"
