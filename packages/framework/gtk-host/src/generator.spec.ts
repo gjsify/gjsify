@@ -12,7 +12,6 @@ import { expect, it, on } from '@gjsify/unit';
 
 import { GTK_HOSTS } from './testing/gate.mjs';
 
-import { methodsOf } from './conformance/index.js';
 import { emitWidgets, type GateFailure } from './generator/emit.mjs';
 import { emitProps, emitSurfaceData, volarResolves } from './generator/emit-types.mjs';
 import { ancestors, concreteWidgets, declarations, indexClasses, readNamespace } from './generator/gir.mjs';
@@ -45,8 +44,17 @@ const fake = (gtype: string, children: WidgetDescriptor['children']): WidgetDesc
 
 const MINI_MODULES = { Mini: 'gi://Mini?version=1.0' } as const;
 
+// The gates no longer take parsed namespaces: G1 asks a GType SET (which the vocabulary
+// supplies) and G3 is gone, because the method question moved to `descriptorProblems()`
+// against the running library. The fixture still comes from the mini GIR, since these
+// tests are about the gates rather than about where the rows came from.
+const MINI_GTYPES = new Set(mini.classes.map((c) => c.gtype));
+
 const emitFixture = (curated: readonly WidgetDescriptor[], floor = 2) =>
-    emitWidgets({ namespaces: [mini], widgets, curated, methodsOf, modules: MINI_MODULES }, floor);
+    emitWidgets(
+        { provenance: 'Mini-1.0', knownGTypes: MINI_GTYPES, widgets, curated, modules: MINI_MODULES },
+        floor,
+    );
 
 export default async () => {
     await on(GTK_HOSTS, async () => {
@@ -233,19 +241,6 @@ export default async () => {
             }
             expect(failure?.gate).toBe('G1');
             expect(failure?.message.includes('MiniGone')).toBe(true);
-        });
-
-        await it('fails G3 when a policy names a method the class does not have', async () => {
-            let failure: GateFailure | null = null;
-            try {
-                emitFixture([
-                    fake('MiniBox', { kind: 'ordered', append: 'nope', remove: 'remove', reorder: 'remove-all' }),
-                ]);
-            } catch (error) {
-                failure = error as GateFailure;
-            }
-            expect(failure?.gate).toBe('G3');
-            expect(failure?.message.includes('MiniBox.nope')).toBe(true);
         });
 
         await it('accepts a method reached only through an ancestor', async () => {

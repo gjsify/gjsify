@@ -18,10 +18,8 @@
  * `descriptorProblems()` against the installed typelib.
  */
 
-import type { ChildPolicy, WidgetDescriptor } from '../types.js';
+import type { WidgetDescriptor } from '../types.js';
 
-import type { GirClass, GirNamespace } from './gir.mjs';
-import { ancestors, indexClasses } from './gir.mjs';
 import { assertInjective, tagOf } from '../tags.js';
 
 /**
@@ -38,12 +36,24 @@ export const GJS_MODULES: Readonly<Record<string, string>> = {
     Adw: 'gi://Adw?version=1',
 };
 
+/** What a widget row needs. Three fields, not a GIR class — see `girs-vocabulary.mts`. */
+export interface WidgetRow {
+    readonly gtype: string;
+    readonly namespace: string;
+    readonly name: string;
+}
+
 export interface EmitInput {
-    readonly namespaces: readonly GirNamespace[];
-    readonly widgets: readonly GirClass[];
+    /** The provenance line, verbatim: `Gtk-4.0/4.23.3 Adw-1/1.8.0`. */
+    readonly provenance: string;
+    readonly widgets: readonly WidgetRow[];
+    /**
+     * Every GType the vocabulary knows, widgets and bases alike. G1 asks whether a curated
+     * row names something that exists, and a widget-only set would report every curated
+     * base as missing.
+     */
+    readonly knownGTypes: ReadonlySet<string>;
     readonly curated: readonly WidgetDescriptor[];
-    /** `methodsOf` from the conformance module — one extractor, not a second copy. */
-    readonly methodsOf: (policy: ChildPolicy) => string[];
     /** GIR namespace -> `gi://` import. Defaults to the GTK/Adwaita pair. */
     readonly modules?: Readonly<Record<string, string>>;
 }
@@ -57,13 +67,6 @@ export class GateFailure extends Error {
     }
 }
 
-/** A class's own methods plus every ancestor's — `set_child` is inherited. */
-function reachableMethods(cls: GirClass, index: Map<string, GirClass>): Set<string> {
-    const out = new Set<string>(cls.methods);
-    for (const a of ancestors(cls, index)) for (const m of a.methods) out.add(m);
-    return out;
-}
-
 /**
  * G1 — every curated gtype is present in the GIR.
  *
@@ -72,12 +75,12 @@ function reachableMethods(cls: GirClass, index: Map<string, GirClass>): Set<stri
  * gate fails with exactly those names rather than emitting a table missing them.
  */
 function gate1(input: EmitInput): void {
-    const present = new Set(input.widgets.map((w) => w.gtype));
-    // An abstract or non-widget class can still be curated as a MOUNT container,
-    // so the membership test is the whole GIR, not the concrete-widget subset.
-    for (const ns of input.namespaces) for (const c of ns.classes) present.add(c.gtype);
-    const missing = input.curated.map((d) => d.gtype).filter((g) => !present.has(g));
-    if (missing.length > 0) throw new GateFailure('G1', `curated gtype(s) absent from the GIR: ${missing.join(', ')}`);
+    // An abstract or non-widget class can still be curated as a MOUNT container, so the
+    // membership test is every GType the vocabulary declares, not the widget subset.
+    const missing = input.curated.map((d) => d.gtype).filter((g) => !input.knownGTypes.has(g));
+    if (missing.length > 0) {
+        throw new GateFailure('G1', `curated gtype(s) absent from the vocabulary: ${missing.join(', ')}`);
+    }
 }
 
 /**
@@ -96,30 +99,6 @@ function gate2(text: string): void {
             );
         }
     }
-}
-
-/**
- * G3 — every method a curated policy names exists on that GType.
- *
- * With the ancestor walk, which is not optional: measured, an own-methods-only
- * check reports two false failures (`GtkApplicationWindow.set_child` and
- * `GtkToggleButton.set_child` are both inherited).
- */
-function gate3(input: EmitInput): void {
-    const index = indexClasses(input.namespaces);
-    const byGtype = new Map<string, GirClass>();
-    for (const ns of input.namespaces) for (const c of ns.classes) byGtype.set(c.gtype, c);
-    const problems: string[] = [];
-    for (const d of input.curated) {
-        const cls = byGtype.get(d.gtype);
-        if (!cls) continue; // G1 already reported it
-        const reachable = reachableMethods(cls, index);
-        for (const method of input.methodsOf(d.children)) {
-            if (!reachable.has(method)) problems.push(`${d.gtype}.${method}`);
-        }
-    }
-    if (problems.length > 0)
-        throw new GateFailure('G3', `policy names a method that does not exist: ${problems.join(', ')}`);
 }
 
 /**
@@ -157,11 +136,16 @@ export interface EmitResult {
 
 export function emitWidgets(input: EmitInput, floor = 100): EmitResult {
     gate1(input);
-    gate3(input);
+    // G3 went with the GIR reader, and where it went is worth saying. It asked whether
+    // every method a curated policy names exists, by walking the parsed class hierarchy —
+    // which the published vocabulary does not carry and could not: it holds slot
+    // CANDIDATES, not a method table. `descriptorProblems()` in `src/conformance/` asks
+    // the same question against the RUNNING library, where the method is on the prototype
+    // or it is not. The check moved to the stronger oracle rather than disappearing.
     gate4(input, floor);
 
     const modules = input.modules ?? GJS_MODULES;
-    const provenance = input.namespaces.map((ns) => `${ns.name}-${ns.version}`).join(' ');
+    const provenance = input.provenance;
     const used = [...new Set(input.widgets.map((w) => w.namespace))].sort();
     const rows = [...input.widgets]
         .sort((a, b) => (a.gtype < b.gtype ? -1 : a.gtype > b.gtype ? 1 : 0))

@@ -22,6 +22,7 @@ import { installDiagnosticsGate } from './conformance/index.js';
 import {
     BUILTIN_DESCRIPTORS,
     CURATED_DESCRIPTORS,
+    GENERATED_PROVENANCE,
     GENERATED_WIDGETS,
     REQUIRED_CONSTRUCT_PROPS,
 } from './descriptors/index.js';
@@ -63,10 +64,26 @@ export const newerThan = (since: string | undefined, running: string): boolean =
     return false;
 };
 
-const writableSpecs = (gtype: string): string[] => {
-    const descriptor = lookupWidget(gtype);
+/**
+ * The constructor a descriptor names, or `null` when the installed library has no
+ * such class.
+ *
+ * `ctor`'s declared type promises a constructor unconditionally. At runtime it
+ * answers `undefined` for a class the installed library predates — the vocabulary is
+ * generated against one GTK release and checked against whatever is on this machine,
+ * and GtkSvgWidget is newer than the GTK here. Six checks below used to dereference
+ * that and die as `can't access property "$gtype", ctor() is undefined`, naming
+ * nothing: the missing class had to be found by hand. The gap is now a fact one test
+ * reports and the others skip.
+ */
+const installedCtor = (descriptor: { readonly ctor: () => unknown }): (GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object)) | null =>
+    (descriptor.ctor() as (GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object)) | undefined) ?? null;
+
+const writableSpecs = (gtype: string): string[] | null => {
+    const ctor = installedCtor(lookupWidget(gtype));
+    if (!ctor) return null;
     const names: string[] = [];
-    for (const [name, spec] of paramSpecs(descriptor.ctor(), gtype)) if (isWritable(spec)) names.push(name);
+    for (const [name, spec] of paramSpecs(ctor, gtype)) if (isWritable(spec)) names.push(name);
     return names;
 };
 
@@ -87,6 +104,22 @@ export default async () => {
             Gtk: `${Gtk.get_major_version()}.${Gtk.get_minor_version()}.${Gtk.get_micro_version()}`,
             Adw: `${Adw.get_major_version()}.${Adw.get_minor_version()}.${Adw.get_micro_version()}`,
         };
+        // The provenance line states the library version each vocabulary was generated
+        // from — `Gtk-4.0/4.23.3`. Read back here, it turns "this class is missing"
+        // from a crash into a question with an answer.
+        const generatedAgainst: Readonly<Record<string, string>> = Object.fromEntries(
+            GENERATED_PROVENANCE.split(' ')
+                .map((part) => /^(\w+)-[\d.]+\/([\d.]+)$/.exec(part))
+                .filter((m): m is RegExpExecArray => m !== null)
+                .map((m) => [m[1] as string, m[2] as string]),
+        );
+        const libraryOf = (gtype: string): 'Adw' | 'Gtk' => (gtype.startsWith('Adw') ? 'Adw' : 'Gtk');
+        const predatesHost = (gtype: string): boolean => {
+            const library = libraryOf(gtype);
+            const against = generatedAgainst[library];
+            return against !== undefined && newerThan(against, running[library] as string);
+        };
+
         const unreleased = (key: string, declaration: string): boolean => {
             const library = declaration.startsWith('Adw') ? 'Adw' : declaration.startsWith('Gtk') ? 'Gtk' : null;
             if (!library) return false;
@@ -167,6 +200,9 @@ export default async () => {
                 // for everything else it might say.
                 const missingPortal = /^Cannot get portal org\.freedesktop\.portal\./;
                 for (const w of GENERATED_WIDGETS) {
+                    // A class the installed library does not have cannot be built. The
+                    // absence is weighed above, once; here it is simply not a row.
+                    if (!installedCtor(w)) continue;
                     // Through the HOST, not through `new w.ctor()`: `materialize` is
                     // where the refusal lives, so constructing around it would leave
                     // the guard itself unchecked.
@@ -272,10 +308,31 @@ export default async () => {
                 expect(slot instanceof Adw.LayoutSlot).toBe(true);
             });
 
+            await it('explains every class the installed library does not have', async () => {
+                // A class the host lacks is fine when the vocabulary was generated
+                // against a newer release — that is the normal state of this repo, and
+                // the provenance line says so. A class missing WITHOUT that gap means
+                // the surface names something that never existed, which is the failure
+                // this whole suite is for. Reported here so the other cases can skip
+                // silently instead of each rediscovering the same absence.
+                const unexplained: string[] = [];
+                for (const w of GENERATED_WIDGETS) {
+                    if (installedCtor(w)) continue;
+                    if (predatesHost(w.gtype)) continue;
+                    const library = libraryOf(w.gtype);
+                    unexplained.push(
+                        `${w.gtype} (generated against ${library} ${generatedAgainst[library] ?? '?'}, running ${running[library]})`,
+                    );
+                }
+                expect(unexplained).toStrictEqual([]);
+            });
+
             await it('names a real class for every tag', async () => {
                 const wrong: string[] = [];
                 for (const w of GENERATED_WIDGETS) {
-                    const name = GObject.type_name(w.ctor().$gtype);
+                    const ctor = installedCtor(w);
+                    if (!ctor) continue;
+                    const name = GObject.type_name(ctor.$gtype);
                     if (name !== w.gtype) wrong.push(`${w.gtype} -> ${name}`);
                 }
                 expect(wrong).toStrictEqual([]);
@@ -286,7 +343,9 @@ export default async () => {
             await it('offers no property the installed GTK does not have as writable', async () => {
                 const problems: string[] = [];
                 for (const w of GENERATED_WIDGETS) {
-                    const real = new Set(writableSpecs(w.gtype));
+                    const writable = writableSpecs(w.gtype);
+                    if (!writable) continue;
+                    const real = new Set(writable);
                     for (const [name, declaration] of surfaceMembers(w.gtype, OWN_PROPS)) {
                         if (real.has(name)) continue;
                         if (unreleased(`${declaration}.${name}`, declaration)) continue;
@@ -300,7 +359,7 @@ export default async () => {
                 const problems: string[] = [];
                 for (const w of GENERATED_WIDGETS) {
                     const offered = surfaceMembers(w.gtype, OWN_PROPS);
-                    for (const name of writableSpecs(w.gtype))
+                    for (const name of writableSpecs(w.gtype) ?? [])
                         if (!offered.has(name)) problems.push(`${w.gtype}.${name}`);
                 }
                 // A failure here is the OPPOSITE skew and cannot be explained by a
@@ -314,7 +373,9 @@ export default async () => {
             await it('offers no signal the installed GTK does not emit', async () => {
                 const problems: string[] = [];
                 for (const w of GENERATED_WIDGETS) {
-                    const gtype = w.ctor().$gtype;
+                    const ctor = installedCtor(w);
+                    if (!ctor) continue;
+                    const gtype = ctor.$gtype;
                     for (const [signal, declaration] of surfaceMembers(w.gtype, OWN_SIGNALS)) {
                         if (GObject.signal_lookup(signal, gtype) !== 0) continue;
                         if (unreleased(`${declaration}::${signal}`, declaration)) continue;
@@ -344,11 +405,23 @@ export default async () => {
                 // `coerce()` uses, so a nick the surface offers can never be one the
                 // host would refuse.
                 const problems: string[] = [];
+                const ahead: string[] = [];
                 for (const [gtype, nicks] of Object.entries(ENUM_NICKS)) {
                     for (const nick of nicks) {
-                        if (lookupEnumNick(gtype, nick) === undefined) problems.push(`${gtype}.${nick}`);
+                        if (lookupEnumNick(gtype, nick) !== undefined) continue;
+                        // A nick the host cannot resolve is a real defect ONLY when the
+                        // host is as new as the vocabulary. Generated against GTK 4.23
+                        // and run against an older one, `GtkEditableProperties`'
+                        // `prop-complete-text` is simply not here yet, and there is no
+                        // per-member SINCE to be finer than the library version.
+                        //
+                        // So this check is SHARP only when the versions match — in CI,
+                        // and on a workstation whose GTK has caught up. It is listed
+                        // rather than silenced, so a growing list stays visible.
+                        (predatesHost(gtype) ? ahead : problems).push(`${gtype}.${nick}`);
                     }
                 }
+                if (ahead.length > 0) console.error(`  (${ahead.length} nick(s) newer than the installed library: ${ahead.join(', ')})`);
                 expect(problems).toStrictEqual([]);
             });
 
