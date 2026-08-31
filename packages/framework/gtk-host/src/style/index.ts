@@ -6,6 +6,13 @@
 // binding can use, which is why it lives here rather than in the React Native
 // package — and why ADR 0027 rule 1 puts it inside `gtk-host` rather than beside it.
 //
+// It also owns the two GTK CSS DOCUMENTS an application has on its display: the
+// GENERATED one (`sheet.ts`, one rule per distinct utility set) and the THEME
+// (`theme.ts`, the application's own stylesheet plus Adwaita's named colours). They
+// are separate because they answer to different authors and, measured, must sit at
+// different provider priorities — a utility class written at an element has to beat
+// a theme rule, and both have to beat Adwaita.
+//
 // It answers a utility in one of three ways and never in a fourth: a GTK CSS
 // declaration, a GTK widget property, or an INTENT that only the shadow tree can
 // resolve (ADR 0032 § 6). Anything it cannot answer is a named error — an unknown
@@ -41,5 +48,15 @@ export type {
 export { partition, resolveUtilities, resolveUtility } from './resolve.js';
 export type { Partitioned, StyleProps } from './resolve.js';
 
-export { StyleSheet, StyleSheetError, VARIANT_PSEUDO } from './sheet.js';
+export { StyleSheet, VARIANT_PSEUDO } from './sheet.js';
 export type { StyleSheetOptions } from './sheet.js';
+export { assertContained, StyleSheetError } from './document.js';
+export {
+    ADWAITA_NAMED_COLOR_PROBES,
+    ADWAITA_NAMED_COLORS,
+    NEUTRAL_THEME,
+    NOT_ADWAITA_NAMED_COLORS,
+    THEME_PROVIDER_PRIORITY,
+    ThemeRegistry,
+} from './theme.js';
+export type { Theme, ThemeRegistryOptions } from './theme.js';

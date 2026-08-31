@@ -143,9 +143,20 @@ If you would rather build a skin from the source, the SCSS partials ship with th
 package at `@gjsify/adwaita-web/scss/…`, with `@gjsify/adwaita-web/scss` as the
 entry point.
 
-## On the desktop, the accent is not yours to set
+## On the desktop, the accent is not yours to set through `AdwStyleManager`
 
-A native GTK app takes its accent from the user's GNOME setting through
-`AdwStyleManager`. If your app renders on both, set the token for the web and
-leave the desktop alone: someone who picked an accent in Settings expects your app
-to use it.
+A native GTK app takes its accent from the user's GNOME setting, and
+**`AdwStyleManager:accent-color` is read-only** — measured on libadwaita 1.9.3,
+assigning to it throws *Property AdwStyleManager.accent-color is not writable*. So
+the property is a report, never a setting.
+
+A native app *can* still override the palette, and by the same mechanism this page
+uses on the web: redefining `--accent-bg-color` and its siblings on `:root`, in a
+`Gtk.CssProvider` above libadwaita's own. What is different on the desktop is the
+provider **priority** — see
+[Styling on GTK](/gjsify/frameworks/styling/#the-provider-priority-is-the-whole-design)
+for the three measurements and the registry that wraps them.
+
+Whether you should is a separate question, and the default answer is no: someone who
+picked an accent in Settings expects your app to use it. If your app renders on both,
+set the token for the web and leave the desktop alone unless the look is the point.

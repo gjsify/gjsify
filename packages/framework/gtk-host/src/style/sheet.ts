@@ -15,10 +15,9 @@
 // 2. **A rule is PROBED before it joins the document.** GTK's CSS parser recovers
 //    per declaration, but a malformed construct can make it discard everything that
 //    FOLLOWS in the same document — so one bad generated rule can silently unstyle
-//    an entire application. Each new rule is therefore loaded into a throwaway
-//    provider together with a sentinel rule, and accepted only if the sentinel
-//    survives the round trip. That is a behavioural test against the real parser
-//    rather than a model of its grammar, which is the only kind that cannot drift.
+//    an entire application. The probe itself lives in `document.ts`: an
+//    APPLICATION's own theme document goes through the same discipline, and two
+//    copies of it would be two answers to one question, diverging on the first fix.
 //
 // 3. **Reload is coalesced.** Mounting a tree produces one rule per distinct style,
 //    and reloading the document per rule is quadratic. The document is rebuilt once
@@ -32,6 +31,8 @@
 import Gdk from 'gi://Gdk?version=4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
+import { assertContained, StyleSheetError } from './document.js';
+
 /** A variant this sheet knows how to express, and the pseudo-class it becomes. */
 export const VARIANT_PSEUDO: Readonly<Record<string, string>> = {
     active: ':active',
@@ -39,14 +40,6 @@ export const VARIANT_PSEUDO: Readonly<Record<string, string>> = {
     focus: ':focus',
     disabled: ':disabled',
 };
-
-/** A rule GTK refused, or one that would have poisoned the document. */
-export class StyleSheetError extends Error {
-    override readonly name = 'StyleSheetError';
-    constructor(message: string) {
-        super(`@gjsify/gtk-host/style: ${message}`);
-    }
-}
 
 /**
  * A stable, short name for a set of declarations.
@@ -65,10 +58,6 @@ function hashName(text: string): string {
     }
     return `gjsify-s${hash.toString(36)}`;
 }
-
-/** The sentinel a containment probe looks for. Its own name cannot collide. */
-const PROBE_CLASS = 'gjsify-probe-8f3a91c4';
-const PROBE_RULE = `.${PROBE_CLASS} { color: rgb(1 2 3); }`;
 
 export interface StyleSheetOptions {
     /**
@@ -131,7 +120,7 @@ export class StyleSheet {
         }
 
         const rule = parts.join('\n');
-        this.#assertContained(rule);
+        assertContained(rule, 'a generated rule');
         this.#rules.set(name, rule);
         this.#queueReload();
         return name;
@@ -177,36 +166,5 @@ export class StyleSheet {
         queueMicrotask(() => {
             if (this.#reloadQueued) this.flush();
         });
-    }
-
-    /**
-     * Refuse a rule that would take the rest of the document with it.
-     *
-     * GTK recovers from a bad DECLARATION by dropping it, but a malformed construct
-     * can end the document — every rule after it is then silently absent, which
-     * presents as "the application lost its styling" with no error anywhere. The
-     * probe asks the real parser: load `<rule>` followed by a sentinel, serialise
-     * back, and check the sentinel is still there.
-     */
-    #assertContained(rule: string): void {
-        const probe = new Gtk.CssProvider();
-        const errors: string[] = [];
-        const handler = probe.connect('parsing-error', (_provider, _section, error) => {
-            errors.push(error.message);
-        });
-        probe.load_from_string(`${rule}\n${PROBE_RULE}`);
-        probe.disconnect(handler);
-        const survived = probe.to_string().includes(PROBE_CLASS);
-        if (!survived) {
-            throw new StyleSheetError(
-                `a generated rule would disable every rule after it in the document, so it is refused:\n  ${rule}\n` +
-                    (errors.length > 0
-                        ? `  GTK said: ${errors.join('; ')}`
-                        : '  GTK reported no error, which is why this is checked by containment rather than by the error signal.'),
-            );
-        }
-        if (errors.length > 0) {
-            throw new StyleSheetError(`GTK refused a generated declaration:\n  ${rule}\n  ${errors.join('; ')}`);
-        }
     }
 }
