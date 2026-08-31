@@ -66,11 +66,14 @@ export const SURFACE_ROLES = ['reference', 'renderer'];
  * the same file would be a copy that can drift.
  *
  * `namespace(root)` answers ADR 0034 clause 2 — the same vocabulary reachable as
- * `Adw.Bin`, not only as `AdwBin` — and returns `null` for a surface that exports none.
- * It REPORTS rather than enforces: two of the three renderers have not adopted the
- * clause, and a gate that failed on that would only be turned off. Measuring it here
- * keeps the answer next to the code instead of in an ADR table that goes stale while
- * the code moves.
+ * `Adw.Bin`, not only as `AdwBin` — mapping each member to the identifier it is bound to,
+ * and returning `null` for a surface that exports none. It REPORTS adoption rather than
+ * demanding it: a renderer that has not adopted the clause is work that is left, and a
+ * gate failing on that would only be turned off. What a surface HAS adopted is then held
+ * where its two sides live — `namespaceProblems` in `check-vocabulary-alignment.mjs` for
+ * the web elements, rule 8 of `check-adwaita-rn-platform-split.mjs` for React Native's
+ * three barrels. Measuring adoption here keeps the answer next to the code instead of in
+ * an ADR table that goes stale while the code moves.
  */
 export const WIDGET_SURFACE_READERS = {
     '@gjsify/gtk-host': {
