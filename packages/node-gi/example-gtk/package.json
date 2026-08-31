@@ -1,7 +1,7 @@
 {
   "name": "@gjsify/example-node-gi-gtk-dual",
   "description": "One Adwaita source, two runtimes — the same gi:// Gtk/Adw application built and run on both GJS and Node.js via @gjsify/node-gi.",
-  "version": "0.44.0",
+  "version": "0.45.0",
   "type": "module",
   "private": true,
   "engines": {

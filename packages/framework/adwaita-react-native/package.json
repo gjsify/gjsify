@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/adwaita-react-native",
-    "version": "0.44.0",
-    "description": "Adwaita widgets with one API surface and two implementations \u2014 the real Adw.* widget on GTK4, React Native primitives on a phone",
+    "version": "0.45.0",
+    "description": "Adwaita widgets with one API surface and two implementations — the real Adw.* widget on GTK4, React Native primitives on a phone",
     "type": "module",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

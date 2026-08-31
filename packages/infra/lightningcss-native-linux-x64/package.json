@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/lightningcss-native-linux-x64",
-    "version": "0.44.0",
+    "version": "0.45.0",
     "description": "linux-x64 prebuilt native library + GObject-Introspection typelib for @gjsify/lightningcss-native. Installed automatically on linux/x64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
     "license": "MIT",
     "os": [

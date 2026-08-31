@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-dom-adwaita-storybook-nativescript",
-    "version": "0.44.0",
+    "version": "0.45.0",
     "description": "The full Adwaita storybook as a real NativeScript-Android app — the SAME stories as the native GTK (@gjsify/storybook) and browser (@gjsify/adwaita-storybook) targets, rendered with REAL native @gjsify/adwaita-nativescript widgets via @gjsify/storybook-nativescript. Shares the renderer-agnostic *.meta.ts with the GTK showcase; story-set parity across the three targets is machine-checked (scripts/check-storybook-story-parity.mjs), behaviour parity by the @gjsify/adwaita-core/conformance vectors. MCP-drivable via @gjsify/devtools-nativescript over the V8 CDP inspector.",
     "private": true,
     "main": "app/app.ts",
@@ -18,11 +18,11 @@
     },
     "license": "MIT",
     "dependencies": {
-        "@gjsify/adwaita-nativescript": "^0.44.0",
-        "@gjsify/devtools-nativescript": "^0.44.0",
-        "@gjsify/example-gtk-adwaita-storybook": "^0.44.0",
-        "@gjsify/nativescript-vite": "^0.44.0",
-        "@gjsify/storybook-nativescript": "^0.44.0",
+        "@gjsify/adwaita-nativescript": "^0.45.0",
+        "@gjsify/devtools-nativescript": "^0.45.0",
+        "@gjsify/example-gtk-adwaita-storybook": "^0.45.0",
+        "@gjsify/nativescript-vite": "^0.45.0",
+        "@gjsify/storybook-nativescript": "^0.45.0",
         "@nativescript/core": "9.1.0-alpha.11",
         "@nativescript/theme": "^3.1.0"
     },

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-gtk-rn-design-system",
-    "version": "0.44.0",
+    "version": "0.45.0",
     "description": "An ordinary design-system layer — badge, button, card, chip, rule, rail, screen, section header, thumbnail, typography — rendered through @gjsify/react-native onto GTK4, with an in-process probe that asserts the widgets, the css-classes and zero GTK diagnostics",
     "type": "module",
     "private": true,

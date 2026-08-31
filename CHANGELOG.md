@@ -1,5 +1,96 @@
 # Changelog
 
+## [0.45.0](https://github.com/gjsify/gjsify/compare/v0.44.0...v0.45.0) (2026-08-31)
+
+### Features
+
+* **adwaita-core:** the Adwaita tokens, from one reader ([#1358](https://github.com/gjsify/gjsify/issues/1358)) ([9d9db93](https://github.com/gjsify/gjsify/commit/9d9db9376f459c792fdb5f8ac3a07d165805b086)), closes [#1343](https://github.com/gjsify/gjsify/issues/1343)
+* **adwaita-core:** the breakpoint bin picks one ([#1364](https://github.com/gjsify/gjsify/issues/1364)) ([a57a4b0](https://github.com/gjsify/gjsify/commit/a57a4b095f157b6c3e9e424cb1f107b49d2afc96)), closes [#1343](https://github.com/gjsify/gjsify/issues/1343)
+* **adwaita-core:** the header bar's three derivations ([#1359](https://github.com/gjsify/gjsify/issues/1359)) ([d71f5ef](https://github.com/gjsify/gjsify/commit/d71f5efcc1f55bf83357d86072910366ea1d7a73)), closes [#1343](https://github.com/gjsify/gjsify/issues/1343)
+* **adwaita-react-native:** two halves, one API ([#1380](https://github.com/gjsify/gjsify/issues/1380)) ([e7fc11f](https://github.com/gjsify/gjsify/commit/e7fc11f6bf38fcd0992d31ac7c5e2fafb13187f7)), closes [#1365](https://github.com/gjsify/gjsify/issues/1365) [#1367](https://github.com/gjsify/gjsify/issues/1367) [#1370](https://github.com/gjsify/gjsify/issues/1370)
+* **cli:** a .dmg around the macOS bundle ([#1421](https://github.com/gjsify/gjsify/issues/1421)) ([a246257](https://github.com/gjsify/gjsify/commit/a24625771b5c9eb42b08dd29842bb5e769d3bbcb))
+* **cli:** a macOS bundle that carries its runtime ([#1418](https://github.com/gjsify/gjsify/issues/1418)) ([fbeee98](https://github.com/gjsify/gjsify/commit/fbeee981cdd3a782a9719271100dd66b2123658e)), closes [#1410](https://github.com/gjsify/gjsify/issues/1410) [#1157](https://github.com/gjsify/gjsify/issues/1157)
+* **cli:** a Windows installer around the program dir ([#1425](https://github.com/gjsify/gjsify/issues/1425)) ([8182b69](https://github.com/gjsify/gjsify/commit/8182b6936f8c8ce0aa27687dd52597fae87df6d5)), closes [#1354](https://github.com/gjsify/gjsify/issues/1354) [#1424](https://github.com/gjsify/gjsify/issues/1424)
+* **cli:** a Windows program directory that carries Node ([#1420](https://github.com/gjsify/gjsify/issues/1420)) ([f73ca56](https://github.com/gjsify/gjsify/commit/f73ca5612e2690914b9bbde87bdd21be1da2e058)), closes [#1354](https://github.com/gjsify/gjsify/issues/1354) [#1117](https://github.com/gjsify/gjsify/issues/1117)
+* **cli:** gjsify ship --sign takes an identity, not a certificate ([#1424](https://github.com/gjsify/gjsify/issues/1424)) ([ab41188](https://github.com/gjsify/gjsify/commit/ab411880dca6eff546a12960ac0daed540f2907f)), closes [#1354](https://github.com/gjsify/gjsify/issues/1354)
+* **cli:** localise the freedesktop metadata ([#1411](https://github.com/gjsify/gjsify/issues/1411)) ([58f9b2a](https://github.com/gjsify/gjsify/commit/58f9b2a1d14a467f407a61b84074fad04565f7f5))
+* **cli:** make onboard a monorepo tool ([#1381](https://github.com/gjsify/gjsify/issues/1381)) ([0d07836](https://github.com/gjsify/gjsify/commit/0d0783618cf23a64afb0f56d1c0706aa6d80d282))
+* **cli:** ship a real macOS app bundle and zip ([#1412](https://github.com/gjsify/gjsify/issues/1412)) ([76af2af](https://github.com/gjsify/gjsify/commit/76af2afaed1bab826e9fc7552aea67c4cd9e22dc)), closes [#1354](https://github.com/gjsify/gjsify/issues/1354)
+* **cli:** ship assembles a layout per OS ([#1403](https://github.com/gjsify/gjsify/issues/1403)) ([637c882](https://github.com/gjsify/gjsify/commit/637c882258a8dfe41be3f2044ed9e2d32802a961)), closes [#1354](https://github.com/gjsify/gjsify/issues/1354) [#1354](https://github.com/gjsify/gjsify/issues/1354)
+* **gtk-host:** curate the five adaptive Adw containers ([#1368](https://github.com/gjsify/gjsify/issues/1368)) ([d7d024a](https://github.com/gjsify/gjsify/commit/d7d024a7f5201543853fa54ee2b501d83336af5e))
+* **gtk-host:** the carriers a list hands a renderer ([#1398](https://github.com/gjsify/gjsify/issues/1398)) ([1b4b52f](https://github.com/gjsify/gjsify/commit/1b4b52febfcf2e6b5af6248ceae4468e4bd109c8))
+* **gtk-host:** the list half no framework owns ([#1406](https://github.com/gjsify/gjsify/issues/1406)) ([5251604](https://github.com/gjsify/gjsify/commit/5251604ad09a395f618af820f410f317ac2ddfd5)), closes [#1398](https://github.com/gjsify/gjsify/issues/1398)
+* **resolve-npm:** react-native as the 5th runtime slot ([#1356](https://github.com/gjsify/gjsify/issues/1356)) ([88825ba](https://github.com/gjsify/gjsify/commit/88825ba179bc7270a7d7e34b3f6496165eb5c68c)), closes [#1343](https://github.com/gjsify/gjsify/issues/1343)
+* **scripts:** enrol surfaces, count property gap ([#1434](https://github.com/gjsify/gjsify/issues/1434)) ([366c7e5](https://github.com/gjsify/gjsify/commit/366c7e54fa6bf4df4f44ce3c1327862a072a61ce))
+* **scripts:** gate what a source walker can see ([#1390](https://github.com/gjsify/gjsify/issues/1390)) ([0a9438b](https://github.com/gjsify/gjsify/commit/0a9438b44f230f8495eb6ca62aa4e0ee1b2acb12))
+* **scripts:** widen the vocabulary gate to NativeScript ([#1432](https://github.com/gjsify/gjsify/issues/1432)) ([55dc4d7](https://github.com/gjsify/gjsify/commit/55dc4d738ea6edb6f0ba99a0b52a5430b97f3ab0))
+* **ship:** carry Node where the OS ships none ([#1401](https://github.com/gjsify/gjsify/issues/1401)) ([e5a483d](https://github.com/gjsify/gjsify/commit/e5a483d821697b3fc8ee6a15213f0c2d74fcac06)), closes [#1354](https://github.com/gjsify/gjsify/issues/1354)
+* **website:** a gallery window per kind of implementation, and one markup ([#1375](https://github.com/gjsify/gjsify/issues/1375)) ([54d499c](https://github.com/gjsify/gjsify/commit/54d499cc3fe1ae36cc8d3d16dc3727610041457c))
+* **website:** a window is a title and its panes ([#1378](https://github.com/gjsify/gjsify/issues/1378)) ([f9b9183](https://github.com/gjsify/gjsify/commit/f9b91832a57003fc4ab821cb5a9255bdde348ed0))
+* **website:** framework snippets from one source ([#1376](https://github.com/gjsify/gjsify/issues/1376)) ([ed1ecb2](https://github.com/gjsify/gjsify/commit/ed1ecb22bfc16afdbc00d8ad35198be8cd9ba154)), closes [#1372](https://github.com/gjsify/gjsify/issues/1372) [#1368](https://github.com/gjsify/gjsify/issues/1368)
+* **website:** the framework tabs the data was waiting for ([#1399](https://github.com/gjsify/gjsify/issues/1399)) ([7511170](https://github.com/gjsify/gjsify/commit/7511170bd1472ef0e47d0c568fe699fc0e6b1ab0))
+* **website:** the NativeScript window's XML template ([#1384](https://github.com/gjsify/gjsify/issues/1384)) ([bcb878d](https://github.com/gjsify/gjsify/commit/bcb878d7e0058daac985643389ec13d692db8d87))
+* **website:** the XML tab, inflated before it shipped ([#1400](https://github.com/gjsify/gjsify/issues/1400)) ([d213a7b](https://github.com/gjsify/gjsify/commit/d213a7bbbcbbefbd61e5d7d2e09e1b5eedf26cd3)), closes [#1404](https://github.com/gjsify/gjsify/issues/1404) [#1368](https://github.com/gjsify/gjsify/issues/1368)
+
+### Bug Fixes
+
+* **adwaita-nativescript:** draw the icons that were invisible ([#1362](https://github.com/gjsify/gjsify/issues/1362)) ([46e3729](https://github.com/gjsify/gjsify/commit/46e372918e36e475bcdcbb3b3c2d9b3306676f54)), closes [#1051](https://github.com/gjsify/gjsify/issues/1051) [#1051](https://github.com/gjsify/gjsify/issues/1051)
+* **adwaita-web:** define the view before its pages ([#1379](https://github.com/gjsify/gjsify/issues/1379)) ([a10626e](https://github.com/gjsify/gjsify/commit/a10626e8a7b261114ba6064d21f045b2c0a319ae))
+* **cli:** ask for one OTP at a time, wait out 429 ([#1386](https://github.com/gjsify/gjsify/issues/1386)) ([983bad5](https://github.com/gjsify/gjsify/commit/983bad545585f583ec971e12fec34449526d48dc))
+* **cli:** show progress, and keep it out of the prompt ([#1392](https://github.com/gjsify/gjsify/issues/1392)) ([9e1d4b6](https://github.com/gjsify/gjsify/commit/9e1d4b6fe3d00a4b44aa4f3ccd97412891b296a4))
+* **cli:** the GTK hint names the wrong directory on win32 ([#1429](https://github.com/gjsify/gjsify/issues/1429)) ([45bfcab](https://github.com/gjsify/gjsify/commit/45bfcab5b0e231de4fc5c134fd678b72c4c65f85))
+* **cli:** the ship subsystem read as one picture ([#1431](https://github.com/gjsify/gjsify/issues/1431)) ([b919db3](https://github.com/gjsify/gjsify/commit/b919db36e051e1984b5803f18ff6f8f45678444a)), closes [#1354](https://github.com/gjsify/gjsify/issues/1354)
+* **gtk-host:** the echo guard asked the wrong question ([#1397](https://github.com/gjsify/gjsify/issues/1397)) ([8774092](https://github.com/gjsify/gjsify/commit/87740924b3648549dcc126ce81988abf26ffc14c))
+* **gtk-host:** the echo guard asks whose object ([#1405](https://github.com/gjsify/gjsify/issues/1405)) ([f324e0f](https://github.com/gjsify/gjsify/commit/f324e0fdaa79e5f5933db4906f3580980971030e))
+* **nativescript:** one id, and each inset paid once ([#1388](https://github.com/gjsify/gjsify/issues/1388)) ([efd95f4](https://github.com/gjsify/gjsify/commit/efd95f43acc22f01178bd2d8f9745a6567fd8a12)), closes [#1128](https://github.com/gjsify/gjsify/issues/1128) [#222226](https://github.com/gjsify/gjsify/issues/222226) [#1051](https://github.com/gjsify/gjsify/issues/1051)
+* **node-gi:** find the libraries an app carries ([#1410](https://github.com/gjsify/gjsify/issues/1410)) ([ea26d8d](https://github.com/gjsify/gjsify/commit/ea26d8d10cda4cfc1e9a54ed03c352a7c72028a1))
+* **oxfmt:** let the formatter see lib/ sources ([#1372](https://github.com/gjsify/gjsify/issues/1372)) ([c29c9b4](https://github.com/gjsify/gjsify/commit/c29c9b4f90ff21e202cab3b9ef90ebb0e9ea6315))
+* **oxlint:** lint the tracked sources under lib/ ([#1369](https://github.com/gjsify/gjsify/issues/1369)) ([4dfcef4](https://github.com/gjsify/gjsify/commit/4dfcef4c7498640bc7c8c30c1c4ca97540d0af5a))
+* **react-native:** the gate refused our own API ([#1374](https://github.com/gjsify/gjsify/issues/1374)) ([a2793c6](https://github.com/gjsify/gjsify/commit/a2793c6d4cbbddfd4b93e5685b54a41db8ae643d))
+* **scripts:** a conformance table is driven only by a suite that runs ([#1367](https://github.com/gjsify/gjsify/issues/1367)) ([127fc6f](https://github.com/gjsify/gjsify/commit/127fc6f1233c0970f531c9322c8feedbef567911)), closes [#1365](https://github.com/gjsify/gjsify/issues/1365) [#1365](https://github.com/gjsify/gjsify/issues/1365) [#1365](https://github.com/gjsify/gjsify/issues/1365)
+* **scripts:** a story renders where its registration reaches it ([#1370](https://github.com/gjsify/gjsify/issues/1370)) ([d7b4252](https://github.com/gjsify/gjsify/commit/d7b425282d322b4c3ee9d99ccde521f2d8b499dc))
+* **scripts:** empty a ledger the publish emptied ([#1427](https://github.com/gjsify/gjsify/issues/1427)) ([62f20e7](https://github.com/gjsify/gjsify/commit/62f20e740349d5c28b9f98a3177ba3ec4dfc8111)), closes [#1407](https://github.com/gjsify/gjsify/issues/1407)
+* **website:** the attribute list belongs to one port ([#1387](https://github.com/gjsify/gjsify/issues/1387)) ([dac1192](https://github.com/gjsify/gjsify/commit/dac119239660cd3c1378a7692a5cdf6fdec6e705))
+* **website:** the attribute pane as a table ([#1391](https://github.com/gjsify/gjsify/issues/1391)) ([8b7043b](https://github.com/gjsify/gjsify/commit/8b7043b88ca855adf7901eecbdfb6625082cddde))
+* **website:** the prose the window rename left behind ([#1404](https://github.com/gjsify/gjsify/issues/1404)) ([0f1635f](https://github.com/gjsify/gjsify/commit/0f1635f802a3ba3cb48afb4ff50f732ebe568163))
+* **website:** the software that page calls unwritten ([#1395](https://github.com/gjsify/gjsify/issues/1395)) ([945b944](https://github.com/gjsify/gjsify/commit/945b94430181a6bc670753677db28bca3fbbdd36)), closes [#1380](https://github.com/gjsify/gjsify/issues/1380)
+
+### Documentation
+
+* **adr:** one widget vocabulary, every surface ([#1415](https://github.com/gjsify/gjsify/issues/1415)) ([f1a56ce](https://github.com/gjsify/gjsify/commit/f1a56cef841bd25af8ef6bffb4eb77f23d1bc14f))
+* **adr:** prefer a template over building the tree ([#1382](https://github.com/gjsify/gjsify/issues/1382)) ([6c9d86b](https://github.com/gjsify/gjsify/commit/6c9d86bc1cb064047e0ebbe1959782d1487748ab))
+* **adr:** repoint a citation the section split moved ([#1435](https://github.com/gjsify/gjsify/issues/1435)) ([aadebcc](https://github.com/gjsify/gjsify/commit/aadebcc0ce6e8125da307a3a82dae43fbd0389e6)), closes [#1433](https://github.com/gjsify/gjsify/issues/1433)
+* **adr:** settle ship's signing interface ([#1409](https://github.com/gjsify/gjsify/issues/1409)) ([7941105](https://github.com/gjsify/gjsify/commit/79411058fb0b2a6f8649a65274ee5602691a60ce)), closes [#1354](https://github.com/gjsify/gjsify/issues/1354)
+* **adr:** the typelib is a subset, not a second source ([#1417](https://github.com/gjsify/gjsify/issues/1417)) ([d79fb34](https://github.com/gjsify/gjsify/commit/d79fb3466f09813e6897c35e835545193fca8509))
+* **adwaita:** a React Native on GTK tab, measured ([#1373](https://github.com/gjsify/gjsify/issues/1373)) ([97a37eb](https://github.com/gjsify/gjsify/commit/97a37eb88d6f8af8a2aceea4752c25158cc2ad71)), closes [#1374](https://github.com/gjsify/gjsify/issues/1374)
+* **cli:** document --dialect react-native ([#1366](https://github.com/gjsify/gjsify/issues/1366)) ([69fe64e](https://github.com/gjsify/gjsify/commit/69fe64eed7015c0724597301d4599f146b31476d))
+* **cli:** the last name main still calls unpublished ([#1430](https://github.com/gjsify/gjsify/issues/1430)) ([b06a5f6](https://github.com/gjsify/gjsify/commit/b06a5f620959c241c4d6e7c60829ec2744103344)), closes [#1407](https://github.com/gjsify/gjsify/issues/1407) [#1429](https://github.com/gjsify/gjsify/issues/1429) [#1429](https://github.com/gjsify/gjsify/issues/1429) [#1427](https://github.com/gjsify/gjsify/issues/1427)
+* **frameworks:** write the React pages for people using them ([#1363](https://github.com/gjsify/gjsify/issues/1363)) ([5f278ef](https://github.com/gjsify/gjsify/commit/5f278effd54ef21f1cdab76764e99651da42c4d4)), closes [#1343](https://github.com/gjsify/gjsify/issues/1343)
+* **gtk-host:** the header counts two maps, it emits four ([#1419](https://github.com/gjsify/gjsify/issues/1419)) ([0512e08](https://github.com/gjsify/gjsify/commit/0512e080a125fe9aa7b3fe879a8564c79cc19433))
+* **ship:** the flags and keys the reference omits ([#1394](https://github.com/gjsify/gjsify/issues/1394)) ([d67ae58](https://github.com/gjsify/gjsify/commit/d67ae5896b50a23cad18d0d88b6bb2450d97ef2a))
+* **website:** a Gtk section beside Adwaita ([#1433](https://github.com/gjsify/gjsify/issues/1433)) ([d672ef3](https://github.com/gjsify/gjsify/commit/d672ef3b186f119d2f4041e62845b71549d15a34))
+* **website:** a placeholder name in the hello example ([#1413](https://github.com/gjsify/gjsify/issues/1413)) ([53d077a](https://github.com/gjsify/gjsify/commit/53d077a7f6df27cf4e9362f9445000187999e34d))
+* **website:** audit the site against the last day ([#1426](https://github.com/gjsify/gjsify/issues/1426)) ([dbaa96f](https://github.com/gjsify/gjsify/commit/dbaa96fd81929135ce1ea4cf70b6b2285bc6fcfa)), closes [#1406](https://github.com/gjsify/gjsify/issues/1406) [#1406](https://github.com/gjsify/gjsify/issues/1406) [#1398](https://github.com/gjsify/gjsify/issues/1398) [#1406](https://github.com/gjsify/gjsify/issues/1406) [#1400](https://github.com/gjsify/gjsify/issues/1400)
+* **website:** claims that had drifted from the source ([#1389](https://github.com/gjsify/gjsify/issues/1389)) ([c639588](https://github.com/gjsify/gjsify/commit/c639588dc0abff5318f116059e4be81853f5ebe1)), closes [#1350](https://github.com/gjsify/gjsify/issues/1350) [#1209](https://github.com/gjsify/gjsify/issues/1209)
+* **website:** one ship page per target OS ([#1428](https://github.com/gjsify/gjsify/issues/1428)) ([02b525c](https://github.com/gjsify/gjsify/commit/02b525cd5954ef6028c1d9dd1ff5acd91f3f39bd))
+
+### Continuous Integration
+
+* bake the freedesktop metadata oracles ([#1416](https://github.com/gjsify/gjsify/issues/1416)) ([a63f022](https://github.com/gjsify/gjsify/commit/a63f022cc6379d9a071703e984fb4da132e5f153))
+* bake the MSI producer and reader ([#1422](https://github.com/gjsify/gjsify/issues/1422)) ([79ef21c](https://github.com/gjsify/gjsify/commit/79ef21ca6be2f157e3380b771ec0db49eaac08c4)), closes [#1354](https://github.com/gjsify/gjsify/issues/1354)
+* report by-name ship runtimes missing from npm ([#1423](https://github.com/gjsify/gjsify/issues/1423)) ([c58c0ce](https://github.com/gjsify/gjsify/commit/c58c0ce48f3a66fed9f86be7c40abb8d8fec402d))
+
+### Maintenance
+
+* **refs:** add metro, the authority on .native resolution ([#1371](https://github.com/gjsify/gjsify/issues/1371)) ([5c1ff7c](https://github.com/gjsify/gjsify/commit/5c1ff7c82e15edbf9a43d3c21410a5813f0a8c97))
+* **refs:** bump gtkx to v1.5.0, re-measure what we cite ([#1396](https://github.com/gjsify/gjsify/issues/1396)) ([a9db384](https://github.com/gjsify/gjsify/commit/a9db38412d2ec96fffb6d80cb25dd5c2e773cea9)), closes [#1304](https://github.com/gjsify/gjsify/issues/1304) [#1304](https://github.com/gjsify/gjsify/issues/1304)
+* update native prebuilds [skip ci] ([cdd3485](https://github.com/gjsify/gjsify/commit/cdd34850cbe9044674e05c4b604cf68deefeaf6b))
+* update native prebuilds [skip ci] ([cdc269c](https://github.com/gjsify/gjsify/commit/cdc269cb72a2225e0c0c3cceccda0c5b2752a476))
+
+### Tests
+
+* **e2e:** reach the layer's own exports through the ALIASED specifier ([#1385](https://github.com/gjsify/gjsify/issues/1385)) ([b60b398](https://github.com/gjsify/gjsify/commit/b60b3980b7c344b654d7fe085425ee4ff665b3b8)), closes [#1374](https://github.com/gjsify/gjsify/issues/1374)
+
 ## [0.44.0](https://github.com/gjsify/gjsify/compare/v0.43.0...v0.44.0) (2026-08-27)
 
 ### Features

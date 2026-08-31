@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-gtk-adwaita-storybook",
-  "version": "0.44.0",
+  "version": "0.45.0",
   "description": "Interactive component browser for Libadwaita widgets — a native Adwaita storybook built on @gjsify/storybook, debuggable over DBus/MCP via @gjsify/devtools",
   "type": "module",
   "main": "dist/gjs.js",
