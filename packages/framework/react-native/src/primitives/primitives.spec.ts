@@ -246,6 +246,87 @@ export default async () => {
         await it('refuses items-* on a primitive with no children to align', async () => {
             expect(threw(() => plan('Text', { className: 'items-center' })).message).toContain('not a box');
         });
+
+        await it('swaps the WIDGET for a wrap, because no property makes a box wrap', async () => {
+            // The second widget-changing intent, and the one ADR 0032 § 6's
+            // `justify-between` precedent is about: L1 names the class, L2 owns the
+            // tag. A `Gtk.Box` has one line and nothing to set to give it two.
+            const p = plan('View', { className: 'flex-wrap' }).plan;
+            expect(p.node.tag).toBe('GtkFlowBox');
+            // …and the element keeps everything that describes it AS an element: the
+            // orientation means the same thing on both classes (measured), so
+            // `flex-row` still selects rows and `flex-col` still selects columns.
+            expect(plan('View', { className: 'flex-wrap' }).plan.node.props.orientation).toBe('vertical');
+            expect(plan('View', { className: 'flex-row flex-wrap' }).plan.node.props.orientation).toBe('horizontal');
+        });
+
+        await it('corrects the two GtkFlowBox defaults that would make it not a flex container', async () => {
+            // Both silent. `max-children-per-line` defaults to 7, so a wrap would cap
+            // a line at seven children however much room was left; `selection-mode`
+            // defaults to SINGLE, so a click would select a child and draw a focus
+            // ring a flexbox container never draws. 65535 is not a round number
+            // picked for looks — it is what GTK stores when handed G_MAXUINT, and `0`
+            // is out of range for the `guint` rather than meaning "no limit".
+            const p = plan('View', { className: 'flex-wrap' }).plan;
+            expect(p.node.props['max-children-per-line']).toBe(65535);
+            expect(p.node.props['selection-mode']).toBe('none');
+        });
+
+        await it('sends a wrapping element’s gap to the two spacings, never to `spacing`', async () => {
+            // `Gtk.FlowBox` installs NO `spacing` (measured). Emitting one would be a
+            // property the host refuses at attach time, in a consumer's window.
+            const both = plan('View', { className: 'flex-wrap gap-2' }).plan;
+            expect(both.node.props.spacing).toBeUndefined();
+            expect(both.node.props['row-spacing']).toBe(8);
+            expect(both.node.props['column-spacing']).toBe(8);
+            // And the axis-qualified gaps stop being an orientation question: both
+            // spacings are real, whichever way the lines run.
+            const axes = plan('View', { className: 'flex-wrap gap-x-1 gap-y-4' }).plan;
+            expect(axes.node.props['column-spacing']).toBe(4);
+            expect(axes.node.props['row-spacing']).toBe(16);
+        });
+
+        await it('consumes flex-nowrap instead of dropping it or refusing it', async () => {
+            // A `Gtk.Box` is already one line, so the resolution is "nothing to do" —
+            // and it is a RESOLUTION rather than a pass-up, because no caller knowing
+            // more could answer it differently. The tag is the proof it was consumed.
+            const p = plan('View', { className: 'flex-nowrap' }).plan;
+            expect(p.node.tag).toBe('GtkBox');
+            expect(p.intent).toStrictEqual({});
+        });
+
+        await it('refuses a wrap on a primitive whose widget has no wrapping counterpart', async () => {
+            // There is no wrapping `Gtk.Label` and no wrapping `Gtk.ScrolledWindow`,
+            // so the refusal points at the node that IS a box — which on a
+            // `ScrollView` is reached through `contentContainerClassName`.
+            expect(threw(() => plan('Text', { className: 'flex-wrap' })).message).toContain('no wrapping counterpart');
+            const scroller = threw(() => plan('ScrollView', { className: 'flex-wrap' }));
+            expect(scroller.message).toContain('contentContainerClassName');
+        });
+
+        await it('wraps a ScrollView’s CONTENT box, which is the node that holds children', async () => {
+            const p = plan('ScrollView', { contentContainerClassName: 'flex-wrap gap-2' }).plan;
+            expect(p.node.tag).toBe('GtkScrolledWindow');
+            expect(p.content?.tag).toBe('GtkFlowBox');
+            expect(p.content?.props['row-spacing']).toBe(8);
+        });
+
+        await it('wraps the INNER box when an absolute child made the element an overlay', async () => {
+            // Two widget swaps on one element, and they do not collide: the outer
+            // node becomes the overlay the absolute child needs, and the node the
+            // ordinary children go into becomes the one that wraps.
+            const p = plan(
+                'View',
+                { className: 'flex-wrap gap-1' },
+                { children: { absolute: 1, count: 2, text: false } },
+            ).plan;
+            expect(p.node.tag).toBe('GtkOverlay');
+            expect(p.content?.tag).toBe('GtkFlowBox');
+            expect(p.content?.props['column-spacing']).toBe(4);
+            // The spacings belong to the inner class and must not be left on the
+            // overlay, which installs neither (measured: 37 properties, no spacing).
+            expect(p.node.props['column-spacing']).toBeUndefined();
+        });
     });
 
     await describe('the intents L2 passes up', async () => {

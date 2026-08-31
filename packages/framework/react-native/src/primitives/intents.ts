@@ -22,6 +22,11 @@
 //                  `gtk-props.ts`), so on a non-text widget the value travels
 //                  down to the first descendant that can take it.
 //   overlay(child) the PARENT's identity, which the caller supplies as context.
+//   wrap           WHICH WIDGET the element is. `flex-wrap` is not a property on
+//                  any GTK class — a `Gtk.Box` has one line — so it is answered by
+//                  swapping in `Gtk.FlowBox`, and only a layer holding the widget
+//                  table can do that. The spacings come with it, because the two
+//                  classes spell a gap differently.
 //
 // WHAT IS PASSED UP, and why no amount of local cleverness closes it:
 //
@@ -84,12 +89,34 @@ export interface ChildFacts {
     readonly text: boolean;
 }
 
+/**
+ * The widget an element becomes when its children WRAP, and what that class needs.
+ *
+ * Data rather than code because it is a fact about GTK's class hierarchy, the same
+ * way `overlayOnAbsoluteChild` is: a `Gtk.Box` has one line and a `Gtk.FlowBox` has
+ * as many as it needs, and neither is reachable from the other by setting a
+ * property. `null` is a primitive whose widget has no wrapping counterpart at all.
+ */
+export interface WrapsInto {
+    /** GType name of the wrapping class. */
+    readonly tag: string;
+    /**
+     * Properties the swapped-in class needs before a single utility is read.
+     *
+     * Not cosmetic: `Gtk.FlowBox` ships two defaults that make it something other
+     * than a wrapping box (measured, gtk 4.22.4), and both are corrected here.
+     */
+    readonly widgetProps: Readonly<Record<string, unknown>>;
+}
+
 /** What the element's own widget can take. Declared per primitive, measured in the spec. */
 export interface WidgetFacts {
     /** Installs `orientation` and `spacing` — a `Gtk.Box`. */
     readonly box: boolean;
     /** Installs `xalign` and `justify` — a `Gtk.Label`. */
     readonly alignsText: boolean;
+    /** What this element becomes when its children wrap, or `null` when nothing can. */
+    readonly wrapsInto: WrapsInto | null;
 }
 
 export interface IntentInput {
@@ -104,6 +131,14 @@ export interface IntentInput {
     readonly emittedProps: Readonly<Record<string, unknown>>;
 }
 
+/** The widget swap a wrap asks for, for the caller that owns the plan's tags. */
+export interface WrapResolution {
+    /** GType name the node the children go into takes instead of its own. */
+    readonly tag: string;
+    /** Properties that belong to the swapped-in class, the spacings included. */
+    readonly props: Readonly<Record<string, unknown>>;
+}
+
 export interface IntentResolution {
     /** Widget properties this resolution adds, GTK spelling. */
     readonly props: Readonly<Record<string, unknown>>;
@@ -113,6 +148,14 @@ export interface IntentResolution {
     readonly childContext: ChildContext;
     /** The `slot` this element declares to its parent, or null. */
     readonly slot: string | null;
+    /**
+     * The tag the node holding the children takes instead of its own, or null.
+     *
+     * Returned rather than applied because this function answers for PROPERTIES and
+     * the plan's tags belong to `resolve.ts` — the same division that keeps
+     * `overlayOnAbsoluteChild` out of here.
+     */
+    readonly wrapping: WrapResolution | null;
     /** What is still unresolved, for a caller that knows more. */
     readonly remaining: LayoutIntent;
 }
@@ -165,6 +208,9 @@ const main = (orientation: Orientation): 'halign' | 'valign' => (orientation ===
 const NO_CENTER_BOX =
     "GTK's box has no main-axis justification, and ADR 0032 § 6's mapping for this one is `Gtk.CenterBox` — a different WIDGET, not another property on this one. The host's `slotted` policy used to be what blocked it, because it named a `remove` that gtk 4.22.4's `Gtk.CenterBox` does not install (it clears a slot with `set_center_widget(null)`); that block is gone, since `children.remove` is optional for a policy whose slots are all setters. What is missing is the CHILD COUNT — two or three children pick the widget, and this layer resolves properties for the widget it was handed, with no children to count. Spell the distribution with a spacer child (`flex-1`) or with `gap-*`";
 
+const NO_WRAPPING_WIDGET =
+    'wraps CHILDREN onto a second line, and the widget this primitive becomes has no wrapping counterpart: `Gtk.FlowBox` is a box that wraps, and there is no wrapping `Gtk.Label`, `Gtk.Button` or `Gtk.ScrolledWindow` to swap in. Move the utility to the container — on a `ScrollView` that is `contentContainerClassName`, which lands on a real box';
+
 export function resolveIntent(input: IntentInput): IntentResolution {
     const { primitive, intent, orientation, widget, parent } = input;
     const props: Record<string, unknown> = {};
@@ -172,6 +218,7 @@ export function resolveIntent(input: IntentInput): IntentResolution {
     const childProps: Record<string, unknown> = {};
     const remaining: Record<string, unknown> = {};
     let slot: string | null = null;
+    let wrapping: WrapResolution | null = null;
     let childTextAlign = parent?.textAlign;
 
     // --- resolved: the element's own orientation is enough ---------------------
@@ -215,6 +262,29 @@ export function resolveIntent(input: IntentInput): IntentResolution {
         // it would reject `gap-x-2` written defensively beside a `flex-row` that a
         // breakpoint later turns into a column.
         if (intent.axisSpacing.axis === orientation) props.spacing = intent.axisSpacing.pixels;
+    }
+
+    if (intent.wrap !== undefined) {
+        // ONE guard for both halves of the refusal: a primitive whose widget cannot
+        // wrap has no wrapping counterpart either, so `wrapsInto === null` is the
+        // whole test and the message names the fact rather than the class.
+        const into = widget.wrapsInto;
+        if (into === null) throw new PrimitiveError(primitive, 'flex-wrap/flex-nowrap', NO_WRAPPING_WIDGET);
+        // `single` is RESOLVED here, by there being nothing to do: the element's own
+        // widget is already one line. Consumed rather than passed up, because no
+        // caller knowing more could answer it differently — which is exactly the
+        // difference between this and `expand`.
+        if (intent.wrap.lines === 'multi') {
+            const { rowSpacing, columnSpacing } = intent.wrap;
+            wrapping = {
+                tag: into.tag,
+                props: {
+                    ...into.widgetProps,
+                    ...(rowSpacing === undefined ? {} : { 'row-spacing': rowSpacing }),
+                    ...(columnSpacing === undefined ? {} : { 'column-spacing': columnSpacing }),
+                },
+            };
+        }
     }
 
     if (intent.textAlign !== undefined) childTextAlign = intent.textAlign;
@@ -276,6 +346,7 @@ export function resolveIntent(input: IntentInput): IntentResolution {
             ...(childTextAlign === undefined ? {} : { textAlign: childTextAlign }),
         },
         slot,
+        wrapping,
         remaining: remaining as LayoutIntent,
     };
 }

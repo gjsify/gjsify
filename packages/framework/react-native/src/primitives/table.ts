@@ -33,7 +33,7 @@
 // generated refusing export is the honest answer — strictly better than a `partial`
 // that aborts the process the first time somebody renders one.
 
-import type { Orientation, WidgetFacts } from './intents.js';
+import type { Orientation, WidgetFacts, WrapsInto } from './intents.js';
 
 /** How a prop's value becomes a GTK value. */
 export type Coercion =
@@ -241,9 +241,37 @@ export interface PrimitiveSpec {
     readonly refusesStyle?: string;
 }
 
-const BOX: WidgetFacts = { box: true, alignsText: false };
-const LEAF: WidgetFacts = { box: false, alignsText: false };
-const TEXT: WidgetFacts = { box: false, alignsText: true };
+/**
+ * A wrapping box, and the two defaults that stop `Gtk.FlowBox` from being one.
+ *
+ * MEASURED on gtk 4.22.4, and both are the silent kind:
+ *
+ *   `max-children-per-line` defaults to **7**. A `flex-wrap` container would put
+ *   seven children on a line and wrap the eighth however much room was left — a
+ *   layout that is plausible on screen and wrong. There is no "no limit" spelling:
+ *   `0` is OUT OF RANGE for the `guint` (a GLib-GObject-CRITICAL, and the property
+ *   keeps its old value), and writing G_MAXUINT stores 65535. So 65535 IS GTK's
+ *   spelling of "as many as fit", and the natural width is unaffected by it — it
+ *   tracks the child count, measured identical for 12 children at 12, 1024 and
+ *   65535.
+ *
+ *   `selection-mode` defaults to SINGLE. A `Gtk.FlowBox` is a selection widget
+ *   before it is a layout one, so a plain `<View>` would gain a focus ring and a
+ *   selected row from a click that a flexbox container ignores.
+ *
+ * `orientation` needs no correction and is not listed: it means the same thing on
+ * both classes (measured — HORIZONTAL fills along x and wraps into rows, VERTICAL
+ * fills along y and wraps into columns), so `flex-row`/`flex-col` survive the swap
+ * through the ordinary property route.
+ */
+const WRAPS_INTO_FLOW_BOX: WrapsInto = {
+    tag: 'GtkFlowBox',
+    widgetProps: { 'max-children-per-line': 65535, 'selection-mode': 'none' },
+};
+
+const BOX: WidgetFacts = { box: true, alignsText: false, wrapsInto: WRAPS_INTO_FLOW_BOX };
+const LEAF: WidgetFacts = { box: false, alignsText: false, wrapsInto: null };
+const TEXT: WidgetFacts = { box: false, alignsText: true, wrapsInto: null };
 
 const NO_ACCESSIBILITY_PROP =
     'GTK carries accessibility through `Gtk.Accessible.update_property()`, an imperative call, not through a widget property — so there is nothing for this layer to set as data. `AccessibilityInfo` (tier P3) is the entry that owns this, and GTK’s model maps onto the props well once it exists';

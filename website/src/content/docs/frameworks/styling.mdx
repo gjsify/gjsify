@@ -25,7 +25,7 @@ A property is answered in exactly one of three ways:
 |---|---|---|
 | **GTK CSS** | GTK's CSS parser accepts the property name | `padding-left`, `background-color`, `margin-left` |
 | **widget property** | some GTK class installs a property by that name | `margin-start`, `hexpand`, `overflow`, `width-request` |
-| **intent** | neither can answer it *here*, because the answer needs the parent, the children, or the widget this element becomes | `flex-1`, `items-center`, `gap-x-2`, `text-center` |
+| **intent** | neither can answer it *here*, because the answer needs the parent, the children, or the widget this element becomes | `flex-1`, `items-center`, `gap-x-2`, `text-center`, `flex-wrap` |
 
 Which one a property takes is a **measurement**, not a preference. Two committed tables hold it:
 one loads every accepted CSS property name into a real `Gtk.CssProvider` and asserts it parses,
@@ -160,6 +160,46 @@ child as `halign` / `valign`, so resolving it means walking children. And *which
 depends on the element's own orientation — where the defaults disagree, since a `Gtk.Box` is
 horizontal and a React Native `View` is a column. There is not even a safe fallback to guess with.
 
+## `flex-wrap` is a different widget, not a property
+
+A `Gtk.Box` lays its children on one line and installs nothing that gives it a
+second one. Wrapping on GTK is `Gtk.FlowBox` — another class, reached by swapping the
+widget rather than by setting anything — so `flex-wrap` is an **intent** for the same
+reason `justify-between` is: the partition answers for an element's properties and
+has no say in what the element becomes. The layer above swaps the tag, and
+`flex-nowrap` is *resolved* by there being nothing to do, since a box is already one
+line.
+
+`flex-wrap-reverse` stays a refusal. `Gtk.FlowBox` installs `orientation`,
+`homogeneous`, `row-spacing`, `column-spacing`, `min-children-per-line`,
+`max-children-per-line` and `selection-mode`, and nothing that reverses the line
+order — so reverse the children instead, which is what the tree is for.
+
+Two `Gtk.FlowBox` defaults are corrected on the way in, and both are the silent kind:
+
+| Default | What it would do to a `flex-wrap` container |
+|---|---|
+| `max-children-per-line: 7` | seven children per line however much room is left — a layout that is plausible on screen and wrong |
+| `selection-mode: SINGLE` | a click selects a child and draws a focus ring, which a flex container never does |
+
+There is **no "no limit" spelling** for the first. `0` is out of range for the
+`guint` — a `GLib-GObject-CRITICAL`, and the property keeps its old value — and
+writing `G_MAXUINT` stores **65535**, which is therefore GTK's own way to say "as
+many as fit". It costs nothing: the natural width tracks the child count, measured
+identical for twelve children at `12`, `1024` and `65535`.
+
+**A gap changes channel when an element wraps.** `Gtk.FlowBox` has *no* `spacing` at
+all; it has `row-spacing` and `column-spacing`, and both are real at once. So on a
+wrapping element `gap-*` becomes both spacings instead of the box's single one, and
+the axis-qualified spellings stop being an orientation question — `gap-x-*` is the
+gap between children in a line whichever way the lines run. That is also the one
+place the two-gap-spellings refusal lifts: `gap-4 gap-x-2` asks a `Gtk.Box` for two
+spacings it does not have, and asks a `Gtk.FlowBox` for exactly the two it does.
+
+`orientation` needs no translation and keeps working across the swap, measured on
+both classes: `HORIZONTAL` fills along x and wraps into rows, `VERTICAL` fills along
+y and wraps into columns — the same meaning `flex-row` and `flex-col` already had.
+
 ## The generated stylesheet
 
 A widget takes `css-classes`, a string array. So something has to turn a set of declarations into
@@ -187,6 +227,8 @@ a **name** and keep a document that defines it.
 | `w-1/2` and other fractions | refused: a widget requests a *minimum* in pixels or expands to fill. `w-full` / `h-full` are the only fractions with an exact GTK meaning |
 | `overflow-scroll`, `overflow-auto` | refused: scrolling is a **widget** on GTK, not an overflow mode — wrap the element in a `Gtk.ScrolledWindow`. `Gtk.Overflow` has exactly `VISIBLE` and `HIDDEN` |
 | `flex-2`, `grow-2`, `shrink-*`, `basis-*` | refused: GTK expresses main-axis growth as the boolean `hexpand` / `vexpand`, so there is no growth factor, shrink factor or flex basis to carry. `flex-1` is the only spelling with a GTK meaning |
+| `flex-wrap-reverse` | refused: `Gtk.FlowBox` runs its lines in one direction only and installs nothing that reverses them. Reverse the children |
+| `flex-wrap` on a `<Text>`, or on a `ScrollView`'s own class list | refused at attach time: there is no wrapping `Gtk.Label` and no wrapping `Gtk.ScrolledWindow` to swap in. On a `ScrollView` the box that holds the children is reached through `contentContainerClassName` |
 | a name no family claims | `UnknownUtilityError`, naming the utility — never a silent drop |
 
 The first two rows refuse at different moments, and it is worth knowing why. **No child count
