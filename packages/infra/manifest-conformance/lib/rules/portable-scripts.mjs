@@ -59,9 +59,27 @@
  * Shell SYNTAX, as opposed to shell commands: a redirect (`> file`), a
  * `VAR=x cmd` prefix, a `$(…)` substitution and a backslash line-continuation are
  * all equally unavailable or differently-spelled under cmd.exe, and none of them
- * puts a POSIX utility in command position. None is present in the tree today.
- * Add them here on sight, not speculatively — every pattern in this list has a
- * package behind it.
+ * puts a POSIX utility in command position.
+ *
+ * ~~None is present in the tree today.~~ **That sentence was measured false.**
+ * Counted 2026-08-31 over every manifest in the tree: 33 scripts open a clause
+ * with a `VAR=x` prefix. Two of them were load-bearing — `@gjsify/gtk-host` and
+ * `@gjsify/react-native`'s `test:gjs-on-node` carried
+ * `NODE_GI_NATIVE=${NODE_GI_NATIVE:-prebuild} node …`, a prefix AND a `${…:-…}`
+ * expansion, and that script is the entry point `gtk-os-suites.yml` calls on a
+ * cmd.exe leg. Both now take the variable from the ENVIRONMENT, where every shell
+ * agrees. The remaining 31 are `@gjsify/node-gi` (10) and `@gjsify/napi` (11) —
+ * neither a workspace member, both driven only by their own Linux legs — plus 10
+ * private `examples/`.
+ *
+ * The pattern is still deliberately NOT in the list, on the same judgement the
+ * `clear`-only scope shipped under: adding it today lands a rule with a 31-entry
+ * exemption ledger, and a check that starts life mostly-exempted teaches everyone
+ * to add the next exemption. Those 31 are the work that unblocks it, and
+ * `status/open-todos.md` carries the count so it is a task rather than a memory.
+ *
+ * Add patterns here on sight, not speculatively — every pattern in this list has a
+ * package behind it, and now so does the one deliberately absent from it.
  */
 
 import { defineRule } from '../registry.mjs';

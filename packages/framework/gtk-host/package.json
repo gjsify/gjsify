@@ -75,7 +75,7 @@
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs --define '__VUE_OPTIONS_API__=false' --define '__VUE_PROD_DEVTOOLS__=false' --define '__VUE_PROD_HYDRATION_MISMATCH_DETAILS__=false' --define 'process.env.NODE_ENV=\"production\"' --exclude-globals navigator",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs",
-        "test:gjs-on-node": "gjsify run build:gjsify && gjsify run build:test:node && NODE_GI_NATIVE=${NODE_GI_NATIVE:-prebuild} node dist/test.node.mjs",
+        "test:gjs-on-node": "gjsify run build:gjsify && gjsify run build:test:node && node dist/test.node.mjs",
         "generate": "gjsify build src/generator/main.mts --app gjs --outfile tmp/generate.gjs.mjs && gjsify run tmp/generate.gjs.mjs -- --out src/generated && gjsify format src/generated"
     },
     "keywords": [

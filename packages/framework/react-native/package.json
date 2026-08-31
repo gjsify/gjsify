@@ -39,7 +39,7 @@
         "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs --define 'process.env.NODE_ENV=\"production\"' --exclude-globals navigator",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs",
-        "test:gjs-on-node": "gjsify run build:gjsify && gjsify run build:test:node && NODE_GI_NATIVE=${NODE_GI_NATIVE:-prebuild} node dist/test.node.mjs",
+        "test:gjs-on-node": "gjsify run build:gjsify && gjsify run build:test:node && node dist/test.node.mjs",
         "generate": "node scripts/generate-exports.mjs && gjsify format src/generated"
     },
     "keywords": [

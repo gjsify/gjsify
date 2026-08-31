@@ -93,6 +93,72 @@ What would make the next occurrence cost minutes instead of an afternoon, in ord
   (#1322) — a change that touches every wrapped instance. That is a hypothesis with
   no evidence behind it: the same leg passed on rerun with the same code.
 
+### node-gi: a class nothing instantiated has no realised class, so `signal_lookup` finds zero signals
+
+Measured 2026-08-31 while wiring `gtk-os-suites.yml`, differentially against the gjs
+oracle (ADR 0030) on Fedora 44 / gjs 1.88.1 / Node 24.19.0, GTK 4.22 + libadwaita 1.9,
+node-gi's published `linux-x64` prebuild:
+
+| read | gjs | node-gi |
+|---|---|---|
+| `GObject.signal_lookup('popped', Adw.NavigationView.$gtype)` | 84 | **0** |
+| `GObject.signal_lookup('hidden', Adw.NavigationPage.$gtype)` | 90 | **0** |
+| the same reads AFTER any class-struct static (`…list_properties()`) | 84 / 90 | 84 / 90 |
+
+One root cause, and `src/calls.cc` already names it in the header of
+`ClassStructInstance`: gjs keeps the invariant that "the GType class is referenced at
+least once when the JS constructor is initialized", so signals registered in
+`class_init` are findable off `$gtype` with no instance; **node-gi's class proxy takes
+no such ref**, so `g_type_class_peek` is null and the class is unrealised. That comment
+was written about a DIFFERENT call path (which does `g_type_class_ref` and is why the
+third row above passes), so the gap is documented and unclosed rather than unknown.
+
+The fix site is the `$gtype` read, which is JS — `gi.js`'s `defineLazyGType()` resolves
+through `native.getGType()` and caches, so one realisation per GType would match gjs's
+invariant exactly and cost nothing after the first read. It has to be guarded on
+`G_TYPE_IS_CLASSED`, which is why the honest place is `GetGType` in C++ rather than a
+JS `GObject.type_class_ref()` call that would be wrong for every struct and enum.
+Proof that the JS route closes it at all: `GObject.type_class_ref(gt)` from JS turns the
+first row from 0 into 65 in the same process.
+
+Costs one assertion in `@gjsify/react-native`'s suite today
+(`router.spec.ts` → "emits `popped` on the view and `hidden` on the page"), which is one
+of the two things keeping that package's step in `gtk-os-suites.yml` a probe rather than
+a gate.
+
+### `@gjsify/react-native`'s list spec asks for pspecs in a spelling only gjs answers
+
+The sibling of the entry above, and NOT a node-gi defect — recorded together because
+they were found in the same differential run and only one of them is the engine's.
+
+`lists.spec.ts` → "binds rows into a Gtk.ListItem, which is not a Gtk.Widget" reads
+`GObject.Object.list_properties.call(Gtk.ListItem)`. Under gjs that answers `array(9)`,
+because `gjs_define_static_methods` puts GObjectClass's methods on `GObject.Object`'s
+CONSTRUCTOR and `Function.prototype.call` re-targets them down the prototype chain.
+node-gi resolves class-struct methods per type instead, so the same expression answers
+`array(0)` — GObject's own property count — and the spec's `child !== undefined` is
+false. Measured: `Gtk.ListItem.list_properties()` answers `array(9)` on BOTH runtimes,
+and that is the spelling `@gjsify/gtk-host`'s own `paramSpecs()` already uses.
+
+So this is a non-portable spelling in a spec, and the repair is the portable static.
+Left to the owner of `packages/framework/react-native/src/**` rather than fixed here
+because it does not unblock anything on its own — the entry above blocks the same step.
+
+### 31 package scripts still open a clause with a `VAR=x` prefix, which cmd.exe has no form of
+
+`portable-scripts` catches a POSIX UTILITY in command position and says in its own
+header that it cannot see shell SYNTAX. That header also said "None is present in the
+tree today"; counted 2026-08-31, 33 scripts carried a `VAR=x` prefix. Two of them were
+load-bearing — `@gjsify/gtk-host` and `@gjsify/react-native`'s `test:gjs-on-node`, the
+entry point `gtk-os-suites.yml` calls on a cmd.exe leg — and both now take the variable
+from the environment.
+
+The remaining 31: `@gjsify/node-gi` (10) and `@gjsify/napi` (11), neither a workspace
+member and both driven only by their own Linux legs, plus 10 private `examples/`.
+Widening the rule before they are fixed lands a check with a 31-entry exemption ledger,
+which the rule's own header argues against having shipped once already. Fix the 21
+published-package ones, then add the pattern.
+
 ### node-gi: two callable shapes diverge from gjs in calling convention, and their arity with it
 
 Found by the `callable-arity` conformance probe while closing the gtk-host node
