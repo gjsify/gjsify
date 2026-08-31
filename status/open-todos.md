@@ -93,6 +93,196 @@ What would make the next occurrence cost minutes instead of an afternoon, in ord
   (#1322) — a change that touches every wrapped instance. That is a hypothesis with
   no evidence behind it: the same leg passed on rerun with the same code.
 
+### `@gjsify/gtk-host`'s generated table offers two Unix-only GTK classes on every OS
+
+Found by `gtk-os-suites.yml`'s win32 leg on its first complete run (2026-08-31): the
+suite reported **6 of 2264** on `win32-x64` against **2274/2274** on darwin-arm64 and
+darwin-x64, all six on one root cause. Only the set-comparison assertion named it; the
+other five dereferenced an `undefined`:
+
+```
+GtkPageSetupUnixDialog: Cannot read properties of undefined (reading 'list_properties')
+GtkPrintUnixDialog:     Cannot read properties of undefined (reading 'list_properties')
+```
+
+Both are `…UnixDialog` — GTK does not build them on Windows. `src/generated/` is
+produced from the GIR on a LINUX host, so it bakes in Linux-only classes and then
+`generated.spec.ts` / `conformance.spec.ts` compare that table against the INSTALLED
+typelib, where two rows have no class at all.
+
+**A version skew is the obvious second hypothesis and it is ruled out.** The two
+bundles' `Gtk-4.0.typelib` differ in size (559 728 win32 against 567 784 darwin) and
+the win32 GTK is gvsbuild's against Homebrew's, so "the Windows GTK is older" reads as
+the likelier story — and it would send someone to bump a version. The full
+capitalised-identifier diff of the two typelibs is 12 names and they are ONE subsystem:
+`GtkPageSetupUnixDialog`, `GtkPrintUnixDialog`, `GtkPrinter`, `GtkPrintJob`,
+`GtkPrintCapabilities`, `PrintBackend`, `PrinterFunc`, `PrintJobCompleteFunc` — GTK's
+Unix print stack, entire, and nothing else. An older GTK would be missing classes
+scattered across unrelated subsystems. The portable replacements `GtkPrintDialog` and
+`GtkFileDialog` are in BOTH, and both Unix dialogs are in the Linux system GTK 4.22.
+Corroborating from the suite side: `refuses a type whose namespace it cannot import`
+stays GREEN, so no namespace is missing — a class inside a present one is.
+
+So the repair is to mark that subsystem Unix-only. A GIR bump would fix nothing. Nothing about it is the operating
+system's fault or the bundle's: the published `@gjsify/gtk-runtime-win32-x64` verified
+clean (33 backed typelibs, `windowing=true`, decode probe green) and
+`check-batteries.mjs` passed before the suite started.
+
+Two things to fix, and they are separable:
+
+1. **The table.** Either the generator marks a row's platform availability, or the
+   table stops offering a class the running GTK does not have. This is the one that
+   makes the win32 leg gating again — the step is `continue-on-error` with that as its
+   printed retirement condition.
+2. **The diagnosis.** Five of the six assertions die as a bare `TypeError: Cannot read
+   properties of undefined (reading '$gtype')`, which does not say WHICH row. A
+   conformance test whose subject is "the table vs the installed typelib" should report
+   an absent class by name rather than dereference it — otherwise the next OS finding
+   arrives as six anonymous type errors, which is how this one nearly did.
+
+### Two `@gjsify/react-native` image vectors assert a POSIX path where GLib returns a native one
+
+Measured by `gtk-os-suites.yml`'s win32 leg, 2026-08-31. `primitives/widgets.spec.ts`
+gives `Image` and `ImageBackground` a `source: { uri: '/nonexistent-gjsify-vector.png' }`
+and then asserts
+
+```
+expect(picture.file?.get_path()).toBe('/nonexistent-gjsify-vector.png')
+```
+
+On win32 both fail with `Expected: /nonexistent-gjsify-vector.png` /
+`Actual: \nonexistent-gjsify-vector.png`.
+
+**The assertion owns this, not the layer.** `src/components.ts` builds the file with
+`Gio.File.new_for_path(...)` for a `path`-kind source, and `g_file_get_path()` is
+documented to return the NATIVE path — so on Windows GLib normalising the separator to
+`\` is the correct answer and the POSIX literal is the wrong expectation. The competing
+reading, that the value should be compared as a URI (where `\` would be wrong), is
+excluded by the code rather than by preference: the assertion calls `get_path()`, not
+`get_uri()`.
+
+Fix is one of: compare against a host-shaped expectation, compare `get_uri()` on both
+sides, or use a relative fixture with no leading separator.
+
+**This is the MIRROR of a class the repo already guards.**
+`docs/code-anti-patterns.md` carries "a filesystem path SPLIT on `'/'` alone" with
+`scripts/check-posix-path-slice.mjs` behind it, from #1143/#1148 where five live sites
+were found. That guard watches path *slicing*; nothing watches a POSIX-shaped EXPECTED
+VALUE, which is the same assumption on the other side of an assertion and equally
+invisible from Linux. Worth a rule once there is a second instance — one is a fix, two
+is a class.
+
+### The darwin GTK bundles ship no `GIRepository-2.0` typelib; the win32 one does
+
+Noticed while diffing the two published 0.45.0 closures for the entry above, and
+independent of it — nothing measured so far needs the namespace, which is why it is a
+line here rather than a defect.
+
+Typelib counts are 47 on darwin-arm64 and 45 on win32-x64. All but four of the
+differences are platform-correct (`GdkMacos-4.0` / `GioUnix-2.0` / `GLibUnix-2.0`
+against `GdkWin32-4.0` / `GioWin32-2.0` / `GLibWin32-2.0`). The remainder:
+
+| only on darwin | only on win32 |
+|---|---|
+| `AppStream-1.0`, `Xmlb-2.0`, `GDesktopEnums-3.0` | **`GIRepository-2.0`** |
+
+`GIRepository-2.0` being present on win32 and absent on darwin is the asymmetric one.
+Both builders share `typelib-backers.mjs` and neither names it in `REQUIRED_NAMESPACES`
+or `WINDOWING_REQUIRED_NAMESPACES`, so it arrives — or does not — through each
+platform's closure walk rather than by decision. A consumer that introspects the
+repository itself from `gi://GIRepository` would therefore work on Windows and fail on
+macOS, and no check would say so. Either both should carry it or neither should; deciding
+which is a question for whoever owns the bundle contract.
+
+### The `os-axis` candidate set cannot see a package whose DATA is OS-specific
+
+Exposed by the entry above, and it is a gap in the rule rather than in a package.
+
+`os-axis` derives who owes a `gjsify.os` from shipping source that READS the host OS —
+`process.platform`, `os.platform()`, `@gjsify/utils/core`'s `hostOs()` and friends
+(`packages/infra/manifest-conformance/lib/rules/os-axis.mjs`). That is the right
+question for ADR 0018's original ten, all of which branch on the OS. `@gjsify/gtk-host`
+reads the host OS **nowhere** — verified, zero matches across `src/**` — so it owes no
+declaration and correctly has none. Its generated widget table is nevertheless
+Linux-shaped, and a Windows host is missing two of its rows.
+
+So the axis is blind in the same direction ADR 0018 says the RUNTIME axis is blind:
+"never let one axis answer the other's question" is satisfied, and both still miss this.
+A package whose TABLE is derived on one OS is exactly a package that owes an OS claim.
+
+Not closed here because the honest fix is a second derivation signal, not a widened
+regex, and picking one is an ADR-shaped decision: candidates could be derived from
+"generates code from a platform-specific source" (which `gjsify.widgetVocabulary` and the
+generator scripts already mark), or the claim could be demanded of any package a
+GTK-bearing OS leg runs. Both are defensible; neither should be guessed at in a CI PR.
+The measurement above is the evidence either would rest on.
+
+### node-gi: a class nothing instantiated has no realised class, so `signal_lookup` finds zero signals
+
+Measured 2026-08-31 while wiring `gtk-os-suites.yml`, differentially against the gjs
+oracle (ADR 0030) on Fedora 44 / gjs 1.88.1 / Node 24.19.0, GTK 4.22 + libadwaita 1.9,
+node-gi's published `linux-x64` prebuild:
+
+| read | gjs | node-gi |
+|---|---|---|
+| `GObject.signal_lookup('popped', Adw.NavigationView.$gtype)` | 84 | **0** |
+| `GObject.signal_lookup('hidden', Adw.NavigationPage.$gtype)` | 90 | **0** |
+| the same reads AFTER any class-struct static (`…list_properties()`) | 84 / 90 | 84 / 90 |
+
+One root cause, and `src/calls.cc` already names it in the header of
+`ClassStructInstance`: gjs keeps the invariant that "the GType class is referenced at
+least once when the JS constructor is initialized", so signals registered in
+`class_init` are findable off `$gtype` with no instance; **node-gi's class proxy takes
+no such ref**, so `g_type_class_peek` is null and the class is unrealised. That comment
+was written about a DIFFERENT call path (which does `g_type_class_ref` and is why the
+third row above passes), so the gap is documented and unclosed rather than unknown.
+
+The fix site is the `$gtype` read, which is JS — `gi.js`'s `defineLazyGType()` resolves
+through `native.getGType()` and caches, so one realisation per GType would match gjs's
+invariant exactly and cost nothing after the first read. It has to be guarded on
+`G_TYPE_IS_CLASSED`, which is why the honest place is `GetGType` in C++ rather than a
+JS `GObject.type_class_ref()` call that would be wrong for every struct and enum.
+Proof that the JS route closes it at all: `GObject.type_class_ref(gt)` from JS turns the
+first row from 0 into 65 in the same process.
+
+Costs one assertion in `@gjsify/react-native`'s suite today
+(`router.spec.ts` → "emits `popped` on the view and `hidden` on the page"), which is one
+of the two things keeping that package's step in `gtk-os-suites.yml` a probe rather than
+a gate.
+
+### `@gjsify/react-native`'s list spec asks for pspecs in a spelling only gjs answers
+
+The sibling of the entry above, and NOT a node-gi defect — recorded together because
+they were found in the same differential run and only one of them is the engine's.
+
+`lists.spec.ts` → "binds rows into a Gtk.ListItem, which is not a Gtk.Widget" reads
+`GObject.Object.list_properties.call(Gtk.ListItem)`. Under gjs that answers `array(9)`,
+because `gjs_define_static_methods` puts GObjectClass's methods on `GObject.Object`'s
+CONSTRUCTOR and `Function.prototype.call` re-targets them down the prototype chain.
+node-gi resolves class-struct methods per type instead, so the same expression answers
+`array(0)` — GObject's own property count — and the spec's `child !== undefined` is
+false. Measured: `Gtk.ListItem.list_properties()` answers `array(9)` on BOTH runtimes,
+and that is the spelling `@gjsify/gtk-host`'s own `paramSpecs()` already uses.
+
+So this is a non-portable spelling in a spec, and the repair is the portable static.
+Left to the owner of `packages/framework/react-native/src/**` rather than fixed here
+because it does not unblock anything on its own — the entry above blocks the same step.
+
+### 31 package scripts still open a clause with a `VAR=x` prefix, which cmd.exe has no form of
+
+`portable-scripts` catches a POSIX UTILITY in command position and says in its own
+header that it cannot see shell SYNTAX. That header also said "None is present in the
+tree today"; counted 2026-08-31, 33 scripts carried a `VAR=x` prefix. Two of them were
+load-bearing — `@gjsify/gtk-host` and `@gjsify/react-native`'s `test:gjs-on-node`, the
+entry point `gtk-os-suites.yml` calls on a cmd.exe leg — and both now take the variable
+from the environment.
+
+The remaining 31: `@gjsify/node-gi` (10) and `@gjsify/napi` (11), neither a workspace
+member and both driven only by their own Linux legs, plus 10 private `examples/`.
+Widening the rule before they are fixed lands a check with a 31-entry exemption ledger,
+which the rule's own header argues against having shipped once already. Fix the 21
+published-package ones, then add the pattern.
+
 ### node-gi: two callable shapes diverge from gjs in calling convention, and their arity with it
 
 Found by the `callable-arity` conformance probe while closing the gtk-host node

@@ -1,0 +1,548 @@
+# The OS axis for the GTK-BEARING layer, against the closure that actually ships
+# (ADR 0018 § 5, ADR 0024 § 4).
+#
+# WHAT THIS IS FOR
+#
+# `macos-suites.yml` and `windows-suites.yml` are Node-PILLAR legs and say so: the
+# macOS one states outright that "`gtk4` is NOT installed", because every suite it
+# runs reaches at most GLib/Gio/GioUnix. `@gjsify/gtk-host` and
+# `@gjsify/react-native` need GTK4 **and libadwaita**, so they could not be a step
+# in either — the hole is a different shape, and this is the leg that fills it.
+#
+# Before this workflow, no `@gjsify/gtk-host` suite had ever run on darwin or
+# win32, under any runtime. `node-gi.yml`'s `gtk-host-node` is Fedora + Xvfb; that
+# is the whole of it. `@gjsify/react-native` had never had a Node-target run in CI
+# on ANY operating system. `react-native`'s own `gjsify.osNotes` said as much in
+# prose — "no leg of its suite has been run on darwin" — which is the honest
+# shape of a claim nothing checks, and the reason ADR 0018 demands the claim.
+#
+# WHICH TWO THINGS THIS LEG PAIRS, BECAUSE THAT IS THE WHOLE MEASUREMENT
+#
+# Write it down or the next session reads it wrong; the mix is deliberate, not
+# convenience, and a session already reported a defect against the wrong half.
+#
+#   the GTK closure   PUBLISHED  `@gjsify/gtk-runtime-<target>` from npm
+#   the addon         PUBLISHED  `@gjsify/node-gi`'s relocated prebuild, from npm
+#   node-gi's JS      THIS CHECKOUT
+#   the layer         THIS CHECKOUT
+#
+# The first two are the point. ADR 0024 § 4 puts a shipped macOS `.app` and a
+# shipped Windows program directory on Node + `@gjsify/node-gi` +
+# `@gjsify/gtk-runtime-<target>`, so the interesting question is whether the
+# artifact a STRANGER downloads runs this layer. A Homebrew or gvsbuild GTK would
+# answer a different question — whether a developer's machine does — and
+# `node-gi.yml`'s windowing legs, which build the bundle in the same run and pass
+# it downstream as an artifact, answer a third: whether the bundle this commit
+# WOULD publish works. Those are the same bytes only for as long as nobody looks.
+# The published win32 tarball shipped `"windowing": false` up to and including
+# 0.27.1 while the in-run bundle was fine, and darwin-x64 0.27.1 shipped
+# `Adw-1.typelib` with no libadwaita beside it.
+#
+# The addon is published for a reason that is not symmetry: it is RELOCATED.
+# `stage-prebuild.mjs` gives the darwin binary an `LC_RPATH` list naming
+# `@loader_path/gtk/lib`, so it loads the bundle's dylibs with no `DYLD_*`
+# variable. A source-built addon keeps absolute Homebrew install names, which puts
+# two GObject type registries in one process — ADR 0018's defect 3, where every
+# cross-boundary type check fails. `gtk-runtime.js`'s `decideGtkSource()` refuses
+# the pairing from the other side (a `source` addon drops the bundle from
+# consideration entirely), which is why every suite step here sets
+# `NODE_GI_NATIVE=prebuild` rather than leaving it to the default.
+#
+# The last two rows are the checkout's because a leg that resolved node-gi's JS
+# from npm would not be measuring this tree at all. Measured 2026-08-31, and this
+# is the correction that motivated writing the table: a run that built the bundle
+# from the tree and resolved `@gjsify/node-gi@0.44.0` from the REGISTRY reported 14
+# failures reading `expected a GObject handle as a container element` across the
+# list family. They are not this layer's. Published 0.44.0's `gi.js` predates the
+# `unwrapArg` array recursion, so under it EVERY GI method taking an array of
+# GObjects throws — the tree carries the fix, and 0.45.0 shipped it. Two codebases
+# under one version number is normal for this release model and invisible at the
+# use site. Hence: never pin a published `@gjsify/*` against a tree-built bundle.
+#
+# REPRODUCING THIS LOCALLY: BUILD FIRST, AND DO NOT TRUST mtimes
+#
+# A CI leg builds in a fresh checkout, so it cannot hit the trap below. A local
+# reproduction hits it immediately, and it cost two rounds of a wrong baseline for
+# this very suite. `lib/` and `dist/` are gitignored BUILD OUTPUT: a checkout that
+# switched commits still holds whatever was last built, and the `--app node` test
+# bundle INLINES those bytes. So run
+# `gjsify workspace <pkg> build:gjsify --with-dependencies` before bundling, always.
+#
+# What made it hard to see is the instrument, not the state: `find src -newer
+# lib/esm/index.js` came back empty and read as "lib is fresh". **git does not touch
+# the mtime of a file a commit does not change**, so an mtime comparison is not a
+# freshness test across commits — it answers a question about the filesystem while
+# the reader believes it answered one about the tree. The bytes are the test: at one
+# commit, the same suite bundle was 614 037 bytes from a stale tree and 621 468 from
+# a fresh one, and reported 33 failures against 2.
+#
+# THE ONE FREE VARIABLE, AND WHY IT IS NOT FREE IN PRACTICE
+#
+# Pairing the checkout's node-gi JS with a published addon binary is an ABI
+# pairing, so it was measured rather than assumed: `@gjsify/gtk-host`'s Node-target
+# suite gives an identical result under the published 0.44.0 addon and the
+# published 0.45.0 addon (2274 tests, exit 0, on Linux with system GTK). The
+# staging script prefers the version this checkout declares and falls back to
+# `latest`, the same way `.github/scripts/install-published-cli.sh` does and for
+# the same publish-window reason.
+#
+# The pairing is also PROBED before any suite runs, and that ordering is the point.
+# `check-batteries.mjs` exercises `registerClass` plus three `get_type()`
+# resolutions through the same addon + JS pair, in one clean process with no
+# library-lookup env. If the pairing is broken it dies THERE, in a step named for
+# it, instead of inside a 2274-test suite where a marshalling failure looks like a
+# layer defect on an operating system. Probe the primitive, not the wrapper.
+#
+# WHAT THE FIRST RUN FOUND, WHICH IS WHY THE LEG EXISTS
+#
+# darwin-arm64 (macOS 26.5.2, Node 24.18.0) came up green on the first attempt:
+# published bundle verified, batteries probe clean, `@gjsify/gtk-host` 2274/2274 on
+# GTK4 + libadwaita with no Homebrew GTK on the machine. The react-native probe
+# reported 2 of 857, BY NAME the same two that fail on Linux — so darwin adds nothing
+# to that failure set, which is the useful negative result.
+#
+# win32 failed, and not in the suite. Everything up to and including the batteries
+# probe was clean; then `build:test:node` died with
+#
+#   [INVALID_DEFINE_CONFIG] Unterminated string
+#
+# because the script passed `--define 'process.env.NODE_ENV="production"'`. cmd.exe
+# does not treat `'` as quoting, so the bundler received the quotes literally and the
+# define value was a string that never terminates. Eleven scripts in the tree carried
+# that exact shape and none could ever have run on Windows; the portable spelling
+# reverses the nesting (`"key='value'"`), which both shells strip to the same argv and
+# JS reads as the same literal — verified byte-identical rather than argued, the same
+# suite bundle hashing to b26f91af both ways. `portable-scripts` now has the check,
+# with zero exemptions.
+#
+# Two things about READING that run are recorded because both were wrong first time,
+# and both are cheap to repeat:
+#   · the earlier `build:gjsify` step printed nothing and was read as "built nothing on
+#     Windows". It was a BUILD-CACHE HIT. Deleting `lib/` and re-running the
+#     cmd.exe-shaped invocation rebuilt all 14 files — the CLI strips stray quotes from
+#     a glob, so the ~200 quoted `--library` globs are fine. An empty stdout is not
+#     evidence of an empty result.
+#   · the count of affected scripts was first measured at 10 by an ad-hoc glob that
+#     went one directory less deep than the tree does; the conformance rule found the
+#     eleventh, in `tests/integration/`. The rule is the instrument, not the grep.
+#
+# WHAT THE SECOND RUN FOUND — the win32 defect the leg was built to surface
+#
+# With the define fixed, the win32 suite RAN for the first time and reported
+# 6 of 2264, against 2274/2274 on both darwin arches. One root cause, and the
+# set-comparison assertion named it where the other five only threw:
+#
+#   GtkPageSetupUnixDialog: Cannot read properties of undefined
+#   GtkPrintUnixDialog:     Cannot read properties of undefined
+#
+# Both are `…UnixDialog`. GTK does not build them on Windows, and
+# `@gjsify/gtk-host`'s generated widget table offers them as though the table were
+# platform-neutral — it is generated from the GIR on a LINUX host, so it bakes in
+# Linux-only classes. Five further assertions are the same two classes reached
+# through `$gtype` / `list_properties` on an `undefined`.
+#
+# A VERSION SKEW IS THE OBVIOUS SECOND HYPOTHESIS AND IT IS RULED OUT, measured
+# rather than argued — the two bundles' `Gtk-4.0.typelib` differ in size (559 728
+# win32 against 567 784 darwin) and the win32 GTK comes from gvsbuild against
+# Homebrew's, so "the Windows GTK is simply older" reads as the likelier story. The
+# full capitalised-identifier diff of the two typelibs says otherwise: 12 names, and
+# they are ONE subsystem —
+#
+#   GtkPageSetupUnixDialog GtkPrintUnixDialog GtkPrinter GtkPrintJob
+#   GtkPrintCapabilities PrintBackend PrinterFunc PrintJobCompleteFunc
+#
+# GTK's Unix print stack, entire, and nothing else. An older GTK would be missing
+# classes scattered across unrelated subsystems; this is one subsystem omitted
+# cleanly, which is what a platform `#ifdef` looks like. The portable replacements
+# `GtkPrintDialog` and `GtkFileDialog` are present in BOTH, and both Unix dialogs are
+# present in the Linux system GTK 4.22 as well. So the repair is to mark that
+# subsystem Unix-only, NOT to align GIR versions — a distinction worth keeping,
+# because the version story suggests a bump and the bump would fix nothing.
+#
+# This is precisely the failure mode ADR 0018 § 5 predicts and the reason the OS
+# axis is DRIVEN: an answer a single-OS pipeline cannot get wrong, because on Linux
+# the class is always there. It is also a defect in THIS layer rather than in the
+# operating system or the bundle — the published win32 bundle verified clean and the
+# batteries probe passed before the suite ever started.
+#
+# Worth recording for whoever fixes it: only ONE of the six assertions names the
+# class. The other five die as a bare `TypeError: Cannot read properties of
+# undefined (reading '$gtype')`, which says nothing about WHICH row. A conformance
+# test comparing a table against the INSTALLED typelib should report an absent class
+# by name, not dereference it.
+#
+# And one gap this exposes in the axis itself, filed rather than fixed here: the
+# `os-axis` candidate set is DERIVED from packages that READ the host OS
+# (`process.platform`, `hostOs()`, …). `@gjsify/gtk-host` reads it nowhere and so
+# owes no `gjsify.os` — yet its generated DATA is OS-specific. A package whose table
+# is Linux-shaped is exactly a package that owes an OS claim, and the rule cannot
+# see it.
+#
+# READING THE JOB COLOUR IS NOT READING THE RESULT
+#
+# On win32 BOTH suite steps are probes, so the job reports `success` while the log
+# holds two red suites that each exited 1. That is the probe shape working as
+# designed, and it is also exactly how a green-that-checked-nothing looks from the
+# outside — so: the win32 job's colour answers "did the shipped closure stage,
+# verify and LOAD", not "does the layer pass". The numbers are in the step logs and
+# the attribution is in `@gjsify/react-native`'s `gjsify.osNotes.win32`. Whoever
+# flips either step to gating should delete this paragraph with it.
+#
+# WHAT THE NUMBERS ATTRIBUTE TO, because a count is not a finding
+#
+# win32's react-native probe reads 7 of 848 against 2 of 857 on darwin, which looks
+# like a Windows wall and is not one. Attributed: 2 are the cross-OS #1438 baseline,
+# 1 is a knock-on of one of those (the same `popped` seam), 2 are inherited from the
+# gtk-host table defect above (#1446), and 2 are POSIX-shaped ASSERTIONS — the
+# Image/ImageBackground vectors round-trip `/nonexistent-gjsify-vector.png` through
+# `Gio.File.new_for_path` and assert `get_path()` returns it unchanged, where
+# `get_path()` answers the NATIVE path and GLib correctly hands back
+# `\nonexistent-gjsify-vector.png`. The URI reading is excluded by the code: the
+# assertion calls `get_path()`, not `get_uri()`. So the layer's own win32-specific
+# defect count is ZERO. This is the mirror of `docs/code-anti-patterns.md`'s "a
+# filesystem path SPLIT on `'/'` alone" (#1143/#1148,
+# `scripts/check-posix-path-slice.mjs`): a POSIX-shaped EXPECTED VALUE rather than a
+# POSIX-shaped slice, and nothing watches for that direction yet.
+#
+# WHAT THIS LEG PROVES
+#
+#   · the published `@gjsify/gtk-runtime-<target>` bundle carries Gtk AND Adw WITH
+#     their backing libraries — re-derived from the staged bytes by
+#     `verifyBundleTypelibs()`, never from a file count. A typelib whose library is
+#     absent RESOLVES, advertises constructible types and dies in the constructor,
+#     which is worse than an absent one.
+#   · the closure LOADS: `check-batteries.mjs`, then `Gtk.init()` in the first line
+#     of every gated suite. A missing GTK cannot be quiet here — `GTK_HOSTS` in
+#     `gtk-host/src/testing/gate.mts` is an IDENTITY list including `Node.js`, not
+#     a capability probe, precisely so the suites RUN rather than standing down and
+#     reporting a green zero-test run.
+#   · `@gjsify/gtk-host`'s full suite — the element model every renderer binds to,
+#     solid/vue/react over the curated widget table — on darwin-arm64, darwin-x64
+#     and win32-x64.
+#
+# WHAT IT DOES NOT PROVE, STATED SO NOBODY READS IT AS MORE
+#
+#   · `test:gjs-on-node` is the NODE leg. There is no GJS host on Windows at all
+#     (ADR 0024 § 4), and on darwin this leg deliberately installs no `gjs` —
+#     `macos-suites.yml` is where `test:gjs` runs, on the Node-pillar packages.
+#     So for these two packages the OS axis is measured on the runtime a shipped
+#     artifact actually carries, and on no other.
+#   · nothing here is a GUI assertion. The suites realize widgets and read the
+#     tree back; they do not photograph a window. `node-gi.yml`'s windowing legs
+#     own the render proof, and on Windows a window is invisible from a
+#     non-interactive session anyway (window stations are per-session, and
+#     `MainWindowTitle` is empty for every GTK4 window — an assertion there needs
+#     `EnumWindows` by PID from inside the interactive session).
+#   · `@gjsify/react-native`'s step is a PROBE and is marked `continue-on-error`,
+#     because its Node-target suite is red on LINUX — see the step comment. A leg
+#     that failed on it would be red for a defect that has nothing to do with
+#     either operating system, which is the reason `node-gi.yml` kept `gtk-host`
+#     out of CI until it went in at 0 failures. The probe still runs, so the log
+#     carries the first darwin/win32 measurement this package has ever had.
+#   · only `win32-x64`. gvsbuild publishes no arm64 GTK, so there is no
+#     `@gjsify/gtk-runtime-win32-arm64` to install and nothing to measure.
+#
+# WHY NO PATH FILTER, AND WHY ON EVERY PR
+#
+# Same two answers `windows-suites.yml` gives at length, and they are not repeated
+# here. The run ends in a whole-tree conformance audit, and filtering a job that
+# contains a whole-tree check is a measured way to be green while `main` goes red
+# (#1183); `pr-trigger-parity` holds the two triggers to each other. This leg stays
+# ADVISORY — `main` carries exactly three required checks and a fourth is a
+# governance decision with a trap behind it.
+#
+# The macOS CONCURRENCY caveat from `macos-suites.yml` applies here too and this
+# workflow adds two more macOS jobs to the pool. If PR runs begin queueing, narrow
+# THIS matrix to arm64 on PRs before touching either existing leg.
+
+name: GTK OS suites
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    # 06:30 UTC — after macos-suites.yml's 06:00, so the two do not contend for
+    # the same macOS runner pool or interleave in the notification stream.
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+  pull_request:
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('gtk-os-suites-pr-{0}', github.ref) || format('gtk-os-suites-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  darwin:
+    name: GTK suites on the shipped closure (darwin-${{ matrix.arch }} / node)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Both arches, for the reason `macos-suites.yml` gives: Homebrew's prefix
+          # differs and dyld's DEFAULT fallback contains `/usr/local` and not
+          # `/opt/homebrew`, so a leaf-name `dlopen` that resolves on Intel fails on
+          # Apple silicon. Here the bundles are separate ARTIFACTS as well —
+          # `release.yml` publishes `gtk-runtime-darwin-x64` and
+          # `gtk-runtime-darwin-arm64` from two different relocation runs.
+          - { arch: arm64, runner: macos-latest }
+          - { arch: x64, runner: macos-15-intel }
+
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+      TARGET: darwin-${{ matrix.arch }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+
+      # The premise, asserted rather than assumed. Copied in shape from
+      # `node-gi.yml`'s batteries-included legs: if a GTK toolkit is on this host,
+      # the bundle is no longer the only GTK and a green run stops meaning what the
+      # header says it means. GitHub's images ship neither today; this is what
+      # notices the day an image adds one.
+      - name: Assert no Homebrew GTK (the bundle must be the only GTK)
+        run: |
+          echo "--- GTK-related formulae present (informational) ---"
+          brew list --formula 2>/dev/null | grep -iE 'gtk|pango|cairo|graphene|gdk|glib|gobject|harfbuzz|adwaita' || echo "(none)"
+          if brew list --formula 2>/dev/null | grep -qE '^(gtk4|libadwaita)$'; then
+            echo "::error::gtk4/libadwaita is installed — this is no longer a shipped-closure measurement"
+            exit 1
+          fi
+          echo "clean host — no GTK toolkit was ever installed in this job"
+
+      # Cold tree: ADR 0002 untracked both bundles, so `node_modules/.bin/gjsify`
+      # dispatches to build outputs that do not exist yet. The order is load-bearing
+      # and `macos-suites.yml` carries the incident — `build:infra` before the
+      # install dies on `TS2688: Cannot find type definition file for 'node'`.
+      - name: Fetch the published CLI (a cold tree has no other)
+        run: npm install --no-save --prefix "$RUNNER_TEMP/bootstrap-cli" @gjsify/cli@latest
+
+      - name: Install the workspace
+        run: node "$RUNNER_TEMP/bootstrap-cli/node_modules/@gjsify/cli/lib/index.js" install --immutable
+
+      - name: Bootstrap the toolchain
+        run: node "$RUNNER_TEMP/bootstrap-cli/node_modules/@gjsify/cli/lib/index.js" run build:infra
+
+      # `build:gjsify --with-dependencies`, not a workspace-wide `run build`: the
+      # `--app node` test bundle inlines these packages' `lib/esm/*.js`, and nothing
+      # else in the tree is on the path to it. `macos-suites.yml` builds everything
+      # because it runs twelve unrelated suites; this leg runs two.
+      - name: Build the layer under test (+ its workspace deps)
+        run: |
+          node packages/infra/cli/lib/index.js workspace @gjsify/unit build:gjsify --with-dependencies
+          node packages/infra/cli/lib/index.js workspace @gjsify/gtk-host build:gjsify --with-dependencies
+          node packages/infra/cli/lib/index.js workspace @gjsify/react-native build:gjsify --with-dependencies
+
+      # Installs the published bundle + the published relocated addon into
+      # `prebuilds/<target>/{gtk,node_gi.node}` — one directory, because that is both
+      # candidate 2 of `resolveGtkRuntimeBundle()` and what the addon's own
+      # `@loader_path/gtk/lib` rpath names. `--link-into` closes ADR 0031's trap:
+      # node-gi is not a workspace member, `@gjsify/react-native` does not even
+      # declare it, and without the link the bundle dies with a bare
+      # `ERR_MODULE_NOT_FOUND` that reads like "this layer does not run under Node".
+      - name: Stage the SHIPPED closure (published bundle + published addon)
+        run: |
+          node packages/node-gi/scripts/stage-published-gtk-runtime.mjs \
+            --link-into packages/framework/gtk-host \
+            --link-into packages/framework/react-native
+
+      # The manifest gate `release.yml` publishes behind, run here against the
+      # tarball a consumer actually receives. `--expect-host-target` compares the
+      # bundle's own recorded platform to THIS runner, so an artifact mixup cannot
+      # run the arm64 closure on Intel and surface four steps later as an
+      # inscrutable dlopen error.
+      - name: Verify the published bundle's manifest
+        run: node packages/node-gi/scripts/verify-bundle-manifest.mjs --bundle "packages/node-gi/node-gi/prebuilds/$TARGET/gtk" --expect-host-target darwin
+
+      # Which two halves this run paired, in the log rather than in a reader's head.
+      - name: Report the pairing this run measured
+        run: |
+          sw_vers
+          echo "arch:        $(uname -m)"
+          echo "node:        $(node -v)"
+          echo "node-gi JS:  $(node -p "require('./packages/node-gi/node-gi/package.json').version") (this checkout)"
+          echo "addon:       $(ls -l "packages/node-gi/node-gi/prebuilds/$TARGET/node_gi.node" | awk '{print $5" bytes"}') (published)"
+          node -p "'bundle:      ' + require('./packages/node-gi/node-gi/prebuilds/' + process.env.TARGET + '/gtk/manifest.json').platform + ' windowing=' + require('./packages/node-gi/node-gi/prebuilds/' + process.env.TARGET + '/gtk/manifest.json').windowing"
+
+      # The pairing probe, BEFORE any suite. One clean process, no library-lookup
+      # env: `registerClass` on a Gio parent (the leaf-soname `g_module_open` path)
+      # plus `get_type()` for Pango/Graphene/Gdk, the three backers that are not in
+      # the addon's own link closure. A failure here is unambiguous and isolated
+      # from the test runner.
+      - name: Batteries-included probe on the published closure (env-free)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node scripts/check-batteries.mjs
+
+      # The measurement. `GSK_RENDERER=cairo` because no runner guarantees a GPU;
+      # no `DISPLAY` is set or needed — `test/display-gate.mjs` records that darwin
+      # and win32 are implicit-display platforms, and the GdkMacos backend supplies
+      # one without a visible desktop.
+      - name: '@gjsify/gtk-host — the full suite on the shipped closure'
+        working-directory: packages/framework/gtk-host
+        env:
+          NODE_GI_NATIVE: prebuild
+          GSK_RENDERER: cairo
+          GTK_A11Y: none
+        run: node ../../infra/cli/lib/index.js run test:gjs-on-node
+
+      # A PROBE, not a gate, and the reason is measured rather than cautious:
+      # this suite is red on LINUX on the Node target (#1438), so a gating step
+      # here would report a defect this leg did not find and cannot see. It runs
+      # anyway because the log is then the first darwin/win32 datapoint the package
+      # has ever had, and because a probe that never runs teaches nobody anything.
+      #
+      # RETIREMENT CONDITION, so this does not become permanent furniture: when
+      # #1438 closes, delete `continue-on-error` and this comment. The step is then
+      # an ordinary gate and the package's `gjsify.os` can move on evidence.
+      - name: '@gjsify/react-native — probe (gating blocked on #1438)'
+        continue-on-error: true
+        working-directory: packages/framework/react-native
+        env:
+          NODE_GI_NATIVE: prebuild
+          GSK_RENDERER: cairo
+          GTK_A11Y: none
+        run: node ../../infra/cli/lib/index.js run test:gjs-on-node
+
+      # Manifest conformance including `os-axis`, which prints every claim below
+      # `supported` with its mandatory reason — so the log carries the current
+      # ledger next to the run that measured it.
+      - name: Conformance audit (os-axis included)
+        run: node scripts/audit-runtimes.mjs --check
+
+  win32:
+    name: GTK suites on the shipped closure (win32-x64 / node)
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    # cmd.exe for the reason `windows-suites.yml` sets out at length: npm and
+    # `gjsify run` execute package scripts through `%COMSPEC%`, Git for Windows puts
+    # a real `sh`/`rm`/`sed` on PATH, and a leg that used bash would reproduce a
+    # false green faithfully. `test:gjs-on-node` is a package script, so it is
+    # executed by exactly the shell that disagrees.
+    defaults:
+      run:
+        shell: cmd
+
+    env:
+      TARGET: win32-x64
+
+    steps:
+      - name: Check out with line endings untouched
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+
+      - name: Remove the git-bash POSIX utilities from PATH
+        shell: pwsh
+        run: |
+          $kept = ($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\Git\\') }
+          "PATH=$($kept -join ';')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "dropped $((($env:PATH -split ';') | Where-Object { $_ -match '\\Git\\' }).Count) \Git\ entr(y|ies) from PATH"
+
+      # `ECHO` DOES NOT RESET ERRORLEVEL in cmd.exe, so the obvious spelling of this
+      # assertion leaves the 1 that `where` set on the SUCCESS path and the step
+      # fails precisely because the check passed. `windows-suites.yml` carries the
+      # run number that cost the whole leg; this is the same assertion in the same
+      # explicit-branch form.
+      - name: Prove the POSIX utilities are gone
+        run: |
+          where sh 2>nul && (echo FAIL: sh is on PATH - the \Git\ strip did not take & exit /b 1)
+          where rm 2>nul && (echo FAIL: rm is on PATH - the \Git\ strip did not take & exit /b 1)
+          echo no sh and no rm on PATH - good
+          echo COMSPEC=%COMSPEC%
+          exit /b 0
+
+      # The premise. gvsbuild's prefix is where `node-gi.yml`'s Windows jobs put a
+      # real GTK, and its own batteries-included legs assert exactly this file's
+      # absence — a DLL search that found it would make the bundle irrelevant
+      # without failing anything.
+      - name: Assert no gvsbuild GTK (the bundle must be the only GTK)
+        run: |
+          if exist C:\gtk-build\gtk\x64\release\bin\glib-2.0-0.dll (echo ::error::a gvsbuild GTK is present - this is no longer a shipped-closure measurement & exit /b 1)
+          echo clean host - no gvsbuild prefix
+          exit /b 0
+
+      - name: Fetch the published CLI (a cold tree has no other)
+        run: npm install --no-save --prefix "%RUNNER_TEMP%\bootstrap-cli" @gjsify/cli@latest
+
+      - name: Install the workspace
+        run: node "%RUNNER_TEMP%\bootstrap-cli\node_modules\@gjsify\cli\lib\index.js" install --immutable
+
+      - name: Bootstrap the toolchain
+        run: node "%RUNNER_TEMP%\bootstrap-cli\node_modules\@gjsify\cli\lib\index.js" run build:infra
+
+      - name: Build the layer under test (+ its workspace deps)
+        run: |
+          node packages\infra\cli\lib\index.js workspace @gjsify/unit build:gjsify --with-dependencies
+          node packages\infra\cli\lib\index.js workspace @gjsify/gtk-host build:gjsify --with-dependencies
+          node packages\infra\cli\lib\index.js workspace @gjsify/react-native build:gjsify --with-dependencies
+
+      - name: Stage the SHIPPED closure (published bundle + published addon)
+        run: node packages\node-gi\scripts\stage-published-gtk-runtime.mjs --link-into packages\framework\gtk-host --link-into packages\framework\react-native
+
+      - name: Verify the published bundle's manifest
+        run: node packages\node-gi\scripts\verify-bundle-manifest.mjs --bundle "packages\node-gi\node-gi\prebuilds\%TARGET%\gtk" --expect-host-target win32
+
+      - name: Report the pairing this run measured
+        run: |
+          node -v
+          node -p "'node-gi JS:  ' + require('./packages/node-gi/node-gi/package.json').version + ' (this checkout)'"
+          node -p "'bundle:      ' + require('./packages/node-gi/node-gi/prebuilds/' + process.env.TARGET + '/gtk/manifest.json').platform + ' windowing=' + require('./packages/node-gi/node-gi/prebuilds/' + process.env.TARGET + '/gtk/manifest.json').windowing"
+
+      - name: Batteries-included probe on the published closure (env-free)
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node scripts\check-batteries.mjs
+
+      # GATING ON darwin, A PROBE HERE, and the asymmetry is a measured finding
+      # rather than a concession — see WHAT THE SECOND RUN FOUND in the header.
+      # `@gjsify/gtk-host`'s generated widget table offers `GtkPageSetupUnixDialog`
+      # and `GtkPrintUnixDialog`, which GTK does not build on Windows, so six
+      # assertions in `generated.spec.ts` / `conformance.spec.ts` fail on one root
+      # cause. That is this layer's defect, not the operating system's, and it is
+      # owned by the generator subtree.
+      #
+      # RETIREMENT CONDITION: when the table stops offering Unix-only rows on a
+      # Windows host, delete `continue-on-error` and this comment. The steps ABOVE
+      # stay gating, so the win32 leg still fails loudly if the published bundle
+      # stops carrying a loadable Gtk + Adw — which is the claim ADR 0024 § 4 rests
+      # on and the reason this leg exists.
+      - name: '@gjsify/gtk-host — probe (gating blocked on the Unix-only table rows)'
+        continue-on-error: true
+        working-directory: packages/framework/gtk-host
+        env:
+          NODE_GI_NATIVE: prebuild
+          GSK_RENDERER: cairo
+          GTK_A11Y: none
+        run: node ..\..\infra\cli\lib\index.js run test:gjs-on-node
+
+      # See the darwin job's copy of this step for why it is a probe and what
+      # retires it (#1438).
+      - name: '@gjsify/react-native — probe (gating blocked on #1438)'
+        continue-on-error: true
+        working-directory: packages/framework/react-native
+        env:
+          NODE_GI_NATIVE: prebuild
+          GSK_RENDERER: cairo
+          GTK_A11Y: none
+        run: node ..\..\infra\cli\lib\index.js run test:gjs-on-node
+
+      - name: Conformance audit (os-axis included)
+        run: node scripts\audit-runtimes.mjs --check
