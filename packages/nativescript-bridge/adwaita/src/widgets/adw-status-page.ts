@@ -20,7 +20,8 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss (AdwStatusPage)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, Label, StackLayout, View } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 import { AdwIcon } from './adw-icon.js';
 import { statusPageIconVisibility, statusPageLabelVisibility } from './status-page-content.js';
 

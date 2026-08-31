@@ -32,7 +32,8 @@
 //   - Persistence is whole-file and snapshot-based (last-write-wins per flush),
 //     not byte-range journalled.
 
-import { Volume, __defaultVolume } from './volume.js';
+import type { Volume } from './volume.js';
+import { __defaultVolume } from './volume.js';
 
 /** Options for {@link enableOpfsPersistence}. */
 export interface OpfsPersistenceOptions {

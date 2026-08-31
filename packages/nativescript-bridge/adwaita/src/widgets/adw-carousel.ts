@@ -27,7 +27,8 @@
 // Reference: refs/libadwaita/src/adw-carousel-indicator-dots.c (the animated dots)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, Label, ScrollView, StackLayout, View, type EventData } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
 import type { CarouselScrollRequest } from '@gjsify/adwaita-core';
 import {
     CarouselScrollSync,

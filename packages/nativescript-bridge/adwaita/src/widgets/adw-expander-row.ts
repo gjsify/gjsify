@@ -24,7 +24,8 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_expanders.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, StackLayout, View, type EventData } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { GridLayout, ItemSpec, StackLayout, type EventData } from '@nativescript/core';
 import { panDownSymbolic, panUpSymbolic } from '@gjsify/adwaita-icons/ui';
 import { ExpanderState } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';

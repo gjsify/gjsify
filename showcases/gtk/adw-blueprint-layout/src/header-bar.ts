@@ -12,7 +12,7 @@
 import Adw from 'gi://Adw?version=1';
 import Gio from 'gi://Gio?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
-import Gtk from 'gi://Gtk?version=4.0';
+import type Gtk from 'gi://Gtk?version=4.0';
 
 import Template from './header-bar.blp';
 

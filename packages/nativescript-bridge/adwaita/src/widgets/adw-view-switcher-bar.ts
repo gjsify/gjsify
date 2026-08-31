@@ -34,7 +34,8 @@
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 import { buildViewSwitcherButtons, viewSwitcherPagesFromStack } from '@gjsify/adwaita-core';
 import { AdwIcon } from './adw-icon.js';
-import { AdwViewStack, NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
+import type { AdwViewStack } from './adw-view-stack.js';
+import { NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { createViewSwitcherBarState, nsIconSvg } from './view-switcher-model.js';
 import { xmlBoolean } from './xml-values.js';

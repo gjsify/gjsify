@@ -23,7 +23,8 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_header-bar.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, StackLayout, View } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { GridLayout, ItemSpec, StackLayout } from '@nativescript/core';
 import { AdwWindowTitle } from './adw-window-title.js';
 import { resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean } from './xml-values.js';

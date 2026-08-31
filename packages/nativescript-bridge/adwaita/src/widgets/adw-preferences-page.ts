@@ -17,7 +17,8 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_preferences.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { ScrollView, StackLayout, View } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { ScrollView, StackLayout } from '@nativescript/core';
 import type { NsSearchableGroup, NsSearchablePage } from './preferences-search.js';
 import { xmlBoolean } from './xml-values.js';
 

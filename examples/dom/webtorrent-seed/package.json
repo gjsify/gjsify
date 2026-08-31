@@ -17,8 +17,8 @@
     "build:node": "gjsify build src/node/node.ts --app node --outfile dist/node.js"
   },
   "devDependencies": {
-    "@girs/gjs": "^4.1.0",
-    "@girs/glib-2.0": "^4.1.0",
+    "@girs/gjs": "4.4.0",
+    "@girs/glib-2.0": "4.4.0",
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",

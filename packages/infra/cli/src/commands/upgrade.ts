@@ -56,6 +56,7 @@ interface UpgradeOptions {
     excludeWorkspace?: string;
     align?: boolean;
     check?: boolean;
+    exact?: boolean;
     dryRun?: boolean;
     cwd?: string;
     verbose?: boolean;
@@ -119,6 +120,12 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
                 type: 'boolean',
                 default: false,
             })
+            .option('exact', {
+                description:
+                    'Pin without a range operator. When writing, emits `1.2.3` instead of `^1.2.3`; with `--check`, fails on any matched dep that carries one. Pair with `--filter` — a repository-wide exactness check fails on every ordinary caret dep by design.',
+                type: 'boolean',
+                default: false,
+            })
             .option('dry-run', {
                 description: 'Print the upgrade plan without writing package.json files.',
                 type: 'boolean',
@@ -162,7 +169,7 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
 
         // --check: exit non-zero if any inconsistency.
         if (args.check) {
-            return runCheckMode(groups);
+            return runCheckMode(groups, args.exact);
         }
 
         // --align: offline consistency-only, no registry calls.
@@ -219,11 +226,11 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
             console.log(
                 `[gjsify upgrade] --dry-run: would update ${selected.length} deps across ${fileCount} package.json file(s).`,
             );
-            printChangePlan(selected);
+            printChangePlan(selected, args.exact);
             return;
         }
 
-        const files = applyToFiles(selected);
+        const files = applyToFiles(selected, args.exact);
         console.log(
             `✏️  updated ${selected.length} dep(s) across ${files} package.json file(s). Run \`gjsify install\` to apply.`,
         );
@@ -361,10 +368,61 @@ function splitRange(range: string): { prefix: string; version: string | null } {
 
 // ─── Modes: --check / --align ──────────────────────────────────────────
 
-function runCheckMode(groups: readonly DependencyGroup[]): void {
+/**
+ * `--exact` half of the CI gate: does every matched dep carry a bare version?
+ *
+ * Consistency and exactness are different questions, and the first cannot answer the
+ * second: a repository where every manifest agrees on `^4.1.0` is perfectly consistent
+ * and still lets a minor release move a subpath under a lockfile-less install. That is
+ * the hazard ADR 0029 § Risks 1 names for `@girs/*`, whose `./surface` export is what
+ * `@gjsify/gtk-host` consumes — so the pin has to be the whole version, and something
+ * has to say so on every PR.
+ *
+ * Returns the number of offending declarations so the caller can exit once for both arms.
+ */
+export function reportInexactRanges(groups: readonly DependencyGroup[]): number {
+    const offenders = groups
+        .map((g) => ({ name: g.name, loose: g.occurrences.filter((o) => o.prefix !== '') }))
+        .filter((entry) => entry.loose.length > 0);
+    if (offenders.length === 0) return 0;
+
+    const total = offenders.reduce((n, entry) => n + entry.loose.length, 0);
+    console.error(
+        `gjsify upgrade --check --exact: FAIL. ${total} declaration(s) across ${offenders.length} dep(s) carry a range operator:\n`,
+    );
+    for (const entry of offenders) {
+        const byRange = new Map<string, string[]>();
+        for (const occ of entry.loose) {
+            const list = byRange.get(occ.currentRange) ?? [];
+            list.push(occ.workspace);
+            byRange.set(occ.currentRange, list);
+        }
+        console.error(`  ${ANSI.bold}${entry.name}${ANSI.reset}`);
+        for (const [range, holders] of byRange.entries()) {
+            const shown =
+                holders.length > 6 ? `${holders.slice(0, 6).join(', ')} … +${holders.length - 6}` : holders.join(', ');
+            console.error(`    ${range.padEnd(16)} — ${shown}`);
+        }
+    }
+    return total;
+}
+
+function runCheckMode(groups: readonly DependencyGroup[], exact = false): void {
+    const inexact = exact ? reportInexactRanges(groups) : 0;
     const inconsistencies = findInconsistencies(groups);
+    if (inconsistencies.length === 0 && inexact > 0) {
+        console.error(
+            `\nFix: run \`gjsify upgrade --align --exact\` (offline; drops the operator and keeps the version).`,
+        );
+        // `return`, not a bare call: under GJS the process does not halt here, and the
+        // consistency report below would run on top of the exactness one.
+        return process.exit(1);
+    }
     if (inconsistencies.length === 0) {
-        console.log(`gjsify upgrade --check: OK. ${groups.length} dep(s) consistently declared across workspaces.`);
+        console.log(
+            `gjsify upgrade --check: OK. ${groups.length} dep(s) consistently declared across workspaces` +
+                (exact ? `, every declaration pinned exactly.` : `.`),
+        );
         return;
     }
     console.error(`gjsify upgrade --check: FAIL. ${inconsistencies.length} dep(s) declared at inconsistent ranges:\n`);
@@ -417,14 +475,14 @@ function runAlignMode(groups: readonly DependencyGroup[], args: UpgradeOptions):
     for (const u of updates) {
         const newPrefix = u.occurrences[0]?.prefix ?? '^';
         console.log(
-            `  ${u.name.padEnd(28)}  ranges: ${[...u.declaredRanges].join(', ')}  →  ${newPrefix}${u.latestVersion}`,
+            `  ${u.name.padEnd(28)}  ranges: ${[...u.declaredRanges].join(', ')}  →  ${targetRange(newPrefix, u.latestVersion, args.exact ?? false)}`,
         );
     }
     if (args.dryRun) {
         console.log('\n[gjsify upgrade --align] --dry-run: no files changed.');
         return;
     }
-    const files = applyToFiles(updates);
+    const files = applyToFiles(updates, args.exact);
     console.log(`\n✏️  updated ${updates.length} dep(s) across ${files} package.json file(s).`);
 }
 
@@ -581,11 +639,11 @@ function renderDeclaredCell(c: DependencyGroup): string {
     return joined.slice(0, 29) + '…';
 }
 
-function printChangePlan(selected: readonly UpgradeGroup[]): void {
+function printChangePlan(selected: readonly UpgradeGroup[], exact = false): void {
     for (const u of selected) {
         for (const occ of u.occurrences) {
             console.log(
-                `  ${occ.workspace.padEnd(38)}  ${u.name.padEnd(28)}  ${occ.currentRange.padEnd(12)} → ${occ.prefix}${u.latestVersion}`,
+                `  ${occ.workspace.padEnd(38)}  ${u.name.padEnd(28)}  ${occ.currentRange.padEnd(12)} → ${targetRange(occ.prefix, u.latestVersion, exact)}`,
             );
         }
     }
@@ -637,7 +695,18 @@ async function promptSelection(candidates: readonly UpgradeGroup[]): Promise<Upg
 
 // ─── Write-back across all affected workspaces ─────────────────────────
 
-function applyToFiles(updates: readonly UpgradeGroup[]): number {
+/**
+ * The range a dependency will be WRITTEN at.
+ *
+ * Preview and write share this deliberately. They were two expressions for one decision
+ * for exactly one revision, and `--dry-run --exact` announced `^4.3.0` while the writer
+ * would have produced `4.3.0` — a tool describing a change it was not about to make.
+ */
+export function targetRange(prefix: string, version: string, exact: boolean): string {
+    return exact ? version : `${prefix}${version}`;
+}
+
+function applyToFiles(updates: readonly UpgradeGroup[], exact = false): number {
     // Group by workspace.location so each package.json is read + written once.
     const byLocation = new Map<string, UpgradeGroup[]>();
     for (const u of updates) {
@@ -653,23 +722,48 @@ function applyToFiles(updates: readonly UpgradeGroup[]): number {
         const raw = readFileSync(pkgJsonPath, 'utf-8');
         const pkg = JSON.parse(raw) as Record<string, unknown>;
         let changed = false;
+        const changedNames: string[] = [];
         for (const g of groups) {
             const occ = g.occurrences[0]!;
             const map = pkg[occ.field] as Record<string, string> | undefined;
             if (!map) continue;
-            const next = `${occ.prefix}${g.latestVersion}`;
+            const next = targetRange(occ.prefix, g.latestVersion, exact);
             if (map[g.name] !== next) {
                 map[g.name] = next;
                 changed = true;
+                changedNames.push(g.name);
             }
         }
         if (changed) {
             const indent = detectIndent(raw);
-            writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, indent) + (raw.endsWith('\n') ? '\n' : ''), 'utf-8');
+            const rewritten = JSON.stringify(pkg, null, indent) + (raw.endsWith('\n') ? '\n' : '');
+            writeFileSync(pkgJsonPath, keepUntouchedLines(raw, rewritten, changedNames), 'utf-8');
             touched++;
         }
     }
     return touched;
+}
+
+/**
+ * Take the re-serialised file, but keep every line that is not about a changed dep.
+ *
+ * A `JSON.parse` → `JSON.stringify` round trip rewrites the WHOLE file, and re-encoding
+ * is not identity: measured on this repository, pinning `@girs/*` decoded `\u2014` into
+ * an em dash inside three `description` fields nobody asked to touch, so a dependency
+ * bump arrived as a diff over unrelated prose. Semantically equal, and still noise a
+ * reviewer has to read past.
+ *
+ * Line-for-line only. Adding or removing a key changes the line count, and then the
+ * mapping is not sound — so that case falls back to the plain re-serialisation rather
+ * than guessing an alignment.
+ */
+function keepUntouchedLines(raw: string, rewritten: string, changedNames: readonly string[]): string {
+    const before = raw.split('\n');
+    const after = rewritten.split('\n');
+    if (before.length !== after.length) return rewritten;
+    return after
+        .map((line, i) => (changedNames.some((name) => line.includes(`"${name}"`)) ? line : before[i]!))
+        .join('\n');
 }
 
 function uniqueLocations(updates: readonly UpgradeGroup[]): string[] {

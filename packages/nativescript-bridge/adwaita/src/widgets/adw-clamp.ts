@@ -15,7 +15,8 @@
 // Reference: refs/libadwaita/src/adw-clamp-layout.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, View } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { GridLayout, ItemSpec } from '@nativescript/core';
 
 import {
     type ClampProps,

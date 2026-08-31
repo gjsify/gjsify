@@ -8,14 +8,14 @@
     "oxlint@^1.72.0",
     "release-it@^20.2.1",
     "typescript@^6.0.3",
-    "@girs/gio-2.0@^4.1.0",
-    "@girs/gjs@^4.1.0",
-    "@girs/gtk-4.0@^4.1.0",
+    "@girs/gio-2.0@4.4.0",
+    "@girs/gjs@4.4.0",
+    "@girs/gtk-4.0@4.4.0",
     "@types/node@^25.9.2",
     "http-server@^14.1.1",
-    "@girs/adw-1@^4.1.0",
-    "@girs/glib-2.0@^4.1.0",
-    "@girs/gobject-2.0@^4.1.0",
+    "@girs/adw-1@4.4.0",
+    "@girs/glib-2.0@4.4.0",
+    "@girs/gobject-2.0@4.4.0",
     "loro-crdt@^1.13.6",
     "@types/three@^0.185.0",
     "three@0.185.1",
@@ -50,27 +50,27 @@
     "koa@^3.2.1",
     "koa-bodyparser@^4.4.1",
     "ws@^8.21.0",
-    "@girs/gdk-4.0@^4.1.0",
-    "@girs/gdkpixbuf-2.0@^4.1.0",
-    "@girs/pango-1.0@^4.1.0",
-    "@girs/pangocairo-1.0@^4.1.0",
-    "@girs/gst-1.0@^4.1.0",
+    "@girs/gdk-4.0@4.4.0",
+    "@girs/gdkpixbuf-2.0@4.4.0",
+    "@girs/pango-1.0@4.4.0",
+    "@girs/pangocairo-1.0@4.4.0",
+    "@girs/gst-1.0@4.4.0",
     "@types/react@^19.2.2",
     "@types/react-test-renderer@^19.1.0",
     "react@^19.2.0",
     "react-native@>=0.87 <1",
     "react-test-renderer@^19.2.8",
-    "@girs/graphene-1.0@^4.1.0",
-    "@girs/webkit-6.0@^4.1.0",
-    "@girs/giounix-2.0@^4.1.0",
-    "@girs/soup-3.0@^4.1.0",
+    "@girs/graphene-1.0@4.4.0",
+    "@girs/webkit-6.0@4.4.0",
+    "@girs/giounix-2.0@4.4.0",
+    "@girs/soup-3.0@4.4.0",
     "@vue/runtime-core@^3.5.0",
     "solid-js@^1.9.0",
     "vue@^3.5.41",
     "vue-tsc@^3.3.11",
     "react-reconciler@^0.33.0",
     "@types/react-reconciler@^0.33.0",
-    "@girs/javascriptcore-6.0@^4.1.0",
+    "@girs/javascriptcore-6.0@4.4.0",
     "@react-navigation/core@^7.21.13",
     "@react-navigation/routers@^7.6.4",
     "@girs/gwebgl-0.1@0.1.0-4.0.0-rc.5",
@@ -103,7 +103,7 @@
     "@nativescript/types@~9.0.0",
     "@noble/hashes@^2.2.0",
     "@types/diffie-hellman@^5.0.3",
-    "@girs/gda-6.0@^4.1.0",
+    "@girs/gda-6.0@4.4.0",
     "@types/inherits@^2.0.0",
     "tsx@^4.22.5",
     "@codemirror/commands@^6.10.4",
@@ -111,12 +111,12 @@
     "@codemirror/state@^6.7.0",
     "@codemirror/view@^6.43.4",
     "@lezer/highlight@^1.2.3",
-    "@girs/manette-0.2@^4.1.0",
-    "@girs/gstapp-1.0@^4.1.0",
-    "@girs/gstaudio-1.0@^4.1.0",
-    "@girs/gstbase-1.0@^4.1.0",
-    "@girs/gstsdp-1.0@^4.1.0",
-    "@girs/gstwebrtc-1.0@^4.1.0",
+    "@girs/manette-0.2@4.4.0",
+    "@girs/gstapp-1.0@4.4.0",
+    "@girs/gstaudio-1.0@4.4.0",
+    "@girs/gstbase-1.0@4.4.0",
+    "@girs/gstsdp-1.0@4.4.0",
+    "@girs/gstwebrtc-1.0@4.4.0",
     "@girs/gjsifywebrtc-0.1@0.1.0-4.0.0-rc.5",
     "@excaliburjs/plugin-tiled@0.32.0",
     "excalibur@0.32.0",
@@ -1631,121 +1631,121 @@
       }
     },
     "node_modules/@girs/adw-1": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/adw-1/-/adw-1-4.1.0.tgz",
-      "integrity": "sha512-Xv4doRXq7o9K+plUlrjl7e6ba04jtc7JS6U8JEMGZuNOL0BXsZa2lNbnLKKjUQnwzbh80EDECgyhiBkbhq7Heg==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/adw-1/-/adw-1-4.4.0.tgz",
+      "integrity": "sha512-ngRa6BsO5zYp8CbE1oaZyDNccnufKLR9JgzSimRJjrliNZPShA4iYS0y9Mhwhs/IWtBBoYlBM1UvGTKjuUydYA==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gtk-4.0": "^4.1.0",
-        "@girs/gsk-4.0": "^4.1.0",
-        "@girs/graphene-1.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gdk-4.0": "^4.1.0",
-        "@girs/cairo-1.0": "^4.1.0",
-        "@girs/pangocairo-1.0": "^4.1.0",
-        "@girs/pango-1.0": "^4.1.0",
-        "@girs/harfbuzz-0.0": "^4.1.0",
-        "@girs/freetype2-2.0": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0",
-        "@girs/gdkpixbuf-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gtk-4.0": "^4.4.0",
+        "@girs/gsk-4.0": "^4.4.0",
+        "@girs/graphene-1.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gdk-4.0": "^4.4.0",
+        "@girs/cairo-1.0": "^4.4.0",
+        "@girs/pangocairo-1.0": "^4.4.0",
+        "@girs/pango-1.0": "^4.4.0",
+        "@girs/harfbuzz-0.0": "^4.4.0",
+        "@girs/freetype2-2.0": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0",
+        "@girs/gdkpixbuf-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/cairo-1.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/cairo-1.0/-/cairo-1.0-4.1.0.tgz",
-      "integrity": "sha512-iCdRmpCPpQn+skaJfLsDUvSSidKgQLAsFeah5Ac5I5dRmpdwCvDTsox6wreZssfhERWcUAldtWj7wXmSzPBLKg==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/cairo-1.0/-/cairo-1.0-4.4.0.tgz",
+      "integrity": "sha512-3kdTN9ezdBgpbpcjnB4SZMgu0SJvcSFyWhTkx33Dlbz9r8MjnDvphCY/t8Odc9j9zHpOzJR+n8XiVfJHwR3vbw==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/freetype2-2.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/freetype2-2.0/-/freetype2-2.0-4.1.0.tgz",
-      "integrity": "sha512-/+fMzCY84TrKi5wcT/EVQulM9xPhCAA5cTaZclzufA01MvasA8vrPu5zEF8qhfYbm77ro94A8P6kWpcOf1LxEQ==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/freetype2-2.0/-/freetype2-2.0-4.4.0.tgz",
+      "integrity": "sha512-/+dy0kU41aTYCvfNm2XCKNLiYF8/djict4eo5Siw0FhcUFAgaHR0gcGpbZEo24wKHsKGCZWGryWSj08a2A4egQ==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gda-6.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gda-6.0/-/gda-6.0-4.1.0.tgz",
-      "integrity": "sha512-jYdU5pOR4k2JqZNqvzKzTJu36Rf+SWghMbntEK7wwSTtI6IXKbW5uViB4hLMeaFPBR/ihAVZE/bgMb97WT60xQ==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gda-6.0/-/gda-6.0-4.4.0.tgz",
+      "integrity": "sha512-fWXmMPNwyNLElrKrX1mWu0C2SgExMbQ53D0NFBPiSH4SaBAs5GbOPFrTpPQl5d4SupQt7TdbbmEGtyyVDcqX3Q==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/libxml2-2.0": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/libxml2-2.0": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gdk-4.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gdk-4.0/-/gdk-4.0-4.1.0.tgz",
-      "integrity": "sha512-Wf7ZaDS2e+DUJwEBVn/DQux42b2KQYNhWeaheK7nx5Ia6Y/w3Xpm/yqqYJh+KnZ+y8IgypjpscjL4qBkr944rw==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gdk-4.0/-/gdk-4.0-4.4.0.tgz",
+      "integrity": "sha512-sellkTvrcCges6PaxUIQpKJsuG1XksdeVsIZZGxva3fJev9meovJPB9FyX8ep3Dk5uwJyp2p0nbut8c9Nprzuw==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/cairo-1.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/pangocairo-1.0": "^4.1.0",
-        "@girs/pango-1.0": "^4.1.0",
-        "@girs/harfbuzz-0.0": "^4.1.0",
-        "@girs/freetype2-2.0": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0",
-        "@girs/gdkpixbuf-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/cairo-1.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/pangocairo-1.0": "^4.4.0",
+        "@girs/pango-1.0": "^4.4.0",
+        "@girs/harfbuzz-0.0": "^4.4.0",
+        "@girs/freetype2-2.0": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0",
+        "@girs/gdkpixbuf-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gdkpixbuf-2.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gdkpixbuf-2.0/-/gdkpixbuf-2.0-4.1.0.tgz",
-      "integrity": "sha512-i89aPIgZPSD1/UNH5PlsT7660HtqfPu8eU5TeSedUV7H5kCWXRO11SqbRpGJoa3ScMu8UU0LOkgFB1f1x0QefA==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gdkpixbuf-2.0/-/gdkpixbuf-2.0-4.4.0.tgz",
+      "integrity": "sha512-Spja0pnVe5yvRgNOH0uKwFjamRxckAC6Vx6QWvF3rJxM3fC2U8po0YF51wtWqFPnT/TyG64fgcTXzeCr56DTZQ==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gio-2.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gio-2.0/-/gio-2.0-4.1.0.tgz",
-      "integrity": "sha512-irRUpGEOHknlk4TNoOlAaBCg/jCGZKZv8Ulr23mmqf+MTI6ygDcbJY6bdHAf5dZfbgkOXjhXRl753j8F850W9Q==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gio-2.0/-/gio-2.0-4.4.0.tgz",
+      "integrity": "sha512-Um+7vDWth1RNtCKc+uM/f3Qw6lJDCrIU7vfml1LfBTIY6dS+OYTJycTbtkofMa6YJiBq15HeNct+xmvPcm+9GQ==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/giounix-2.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/giounix-2.0/-/giounix-2.0-4.1.0.tgz",
-      "integrity": "sha512-e3JbHrw+MDbY4NzgMAIh7OUkA7bRfe8AuivklDPNF4b42q+ROyY2A1FZ+wYWGDYuRcjj8vokgDYIJ9hFy1wbAQ==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/giounix-2.0/-/giounix-2.0-4.4.0.tgz",
+      "integrity": "sha512-47doF7I+rdvfXTaH6gd+7L0BssUKUJREzMwEPqNA6lUC28en7oQeTc/h1532cTkeSrctjRTeC9TxazsJLifP+A==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gjs": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gjs/-/gjs-4.1.0.tgz",
-      "integrity": "sha512-fF6beHhI/DW/4WF2JVDRVpjnWuae93euyr4NXOOTNXwaatDxbMB21jte+b0+Qc7eUEqjIUhV10Hq6ztl4hKWQg==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gjs/-/gjs-4.4.0.tgz",
+      "integrity": "sha512-M0aPZP0dYS9mG1pd2c1Om/80XmUp8wI8d0sJI8JrnihYhiSgN5zUUHaqjJc/XmuZWPj9o62AATLsjI8iHHxCeg==",
       "dependencies": {
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/cairo-1.0": "^4.1.0"
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/cairo-1.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gjsifywebrtc-0.1": {
@@ -1754,12 +1754,12 @@
       "integrity": "sha512-6o0oB5TzXM+YB2+RJgdFBVESAUpno7V9mmb6RRaHn51qu4oHBWgUE00kDa3PtsbpR0vwXaZ/PQBksXZ5rfMMMw==",
       "dependencies": {
         "@girs/gjs": "4.0.0-rc.5",
-        "@girs/glib-2.0": "2.88.0-4.0.0-rc.5",
-        "@girs/gstwebrtc-1.0": "1.0.0-4.0.0-rc.5",
-        "@girs/gstsdp-1.0": "1.0.0-4.0.0-rc.5",
         "@girs/gst-1.0": "1.28.1-4.0.0-rc.5",
+        "@girs/glib-2.0": "2.88.0-4.0.0-rc.5",
+        "@girs/gstsdp-1.0": "1.0.0-4.0.0-rc.5",
+        "@girs/gmodule-2.0": "2.0.0-4.0.0-rc.5",
         "@girs/gobject-2.0": "2.88.0-4.0.0-rc.5",
-        "@girs/gmodule-2.0": "2.0.0-4.0.0-rc.5"
+        "@girs/gstwebrtc-1.0": "1.0.0-4.0.0-rc.5"
       }
     },
     "node_modules/@girs/gjsifywebrtc-0.1/node_modules/@girs/gjs": {
@@ -1859,166 +1859,166 @@
       }
     },
     "node_modules/@girs/glib-2.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/glib-2.0/-/glib-2.0-4.1.0.tgz",
-      "integrity": "sha512-1OeIRobL8UEPP5HXD+lwEgM3643aof+mJ6GJD6TMtzuI9ZbuVyS9MJjQopHW+YrRSLAZwfSQXm2WipA3p3EZmg==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/glib-2.0/-/glib-2.0-4.4.0.tgz",
+      "integrity": "sha512-/ujR6NSk49CdnmZiXvknp3VfSRuCQMF4XgXC5PTXxIAiF/MJ158b3pXYteA7ewI/fLV3fDJsBn7KB+h9QD7EBA==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gmodule-2.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gmodule-2.0/-/gmodule-2.0-4.1.0.tgz",
-      "integrity": "sha512-yOFTdnvD61ohMDk12T2Rhcve6vP4/vZpwb/0iQYLu4ZOTD6cazMEdpM+ncZSj8beffbRqTfd7H81HNAriVVm5Q==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gmodule-2.0/-/gmodule-2.0-4.4.0.tgz",
+      "integrity": "sha512-hJZo8PCjKBWOv/0AKOXLB/M9u0fb2vSFx47KIT4fltLKA307UiUjSrEkoOF6Zt6mSbL8tULNTdJ+616GC/suow==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gobject-2.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gobject-2.0/-/gobject-2.0-4.1.0.tgz",
-      "integrity": "sha512-5hPKlUOe8WdFQ6/uMS/0FEKC60ZNNJryIv9Qd4QB1jJkTHiah9TSQH4QVZNF14lQDxxYjAIgY8mcchGL2+bteA==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gobject-2.0/-/gobject-2.0-4.4.0.tgz",
+      "integrity": "sha512-9fwP5Glm6Ar/zjMFigdygW0V4ZPGm714+Gb51nPPQDfz6UloejjZtAS5BTuwTFPglo9sGgCITqdHv+Tg6KButQ==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/graphene-1.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/graphene-1.0/-/graphene-1.0-4.1.0.tgz",
-      "integrity": "sha512-fCwGsfj7wryyakZ9RzLT9+LS59nk9IDVd0OEsK15njhGqTEQ0/96MiFHvyVhCnjcU1ifgz/PdY5uGqKnLXth1g==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/graphene-1.0/-/graphene-1.0-4.4.0.tgz",
+      "integrity": "sha512-YbvnLorq/98F0R3Gk3SNPuZlKJcyWP7zqw5Af/jzfiJFuTTqK2NbAlNlWPT71xKuWOwtUeueAwR1nQEw+BI2Pg==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gsk-4.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gsk-4.0/-/gsk-4.0-4.1.0.tgz",
-      "integrity": "sha512-wwgerEraNWX/sXiOnh3q2HrCC+kkdh2W8dXbP40eSEMmanIcXe7sC4nyDHSor1mp3y3XPvpS0BdiNfl4fxWx6A==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gsk-4.0/-/gsk-4.0-4.4.0.tgz",
+      "integrity": "sha512-/diiIUhlgAlTfWOXnDfkVctMj6/r/CrOdei3MHChIyncekjx1UeBgf4E39eAwfjt6a7jdejUCxzsYudTTq4T0g==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/graphene-1.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gdk-4.0": "^4.1.0",
-        "@girs/cairo-1.0": "^4.1.0",
-        "@girs/pangocairo-1.0": "^4.1.0",
-        "@girs/pango-1.0": "^4.1.0",
-        "@girs/harfbuzz-0.0": "^4.1.0",
-        "@girs/freetype2-2.0": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0",
-        "@girs/gdkpixbuf-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/graphene-1.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gdk-4.0": "^4.4.0",
+        "@girs/cairo-1.0": "^4.4.0",
+        "@girs/pangocairo-1.0": "^4.4.0",
+        "@girs/pango-1.0": "^4.4.0",
+        "@girs/harfbuzz-0.0": "^4.4.0",
+        "@girs/freetype2-2.0": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0",
+        "@girs/gdkpixbuf-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gst-1.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gst-1.0/-/gst-1.0-4.1.0.tgz",
-      "integrity": "sha512-aFJvILtIJLkJug3p4dIYQR+D3CDHT2cjLGCwwM47OAH5HP5jPOVTvDpgKrJJRckf4EohxMklkFgL0bYuTV+LrA==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gst-1.0/-/gst-1.0-4.4.0.tgz",
+      "integrity": "sha512-J0/Fuh3dGHiTpaJCopQ0eQcIob/exPPLw49syp1vLOar7HbpVe+3x/Q36nhhD8xhgzJQFlJK5nX/x7v9RkXMkQ==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gstapp-1.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gstapp-1.0/-/gstapp-1.0-4.1.0.tgz",
-      "integrity": "sha512-M3HLaYOCuKxHccmaf4dRkR5x80L1CEl6+hBdbwStQ1xCohrPtgDw3jzg1sD7LWLvM7OQKPDiWDaRQzjDryl6yg==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gstapp-1.0/-/gstapp-1.0-4.4.0.tgz",
+      "integrity": "sha512-3sdWuAwBrRbKdTWXoxvlg0gZkSV+L08Fb4aazb3DHJqasZ/FJgy4KI1KsC0BfT8N34wrO5Wq+R49r4vEVd62OA==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gstbase-1.0": "^4.1.0",
-        "@girs/gst-1.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gstbase-1.0": "^4.4.0",
+        "@girs/gst-1.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gstaudio-1.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gstaudio-1.0/-/gstaudio-1.0-4.1.0.tgz",
-      "integrity": "sha512-/9H7TsCVa1fdoAxZTiISTaaY5fiZ5J7ICQ30B9HQHhGXPkWISEKGdHEtyQPdbb2fglu/QOiZvvApQiUsBto1ww==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gstaudio-1.0/-/gstaudio-1.0-4.4.0.tgz",
+      "integrity": "sha512-/GFCN/9eUoawRJOKaTRhuMA2wGyBrvqtHONLDqhPqqTixncpbATRn7UfU2bdIsPuqS00M6ofCRZakSSHPqs4oA==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gstbase-1.0": "^4.1.0",
-        "@girs/gst-1.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gstbase-1.0": "^4.4.0",
+        "@girs/gst-1.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gstbase-1.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gstbase-1.0/-/gstbase-1.0-4.1.0.tgz",
-      "integrity": "sha512-HG55jG29X5CubwktCjxcFps6fjmVX5KID8tGTziLZggz6Ilne43qRwed09qw2X8OlBv4VkZuQfk3vB0n8lrHFQ==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gstbase-1.0/-/gstbase-1.0-4.4.0.tgz",
+      "integrity": "sha512-/wOhn8BuVnymzZK1VTbteOLiNVFYPqR4ki6VrwmSocFUI+COEub4KNn/jF8pe1XRZZnZt0WWgeM1lMVTNpcPmA==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gst-1.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gst-1.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gstsdp-1.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gstsdp-1.0/-/gstsdp-1.0-4.1.0.tgz",
-      "integrity": "sha512-8NSA+/kcxQJBlymWmggHxtNohVAgq/Oxcu1Y3Pr0LmSYror/5V/u2AlTWpI+t9/yXUcA0gddlgWF2Ao2KysGEQ==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gstsdp-1.0/-/gstsdp-1.0-4.4.0.tgz",
+      "integrity": "sha512-zdjF/qMLpLgfdgGoZWb5JETwJMToMeIl8E393Cd4OSOJRFg/8XRVWGZiCUkFvsvY98LaCPQq0dCMmZDeIpFvfA==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gst-1.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gst-1.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gstwebrtc-1.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gstwebrtc-1.0/-/gstwebrtc-1.0-4.1.0.tgz",
-      "integrity": "sha512-i929imvwMfX9XkwsqpdNtriw5VM2z+xLDk3EzesdguKgXC5RgDe4YkcsYgZ3yVbnWTo5cAQBDoB5IdRGv+1nNA==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gstwebrtc-1.0/-/gstwebrtc-1.0-4.4.0.tgz",
+      "integrity": "sha512-U2lIUa/1rwVLVWIXh09wly+9jMJbdSdw+zC9vC6FiYTGr9KcFEV51dgNwMn0QuJPof+/SEeg7DjWVunza/5fHA==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gstsdp-1.0": "^4.1.0",
-        "@girs/gst-1.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gstsdp-1.0": "^4.4.0",
+        "@girs/gst-1.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gtk-4.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gtk-4.0/-/gtk-4.0-4.1.0.tgz",
-      "integrity": "sha512-4stUvqZtBE3Fv6qhPF6yVVNhVgm9M5HD3WqTXEVxN3GmR8GtBTBSORHYPYSURQzfTASaHlctMmfg5II2A/KFVQ==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gtk-4.0/-/gtk-4.0-4.4.0.tgz",
+      "integrity": "sha512-DZceqTwtLaVsdtnKrFlKYkegPlMrFTAtXGIK2kbNL/OaAsaWxIxQMufA/7KOzB2prGqRLAt4wJWMNNQLgT4hfg==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gsk-4.0": "^4.1.0",
-        "@girs/graphene-1.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gdk-4.0": "^4.1.0",
-        "@girs/cairo-1.0": "^4.1.0",
-        "@girs/pangocairo-1.0": "^4.1.0",
-        "@girs/pango-1.0": "^4.1.0",
-        "@girs/harfbuzz-0.0": "^4.1.0",
-        "@girs/freetype2-2.0": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0",
-        "@girs/gdkpixbuf-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gsk-4.0": "^4.4.0",
+        "@girs/graphene-1.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gdk-4.0": "^4.4.0",
+        "@girs/cairo-1.0": "^4.4.0",
+        "@girs/pangocairo-1.0": "^4.4.0",
+        "@girs/pango-1.0": "^4.4.0",
+        "@girs/harfbuzz-0.0": "^4.4.0",
+        "@girs/freetype2-2.0": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0",
+        "@girs/gdkpixbuf-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gudev-1.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/gudev-1.0/-/gudev-1.0-4.1.0.tgz",
-      "integrity": "sha512-sgkku4usdckkiTz6uxFA9G9LG5VfWnF5M3RrLXJNwc4wT5PbBRsiT5Uz8/AkeK68fATzu6hVA1TQnlsSYLHJMg==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/gudev-1.0/-/gudev-1.0-4.4.0.tgz",
+      "integrity": "sha512-GYiJAZgaWSKJAca6WJR0XW8IYjpwHLeInHSU3YkFQ+C86gugFK2milgZ/fegmRVh3mntS46rD0SUH4Z/7Y/5Rg==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/gwebgl-0.1": {
@@ -2092,113 +2092,113 @@
       }
     },
     "node_modules/@girs/harfbuzz-0.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/harfbuzz-0.0/-/harfbuzz-0.0-4.1.0.tgz",
-      "integrity": "sha512-370ny6RjcbGFRk6/50AFpCPteWgEN1y+2MyLXwSXGV0duJNlHBHOTtnuPTHkv+gGxp+s3/YTaQWa5UGzkVYN8g==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/harfbuzz-0.0/-/harfbuzz-0.0-4.4.0.tgz",
+      "integrity": "sha512-21OBJuCP+uoC6VfwiodjFSWXDGRbiItwPgYVD60mA7HEURjnnQY3PhpBR1K74rvNqZWEdvCI2oi6twd17ruQ1g==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/freetype2-2.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/freetype2-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/javascriptcore-6.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/javascriptcore-6.0/-/javascriptcore-6.0-4.1.0.tgz",
-      "integrity": "sha512-MnkSd8dbS2gNNfp2G6+OxGoj3cUx1mxWNp6nRVaWPtVjPxvGIZz+XgWx3RGkMwq0gPaFhQmN3V+C4NNQRYX8yg==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/javascriptcore-6.0/-/javascriptcore-6.0-4.4.0.tgz",
+      "integrity": "sha512-3xagEph2vyq5J6zqQW7ixhKxoJS81CG3N/E9PJ7Y43/85sxsT7JFgcqPrsb/tPta+FdsRG19NqlW86g9dkbcmw==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/libxml2-2.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/libxml2-2.0/-/libxml2-2.0-4.1.0.tgz",
-      "integrity": "sha512-S12MXu7MdMf6KxbUmXnWsQlh9vmfI3UYzoVUiCyqNHWkc+U8uDzlg/C0ZLOIr9fjPPcGVrJTR3I/ynJapSfKLQ==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/libxml2-2.0/-/libxml2-2.0-4.4.0.tgz",
+      "integrity": "sha512-m4cOC4hJiYlKpd7hztHZAJ6dD5qpGIon1zestTCBs3uNQ3NBv+Sf1X4RSxE7xsPXEP+0FXCKPPmQgf8f/rHP1Q==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/manette-0.2": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/manette-0.2/-/manette-0.2-4.1.0.tgz",
-      "integrity": "sha512-rXycsXKFMIUhIDDAyiaUSWOvAye64QzQj7w2wgIyb4X/ljXLkTmQdLOkt7itxh9LrWzwr/nwEn5/1+jQXJJbSQ==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/manette-0.2/-/manette-0.2-4.4.0.tgz",
+      "integrity": "sha512-kEqdcpshdl8LYJm5WIs2Se/3/5lHNut6sZ61uxreLsYn9U93ExvKcraKPjNmkxaJu6bppkFThMGOcyadublF0g==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0",
-        "@girs/gudev-1.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0",
+        "@girs/gudev-1.0": "^4.4.0"
       }
     },
     "node_modules/@girs/pango-1.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/pango-1.0/-/pango-1.0-4.1.0.tgz",
-      "integrity": "sha512-hHDkTA1fyEDsfn4z2q8xDszXS3PgAqcKEjpFL4Xy0w70+JGW+704uxdi5qLRsi/wfjo6bc5K1v2pNsg3yYLiCg==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/pango-1.0/-/pango-1.0-4.4.0.tgz",
+      "integrity": "sha512-SlFuGk2g6sV6pRvalL9VnF4DqDcL+TQi6tedog7DTf2TkJA+G3EK3PVTPykeqa4mamxkU4pTBiS8STjlwVliaA==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/cairo-1.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/harfbuzz-0.0": "^4.1.0",
-        "@girs/freetype2-2.0": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/cairo-1.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/harfbuzz-0.0": "^4.4.0",
+        "@girs/freetype2-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/pangocairo-1.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/pangocairo-1.0/-/pangocairo-1.0-4.1.0.tgz",
-      "integrity": "sha512-F1C18l6cQN8xCz4M+1zarllpMRkpPjlZcYiWVA9lTPDZnyfr47JAZGTBQUo/iayKfABMO1BHxeBJqOP2e87S3g==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/pangocairo-1.0/-/pangocairo-1.0-4.4.0.tgz",
+      "integrity": "sha512-OsTe4E+XlAXgHhtGjzyX9F4QdMAqvOIofYUVxIcnSSfEo2WsfHMuMfjaRN+JtjZTVZhHb4OrlVQ5b7Zliuq9Cw==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/cairo-1.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/pango-1.0": "^4.1.0",
-        "@girs/harfbuzz-0.0": "^4.1.0",
-        "@girs/freetype2-2.0": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/cairo-1.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/pango-1.0": "^4.4.0",
+        "@girs/harfbuzz-0.0": "^4.4.0",
+        "@girs/freetype2-2.0": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/soup-3.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/soup-3.0/-/soup-3.0-4.1.0.tgz",
-      "integrity": "sha512-QYUNG9942aQqNgYBs3wN9jFdZOFWRkxetAxoKAfES8m5p+Ex1/javpAtOv+Z3b37QnQhRuXYmc8F33Vxl5RUng==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/soup-3.0/-/soup-3.0-4.4.0.tgz",
+      "integrity": "sha512-QG3jGsmMegKWl6w7NV9r+C9AGL7y8Fk2Qea6nnC7KmnvgwLABUnvnaAqrfDoAlO5oaEaMHr+7gT3PMAcDpu6tg==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0"
       }
     },
     "node_modules/@girs/webkit-6.0": {
-      "version": "4.1.0",
-      "resolved": "https://registry.npmjs.org/@girs/webkit-6.0/-/webkit-6.0-4.1.0.tgz",
-      "integrity": "sha512-n8skZYr+aDer+YEhnZf8kMBHKlsC1/KJoPs2YDaQVOW48U74Ohbi3Xddfho0kMmLFDZNOCg5tXBa+kKys5VanA==",
+      "version": "4.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/webkit-6.0/-/webkit-6.0-4.4.0.tgz",
+      "integrity": "sha512-/3y4WJka53zrdR7Pt2wKrPeocu9kzxuMQp8kldiAYo2d8u6eksIyp08DYPDC3v6368aPuDIbaCs0xzLIcUJuXQ==",
       "dependencies": {
-        "@girs/gjs": "^4.1.0",
-        "@girs/soup-3.0": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gmodule-2.0": "^4.1.0",
-        "@girs/javascriptcore-6.0": "^4.1.0",
-        "@girs/gtk-4.0": "^4.1.0",
-        "@girs/gsk-4.0": "^4.1.0",
-        "@girs/graphene-1.0": "^4.1.0",
-        "@girs/gdk-4.0": "^4.1.0",
-        "@girs/cairo-1.0": "^4.1.0",
-        "@girs/pangocairo-1.0": "^4.1.0",
-        "@girs/pango-1.0": "^4.1.0",
-        "@girs/harfbuzz-0.0": "^4.1.0",
-        "@girs/freetype2-2.0": "^4.1.0",
-        "@girs/gdkpixbuf-2.0": "^4.1.0"
+        "@girs/gjs": "^4.4.0",
+        "@girs/soup-3.0": "^4.4.0",
+        "@girs/gio-2.0": "^4.4.0",
+        "@girs/gobject-2.0": "^4.4.0",
+        "@girs/glib-2.0": "^4.4.0",
+        "@girs/gmodule-2.0": "^4.4.0",
+        "@girs/javascriptcore-6.0": "^4.4.0",
+        "@girs/gtk-4.0": "^4.4.0",
+        "@girs/gsk-4.0": "^4.4.0",
+        "@girs/graphene-1.0": "^4.4.0",
+        "@girs/gdk-4.0": "^4.4.0",
+        "@girs/cairo-1.0": "^4.4.0",
+        "@girs/pangocairo-1.0": "^4.4.0",
+        "@girs/pango-1.0": "^4.4.0",
+        "@girs/harfbuzz-0.0": "^4.4.0",
+        "@girs/freetype2-2.0": "^4.4.0",
+        "@girs/gdkpixbuf-2.0": "^4.4.0"
       }
     },
     "node_modules/@hapi/bourne": {

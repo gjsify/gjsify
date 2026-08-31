@@ -687,6 +687,8 @@ gjsify upgrade --latest --dry-run       # print the plan, write nothing
 gjsify upgrade --filter '@gjsify,vite'  # narrow by substring
 gjsify upgrade --check                  # CI gate for inconsistent ranges
 gjsify upgrade --align                  # fix them, offline
+gjsify upgrade --latest --exact --filter @girs   # pin without a range operator
+gjsify upgrade --check --exact --filter @girs    # CI gate for exactness
 ```
 
 | Option | Default | Description |
@@ -699,16 +701,19 @@ gjsify upgrade --align                  # fix them, offline
 | `--exclude-workspace <pattern>` | none | Skip workspaces, for ones with deliberate dependency drift such as integration tests pinned to a specific upstream. Repeatable. |
 | `--align` | `false` | Offline consistency mode: find deps declared at several ranges and align them to the highest. No registry calls. |
 | `--check` | `false` | CI gate: exit non-zero when any dep is declared inconsistently across workspaces. Offline. `--align` is the fix. |
+| `--exact` | `false` | Pin without a range operator. Writing, emits `1.2.3` instead of `^1.2.3`; with `--check`, fails on any matched dep that carries one. Pair with `--filter` — a repository-wide exactness check fails on every ordinary caret dep by design. |
 | `--dry-run` | `false` | Print the plan without writing. |
 | `-y`, `--yes` | `false` | In interactive mode, select everything without prompting. |
 | `--cwd <path>` | `process.cwd()` | Project directory. From inside a workspace it walks up to the monorepo root. |
 | `--verbose` | `false` | Print resolution details. |
 
-`workspace:`, `file:`, `link:`, `git:`, `git+`, `http(s):`, `npm:`, `*` and `latest` ranges are skipped, since none of them is an external npm dependency. The range prefix is preserved: `^1.2.3` becomes `^2.0.0`, `~0.4.0` becomes `~0.5.0`. The registry URL comes from `~/.npmrc`, then `<cwd>/.npmrc`, with `npm_config_registry` overriding both, and scope-specific registries and auth tokens are honoured.
+`workspace:`, `file:`, `link:`, `git:`, `git+`, `http(s):`, `npm:`, `*` and `latest` ranges are skipped, since none of them is an external npm dependency. The range prefix is preserved: `^1.2.3` becomes `^2.0.0`, `~0.4.0` becomes `~0.5.0` — unless `--exact` drops it. Lines the update does not touch are left byte-for-byte as they were, so a dependency bump never arrives as a diff over unrelated fields. The registry URL comes from `~/.npmrc`, then `<cwd>/.npmrc`, with `npm_config_registry` overriding both, and scope-specific registries and auth tokens are honoured.
 
 Output is a colour-coded table (red major, yellow minor, green patch, cyan prerelease). Run `gjsify install` afterwards to fetch the new versions.
 
 `@gjsify/*` packages ship as one release train, so upgrade them together: `gjsify upgrade --latest --filter @gjsify`. See [Versioning & Compatibility](/gjsify/versioning/).
+
+`@girs/*` is pinned **exactly** in this repository, and a CI step holds it that way. Consistency is not the same question: every manifest agreeing on one caret is perfectly consistent and still resolves to whatever is newest, and a published package's declaration is what a consumer installs against with no lockfile of ours. Since `@gjsify/gtk-host` consumes the `@girs/<ns>/surface` subpath, a minor release moving it under such an install is a real hazard — so the pin is the whole version.
 
 ### `gjsify dlx`
 

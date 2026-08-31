@@ -433,6 +433,21 @@ jobs:
           su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'
           upgrade --check --exclude-workspace '@gjsify/integration-*'"
 
+      # Consistency is not exactness, and only the second one protects a CONSUMER.
+      # Every manifest agreeing on `^4.1.0` is perfectly consistent, and our lockfile
+      # holds it here — but a published package's declaration is what a stranger
+      # installs against, with no lockfile of ours, and `@gjsify/gtk-host` consumes
+      # `@girs/<ns>/surface`. A minor `@girs` release moving that subpath under such an
+      # install is the hazard ADR 0029 § Risks 1 names.
+      #
+      # A script and not `upgrade --check --exact`, which answers the same question for a
+      # CLI user: the CLI up there is the PUBLISHED bootstrap, so a flag added in the same
+      # commit fails with `Unknown argument` until the next release — measured on this
+      # change. Walking package.json files needs no CLI, and it additionally reaches the
+      # two trees deliberately outside the workspace set, which `upgrade` cannot.
+      - name: Check @girs deps are pinned exactly
+        run: node scripts/check-girs-exact-pins.mjs
+
       # `@gjsify/gtk-host`'s type surface is GENERATED from the GTK/Adwaita GIR, and
       # `gjsify tsc --noEmit` on the package cannot check it: a type surface type-checks
       # against ITSELF whatever it claims about `<gtk-box>`. So the gate compiles fixtures

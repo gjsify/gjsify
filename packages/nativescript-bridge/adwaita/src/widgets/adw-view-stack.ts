@@ -19,7 +19,8 @@
 // Reference: refs/libadwaita/src/adw-view-stack.c (Adw.ViewStack)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, View, type EventData } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { GridLayout, ItemSpec, type EventData } from '@nativescript/core';
 import {
     applyViewStackVisibility,
     createViewStackState,

@@ -22,7 +22,8 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_toolbars.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, StackLayout, View } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { GridLayout, ItemSpec, StackLayout } from '@nativescript/core';
 
 import {
     type AdwToolbarStyle,

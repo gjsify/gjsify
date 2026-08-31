@@ -19,7 +19,8 @@ import type {
 } from 'node:fs';
 import { FileHandle } from './file-handle.js';
 import { Buffer } from 'node:buffer';
-import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
+import type { Stats, BigIntStats } from './stats.js';
+import { STAT_ATTRIBUTES, statsFrom } from './stats.js';
 import { createNodeError, requireCallback } from './errors.js';
 import {
     realpathSync,

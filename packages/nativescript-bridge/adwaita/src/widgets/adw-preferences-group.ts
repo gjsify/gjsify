@@ -19,7 +19,8 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_preferences.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, Label, StackLayout, View } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 import { resolveBuilderSlot } from './builder-slots.js';
 import { PREFERENCES_GROUP_HEADER_CLASS, preferencesGroupVisuals } from './preferences-group-state.js';
 import type { NsSearchableGroup, NsSearchableRow } from './preferences-search.js';
