@@ -120,10 +120,16 @@ export function emitProps(model: SurfaceModel, provenance: string): EmittedFile 
         });
 
     const decls = [...model.declarations.values()].sort((a, b) => (a.iface < b.iface ? -1 : 1));
-    // `noUnusedLocals` refuses an import nothing reads, and a GIR whose signals are
-    // all `in` produces exactly that file — the mini fixture is one.
-    const usesOutParam = decls.some((d) => d.signals.some((s) => s.ts.includes(': OutParam')));
-    const hostTypes = usesOutParam ? 'NotifyHandler, OutParam' : 'NotifyHandler';
+    // `OutParam` is no longer emitted, and the condition that used to decide it was
+    // measured dead: `grep -c OutParam src/generated/props.ts` is 0. Signal signatures
+    // come from `@girs` as `X.SignalSignatures['name']` now, so how an out parameter is
+    // spelled is that package's answer rather than this generator's. The type itself
+    // stays exported from `attrs.ts` — it documents why an out parameter must not be
+    // typed `number`, which is still true — but nothing here produces one.
+    //
+    // `noUnusedLocals` is why this was ever conditional: it refuses an import nothing
+    // reads, and a namespace whose signals are all `in` produced exactly that file.
+    const hostTypes = 'NotifyHandler';
     const byTag: string[] = [];
     const byGType: string[] = [];
     const classByTag: string[] = [];

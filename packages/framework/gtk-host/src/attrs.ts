@@ -41,6 +41,13 @@ declare const outParam: unique symbol;
  */
 export type OutParam = { readonly [outParam]: never };
 
+// NOT emitted by the generator any more. Signal signatures are `@girs`'
+// `SignalSignatures` since the vocabulary migration (ADR 0029 § Amendment), so how an
+// out parameter is spelled is answered there. Kept because the rule above is a fact
+// about GJS rather than about this generator, and a consumer writing a signature by
+// hand still needs it. If `@girs` turns out to spell one `number`, that is a defect to
+// report upstream, not a reason to re-derive the type here.
+
 /**
  * What may appear as a child, mirroring Solid's own `JSX.Element`.
  *

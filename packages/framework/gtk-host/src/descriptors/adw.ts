@@ -5,9 +5,10 @@ import Adw from 'gi://Adw?version=1';
 import type { WidgetDescriptor } from '../types.js';
 
 export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
-    // A placement carrier like GTK's three, and it arrives here for the same reason:
-    // `placementCarriers` selects a concrete non-widget that declares both halves of
-    // a one-child slot, and this is the fourth and only Adw member of that set. It
+    // A child holder like GTK's three, and it arrives here for the same reason: the
+    // rule selects a concrete non-widget that declares both halves of a one-child slot
+    // whose child is a widget, and this is the fourth and only Adw member of that set.
+    // The rule runs in ts-for-gir now and arrives as `CHILD_HOLDERS`. It
     // was NOT on the hand-written list that preceded the rule — which is the argument
     // for having a rule.
     {

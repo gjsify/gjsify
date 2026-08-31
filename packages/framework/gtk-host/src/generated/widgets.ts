@@ -2,11 +2,14 @@
 //
 // Provenance: Gtk-4.0/4.23.3 Adw-1/1.10.0
 //
-// What this file is, and what it is NOT: every concrete descendant of GtkWidget
-// the GIR describes, PLUS the concrete non-widgets that hold one — GTK4's list
-// carriers, selected by rule rather than by list (`placementCarriers`, which asks
-// the GIR for a class that declares both halves of a one-child slot and is not on
-// GtkWidget's chain). Each with its GType name and its kebab tag. It carries no
+// What this file is, and what it is NOT: every concrete descendant of GtkWidget,
+// PLUS the concrete non-widgets that hold one — GTK4's list carriers, selected by
+// rule rather than by list. The rule is unchanged and the place it RUNS has moved:
+// `CHILD_HOLDERS` in `@girs/<ns>/vocabulary` asks for a class that declares both
+// halves of a one-child slot, whose child is a widget, and that is not on GtkWidget's
+// chain. It used to be `placementCarriers` here, over GIR XML (ADR 0029 § Amendment).
+// Binding it to the widget type is not cosmetic: a name-only match takes 17 classes
+// corpus-wide, St.Bin and eleven Mx.* among them, against the 3 it should. Each with its GType name and its kebab tag. It carries no
 // placement rule, no text sink and no event alias — those are CURATED, in
 // descriptors/, and the generator may only ever ADD a tag (ADR 0028 § 1).
 //
