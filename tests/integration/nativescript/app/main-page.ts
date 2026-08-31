@@ -1,4 +1,4 @@
-import { EventData, Page, Label } from '@nativescript/core';
+import type { EventData, Page, Label } from '@nativescript/core';
 import { result } from './app.js';
 
 export function onNavigatingTo(args: EventData): void {

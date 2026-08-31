@@ -47,9 +47,9 @@
         "typescript": "^6.0.3"
     },
     "dependencies": {
-        "@girs/gda-6.0": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
+        "@girs/gda-6.0": "4.3.0",
+        "@girs/glib-2.0": "4.3.0",
+        "@girs/gobject-2.0": "4.3.0",
         "@gjsify/utils": "workspace:^"
     },
     "gjsify": {

@@ -43,7 +43,8 @@ import {
 import { FileHandle } from './file-handle.js';
 import { normalizePath } from './utils.js';
 import type { Dirent } from './dirent.js';
-import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
+import type { Stats, BigIntStats } from './stats.js';
+import { STAT_ATTRIBUTES, statsFrom } from './stats.js';
 import { createNodeError } from './errors.js';
 
 import type { OpenFlags, ReadOptions } from './types/index.js';

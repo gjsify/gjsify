@@ -25,7 +25,7 @@
 // throw a structured ENOTSUP error pointing at the async variant; classic DH
 // and similar APIs without WebCrypto pendants throw ENOTSUP unconditionally.
 
-import { Buffer } from 'node:buffer';
+import type { Buffer } from 'node:buffer';
 
 // ─── WebCrypto re-export ────────────────────────────────────────────────────
 // Browser-native `crypto.webcrypto` + `crypto.subtle` — Node's `crypto` module

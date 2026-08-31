@@ -17,7 +17,8 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (AdwActionRow)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, StackLayout, Label, View, type EventData } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { GridLayout, ItemSpec, StackLayout, Label, type EventData } from '@nativescript/core';
 import { ActionRowState, isViewSensitive, rowLabelVisuals } from './row-state.js';
 import { xmlBoolean } from './xml-values.js';
 import { resolveBuilderSlot } from './builder-slots.js';

@@ -25,7 +25,8 @@
 // Reference: refs/libadwaita/src/adw-preferences-dialog.c (add/remove, search)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, ItemSpec, Label, StackLayout, View, type EventData } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { GridLayout, ItemSpec, Label, StackLayout, type EventData } from '@nativescript/core';
 import { windowCloseSymbolic } from '@gjsify/adwaita-icons/ui';
 import type { SearchPreferencesOptions } from '@gjsify/adwaita-core';
 import { AdwImageButton } from './adw-image-button.js';

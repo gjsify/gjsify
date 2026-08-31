@@ -13,8 +13,8 @@
     "build": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js"
   },
   "devDependencies": {
-    "@girs/gjs": "^4.1.0",
-    "@girs/glib-2.0": "^4.1.0",
+    "@girs/gjs": "4.3.0",
+    "@girs/glib-2.0": "4.3.0",
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",

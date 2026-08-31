@@ -3,7 +3,8 @@
 
 import { ReadStream } from './read-stream.js';
 import { WriteStream } from './write-stream.js';
-import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
+import type { Stats, BigIntStats } from './stats.js';
+import { STAT_ATTRIBUTES, statsFrom } from './stats.js';
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import { normalizePath } from './utils.js';
 import { invalidState } from './errors.js';

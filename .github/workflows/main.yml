@@ -433,6 +433,17 @@ jobs:
           su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'
           upgrade --check --exclude-workspace '@gjsify/integration-*'"
 
+      # Consistency is not exactness, and only the second one protects a CONSUMER.
+      # Every manifest agreeing on `^4.1.0` is perfectly consistent, and our lockfile
+      # holds it here — but a published package's declaration is what a stranger
+      # installs against, with no lockfile of ours, and `@gjsify/gtk-host` consumes
+      # `@girs/<ns>/surface`. A minor `@girs` release moving that subpath under such an
+      # install is the hazard ADR 0029 § Risks 1 names.
+      - name: Check @girs deps are pinned exactly
+        run: >
+          su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'
+          upgrade --check --exact --filter @girs --exclude-workspace '@gjsify/integration-*'"
+
       # `@gjsify/gtk-host`'s type surface is GENERATED from the GTK/Adwaita GIR, and
       # `gjsify tsc --noEmit` on the package cannot check it: a type surface type-checks
       # against ITSELF whatever it claims about `<gtk-box>`. So the gate compiles fixtures

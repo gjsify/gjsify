@@ -24,11 +24,11 @@
     "build:assets": "gjsify copy src/browser/index.html src/browser/canvas2d.css dist/"
   },
   "devDependencies": {
-    "@girs/adw-1": "^4.1.0",
-    "@girs/gio-2.0": "^4.1.0",
-    "@girs/gjs": "^4.1.0",
-    "@girs/gobject-2.0": "^4.1.0",
-    "@girs/gtk-4.0": "^4.1.0",
+    "@girs/adw-1": "4.3.0",
+    "@girs/gio-2.0": "4.3.0",
+    "@girs/gjs": "4.3.0",
+    "@girs/gobject-2.0": "4.3.0",
+    "@girs/gtk-4.0": "4.3.0",
     "@gjsify/adwaita-icons": "workspace:^",
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/canvas2d": "workspace:^",

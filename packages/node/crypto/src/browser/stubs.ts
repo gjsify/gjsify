@@ -11,7 +11,7 @@
 // browser pendant. Each throws an ENOTSUP-typed error with a clear message
 // directing the caller to an async WebCrypto path or `partial` runtime slot.
 
-import { Buffer } from 'node:buffer';
+import type { Buffer } from 'node:buffer';
 
 function notSupported(name: string, hint?: string): never {
     const msg = `${name} is not supported in browser builds.${hint ? ' ' + hint : ''}`;

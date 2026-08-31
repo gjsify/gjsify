@@ -24,7 +24,8 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss (Toasts)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { Button, GridLayout, ItemSpec, Label, View, type EventData } from '@nativescript/core';
+import type { View } from '@nativescript/core';
+import { Button, GridLayout, ItemSpec, Label, type EventData } from '@nativescript/core';
 import { AdwToast, AdwToastQueue } from '@gjsify/adwaita-core';
 import type { AdwToastOptions, ToastScheduler } from '@gjsify/adwaita-core';
 

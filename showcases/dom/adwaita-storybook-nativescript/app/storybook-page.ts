@@ -4,7 +4,8 @@
 // control surface) so an MCP agent can drive it over the V8 CDP inspector —
 // list/open stories, set args, dump the native view tree, screenshot.
 
-import { type NavigatedData, type Page, Application, ContentView, Frame } from '@nativescript/core';
+import type { ContentView } from '@nativescript/core';
+import { type NavigatedData, type Page, Application, Frame } from '@nativescript/core';
 import { installStorybookDevtools, runStorybook } from '@gjsify/storybook-nativescript';
 import { stories } from '../src/stories';
 

@@ -11,12 +11,12 @@
         "build:gjs": "gjsify build src/main.ts --app gjs --outfile dist/loro-collab.gjs.js --globals 'auto,crypto'"
     },
     "devDependencies": {
-        "@girs/adw-1": "^4.1.0",
-        "@girs/gio-2.0": "^4.1.0",
-        "@girs/gjs": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
-        "@girs/gobject-2.0": "^4.1.0",
-        "@girs/gtk-4.0": "^4.1.0",
+        "@girs/adw-1": "4.3.0",
+        "@girs/gio-2.0": "4.3.0",
+        "@girs/gjs": "4.3.0",
+        "@girs/glib-2.0": "4.3.0",
+        "@girs/gobject-2.0": "4.3.0",
+        "@girs/gtk-4.0": "4.3.0",
         "@gjsify/cli": "workspace:^",
         "@types/node": "^25.9.2",
         "loro-crdt": "^1.13.6",
