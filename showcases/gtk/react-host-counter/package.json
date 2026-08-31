@@ -13,7 +13,7 @@
         "clear": "gjsify clear dist tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjs",
-        "build:gjs": "gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs --define 'process.env.NODE_ENV=\"production\"' --exclude-globals navigator",
+        "build:gjs": "gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs --define \"process.env.NODE_ENV='production'\" --exclude-globals navigator",
         "start:gjs": "gjs -m dist/app.gjs.mjs",
         "probe": "gjsify run build:gjs && GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs"
     },

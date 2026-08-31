@@ -37,7 +37,7 @@
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,tsx,js}' --exclude 'src/**/*.spec.{mts,ts,tsx}' 'src/test.{mts,ts}' 'src/test.node.mts'",
         "build:types": "gjsify tsc",
         "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
-        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs --define 'process.env.NODE_ENV=\"production\"' --exclude-globals navigator",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs --define \"process.env.NODE_ENV='production'\" --exclude-globals navigator",
         "build:test:node": "gjsify build src/test.node.mts --app node --outfile dist/test.node.mjs --exclude-globals navigator --alias react-native=@gjsify/adwaita-react-native/testing/react-native",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs",

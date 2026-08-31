@@ -72,11 +72,38 @@
  * neither a workspace member, both driven only by their own Linux legs — plus 10
  * private `examples/`.
  *
- * The pattern is still deliberately NOT in the list, on the same judgement the
- * `clear`-only scope shipped under: adding it today lands a rule with a 31-entry
- * exemption ledger, and a check that starts life mostly-exempted teaches everyone
- * to add the next exemption. Those 31 are the work that unblocks it, and
+ * The `VAR=x` pattern is still deliberately NOT in the list, on the same judgement
+ * the `clear`-only scope shipped under: adding it today lands a rule with a
+ * 31-entry exemption ledger, and a check that starts life mostly-exempted teaches
+ * everyone to add the next exemption. Those 31 are the work that unblocks it, and
  * `status/open-todos.md` carries the count so it is a task rather than a memory.
+ *
+ * ONE MEMBER OF THE SYNTAX CLASS *IS* CHECKED, because it fixed itself down to zero.
+ *
+ * A POSIX single-quoted argument CONTAINING a double quote — `'a="b"'` — cannot
+ * survive cmd.exe under any reading: cmd does not treat `'` as quoting, so the
+ * program receives the quotes literally and the value is a string that never
+ * terminates. Found by `gtk-os-suites.yml`'s win32 leg on its first run, as
+ * `gjsify build ... --define 'process.env.NODE_ENV="production"'` dying with
+ * `[INVALID_DEFINE_CONFIG] Unterminated string` after the bundle, the closure and
+ * the batteries probe had all come up clean.
+ *
+ * It is checkable where `VAR=x` is not, because the tree held exactly 10 instances
+ * and all 10 were the same one: `'process.env.NODE_ENV="production"'`. The portable
+ * spelling reverses the nesting — `"process.env.NODE_ENV='production'"` — which both
+ * shells strip to the same argv and which JS reads as the same string literal.
+ * Verified byte-identical rather than argued: the same suite bundle, built both ways,
+ * hashes to b26f91af. So this ships with ZERO exemptions, which is the property that
+ * makes it worth having.
+ *
+ * NOT generalised to every single-quoted argument, deliberately. The quoted source
+ * glob `--library` takes appears in ~200 scripts and WORKS on Windows, because the CLI
+ * strips stray surrounding quotes from a glob. Measured on that same leg: with `lib/`
+ * deleted, the cmd.exe-shaped invocation rebuilt all 14 files. A rule that flagged it
+ * would be the 200-entry exemption ledger this file argues against twice over — and
+ * the first read of that step's silence as "built nothing" was wrong for a third
+ * reason worth recording: it was a BUILD-CACHE HIT, and an empty stdout is not
+ * evidence of an empty result.
  *
  * Add patterns here on sight, not speculatively — every pattern in this list has a
  * package behind it, and now so does the one deliberately absent from it.
@@ -150,6 +177,23 @@ export function unportableCommands(script) {
 }
 
 /**
+ * A POSIX single-quoted argument that contains a double quote. See the header: this is
+ * the one member of the shell-SYNTAX class with no cmd.exe reading at all, and the tree
+ * carries none.
+ */
+const UNPORTABLE_QUOTING = /'[^']*"[^']*'/g;
+
+/**
+ * The unportably-quoted argument fragments in a script, in order.
+ *
+ * @param {string} script
+ * @returns {string[]}
+ */
+export function unportableQuoting(script) {
+    return [...script.matchAll(UNPORTABLE_QUOTING)].map((m) => m[0]);
+}
+
+/**
  * @param {import('../context.mjs').ConformanceContext} ctx
  */
 function auditScripts(ctx) {
@@ -163,6 +207,16 @@ function auditScripts(ctx) {
             if (typeof script !== 'string' || script.length === 0) continue;
             checked++;
             touched = true;
+            for (const fragment of unportableQuoting(script)) {
+                failures.push(
+                    `${pkg.rel}/package.json: "${name}" wraps an argument in POSIX single quotes that ` +
+                        `contains a double quote — cmd.exe does not treat \`'\` as quoting, so the program ` +
+                        `receives the quotes literally and the value is an unterminated string.\n` +
+                        `      got:  ${fragment}\n` +
+                        `      use:  reverse the nesting — "key='value'" — which both shells strip to the ` +
+                        `same argv and JS reads as the same string.`,
+                );
+            }
             const bad = unportableCommands(script);
             if (bad.length === 0) continue;
             const hints = bad.filter((b) => REPLACEMENTS[b]).map((b) => `\n      use:  ${REPLACEMENTS[b]}`);

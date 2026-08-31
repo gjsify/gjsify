@@ -59,6 +59,23 @@
 # under one version number is normal for this release model and invisible at the
 # use site. Hence: never pin a published `@gjsify/*` against a tree-built bundle.
 #
+# REPRODUCING THIS LOCALLY: BUILD FIRST, AND DO NOT TRUST mtimes
+#
+# A CI leg builds in a fresh checkout, so it cannot hit the trap below. A local
+# reproduction hits it immediately, and it cost two rounds of a wrong baseline for
+# this very suite. `lib/` and `dist/` are gitignored BUILD OUTPUT: a checkout that
+# switched commits still holds whatever was last built, and the `--app node` test
+# bundle INLINES those bytes. So run
+# `gjsify workspace <pkg> build:gjsify --with-dependencies` before bundling, always.
+#
+# What made it hard to see is the instrument, not the state: `find src -newer
+# lib/esm/index.js` came back empty and read as "lib is fresh". **git does not touch
+# the mtime of a file a commit does not change**, so an mtime comparison is not a
+# freshness test across commits — it answers a question about the filesystem while
+# the reader believes it answered one about the tree. The bytes are the test: at one
+# commit, the same suite bundle was 614 037 bytes from a stale tree and 621 468 from
+# a fresh one, and reported 33 failures against 2.
+#
 # THE ONE FREE VARIABLE, AND WHY IT IS NOT FREE IN PRACTICE
 #
 # Pairing the checkout's node-gi JS with a published addon binary is an ABI
@@ -75,6 +92,39 @@
 # library-lookup env. If the pairing is broken it dies THERE, in a step named for
 # it, instead of inside a 2274-test suite where a marshalling failure looks like a
 # layer defect on an operating system. Probe the primitive, not the wrapper.
+#
+# WHAT THE FIRST RUN FOUND, WHICH IS WHY THE LEG EXISTS
+#
+# darwin-arm64 (macOS 26.5.2, Node 24.18.0) came up green on the first attempt:
+# published bundle verified, batteries probe clean, `@gjsify/gtk-host` 2274/2274 on
+# GTK4 + libadwaita with no Homebrew GTK on the machine. The react-native probe
+# reported 2 of 857, BY NAME the same two that fail on Linux — so darwin adds nothing
+# to that failure set, which is the useful negative result.
+#
+# win32 failed, and not in the suite. Everything up to and including the batteries
+# probe was clean; then `build:test:node` died with
+#
+#   [INVALID_DEFINE_CONFIG] Unterminated string
+#
+# because the script passed `--define 'process.env.NODE_ENV="production"'`. cmd.exe
+# does not treat `'` as quoting, so the bundler received the quotes literally and the
+# define value was a string that never terminates. Eleven scripts in the tree carried
+# that exact shape and none could ever have run on Windows; the portable spelling
+# reverses the nesting (`"key='value'"`), which both shells strip to the same argv and
+# JS reads as the same literal — verified byte-identical rather than argued, the same
+# suite bundle hashing to b26f91af both ways. `portable-scripts` now has the check,
+# with zero exemptions.
+#
+# Two things about READING that run are recorded because both were wrong first time,
+# and both are cheap to repeat:
+#   · the earlier `build:gjsify` step printed nothing and was read as "built nothing on
+#     Windows". It was a BUILD-CACHE HIT. Deleting `lib/` and re-running the
+#     cmd.exe-shaped invocation rebuilt all 14 files — the CLI strips stray quotes from
+#     a glob, so the ~200 quoted `--library` globs are fine. An empty stdout is not
+#     evidence of an empty result.
+#   · the count of affected scripts was first measured at 10 by an ad-hoc glob that
+#     went one directory less deep than the tree does; the conformance rule found the
+#     eleventh, in `tests/integration/`. The rule is the instrument, not the grep.
 #
 # WHAT THIS LEG PROVES
 #
