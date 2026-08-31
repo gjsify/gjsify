@@ -414,7 +414,9 @@ function runCheckMode(groups: readonly DependencyGroup[], exact = false): void {
         console.error(
             `\nFix: run \`gjsify upgrade --align --exact\` (offline; drops the operator and keeps the version).`,
         );
-        process.exit(1);
+        // `return`, not a bare call: under GJS the process does not halt here, and the
+        // consistency report below would run on top of the exactness one.
+        return process.exit(1);
     }
     if (inconsistencies.length === 0) {
         console.log(
