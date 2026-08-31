@@ -108,7 +108,22 @@ GtkPrintUnixDialog:     Cannot read properties of undefined (reading 'list_prope
 Both are `…UnixDialog` — GTK does not build them on Windows. `src/generated/` is
 produced from the GIR on a LINUX host, so it bakes in Linux-only classes and then
 `generated.spec.ts` / `conformance.spec.ts` compare that table against the INSTALLED
-typelib, where two rows have no class at all. Nothing about it is the operating
+typelib, where two rows have no class at all.
+
+**A version skew is the obvious second hypothesis and it is ruled out.** The two
+bundles' `Gtk-4.0.typelib` differ in size (559 728 win32 against 567 784 darwin) and
+the win32 GTK is gvsbuild's against Homebrew's, so "the Windows GTK is older" reads as
+the likelier story — and it would send someone to bump a version. The full
+capitalised-identifier diff of the two typelibs is 12 names and they are ONE subsystem:
+`GtkPageSetupUnixDialog`, `GtkPrintUnixDialog`, `GtkPrinter`, `GtkPrintJob`,
+`GtkPrintCapabilities`, `PrintBackend`, `PrinterFunc`, `PrintJobCompleteFunc` — GTK's
+Unix print stack, entire, and nothing else. An older GTK would be missing classes
+scattered across unrelated subsystems. The portable replacements `GtkPrintDialog` and
+`GtkFileDialog` are in BOTH, and both Unix dialogs are in the Linux system GTK 4.22.
+Corroborating from the suite side: `refuses a type whose namespace it cannot import`
+stays GREEN, so no namespace is missing — a class inside a present one is.
+
+So the repair is to mark that subsystem Unix-only. A GIR bump would fix nothing. Nothing about it is the operating
 system's fault or the bundle's: the published `@gjsify/gtk-runtime-win32-x64` verified
 clean (33 backed typelibs, `windowing=true`, decode probe green) and
 `check-batteries.mjs` passed before the suite started.
@@ -124,6 +139,28 @@ Two things to fix, and they are separable:
    conformance test whose subject is "the table vs the installed typelib" should report
    an absent class by name rather than dereference it — otherwise the next OS finding
    arrives as six anonymous type errors, which is how this one nearly did.
+
+### The darwin GTK bundles ship no `GIRepository-2.0` typelib; the win32 one does
+
+Noticed while diffing the two published 0.45.0 closures for the entry above, and
+independent of it — nothing measured so far needs the namespace, which is why it is a
+line here rather than a defect.
+
+Typelib counts are 47 on darwin-arm64 and 45 on win32-x64. All but four of the
+differences are platform-correct (`GdkMacos-4.0` / `GioUnix-2.0` / `GLibUnix-2.0`
+against `GdkWin32-4.0` / `GioWin32-2.0` / `GLibWin32-2.0`). The remainder:
+
+| only on darwin | only on win32 |
+|---|---|
+| `AppStream-1.0`, `Xmlb-2.0`, `GDesktopEnums-3.0` | **`GIRepository-2.0`** |
+
+`GIRepository-2.0` being present on win32 and absent on darwin is the asymmetric one.
+Both builders share `typelib-backers.mjs` and neither names it in `REQUIRED_NAMESPACES`
+or `WINDOWING_REQUIRED_NAMESPACES`, so it arrives — or does not — through each
+platform's closure walk rather than by decision. A consumer that introspects the
+repository itself from `gi://GIRepository` would therefore work on Windows and fail on
+macOS, and no check would say so. Either both should carry it or neither should; deciding
+which is a question for whoever owns the bundle contract.
 
 ### The `os-axis` candidate set cannot see a package whose DATA is OS-specific
 

@@ -141,6 +141,24 @@
 # Linux-only classes. Five further assertions are the same two classes reached
 # through `$gtype` / `list_properties` on an `undefined`.
 #
+# A VERSION SKEW IS THE OBVIOUS SECOND HYPOTHESIS AND IT IS RULED OUT, measured
+# rather than argued — the two bundles' `Gtk-4.0.typelib` differ in size (559 728
+# win32 against 567 784 darwin) and the win32 GTK comes from gvsbuild against
+# Homebrew's, so "the Windows GTK is simply older" reads as the likelier story. The
+# full capitalised-identifier diff of the two typelibs says otherwise: 12 names, and
+# they are ONE subsystem —
+#
+#   GtkPageSetupUnixDialog GtkPrintUnixDialog GtkPrinter GtkPrintJob
+#   GtkPrintCapabilities PrintBackend PrinterFunc PrintJobCompleteFunc
+#
+# GTK's Unix print stack, entire, and nothing else. An older GTK would be missing
+# classes scattered across unrelated subsystems; this is one subsystem omitted
+# cleanly, which is what a platform `#ifdef` looks like. The portable replacements
+# `GtkPrintDialog` and `GtkFileDialog` are present in BOTH, and both Unix dialogs are
+# present in the Linux system GTK 4.22 as well. So the repair is to mark that
+# subsystem Unix-only, NOT to align GIR versions — a distinction worth keeping,
+# because the version story suggests a bump and the bump would fix nothing.
+#
 # This is precisely the failure mode ADR 0018 § 5 predicts and the reason the OS
 # axis is DRIVEN: an answer a single-OS pipeline cannot get wrong, because on Linux
 # the class is always there. It is also a defect in THIS layer rather than in the
