@@ -138,6 +138,20 @@ libadwaita 1.9.2 (recorded further down this file). What was missing is the cons
 `@girs/*` version is a claim about the GIR the types came from, and a measurement must name the
 library it ran against, which is `Adw.get_*_version()` and nothing else.
 
+**The skew is still live and now has one mechanism, on one surface.** Re-measured 2026-09-01:
+running `Gtk 4.22.4 / Adw 1.9.3` (`rpm -q` and `get_*_version()` agree), generated against
+`Gtk-4.0/4.23.3 Adw-1/1.10.0`. Since the vocabulary migration the generated artefacts carry
+BOTH numbers rather than one: `GENERATED_PROVENANCE` states the library the types came from,
+and `generated.spec.ts` reads it back against `get_*_version()`, so a class the host lacks is
+either explained by the gap or named as a fault. That is what turned six bare
+`can't access property "$gtype"` failures into `GtkSvgWidget (generated against Gtk 4.23.3,
+running 4.22.4)`.
+
+It fixes ONE surface. Every other measurement in this tree still has to name its own running
+library by hand, and the failure this entry recorded — reading the number off a type package —
+is as available as it ever was. The rule is unchanged; what exists now is one worked example of
+carrying both numbers instead of picking one.
+
 
 ### A node:test FILE fails with no named test and no message, on a leg nobody watches
 
