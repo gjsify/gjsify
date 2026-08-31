@@ -1,5 +1,7 @@
 import { run } from '@gjsify/unit';
 
+import animatedSuite from './animated/animated.spec.js';
+import easingSuite from './animated/easing.spec.js';
 import apisSuite from './apis/apis.spec.js';
 import eventEmitterSuite from './event-emitter.spec.js';
 import listsSuite from './lists/lists.spec.js';
@@ -22,6 +24,8 @@ run({
     primitivesSuite,
     apisSuite,
     widgetsSuite,
+    easingSuite,
+    animatedSuite,
     listsSuite,
     solidSuite,
     routesSuite,

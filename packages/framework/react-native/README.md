@@ -195,7 +195,7 @@ refusals. The plugin walks a directory and emits what it found.
 | `EventEmitter` | — | — | Pure JavaScript; nothing in it touches a platform. |
 | `unstable_batchedUpdates` | — | — | React 19 batches automatically; this is the identity call it already is upstream. |
 
-### Supported, with named limits (29)
+### Supported, with named limits (31)
 
 | export | tier | GTK | why |
 |---|---|---|---|
@@ -228,8 +228,10 @@ refusals. The plugin walks a directory and emits what it found.
 | `StatusBar` | P2 | — | A desktop window has no status bar to configure, and <StatusBar/> is in the first ten lines of most React Native screens — so it renders NOTHING and says so, rather than failing to import. |
 | `KeyboardAvoidingView` | P2 | Gtk.Box | No on-screen keyboard eats a desktop window layout, so the AVOIDING is the no-op. React Native’s KeyboardAvoidingView is a View that changes its own height; what is left here is the View. |
 | `Keyboard` | P2 | — | Its events are on-screen-keyboard events, which do not occur — so the questions with a correct answer get it and the ones whose answer would have to be invented refuse. |
+| `Animated` | P3 | Adw.TimedAnimation, over Adw.CallbackAnimationTarget | Value, timing and View — the three names a measured application uses, in one file of 28 routes. The rest of the subsystem is a graph evaluated per frame, and each of its 25 members refuses BY NAME. |
+| `Easing` | P3 | AdwEasing, through Adw.TimedAnimation:easing | Not arithmetic, which the planning entry called it: React Native’s easings are FUNCTIONS and AdwEasing is an ENUM with no callback form, so this is a name-to-enum mapping and every pair in it is measured. |
 
-### Planned (28)
+### Planned (26)
 
 | export | tier | GTK | why |
 |---|---|---|---|
@@ -238,8 +240,6 @@ refusals. The plugin walks a directory and emits what it found.
 | `PixelRatio` | P3 | Gdk.Surface.scale-factor | The scale factor of the surface the widget is on. |
 | `PlatformColor` | P3 | Adwaita named colours | Maps unusually well — GTK’s palette is exactly this idea. |
 | `AccessibilityInfo` | P3 | Gtk.Accessible / AT-SPI | The highest-value P3 entry: GTK’s accessibility model is strong and the props map onto it well. |
-| `Animated` | P3 | Adw.TimedAnimation / Adw.SpringAnimation | Genuinely mappable, but it is a subsystem rather than a component. Doing it badly is worse than not doing it. |
-| `Easing` | P3 | — | Pure maths; it lands with Animated or not at all. |
 | `LayoutAnimation` | P3 | — | Needs an animated layout pass, which is the same subsystem as Animated. |
 | `InteractionManager` | P3 | — | Deferring work until interactions settle; a main-loop idle source is the counterpart. |
 | `useAnimatedValue` | P3 | — | Part of the Animated subsystem. |
