@@ -2,10 +2,10 @@
 //
 // WHY EXACTNESS AND NOT CONSISTENCY. `gjsify upgrade --check` already holds that every
 // manifest declares a dependency at the SAME range, and that is a different question: a
-// tree where all 451 declarations agree on `^4.1.0` is perfectly consistent, our lockfile
+// tree where every declaration agrees on `^4.1.0` is perfectly consistent, our lockfile
 // pins it, and none of that reaches a consumer. What a stranger installs against is the
 // DECLARATION in a published package, with no lockfile of ours — and `@gjsify/gtk-host`
-// consumes the `@girs/<ns>/surface` subpath. A minor `@girs` release moving that subpath
+// consumes the `@girs/<ns>/vocabulary` subpath. A minor `@girs` release moving that subpath
 // under such an install is the hazard ADR 0029 § Risks 1 names.
 //
 // WHY A SCRIPT AND NOT `gjsify upgrade --check --exact`. That option exists and answers

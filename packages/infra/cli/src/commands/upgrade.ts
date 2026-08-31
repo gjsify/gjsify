@@ -374,7 +374,7 @@ function splitRange(range: string): { prefix: string; version: string | null } {
  * Consistency and exactness are different questions, and the first cannot answer the
  * second: a repository where every manifest agrees on `^4.1.0` is perfectly consistent
  * and still lets a minor release move a subpath under a lockfile-less install. That is
- * the hazard ADR 0029 § Risks 1 names for `@girs/*`, whose `./surface` export is what
+ * the hazard ADR 0029 § Risks 1 names for `@girs/*`, whose `./vocabulary` export is what
  * `@gjsify/gtk-host` consumes — so the pin has to be the whole version, and something
  * has to say so on every PR.
  *
