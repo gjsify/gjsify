@@ -38,7 +38,7 @@
 import { UnknownUtilityError } from './errors.js';
 import { GTK_CSS_PROPERTIES } from './gtk-css.js';
 import { GTK_WIDGET_PROPERTIES } from './gtk-props.js';
-import { requireToken, type Scale, type StyleTokens } from './tokens.js';
+import { requireToken, tailwindDefaultHint, type Scale, type StyleTokens } from './tokens.js';
 
 /** React Native's own `alignItems`/`alignSelf` vocabulary. */
 export type AlignValue = 'flex-start' | 'flex-end' | 'center' | 'stretch' | 'baseline';
@@ -299,7 +299,10 @@ function requireSize(tokens: StyleTokens, kind: 'width' | 'height', token: strin
     const known = [...new Set([...Object.keys(own ?? {}), ...Object.keys(tokens.spacing ?? {})])].sort().join(', ');
     throw new UnknownUtilityError(
         utility,
-        `"${token}" is in neither the ${kind} nor the spacing scale. Known: ${known === '' ? '(neither scale is configured)' : known}`,
+        `"${token}" is in neither the ${kind} nor the spacing scale. Known: ${known === '' ? '(neither scale is configured)' : known}` +
+            // Both scales, because `w-*` reads both — and the hint is only ever a
+            // sentence when one of them would have answered.
+            (tailwindDefaultHint(kind, token) || tailwindDefaultHint('spacing', token)),
     );
 }
 

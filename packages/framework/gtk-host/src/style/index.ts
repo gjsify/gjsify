@@ -15,7 +15,14 @@
 
 export { GTK_CSS_PROBES, GTK_CSS_PROPERTIES, NOT_GTK_CSS } from './gtk-css.js';
 export { GTK_WIDGET_PROPERTIES, GTK_WIDGET_PROPERTY_PROBES, NOT_GTK_WIDGET_PROPERTIES } from './gtk-props.js';
-export { MINIMAL_TOKENS, lookupToken, requireToken } from './tokens.js';
+export {
+    MINIMAL_TOKENS,
+    TAILWIND_DEFAULT_TOKENS,
+    lookupToken,
+    mergeTokens,
+    requireToken,
+    tailwindDefaultHint,
+} from './tokens.js';
 export type { Scale, StyleTokens } from './tokens.js';
 export { UnknownUtilityError } from './errors.js';
 export { PAINT_PROPERTIES, partitionPaint, resolvePaintUtility } from './paint.js';

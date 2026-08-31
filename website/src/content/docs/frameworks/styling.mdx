@@ -160,6 +160,76 @@ child as `halign` / `valign`, so resolving it means walking children. And *which
 depends on the element's own orientation — where the defaults disagree, since a `Gtk.Box` is
 horizontal and a React Native `View` is a column. There is not even a safe fallback to guess with.
 
+## Your `@theme` will still lean on Tailwind for `0` and `full`
+
+The values behind a class name are your project's — that is the rule the whole
+partition is built on, and the default scale it ships is *deliberately* tiny so that
+a token you never declared is a named error rather than a wrong margin.
+
+Measured, and it is the highest-frequency finding of the whole exercise: a
+production-shaped application whose Tailwind v4 `@theme` declares its own scales
+**still relies on Tailwind's defaults** for a handful of utilities. Running its real
+class vocabulary — **87 distinct utilities, 826 occurrences** — through this partition
+with tokens generated mechanically from that `@theme` resolves **81 of 87 distinct and
+803 of 826 occurrences**. Five of the six failures are one thing:
+
+| Class | Uses | Missing from |
+|---|---:|---|
+| `rounded-full` | 11 | the project's `borderRadius` scale |
+| `inset-0`, `left-0`, `right-0`, `top-0` | 9 between them | the project's `spacing` scale |
+
+The scales have no `full` and no `0`, and there is no reason they should.
+**Neither is a design decision.** A token source emits the values a designer chose;
+`inset-0` means "flush" and `rounded-full` means "a pill". So a project can declare
+its entire palette and type scale and still lean on Tailwind for the *structural*
+tokens — and find that out one class at a time, in a window.
+
+The answer is an **opt-in you can see in your own code**, not a wider default:
+
+```ts
+import { TAILWIND_DEFAULT_TOKENS, mergeTokens } from '@gjsify/gtk-host/style';
+import { configureStyle } from '@gjsify/react-native';
+import { tokens } from './tokens.js';
+
+configureStyle({ tokens: mergeTokens(TAILWIND_DEFAULT_TOKENS, tokens) });
+```
+
+**Use `mergeTokens`, not a spread.** `{ ...TAILWIND_DEFAULT_TOKENS, ...tokens }`
+replaces whole *scales*, so a project that declares any `spacing` at all loses `0`
+again — which is the exact bug the constant exists to answer. `mergeTokens` merges
+token by token, later sets winning, so your `px` overrides the default `px` without
+taking the rest of the scale with it.
+
+`TAILWIND_DEFAULT_TOKENS` is **not** a copy of Tailwind's default theme, and the
+smallness of the built-in default is unchanged. It carries the structural tokens and
+the keyword sets — the ones a `@theme` has no reason to name — and no numeric ladder,
+because shipping `spacing-4` … `spacing-96` would be shipping a design decision your
+project has already made differently. Three divergences from Tailwind's own numbers,
+each forced:
+
+- **every length is px, not rem** — a `rem` token pads and cannot margin, since
+  `Gtk.Widget:margin-top` is a `gint` of device pixels with no unit conversion behind
+  it. A rem-faithful copy would trade "the token is missing" for "the token throws on
+  half the families";
+- **`full` is `9999px`**, not `calc(infinity * 1px)` — GTK's parser has no infinity,
+  and a radius larger than the box is clamped anyway;
+- **`inherit` is absent from the colours** — `color: inherit` parses, but
+  `alpha(inherit, 0.5)` does not (measured), so `bg-inherit/50` would be a refusal
+  rather than a colour. The other four keywords survive the modifier and are carried.
+
+You do not have to find any of this out from a table. A scale miss whose token
+Tailwind's defaults *do* define says so in the error, with the value:
+
+```
+@gjsify/gtk-host/style: "rounded-full" — "full" is not in the borderRadius scale.
+Known: l, m, s. Tailwind's own default scale defines "full" (9999px) — a project's
+`@theme` has no reason to declare it, so spread TAILWIND_DEFAULT_TOKENS into your
+tokens with mergeTokens() if you rely on it
+```
+
+An ordinary typo gets no such sentence, deliberately: a remedy offered where it would
+not have helped sends a reader to add a dependency instead of to fix the spelling.
+
 ## `flex-wrap` is a different widget, not a property
 
 A `Gtk.Box` lays its children on one line and installs nothing that gives it a

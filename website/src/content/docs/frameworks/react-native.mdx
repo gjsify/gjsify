@@ -79,6 +79,20 @@ import { tokens } from './tokens.js';
 configureStyle({ tokens });
 ```
 
+If your tokens are generated from a Tailwind v4 `@theme`, add the structural defaults
+your `@theme` has no reason to declare — measured, a real application's vocabulary
+loses `rounded-full` and `inset-0`/`top-0`/`left-0`/`right-0` without them:
+
+```tsx
+import { TAILWIND_DEFAULT_TOKENS, mergeTokens } from '@gjsify/gtk-host/style';
+
+configureStyle({ tokens: mergeTokens(TAILWIND_DEFAULT_TOKENS, tokens) });
+```
+
+`mergeTokens` and not a spread: a spread replaces whole scales and loses `0` again.
+The [styling page](/gjsify/frameworks/styling/) has the numbers and what the set does
+not carry.
+
 Every snippet on this page uses those two scales. **Skipping this step is not a styling
 difference, it is a blank window**: the first undeclared token throws out of the render, React
 unmounts the tree, and the process goes on to exit 0 with no GTK diagnostic at all — measured, and

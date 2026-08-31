@@ -24,7 +24,7 @@
 
 import { UnknownUtilityError } from './errors.js';
 import { GTK_CSS_PROPERTIES } from './gtk-css.js';
-import { lookupToken, requireToken, type StyleTokens } from './tokens.js';
+import { lookupToken, requireToken, tailwindDefaultHint, type StyleTokens } from './tokens.js';
 
 /** The properties the paint half understands, in React Native's spelling. */
 export interface PaintProps {
@@ -210,7 +210,11 @@ export function resolvePaintUtility(utility: string, tokens: StyleTokens): Paint
                 return { borderWidth: width };
             }
             if (tint !== undefined) return { borderColor: colour(tint) };
-            throw new UnknownUtilityError(utility, `"${token}" is in neither the borderWidth nor the colors scale`);
+            throw new UnknownUtilityError(
+                utility,
+                `"${token}" is in neither the borderWidth nor the colors scale` +
+                    (tailwindDefaultHint('borderWidth', token) || tailwindDefaultHint('colors', token)),
+            );
         }
         case 'text': {
             // The genuinely ambiguous family, and the scales settle it: `text-sm` is
@@ -234,7 +238,11 @@ export function resolvePaintUtility(utility: string, tokens: StyleTokens): Paint
                 return { fontSize: size };
             }
             if (tint !== undefined) return { color: colour(tint) };
-            throw new UnknownUtilityError(utility, `"${token}" is in neither the fontSize nor the colors scale`);
+            throw new UnknownUtilityError(
+                utility,
+                `"${token}" is in neither the fontSize nor the colors scale` +
+                    (tailwindDefaultHint('fontSize', token) || tailwindDefaultHint('colors', token)),
+            );
         }
         case 'font': {
             noAlpha();

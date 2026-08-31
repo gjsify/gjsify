@@ -16,8 +16,10 @@ import layoutSuite from './style/layout.spec.js';
 import listSuite from './list/list.spec.js';
 import paintSuite from './style/paint.spec.js';
 import sheetSuite from './style/sheet.spec.js';
+import tokensSuite from './style/tokens.spec.js';
 
 run({
+    tokensSuite,
     sheetSuite,
     paintSuite,
     layoutSuite,
