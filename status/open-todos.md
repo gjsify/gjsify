@@ -4,6 +4,30 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### Several named themes, one per desktop, selectable from the app's own settings
+
+`ThemeRegistry` (`packages/framework/gtk-host/src/style/theme.ts`) is built and ships
+exactly ONE theme: the neutral default, whose document is empty so an application looks
+like the desktop it is on. The product direction it was shaped to fit is not built:
+**several named themes — one that looks at home on each of the three desktop operating
+systems — with the default chosen by the host OS and the theme selectable at runtime
+from the application's own settings.** The runtime switch doubles as the way all three
+looks get tested on one machine, which is the reason it is a registry rather than a
+document loaded at startup.
+
+What is already in place, so the direction fits without a redesign: named registration,
+`select()` at runtime on one provider whose document is replaced, `selectDefault(platform)`
+choosing by an OS name the CALLER supplies, the containment probe at registration, and the
+measured provider priority (`PRIORITY_SETTINGS`, above libadwaita's own at 200 and below
+the generated sheet at 600, order-independently). What is missing is the two other themes,
+the settings UI that switches them, and a decision about what "at home on macOS" and "at
+home on Windows" actually mean in Adwaita's named colours — which is a design question and
+not a coding one, and should not be answered by guessing three palettes.
+
+The one thing NOT to reach for while doing it: `Adw.StyleManager:accent-color` is
+read-only (measured, libadwaita 1.9.3). An accent is a `--accent-bg-color` redefinition in
+the theme's document, never a property write.
+
 ### One package, two module instances — a "singleton" the bundle duplicates
 
 `@gjsify/adwaita-nativescript` is bundled **TWICE** into the NativeScript storybook
