@@ -472,3 +472,49 @@ Migration order, each step green before the next:
 4. Retire `gir.mts` from the generation path; keep it as the domparser differential
    test. Needs 3.
 5. Only then consider deriving `omittedProps` from the curated placement rule.
+
+## Amendment — 2026-09-01: the subpath is `vocabulary`, and steps 3 and 4 have landed
+
+**The subpath shipped as `@girs/<ns>/vocabulary`, not `/surface`.** Everything above
+that says `surface` means this. The rename happened before any consumer existed, so
+nothing was carried for compatibility. `surface` was the wrong word twice over: it is
+one of those abstract metaphor nouns that reads technical and says nothing, and this
+repo already spends it on three other things (the type surfaces `check-type-surfaces.mjs`
+gates, the widget surfaces `check-vocabulary-alignment.mjs` reads, an `.d.ts` API
+surface). `vocabulary` says what the export is — the names a namespace registers, and
+what each one is called — and it is already the word ADR 0034 uses for the rule this
+data serves.
+
+**Step 3 landed** as `packages/framework/gtk-host/src/generator/girs-vocabulary.mts`.
+Both halves of a vocabulary are read: the runtime `.js` for the facts and the `.d.ts`
+for the rendered types, the docs and — this one was not foreseen — the namespace
+imports. Which namespaces the rendered types reach into cannot be derived from the
+source list: `Gdk.RGBA` appears in a Gtk property, and emitting it without reading
+`import type Gdk from '@girs/gdk-4.0'` out of the vocabulary's own header produces
+TS2503 in a file nobody hand-edits.
+
+Measured against the artefact the GIR route produced: kebab properties 599 → 601,
+camelCase 2192 → 2187. The 14 lost are signal handlers off the four bases the
+vocabulary declares as dropped (`GObject.Object`, `GObject.InitiallyUnowned`,
+`Gio.ActionGroup`, `Gio.ActionMap` — `PROVENANCE.droppedBases` states them, which is how
+the loss was attributable rather than mysterious); the 9 gained are real, `GtkSvgWidget`
+among them. Two vocabularies read in 28 ms, against a 232 ms parse of one 6.2 MB GIR.
+
+**One consequence the ADR did not anticipate: the vocabulary can describe a NEWER
+library than the one installed.** The GIR route read a local file and could never see
+this. `@girs` is generated on one machine and consumed on another, so `GtkSvgWidget` is
+in the surface and not in the GTK here. Six checks died on it as a bare `can't access
+property "$gtype"`, naming nothing. The provenance line now carries the library version
+(`Gtk-4.0/4.23.3`) and the suite reads it back, so the gap is judged once, by name,
+against the running version — and the two enum nicks in the same position
+(`GtkEditableProperties.prop-complete-text` and `prop-input-interceptor`) are listed on
+every run instead of silenced. Those checks are SHARP only where the versions match.
+
+**Step 4 dropped `gir.mts` outright, and the differential test it was to become is not
+being built.** The plan was to keep it as a domparser differential; the input makes that
+impossible in the honest form. A 6.2 MB `Gtk-4.0.gir` is a distro artefact that is not
+in this repository and should not be, so the test would either read whatever GIR the
+machine happens to have — a test that measures the machine — or read nothing. If
+domparser wants the large-document assurance the parse was quietly providing (232 ms,
+53 MB RSS), it needs a GENERATED fixture of its own, in its own package, sized on
+purpose. Named here rather than left to be rediscovered as a gap.

@@ -626,89 +626,55 @@ without its surface is a claim wider than its measurement.
 A full `tsc` conformance check remains the right oracle on the wrong instrument —
 `Gtk.Entry` is 509 members, and the gate job runs `checkout` + `setup-node` with no install.
 
-### The `@girs/*` widget surface exists but gtk-host cannot consume it yet
+### The `@girs/*` vocabulary is consumed — what the migration cost, and the one open decision
 
-ADR 0029 moves the GIR-derived widget vocabulary to `@girs/<ns>/surface`. The
-ts-for-gir half is implemented and landed there (generator in
-`packages/generator-typescript/src/surface/`, gate in `tests/widget-surface`). The
-gjsify half — deleting `gtk-host/src/generated/props.ts`, replacing it with the
-consumer dialect, and repointing `generated.spec.ts` at the published runtime data —
-is blocked on a RELEASE, and is not attempted here rather than faked.
+**Done.** `gtk-host` builds `props.ts`, `widgets.ts` and `surface-data.mts` from
+`@girs/<ns>/vocabulary` (ADR 0029 steps 3 and 4; the § Amendment there carries the
+measurements and the rename from `/surface`). `gir.mts`, `tsmap.mts` and the GIR route
+are gone with it, and `@gjsify/domparser` is no longer a `gtk-host` dependency.
 
-**What exactly is missing, and how to tell it has arrived.** `@girs/gtk-4.0@4.1.0`
-(the installed version, and the newest published) has four `exports` keys: `.`,
-`./ambient`, `./import`, `./gtk-4.0`. The subpath is a fifth.
+**The blocker in the old version of this entry was real but overcome-able, and how is
+worth keeping.** It said a consumer-side branch "could only resolve against a local
+ts-for-gir checkout, which is not something CI can reproduce". True of CI, false of the
+work: `@girs` was built locally from the ts-for-gir worktree and grafted into
+`node_modules/@girs` behind a marker file, which unblocked the whole consumer side while
+the release ran in parallel. Three traps in that recipe, all of which fail QUIETLY:
+`--configName` must be repo-relative (an absolute path is ignored and silently falls back
+to `modules: ["*"]`), the generator's interactive prompts exit 0 with no artefact unless
+fed (`yes ''`), and a long GJS run in the foreground is killed by the sandbox CPU governor
+as exit 144. Waiting for a release was never the only option.
 
-Ask the REGISTRY, because that is the question — the local `node_modules` can be stale
-either way:
+**One decision is open, and it is now measured rather than predicted.** This entry used to
+forecast that the vocabulary's GIR-stated nullability would narrow `props.ts`, which
+widened every object-typed property with `| null`. It did, exactly where forecast:
+`'action-target'?: GLib.Variant` where it was `GLib.Variant | null`, same for `cell-area`,
+`pointing-to`, `page-setup`, `print-settings` and the rest of the twelve. Total `| null`
+occurrences went UP (284 → 356) — the vocabulary states nullability in far more places
+than the old blanket rule reached, and takes it away in twelve.
 
-    npm view @girs/gtk-4.0 exports --json
+Nothing fails today: `check`, `test` (2276) and `lint` are all green, so no fixture passes
+`null` to one of the twelve. The decision is therefore not urgent and not closed — is
+GIR's annotation right? GObject accepts `NULL` for most object-typed properties whatever
+GIR says, so a narrowing that follows the annotation can still be wrong about the runtime.
+The honest way to settle it is to ASK the installed library (set `null` through
+`g_object_set` and see whether it is refused), not to pick a side in the types. Until
+someone does, the types say what GIR says, which is at least attributable.
 
-Or the installed copy, read as a FILE. Note what does not work and why: `require(
-'@girs/gtk-4.0/package.json')` throws `ERR_PACKAGE_PATH_NOT_EXPORTED`, because the
-package does not export `./package.json` and asking a package about its own `exports`
-through `exports` is circular — a probe that fails identically before and after the
-release answers nothing:
+**A second thing the release retires.** `checkTypeSkew` in
+`packages/infra/cli/src/utils/check-system-deps.ts` carries `isDegenerate()`, which detects
+`@girs`' namespace-version-as-release fallback — the value ADR 0019 Decision 3 removed in
+ts-for-gir#436. A released `@girs` now omits `libraryVersion` where the library declares
+none, so that detector reads for a shape that can no longer be published. It goes away
+rather than moving anywhere.
 
-    node -e "console.log(Object.keys(JSON.parse(require('node:fs').readFileSync('node_modules/@girs/gtk-4.0/package.json','utf8')).exports).join(' '))"
-
-When either prints `./surface`, and the file it names carries a `Widgets` interface plus
-the runtime constants (`OWN_PROPS`, `OWN_SIGNALS`, `DECLS`, `ENUM_NICKS`,
-`SLOT_CANDIDATES`, `SINCE`), migration steps 3–5 of ADR 0029 § Implementation can
-start. Until then a consumer-side branch could only resolve against a local
-ts-for-gir checkout, which is not something CI can reproduce.
-
-**Who unblocks it, and in what order.** Re-measured 2026-08-26: still four keys, so
-nothing below has happened yet. The whole chain hangs off ONE human action in the
-ts-for-gir repo — everything after it is automatic, and none of it is a gjsify action:
-
-1. **A ts-for-gir maintainer cuts a release** from `main` on a clean tree
-   (`yarn release:stable`; release-it has `requireBranch: main`). ts-for-gir is at
-   4.1.0 and tag `v4.1.0` already exists, so the surface — merged as ts-for-gir#438
-   on 2026-08-26 — is UNRELEASED code. #438 is a `feat`, so the cut is 4.2.0.
-   `.release-it.json` has `npm.publish: false`; the cut only tags and opens a GitHub
-   release.
-2. The `release: published` event fires `release-types.yml`, which runs
-   `build:types:release` and pushes the regenerated `@girs/*` to `gjsify/types@main`.
-   Nothing needs enabling: the config it uses, `.ts-for-gir.packages-all.rc.js`, already
-   sets `widgetSurface: true`, and `packages/templates/templates/package.json` emits the
-   `./surface` key conditionally on `girModule.hasWidgetSurface` — so the key appears for
-   the namespaces that declare a concrete `GtkWidget` descendant and nowhere else.
-3. That push fires `gjsify/types`' own `Release CI` (`on: push: branches: [main]`),
-   which publishes every `@girs/*` to npm. This is the step that makes the subpath
-   installable, and it is triggered by the push rather than by the release — so a cut
-   whose `release-types.yml` leg fails publishes `@ts-for-gir/*` and NO new `@girs/*`,
-   which looks like a successful release from the tag.
-4. Probe again. `npm view @girs/gtk-4.0 version` must read 4.2.0 AND
-   `npm view @girs/gtk-4.0 exports --json` must show the fifth key. Both, because
-   step 3 is where the two can come apart.
-
-Only then do ADR 0029 steps 3–5 become gjsify work. Nothing here is a gjsify PR, and
-there is no partial version of it worth landing first: a consumer-side branch pinned to
-a local ts-for-gir checkout is not something CI can resolve.
-
-**The same release retires a second thing.** `checkTypeSkew` in
-`packages/infra/cli/src/utils/check-system-deps.ts` carries `isDegenerate()`, which
-detects `@girs`' namespace-version-as-release fallback — the value ADR 0019 Decision 3
-removed in ts-for-gir#436, also unreleased. Once a released `@girs` omits
-`libraryVersion` where the library declares none, that detector is reading for a shape
-that can no longer be published, and it goes away rather than moving anywhere.
-
-**Two things to pin when it does arrive.** The `@girs` version must be EXACT, not a
-caret: `@gjsify/gtk-host` declares eight `@girs/*` packages at `^4.1.0`, and a minor
-`@girs` release moving the surface under a lockfile-less install is the hazard ADR
-0029 § Risks 1 names. And `@girs` carries two cadences — package `version` 4.1.0 and
-`libraryVersion` 4.23.0 — so the pin is on the former.
-
-**One measured shape difference to expect in the diff, not a bug.** `props.ts` widens
-every object-typed property with `| null`; the `@girs` surface prints the nullability
-GIR states, because it reads the same model the main emitter does. Measured against the
-generated Gtk-4.0 surface: **12 of its 418 dashed keys** — `action-target`, `cell-area`,
-`cell-area-context`, `pointing-to`, `page-setup`, `print-settings`, `accel-size-group`,
-`title-size-group` and the four `primary-`/`secondary-icon-gicon`/`-paintable` keys. So
-the migration will surface fixtures that pass `null` to a property GIR does not mark
-nullable. That is a real narrowing and wants a decision — widen in the consumer dialect,
-or fix the fixtures — rather than a silent cast.
+**Still open upstream, found while consuming the vocabulary:** interface signals. Only
+`IntrospectedClass.fromXML` reads `<glib:signal>`; `IntrospectedInterface` has no `signals`
+field at all, so `GtkEditable`, `GtkCellEditable`, `GtkColorChooser` and `GtkFontChooser`
+contribute 8 signals that reach no surface. Fixing it touches the emitter for all 705
+packages and is noted in `VocabularyDecl.signals` in ts-for-gir. The sibling defect —
+`OWN_SIGNALS` keyed by creatable widget while `OWN_PROPS` is keyed by declaration, which
+lost every signal of every abstract base including `GtkWidget`'s 13 — is fixed in
+ts-for-gir#456 and needs a release to reach here.
 
 ### What else could move to ts-for-gir, and the line that decides it
 
