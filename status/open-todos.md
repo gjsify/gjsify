@@ -28,6 +28,21 @@ The one thing NOT to reach for while doing it: `Adw.StyleManager:accent-color` i
 read-only (measured, libadwaita 1.9.3). An accent is a `--accent-bg-color` redefinition in
 the theme's document, never a property write.
 
+### `packages/framework/AGENTS.md` is 150 bytes from silent truncation
+
+It is **32324 bytes** against the 32 KiB (32768) ceiling at which Codex truncates a
+project doc's tail *without saying so* — 444 bytes of headroom, and `status/agent-context-budget.json`
+pins the ceiling at the current size, so the next addition of any substance fails
+`check-agent-context-size` (measured: a 294-byte line did). The ratchet is doing its job;
+what it cannot do is shrink the file.
+
+The growth is in one place and the fix is the one the root AGENTS.md already prescribes:
+the `react-native` and `gtk-host` rows carry numbered lists of MEASUREMENTS — the kind of
+detail that belongs in `docs/` or on the website, linked from the rule that needs it. Moving
+those out is what buys room for the next real rule; raising the ceiling instead buys 444
+bytes once and then hits a limit that fails silently rather than loudly. Do NOT delete the
+incidents behind them — a rule without its reason gets "simplified" back into the bug.
+
 ### One package, two module instances — a "singleton" the bundle duplicates
 
 `@gjsify/adwaita-nativescript` is bundled **TWICE** into the NativeScript storybook
