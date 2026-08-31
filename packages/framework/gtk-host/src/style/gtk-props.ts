@@ -58,6 +58,15 @@ export const GTK_WIDGET_PROPERTY_PROBES: ReadonlyArray<readonly [gtype: string, 
         ['GtkBox', 'spacing', 'gint'],
         ['GtkLabel', 'xalign', 'gfloat'],
         ['GtkLabel', 'justify', 'GtkJustification'],
+        // The wrapping widget. `flex-wrap` is a widget swap rather than a property
+        // (`layout.ts`), and these four are what the swapped-in class takes instead
+        // of the box's single `spacing`. `guint`, not `gint`: a negative row spacing
+        // is out of range rather than merely odd, and `max-children-per-line` has a
+        // ceiling — writing G_MAXUINT to it stores 65535 (measured).
+        ['GtkFlowBox', 'row-spacing', 'guint'],
+        ['GtkFlowBox', 'column-spacing', 'guint'],
+        ['GtkFlowBox', 'max-children-per-line', 'guint'],
+        ['GtkFlowBox', 'selection-mode', 'GtkSelectionMode'],
     ];
 
 /**
@@ -86,6 +95,10 @@ export const NOT_GTK_WIDGET_PROPERTIES: ReadonlyArray<readonly [gtype: string, p
     ['GtkLabel', 'orientation'],
     ['GtkLabel', 'spacing'],
     ['GtkCenterBox', 'spacing'],
+    // The absence `flex-wrap` is built on: a wrapping element becomes a
+    // `Gtk.FlowBox`, which has a row spacing and a column spacing and NO `spacing`
+    // — so a gap that took the box's route would be applied to a widget that
+    // refuses it, at attach time, in a consumer's window.
     ['GtkFlowBox', 'spacing'],
     // Only a text widget aligns text, which is why `text-center` is an intent.
     ['GtkWidget', 'xalign'],

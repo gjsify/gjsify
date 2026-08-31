@@ -29,6 +29,7 @@ export type {
     LayoutPartition,
     LayoutProps,
     OverlayIntent,
+    WrapIntent,
 } from './layout.js';
 export { partition, resolveUtilities, resolveUtility } from './resolve.js';
 export type { Partitioned, StyleProps } from './resolve.js';

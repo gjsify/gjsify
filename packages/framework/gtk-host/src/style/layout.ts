@@ -69,6 +69,7 @@ export interface LayoutProps {
     paddingBottom?: string;
     paddingLeft?: string;
     flexDirection?: 'row' | 'column';
+    flexWrap?: 'nowrap' | 'wrap';
     flexGrow?: string;
     alignItems?: AlignValue;
     justifyContent?: JustifyValue;
@@ -155,6 +156,25 @@ export interface LayoutIntent {
      */
     readonly overlay?: OverlayIntent;
     /**
+     * `flex-wrap` — the element becomes a DIFFERENT WIDGET.
+     *
+     * A `Gtk.Box` lays its children on one line and has no second line to put
+     * anything on. Wrapping on GTK is `Gtk.FlowBox`, which is not another property
+     * on the box but another class — so this is the same shape as
+     * {@link LayoutIntent.distribute}'s `space-between`: L1 names the widget the
+     * answer needs and L2 swaps it, because L1 resolves properties for an element
+     * and has no say in what the element becomes.
+     *
+     * The SPACINGS travel with it, and that is the reason this field carries values
+     * at all rather than being a flag. `Gtk.FlowBox` has NO `spacing` (measured,
+     * `gtk-props.ts`) — it has `row-spacing` and `column-spacing`, both real at once
+     * — so a gap on a wrapping element cannot take the `Gtk.Box:spacing` route the
+     * gap routes below use, and the axis-qualified spellings stop being an
+     * orientation question. Routing them here is what keeps `gap-*` from emitting a
+     * property the widget does not install.
+     */
+    readonly wrap?: WrapIntent;
+    /**
      * `text-*` — only a text widget aligns text.
      *
      * `xalign` and `justify` are `Gtk.Label`'s; `Gtk.Box` has neither (measured).
@@ -164,6 +184,17 @@ export interface LayoutIntent {
      */
     readonly textAlign?: 'left' | 'center' | 'right' | 'justify';
 }
+
+/**
+ * `flex-nowrap` / `flex-wrap`, with the spacings a wrapping widget needs.
+ *
+ * `single` is carried rather than dropped for the reason `relative` is: it is the
+ * half L2 can hold the other half against, and a resolution that never sees it
+ * cannot tell "this element does not wrap" from "nobody asked".
+ */
+export type WrapIntent =
+    | { readonly lines: 'single' }
+    | { readonly lines: 'multi'; readonly rowSpacing?: number; readonly columnSpacing?: number };
 
 export type OverlayIntent =
     | { readonly role: 'context' }
@@ -191,6 +222,8 @@ const NO_LOGICAL_PADDING =
     'GTK has no logical padding in either mechanism — `padding-start` is not a CSS property (measured) and no GTK class installs a padding property at all — so it cannot be expressed even approximately. Use `pl-*`/`pr-*`';
 const NO_LOGICAL_TEXT_ALIGN =
     'GTK aligns text PHYSICALLY: `Gtk.Label:xalign` is 0 = left, and `GtkJustification` has exactly LEFT, RIGHT, CENTER and FILL (measured). There is no start/end spelling to map onto. Use `text-left`/`text-right`';
+const NO_REVERSED_WRAP =
+    '`Gtk.FlowBox` — the widget a wrap becomes — lays its lines out in one direction only: it installs `orientation`, `homogeneous`, `row-spacing`, `column-spacing`, `min-children-per-line`, `max-children-per-line` and `selection-mode`, and nothing that reverses the line order (measured). Reverse the children instead — the shadow tree is the order. `flex-wrap` is the spelling that maps';
 const NO_PERCENTAGE_SIZE =
     'GTK has no percentage size: a widget requests a MINIMUM in pixels (`width-request`) or expands to fill what it is given (`hexpand`). `w-full`/`h-full` are the only fractions with an exact GTK meaning';
 
@@ -288,17 +321,15 @@ export function resolveLayoutUtility(utility: string, tokens: StyleTokens): Layo
         case 'flex-col':
             return { flexDirection: 'column' };
         case 'flex-nowrap':
-            // `Gtk.Box` never wraps, so this restates the platform. The empty record
-            // is not a dropped utility: the name is DECLARED here and asserted empty
-            // in the spec, which is what separates "means nothing on GTK" from "was
-            // never recognised".
-            return {};
+            // A `Gtk.Box` is already one line, so this restates the platform — and
+            // it is still a VALUE rather than an empty record, because L2 refuses a
+            // wrap utility on a widget that cannot wrap and needs to see the
+            // no-wrap spelling to say so about the right element.
+            return { flexWrap: 'nowrap' };
         case 'flex-wrap':
+            return { flexWrap: 'wrap' };
         case 'flex-wrap-reverse':
-            throw new UnknownUtilityError(
-                utility,
-                'a `Gtk.Box` cannot wrap. Wrapping is a different widget — `Gtk.FlowBox` — and swapping the widget under an element is L2 widget selection, not a style property',
-            );
+            throw new UnknownUtilityError(utility, NO_REVERSED_WRAP);
         case 'flex-row-reverse':
         case 'flex-col-reverse':
             throw new UnknownUtilityError(
@@ -423,6 +454,7 @@ const unknownToken = (utility: string, token: string, table: Readonly<Record<str
 
 interface MutableIntent {
     expand?: 'main-axis';
+    wrap?: { lines: 'single' } | { lines: 'multi'; rowSpacing?: number; columnSpacing?: number };
     alignChildren?: AlignValue;
     distribute?: JustifyValue;
     alignSelf?: AlignValue;
@@ -491,6 +523,9 @@ function oneOf<T extends string>(value: string, allowed: readonly T[], property:
 
 type Route = (value: string, sink: Sink) => void;
 
+/** Has this element already declared that its children wrap? */
+const multiLine = (sink: Sink): boolean => sink.intent.wrap?.lines === 'multi';
+
 const edgeRoute =
     (edge: Edge): Route =>
     (value, sink) => {
@@ -554,6 +589,14 @@ const ROUTES: Readonly<Record<keyof LayoutProps, Route>> = {
             'orientation',
             oneOf(value, ['row', 'column'], 'flexDirection') === 'row' ? 'horizontal' : 'vertical',
         ),
+    // BEFORE the three gap routes below, by the declaration order this table is
+    // iterated in: a gap on a wrapping element goes to `Gtk.FlowBox`'s two spacings
+    // and not to `Gtk.Box:spacing`, and the routes can only see that if the wrap has
+    // already landed in the intent. Same reason `position` sits before the edges.
+    flexWrap: (value, sink) => {
+        sink.intent.wrap =
+            oneOf(value, ['nowrap', 'wrap'], 'flexWrap') === 'wrap' ? { lines: 'multi' } : { lines: 'single' };
+    },
     flexGrow: (value, sink) => {
         if (value !== '1') throw new UnknownUtilityError('flexGrow', NO_FLEX_FACTOR);
         sink.intent.expand = 'main-axis';
@@ -577,12 +620,27 @@ const ROUTES: Readonly<Record<keyof LayoutProps, Route>> = {
     alignSelf: (value, sink) => {
         sink.intent.alignSelf = oneOf(value, ['flex-start', 'flex-end', 'center', 'stretch', 'baseline'], 'alignSelf');
     },
-    gap: (value, sink) => emitProp(sink, 'spacing', pixels(value, 'spacing')),
+    gap: (value, sink) => {
+        const px = pixels(value, 'spacing');
+        // A wrapping element is a `Gtk.FlowBox`, which installs no `spacing` at all
+        // (measured, `gtk-props.ts`) — so emitting one here would be a property the
+        // widget refuses at attach time, in a consumer's window. Its two spacings
+        // are BOTH real, and an unqualified gap is both.
+        if (multiLine(sink)) sink.intent.wrap = { lines: 'multi', rowSpacing: px, columnSpacing: px };
+        else emitProp(sink, 'spacing', px);
+    },
     columnGap: (value, sink) => {
-        sink.intent.axisSpacing = { axis: 'horizontal', pixels: pixels(value, 'spacing') };
+        const px = pixels(value, 'spacing');
+        // On a `Gtk.Box` an axis-qualified gap is an orientation question L1 cannot
+        // answer. On a `Gtk.FlowBox` it is not a question at all: `column-spacing`
+        // is the gap between children in a line whichever way the lines run.
+        if (multiLine(sink)) sink.intent.wrap = { ...sink.intent.wrap, lines: 'multi', columnSpacing: px };
+        else sink.intent.axisSpacing = { axis: 'horizontal', pixels: px };
     },
     rowGap: (value, sink) => {
-        sink.intent.axisSpacing = { axis: 'vertical', pixels: pixels(value, 'spacing') };
+        const px = pixels(value, 'spacing');
+        if (multiLine(sink)) sink.intent.wrap = { ...sink.intent.wrap, lines: 'multi', rowSpacing: px };
+        else sink.intent.axisSpacing = { axis: 'vertical', pixels: px };
     },
     // `100%` is the ONLY fraction with an exact GTK meaning, and it is not a size at
     // all: `hexpand` says "take what is going", where `width-request` says "never
@@ -650,11 +708,15 @@ export function partitionLayout(props: LayoutProps): LayoutPartition {
         );
     }
 
+    // The two-spacings refusal is a fact about `Gtk.Box`, so it stops applying the
+    // moment the element declares that it wraps: `Gtk.FlowBox` has `row-spacing` AND
+    // `column-spacing` (measured), and `gap-4 gap-x-2` on a wrapping element is
+    // ordinary authoring that lands on exactly two properties.
     const gaps = ['gap', 'columnGap', 'rowGap'].filter((key) => props[key as keyof LayoutProps] !== undefined);
-    if (gaps.length > 1) {
+    if (gaps.length > 1 && props.flexWrap !== 'wrap') {
         throw new UnknownUtilityError(
             gaps.join(' + '),
-            'a `Gtk.Box` has ONE `spacing` (measured), so two gap spellings on one element ask for two spacings. Keep one',
+            'a `Gtk.Box` has ONE `spacing` (measured), so two gap spellings on one element ask for two spacings. Keep one, or add `flex-wrap` — a `Gtk.FlowBox` has a row spacing and a column spacing and can carry both',
         );
     }
 

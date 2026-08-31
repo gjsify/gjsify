@@ -17,6 +17,12 @@
 //   4. derive the effective orientation            — from step 3, not from the spec
 //   5. resolve the intents                         — needs step 4's answer
 //   6. mint the class                              — needs step 5's extra declarations
+//   7. apply the wrap swap                         — step 5 says WHICH widget, not this
+//
+// Step 7 is the second widget swap in this function and the opposite trigger to step
+// 1's: `switchOn` reads one React Native PROP, while a wrap is decided by the STYLE
+// and can therefore only be known after step 3. The class is minted before it (step
+// 6) because a generated class name travels with the element and not with the tag.
 //
 // Steps 3 and 4 are the pair that cannot be reordered: `flex-row` becomes the
 // widget property `orientation`, and `items-center` becomes `halign` or `valign`
@@ -28,7 +34,14 @@ import type { LayoutIntent, StyleProps, StyleTokens } from '@gjsify/gtk-host/sty
 
 import type { ClassNameInput } from './classes.js';
 import { PrimitiveError } from './errors.js';
-import { resolveIntent, type ChildContext, type ChildFacts, type Orientation, type WidgetFacts } from './intents.js';
+import {
+    resolveIntent,
+    type ChildContext,
+    type ChildFacts,
+    type Orientation,
+    type WidgetFacts,
+    type WrapResolution,
+} from './intents.js';
 import { mintClass, normalise, partition, variantDeclarations, type ClassNameSink, type StyleInput } from './style.js';
 import {
     FRAMEWORK_PROPS,
@@ -77,6 +90,29 @@ const withOrientationClass = (
     if (classes.length === 0) return classes;
     const orientation = props.orientation;
     return typeof orientation === 'string' ? [orientation, ...classes] : classes;
+};
+
+/**
+ * The node the children go into, after a wrap has changed which widget that is.
+ *
+ * ONE function for the three places a plan can put the children — the element's own
+ * node, the inner box of an overlay, and a `ScrollView`'s content box — because the
+ * swap is the same operation on all three and a second copy is the one that would
+ * miss `contentContainerClassName="flex-wrap"`.
+ */
+const wrapped = (
+    tag: string,
+    props: Record<string, unknown>,
+    wrapping: WrapResolution | null,
+): { readonly tag: string; readonly props: Record<string, unknown> } => {
+    if (wrapping === null) return { tag, props };
+    // `spacing` is `Gtk.Box`'s and the swapped-in class does not install it (measured,
+    // gtk-props.ts). L1 already routes a wrapping element's gap into the intent, so
+    // there is normally nothing here — this is the line that keeps that true if a
+    // spec ever carries a `spacing` of its own, rather than letting the host refuse
+    // the property at attach time in a consumer's window.
+    const { spacing: _dropped, ...rest } = props;
+    return { tag: wrapping.tag, props: { ...rest, ...wrapping.props } };
 };
 
 /** Everything L2 needs that is not the primitive and not its props. */
@@ -324,10 +360,11 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
             inner[name] = outerProps[name];
             delete outerProps[name];
         }
+        const innerNode = wrapped(spec.tag, inner, resolved.wrapping);
         return {
             primitive,
             node: { tag: overlay.tag, props: outerProps, cssClasses: withOrientationClass(outerProps, cssClasses) },
-            content: { tag: spec.tag, props: inner, cssClasses: [] },
+            content: { tag: innerNode.tag, props: innerNode.props, cssClasses: [] },
             backdrop: null,
             backdropSlot: null,
             contentSlot: null,
@@ -347,9 +384,19 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
     const backdropResolved =
         spec.backdrop === undefined ? null : resolveNode(spec.backdrop, props, backdropProps, context, primitive);
 
+    // A primitive WITH a content node styles the scroller with its own class list, so
+    // a wrap written there belongs to the scroller — which cannot wrap, and
+    // `resolveIntent` has already refused it by then (`ScrollView`'s widget facts say
+    // `wrapsInto: null`). So this swap only ever fires on a primitive that holds its
+    // own children.
+    const ownNode = wrapped(spec.tag, outerProps, resolved.wrapping);
     return {
         primitive,
-        node: { tag: spec.tag, props: outerProps, cssClasses: withOrientationClass(outerProps, cssClasses) },
+        node: {
+            tag: ownNode.tag,
+            props: ownNode.props,
+            cssClasses: withOrientationClass(ownNode.props, cssClasses),
+        },
         content: contentResolved === null ? null : contentResolved.node,
         backdrop: backdropResolved === null ? null : backdropResolved.node,
         backdropSlot: spec.backdrop?.slot ?? null,
@@ -432,11 +479,12 @@ function resolveNode(
         variantDeclarations(authored.groups, context.tokens, label),
     );
     Object.assign(contentProps, partitioned.props, resolved.props);
+    const node = wrapped(content.tag, contentProps, resolved.wrapping);
     return {
         node: {
-            tag: content.tag,
-            props: contentProps,
-            cssClasses: withOrientationClass(contentProps, generated === null ? [] : [generated]),
+            tag: node.tag,
+            props: node.props,
+            cssClasses: withOrientationClass(node.props, generated === null ? [] : [generated]),
         },
         childContext: { ...resolved.childContext, orientation },
     };

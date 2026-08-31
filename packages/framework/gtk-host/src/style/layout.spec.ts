@@ -109,13 +109,48 @@ export default async () => {
             expect(of('flex-1').css).toStrictEqual([]);
         });
 
-        await it('names the widget a wrap would need, instead of approximating one', async () => {
-            const error = threw(() => resolveUtility('flex-wrap', TOKENS));
-            expect(error.message).toContain('Gtk.FlowBox');
-            // `Gtk.Box` never wraps, so the no-wrap spelling restates the platform.
-            // Declared and empty is not the same as unrecognised, and the difference
-            // is exactly what this assertion pins.
-            expect(resolveLayoutUtility('flex-nowrap', TOKENS)).toStrictEqual({});
+        await it('makes a wrap an intent, because wrapping is a different WIDGET', async () => {
+            // The same shape as `justify-between`: a `Gtk.Box` has no second line to
+            // put anything on, and the answer is `Gtk.FlowBox` — another class, not
+            // another property. L1 names it and L2 swaps it.
+            expect(of('flex-wrap').intent).toStrictEqual({ wrap: { lines: 'multi' } });
+            expect(of('flex-wrap').props).toStrictEqual({});
+            expect(of('flex-wrap').css).toStrictEqual([]);
+            // A `Gtk.Box` is already one line, so the no-wrap spelling restates the
+            // platform — and is still CARRIED, because L2 refuses a wrap utility on
+            // a widget that cannot wrap and needs the spelling to name the element.
+            expect(of('flex-nowrap').intent).toStrictEqual({ wrap: { lines: 'single' } });
+            expect(resolveLayoutUtility('flex-nowrap', TOKENS)).toStrictEqual({ flexWrap: 'nowrap' });
+            // Reversal has no property behind it on either widget.
+            expect(threw(() => resolveUtility('flex-wrap-reverse', TOKENS)).message).toContain('Gtk.FlowBox');
+        });
+
+        await it('sends a wrapping element’s gap to the two spacings a FlowBox has', async () => {
+            // `Gtk.FlowBox` installs NO `spacing` (measured, gtk-props.ts). A gap
+            // that took the box's route would be a property the widget refuses at
+            // attach time, in a consumer's window — so the wrap carries it instead,
+            // and an unqualified gap is both spacings at once.
+            expect(of('flex-wrap', 'gap-xs').intent).toStrictEqual({
+                wrap: { lines: 'multi', rowSpacing: 8, columnSpacing: 8 },
+            });
+            expect(of('flex-wrap', 'gap-xs').props).toStrictEqual({});
+            // The axis-qualified spellings stop being an orientation question: both
+            // spacings are real on a FlowBox, whichever way the lines run.
+            expect(of('flex-wrap', 'gap-x-xs', 'gap-y-s').intent).toStrictEqual({
+                wrap: { lines: 'multi', columnSpacing: 8, rowSpacing: 12 },
+            });
+            // …which is also why the two-spellings refusal stops applying, and only
+            // then: without the wrap it is still one `Gtk.Box:spacing` being asked
+            // for twice.
+            expect(of('flex-wrap', 'gap-xs', 'gap-y-s').intent).toStrictEqual({
+                wrap: { lines: 'multi', rowSpacing: 12, columnSpacing: 8 },
+            });
+            expect(threw(() => of('gap-xs', 'gap-y-s')).message).toContain('ONE `spacing`');
+            // The class order does not decide it: the route table is iterated in its
+            // own declaration order, with `flexWrap` ahead of the gaps.
+            expect(of('gap-xs', 'flex-wrap').intent).toStrictEqual({
+                wrap: { lines: 'multi', rowSpacing: 8, columnSpacing: 8 },
+            });
         });
 
         await it('defers both axes of alignment to the shadow tree', async () => {
@@ -250,6 +285,7 @@ export default async () => {
             paddingBottom: '8px',
             paddingLeft: '8px',
             flexDirection: 'row',
+            flexWrap: 'nowrap',
             flexGrow: '1',
             alignItems: 'center',
             justifyContent: 'center',

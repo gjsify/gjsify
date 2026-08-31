@@ -140,6 +140,19 @@ function propertyClaims(): Claim[] {
             // on `spec.tag` either way — which is exactly what `BOX_ONLY_PROPS` moves.
             for (const property of ['orientation', 'spacing']) add(spec.tag, property, `${name} (box intent)`);
         }
+        // The wrap swap's node. Its properties are NOT the box's: a `Gtk.FlowBox`
+        // installs no `spacing` at all, so the two spacings the resolver emits are
+        // the exact claim this gate exists to hold — a misspelling here resolves
+        // perfectly and is refused at attach time, in a consumer's window.
+        for (const facts of [spec.widget, content?.widget, backdrop?.widget]) {
+            const into = facts?.wrapsInto ?? null;
+            if (into === null) continue;
+            for (const property of Object.keys(into.widgetProps)) add(into.tag, property, `${name} (wrap)`);
+            for (const property of ['orientation', 'row-spacing', 'column-spacing']) {
+                add(into.tag, property, `${name} (wrap spacing)`);
+            }
+            for (const property of UNIVERSAL) add(into.tag, property, `${name} (wrap, universal)`);
+        }
         if (content?.widget.box === true) {
             for (const property of ['orientation', 'spacing'])
                 add(content.tag, property, `${name}.content (box intent)`);
@@ -240,6 +253,8 @@ export default async () => {
                         spec.content?.tag,
                         spec.backdrop?.tag,
                         spec.overlayOnAbsoluteChild?.tag,
+                        spec.widget.wrapsInto?.tag,
+                        spec.content?.widget.wrapsInto?.tag,
                     ]) {
                         if (gtype === undefined) continue;
                         expect(typeof lookupWidget(gtype).ctor()).toBe('function');
@@ -387,6 +402,40 @@ export default async () => {
                         // overlay child positioned against the padding box.
                         expect(generatedClasses(overlay).length).toBe(1);
                         expect(generatedClasses(box)).toStrictEqual([]);
+                    },
+                );
+            });
+
+            await it('becomes a Gtk.FlowBox for a wrap, and puts its children INSIDE it', async () => {
+                // The tag is half the claim. The other half is that the host can
+                // actually place children in the swapped-in class — a `Gtk.FlowBox`
+                // wraps each child in a `Gtk.FlowBoxChild`, so a plan naming the tag
+                // without a curated placement rule builds and then refuses at insert
+                // time. This reads the REAL tree, through the wrapper row.
+                mounted(
+                    createElement(
+                        View,
+                        { className: 'flex-row flex-wrap gap-2' },
+                        createElement(Text, { key: 'a' }, 'a'),
+                        createElement(Text, { key: 'b' }, 'b'),
+                    ),
+                    (container) => {
+                        const flow = gtkChildren(container)[0] as Gtk.FlowBox;
+                        expect(typeOf(flow)).toBe('GtkFlowBox');
+                        expect(flow.orientation).toBe(Gtk.Orientation.HORIZONTAL);
+                        // The two corrected defaults, read back off the widget rather
+                        // than off the plan: 7 children per line and a SINGLE
+                        // selection are what a `Gtk.FlowBox` is without them.
+                        expect(flow.maxChildrenPerLine).toBe(65535);
+                        expect(flow.selectionMode).toBe(Gtk.SelectionMode.NONE);
+                        // `gap-2` reached the two spacings, and NOT `Gtk.Box:spacing`
+                        // — a property this class does not install at all.
+                        expect(flow.rowSpacing).toBe(8);
+                        expect(flow.columnSpacing).toBe(8);
+                        // Each child sits in the wrapper row the host adds.
+                        const rows = gtkChildren(flow);
+                        expect(rows.map(typeOf)).toStrictEqual(['GtkFlowBoxChild', 'GtkFlowBoxChild']);
+                        expect(rows.map((row) => (gtkChildren(row)[0] as Gtk.Label).label)).toStrictEqual(['a', 'b']);
                     },
                 );
             });
