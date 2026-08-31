@@ -178,6 +178,32 @@
 # is Linux-shaped is exactly a package that owes an OS claim, and the rule cannot
 # see it.
 #
+# READING THE JOB COLOUR IS NOT READING THE RESULT
+#
+# On win32 BOTH suite steps are probes, so the job reports `success` while the log
+# holds two red suites that each exited 1. That is the probe shape working as
+# designed, and it is also exactly how a green-that-checked-nothing looks from the
+# outside — so: the win32 job's colour answers "did the shipped closure stage,
+# verify and LOAD", not "does the layer pass". The numbers are in the step logs and
+# the attribution is in `@gjsify/react-native`'s `gjsify.osNotes.win32`. Whoever
+# flips either step to gating should delete this paragraph with it.
+#
+# WHAT THE NUMBERS ATTRIBUTE TO, because a count is not a finding
+#
+# win32's react-native probe reads 7 of 848 against 2 of 857 on darwin, which looks
+# like a Windows wall and is not one. Attributed: 2 are the cross-OS #1438 baseline,
+# 1 is a knock-on of one of those (the same `popped` seam), 2 are inherited from the
+# gtk-host table defect above (#1446), and 2 are POSIX-shaped ASSERTIONS — the
+# Image/ImageBackground vectors round-trip `/nonexistent-gjsify-vector.png` through
+# `Gio.File.new_for_path` and assert `get_path()` returns it unchanged, where
+# `get_path()` answers the NATIVE path and GLib correctly hands back
+# `\nonexistent-gjsify-vector.png`. The URI reading is excluded by the code: the
+# assertion calls `get_path()`, not `get_uri()`. So the layer's own win32-specific
+# defect count is ZERO. This is the mirror of `docs/code-anti-patterns.md`'s "a
+# filesystem path SPLIT on `'/'` alone" (#1143/#1148,
+# `scripts/check-posix-path-slice.mjs`): a POSIX-shaped EXPECTED VALUE rather than a
+# POSIX-shaped slice, and nothing watches for that direction yet.
+#
 # WHAT THIS LEG PROVES
 #
 #   · the published `@gjsify/gtk-runtime-<target>` bundle carries Gtk AND Adw WITH

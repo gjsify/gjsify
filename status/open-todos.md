@@ -140,6 +140,38 @@ Two things to fix, and they are separable:
    an absent class by name rather than dereference it — otherwise the next OS finding
    arrives as six anonymous type errors, which is how this one nearly did.
 
+### Two `@gjsify/react-native` image vectors assert a POSIX path where GLib returns a native one
+
+Measured by `gtk-os-suites.yml`'s win32 leg, 2026-08-31. `primitives/widgets.spec.ts`
+gives `Image` and `ImageBackground` a `source: { uri: '/nonexistent-gjsify-vector.png' }`
+and then asserts
+
+```
+expect(picture.file?.get_path()).toBe('/nonexistent-gjsify-vector.png')
+```
+
+On win32 both fail with `Expected: /nonexistent-gjsify-vector.png` /
+`Actual: \nonexistent-gjsify-vector.png`.
+
+**The assertion owns this, not the layer.** `src/components.ts` builds the file with
+`Gio.File.new_for_path(...)` for a `path`-kind source, and `g_file_get_path()` is
+documented to return the NATIVE path — so on Windows GLib normalising the separator to
+`\` is the correct answer and the POSIX literal is the wrong expectation. The competing
+reading, that the value should be compared as a URI (where `\` would be wrong), is
+excluded by the code rather than by preference: the assertion calls `get_path()`, not
+`get_uri()`.
+
+Fix is one of: compare against a host-shaped expectation, compare `get_uri()` on both
+sides, or use a relative fixture with no leading separator.
+
+**This is the MIRROR of a class the repo already guards.**
+`docs/code-anti-patterns.md` carries "a filesystem path SPLIT on `'/'` alone" with
+`scripts/check-posix-path-slice.mjs` behind it, from #1143/#1148 where five live sites
+were found. That guard watches path *slicing*; nothing watches a POSIX-shaped EXPECTED
+VALUE, which is the same assumption on the other side of an assertion and equally
+invisible from Linux. Worth a rule once there is a second instance — one is a fix, two
+is a class.
+
 ### The darwin GTK bundles ship no `GIRepository-2.0` typelib; the win32 one does
 
 Noticed while diffing the two published 0.45.0 closures for the entry above, and
