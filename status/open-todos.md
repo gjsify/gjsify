@@ -93,6 +93,61 @@ What would make the next occurrence cost minutes instead of an afternoon, in ord
   (#1322) — a change that touches every wrapped instance. That is a hypothesis with
   no evidence behind it: the same leg passed on rerun with the same code.
 
+### `@gjsify/gtk-host`'s generated table offers two Unix-only GTK classes on every OS
+
+Found by `gtk-os-suites.yml`'s win32 leg on its first complete run (2026-08-31): the
+suite reported **6 of 2264** on `win32-x64` against **2274/2274** on darwin-arm64 and
+darwin-x64, all six on one root cause. Only the set-comparison assertion named it; the
+other five dereferenced an `undefined`:
+
+```
+GtkPageSetupUnixDialog: Cannot read properties of undefined (reading 'list_properties')
+GtkPrintUnixDialog:     Cannot read properties of undefined (reading 'list_properties')
+```
+
+Both are `…UnixDialog` — GTK does not build them on Windows. `src/generated/` is
+produced from the GIR on a LINUX host, so it bakes in Linux-only classes and then
+`generated.spec.ts` / `conformance.spec.ts` compare that table against the INSTALLED
+typelib, where two rows have no class at all. Nothing about it is the operating
+system's fault or the bundle's: the published `@gjsify/gtk-runtime-win32-x64` verified
+clean (33 backed typelibs, `windowing=true`, decode probe green) and
+`check-batteries.mjs` passed before the suite started.
+
+Two things to fix, and they are separable:
+
+1. **The table.** Either the generator marks a row's platform availability, or the
+   table stops offering a class the running GTK does not have. This is the one that
+   makes the win32 leg gating again — the step is `continue-on-error` with that as its
+   printed retirement condition.
+2. **The diagnosis.** Five of the six assertions die as a bare `TypeError: Cannot read
+   properties of undefined (reading '$gtype')`, which does not say WHICH row. A
+   conformance test whose subject is "the table vs the installed typelib" should report
+   an absent class by name rather than dereference it — otherwise the next OS finding
+   arrives as six anonymous type errors, which is how this one nearly did.
+
+### The `os-axis` candidate set cannot see a package whose DATA is OS-specific
+
+Exposed by the entry above, and it is a gap in the rule rather than in a package.
+
+`os-axis` derives who owes a `gjsify.os` from shipping source that READS the host OS —
+`process.platform`, `os.platform()`, `@gjsify/utils/core`'s `hostOs()` and friends
+(`packages/infra/manifest-conformance/lib/rules/os-axis.mjs`). That is the right
+question for ADR 0018's original ten, all of which branch on the OS. `@gjsify/gtk-host`
+reads the host OS **nowhere** — verified, zero matches across `src/**` — so it owes no
+declaration and correctly has none. Its generated widget table is nevertheless
+Linux-shaped, and a Windows host is missing two of its rows.
+
+So the axis is blind in the same direction ADR 0018 says the RUNTIME axis is blind:
+"never let one axis answer the other's question" is satisfied, and both still miss this.
+A package whose TABLE is derived on one OS is exactly a package that owes an OS claim.
+
+Not closed here because the honest fix is a second derivation signal, not a widened
+regex, and picking one is an ADR-shaped decision: candidates could be derived from
+"generates code from a platform-specific source" (which `gjsify.widgetVocabulary` and the
+generator scripts already mark), or the claim could be demanded of any package a
+GTK-bearing OS leg runs. Both are defensible; neither should be guessed at in a CI PR.
+The measurement above is the evidence either would rest on.
+
 ### node-gi: a class nothing instantiated has no realised class, so `signal_lookup` finds zero signals
 
 Measured 2026-08-31 while wiring `gtk-os-suites.yml`, differentially against the gjs
