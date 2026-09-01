@@ -30,8 +30,34 @@ import { GTK_HOSTS } from './testing/gate.mjs';
 
 import { emitWidgets, type GateFailure, type WidgetRow } from './generator/emit.mjs';
 import { volarResolves } from './generator/emit-types.mjs';
+import { readDeclaredInterfaces, readNamespaceImports } from './generator/vocabulary-dts.mjs';
+// STATIC, and both halves of that were earned.
+//
+// On `--app node` the bundler redirects the whole `@girs/*` scope to an empty module,
+// which turns a static import of this subpath into six MISSING_EXPORTs before anything
+// runs. `gjs-imports-empty.ts` carves the `/vocabulary` subpath out of that redirect —
+// the data has no `gi://` in it and loads under plain Node — and the carve-out was
+// briefly believed not to work: `node_modules/.bin/gjsify` execs
+// `packages/infra/cli/dist/cli.gjs.mjs`, a BUNDLE with the plugin inlined, so a probe
+// added to the plugin source runs nowhere until that bundle is rebuilt. A/B with the
+// bundle rebuilt both ways: carve-out in, `build:test:node` exit 0; carve-out out, exit
+// 1 with exactly the six MISSING_EXPORTs. It is load-bearing and it takes effect.
+//
+// Static rather than a module-scope `await import(…)`, which is a different hazard and
+// not a hypothetical: as top-level await this file took the GJS leg from ~2 minutes to
+// over five hours at 91% CPU with no output — a hang CI would have reported as a
+// timeout with nothing to read.
+import {
+    DECLS as VOCABULARY_DECLS,
+    ENUM_NICKS as VOCABULARY_ENUM_NICKS,
+    OWN_PROPS as VOCABULARY_OWN_PROPS,
+    OWN_SIGNALS as VOCABULARY_OWN_SIGNALS,
+    PROVENANCE as VOCABULARY_PROVENANCE,
+    SINCE as VOCABULARY_SINCE,
+} from '@girs/gtk-4.0/vocabulary';
+
 import { DECLS, ENUM_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
-import type { GtkEntryProps, GtkWidgetProps } from './generated/props.js';
+import type { AdwPreferencesPageProps, GtkEntryProps, GtkWidgetProps } from './generated/props.js';
 import { assertInjective, tagOf } from './tags.js';
 import type { WidgetDescriptor } from './types.js';
 
@@ -59,6 +85,47 @@ const MINI_GTYPES = new Set([...MINI_ROWS.map((r) => r.gtype), 'MiniWidget', 'Mi
 
 const MINI_MODULES = { Mini: 'gi://Mini?version=1.0' } as const;
 
+// A vocabulary `.d.ts` in miniature — every shape whose MISREADING is silent.
+//
+// A regex over TypeScript returns fewer names, never an error, so each of these has to
+// be pinned against a literal: the real `@girs` file stops exhibiting a shape the moment
+// upstream's emitter changes, and a regression test that reads the installed package
+// proves only what that package happens to contain today. Three of the eight below have
+// already shipped a defect (`\s*` before the brace, the single-line comment terminator,
+// and doc adjacency); the rest are the neighbours found while fixing them.
+const DTS_FIXTURE = `
+import type GLib from '@girs/glib-2.0';
+import type Mini from './mini-1.0.js';
+
+/** A miniature widget. */
+export interface MiniBoxProps extends MiniWidgetProps, MiniOrientableProps {
+    /**
+     * A documented property.
+     * @since 1.2
+     * @default 0
+     */
+    'baseline-child'?: number;
+    /** A one-line comment, whose terminator must not survive into the emitter. */
+    label?: string;
+    undocumented?: Mini.Thing | null;
+    /** @default FALSE */
+    homogeneous?: boolean;
+    layout?: { readonly rows: number; readonly cols: number };
+    /** @deprecated */
+    legacy?: GLib.Variant;
+}
+
+export interface MiniRootProps {
+    rooted?: string;
+}
+
+export interface MiniWrappedProps
+    extends MiniWidgetProps,
+        MiniOrientableProps {
+    wrapped?: string;
+}
+`;
+
 const emitFixture = (curated: readonly WidgetDescriptor[], floor = 2) =>
     emitWidgets(
         { provenance: 'Mini-1.0', knownGTypes: MINI_GTYPES, widgets: MINI_ROWS, curated, modules: MINI_MODULES },
@@ -81,6 +148,14 @@ const widgetProps: GtkWidgetProps = {
     // GObject would otherwise keep the old value with no diagnostic at all.
     halign: 'baseline-fill',
 };
+// A base emitted as `Omit<GtkWidgetProps, 'name'>`, which is the only repair for an
+// inherited member the vocabulary made incompatible — a local redeclaration turns TS2430
+// into a different error rather than fixing it. `AdwPreferencesPage:name` is GIR-nullable
+// and `GtkWidget:name` is not; with the omission unwired, @girs 4.5.0 made the whole
+// generated surface uncompilable and `check-type-surfaces` reported nine problems from
+// this one property. `null` here is what needs the `Omit` — assign a plain string and the
+// literal compiles either way.
+const preferencesPageProps: AdwPreferencesPageProps = { name: null };
 const entryProps: GtkEntryProps = {
     // FLAGS ARE `number`, mirroring the runtime exactly: the host REFUSES a nick
     // string for a flags property by name (`err.badFlags`), because resolving a nick
@@ -90,29 +165,71 @@ const entryProps: GtkEntryProps = {
 };
 
 export default async () => {
-    // Loaded INSIDE the suite, and both halves of that matter.
-    //
-    // Dynamic, because on `--app node` the bundler redirects the `@girs/*` scope to an
-    // empty module: a static import of this subpath fails the bundle with six
-    // MISSING_EXPORTs before anything runs. The vocabulary is runtime-neutral — zero
-    // `gi://` references, loadable under plain Node — so the redirect is over-broad.
-    // A narrower one is attempted in `gjs-imports-empty.ts`; it does not take effect,
-    // and where the specifier is actually claimed is unresolved.
-    //
-    // Inside the suite rather than at module scope, because top-level await deadlocks
-    // GJS here: as a module-scope `await import(...)` this file took the GJS leg from
-    // ~2 minutes to over five hours at 91% CPU with no output — a hang, not a slow
-    // test, and one CI would have reported as a timeout with nothing to read.
-    const {
-        DECLS: VOCABULARY_DECLS,
-        ENUM_NICKS: VOCABULARY_ENUM_NICKS,
-        OWN_PROPS: VOCABULARY_OWN_PROPS,
-        OWN_SIGNALS: VOCABULARY_OWN_SIGNALS,
-        PROVENANCE: VOCABULARY_PROVENANCE,
-        SINCE: VOCABULARY_SINCE,
-    } = (await import('@girs/gtk-4.0/vocabulary')) as typeof import('@girs/gtk-4.0/vocabulary');
-
     await on(GTK_HOSTS, async () => {
+        await it('reads a vocabulary .d.ts in every shape whose misreading is silent', async () => {
+            const declared = readDeclaredInterfaces(DTS_FIXTURE);
+            expect([...declared.keys()]).toStrictEqual(['MiniBox', 'MiniRoot', 'MiniWrapped']);
+
+            // `\s*` BEFORE THE BRACE. `[^{]*` swallows the space only when `extends` is
+            // present, so `MiniRoot` — declared without one — was invisible, and with it
+            // all 33 root interfaces of the real Gtk vocabulary. The same missing `\s*`
+            // was still live in `scripts/check-adwaita-element-properties.mjs`, where it
+            // hid 25 interfaces and took `<adw-toggle>` out of that check silently.
+            expect([...(declared.get('MiniRoot')?.props.keys() ?? [])]).toStrictEqual(['rooted']);
+            // And `\s`, not a literal space: the emitter wraps a long heritage list.
+            expect([...(declared.get('MiniWrapped')?.props.keys() ?? [])]).toStrictEqual(['wrapped']);
+
+            const box = declared.get('MiniBox');
+            // The INTERFACE's own blurb. Reading it is what a published type surface is
+            // for (ADR 0028 § 6), and leaving it unread took 194 of 197 comments out of
+            // `generated/props.ts` while the input still carried every one.
+            expect(box?.doc).toBe('A miniature widget.');
+            // Brace-MATCHED: a nested object type contains a closing brace of its own,
+            // and a reader that stops at the first one truncates the interface there.
+            expect([...(box?.props.keys() ?? [])]).toStrictEqual([
+                'baseline-child',
+                'label',
+                'undocumented',
+                'homogeneous',
+                'layout',
+                'legacy',
+            ]);
+            expect(box?.props.get('layout')?.ts).toBe('{ readonly rows: number; readonly cols: number }');
+
+            const documented = box?.props.get('baseline-child');
+            expect(documented?.doc).toBe('A documented property.');
+            expect(documented?.since).toBe('1.2');
+            expect(documented?.deprecated).toBe(false);
+
+            // A SINGLE-LINE comment. Stripping the delimiters per line leaves the
+            // terminator attached, the emitter then closes it a second time, and
+            // `gjsify format` rejects the result as a syntax error.
+            expect(box?.props.get('label')?.doc).toBe(
+                'A one-line comment, whose terminator must not survive into the emitter.',
+            );
+            // Tag-only comments carry no prose.
+            expect(box?.props.get('homogeneous')?.doc).toBe(undefined);
+            expect(box?.props.get('legacy')?.deprecated).toBe(true);
+
+            // ADJACENCY, and `undocumented` sits directly after a member with PROSE on
+            // purpose: `lastIndexOf` finds the nearest block ANYWHERE above, so a member
+            // with no JSDoc took its predecessor's, and `GtkTreeView.model` shipped
+            // documented as "Extra indentation for each level." A first draft of this
+            // fixture put it after the tag-only comment instead, where both readings
+            // give `undefined` and the vector proved nothing — measured, the reverted
+            // rule passed it.
+            expect(box?.props.get('undocumented')?.doc).toBe(undefined);
+
+            // The namespace imports, which the source list cannot answer: a Gtk property
+            // whose rendered type names `Gdk.RGBA` needs the Gdk import from the
+            // vocabulary's own header, or the emitted file is TS2503. A relative
+            // specifier is the vocabulary's own package.
+            expect([...readNamespaceImports(DTS_FIXTURE, 'mini-1.0')]).toStrictEqual([
+                ['GLib', '@girs/glib-2.0'],
+                ['Mini', '@girs/mini-1.0'],
+            ]);
+        });
+
         await it('states the namespace, version and library it was generated against', async () => {
             // `main.mts` builds the artefact's provenance line out of these three
             // fields, and `generated.spec.ts` parses it back with `^(\w+)-[\d.]+\/([\d.]+)$`
@@ -257,6 +374,10 @@ export default async () => {
             // refuse.
             expect(widgetProps.cssClasses).toStrictEqual(['card']);
             expect(VOCABULARY_ENUM_NICKS.GtkAlign?.includes(String(widgetProps.halign))).toBe(true);
+            // And the omission, from the runtime side: the vocabulary really does state
+            // the two `name` properties differently, which is what the `Omit` answers.
+            expect(preferencesPageProps.name).toBe(null);
+            expect(VOCABULARY_OWN_PROPS.GtkWidget?.includes('name')).toBe(true);
         });
 
         await it('finds the tag Volar cannot resolve, by rule', async () => {

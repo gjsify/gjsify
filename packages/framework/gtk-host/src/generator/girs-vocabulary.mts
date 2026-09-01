@@ -14,11 +14,22 @@
  * of runtime data can reconstruct: `GtkBaselinePositionNick | Gtk.BaselinePosition`
  * depends on that file's own imports. So the types come from the declarations and the
  * facts come from the values, and neither is re-derived from the other.
+ *
+ * The `.d.ts` half is READ in `vocabulary-dts.mts`, which touches no file and so
+ * imports no `gi://` — that is what lets `generator.spec.ts` pin its regexes against
+ * literal fixtures instead of against whichever `@girs` happens to be installed.
  */
 
 import GLib from 'gi://GLib?version=2.0';
 
 import type { Declaration, PropMember, SignalMember, SurfaceModel } from './model.mjs';
+// The SAME two transforms `generated.spec.ts` runs against the host's inverse. A
+// second copy here would leave that round-trip check measuring a rule the artefact
+// was not built with; measured over the 166 signals and 953 property names of the two
+// vocabularies, the copies agreed — which is exactly how such a divergence stays
+// invisible until a name with a digit or an underscore arrives.
+import { camelOf, eventPropOf } from './names.mjs';
+import { type DeclaredInterface, readDeclaredInterfaces, readNamespaceImports } from './vocabulary-dts.mjs';
 
 /** The three fields `emit-types.mts` reads off a widget. Not a GIR class any more. */
 export interface WidgetRef {
@@ -41,95 +52,11 @@ interface VocabularyModule {
     };
 }
 
-/** One property, as the `.d.ts` renders it: the TS text plus whatever JSDoc sits above. */
-interface DeclaredProp {
-    readonly ts: string;
-    readonly doc?: string;
-    readonly since?: string;
-    readonly deprecated: boolean;
-}
-
 function read(path: string): string {
     const [ok, bytes] = GLib.file_get_contents(path);
     if (!ok) throw new Error(`cannot read ${path}`);
     return new TextDecoder().decode(bytes);
 }
-
-/**
- * The interfaces a vocabulary `.d.ts` declares, with each property's rendered type.
- *
- * Brace-matched rather than terminated on `\n}`: an interface body can contain a nested
- * object type, and a reader that stops at the first closing brace silently truncates it.
- * That exact shortcut is already recorded as a defect in two sibling scripts.
- */
-/**
- * Read the namespace imports a vocabulary declares: `import type Gdk from
- * '@girs/gdk-4.0'`.
- *
- * These are the only honest answer to "which namespaces do the rendered types reach
- * into". Deriving it from the source list instead emitted `Gdk.RGBA` with no Gdk
- * import — TS2503, in a file nobody edits by hand.
- */
-function readNamespaceImports(text: string, ownPkg: string): Map<string, string> {
-    const out = new Map<string, string>();
-    const line = /^import type (\w+) from '([^']+)';$/gm;
-    for (let m = line.exec(text); m !== null; m = line.exec(text)) {
-        const spec = m[2]!;
-        out.set(m[1]!, spec.startsWith('.') ? `@girs/${ownPkg}` : spec);
-    }
-    return out;
-}
-
-function readDeclaredInterfaces(text: string): Map<string, Map<string, DeclaredProp>> {
-    const out = new Map<string, Map<string, DeclaredProp>>();
-    // `\s*` before the brace is load-bearing: without it only interfaces that carry an
-    // `extends` clause match, because `[^{]*` swallows the space for those. Every root
-    // interface — GtkAccessible, GtkFileChooser, GtkListItem — is declared without one.
-    const head = /^export interface (\w+)Props(?:\s+extends\s[^{]*)?\s*\{/gm;
-    for (let m = head.exec(text); m !== null; m = head.exec(text)) {
-        let depth = 1;
-        let i = m.index + m[0].length;
-        for (; i < text.length && depth > 0; i++) {
-            if (text[i] === '{') depth++;
-            else if (text[i] === '}') depth--;
-        }
-        out.set(m[1]!, readProps(text.slice(m.index + m[0].length, i - 1)));
-    }
-    return out;
-}
-
-/** Property lines plus the JSDoc block immediately above each one. */
-function readProps(body: string): Map<string, DeclaredProp> {
-    const props = new Map<string, DeclaredProp>();
-    const line = /^\s*(?:'([^']+)'|([A-Za-z_$][\w$]*))\?: (.+);$/gm;
-    for (let m = line.exec(body); m !== null; m = line.exec(body)) {
-        const name = m[1] ?? m[2]!;
-        const before = body.slice(0, m.index);
-        const open = before.lastIndexOf('/**');
-        const close = before.lastIndexOf('*/');
-        const block = open !== -1 && close > open ? before.slice(open, close + 2) : '';
-        // Strip the block delimiters before the per-line stars. Doing it per line only
-        // works for multi-line comments: a single-line `/** text */` keeps its trailing
-        // `*/`, which the emitter then closes a second time and `gjsify format` rejects
-        // as a syntax error.
-        const doc = block
-            .replace(/^\/\*\*/, '')
-            .replace(/\*\/$/, '')
-            .split('\n')
-            .map((l) => l.replace(/^\s*\*+ ?/, '').trim())
-            .filter((l) => l !== '' && !l.startsWith('@'))
-            .join(' ');
-        props.set(name, {
-            ts: m[3]!,
-            doc: doc === '' ? undefined : doc,
-            since: /@since ([\d.]+)/.exec(block)?.[1],
-            deprecated: /@deprecated/.test(block),
-        });
-    }
-    return props;
-}
-
-const camelOf = (kebab: string): string => kebab.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 
 /** `GtkBox` -> `Gtk`, `Box`. The vocabulary keys are GTypes, which carry both. */
 function splitGType(gtype: string, namespaces: readonly string[]): WidgetRef {
@@ -139,6 +66,67 @@ function splitGType(gtype: string, namespaces: readonly string[]): WidgetRef {
         }
     }
     throw new Error(`cannot split GType ${gtype} across ${namespaces.join(', ')}`);
+}
+
+/** Every member a declaration renders, by the key it is emitted under. */
+function ownMembers(declaration: Declaration): Map<string, string> {
+    const out = new Map<string, string>();
+    for (const p of declaration.props) {
+        out.set(p.camel, p.ts);
+        if (p.kebab !== p.camel) out.set(p.kebab, p.ts);
+    }
+    // Signals too: a signal's rendered type names the DECLARING class, so the same
+    // signal owned at two points of one chain renders two different types. The
+    // `onNotify…` handlers are excluded on purpose — their shape never varies, so they
+    // cannot conflict (`emit-types.mts` says the same where it emits them).
+    for (const sig of declaration.signals) out.set(sig.prop, sig.ts);
+    return out;
+}
+
+/**
+ * Bases that have to be emitted as `Omit<Base, 'x'>`, per declaration.
+ *
+ * TypeScript refuses an interface whose own member is not ASSIGNABLE to the one it
+ * inherits (TS2430), and a local redeclaration does not repair it — it turns one error
+ * into another. So the base has to lose the key.
+ *
+ * `model.mts` said this map "now arrives empty" because the published vocabulary
+ * resolves such conflicts upstream, and kept the machinery for the day one came back.
+ * It came back with `@girs` 4.5.0: `AdwPreferencesPage:name` is GIR-nullable while
+ * `GtkWidget:name` is not, so `string | null` met `string` and the whole generated
+ * surface stopped compiling — nine problems out of `check-type-surfaces`, from one
+ * property. Computing the set is the only form of this that cannot be overtaken by the
+ * next release: an allowlist would have to be edited by whoever hits the next one.
+ */
+function computeOmissions(declarations: ReadonlyMap<string, Declaration>): Map<string, Map<string, readonly string[]>> {
+    // Transitive members, memoised — a conflict can arrive from a grandparent, and the
+    // emitted `extends` clause lists the whole chain flat.
+    const cache = new Map<string, Map<string, string>>();
+    const effective = (key: string): Map<string, string> => {
+        const cached = cache.get(key);
+        if (cached) return cached;
+        const declaration = declarations.get(key);
+        const out = new Map<string, string>();
+        cache.set(key, out);
+        if (!declaration) return out;
+        for (const base of declaration.bases) for (const [k, v] of effective(base)) out.set(k, v);
+        for (const [k, v] of ownMembers(declaration)) out.set(k, v);
+        return out;
+    };
+
+    const omissions = new Map<string, Map<string, readonly string[]>>();
+    for (const [key, declaration] of declarations) {
+        const own = ownMembers(declaration);
+        for (const base of declaration.bases) {
+            const inherited = effective(base);
+            const drop = [...own].filter(([k, v]) => inherited.has(k) && inherited.get(k) !== v).map(([k]) => k);
+            if (drop.length === 0) continue;
+            const perBase = omissions.get(key) ?? new Map<string, readonly string[]>();
+            perBase.set(base, drop.sort());
+            omissions.set(key, perBase);
+        }
+    }
+    return omissions;
 }
 
 export interface VocabularySource {
@@ -164,7 +152,7 @@ export async function buildFromVocabulary(
     const enumNicks = new Map<string, readonly string[]>();
     const namespacesUsed = new Set<string>();
     const widgets: WidgetRef[] = [];
-    const allRendered = new Map<string, Map<string, DeclaredProp>>();
+    const allRendered = new Map<string, DeclaredInterface>();
     const missing: string[] = [];
     const referenced = new Set<string>();
     const provenance: string[] = [];
@@ -183,7 +171,7 @@ export async function buildFromVocabulary(
         const dts = read(`${base}.d.ts`);
         const declared = readDeclaredInterfaces(dts);
         for (const [ns, pkg] of readNamespaceImports(dts, source.pkg)) importable.set(ns, pkg);
-        for (const [gtype, props] of declared) allRendered.set(gtype, props);
+        for (const [gtype, iface] of declared) allRendered.set(gtype, iface);
         for (const [key, version] of Object.entries(runtime.SINCE)) allSince.set(key, version);
 
         // Provenance comes from the vocabulary itself, not from the package names the
@@ -214,7 +202,7 @@ export async function buildFromVocabulary(
             const names = runtime.OWN_PROPS[gtype] ?? [];
             const rendered = declared.get(gtype);
             const props: PropMember[] = names.flatMap((kebab) => {
-                const d = rendered?.get(kebab);
+                const d = rendered?.props.get(kebab);
                 if (!d) {
                     missing.push(`${gtype}.${kebab}`);
                     return [];
@@ -233,7 +221,7 @@ export async function buildFromVocabulary(
             const ref = splitGType(gtype, prefixes);
             const signals: SignalMember[] = (runtime.OWN_SIGNALS[gtype] ?? []).map((signal) => ({
                 signal,
-                prop: `on${camelOf(signal).replace(/^[a-z]/, (c) => c.toUpperCase())}`,
+                prop: eventPropOf(signal),
                 ts: `${ref.namespace}.${ref.name}.SignalSignatures['${signal}']`,
                 deprecated: false,
                 since: runtime.SINCE[`${gtype}::${signal}`],
@@ -260,7 +248,7 @@ export async function buildFromVocabulary(
                 bases,
                 props,
                 signals,
-                doc: undefined,
+                doc: rendered?.doc,
             });
         }
     }
@@ -292,7 +280,7 @@ export async function buildFromVocabulary(
             // predates one of them, which is the case this data exists for.
             since: allSince.get(gtype),
             bases: [],
-            props: [...(allRendered.get(gtype)?.entries() ?? [])].map(([kebab, d]) => ({
+            props: [...(allRendered.get(gtype)?.props.entries() ?? [])].map(([kebab, d]) => ({
                 kebab,
                 camel: camelOf(kebab),
                 ts: d.ts,
@@ -301,7 +289,7 @@ export async function buildFromVocabulary(
                 since: d.since,
             })),
             signals: [],
-            doc: undefined,
+            doc: allRendered.get(gtype)?.doc,
         });
     }
 
@@ -330,7 +318,7 @@ export async function buildFromVocabulary(
             enumNicks,
             namespacesUsed,
             packages,
-            omissions: new Map(),
+            omissions: computeOmissions(declarations),
         },
         widgets,
         provenance: provenance.join(' '),

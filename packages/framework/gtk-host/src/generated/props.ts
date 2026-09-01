@@ -528,6 +528,7 @@ export type GtkWrapModeNick = 'none' | 'char' | 'word' | 'word-char';
 export type PangoEllipsizeModeNick = 'none' | 'start' | 'middle' | 'end';
 export type PangoWrapModeNick = 'word' | 'char' | 'word-char' | 'none';
 
+/** A dialog showing information about the application. */
 export interface AdwAboutDialogProps
     extends
         AdwDialogProps,
@@ -618,6 +619,7 @@ export interface AdwAboutDialogProps
     onNotifyWebsite?: NotifyHandler;
 }
 
+/** A window showing information about the application. */
 export interface AdwAboutWindowProps
     extends
         AdwWindowProps,
@@ -763,6 +765,7 @@ export interface AdwAboutWindowProps
     onNotifyWebsite?: NotifyHandler;
 }
 
+/** A [class@Gtk.ListBoxRow] used to present actions. */
 export interface AdwActionRowProps
     extends
         AdwPreferencesRowProps,
@@ -801,6 +804,7 @@ export interface AdwActionRowProps
     onNotifyTitleLines?: NotifyHandler;
 }
 
+/** A dialog presenting a message or a question. */
 export interface AdwAlertDialogProps
     extends
         AdwDialogProps,
@@ -842,6 +846,7 @@ export interface AdwAlertDialogProps
     onNotifyPreferWideLayout?: NotifyHandler;
 }
 
+/** A freeform application window. */
 export interface AdwApplicationWindowProps
     extends
         GtkApplicationWindowProps,
@@ -862,6 +867,7 @@ export interface AdwApplicationWindowProps
     onNotifyContent?: NotifyHandler;
 }
 
+/** A widget displaying an image, with a generated fallback. */
 export interface AdwAvatarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** A custom image paintable. */
@@ -884,6 +890,7 @@ export interface AdwAvatarProps
     onNotifyText?: NotifyHandler;
 }
 
+/** A bar with contextual information. */
 export interface AdwBannerProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The label to show on the button. */
@@ -907,12 +914,14 @@ export interface AdwBannerProps
     onNotifyUseMarkup?: NotifyHandler;
 }
 
+/** A widget with one child. */
 export interface AdwBinProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget of the `AdwBin`. */
     child?: Gtk.Widget | null;
     onNotifyChild?: NotifyHandler;
 }
 
+/** A bottom sheet with an optional bottom bar. */
 export interface AdwBottomSheetProps
     extends GtkWidgetProps, AdwSwipeableProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Horizontal alignment of the bottom sheet. */
@@ -957,6 +966,7 @@ export interface AdwBottomSheetProps
     onNotifyShowDragHandle?: NotifyHandler;
 }
 
+/** A widget that changes layout based on available size. */
 export interface AdwBreakpointBinProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -964,6 +974,7 @@ export interface AdwBreakpointBinProps
     onNotifyChild?: NotifyHandler;
 }
 
+/** A helper widget for creating buttons. */
 export interface AdwButtonContentProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the button can be smaller than the natural size of its contents. */
@@ -983,6 +994,7 @@ export interface AdwButtonContentProps
     onNotifyUseUnderline?: NotifyHandler;
 }
 
+/** A [class@Gtk.ListBoxRow] that looks like a button. */
 export interface AdwButtonRowProps
     extends
         AdwPreferencesRowProps,
@@ -1003,6 +1015,7 @@ export interface AdwButtonRowProps
     onNotifyStartIconName?: NotifyHandler;
 }
 
+/** A dots indicator for [class@Carousel]. */
 export interface AdwCarouselIndicatorDotsProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /** The displayed carousel. */
@@ -1010,6 +1023,7 @@ export interface AdwCarouselIndicatorDotsProps
     onNotifyCarousel?: NotifyHandler;
 }
 
+/** A lines indicator for [class@Carousel]. */
 export interface AdwCarouselIndicatorLinesProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /** The displayed carousel. */
@@ -1017,6 +1031,7 @@ export interface AdwCarouselIndicatorLinesProps
     onNotifyCarousel?: NotifyHandler;
 }
 
+/** A paginated scrolling widget. */
 export interface AdwCarouselProps
     extends
         GtkWidgetProps,
@@ -1054,6 +1069,7 @@ export interface AdwCarouselProps
     onNotifySpacing?: NotifyHandler;
 }
 
+/** A widget constraining its child to a given size. */
 export interface AdwClampProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /** The child widget of the `AdwClamp`. */
@@ -1072,6 +1088,7 @@ export interface AdwClampProps
     onNotifyUnit?: NotifyHandler;
 }
 
+/** A scrollable [class@Clamp]. */
 export interface AdwClampScrollableProps
     extends
         GtkWidgetProps,
@@ -1096,6 +1113,7 @@ export interface AdwClampScrollableProps
     onNotifyUnit?: NotifyHandler;
 }
 
+/** A [class@Gtk.ListBoxRow] used to choose from a list of items. */
 export interface AdwComboRowProps
     extends
         AdwActionRowProps,
@@ -1140,6 +1158,7 @@ export interface AdwComboRowProps
     onNotifyUseSubtitle?: NotifyHandler;
 }
 
+/** An adaptive dialog container. */
 export interface AdwDialogProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkShortcutManagerProps {
     /** Whether the dialog can be closed. */
@@ -1180,6 +1199,7 @@ export interface AdwDialogProps
     onNotifyTitle?: NotifyHandler;
 }
 
+/** A [class@Gtk.ListBoxRow] with an embedded text entry. */
 export interface AdwEntryRowProps
     extends
         AdwPreferencesRowProps,
@@ -1221,6 +1241,7 @@ export interface AdwEntryRowProps
     onNotifyShowApplyButton?: NotifyHandler;
 }
 
+/** A [class@Gtk.ListBoxRow] used to reveal widgets. */
 export interface AdwExpanderRowProps
     extends
         AdwPreferencesRowProps,
@@ -1261,6 +1282,7 @@ export interface AdwExpanderRowProps
     onNotifyTitleLines?: NotifyHandler;
 }
 
+/** An adaptive container acting like a box or an overlay. */
 export interface AdwFlapProps
     extends
         GtkWidgetProps,
@@ -1364,6 +1386,7 @@ export interface AdwFlapProps
     onNotifyTransitionType?: NotifyHandler;
 }
 
+/** A title bar widget. */
 export interface AdwHeaderBarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The policy for aligning the center widget. */
@@ -1396,6 +1419,7 @@ export interface AdwHeaderBarProps
     onNotifyTitleWidget?: NotifyHandler;
 }
 
+/** A view switcher that uses a toggle group. */
 export interface AdwInlineViewSwitcherProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /** Whether the toggles can be smaller than the natural size of their contents. */
@@ -1414,6 +1438,7 @@ export interface AdwInlineViewSwitcherProps
     onNotifyStack?: NotifyHandler;
 }
 
+/** A child slot within [class@Layout]. */
 export interface AdwLayoutSlotProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The slot ID. */
@@ -1421,6 +1446,7 @@ export interface AdwLayoutSlotProps
     onNotifyId?: NotifyHandler;
 }
 
+/** An adaptive container acting like a box or a stack. */
 export interface AdwLeafletProps
     extends
         GtkWidgetProps,
@@ -1500,6 +1526,7 @@ export interface AdwLeafletProps
     onNotifyVisibleChildName?: NotifyHandler;
 }
 
+/** A dialog presenting a message or a question. */
 export interface AdwMessageDialogProps
     extends
         GtkWindowProps,
@@ -1560,6 +1587,7 @@ export interface AdwMessageDialogProps
     onNotifyHeadingUseMarkup?: NotifyHandler;
 }
 
+/** A widget for switching between different layouts. */
 export interface AdwMultiLayoutViewProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The currently used layout. */
@@ -1571,6 +1599,7 @@ export interface AdwMultiLayoutViewProps
     onNotifyLayoutName?: NotifyHandler;
 }
 
+/** A page within [class@NavigationView] or [class@NavigationSplitView]. */
 export interface AdwNavigationPageProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the page can be popped from navigation stack. */
@@ -1592,6 +1621,7 @@ export interface AdwNavigationPageProps
     onNotifyTitle?: NotifyHandler;
 }
 
+/** A widget presenting sidebar and content side by side or as a navigation view. */
 export interface AdwNavigationSplitViewProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the split view is collapsed. */
@@ -1629,6 +1659,7 @@ export interface AdwNavigationSplitViewProps
     onNotifySidebarWidthUnit?: NotifyHandler;
 }
 
+/** A page-based navigation container. */
 export interface AdwNavigationViewProps
     extends GtkWidgetProps, AdwSwipeableProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether to animate page transitions. */
@@ -1651,6 +1682,7 @@ export interface AdwNavigationViewProps
     onNotifyVhomogeneous?: NotifyHandler;
 }
 
+/** A widget presenting sidebar and content side by side or as an overlay. */
 export interface AdwOverlaySplitViewProps
     extends GtkWidgetProps, AdwSwipeableProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the split view is collapsed. */
@@ -1700,6 +1732,7 @@ export interface AdwOverlaySplitViewProps
     onNotifySidebarWidthUnit?: NotifyHandler;
 }
 
+/** A [class@EntryRow] tailored for entering secrets. */
 export interface AdwPasswordEntryRowProps
     extends
         AdwEntryRowProps,
@@ -1712,6 +1745,7 @@ export interface AdwPasswordEntryRowProps
         GtkConstraintTargetProps,
         GtkEditableProps {}
 
+/** A dialog showing application's preferences. */
 export interface AdwPreferencesDialogProps
     extends
         AdwDialogProps,
@@ -1734,6 +1768,7 @@ export interface AdwPreferencesDialogProps
     onNotifyVisiblePageName?: NotifyHandler;
 }
 
+/** A group of preference rows. */
 export interface AdwPreferencesGroupProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The description for this group of preferences. */
@@ -1752,8 +1787,9 @@ export interface AdwPreferencesGroupProps
     onNotifyTitle?: NotifyHandler;
 }
 
+/** A page from [class@PreferencesDialog]. */
 export interface AdwPreferencesPageProps
-    extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
+    extends Omit<GtkWidgetProps, 'name'>, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** A [class@Banner] displayed at the top of the page. */
     banner?: Adw.Banner | null;
     /** The description to be displayed at the top of the page. */
@@ -1780,6 +1816,7 @@ export interface AdwPreferencesPageProps
     onNotifyUseUnderline?: NotifyHandler;
 }
 
+/** A [class@Gtk.ListBoxRow] used to present preferences. */
 export interface AdwPreferencesRowProps
     extends
         GtkListBoxRowProps,
@@ -1805,6 +1842,7 @@ export interface AdwPreferencesRowProps
     onNotifyUseUnderline?: NotifyHandler;
 }
 
+/** A window to present an application's preferences. */
 export interface AdwPreferencesWindowProps
     extends
         AdwWindowProps,
@@ -1846,6 +1884,7 @@ export interface AdwPreferencesWindowProps
     onNotifyVisiblePageName?: NotifyHandler;
 }
 
+/** A widget that displays a keyboard shortcut. */
 export interface AdwShortcutLabelProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The displayed accelerator. */
@@ -1857,6 +1896,7 @@ export interface AdwShortcutLabelProps
     onNotifyDisabledText?: NotifyHandler;
 }
 
+/** A dialog that displays application's keyboard shortcuts. */
 export interface AdwShortcutsDialogProps
     extends
         AdwDialogProps,
@@ -1866,6 +1906,7 @@ export interface AdwShortcutsDialogProps
         GtkConstraintTargetProps,
         GtkShortcutManagerProps {}
 
+/** Adaptive sidebar widget. */
 export interface AdwSidebarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the drop data should be preloaded on hover. */
@@ -1901,6 +1942,7 @@ export interface AdwSidebarProps
     onNotifySuffix?: NotifyHandler;
 }
 
+/** An [class@ActionRow] with an embedded spin button. */
 export interface AdwSpinRowProps
     extends
         AdwActionRowProps,
@@ -1944,9 +1986,11 @@ export interface AdwSpinRowProps
     onNotifyWrap?: NotifyHandler;
 }
 
+/** A widget showing a loading spinner. */
 export interface AdwSpinnerProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {}
 
+/** A combined button and dropdown widget. */
 export interface AdwSplitButtonProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the button can be smaller than the natural size of its contents. */
@@ -1985,6 +2029,7 @@ export interface AdwSplitButtonProps
     onNotifyUseUnderline?: NotifyHandler;
 }
 
+/** A best fit container. */
 export interface AdwSqueezerProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /**
@@ -2042,6 +2087,7 @@ export interface AdwSqueezerProps
     onNotifyYalign?: NotifyHandler;
 }
 
+/** A page used for empty/error states and similar use-cases. */
 export interface AdwStatusPageProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -2062,8 +2108,10 @@ export interface AdwStatusPageProps
     onNotifyTitle?: NotifyHandler;
 }
 
+/** An interface for swipeable widgets. */
 export interface AdwSwipeableProps {}
 
+/** A [class@Gtk.ListBoxRow] used to represent two states. */
 export interface AdwSwitchRowProps
     extends
         AdwActionRowProps,
@@ -2079,6 +2127,7 @@ export interface AdwSwitchRowProps
     onNotifyActive?: NotifyHandler;
 }
 
+/** A tab bar for [class@TabView]. */
 export interface AdwTabBarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the tabs automatically hide. */
@@ -2110,6 +2159,7 @@ export interface AdwTabBarProps
     onNotifyView?: NotifyHandler;
 }
 
+/** A button that displays the number of [class@TabView] pages. */
 export interface AdwTabButtonProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The view the tab button displays. */
@@ -2119,6 +2169,7 @@ export interface AdwTabButtonProps
     onNotifyView?: NotifyHandler;
 }
 
+/** A tab overview for [class@TabView]. */
 export interface AdwTabOverviewProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -2162,6 +2213,7 @@ export interface AdwTabOverviewProps
     onNotifyView?: NotifyHandler;
 }
 
+/** A dynamic tabbed container. */
 export interface AdwTabViewProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Default page icon. */
@@ -2188,6 +2240,7 @@ export interface AdwTabViewProps
     onNotifyShortcuts?: NotifyHandler;
 }
 
+/** A widget showing toasts above its content. */
 export interface AdwToastOverlayProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -2195,6 +2248,7 @@ export interface AdwToastOverlayProps
     onNotifyChild?: NotifyHandler;
 }
 
+/** A group of exclusive toggles. */
 export interface AdwToggleGroupProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /** The index of the active toggle. */
@@ -2213,6 +2267,7 @@ export interface AdwToggleGroupProps
     onNotifyHomogeneous?: NotifyHandler;
 }
 
+/** A toggle within [class@ToggleGroup]. */
 export interface AdwToggleProps {
     /** The toggle child. */
     child?: Gtk.Widget | null;
@@ -2242,6 +2297,7 @@ export interface AdwToggleProps {
     onNotifyUseUnderline?: NotifyHandler;
 }
 
+/** A widget containing a page, as well as top and/or bottom bars. */
 export interface AdwToolbarViewProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Appearance of the bottom bars. */
@@ -2273,6 +2329,7 @@ export interface AdwToolbarViewProps
     onNotifyTopBarStyle?: NotifyHandler;
 }
 
+/** A view container for [class@ViewSwitcher]. */
 export interface AdwViewStackProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the stack uses a crossfade transition between pages. */
@@ -2299,6 +2356,7 @@ export interface AdwViewStackProps
     onNotifyVisibleChildName?: NotifyHandler;
 }
 
+/** A view switcher action bar. */
 export interface AdwViewSwitcherBarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the bar should be revealed or hidden. */
@@ -2309,6 +2367,7 @@ export interface AdwViewSwitcherBarProps
     onNotifyStack?: NotifyHandler;
 }
 
+/** An adaptive view switcher. */
 export interface AdwViewSwitcherProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The policy to determine which mode to use. */
@@ -2319,6 +2378,7 @@ export interface AdwViewSwitcherProps
     onNotifyStack?: NotifyHandler;
 }
 
+/** An adaptive sidebar that controls an [class@ViewStack]. */
 export interface AdwViewSwitcherSidebarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The item filter. */
@@ -2342,6 +2402,7 @@ export interface AdwViewSwitcherSidebarProps
     onNotifySuffix?: NotifyHandler;
 }
 
+/** A view switcher title. */
 export interface AdwViewSwitcherTitleProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /**
@@ -2371,6 +2432,7 @@ export interface AdwViewSwitcherTitleProps
     onNotifyViewSwitcherEnabled?: NotifyHandler;
 }
 
+/** A freeform window. */
 export interface AdwWindowProps
     extends
         GtkWindowProps,
@@ -2390,6 +2452,7 @@ export interface AdwWindowProps
     onNotifyContent?: NotifyHandler;
 }
 
+/** A helper widget for setting a window's title and subtitle. */
 export interface AdwWindowTitleProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The subtitle to display. */
@@ -2400,6 +2463,7 @@ export interface AdwWindowTitleProps
     onNotifyTitle?: NotifyHandler;
 }
 
+/** A box-like widget that can wrap into multiple lines. */
 export interface AdwWrapBoxProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /** The alignment of the children within each line. */
@@ -2454,6 +2518,7 @@ export interface AdwWrapBoxProps
     onNotifyWrapReverse?: NotifyHandler;
 }
 
+/** Displays information about a program. */
 export interface GtkAboutDialogProps
     extends
         GtkWindowProps,
@@ -2522,8 +2587,10 @@ export interface GtkAboutDialogProps
     onNotifyWrapLicense?: NotifyHandler;
 }
 
+/** An interface for accessible objects containing links. */
 export interface GtkAccessibleHypertextProps {}
 
+/** An interface for describing UI elements for Assistive Technologies. */
 export interface GtkAccessibleProps {
     /** The accessible role of the given `GtkAccessible` implementation. */
     accessibleRole?: GtkAccessibleRoleNick | Gtk.AccessibleRole;
@@ -2531,10 +2598,13 @@ export interface GtkAccessibleProps {
     onNotifyAccessibleRole?: NotifyHandler;
 }
 
+/** An interface for accessible objects containing a numeric value. */
 export interface GtkAccessibleRangeProps {}
 
+/** An interface for accessible objects containing formatted text. */
 export interface GtkAccessibleTextProps {}
 
+/** Presents contextual actions. */
 export interface GtkActionBarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Controls whether the action bar shows its contents. */
@@ -2542,6 +2612,7 @@ export interface GtkActionBarProps
     onNotifyRevealed?: NotifyHandler;
 }
 
+/** Provides a way to associate widgets with actions. */
 export interface GtkActionableProps {
     /** The name of the action with which this widget should be associated. */
     actionName?: string | null;
@@ -2553,6 +2624,7 @@ export interface GtkActionableProps {
     onNotifyActionTarget?: NotifyHandler;
 }
 
+/** The `GtkAppChooserButton` lets the user select an application. */
 export interface GtkAppChooserButtonProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkAppChooserProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The text to show at the top of the dialog that can be opened from the button. */
@@ -2574,6 +2646,7 @@ export interface GtkAppChooserButtonProps
     onNotifyShowDialogItem?: NotifyHandler;
 }
 
+/** `GtkAppChooserDialog` shows a `GtkAppChooserWidget` inside a `GtkDialog`. */
 export interface GtkAppChooserDialogProps
     extends
         GtkDialogProps,
@@ -2594,6 +2667,7 @@ export interface GtkAppChooserDialogProps
     onNotifyHeading?: NotifyHandler;
 }
 
+/** `GtkAppChooser` is an interface for widgets which allow the user to choose an application. */
 export interface GtkAppChooserProps {
     /** The content type of the `GtkAppChooser` object. */
     contentType?: string;
@@ -2601,6 +2675,7 @@ export interface GtkAppChooserProps {
     onNotifyContentType?: NotifyHandler;
 }
 
+/** `GtkAppChooserWidget` is a widget for selecting applications. */
 export interface GtkAppChooserWidgetProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkAppChooserProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The text that appears in the widget when there are no applications for the given content type. */
@@ -2631,6 +2706,7 @@ export interface GtkAppChooserWidgetProps
     onNotifyShowRecommended?: NotifyHandler;
 }
 
+/** A `GtkWindow` subclass that integrates with `GtkApplication`. */
 export interface GtkApplicationWindowProps
     extends
         GtkWindowProps,
@@ -2647,6 +2723,7 @@ export interface GtkApplicationWindowProps
     onNotifyShowMenubar?: NotifyHandler;
 }
 
+/** Preserves the aspect ratio of its child. */
 export interface GtkAspectFrameProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -2667,6 +2744,7 @@ export interface GtkAspectFrameProps
     onNotifyYalign?: NotifyHandler;
 }
 
+/** `GtkAssistant` is used to represent a complex as a series of steps. */
 export interface GtkAssistantProps
     extends
         GtkWindowProps,
@@ -2691,6 +2769,7 @@ export interface GtkAssistantProps
     onNotifyUseHeaderBar?: NotifyHandler;
 }
 
+/** Arranges child widgets into a single row or column. */
 export interface GtkBoxProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /** The position of the child that determines the baseline. */
@@ -2709,8 +2788,10 @@ export interface GtkBoxProps
     onNotifySpacing?: NotifyHandler;
 }
 
+/** Allows objects to extend and customize deserialization from ui files. */
 export interface GtkBuildableProps {}
 
+/** Calls a callback function when the button is clicked. */
 export interface GtkButtonProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the size of the button can be made smaller than the natural size of its contents. */
@@ -2739,6 +2820,7 @@ export interface GtkButtonProps
     onNotifyUseUnderline?: NotifyHandler;
 }
 
+/** Displays a Gregorian calendar, one month at a time. */
 export interface GtkCalendarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The selected date. */
@@ -2781,6 +2863,7 @@ export interface GtkCalendarProps
     onNotifyYear?: NotifyHandler;
 }
 
+/** Interface for widgets that can be used for editing cells The `GtkCellEditable` interface must be implemented for widgets to be usable to edit the contents of a `GtkTreeView` cell. */
 export interface GtkCellEditableProps {
     /** Indicates whether editing on the cell has been canceled. */
     editingCanceled?: boolean;
@@ -2788,8 +2871,10 @@ export interface GtkCellEditableProps {
     onNotifyEditingCanceled?: NotifyHandler;
 }
 
+/** An interface for packing cells `GtkCellLayout` is an interface to be implemented by all objects which want to provide a `GtkTreeViewColumn` like API for packing cells, setting attributes and data fun… */
 export interface GtkCellLayoutProps {}
 
+/** A widget displaying a single row of a GtkTreeModel A `GtkCellView` displays a single row of a `GtkTreeModel` using a `GtkCellArea` and `GtkCellAreaContext`. */
 export interface GtkCellViewProps
     extends
         GtkWidgetProps,
@@ -2819,6 +2904,7 @@ export interface GtkCellViewProps
     onNotifyModel?: NotifyHandler;
 }
 
+/** Arranges three children in a row, keeping the middle child centered as well as possible. */
 export interface GtkCenterBoxProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /** The position of the baseline aligned widget if extra space is available. */
@@ -2843,6 +2929,7 @@ export interface GtkCenterBoxProps
     onNotifyStartWidget?: NotifyHandler;
 }
 
+/** Places a label next to an indicator. */
 export interface GtkCheckButtonProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** If the check button is active. */
@@ -2868,6 +2955,7 @@ export interface GtkCheckButtonProps
     onNotifyUseUnderline?: NotifyHandler;
 }
 
+/** The `GtkColorButton` allows to open a color chooser dialog to change the color. */
 export interface GtkColorButtonProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkColorChooserProps, GtkConstraintTargetProps {
     /** Whether the color chooser dialog should be modal. */
@@ -2884,6 +2972,7 @@ export interface GtkColorButtonProps
     onNotifyTitle?: NotifyHandler;
 }
 
+/** A dialog for choosing a color. */
 export interface GtkColorChooserDialogProps
     extends
         GtkDialogProps,
@@ -2902,6 +2991,7 @@ export interface GtkColorChooserDialogProps
     onNotifyShowEditor?: NotifyHandler;
 }
 
+/** `GtkColorChooser` is an interface that is implemented by widgets for choosing colors. */
 export interface GtkColorChooserProps {
     /**
      * The currently selected color, as a `GdkRGBA` struct.
@@ -2918,6 +3008,7 @@ export interface GtkColorChooserProps {
     onNotifyUseAlpha?: NotifyHandler;
 }
 
+/** The `GtkColorChooserWidget` widget lets the user select a color. */
 export interface GtkColorChooserWidgetProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkColorChooserProps, GtkConstraintTargetProps {
     /** %TRUE when the color chooser is showing the single-color editor. */
@@ -2926,6 +3017,7 @@ export interface GtkColorChooserWidgetProps
     onNotifyShowEditor?: NotifyHandler;
 }
 
+/** Opens a color chooser dialog to select a color. */
 export interface GtkColorDialogButtonProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The `GtkColorDialog` that contains parameters for the color chooser dialog. */
@@ -2937,6 +3029,7 @@ export interface GtkColorDialogButtonProps
     onNotifyRgba?: NotifyHandler;
 }
 
+/** Represents items in a cell in [class@Gtk.ColumnView]. */
 export interface GtkColumnViewCellProps extends GtkListItemProps {
     /** Widget used for display. */
     child?: Gtk.Widget | null;
@@ -2946,6 +3039,7 @@ export interface GtkColumnViewCellProps extends GtkListItemProps {
     onNotifyFocusable?: NotifyHandler;
 }
 
+/** Presents a large dynamic list of items using multiple columns with headers. */
 export interface GtkColumnViewProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkScrollableProps {
     /** Allow rubberband selection. */
@@ -2985,6 +3079,7 @@ export interface GtkColumnViewProps
     onNotifyTabBehavior?: NotifyHandler;
 }
 
+/** A `GtkComboBox` is a widget that allows the user to choose from a list of valid choices. */
 export interface GtkComboBoxProps
     extends
         GtkWidgetProps,
@@ -3038,6 +3133,7 @@ export interface GtkComboBoxProps
     onNotifyPopupFixedWidth?: NotifyHandler;
 }
 
+/** A `GtkComboBoxText` is a simple variant of `GtkComboBox` for text-only use cases. */
 export interface GtkComboBoxTextProps
     extends
         GtkComboBoxProps,
@@ -3048,8 +3144,10 @@ export interface GtkComboBoxTextProps
         GtkCellLayoutProps,
         GtkConstraintTargetProps {}
 
+/** Makes it possible to use an object as source or target in a [class@Gtk.Constraint]. */
 export interface GtkConstraintTargetProps {}
 
+/** Dialogs are a convenient way to prompt the user for a small amount of input. */
 export interface GtkDialogProps
     extends
         GtkWindowProps,
@@ -3071,6 +3169,7 @@ export interface GtkDialogProps
     onNotifyUseHeaderBar?: NotifyHandler;
 }
 
+/** A `GtkRoot` implementation for drag icons. */
 export interface GtkDragIconProps
     extends
         GtkWidgetProps,
@@ -3084,6 +3183,7 @@ export interface GtkDragIconProps
     onNotifyChild?: NotifyHandler;
 }
 
+/** Allows drawing with cairo. */
 export interface GtkDrawingAreaProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The content height. */
@@ -3097,6 +3197,7 @@ export interface GtkDrawingAreaProps
     onNotifyContentWidth?: NotifyHandler;
 }
 
+/** Allows the user to choose an item from a list of options. */
 export interface GtkDropDownProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether to show a search entry in the popup. */
@@ -3134,6 +3235,7 @@ export interface GtkDropDownProps
     onNotifyShowArrow?: NotifyHandler;
 }
 
+/** Allows users to edit the displayed text by switching to an “edit mode”. */
 export interface GtkEditableLabelProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkEditableProps {
     /** This property is %TRUE while the widget is in edit mode. */
@@ -3141,6 +3243,7 @@ export interface GtkEditableLabelProps
     onNotifyEditing?: NotifyHandler;
 }
 
+/** Interface for single-line text editing widgets. */
 export interface GtkEditableProps {
     /** Whether the entry contents can be edited. */
     editable?: boolean;
@@ -3169,6 +3272,7 @@ export interface GtkEditableProps {
     onNotifyXalign?: NotifyHandler;
 }
 
+/** Used by text widgets to let users insert Emoji characters. */
 export interface GtkEmojiChooserProps
     extends
         GtkPopoverProps,
@@ -3181,6 +3285,7 @@ export interface GtkEmojiChooserProps
     onEmojiPicked?: Gtk.EmojiChooser.SignalSignatures['emoji-picked'];
 }
 
+/** A single-line text entry widget. */
 export interface GtkEntryProps
     extends
         GtkWidgetProps,
@@ -3340,6 +3445,7 @@ export interface GtkEntryProps
     onNotifyVisibility?: NotifyHandler;
 }
 
+/** Allows the user to reveal or conceal a child widget. */
 export interface GtkExpanderProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -3370,6 +3476,7 @@ export interface GtkExpanderProps
     onNotifyUseUnderline?: NotifyHandler;
 }
 
+/** `GtkFileChooserDialog` is a dialog suitable for use with “File Open” or “File Save” commands. */
 export interface GtkFileChooserDialogProps
     extends
         GtkDialogProps,
@@ -3383,6 +3490,7 @@ export interface GtkFileChooserDialogProps
         GtkRootProps,
         GtkShortcutManagerProps {}
 
+/** `GtkFileChooser` is an interface that can be implemented by file selection widgets. */
 export interface GtkFileChooserProps {
     /**
      * The type of operation that the file chooser is performing.
@@ -3412,6 +3520,7 @@ export interface GtkFileChooserProps {
     onNotifySelectMultiple?: NotifyHandler;
 }
 
+/** `GtkFileChooserWidget` is a widget for choosing files. */
 export interface GtkFileChooserWidgetProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkFileChooserProps {
     /** Whether search mode is enabled. */
@@ -3432,9 +3541,11 @@ export interface GtkFileChooserWidgetProps
     onNotifySearchMode?: NotifyHandler;
 }
 
+/** Places its child widgets at fixed positions and with fixed sizes. */
 export interface GtkFixedProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {}
 
+/** The kind of widget that can be added to a `GtkFlowBox`. */
 export interface GtkFlowBoxChildProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -3443,6 +3554,7 @@ export interface GtkFlowBoxChildProps
     onNotifyChild?: NotifyHandler;
 }
 
+/** Puts child widgets in a reflowing grid. */
 export interface GtkFlowBoxProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /** Whether to accept unpaired release events. */
@@ -3485,6 +3597,7 @@ export interface GtkFlowBoxProps
     onNotifySelectionMode?: NotifyHandler;
 }
 
+/** The `GtkFontButton` allows to open a font chooser dialog to change the font. */
 export interface GtkFontButtonProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkFontChooserProps {
     /** Whether the font chooser dialog should be modal. */
@@ -3505,6 +3618,7 @@ export interface GtkFontButtonProps
     onNotifyUseSize?: NotifyHandler;
 }
 
+/** The `GtkFontChooserDialog` widget is a dialog for selecting a font. */
 export interface GtkFontChooserDialogProps
     extends
         GtkDialogProps,
@@ -3518,6 +3632,7 @@ export interface GtkFontChooserDialogProps
         GtkRootProps,
         GtkShortcutManagerProps {}
 
+/** `GtkFontChooser` is an interface that can be implemented by widgets for choosing fonts. */
 export interface GtkFontChooserProps {
     /**
      * The font description as a string, e.g.
@@ -3560,9 +3675,11 @@ export interface GtkFontChooserProps {
     onNotifyShowPreviewEntry?: NotifyHandler;
 }
 
+/** The `GtkFontChooserWidget` widget lets the user select a font. */
 export interface GtkFontChooserWidgetProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkFontChooserProps {}
 
+/** Opens a font chooser dialog to select a font. */
 export interface GtkFontDialogButtonProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The `GtkFontDialog` that contains parameters for the font chooser dialog. */
@@ -3593,6 +3710,7 @@ export interface GtkFontDialogButtonProps
     onNotifyUseSize?: NotifyHandler;
 }
 
+/** Surrounds its child with a decorative frame and an optional label. */
 export interface GtkFrameProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
     child?: Gtk.Widget | null;
@@ -3610,6 +3728,7 @@ export interface GtkFrameProps extends GtkWidgetProps, GtkAccessibleProps, GtkBu
     onNotifyLabelXalign?: NotifyHandler;
 }
 
+/** Allows drawing with OpenGL. */
 export interface GtkGLAreaProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The allowed APIs. */
@@ -3640,6 +3759,7 @@ export interface GtkGLAreaProps
     onNotifyUseEs?: NotifyHandler;
 }
 
+/** Bypasses gsk rendering by passing the content of its child directly to the compositor. */
 export interface GtkGraphicsOffloadProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether to draw a black background. */
@@ -3654,6 +3774,7 @@ export interface GtkGraphicsOffloadProps
     onNotifyEnabled?: NotifyHandler;
 }
 
+/** Arranges its child widgets in rows and columns. */
 export interface GtkGridProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /** The row to align to the baseline when valign is using baseline alignment. */
@@ -3678,6 +3799,7 @@ export interface GtkGridProps
     onNotifyRowSpacing?: NotifyHandler;
 }
 
+/** Presents a large dynamic grid of items. */
 export interface GtkGridViewProps
     extends
         GtkListBaseProps,
@@ -3716,6 +3838,7 @@ export interface GtkGridViewProps
     onNotifyTabBehavior?: NotifyHandler;
 }
 
+/** Creates a custom titlebar for a window. */
 export interface GtkHeaderBarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The decoration layout for buttons. */
@@ -3736,6 +3859,7 @@ export interface GtkHeaderBarProps
     onNotifyUseNativeControls?: NotifyHandler;
 }
 
+/** `GtkIconView` is a widget which displays data in a grid of icons. */
 export interface GtkIconViewProps
     extends
         GtkWidgetProps,
@@ -3817,6 +3941,7 @@ export interface GtkIconViewProps
     onNotifyTooltipColumn?: NotifyHandler;
 }
 
+/** Displays an image. */
 export interface GtkImageProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** A path to the file to display. */
     file?: string;
@@ -3848,6 +3973,7 @@ export interface GtkImageProps extends GtkWidgetProps, GtkAccessibleProps, GtkBu
     onNotifyUseFallback?: NotifyHandler;
 }
 
+/** `GtkInfoBar` can be used to show messages to the user without a dialog. */
 export interface GtkInfoBarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The type of the message. */
@@ -3865,6 +3991,7 @@ export interface GtkInfoBarProps
     onNotifyShowCloseButton?: NotifyHandler;
 }
 
+/** Shows text in a predefined area. */
 export interface GtkInscriptionProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkAccessibleTextProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** A list of style attributes to apply to the text of the inscription. */
@@ -3908,6 +4035,7 @@ export interface GtkInscriptionProps
     onNotifyYalign?: NotifyHandler;
 }
 
+/** Displays a small amount of text. */
 export interface GtkLabelProps
     extends
         GtkWidgetProps,
@@ -3988,6 +4116,7 @@ export interface GtkLabelProps
     onNotifyYalign?: NotifyHandler;
 }
 
+/** Shows a level indicator. */
 export interface GtkLevelBarProps
     extends
         GtkWidgetProps,
@@ -4016,6 +4145,7 @@ export interface GtkLevelBarProps
     onNotifyValue?: NotifyHandler;
 }
 
+/** A button with a hyperlink. */
 export interface GtkLinkButtonProps
     extends
         GtkButtonProps,
@@ -4033,12 +4163,14 @@ export interface GtkLinkButtonProps
     onNotifyVisited?: NotifyHandler;
 }
 
+/** The abstract base class for GTK's list widgets. */
 export interface GtkListBaseProps {
     /** The orientation of the list. */
     orientation?: GtkOrientationNick | Gtk.Orientation;
     onNotifyOrientation?: NotifyHandler;
 }
 
+/** Shows a vertical list. */
 export interface GtkListBoxProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether to accept unpaired release events. */
@@ -4071,6 +4203,7 @@ export interface GtkListBoxProps
     onNotifyTabBehavior?: NotifyHandler;
 }
 
+/** The kind of widget that can be added to a `GtkListBox`. */
 export interface GtkListBoxRowProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Determines whether the ::row-activated signal will be emitted for this row. */
@@ -4085,12 +4218,14 @@ export interface GtkListBoxRowProps
     onNotifySelectable?: NotifyHandler;
 }
 
+/** Used by list widgets to represent the headers they display. */
 export interface GtkListHeaderProps {
     /** Widget used for display. */
     child?: Gtk.Widget | null;
     onNotifyChild?: NotifyHandler;
 }
 
+/** Used by list widgets to represent items in a [iface@Gio.ListModel]. */
 export interface GtkListItemProps {
     /** The accessible description to set on the listitem. */
     accessibleDescription?: string;
@@ -4114,6 +4249,7 @@ export interface GtkListItemProps {
     onNotifySelectable?: NotifyHandler;
 }
 
+/** Presents a large dynamic list of items. */
 export interface GtkListViewProps
     extends
         GtkListBaseProps,
@@ -4152,6 +4288,7 @@ export interface GtkListViewProps
     onNotifyTabBehavior?: NotifyHandler;
 }
 
+/** `GtkLockButton` is a widget to obtain and revoke authorizations needed to operate the controls. */
 export interface GtkLockButtonProps
     extends
         GtkButtonProps,
@@ -4203,6 +4340,7 @@ export interface GtkLockButtonProps
     onNotifyTooltipUnlock?: NotifyHandler;
 }
 
+/** Shows controls for video playback. */
 export interface GtkMediaControlsProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The media-stream managed by this object or %NULL if none. */
@@ -4211,6 +4349,7 @@ export interface GtkMediaControlsProps
     onNotifyMediaStream?: NotifyHandler;
 }
 
+/** Displays a popup when clicked. */
 export interface GtkMenuButtonProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the menu button is active. */
@@ -4258,6 +4397,7 @@ export interface GtkMenuButtonProps
     onNotifyUseUnderline?: NotifyHandler;
 }
 
+/** `GtkMessageDialog` presents a dialog with some message text. */
 export interface GtkMessageDialogProps
     extends
         GtkDialogProps,
@@ -4293,8 +4433,10 @@ export interface GtkMessageDialogProps
     onNotifyUseMarkup?: NotifyHandler;
 }
 
+/** An interface for widgets that have their own [class@Gdk.Surface]. */
 export interface GtkNativeProps {}
 
+/** Switches between children using tabs. */
 export interface GtkNotebookProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** If %TRUE, pressing the right mouse button on the notebook shows a page switching menu. */
@@ -4335,12 +4477,14 @@ export interface GtkNotebookProps
     onNotifyTabPos?: NotifyHandler;
 }
 
+/** An interface for widgets that can be oriented horizontally or vertically. */
 export interface GtkOrientableProps {
     /** The orientation of the orientable. */
     orientation?: GtkOrientationNick | Gtk.Orientation;
     onNotifyOrientation?: NotifyHandler;
 }
 
+/** Places “overlay” widgets on top of a single main child. */
 export interface GtkOverlayProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The main child widget. */
@@ -4349,6 +4493,7 @@ export interface GtkOverlayProps
     onNotifyChild?: NotifyHandler;
 }
 
+/** Presents a page setup dialog for platforms which don’t provide a native page setup dialog, like Unix. */
 export interface GtkPageSetupUnixDialogProps
     extends
         GtkDialogProps,
@@ -4361,6 +4506,7 @@ export interface GtkPageSetupUnixDialogProps
         GtkRootProps,
         GtkShortcutManagerProps {}
 
+/** Arranges its children in two panes, horizontally or vertically. */
 export interface GtkPanedProps
     extends
         GtkWidgetProps,
@@ -4412,6 +4558,7 @@ export interface GtkPanedProps
     onNotifyWideHandle?: NotifyHandler;
 }
 
+/** A single-line text entry widget for entering passwords and other secrets. */
 export interface GtkPasswordEntryProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkEditableProps {
     /** Whether to activate the default widget when Enter is pressed. */
@@ -4433,6 +4580,7 @@ export interface GtkPasswordEntryProps
     onNotifyShowPeekIcon?: NotifyHandler;
 }
 
+/** Displays a `GdkPaintable`. */
 export interface GtkPictureProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The alternative textual description for the picture. */
@@ -4466,6 +4614,7 @@ export interface GtkPictureProps
     onNotifyPaintable?: NotifyHandler;
 }
 
+/** A single child container with a popover. */
 export interface GtkPopoverBinProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget of the popover bin. */
@@ -4484,6 +4633,7 @@ export interface GtkPopoverBinProps
     onNotifyPopover?: NotifyHandler;
 }
 
+/** Presents a horizontal bar of items that pop up menus when clicked. */
 export interface GtkPopoverMenuBarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The `GMenuModel` from which the menu bar is created. */
@@ -4492,6 +4642,7 @@ export interface GtkPopoverMenuBarProps
     onNotifyMenuModel?: NotifyHandler;
 }
 
+/** A subclass of `GtkPopover` that implements menu behavior. */
 export interface GtkPopoverMenuProps
     extends
         GtkPopoverProps,
@@ -4514,6 +4665,7 @@ export interface GtkPopoverMenuProps
     onNotifyVisibleSubmenu?: NotifyHandler;
 }
 
+/** Presents a bubble-like popup. */
 export interface GtkPopoverProps
     extends
         GtkWidgetProps,
@@ -4555,6 +4707,7 @@ export interface GtkPopoverProps
     onNotifyPosition?: NotifyHandler;
 }
 
+/** A print dialog for platforms which don’t provide a native print dialog, like Unix. */
 export interface GtkPrintUnixDialogProps
     extends
         GtkDialogProps,
@@ -4596,6 +4749,7 @@ export interface GtkPrintUnixDialogProps
     onNotifySupportSelection?: NotifyHandler;
 }
 
+/** Displays the progress of a long-running operation. */
 export interface GtkProgressBarProps
     extends
         GtkWidgetProps,
@@ -4626,6 +4780,7 @@ export interface GtkProgressBarProps
     onNotifyText?: NotifyHandler;
 }
 
+/** Base class for widgets which visualize an adjustment. */
 export interface GtkRangeProps
     extends
         GtkWidgetProps,
@@ -4662,6 +4817,7 @@ export interface GtkRangeProps
     onNotifyShowFillLevel?: NotifyHandler;
 }
 
+/** Animates the transition of its child from invisible to visible. */
 export interface GtkRevealerProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -4681,8 +4837,10 @@ export interface GtkRevealerProps
     onNotifyTransitionType?: NotifyHandler;
 }
 
+/** An interface for widgets that can act as the root of a widget hierarchy. */
 export interface GtkRootProps {}
 
+/** Provides a button which pops up a scale widget. */
 export interface GtkScaleButtonProps
     extends
         GtkWidgetProps,
@@ -4709,6 +4867,7 @@ export interface GtkScaleButtonProps
     onNotifyValue?: NotifyHandler;
 }
 
+/** Allows to select a numeric value with a slider control. */
 export interface GtkScaleProps
     extends
         GtkRangeProps,
@@ -4735,6 +4894,7 @@ export interface GtkScaleProps
     onNotifyValuePos?: NotifyHandler;
 }
 
+/** An interface for widgets with native scrolling ability. */
 export interface GtkScrollableProps {
     /** Horizontal `GtkAdjustment` of the scrollable widget. */
     hadjustment?: Gtk.Adjustment | null;
@@ -4752,6 +4912,7 @@ export interface GtkScrollableProps {
     onNotifyVscrollPolicy?: NotifyHandler;
 }
 
+/** Shows a horizontal or vertical scrollbar. */
 export interface GtkScrollbarProps
     extends
         GtkWidgetProps,
@@ -4765,6 +4926,7 @@ export interface GtkScrollbarProps
     onNotifyAdjustment?: NotifyHandler;
 }
 
+/** Makes its child scrollable. */
 export interface GtkScrolledWindowProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -4830,6 +4992,7 @@ export interface GtkScrolledWindowProps
     onNotifyWindowPlacement?: NotifyHandler;
 }
 
+/** Reveals a search entry when search is started. */
 export interface GtkSearchBarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -4849,6 +5012,7 @@ export interface GtkSearchBarProps
     onNotifyShowCloseButton?: NotifyHandler;
 }
 
+/** A single-line text entry widget for use as a search entry. */
 export interface GtkSearchEntryProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkEditableProps {
     /** Whether to activate the default widget when Enter is pressed. */
@@ -4883,9 +5047,11 @@ export interface GtkSearchEntryProps
     onNotifySearchDelay?: NotifyHandler;
 }
 
+/** Draws a horizontal or vertical line to separate other widgets. */
 export interface GtkSeparatorProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {}
 
+/** `GtkShortcutLabel` displays a single keyboard shortcut or gesture. */
 export interface GtkShortcutLabelProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /**
@@ -4903,8 +5069,10 @@ export interface GtkShortcutLabelProps
     onNotifyDisabledText?: NotifyHandler;
 }
 
+/** An interface that is used to implement shortcut scopes. */
 export interface GtkShortcutManagerProps {}
 
+/** A `GtkShortcutsGroup` represents a group of related keyboard shortcuts or gestures. */
 export interface GtkShortcutsGroupProps
     extends
         GtkBoxProps,
@@ -4941,6 +5109,7 @@ export interface GtkShortcutsGroupProps
     onNotifyView?: NotifyHandler;
 }
 
+/** A `GtkShortcutsSection` collects all the keyboard shortcuts and gestures for a major application mode. */
 export interface GtkShortcutsSectionProps
     extends
         GtkBoxProps,
@@ -4979,6 +5148,7 @@ export interface GtkShortcutsSectionProps
     onNotifyViewName?: NotifyHandler;
 }
 
+/** A `GtkShortcutsShortcut` represents a single keyboard shortcut or gesture with a short text. */
 export interface GtkShortcutsShortcutProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /**
@@ -5055,6 +5225,7 @@ export interface GtkShortcutsShortcutProps
     onNotifyTitleSizeGroup?: NotifyHandler;
 }
 
+/** A `GtkShortcutsWindow` shows information about the keyboard shortcuts and gestures of an application. */
 export interface GtkShortcutsWindowProps
     extends
         GtkWindowProps,
@@ -5083,6 +5254,7 @@ export interface GtkShortcutsWindowProps
     onNotifyViewName?: NotifyHandler;
 }
 
+/** Allows to enter or change numeric values. */
 export interface GtkSpinButtonProps
     extends
         GtkWidgetProps,
@@ -5132,6 +5304,7 @@ export interface GtkSpinButtonProps
     onNotifyWrap?: NotifyHandler;
 }
 
+/** Displays an icon-size spinning animation. */
 export interface GtkSpinnerProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the spinner is spinning */
@@ -5139,6 +5312,7 @@ export interface GtkSpinnerProps
     onNotifySpinning?: NotifyHandler;
 }
 
+/** Shows one of its children at a time. */
 export interface GtkStackProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** %TRUE if the stack allocates the same width for all children. */
     hhomogeneous?: boolean;
@@ -5168,6 +5342,7 @@ export interface GtkStackProps extends GtkWidgetProps, GtkAccessibleProps, GtkBu
     onNotifyVisibleChildName?: NotifyHandler;
 }
 
+/** Uses a sidebar to switch between `GtkStack` pages. */
 export interface GtkStackSidebarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The stack. */
@@ -5175,6 +5350,7 @@ export interface GtkStackSidebarProps
     onNotifyStack?: NotifyHandler;
 }
 
+/** Shows a row of buttons to switch between `GtkStack` pages. */
 export interface GtkStackSwitcherProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkOrientableProps {
     /** The stack. */
@@ -5182,12 +5358,14 @@ export interface GtkStackSwitcherProps
     onNotifyStack?: NotifyHandler;
 }
 
+/** A `GtkStatusbar` widget is usually placed along the bottom of an application's main [class@Gtk.Window]. */
 export interface GtkStatusbarProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     onTextPopped?: Gtk.Statusbar.SignalSignatures['text-popped'];
     onTextPushed?: Gtk.Statusbar.SignalSignatures['text-pushed'];
 }
 
+/** A widget that renders SVG, with animations and event handling. */
 export interface GtkSvgWidgetProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Resource to load SVG data from. */
@@ -5203,6 +5381,7 @@ export interface GtkSvgWidgetProps
     onNotifyStylesheet?: NotifyHandler;
 }
 
+/** Shows a "light switch" that has two states: on or off. */
 export interface GtkSwitchProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkActionableProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** Whether the `GtkSwitch` widget is in its on or off state. */
@@ -5215,6 +5394,7 @@ export interface GtkSwitchProps
     onNotifyState?: NotifyHandler;
 }
 
+/** A single-line text entry. */
 export interface GtkTextProps
     extends
         GtkWidgetProps,
@@ -5300,6 +5480,7 @@ export interface GtkTextProps
     onNotifyVisibility?: NotifyHandler;
 }
 
+/** Displays the contents of a [class@Gtk.TextBuffer]. */
 export interface GtkTextViewProps
     extends
         GtkWidgetProps,
@@ -5402,6 +5583,7 @@ export interface GtkTextViewProps
     onNotifyWrapMode?: NotifyHandler;
 }
 
+/** Shows a button which remains “pressed-in” when clicked. */
 export interface GtkToggleButtonProps
     extends
         GtkButtonProps,
@@ -5419,6 +5601,7 @@ export interface GtkToggleButtonProps
     onNotifyGroup?: NotifyHandler;
 }
 
+/** Provides an expander for a tree-like list. */
 export interface GtkTreeExpanderProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget with the actual contents. */
@@ -5442,6 +5625,7 @@ export interface GtkTreeExpanderProps
     onNotifyListRow?: NotifyHandler;
 }
 
+/** A widget for displaying both trees and lists <picture> <source srcset="list-and-tree-dark.png" media="(prefers-color-scheme: dark)"> <img alt="An example GtkTreeView" src="list-and-tree.png"> </pictu… */
 export interface GtkTreeViewProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkScrollableProps {
     /** The activate-on-single-click property specifies whether the "row-activated" signal will be emitted after a single click. */
@@ -5471,7 +5655,6 @@ export interface GtkTreeViewProps
     /** Extra indentation for each level. */
     levelIndentation?: number;
     'level-indentation'?: number;
-    /** Extra indentation for each level. */
     model?: Gtk.TreeModel | null;
     reorderable?: boolean;
     rubberBanding?: boolean;
@@ -5517,6 +5700,7 @@ export interface GtkTreeViewProps
     onNotifyTooltipColumn?: NotifyHandler;
 }
 
+/** Shows a `GtkMediaStream` with media controls. */
 export interface GtkVideoProps extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** If the video should automatically begin playing. */
     autoplay?: boolean;
@@ -5537,6 +5721,7 @@ export interface GtkVideoProps extends GtkWidgetProps, GtkAccessibleProps, GtkBu
     onNotifyMediaStream?: NotifyHandler;
 }
 
+/** Implements scrollability for widgets that don't support scrolling on their own. */
 export interface GtkViewportProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps, GtkScrollableProps {
     /** The child widget. */
@@ -5548,6 +5733,7 @@ export interface GtkViewportProps
     onNotifyScrollToFocus?: NotifyHandler;
 }
 
+/** `GtkVolumeButton` is a `GtkScaleButton` subclass tailored for volume control. */
 export interface GtkVolumeButtonProps
     extends
         GtkScaleButtonProps,
@@ -5566,6 +5752,7 @@ export interface GtkVolumeButtonProps
     onNotifyUseSymbolic?: NotifyHandler;
 }
 
+/** The base class for all widgets. */
 export interface GtkWidgetProps {
     /** Whether the widget or any of its descendents can accept the input focus. */
     canFocus?: boolean;
@@ -5691,6 +5878,7 @@ export interface GtkWidgetProps {
     onNotifyWidthRequest?: NotifyHandler;
 }
 
+/** Shows window frame controls. */
 export interface GtkWindowControlsProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The decoration layout for window buttons. */
@@ -5706,6 +5894,7 @@ export interface GtkWindowControlsProps
     onNotifyUseNativeControls?: NotifyHandler;
 }
 
+/** Implements titlebar functionality for a window. */
 export interface GtkWindowHandleProps
     extends GtkWidgetProps, GtkAccessibleProps, GtkBuildableProps, GtkConstraintTargetProps {
     /** The child widget. */
@@ -5713,6 +5902,7 @@ export interface GtkWindowHandleProps
     onNotifyChild?: NotifyHandler;
 }
 
+/** A toplevel window which can contain other widgets. */
 export interface GtkWindowProps
     extends
         GtkWidgetProps,
