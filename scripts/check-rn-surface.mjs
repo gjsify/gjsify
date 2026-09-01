@@ -345,11 +345,10 @@ function selfTest() {
     // below counts matches per surface — so a reader that saw one too many would
     // report the wrong file as the answerer.
     ok('reads a star re-export specifier', readStarReExports("export * from './x.js';"), ['./x.js']);
-    ok(
-        'reads every one, not just the first',
-        readStarReExports("export * from './a.js';\nexport * from '../b.js';"),
-        ['./a.js', '../b.js'],
-    );
+    ok('reads every one, not just the first', readStarReExports("export * from './a.js';\nexport * from '../b.js';"), [
+        './a.js',
+        '../b.js',
+    ]);
     ok('a NAMED re-export is not a star one', readStarReExports("export { A } from './x.js';"), []);
     ok('a star re-export in a COMMENT is not one', readStarReExports("// export * from './x.js';"), []);
     ok('a star re-export in a STRING is not one', readStarReExports("const doc = `export * from './x.js';`;"), []);
