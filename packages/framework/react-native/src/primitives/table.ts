@@ -520,10 +520,23 @@ export const PRIMITIVES: Readonly<Record<string, PrimitiveSpec>> = {
 
     Text: {
         tag: 'GtkLabel',
-        // THE SECOND INVERSION. React Native's `Text` wraps; `Gtk.Label` does not
-        // (`wrap` defaults to false), and a long line simply forces the window
-        // wider — which reads as a layout bug anywhere but here.
-        widgetProps: { wrap: true },
+        // THREE DEFAULTS `Gtk.Label` disagrees with React Native about, and the whole
+        // set — including the ones that AGREE — is enumerated in `defaults.ts`, which
+        // a spec holds against the installed GTK in both directions.
+        //
+        //   wrap    React Native's `Text` wraps; a `Gtk.Label` does not, and a long
+        //           line forces the window wider instead.
+        //   xalign  `Gtk.Label` CENTRES. React Native's text alignment is unset by
+        //           default, which means the script's natural edge — left in LTR.
+        //   yalign  the same, one axis over: it centres vertically wherever the label
+        //           is given more height than its text.
+        //
+        // MEASURED as a position rather than as a property, because a property read
+        // does not say what a reader sees: a label allocated 400×100 reports
+        // `get_layout_offsets()` = (193, 41) with GTK's defaults and (0, 0) with these
+        // two. Found by porting a 25-route application and looking at it — every
+        // string on every screen was centred, and nothing reported it.
+        widgetProps: { wrap: true, xalign: 0, yalign: 0 },
         cssClasses: [],
         orientation: 'vertical',
         widget: TEXT,

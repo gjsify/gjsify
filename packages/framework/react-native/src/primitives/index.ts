@@ -8,6 +8,8 @@
 // stopped being true.
 
 export { splitVariants } from './classes.js';
+export { DEFAULT_ROWS, NORMALISED_DEFAULTS, defaultRowFor } from './defaults.js';
+export type { DefaultRow, DefaultVerdict } from './defaults.js';
 export type { ClassGroups, ClassNameInput } from './classes.js';
 export { PrimitiveError } from './errors.js';
 export { resolveIntent } from './intents.js';

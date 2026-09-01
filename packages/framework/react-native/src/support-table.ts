@@ -87,8 +87,9 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         status: 'partial',
         tier: 'P1',
         gtk: 'Gtk.Label',
-        reason: 'Wrapping is ON by default in React Native and OFF on a Gtk.Label, so the default is set explicitly.',
+        reason: 'THREE Gtk.Label defaults disagree with React Native’s and are set explicitly — wrap, xalign and yalign. The whole set of default divergences, including the ones that agree, is enumerated in primitives/defaults.ts.',
         limits: [
+            'Gtk.Label CENTRES by default and React Native’s text alignment is unset, which means the script’s natural edge — left in LTR. MEASURED as a position rather than a property: a label allocated 400×100 reports get_layout_offsets() = (193, 41) with GTK’s defaults and (0, 0) with xalign/yalign 0. Found by porting a 25-route application, where every string on every screen rendered centred and nothing reported it; text-center still works, because widgetProps is the base the style partition overrides.',
             'A nested <Text> is refused by the host naming the tag: Gtk.Label takes no children (measured), so React Native’s inline-styling idiom has no counterpart. Use Pango markup through a ref, or separate labels.',
             'ellipsizeMode="clip" is refused: PangoEllipsizeMode is NONE, START, MIDDLE, END (measured) and has no clip member, so honouring it would add an ellipsis the author asked not to have.',
             'onPress is refused: a Gtk.Label emits no clicked signal (measured). Wrap it in a <Pressable>.',
