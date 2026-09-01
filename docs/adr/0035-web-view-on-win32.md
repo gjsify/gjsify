@@ -2,7 +2,7 @@
 
 - **Status:** Proposed (2026-08-31)
 - **Scope:** `@gjsify/iframe` (Framework pillar) and its `WebKit.WebView` dependency on `win32-x64`; a new per-target package set (distribution per ADR 0017, OS axis per ADR 0018, artifact dependencies per ADR 0024). Sibling of [ADR 0022](0022-webkit-on-darwin.md), which decided the same question for darwin.
-- **Nothing in this ADR has been measured on Windows.** That is deliberate and it is the point: § *What the spike must answer* is the deliverable, and it is written before the code because ADR 0022's Proposed draft got two of its own decisions wrong and only measurement overturned them. Do not promote this to Accepted on reading. Promote it on a probe.
+- **The spike has run.** It was written before the code, because ADR 0022's Proposed draft got two of its own decisions wrong and only measurement overturned them; § *What the spike answered* now carries the results, measured on a `windows-latest` runner on 2026-08-31. The staging below survives them, with one refinement it did not anticipate. What remains unmeasured is stage 2's frame transport, and it is marked as such.
 
 ## Context
 
@@ -163,7 +163,51 @@ direction.
   as an ordinary widget on Windows, and no roadmap should imply otherwise until
   stage 2 has a measurement behind it.
 
-## What the spike must answer
+## What the spike answered
+
+Run on `windows-latest` (WebView2 Evergreen **151.0.4129.101**) on 2026-08-31, in the
+process shape this has to hold in: a **non-bundled console process**, no `WinMain`, no
+application message loop. `docs/poc/webview2-win32-probe.cpp`, dispatched by the
+`WebView2 probe (ADR 0035)` workflow.
+
+| question | answer |
+|---|---|
+| 5 — is the Evergreen runtime present | **yes**, 151.0.4129.101, on a stock image |
+| 1 — does the environment callback need a pump | **no** |
+| 1 — does the controller callback need a pump | **no** |
+| 1 — does `NavigationCompleted` need a pump | **YES** — timed out after 8000 ms without one, arrived immediately with one |
+| 3 — `CapturePreviewAsync` at 1024×768 | first 56.9 ms, **mean 33.4 ms** over 10 runs, 10,397 bytes of PNG |
+
+**The premise holds: the win32 backend owes a loop bridge.** A `GMainLoop` does not dispatch
+Win32 window messages, and without that dispatch `NavigationCompleted` does not arrive at
+all — not late, not slowly. That is the same shape as darwin's CFRunLoop finding, and it
+means decision 2's staging stands rather than collapsing into "Windows needs nothing".
+
+**The refinement this ADR did not anticipate: the requirement is not uniform.**
+`CreateCoreWebView2EnvironmentWithOptions` and `CreateCoreWebView2Controller` both complete
+their callbacks with **no pump at all**, and only content-level work needs the queue. So the
+bridge is not "install a GSource before the first call" — a backend could construct an
+environment and a controller in a process that never pumps, and only discover the gap at the
+first navigation. That is a worse failure mode than needing the pump throughout, because it
+puts the symptom a long way from the cause: the widget exists, the view exists, and nothing
+loads. The GSource therefore belongs at the point a view becomes live, and its absence
+should be a named error rather than a timeout.
+
+**On the capture cost, the ADR was too pessimistic and the number needs its caveat.**
+§ *What Windows does not offer* calls `CapturePreviewAsync` "an image-codec round trip per
+frame" against darwin's zero-copy `IOSurface`, which is true, and implies it is hopeless,
+which the measurement does not support: 33.4 ms is roughly **twice** darwin's 15.8 ms, or
+about 30 fps, on a GPU-less hosted runner. For a reader view that is usable.
+
+The caveat is the page. The probe renders a flat background with one heading, and the PNG is
+**10 KB** — a best case for an encoder. A page carrying photographs encodes larger and
+slower, and that number is not measured here. So: stage 1 does not need stage 2 to be
+usable for document-shaped content, and stage 2's budget is still unestablished for
+image-heavy content.
+
+## What the spike asked
+
+### The questions, as they were put
 
 One probe, in the process shape the shim actually runs in — a **non-bundled
 console process driving a `GMainLoop`**, not a WinMain app with its own message
@@ -202,7 +246,7 @@ or be replaced by an assertion that does not need one.
 
 Nothing of the backend is implemented. The order, once the spike answers:
 
-1. **The probe is WRITTEN and has NOT been run** — `docs/poc/webview2-win32-probe.cpp`,
+1. **The probe is written and HAS RUN** (§ *What the spike answered*) — `docs/poc/webview2-win32-probe.cpp`,
    built and run by `docs/poc/webview2-win32-probe.ps1`, dispatchable as the
    `WebView2 probe (ADR 0035)` workflow. It answers questions 1, 3 and 5, the three
    that need no widget, and it links no GLib on purpose: what decides the design is
@@ -210,9 +254,8 @@ Nothing of the backend is implemented. The order, once the spike answers:
    messages — and a `Sleep()` loop has that property while a second GLib pulled from
    MSYS2 or gvsbuild would measure a library the shipped bundle is not. It exits
    non-zero on the outcomes that invalidate this ADR (10: no loop bridge needed;
-   11: no frame captured), so a red run is a result rather than a build to fix.
-   **Until it has run on a Windows host, every number in this ADR about win32 is a
-   question, not a measurement.**
+   11: no frame captured), so a red run is a result rather than a build to fix. It
+   exited **0**: the pump is needed for navigation, and a frame was captured.
 2. The GObject shim: a C header with every GIR annotation and a C++/WinRT
    implementation, producing the DLL plus `WebKit-6.0.{gir,typelib}` for the
    subset in decision 4, staged into `prebuilds/win32-x64/` per ADR 0017.
@@ -238,8 +281,11 @@ Nothing of the backend is implemented. The order, once the spike answers:
   tool for every frame after the first.
 - **Do not assume the Win32 message queue is pumped just because GTK4 runs on
   Windows.** That is the same assumption, one platform over, that made
-  `didFinishNavigation` never fire on darwin. Measure it, in a bare `GMainLoop`,
-  before anything depends on it.
+  `didFinishNavigation` never fire on darwin — and measured here, it is false in the
+  same direction: without a dispatch, `NavigationCompleted` never arrives. Do not
+  read that as "everything needs the pump" either: the environment and controller
+  callbacks arrive without one, so a backend can get a long way into its own setup
+  before the gap shows.
 - **Do not let stage 1 ship as "a web view widget on Windows".** It is an
   OS-composited overlay that happens to occupy a widget's allocation. Naming it
   accurately in the release notes costs one sentence; not naming it costs the
