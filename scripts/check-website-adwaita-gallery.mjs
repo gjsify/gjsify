@@ -118,6 +118,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ADWAITA_STORY_SRC, adwaitaStoryMetas } from './adwaita-elements.mjs';
+import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
@@ -256,7 +257,7 @@ const TAB_MAP = 'tabs.map(';
  * Line comments are anchored to the start of a line so that a `https://` inside an
  * attribute is not read as one.
  */
-const withoutComments = (text) => text.replaceAll(/^[ \t]*\/\/.*$/gm, '').replaceAll(/\/\*[\s\S]*?\*\//g, '');
+const withoutComments = stripComments;
 
 /**
  * Arm 9: the live preview is emitted BEFORE the code tabs, inside the tab view, and

@@ -266,9 +266,9 @@ const VECTORS = [
     // and the shared `stripComments` removed BLOCK comments first — so that `/*` paired
     // with the next `*/` anywhere below, usually the opening of the following JSDoc.
     // Everything between vanished, and a reader that sees nothing reports nothing.
-    // Measured repo-wide before the ordering was swapped: 8243 code lines across 307 of
-    // 3641 tracked sources. The trailing `/** … */` is load-bearing in this vector — with
-    // no later `*/` the lazy regex finds no match at all and the bug does not reproduce.
+    // Measured repo-wide: that ordering hid 7780 code lines across 226 of 3642 tracked
+    // JS/TS sources. The trailing `/** … */` is load-bearing in this vector — with no
+    // later `*/` the lazy regex finds no match at all and the bug does not reproduce.
     [
         'a line comment ending in `/*` does not open a block comment',
         '// tags live under `packages/*`\n<gtk-entry></gtk-entry>\n/** doc */\nconst x = 1;',

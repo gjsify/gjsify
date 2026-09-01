@@ -19,6 +19,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
+
 /** Where the widget classes live, relative to the repo root. */
 export const NS_WIDGETS_DIR = 'packages/nativescript-bridge/adwaita/src/widgets';
 
@@ -83,7 +85,7 @@ export const SETTER_ONLY_ON_BASE = {
 };
 
 /** Strip comments, so a coercer NAMED in prose is not mistaken for one that runs. */
-export const executable = (text) => text.replace(/(^|[^:])\/\/.*$/gm, '$1').replace(/\/\*[\s\S]*?\*\//g, '');
+export const executable = stripComments;
 
 /**
  * Every source a type alias might be declared in — the widgets plus the headless core.

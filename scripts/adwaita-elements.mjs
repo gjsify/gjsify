@@ -37,6 +37,7 @@ import {
     sourceExtensionRe,
     toPosixPath,
 } from '../packages/infra/manifest-conformance/lib/index.mjs';
+import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 
 /** Repo-relative source roots, so callers can name them in their own messages. */
 export const ADWAITA_WEB_SRC = 'packages/web/adwaita-web/src';
@@ -246,16 +247,13 @@ function bindsOnlyTypes(clause) {
 }
 
 /**
- * A source with its comments blanked out, so a static reader claims only what the
- * module RUNS. `[^:]` before `//` keeps a `https://` inside a string intact. Shared,
- * because #1123 is what a reader without it costs: `.osd` and `.linked` read as
- * implemented off a comment while the code spelled something else.
- *
- * @param {string} text
+ * A source with its comments removed, so a static reader claims only what the module
+ * RUNS — #1123 is what a reader without it costs: `.osd` and `.linked` read as
+ * implemented off a comment while the code spelled something else. Re-exported rather
+ * than reimplemented: the two-regex version this replaced could not tell a `//` inside
+ * a string from a comment, and no ordering of its two passes fixes that.
  */
-export function stripComments(text) {
-    return text.replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1').replaceAll(/\/\*[\s\S]*?\*\//g, '');
-}
+export { stripComments };
 
 /**
  * `observedAttributes` per CLASS, from the returned array literal.

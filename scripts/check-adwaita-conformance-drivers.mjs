@@ -112,6 +112,7 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
+import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 import { readSuiteRegistration, walk as walkFiles } from './suite-registration.mjs';
 import {
     TS_SOURCE_EXTENSIONS,
@@ -239,8 +240,8 @@ function tablesIn(file) {
     return found;
 }
 
-/** Comment bodies, blanked; `[^:]` keeps `https://` out of it. */
-const withoutComments = (source) => source.replace(/(^|[^:])\/\/.*$/gm, '$1').replace(/\/\*[\s\S]*?\*\//g, ' ');
+/** Comment bodies, removed by the shared lexical scanner. */
+const withoutComments = stripComments;
 
 /**
  * Which of `names` each `*.spec.ts` under `dir` NAMES, outside a comment.

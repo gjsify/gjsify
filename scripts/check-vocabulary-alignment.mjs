@@ -156,6 +156,11 @@ import {
     settablePropertiesOfClass,
     widgetClass,
 } from './adwaita-elements.mjs';
+// `stripComments`, so a rule about DECLARATIONS is not answered by prose: these files
+// explain what they deliberately do not contain, and they name those things. A naive match
+// reports the explanation as the violation — measured on the sibling check for the
+// generated surface, whose first run failed on a word inside its own header.
+import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 import { WIDGET_SURFACE_READERS, declaredWidgetSurfaces, enrolmentProblems } from './widget-surfaces.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -616,15 +621,6 @@ const RENDERER_TABLES = {
 const WEB_SURFACE = '@gjsify/adwaita-web';
 
 // ------------------------------------------------------------------ readers
-
-/**
- * Strip comments so a rule about DECLARATIONS is not answered by prose.
- *
- * These files explain what they deliberately do not contain, and they name those things.
- * A naive match reports the explanation as the violation — measured on the sibling check
- * for the generated surface, whose first run failed on a word inside its own header.
- */
-const stripComments = (text) => text.replace(/^[ \t]*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
 
 /** The body of `export interface <name> { … }`, or null. */
 function interfaceBody(text, name) {
@@ -1810,10 +1806,10 @@ const READER_VECTORS = [
     // down. Everything between goes invisible, and a reader that sees nothing reports
     // nothing, which is indistinguishable from a file that contains nothing.
     //
-    // Measured repo-wide with the old ordering: 8243 code lines across 307 of 3641
-    // tracked sources were blanked for every check that shares this idiom. In THIS
-    // reader's own corpus the numbers did not move — which is why it needs a vector
-    // rather than a diff, since nothing in the real tree makes it go red.
+    // Measured repo-wide: that ordering hid 7780 code lines across 226 of 3642 tracked
+    // JS/TS sources, for every check that shared the idiom. In THIS reader's own corpus
+    // the numbers did not move — which is why it needs a vector rather than a diff, since
+    // nothing in the real tree makes it go red.
     // The `*/` that closes the fake block comment is part of the vector, not decoration:
     // without a later `*/` the lazy block regex simply finds no match and the bug does not
     // reproduce. A first draft of these two omitted it and passed under BOTH orderings —

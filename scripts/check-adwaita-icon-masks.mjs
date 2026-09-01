@@ -51,10 +51,11 @@
 //     `adw-button-content.spec.ts` and `split-button.spec.ts` compare the computed
 //     `mask-image` with `--icon-image-missing`.
 //
-// COMMENTS ARE STRIPPED FIRST, and only whole-line `//` ones — a bare `//` mid-line is
-// a URL far more often than a comment. A name that appears only in prose is not
-// emitted; before the strip, `gtk-image.spec.ts`' own explanation of the bug (a comment
-// spelling `adw-icon--a b`) registered `a` as an emitted icon.
+// COMMENTS ARE STRIPPED FIRST, by the shared lexical scanner. A name that appears only
+// in prose is not emitted; before the strip, `gtk-image.spec.ts`' own explanation of the
+// bug (a comment spelling `adw-icon--a b`) registered `a` as an emitted icon. Mid-line
+// `//` used to be left alone here because it is a URL more often than a comment — the
+// scanner knows which, so a trailing comment is stripped and a `https://` is not.
 //
 // STILL BLIND to a name assembled at runtime — `icon.iconName = someRecord.icon`, with
 // no literal in the tree; `_icon.scss` covers that by falling back to `image-missing`.
@@ -72,6 +73,7 @@ import { fileURLToPath } from 'node:url';
 import { CODE_SOURCE_EXTENSIONS } from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
 
 import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
+import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
@@ -243,11 +245,6 @@ function metaControlNames(code) {
         for (const value of code.slice(open, end).matchAll(CONTROL_VALUE)) names.push(value[2]);
     }
     return names;
-}
-
-/** Whole-line `//` and every `/* *\/` — see the header on why not mid-line `//`. */
-function stripComments(code) {
-    return code.replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
 function filesUnder(source) {

@@ -23,17 +23,9 @@
 // globs `src/**/*.{ts,js}`, and `status/status.json` names "No React adapter" as next work,
 // so `react.tsx` is the file that plausibly arrives.
 //
-// The comment stripper is a STATEFUL scanner, not three regexes. `/\/\/.*$/` truncated a line
-// at a `//` inside a string literal (`const u = 'https://x'; w.append(c);` passed), and a
-// `/* … */` block whose continuation lines carry no leading `*` was scanned as code, so
-// ordinary prose quoting a widget name FAILED the check. Prose may name a widget; code may not.
-//
-// It also lexes REGEX LITERALS, which the first stateful version did not — and that omission
-// cost a violation as GREEN. `const re = /[/*]/;` is valid JS; read as code its `/*` opened
-// block-comment state that ran to EOF, so a widget name and a placement call under it were
-// swallowed and the run printed "1 adapter(s) carry no widget knowledge", exit 0, on a file the
-// version this one replaced had failed. `/'/` was the loud twin: it left string state open,
-// after which `//` stopped being a comment and PROSE was reported as a placement method.
+// The comment stripper is a STATEFUL scanner, not three regexes — `scripts/strip-comments.mjs`,
+// which grew here and now serves every whole-file check. Prose may name a widget; code may not,
+// and each shape a line-regex decided wrongly is a vector in that module.
 //
 // The two UNQUOTED patterns landed later, and each was a live violation at the time. `new
 // Gtk.Box()` in the Vue adapter was the one concrete widget class in the whole adapter set and
@@ -71,6 +63,7 @@ import {
     sourceExtensionRe,
 } from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
 import { ADAPTER_IMPORT_DIRECTION_FIXTURES, materializeFixture } from './adapter-import-direction-fixtures.mjs';
+import { stripCommentLines, stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 
 /** The package that owns the host, its table and its adapters. */
 const PKG = 'packages/framework/gtk-host';
@@ -220,203 +213,6 @@ const RUNTIME_GI = /^gi:\/\//;
  */
 const SPECIFIER_SOURCE = String.raw`(?:\bfrom|\bimport|\brequire)\s*\(?\s*(['"\x60])([^'"\x60\n]+)\1`;
 
-/** A character that ENDS an expression, so a `/` after it is division and never a regex. */
-const ENDS_EXPRESSION = /[\w$)\]'"`<>]/;
-
-/** Identifier characters, for the keyword lookback below. */
-const IDENTIFIER = /[\w$]/;
-
-/**
- * Keywords a `/` may FOLLOW and still open a regex. The previous character alone cannot tell
- * `return /x/` from `total / x`: both end in an identifier character.
- */
-const REGEX_AFTER_KEYWORD = new Set([
-    'await',
-    'case',
-    'delete',
-    'do',
-    'else',
-    'in',
-    'instanceof',
-    'new',
-    'of',
-    'return',
-    'throw',
-    'typeof',
-    'void',
-    'yield',
-]);
-
-/**
- * The index just past a regex literal starting at `start`, or -1 if it does not close on its
- * line — in which case the `/` was division, or JSX, and reading it as a regex is what would
- * cost the rest of the line. Character classes are a region where `/` is literal, which is the
- * whole of `/[/*]/`; a backslash escapes the next character.
- */
-function regexLiteralEnd(source, start) {
-    let i = start + 1;
-    let inClass = false;
-    while (i < source.length) {
-        const ch = source[i];
-        if (ch === '\n') return -1;
-        if (ch === '\\') {
-            if (source[i + 1] === undefined || source[i + 1] === '\n') return -1;
-            i += 2;
-            continue;
-        }
-        if (inClass) {
-            if (ch === ']') inClass = false;
-        } else if (ch === '[') {
-            inClass = true;
-        } else if (ch === '/') {
-            return i + 1;
-        }
-        i += 1;
-    }
-    return -1;
-}
-
-/**
- * Strip comments, keeping every other byte and every line boundary.
- *
- * Stateful because the four shapes a line-regex cannot decide are the ones that were wrong:
- * a `//` inside a string literal is not a comment, a `/* … *\/` block runs across lines whether
- * or not the continuation lines are decorated, a `${…}` inside a template literal is code
- * again, and a `/` may open a REGEX LITERAL. Strings are KEPT — a quoted widget name is the
- * violation being looked for — and so is a regex body.
- *
- * The note that used to stand here called the untracked regex "a false negative on a line".
- * It was measured, and it costs the FILE. `const re = /[/*]/;` is valid JS; read as code, its
- * `/*` opened block-comment state that ran to EOF, so the `'GtkBox'` and the `.append()` under
- * it vanished and the run printed "1 adapter(s) carry no widget knowledge", exit 0 — a
- * violation the PRE-rewrite script caught, lost as GREEN. The mirror image was loud rather than
- * dangerous: `/'/` left string state open, after which `//` stopped being a comment and prose
- * was reported as a placement method. `//` costs a line; `/*` costs the file.
- *
- * So a `/` opens a regex only when the previous significant character cannot END an expression
- * (or the word before it is a keyword like `return`) AND the literal CLOSES on its line — the
- * second half is not a heuristic, ECMAScript forbids a LineTerminator in a
- * RegularExpressionLiteral. Together they bound a miscall to the rest of ONE line.
- *
- * Still lexical, not a parser: `a < /re/.test(b)` reads as division, because `<` and `>` count
- * as ending an expression. That is what keeps a `.tsx` adapter's `</div>` out of regex state,
- * and `.tsx` is in SOURCE_EXT.
- */
-function stripComments(source) {
-    const lines = [];
-    let current = '';
-    const endLine = () => {
-        lines.push(current);
-        current = '';
-    };
-
-    /** `code` (top level, or a `${…}` expression) | `single` | `double` | `template`. */
-    const stack = ['code'];
-    /** Brace depth per `code` frame, so a `}` knows whether it closes a `${…}`. */
-    const depth = [0];
-    /** Whether a `/` here would open a regex, and the identifier before it for the keyword case. */
-    let regexAllowed = true;
-    let word = '';
-
-    let i = 0;
-    while (i < source.length) {
-        const ch = source[i];
-        const next = source[i + 1];
-        const top = stack[stack.length - 1];
-
-        // Line accounting is state-independent: every reported line number depends on it.
-        if (ch === '\n') {
-            endLine();
-            i += 1;
-            continue;
-        }
-
-        if (top === 'code') {
-            if (ch === '/' && next === '/') {
-                while (i < source.length && source[i] !== '\n') i += 1;
-                continue;
-            }
-            if (ch === '/' && next === '*') {
-                i += 2;
-                while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) {
-                    if (source[i] === '\n') endLine();
-                    i += 1;
-                }
-                i += 2;
-                continue;
-            }
-            // A regex literal, kept whole. Tested only HERE — after `//` and `/*`, exactly the
-            // order JS lexes them in — so `/[/*]/` is a regex and `/* … */` is still a comment.
-            if (ch === '/' && (regexAllowed || REGEX_AFTER_KEYWORD.has(word))) {
-                const end = regexLiteralEnd(source, i);
-                if (end !== -1) {
-                    current += source.slice(i, end);
-                    regexAllowed = false;
-                    word = '';
-                    i = end;
-                    continue;
-                }
-            }
-            if (ch === "'" || ch === '"' || ch === '`') {
-                stack.push(ch === "'" ? 'single' : ch === '"' ? 'double' : 'template');
-            } else if (ch === '{') {
-                depth[depth.length - 1] += 1;
-            } else if (ch === '}') {
-                if (depth[depth.length - 1] === 0 && stack.length > 1) {
-                    depth.pop();
-                    stack.pop();
-                } else if (depth[depth.length - 1] > 0) {
-                    depth[depth.length - 1] -= 1;
-                }
-            }
-            if (!/\s/.test(ch)) {
-                word = IDENTIFIER.test(ch) ? word + ch : '';
-                regexAllowed = !ENDS_EXPRESSION.test(ch);
-            }
-            current += ch;
-            i += 1;
-            continue;
-        }
-
-        // Inside a string or a template literal.
-        if (ch === '\\') {
-            current += ch;
-            if (next === '\n') {
-                endLine();
-            } else if (next !== undefined) {
-                current += next;
-            }
-            i += 2;
-            continue;
-        }
-        if (
-            (top === 'single' && ch === "'") ||
-            (top === 'double' && ch === '"') ||
-            (top === 'template' && ch === '`')
-        ) {
-            stack.pop();
-            regexAllowed = false;
-            word = '';
-            current += ch;
-            i += 1;
-            continue;
-        }
-        if (top === 'template' && ch === '$' && next === '{') {
-            stack.push('code');
-            depth.push(0);
-            regexAllowed = true;
-            word = '';
-            current += '${';
-            i += 2;
-            continue;
-        }
-        current += ch;
-        i += 1;
-    }
-    endLine();
-    return lines;
-}
-
 /** Specifiers an adapter may not bind, with the offset each was found at. */
 function importProblems(code) {
     const found = [];
@@ -532,7 +328,7 @@ function publishedAdapters(manifestPath) {
 
 function scanFile(path) {
     const found = [];
-    const lines = stripComments(readFileSync(path, 'utf8'));
+    const lines = stripCommentLines(readFileSync(path, 'utf8'));
     lines.forEach((line, index) => {
         if (WIDGET_NAME.test(line)) {
             found.push({ kind: 'widget-name', line: index + 1, path, message: `names a widget type: ${line.trim()}` });
@@ -570,7 +366,7 @@ function scanFile(path) {
 
 /** One framework-free source file: no framework import, by value or by type. */
 function scanFrameworkFree(path) {
-    const code = stripComments(readFileSync(path, 'utf8')).join('\n');
+    const code = stripComments(readFileSync(path, 'utf8'));
     return frameworkImports(code)
         .map((hit) => ({
             kind: hit.kind,
