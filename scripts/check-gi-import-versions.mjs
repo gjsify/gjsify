@@ -44,8 +44,15 @@ import { readFileSync } from 'node:fs';
 import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 import { GI_IMPORT_VERSION_VECTORS } from './gi-import-version-fixtures.mjs';
 
-/** Sources a `gi://` import can appear in, plus the docs that teach the spelling. */
-const SCANNED = /\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|md|mdx)$/;
+/**
+ * Sources a `gi://` import can appear in, plus the docs that teach the spelling.
+ *
+ * `.astro`/`.vue`/`.svelte` carry a script block like any other source, and
+ * `website/src/components/ShowcaseSlideshow.astro` holds five `gi://` imports the first
+ * list did not reach: seed one unpinned there and the check goes red with these
+ * extensions and green without.
+ */
+const SCANNED = /\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|astro|vue|svelte|md|mdx)$/;
 
 /** Markdown has no `//` comments to confuse, and a doc example teaches the form. */
 const MARKDOWN = /\.mdx?$/;
