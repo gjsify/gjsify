@@ -437,6 +437,8 @@ export default async () => {
             expect(classifyReactNativeSpecifier('react-native-reanimated', surfaces)).toStrictEqual({ kind: 'other' });
             expect(classifyReactNativeSpecifier('react-native/Libraries/Text', surfaces)).toStrictEqual({
                 kind: 'subpath',
+                module: 'react-native',
+                target: '@gjsify/react-native',
                 subpath: 'Libraries/Text',
             });
             // A surface that is NOT in the rows handed in is `other`, not a guess: the

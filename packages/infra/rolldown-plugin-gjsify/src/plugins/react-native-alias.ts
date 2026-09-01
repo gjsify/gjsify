@@ -62,8 +62,15 @@ export interface AliasedSurface {
 export type ReactNativeSpecifierKind =
     /** Exactly a declared surface's own npm name — the mirrored export surface. */
     | { readonly kind: 'root'; readonly target: string }
-    /** `react-native/<subpath>` — internals, which are not mirrored. */
-    | { readonly kind: 'subpath'; readonly subpath: string }
+    /**
+     * `<a declared surface>/<subpath>` — internals, which are not mirrored.
+     *
+     * The MODULE and the TARGET come along because the refusal names them: `react-native`
+     * is no longer the only surface with a subpath layout below it, and
+     * `@expo/vector-icons/Ionicons` and `expo-router/entry` are both ordinary things a
+     * real application writes.
+     */
+    | { readonly kind: 'subpath'; readonly module: string; readonly target: string; readonly subpath: string }
     /** Anything else, including `@gjsify/react-native` itself. */
     | { readonly kind: 'other' };
 
@@ -93,8 +100,23 @@ export function classifyReactNativeSpecifier(
     // `react-native-safe-area-context` and `react-native-gesture-handler`, which a
     // prefix test on `react-native/` would not catch but a careless `react-native-`
     // one would.
-    if (source.startsWith(`${REACT_NATIVE_SPECIFIER}/`)) {
-        return { kind: 'subpath', subpath: source.slice(REACT_NATIVE_SPECIFIER.length + 1) };
+    //
+    // EVERY SURFACE, not only `react-native`, and that gap was reachable from ordinary
+    // code: `@expo/vector-icons/Ionicons` is the spelling `@expo/vector-icons`' own
+    // documentation uses, and `expo-router/entry` is what an Expo application's
+    // `package.json#main` points at. Both classified as `other` before this, so the
+    // alias returned null and the build failed at MODULE RESOLUTION — npm's "cannot
+    // find package", which is the exact failure ADR 0036 exists to replace with a
+    // sentence.
+    for (const surface of surfaces) {
+        if (source.startsWith(`${surface.module}/`)) {
+            return {
+                kind: 'subpath',
+                module: surface.module,
+                target: surface.target,
+                subpath: source.slice(surface.module.length + 1),
+            };
+        }
     }
     return { kind: 'other' };
 }
@@ -114,14 +136,19 @@ export class ReactNativeDeepImportError extends Error {
     constructor(
         readonly specifier: string,
         readonly importer: string,
+        readonly module: string = REACT_NATIVE_SPECIFIER,
+        readonly target: string = REACT_NATIVE_ALIAS_TARGET,
     ) {
         super(
-            `gjsify react-native alias: "${specifier}" (imported by ${importer}) reaches into React ` +
-                `Native's internals. The alias to ${REACT_NATIVE_ALIAS_TARGET} covers the PACKAGE ROOT, ` +
-                `because that is the export surface ADR 0032 § 2 mirrors; the subpath layout below it ` +
-                `belongs to Metro and the native bridge and has no counterpart here. Import the name from ` +
-                `"${REACT_NATIVE_SPECIFIER}" instead, or from "${REACT_NATIVE_ALIAS_TARGET}" directly if ` +
-                `it is a gjsify-only addition.`,
+            `gjsify react-native alias: "${specifier}" (imported by ${importer}) reaches into ` +
+                `"${module}"'s internals. The alias to ${target} covers the PACKAGE ROOT, because that is ` +
+                `the export surface ADR 0032 § 2 mirrors and ADR 0036 § 1 gives one subpath each; the ` +
+                `module layout below it has no counterpart here` +
+                (module === REACT_NATIVE_SPECIFIER
+                    ? ` — react-native's own exists because of Metro and the native bridge`
+                    : '') +
+                `. Import the name from "${module}" instead, or from "${target}" directly if it is a ` +
+                `gjsify-only addition.`,
         );
     }
 }
@@ -311,7 +338,9 @@ export function reactNativeAliasPlugin(options: ReactNativeAliasOptions = {}): P
                 const from = importer ?? source;
                 const classified = classifyReactNativeSpecifier(source, await registry(this, importer ?? source));
                 if (classified.kind === 'other') return null;
-                if (classified.kind === 'subpath') throw new ReactNativeDeepImportError(source, from);
+                if (classified.kind === 'subpath') {
+                    throw new ReactNativeDeepImportError(source, from, classified.module, classified.target);
+                }
 
                 // `skipSelf: true` keeps the nested resolve out of this hook. The
                 // target is a plain package name plus a subpath, so the normal chain

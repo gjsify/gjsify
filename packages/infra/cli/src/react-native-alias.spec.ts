@@ -82,8 +82,69 @@ export default async () => {
         await it('classifies a subpath, keeping the subpath for the message', () => {
             expect(classifyReactNativeSpecifier('react-native/Libraries/Text/Text')).toStrictEqual({
                 kind: 'subpath',
+                module: 'react-native',
+                target: REACT_NATIVE_ALIAS_TARGET,
                 subpath: 'Libraries/Text/Text',
             });
+        });
+
+        await it('classifies a deep import into ANY declared surface, not only react-native', async () => {
+            // The gap ADR 0036 left open, and it is reachable from ordinary code:
+            // `@expo/vector-icons/Ionicons` is the spelling that package's own
+            // documentation uses and `expo-router/entry` is what an Expo application's
+            // `package.json#main` points at. Both classified as `other`, so the alias
+            // returned null and the build failed at MODULE RESOLUTION — npm's "cannot
+            // find package", the exact failure this ADR replaces with a sentence.
+            const rows = [
+                { module: 'react-native', target: REACT_NATIVE_ALIAS_TARGET },
+                { module: '@expo/vector-icons', target: `${REACT_NATIVE_ALIAS_TARGET}/vector-icons` },
+                { module: 'expo-router', target: `${REACT_NATIVE_ALIAS_TARGET}/router` },
+            ];
+            expect(classifyReactNativeSpecifier('@expo/vector-icons/Ionicons', rows)).toStrictEqual({
+                kind: 'subpath',
+                module: '@expo/vector-icons',
+                target: `${REACT_NATIVE_ALIAS_TARGET}/vector-icons`,
+                subpath: 'Ionicons',
+            });
+            expect(classifyReactNativeSpecifier('expo-router/entry', rows)).toStrictEqual({
+                kind: 'subpath',
+                module: 'expo-router',
+                target: `${REACT_NATIVE_ALIAS_TARGET}/router`,
+                subpath: 'entry',
+            });
+            // AND THE TARGET'S OWN SUBPATHS STAY LEGAL, which is the half a careless
+            // prefix test breaks: `@gjsify/react-native/router` is the answer, not a
+            // deep import to refuse.
+            expect(classifyReactNativeSpecifier(`${REACT_NATIVE_ALIAS_TARGET}/router`, rows)).toStrictEqual({
+                kind: 'other',
+            });
+            // A surface the rows do not declare keeps its subpath too: the registry
+            // decides, so `expo-font/build/x` is somebody else's package here.
+            expect(classifyReactNativeSpecifier('expo-font/build/x', rows)).toStrictEqual({ kind: 'other' });
+        });
+
+        await it('names the surface, not react-native, when the deep import is another one', async () => {
+            const target = `${REACT_NATIVE_ALIAS_TARGET}/vector-icons`;
+            const ctx = mockCtx({ [target]: { id: '/proj/x/vector-icons.js' } });
+            const layer = layerOf([
+                { module: 'react-native', target: REACT_NATIVE_ALIAS_TARGET },
+                { module: '@expo/vector-icons', target },
+            ]);
+            let thrown: unknown;
+            try {
+                await handlerOf(reactNativeAliasPlugin({ layer })).call(ctx, '@expo/vector-icons/Ionicons', IMPORTER);
+            } catch (error) {
+                thrown = error;
+            }
+            expect(thrown instanceof ReactNativeDeepImportError).toBe(true);
+            const message = (thrown as Error).message;
+            expect(message).toContain('@expo/vector-icons/Ionicons');
+            expect(message).toContain(target);
+            // Metro is react-native's OWN reason for having a subpath layout, so it must
+            // not be attached to a surface it says nothing about.
+            expect(message.includes('Metro')).toBe(false);
+            // And nothing was resolved: a refusal is not a rewrite.
+            expect(ctx.asked).toStrictEqual([]);
         });
 
         // The prefix trap, and it got sharper with ADR 0036 rather than softer:
