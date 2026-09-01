@@ -412,6 +412,13 @@ export default async () => {
                     // the neutral one gets its own.
                     registry.selectDefault('win32');
                     expect(registry.current).toBe('neutral');
+                    // And a platform outside the three this project targets, because
+                    // `process.platform` has more values than that and GTK runs on
+                    // several of them. `selectDefault(process.platform)` is the
+                    // documented call; a throw here would be a refusal on a host where
+                    // nothing is wrong.
+                    registry.selectDefault('freebsd');
+                    expect(registry.current).toBe('neutral');
                 },
             );
 

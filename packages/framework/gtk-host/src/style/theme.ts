@@ -214,10 +214,17 @@ export interface Theme {
      */
     readonly namedColors?: Readonly<Record<string, string>>;
     /**
-     * The `process.platform` values this theme is the default for.
+     * The `process.platform` values this theme is the default for, or `'*'` for any.
      *
      * Data on the theme rather than a table in the registry, because "this look
      * belongs on macOS" is a fact about the look.
+     *
+     * `'*'` exists because `process.platform` has more values than the three desktops
+     * this project targets — `freebsd`, `openbsd`, `android`, `sunos`, … — and GTK
+     * runs on several of them. A registry that only knew `linux`/`darwin`/`win32`
+     * would make `selectDefault(process.platform)`, the call this seam is documented
+     * with, THROW on a platform where nothing is wrong. A fallback theme says so once
+     * instead, and a named theme still wins over it by being registered later.
      */
     readonly defaultOn?: readonly string[];
 }
@@ -237,7 +244,10 @@ export interface Theme {
  */
 export const NEUTRAL_THEME: Theme = {
     name: 'neutral',
-    defaultOn: ['linux', 'darwin', 'win32'],
+    // Every platform, and `'*'` rather than the three target OS names on purpose: a
+    // theme whose document is EMPTY is the right default on any desktop, including
+    // the ones outside this project's target set.
+    defaultOn: ['*'],
 };
 
 export interface ThemeRegistryOptions {
@@ -349,12 +359,14 @@ export class ThemeRegistry {
      * by passing that desktop's name.
      *
      * The last registered match wins, so an application registering its own theme
-     * after the neutral one gets its own.
+     * after the neutral one gets its own — including over a theme that declares
+     * `'*'`, which is how the shipped neutral default stays a fallback rather than a
+     * ceiling.
      */
     selectDefault(platform: string): void {
         let chosen: string | null = null;
         for (const [name, theme] of this.#themes) {
-            if (theme.defaultOn?.includes(platform) === true) chosen = name;
+            if (theme.defaultOn?.some((declared) => declared === platform || declared === '*') === true) chosen = name;
         }
         if (chosen === null) {
             throw new StyleSheetError(
