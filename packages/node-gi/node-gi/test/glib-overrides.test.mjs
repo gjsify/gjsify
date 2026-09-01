@@ -56,7 +56,7 @@ function logStderr(runtime) {
         if (runtime === 'gjs') {
             writeFileSync(
                 script,
-                `import GLib from 'gi://GLib';\n` +
+                `import GLib from 'gi://GLib?version=2.0';\n` +
                     `GLib.log_structured('nodegi-parity', GLib.LogLevelFlags.LEVEL_MESSAGE, { MESSAGE: 'structured-gold' });\n`,
             );
             const res = spawnSync('gjs', ['-m', script], { encoding: 'utf8' });

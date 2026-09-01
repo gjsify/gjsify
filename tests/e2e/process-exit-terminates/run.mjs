@@ -112,7 +112,7 @@ print('AFTER');
     it('exits from a microtask with a main-loop hook armed', () => {
         // The shape every CLI reaches after `await parseAsync()`, and the one a
         // direct `system.exit()` hangs on — see the last case.
-        const run = runGjs(`import GLib from 'gi://GLib';
+        const run = runGjs(`import GLib from 'gi://GLib?version=2.0';
 ${IMPORT_EXIT}
 const loop = new GLib.MainLoop(null, false);
 loop.runAsync().catch(() => {});
@@ -128,7 +128,7 @@ print('AFTER');
     });
 
     it('exits from inside a callback someone else dispatched', () => {
-        const run = runGjs(`import GLib from 'gi://GLib';
+        const run = runGjs(`import GLib from 'gi://GLib?version=2.0';
 ${IMPORT_EXIT}
 const loop = new GLib.MainLoop(null, false);
 GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
@@ -169,7 +169,7 @@ print('AFTER');
         // the working cases above finish in about a tenth of a second, so five
         // seconds separates "hung" from "slow runner" with room to spare.
         const run = runGjs(
-            `import GLib from 'gi://GLib';
+            `import GLib from 'gi://GLib?version=2.0';
 import system from 'system';
 const loop = new GLib.MainLoop(null, false);
 loop.runAsync().catch(() => {});

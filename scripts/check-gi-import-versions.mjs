@@ -26,12 +26,12 @@
 // [[tests-that-measure-the-runner]] — green or red depending on what is installed on the
 // runner rather than on what the diff changed.
 //
-// COMMENTS ARE BLANKED FIRST, and the ORDER of the two strippers is load-bearing. A line
-// comment ending in `/*` — `@girs/*`, `packages/*`, `src/*`, all common — pairs with the
-// next `*/` anywhere below if block comments are removed first, and everything between
-// disappears. Measured across this repository at the time this landed: 8243 code lines in
-// 307 of 3641 tracked sources went invisible that way, to every check that shares the
-// idiom. Line comments first, then block comments.
+// COMMENTS ARE REMOVED FIRST, by `manifest-conformance/lib/strip-comments.mjs`, which is a
+// lexical scanner rather than a pair of regexes. Neither ORDER of two regexes is right: a
+// line comment ending in `/*` — `@girs/*`, `packages/*`, `src/*` — pairs with the next `*/`
+// below if block comments go first, and a block comment containing a `//` loses its
+// terminator if line comments do. Measured against the scanner over the 3642 tracked JS/TS
+// sources, block-first hid 7780 code lines in 226 files and line-first 3503 in 104.
 //
 // FAILURE POLICY: hard, and a scan that finds nothing is itself a failure — a check that
 // cannot find what it checks has stopped checking.
@@ -41,74 +41,92 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
+import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
+import { GI_IMPORT_VERSION_VECTORS } from './gi-import-version-fixtures.mjs';
+
 /** Sources a `gi://` import can appear in, plus the docs that teach the spelling. */
 const SCANNED = /\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|md|mdx)$/;
 
 /** Markdown has no `//` comments to confuse, and a doc example teaches the form. */
 const MARKDOWN = /\.mdx?$/;
 
-/**
- * `import <anything> from 'gi://<Ns>'` with no query string.
- *
- * Anchored at `import` so a specifier quoted in prose or built at runtime is not an
- * import — the check must not fire on the sentence that explains it.
- */
-const UNPINNED = /^[ \t]*import\b[^\n]*\bfrom\s*(['"])gi:\/\/([A-Za-z0-9_]+)\1/;
-
-/** Any `gi://` import, pinned or not — used to prove the scan actually found some. */
-const ANY_GI_IMPORT = /^[ \t]*import\b[^\n]*\bfrom\s*['"]gi:\/\//;
+/** The vectors, which are unpinned specifiers on purpose. */
+const FIXTURES = 'scripts/gi-import-version-fixtures.mjs';
 
 /**
- * Blank comment bodies, preserving line numbering.
+ * An import statement binding `gi://<Ns>[?query]`, in every spelling that binds one:
+ * `import Ns from`, `import { x } from`, a clause wrapped over lines, and a bare
+ * side-effect `import 'gi://Ns'`.
  *
- * `[^:]` before `//` keeps `gi://` and `https://` inside a string intact. Line comments
- * go first; see the header for what the other order costs.
+ * Anchored at the start of a line, at the backtick that opens a template literal, or at
+ * an escaped `\n` inside one, and bounded by the `;` that ends the statement. The two
+ * extra arms are not decoration: the GJS programs this repository hands to `gjs -m` — the
+ * e2e runners, the node-gi gold-standard probes — are written as template literals, and
+ * eight real unpinned imports sat in them while a line-anchored reader called the tree
+ * clean. Prose quoting a specifier is still not an import; in a code file the scanner has
+ * removed it, and in markdown only the line-anchored arm runs.
  */
-export function stripComments(text) {
-    return text
-        .replace(/(^|[^:])\/\/[^\n]*/g, (m, lead) => lead + ' '.repeat(m.length - lead.length))
-        .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+const CODE_IMPORT = /(?:^|`|\\n)[ \t]*import\b[^;`]*?(['"])gi:\/\/([A-Za-z0-9_]+)([^'"\n]*)\1/gm;
+
+/**
+ * The same, line-anchored, for markdown.
+ *
+ * Markdown is not comment-stripped and is mostly prose: an ADR quotes
+ * `import … from 'gi://Ns'` inline, after a backtick, in the middle of a sentence. Only a
+ * line that STARTS with `import` is a code example here.
+ */
+const MARKDOWN_IMPORT = /^[ \t]*import\b[^;`]*?(['"])gi:\/\/([A-Za-z0-9_]+)([^'"\n]*)\1/gm;
+
+/**
+ * `import('gi://<Ns>[?query]')`, the loader's other spelling.
+ *
+ * Read only in code files, where comments are gone: markdown prose explains dynamic
+ * imports in exactly this shape. `@gjsify/gamepad` loads its whole backend through one.
+ */
+const DYNAMIC_IMPORT = /\bimport\s*\(\s*(['"])gi:\/\/([A-Za-z0-9_]+)([^'"\n]*)\1/g;
+
+/**
+ * Whether a specifier's query states a version.
+ *
+ * A query is not a pin: `gi://Gtk?theme=dark` names no version and the loader still
+ * takes whichever typelib it finds first. Only `version=<something>` counts, wherever
+ * it sits among the parameters.
+ */
+const statesVersion = (query) => /(?:^\?|&)version=[^&]+/.test(query);
+
+/** Every `gi://` import in one source, as `{ line, namespace, pinned, text }`. */
+export function giImports(source, isMarkdown = false) {
+    const code = isMarkdown ? source : stripComments(source);
+    const original = source.split('\n');
+    const lineAt = (index) => code.slice(0, index).split('\n').length;
+    const found = [];
+    for (const pattern of isMarkdown ? [MARKDOWN_IMPORT] : [CODE_IMPORT, DYNAMIC_IMPORT]) {
+        pattern.lastIndex = 0;
+        for (const m of code.matchAll(pattern)) {
+            const line = lineAt(m.index + m[0].length);
+            found.push({
+                line,
+                namespace: m[2],
+                pinned: statesVersion(m[3]),
+                text: (original[line - 1] ?? '').trim(),
+            });
+        }
+    }
+    return found.sort((a, b) => a.line - b.line);
 }
 
-/** Every unpinned `gi://` import in one source, as `{ line, namespace, text }`. */
+/** Only the ones that state no version. */
 export function unpinnedImports(source, isMarkdown = false) {
-    const lines = (isMarkdown ? source : stripComments(source)).split('\n');
-    const original = source.split('\n');
-    const found = [];
-    lines.forEach((line, i) => {
-        const m = line.match(UNPINNED);
-        if (m) found.push({ line: i + 1, namespace: m[2], text: original[i].trim() });
-    });
-    return found;
+    return giImports(source, isMarkdown).filter((found) => !found.pinned);
 }
 
 // ------------------------------------------------------------------ the self-test
 //
-// Each vector is a source fragment and the namespaces the reader must report. The two
-// that matter are the ones a regex gets wrong in the SAFE-LOOKING direction: prose that
-// quotes the defect, and a line comment that ends in `/*`.
-const VECTORS = [
-    ["import Gtk from 'gi://Gtk';", ['Gtk']],
-    ['import Gtk from "gi://Gtk";', ['Gtk']],
-    ["import Gtk from 'gi://Gtk?version=4.0';", []],
-    ["import { foo } from 'gi://Gio';", ['Gio']],
-    ["    import GLib from 'gi://GLib';", ['GLib']],
-    // Prose is not an import. A gate that fires on its own rationale gets the rationale
-    // deleted, and the rationale is the half that survives a rewrite.
-    ["// `import Gtk from 'gi://Gtk'` is what this forbids\nconst x = 1;", []],
-    ["/* import Gtk from 'gi://Gtk' */\nconst x = 1;", []],
-    // The ordering case. The trailing `/** … */` is part of the vector: with no later
-    // `*/` the lazy block regex finds no match and the bug does not reproduce, so a
-    // version of this without it passed under BOTH orderings and proved nothing.
-    ["// types live under `@girs/*`\nimport Gtk from 'gi://Gtk';\n/** doc */\nconst x = 1;", ['Gtk']],
-    // Not an import at all: a runtime require, and a string that merely contains one.
-    ["const Gtk = require('gi://Gtk');", []],
-    ["const spec = 'gi://Gtk';", []],
-];
-
+// The vectors live in `gi-import-version-fixtures.mjs`, which the scan below skips —
+// see the note there for why a reader of this shape cannot carry them as data.
 const selfTestFailures = [];
-for (const [source, expected] of VECTORS) {
-    const got = unpinnedImports(source).map((f) => f.namespace);
+for (const [source, expected, markdown = false] of GI_IMPORT_VERSION_VECTORS) {
+    const got = unpinnedImports(source, markdown).map((f) => f.namespace);
     if (got.join(',') !== expected.join(',')) {
         selfTestFailures.push(`  ${JSON.stringify(source)}\n    expected [${expected}], got [${got}]`);
     }
@@ -124,10 +142,11 @@ if (selfTestFailures.length > 0) {
 const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8', maxBuffer: 1 << 28 })
     .split('\0')
     .filter(Boolean)
-    .filter((f) => SCANNED.test(f));
+    .filter((f) => SCANNED.test(f))
+    .filter((f) => f !== FIXTURES);
 
 const offenders = [];
-let pinned = 0;
+let imports = 0;
 let scanned = 0;
 for (const file of files) {
     let source;
@@ -139,16 +158,19 @@ for (const file of files) {
     if (!source.includes('gi://')) continue;
     scanned++;
     const isMarkdown = MARKDOWN.test(file);
-    const lines = (isMarkdown ? source : stripComments(source)).split('\n');
-    for (const line of lines) if (ANY_GI_IMPORT.test(line)) pinned++;
-    for (const found of unpinnedImports(source, isMarkdown)) {
-        offenders.push(`${file}:${found.line}: ${found.text}`);
-        pinned--;
+    for (const found of giImports(source, isMarkdown)) {
+        imports++;
+        if (!found.pinned) offenders.push(`${file}:${found.line}: ${found.text}`);
     }
 }
 
-if (scanned === 0) {
-    process.stderr.write('check-gi-import-versions: no file mentions `gi://` — the scan found nothing to check.\n');
+// The guard counts IMPORTS, not files that mention `gi://`. Mentions are mostly prose, so
+// a reader whose pattern had stopped matching would still have found 600-odd of them and
+// printed OK over zero imports — a green run that checked nothing.
+if (imports === 0) {
+    process.stderr.write(
+        `check-gi-import-versions: ${scanned} file(s) mention \`gi://\` and the reader found no import in any of them — it has stopped checking.\n`,
+    );
     process.exit(1);
 }
 
@@ -168,6 +190,6 @@ if (offenders.length > 0) {
 }
 
 process.stdout.write(
-    `check-gi-import-versions: OK — ${VECTORS.length} self-test vector(s); ` +
-        `${pinned} \`gi://\` import(s) across ${scanned} file(s), every one of them versioned.\n`,
+    `check-gi-import-versions: OK — ${GI_IMPORT_VERSION_VECTORS.length} self-test vector(s); ` +
+        `${imports} \`gi://\` import(s) across ${scanned} file(s), every one of them versioned.\n`,
 );

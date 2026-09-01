@@ -242,7 +242,7 @@ describe('the GI runtime-path prologue in a --app gjs bundle', { timeout: 5 * 60
             try {
                 writeFileSync(
                     join(dir, 'entry.js'),
-                    `(function(){globalThis.print('BANNER RAN')})();\nimport 'gi://NoSuchNamespaceForThisTest';\n`,
+                    `(function(){globalThis.print('BANNER RAN')})();\nimport 'gi://NoSuchNamespaceForThisTest?version=1.0';\n`,
                 );
                 const run = spawnSync('gjs', ['-m', join(dir, 'entry.js')], { encoding: 'utf-8', timeout: 60 * 1000 });
                 assert.match(
@@ -266,7 +266,7 @@ describe('the GI runtime-path prologue in a --app gjs bundle', { timeout: 5 * 60
             try {
                 writeFileSync(
                     join(dir, 'entry.js'),
-                    `(function(){globalThis.print('BANNER RAN')})();\nawait import('gi://NoSuchNamespaceForThisTest');\n`,
+                    `(function(){globalThis.print('BANNER RAN')})();\nawait import('gi://NoSuchNamespaceForThisTest?version=1.0');\n`,
                 );
                 const run = spawnSync('gjs', ['-m', join(dir, 'entry.js')], { encoding: 'utf-8', timeout: 60 * 1000 });
                 assert.ok(

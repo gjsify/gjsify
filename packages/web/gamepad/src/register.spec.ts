@@ -66,7 +66,7 @@ export default async () => {
             // export ever stops reflecting reality.
             let liveBackend = true;
             try {
-                await import('gi://Manette');
+                await import('gi://Manette?version=0.2');
             } catch {
                 liveBackend = false;
             }
