@@ -513,6 +513,13 @@ compare(
     const surfaces = generator.readSurfaces(source);
     const sections = [];
     const judgedNames = [];
+    // TWO POPULATIONS OF "JUDGED", answering different questions. The ROOT table's
+    // names are what `src/index.ts`' own exports are subtracted from — it is the root
+    // module, so no other surface's table can judge one of its exports. EVERY surface's
+    // names are what the collision check further down uses, so a root export sharing a
+    // name with another surface fails loudly there instead of vanishing from the
+    // derived list and being refused by the gate for a name the package exports.
+    const rootJudged = [];
 
     // ONE ROW PER MODULE, and one target per row. Two rows claiming `expo-font` would
     // make `surfaceFor` answer from whichever came first — silently, because both
@@ -553,7 +560,10 @@ compare(
     for (const surface of surfaces) {
         const entries = generator.readEntries(source, surface.declaration);
         if (entries.length === 0) fail(`${surface.declaration} (${surface.module}) declares no names at all`);
-        for (const entry of entries) judgedNames.push(entry.name);
+        for (const entry of entries) {
+            judgedNames.push(entry.name);
+            if (surface.target === generator.PACKAGE) rootJudged.push(entry.name);
+        }
         const relative = surface.out.slice(surface.out.indexOf('src/'));
         const actual = existsSync(surface.out) ? readFileSync(surface.out, 'utf8') : '';
         // THE (name, module) SET, not the bytes — the rule the own-export comparison
@@ -617,7 +627,7 @@ compare(
     // the difference is deliberate: `run generate` pipes this file through `gjsify
     // format`, so its exact bytes are the formatter's claim while the derivation's
     // claim is the set.
-    const derivedOwn = generator.readOwnExports(readFileSync(INDEX_TS, 'utf8'), INDEX_TS, judgedNames);
+    const derivedOwn = generator.readOwnExports(readFileSync(INDEX_TS, 'utf8'), INDEX_TS, rootJudged);
     const committedOwn = generator.readOwnExportNames(readFileSync(OWN_TS, 'utf8'));
     const ownAgreed = compare(
         'own exports vs src/index.ts',

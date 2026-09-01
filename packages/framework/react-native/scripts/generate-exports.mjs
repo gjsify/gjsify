@@ -522,10 +522,24 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     writeFileSync(SUPPORT_DOC, renderSupportDoc(sections));
     console.log(`generate-exports: ${surfaces.length} surface section(s) → SUPPORT.md`);
 
-    const judged = surfaces.flatMap((surface) => readEntries(source, surface.declaration).map((entry) => entry.name));
+    // THE ROOT SURFACE'S TABLE, not all eighteen. `src/index.ts` is the ROOT module, so
+    // the only table that can judge one of its exports is react-native's — and
+    // subtracting the other seventeen made a name they hold DISAPPEAR from this list
+    // instead of being reported. `styled` is nativewind's and `parse` is
+    // expo-linking's: an export of either name here would be dropped silently, and the
+    // § 8 gate would then refuse `import { styled } from 'react-native'` for a name the
+    // package really exports — the defect this derivation exists to remove, in the
+    // direction that is hardest to notice.
+    //
+    // Narrowing it moves that collision into `check-rn-surface.mjs`' own-versus-judged
+    // comparison, which fails LOUDLY and by name. Loud beats silent; that is the whole
+    // reason to prefer this shape.
+    const root = surfaces.find((surface) => surface.target === PACKAGE);
+    if (root === undefined) throw new Error('SURFACES has no row whose target is the package itself');
+    const judged = readEntries(source, root.declaration).map((entry) => entry.name);
     const own = readOwnExports(readFileSync(INDEX, 'utf8'), INDEX, judged);
     writeFileSync(OWN_OUT, renderOwnExports(own));
     console.log(
-        `generate-exports: ${own.length} own export(s) beyond the ${judged.length} judged name(s) → ${OWN_OUT.slice(OWN_OUT.indexOf('src/'))}`,
+        `generate-exports: ${own.length} own export(s) beyond the ${judged.length} ${root.label} name(s) → ${OWN_OUT.slice(OWN_OUT.indexOf('src/'))}`,
     );
 }
