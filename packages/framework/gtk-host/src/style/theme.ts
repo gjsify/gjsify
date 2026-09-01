@@ -118,7 +118,7 @@ export const THEME_PROVIDER_PRIORITY: number = Gtk.STYLE_PROVIDER_PRIORITY_SETTI
  * define is the exact silent failure this set exists to catch: `--acccent-bg-color`
  * is a perfectly valid custom property that nothing ever reads.
  */
-export const ADWAITA_NAMED_COLOR_PROBES: readonly string[] = [
+export const ADWAITA_NAMED_COLORS: readonly string[] = [
     'accent-color',
     'accent-bg-color',
     'accent-fg-color',
@@ -185,8 +185,14 @@ export const NOT_ADWAITA_NAMED_COLORS: readonly string[] = [
     'acccent-bg-color',
 ];
 
-/** Membership test for {@link ADWAITA_NAMED_COLOR_PROBES}. */
-export const ADWAITA_NAMED_COLORS: ReadonlySet<string> = new Set(ADWAITA_NAMED_COLOR_PROBES);
+/**
+ * Membership test for {@link ADWAITA_NAMED_COLORS}, derived and not exported.
+ *
+ * One exported name for one table: a second public spelling of the same 48 strings
+ * is a second thing to keep in step, and the only reader that needs the set is
+ * `assertNamedColor` below.
+ */
+const IS_ADWAITA_NAMED_COLOR: ReadonlySet<string> = new Set(ADWAITA_NAMED_COLORS);
 
 /** One named look: a GTK CSS document, a palette, and which desktops default to it. */
 export interface Theme {
@@ -392,7 +398,7 @@ export class ThemeRegistry {
 
 /** A named colour that would define nothing, refused with the reason it would. */
 function assertNamedColor(theme: string, name: string): void {
-    if (ADWAITA_NAMED_COLORS.has(name)) return;
+    if (IS_ADWAITA_NAMED_COLOR.has(name)) return;
     const underscored = name.includes('_');
     throw new StyleSheetError(
         `theme "${theme}" sets "${name}", which libadwaita does not define as a named colour. ` +

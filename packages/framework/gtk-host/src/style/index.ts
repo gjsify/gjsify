@@ -52,7 +52,6 @@ export { StyleSheet, VARIANT_PSEUDO } from './sheet.js';
 export type { StyleSheetOptions } from './sheet.js';
 export { assertContained, StyleSheetError } from './document.js';
 export {
-    ADWAITA_NAMED_COLOR_PROBES,
     ADWAITA_NAMED_COLORS,
     NEUTRAL_THEME,
     NOT_ADWAITA_NAMED_COLORS,

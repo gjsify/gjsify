@@ -25,7 +25,7 @@ import { StyleSheetError } from './document.js';
 import { paramSpecs } from '../props.js';
 import { StyleSheet } from './sheet.js';
 import {
-    ADWAITA_NAMED_COLOR_PROBES,
+    ADWAITA_NAMED_COLORS,
     NEUTRAL_THEME,
     NOT_ADWAITA_NAMED_COLORS,
     THEME_PROVIDER_PRIORITY,
@@ -127,7 +127,7 @@ export default async () => {
                 // The reason this is measured rather than read: a name libadwaita does
                 // not define is a perfectly valid custom property that nothing ever
                 // reads, so a theme setting it is a silent no-op.
-                const undefinedNames = ADWAITA_NAMED_COLOR_PROBES.filter((name) => resolved(name) === null);
+                const undefinedNames = ADWAITA_NAMED_COLORS.filter((name) => resolved(name) === null);
                 expect(undefinedNames).toStrictEqual([]);
             });
 
