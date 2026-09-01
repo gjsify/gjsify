@@ -146,4 +146,29 @@ if (JSON_OUT) {
     );
 }
 
+// On GitHub, ALSO as an annotation. The plain lines above are the whole report,
+// and they were invisible in the case this check exists for: the step is advisory
+// (`continue-on-error`), so its output lands inside a job whose conclusion says
+// nothing is wrong, and nobody opens the log of a green job. Measured on #1449 —
+// a rebase resurrected ten pre-rename lines, the check would have named the first
+// of them, and the finding was reached instead through a DIFFERENT gate two jobs
+// later that happened to read one of the ten. An annotation shows up on the PR's
+// Files-changed view and in the run summary without failing anything, which is
+// what "advisory" was supposed to mean.
+if (!JSON_OUT && findings.length && !acknowledged && process.env.GITHUB_ACTIONS === 'true') {
+    // `::warning` takes its message on one line: a literal newline would end the
+    // command and print the remainder as ordinary log text.
+    const esc = (text) => text.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
+    for (const f of findings) {
+        console.log(
+            `::warning file=${f.file},title=Resurrected prose::` +
+                esc(
+                    `${f.count} line(s) added here were previously deleted from ${BASE}. ` +
+                        `First: ${f.sample.slice(0, 110)} — take the ${BASE} version and re-apply on top of it, ` +
+                        `or acknowledge a deliberate revert with a \`Revert-Of:\` trailer.`,
+                ),
+        );
+    }
+}
+
 if (STRICT && findings.length && !acknowledged) process.exit(1);

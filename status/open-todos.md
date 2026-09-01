@@ -388,9 +388,9 @@ web-only with a reason. The gjsify half of ADR 0029 is what made it cheap; it do
 depend on the `@girs` subpath.
 
 What the check deliberately does NOT prove is BEHAVIOUR. Agreeing on `adw-action-row`
-as a name says nothing about the two renderers producing the same tree, and the
-`gtk`-alias half is weaker still: it asserts that `<adw-checkbox>` is declared to mean
-`gtk-check-button`, never that it behaves like one.
+as a name says nothing about the two renderers producing the same tree, and sharing one
+outright is weaker still: `<gtk-check-button>` now IS the tag `GtkCheckButton` carries,
+and nothing here asserts that it behaves like one.
 
 The criterion that closes the GOAL out is in ADR 0027 § 9 and is unchanged: the same
 authored tree, rendered through the GTK host and through `adwaita-web`, satisfies the
@@ -456,10 +456,11 @@ gate and the vocabulary gate cannot answer differently. A fifth surface joins th
 declaring itself: a declaration with no reader fails, a reader whose package stopped
 declaring fails, and a declared renderer no half of the check compares fails.
 
-**The clearest instance needs no cross-runtime argument**: `gtk-host` says `<gtk-entry>`
-for Solid, Vue and React alike and `adwaita-web` says `<adw-entry>` for the same widget,
-both on the same gallery page under one block titled `Gtk.Entry`. They differ in render
-target (GTK vs DOM) and not in what the widget is, and ADR 0027 § 9's goal names both.
+**The clearest instance is closed**: `gtk-host` said `<gtk-entry>` for Solid, Vue and
+React alike while `adwaita-web` said `<adw-entry>` for the same widget, both on the same
+gallery page under one block titled `Gtk.Entry`. They differ in render target (GTK vs DOM)
+and not in what the widget is, and both now spell it `<gtk-entry>`. What is left of clause
+1 is the NativeScript port's six.
 
 **[ADR 0034](../docs/adr/0034-widget-vocabulary-convergence.md) proposes the cut** — the
 rule stated once and surface-neutral (named from the GIR · exported as a namespace · every
@@ -973,7 +974,7 @@ A/B-proven, and the slot rule proven in BOTH directions (a web-only glyph fails 
 it, and the honest answer for each is different:
 
 - **Whether a preview is INTERACTIVE.** `navigation.mdx` says "click **Open contact**
-  to push the detail page"; the button carries no handler and `<adw-button>` has no
+  to push the detail page"; the button carries no handler and `<gtk-button>` has no
   action attribute. It needs a browser to see, so no cheap static gate exists. The
   storybook wires it in JS (`navigation-view.web.ts:63-65`) and that line was dropped
   when the sample was written. The bottom sheet's "Toggle sheet" button had the same
@@ -2237,13 +2238,13 @@ for a dismissal. Both are spec'd (`split-button.spec.ts:144-174`, incl. the
 `Cancel` case). `adw-alert-dialog.ts` solves the same problem the other correct
 way, delegating to core's `resolveLabel`.
 
-`adw-menu-button.ts:85`, `adw-combo-row.ts:132` and `adw-drop-down.ts:116` each
+`gtk-menu-button.ts:85`, `adw-combo-row.ts:132` and `gtk-drop-down.ts:116` each
 call `labels.indexOf(chosen)` over the raw labels with a bare
 `cancelButtonText: 'Cancel'` instead — the addressing core documents as wrong in
 `SplitButtonState.activateMenuEntry` ("silently dispatches the first of two
 identically named entries and cannot tell an entry called `Cancel` from a
 dismissed sheet"). `adw-menu-button` also carries its own `entry.id ?? entry.label`
-fallback, which the browser twin repeats at `adw-menu-button.ts:229`.
+fallback, which the browser twin repeats at `gtk-menu-button.ts:229`.
 
 Deferred rather than done here because the home is NOT the local helper: both
 renderers need it, so `menuSheetActions`/`resolveMenuChoice` belong in
@@ -3624,7 +3625,7 @@ that borrows a name for a field and proves nothing about vectors.
 
 Not the same gap as the four above, and it should not be filed under their
 heading: those modules have no table to drive, these have one nobody drives.
-`glibClamp` is the sharpest case — `adw-progress-bar.ts` calls it directly in
+`glibClamp` is the sharpest case — `gtk-progress-bar.ts` calls it directly in
 the browser, so the seam exists; what is missing is a spec row that varies the
 bounds far enough to tell `CLAMP` from `Math.min`/`Math.max`. The
 `resolveNavigationSidebarWidth` path already does that through
@@ -3753,14 +3754,14 @@ Most are decisions with a reason next to them. These are the ones nobody has set
 from outside the port — each is a product question, not scheduled work, which is
 exactly why they must not be written as decisions.
 
-- **`adw-checkbox` and `adw-radio` on NativeScript.** The headless half already
+- **`<gtk-check-button>` and `<adw-radio>` on NativeScript.** The headless half already
   exists: `@gjsify/adwaita-core` carries `RadioGroupState` and `RADIO_GROUP_VECTORS`,
   driven today by core's own spec (`checks.spec.ts`) and the browser suite, by no
   NativeScript spec. What does not exist is the decision. `@nativescript/core` ships no
   checkbox view (nothing under its `ui/`), and libadwaita's own phone idiom for a
   boolean is `AdwSwitchRow`, which this port already has — so the question is whether
   a checkbox belongs on a touch target at all, not how to build one.
-- **`adw-progress-bar` on NativeScript.** libadwaita styles the GtkProgressBar node in
+- **`<gtk-progress-bar>` on NativeScript.** libadwaita styles the GtkProgressBar node in
   `stylesheet/widgets/_progress-bar.scss` and the browser ships the element; the
   NativeScript port has no progress widget. The PLATFORM half is not what is missing:
   `@nativescript/core` ships a determinate `Progress` (`value`/`maxValue`, `ui/progress`),
