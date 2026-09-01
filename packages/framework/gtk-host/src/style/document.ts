@@ -1,4 +1,5 @@
-// Loading a GTK CSS document without silently losing the rest of it.
+// What both GTK CSS documents on the display share: they are probed before they are
+// loaded, and they are installed the same way.
 //
 // This is `sheet.ts` decision 2, lifted out because there are now TWO documents on
 // the display and the discipline is the same one. GTK's CSS parser recovers from a
@@ -17,7 +18,15 @@
 // theme document is exactly the input that most deserves it — it is the one this
 // package did not generate — and a second copy of the probe would be a second
 // answer to "is this document safe", diverging on the first fix.
+//
+// `installProvider` is here for the same reason and arrived the same way: resolving
+// the display, refusing when there is none, and adding at a priority was written
+// twice, differing only in the noun inside the error text. One answer to "where does
+// a document go", and it returns the display it used so a caller that later has to
+// take the document off again removes it from the display it installed on rather
+// than from whatever `get_default()` answers by then.
 
+import Gdk from 'gi://Gdk?version=4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 /** A document GTK refused, or one that would have discarded what follows it. */
@@ -59,4 +68,26 @@ export function assertContained(document: string, subject: string): void {
     if (errors.length > 0) {
         throw new StyleSheetError(`GTK refused a declaration in ${subject}:\n  ${document}\n  ${errors.join('; ')}`);
     }
+}
+
+/**
+ * Put a provider on a display at `priority`, and say which display that was.
+ *
+ * `subject` names what is being installed, because the failure a caller has to act
+ * on is "there is no display yet" and the fix depends on which document it is.
+ */
+export function installProvider(
+    provider: Gtk.CssProvider,
+    subject: string,
+    display: Gdk.Display | null | undefined,
+    priority: number,
+): Gdk.Display {
+    const target = display ?? Gdk.Display.get_default();
+    if (target === null) {
+        throw new StyleSheetError(
+            `there is no Gdk display to install ${subject} on. Install it after Gtk.init(), or pass one explicitly.`,
+        );
+    }
+    Gtk.StyleContext.add_provider_for_display(target, provider, priority);
+    return target;
 }

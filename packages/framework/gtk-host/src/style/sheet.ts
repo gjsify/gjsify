@@ -31,7 +31,7 @@
 import Gdk from 'gi://Gdk?version=4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
-import { assertContained, StyleSheetError } from './document.js';
+import { assertContained, installProvider, StyleSheetError } from './document.js';
 
 /** A variant this sheet knows how to express, and the pseudo-class it becomes. */
 export const VARIANT_PSEUDO: Readonly<Record<string, string>> = {
@@ -146,15 +146,10 @@ export class StyleSheet {
         this.#reloadQueued = false;
         this.#provider.load_from_string(this.toString());
         if (this.#installed) return;
-        const display = this.#options.display ?? Gdk.Display.get_default();
-        if (display === null) {
-            throw new StyleSheetError(
-                'there is no Gdk display to install the stylesheet on. Construct the sheet after Gtk.init(), or pass one explicitly.',
-            );
-        }
-        Gtk.StyleContext.add_provider_for_display(
-            display,
+        installProvider(
             this.#provider,
+            'the generated stylesheet',
+            this.#options.display,
             this.#options.priority ?? Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
         this.#installed = true;

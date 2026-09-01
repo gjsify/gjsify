@@ -94,7 +94,7 @@
 import Gdk from 'gi://Gdk?version=4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
-import { assertContained, StyleSheetError } from './document.js';
+import { assertContained, installProvider, StyleSheetError } from './document.js';
 
 /**
  * Where a theme document is installed. See decision 2 for why it is this number.
@@ -256,7 +256,8 @@ export class ThemeRegistry {
     readonly #provider = new Gtk.CssProvider();
     readonly #themes = new Map<string, Theme>();
     readonly #options: ThemeRegistryOptions;
-    #installed = false;
+    /** The display the provider is on, or null while it is on none. */
+    #installedOn: Gdk.Display | null = null;
     #current: string | null = null;
 
     constructor(options: ThemeRegistryOptions = {}) {
@@ -355,19 +356,13 @@ export class ThemeRegistry {
     }
 
     #install(): void {
-        if (this.#installed) return;
-        const display = this.#options.display ?? Gdk.Display.get_default();
-        if (display === null) {
-            throw new StyleSheetError(
-                'there is no Gdk display to install the theme on. Select a theme after Gtk.init(), or pass one explicitly.',
-            );
-        }
-        Gtk.StyleContext.add_provider_for_display(
-            display,
+        if (this.#installedOn !== null) return;
+        this.#installedOn = installProvider(
             this.#provider,
+            'the theme',
+            this.#options.display,
             this.#options.priority ?? THEME_PROVIDER_PRIORITY,
         );
-        this.#installed = true;
     }
 }
 
