@@ -349,6 +349,13 @@ neutral theme is how an application returns to Adwaita *exactly*, which is measu
 true — reloading the provider to the empty string restores every named colour to
 libadwaita's own value.
 
+It also declares `defaultOn: ['*']`, so `selectDefault(process.platform)` resolves on
+every platform GTK runs on and not only on the three this project targets — a theme
+with a dedicated `defaultOn` list still wins over it by being registered later.
+`selectDefault` refuses only when *nothing* registered declares a default, which is a
+question it should not guess at. `themes.dispose()` takes the document back off the
+display, for a shell that tears its theming down rather than exiting.
+
 ### The accent is a custom property, not `AdwStyleManager`
 
 **`AdwStyleManager:accent-color` cannot carry a design token's accent on any runtime,
