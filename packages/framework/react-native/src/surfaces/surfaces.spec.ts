@@ -143,12 +143,16 @@ const typeOf = (widget: Gtk.Widget): string =>
  * a fact about the runner, so nothing here may name one.
  */
 const anyInstalledFamily = (): string => {
-    const names = PangoCairo.FontMap.get_default()
-        .list_families()
-        .map((family) => family.get_name())
-        .filter((name) => /^[A-Za-z0-9 .+-]+$/.test(name));
-    if (names.length === 0) throw new Error('Pango reports no ASCII-named font family on this machine');
-    return names[0] as string;
+    // `for … of` and not `.map().filter()`: `list_families()` is an out-ARRAY, and the
+    // only spelling this repository has measured on both legs of ADR 0030's one corpus
+    // is the iteration `expo-font.ts` itself does. A spec that assumed a real
+    // `Array.prototype` would be an assertion about the BINDING rather than about
+    // `isLoaded`, which is the class this vector was rewritten to leave.
+    for (const family of PangoCairo.FontMap.get_default().list_families()) {
+        const name = family.get_name();
+        if (/^[A-Za-z0-9 .+-]+$/.test(name)) return name;
+    }
+    throw new Error('Pango reports no ASCII-named font family on this machine');
 };
 
 export default async () => {
