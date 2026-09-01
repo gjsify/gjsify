@@ -196,6 +196,45 @@ row only if it reaches a platform** — a native module, a native view, or a dev
 capability. Everything else is a dependency the application installs, and the honest
 answer is silence.
 
+### 5a. The criterion is not "is it a platform surface" — it is "can a consumer answer it"
+
+That is sharper than the class boundaries above, and it comes from a port rather than
+from reasoning. A consumer-side wrapper was written for the measured application, and
+what it could and could not do settles which side of the boundary a thing is on:
+
+| what the consumer met | outcome | what that establishes |
+|---|---|---|
+| `accessibilityLabel`, 46 sites | **implemented outside** — `Gtk.Accessible.update_property()` through a `ref` | answerable from outside; the layer's absence is an inconvenience |
+| `accessibilityRole`, 41 sites | **impossible outside** — GTK's `accessible-role` is CONSTRUCT-ONLY, so by the time a `ref` fires the widget exists and the role can no longer be set | **only the layer that constructs the widget can answer it** |
+| `hitSlop`, 13 sites | dropped, correctly | wants no answer at all: an 8 px expansion of a *touch* target on a platform whose pointer has single-pixel precision |
+
+`accessibilityRole` is the argument this ADR needs, and it is not a convenience
+argument about where code should live. **The layer constructs the widget; only the
+layer can set a construct-only property.** A consumer can carry the label and not the
+role, so 41 call sites degrade silently with no repair available at any effort level.
+
+So the question to ask of a candidate surface is not "does it touch a platform" but
+**"is there anything here a consumer cannot do for themselves?"** — and the three
+answers are *build it*, *let them*, and *neither*. `hitSlop` is the reminder that the
+third one is real: not every refusal wants implementing.
+
+### 5b. Four expected surfaces are DECLARED and never imported
+
+Also measured on the port, and it is the finding that trims this ADR's own scope:
+`expo-linking`, `expo-web-browser`, `expo-constants` and `expo-system-ui` appear in the
+application's dependency list and are **imported from nowhere in its source**.
+
+A shim for a surface nobody imports is dead code that looks like coverage — it makes a
+support table longer, a README section fuller and a porter no better off. It is the
+same defect as an untriggered CI guard, one layer up: the mechanism exists, the report
+says it is covered, and nothing was ever asked of it.
+
+That does not delete their rows. A row costs a table entry and buys a build error with
+a reason instead of npm's "cannot find package", which is exactly what § 5b's
+declared-not-built class is for. What it changes is the ORDER: a surface earns
+implementation when an application is measured importing it, and a declared dependency
+is not that measurement.
+
 ### 6. Every surface gets the same three readers
 
 Non-negotiable, and it is what makes a row a promise rather than a folder: the
@@ -237,6 +276,16 @@ available" until the generator started passing it.
   directly, is its own decision with its own measurement.
 - **`react-native-webview`.** Same: a row and a pointer. WebKitGTK's platform story is
   ADR 0022's and ADR 0024's, not this one's.
+- **How a consumer interposes their own module between `react-native` and this layer.**
+  The alias plugin is composed `pre` — ahead of the substitution table and the externals
+  policy, because a redirect after `externalsPlugin` would find the specifier already
+  externalised — so it wins over a consumer's own exact-match redirect, and a consumer
+  who needs to interpose has to drop `--dialect react-native` and with it ADR 0032 § 8's
+  build gate. The measured application reproduced the gate in its own test suite against
+  the same published table, which works and is a copy of a gjsify-owned rule living in a
+  consumer. Making the alias target configurable, or exporting the gate as something
+  composable without the alias, are both real answers and neither is decided here.
+
 - **Whether a surface's *type* declarations should mirror the upstream package's.**
   Today each subpath declares its own types, and an application that also has the real
   `@types` installed will type-check against those instead. Making the alias apply to
