@@ -1,7 +1,7 @@
 // AdwEntry — a standalone Adwaita text entry for NativeScript.
 //
 // The bare input — what `Gtk.Entry` is, and the counterpart of
-// `@gjsify/adwaita-web`'s `<adw-entry>`: a filled, rounded field that stands on
+// `@gjsify/adwaita-web`'s `<gtk-entry>`: a filled, rounded field that stands on
 // its own in a toolbar, a search bar or a form, NOT inside a boxed-list row.
 // `AdwEntryRow` is the row form and keeps its floating title, pencil and apply
 // button; none of that applies here.
