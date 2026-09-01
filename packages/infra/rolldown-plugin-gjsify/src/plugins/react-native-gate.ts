@@ -33,10 +33,15 @@
 // version skew between plugin and layer cannot make the gate lie in either
 // direction.
 
-import { pathToFileURL } from 'node:url';
 import type { Plugin } from 'rolldown';
 
-import { REACT_NATIVE_ALIAS_TARGET, REACT_NATIVE_SPECIFIER } from './react-native-alias.js';
+import {
+    FALLBACK_SURFACES,
+    SURFACE_MENTION,
+    loadLayer,
+    type AliasedSurface,
+    type LayerReader,
+} from './react-native-alias.js';
 import { REWRITE_FILTER } from './rewrite-node-modules-paths.js';
 import {
     ImportScanParseError,
@@ -46,40 +51,46 @@ import {
 } from '../utils/scan-named-imports.js';
 
 /**
- * The two functions the gate needs off the support table.
+ * What the gate needs off the layer, and it is now three things rather than two.
  *
- * Structural, so a spec can pass a three-row fixture and so the plugin never
- * types itself against a tier-3 package it must not import.
+ * `SURFACES` is the addition ADR 0036 makes: the gate has to know WHICH specifiers to
+ * watch, and that list is the layer's rather than the plugin's. A structural type, so
+ * a spec can pass a three-row fixture and so the plugin never types itself against a
+ * tier-3 package it must not import.
  */
-export interface SupportTableReader {
-    /**
-     * May a build import this name from the layer?
-     *
-     * TWO POPULATIONS, and the layer composes them — not this plugin. A React Native
-     * name is `supported` or `partial` in the support table; a name the layer ADDS
-     * (`configureStyle` and the rest of ADR 0032 § 3's token hooks) cannot be in that
-     * table at all, because `check-rn-surface.mjs` holds its key set EQUAL to
-     * react-native's own exports. A gate that asked only the first question refused
-     * the package's own documented API. A name in NEITHER is still false.
-     */
-    isImportable(name: string): boolean;
-    /** The one sentence the build error and the runtime throw both print. */
-    explainUnsupported(name: string): string;
-}
+export type SupportTableReader = LayerReader;
 
-/** The subpath that carries the table in an installed `@gjsify/react-native`. */
-export const SUPPORT_TABLE_SUBPATH = `${REACT_NATIVE_ALIAS_TARGET}/support-table`;
+export { SUPPORT_TABLE_SUBPATH, SupportTableUnreadableError } from './react-native-alias.js';
+export type { SupportTableResolver } from './react-native-alias.js';
 
 /**
- * Both spellings of the layer are watched.
+ * `loadLayer` under its historical name.
  *
- * A ported application writes `react-native` (the alias rewrites it, and the
- * rewrite happens in `resolveId` — the SOURCE text still says `react-native`
- * when this hook reads it). A gjsify-native application, this repository's own
- * showcase included, writes `@gjsify/react-native`. The gate is about the
- * SURFACE, not about which name reached it.
+ * Kept because it is a published export of `@gjsify/rolldown-plugin-gjsify`, and
+ * renaming a published function to say "surfaces" as well as "table" would be a
+ * breaking change for nothing — the loader reads one module either way.
  */
-export const WATCHED_SPECIFIERS: readonly string[] = [REACT_NATIVE_SPECIFIER, REACT_NATIVE_ALIAS_TARGET];
+export { loadLayer as loadSupportTable } from './react-native-alias.js';
+
+/**
+ * Every specifier the gate watches, from the layer's own registry.
+ *
+ * BOTH SPELLINGS OF EACH SURFACE. A ported application writes `expo-status-bar` (the
+ * alias rewrites it, and the rewrite happens in `resolveId` — the SOURCE text still
+ * says `expo-status-bar` when this hook reads it). A gjsify-native application, this
+ * repository's own showcase included, writes `@gjsify/react-native/expo-status-bar`.
+ * The gate is about the SURFACE, not about which name reached it.
+ */
+export const watchedSpecifiers = (surfaces: readonly AliasedSurface[]): readonly string[] =>
+    surfaces.flatMap((surface) => [surface.module, surface.target]);
+
+/**
+ * The two specifiers that are known WITHOUT reading the layer.
+ *
+ * Kept as a published constant because it was one, and it is now the FALLBACK rather
+ * than the whole list: `watchedSpecifiers(layer.SURFACES)` is what a real build uses.
+ */
+export const WATCHED_SPECIFIERS: readonly string[] = watchedSpecifiers(FALLBACK_SURFACES);
 
 /** One refused import, with everything the message needs. */
 export interface SupportViolation {
@@ -102,21 +113,6 @@ export class ReactNativeUnsupportedImportError extends Error {
     }
 }
 
-/** Thrown when the gate is on but the table it must read is not reachable. */
-export class SupportTableUnreadableError extends Error {
-    override readonly name = 'SupportTableUnreadableError';
-    constructor(detail: string, cause?: unknown) {
-        super(
-            `gjsify react-native gate: cannot read ${SUPPORT_TABLE_SUBPATH} — ${detail}. The gate has no ` +
-                `second source to fall back on, and ADR 0032 § 8 is explicit that a hand-maintained table ` +
-                `beside it would be the second truth this repository has already collected several times. ` +
-                `Install ${REACT_NATIVE_ALIAS_TARGET} (and build it, if it is a workspace link), or drop ` +
-                `the react-native opt-in.`,
-            cause === undefined ? undefined : { cause },
-        );
-    }
-}
-
 /**
  * All violations for one module as one message.
  *
@@ -126,7 +122,9 @@ export class SupportTableUnreadableError extends Error {
  * run.
  */
 export function formatSupportViolations(id: string, violations: readonly SupportViolation[]): string {
-    const lines = violations.map((v) => `  ${id}:${v.line}:${v.column}  ${v.name}\n      ${v.reason}`);
+    const lines = violations.map(
+        (v) => `  ${id}:${v.line}:${v.column}  ${v.name} (from "${v.specifier}")\n      ${v.reason}`,
+    );
     return (
         `gjsify react-native gate: ${violations.length} import(s) this layer does not answer for:\n` +
         `${lines.join('\n')}\n` +
@@ -143,7 +141,13 @@ export function findSupportViolations(
 ): readonly SupportViolation[] {
     const out: SupportViolation[] = [];
     for (const entry of named) {
-        if (table.isImportable(entry.name)) continue;
+        // THE SPECIFIER IS PASSED, and after ADR 0036 it is load-bearing rather than
+        // extra context: `StatusBar` is a `react-native` export AND the whole of
+        // `expo-status-bar`, `Image` is `react-native`'s and `expo-image`'s. Without
+        // the module the lookup answers from whichever surface the registry lists
+        // first, so `import { Image } from 'expo-image'` would report react-native's
+        // "is available" and the build would go green on a name nothing implements.
+        if (table.isImportable(entry.name, entry.specifier)) continue;
         out.push({
             name: entry.name,
             specifier: entry.specifier,
@@ -152,7 +156,7 @@ export function findSupportViolations(
             // The table's sentence, never a rephrasing of it: `explainUnsupported`
             // exists so the build error and the runtime throw cannot describe the
             // same gap differently.
-            reason: table.explainUnsupported(entry.name),
+            reason: table.explainUnsupported(entry.name, entry.specifier),
         });
     }
     return out;
@@ -196,55 +200,6 @@ export function formatUnreadableModule(error: ImportScanParseError): string {
     );
 }
 
-/** The resolver slice this plugin needs, so `loadSupportTable` is testable. */
-export interface SupportTableResolver {
-    resolve(specifier: string, importer: string): Promise<{ id: string; external?: boolean | string } | null>;
-}
-
-/**
- * Resolve and import the support table.
- *
- * `importer` is a module from the project being built, so the resolve lands in
- * the PROJECT's dependency tree rather than the CLI's — the gate must describe
- * the layer this bundle will actually contain.
- */
-export async function loadSupportTable(
-    resolver: SupportTableResolver,
-    importer: string,
-    load: (href: string) => Promise<unknown> = (href) => import(/* @vite-ignore */ href),
-): Promise<SupportTableReader> {
-    let resolved: { id: string; external?: boolean | string } | null;
-    try {
-        resolved = await resolver.resolve(SUPPORT_TABLE_SUBPATH, importer);
-    } catch (cause) {
-        throw new SupportTableUnreadableError(`the resolver threw for ${importer}`, cause);
-    }
-    if (!resolved) throw new SupportTableUnreadableError(`it does not resolve from ${importer}`);
-    if (resolved.external) {
-        throw new SupportTableUnreadableError(`it resolved as EXTERNAL from ${importer}, so there is no file to read`);
-    }
-
-    let mod: unknown;
-    try {
-        // A file path, not the bare specifier: GJS's ESM loader does not follow
-        // `package.json#exports`, so the bare form works on Node and fails under
-        // the GJS engine — the same limitation the CLI's by-name plugin loader
-        // documents. The resolver already did the exports-map hop.
-        mod = await load(pathToFileURL(resolved.id).href);
-    } catch (cause) {
-        throw new SupportTableUnreadableError(`importing ${resolved.id} failed`, cause);
-    }
-
-    const candidate = mod as Partial<SupportTableReader>;
-    if (typeof candidate.isImportable !== 'function' || typeof candidate.explainUnsupported !== 'function') {
-        throw new SupportTableUnreadableError(
-            `${resolved.id} does not export isImportable + explainUnsupported. ` +
-                `That is a version skew between the bundler plugin and the layer, not a missing install`,
-        );
-    }
-    return { isImportable: candidate.isImportable, explainUnsupported: candidate.explainUnsupported };
-}
-
 export interface ReactNativeSupportGateOptions {
     /**
      * The table, when the caller already has it. Left unset in a real build,
@@ -280,20 +235,27 @@ export function reactNativeSupportGatePlugin(options: ReactNativeSupportGateOpti
                 // gate must not depend on plumbing to stay off `.css` / `.blp` /
                 // a data URL, all of which acorn would reject as invalid JS.
                 if (!REWRITE_FILTER.test(id)) return null;
-                // Text prefilter before the parse, the same cheap gate
-                // `shouldInline` uses: both watched specifiers contain
-                // `react-native`, so one `includes` clears every module that has
-                // nothing to do with this layer.
-                if (!code.includes(REACT_NATIVE_SPECIFIER)) return null;
+                // Text prefilter before the parse AND before the layer is read.
+                // ADR 0036 turned two watched specifiers into eighteen surfaces with
+                // two spellings each, and the list of those is the LAYER's — so the
+                // gate cannot know what to scan for until it has read it, and reading
+                // it on every module would make the one module that mentions a surface
+                // in a comment pay for the whole build. `SURFACE_MENTION` is anchored
+                // on the opening quote of a module specifier, which is why a bare
+                // `expo-` test is not enough: the word `export` contains it.
+                if (!SURFACE_MENTION.test(code)) return null;
 
                 // The ONE catch in this file, with a real throw path and a
                 // stated reason: `scanNamedImports` throws on syntax the pinned
                 // acorn-typescript cannot read, and the policy for that lives
                 // here rather than in the pure function — see
                 // {@link formatUnreadableModule}.
+                // The layer FIRST, because its registry is what says which specifiers
+                // to scan for. The load is once per build and cached on the closure.
+                table ??= await loadLayer(this, id);
                 let scanned;
                 try {
-                    scanned = scanNamedImports(code, id, WATCHED_SPECIFIERS);
+                    scanned = scanNamedImports(code, id, watchedSpecifiers(table.SURFACES));
                 } catch (error) {
                     if (!(error instanceof ImportScanParseError)) throw error;
                     this.warn(formatUnreadableModule(error));
@@ -302,7 +264,6 @@ export function reactNativeSupportGatePlugin(options: ReactNativeSupportGateOpti
                 const { named, opaque } = scanned;
                 if (named.length === 0 && opaque.length === 0) return null;
 
-                table ??= await loadSupportTable(this, id);
                 const violations = findSupportViolations(named, table);
                 if (violations.length > 0) throw new ReactNativeUnsupportedImportError(id, violations);
 

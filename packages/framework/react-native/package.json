@@ -21,11 +21,76 @@
         "./support-table": {
             "types": "./lib/types/support-table.d.ts",
             "default": "./lib/esm/support-table.js"
+        },
+        "./expo-status-bar": {
+            "types": "./lib/types/surfaces/expo-status-bar.d.ts",
+            "default": "./lib/esm/surfaces/expo-status-bar.js"
+        },
+        "./expo-font": {
+            "types": "./lib/types/surfaces/expo-font.d.ts",
+            "default": "./lib/esm/surfaces/expo-font.js"
+        },
+        "./expo-linking": {
+            "types": "./lib/types/surfaces/expo-linking.d.ts",
+            "default": "./lib/esm/surfaces/expo-linking.js"
+        },
+        "./expo-web-browser": {
+            "types": "./lib/types/surfaces/expo-web-browser.d.ts",
+            "default": "./lib/esm/surfaces/expo-web-browser.js"
+        },
+        "./react-native-safe-area-context": {
+            "types": "./lib/types/surfaces/react-native-safe-area-context.d.ts",
+            "default": "./lib/esm/surfaces/react-native-safe-area-context.js"
+        },
+        "./react-native-gesture-handler": {
+            "types": "./lib/types/surfaces/react-native-gesture-handler.d.ts",
+            "default": "./lib/esm/surfaces/react-native-gesture-handler.js"
+        },
+        "./async-storage": {
+            "types": "./lib/types/surfaces/async-storage.d.ts",
+            "default": "./lib/esm/surfaces/async-storage.js"
+        },
+        "./vector-icons": {
+            "types": "./lib/types/surfaces/vector-icons.d.ts",
+            "default": "./lib/esm/surfaces/vector-icons.js"
+        },
+        "./expo-image": {
+            "types": "./lib/types/surfaces/expo-image.d.ts",
+            "default": "./lib/esm/surfaces/expo-image.js"
+        },
+        "./expo-constants": {
+            "types": "./lib/types/surfaces/expo-constants.d.ts",
+            "default": "./lib/esm/surfaces/expo-constants.js"
+        },
+        "./expo-system-ui": {
+            "types": "./lib/types/surfaces/expo-system-ui.d.ts",
+            "default": "./lib/esm/surfaces/expo-system-ui.js"
+        },
+        "./expo-splash-screen": {
+            "types": "./lib/types/surfaces/expo-splash-screen.d.ts",
+            "default": "./lib/esm/surfaces/expo-splash-screen.js"
+        },
+        "./expo-audio": {
+            "types": "./lib/types/surfaces/expo-audio.d.ts",
+            "default": "./lib/esm/surfaces/expo-audio.js"
+        },
+        "./expo-video": {
+            "types": "./lib/types/surfaces/expo-video.d.ts",
+            "default": "./lib/esm/surfaces/expo-video.js"
+        },
+        "./react-native-webview": {
+            "types": "./lib/types/surfaces/react-native-webview.d.ts",
+            "default": "./lib/esm/surfaces/react-native-webview.js"
+        },
+        "./nativewind": {
+            "types": "./lib/types/surfaces/nativewind.d.ts",
+            "default": "./lib/esm/surfaces/nativewind.js"
         }
     },
     "files": [
         "lib",
         "react-native-surface.json",
+        "SUPPORT.md",
         "!lib/types/**/*.spec.d.ts"
     ],
     "scripts": {
@@ -78,14 +143,15 @@
         }
     },
     "devDependencies": {
-        "@gjsify/cli": "workspace:^",
-        "@react-navigation/core": "^7.21.13",
-        "@react-navigation/routers": "^7.6.4",
-        "@gjsify/unit": "workspace:^",
         "@girs/adw-1": "4.4.0",
         "@girs/gdk-4.0": "4.4.0",
         "@girs/gjs": "4.4.0",
         "@girs/gtk-4.0": "4.4.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/rolldown-plugin-gjsify": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@react-navigation/core": "^7.21.13",
+        "@react-navigation/routers": "^7.6.4",
         "@types/node": "^25.9.2",
         "@types/react": "^19.2.2",
         "@types/react-reconciler": "^0.33.0",

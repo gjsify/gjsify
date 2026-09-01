@@ -30,27 +30,37 @@ import { explainUnsupported } from './support-table.js';
  */
 export class UnsupportedError extends Error {
     override readonly name = 'UnsupportedError';
-    /** The React Native export that was reached for. */
+    /** The export that was reached for. */
     readonly export: string;
+    /** The npm surface it belongs to, when the caller knew it (ADR 0036). */
+    readonly module: string | undefined;
 
-    constructor(exportName: string) {
-        super(explainUnsupported(exportName));
+    constructor(exportName: string, module?: string) {
+        super(explainUnsupported(exportName, module));
         this.export = exportName;
+        this.module = module;
     }
 }
 
 /**
  * A stand-in for `name` that refuses every use with the table's own sentence.
  *
+ * `module` is the npm surface the name belongs to (ADR 0036). It is not optional
+ * decoration: `StatusBar` is a `react-native` export AND the whole of
+ * `expo-status-bar`, `Image` is `react-native`'s and `expo-image`'s, and without the
+ * module the one-argument lookup answers from whichever surface the registry lists
+ * first — so `expo-image`'s planned `Image` would report react-native's "is
+ * available". The generator passes it for every generated refusal.
+ *
  * Callable, constructible, and property-readable — all three throw. It is typed
  * `never`-ish on purpose at the call sites that re-export it: the declared type
  * comes from React Native's own, so a consumer's code still type-checks and the
  * refusal is a runtime fact rather than a type error they cannot act on.
  */
-export function unsupported(name: string): never {
+export function unsupported(name: string, module?: string): never {
     // The function itself is the component/API stand-in. Rendering it calls it.
     const refuse = (): never => {
-        throw new UnsupportedError(name);
+        throw new UnsupportedError(name, module);
     };
 
     // A function DECLARATION as the proxy target, not the arrow above. An arrow is
@@ -79,10 +89,10 @@ export function unsupported(name: string): never {
             // on an unrelated value that merely passed through here.
             if (property === 'then') return undefined;
             if (property === 'prototype') return Reflect.get(target, property);
-            throw new UnsupportedError(name);
+            throw new UnsupportedError(name, module);
         },
         set(): never {
-            throw new UnsupportedError(name);
+            throw new UnsupportedError(name, module);
         },
     });
 

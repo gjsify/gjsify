@@ -119,13 +119,24 @@ export default async () => {
             expect(wrong).toStrictEqual([]);
         });
 
-        await it('keeps the two key sets DISJOINT', async () => {
-            // A name in both tables gives `explainUnsupported` two answers and
-            // `isImportable` whichever it looked in first — and the collision is silent,
-            // because both lookups succeed. `check-rn-surface.mjs` holds the same line
-            // from the outside, over source; this holds it over the values.
+        await it('no longer needs the two key sets to be DISJOINT — it needs the MODULE', async () => {
+            // WHAT THIS VECTOR USED TO ASSERT, and why it could not survive ADR 0036. A
+            // name in two tables gave `explainUnsupported` two answers and
+            // `isImportable` whichever it looked in first — silently, because both
+            // lookups succeed — so the two key sets were held DISJOINT. With eighteen
+            // surfaces the collision is the normal case (`StatusBar`, `SafeAreaView`,
+            // `Image`), and the fix is the module parameter rather than a rename.
+            //
+            // The router table happens to stay disjoint from react-native's, and that is
+            // now a fact rather than a requirement — so it is recorded here without
+            // being enforced, and the invariant that replaced it lives in
+            // `surfaces/surfaces.spec.ts` where all eighteen are loaded.
             const both = ROUTER_NAMES.filter((name) => SUPPORTED_NAMES.includes(name));
             expect(both).toStrictEqual([]);
+            // The module is what separates them, and it is asked here too so this file
+            // fails if the parameter is ever dropped from the published contract.
+            expect(isImportable('Stack', '@gjsify/react-native/router')).toBe(true);
+            expect(isImportable('Stack', 'react-native')).toBe(false);
         });
 
         await it('tells a reader what to do about a name it does not know', async () => {
@@ -234,7 +245,15 @@ export default async () => {
 
         await it('names the module a reader should import the name FROM', async () => {
             for (const name of ROUTER_NAMES) {
-                expect(explainUnsupported(name)).toContain('@gjsify/react-native/router');
+                const message = explainUnsupported(name);
+                // BOTH SPECIFIERS, and this surface is the reason: a porter writes
+                // `expo-router` and the answer lives at `@gjsify/react-native/router`,
+                // so a sentence carrying only the second names a package they never
+                // wrote. The registry-wide form of this vector is in
+                // `surfaces/surfaces.spec.ts`; this one keeps the router surface honest
+                // from the file that owns it.
+                expect(message).toContain('expo-router');
+                expect(message).toContain('@gjsify/react-native/router');
             }
         });
 

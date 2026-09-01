@@ -490,6 +490,16 @@ jobs:
       - name: Check every emitted icon name has a mask class
         run: node scripts/check-adwaita-icon-masks.mjs
 
+      # The SAME class of defect on the GTK side of the same question, and it was found
+      # the expensive way: `@gjsify/react-native`'s Ionicons map was verified by asking
+      # `Gtk.IconTheme.has_icon` on the author's desktop, so its only check was a gate on
+      # one host's adwaita-icon-theme version — `checkmark-symbolic` exists in 50.0 and
+      # not in this container's, and 1 of 94 targets turned the unit leg red while the
+      # map's shape was never wrong. This gate reads the icon set the repository VENDORS,
+      # which is source and therefore the same answer here as on a desktop.
+      - name: Check every react-native icon target is a vendored Adwaita name
+        run: node scripts/check-rn-icon-targets.mjs
+
       # A `refs/<submodule>/<path>` coordinate IS the evidence behind a core-backed
       # claim — the upstream file a reader opens to check that a behaviour really came
       # from there. NINETEEN of the Adwaita ones named a file that has never existed in
@@ -1048,6 +1058,16 @@ jobs:
       # because inlining the whole icon set would cost some five times the stylesheet.
       - name: Check every emitted icon name has a mask class
         run: node scripts/check-adwaita-icon-masks.mjs
+
+      # The SAME class of defect on the GTK side of the same question, and it was found
+      # the expensive way: `@gjsify/react-native`'s Ionicons map was verified by asking
+      # `Gtk.IconTheme.has_icon` on the author's desktop, so its only check was a gate on
+      # one host's adwaita-icon-theme version — `checkmark-symbolic` exists in 50.0 and
+      # not in this container's, and 1 of 94 targets turned the unit leg red while the
+      # map's shape was never wrong. This gate reads the icon set the repository VENDORS,
+      # which is source and therefore the same answer here as on a desktop.
+      - name: Check every react-native icon target is a vendored Adwaita name
+        run: node scripts/check-rn-icon-targets.mjs
 
       # A `refs/<submodule>/<path>` coordinate IS the evidence behind a core-backed
       # claim — the upstream file a reader opens to check that a behaviour really came

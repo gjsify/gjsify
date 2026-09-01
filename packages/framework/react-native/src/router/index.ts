@@ -62,7 +62,7 @@ export {
 // Everything the routing surface does not answer for yet. Generated from
 // `ROUTER_SUPPORT_TABLE` (`scripts/generate-exports.mjs`), because a bundler needs
 // static export names to resolve an import at all and a loop cannot produce them.
-export * from '../generated/unsupported-router-exports.js';
+export * from '../generated/unsupported-router.js';
 
 // The table itself, for the same reason the React Native one is public: a consumer's
 // own lint rule or dashboard should read the data, not scrape the README generated

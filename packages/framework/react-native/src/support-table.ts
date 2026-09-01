@@ -3,7 +3,7 @@
 //
 // ADR 0032 § 8. The bundler gate fails a build on an import that is not
 // `supported` or `partial`; the runtime throws the same reason for anything that
-// reaches it dynamically; the README section is GENERATED from this file. A
+// reaches it dynamically; `SUPPORT.md` is GENERATED from this file. A
 // hand-maintained support table beside it is the second truth this repository has
 // already collected several times.
 //
@@ -448,7 +448,7 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         status: 'partial',
         tier: 'P3',
         gtk: 'Adw.TimedAnimation, over Adw.CallbackAnimationTarget',
-        reason: 'Value, timing and View — the three names a measured application uses, in one file of 28 routes. The rest of the subsystem is a graph evaluated per frame, and each of its 25 members refuses BY NAME.',
+        reason: 'Value, timing and View — the three names a measured application uses, in one file of 28 routes. The rest of the subsystem is a graph evaluated per frame, and every other member refuses BY NAME.',
         limits: [
             'THE SUBSET IS: `new Animated.Value(n)` with setValue/__getValue/stopAnimation/resetAnimation, `Animated.timing(value, { toValue, duration, easing, useNativeDriver }).start(cb)` with stop() and reset(), and `<Animated.View style={{ opacity: value }}>`. Every other member of Animated — spring, decay, sequence, parallel, stagger, loop, delay, event, add/subtract/multiply/divide/modulo/diffClamp, Interpolation, Node, ValueXY, Color, createAnimatedComponent, and the Text/Image/ScrollView/FlatList/SectionList components — is a present function that THROWS with its own reason, so a reader learns the limit at the call instead of from `undefined is not a function`.',
             'The only animatable style key is `opacity`, which is `Gtk.Widget:opacity` — a writable gdouble on every widget. `transform` (and translateX/Y, scale, rotate) is a Gsk render node rather than a widget property; `width`/`height` would animate `width-request`, which is a MINIMUM and not a size; colour is GTK CSS and has no property to drive. Each is refused by name at the element.',
@@ -845,6 +845,661 @@ export const ROUTER_SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
     },
 };
 
+// --- the third-party surfaces (ADR 0036) -------------------------------------
+//
+// A real React Native application does not only import `react-native`. Measured on
+// the application ADR 0032 read, its non-local imports beyond `react` are sixteen
+// more package names, and until ADR 0036 every one of them failed at MODULE
+// RESOLUTION — the bundler said npm could not find the package, which tells a porter
+// nothing about whether a desktop answer exists.
+//
+// PROVENANCE, and it is weaker than react-native's, so it is stated rather than
+// implied. `react-native`'s key set is held EQUAL to a committed snapshot of its own
+// `index.js` (`check-rn-surface.mjs`). None of the surfaces below has a snapshot:
+// they are not dependencies, and installing sixteen packages to read sixteen export
+// lists is a cost with no other buyer. So each key set is DECLARED — from the
+// package's documented surface plus ADR 0032's measurement of which names an
+// application actually used — and each surface carries an `unknown` sentence for a
+// name its table has not heard of, because "run the script that compares this with
+// react-native" is the wrong advice for a name that is not react-native's.
+//
+// WHAT A ROW IS NOT. A row is not a promise to build the surface. ADR 0036 § 5 puts
+// every surface in one of three classes and the rows below carry the class in their
+// statuses: answered here, answered on another track (a pointer), or nobody's
+// business but the consumer's — the last of which gets NO row at all, which is why
+// `react-redux` is absent and says so nowhere but the ADR.
+
+export const EXPO_STATUS_BAR_TABLE: Readonly<Record<string, SupportEntry>> = {
+    StatusBar: {
+        status: 'partial',
+        tier: 'P1',
+        reason: '`react-native`’s own StatusBar, re-exported. A desktop window has no bar above it, so the component renders null and every imperative setter refuses by name.',
+        limits: [
+            'Every limit of react-native’s StatusBar applies, because it IS that component: the declarative props are accepted no-ops and currentHeight throws rather than answering 0.',
+            'expo-status-bar’s own extra props — style="auto"|"inverted", animated, translucent, hidden, backgroundColor, networkActivityIndicatorVisible, hideTransition — are accepted and do nothing, for the same reason.',
+        ],
+    },
+    setStatusBarStyle: {
+        status: 'refused',
+        reason: 'Sets the bar’s contrast NOW. There is no bar, and a setter that appears to work is indistinguishable from one that does.',
+    },
+    setStatusBarHidden: { status: 'refused', reason: 'As setStatusBarStyle: there is no bar to hide.' },
+    setStatusBarBackgroundColor: {
+        status: 'refused',
+        reason: 'Android-only even on a phone, and there is no bar here to paint.',
+    },
+    setStatusBarTranslucent: { status: 'refused', reason: 'As setStatusBarBackgroundColor.' },
+    setStatusBarNetworkActivityIndicatorVisible: {
+        status: 'refused',
+        reason: 'An iOS spinner in the carrier bar. A desktop application shows progress in its own window.',
+    },
+};
+
+export const EXPO_FONT_TABLE: Readonly<Record<string, SupportEntry>> = {
+    useFonts: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Pango’s font map, through fontconfig',
+        reason: 'A desktop application does not load a font file per screen: fonts are INSTALLED and fontconfig discovers them, so the hook has nothing to wait for and reports ready on its first render.',
+        limits: [
+            'It answers [true, null] immediately and NEVER re-renders. That is the honest shape — there is no asynchronous load to finish — and it means a screen gated on `if (!loaded) return null` renders straight away instead of flashing.',
+            'The map’s VALUES are ignored: a `require("./Inter.ttf")` id is an index into React Native’s asset registry, which ADR 0032 § 12 leaves to the consumer’s build chain, and this layer refuses one for `Image.source` for the same reason. Ship the font with the application (`gjsify ship` installs it where fontconfig looks) and name the FAMILY in your styles.',
+            'It does not check that the families exist, deliberately: `isLoaded` does, and a hook that threw here would fail an application whose font is installed under a family name the map’s key does not spell.',
+        ],
+    },
+    isLoaded: {
+        status: 'partial',
+        tier: 'P2',
+        gtk: 'PangoCairo.FontMap.list_families',
+        reason: 'A real answer rather than a stub: whether Pango knows a family of that name on this machine.',
+        limits: [
+            'The comparison is on the FAMILY name and is case-insensitive, which is what Pango matches on. A PostScript name or a file path answers false.',
+            'The font map is read once and cached. A font installed while the application is running is not seen — Pango’s own map is not reloaded either, and `Pango.FontMap.changed` is not wired here.',
+        ],
+    },
+    isLoading: {
+        status: 'supported',
+        tier: 'P2',
+        reason: 'Always false. Nothing loads asynchronously, so nothing is ever loading — which is the same answer React Native gives once a font has arrived.',
+    },
+    loadAsync: {
+        status: 'refused',
+        reason: 'Registers a font file with the runtime. There is no per-process font registration in this chain — GTK 4 exposes none through GI — so a promise that resolved would be claiming a font was installed when it was not. Install the font, or ship it with the application.',
+    },
+    unloadAsync: { status: 'refused', reason: 'The inverse of loadAsync, and it has the same answer.' },
+    unloadAllAsync: { status: 'refused', reason: 'As unloadAsync.' },
+    FontDisplay: {
+        status: 'refused',
+        reason: 'A web `font-display` strategy for a font that is still downloading. Nothing downloads here.',
+    },
+};
+
+export const EXPO_LINKING_TABLE: Readonly<Record<string, SupportEntry>> = {
+    openURL: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Gtk.UriLauncher',
+        reason: '`react-native`’s own Linking.openURL, re-exported — the same measured implementation, including the `can_launch` gate that stops a promise never settling.',
+        limits: ['Every limit of react-native’s Linking.openURL applies; this is that function.'],
+    },
+    canOpenURL: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Gtk.UriLauncher.can_launch',
+        reason: 'As openURL: react-native’s own.',
+        limits: ['Every limit of react-native’s Linking.canOpenURL applies.'],
+    },
+    getInitialURL: {
+        status: 'partial',
+        tier: 'P1',
+        reason: 'Always resolves null, which is also what React Native returns for a normal launch.',
+        limits: [
+            'A desktop deep link arrives as Gio.Application::open AFTER startup, so there is no value to read before it.',
+        ],
+    },
+    useURL: {
+        status: 'partial',
+        tier: 'P2',
+        reason: 'The hook form of getInitialURL, and it answers null for the same reason.',
+        limits: [
+            'It never updates. A URL delivered while the application runs is `Gio.Application::open`, which is the application object’s own wiring (HANDLES_OPEN plus the signal) and above this layer — the same refusal Linking.addEventListener gives.',
+        ],
+    },
+    parse: {
+        status: 'partial',
+        tier: 'P2',
+        reason: 'Pure URL parsing, so it is answerable with no platform at all: `WHATWG URL`, which gjsify provides, reshaped into expo-linking’s { scheme, hostname, path, queryParams }.',
+        limits: [
+            'queryParams values are strings; expo-linking returns string[] for a repeated key and this does not, matching the same narrowing `useLocalSearchParams` already declares.',
+            'A custom-scheme URL with no `//` (`myapp:profile`) parses with a null hostname and the whole remainder as the path, which is what the URL standard says and not always what a phone deep link meant.',
+        ],
+    },
+    createURL: {
+        status: 'refused',
+        reason: 'Builds a URL from the application’s own scheme, which expo reads from `app.json`. There is no Expo config here; a desktop application’s identity is its Gio.Application id and its scheme is a desktop-entry declaration. Write the URL.',
+    },
+    addEventListener: {
+        status: 'refused',
+        reason: 'URL delivery is Gio.Application::open with HANDLES_OPEN in the application flags — the application object’s own wiring, above this layer. Same refusal as react-native’s Linking.',
+    },
+    openSettings: {
+        status: 'refused',
+        reason: 'A phone OS per-app settings page. GNOME Settings has no per-application section a program can deep-link into.',
+    },
+    sendIntent: { status: 'refused', reason: 'An Android Intent. Same refusal as react-native’s Linking.' },
+};
+
+export const EXPO_WEB_BROWSER_TABLE: Readonly<Record<string, SupportEntry>> = {
+    openBrowserAsync: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Gtk.UriLauncher',
+        reason: 'On a phone this opens an IN-APP browser; on a desktop the counterpart is the user’s own browser, which is what Linking.openURL already does.',
+        limits: [
+            'It resolves { type: "opened" } as soon as the launch succeeds. It CANNOT report a dismissal: the page is in another application and this process is never told when the user closes it. React Native resolves on dismiss, so code that awaits this to know the user is back will continue early.',
+            'Every presentation option — toolbarColor, controlsColor, showTitle, enableBarCollapsing, presentationStyle — is ignored: they describe an in-app browser this layer does not draw.',
+        ],
+    },
+    WebBrowserResultType: {
+        status: 'supported',
+        tier: 'P1',
+        reason: 'The result constants, so a comparison against them resolves instead of failing to import.',
+    },
+    dismissBrowser: {
+        status: 'refused',
+        reason: 'Closes the in-app browser. There is none: the page is in another application and closing someone else’s window is not this application’s to do.',
+    },
+    openAuthSessionAsync: {
+        status: 'refused',
+        reason: 'Opens an in-app browser AND intercepts the redirect back to the app. The interception is the whole feature and it needs the in-app browser; with the system browser the redirect arrives as Gio.Application::open, which is the application’s own wiring.',
+    },
+    dismissAuthSession: { status: 'refused', reason: 'As dismissBrowser.' },
+    maybeCompleteAuthSession: {
+        status: 'refused',
+        reason: 'Completes a web-popup auth flow, which is expo-web-browser’s browser-target behaviour. There is no popup here.',
+    },
+    warmUpAsync: {
+        status: 'refused',
+        reason: 'Pre-warms Android’s Custom Tabs service. A refusal rather than a no-op, because a no-op here would be an optimisation hint that silently does nothing on every platform — and there is no service to warm.',
+    },
+    coolDownAsync: { status: 'refused', reason: 'The inverse of warmUpAsync.' },
+};
+
+export const SAFE_AREA_CONTEXT_TABLE: Readonly<Record<string, SupportEntry>> = {
+    SafeAreaView: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Gtk.Box',
+        reason: '`react-native`’s own SafeAreaView, re-exported: the INSET has no desktop meaning, the layout does.',
+        limits: [
+            'Every limit of react-native’s SafeAreaView applies, and it is the same component.',
+            'The `edges` and `mode` props this package adds are accepted and do nothing: every inset is zero, so there is no edge to apply one to and no padding-versus-margin question to answer.',
+        ],
+    },
+    SafeAreaProvider: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Gtk.Box',
+        reason: 'It is a View that publishes the insets. The insets are zero and constant here, so what is left is the View — and it must render, because a provider that rendered nothing would delete the whole application below it.',
+        limits: [
+            'It is a View, so every View limit applies. `initialMetrics` is accepted and ignored: the metrics it would seed are the ones this layer already answers constantly.',
+        ],
+    },
+    useSafeAreaInsets: {
+        status: 'partial',
+        tier: 'P1',
+        reason: 'Always { top: 0, right: 0, bottom: 0, left: 0 }.',
+        limits: [
+            'It never changes, so it never re-renders. A desktop window has no notch, no home indicator and no carrier bar; the window manager’s decorations are OUTSIDE the surface this layer lays out.',
+            'It does NOT require a SafeAreaProvider above it, where the real package throws. A refusal there would be inventing a requirement this implementation does not have.',
+        ],
+    },
+    useSafeAreaFrame: {
+        status: 'partial',
+        tier: 'P2',
+        gtk: 'Gtk.Window allocation',
+        reason: 'The frame is the window, so this is `useWindowDimensions` with an x/y of zero.',
+        limits: [
+            'Every limit of react-native’s useWindowDimensions applies to width and height; x and y are always 0.',
+        ],
+    },
+    initialWindowMetrics: {
+        status: 'partial',
+        tier: 'P2',
+        reason: 'Zero insets and a zero frame. React Native populates this from the native side BEFORE the first render so a screen can lay out without a flash; there is nothing to read before a GTK window exists.',
+        limits: [
+            'The frame is 0×0, not the window’s size: reading a window that has not been built yet is what `Dimensions.get("window")` refuses by name, and returning a plausible number here would be the same lie in a value nobody checks.',
+        ],
+    },
+    SafeAreaInsetsContext: {
+        status: 'planned',
+        tier: 'P3',
+        reason: 'The context object behind the hook, used by class components. It is a `createContext` call with a constant in it, and it lands when something needs the class-component form.',
+    },
+    SafeAreaFrameContext: { status: 'planned', tier: 'P3', reason: 'As SafeAreaInsetsContext.' },
+    withSafeAreaInsets: {
+        status: 'refused',
+        reason: 'A higher-order component that injects the insets into a class component. The insets are constant zero; write them.',
+    },
+    SafeAreaConsumer: {
+        status: 'refused',
+        reason: 'The deprecated render-prop form, superseded upstream by the hook.',
+    },
+};
+
+export const GESTURE_HANDLER_TABLE: Readonly<Record<string, SupportEntry>> = {
+    GestureHandlerRootView: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Gtk.Box',
+        reason: 'The root every gesture-handler application wraps itself in. It exists to host the library’s native touch arbitration, and there is none here — so what is left is the View, and it has to render or the application below it disappears.',
+        limits: [
+            'It is a View, so every View limit applies. It arbitrates nothing: GTK gesture controllers have their own conflict model (claim/deny on a `Gtk.GestureGroup`) and it is not React Native’s.',
+        ],
+    },
+    Gesture: {
+        status: 'not-reachable',
+        reason: 'The gesture builder’s handlers are WORKLETS, compiled by a Babel plugin that is not in this build chain (ADR 0032’s own Consequences). This is not a scheduling statement.',
+    },
+    GestureDetector: { status: 'not-reachable', reason: 'It runs `Gesture`’s worklets. Same answer.' },
+    PanGestureHandler: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.GestureDrag',
+        reason: 'The legacy handler components do not need worklets, and GTK has the controllers — `Gtk.GestureDrag`, `Gtk.GestureClick`, `Gtk.GestureZoom`. What they need is an arbitration model, which is `PanResponder`’s own project in the react-native table.',
+    },
+    TapGestureHandler: { status: 'planned', tier: 'P3', gtk: 'Gtk.GestureClick', reason: 'As PanGestureHandler.' },
+    LongPressGestureHandler: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.GestureLongPress',
+        reason: 'As PanGestureHandler.',
+    },
+    PinchGestureHandler: { status: 'planned', tier: 'P3', gtk: 'Gtk.GestureZoom', reason: 'As PanGestureHandler.' },
+    Swipeable: {
+        status: 'refused',
+        reason: 'A row that reveals actions when dragged. Adwaita’s answer to the same idea is a different interaction entirely, and reproducing a phone one on a desktop is the approximation this layer refuses.',
+    },
+    ScrollView: {
+        status: 'refused',
+        reason: 'gesture-handler’s re-wrapped ScrollView exists to cooperate with its own touch arbitration. Import ScrollView from react-native.',
+    },
+    Directions: { status: 'refused', reason: 'Direction constants for the worklet gesture API.' },
+    State: { status: 'refused', reason: 'The gesture state machine’s constants, for the same API.' },
+};
+
+export const ASYNC_STORAGE_TABLE: Readonly<Record<string, SupportEntry>> = {
+    default: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Gio.File in GLib.get_user_data_dir()',
+        reason: 'A REAL store, not a stub: one JSON document in the application’s own data directory, read once and rewritten atomically on every mutation.',
+        limits: [
+            'The whole store is rewritten on every write. React Native’s Android implementation is SQLite and does not; this is a document, so a hot write loop over a large store is O(store) per call. It is sized for what AsyncStorage is documented for — preferences, a session token, a small cache — and not for a database.',
+            'A write is `Gio.File.replace_contents` with REPLACE_DESTINATION, which is a write-to-temp-and-rename. A torn file is therefore not reachable through this API; a file corrupted by something else is, and it is reported by name on the first read rather than silently starting from empty.',
+            'Nothing is encrypted, which is also React Native’s own contract. A secret belongs in the keyring, which is `Secret.Service` and not this API.',
+            'GLib.KeyFile was the obvious desktop shape and is NOT used, MEASURED: `g_key_file_set_string` with a key containing "=" prints a GLib-CRITICAL and DROPS the write, returning normally — and AsyncStorage keys are arbitrary strings ("@app:token", "persist:root"). A store that silently loses a key is the exact failure this layer exists against.',
+            'The store’s path needs the application id, which comes from `Gio.Application.get_default()` or `GLib.get_prgname()`. Before a Gio.Application exists — a read at module scope in a script — it throws by name rather than writing to a directory named after the interpreter.',
+        ],
+    },
+    useAsyncStorage: {
+        status: 'partial',
+        tier: 'P2',
+        reason: 'The per-key handle: getItem/setItem/mergeItem/removeItem bound to one key. Pure composition over the default export.',
+        limits: [
+            'Every limit of the default export applies. It is not reactive: it returns callbacks, not a value, which is upstream’s own shape.',
+        ],
+    },
+};
+
+export const VECTOR_ICONS_TABLE: Readonly<Record<string, SupportEntry>> = {
+    Ionicons: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Gtk.Image with a symbolic icon-name',
+        reason: 'A declared mapping from Ionicons’ names onto the icon theme’s symbolic names, with every TARGET held against the installed theme by the spec.',
+        limits: [
+            'An unmapped Ionicons name is a NAMED REFUSAL listing what is mapped, and that is the whole design. GTK’s answer to an icon it does not have is `image-missing` drawn silently — the exit-0 failure mode — so a mapping table without a refusal would put a broken-image glyph in a shipped application.',
+            'The mapping’s KEY SET is declared rather than read from a glyph map: `@expo/vector-icons` is not a dependency here. A key that does not exist upstream is a dead row and costs nothing; a key that is missing is a refusal naming what to do. The GTK half is measured — every target is asserted present in the installed theme.',
+            'Several Ionicons names map to ONE symbolic icon (chevron-forward and arrow-forward are both go-next-symbolic), because the icon theme draws the distinction the desktop makes rather than the one iOS does.',
+            'Filled and outline variants mostly collapse: the Adwaita symbolic set is one weight. A name whose only difference is `-outline` maps to the same icon, and where the theme really has both (starred/non-starred) the pair is kept.',
+            'size becomes `Gtk.Image:pixel-size` verbatim. color is a GTK CSS `color` on the generated class, which is how a symbolic icon is recoloured; a non-token colour goes through the same partition as any other style value.',
+        ],
+    },
+    MaterialIcons: {
+        status: 'planned',
+        tier: 'P3',
+        reason: 'A second glyph vocabulary over the same mechanism — a table and its measurement, not new code. It lands when an application measured here uses one.',
+    },
+    MaterialCommunityIcons: { status: 'planned', tier: 'P3', reason: 'As MaterialIcons.' },
+    FontAwesome: { status: 'planned', tier: 'P3', reason: 'As MaterialIcons.' },
+    Feather: { status: 'planned', tier: 'P3', reason: 'As MaterialIcons.' },
+    AntDesign: { status: 'planned', tier: 'P3', reason: 'As MaterialIcons.' },
+    Entypo: { status: 'planned', tier: 'P3', reason: 'As MaterialIcons.' },
+    Octicons: { status: 'planned', tier: 'P3', reason: 'As MaterialIcons.' },
+    SimpleLineIcons: { status: 'planned', tier: 'P3', reason: 'As MaterialIcons.' },
+    createIconSet: {
+        status: 'refused',
+        reason: 'Builds an icon component from a glyph map and a FONT FILE, rendering a codepoint as text. A GTK symbolic icon is an SVG the theme owns, addressed by name — so there is no font to hand in and no codepoint to render.',
+    },
+    createIconSetFromFontello: { status: 'refused', reason: 'As createIconSet.' },
+    createIconSetFromIcoMoon: { status: 'refused', reason: 'As createIconSet.' },
+};
+
+// --- the surfaces this project does not build HERE (ADR 0036 § 5) -------------
+//
+// A row and a pointer, so the gate refuses the import with a reason instead of the
+// bundler failing on module resolution. Each of these has a real desktop answer and
+// it belongs to a track that is not the vocabulary translation.
+
+export const EXPO_IMAGE_TABLE: Readonly<Record<string, SupportEntry>> = {
+    Image: {
+        status: 'planned',
+        tier: 'P2',
+        gtk: 'Gtk.Picture',
+        reason: 'The same widget react-native’s Image already uses, plus caching, transitions and blurhash. The widget half is answered; the rest is a decoding-and-cache pipeline this layer does not own yet. Import Image from react-native for the widget half.',
+    },
+    ImageBackground: { status: 'planned', tier: 'P2', gtk: 'Gtk.Picture in a Gtk.Overlay', reason: 'As Image.' },
+    useImage: {
+        status: 'planned',
+        tier: 'P3',
+        reason: 'Loads a source into an image object ahead of render. It needs the pipeline Image needs.',
+    },
+};
+
+export const EXPO_AUDIO_TABLE: Readonly<Record<string, SupportEntry>> = {
+    useAudioPlayer: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.MediaFile',
+        reason: 'Playback is a MEDIA question rather than a view-vocabulary one: GTK has Gtk.MediaFile and Gtk.MediaStream, and which package owns them is its own decision with its own measurement (ADR 0036, "What this does not decide").',
+    },
+    useAudioRecorder: {
+        status: 'planned',
+        tier: 'P3',
+        reason: 'Recording is GStreamer rather than GTK, and it is the same open decision as playback.',
+    },
+    AudioModule: { status: 'planned', tier: 'P3', reason: 'The module surface behind the hooks. Same track.' },
+    setAudioModeAsync: {
+        status: 'planned',
+        tier: 'P3',
+        reason: 'Session policy for a phone’s audio focus. Same track.',
+    },
+};
+
+export const EXPO_VIDEO_TABLE: Readonly<Record<string, SupportEntry>> = {
+    VideoView: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.Video',
+        reason: 'GTK has the widget. Which package owns media is the open decision expo-audio names; it is not the view vocabulary’s.',
+    },
+    useVideoPlayer: { status: 'planned', tier: 'P3', gtk: 'Gtk.MediaFile', reason: 'As VideoView.' },
+    VideoContentFit: { status: 'planned', tier: 'P3', reason: 'The fit constants; they land with the widget.' },
+};
+
+export const WEBVIEW_TABLE: Readonly<Record<string, SupportEntry>> = {
+    WebView: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'WebKitGTK’s WebKit.WebView',
+        reason: 'A real widget with a real answer, and its platform story is its own: WebKit’s availability differs per OS (ADR 0022) and it is the heaviest dependency any of these surfaces would add. It belongs to the webkit track.',
+    },
+    default: { status: 'planned', tier: 'P3', reason: 'The default export is WebView; it has the same answer.' },
+};
+
+export const NATIVEWIND_TABLE: Readonly<Record<string, SupportEntry>> = {
+    cssInterop: {
+        status: 'refused',
+        reason: 'ADR 0032 § 12 already decided this surface: the class VOCABULARY is consumed and none of its toolchain is. `className` works on every primitive here with no runtime — resolving this would pull bindings to React Native’s StyleSheet, Appearance, Dimensions and PixelRatio into the critical path, which is the two-lossy-mappings-stacked shape that rules out react-native-web.',
+    },
+    remapProps: { status: 'refused', reason: 'As cssInterop.' },
+    styled: { status: 'refused', reason: 'As cssInterop. Write `className` on the primitive.' },
+    vars: {
+        status: 'refused',
+        reason: 'CSS variables at runtime. GTK CSS has its own (`@define-color` and the Adwaita palette), and they are set through the application stylesheet rather than through a prop.',
+    },
+    useColorScheme: {
+        status: 'refused',
+        reason: 'Its own hook over React Native’s Appearance. `useColorScheme` from react-native is answered here and reads Adw.StyleManager:dark, which is what the user is actually looking at.',
+    },
+};
+
+export const EXPO_CONSTANTS_TABLE: Readonly<Record<string, SupportEntry>> = {
+    default: {
+        status: 'refused',
+        reason: 'The Expo config object — `expoConfig`, `appOwnership`, `executionEnvironment`, `manifest`, `sessionId`. A desktop application’s identity is its Gio.Application id and its metadata is its desktop entry; there is no manifest here to read, and a shape that answered with plausible nulls would be read as "not configured" rather than "does not apply".',
+    },
+    ExecutionEnvironment: {
+        status: 'refused',
+        reason: 'Whether the app runs in Expo Go, a dev client or a standalone build. None of the three exists here.',
+    },
+    AppOwnership: { status: 'refused', reason: 'As ExecutionEnvironment.' },
+};
+
+export const EXPO_SYSTEM_UI_TABLE: Readonly<Record<string, SupportEntry>> = {
+    setBackgroundColorAsync: {
+        status: 'refused',
+        reason: 'Paints the window’s root view behind React. On GTK that is the application stylesheet’s job and Adwaita already answers it per colour scheme — a per-call override would fight the theme and win only until the scheme changes.',
+    },
+    getBackgroundColorAsync: {
+        status: 'refused',
+        reason: 'Reads back what setBackgroundColorAsync wrote. Nothing wrote it.',
+    },
+};
+
+export const EXPO_SPLASH_SCREEN_TABLE: Readonly<Record<string, SupportEntry>> = {
+    preventAutoHideAsync: {
+        status: 'refused',
+        reason: 'Holds a native splash screen up while the app loads. A GTK application MAPS ITS WINDOW when it is ready, which is the desktop equivalent and is Gio.Application’s own job — the same refusal the router table gives expo-router’s SplashScreen.',
+    },
+    hideAsync: { status: 'refused', reason: 'Hides a splash screen that was never shown.' },
+    hide: { status: 'refused', reason: 'The synchronous form, and it has the same answer.' },
+    preventAutoHide: { status: 'refused', reason: 'The synchronous form of preventAutoHideAsync.' },
+    setOptions: { status: 'refused', reason: 'Configures the fade of a screen that does not exist.' },
+};
+
+// --- the registry (ADR 0036 § 2) ---------------------------------------------
+
+/** One npm package this layer answers for, and where its answer lives. */
+export interface Surface {
+    /** The npm specifier an application writes. */
+    readonly module: string;
+    /** The specifier of this package that answers it — the alias target. */
+    readonly target: string;
+    /** What a build error and the generated `SUPPORT.md` call it. */
+    readonly label: string;
+    /**
+     * This file's own name for the table.
+     *
+     * `scripts/generate-exports.mjs` and `scripts/check-rn-surface.mjs` read the
+     * table out of THIS FILE'S SOURCE, because a consumer's `node_modules` ships
+     * `lib` and not `src`. They need the declaration's identifier to find it.
+     */
+    readonly declaration: string;
+    readonly table: Readonly<Record<string, SupportEntry>>;
+    /**
+     * What a name this table has never heard of means, in this surface's terms.
+     *
+     * `react-native`'s key set is held EQUAL to a committed snapshot of its own
+     * exports, so an unknown name there really does mean the table is stale and the
+     * sentence says which script settles it. Every other surface's key set is
+     * DECLARED, so the same sentence would send a reader to a script that compares
+     * the table with react-native — where the name is correctly absent and they
+     * would find nothing.
+     */
+    readonly unknown: string;
+}
+
+const PACKAGE = '@gjsify/react-native';
+
+const STALE_TABLE =
+    `is not a React Native export this layer knows about. If the installed react-native really exports ` +
+    `it, the support table is out of date — run scripts/check-rn-surface.mjs, which compares the two.`;
+
+const DECLARED_SURFACE = (pkg: string): string =>
+    `is not a name this layer's ${pkg} surface declares. That key set is DECLARED rather than read from an ` +
+    `installed ${pkg} (it is not a dependency here), so a missing name means nobody has decided about it ` +
+    `yet — open an issue naming it, or import the name from react-native if it has one there.`;
+
+/**
+ * Every surface, in lookup order.
+ *
+ * ORDER IS THE ANSWER to the collision this registry creates. `StatusBar` is a
+ * `react-native` export AND the whole of `expo-status-bar`; `SafeAreaView` is in
+ * `react-native` and in `react-native-safe-area-context`. Two tables with one name
+ * used to be impossible — `support-table.spec.ts` asserted the two key sets were
+ * DISJOINT — and with sixteen surfaces the collision is the normal case. So the
+ * lookup takes the MODULE, and the one-argument form (the runtime backstop, and
+ * consumer tooling) resolves in this order and says which surface answered.
+ */
+export const SURFACES: readonly Surface[] = [
+    {
+        module: 'react-native',
+        target: PACKAGE,
+        label: 'React Native',
+        declaration: 'SUPPORT_TABLE',
+        table: SUPPORT_TABLE,
+        unknown: STALE_TABLE,
+    },
+    {
+        module: 'expo-router',
+        target: `${PACKAGE}/router`,
+        label: 'expo-router',
+        declaration: 'ROUTER_SUPPORT_TABLE',
+        table: ROUTER_SUPPORT_TABLE,
+        unknown: DECLARED_SURFACE('expo-router'),
+    },
+    {
+        module: 'expo-status-bar',
+        target: `${PACKAGE}/expo-status-bar`,
+        label: 'expo-status-bar',
+        declaration: 'EXPO_STATUS_BAR_TABLE',
+        table: EXPO_STATUS_BAR_TABLE,
+        unknown: DECLARED_SURFACE('expo-status-bar'),
+    },
+    {
+        module: 'expo-font',
+        target: `${PACKAGE}/expo-font`,
+        label: 'expo-font',
+        declaration: 'EXPO_FONT_TABLE',
+        table: EXPO_FONT_TABLE,
+        unknown: DECLARED_SURFACE('expo-font'),
+    },
+    {
+        module: 'expo-linking',
+        target: `${PACKAGE}/expo-linking`,
+        label: 'expo-linking',
+        declaration: 'EXPO_LINKING_TABLE',
+        table: EXPO_LINKING_TABLE,
+        unknown: DECLARED_SURFACE('expo-linking'),
+    },
+    {
+        module: 'expo-web-browser',
+        target: `${PACKAGE}/expo-web-browser`,
+        label: 'expo-web-browser',
+        declaration: 'EXPO_WEB_BROWSER_TABLE',
+        table: EXPO_WEB_BROWSER_TABLE,
+        unknown: DECLARED_SURFACE('expo-web-browser'),
+    },
+    {
+        module: 'react-native-safe-area-context',
+        target: `${PACKAGE}/react-native-safe-area-context`,
+        label: 'react-native-safe-area-context',
+        declaration: 'SAFE_AREA_CONTEXT_TABLE',
+        table: SAFE_AREA_CONTEXT_TABLE,
+        unknown: DECLARED_SURFACE('react-native-safe-area-context'),
+    },
+    {
+        module: 'react-native-gesture-handler',
+        target: `${PACKAGE}/react-native-gesture-handler`,
+        label: 'react-native-gesture-handler',
+        declaration: 'GESTURE_HANDLER_TABLE',
+        table: GESTURE_HANDLER_TABLE,
+        unknown: DECLARED_SURFACE('react-native-gesture-handler'),
+    },
+    {
+        module: '@react-native-async-storage/async-storage',
+        target: `${PACKAGE}/async-storage`,
+        label: '@react-native-async-storage/async-storage',
+        declaration: 'ASYNC_STORAGE_TABLE',
+        table: ASYNC_STORAGE_TABLE,
+        unknown: DECLARED_SURFACE('@react-native-async-storage/async-storage'),
+    },
+    {
+        module: '@expo/vector-icons',
+        target: `${PACKAGE}/vector-icons`,
+        label: '@expo/vector-icons',
+        declaration: 'VECTOR_ICONS_TABLE',
+        table: VECTOR_ICONS_TABLE,
+        unknown: DECLARED_SURFACE('@expo/vector-icons'),
+    },
+    {
+        module: 'expo-image',
+        target: `${PACKAGE}/expo-image`,
+        label: 'expo-image',
+        declaration: 'EXPO_IMAGE_TABLE',
+        table: EXPO_IMAGE_TABLE,
+        unknown: DECLARED_SURFACE('expo-image'),
+    },
+    {
+        module: 'expo-constants',
+        target: `${PACKAGE}/expo-constants`,
+        label: 'expo-constants',
+        declaration: 'EXPO_CONSTANTS_TABLE',
+        table: EXPO_CONSTANTS_TABLE,
+        unknown: DECLARED_SURFACE('expo-constants'),
+    },
+    {
+        module: 'expo-system-ui',
+        target: `${PACKAGE}/expo-system-ui`,
+        label: 'expo-system-ui',
+        declaration: 'EXPO_SYSTEM_UI_TABLE',
+        table: EXPO_SYSTEM_UI_TABLE,
+        unknown: DECLARED_SURFACE('expo-system-ui'),
+    },
+    {
+        module: 'expo-splash-screen',
+        target: `${PACKAGE}/expo-splash-screen`,
+        label: 'expo-splash-screen',
+        declaration: 'EXPO_SPLASH_SCREEN_TABLE',
+        table: EXPO_SPLASH_SCREEN_TABLE,
+        unknown: DECLARED_SURFACE('expo-splash-screen'),
+    },
+    {
+        module: 'expo-audio',
+        target: `${PACKAGE}/expo-audio`,
+        label: 'expo-audio',
+        declaration: 'EXPO_AUDIO_TABLE',
+        table: EXPO_AUDIO_TABLE,
+        unknown: DECLARED_SURFACE('expo-audio'),
+    },
+    {
+        module: 'expo-video',
+        target: `${PACKAGE}/expo-video`,
+        label: 'expo-video',
+        declaration: 'EXPO_VIDEO_TABLE',
+        table: EXPO_VIDEO_TABLE,
+        unknown: DECLARED_SURFACE('expo-video'),
+    },
+    {
+        module: 'react-native-webview',
+        target: `${PACKAGE}/react-native-webview`,
+        label: 'react-native-webview',
+        declaration: 'WEBVIEW_TABLE',
+        table: WEBVIEW_TABLE,
+        unknown: DECLARED_SURFACE('react-native-webview'),
+    },
+    {
+        module: 'nativewind',
+        target: `${PACKAGE}/nativewind`,
+        label: 'nativewind',
+        declaration: 'NATIVEWIND_TABLE',
+        table: NATIVEWIND_TABLE,
+        unknown: DECLARED_SURFACE('nativewind'),
+    },
+];
+
 /** Every name `react-native` publicly exports, as this table claims to cover it. */
 export const SUPPORTED_NAMES: readonly string[] = Object.keys(SUPPORT_TABLE);
 
@@ -855,21 +1510,28 @@ export const ROUTER_NAMES: readonly string[] = Object.keys(ROUTER_SUPPORT_TABLE)
 const IMPORTABLE: ReadonlySet<SupportStatus> = new Set<SupportStatus>(['supported', 'partial']);
 
 /**
- * The two tables, each with the module a reader would import the name FROM.
+ * The surface a specifier names, by the module OR by the target.
  *
- * One list so `isImportable` and `explainUnsupported` cannot disagree about which
- * names exist — the same reason there is one `explainUnsupported` rather than a
- * sentence in the gate and another in the runtime.
+ * BOTH, because a ported application writes `react-native` and a gjsify-native one
+ * writes `@gjsify/react-native` — the gate is about the SURFACE, not about which
+ * name reached it, and it reads the source text where the alias has not run yet.
  */
-const TABLES: readonly (readonly [string, Readonly<Record<string, SupportEntry>>])[] = [
-    ['@gjsify/react-native', SUPPORT_TABLE],
-    ['@gjsify/react-native/router', ROUTER_SUPPORT_TABLE],
-];
+export const surfaceFor = (specifier: string): Surface | undefined =>
+    SURFACES.find((surface) => surface.module === specifier || surface.target === specifier);
 
-const lookup = (name: string): { readonly module: string; readonly entry: SupportEntry } | undefined => {
-    for (const [module, table] of TABLES) {
-        const entry = table[name];
-        if (entry !== undefined) return { module, entry };
+const lookup = (
+    name: string,
+    module?: string,
+): { readonly surface: Surface; readonly entry?: SupportEntry } | undefined => {
+    if (module !== undefined) {
+        const surface = surfaceFor(module);
+        if (surface === undefined) return undefined;
+        const entry = surface.table[name];
+        return entry === undefined ? { surface } : { surface, entry };
+    }
+    for (const surface of SURFACES) {
+        const entry = surface.table[name];
+        if (entry !== undefined) return { surface, entry };
     }
     return undefined;
 };
@@ -898,64 +1560,103 @@ export const isOwnExport = (name: string): boolean => OWN.has(name);
 export { OWN_EXPORT_NAMES };
 
 /**
- * May a build import `name` from this package?
+ * May a build import `name` from `module`?
  *
- * TWO POPULATIONS, and the tables answer FIRST. A name react-native exports is the
- * tables' to judge, whatever else claims it; only a name no table has heard of falls
- * through to the layer's own exports. That order is the safety property: the derived
- * list can add names, never promote a `planned` one, so a mistake upstream of it
- * cannot turn `import { Modal }` into a green build.
+ * TWO POPULATIONS, and the tables answer FIRST. A name a surface's table judges is
+ * the table's to decide, whatever else claims it; only a name no table has heard of
+ * falls through to the layer's own exports — and only on the ROOT surface, because
+ * `configureStyle` is exported from `@gjsify/react-native` and from nowhere else.
+ * That order is the safety property: the derived list can add names, never promote a
+ * `planned` one, so a mistake upstream of it cannot turn `import { Modal }` into a
+ * green build.
  *
  * A name in NEITHER population is still refused — which is the whole difference
  * between this and "anything the table does not know is fine", the shape that would
- * pass every typo.
+ * pass every typo. A specifier that names no surface at all is refused too: the gate
+ * only asks about specifiers the registry declares, so reaching this with an unknown
+ * one is a caller error rather than an import to wave through.
  */
-export const isImportable = (name: string): boolean => {
-    const found = lookup(name);
-    if (found !== undefined) return IMPORTABLE.has(found.entry.status);
+export const isImportable = (name: string, module?: string): boolean => {
+    const found = lookup(name, module);
+    if (found?.entry !== undefined) return IMPORTABLE.has(found.entry.status);
+    if (module !== undefined) {
+        const surface = found?.surface;
+        if (surface === undefined) return false;
+        return surface.target === PACKAGE && isOwnExport(name);
+    }
     return isOwnExport(name);
 };
+
+/**
+ * The two specifiers a sentence has to name, in the order a reader meets them.
+ *
+ * THE NPM MODULE FIRST, and it is not decoration: three of the eighteen targets do not
+ * contain their module's name at all — `expo-router` is answered by
+ * `@gjsify/react-native/router`, `@expo/vector-icons` by
+ * `@gjsify/react-native/vector-icons` and
+ * `@react-native-async-storage/async-storage` by `@gjsify/react-native/async-storage`.
+ * A sentence prefixed with the TARGET alone therefore named a specifier the reader
+ * never wrote: `import { Tabs } from 'expo-router'` was answered by
+ * "@gjsify/react-native/router: …", which reads as an unrelated package. ADR 0036 § 3
+ * and § 6 both say the sentence prints the module; for those three it did not.
+ *
+ * The target stays, because it is the answer to "where do I import it from" for a
+ * gjsify-native application and for the two names that moved surface.
+ */
+const specifiers = (surface: Surface): string => `${surface.module} → ${surface.target}`;
 
 /**
  * The sentence a build error and a runtime throw both print.
  *
  * One function so the two cannot drift into describing the same gap differently —
  * which is the whole reason the table is data rather than prose in two places. It
- * covers BOTH tables, and prints the module the name belongs to, so a reader who
+ * covers EVERY surface and prints the module the name belongs to, so a reader who
  * imported `Tabs` from the wrong entry point learns which one has it.
  */
-export function explainUnsupported(name: string): string {
-    const found = lookup(name);
+export function explainUnsupported(name: string, module?: string): string {
+    const found = lookup(name, module);
     if (found === undefined) {
-        // Asked about one of this layer's own names, the sentence below would send a
-        // reader to a script that compares the table with react-native — where the
-        // name is correctly absent, and the reader would find nothing.
-        if (isOwnExport(name)) {
+        // Asked about one of this layer's own names, the react-native sentence would
+        // send a reader to a script that compares the table with react-native — where
+        // the name is correctly absent, and the reader would find nothing.
+        if (module === undefined && isOwnExport(name)) {
             return (
-                `@gjsify/react-native: "${name}" is this layer's own export rather than a React Native ` +
+                `${PACKAGE}: "${name}" is this layer's own export rather than a React Native ` +
                 `name, and it is available.`
             );
         }
-        return (
-            `@gjsify/react-native: "${name}" is not a React Native export this layer knows about. ` +
-            `If the installed react-native really exports it, the support table is out of date — ` +
-            `run scripts/check-rn-surface.mjs, which compares the two.`
-        );
+        if (module !== undefined) {
+            return (
+                `${PACKAGE}: "${module}" is not a surface this layer declares, so it has nothing to say about ` +
+                `"${name}". The declared surfaces are: ${SURFACES.map((surface) => surface.module).join(', ')}.`
+            );
+        }
+        return `${PACKAGE}: "${name}" ${STALE_TABLE}`;
     }
-    const { module, entry } = found;
-    const where = entry.tier ? ` (tier ${entry.tier})` : '';
+    const { surface, entry } = found;
+    if (entry === undefined) {
+        if (surface.target === PACKAGE && isOwnExport(name)) {
+            return (
+                `${PACKAGE}: "${name}" is this layer's own export rather than a React Native ` +
+                `name, and it is available.`
+            );
+        }
+        return `${specifiers(surface)}: "${name}" ${surface.unknown}`;
+    }
+    const where = specifiers(surface);
+    const tier = entry.tier ? ` (tier ${entry.tier})` : '';
     const gtk = entry.gtk ? ` The GTK counterpart is ${entry.gtk}.` : '';
     switch (entry.status) {
         case 'supported':
         case 'partial':
-            return `${module}: "${name}" is available.`;
+            return `${where}: "${name}" is available.`;
         case 'planned':
-            return `${module}: "${name}" is not implemented yet${where}. ${entry.reason}${gtk}`;
+            return `${where}: "${name}" is not implemented yet${tier}. ${entry.reason}${gtk}`;
         case 'refused':
-            return `${module}: "${name}" will not be implemented. ${entry.reason}`;
+            return `${where}: "${name}" will not be implemented. ${entry.reason}`;
         case 'no-desktop-meaning':
-            return `${module}: "${name}" has no meaning on a desktop window${where}. ${entry.reason}`;
+            return `${where}: "${name}" has no meaning on a desktop window${tier}. ${entry.reason}`;
         case 'not-reachable':
-            return `${module}: "${name}" cannot be implemented in this build chain. ${entry.reason}`;
+            return `${where}: "${name}" cannot be implemented in this build chain. ${entry.reason}`;
     }
 }

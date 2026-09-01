@@ -1042,6 +1042,38 @@ export const PRIMITIVES: Readonly<Record<string, PrimitiveSpec>> = {
         props: { ...COMMON, pointerEvents: POINTER_EVENTS },
     },
 
+    // `Icon` is NOT a React Native name, and it is here for the reason the primitive
+    // table exists at all: ADR 0036's `@expo/vector-icons` surface needs a widget,
+    // and a component that named `GtkImage` itself would put a widget name in L3 —
+    // the one thing ADR 0032 § 1 and ADR 0027 rule 1 both forbid. The Ionicons
+    // vocabulary is translated one layer up (`surfaces/icon-map.ts`), so what reaches
+    // here is already a GTK icon NAME and this row stays reusable for the next glyph
+    // set.
+    //
+    // `icon-name` and not `gicon`: a themed icon addressed by name is what the icon
+    // theme resolves, at the scale factor of the surface it is drawn on, and it
+    // recolours from GTK CSS `color` — which is how a symbolic icon is tinted, and
+    // why `color` goes into the paint half rather than onto a property.
+    Icon: {
+        tag: 'GtkImage',
+        widgetProps: {},
+        cssClasses: [],
+        orientation: 'vertical',
+        widget: LEAF,
+        textSink: null,
+        props: {
+            ...COMMON,
+            name: { to: 'property', names: ['icon-name'], as: 'string' },
+            // `pixel-size` and not width/height requests: MEASURED, a `Gtk.Image`
+            // asked for a size request draws its icon at the theme's step and pads
+            // the rest, while `pixel-size` picks the icon size itself. The default is
+            // -1, which means "use icon-size", so the prop is only ever set when the
+            // author gave one.
+            size: { to: 'property', names: ['pixel-size'], as: 'int' },
+            color: { to: 'style-property', name: 'color' },
+        },
+    },
+
     KeyboardAvoidingView: {
         tag: 'GtkBox',
         widgetProps: { orientation: 'vertical' },

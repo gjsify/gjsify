@@ -28,6 +28,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createTestEnvironment, cleanupTestEnvironment, setupProject } from '../helpers.mjs';
+// The generator's own paths, not a second spelling of them: it WRITES `SUPPORT.md` and
+// the per-surface refusal modules, and a guess here reads a file nobody updates.
+import * as generator from '../../../packages/framework/react-native/scripts/generate-exports.mjs';
 
 const RN_PKG = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'packages', 'framework', 'react-native');
 
@@ -62,23 +65,38 @@ function ownExportNames() {
  * improved is a vector that will be deleted rather than fixed.
  *
  * So the name comes out of the generated artifacts, which move with the table:
- * the README's `### Planned` block gives a name AND its GTK counterpart, and the
+ * `SUPPORT.md`'s `### Planned` block gives a name AND its GTK counterpart, and the
  * generated refusing-exports module is asked to agree. Both are written by
  * `scripts/generate-exports.mjs` from the one table, so a name that graduates
  * disappears from both in the same commit and this picker moves to the next one.
+ *
+ * AND BOTH PATHS COME FROM THE GENERATOR THAT WRITES THEM, the way
+ * `check-rn-surface.mjs` takes them, because guessing them cost this whole suite:
+ * ADR 0036 moved the generated tables out of the README into `SUPPORT.md` and renamed
+ * `unsupported-exports.ts` to `unsupported-react-native.ts`, and this picker went on
+ * reading two paths that no longer exist. It runs in `before()`, so the failure
+ * CANCELLED every vector in the file instead of reporting one.
  *
  * `planned` specifically, not any refusing status: only that branch of
  * `explainUnsupported` prints "The GTK counterpart is …", which is the assertion
  * that proves the message came from the real table rather than from the plugin.
  */
 function pickPlannedName() {
-    const readme = readFileSync(join(RN_PKG, 'README.md'), 'utf8');
-    const planned = readme.split(/^### Planned\b.*$/m)[1];
-    assert.ok(planned, 'the README has no generated "### Planned" section to read a fixture name out of');
+    const doc = readFileSync(generator.SUPPORT_DOC, 'utf8');
+    // ONE SURFACE'S SECTION, and it has to be `react-native`'s. SUPPORT.md carries
+    // eighteen sections now and every one of them has its own `### Planned` block; a
+    // name donated by `expo-image` would be refused for the right reason from the WRONG
+    // module, and the message assertions below would then be reading a sentence about a
+    // specifier the fixture never imports. The trailing backtick is load-bearing —
+    // `react-native-webview` starts with the same eleven characters.
+    const section = doc.split(/^## `/m).find((part) => part.startsWith('react-native`'));
+    assert.ok(section, 'SUPPORT.md has no `react-native` section to read a fixture name out of');
+    const planned = section.split(/^### Planned\b.*$/m)[1];
+    assert.ok(planned, 'SUPPORT.md has no generated "### Planned" block for react-native');
     // Stop at the next heading so a later section cannot donate a row.
     const rows = planned.split(/^#{2,3} /m)[0].matchAll(/^\| `(\w+)` \| [^|]*\| ([^|]+)\|/gm);
 
-    const generated = readFileSync(join(RN_PKG, 'src', 'generated', 'unsupported-exports.ts'), 'utf8');
+    const generated = readFileSync(generator.outFor(generator.PACKAGE), 'utf8');
     const refusing = new Set([...generated.matchAll(/^export const (\w+) = unsupported\(/gm)].map((match) => match[1]));
 
     for (const [, name, gtkCell] of rows) {
@@ -87,8 +105,8 @@ function pickPlannedName() {
         if (gtk === '' || gtk === '\u2014') continue;
         assert.ok(
             refusing.has(name),
-            `${name} is in the README's Planned block but not in the generated refusing exports — ` +
-                'the two generated artifacts disagree, which means one of them is stale.',
+            `${name} is in SUPPORT.md's react-native Planned block but not in the generated refusing ` +
+                'exports — the two generated artifacts disagree, which means one of them is stale.',
         );
         return { name, gtk };
     }
@@ -369,7 +387,7 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
     // `isImportable` answers false for it, which `react-native-gate.spec.ts` pins —
     // but what the build PRINTS is rolldown's own `MISSING_EXPORT`, and that is not a
     // gap: the layer generates a refusing export for every name a table knows
-    // (`unsupported-exports.ts`), so the only names that can be missing from the
+    // (`unsupported-react-native.ts`), so the only names that can be missing from the
     // module are exactly the ones in neither population. The two mechanisms partition
     // the space, and both name the identifier at its position. So this vector holds
     // the REFUSAL and the position, not whose sentence won the race.

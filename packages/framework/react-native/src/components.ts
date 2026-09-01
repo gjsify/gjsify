@@ -859,3 +859,24 @@ export function AnimatedView(props: AnimatedViewProps): ReactElement {
     }
     return render({ ...rendered, extra: { ...rendered.extra, ...initial } });
 }
+
+/**
+ * A themed icon — `Gtk.Image` with an `icon-name`.
+ *
+ * NOT a React Native name and not exported from the package root: it is the widget
+ * ADR 0036's `@expo/vector-icons` surface renders, and it lives here rather than in
+ * that surface for the reason ADR 0032 § 1 gives — a component that named `GtkImage`
+ * itself would put a widget name in L3. `name` is a GTK icon name by the time it
+ * arrives; the Ionicons vocabulary is translated in `surfaces/icon-map.ts`.
+ */
+export interface IconProps extends Omit<CommonProps, 'children'> {
+    /** A GTK icon name, e.g. `go-home-symbolic`. */
+    name: string;
+    /** `Gtk.Image:pixel-size`, in pixels. */
+    size?: number;
+    color?: string;
+}
+
+export function Icon(props: IconProps): ReactElement {
+    return render(usePlan('Icon', props));
+}

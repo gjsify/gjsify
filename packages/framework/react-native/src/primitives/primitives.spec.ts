@@ -70,6 +70,20 @@ const threw = (fn: () => unknown): PrimitiveError => {
     throw new Error('expected a PrimitiveError, nothing was thrown');
 };
 
+/**
+ * Primitives that are NOT React Native names, so no support-table row judges them.
+ *
+ * `Icon` is the whole set today and it exists for ADR 0036's `@expo/vector-icons`
+ * surface: a component that named `GtkImage` itself would put a widget name in L3,
+ * which ADR 0032 § 1 and ADR 0027 rule 1 both forbid — so the widget is a primitive
+ * and the Ionicons vocabulary is translated one layer up.
+ *
+ * It is a NAMED set rather than a status check, because "the table has no row for it"
+ * is exactly what a primitive escaping the contract would also look like. The vector
+ * below asserts the exemption is real: a name here that react-native DOES export fails.
+ */
+const NOT_REACT_NATIVE: ReadonlySet<string> = new Set(['Icon']);
+
 export default async () => {
     await describe('the two inverted defaults', async () => {
         await it('makes a View a VERTICAL box', async () => {
@@ -686,10 +700,16 @@ export default async () => {
     await describe('the table and the contract agree', async () => {
         await it('claims every implemented primitive in the support table', async () => {
             const wrong = PRIMITIVE_NAMES.filter((name) => {
+                if (NOT_REACT_NATIVE.has(name)) return false;
                 const status = SUPPORT_TABLE[name]?.status;
                 return status !== 'supported' && status !== 'partial';
             });
             expect(wrong).toStrictEqual([]);
+            // Not vacuous: the exemption set must stay small and must be REAL — a name
+            // in it that react-native does export would be a primitive quietly escaping
+            // the table that is supposed to be the contract.
+            const escaped = [...NOT_REACT_NATIVE].filter((name) => SUPPORT_TABLE[name] !== undefined);
+            expect(escaped).toStrictEqual([]);
         });
 
         await it('leaves Modal out, because appending an AdwDialog ABORTS the process', async () => {
@@ -913,6 +933,7 @@ export default async () => {
             // refuses while the code answers it, which is the drift ADR 0032 § 8 is
             // built to make impossible.
             for (const name of Object.keys(PRIMITIVES)) {
+                if (NOT_REACT_NATIVE.has(name)) continue;
                 const status = SUPPORT_TABLE[name]?.status;
                 expect(`${name}: ${status}`).toBe(`${name}: ${status === 'supported' ? 'supported' : 'partial'}`);
             }
