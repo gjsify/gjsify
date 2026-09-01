@@ -28,6 +28,21 @@ import { stripMnemonic } from './glib.js';
 /** The style class `AdwButtonContent` stamps on its parent button, removed on unroot. */
 export const BUTTON_CONTENT_STYLE_CLASS = 'image-text-button';
 
+/**
+ * The gap between the icon and the label, in px.
+ *
+ * MEASURED rather than read off a selector, because the selector is easy to read
+ * wrong — the header above says why `_buttons.scss`'s 4px variant never reaches an
+ * `AdwButtonContent`. Against libadwaita 1.9.3: an `AdwButtonContent` with
+ * `icon-name` and `label` inside a `GtkButton` in a presented window puts the image
+ * at x=161 width=16 and the label at x=183, i.e. exactly 6px apart.
+ *
+ * It is `border-spacing` on `buttoncontent > box` and NOT `GtkBox:spacing`, which
+ * reads 0 on the same widget — a renderer copying the property would draw them
+ * touching.
+ */
+export const BUTTON_CONTENT_BOX_SPACING = 6;
+
 /** The icon `GtkImage` falls back to for an empty `icon-name`. */
 export const BUTTON_CONTENT_FALLBACK_ICON = 'image-missing';
 

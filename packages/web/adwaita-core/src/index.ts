@@ -103,6 +103,7 @@ export type { AdwBannerButtonStyle, AdwBannerProps, AdwBannerRenderState } from 
 // --- Button content: icon+label slots + the parent-button style class (Adw.ButtonContent) ---
 export {
     ADW_BUTTON_CONTENT_DEFAULTS,
+    BUTTON_CONTENT_BOX_SPACING,
     BUTTON_CONTENT_FALLBACK_ICON,
     BUTTON_CONTENT_STYLE_CLASS,
     buttonContentEllipsize,
