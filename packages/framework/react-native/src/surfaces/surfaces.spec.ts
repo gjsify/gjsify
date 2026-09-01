@@ -507,10 +507,27 @@ export default async () => {
     });
 
     await describe('the Ionicons mapping, against the icon theme that is installed', async () => {
-        await it('targets an icon the theme really has, for every row', async () => {
-            // THE HALF THAT CAN GO WRONG SILENTLY. GTK draws `image-missing` for an icon
-            // name it does not have and reports nothing, so an unmeasured target would
-            // put a broken-image glyph in a shipped application.
+        await it('targets an icon THIS HOST can draw, for every row', async () => {
+            // THE HOST'S HALF, and saying so is the point: `has_icon` answers about the
+            // theme INSTALLED HERE, so this vector is a claim about the runner and not
+            // about the mapping. It is kept because GTK draws `image-missing` for a name
+            // it cannot resolve and reports nothing — a target that resolves nowhere puts
+            // a broken-image glyph in a shipped application.
+            //
+            // THE MAPPING'S OWN HALF IS ELSEWHERE, and it had to be:
+            // `scripts/check-rn-icon-targets.mjs` holds every target against the icon set
+            // this repository VENDORS, which is source and therefore the same answer on
+            // every machine. Before it existed this vector was the ONLY check, and it was
+            // a gate on one host's theme version — `checkmark-symbolic` exists in
+            // adwaita-icon-theme 50.0 on a current Fedora desktop and not in the CI
+            // container's, so a map measured here went red there while its shape was
+            // never wrong.
+            //
+            // WHAT WOULD MAKE THIS ONE LIE, stated because a reader deserves it rather
+            // than a second incident: a CI image whose adwaita-icon-theme is older than a
+            // target the VENDORED set already has turns it red for a reason that is not a
+            // defect in this map. The gate is the half to trust then; this one is the
+            // half to re-measure.
             Gtk.init();
             const display = Gdk.Display.get_default();
             expect(display !== null).toBe(true);

@@ -1,14 +1,32 @@
 // Ionicons' names → the icon theme's symbolic names, and the refusal for the rest.
 //
-// TWO PROVENANCES, AND THEY ARE NOT THE SAME STRENGTH. The GTK half is MEASURED:
-// `surfaces.spec.ts` asserts every target below is present in the installed icon
-// theme, which is the half that can go wrong silently — GTK draws `image-missing` for
-// an icon it does not have and reports nothing, so a mapping table with an unmeasured
-// target would put a broken-image glyph in a shipped application. The Ionicons half is
-// DECLARED: `@expo/vector-icons` is not a dependency here, so there is no glyph map to
-// read. A key that does not exist upstream is a dead row and costs nothing; a key that
-// is MISSING is a named refusal that lists what is mapped, which is the failure mode
-// worth having.
+// THE IONICONS HALF IS DECLARED: `@expo/vector-icons` is not a dependency here, so there
+// is no glyph map to read. A key that does not exist upstream is a dead row and costs
+// nothing; a key that is MISSING is a named refusal that lists what is mapped, which is
+// the failure mode worth having.
+//
+// THE GTK HALF IS CHECKED TWICE, and the two ask different questions — a distinction
+// this file got wrong once and paid for:
+//
+//   * `scripts/check-rn-icon-targets.mjs` holds every target below against the icon set
+//     this repository VENDORS (`packages/web/adwaita-icons`). It reads SOURCE, so it is
+//     the same answer on every machine, and it is what catches a typo or a name too NEW
+//     for the pinned set.
+//   * `surfaces.spec.ts` additionally asks the INSTALLED theme through
+//     `Gtk.IconTheme.has_icon`. That half is a claim about the RUNNER, and it is kept
+//     because GTK draws `image-missing` for a name it cannot resolve and reports
+//     nothing — a target resolving nowhere would put a broken-image glyph in a shipped
+//     application.
+//
+// THE INCIDENT, because the sentence that stood here was the defect. It read "every
+// TARGET held against the installed icon theme" — honest about the mechanism and blind
+// to the consequence, since "the installed theme" is not the SAME theme in both
+// environments. `checkmark-symbolic` exists on a current Fedora desktop
+// (adwaita-icon-theme 50.0) and not in the CI container's, so a map measured on one
+// machine went red on the other. Nothing was wrong with the mapping's SHAPE; the vector
+// was a gate on one host's theme version. The vendored set is the authority that does not
+// move, and it disagreed with that row too: 93 of the 94 targets were in it, and the 94th
+// was the one CI rejected.
 //
 // WHY MANY IONICONS NAMES SHARE ONE ICON. `chevron-forward` and `arrow-forward` are
 // both `go-next-symbolic`, because the icon theme draws the distinction a desktop
@@ -59,7 +77,9 @@ export const IONICONS: Readonly<Record<string, string>> = {
     'share-outline': 'send-to-symbolic',
     trash: 'user-trash-symbolic',
     'trash-outline': 'user-trash-symbolic',
-    checkmark: 'checkmark-symbolic',
+    // `object-select-symbolic` and NOT `checkmark-symbolic`: the latter exists on a
+    // current desktop and NOT in the icon set this repository vendors — see the header.
+    checkmark: 'object-select-symbolic',
     'checkmark-circle': 'object-select-symbolic',
     'information-circle': 'dialog-information-symbolic',
     'help-circle': 'help-about-symbolic',
