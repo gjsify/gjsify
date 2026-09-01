@@ -39,7 +39,7 @@
         "typescript": "^6.0.3"
     },
     "dependencies": {
-        "@girs/glib-2.0": "4.4.0"
+        "@girs/glib-2.0": "4.5.0"
     },
     "gjsify": {
         "runtimes": {

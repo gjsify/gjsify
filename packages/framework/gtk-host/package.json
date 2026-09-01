@@ -86,14 +86,14 @@
         "host"
     ],
     "dependencies": {
-        "@girs/adw-1": "4.4.0",
-        "@girs/gdk-4.0": "4.4.0",
-        "@girs/gio-2.0": "4.4.0",
-        "@girs/gjs": "4.4.0",
-        "@girs/glib-2.0": "4.4.0",
-        "@girs/gobject-2.0": "4.4.0",
-        "@girs/gtk-4.0": "4.4.0",
-        "@girs/pango-1.0": "4.4.0"
+        "@girs/adw-1": "4.5.0",
+        "@girs/gdk-4.0": "4.5.0",
+        "@girs/gio-2.0": "4.5.0",
+        "@girs/gjs": "4.5.0",
+        "@girs/glib-2.0": "4.5.0",
+        "@girs/gobject-2.0": "4.5.0",
+        "@girs/gtk-4.0": "4.5.0",
+        "@girs/pango-1.0": "4.5.0"
     },
     "peerDependencies": {
         "@vue/runtime-core": "^3.5.0",

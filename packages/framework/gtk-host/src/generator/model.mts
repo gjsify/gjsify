@@ -55,6 +55,15 @@ export interface Declaration {
     readonly props: readonly PropMember[];
     readonly signals: readonly SignalMember[];
     readonly doc?: string;
+    /**
+     * The library release this TYPE arrived in, where GIR states one.
+     *
+     * Distinct from a member's `since`: it answers "does the installed library have
+     * this class at all", which is the question a bare `ctor()` returning `undefined`
+     * used to ask by crashing. Only about 11% of GIR classes carry a `version`, so an
+     * absent value means "not stated", never "has always existed".
+     */
+    readonly since?: string;
 }
 
 export interface SurfaceModel {

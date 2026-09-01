@@ -265,6 +265,7 @@ export function emitSurfaceData(model: SurfaceModel, provenance: string): Emitte
     const tags = model.widgets.map((w) => `    ${w.gtype}: '${tagOf(w.gtype)}',`);
     const since: string[] = [];
     for (const d of [...model.declarations.values()].sort((a, b) => (a.gtype < b.gtype ? -1 : 1))) {
+        if (d.since) since.push(`    ${d.gtype}: '${d.since}',`);
         for (const p of d.props) if (p.since) since.push(`    '${d.gtype}.${p.kebab}': '${p.since}',`);
         for (const sig of d.signals) if (sig.since) since.push(`    '${d.gtype}::${sig.signal}': '${sig.since}',`);
     }

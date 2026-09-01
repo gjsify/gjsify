@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-domparser",
-    "description": "Integration tests: @gjsify/domparser against parse5 and css-select on GJS and Node. Differential \u2014 the same canonicalizer reads both trees and the same selectors run through both engines, so a divergence is a finding rather than an opinion (ADR 0026).",
+    "description": "Integration tests: @gjsify/domparser against parse5 and css-select on GJS and Node. Differential — the same canonicalizer reads both trees and the same selectors run through both engines, so a divergence is a finding rather than an opinion (ADR 0026).",
     "type": "module",
     "private": true,
     "engines": {
@@ -17,7 +17,7 @@
         "test:gjs": "gjsify run dist/test.gjs.mjs"
     },
     "devDependencies": {
-        "@girs/gjs": "4.4.0",
+        "@girs/gjs": "4.5.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/domparser": "workspace:^",
         "@gjsify/node-globals": "workspace:^",

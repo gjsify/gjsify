@@ -41,11 +41,11 @@
         "dom"
     ],
     "dependencies": {
-        "@girs/gdkpixbuf-2.0": "4.4.0",
-        "@girs/gjs": "4.4.0",
-        "@girs/gtk-4.0": "4.4.0",
-        "@girs/javascriptcore-6.0": "4.4.0",
-        "@girs/webkit-6.0": "4.4.0",
+        "@girs/gdkpixbuf-2.0": "4.5.0",
+        "@girs/gjs": "4.5.0",
+        "@girs/gtk-4.0": "4.5.0",
+        "@girs/javascriptcore-6.0": "4.5.0",
+        "@girs/webkit-6.0": "4.5.0",
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/message-channel": "workspace:^",

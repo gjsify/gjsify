@@ -169,6 +169,7 @@ export async function buildFromVocabulary(
     const referenced = new Set<string>();
     const provenance: string[] = [];
     const importable = new Map<string, string>();
+    const allSince = new Map<string, string>();
 
     // `file://` needs an absolute path: GJS answers a relative one with
     // "Unable to load file async", which reads like a missing file rather than a
@@ -183,6 +184,7 @@ export async function buildFromVocabulary(
         const declared = readDeclaredInterfaces(dts);
         for (const [ns, pkg] of readNamespaceImports(dts, source.pkg)) importable.set(ns, pkg);
         for (const [gtype, props] of declared) allRendered.set(gtype, props);
+        for (const [key, version] of Object.entries(runtime.SINCE)) allSince.set(key, version);
 
         // Provenance comes from the vocabulary itself, not from the package names the
         // caller passed: the namespace spelling is authoritative there, and it carries
@@ -248,6 +250,9 @@ export async function buildFromVocabulary(
             declarations.set(`${ref.namespace}.${ref.name}`, {
                 key: `${ref.namespace}.${ref.name}`,
                 gtype,
+                // Keyed bare, beside `X.prop` and `X::signal` — the vocabulary states a
+                // version for the type itself since ts-for-gir#457.
+                since: runtime.SINCE[gtype],
                 kind: 'class',
                 iface: `${gtype}Props`,
                 bases,
@@ -281,6 +286,11 @@ export async function buildFromVocabulary(
             gtype,
             kind: 'class',
             iface: `${gtype}Props`,
+            // A chain link carries its own version too. These are the pure interfaces,
+            // and three of them state one — GtkAccessibleText, GtkAccessibleRange,
+            // GtkAccessibleHypertext. Dropping it here is invisible until a host
+            // predates one of them, which is the case this data exists for.
+            since: allSince.get(gtype),
             bases: [],
             props: [...(allRendered.get(gtype)?.entries() ?? [])].map(([kebab, d]) => ({
                 kebab,

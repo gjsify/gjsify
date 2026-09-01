@@ -116,6 +116,15 @@ export default async () => {
         const libraryOf = (gtype: string): 'Adw' | 'Gtk' => (gtype.startsWith('Adw') ? 'Adw' : 'Gtk');
         const predatesHost = (gtype: string): boolean => {
             const library = libraryOf(gtype);
+            // `SINCE[gtype]` first: it states the release the CLASS arrived in, so a
+            // missing class is explained by its own version rather than by the whole
+            // vocabulary being newer. That distinction matters — the provenance
+            // comparison excuses every absence at once, which is exactly the kind of
+            // blanket that turns a check into a formality.
+            const declared = SINCE[gtype];
+            if (declared !== undefined) return newerThan(declared, running[library] as string);
+            // No stated version. Only about 11% of GIR classes carry one, so this is the
+            // common case, and the vocabulary-wide version is the honest fallback.
             const against = generatedAgainst[library];
             return against !== undefined && newerThan(against, running[library] as string);
         };

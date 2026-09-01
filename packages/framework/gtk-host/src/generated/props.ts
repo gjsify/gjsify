@@ -5646,6 +5646,19 @@ export interface GtkWidgetProps {
     /** Overrides for width request of the widget. */
     widthRequest?: number;
     'width-request'?: number;
+    onDestroy?: Gtk.Widget.SignalSignatures['destroy'];
+    onDirectionChanged?: Gtk.Widget.SignalSignatures['direction-changed'];
+    onHide?: Gtk.Widget.SignalSignatures['hide'];
+    onKeynavFailed?: Gtk.Widget.SignalSignatures['keynav-failed'];
+    onMap?: Gtk.Widget.SignalSignatures['map'];
+    onMnemonicActivate?: Gtk.Widget.SignalSignatures['mnemonic-activate'];
+    onMoveFocus?: Gtk.Widget.SignalSignatures['move-focus'];
+    onQueryTooltip?: Gtk.Widget.SignalSignatures['query-tooltip'];
+    onRealize?: Gtk.Widget.SignalSignatures['realize'];
+    onShow?: Gtk.Widget.SignalSignatures['show'];
+    onStateFlagsChanged?: Gtk.Widget.SignalSignatures['state-flags-changed'];
+    onUnmap?: Gtk.Widget.SignalSignatures['unmap'];
+    onUnrealize?: Gtk.Widget.SignalSignatures['unrealize'];
     onNotifyCanFocus?: NotifyHandler;
     onNotifyCanTarget?: NotifyHandler;
     onNotifyCssClasses?: NotifyHandler;

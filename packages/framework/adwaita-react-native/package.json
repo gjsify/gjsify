@@ -65,9 +65,9 @@
         }
     },
     "devDependencies": {
-        "@girs/adw-1": "4.4.0",
-        "@girs/gjs": "4.4.0",
-        "@girs/gtk-4.0": "4.4.0",
+        "@girs/adw-1": "4.5.0",
+        "@girs/gjs": "4.5.0",
+        "@girs/gtk-4.0": "4.5.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
