@@ -23,6 +23,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
+import PangoCairo from 'gi://PangoCairo?version=1.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
 import { registerBuiltinWidgets } from '@gjsify/gtk-host';
 import { gtkChildren, installDiagnosticsGate } from '@gjsify/gtk-host/conformance';
@@ -132,6 +133,23 @@ function mounted(element: ReactNode, body: (container: Gtk.Box) => void): void {
 const typeOf = (widget: Gtk.Widget): string =>
     GObject.type_name((widget as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype) ??
     '(unregistered GType)';
+
+/**
+ * A font family this machine really has, read from Pango rather than named.
+ *
+ * ASCII-ONLY, so `toUpperCase()`/`toLowerCase()` round-trip through the same
+ * case-folding `isLoaded` uses; the control is that some such family exists, because an
+ * empty list would satisfy every assertion built on it. Which families are installed is
+ * a fact about the runner, so nothing here may name one.
+ */
+const anyInstalledFamily = (): string => {
+    const names = PangoCairo.FontMap.get_default()
+        .list_families()
+        .map((family) => family.get_name())
+        .filter((name) => /^[A-Za-z0-9 .+-]+$/.test(name));
+    if (names.length === 0) throw new Error('Pango reports no ASCII-named font family on this machine');
+    return names[0] as string;
+};
 
 export default async () => {
     await describe('the surface registry', async () => {
@@ -356,20 +374,23 @@ export default async () => {
             // fact about the machine. What is asserted is that SOME family answers true
             // and a nonsense one answers false — a stub returning a constant fails one
             // of the two whichever constant it picks.
+            //
+            // AND THE FAMILY COMES OUT OF PANGO'S OWN MAP, which is the half that was
+            // wrong: the vector used to name four families (`Cantarell`, `Adwaita Sans`,
+            // `DejaVu Sans`, `Liberation Sans`) and pass if any of them was installed.
+            // That is an assertion about which font PACKAGES the runner has, not about
+            // `isLoaded` — a container with a different font set turns it red for a
+            // reason that has nothing to do with this code, and the comment above it
+            // said "never a specific family" while the code named four.
             expoFont.resetFontCache();
             expect(expoFont.isLoaded('a-family-no-machine-has-x9q7')).toBe(false);
-            const anyFamily = ['Cantarell', 'Adwaita Sans', 'DejaVu Sans', 'Liberation Sans'].some((family) =>
-                expoFont.isLoaded(family),
-            );
-            expect(anyFamily).toBe(true);
+            expect(expoFont.isLoaded(anyInstalledFamily())).toBe(true);
         });
 
         await it('matches a family case-insensitively, which is what Pango does', async () => {
-            const family = ['Cantarell', 'Adwaita Sans', 'DejaVu Sans', 'Liberation Sans'].find((name) =>
-                expoFont.isLoaded(name),
-            );
-            expect(typeof family).toBe('string');
-            expect(expoFont.isLoaded((family as string).toUpperCase())).toBe(true);
+            const family = anyInstalledFamily();
+            expect(expoFont.isLoaded(family.toUpperCase())).toBe(true);
+            expect(expoFont.isLoaded(family.toLowerCase())).toBe(true);
         });
     });
 
