@@ -24,7 +24,26 @@ import { join, relative } from 'node:path';
 
 const root = process.cwd();
 const DEP_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
-const SKIP_DIRS = new Set(['node_modules', '.git', 'lib', 'dist', 'refs', 'types-dev', 'types-release']);
+// Generated and vendored trees. `dist-templates` is spelled out because the set is
+// matched by EXACT name: it holds `create-gjsify`'s templates rendered at build time,
+// is gitignored, and its copies of a manifest are therefore whatever the last build
+// left behind. The uniformity rule below tripped over exactly that — CI carried a
+// stale 4.4.0 rendering while every tracked manifest already said 4.5.0, so the gate
+// reported a mixed tree that does not exist in the repository.
+//
+// A name-by-name list is the weak part of this: the next generated directory will need
+// the same edit. Asking git what is ignored would be the honest question, at the cost
+// of a process call per candidate.
+const SKIP_DIRS = new Set([
+    'node_modules',
+    '.git',
+    'lib',
+    'dist',
+    'dist-templates',
+    'refs',
+    'types-dev',
+    'types-release',
+]);
 
 /** Every package.json in the tree, including the ones outside the workspace set. */
 function manifests(dir, out = []) {
