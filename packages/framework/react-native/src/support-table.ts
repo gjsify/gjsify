@@ -3,7 +3,7 @@
 //
 // ADR 0032 § 8. The bundler gate fails a build on an import that is not
 // `supported` or `partial`; the runtime throws the same reason for anything that
-// reaches it dynamically; the README section is GENERATED from this file. A
+// reaches it dynamically; `SUPPORT.md` is GENERATED from this file. A
 // hand-maintained support table beside it is the second truth this repository has
 // already collected several times.
 //
@@ -1307,7 +1307,7 @@ export interface Surface {
     readonly module: string;
     /** The specifier of this package that answers it — the alias target. */
     readonly target: string;
-    /** What a build error and the generated README call it. */
+    /** What a build error and the generated `SUPPORT.md` call it. */
     readonly label: string;
     /**
      * This file's own name for the table.

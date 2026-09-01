@@ -2,7 +2,7 @@
 // The support table covers exactly what react-native exports — no more, no fewer.
 //
 // ADR 0032 § 8 makes the table the single source three readers share (the bundler
-// gate, the runtime, the generated README). That only holds if its KEY SET is the
+// gate, the runtime, the generated `SUPPORT.md`). That only holds if its KEY SET is the
 // real export surface: a name the table forgets is indistinguishable from a name
 // nobody has heard of, and the gate would have to guess which.
 //
