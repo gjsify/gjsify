@@ -411,6 +411,18 @@ jobs:
       - name: Check adwaita-web's style-isolation list covers every element
         run: node scripts/check-adwaita-reset-components.mjs
 
+      # The step above holds the element REGISTRY against one list. This holds the two
+      # VOCABULARIES apart, which ADR 0034 clause 1 made a live question: nine elements
+      # took their GIR names and the nine same spellings are also Adwaita style classes,
+      # so `<gtk-entry class="adw-entry">` is one widget wearing one skin and 758
+      # occurrences of one string had to be sorted into two piles. The author's record
+      # says five were sorted wrong and were caught by READING the diff — and both ways
+      # of getting it wrong are silent: an unregistered custom element is an inert
+      # HTMLElement with a clean console, and a class whose rule no longer matches just
+      # looks wrong on a page nobody re-opened.
+      - name: Check the tag and the class vocabularies stay apart (self-testing)
+        run: node scripts/check-adwaita-tag-vs-class.mjs
+
       # An `_initialized` early return in `connectedCallback` is a leak for any element
       # class that also tears something down: a bare re-parent — a slideshow slide, a
       # client-side route change — released the binding and never restored it.
@@ -965,6 +977,18 @@ jobs:
       # and the spec ADR 0010 names as the guard instantiates exactly one element.
       - name: Check adwaita-web's style-isolation list covers every element
         run: node scripts/check-adwaita-reset-components.mjs
+
+      # The step above holds the element REGISTRY against one list. This holds the two
+      # VOCABULARIES apart, which ADR 0034 clause 1 made a live question: nine elements
+      # took their GIR names and the nine same spellings are also Adwaita style classes,
+      # so `<gtk-entry class="adw-entry">` is one widget wearing one skin and 758
+      # occurrences of one string had to be sorted into two piles. The author's record
+      # says five were sorted wrong and were caught by READING the diff — and both ways
+      # of getting it wrong are silent: an unregistered custom element is an inert
+      # HTMLElement with a clean console, and a class whose rule no longer matches just
+      # looks wrong on a page nobody re-opened.
+      - name: Check the tag and the class vocabularies stay apart (self-testing)
+        run: node scripts/check-adwaita-tag-vs-class.mjs
 
       # An `_initialized` early return in `connectedCallback` is a leak for any element
       # class that also tears something down: a bare re-parent — a slideshow slide, a
