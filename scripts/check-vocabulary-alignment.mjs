@@ -1186,7 +1186,9 @@ export function alignmentProblems(world) {
     ]) {
         if (map === null) problems.push(`${name} not found — the generated shape changed and this reader did not`);
     }
-    if (webElements.length === 0) problems.push('no adw-* web elements found — the independent half is not being read');
+    if (webElements.length === 0) {
+        problems.push('no adw-*/gtk-* web elements found — the independent half is not being read');
+    }
     for (const surface of renderers) {
         if (surface.widgets.length === 0) {
             problems.push(`no Adw* widgets found for ${surface.package} — that surface is not being read`);
@@ -1965,10 +1967,20 @@ const rendererLines = world.renderers.map((surface) => {
         `${kindCount(surface.table, 'gap')} undecided`
     );
 });
-const widgetDistance = world.renderers.reduce(
-    (total, surface) => total + kindCount(surface.table, 'gir') + kindCount(surface.table, 'composes'),
-    0,
-);
+// THE WEB SURFACE COUNTS. It was left out while `WEB_ELEMENT_ALIGNMENT` was the only
+// table and `renderers` was everything else, and the omission survived the moment the
+// renderers grew a second table: the line said "distance to one vocabulary" over two of
+// the three surfaces the clause binds, so ten elements naming a GTK widget under an
+// `adw-` spelling were not in the number that measures exactly that. A count narrower
+// than its own sentence reads as progress it has not made — and the direction it hid
+// was the expensive one, because a distance that cannot move is a distance nobody works
+// on. `gtk` is the web spelling of `gir`: the same widget under another name.
+const widgetDistance =
+    aliased +
+    world.renderers.reduce(
+        (total, surface) => total + kindCount(surface.table, 'gir') + kindCount(surface.table, 'composes'),
+        0,
+    );
 const census = propertyCensus(world);
 const propConverge = kindCount(NS_PROPERTY_ALIGNMENT, 'gir');
 console.log(
@@ -1976,7 +1988,7 @@ console.log(
         `${READER_VECTORS.length} reader vector(s). ` +
         `${world.surfaces.declared.length} declared widget surface(s), every one of them read. ` +
         `${world.runtime.size} GTK tags across ${DIALECTS.length} dialect surfaces + the runtime table + the ` +
-        `surface data; ${world.webElements.length} adw-* web elements — ${shared} share a spelling, ` +
+        `surface data; ${world.webElements.length} ${WEB_SURFACE} elements — ${shared} share a spelling, ` +
         `${aliased} alias one, ${webOnly} declared web-only; ` +
         `${rendererLines.join('; ')}. ` +
         `Properties, on @gjsify/adwaita-nativescript only: ${census.widgets} widgets with a GIR counterpart set ` +
