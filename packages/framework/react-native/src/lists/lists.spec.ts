@@ -183,7 +183,7 @@ export default async () => {
                 // so these two vectors would have read "the class has no such
                 // property" on the one leg that could see it, with nothing thrown
                 // (#1438, and `gjsify/no-gobject-method-borrow` now refuses the shape).
-                const specs = paramSpecs(Gtk.ListItem as never, 'GtkListItem');
+                const specs = paramSpecs(Gtk.ListItem, 'GtkListItem');
                 const child = specs.get('child');
                 expect(child !== undefined).toBe(true);
                 expect((child!.flags & GObject.ParamFlags.WRITABLE) !== 0).toBe(true);

@@ -64,7 +64,7 @@ export function paramSpecs(klass: GObject.ObjectClass, gtypeName: string): Map<s
     let specs = specCache.get(gtypeName);
     if (specs) return specs;
     specs = new Map();
-    for (const spec of (klass as unknown as { list_properties(): GObject.ParamSpec[] }).list_properties()) {
+    for (const spec of klass.list_properties()) {
         specs.set(spec.get_name(), spec);
     }
     specCache.set(gtypeName, specs);

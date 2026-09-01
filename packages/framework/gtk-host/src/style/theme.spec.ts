@@ -143,9 +143,7 @@ export default async () => {
                 // the same call as `SomeClass.find_property(…)` answers on both).
                 // `paramSpecs` is the direct form, already used by `gtk-props.spec.ts`,
                 // so this is one reader for the package rather than a third spelling.
-                const spec = paramSpecs(Adw.StyleManager as unknown as GObject.ObjectClass, 'AdwStyleManager').get(
-                    'accent-color',
-                );
+                const spec = paramSpecs(Adw.StyleManager, 'AdwStyleManager').get('accent-color');
                 expect(spec === undefined).toBe(false);
 
                 // Asserted, and this one is safe where the flag is not: a property
