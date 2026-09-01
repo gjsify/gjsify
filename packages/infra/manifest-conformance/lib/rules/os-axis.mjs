@@ -101,7 +101,76 @@ const OS_DECISION_PATTERNS = [
     /import\s*\{[^}]*\bplatform\b[^}]*\}\s*from\s*['"]node:(?:process|os)['"]/,
     // `os.platform()` through a namespace import.
     /\bos\s*\.\s*platform\s*\(/,
+    // A `uname` shell-out — `@gjsify/os`, which has no `process` to ask and reads
+    // the kernel's own answer (`mapSysname(cli('uname -s'))`).
+    //
+    // Anchored on the QUOTE, and that is not tidiness: a bare `\buname\b` also
+    // matches `@gjsify/tar`, where `uname` is the POSIX tar header's USER-NAME
+    // field (`uname: string`, `readString(header, 265, 32)`) and has nothing to do
+    // with the utility. Matching the command string keeps the two apart.
+    /['"`]uname(?:\s|['"`])/,
+    // Probing the FILESYSTEM for the OS — `@gjsify/child_process`, which decides
+    // between win32 / linux / android / darwin from `/proc/self/status` and the
+    // macOS system-version plist, and never asks `process` either.
+    /\bdetectPlatform\s*\(/,
 ];
+
+/**
+ * Source with its COMMENTS blanked, so prose ABOUT an OS read is not read as one.
+ *
+ * The patterns above are deliberately textual, and text does not know a comment
+ * from a statement. The case that forced this: a module documenting that it takes
+ * the platform as a PARAMETER — "this module never reads `process.platform`" —
+ * was reported as reading `process.platform`, on the strength of the sentence
+ * saying it does not. A rule whose failure message is false about the file it
+ * names sends a reader to add a declaration the package cannot honestly make.
+ *
+ * DELIBERATELY CONSERVATIVE, and the constraint is one-directional: this may
+ * never blank a line that carries CODE, because a hidden decision is a wrong
+ * `supported` claim, while a surviving comment is only a false report someone
+ * argues with. So it blanks exactly two shapes — a line whose content STARTS with
+ * `//`, and the interior of an unterminated `/* … *\/` block — and leaves every
+ * line with code on it alone, an inline `/* … *\/` and a trailing `// …` included.
+ *
+ * The `startsWith` is what makes the first shape safe: `import Gtk from
+ * 'gi://Gtk?version=4.0'` contains `//` and does NOT start with it, so a naive
+ * "cut at the first //" would have deleted the import — and with it any decision
+ * further along the line.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function withoutComments(text) {
+    const out = [];
+    let inBlock = false;
+    for (const line of text.split('\n')) {
+        if (inBlock) {
+            const end = line.indexOf('*/');
+            if (end === -1) {
+                out.push('');
+                continue;
+            }
+            inBlock = false;
+            out.push(line.slice(end + 2));
+            continue;
+        }
+        if (line.trim().startsWith('//')) {
+            out.push('');
+            continue;
+        }
+        const start = line.indexOf('/*');
+        // Only an UNTERMINATED opener starts a block. A `/* … */` closed on its own
+        // line leaves the line intact, which keeps this from having to reason about
+        // a `/*` inside a string — `'src/**/*.ts'` carries both halves and closes.
+        if (start !== -1 && line.indexOf('*/', start + 2) === -1) {
+            inBlock = true;
+            out.push(line.slice(0, start));
+            continue;
+        }
+        out.push(line);
+    }
+    return out.join('\n');
+}
 
 /**
  * Does this source text make an OS decision?
@@ -110,7 +179,8 @@ const OS_DECISION_PATTERNS = [
  * @returns {boolean}
  */
 export function decidesOnOs(text) {
-    return OS_DECISION_PATTERNS.some((re) => re.test(text));
+    const code = withoutComments(text);
+    return OS_DECISION_PATTERNS.some((re) => re.test(code));
 }
 
 /**
