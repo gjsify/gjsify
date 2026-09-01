@@ -5,11 +5,13 @@
 // THE INCIDENT. ADR 0034 clause 1 renamed nine elements to the library that owns their
 // GType, and the same nine spellings are ALSO Adwaita style classes: `<gtk-entry
 // class="adw-entry">` is the intended end state, a GTK widget wearing the Adwaita skin.
-// So 758 occurrences of one string had to be sorted into two piles by hand, and the
-// author's own record says five were sorted wrong and were caught by READING the diff —
-// three `class: 'adw-icon …'` calls swept into tags, two prose sentences about a class
-// that never moved. Reading is not a mechanism, and the two ways to get it wrong are
-// both SILENT:
+// So the nine names had to be sorted into two piles per SITE — 283 occurrences in tag
+// position and 119 in class position at the commit before the rename, and no name is
+// reliably one shape (`adw-switch` is 15 class against 14 tag, `adw-checkbox` is 0
+// against 14; the ADR § Amendment 5 prints the command). Five sites a context rule got
+// wrong were caught only because a human read the diff — three `class: 'adw-icon …'`
+// calls swept into tags, two prose sentences about a class that never moved. Reading is
+// not a mechanism, and the two ways to get it wrong are both SILENT:
 //
 //   - a tag renamed that was a class: the rule stops matching and the widget loses its
 //     skin. No error anywhere; it just looks wrong, on a page nobody re-opened.

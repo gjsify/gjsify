@@ -1223,12 +1223,47 @@ the SKIN and follows libadwaita's stylesheet, which is what `refs/libadwaita`'s
 under a `<gtk-image>` heading, and `input.className = 'adw-entry'` inside `GtkEntry` is
 correct as written.
 
-Measured on `adw-entry` alone before the change: 35 tag occurrences against 87 CSS ones.
-A blind replacement takes the styling with it, so each site was read. Repo-wide, 636
-occurrences moved and 129 deliberately did not; five that a context rule got wrong were
-caught by reading the diff — three `h('span', { class: 'adw-icon …' })` calls in the
-storybook, and two prose sentences about the NativeScript `AdwIcon`, whose class did not
-move.
+What makes a blind replacement wrong is that BOTH piles sit on the same string, and no
+name is reliably one shape. At the merge base `eb33d22ee`, across the nine: **283
+occurrences in tag position against 119 in class position** — but `adw-switch` is 15
+class against 14 tag, `adw-icon` 38 against 49, and `adw-checkbox` and `adw-progress-bar`
+have no class occurrence at all. A per-NAME rule would have been wrong for two names in
+opposite directions, so the split was made per site.
+
+```sh
+# The two piles per name, at the commit before the rename. Pinned, because this is a
+# statement about a tree that no longer exists — the same reason the table at the top
+# of this ADR pins `refs/libadwaita` at 42f647ff.
+for t in adw-button adw-checkbox adw-drop-down adw-entry adw-icon \
+         adw-menu-button adw-popover adw-progress-bar adw-switch; do
+  printf '%-18s tag=%-4s class=%s\n' "$t" \
+    "$(git grep -hoE "</?$t[ />]" eb33d22ee -- . ':!refs' | wc -l)" \
+    "$(git grep -hoE "\.$t([^a-z0-9-]|$)" eb33d22ee -- . ':!refs' | wc -l)"
+done
+```
+
+The class pile is measurably intact: re-run the second half against `HEAD` and it has
+gone UP, never down — not one `.adw-*` occurrence of the nine was carried off by the
+rename.
+
+(An earlier draft of this section read *"35 tag occurrences against 87 CSS ones"* for
+`adw-entry` and *"636 occurrences moved and 129 deliberately did not"* repo-wide, with no
+command under either. Neither is reproducible at any revision or under any reading of
+"occurrence" — `adw-entry` has 73 occurrences in total at the base — and the first got the
+DIRECTION wrong, which is the half the argument leans on. That is the failure the
+§ *How the numbers here were obtained* table at the top of this ADR exists to prevent,
+committed inside the file that states the rule.)
+
+**Reading each site is what was done, and reading is not a mechanism.** Five sites a
+context rule got wrong were caught only because a human read the diff — three
+`h('span', { class: 'adw-icon …' })` calls in the storybook, and two prose sentences about
+the NativeScript `AdwIcon`, whose class did not move. That is the incident behind
+`scripts/check-adwaita-tag-vs-class.mjs`: the two piles have DISJOINT definition sets — an
+element exists because `customElements.define` names it, a class because a rule selects it
+— so a tag position resolving to no registered element and a `gtk-` name in class position
+are each a failure a machine can see. Both failure modes are otherwise silent: an
+unregistered custom element is an inert `HTMLElement`, and a class whose rule stopped
+matching reports nothing at all.
 
 ### `<adw-radio>` keeps its name, and its kind changes from `gtk` to `webOnly`
 
