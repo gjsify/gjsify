@@ -1,7 +1,7 @@
 // @gjsify/devtools — widget-path parse/build tests (pure logic).
 
 import { describe, expect, it } from '@gjsify/unit';
-import type Gtk from '@girs/gtk-4.0';
+import type Gtk from 'gi://Gtk?version=4.0';
 import {
     activateWidget,
     buildWidgetPath,

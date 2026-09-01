@@ -2,7 +2,7 @@
 // Adapted from the PixelRPG map-editor (apps/maker-gjs/src/services/gvariant.ts).
 // Copyright (c) PixelRPG. MIT.
 
-import GLib from '@girs/glib-2.0';
+import GLib from 'gi://GLib?version=2.0';
 
 /** The `GLib.Variant` scalar kinds the action plane marshals to. */
 export type VariantKind = 's' | 'b' | 'i' | 'u' | 'd';

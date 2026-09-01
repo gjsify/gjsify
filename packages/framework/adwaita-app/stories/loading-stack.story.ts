@@ -1,8 +1,8 @@
 // Story: @gjsify/adwaita-app's LoadingStack — switch between its loading /
 // content / error pages via a live SELECT control. original implementation.
 
-import GObject from '@girs/gobject-2.0';
-import Gtk from '@girs/gtk-4.0';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { LoadingStack } from '../src/loading-stack.js';
 

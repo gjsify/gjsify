@@ -2,8 +2,8 @@
 // `Adw.AlertDialog` is response-signal based; these wrap it so a caller can
 // `await` a confirm/error without threading a callback through the UI.
 
-import Adw from '@girs/adw-1';
-import type Gtk from '@girs/gtk-4.0';
+import Adw from 'gi://Adw?version=1';
+import type Gtk from 'gi://Gtk?version=4.0';
 
 import { resolveDefaultResponse } from './dialog-model.js';
 import type { ConfirmResponse } from './types.js';

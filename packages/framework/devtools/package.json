@@ -22,8 +22,10 @@
         "build:types": "gjsify tsc",
         "build:test": "gjsify run build:test:gjs",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
-        "test:gjs": "gjsify run test.gjs.mjs"
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:gjs-on-node": "gjsify run build:gjsify && gjsify run build:test:node && node dist/test.node.mjs"
     },
     "keywords": [
         "gjs",
@@ -47,6 +49,7 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/node-gi": "file:../../node-gi/node-gi",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"

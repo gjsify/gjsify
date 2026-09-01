@@ -1,9 +1,9 @@
 // @gjsify/devtools — the in-app org.gjsify.Devtools DBus service. Method bodies adapt
 // the PixelRPG map-editor's ControlDbusService.
 
-import Gio from '@girs/gio-2.0';
-import GLib from '@girs/glib-2.0';
-import Gtk from '@girs/gtk-4.0';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import {
     type ActionList,
     type DevtoolsStatus,

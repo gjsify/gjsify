@@ -1,5 +1,6 @@
 // @gjsify/devtools — variantKindFor marshalling tests (GJS).
-// GJS-only: the module imports @girs/glib-2.0 (gi://GLib).
+// GI-only: the module imports `gi://GLib?version=2.0`, so it needs a GI host — which
+// is GJS or Node with `@gjsify/node-gi`, not GJS alone.
 
 import { describe, expect, it } from '@gjsify/unit';
 import { variantKindFor } from './gvariant.js';

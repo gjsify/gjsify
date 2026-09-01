@@ -2,7 +2,7 @@
 // Register the window's Adw.ToastOverlay once, then any view can toast without
 // threading the overlay through every constructor.
 
-import Adw from '@girs/adw-1';
+import Adw from 'gi://Adw?version=1';
 
 let overlay: Adw.ToastOverlay | null = null;
 

@@ -2,8 +2,8 @@
 // Adapted from the PixelRPG map-editor (apps/maker-gjs/src/services/screenshot.ts).
 // Copyright (c) PixelRPG. MIT.
 
-import Graphene from '@girs/graphene-1.0';
-import Gtk from '@girs/gtk-4.0';
+import Graphene from 'gi://Graphene?version=1.0';
+import Gtk from 'gi://Gtk?version=4.0';
 
 /**
  * Render a GTK widget — typically the top-level window — to PNG bytes, fully

@@ -20,7 +20,7 @@
 //   no GJSIFY_LOCALE_DIR     -> /usr/share/locale, msgids returned (never the current directory)
 // A msgid absent from the catalogue came back unchanged in all three.
 
-import GLib from '@girs/glib-2.0';
+import GLib from 'gi://GLib?version=2.0';
 import Gettext from 'gettext';
 
 import { resolveLocaleDir, type ResolveLocaleDirOptions } from './locale-dir.js';

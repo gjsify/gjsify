@@ -2,7 +2,7 @@
 // Adapted from the PixelRPG map-editor (apps/maker-gjs/src/widgets/application-window.ts).
 // Copyright (c) PixelRPG. MIT.
 
-import type Gio from '@girs/gio-2.0';
+import type Gio from 'gi://Gio?version=2.0';
 import type { ActionDescriptor } from '@gjsify/devtools-protocol';
 import { buildVariant } from './gvariant.js';
 

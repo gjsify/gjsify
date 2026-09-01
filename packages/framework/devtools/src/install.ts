@@ -1,8 +1,8 @@
 // @gjsify/devtools — the opt-in entry point.
 
-import Gio from '@girs/gio-2.0';
-import GLib from '@girs/glib-2.0';
-import type Gtk from '@girs/gtk-4.0';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
+import type Gtk from 'gi://Gtk?version=4.0';
 import {
     appIdToObjectPath,
     DEVTOOLS_ADDRESS_ENV,
