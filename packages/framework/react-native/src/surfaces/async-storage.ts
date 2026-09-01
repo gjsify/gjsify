@@ -329,3 +329,12 @@ export const useStoreFile = (path: string): void => {
 };
 
 export default AsyncStorage;
+
+// UNCONDITIONALLY, even though this surface's table refuses nothing today: the
+// generated module is where a refusal APPEARS the moment a name in that table stops
+// being answered, and a surface that only re-exports it once there is something in it
+// is a refusal generated, gate-checked, and reachable from no import in the package.
+// MEASURED: this was that gap — `generated/unsupported-async-storage.ts` was imported
+// by nothing, and `check-rn-surface.mjs` held its (empty) export set against the
+// generator's (empty) one and went green. The gate now holds the re-export too.
+export * from '../generated/unsupported-async-storage.js';

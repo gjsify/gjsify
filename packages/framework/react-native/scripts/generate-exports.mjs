@@ -127,13 +127,27 @@ export function render(entries, label, module) {
         '// "is available".',
         '',
     ];
-    // NO IMPORT WHEN THERE IS NOTHING TO REFUSE. A surface whose whole table is
+    // NO IMPORT WHEN THERE IS NOTHING TO REFUSE HERE. A surface whose whole table is
     // `supported`/`partial` emits an empty module, and an unused import there is a
     // `tsc` error (TS6133) — which is how this was found: the generator was correct
     // about the exports and wrong about the file.
     const emitted = refused.filter((entry) => entry.name !== 'default');
-    if (emitted.length > 0) lines.push("import { unsupported } from '../unsupported.js';", '');
-    else lines.push('// Nothing to refuse: every name in this surface’s table is answered.', '');
+    if (emitted.length > 0) {
+        lines.push("import { unsupported } from '../unsupported.js';", '');
+    } else {
+        // WHICH of the two reasons, because they are not the same claim: "every name is
+        // answered" is FALSE for a surface whose only refusal is its `default`, and that
+        // one is declared in the entry module rather than here. No surface is in that
+        // state today, so the note that would have been wrong is written before it can
+        // be printed.
+        lines.push(
+            refused.length === 0
+                ? '// Nothing to refuse: every name in this surface’s table is answered.'
+                : '// Nothing to refuse HERE: this surface’s only refusal is its `default`, which its',
+            ...(refused.length === 0 ? [] : ['// entry module declares — see the note below.']),
+            '',
+        );
+    }
     let skippedDefault = false;
     for (const { name } of refused) {
         // `export const default` is not a thing and `export * from` never carries a
@@ -154,6 +168,16 @@ export function render(entries, label, module) {
             "// declares `export default unsupported('default', '" + module + "')` instead.",
         );
     }
+    // AN EMPTY MODULE IS STILL A MODULE, and that is what `export {}` buys: without it
+    // `export * from './unsupported-<slug>.js'` is TS2306 ("file is not a module"), so a
+    // surface with nothing to refuse could not be re-exported at all — and it was not.
+    // MEASURED: `@react-native-async-storage/async-storage`'s generated module was
+    // imported by NOTHING for its whole life, so the day a name in that table stopped
+    // being answered the refusal would have been generated, checked by
+    // `check-rn-surface.mjs`, and reachable from no import in the package. The entry
+    // module re-exports this file unconditionally now, which is only possible because
+    // the empty case is a module.
+    if (emitted.length === 0) lines.push('', 'export {};');
     lines.push('');
     return lines.join('\n');
 }
