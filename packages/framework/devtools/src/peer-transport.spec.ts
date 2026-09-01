@@ -375,13 +375,23 @@ export default async () => {
             // diagnostic must not be able to abort the app lifecycle.
             const path = `${GLib.get_tmp_dir()}/gjsify-devtools-collide-${GLib.random_int_range(0, 1_000_000)}.sock`;
             const address = `unix:path=${path}`;
+            // Unlike the socket above, the second app's address-file path is FIXED —
+            // its app id and instance label are — so it is the one piece of state this
+            // test can inherit from an EARLIER run, and it did: on the node leg the
+            // second `installDevtools` returns a live service (the marshalling-adjacent
+            // deferral this leg records), publishes the file and leaves it behind, and
+            // the next gjs run then failed the EXISTS assertion below over state no
+            // assertion here had produced. Cleared before the act, so the assertion
+            // measures THIS run, and again in `finally`, so no run poisons the next.
+            const orphan = devtoolsAddressFilePath(GLib.get_user_runtime_dir(), 'org.gjsify.PeerCollideB', 'b');
+            removeDevtoolsAddressFile(orphan);
             const firstApp = new Gtk.Application({ application_id: 'org.gjsify.PeerCollideA' });
             const holder = installDevtools(firstApp, { enabled: true, address, instance: 'a' });
             expect(holder).not.toBeNull();
             if (!holder) return;
+            let second: DevtoolsService | null | undefined;
             try {
                 const secondApp = new Gtk.Application({ application_id: 'org.gjsify.PeerCollideB' });
-                let second: DevtoolsService | null | undefined;
                 let windowPresented = false;
                 // Call it from a real GObject signal handler, because that is where
                 // both consumers call it (storybook's `activate`, adwaita-app's
@@ -400,7 +410,6 @@ export default async () => {
                 expect(second).toBeNull();
                 // No address was published for the app that failed to listen: the
                 // bridge must not be handed a claim nothing is behind.
-                const orphan = devtoolsAddressFilePath(GLib.get_user_runtime_dir(), 'org.gjsify.PeerCollideB', 'b');
                 expect(GLib.file_test(orphan, GLib.FileTest.EXISTS)).toBe(false);
 
                 // And the FIRST app's control plane is untouched — the collision
@@ -411,6 +420,8 @@ export default async () => {
                 expect((JSON.parse(json) as { appId: string }).appId).toBe('org.gjsify.PeerCollideA');
                 connection.close_sync(null);
             } finally {
+                if (second) uninstallDevtools(second);
+                removeDevtoolsAddressFile(orphan);
                 uninstallDevtools(holder);
             }
         });
