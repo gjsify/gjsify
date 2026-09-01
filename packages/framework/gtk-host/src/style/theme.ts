@@ -23,12 +23,12 @@
 //    IT IS ALSO READ-ONLY, on every closure measured — and the "writability varies
 //    by runtime" story this module briefly told is kept as an INCIDENT, because the
 //    wrong reason travelled further than the right one. libadwaita installs the
-//    ParamSpec `G_PARAM_READABLE | G_PARAM_STATIC_STRINGS`, no WRITABLE flag, since
-//    1.6 and still at 1.10.alpha.1 (`refs/libadwaita/src/adw-style-manager.c`), and
-//    documents it as the current SYSTEM accent; assigning throws `Property
-//    AdwStyleManager.accent-color is not writable`. `theme.spec.ts` prints the flag
-//    on every run: read-only on linux/1.9.3 and on all three published runtime
-//    bundles (win32-x64, darwin-x64, darwin-arm64).
+//    ParamSpec `G_PARAM_READABLE | G_PARAM_STATIC_STRINGS`, no WRITABLE flag — read
+//    in `refs/libadwaita/src/adw-style-manager.c` at 1.10.alpha.1, where the property
+//    carries `Since: 1.6` — and documents it as the current SYSTEM accent. Assigning
+//    throws `Property AdwStyleManager.accent-color is not writable`, and
+//    `theme.spec.ts` prints the flag on every run: read-only on linux/1.9.3 and on
+//    all three published runtime bundles (win32-x64, darwin-x64, darwin-arm64).
 //
 //    What looked like "writable on darwin" was that leg going red for a different
 //    reason. The vector read the spec through `GObject.Object.find_property.call(…)`,

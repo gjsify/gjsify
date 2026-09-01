@@ -42,8 +42,8 @@ machine they were measured on, and each surfaced only when a leg ran somewhere e
 half.** `Adw.StyleManager:accent-color` was asserted READ-ONLY; the darwin leg went red;
 that was diagnosed as "the property is writable there" and written into a module comment,
 a website page and this file. It is false. libadwaita installs the ParamSpec
-`G_PARAM_READABLE` only — since 1.6 and still at 1.10.alpha.1 — and the flag now printed
-by `theme.spec.ts` reads read-only on all four measured closures. The leg went red because
+`G_PARAM_READABLE` only, read at 1.10.alpha.1, and the flag now printed by
+`theme.spec.ts` reads read-only on all four measured closures. The leg went red because
 the vector read the spec through `GObject.Object.find_property.call(…)`, which answers null
 over the reverse bridge: the assertion that failed was `spec === null`, two lines above the
 flag, and the flag was never read there at all.

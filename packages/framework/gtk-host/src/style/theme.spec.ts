@@ -148,8 +148,8 @@ export default async () => {
                     // was the `spec === null` one two lines above the flag: the flag was
                     // never read there at all. Measured since, on every closure this suite
                     // runs on — linux/1.9.3, win32-x64, darwin-x64, darwin-arm64 — the
-                    // property is read-only, and libadwaita installs the ParamSpec
-                    // `G_PARAM_READABLE` only, since 1.6 and still at 1.10.alpha.1. A red
+                    // property is read-only, and libadwaita's own source installs the
+                    // ParamSpec `G_PARAM_READABLE` only (read at 1.10.alpha.1). A red
                     // assertion on another OS is not by itself a fact about that OS.
                     //
                     // The vector still does not assert the flag, and the reason survives
