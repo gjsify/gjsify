@@ -1966,9 +1966,46 @@ Two cases remain, and the second one bites harder.
 
 That is the SAME deferred work `calls.cc` already records at its CALLER_ALLOCATES site — "a struct-by-value element array would need `gi_struct_info_get_size` per element + field-access read-back (a later PR)". One piece of work with two entrances, now both closed to it. Doing it means teaching `CElementSize` the record size for non-pointer interface elements and `ReadCElement` to hand back a borrowing sub-handle at `src` rather than dereferencing it — `refs/gjs/gi/arg.cpp` is the reference. Affected fields include `Pango.GlyphString.glyphs`, `GObject.EnumClass.values`, `Gio.InputMessage.vectors`; `GObject.SignalQuery.param_types` is the adjacent `GI_TYPE_TAG_GTYPE` gap, which `ReadCElement` answers with `undefined`.
 
+### `@gjsify/node-gi` — an IN array of enum or struct elements is refused, which takes accessibility off every node host
+
+`IsSupportedElementType` (`src/marshal.cc`) carries the numeric fundamentals, boolean, utf8/filename and GObject/interface instances, and DEFERS enum, struct, union and nested-container elements with the label `"struct/union/enum element"`. `IsSupportedContainerType` passes that verdict to the IN path, which throws before the invoke — `src/class.cc:853` for an instance method, `src/calls.cc:830` for a function. The deferral is DECLARED, with its scope written out in `marshal.cc`'s header, and it is not a bug. What was not known is which real call it costs.
+
+**It costs `Gtk.Accessible.update_property`, and therefore every ARIA property a node host would set.** The introspectable form takes two arrays — `GtkAccessibleProperty[]` (enum elements) and `GObject.Value[]` (struct elements) — so it hits both halves of the deferral at once:
+
+```
+TypeError: GtkButton.update_property: IN struct/union/enum element parameters are not yet supported
+```
+
+Control measured rather than assumed: the same call succeeds under **gjs 1.88.1**, in both `gjs -m` and plain-script form (`b.update_property([Gtk.AccessibleProperty.LABEL], ['…'])` → OK). So this is a node-host-only loss, and it is invisible to a consumer's test suite because a widget that never got a label still renders.
+
+**The refusal itself is LOUD and should stay that way** — it names the method and the reason, and it throws before the C call rather than after. The silence is one level up: a consumer that catches and degrades (the reasonable thing for a decorative prop) turns the throw into one startup log line, after which a screen-reader user gets nothing for the rest of the session. Measured on a React-Native-vocabulary GTK4 application: **46 `accessibilityLabel` sites**, one caught exception, no further diagnostic. Improving the message is therefore not the fix; the marshalling is.
+
+Fix shape, cheap half first. **Enum and flags elements** are near-free: `gi_type_info_get_interface` on the element already runs, so admitting `GI_IS_ENUM_INFO`/`GI_IS_FLAGS_INFO` and writing the member's integer into the C array is the whole change — the element size is `sizeof(gint)` and there is no ownership question, which is why this is worth landing on its own. **Struct-by-value elements** are the real work, and they are the SAME work this file already records twice: the INLINE-record read side (`CElementSize` reporting `sizeof(gpointer)` for a `GI_TYPE_TAG_INTERFACE` element) and `calls.cc`'s CALLER_ALLOCATES note. One piece of work with a third entrance now. `GObject.Value` is the element type that matters first, and it is the friendliest case — a fixed, introspectable size and an existing marshaller for the scalar form.
+
+Not verifiable on a machine without `cairo-devel`: `binding.gyp` resolves its flags through `pkg-config --cflags girepository-2.0 cairo`, so no `cairo.pc` means no addon build and no way to test a change here. Worth stating in the entry because it is the reason this is filed rather than fixed.
+
 ### `@gjsify/node-gi` — `GTK_IS_EVENT_CONTROLLER` assertion failures on the reverse bridge
 
 Running any GTK app through node-gi intermittently produces `Gtk-CRITICAL **: gtk_event_controller_handle_crossing: assertion 'GTK_IS_EVENT_CONTROLLER (controller)' failed` and can take the process down mid-frame. NONDETERMINISTIC, which is the trap: single runs prove nothing in either direction. Measured on the showcase — node 1/6/1 criticals over three consecutive runs, bun likewise, deno clean in the same sample. It is INDEPENDENT of audio (still occurs with audio gated off, and on code predating the GValue marshalling fix). The event controllers are attached by `@gjsify/event-bridge` via `attachEventControllers`, so the likely shape is the JS wrapper for a controller being collected while GTK still holds the C object — a toggle-ref/lifetime question, not a GStreamer one.
+
+**A second measurement, on a different application, names the site — and it is in the loop bridge.** A React-Native-vocabulary GTK4 application (~30 routes, ~2.3 MB `--app node` bundle) run repeatedly on linux-x64, node 24.19.0, node-gi 0.45.0's published prebuild: **exit 139 / 134 / 0 / 139 over four runs**, i.e. two distinct signals and one clean completion, which is this entry's nondeterminism from a second direction. The `Gtk-CRITICAL` line is one symptom; there is also a bare SIGSEGV with no critical at all, and the core dump's main-thread backtrace carries **no application frame**:
+
+```
+g_application_run                          (libgio)
+  g_main_context_dispatch_unlocked         (libglib)
+    nodegi::uv_source_dispatch             (node_gi.node)   ← libuv pumped FROM GLib
+      uv_run                               (node)           ← re-entrant
+        v8impl::ThreadSafeFunction::AsyncCb (node)
+          nodegi::DrainTsfnCb              (node_gi.node)
+            g_object_get_qdata             (libgobject)
+              g_type_check_instance_is_fundamentally_a  ← SIGSEGV
+```
+
+So the pointer the TSFN drain hands `g_object_get_qdata` is not a live GObject instance, which is exactly the "collected while GTK still holds the C object" shape this entry hypothesised — now with a frame to put a fix in. Note `uv_run` is re-entered from *inside* a GLib dispatch callback: a TSFN callback can therefore run one full libuv turn after the iteration that dropped its subject's last reference.
+
+**Two candidate triggers are RULED OUT, with the control in the row.** Neither a minimal `Adw.Application` draining 3200 promise continuations under `runAsync()` (exit 0) nor one performing 400 rounds of 40 widgets built, handed to an async continuation, removed and dropped — 16 000 widgets, `global.gc()` per round — reproduces it (exit 0). Plain widget churn is not enough. The reason is instructive and is why those probes were worth running: `Promise.resolve()` stays on the JS thread, so **neither probe entered the TSFN path at all** — that drain serves calls from FOREIGN threads. A reproduction needs a genuinely cross-thread completion (a GStreamer bus message, a GIO/soup async finish) or an attached event controller, which is what `attachEventControllers` supplies and what both probes lacked.
+
+One caution for whoever measures this next, learned by nearly reporting the opposite: a first probe used **synchronous** `app.run()` and survived 90 seconds, which looked like evidence and was none — under sync `run()` the continuations never drained, so the probe never reached the code it was testing. `runAsync()` is required for the measurement to mean anything, and the surviving-tick count is the check that it did.
 
 ### `@gjsify/node-gi` — the `$gtype` surface is incomplete
 
