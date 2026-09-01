@@ -367,7 +367,10 @@ export default async () => {
                     registry.register({ name: 'typo', namedColors: { 'acccent-bg-color': 'rgb(0 0 0)' } }),
                 );
                 expect(error.message).toContain('does not define');
-                expect(error.message).toContain('accent-bg-color');
+                // The OFFENDING name, in quotes. `toContain('accent-bg-color')` passed
+                // here for the wrong reason: the refusal prints all 48 known names, so
+                // the correct spelling is in the message whatever the input was.
+                expect(error.message).toContain('"acccent-bg-color"');
             });
 
             await it('names the current spelling when given the legacy underscored one', async () => {
