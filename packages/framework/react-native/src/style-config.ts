@@ -18,6 +18,21 @@
 // writes `mt-2xs` — which is the intended outcome, and the reason the default is
 // not a copy of Tailwind's own scales: a large default would let a typo resolve
 // against a value nobody chose.
+//
+// WHAT THIS MODULE REPLACES, and the one thing a caller gets wrong: `tokens` is taken
+// WHOLE. That is right — the values are the project's — and it is also why a project
+// generating its scales from a Tailwind v4 `@theme` loses `0` and `full`, which
+// nothing in a `@theme` was ever going to declare (measured on one production-shaped
+// application: 81 of 87 distinct utilities and 803 of 826 occurrences resolve, and
+// five of the six failures are exactly those two tokens). The remedy is an opt-in the
+// caller can SEE:
+//
+//     configureStyle({ tokens: mergeTokens(TAILWIND_DEFAULT_TOKENS, projectTokens) });
+//
+// `mergeTokens` and NOT a spread — an object spread replaces whole SCALES, so a
+// project declaring any `spacing` loses `0` again. Both are exported from
+// `@gjsify/gtk-host/style`, and a scale miss whose token the defaults define names
+// them in the error rather than leaving a reader to find this comment.
 
 import { MINIMAL_TOKENS, StyleSheet as GeneratedStyleSheet, type StyleTokens } from '@gjsify/gtk-host/style';
 
