@@ -41,8 +41,17 @@ import type { GtkPopover } from './gtk-popover.js';
 import { createGtkImage } from './gtk-image.js';
 
 /**
- * A menu entry — `@gjsify/adwaita-core`'s {@link AdwMenuEntry}, re-exported under the
- * name this element has always used.
+ * A menu entry — `@gjsify/adwaita-core`'s {@link AdwMenuEntry} under the name both
+ * renderers export it as.
+ *
+ * IT KEEPS THE `Adw` PREFIX WHILE THE ELEMENT ABOVE IT DOES NOT, and the reason is not
+ * "the name it has always used" — ADR 0034 clause 1 just moved every name in this file
+ * that had one. It is that this is not a WIDGET name: clause 1 is about the tag, and
+ * this is the descriptor a consumer writes menu entries with. `@gjsify/adwaita-
+ * nativescript` exports `AdwMenuItem` for the same type, and that port deliberately
+ * keeps `Adw` throughout, so renaming this half would give one object two spellings —
+ * which is the thing the ADR is removing, not applying. (`GtkDropDownOption` next door
+ * DID move: its NativeScript twin exports no such name, so there was nothing to split.)
  *
  * It used to be a SECOND declaration of the same shape, and the NativeScript menu
  * button declared a THIRD that was missing `icon` entirely. One type, so a consumer

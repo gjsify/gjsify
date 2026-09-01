@@ -8,7 +8,7 @@
 // each listed FILENAMES matching `adw-*.ts` in `src/elements/`, non-recursively. Same
 // CI job, 65 against 50, and the smaller answer fed the published widget matrix.
 //
-// A filename is not the element. `adw-checks.ts` defines `gtk-check-button` and
+// A filename is not the element. `checks.ts` defines `gtk-check-button` and
 // `adw-radio`: the matrix scored a widget no page can use, and none for either it can.
 // `adw-preferences-dialog.ts` also defines `adw-preferences-page`, so the matrix
 // published "adwaita-web does not have it" about an element consumers already use.
@@ -260,7 +260,7 @@ export function stripComments(text) {
 /**
  * `observedAttributes` per CLASS, from the returned array literal.
  *
- * PER CLASS and not per file, because a file is not an element: `adw-checks.ts`
+ * PER CLASS and not per file, because a file is not an element: `checks.ts`
  * defines `<gtk-check-button>` and `<adw-radio>`, and `adw-preferences-dialog.ts`
  * also defines `<adw-preferences-page>`. Reading a file's first literal and
  * attributing it to every tag the file registers is the same mistake as reading

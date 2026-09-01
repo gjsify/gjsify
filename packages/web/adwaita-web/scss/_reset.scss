@@ -18,7 +18,9 @@
 // neutralises.
 
 // Every custom element adwaita-web defines — one entry per `customElements
-// .define('adw-…')` call under `src/`.
+// .define(…)` call under `src/`, in BOTH namespaces: a tag carries the prefix of
+// the library that owns its GType (ADR 0034 clause 1), so `gtk-entry` is on this
+// list beside `adw-action-row`.
 //
 // DERIVED, NOT REMEMBERED: `scripts/check-adwaita-reset-components.mjs` walks
 // those calls and fails on any tag missing from this list (and on any entry with
