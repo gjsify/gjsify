@@ -27,31 +27,44 @@ not a coding one, and should not be answered by guessing three palettes.
 The one thing NOT to reach for while doing it: `Adw.StyleManager:accent-color`. It is an
 ENUM (`AdwAccentColor`, nine named accents), so a token colour has no representation in it
 on ANY runtime — an accent is a `--accent-bg-color` redefinition in the theme's document,
-never a property write. Its WRITABILITY additionally varies (read-only on one host,
-writable on the darwin runtime bundle), so it is not something to branch on either.
+never a property write. It is read-only as well, on every closure measured and in
+libadwaita's own source, but do not build on THAT: the enum is the reason that survives a
+later release, a flag is not.
 
 ### A correctly measured host fact, written as a layer invariant
 
-Three instances landed on one day: a POSIX-shaped expectation in an image-path test,
-GTK's Unix print stack inside a platform-neutrally declared table, and
-`Adw.StyleManager:accent-color` asserted READ-ONLY. Each was measured correctly. Each was
-then written as though it were true of the layer rather than of the machine it was
-measured on, and each surfaced only when a leg ran somewhere else.
+Two instances landed on one day: a POSIX-shaped expectation in an image-path test, and
+GTK's Unix print stack inside a platform-neutrally declared table. Both were measured
+correctly. Both were then written as though they were true of the layer rather than of the
+machine they were measured on, and each surfaced only when a leg ran somewhere else.
 
-The accent one is the instructive one, because the wrong claim reached a person before it
-reached CI: "the accent cannot be set directly, it must go through a CSS redefinition" was
-passed on as a product fact, and on at least one of the three target platforms the premise
-is false — the property is writable there. The CONCLUSION happened to survive, but for a
-different and stronger reason than the one given: `accent-color` is an enum of nine named
-accents, so it cannot carry a design token's colour on any runtime, writable or not. A
-right answer resting on a wrong reason is the shape that breaks the moment someone acts on
-the reason.
+**A third case looked like this class and is a DIFFERENT one, which is the more useful
+half.** `Adw.StyleManager:accent-color` was asserted READ-ONLY; the darwin leg went red;
+that was diagnosed as "the property is writable there" and written into a module comment,
+a website page and this file. It is false. libadwaita installs the ParamSpec
+`G_PARAM_READABLE` only — since 1.6 and still at 1.10.alpha.1 — and the flag now printed
+by `theme.spec.ts` reads read-only on all four measured closures. The leg went red because
+the vector read the spec through `GObject.Object.find_property.call(…)`, which answers null
+over the reverse bridge: the assertion that failed was `spec === null`, two lines above the
+flag, and the flag was never read there at all.
+
+So the shape to add to the ledger is not "a host fact written as a layer invariant" but
+**a red assertion on another OS read as a fact about that OS**. It is the more dangerous of
+the two, because it manufactures a measurement that was never taken: the first shape at
+least starts from something true. It reached a person as a product fact before CI could
+contradict it, and the conclusion it was used to support ("an accent is a CSS redefinition,
+not a property write") happens to be right for an unrelated and stronger reason — the
+property is an enum of nine named accents, so it cannot carry a token colour on any
+runtime, writable or not. A right answer resting on a wrong reason is the shape that breaks
+the moment someone acts on the reason. The cheap guard is procedural: a red assertion on a
+leg you cannot watch names the ASSERTION that failed before it names a cause, and a vector
+whose first assertion is a null check will report the null check.
 
 The mechanism this wants is not more care. A spec asserting a `ParamSpec` flag, a `libc`
 default, a path separator or an installed library's version is asserting a property of the
 CLOSURE it runs in; the portable claim is almost always about the EFFECT one layer up.
 Worth a rule the OS legs can enforce — something that flags an assertion whose subject is a
-runtime-provided flag or version — because all three of these were invisible until a leg
+runtime-provided flag or version — because every one of these was invisible until a leg
 that nobody watches went red.
 
 One instance of the class DID get its mechanism, and the way it was found is the argument
@@ -63,7 +76,7 @@ line-based search cannot see through a line break. The false all-clear was repor
 measurement before the rule contradicted it — which is the same failure one level up, and
 the reason a defect class invisible on one OS wants an AST rule rather than a sweep.
 
-### `packages/framework/AGENTS.md` is 150 bytes from silent truncation
+### `packages/framework/AGENTS.md` is 444 bytes from silent truncation
 
 It is **32324 bytes** against the 32 KiB (32768) ceiling at which Codex truncates a
 project doc's tail *without saying so* — 444 bytes of headroom, and `status/agent-context-budget.json`

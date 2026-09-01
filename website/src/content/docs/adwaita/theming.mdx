@@ -148,9 +148,9 @@ entry point.
 A native GTK app takes its accent from the user's GNOME setting, and
 `AdwStyleManager:accent-color` is the wrong handle for an app's own accent on every
 runtime: it is an **enum** (`AdwAccentColor` — nine named accents), so a token colour
-like `#9141ac` has no representation in it. Whether it is writable at all *varies* —
-measured read-only on one host and writable on a later libadwaita — so it is not
-something to branch on either.
+like `#9141ac` has no representation in it. It is read-only as well — libadwaita
+installs the property readable-only, and every closure measured agrees — but the enum
+is the reason that holds whatever a flag says, which is why it is the one given.
 
 A native app *can* still override the palette, and by the same mechanism this page
 uses on the web: redefining `--accent-bg-color` and its siblings on `:root`, in a

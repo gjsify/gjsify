@@ -357,18 +357,18 @@ YELLOW, ORANGE, RED, PINK, PURPLE, SLATE — so `rgb(17 34 51)` has no represent
 in it. The accent is therefore a CSS custom property: `--accent-bg-color` and its 47
 siblings, redefined on `:root`, which is what Adwaita's own rules resolve against.
 
-**Whether that property is even writable depends on the runtime**, and this page said
-otherwise until it was measured on more than one. It is read-only on one host —
-assigning throws *Property AdwStyleManager.accent-color is not writable* — and
-**writable** on the darwin runtime bundle, whose libadwaita is later and grew a
-setter. Both are true, and neither is a fact about this layer.
+**That property is also read-only**, on every closure this suite has been measured
+on — Linux with libadwaita 1.9.3 and all three published runtime bundles — and
+libadwaita installs the ParamSpec readable-only, since 1.6 and still in 1.10's alpha.
+Assigning throws *Property AdwStyleManager.accent-color is not writable*.
 
-The distinction is worth the paragraph, because "the property is locked" and "the
-property is the wrong shape" lead to different code. The first invites *just set the
-property* the moment someone's own machine allows it — which produces an application
-that ignores its own accent token on every host where it is read-only, and can only
-ever reach nine colours on the hosts where it is not. The theme registry reads and
-writes that property nowhere, and branches on its writability nowhere.
+But that is deliberately **not** the reason given above, because "the property is
+locked" and "the property is the wrong shape" lead to different code. The first
+invites *just set the property* the moment a flag somewhere seems to allow it — which
+reaches nine colours at best and silently ignores the application's own accent token
+otherwise. The second holds on every runtime, whatever the flag says. The theme
+registry reads and writes that property nowhere, and branches on its writability
+nowhere.
 
 48 named colours are measured to exist and are the set a theme may override. A name
 libadwaita does not define is refused: `--acccent-bg-color` is a perfectly valid

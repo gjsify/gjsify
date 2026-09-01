@@ -20,20 +20,32 @@
 //    end — a `:root` override changes what a `var()` reader sees, and therefore
 //    what every Adwaita rule reading the same name paints.
 //
-//    WHETHER THE PROPERTY IS WRITABLE VARIES BY RUNTIME, and this module used to
-//    say it did not. Measured read-only on one host (assigning throws `Property
-//    AdwStyleManager.accent-color is not writable`) and WRITABLE on the darwin
-//    runtime bundle, whose libadwaita is later and grew a setter. Both are true;
-//    neither is a fact about this layer. The correction matters because the old
-//    reasoning made the CSS route sound like a WORKAROUND for a locked property —
-//    which invites "just set the property" the moment someone's own machine allows
-//    it, and that produces an application that ignores its own accent token on
-//    every host where the property is read-only, and can only ever reach nine
-//    colours on the hosts where it is not.
+//    IT IS ALSO READ-ONLY, on every closure measured — and the "writability varies
+//    by runtime" story this module briefly told is kept as an INCIDENT, because the
+//    wrong reason travelled further than the right one. libadwaita installs the
+//    ParamSpec `G_PARAM_READABLE | G_PARAM_STATIC_STRINGS`, no WRITABLE flag, since
+//    1.6 and still at 1.10.alpha.1 (`refs/libadwaita/src/adw-style-manager.c`), and
+//    documents it as the current SYSTEM accent; assigning throws `Property
+//    AdwStyleManager.accent-color is not writable`. `theme.spec.ts` prints the flag
+//    on every run: read-only on linux/1.9.3 and on all three published runtime
+//    bundles (win32-x64, darwin-x64, darwin-arm64).
 //
-//    So nothing here reads or writes that property, and nothing branches on its
-//    writability: the custom-property route is the only one that expresses the
-//    value, and it is the same on every target.
+//    What looked like "writable on darwin" was that leg going red for a different
+//    reason. The vector read the spec through `GObject.Object.find_property.call(…)`,
+//    which answers null over the reverse bridge (#1438), so what failed was the
+//    `spec === null` assertion two lines ABOVE the flag — the flag was never read
+//    there at all. A red assertion on another operating system is not by itself a
+//    fact about that operating system, and reading it as one put a wrong premise
+//    into a product decision and onto a published page before CI could contradict
+//    it.
+//
+//    So the accent is a custom property because of the ENUM, which holds on every
+//    runtime whatever the flag says, and that ordering is deliberate: a conclusion
+//    resting on a property's writability breaks the moment someone measures the flag
+//    somewhere else, and it invites "just set the property" — which reaches nine
+//    colours where a flag ever allowed it and silently ignores the application's own
+//    accent token everywhere else. Nothing here reads or writes that property, and
+//    nothing branches on its writability.
 //
 //    The legacy `@define-color accent_bg_color …` spelling still works too, and is
 //    NOT what this module emits: `--accent-bg-color` is the current one, and mixing
