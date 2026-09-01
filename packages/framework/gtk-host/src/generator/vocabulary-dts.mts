@@ -14,10 +14,12 @@
 // is a vector in `generator.spec.ts`:
 //
 //  - `\s*` before the interface's brace. Without it only interfaces carrying an
-//    `extends` clause match, because `[^{]*` swallows the space for those, and all 33
-//    root interfaces were dropped. The same missing `\s*` was still live in
-//    `scripts/check-adwaita-element-properties.mjs`, where it hid 25 interfaces and
-//    took `<adw-toggle>` out of that check without failing it.
+//    `extends` clause match, because `[^{]*` swallows the space for those, and every
+//    interface declared without one is dropped — measured on @girs 4.5.0, 13 of the 191
+//    (12 in Gtk-4.0, 1 in Adw-1), `GtkAccessible`, `GtkFileChooser` and `GtkListItem`
+//    among them. The same missing `\s*` was still live in
+//    `scripts/check-adwaita-element-properties.mjs`, where it read the GENERATED
+//    surface and hid 25 interfaces, taking `<adw-toggle>` out of that check silently.
 //  - stripping the block delimiters BEFORE the per-line stars. A single-line JSDoc
 //    otherwise keeps its trailing delimiter, which the emitter then closes a second
 //    time and `gjsify format` rejects as a syntax error.

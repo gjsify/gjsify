@@ -172,9 +172,10 @@ export default async () => {
 
             // `\s*` BEFORE THE BRACE. `[^{]*` swallows the space only when `extends` is
             // present, so `MiniRoot` — declared without one — was invisible, and with it
-            // all 33 root interfaces of the real Gtk vocabulary. The same missing `\s*`
-            // was still live in `scripts/check-adwaita-element-properties.mjs`, where it
-            // hid 25 interfaces and took `<adw-toggle>` out of that check silently.
+            // every extends-less interface of the real vocabularies: measured on @girs
+            // 4.5.0, 13 of 191. The same missing `\s*` was still live in
+            // `scripts/check-adwaita-element-properties.mjs`, where it read the
+            // generated surface instead and hid 25.
             expect([...(declared.get('MiniRoot')?.props.keys() ?? [])]).toStrictEqual(['rooted']);
             // And `\s`, not a literal space: the emitter wraps a long heritage list.
             expect([...(declared.get('MiniWrapped')?.props.keys() ?? [])]).toStrictEqual(['wrapped']);
