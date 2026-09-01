@@ -28,24 +28,18 @@ export const narrowed = <gtk-notebook onPageAdded={(child: Gtk.Button, _n: numbe
 export const tooManyParams = <gtk-button onClicked={(widget: Gtk.Button) => widget.set_label('x')} />;
 
 /**
- * An `out` parameter GIR marks `caller-allocates="0"`, read as if it were a value.
- *
- * GJS passes an argument in that slot and it holds uninitialised memory —
- * measured, `new_value` arrives as `6.9526682391035e-310`, an ordinary `number`
- * that nothing warns about. The generated signature gives it `OutParam`, so
- * annotating `number` is a compile error at the position the reader would have
- * looked, instead of a plausible reading of garbage.
- */
-// @ts-expect-error TS2322 — `input` hands an uninitialised out slot, not a number
-export const readsOutParam = <gtk-spin-button onInput={(value: number) => value + 1} />;
-
-/**
- * The OTHER direction, and why this is not a blanket ban on out parameters.
+ * The out-parameter direction that still holds, and why the other one is now a
+ * measured hole rather than a deleted line.
  *
  * `get-child-position` is `caller-allocates="1"`: the handler is handed a live
  * `Gdk.Rectangle` to FILL, which is the entire purpose of the signal. It keeps
- * its real type, and this line COMPILES — a fix that typed every non-`in`
+ * its real type, and this line COMPILES — a rule that typed every non-`in`
  * parameter as unusable would break it.
+ *
+ * Its twin, `GtkSpinButton::input` (`caller-allocates="0"`), was a negative here
+ * until `@girs`' `SignalSignatures` replaced the generated ones and spelled that
+ * slot `number`. It lives in `known-hole-out-param.tsx` now, where COMPILING is
+ * the measurement and the upstream cause is named.
  */
 export const fillsOutParam = (
     <gtk-overlay
