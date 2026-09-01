@@ -85,7 +85,14 @@ export {
     canonicalPrebuildTarget,
     hostPrebuildTarget,
 } from './rules/prebuild-libc.mjs';
-export { osAxisRule, decidesOnOs, osDecisionSites, TARGET_OSES, OS_CLAIMS } from './rules/os-axis.mjs';
+export {
+    osAxisRule,
+    commentStrippingSelfTest,
+    decidesOnOs,
+    osDecisionSites,
+    TARGET_OSES,
+    OS_CLAIMS,
+} from './rules/os-axis.mjs';
 export { portableScriptsRule, unportableCommands } from './rules/portable-scripts.mjs';
 export { storybookRule, auditStorybook, countStoryFiles } from './rules/storybook.mjs';
 export { shipRule, auditShip } from './rules/ship.mjs';

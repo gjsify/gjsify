@@ -312,6 +312,113 @@ The pattern is the same throughout: a refusal costs a reader one sentence, and a
 costs them an afternoon in a window where every widget is present and something is quietly in the
 wrong place.
 
+## Your own stylesheet, and Adwaita's named colours
+
+The generated sheet above is one of **two** documents an application has on its
+display. The other is the one you wrote — a GTK CSS file, plus the Adwaita named
+colours set from your design tokens — and it goes through a small registry rather
+than a setter, because the shape it has to fit is several named looks with one
+selected at runtime:
+
+```ts
+import { NEUTRAL_THEME, ThemeRegistry } from '@gjsify/gtk-host/style';
+
+const themes = new ThemeRegistry();
+
+themes
+    .register(NEUTRAL_THEME)
+    .register({
+        name: 'ocean',
+        namedColors: { 'accent-bg-color': 'rgb(53 132 228)', 'accent-fg-color': 'rgb(255 255 255)' },
+        css: '.card { border-radius: 16px; }',
+        defaultOn: ['linux'],
+    });
+
+themes.selectDefault(process.platform); // …or themes.select('ocean') from a settings row
+```
+
+It is framework-agnostic, like the rest of this page: nothing about it is React's or
+Vue's, and the platform is a **parameter** rather than a `process.platform` read
+inside the package — which is also what lets a settings screen preview another
+desktop's look.
+
+`NEUTRAL_THEME` is the one theme shipped today, and its document is **empty**. That
+is a statement, not a placeholder: a GTK application should look like the desktop it
+is running on, and the accent belongs to whoever picked it in Settings. Selecting the
+neutral theme is how an application returns to Adwaita *exactly*, which is measurably
+true — reloading the provider to the empty string restores every named colour to
+libadwaita's own value.
+
+It also declares `defaultOn: ['*']`, so `selectDefault(process.platform)` resolves on
+every platform GTK runs on and not only on the three this project targets — a theme
+with a dedicated `defaultOn` list still wins over it by being registered later.
+`selectDefault` refuses only when *nothing* registered declares a default, which is a
+question it should not guess at. `themes.dispose()` takes the document back off the
+display, for a shell that tears its theming down rather than exiting.
+
+### The accent is a custom property, not `AdwStyleManager`
+
+**`AdwStyleManager:accent-color` cannot carry a design token's accent on any runtime,
+because it is an enum.** `AdwAccentColor` has nine members — BLUE, TEAL, GREEN,
+YELLOW, ORANGE, RED, PINK, PURPLE, SLATE — so `rgb(17 34 51)` has no representation
+in it. The accent is therefore a CSS custom property: `--accent-bg-color` and its 47
+siblings, redefined on `:root`, which is what Adwaita's own rules resolve against.
+
+**That property is also read-only**, on every closure this suite has been measured
+on — Linux with libadwaita 1.9.3 and all three published runtime bundles — and
+libadwaita's own source installs the ParamSpec readable-only, read at 1.10.alpha.1.
+Assigning throws *Property AdwStyleManager.accent-color is not writable*.
+
+But that is deliberately **not** the reason given above, because "the property is
+locked" and "the property is the wrong shape" lead to different code. The first
+invites *just set the property* the moment a flag somewhere seems to allow it — which
+reaches nine colours at best and silently ignores the application's own accent token
+otherwise. The second holds on every runtime, whatever the flag says. The theme
+registry reads and writes that property nowhere, and branches on its writability
+nowhere.
+
+48 named colours are measured to exist and are the set a theme may override. A name
+libadwaita does not define is refused: `--acccent-bg-color` is a perfectly valid
+custom property that nothing ever reads, so a theme setting it would silently do
+nothing. The **legacy** `@define-color accent_bg_color …` spelling also still works,
+and is deliberately not what this emits — mixing the two is how you get a definition
+nothing reads, which is why an underscored name is a refusal naming the hyphenated
+one.
+
+### The provider priority is the whole design
+
+Three measurements, and the plausible guess is wrong in all three:
+
+| Measured | Consequence |
+|---|---|
+| libadwaita's own stylesheet sits at **exactly** `STYLE_PROVIDER_PRIORITY_THEME` (200) — an override at 199 loses, at 201 wins, at 200 wins *only* by being added later | a theme document must be strictly above 200, or its effect depends on load order |
+| the generated sheet is at `STYLE_PROVIDER_PRIORITY_APPLICATION` (600), and at equal priority the **later** provider wins | a theme at 600 installed after the sheet silently clobbers the utility class you wrote at the element |
+| priority is resolved **before** specificity — a low-specificity rule at 400 beats a high-specificity one at 200 | "make the theme selector more specific" is not a lever; the number is the only one |
+
+So a theme document is installed at `STYLE_PROVIDER_PRIORITY_SETTINGS` (400), GTK's
+own named value in the one gap that satisfies both constraints — and measured to do
+so **whichever document is installed first**. A utility class always beats the theme,
+the theme always beats Adwaita.
+
+An application document goes through the **same containment probe** as a generated
+rule, and for a stronger reason: it is the document this package did not write. It is
+probed at *registration*, so a malformed rule names the line that declared the theme
+rather than the settings row that switched to it hours later.
+
+One provider is installed once and its **document is replaced** on a switch. Removing
+and re-adding also works, measured; replacing is chosen because a provider installed
+once can never end up at the wrong position relative to the generated sheet, however
+many times a user has changed theme.
+
+### Do not read a switch back from a pixel
+
+Sampling a `Gtk.WidgetPaintable` render node reports the **old** colour after a
+provider is removed — the paintable's node is cached and a removal does not
+invalidate it, while a subsequent add does. That reads exactly like "removing a
+provider does not work", and it is false; it cost a wrong conclusion before it was
+caught. Resolve `var(--name)` into a `color` and read `widget.get_color()`: the
+resolved value is the truth, the pixel is a picture of a cache.
+
 ## This is not the Adwaita web token contract
 
 [Adwaita theming](/gjsify/adwaita/theming/) covers `@gjsify/adwaita-web` in a **browser**:

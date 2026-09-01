@@ -186,7 +186,7 @@ function signalClaims(): { gtype: string; signal: string; where: string }[] {
     return out;
 }
 
-const klassOf = (gtype: string) => lookupWidget(gtype).ctor() as unknown as { $gtype: GObject.GType };
+const klassOf = (gtype: string) => lookupWidget(gtype).ctor();
 
 /** The one place a mount happens, so nothing forgets to tear its root down. */
 function mounted(element: ReactNode, body: (container: Gtk.Box) => void): void {
@@ -292,7 +292,7 @@ export default async () => {
             await it('is a property the class really installs', async () => {
                 const missing: string[] = [];
                 for (const claim of propertyClaims()) {
-                    const specs = paramSpecs(klassOf(claim.gtype) as never, claim.gtype);
+                    const specs = paramSpecs(klassOf(claim.gtype), claim.gtype);
                     if (!specs.has(claim.property))
                         missing.push(`${claim.where}: ${claim.gtype} has no "${claim.property}"`);
                 }
@@ -302,7 +302,7 @@ export default async () => {
             await it('is WRITABLE, because a read-only write is accepted and stored nowhere', async () => {
                 const readOnly: string[] = [];
                 for (const claim of propertyClaims()) {
-                    const spec = paramSpecs(klassOf(claim.gtype) as never, claim.gtype).get(claim.property);
+                    const spec = paramSpecs(klassOf(claim.gtype), claim.gtype).get(claim.property);
                     if (spec === undefined) continue;
                     if ((spec.flags & GObject.ParamFlags.WRITABLE) === 0) {
                         readOnly.push(`${claim.where}: ${claim.gtype}.${claim.property}`);

@@ -9,7 +9,8 @@
 import Gtk from 'gi://Gtk?version=4.0';
 import { expect, it, on } from '@gjsify/unit';
 
-import { StyleSheet, StyleSheetError } from './sheet.js';
+import { StyleSheetError } from './document.js';
+import { StyleSheet } from './sheet.js';
 import { GTK_HOSTS, gated } from '../testing/gate.mjs';
 import { installDiagnosticsGate } from '../conformance/index.js';
 
