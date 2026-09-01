@@ -2,8 +2,8 @@
 // Wrap the async open/save callbacks so a caller can `await` a path, and turn
 // the "user cancelled" throw into a `null` result instead of a rejection.
 
-import Gio from '@girs/gio-2.0';
-import Gtk from '@girs/gtk-4.0';
+import Gio from 'gi://Gio?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 
 /** A named file filter (glob patterns and/or MIME types). */
 export interface FileFilterSpec {

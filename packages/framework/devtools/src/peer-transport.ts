@@ -10,8 +10,8 @@
 // `Gio.DBusConnection` per client, no daemon, no name ownership, no bespoke protocol.
 // `DevtoolsService.export(connection, path)` works on those connections unchanged.
 
-import Gio from '@girs/gio-2.0';
-import GLib from '@girs/glib-2.0';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 import { DEVTOOLS_ADDRESS_ENV } from '@gjsify/devtools-protocol';
 import type { DevtoolsService } from './devtools-service.js';
 

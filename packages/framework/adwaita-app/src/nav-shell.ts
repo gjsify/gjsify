@@ -4,8 +4,8 @@
 // under a max-width breakpoint, switched by name from a NavItem[]. This builds
 // it once; the consumer only fills the returned `stack` with view widgets.
 
-import Adw from '@girs/adw-1';
-import Gtk from '@girs/gtk-4.0';
+import Adw from 'gi://Adw?version=1';
+import Gtk from 'gi://Gtk?version=4.0';
 import type { NavItem } from './types.js';
 
 /** Options for {@link createNavShell}. */

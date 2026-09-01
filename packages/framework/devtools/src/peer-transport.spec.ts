@@ -9,9 +9,9 @@
 // exported would be worthless here, since "the service was constructed but never
 // reachable" is the precise failure this transport removes.
 
-import Gio from '@girs/gio-2.0';
-import GLib from '@girs/glib-2.0';
-import Gtk from '@girs/gtk-4.0';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import { describe, expect, it } from '@gjsify/unit';
 import { DEVTOOLS_INTERFACE, devtoolsAddressFilePath } from '@gjsify/devtools-protocol';
 import { chooseDevtoolsTransport, describeMissingConnection, installDevtools, uninstallDevtools } from './install.js';

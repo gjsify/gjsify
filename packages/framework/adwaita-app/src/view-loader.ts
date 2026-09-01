@@ -6,7 +6,7 @@
 // `import type Gtk` is erased at build time, so `LoadToken` is pure runtime and
 // unit-tested on Node + GJS; only `loadIntoStack` needs a real `Gtk.Stack`.
 
-import type Gtk from '@girs/gtk-4.0';
+import type Gtk from 'gi://Gtk?version=4.0';
 
 /**
  * Monotonic counter guarding against stale async reloads: each load takes a

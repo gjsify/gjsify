@@ -1,8 +1,8 @@
 // @gjsify/devtools — live CSS dump + hot-swap (the Tier-3 substrate).
 // Original implementation.
 
-import Gdk from '@girs/gdk-4.0';
-import Gtk from '@girs/gtk-4.0';
+import Gdk from 'gi://Gdk?version=4.0';
+import Gtk from 'gi://Gtk?version=4.0';
 
 /** Named CSS providers this devtools session installed on the default display. */
 const providers = new Map<string, Gtk.CssProvider>();

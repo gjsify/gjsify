@@ -24,9 +24,9 @@
 // the wrong FIRST consumer. Revisit once 0.43.0 is published and the runners carry the compiler —
 // the error title below is untranslatable until then, in every consumer application.
 
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
-import Gtk from '@girs/gtk-4.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 
 /**
  * A `Gtk.Stack` pre-wired with the three named pages {@link loadIntoStack}

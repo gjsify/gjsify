@@ -1,6 +1,6 @@
 // @gjsify/devtools — the app-specific extension + install option types.
 
-import type Gio from '@girs/gio-2.0';
+import type Gio from 'gi://Gio?version=2.0';
 import type { MethodKind } from '@gjsify/devtools-protocol';
 
 /**

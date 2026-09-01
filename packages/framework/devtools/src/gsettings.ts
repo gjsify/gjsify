@@ -1,6 +1,6 @@
 // @gjsify/devtools — read a GSettings schema's keys + values. Original implementation.
 
-import Gio from '@girs/gio-2.0';
+import Gio from 'gi://Gio?version=2.0';
 import { formatDbusErrorMessage } from '@gjsify/devtools-protocol';
 
 /**

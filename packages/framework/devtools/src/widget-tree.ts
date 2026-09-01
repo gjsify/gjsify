@@ -1,7 +1,7 @@
 // @gjsify/devtools — GTK widget-tree introspection (toplevels, tree dump,
 // stable index paths, property read, focused-widget path). Original implementation.
 
-import Gtk from '@girs/gtk-4.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import type { NodeInfo } from '@gjsify/devtools-protocol';
 
 /** A parsed widget path: a toplevel index + a chain of child indices. */

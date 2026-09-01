@@ -5,11 +5,11 @@
 // bootstrap, the opt-in @gjsify/devtools control plane, get-or-create window on
 // activate, and the standard app.quit (<primary>q) + app.about actions.
 
-import Adw from '@girs/adw-1';
-import Gdk from '@girs/gdk-4.0';
-import Gio from '@girs/gio-2.0';
-import GObject from '@girs/gobject-2.0';
-import Gtk from '@girs/gtk-4.0';
+import Adw from 'gi://Adw?version=1';
+import Gdk from 'gi://Gdk?version=4.0';
+import Gio from 'gi://Gio?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 // The bare `system` built-in, not `imports.system`/`ARGV` (ARGV IS
 // `system.programArgs` on gjs) — resolves on gjs AND the `--app node` reverse
 // bridge (AGENTS.md § The legacy imports.* object is NOT an API).
