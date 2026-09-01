@@ -313,7 +313,7 @@ refusals. The plugin walks a directory and emits what it found.
 
 | export | tier | GTK | why |
 |---|---|---|---|
-| `router` | P1 | Adw.NavigationView (push/pop) via React Navigation’s StackActions | push, back, replace and navigate — the four methods the measured application calls, 19 of the 27 calls being push. |
+| `router` | P1 | Adw.NavigationView (push/pop) via React Navigation’s StackActions | push, back, replace, navigate and canGoBack. Every href-taking method accepts BOTH argument shapes — a path string and expo-router’s { pathname, params } object. |
 | `useLocalSearchParams` | P1 | — | The current route’s params — the [param] values and the query string — read through React Navigation’s own useRoute(). |
 | `usePathname` | P1 | — | The current URL without its query string, from React Navigation’s getPathFromState over the published root state. |
 | `Stack` | P1 | Adw.NavigationView + Adw.NavigationPage | The stack navigator: React declares which pages exist, the widget owns their order, and the route key is the tag that joins the two. |

@@ -29,6 +29,12 @@ export const POSIX_PATH_SLICE_EXCEPTIONS = {
         'Module SPECIFIERS as written in import statements. ESM specifiers are `/`-separated by ' +
         'the resolution spec regardless of host, which is why a Windows import still reads ' +
         '`@gjsify/fs`, never `@gjsify\\fs`.',
+    'packages/framework/react-native/src/router/href.ts':
+        'An expo-router ROUTE PATTERN (`/detail/[id]`) and the URL built from it. Both are URL ' +
+        'pathname grammar — `/`-separated by RFC 3986 on every host — and the pattern half is ' +
+        'additionally expo-router’s own file-convention spelling, which is `/` even when the ' +
+        'route files sit in a Windows directory tree. Nothing here ever reaches a filesystem: ' +
+        'the segments become React Navigation path-config keys.',
     'packages/infra/npm-registry/src/auth.ts':
         'A `URL.pathname`, already normalised to `/` by the URL parser before this code sees it.',
     'packages/node/fs/src/browser/opfs.ts':

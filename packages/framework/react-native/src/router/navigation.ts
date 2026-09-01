@@ -45,6 +45,7 @@ import type { NavigationState, PartialState } from '@react-navigation/core';
 import { useSyncExternalStore } from 'react';
 
 import { RouterError } from './errors.js';
+import { hrefFrom, paramsSeenBy, type Href } from './href.js';
 import { pathConfigOf, screenUrls, type PathConfigTree, type RouteNode } from './routes.js';
 
 /** The container ref every navigator in the tree hangs under. */
@@ -207,17 +208,18 @@ function targetFor(
 }
 
 /** `push` and `replace` differ in one action name and nothing else. */
-function pushOrReplace(call: 'push' | 'replace', href: string): void {
+function pushOrReplace(call: 'push' | 'replace', target: Href): void {
+    const href = hrefFrom(call, target);
     const container = readyContainer(call);
     const { config } = required(call);
     const state = resolve(call, href);
     const chain = focusChain(state);
     const leaf = chain[chain.length - 1];
-    const target = targetFor(chain);
-    if (leaf !== undefined && target !== null && target.type === 'stack') {
+    const owner = targetFor(chain);
+    if (leaf !== undefined && owner !== null && owner.type === 'stack') {
         const action =
             call === 'push' ? StackActions.push(leaf.name, leaf.params) : StackActions.replace(leaf.name, leaf.params);
-        container.dispatch({ ...action, target: target.key });
+        container.dispatch({ ...action, target: owner.key });
         return;
     }
     // The owning navigator is not mounted, or is not a stack — PUSH and REPLACE are
@@ -230,28 +232,41 @@ function pushOrReplace(call: 'push' | 'replace', href: string): void {
 }
 
 /**
- * `expo-router`'s `router`: four methods, and every argument a URL.
+ * `expo-router`'s `router`.
  *
  * ADR 0032 measured the calls — `push` 19 times, `back` and `replace` a handful
- * each, `navigate` where a screen must not stack up. That is the whole object.
+ * each, `navigate` where a screen must not stack up.
+ *
+ * EVERY ARGUMENT IS AN `Href`, which is `string | { pathname, params }`, and the
+ * second half of that used to be missing: an object reached the router interpolated
+ * as `[object Object]`, matched no route, and landed on `+not-found` — silently, on
+ * 10 measured call sites. `href.ts` holds the resolution and the rule it shares with
+ * `useLocalSearchParams`.
+ *
+ * AND THE THREE NAMES THIS OBJECT REFUSES ARE PRESENT. The support table already
+ * called `dismiss`, `dismissAll`, `dismissTo`, `setParams` and `canGoBack` "a named
+ * refusal rather than an undefined property read" — and they were absent, so reaching
+ * for one was `router.dismissTo is not a function`, which names nothing. `canGoBack`
+ * is now answered for real, because a back button calls it before deciding whether to
+ * render at all.
  */
 export const router = {
     /** Go to `href`, adding a history entry even when that screen is already showing. */
-    push(href: string): void {
+    push(href: Href): void {
         pushOrReplace('push', href);
     },
 
     /** Go to `href`, reusing the screen when it is already the current one. */
-    navigate(href: string): void {
+    navigate(href: Href): void {
         const container = readyContainer('navigate');
         const { config } = required('navigate');
-        const state = resolve('navigate', href);
+        const state = resolve('navigate', hrefFrom('navigate', href));
         const action = getActionFromState(state, upstream(config));
         container.dispatch(action ?? CommonActions.reset(state));
     },
 
     /** Replace the current screen with `href`, leaving the history length alone. */
-    replace(href: string): void {
+    replace(href: Href): void {
         pushOrReplace('replace', href);
     },
 
@@ -275,7 +290,65 @@ export const router = {
         }
         container.dispatch(CommonActions.goBack());
     },
+
+    /**
+     * Is there anywhere to go back to?
+     *
+     * The question `back()` refuses to answer for you, and the reason it has to exist:
+     * a screen calls this to decide whether to render a back affordance AT ALL, so a
+     * missing method is a `router.canGoBack is not a function` the moment anything
+     * asks — latent until the first screen that guards its own back button.
+     *
+     * `false` BEFORE THE CONTAINER IS READY, and that is an answer rather than a
+     * placeholder: nothing has been navigated to yet, so there is genuinely nowhere to
+     * go back to. `usePathname` answers `/` in the same window for the same reason.
+     * Refusing here instead would make the guard need a guard.
+     */
+    canGoBack(): boolean {
+        if (runtime === null || !navigationRef.isReady()) return false;
+        return navigationRef.canGoBack();
+    },
+
+    /** A modal stack this layer does not have. */
+    dismiss(): never {
+        throw dismissRefusal('dismiss');
+    },
+    dismissAll(): never {
+        throw dismissRefusal('dismissAll');
+    },
+    dismissTo(): never {
+        throw dismissRefusal('dismissTo');
+    },
+
+    /**
+     * Change the current route's params without navigating.
+     *
+     * Refused rather than built, and the reason is this file's own rule: params travel
+     * INTO a route through the pattern (`href.ts`) and back OUT through
+     * `useLocalSearchParams`. `setParams` writes them at neither end — it edits the
+     * route object in place — so the URL and the params would stop agreeing, and
+     * `usePathname` would answer for a URL that no longer describes the screen.
+     */
+    setParams(): never {
+        throw new RouterError(
+            'unresolved-href',
+            'router.setParams()',
+            'edits the current route’s params in place, so the URL stops describing the screen — `usePathname()` ' +
+                'would answer for a path whose params are no longer the route’s. Navigate with ' +
+                '`router.replace({ pathname, params })` instead, which changes both together',
+        );
+    },
 } as const;
+
+/** One sentence for the three `dismiss*` names, because they have one reason. */
+const dismissRefusal = (call: string): RouterError =>
+    new RouterError(
+        'unresolved-href',
+        `router.${call}()`,
+        'dismisses a MODAL, and this layer has no modal stack to dismiss from: `<Modal>` is `planned` in the ' +
+            'support table because an `Adw.Dialog` is PRESENTED against a parent rather than parented by it, which ' +
+            'needs a portal seam the host does not have. `router.back()` pops the navigation stack',
+    );
 
 // ---------------------------------------------------------------------------
 // The two hooks
@@ -291,9 +364,6 @@ const subscribe = (onStoreChange: () => void): (() => void) => {
         listeners.delete(onStoreChange);
     };
 };
-
-/** React Navigation's own nesting keys, which are not the author's params. */
-const INTERNAL_PARAMS: ReadonlySet<string> = new Set(['screen', 'params', 'initial', 'state', 'path', 'pop', 'merge']);
 
 const currentPathname = (): string => {
     const state = liveRootState();
@@ -340,12 +410,9 @@ export function usePathname(): string {
  */
 export function useLocalSearchParams<T extends Record<string, string> = Record<string, string>>(): Partial<T> {
     const route = useRoute();
-    const params = (route.params ?? {}) as Record<string, unknown>;
-    const out: Record<string, string> = {};
-    for (const [key, value] of Object.entries(params)) {
-        if (INTERNAL_PARAMS.has(key)) continue;
-        if (typeof value === 'string') out[key] = value;
-        else if (typeof value === 'number' || typeof value === 'boolean') out[key] = String(value);
-    }
-    return out as Partial<T>;
+    // `paramsSeenBy` and NOT a filter written here: it is the same rule `hrefFrom`
+    // applies when it writes params INTO a pattern, and two copies of "what counts as
+    // a param" on opposite sides of a round trip is precisely the mismatch that round
+    // trip exists to catch.
+    return paramsSeenBy(route.params as Record<string, unknown> | undefined) as Partial<T>;
 }

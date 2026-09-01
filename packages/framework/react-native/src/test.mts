@@ -9,6 +9,7 @@ import classesSuite from './primitives/classes.spec.js';
 import defaultsSuite from './primitives/defaults.spec.js';
 import primitivesSuite from './primitives/primitives.spec.js';
 import widgetsSuite from './primitives/widgets.spec.js';
+import hrefSuite from './router/href.spec.js';
 import routerWidgetsSuite from './router/router.spec.js';
 import routesSuite from './router/routes.spec.js';
 import solidSuite from './solid/solid.spec.js';
@@ -30,6 +31,7 @@ run({
     animatedSuite,
     listsSuite,
     solidSuite,
+    hrefSuite,
     routesSuite,
     routerWidgetsSuite,
 });
