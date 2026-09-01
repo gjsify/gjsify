@@ -460,8 +460,11 @@ export default async () => {
         });
 
         await it('contributes nothing for a declared no-op', async () => {
+            // The three are `Gtk.Label` defaults this layer normalises to React
+            // Native's, enumerated with the rest of the set in `defaults.ts`; a
+            // declared no-op adds nothing to them.
             const p = plan('Text', { allowFontScaling: true, maxFontSizeMultiplier: 2 }).plan;
-            expect(p.node.props).toStrictEqual({ wrap: true });
+            expect(p.node.props).toStrictEqual({ wrap: true, xalign: 0, yalign: 0 });
         });
     });
 

@@ -200,7 +200,7 @@ refusals. The plugin walks a directory and emits what it found.
 | export | tier | GTK | why |
 |---|---|---|---|
 | `View` | P1 | Gtk.Box, or Gtk.Overlay when a child is absolutely positioned | The container primitive. Which widget it becomes depends on its children, not on the element. |
-| `Text` | P1 | Gtk.Label | Wrapping is ON by default in React Native and OFF on a Gtk.Label, so the default is set explicitly. |
+| `Text` | P1 | Gtk.Label | THREE Gtk.Label defaults disagree with React Native’s and are set explicitly — wrap, xalign and yalign. The whole set of default divergences, including the ones that agree, is enumerated in primitives/defaults.ts. |
 | `Pressable` | P1 | Gtk.Button (flat) | Press state is a GTK CSS :active pseudo-class; children-as-a-function is implemented over the state flag, and costs nothing when it is unused. |
 | `ScrollView` | P1 | Gtk.ScrolledWindow + an implicit content box | contentContainerStyle styles the inner box, which is a second styleable node. |
 | `ActivityIndicator` | P1 | Adw.Spinner | Direct counterpart. |

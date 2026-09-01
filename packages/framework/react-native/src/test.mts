@@ -4,6 +4,7 @@ import apisSuite from './apis/apis.spec.js';
 import eventEmitterSuite from './event-emitter.spec.js';
 import listsSuite from './lists/lists.spec.js';
 import classesSuite from './primitives/classes.spec.js';
+import defaultsSuite from './primitives/defaults.spec.js';
 import primitivesSuite from './primitives/primitives.spec.js';
 import widgetsSuite from './primitives/widgets.spec.js';
 import routerWidgetsSuite from './router/router.spec.js';
@@ -18,6 +19,7 @@ run({
     unsupportedSuite,
     eventEmitterSuite,
     classesSuite,
+    defaultsSuite,
     stylesheetSuite,
     primitivesSuite,
     apisSuite,
