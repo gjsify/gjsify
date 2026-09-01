@@ -16,4 +16,7 @@ export const setStatusBarStyle = unsupported('setStatusBarStyle', 'expo-status-b
 export const setStatusBarHidden = unsupported('setStatusBarHidden', 'expo-status-bar');
 export const setStatusBarBackgroundColor = unsupported('setStatusBarBackgroundColor', 'expo-status-bar');
 export const setStatusBarTranslucent = unsupported('setStatusBarTranslucent', 'expo-status-bar');
-export const setStatusBarNetworkActivityIndicatorVisible = unsupported('setStatusBarNetworkActivityIndicatorVisible', 'expo-status-bar');
+export const setStatusBarNetworkActivityIndicatorVisible = unsupported(
+    'setStatusBarNetworkActivityIndicatorVisible',
+    'expo-status-bar',
+);
