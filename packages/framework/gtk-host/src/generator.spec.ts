@@ -207,7 +207,8 @@ export default async () => {
                 for (const [gtype, members] of Object.entries(vocabulary)) {
                     const there = emitted[gtype];
                     if (!there) diverged.push(`${what} ${gtype}: absent from the artefact`);
-                    else if (there.join(',') !== members.join(',')) diverged.push(`${what} ${gtype}: ${there.join(',')}`);
+                    else if (there.join(',') !== members.join(','))
+                        diverged.push(`${what} ${gtype}: ${there.join(',')}`);
                 }
             };
             compare('OWN_PROPS', VOCABULARY_OWN_PROPS, OWN_PROPS);

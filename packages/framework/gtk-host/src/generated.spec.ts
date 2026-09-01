@@ -76,8 +76,12 @@ export const newerThan = (since: string | undefined, running: string): boolean =
  * nothing: the missing class had to be found by hand. The gap is now a fact one test
  * reports and the others skip.
  */
-const installedCtor = (descriptor: { readonly ctor: () => unknown }): (GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object)) | null =>
-    (descriptor.ctor() as (GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object)) | undefined) ?? null;
+const installedCtor = (descriptor: {
+    readonly ctor: () => unknown;
+}): (GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object)) | null =>
+    (descriptor.ctor() as
+        | (GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object))
+        | undefined) ?? null;
 
 const writableSpecs = (gtype: string): string[] | null => {
     const ctor = installedCtor(lookupWidget(gtype));
@@ -430,7 +434,8 @@ export default async () => {
                         (predatesHost(gtype) ? ahead : problems).push(`${gtype}.${nick}`);
                     }
                 }
-                if (ahead.length > 0) console.error(`  (${ahead.length} nick(s) newer than the installed library: ${ahead.join(', ')})`);
+                if (ahead.length > 0)
+                    console.error(`  (${ahead.length} nick(s) newer than the installed library: ${ahead.join(', ')})`);
                 expect(problems).toStrictEqual([]);
             });
 

@@ -1680,7 +1680,16 @@ const VECTORS = [
         'a namespace member no element corresponds to',
         (w) => ({
             ...w,
-            webNamespace: new Map([...w.webNamespace, ['Adw', new Map([['Bin', 'AdwBin'], ['Ghost', 'AdwGhost']])]]),
+            webNamespace: new Map([
+                ...w.webNamespace,
+                [
+                    'Adw',
+                    new Map([
+                        ['Bin', 'AdwBin'],
+                        ['Ghost', 'AdwGhost'],
+                    ]),
+                ],
+            ]),
         }),
         'names `Adw.Ghost`, which no registered adw-* element',
     ],

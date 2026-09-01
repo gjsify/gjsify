@@ -191,7 +191,9 @@ export async function buildFromVocabulary(
         // the library version the types were generated against — which the GIR route
         // never knew.
         const p = runtime.PROVENANCE;
-        provenance.push(p.libraryVersion ? `${p.namespace}-${p.version}/${p.libraryVersion}` : `${p.namespace}-${p.version}`);
+        provenance.push(
+            p.libraryVersion ? `${p.namespace}-${p.version}/${p.libraryVersion}` : `${p.namespace}-${p.version}`,
+        );
 
         for (const [gtype, nicks] of Object.entries(runtime.ENUM_NICKS)) enumNicks.set(gtype, nicks);
         namespacesUsed.add(source.prefix);
@@ -269,9 +271,7 @@ export async function buildFromVocabulary(
     if (missing.length > 0) {
         const shown = missing.slice(0, 15).join(', ');
         const rest = missing.length > 15 ? `, and ${missing.length - 15} more` : '';
-        throw new Error(
-            `${missing.length} of the OWN_PROPS entries have no rendered declaration: ${shown}${rest}`,
-        );
+        throw new Error(`${missing.length} of the OWN_PROPS entries have no rendered declaration: ${shown}${rest}`);
     }
 
     // Chain links no vocabulary owns — the pure interfaces GtkBuildable and

@@ -578,11 +578,18 @@ const namespaceCheck = (barrel, suffixOf) => {
     for (const widget of [...widgets].sort()) {
         const member = namespaceMember(widget);
         if (!members.has(member)) {
-            fail('namespace', `\`src/${barrel}\`'s \`Adw\` has no \`${member}\`, so that widget is namespace-only in name`);
+            fail(
+                'namespace',
+                `\`src/${barrel}\`'s \`Adw\` has no \`${member}\`, so that widget is namespace-only in name`,
+            );
         }
         // The member must come from THIS barrel's platform module, not the base one.
         const specifier = `./widgets/${widget}${suffixOf}`;
-        if (!new RegExp(`import \\{[^}]*\\bas ${member}\\b[^}]*\\} from '${specifier.replace(/[.]/g, '\\.')}'`).test(source)) {
+        if (
+            !new RegExp(`import \\{[^}]*\\bas ${member}\\b[^}]*\\} from '${specifier.replace(/[.]/g, '\\.')}'`).test(
+                source,
+            )
+        ) {
             fail(
                 'namespace',
                 `\`src/${barrel}\`'s \`Adw.${member}\` is not bound from \`${specifier}\` — a namespace member ` +
@@ -625,5 +632,5 @@ console.log(
         `${PLATFORMS.map((p) => p.name).join(' and a ')} module, an \`exports\` entry naming both ` +
         'in an order that resolves to them, the JSX source its platform needs, no import ' +
         `from the other platform, and a member of \`Adw\` on each of the ${PLATFORMS.length + 1} barrels bound ` +
-        'from that barrel\'s own module.',
+        "from that barrel's own module.",
 );
