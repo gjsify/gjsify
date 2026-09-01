@@ -90,6 +90,14 @@ export type {
 } from './apis/index.js';
 export { useColorScheme, useWindowDimensions } from './hooks.js';
 
+// `Animated` and `Easing`. The subset ADR 0032 measured — a value, a timing and a
+// view — over `Adw.TimedAnimation`, with the other 25 members of `Animated` present
+// as functions that refuse with their own reason. `animated/value.ts` records why the
+// VALUE and not the widget property is the source of truth, and `animated/easing.ts`
+// carries the measured curve-by-curve mapping onto `AdwEasing`.
+export { Animated, Easing } from './animated/index.js';
+export type { CompositeAnimation, EasingFunction, EndCallback, TimingConfig } from './animated/index.js';
+
 // `StyleSheet`, whose `create` is identity and whose `hairlineWidth` is a getter —
 // `stylesheet.ts` says why both are the honest answer rather than a shortcut.
 export { StyleSheet } from './stylesheet.js';

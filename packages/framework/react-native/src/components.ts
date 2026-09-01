@@ -60,7 +60,10 @@ import {
     type ResolvedGesture,
     type WidgetNode,
 } from './primitives/resolve.js';
-import type { StyleInput } from './primitives/style.js';
+import { flattenStyle, type StyleAuthored, type StyleInput, type StyleObject } from './primitives/style.js';
+import { isAnimatedValue } from './animated/brand.js';
+import { animatedProperty, assertNoStaticClash } from './animated/properties.js';
+import type { AnimatedValue } from './animated/value.js';
 import { styleConfig } from './style-config.js';
 import type { StyleTokens } from '@gjsify/gtk-host/style';
 
@@ -740,3 +743,119 @@ const statusBarStatics = {
 // throws is exactly what this one is for, and copying it has to copy the getter rather
 // than its value.
 Object.defineProperties(StatusBar, Object.getOwnPropertyDescriptors(statusBarStatics));
+
+// ---------------------------------------------------------------------------
+// `Animated.View`
+// ---------------------------------------------------------------------------
+
+/** A `style` prop that may carry `Animated.Value`s. */
+export type AnimatedStyleInput = StyleInput | Readonly<Record<string, unknown>>;
+
+export interface AnimatedViewProps extends Omit<ViewProps, 'style'> {
+    style?: AnimatedStyleInput;
+}
+
+/** One animated style entry, after the split. */
+interface AnimatedBinding {
+    readonly key: string;
+    readonly value: AnimatedValue;
+}
+
+/**
+ * An authored style → the plain half and the animated half.
+ *
+ * The split has to happen BEFORE the partition, and that is measured rather than
+ * tidy: `@gjsify/gtk-host/style`'s `partitionPaint` pushes `${cssName}: ${value}`
+ * with no check on the value's type, so an `Animated.Value` left in the object
+ * becomes the GTK CSS declaration `opacity: [object Object]` — which GTK's parser
+ * drops in silence. `primitives/style.ts` now refuses a non-scalar style value for
+ * the same reason, which is what makes forgetting the `Animated.` on a plain
+ * `<View>` a named error instead of a screen where nothing moves.
+ */
+function splitAnimatedStyle(
+    primitive: string,
+    style: AnimatedStyleInput | undefined,
+): { readonly plain: StyleObject; readonly bindings: readonly AnimatedBinding[] } {
+    const flat = flattenStyle(style as StyleInput);
+    const plain: Record<string, unknown> = {};
+    const bindings: AnimatedBinding[] = [];
+    for (const [key, value] of Object.entries(flat)) {
+        if (!isAnimatedValue(value)) {
+            plain[key] = value;
+            continue;
+        }
+        // The refusal for an unanimatable key fires here, at the element, rather than
+        // inside the effect that would have bound it: an effect's stack names the
+        // effect, and an author needs the element.
+        animatedProperty(primitive, key);
+        bindings.push({ key, value: value as AnimatedValue });
+    }
+    return { plain, bindings };
+}
+
+/**
+ * A `View` whose animated style entries drive GTK widget properties directly.
+ *
+ * NO RE-RENDER PER FRAME, and that is the design rather than an optimisation. An
+ * `Animated.Value` behind an `opacity` could have been React state, and then a 300 ms
+ * fade would be ~18 reconciler passes over the subtree for a property GTK can
+ * interpolate itself. So the value writes `Gtk.Widget:opacity` through the sink bound
+ * below, `Adw.TimedAnimation` owns the frame clock (`animated/timing.ts`), and React
+ * sees exactly two commits: the mount and the unmount.
+ *
+ * THE FIRST FRAME IS RENDERED, NOT BOUND. The sink is attached in an effect, which
+ * runs after the commit — so the initial number is ALSO written as a widget property
+ * in the render itself. Without it a `new Animated.Value(0)` behind an opacity paints
+ * one frame fully opaque before the effect makes it transparent, which is a flash on
+ * every mount of every faded-in screen.
+ */
+export function AnimatedView(props: AnimatedViewProps): ReactElement {
+    const config = styleConfig();
+    const { plain, bindings } = splitAnimatedStyle('Animated.View', props.style);
+    const authored: AnimatedViewProps = { ...props, style: plain };
+    assertNoStaticClash(
+        'Animated.View',
+        authored as StyleAuthored,
+        bindings.map((binding) => binding.key),
+        config.tokens,
+    );
+
+    const rendered = usePlan('View', authored);
+    const widgetRef = rendered.widgetRef;
+    // The VALUE's identity is in the signature, not just the key: a component that
+    // swaps one `Animated.Value` for another under the same style key has to rebind,
+    // and a key-only signature would leave the widget attached to the old value for
+    // ever. `AnimatedValue.id` exists for exactly this comparison.
+    const signature = bindings.map((binding) => `${binding.key}#${binding.value.id}`).join('|');
+    const latest = useRef(bindings);
+    latest.current = bindings;
+
+    useEffect(() => {
+        const widget = widgetRef.current;
+        if (signature === '' || widget === null || widget === undefined) return;
+        const target = widget as Record<string, unknown>;
+        const disposers = latest.current.map((binding) => {
+            const property = accessor(animatedProperty('Animated.View', binding.key).property);
+            return binding.value.__attach({
+                widget,
+                write: (value: number) => {
+                    target[property] = value;
+                },
+            });
+        });
+        return () => {
+            for (const dispose of disposers) dispose();
+        };
+        // `signature` alone, for `useSignals`' reason: `bindings` is a fresh array on
+        // every render, and including it would unbind and rebind every value on every
+        // commit — which for a running animation means losing its frame clock, which
+        // `AnimatedValue` correctly reports as `{ finished: false }`. The effect would
+        // have cancelled the animation it exists to serve.
+    }, [signature, widgetRef]);
+
+    const initial: Record<string, unknown> = {};
+    for (const binding of bindings) {
+        initial[accessor(animatedProperty('Animated.View', binding.key).property)] = binding.value.__getValue();
+    }
+    return render({ ...rendered, extra: { ...rendered.extra, ...initial } });
+}

@@ -10,51 +10,55 @@ import { UnsupportedError, unsupported } from './unsupported.js';
 
 export default async () => {
     await describe('an unimplemented export', async () => {
-        const Animated = unsupported('Animated') as unknown as Record<string, unknown> & ((...a: unknown[]) => unknown);
+        // `Modal`, because the fixture has to be a name the table really refuses and
+        // `Animated` stopped being one: it is `partial` now, so its sentence reads
+        // "is available" and every assertion below would pass for the wrong reason.
+        // `Modal` is `planned` with a `gtk` field, which is what the last vector needs.
+        const Refused = unsupported('Modal') as unknown as Record<string, unknown> & ((...a: unknown[]) => unknown);
 
         await it('throws when rendered or called', async () => {
-            expect(() => (Animated as (...a: unknown[]) => unknown)()).toThrow(/UnsupportedError|Animated/);
+            expect(() => (Refused as (...a: unknown[]) => unknown)()).toThrow(/UnsupportedError|Modal/);
         });
 
         await it('throws when constructed', async () => {
-            const Ctor = Animated as unknown as new () => unknown;
-            expect(() => new Ctor()).toThrow(/UnsupportedError|Animated/);
+            const Ctor = Refused as unknown as new () => unknown;
+            expect(() => new Ctor()).toThrow(/UnsupportedError|Modal/);
         });
 
         await it('throws on a property READ, not only on a call', async () => {
-            // `Animated.timing` and `NativeModules.Foo` are reads. Answering
+            // `NativeModules.Foo` and `Modal.propTypes` are reads. Answering
             // `undefined` here is what exports the failure into someone else's code.
-            expect(() => Animated.timing).toThrow(/UnsupportedError|Animated/);
+            expect(() => Refused.propTypes).toThrow(/UnsupportedError|Modal/);
         });
 
         await it('throws on a property write', async () => {
             expect(() => {
-                Animated.anything = 1;
-            }).toThrow(/UnsupportedError|Animated/);
+                Refused.anything = 1;
+            }).toThrow(/UnsupportedError|Modal/);
         });
 
         await it('carries the export name and the table sentence', async () => {
             let caught: unknown;
             try {
-                (Animated as (...a: unknown[]) => unknown)();
+                (Refused as (...a: unknown[]) => unknown)();
             } catch (error) {
                 caught = error;
             }
             expect(caught instanceof UnsupportedError).toBe(true);
-            expect((caught as UnsupportedError).export).toBe('Animated');
+            expect((caught as UnsupportedError).export).toBe('Modal');
             expect((caught as UnsupportedError).name).toBe('UnsupportedError');
-            expect((caught as UnsupportedError).message).toContain('Adw.TimedAnimation');
+            expect((caught as UnsupportedError).message).toContain('Adw.Dialog');
         });
 
         await it('still answers the reads feature detection makes', async () => {
             // A `typeof X === 'function'` guard must keep working, and so must the
             // three reads a bundler's interop and React's own element check make.
             // Throwing on these would break code that is behaving correctly.
-            expect(typeof Animated).toBe('function');
-            expect(Animated.name).toBe('Animated');
-            expect(Animated.displayName).toBe('Animated');
-            expect(Animated.$$typeof).toBe(undefined);
-            expect(Animated.then).toBe(undefined);
+            expect(typeof Refused).toBe('function');
+            expect(Refused.name).toBe('Modal');
+            expect(Refused.displayName).toBe('Modal');
+            expect(Refused.$$typeof).toBe(undefined);
+            expect(Refused.then).toBe(undefined);
         });
     });
 };

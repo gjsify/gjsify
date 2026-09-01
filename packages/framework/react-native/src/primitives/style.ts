@@ -26,6 +26,7 @@
 import { partition, resolveUtilities, type Partitioned, type StyleProps } from '@gjsify/gtk-host/style';
 import type { StyleTokens } from '@gjsify/gtk-host/style';
 
+import { isAnimatedValue } from '../animated/brand.js';
 import { splitVariants, type ClassGroups, type ClassNameInput } from './classes.js';
 import { PrimitiveError } from './errors.js';
 
@@ -106,6 +107,7 @@ export function normalise(
     // needs happens here rather than in six routes.
     for (const [key, value] of Object.entries(flattenStyle(authored.style))) {
         if (value === undefined || value === null) continue;
+        if (typeof value !== 'number' && typeof value !== 'string') scalarOnly(primitive, key, value);
         (props as Record<string, unknown>)[key] = typeof value === 'number' ? stringify(key, value) : value;
     }
     return { props, groups };
@@ -143,6 +145,34 @@ export function variantDeclarations(
         out[variant] = partitioned.css;
     }
     return out;
+}
+
+/**
+ * Refuse a style value that is neither a number nor a string.
+ *
+ * MEASURED, and it is the exit-0 class this whole partition exists against:
+ * `@gjsify/gtk-host/style`'s `partitionPaint` composes `${cssName}: ${value}` with no
+ * check on the value's type, so `style={{ opacity: someObject }}` reaches GTK as the
+ * declaration `opacity: [object Object]` — which GTK's CSS parser drops in silence.
+ * The element renders, the class is minted, and nothing about the appearance is what
+ * was written.
+ *
+ * The commonest way to produce one is real: forgetting the `Animated.` on a `<View>`
+ * whose style carries an `Animated.Value`. That case gets its own sentence, which is
+ * why the brand lives in a module with no framework and no `gi://` in it — L2 has to
+ * be able to recognise the type without importing the class.
+ *
+ * `null` and `undefined` never arrive here: they are React Native's own "no value" and
+ * are skipped by the caller before this runs.
+ */
+function scalarOnly(primitive: string, key: string, value: unknown): never {
+    throw new PrimitiveError(
+        primitive,
+        `style={{ ${key}: … }}`,
+        isAnimatedValue(value)
+            ? 'carries an `Animated.Value`, and this element is not an `Animated.View`. A plain element partitions its style into GTK CSS and widget properties before a widget sees it, so the value would land in a CSS declaration as "[object Object]" — which GTK drops without a diagnostic. Render `<Animated.View>` instead'
+            : `is a ${Array.isArray(value) ? 'array' : typeof value}, and the style partition reads numbers and strings. GTK CSS is composed by interpolating the value into a declaration, so anything else becomes a declaration GTK’s parser drops in silence`,
+    );
 }
 
 /** A React Native number → the string the partition reads, with a unit where there is one. */
