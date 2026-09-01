@@ -139,6 +139,31 @@ export const ADWAITA_GALLERY_TREES = [
         },
     },
     {
+        widget: 'Adw.ExpanderRow',
+        page: 'boxed-lists',
+        // Its rows go through `add_row()`, which had no policy until
+        // `AdwExpanderRow` was curated — so this block was a refusal, and the
+        // refusal is what the probe found stale the moment the descriptor landed.
+        // An unslotted child IS the disclosure here: `defaultSlot: 'row'`.
+        root: {
+            tag: 'adw-preferences-group',
+            children: [
+                {
+                    tag: 'adw-expander-row',
+                    props: {
+                        title: 'Proxy settings',
+                        subtitle: 'Route traffic through a custom proxy',
+                        expanded: true,
+                    },
+                    children: [
+                        { tag: 'adw-entry-row', props: { title: 'Host', text: 'proxy.example.com' } },
+                        { tag: 'adw-switch-row', props: { title: 'Use authentication' } },
+                    ],
+                },
+            ],
+        },
+    },
+    {
         widget: 'Adw.ButtonRow',
         page: 'boxed-lists',
         root: {
@@ -562,7 +587,6 @@ export const ADWAITA_GALLERY_REFUSALS = {
     'Adw.PreferencesDialog': 'uncurated-placement: a page cannot be a child of AdwPreferencesDialog.',
     'Adw.BottomSheet': 'uncurated-placement: no child policy for the sheet or the content.',
     'Adw.Carousel': 'uncurated-placement: AdwCarousel has no child policy.',
-    'Adw.ExpanderRow': 'uncurated-placement: its rows go through add_row(), which no policy declares.',
     'Adw.Sidebar': 'uncurated-placement — and its items are AdwSidebarItem GObjects, which have no tag either.',
     'Adw.TabView': 'uncurated-placement — and its pages are AdwTabPage GObjects, which have no tag either.',
     'Adw.ToggleGroup': 'uncurated-placement — and its toggles are AdwToggle GObjects, which have no tag either.',

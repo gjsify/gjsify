@@ -699,7 +699,8 @@ function holdsOursInSlot(parent: HostElement, slot: string | null): boolean {
 }
 
 /**
- * `indexed` parents address a wrapper row; create it once, before first placement.
+ * `indexed` parents — and a `slotted` slot that declares one — address a wrapper row;
+ * create it once, before first placement.
  *
  * The try/catch is `insertChild`'s, repeated here rather than shared, because this
  * runs BEFORE it and the wrapper's `set_child` is the first call that can be refused.
@@ -714,7 +715,7 @@ function ensureWrapper(parent: HostElement, child: HostElement): void {
     if (child.wrapper) return;
     let wrapper: Gtk.Widget | null;
     try {
-        wrapper = makeWrapper(parent.descriptor.children, child.widget as unknown as Gtk.Widget);
+        wrapper = makeWrapper(parent.descriptor.children, child.widget as unknown as Gtk.Widget, child.slot);
     } catch (e) {
         if (e instanceof GtkHostError) throw e;
         throw err.rejectedChild(parent.descriptor.gtype, child.descriptor.gtype, (e as Error).message);

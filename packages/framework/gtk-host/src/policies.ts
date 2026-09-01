@@ -31,10 +31,22 @@ export function addressOf(el: HostElement): Gtk.Widget {
  * is the spelling anyone reaching for `activatable` or `selectable` uses, and
  * wrapping a row inside a second row nests two selectable widgets and detaches
  * activation from the one the author configured.
+ *
+ * A `slotted` policy reaches this too, per SLOT: an adder that hands the child to an
+ * inner `Gtk.ListBox` needs exactly the same wrap, and `Adw.ExpanderRow`'s `add_row` is
+ * one. The measurement behind that is on `ChildPolicy`'s `wrapSlots`; the short version
+ * is that `gtk_list_box_remove` does not unwrap, so without this the child leaks behind
+ * one `Gtk-WARNING` at unmount.
  */
-export function makeWrapper(policy: ChildPolicy, child: Gtk.Widget): Gtk.Widget | null {
-    if (policy.kind !== 'indexed' || !policy.wrap) return null;
-    if (policy.wrap === 'list-box-row') {
+export function makeWrapper(policy: ChildPolicy, child: Gtk.Widget, slot: string | null): Gtk.Widget | null {
+    const wrap =
+        policy.kind === 'indexed'
+            ? policy.wrap
+            : policy.kind === 'slotted'
+              ? (policy.wrapSlots?.[slot ?? policy.defaultSlot] ?? null)
+              : null;
+    if (!wrap) return null;
+    if (wrap === 'list-box-row') {
         if (child instanceof Gtk.ListBoxRow) return null;
         const row = new Gtk.ListBoxRow();
         row.set_child(child);

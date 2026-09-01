@@ -148,6 +148,17 @@ function policyProblems(d: WidgetDescriptor, Klass: { prototype: object }, actua
         for (const [slot, method] of Object.entries(policy.slots)) {
             if (method.startsWith('set_')) requireGetter(method, `slot "${slot}"`);
         }
+        // A `wrapSlots` key that names no slot is silent otherwise: `makeWrapper`
+        // looks the resolved slot up and a miss reads as "no wrap", so a typo turns
+        // the wrap off and gives back the leak it exists to close.
+        for (const slot of Object.keys(policy.wrapSlots ?? {})) {
+            if (!(slot in policy.slots)) {
+                out.push({
+                    gtype: d.gtype,
+                    problem: `wrapSlots names "${slot}", which is not one of ${Object.keys(policy.slots).join(', ')}`,
+                });
+            }
+        }
         if (!(policy.defaultSlot in policy.slots)) {
             out.push({
                 gtype: d.gtype,

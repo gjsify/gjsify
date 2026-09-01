@@ -57,6 +57,19 @@
             />
         </adw-preferences-group>
         <adw-preferences-group>
+            <adw-expander-row
+                title="Proxy settings"
+                subtitle="Route traffic through a custom proxy"
+                :expanded="true"
+            >
+                <adw-entry-row
+                    title="Host"
+                    text="proxy.example.com"
+                />
+                <adw-switch-row title="Use authentication" />
+            </adw-expander-row>
+        </adw-preferences-group>
+        <adw-preferences-group>
             <adw-button-row
                 title="Add account"
                 start-icon-name="list-add-symbolic"

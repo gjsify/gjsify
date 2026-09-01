@@ -20,6 +20,13 @@
 // — GTK takes only an `Adw.NavigationPage` in those slots. All three are snippets
 // now; only a wrong-type child stays here.
 //
+// AND IT PAID A SECOND TIME, which is why the pattern rather than the incident is
+// the point: curating `AdwExpanderRow` for `@gjsify/adwaita-react-native` turned
+// `<adw-expander-row> < <adw-entry-row>` green the same way. The gallery block is a
+// tree now and the placement left this list — noticed by the plain-Node arm of
+// `check-generated-website-data.mjs`, which reads a refusal's GType against the
+// descriptor directory and does not need the probe to run.
+//
 // This is deliberately NOT a JSX file: the refusal comes from the HOST's placement
 // policy, not from any adapter's compiler, so driving it through `createElement` +
 // `insert` asks the question with nothing else in the way.
@@ -51,7 +58,6 @@ const PLACEMENTS: readonly [parent: string, child: string][] = [
     ['adw-preferences-dialog', 'adw-preferences-page'],
     ['adw-bottom-sheet', 'gtk-box'],
     ['adw-carousel', 'gtk-label'],
-    ['adw-expander-row', 'adw-entry-row'],
     ['adw-sidebar', 'gtk-label'],
     ['adw-tab-view', 'gtk-label'],
     ['adw-toggle-group', 'gtk-label'],
