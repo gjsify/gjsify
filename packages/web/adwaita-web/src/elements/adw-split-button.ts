@@ -25,7 +25,7 @@
 // into state calls, pinned to the C source by the shared vectors in
 // `@gjsify/adwaita-core/conformance` (see `src/split-button.spec.ts`). Of the
 // element's own former copies only the glyph→mask-class mapping is a renderer
-// concern — see ARROW_MASK_CLASSES. The menu surface is `<adw-popover>`, which is
+// concern — see ARROW_MASK_CLASSES. The menu surface is `<gtk-popover>`, which is
 // what brings the 15px radius, Escape dismissal and arrow-key navigation; do not
 // hand-roll a surface here instead.
 //
@@ -47,16 +47,16 @@ import {
 import type { AdwArrowIcon, AdwMenuEntry, SplitButtonChange, SplitButtonDirection } from '@gjsify/adwaita-core';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it is
-// what guarantees `adw-popover` is defined before this module's own
+// what guarantees `gtk-popover` is defined before this module's own
 // `customElements.define` can upgrade a server-rendered `<adw-split-button>` and
-// build one. A combined `import { AdwPopover }` would NOT do it — the binding is
+// build one. A combined `import { GtkPopover }` would NOT do it — the binding is
 // only ever used in type position here, and this package compiles without
 // `verbatimModuleSyntax`, so TypeScript would elide the whole statement and take
 // the registration with it.
-import './adw-popover.js';
-import type { AdwPopover } from './adw-popover.js';
+import './gtk-popover.js';
+import type { GtkPopover } from './gtk-popover.js';
 
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 
 const VARIANT_CLASSES: Record<string, string> = {
     flat: 'flat',
@@ -87,11 +87,11 @@ const ARROW_MASK_CLASSES: Readonly<Record<AdwArrowIcon, string>> = {
 };
 
 // The `-symbolic` strip and the single-CSS-token guard belong to `normalizeIconName`,
-// applied by <adw-icon>: never rebuild the mask class by hand, which is how five sites
+// applied by <gtk-image>: never rebuild the mask class by hand, which is how five sites
 // in this package shipped without the guard.
 
 /**
- * Direction → the CSS axis `<adw-popover>` places the surface on. WHICH
+ * Direction → the CSS axis `<gtk-popover>` places the surface on. WHICH
  * direction applies is not decided here — {@link splitButtonPopupDirection}
  * folds `none` onto `down` (GtkMenuButton's rule, not the split button's), and
  * this table is keyed by its output for the same reason ARROW_MASK_CLASSES is.
@@ -107,8 +107,8 @@ export class AdwSplitButton extends HTMLElement {
     private readonly _state = new SplitButtonState();
     private _actionEl!: HTMLButtonElement;
     private _dropdownEl!: HTMLButtonElement;
-    private _arrowEl!: AdwIcon;
-    private _menuEl!: AdwPopover;
+    private _arrowEl!: GtkImage;
+    private _menuEl!: GtkPopover;
     /** Inline text content, captured before we take over the subtree. */
     private _inlineLabel = '';
     /** Last `open` value reflected as `notify::active`, so the event fires once per flip. */
@@ -226,10 +226,10 @@ export class AdwSplitButton extends HTMLElement {
         this._dropdownEl.type = 'button';
         this._dropdownEl.className = 'adw-split-button-dropdown';
         this._dropdownEl.setAttribute('aria-haspopup', 'menu');
-        this._arrowEl = createAdwIcon(null);
+        this._arrowEl = createGtkImage(null);
         this._dropdownEl.appendChild(this._arrowEl);
 
-        this._menuEl = document.createElement('adw-popover') as AdwPopover;
+        this._menuEl = document.createElement('gtk-popover') as GtkPopover;
         this._menuEl.classList.add('adw-split-button-menu');
         this._menuEl.setAttribute('role', 'menu');
         // The dropdown half IS a GtkMenuButton (the C passes straight through to
@@ -376,7 +376,7 @@ export class AdwSplitButton extends HTMLElement {
         this._actionEl.classList.toggle('icon-only', mode === 'icon');
 
         if (mode === 'icon' && iconName !== null) {
-            this._actionEl.appendChild(createAdwIcon(iconName));
+            this._actionEl.appendChild(createGtkImage(iconName));
         } else if (mode === 'label' && label !== null) {
             // Never trimmed: two spaces are a valid label and render as one.
             this._actionEl.appendChild(document.createTextNode(label));
@@ -430,7 +430,7 @@ export class AdwSplitButton extends HTMLElement {
             const item = document.createElement('button');
             item.type = 'button';
             // `.adw-popover-item` is what makes the row navigable: it is the selector
-            // `<adw-popover>` walks for arrow/Home/End/Enter.
+            // `<gtk-popover>` walks for arrow/Home/End/Enter.
             item.className = 'adw-popover-item adw-split-button-menu-item';
             item.setAttribute('role', 'menuitem');
             item.tabIndex = -1;

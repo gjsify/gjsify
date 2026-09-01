@@ -1,4 +1,4 @@
-// <adw-drop-down> — A standalone dropdown selector: the web counterpart of
+// <gtk-drop-down> — A standalone dropdown selector: the web counterpart of
 // Gtk.DropDown. It is a flat Adwaita button showing the current selection (its
 // label + a `pan-down` chevron) that opens an Adwaita popover list of options;
 // picking one updates the selection. This is the toolbar/inline control twin of
@@ -12,7 +12,7 @@
 // Escape and supports arrow-key navigation, Home/End, Enter to pick, and
 // type-ahead (typing jumps to the next matching option).
 //
-// The popover is `<adw-popover>` and the dismissal/keyboard machine is
+// The popover is `<gtk-popover>` and the dismissal/keyboard machine is
 // `@gjsify/adwaita-core`'s (ADR 0004). So is the SELECTION: the options list, the
 // index↔value mapping, the bounds guards and the programmatic-vs-interactive split are
 // {@link ComboState}, the same state machine `<adw-combo-row>` composes — so both
@@ -47,31 +47,31 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it is
-// what guarantees `adw-popover` is defined before this module's own
-// `customElements.define` can upgrade a server-rendered `<adw-drop-down>` and
-// build one. A combined `import { AdwPopover }` would NOT do it — the binding is
+// what guarantees `gtk-popover` is defined before this module's own
+// `customElements.define` can upgrade a server-rendered `<gtk-drop-down>` and
+// build one. A combined `import { GtkPopover }` would NOT do it — the binding is
 // only ever used in type position here, and this package compiles without
 // `verbatimModuleSyntax`, so TypeScript would elide the whole statement and take
 // the registration with it.
-import './adw-popover.js';
-import type { AdwPopover } from './adw-popover.js';
+import './gtk-popover.js';
+import type { GtkPopover } from './gtk-popover.js';
 
 import { ComboState, normalizeComboOptions } from '@gjsify/adwaita-core';
 import type { AdwComboOption, AdwComboOptionInput } from '@gjsify/adwaita-core';
 
-import { createAdwIcon } from './adw-icon.js';
+import { createGtkImage } from './gtk-image.js';
 
 /**
  * A dropdown option — `value` is the stable id, `label` the shown text. An alias of
  * core's {@link AdwComboOption}, since the drop-down and the combo row are the same
  * selection model behind two chromes; still exported so the published name keeps working.
  */
-export type AdwDropDownOption = AdwComboOption;
+export type GtkDropDownOption = AdwComboOption;
 
-export class AdwDropDown extends HTMLElement {
+export class GtkDropDown extends HTMLElement {
     private _buttonEl!: HTMLButtonElement;
     private _labelEl!: HTMLSpanElement;
-    private _popoverEl!: AdwPopover;
+    private _popoverEl!: GtkPopover;
     private _listEl!: HTMLDivElement;
     private _searchEl: HTMLInputElement | null = null;
     private _itemButtons: HTMLButtonElement[] = [];
@@ -86,7 +86,7 @@ export class AdwDropDown extends HTMLElement {
     }
 
     /** The options list. Setting it rebuilds the popover and clamps the selection. */
-    get options(): AdwDropDownOption[] {
+    get options(): GtkDropDownOption[] {
         return this._state.options;
     }
 
@@ -97,7 +97,7 @@ export class AdwDropDown extends HTMLElement {
         if (this._initialized) this._renderAll();
     }
 
-    get items(): AdwDropDownOption[] {
+    get items(): GtkDropDownOption[] {
         return this._state.options;
     }
 
@@ -124,7 +124,7 @@ export class AdwDropDown extends HTMLElement {
         if (index >= 0) this._selectIndex(index);
     }
 
-    get selectedItem(): AdwDropDownOption | null {
+    get selectedItem(): GtkDropDownOption | null {
         return this._state.options[this._state.selectedIndex] ?? null;
     }
 
@@ -156,7 +156,7 @@ export class AdwDropDown extends HTMLElement {
         this._labelEl = document.createElement('span');
         this._labelEl.className = 'adw-drop-down-label';
 
-        this._buttonEl.append(this._labelEl, createAdwIcon('go-down', 'adw-drop-down-arrow'));
+        this._buttonEl.append(this._labelEl, createGtkImage('go-down', 'adw-drop-down-arrow'));
         this._buttonEl.addEventListener('click', () => {
             if (this.hasAttribute('disabled')) return;
             if (!this._popoverEl.open && this._state.count === 0) return;
@@ -164,7 +164,7 @@ export class AdwDropDown extends HTMLElement {
         });
         this._buttonEl.addEventListener('keydown', (event) => this._onButtonKeyDown(event));
 
-        this._popoverEl = document.createElement('adw-popover') as AdwPopover;
+        this._popoverEl = document.createElement('gtk-popover') as GtkPopover;
         this._popoverEl.classList.add('adw-drop-down-popover');
         this._popoverEl.setAttribute('role', 'listbox');
         // A dropdown's popover is a `popover.menu` too — `dropdown { popover.menu { … } }`
@@ -208,7 +208,7 @@ export class AdwDropDown extends HTMLElement {
         }
     }
 
-    private _parseOptionsAttr(): AdwDropDownOption[] {
+    private _parseOptionsAttr(): GtkDropDownOption[] {
         const raw = this.getAttribute('options') ?? this.getAttribute('items');
         if (!raw) return [];
         try {
@@ -378,4 +378,4 @@ export class AdwDropDown extends HTMLElement {
     }
 }
 
-customElements.define('adw-drop-down', AdwDropDown);
+customElements.define('gtk-drop-down', GtkDropDown);

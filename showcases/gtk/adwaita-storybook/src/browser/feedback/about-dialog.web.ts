@@ -30,7 +30,7 @@ export class AboutDialogWebStory extends StoryElement {
         center.style.justifyContent = 'center';
         center.style.minHeight = '160px';
 
-        const button = document.createElement('adw-button');
+        const button = document.createElement('gtk-button');
         button.textContent = 'Show dialog';
         button.setAttribute('pill', '');
         button.setAttribute('suggested', '');

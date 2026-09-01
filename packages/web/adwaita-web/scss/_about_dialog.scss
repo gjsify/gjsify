@@ -149,7 +149,7 @@ adw-about-dialog {
     height: 96px;
     margin-top: var(--spacing-s);
     margin-bottom: var(--spacing-m);
-    // Mask-driven adw-icon scaled up to the about-dialog app-icon size.
+    // Mask-driven .adw-icon skin scaled up to the about-dialog app-icon size.
     -webkit-mask-size: contain;
     mask-size: contain;
     background-color: currentColor;

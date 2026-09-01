@@ -42,7 +42,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { attributeCells, sampleAttributes } from '../website/src/components/attr-sample.mjs';
+import {
+    attributeCells,
+    galleryElementTag,
+    sampleAttributes,
+} from '../website/src/components/attr-sample.mjs';
 import { observedAttributes } from './adwaita-elements.mjs';
 
 const rootFlag = process.argv.indexOf('--root');
@@ -70,14 +74,14 @@ const FIXTURES = [
     ],
     [
         'the other quote character inside a value',
-        `<adw-button label="it's here" tooltip='say "hi"'></adw-button>`,
-        'adw-button',
+        `<gtk-button label="it's here" tooltip='say "hi"'></gtk-button>`,
+        'gtk-button',
         { label: "it's here", tooltip: 'say "hi"' },
     ],
     [
         'an UNQUOTED value',
-        '<adw-button label=Download can-shrink></adw-button>',
-        'adw-button',
+        '<gtk-button label=Download can-shrink></gtk-button>',
+        'gtk-button',
         {
             label: 'Download',
             'can-shrink': 'set',
@@ -93,14 +97,14 @@ const FIXTURES = [
     ],
     [
         'an element inside an HTML COMMENT',
-        '<!-- <adw-button label="commented-out"></adw-button> -->\n<adw-button can-shrink></adw-button>',
-        'adw-button',
+        '<!-- <gtk-button label="commented-out"></gtk-button> -->\n<gtk-button can-shrink></gtk-button>',
+        'gtk-button',
         { label: 'not used', 'can-shrink': 'set' },
     ],
     [
         'a name REPEATED on one tag',
-        '<adw-button label="first" label="second"></adw-button>',
-        'adw-button',
+        '<gtk-button label="first" label="second"></gtk-button>',
+        'gtk-button',
         {
             label: 'first',
         },
@@ -113,18 +117,18 @@ const FIXTURES = [
     ],
     [
         'an EMPTY value, which the DOM cannot tell from a bare attribute',
-        '<adw-button label=""></adw-button>',
-        'adw-button',
+        '<gtk-button label=""></gtk-button>',
+        'gtk-button',
         {
             label: 'set',
         },
     ],
-    ['an UPPERCASE tag', '<ADW-BUTTON LABEL="x"></ADW-BUTTON>', 'adw-button', { label: 'x' }],
+    ['an UPPERCASE tag', '<GTK-BUTTON LABEL="x"></GTK-BUTTON>', 'gtk-button', { label: 'x' }],
     [
         'the tag inside ANOTHER element, entity-escaped as a reader would write it',
-        '<adw-status-page description="use &lt;adw-button&gt;"></adw-status-page>' +
-            '<adw-button label="real"></adw-button>',
-        'adw-button',
+        '<adw-status-page description="use &lt;gtk-button&gt;"></adw-status-page>' +
+            '<gtk-button label="real"></gtk-button>',
+        'gtk-button',
         { label: 'real' },
     ],
 ];
@@ -142,17 +146,6 @@ for (const [what, markup, tag, expected] of FIXTURES) {
 
 // ------------------------------------------------- 2. every shipped preview fence
 
-/**
- * The `preview` fence of every `<AdwWidget title="…">` block, paired with the element
- * tag the component derives from that title — the same derivation `AdwWidget.astro`
- * makes, because a second spelling of it here would be the drift this file is against.
- */
-const elementTag = (title) =>
-    `adw-${title
-        .replace(/^(?:Adw|Gtk)\./, '')
-        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-        .toLowerCase()}`;
-
 const { byTag } = observedAttributes(ROOT);
 let blocks = 0;
 let cellsSeen = 0;
@@ -167,7 +160,7 @@ for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
     for (const block of text.split('<AdwWidget').slice(1)) {
         const title = /^[^>]*title="([^"]+)"/.exec(block)?.[1];
         if (title === undefined) continue;
-        const tag = elementTag(title);
+        const tag = galleryElementTag(title);
         const names = byTag.get(tag);
         if (names === undefined || names.length === 0) continue;
         // The preview slot's ```html fence, up to the slot that follows it.

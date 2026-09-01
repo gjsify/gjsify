@@ -1,11 +1,11 @@
-// _button.scss — adw-button + Adwaita button styles + symbolic icons + .linked.
+// _button.scss — gtk-button + Adwaita button styles + symbolic icons + .linked.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
-// <adw-button> is a thin host that renders an inner <button class="adw-button">;
+// <gtk-button> is a thin host that renders an inner <button class="adw-button">;
 // the class set is the real styling API and works on a plain <button> too.
-adw-button {
+gtk-button {
   display: inline-flex;
 }
 
@@ -159,7 +159,7 @@ adw-button {
 
 // The symbolic icon (`.adw-icon`) used to be declared here, because the first
 // widget that needed one was the button. It is `scss/_icon.scss` now — every
-// other widget needs one too, and `<adw-icon>` is an element.
+// other widget needs one too, and `<gtk-image>` is an element.
 
 // The linked group is `scss/_style_classes.scss` now, under libadwaita's own
 // `.linked` name (with `.adw-linked` kept as an alias): the documented class is

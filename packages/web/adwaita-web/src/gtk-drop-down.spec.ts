@@ -1,4 +1,4 @@
-// DOM-level behaviour tests for <adw-drop-down>, in a real browser via the
+// DOM-level behaviour tests for <gtk-drop-down>, in a real browser via the
 // @gjsify/adwaita-web browser test axis.
 //
 // The SELECTION half is driven by the SAME table the NativeScript renderer asserts
@@ -14,21 +14,21 @@ import { describe, it, expect } from '@gjsify/unit';
 import { COMBO_SELECTION_VECTORS } from '@gjsify/adwaita-core/conformance';
 import type { ComboSelectionStep, ComboSelectionVector } from '@gjsify/adwaita-core/conformance';
 
-import type { AdwDropDown } from './elements/adw-drop-down.js';
+import type { GtkDropDown } from './elements/gtk-drop-down.js';
 
-function makeDropDown(): AdwDropDown {
-    const el = document.createElement('adw-drop-down') as AdwDropDown;
+function makeDropDown(): GtkDropDown {
+    const el = document.createElement('gtk-drop-down') as GtkDropDown;
     document.body.appendChild(el);
     return el;
 }
 
 /** The text the closed button shows — the rendered `selectedLabel`. */
-function labelText(dd: AdwDropDown): string {
+function labelText(dd: GtkDropDown): string {
     return dd.querySelector('.adw-drop-down-label')?.textContent ?? '';
 }
 
 /** Open the chooser the way a user does. A no-op over an empty model, as the element guards. */
-function openChooser(dd: AdwDropDown): void {
+function openChooser(dd: GtkDropDown): void {
     (dd.querySelector('.adw-drop-down-button') as HTMLButtonElement).click();
 }
 
@@ -36,7 +36,7 @@ function openChooser(dd: AdwDropDown): void {
  * Replay one vector step against the real element — property sets for the
  * programmatic ops, a popover gesture for the interactive one.
  */
-function applyStep(dd: AdwDropDown, step: ComboSelectionStep): void {
+function applyStep(dd: GtkDropDown, step: ComboSelectionStep): void {
     switch (step.op) {
         case 'setOptions':
             dd.options = step.options;
@@ -78,15 +78,15 @@ function vectorNamed(name: string): ComboSelectionVector {
 }
 
 /** Mount a drop-down and record every `change` detail it dispatches. */
-function mountRecording(): { dd: AdwDropDown; changes: unknown[] } {
+function mountRecording(): { dd: GtkDropDown; changes: unknown[] } {
     const dd = makeDropDown();
     const changes: unknown[] = [];
     dd.addEventListener('change', (event) => changes.push((event as CustomEvent).detail));
     return { dd, changes };
 }
 
-export const AdwDropDownTest = async () => {
-    await describe('adw-drop-down selection (libadwaita conformance vectors)', async () => {
+export const GtkDropDownTest = async () => {
+    await describe('gtk-drop-down selection (libadwaita conformance vectors)', async () => {
         for (const vector of COMBO_SELECTION_VECTORS) {
             if (vector.name === DROP_DOWN_REJECTS) continue;
 
@@ -129,7 +129,7 @@ export const AdwDropDownTest = async () => {
         });
     });
 
-    await describe('adw-drop-down options', async () => {
+    await describe('gtk-drop-down options', async () => {
         await it('accepts a string[] (value === label)', async () => {
             const dd = makeDropDown();
             dd.options = ['One', 'Two', 'Three'];
@@ -152,7 +152,7 @@ export const AdwDropDownTest = async () => {
         });
 
         await it('parses options from the JSON attribute', async () => {
-            const dd = document.createElement('adw-drop-down') as AdwDropDown;
+            const dd = document.createElement('gtk-drop-down') as GtkDropDown;
             dd.setAttribute('options', '[{"value":"x","label":"Ex"},{"value":"y","label":"Why"}]');
             dd.setAttribute('selected', '1');
             document.body.appendChild(dd);
@@ -170,7 +170,7 @@ export const AdwDropDownTest = async () => {
         });
     });
 
-    await describe('adw-drop-down selected ↔ value sync', async () => {
+    await describe('gtk-drop-down selected ↔ value sync', async () => {
         await it('selectedValue setter finds the index by value', async () => {
             const dd = makeDropDown();
             dd.options = [
@@ -205,7 +205,7 @@ export const AdwDropDownTest = async () => {
         await it('setting options + selected before connect does not crash + applies on connect', async () => {
             // The property setters can run BEFORE connectedCallback builds the DOM, where
             // _updateLabel would touch an undefined label element.
-            const dd = document.createElement('adw-drop-down') as AdwDropDown;
+            const dd = document.createElement('gtk-drop-down') as GtkDropDown;
             dd.options = ['a', 'b', 'c'];
             dd.selected = 2;
             expect(dd.isConnected).toBe(false);
@@ -217,7 +217,7 @@ export const AdwDropDownTest = async () => {
         });
     });
 
-    await describe('adw-drop-down notify-on-change', async () => {
+    await describe('gtk-drop-down notify-on-change', async () => {
         await it('a programmatic set fires notify::selected but NOT change (DOM <select> semantics)', async () => {
             const dd = makeDropDown();
             dd.options = ['a', 'b', 'c'];
@@ -259,7 +259,7 @@ export const AdwDropDownTest = async () => {
         });
     });
 
-    await describe('adw-drop-down popover behaviour', async () => {
+    await describe('gtk-drop-down popover behaviour', async () => {
         await it('opens on button click and closes on outside pointerdown', async () => {
             const dd = makeDropDown();
             dd.options = ['a', 'b'];
@@ -286,7 +286,7 @@ export const AdwDropDownTest = async () => {
         });
     });
 
-    await describe('adw-drop-down search', async () => {
+    await describe('gtk-drop-down search', async () => {
         await it('renders a search entry and filters the list', async () => {
             const dd = makeDropDown();
             dd.options = ['Apple', 'Banana', 'Cherry'];

@@ -1,4 +1,4 @@
-// <adw-checkbox> and <adw-radio> — the two form-control primitives, in ONE module,
+// <gtk-check-button> and <adw-radio> — the two form-control primitives, in ONE module,
 // for the same reason `scss/_checks.scss` is one partial: upstream merges them
 // (`refs/libadwaita/src/stylesheet/widgets/_checks.scss` has no `_radio.scss` beside
 // it), and everything but the corner radius, the glyph and the group is shared.
@@ -35,7 +35,7 @@
 //   disabled      — boolean; the control does not respond and is dimmed.
 //   label         — the text beside the indicator. When absent, the element's
 //                   existing child nodes become the label (so a server-rendered
-//                   `<adw-checkbox>Enable</adw-checkbox>` upgrades intact).
+//                   `<gtk-check-button>Enable</gtk-check-button>` upgrades intact).
 // Attributes (<adw-radio> only):
 //   name          — the group. Exclusivity is scoped to it, exactly as `name`
 //                   scopes `<input type="radio">` — including the empty case:
@@ -68,7 +68,14 @@ import { RadioGroupState, resolveCheckState } from '@gjsify/adwaita-core';
  */
 const radioGroups = new RadioGroupState();
 
-/** The markup + state shared by `<adw-checkbox>` and `<adw-radio>`. */
+/**
+ * The markup + state shared by `<gtk-check-button>` and `<adw-radio>`.
+ *
+ * It keeps the `Adw` prefix while the element above it does not, and the split is the
+ * same one the stylesheet makes: this class builds `.adw-check-input`,
+ * `.adw-check-indicator` and `.adw-check-label`, which are the Adwaita SKIN, and the
+ * skin is not what the tag names. It is also not a widget — nothing registers it.
+ */
 abstract class AdwCheckBase extends HTMLElement {
     protected _input!: HTMLInputElement;
     protected _indicator!: HTMLSpanElement;
@@ -124,7 +131,7 @@ abstract class AdwCheckBase extends HTMLElement {
         this._initialized = true;
 
         // Captured BEFORE the element takes over its own children, so a server-rendered
-        // `<adw-checkbox>Enable</adw-checkbox>` keeps its text.
+        // `<gtk-check-button>Enable</gtk-check-button>` keeps its text.
         const authored = [...this.childNodes];
 
         this._input = document.createElement('input');
@@ -193,7 +200,7 @@ abstract class AdwCheckBase extends HTMLElement {
 }
 
 /** The Adwaita checkbox — `checkbutton > check` as a custom element. */
-export class AdwCheckbox extends AdwCheckBase {
+export class GtkCheckButton extends AdwCheckBase {
     static get observedAttributes() {
         return ['checked', 'indeterminate', 'disabled', 'label'];
     }
@@ -282,5 +289,5 @@ export class AdwRadio extends AdwCheckBase {
     }
 }
 
-customElements.define('adw-checkbox', AdwCheckbox);
+customElements.define('gtk-check-button', GtkCheckButton);
 customElements.define('adw-radio', AdwRadio);

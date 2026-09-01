@@ -83,6 +83,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { galleryElementTag } from '../website/src/components/attr-sample.mjs';
 import { observedAttributes } from './adwaita-elements.mjs';
 import { ADWAITA_GALLERY_NS_REFUSALS, ADWAITA_GALLERY_NS_TEMPLATES } from './adwaita-gallery-ns-templates.mjs';
 import { ADWAITA_GALLERY_REFUSALS, ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
@@ -231,12 +232,6 @@ if (unreadable.length > 0) {
     );
 }
 
-const toTag = (title) =>
-    `adw-${title
-        .replace(/^(?:Adw|Gtk)\./, '')
-        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-        .toLowerCase()}`;
-
 const seenTitles = new Set();
 let blocks = 0;
 let tabled = 0;
@@ -252,7 +247,7 @@ for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
     for (const [, title] of text.matchAll(/<AdwWidget\s+title="([^"]+)"/g)) {
         blocks++;
         seenTitles.add(title);
-        const tag = toTag(title);
+        const tag = galleryElementTag(title);
         if (byTag.has(tag)) {
             const observed = byTag.get(tag).length;
             if (observed > 0) tabled++;

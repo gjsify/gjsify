@@ -5,7 +5,7 @@ import { bottomSheetMeta } from '../../navigation/bottom-sheet.meta.js';
 
 /** GTK symbolic name (e.g. "list-add-symbolic") → adwaita-web icon class. */
 function iconClass(gtkName: string): string {
-    return `adw-icon adw-icon--${gtkName.replace(/-symbolic$/, '')}`;
+    return `gtk-image adw-icon--${gtkName.replace(/-symbolic$/, '')}`;
 }
 
 export class BottomSheetWebStory extends StoryElement {
@@ -30,7 +30,7 @@ export class BottomSheetWebStory extends StoryElement {
         center.style.width = '100%';
         center.style.height = '100%';
 
-        const toggle = document.createElement('adw-button');
+        const toggle = document.createElement('gtk-button');
         toggle.textContent = 'Toggle sheet';
         toggle.setAttribute('pill', '');
         toggle.setAttribute('suggested', '');

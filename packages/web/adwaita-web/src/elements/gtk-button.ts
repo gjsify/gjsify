@@ -1,4 +1,4 @@
-// <adw-button> — Adwaita button.
+// <gtk-button> — Adwaita button.
 // Attributes: icon (symbolic name, e.g. "go-previous" / "view-refresh"),
 //   label, tooltip, disabled, and the boolean variant flags
 //   flat / suggested / destructive / circular / pill.
@@ -7,16 +7,16 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
-// icon node is <adw-icon>.
+// icon node is <gtk-image>.
 
 import { buttonStyleClasses } from '@gjsify/adwaita-core';
 
-import { createAdwIcon } from './adw-icon.js';
+import { createGtkImage } from './gtk-image.js';
 
 /** The boolean attributes that select a style class; the mapping lives in the core. */
 const STYLE_ATTRIBUTES = ['flat', 'suggested', 'destructive', 'circular', 'pill'] as const;
 
-export class AdwButton extends HTMLElement {
+export class GtkButton extends HTMLElement {
     private _button!: HTMLButtonElement;
     private _label = '';
     private _initialized = false;
@@ -57,7 +57,7 @@ export class AdwButton extends HTMLElement {
         if (icon && !label) btn.classList.add('icon-only');
 
         btn.replaceChildren();
-        if (icon) btn.appendChild(createAdwIcon(icon));
+        if (icon) btn.appendChild(createGtkImage(icon));
         if (label) btn.appendChild(document.createTextNode(label));
 
         const tooltip = this.getAttribute('tooltip');
@@ -74,4 +74,4 @@ export class AdwButton extends HTMLElement {
     }
 }
 
-customElements.define('adw-button', AdwButton);
+customElements.define('gtk-button', GtkButton);

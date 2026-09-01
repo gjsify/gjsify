@@ -328,8 +328,8 @@ export const AdwSplitButtonTest = async () => {
 
     // The two behaviours a hand-rolled popover with only an outside-click handler cannot
     // give: leaving by keyboard, and reaching the items with the arrow keys. Both come
-    // from `<adw-popover>`, and these cases prove the lift was a lift, not a move.
-    await describe('adw-split-button menu keyboard (gained with <adw-popover>)', async () => {
+    // from `<gtk-popover>`, and these cases prove the lift was a lift, not a move.
+    await describe('adw-split-button menu keyboard (gained with <gtk-popover>)', async () => {
         await it('Escape dismisses the menu and returns focus to the dropdown half', () => {
             const { el, host } = mount({ menu: '[{"label":"Print"},{"label":"Export"}]' });
             dropdownHalf(el).click();
@@ -370,7 +370,7 @@ export const AdwSplitButtonTest = async () => {
             // Opening focuses the first row — without that there is nothing to move from.
             expect(document.activeElement).toBe(items[0]);
 
-            const menu = el.querySelector('adw-popover') as HTMLElement;
+            const menu = el.querySelector('gtk-popover') as HTMLElement;
             const press = (key: string) => menu.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
 
             press('ArrowDown');
@@ -396,7 +396,7 @@ export const AdwSplitButtonTest = async () => {
             el.addEventListener('menu-activated', (event) => seen.push((event as CustomEvent).detail.index));
 
             dropdownHalf(el).click();
-            const menu = el.querySelector('adw-popover') as HTMLElement;
+            const menu = el.querySelector('gtk-popover') as HTMLElement;
             menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
             menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
@@ -425,7 +425,7 @@ export const AdwSplitButtonTest = async () => {
         await it(`draws a ${menuVector?.borderRadius}px surface with ${menuVector?.padding}px padding and a THREE-layer shadow`, () => {
             const { el, host } = mount({ menu: '[{"label":"Print"}]' });
             dropdownHalf(el).click();
-            const surface = el.querySelector('adw-popover') as HTMLElement;
+            const surface = el.querySelector('gtk-popover') as HTMLElement;
             const style = getComputedStyle(surface);
 
             expect(style.paddingTop).toBe(`${menuVector?.padding}px`);

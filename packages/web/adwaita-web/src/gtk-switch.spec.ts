@@ -1,4 +1,4 @@
-// DOM-level tests for <adw-switch>, plus the proof that both <adw-switch-row> and
+// DOM-level tests for <gtk-switch>, plus the proof that both <adw-switch-row> and
 // <adw-expander-row> still work now that the switch is lifted out of them. Two
 // invariants:
 //
@@ -12,7 +12,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwExpanderRow } from './elements/adw-expander-row.js';
-import type { AdwSwitch } from './elements/adw-switch.js';
+import type { GtkSwitch } from './elements/gtk-switch.js';
 import type { AdwSwitchRow } from './elements/adw-switch-row.js';
 
 function mount<T extends HTMLElement>(tag: string): { el: T; host: HTMLElement } {
@@ -31,7 +31,7 @@ function record(el: HTMLElement, event: string): unknown[] {
 }
 
 /** The switch's own parts, by the markup contract the stylesheet selects on. */
-function parts(sw: AdwSwitch): { input: HTMLInputElement; slider: HTMLElement } {
+function parts(sw: GtkSwitch): { input: HTMLInputElement; slider: HTMLElement } {
     return {
         input: sw.querySelector('input[type="checkbox"]') as HTMLInputElement,
         slider: sw.querySelector('.adw-switch-slider') as HTMLElement,
@@ -45,10 +45,10 @@ function measure(sw: HTMLElement): { width: string; height: string; radius: stri
     return { width: box.width, height: box.height, radius: slider.borderTopLeftRadius };
 }
 
-export const AdwSwitchTest = async () => {
-    await describe('<adw-switch> state', async () => {
+export const GtkSwitchTest = async () => {
+    await describe('<gtk-switch> state', async () => {
         await it('starts off and builds the input + slider markup', () => {
-            const { el, host } = mount<AdwSwitch>('adw-switch');
+            const { el, host } = mount<GtkSwitch>('gtk-switch');
             const { input, slider } = parts(el);
             expect(el.active).toBe(false);
             expect(input).toBeTruthy();
@@ -63,7 +63,7 @@ export const AdwSwitchTest = async () => {
         await it('adopts a declarative active attribute without emitting', () => {
             const host = document.createElement('div');
             document.body.appendChild(host);
-            const el = document.createElement('adw-switch') as AdwSwitch;
+            const el = document.createElement('gtk-switch') as GtkSwitch;
             el.setAttribute('active', '');
             const events = record(el, 'notify::active');
             host.appendChild(el);
@@ -74,7 +74,7 @@ export const AdwSwitchTest = async () => {
         });
 
         await it('a programmatic set notifies, and re-setting the same value does not', () => {
-            const { el, host } = mount<AdwSwitch>('adw-switch');
+            const { el, host } = mount<GtkSwitch>('gtk-switch');
             const events = record(el, 'notify::active');
             el.active = true;
             expect(events).toStrictEqual([{ active: true }]);
@@ -87,7 +87,7 @@ export const AdwSwitchTest = async () => {
         });
 
         await it('a click on the track toggles exactly once', () => {
-            const { el, host } = mount<AdwSwitch>('adw-switch');
+            const { el, host } = mount<GtkSwitch>('gtk-switch');
             const events = record(el, 'notify::active');
             parts(el).slider.click();
             expect(el.active).toBe(true);
@@ -100,7 +100,7 @@ export const AdwSwitchTest = async () => {
             // The checkbox is 0×0, so a pointer never reaches it — but keyboard
             // activation and `input.click()` do, and the track listener must not
             // toggle a second time on the way out.
-            const { el, host } = mount<AdwSwitch>('adw-switch');
+            const { el, host } = mount<GtkSwitch>('gtk-switch');
             const events = record(el, 'notify::active');
             parts(el).input.click();
             expect(el.active).toBe(true);
@@ -109,7 +109,7 @@ export const AdwSwitchTest = async () => {
         });
 
         await it('a disabled switch does not toggle', () => {
-            const { el, host } = mount<AdwSwitch>('adw-switch');
+            const { el, host } = mount<GtkSwitch>('gtk-switch');
             el.disabled = true;
             const events = record(el, 'notify::active');
             parts(el).slider.click();
@@ -125,11 +125,11 @@ export const AdwSwitchTest = async () => {
         });
     });
 
-    await describe('<adw-switch-row> still toggles and emits through <adw-switch>', async () => {
+    await describe('<adw-switch-row> still toggles and emits through <gtk-switch>', async () => {
         await it('a programmatic row.active drives the switch and emits once', () => {
             const { el: row, host } = mount<AdwSwitchRow>('adw-switch-row');
             const events = record(row, 'notify::active');
-            const sw = row.querySelector('adw-switch') as AdwSwitch;
+            const sw = row.querySelector('gtk-switch') as GtkSwitch;
             expect(sw).toBeTruthy();
 
             row.active = true;
@@ -148,7 +148,7 @@ export const AdwSwitchTest = async () => {
             const events = record(row, 'notify::active');
             row.click();
             expect(row.active).toBe(true);
-            expect((row.querySelector('adw-switch') as AdwSwitch).active).toBe(true);
+            expect((row.querySelector('gtk-switch') as GtkSwitch).active).toBe(true);
             expect(events.length).toBe(1);
             host.remove();
         });
@@ -156,7 +156,7 @@ export const AdwSwitchTest = async () => {
         await it('a click on the switch toggles the row once, not twice', () => {
             const { el: row, host } = mount<AdwSwitchRow>('adw-switch-row');
             const events = record(row, 'notify::active');
-            const sw = row.querySelector('adw-switch') as AdwSwitch;
+            const sw = row.querySelector('gtk-switch') as GtkSwitch;
             parts(sw).slider.click();
             expect(row.active).toBe(true);
             expect(events.length).toBe(1);
@@ -169,7 +169,7 @@ export const AdwSwitchTest = async () => {
             const { el: row, host } = mount<AdwExpanderRow>('adw-expander-row');
             row.setAttribute('show-enable-switch', '');
             const events = record(row, 'notify::enable-expansion');
-            const sw = row.querySelector('adw-switch') as AdwSwitch;
+            const sw = row.querySelector('gtk-switch') as GtkSwitch;
             expect(sw.active).toBe(true); // enable-expansion defaults to true
 
             parts(sw).slider.click();
@@ -191,7 +191,7 @@ export const AdwSwitchTest = async () => {
 
             row.enableExpansion = false;
 
-            expect((row.querySelector('adw-switch') as AdwSwitch).active).toBe(false);
+            expect((row.querySelector('gtk-switch') as GtkSwitch).active).toBe(false);
             expect(enableEvents.length).toBe(0);
             // The switch's own notify never escapes the row either.
             expect(activeEvents.length).toBe(0);
@@ -201,7 +201,7 @@ export const AdwSwitchTest = async () => {
         await it('a click on the enable switch does not disclose the row', () => {
             const { el: row, host } = mount<AdwExpanderRow>('adw-expander-row');
             row.setAttribute('show-enable-switch', '');
-            const sw = row.querySelector('adw-switch') as AdwSwitch;
+            const sw = row.querySelector('gtk-switch') as GtkSwitch;
 
             parts(sw).slider.click();
             expect(row.expanded).toBe(false);
@@ -218,8 +218,8 @@ export const AdwSwitchTest = async () => {
             const { el: expander, host: expanderHost } = mount<AdwExpanderRow>('adw-expander-row');
             expander.setAttribute('show-enable-switch', '');
 
-            const rowBox = measure(row.querySelector('adw-switch') as HTMLElement);
-            const expanderBox = measure(expander.querySelector('adw-switch') as HTMLElement);
+            const rowBox = measure(row.querySelector('gtk-switch') as HTMLElement);
+            const expanderBox = measure(expander.querySelector('gtk-switch') as HTMLElement);
 
             expect(rowBox).toStrictEqual(expanderBox);
             // Pin the actual numbers too, so "both unstyled" cannot pass as

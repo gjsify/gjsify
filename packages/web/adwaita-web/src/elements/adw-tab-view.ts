@@ -43,12 +43,12 @@
 // Reference: packages/nativescript-bridge/adwaita/src/widgets/adw-tab-view.ts (NS twin)
 // Copyright (c) 2020-2022 Purism SPC / GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
-// tab icon + indicator nodes are <adw-icon>.
+// tab icon + indicator nodes are <gtk-image>.
 
 import { TabViewState, tabCloseVisible, tabIconState, tabTooltip, tabsRevealed } from '@gjsify/adwaita-core';
 import type { AdwTabPageSpec, AdwTabPageState, TabViewPagesChange, TabViewSelectionChange } from '@gjsify/adwaita-core';
 
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 
 export type AdwTabViewPage = AdwTabPageState<HTMLElement>;
 
@@ -491,10 +491,10 @@ export class AdwTabView extends HTMLElement {
         tab.setAttribute('role', 'tab');
         tab.dataset.pageId = page.id;
 
-        // Decorative mask-image nodes — <adw-icon> carries the convention, including the
+        // Decorative mask-image nodes — <gtk-image> carries the convention, including the
         // `-symbolic` strip, which is ours and not C's: there the name reaches
         // `GtkImage` untouched.
-        const icon = createAdwIcon(null, 'adw-tab-icon');
+        const icon = createGtkImage(null, 'adw-tab-icon');
         tab.appendChild(icon);
 
         // `AdwTabPage:loading` swaps the icon image for an `AdwSpinnerPaintable` — the
@@ -511,7 +511,7 @@ export class AdwTabView extends HTMLElement {
         label.className = 'adw-tab-title';
         tab.appendChild(label);
 
-        tab.appendChild(createAdwIcon(null, 'adw-tab-indicator'));
+        tab.appendChild(createGtkImage(null, 'adw-tab-indicator'));
 
         // Close affordance — a small flat button drawn with a CSS "×" glyph. NOT because
         // the glyph is unavailable: `window-close` is in the ICONS map and has a mask class
@@ -581,7 +581,7 @@ export class AdwTabView extends HTMLElement {
         tab.classList.toggle('closing', page.closing);
 
         const icons = tabIconState(page, this.getAttribute('default-icon'));
-        const icon = tab.querySelector('.adw-tab-icon') as AdwIcon | null;
+        const icon = tab.querySelector('.adw-tab-icon') as GtkImage | null;
         if (icon) {
             icon.iconName = icons.icon;
             // The two occupy the same slot and are never both visible: C
@@ -592,7 +592,7 @@ export class AdwTabView extends HTMLElement {
         // The spinner is mounted only while it spins, so an idle tab holds no
         // element in the shared rAF ticker.
         if (spinner) spinner.hidden = !(icons.spinner && icons.iconVisible);
-        const indicator = tab.querySelector('.adw-tab-indicator') as AdwIcon | null;
+        const indicator = tab.querySelector('.adw-tab-indicator') as GtkImage | null;
         if (indicator) {
             indicator.iconName = page.indicatorIcon;
             indicator.hidden = !icons.indicatorVisible;

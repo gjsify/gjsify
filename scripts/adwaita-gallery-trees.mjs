@@ -22,6 +22,12 @@
 //     `items` vs a `Gio.ListModel`, `min`/`max`/`step` vs a `Gtk.Adjustment`,
 //     `size` vs a size request, `open` vs a `present()` call.
 //
+// THE ELEMENT COUNTS ABOVE PREDATE the nine elements that took their GIR names
+// (ADR 0034 clause 1, § Amendment 5), so the not-matching side is smaller today and
+// `<adw-button>` reads `<gtk-button>` in the previews. They are left as measured
+// rather than adjusted by hand: the structural argument does not turn on the size of
+// the gap, and a number nothing recomputes is folklore whichever way it is edited.
+//
 // Translating that mechanically needs a hand-written alias table of 15 tags and 12
 // attribute SEMANTICS. `WEB_ELEMENT_ALIGNMENT` in the vocabulary check is already
 // the tag half of it — and its own header explains why a second one is refused:

@@ -1,4 +1,4 @@
-// Browser port of the Button Styles story — adw-button with Adwaita style
+// Browser port of the Button Styles story — gtk-button with Adwaita style
 // variants. Shares its metadata/controls with the GTK twin (button-styles.story.ts).
 
 import { StoryElement, type StoryArgs, type StoryMeta, type WebStoryModule } from '@gjsify/adwaita-storybook';
@@ -6,7 +6,7 @@ import { buttonStylesMeta } from '../../buttons/button-styles.meta.js';
 
 const VARIANT_ATTRS = ['pill', 'circular', 'suggested', 'destructive', 'flat'] as const;
 
-/** Map the storybook `style` value to an <adw-button> variant attribute. */
+/** Map the storybook `style` value to a <gtk-button> variant attribute. */
 const VARIANT_BY_STYLE: Record<string, (typeof VARIANT_ATTRS)[number]> = {
     pill: 'pill',
     circular: 'circular',
@@ -16,7 +16,7 @@ const VARIANT_BY_STYLE: Record<string, (typeof VARIANT_ATTRS)[number]> = {
 };
 
 function button(opts: { label?: string; icon?: string; variant?: (typeof VARIANT_ATTRS)[number] }): HTMLElement {
-    const btn = document.createElement('adw-button');
+    const btn = document.createElement('gtk-button');
     if (opts.label) btn.setAttribute('label', opts.label);
     if (opts.icon) btn.setAttribute('icon', opts.icon);
     if (opts.variant) btn.setAttribute(opts.variant, '');

@@ -253,9 +253,9 @@ export const AdwActionRowsTest = async () => {
                 setAttr(row, 'start-icon-name', vector.startIconName);
                 setAttr(row, 'end-icon-name', vector.endIconName);
 
-                // The two `image.icon.{start,end}` nodes are <adw-icon>, not hand-rolled
+                // The two `image.icon.{start,end}` nodes are <gtk-image>, not hand-rolled
                 // decorative spans.
-                const icons = Array.from(row.querySelectorAll('adw-icon')) as HTMLElement[];
+                const icons = Array.from(row.querySelectorAll('gtk-image')) as HTMLElement[];
                 expect(icons.length).toBe(2);
                 expect(!icons[0]!.hidden).toBe(vector.startIconVisible);
                 expect(!icons[1]!.hidden).toBe(vector.endIconVisible);

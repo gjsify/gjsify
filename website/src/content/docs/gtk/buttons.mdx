@@ -27,11 +27,13 @@ the port that runs on a phone. That last window splits the way the first one doe
 XML template holds the tree, and the TypeScript beside it is the loader.
 
 GTK 4 is the reference here, typed by
-[`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). The browser and
-NativeScript ports spell both buttons with an `adw` prefix, `<adw-button>` and
-`<adw-menu-button>` in the browser, `AdwButton` and `AdwMenuButton` on
-NativeScript. Each ships one Adwaita-styled widget set and does not divide it by
-owning library. Where a port behaves differently, its own window says so.
+[`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). The browser port
+spells both buttons the way the GIR does — `<gtk-button>` and `<gtk-menu-button>`,
+the same tags `@gjsify/gtk-host` uses — because a widget is named after the library
+that owns it and the Adwaita part of these two is the stylesheet. NativeScript still
+says `AdwButton` and `AdwMenuButton`; that port ships one Adwaita-styled widget set
+without dividing it by owning library, and converging it is tracked rather than done.
+Where a port behaves differently, its own window says so.
 
 :::note
 The previews run the browser port, so behaviour the toolkits drive natively can
@@ -52,11 +54,11 @@ each other and mean the same thing everywhere in the toolkit, so a
   <Fragment slot="preview">
     ```html
     <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
-      <adw-button label="Pill" pill></adw-button>
-      <adw-button icon="list-add" circular></adw-button>
-      <adw-button label="Suggested" suggested></adw-button>
-      <adw-button label="Delete" destructive></adw-button>
-      <adw-button label="Flat" flat></adw-button>
+      <gtk-button label="Pill" pill></gtk-button>
+      <gtk-button icon="list-add" circular></gtk-button>
+      <gtk-button label="Suggested" suggested></gtk-button>
+      <gtk-button label="Delete" destructive></gtk-button>
+      <gtk-button label="Flat" flat></gtk-button>
     </div>
     ```
   </Fragment>
@@ -171,11 +173,11 @@ in the popover it opens. Libadwaita ships no menu button, so this is
 <AdwWidget title="Gtk.MenuButton">
   <Fragment slot="preview">
     ```html
-    <adw-menu-button
+    <gtk-menu-button
       icon-name="open-menu"
       menu-title="Document"
       menu='[{"label":"Save as…"},{"label":"Export"},{"label":"Print"}]'
-    ></adw-menu-button>
+    ></gtk-menu-button>
     ```
   </Fragment>
   <Fragment slot="gjs">

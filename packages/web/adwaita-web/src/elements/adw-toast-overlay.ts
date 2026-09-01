@@ -20,7 +20,7 @@
 import { AdwToast, AdwToastQueue } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
-import { createAdwIcon } from './adw-icon.js';
+import { createGtkImage } from './gtk-image.js';
 import type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
 
 // The timing seam is re-exported so a consumer can type a custom scheduler for
@@ -196,7 +196,7 @@ export class AdwToastOverlay extends HTMLElement {
         close.type = 'button';
         close.className = 'adw-toast-close-button';
         close.setAttribute('aria-label', 'Close');
-        close.appendChild(createAdwIcon('window-close'));
+        close.appendChild(createGtkImage('window-close'));
         close.addEventListener('click', () => this._queue.dismiss());
         el.appendChild(close);
 

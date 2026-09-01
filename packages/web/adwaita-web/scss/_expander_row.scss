@@ -69,7 +69,7 @@ adw-expander-row {
     transform: rotate(180deg);
   }
 
-  // The optional enable switch is `<adw-switch>` and needs no geometry of its
+  // The optional enable switch is `<gtk-switch>` and needs no geometry of its
   // own — `.adw-expander-row-enable-switch` is a query/override hook only. This
   // block used to be a character-for-character copy of the switch row's toggle
   // (44×24 box, hidden input, 20px knob, translateX(20px), focus ring), because

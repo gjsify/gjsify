@@ -75,7 +75,7 @@ export class SidebarWebStory extends StoryElement {
         const item = this.items[selected] ?? this.items[0];
         this._status.setAttribute('title', item.title);
         // adw-status-page's `icon` attribute is a plain symbolic name (it strips
-        // -symbolic and builds the adw-icon class itself).
+        // -symbolic and builds the gtk-image class itself).
         this._status.setAttribute('icon', item.icon.replace(/-symbolic$/, ''));
         this._status.setAttribute('description', item.subtitle);
     }

@@ -1,7 +1,7 @@
 // Row state-machine conformance vectors — the spec both renderers are held to.
 //
 // `ComboState` (rows.ts) is shared by FOUR widgets across the two ports — the browser's
-// `<adw-combo-row>` and `<adw-drop-down>`, NativeScript's `AdwComboRow` and `AdwDropDown`
+// `<adw-combo-row>` and `<gtk-drop-down>`, NativeScript's `AdwComboRow` and `AdwDropDown`
 // — each of which had its own spec asserting its own reading. This table is the reading.
 //
 // TWO DELIBERATE DIVERGENCES FROM THE C, recorded rather than encoded silently:
@@ -24,7 +24,7 @@
 // attribute at connect time only (`items` is not in `observedAttributes`) and it publishes
 // no select-by-value setter. The day it grows either, it inherits these rows.
 //
-// The `an index past the end` row is driven against `<adw-drop-down>`'s own answer instead
+// The `an index past the end` row is driven against `<gtk-drop-down>`'s own answer instead
 // of the state's: the element REJECTS an out-of-range set, as its published `selected`
 // docs promise, where `setSelectedIndex` accepts it. The bounds predicate is shared, the
 // policy is each renderer's.

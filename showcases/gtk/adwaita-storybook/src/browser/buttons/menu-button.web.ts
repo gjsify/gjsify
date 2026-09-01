@@ -15,7 +15,7 @@ export class MenuButtonWebStory extends StoryElement {
     }
 
     initialize(): void {
-        this._widget = document.createElement('adw-menu-button');
+        this._widget = document.createElement('gtk-menu-button');
         this._widget.setAttribute('menu', JSON.stringify(MENU_BUTTON_ITEMS.map((label) => ({ label }))));
         this._apply();
         this.addContent(this._widget);

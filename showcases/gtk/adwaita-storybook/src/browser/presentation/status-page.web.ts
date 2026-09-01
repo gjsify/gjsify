@@ -18,7 +18,7 @@ export class StatusPageWebStory extends StoryElement {
         this._page = document.createElement('adw-status-page');
 
         // Suggested-action pill button, matching the native story's child.
-        const button = document.createElement('adw-button');
+        const button = document.createElement('gtk-button');
         button.setAttribute('label', 'New Document');
         button.setAttribute('pill', '');
         button.setAttribute('suggested', '');

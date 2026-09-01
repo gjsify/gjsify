@@ -259,7 +259,7 @@ export const AdwBottomSheetTest = async () => {
             const tpl = document.createElement('template');
             tpl.innerHTML =
                 '<adw-bottom-sheet open="true" modal="true" can-close="true">' +
-                '<adw-bottom-sheet-content><adw-button pill>Toggle sheet</adw-button></adw-bottom-sheet-content>' +
+                '<adw-bottom-sheet-content><gtk-button pill>Toggle sheet</gtk-button></adw-bottom-sheet-content>' +
                 '<adw-bottom-sheet-sheet><button id="inside">Inside</button></adw-bottom-sheet-sheet>' +
                 '</adw-bottom-sheet>';
             const stage = document.createElement('div');
@@ -269,7 +269,7 @@ export const AdwBottomSheetTest = async () => {
             const sheet = stage.querySelector('adw-bottom-sheet') as AdwBottomSheet;
             expect(sheet.open).toBe(true);
 
-            const toggle = sheet.querySelector('.adw-bottom-sheet-content adw-button') as HTMLElement;
+            const toggle = sheet.querySelector('.adw-bottom-sheet-content gtk-button') as HTMLElement;
             expect(toggle).toBeTruthy();
             expect(insideSheet(sheet).id).toBe('inside');
             // What the page binds: a listener on the custom element, driven by a click

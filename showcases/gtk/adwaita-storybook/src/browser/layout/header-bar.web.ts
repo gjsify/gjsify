@@ -21,13 +21,13 @@ export class HeaderBarWebStory extends StoryElement {
         this._title.setAttribute('slot', 'center');
 
         // Start control — a flat back button.
-        const backButton = document.createElement('adw-button');
+        const backButton = document.createElement('gtk-button');
         backButton.setAttribute('slot', 'start');
         backButton.setAttribute('icon', 'go-previous');
         backButton.setAttribute('flat', '');
 
         // End control — a flat menu button.
-        const menuButton = document.createElement('adw-button');
+        const menuButton = document.createElement('gtk-button');
         menuButton.setAttribute('slot', 'end');
         menuButton.setAttribute('icon', 'open-menu');
         menuButton.setAttribute('flat', '');

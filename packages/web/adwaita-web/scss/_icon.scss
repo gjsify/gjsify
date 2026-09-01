@@ -1,4 +1,4 @@
-// _icon.scss — the symbolic icon box behind <adw-icon>.
+// _icon.scss — the symbolic icon box behind <gtk-image>.
 //
 // A symbolic icon is rendered as a CSS mask rather than an <img> or inline SVG,
 // so `currentColor` drives the fill and the glyph re-themes with whatever
@@ -36,7 +36,7 @@
 
   // `currentColor` IS the icon: the mask is painted with the inherited colour,
   // so a suggested-action button's `--accent-fg-color` has to reach it. Since
-  // <adw-icon> is a custom element it is also in `$adw-components`, and the
+  // <gtk-image> is a custom element it is also in `$adw-components`, and the
   // ADR-0010 boundary reset re-roots `color` on every entry there — which would
   // otherwise repaint every icon in `--window-fg-color` regardless of its host.
   // Class beats type selector, so this restores inheritance.
@@ -66,7 +66,7 @@
 // adw-inline-view-switcher.c:142), and GTK's icon theme returns the same
 // broken-image paintable for a name it cannot find. So the three renderers end
 // up on ONE glyph: GTK draws it from the system theme, the web draws it from
-// here, and NativeScript cannot reach the state at all — its AdwIcon takes SVG
+// here, and NativeScript cannot reach the state at all — its GtkImage takes SVG
 // SOURCE, not a name, so a missing icon there is a missing import the compiler
 // rejects. Nothing THROWS, on any of the three: an icon is decorative and taking
 // an application down over a glyph is a failure mode none of them has.
@@ -82,7 +82,7 @@
   -webkit-mask-image: var(--icon-image-missing);
 }
 
-// …and NO name at all draws nothing, rather than the broken glyph. `<adw-icon>`
+// …and NO name at all draws nothing, rather than the broken glyph. `<gtk-image>`
 // leaves the node classless only when `icon-name` is ABSENT or EMPTY, which is the
 // state where the HOST decided against an icon — the tab strip's indicator slot,
 // the avatar's fallback while initials show. `Gtk.Image` with a NULL icon-name

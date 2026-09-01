@@ -17,7 +17,7 @@ export class AlertDialogWebStory extends StoryElement {
     }
 
     initialize(): void {
-        const button = document.createElement('adw-button');
+        const button = document.createElement('gtk-button');
         button.textContent = 'Show dialog';
         button.setAttribute('pill', '');
         button.setAttribute('suggested', '');

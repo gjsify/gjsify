@@ -122,7 +122,7 @@ export const AdwButtonContentTest = async () => {
                 // the generated classes never carry `-symbolic`. This element used
                 // to interpolate the raw name, so `icon-name="folder-download-symbolic"`
                 // asked for `.adw-icon--folder-download-symbolic`, a class that has
-                // never existed, and drew an empty 16px box. `<adw-icon>` applies
+                // never existed, and drew an empty 16px box. `<gtk-image>` applies
                 // `normalizeIconName`, which also makes the `' '` row assertable
                 // instead of skipped: a space is not one CSS token, so it lands on
                 // `image-missing` — the missing icon that row's own rule records GTK

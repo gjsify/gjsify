@@ -20,15 +20,15 @@
 //            (image-text-button · the splitbutton override · buttoncontent)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
-// icon node is <adw-icon>.
+// icon node is <gtk-image>.
 
 import { BUTTON_CONTENT_STYLE_CLASS, buttonContentIconName, buttonContentLabelText } from '@gjsify/adwaita-core';
 
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 
 /**
  * What `gtk_widget_get_ancestor (…, GTK_TYPE_BUTTON)` looks like in the DOM: a native
- * `<button>`, or anything wearing the Adwaita button class — `<adw-button>` renders an
+ * `<button>`, or anything wearing the Adwaita button class — `<gtk-button>` renders an
  * inner button with it, and the stories put it on plain ones.
  */
 const BUTTON_SELECTOR = 'button, .adw-button';
@@ -38,7 +38,7 @@ const SPLIT_BUTTON_SELECTOR = 'adw-split-button, .adw-split-button';
 
 export class AdwButtonContent extends HTMLElement {
     private _boxEl!: HTMLDivElement;
-    private _iconEl!: AdwIcon;
+    private _iconEl!: GtkImage;
     private _labelEl!: HTMLSpanElement;
     private _initialized = false;
     /** The node currently carrying `image-text-button`, so unroot can find it. */
@@ -57,9 +57,9 @@ export class AdwButtonContent extends HTMLElement {
             this._boxEl.className = 'adw-button-content-box';
 
             // The image node is GTK_ACCESSIBLE_ROLE_PRESENTATION in libadwaita: decorative,
-            // with the label carrying the accessible name — what `<adw-icon>`'s own
+            // with the label carrying the accessible name — what `<gtk-image>`'s own
             // `aria-hidden` already says.
-            this._iconEl = createAdwIcon(null);
+            this._iconEl = createGtkImage(null);
 
             this._labelEl = document.createElement('span');
             this._labelEl.className = 'adw-button-content-label';

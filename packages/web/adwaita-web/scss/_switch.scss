@@ -1,4 +1,4 @@
-// _switch.scss — the <adw-switch> control: a track, a hidden checkbox and a
+// _switch.scss — the <gtk-switch> control: a track, a hidden checkbox and a
 // sliding knob. UNSCOPED, which is the whole point of the partial.
 //
 // WHY IT IS ITS OWN FILE. These rules used to live inside `_switch_row.scss`,
@@ -24,7 +24,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components; lifted out of
-//   `adw-switch-row {}` so <adw-switch> is usable anywhere.
+//   `adw-switch-row {}` so <gtk-switch> is usable anywhere.
 
 .adw-switch {
   position: relative;

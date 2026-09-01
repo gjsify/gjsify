@@ -1,6 +1,6 @@
 # @gjsify/adwaita-web
 
-Browser Adwaita UI components as Custom Elements, bringing the Libadwaita look (light/dark) to the web with no GJS dependencies. Provides `AdwWindow`, `AdwHeaderBar`, `AdwButton`, `AdwEntry`, `AdwPreferencesGroup`, `AdwCard`, `AdwSwitchRow`, `AdwComboRow`, `AdwSpinRow`, `AdwToastOverlay`, and `AdwOverlaySplitView` (plus a `.adw-linked` button-group helper), backed by SCSS that mirrors the upstream `refs/adwaita-web` and `refs/libadwaita` color/sizing tokens.
+Browser Adwaita UI components as Custom Elements, bringing the Libadwaita look (light/dark) to the web with no GJS dependencies. Provides `AdwWindow`, `AdwHeaderBar`, `GtkButton`, `GtkEntry`, `AdwPreferencesGroup`, `AdwCard`, `AdwSwitchRow`, `AdwComboRow`, `AdwSpinRow`, `AdwToastOverlay`, and `AdwOverlaySplitView` (plus a `.adw-linked` button-group helper), backed by SCSS that mirrors the upstream `refs/adwaita-web` and `refs/libadwaita` color/sizing tokens.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
@@ -63,7 +63,7 @@ identical child written in the markup.
 
 ```typescript
 const row = document.querySelector('adw-action-row')!;
-const toggle = document.createElement('adw-switch');
+const toggle = document.createElement('gtk-switch');
 toggle.setAttribute('slot', 'suffix');
 row.append(toggle); // lands in the suffix section, exactly as a declared one does
 ```
@@ -151,7 +151,7 @@ about the individual components.
 
 ## Icons, and the ones the stylesheet does not ship
 
-An `<adw-icon icon-name="go-next">` is a CSS mask: the box takes its colour from
+A `<gtk-image icon-name="go-next">` is a CSS mask: the box takes its colour from
 `currentColor` and a generated `.adw-icon--<name>` class supplies the `mask-image`, so the
 glyph re-themes with whatever contains it. The names that resolve are a **chosen subset** of
 [`@gjsify/adwaita-icons`](../adwaita-icons) — a few dozen of them, plus one glyph drawn
@@ -178,7 +178,7 @@ if (!isIconAvailable('dialog-error')) {
 ```
 
 ```html
-<adw-icon icon-name="dialog-error"></adw-icon>
+<gtk-image icon-name="dialog-error"></gtk-image>
 <!-- …or any widget attribute that takes an icon name -->
 <adw-status-page icon="dialog-error" title="Could not connect"></adw-status-page>
 ```
@@ -187,7 +187,7 @@ if (!isIconAvailable('dialog-error')) {
 `@gjsify/adwaita-icons` exports, and equally any symbolic SVG of your own drawn on the 16px
 Adwaita grid with `fill="currentColor"`. It writes the same pair the build writes: a
 `--icon-<name>` custom property on the document element and a `.adw-icon--<name>` mask rule,
-so from then on the name is indistinguishable from a compiled one — in `<adw-icon>`, in a
+so from then on the name is indistinguishable from a compiled one — in `<gtk-image>`, in a
 widget attribute, in a hand-written `class="adw-icon adw-icon--dialog-error"`, and in your
 own CSS as `var(--icon-dialog-error)`.
 
@@ -204,7 +204,7 @@ Notes worth having:
   comes off, and what is left has to be a single CSS token. `registerIcon` *throws* on a name
   that is not (`org.gnome.Builder`, `a b`), because a call that silently registers nothing is
   the failure this whole area exists to end — and because there is no mask class such a name
-  could be given. `<adw-icon>` stays lenient with the same input: the name came from markup,
+  could be given. `<gtk-image>` stays lenient with the same input: the name came from markup,
   so it draws `image-missing` rather than taking the page down.
 - **Re-registering replaces the glyph** rather than adding a second rule, so a runtime theme
   switch can call it as often as it likes.

@@ -1,4 +1,4 @@
-// _menu_button.scss — adw-menu-button styling: a flat (or circular) icon button
+// _menu_button.scss — gtk-menu-button styling: a flat (or circular) icon button
 // that drops an Adwaita-styled popover menu (the web counterpart of
 // Adw.MenuButton / Gtk.MenuButton). The button mirrors libadwaita's flat/circular
 // `menubutton > button`; the popover reproduces `popover.menu > contents` with
@@ -77,8 +77,8 @@
         }
     }
 
-    // The surface, the heading and the item row are `<adw-popover>`'s —
-    // `_popover.scss` (`adw-popover`, `.adw-popover-title`, `.adw-popover-item`).
+    // The surface, the heading and the item row are `<gtk-popover>`'s —
+    // `_popover.scss` (`gtk-popover`, `.adw-popover-title`, `.adw-popover-item`).
     // What used to be here was one of three hand-rolled copies: a
     // `--card-radius` (12px) surface where libadwaita's is 15px, and a
     // `calc(var(--button-radius) - 2px)` (7px) row where `modelbutton` is 9px.

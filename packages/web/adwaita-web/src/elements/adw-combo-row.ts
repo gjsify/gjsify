@@ -43,7 +43,7 @@ export class AdwComboRow extends HTMLElement {
         const items: string[] = JSON.parse(this.getAttribute('items') || '[]');
         // Seed the headless state BEFORE subscribing, so building the initial DOM below is
         // not driven by a change notification. The string→descriptor mapping is core's, so
-        // this row and `<adw-drop-down>` accept one option vocabulary.
+        // this row and `<gtk-drop-down>` accept one option vocabulary.
         this._state.setOptions(normalizeComboOptions(items));
         this._state.setSelectedIndex(parseInt(this.getAttribute('selected') || '0', 10));
         const selectedIdx = this._state.selectedIndex;

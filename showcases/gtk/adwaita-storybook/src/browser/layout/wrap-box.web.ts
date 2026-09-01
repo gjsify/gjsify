@@ -21,7 +21,7 @@ export class WrapBoxWebStory extends StoryElement {
         this._wrap.style.width = '460px';
 
         for (const tag of TAGS) {
-            const chip = document.createElement('adw-button');
+            const chip = document.createElement('gtk-button');
             chip.setAttribute('label', tag);
             chip.setAttribute('pill', '');
             this._wrap.append(chip);

@@ -19,7 +19,7 @@ export class ButtonStylesWebStory extends StoryElement {
     static getMetadata(): StoryMeta {
         return {
             title: 'Buttons/Button Styles',
-            description: 'adw-button with Adwaita style variants.',
+            description: 'gtk-button with Adwaita style variants.',
             controls: [
                 { name: 'label', label: 'Label', type: ControlType.TEXT, defaultValue: 'Click me' },
             ],
@@ -27,7 +27,7 @@ export class ButtonStylesWebStory extends StoryElement {
     }
 
     initialize(): void {
-        const button = document.createElement('adw-button');
+        const button = document.createElement('gtk-button');
         button.setAttribute('label', this.args.label as string);
         this.addContent(button);
     }

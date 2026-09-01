@@ -119,7 +119,7 @@ import {
     ADWAITA_NATIVESCRIPT_REFUSALS,
     ADWAITA_NATIVESCRIPT_TEMPLATES,
 } from '../data/adwaita-nativescript-templates';
-import { sampleAttributes } from './attr-sample.mjs';
+import { galleryElementTag, sampleAttributes } from './attr-sample.mjs';
 import AdwWidgetWindow from './AdwWidgetWindow.astro';
 
 const { title = 'Code', padding = 'comfortable', scroll = false, stage, docHref } = Astro.props;
@@ -160,15 +160,12 @@ const refHref = docHref === false ? null : (docHref ?? deriveRef(title));
 // here can make. The page's own contract is that where a port differs, ITS window
 // says so.
 //
-// A `Gtk.*` title resolves too: libadwaita ships no menu button, and the pillar
-// still spells that element `<adw-menu-button>`, so the namespace is dropped and
-// `adw-` prefixed. A title with no element (`Adw.Toast` is a plain class, not a
-// custom element) renders nothing at all — an EMPTY table would say "this widget
-// takes no attributes", which is the one answer that is never true.
-const elementTag = `adw-${title
-    .replace(/^(?:Adw|Gtk)\./, '')
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .toLowerCase()}`;
+// The tag is DERIVED from the title's namespace by `galleryElementTag`, shared with the
+// two gates that check this pane — see its header for why the prefix is read and not
+// assumed. A title with no element (`Adw.Toast` is a plain class, not a custom element)
+// renders nothing at all — an EMPTY table would say "this widget takes no attributes",
+// which is the one answer that is never true.
+const elementTag = galleryElementTag(title);
 const attributes = ADWAITA_ATTRIBUTES[elementTag] ?? null;
 
 /**

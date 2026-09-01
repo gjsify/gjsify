@@ -11,7 +11,7 @@
 // deliberate swatch — measured in `adwaita-web/scss/_icon.scss`, beside the rule that
 // ended it.
 //
-// No test could see it — `adw-icon.spec.ts` asserted the class STRING, which had always
+// No test could see it — `gtk-image.spec.ts` asserted the class STRING, which had always
 // been applied, correctly, to nothing. The silence bought four renderer-comparison
 // surfaces drawing a different glyph from the GTK pane they exist to be compared
 // against: the browser storybook substituted `view-grid` for `view-paged-symbolic` under
@@ -53,7 +53,7 @@
 //
 // COMMENTS ARE STRIPPED FIRST, and only whole-line `//` ones — a bare `//` mid-line is
 // a URL far more often than a comment. A name that appears only in prose is not
-// emitted; before the strip, `adw-icon.spec.ts`' own explanation of the bug (a comment
+// emitted; before the strip, `gtk-image.spec.ts`' own explanation of the bug (a comment
 // spelling `adw-icon--a b`) registered `a` as an emitted icon.
 //
 // STILL BLIND to a name assembled at runtime — `icon.iconName = someRecord.icon`, with
@@ -150,7 +150,7 @@ const SHAPES = {
     },
 };
 
-/** Every shape a surface that hands `<adw-icon>` a NAME can spell one in. */
+/** Every shape a surface that hands `<gtk-image>` a NAME can spell one in. */
 const NAME_SHAPES = ['js', 'markup', 'setAttribute', 'createIcon', 'maskClass'];
 
 /**
@@ -161,7 +161,7 @@ const NAME_SHAPES = ['js', 'markup', 'setAttribute', 'createIcon', 'maskClass'];
 const SOURCES = [
     {
         // The widgets themselves and the partials that mask an icon without going
-        // through `<adw-icon>` at all (`_combo_row.scss`' arrow).
+        // through `<gtk-image>` at all (`_combo_row.scss`' arrow).
         root: 'packages/web/adwaita-web/src',
         shapes: NAME_SHAPES,
         // The compiled stylesheet, inlined as a TS string, contains every mask class by
@@ -285,7 +285,7 @@ function emittedNames() {
             const add = (raw) => {
                 const name = normalizeIconName(raw);
                 // `''` is the guard's own answer for an absent or unusable name, and
-                // `<adw-icon>` draws nothing for it — there is no class to demand.
+                // `<gtk-image>` draws nothing for it — there is no class to demand.
                 if (name === '') return;
                 if (!emitted.has(name)) emitted.set(name, new Set());
                 emitted.get(name).add(toPosixPath(relative(ROOT, file)));

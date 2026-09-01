@@ -123,11 +123,12 @@
 //   a fact about `generated/props.ts`, which is a fact about the GIR — one source, read
 //   twice.
 //
-//   WHAT NO HALF PROVES: behaviour. `<adw-checkbox>` is DECLARED to mean
-//   `gtk-check-button`, `AdwEntry` is DECLARED to be `GtkEntry`, and
-//   `AdwEntry.placeholder` is DECLARED to be `placeholder-text`; nothing here asserts any
-//   of the three behaves like one. The closing criterion stays ADR 0027 § 9's conformance
-//   vectors, and every surface added to this file inherits that limit unchanged.
+//   WHAT NO HALF PROVES: behaviour. `<gtk-check-button>` SHARES a spelling with the GTK
+//   tag, `AdwEntry` is DECLARED to be `GtkEntry`, and `AdwEntry.placeholder` is DECLARED
+//   to be `placeholder-text`; nothing here asserts any of the three behaves like one.
+//   Sharing the name is if anything the weaker of the two — a declaration at least says
+//   somebody looked. The closing criterion stays ADR 0027 § 9's conformance vectors, and
+//   every surface added to this file inherits that limit unchanged.
 //
 // WHY THE TABLE IS NOT gtkx's `omittedProps`
 //
@@ -210,18 +211,26 @@ const GAP_ISSUE = /^#\d+$/;
 const PROPERTY_KINDS = ['gir', 'own', 'gap'];
 
 /**
- * Every `adw-*` element whose spelling is NOT a GTK tag, and what it is instead.
+ * Every element whose spelling is NOT a GTK tag, and what it is instead.
  *
  * `gtk` — the same widget under a different name, so the vocabularies agree on the THING
- * and differ on the spelling. `webOnly` — no GTK widget behind it at all, with the reason,
- * because "web-only" without one is indistinguishable from an oversight.
+ * and differ on the spelling. `webOnly` — no GIR name for it to converge ON, with the
+ * reason, because "web-only" without one is indistinguishable from an oversight.
  *
- * BOTH KINDS CARRY A REASON, and the `gtk` half did not until ADR 0034 § 1. An alias
- * satisfied this check permanently and silently, so a divergence and a decision looked
- * identical in the data — the same hole `webOnly` was given a reason to close, left open
- * on the kind that has ten entries. The ten reasons below were MOVED, not invented: eight
- * are the element header stating what the widget is, and the remaining two are derived
- * from `generated/props.ts` and from the storybook coverage ledger, both cited in place.
+ * THE `gtk` HALF IS EMPTY, and that is the measurement ADR 0034 § Amendment 5 records:
+ * the nine elements that held it — `<adw-entry>` for `GtkEntry`, `<adw-icon>` for
+ * `GtkImage`, and seven more — were RENAMED to the tag of the library that owns their
+ * GType, so they share a spelling and the rule below deletes their entries as redundant.
+ * The kind stays because the rule reads it: the next element written under a name that is
+ * not its GType's declares here or fails here, which is the whole of clause 3.
+ *
+ * `webOnly` NOW COVERS TWO SHAPES, and the second one arrived with that rename. The
+ * original is "no GTK widget behind it at all" (`<adw-card>` is a style class,
+ * `<adw-alert-response>` is a method call). The second is a widget that HAS a GType and
+ * cannot carry its name, because a sibling element already does: `<adw-radio>` is a
+ * `GtkCheckButton` with its group set, and `<gtk-check-button>` is the tag. Both are the
+ * same verdict — there is no GIR name left for this element to converge on — which is why
+ * they are one kind and not two, and each entry says which shape it is.
  *
  * The GObject-but-not-GtkWidget group is the interesting one: `AdwToggle`,
  * `AdwTabPage`, `AdwViewStackPage`, `AdwSidebarItem` and `AdwSidebarSection` are real
@@ -231,48 +240,9 @@ const PROPERTY_KINDS = ['gir', 'own', 'gap'];
  * HTML.
  */
 const WEB_ELEMENT_ALIGNMENT = {
-    // Same widget, different spelling. The `why` says what the widget IS and where that
-    // was read; the shared half of the answer — that libadwaita subclasses none of these
-    // and reaches them through a stylesheet partial instead — is the comment above.
-    'adw-button': {
-        gtk: 'gtk-button',
-        why: 'libadwaita subclasses no button: the Adwaita look is style classes over GtkButton (.suggested-action / .destructive-action / .flat / .pill in refs/libadwaita/src/stylesheet/widgets/_buttons.scss), which is exactly what this element applies. adw-button.ts:1-7 cites that partial as its reference. The adw- prefix names the design system, not the widget.',
-    },
-    'adw-checkbox': {
-        gtk: 'gtk-check-button',
-        why: 'GTK4 has one check widget, GtkCheckButton, and libadwaita adds only _checks.scss on top of it. adw-checks.ts:1-5 defines this element and <adw-radio> in one module for the same reason upstream keeps one partial: everything but the corner radius, the glyph and the group is shared.',
-    },
-    'adw-drop-down': {
-        gtk: 'gtk-drop-down',
-        why: 'The element header states the identity outright: "the web counterpart of Gtk.DropDown" (adw-drop-down.ts:1-2). libadwaita ships no drop down; _dropdowns.scss styles the GTK one. AdwComboRow is the boxed-list ROW form and is a genuine Adw type, which is why it is not in this table.',
-    },
-    'adw-entry': {
-        gtk: 'gtk-entry',
-        why: 'libadwaita ships no entry — _entries.scss styles GtkEntry — and the element mirrors the Gtk.Entry activate signal by name (adw-entry.ts:4-5). The documentation already tells readers this in prose, on the page whose markup fence says adw-: website/src/content/docs/adwaita/controls.mdx:14-17.',
-    },
-    'adw-icon': {
-        gtk: 'gtk-image',
-        why: 'There is no Adwaita icon widget on any surface. On GTK a symbolic icon is a Gtk.Image with an icon-name, drawn inline; here it is a CSS-masked box whose glyph comes from a generated .adw-icon--<name> class (adw-icon.ts:1-5). check-storybook-widget-coverage.mjs records the same verdict for the storybook: "GTK draws a Gtk.Image inline".',
-    },
-    'adw-menu-button': {
-        gtk: 'gtk-menu-button',
-        why: 'The header says it and names the reason: "the web counterpart of Gtk.MenuButton, which libadwaita styles but never subclassed" (adw-menu-button.ts:1-2). website/src/components/AdwWidget.astro states the same mismatch in the comment where it derives the adw- prefix from a page title.',
-    },
-    'adw-popover': {
-        gtk: 'gtk-popover',
-        why: '"the web counterpart of GtkPopover as libadwaita styles it" (adw-popover.ts:1-2). _popovers.scss is a stylesheet partial over the GTK type and there is no AdwPopover; this is the ONE popover the package has, which is what keeps the radius, the shadow and the dismissal machine in one place.',
-    },
-    'adw-progress-bar': {
-        gtk: 'gtk-progress-bar',
-        why: 'libadwaita vendors no adw-progress-bar.c — the element header records that while explaining which GtkProgressBar pulse semantics it therefore cannot reproduce (adw-progress-bar.ts:9-14). _progress-bar.scss styles the GTK widget and adds no type.',
-    },
+    // The grouped check button. Its plain sibling took the GIR name; this one cannot.
     'adw-radio': {
-        gtk: 'gtk-check-button',
-        why: 'GTK4 has no radio TYPE. A radio is a GtkCheckButton with its group property set — "The check button whose group this widget belongs to", generated/props.ts on GtkCheckButtonProps.group — so two web elements legitimately alias one GTK tag. The exclusivity the browser gets free from <input type=radio name> is RadioGroupState in adwaita-core (adw-checks.ts:10-14).',
-    },
-    'adw-switch': {
-        gtk: 'gtk-switch',
-        why: 'libadwaita has no switch type; _switch.scss styles GtkSwitch, and this element is that stylesheet as a 44x24 track over a hidden checkbox. Its header already reasons about the GtkSwitch two-phase active/state pair and records that neither renderer models it (adw-switch.ts:9-14).',
+        webOnly: 'GTK4 has no radio TYPE. A radio is a GtkCheckButton with its group property set — "The check button whose group this widget belongs to", generated/props.ts on GtkCheckButtonProps.group — and <gtk-check-button> now carries that GType under its GIR name. One tag cannot name two constructors, so this is the grouped convenience form with no GType of its own to be named after, the same shape as <adw-card>. The exclusivity the browser gets free from <input type=radio name> is RadioGroupState in adwaita-core (checks.ts:10-14).',
     },
     // A libadwaita GObject that is not a GtkWidget, so it has no tag here.
     'adw-sidebar-item': { webOnly: 'AdwSidebarItem descends from GObject.Object, not GtkWidget' },
@@ -349,7 +319,7 @@ const NS_WIDGET_ALIGNMENT = {
     },
     'adw-entry': {
         gir: 'GtkEntry',
-        why: 'The header states the identity: the bare input, "what Gtk.Entry is", and the counterpart of the adwaita-web <adw-entry> (adw-entry.ts:2-5). libadwaita styles GtkEntry in _entries.scss and subclasses nothing; AdwEntryRow is the row form and is a real Adw type.',
+        why: 'The header states the identity: the bare input, "what Gtk.Entry is", and the counterpart of the adwaita-web element that is now spelled <gtk-entry> (adw-entry.ts:2-5). libadwaita styles GtkEntry in _entries.scss and subclasses nothing; AdwEntryRow is the row form and is a real Adw type.',
     },
     'adw-menu-button': {
         gir: 'GtkMenuButton',
@@ -359,7 +329,7 @@ const NS_WIDGET_ALIGNMENT = {
     // the files rather than inferred from the names.
     'adw-icon': {
         gir: 'GtkImage',
-        why: 'A non-interactive NativeScript Image rendering an Adwaita symbolic SVG (adw-icon.ts:1-3, `export class AdwIcon extends Image` at :24). That is Gtk.Image with an icon-name. adwaita-web declares the same target for its own <adw-icon> in the table above, so both renderers already agree on the widget and disagree only on the spelling.',
+        why: 'A non-interactive NativeScript Image rendering an Adwaita symbolic SVG (adw-icon.ts:1-3, `export class AdwIcon extends Image` at :24). That is Gtk.Image with an icon-name. adwaita-web reached the same verdict about its own copy and acted on it — the element is <gtk-image> there since ADR 0034 § Amendment 5 — so the two renderers agree on the widget and this entry is the whole of what is left of the disagreement.',
     },
     'adw-image-button': {
         composes: ['GtkButton', 'GtkImage'],

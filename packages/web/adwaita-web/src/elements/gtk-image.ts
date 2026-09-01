@@ -1,4 +1,4 @@
-// <adw-icon> — the symbolic icon node as an element. Every icon in this package is a
+// <gtk-image> — the symbolic icon node as an element. Every icon in this package is a
 // CSS-masked box whose glyph comes from a generated `.adw-icon--<name>` class and
 // whose colour is `currentColor`, so it themes with whatever contains it. The name
 // derivation and its guard live once in `@gjsify/adwaita-core`'s
@@ -46,7 +46,7 @@ export const MASK_CLASS_PREFIX = 'adw-icon--';
  */
 export const MISSING_ICON_NAME = 'image-missing';
 
-export class AdwIcon extends HTMLElement {
+export class GtkImage extends HTMLElement {
     static get observedAttributes() {
         return ['icon-name', 'size'];
     }
@@ -141,11 +141,11 @@ export class AdwIcon extends HTMLElement {
  * Build one icon node. `extraClasses` are the caller's own positioning/context
  * classes, added alongside the managed `.adw-icon` + mask class, not replacing them.
  */
-export function createAdwIcon(iconName: string | null, ...extraClasses: string[]): AdwIcon {
-    const icon = document.createElement('adw-icon') as AdwIcon;
+export function createGtkImage(iconName: string | null, ...extraClasses: string[]): GtkImage {
+    const icon = document.createElement('gtk-image') as GtkImage;
     if (iconName !== null) icon.setAttribute('icon-name', iconName);
     if (extraClasses.length > 0) icon.classList.add(...extraClasses);
     return icon;
 }
 
-customElements.define('adw-icon', AdwIcon);
+customElements.define('gtk-image', GtkImage);

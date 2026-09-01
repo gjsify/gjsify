@@ -618,7 +618,7 @@ export interface ViewStackIconNameVector {
  * that appeared exactly ONCE (`<adw-split-button>`) and was missing from every
  * other copy.
  *
- * The guard rows are not hypothetical: `<adw-menu-button>` interpolated the raw
+ * The guard rows are not hypothetical: `<gtk-menu-button>` interpolated the raw
  * name into `class="adw-icon adw-menu-button-icon adw-icon--<name>"`, so
  * `icon-name="a b"` shipped a stray `b` class — for its own icon and for every
  * JSON menu entry's. NOTHING in the build was in a position to notice, because

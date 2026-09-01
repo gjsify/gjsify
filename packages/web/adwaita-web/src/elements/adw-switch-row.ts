@@ -1,4 +1,4 @@
-// <adw-switch-row> — row with a title/subtitle and a trailing `<adw-switch>`.
+// <adw-switch-row> — row with a title/subtitle and a trailing `<gtk-switch>`.
 //
 // The ACTIVE flag, its notify rule and the toggle-on-row-activation are HEADLESS and live
 // in `@gjsify/adwaita-core` (ADR 0004) as {@link SwitchRowState}; this element keeps only
@@ -14,22 +14,22 @@
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web;
 //   title/subtitle text column added to match Adw.SwitchRow; the active state
-//   composed from @gjsify/adwaita-core; the toggle markup from <adw-switch>.
+//   composed from @gjsify/adwaita-core; the toggle markup from <gtk-switch>.
 
 import { SwitchRowState, deriveRowLabels } from '@gjsify/adwaita-core';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
-// `adw-switch` is defined before this module's `customElements.define` can upgrade a
-// server-rendered `<adw-switch-row>` and build one. A combined `import { AdwSwitch }`
+// `gtk-switch` is defined before this module's `customElements.define` can upgrade a
+// server-rendered `<adw-switch-row>` and build one. A combined `import { GtkSwitch }`
 // would NOT do it — the binding is only used in type position, and this package compiles
 // without `verbatimModuleSyntax`, so TypeScript would elide the statement and take the
 // registration with it.
-import './adw-switch.js';
+import './gtk-switch.js';
 import { attachRowActivation } from './row-activation.js';
-import type { AdwSwitch } from './adw-switch.js';
+import type { GtkSwitch } from './gtk-switch.js';
 
 export class AdwSwitchRow extends HTMLElement {
-    private _switchEl!: AdwSwitch;
+    private _switchEl!: GtkSwitch;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
     /** The headless active flag + its notify rule (ADR 0004). */
@@ -62,7 +62,7 @@ export class AdwSwitchRow extends HTMLElement {
         this._subtitleEl.className = 'adw-row-subtitle';
         text.append(this._titleEl, this._subtitleEl);
 
-        this._switchEl = document.createElement('adw-switch') as AdwSwitch;
+        this._switchEl = document.createElement('gtk-switch') as GtkSwitch;
         // adw-switch-row.c:159 — the slider is not a focus target; the ROW is.
         this._switchEl.unfocusable = true;
 

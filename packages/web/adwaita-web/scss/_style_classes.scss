@@ -186,7 +186,7 @@
 // split buttons go flat — unless they are `.raised`, `.suggested-action`,
 // `.destructive-action`, `.opaque`, or sit inside a `.linked` group. Text-only
 // buttons keep their frame, which is why this cannot be a blanket
-// `.toolbar adw-button { … }`.
+// `.toolbar gtk-button { … }`.
 $_keeps-frame: ':not(.raised):not(.suggested-action):not(.destructive-action):not(.opaque)';
 
 .toolbar {
@@ -195,9 +195,9 @@ $_keeps-frame: ':not(.raised):not(.suggested-action):not(.destructive-action):no
   gap: 6px;
   padding: 6px;
 
-  adw-button#{$_keeps-frame} .adw-button.icon-only,
-  adw-button#{$_keeps-frame}:has(adw-button-content) .adw-button,
-  adw-menu-button#{$_keeps-frame} .adw-button,
+  gtk-button#{$_keeps-frame} .adw-button.icon-only,
+  gtk-button#{$_keeps-frame}:has(adw-button-content) .adw-button,
+  gtk-menu-button#{$_keeps-frame} .adw-button,
   adw-split-button#{$_keeps-frame} .adw-button {
     background-color: transparent;
 
@@ -215,8 +215,8 @@ $_keeps-frame: ':not(.raised):not(.suggested-action):not(.destructive-action):no
   // group only reads as one control if its members are raised.
   .linked,
   .adw-linked {
-    adw-button#{$_keeps-frame} .adw-button,
-    adw-menu-button#{$_keeps-frame} .adw-button,
+    gtk-button#{$_keeps-frame} .adw-button,
+    gtk-menu-button#{$_keeps-frame} .adw-button,
     adw-split-button#{$_keeps-frame} .adw-button {
       background-color: var(--button-bg-color);
 
@@ -265,7 +265,7 @@ $_keeps-frame: ':not(.raised):not(.suggested-action):not(.destructive-action):no
 //
 // This is a token REBIND, not just a colour: everything accent-coloured inside
 // an OSD surface turns white without knowing it is inside one.
-.osd:not(adw-progress-bar):not(adw-button):not(adw-menu-button):not(adw-split-button):not(
+.osd:not(gtk-progress-bar):not(gtk-button):not(gtk-menu-button):not(adw-split-button):not(
     adw-inline-view-switcher
   ) {
   --accent-bg-color: rgb(255 255 255 / 75%);
@@ -295,8 +295,8 @@ $_keeps-frame: ':not(.raised):not(.suggested-action):not(.destructive-action):no
 // it USED to add a 2px gap between children, which is a segmented look, not a
 // linked one. The gap is gone; a consumer who wanted it can say `gap`.
 // The styled node is either the child itself (a bare `.adw-button` /
-// `.adw-entry`) or one rendered inside the child host element (`<adw-button>`,
-// `<adw-menu-button>`, `<adw-drop-down>`, …) — so both spellings are matched
+// `.adw-entry`) or one rendered inside the child host element (`<gtk-button>`,
+// `<gtk-menu-button>`, `<gtk-drop-down>`, …) — so both spellings are matched
 // rather than enumerating host tags the way GTK has to.
 $_linked-nodes: '.adw-button', '.adw-entry';
 

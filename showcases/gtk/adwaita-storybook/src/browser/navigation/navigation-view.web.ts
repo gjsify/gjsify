@@ -56,7 +56,7 @@ export class NavigationViewWebStory extends StoryElement {
         this._rootTitle.setAttribute('title', this.args.rootTitle as string);
         this._rootTitle.setAttribute('slot', 'center');
 
-        const openButton = document.createElement('adw-button');
+        const openButton = document.createElement('gtk-button');
         openButton.setAttribute('label', 'Open contact');
         openButton.setAttribute('pill', '');
         openButton.setAttribute('suggested', '');

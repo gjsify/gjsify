@@ -54,13 +54,13 @@ import {
     domViewSwitcherScheduler,
     readSwitcherPage,
 } from './view-switcher-dom.js';
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 import { attachRovingFocus } from './roving-focus.js';
 
 /** The DOM nodes one page owns — the switcher paints the derived model onto them. */
 interface PageNodes {
     button: HTMLButtonElement;
-    icon: AdwIcon;
+    icon: GtkImage;
     label: HTMLSpanElement;
     indicator: HTMLSpanElement;
     body: HTMLDivElement;
@@ -271,7 +271,7 @@ export class AdwViewSwitcher extends HTMLElement {
 
         // Both children always exist, as in AdwViewSwitcherButton's template — the icon
         // carries `image-missing` rather than disappearing.
-        const icon = createAdwIcon(null, 'adw-view-switcher-icon');
+        const icon = createGtkImage(null, 'adw-view-switcher-icon');
 
         const label = document.createElement('span');
         label.className = 'adw-view-switcher-label';

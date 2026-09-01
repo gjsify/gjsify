@@ -222,7 +222,12 @@ const classOf = (attrs) => {
     return /^[\w\s-]*$/.test(raw) ? raw : raw.replace(/[^\w-]+/g, ' ');
 };
 
-const isAdwaitaMarkup = (tag, cls) => tag.startsWith('adw-') || ADW_CLASS.test(cls);
+// A widget element carries the prefix of the library that owns its GType (ADR 0034
+// clause 1), so `<gtk-entry>` is adwaita-web markup exactly as `<adw-action-row>` is.
+// The CSS half stays `adw-` and is a different question: `.adw-button` is the Adwaita
+// SKIN on a plain `<button>`, which is why the class test is spelled separately.
+const WIDGET_TAG = /^(?:adw|gtk)-/;
+const isAdwaitaMarkup = (tag, cls) => WIDGET_TAG.test(tag) || ADW_CLASS.test(cls);
 
 function importsOf(source) {
     const map = new Map();
@@ -348,18 +353,18 @@ const SELF_TESTS = [
         source: [
             '<div class="widget">',
             '  {/* mounted at runtime, see <script> below */}',
-            '  <adw-button></adw-button>',
+            '  <gtk-button></gtk-button>',
             '</div>',
             '<script>',
             '  const swallowed = 1;',
             '</script>',
         ].join('\n'),
-        expect: ['<adw-button>'],
+        expect: ['<gtk-button>'],
     },
     {
         name: 'a tag whose attributes wrap over several lines is still read',
-        source: ['<div class="widget">', '  <adw-button', '    label="Open"', '  ></adw-button>', '</div>'].join('\n'),
-        expect: ['<adw-button>'],
+        source: ['<div class="widget">', '  <gtk-button', '    label="Open"', '  ></gtk-button>', '</div>'].join('\n'),
+        expect: ['<gtk-button>'],
     },
     {
         name: 'a wrapped container carrying the marker covers its children and nothing beyond them',
@@ -368,7 +373,7 @@ const SELF_TESTS = [
             '  <div',
             "    class:list={['panel', 'not-content', `is-${padding}`]}",
             '  >',
-            '    <adw-button></adw-button>',
+            '    <gtk-button></gtk-button>',
             '  </div>',
             '  <adw-switch-row></adw-switch-row>',
             '</div>',
@@ -381,7 +386,7 @@ const SELF_TESTS = [
             '<div class="widget">',
             '',
             '```html',
-            '<adw-button></adw-button>',
+            '<gtk-button></gtk-button>',
             '```',
             '',
             'Use `<adw-switch-row>` for a toggle.',
@@ -399,20 +404,20 @@ const SELF_TESTS = [
         source: [
             '<div class="widget">',
             "  {n<items.length ? 'more' : 'done'}",
-            '  <adw-button></adw-button>',
+            '  <gtk-button></gtk-button>',
             '</div>',
         ].join('\n'),
-        expect: ['<adw-button>'],
+        expect: ['<gtk-button>'],
     },
     {
         name: 'markup handed to a component is covered only when that component marks its own slot',
-        source: '<div class="page">\n  <Card>\n    <adw-button></adw-button>\n  </Card>\n</div>',
+        source: '<div class="page">\n  <Card>\n    <gtk-button></gtk-button>\n  </Card>\n</div>',
         resolve: () => ({ slotsCovered: false }),
-        expect: ['<adw-button>'],
+        expect: ['<gtk-button>'],
     },
     {
         name: 'and it is covered once that component does mark it',
-        source: '<div class="page">\n  <Card>\n    <adw-button></adw-button>\n  </Card>\n</div>',
+        source: '<div class="page">\n  <Card>\n    <gtk-button></gtk-button>\n  </Card>\n</div>',
         resolve: () => ({ slotsCovered: true }),
         expect: [],
     },

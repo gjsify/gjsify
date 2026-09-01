@@ -1,5 +1,5 @@
 // Browser port of the Button Content story — an <adw-button-content> (icon +
-// label) inside a suggested-action pill <adw-button>, mirroring the GTK twin
+// label) inside a suggested-action pill <gtk-button>, mirroring the GTK twin
 // (button-content.story.ts) which places an Adw.ButtonContent inside a
 // Gtk.Button with the .suggested-action + .pill style classes.
 
@@ -27,8 +27,8 @@ export class ButtonContentWebStory extends StoryElement {
         this._syncContent();
 
         // The native story wraps the content in a suggested-action pill button.
-        // Use a plain button carrying the adw-button style classes (the
-        // <adw-button> custom element rebuilds its subtree from attributes and
+        // Use a plain button carrying the .adw-button style classes (the
+        // <gtk-button> custom element rebuilds its subtree from attributes and
         // would discard the nested <adw-button-content>).
         const button = document.createElement('button');
         button.className = 'adw-button suggested-action pill';

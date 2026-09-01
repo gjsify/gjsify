@@ -70,7 +70,7 @@ const commentRanges = (markup) => {
  * value is read as a value rather than silently reported as a bare attribute.
  *
  * WHERE THE PREVIEW HAS SEVERAL of the element, the first value found wins and the
- * result is a UNION across them: /adwaita/buttons/ paints five `<adw-button>`s, one
+ * result is a UNION across them: /adwaita/buttons/ paints five `<gtk-button>`s, one
  * per style, and the pane reports `flat`, `suggested`, `destructive`, `circular` and
  * `pill` all set. That is true of the preview and true of no single button in it, so
  * the caption says which of the two the column means.
@@ -127,3 +127,30 @@ export const attributeCells = (names, sample) =>
         if (value === undefined) return { name, text: 'not used', kind: 'absent' };
         return value === '' ? { name, text: 'set', kind: 'bare' } : { name, text: value, kind: 'value' };
     });
+
+/**
+ * `Gtk.MenuButton` → `gtk-menu-button`, `Adw.ActionRow` → `adw-action-row`: the custom
+ * element a gallery block's TITLE names.
+ *
+ * THE NAMESPACE IS THE PREFIX and is read, never assumed, because a web element is named
+ * after the library that owns its GType (ADR 0034 clause 1) — the same rule
+ * `gtk-host/src/tags.ts` runs the other way round. A constant `adw-` was right only while
+ * nine GTK widgets wore an `adw-` name; the day they took their own, it derived a tag
+ * nothing registers and the block would have rendered no attribute pane while looking
+ * documented anyway.
+ *
+ * IT LIVES HERE BECAUSE THREE PLACES ASKED IT: `AdwWidget.astro`, which renders the pane,
+ * and the two gates that check the pane — `check-website-attr-samples.mjs` and
+ * `check-generated-website-data.mjs`. Each had spelled it out itself, and one of the
+ * copies carried a comment saying a second spelling "would be the drift this file is
+ * against". It was, the moment the prefix stopped being a constant.
+ *
+ * @param {string} title the `<AdwWidget title="…">` value
+ */
+export const galleryElementTag = (title) => {
+    const namespace = /^(Adw|Gtk)\./.exec(title)?.[1] ?? 'Adw';
+    return `${namespace.toLowerCase()}-${title
+        .replace(/^(?:Adw|Gtk)\./, '')
+        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+        .toLowerCase()}`;
+};

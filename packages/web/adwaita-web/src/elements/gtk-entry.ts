@@ -1,4 +1,4 @@
-// <adw-entry> — Adwaita single-line text entry (e.g. a browser URL bar).
+// <gtk-entry> — Adwaita single-line text entry (e.g. a browser URL bar).
 // Attributes: value, placeholder, type, disabled, maxlength.
 // Properties: value (get/set, proxies the inner input), maxLength, textLength.
 // Events: native `input` bubbles from the inner input; `activate` (CustomEvent)
@@ -6,7 +6,7 @@
 //
 // The character arithmetic is HEADLESS and lives in `@gjsify/adwaita-core`
 // (ADR 0004): `entryTextLength` counts CODE POINTS and `clampEntryText` truncates
-// on them. `@gjsify/adwaita-nativescript`'s AdwEntry has composed the same two
+// on them. `@gjsify/adwaita-nativescript`'s GtkEntry has composed the same two
 // since it shipped; this element counted nothing at all, so the same consumer
 // got a max length on one renderer and none on the other — and the native
 // `maxlength` attribute would not have closed the gap, because the browser
@@ -21,7 +21,7 @@
 
 import { ENTRY_ROW_MAX_LENGTH_LIMIT, clampEntryText, entryTextLength } from '@gjsify/adwaita-core';
 
-export class AdwEntry extends HTMLElement {
+export class GtkEntry extends HTMLElement {
     private _input!: HTMLInputElement;
     private _initialized = false;
     private _maxLength = 0;
@@ -103,4 +103,4 @@ export class AdwEntry extends HTMLElement {
     }
 }
 
-customElements.define('adw-entry', AdwEntry);
+customElements.define('gtk-entry', GtkEntry);

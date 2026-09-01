@@ -34,7 +34,7 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { asm6502 } from './asm6502.js';
 import { adwaitaEditorTheme, adwaitaHighlightStyle, ensureSourceViewStyleInjected } from './theme.js';
 import { formatHexAddress, formatLineNumber, stripWhitespace } from './hex.js';
-import { createAdwIcon } from '../elements/adw-icon.js';
+import { createGtkImage } from '../elements/gtk-image.js';
 
 /** A recognisable copy glyph rendered inline so the subpath needs no icon CSS. */
 const COPY_SVG =
@@ -405,7 +405,7 @@ export class AdwSourceView extends HTMLElement {
         }
         // A non-default icon uses the adwaita-web mask class (requires the main
         // bundle's icon CSS to be present).
-        this._copyButton.replaceChildren(createAdwIcon(name));
+        this._copyButton.replaceChildren(createGtkImage(name));
     }
 
     private _readDeclarativeAttributes(): void {

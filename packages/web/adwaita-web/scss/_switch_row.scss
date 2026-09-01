@@ -1,6 +1,6 @@
 // _switch_row.scss — adw-switch-row styling.
 //
-// The TOGGLE is not here: it is `<adw-switch>` and `scss/_switch.scss`. It used
+// The TOGGLE is not here: it is `<gtk-switch>` and `scss/_switch.scss`. It used
 // to be, nested under `adw-switch-row {`, which is exactly why `.adw-switch` was
 // unreachable from anywhere else and `_expander_row.scss` grew a
 // character-for-character copy of it.

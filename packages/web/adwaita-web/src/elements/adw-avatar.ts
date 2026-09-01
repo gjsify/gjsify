@@ -7,7 +7,7 @@
 // Reference: refs/adwaita-web/adwaita-web/scss/_avatar.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
-// fallback icon node is <adw-icon>.
+// fallback icon node is <gtk-image>.
 //
 // The two derivations — initials from the name, and the palette colour the name hashes to
 // — are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004) as {@link avatarInitials} /
@@ -21,11 +21,11 @@
 
 import { avatarColor, avatarFontSize, avatarInitials, avatarMaxFontSize, avatarMode } from '@gjsify/adwaita-core';
 
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 
 export class AdwAvatar extends HTMLElement {
     private _textEl!: HTMLSpanElement;
-    private _iconEl!: AdwIcon;
+    private _iconEl!: GtkImage;
     private _imageEl!: HTMLImageElement;
     private _initialized = false;
 
@@ -40,7 +40,7 @@ export class AdwAvatar extends HTMLElement {
         this._textEl = document.createElement('span');
         this._textEl.className = 'adw-avatar-text';
 
-        this._iconEl = createAdwIcon(null, 'adw-avatar-icon');
+        this._iconEl = createGtkImage(null, 'adw-avatar-icon');
 
         this._imageEl = document.createElement('img');
         this._imageEl.className = 'adw-avatar-custom-image';

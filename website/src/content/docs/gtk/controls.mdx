@@ -28,15 +28,17 @@ the port that runs on a phone. That last window splits the way the first one doe
 XML template holds the tree, and the TypeScript beside it is the loader.
 
 GTK 4 is the reference here, typed by
-[`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). The browser and
-NativeScript ports spell both controls with an `adw` prefix, `<adw-entry>` and
-`<adw-drop-down>` in the browser, `AdwEntry` and `AdwDropDown` on NativeScript.
-Each ships one Adwaita-styled widget set and does not divide it by owning
-library. Where a port behaves differently, its own window says so.
+[`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). The browser port
+spells both controls the way the GIR does — `<gtk-entry>` and `<gtk-drop-down>`,
+the same tags `@gjsify/gtk-host` uses — because a widget is named after the library
+that owns it and the Adwaita part of these two is the stylesheet. NativeScript still
+says `AdwEntry` and `AdwDropDown`; that port ships one Adwaita-styled widget set
+without dividing it by owning library, and converging it is tracked rather than done.
+Where a port behaves differently, its own window says so.
 
 :::note
 The previews run the browser port, so behaviour the toolkits drive natively can
-be simplified here. Two divergences are worth knowing: `<adw-entry>` has no
+be simplified here. Two divergences are worth knowing: `<gtk-entry>` has no
 `editable`, so a field you may read but not change is spelled `disabled`, which
 also greys it; and the NativeScript drop down opens the platform action sheet,
 which has no search field.
@@ -54,11 +56,11 @@ control in row presentation, and the label doubles as the row title.
   <Fragment slot="preview">
     ```html
     <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
-      <adw-entry placeholder="Search files…" style="min-width: 280px;"></adw-entry>
+      <gtk-entry placeholder="Search files…" style="min-width: 280px;"></gtk-entry>
 
-      <!-- `<adw-entry>` has no `editable`: the browser spelling of a field you may
+      <!-- `<gtk-entry>` has no `editable`: the browser spelling of a field you may
            read but not change is `disabled`, which also greys it. -->
-      <adw-entry value="notes.md" disabled></adw-entry>
+      <gtk-entry value="notes.md" disabled></gtk-entry>
     </div>
     ```
   </Fragment>
@@ -111,7 +113,7 @@ presented as a boxed-list row, use
   <Fragment slot="preview">
     ```html
     <!-- `options` is a JSON array of strings, or of { label, value } objects. -->
-    <adw-drop-down options='["Automatic","Always","Never","When busy"]' selected="0"></adw-drop-down>
+    <gtk-drop-down options='["Automatic","Always","Never","When busy"]' selected="0"></gtk-drop-down>
     ```
   </Fragment>
   <Fragment slot="gjs">

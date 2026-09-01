@@ -49,14 +49,16 @@ import '@gjsify/adwaita-web';
 ```
 
 ```html
-<adw-entry placeholder="Search files…"></adw-entry>
+<gtk-entry placeholder="Search files…"></gtk-entry>
 ```
 
-One package carries the whole Adwaita-styled widget set, so every element it
-registers is spelled `adw-`, whatever library owns the GType. `Gtk.Entry` is
-`<adw-entry>` and `Gtk.MenuButton` is `<adw-menu-button>`. The same holds for
-[`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita),
-where they are `AdwEntry` and `AdwMenuButton`.
+One package carries the whole Adwaita-styled widget set, and every element in it is
+named after the library that owns its GType — so `Gtk.Entry` is `<gtk-entry>`,
+`Gtk.MenuButton` is `<gtk-menu-button>`, and `Adw.ActionRow` is `<adw-action-row>`.
+That is the same rule, and the same spelling, as `@gjsify/gtk-host`'s tags. What makes
+these two look Adwaita is the stylesheet, not the widget.
+[`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
+has not converged yet and still calls them `AdwEntry` and `AdwMenuButton`.
 
 ## Browse the widgets
 
@@ -64,18 +66,18 @@ where they are `AdwEntry` and `AdwMenuButton`.
   <AdwGalleryCard title="Controls" href="/gjsify/gtk/controls/" description="The standalone entry and drop down, whose row twins are in the Adwaita boxed lists.">
     <Fragment slot="preview">
       <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:240px;">
-        <adw-entry placeholder="Search files…" style="width:100%;"></adw-entry>
-        <adw-drop-down options='["Automatic","Always","Never"]' selected="0"></adw-drop-down>
+        <gtk-entry placeholder="Search files…" style="width:100%;"></gtk-entry>
+        <gtk-drop-down options='["Automatic","Always","Never"]' selected="0"></gtk-drop-down>
       </div>
     </Fragment>
   </AdwGalleryCard>
   <AdwGalleryCard title="Buttons" href="/gjsify/gtk/buttons/" description="The plain button, the style classes that shape it, and the menu button that opens a popover.">
     <Fragment slot="preview">
       <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;">
-        <adw-button label="Suggested" suggested></adw-button>
-        <adw-button label="Delete" destructive></adw-button>
-        <adw-button icon="list-add" circular></adw-button>
-        <adw-menu-button icon-name="open-menu" menu-title="Document" menu='[{"label":"Save as…"},{"label":"Export"}]'></adw-menu-button>
+        <gtk-button label="Suggested" suggested></gtk-button>
+        <gtk-button label="Delete" destructive></gtk-button>
+        <gtk-button icon="list-add" circular></gtk-button>
+        <gtk-menu-button icon-name="open-menu" menu-title="Document" menu='[{"label":"Save as…"},{"label":"Export"}]'></gtk-menu-button>
       </div>
     </Fragment>
   </AdwGalleryCard>

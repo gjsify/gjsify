@@ -1,4 +1,4 @@
-// _checks.scss — <adw-checkbox> AND <adw-radio>, in ONE partial.
+// _checks.scss — <gtk-check-button> AND <adw-radio>, in ONE partial.
 //
 // WHY ONE FILE FOR TWO ELEMENTS. Upstream's
 // `refs/libadwaita/src/stylesheet/widgets/_checks.scss` merges them deliberately:
@@ -51,7 +51,7 @@ $bullet-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'
 $dash-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cpath fill='black' d='M 3 5 A 2 2 0 0 0 1 7 A 2 2 0 0 0 3 9 L 11 9 A 2 2 0 0 0 13 7 A 2 2 0 0 0 11 5 Z'/%3E%3C/svg%3E");
 
 // `checkbutton { … }` (:3-18) — the host is the button, not the indicator.
-adw-checkbox,
+gtk-check-button,
 adw-radio {
   position: relative;
   display: inline-flex;
@@ -176,7 +176,7 @@ adw-radio {
 }
 
 // `check { border-radius: $check_radius }` (:67-68)
-adw-checkbox .adw-check-indicator {
+gtk-check-button .adw-check-indicator {
   border-radius: 6px;
 }
 
@@ -186,7 +186,7 @@ adw-radio .adw-check-indicator {
 }
 
 // `check:checked` → check.svg (:70) / `radio:checked` → bullet.svg (:76)
-adw-checkbox[checked] .adw-check-indicator::after {
+gtk-check-button[checked] .adw-check-indicator::after {
   mask-image: $check-glyph;
   -webkit-mask-image: $check-glyph;
 }
@@ -201,7 +201,7 @@ adw-radio[checked] .adw-check-indicator::after {
 // wins over the check/bullet on a control that is both. Same order, same
 // specificity, same outcome here — and the same precedence `resolveCheckState`
 // in `@gjsify/adwaita-core` encodes for the a11y value.
-adw-checkbox[indeterminate] .adw-check-indicator::after,
+gtk-check-button[indeterminate] .adw-check-indicator::after,
 adw-radio[indeterminate] .adw-check-indicator::after {
   mask-image: $dash-glyph;
   -webkit-mask-image: $dash-glyph;
@@ -209,7 +209,7 @@ adw-radio[indeterminate] .adw-check-indicator::after {
 
 // `checkbutton.selection-mode { … }` (:83-95) — the big round check used in a
 // selection-mode header bar.
-adw-checkbox.selection-mode,
+gtk-check-button.selection-mode,
 adw-radio.selection-mode {
   border-radius: 100px;
 

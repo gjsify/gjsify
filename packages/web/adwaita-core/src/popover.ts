@@ -63,7 +63,7 @@ export type PopoverStateListener = (change: PopoverStateChange) => void;
  *
  * NAMING: an `open` GETTER means the mutators cannot also be `open()`/`close()`, so
  * they take GTK's vocabulary ({@link popup} / {@link popdown}, after
- * `adw_split_button_popup()` / `..._popdown()`) — which is what `<adw-popover>`
+ * `adw_split_button_popup()` / `..._popdown()`) — which is what `<gtk-popover>`
  * exposes too.
  *
  * Idempotent: setting the current value again is a no-op and notifies nobody.

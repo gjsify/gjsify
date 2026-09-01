@@ -1,4 +1,4 @@
-// _progress_bar.scss — <adw-progress-bar>, the determinate partner to
+// _progress_bar.scss — <gtk-progress-bar>, the determinate partner to
 // <adw-spinner>.
 //
 // TWO SOURCES, AND WHICH HALF CAME FROM WHICH — the two disagree, so this is not
@@ -24,7 +24,7 @@
 //
 // NOT PORTED, deliberately: `progressbar.vertical` (:10-15) and the four
 // `progress.{left,right,top,bottom}` corner-radius rules (:37-55). Both exist
-// for orientations and trough-splitting `<adw-progress-bar>` does not expose —
+// for orientations and trough-splitting `<gtk-progress-bar>` does not expose —
 // there is no `orientation` attribute — and a rule nothing can ever select is a
 // rule that rots.
 //
@@ -39,7 +39,7 @@
 // `.dimmed` / `.numeric`, which the text node @extends exactly as upstream does.
 @use 'labels';
 
-adw-progress-bar {
+gtk-progress-bar {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
@@ -104,7 +104,7 @@ adw-progress-bar {
   // The `.osd` variant (:59-83): a hairline bar with no trough at all, the way
   // it is drawn under a header bar. `[osd]` is the attribute this element takes;
   // `.osd` is libadwaita's DOCUMENTED spelling for the same variant, and
-  // `_style_classes.scss` excludes `adw-progress-bar` from the generic OSD
+  // `_style_classes.scss` excludes `gtk-progress-bar` from the generic OSD
   // surface exactly so the class lands here instead of turning the bar into a
   // dark translucent box.
   &[osd],

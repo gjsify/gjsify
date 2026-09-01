@@ -1,4 +1,4 @@
-// DOM-level tests for <adw-button>'s style classes.
+// DOM-level tests for <gtk-button>'s style classes.
 //
 // The element and its NativeScript twin each kept their own attribute→class table,
 // and the two disagreed: `circular` was here and not there. The table now lives in
@@ -13,7 +13,7 @@ const WEB_ATTRIBUTES = new Set(['flat', 'suggested', 'destructive', 'circular', 
 
 /** Mount a button carrying the given boolean attributes; return the inner classes. */
 function mountWithStyles(names: readonly string[]): string[] {
-    const el = document.createElement('adw-button');
+    const el = document.createElement('gtk-button');
     el.setAttribute('label', 'Click me');
     for (const name of names) el.setAttribute(name, '');
     document.body.appendChild(el);
@@ -22,10 +22,10 @@ function mountWithStyles(names: readonly string[]): string[] {
 }
 
 function unmountAll(): void {
-    for (const el of Array.from(document.querySelectorAll('adw-button'))) el.remove();
+    for (const el of Array.from(document.querySelectorAll('gtk-button'))) el.remove();
 }
 
-export const AdwButtonTest = async () => {
+export const GtkButtonTest = async () => {
     // Rows naming a class the LONG way (`suggested-action`) are the NativeScript
     // variant spelling — this element has no such attribute. They are partitioned
     // out here rather than skipped inside the loop, and the partition is asserted,
@@ -33,7 +33,7 @@ export const AdwButtonTest = async () => {
     const reachable = BUTTON_STYLE_CLASS_VECTORS.filter((v) => v.names.every((n) => WEB_ATTRIBUTES.has(n)));
     const unreachable = BUTTON_STYLE_CLASS_VECTORS.filter((v) => !v.names.every((n) => WEB_ATTRIBUTES.has(n)));
 
-    await describe('<adw-button> style classes', async () => {
+    await describe('<gtk-button> style classes', async () => {
         for (const { names, classes, rule } of reachable) {
             await it(`[${names.join(', ')}] → [${classes.join(', ')}] — ${rule}`, () => {
                 expect(mountWithStyles(names)).toStrictEqual([...classes]);
@@ -47,7 +47,7 @@ export const AdwButtonTest = async () => {
         });
 
         await it('a style attribute added later is picked up', () => {
-            const el = document.createElement('adw-button');
+            const el = document.createElement('gtk-button');
             el.setAttribute('label', 'Send');
             document.body.appendChild(el);
             el.setAttribute('suggested', '');

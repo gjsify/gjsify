@@ -415,7 +415,7 @@ jobs:
       # class that also tears something down: a bare re-parent — a slideshow slide, a
       # client-side route change — released the binding and never restored it.
       # `<adw-navigation-split-view>` lost its ResizeObserver and never collapsed again
-      # however narrow the page got; `<adw-popover>` came back visible with neither
+      # however narrow the page got; `<gtk-popover>` came back visible with neither
       # outside-click nor Escape dismissal, the only two ways it could have re-armed
       # them. Both were found by READING: a dead media query and a dead document
       # listener change no markup, no class list and no box until something fires them,
@@ -480,7 +480,7 @@ jobs:
 
       # An icon name and the mask class that draws it are two halves of one decision that
       # nothing compared: a name outside the generated set painted a SOLID 16px square in
-      # the widget's text colour, and `adw-icon.spec.ts` asserted the class STRING, which
+      # the widget's text colour, and `gtk-image.spec.ts` asserted the class STRING, which
       # was always applied, correctly, to nothing. What the silence bought was four
       # renderer-comparison surfaces drawing a different glyph from the GTK pane they exist
       # to be compared against, one of them under a comment blaming the icons PACKAGE for a
@@ -568,7 +568,7 @@ jobs:
       # Parity asks whether the three targets render the SAME stories; it is blind by
       # construction to the story that exists NOWHERE — a widget with no meta at all is
       # perfectly symmetric across three targets. Measured: nine widgets shipped on both
-      # renderers had no story anywhere, `adw-entry` and `adw-drop-down` among them.
+      # renderers had no story anywhere, `gtk-entry` and `gtk-drop-down` among them.
       # The second ledger covers what the story rule deliberately cannot: a widget on
       # ONE renderer, where the matrix shows the asymmetry and nothing said whether it
       # was a gap or a decision (#1195).
@@ -970,7 +970,7 @@ jobs:
       # class that also tears something down: a bare re-parent — a slideshow slide, a
       # client-side route change — released the binding and never restored it.
       # `<adw-navigation-split-view>` lost its ResizeObserver and never collapsed again
-      # however narrow the page got; `<adw-popover>` came back visible with neither
+      # however narrow the page got; `<gtk-popover>` came back visible with neither
       # outside-click nor Escape dismissal, the only two ways it could have re-armed
       # them. Both were found by READING: a dead media query and a dead document
       # listener change no markup, no class list and no box until something fires them,
@@ -1039,7 +1039,7 @@ jobs:
 
       # An icon name and the mask class that draws it are two halves of one decision that
       # nothing compared: a name outside the generated set painted a SOLID 16px square in
-      # the widget's text colour, and `adw-icon.spec.ts` asserted the class STRING, which
+      # the widget's text colour, and `gtk-image.spec.ts` asserted the class STRING, which
       # was always applied, correctly, to nothing. What the silence bought was four
       # renderer-comparison surfaces drawing a different glyph from the GTK pane they exist
       # to be compared against, one of them under a comment blaming the icons PACKAGE for a
@@ -1127,7 +1127,7 @@ jobs:
       # Parity asks whether the three targets render the SAME stories; it is blind by
       # construction to the story that exists NOWHERE — a widget with no meta at all is
       # perfectly symmetric across three targets. Measured: nine widgets shipped on both
-      # renderers had no story anywhere, `adw-entry` and `adw-drop-down` among them.
+      # renderers had no story anywhere, `gtk-entry` and `gtk-drop-down` among them.
       # The second ledger covers what the story rule deliberately cannot: a widget on
       # ONE renderer, where the matrix shows the asymmetry and nothing said whether it
       # was a gap or a decision (#1195).

@@ -20,7 +20,7 @@
 import { viewSwitcherIconName } from '@gjsify/adwaita-core';
 import type { AdwViewSwitcherPageInit, ViewSwitcherScheduler, ViewSwitcherTimerHandle } from '@gjsify/adwaita-core';
 
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 
 /**
  * The browser's timer behind the core's scheduler seam. One shared instance rather than
@@ -41,16 +41,16 @@ export const domViewSwitcherScheduler: ViewSwitcherScheduler = {
  *
  * The core resolves NULL/empty to `image-missing` (which the stylesheet carries
  * a real glyph for); the `-symbolic` strip and the CSS-token guard are
- * `normalizeIconName`'s, applied by `<adw-icon>` — that strip is this package's
+ * `normalizeIconName`'s, applied by `<gtk-image>` — that strip is this package's
  * own mask-class convention and has no counterpart in C, where the name reaches
  * `GtkImage` untouched.
  */
-export function createSwitcherIcon(iconName: string, extra: string): AdwIcon {
-    return createAdwIcon(viewSwitcherIconName(iconName), extra);
+export function createSwitcherIcon(iconName: string, extra: string): GtkImage {
+    return createGtkImage(viewSwitcherIconName(iconName), extra);
 }
 
 /** Repaint an existing switcher icon from a page's declared name. */
-export function applySwitcherIcon(icon: AdwIcon, iconName: string): void {
+export function applySwitcherIcon(icon: GtkImage, iconName: string): void {
     icon.iconName = viewSwitcherIconName(iconName);
 }
 

@@ -8,7 +8,7 @@
 // each listed FILENAMES matching `adw-*.ts` in `src/elements/`, non-recursively. Same
 // CI job, 65 against 50, and the smaller answer fed the published widget matrix.
 //
-// A filename is not the element. `adw-checks.ts` defines `adw-checkbox` and
+// A filename is not the element. `adw-checks.ts` defines `gtk-check-button` and
 // `adw-radio`: the matrix scored a widget no page can use, and none for either it can.
 // `adw-preferences-dialog.ts` also defines `adw-preferences-page`, so the matrix
 // published "adwaita-web does not have it" about an element consumers already use.
@@ -233,7 +233,7 @@ function fileHeader(text) {
 /**
  * `{ type A, type B }` — a named clause with no value binding at all. Neither renderer
  * sets `verbatimModuleSyntax`, so TypeScript erases such a statement whole; the web
- * `adw-menu-button` carries a separate side-effect import for precisely that reason.
+ * `gtk-menu-button` carries a separate side-effect import for precisely that reason.
  */
 function bindsOnlyTypes(clause) {
     const named = /^\{([^}]*)\}$/.exec(clause.trim());
@@ -261,7 +261,7 @@ export function stripComments(text) {
  * `observedAttributes` per CLASS, from the returned array literal.
  *
  * PER CLASS and not per file, because a file is not an element: `adw-checks.ts`
- * defines `<adw-checkbox>` and `<adw-radio>`, and `adw-preferences-dialog.ts`
+ * defines `<gtk-check-button>` and `<adw-radio>`, and `adw-preferences-dialog.ts`
  * also defines `<adw-preferences-page>`. Reading a file's first literal and
  * attributing it to every tag the file registers is the same mistake as reading
  * a FILENAME for the element set, which is the incident at the top of this file.
@@ -524,14 +524,14 @@ function valueImports(text) {
  *
  * "Backed by core" is an import edge we can SEE, which a sentence about core and an
  * erased `import type` are not — both were counted: `adw-header-bar` imports core
- * NOWHERE and was published core-backed off a comment, `adw-menu-button` off a type.
+ * NOWHERE and was published core-backed off a comment, `gtk-menu-button` off a type.
  *
  * ONE HOP, and never DERIVED into another renderer element. A renderer delegates through a
  * helper for a reason the tree makes visible: an NS spec cannot import a module that
  * `extends GridLayout`, so the pure half moves out (`chrome.ts`, `avatar-color.ts`)
  * and the helper is where the core edge lives. A transitive walk would report a
  * widget as core-backed because something four modules away imports core, which is
- * not the same claim; and `adw-source-view` embeds `adw-icon`, whose edge is not a
+ * not the same claim; and `adw-source-view` embeds `gtk-image`, whose edge is not a
  * claim about the source view. The verdict is per FILE: every tag
  * `adw-alert-dialog.ts` registers carries that one file's edge, no finer.
  *
@@ -699,15 +699,15 @@ function verifyCoreVia(files, elements, root) {
     for (const file of files) reach(file);
 }
 
-// `adw-button.ts`, plus the `.android`/`.ios` halves NativeScript splits a module into
+// `gtk-button.ts`, plus the `.android`/`.ios` halves NativeScript splits a module into
 // (`icons.android.ts` beside `icons.ios.ts` here already): two files, one widget. Any
-// other dotted name — `adw-button.d.ts` — is not a widget name and is not read as one,
+// other dotted name — `gtk-button.d.ts` — is not a widget name and is not read as one,
 // which the `[a-z0-9-]+` base still guarantees.
 //
 // The extension comes from the shared vocabulary because `.ts` alone CONTRADICTED the
 // rule one layer down: `nativescript-platforms.mjs` declares `VARIANT_EXTENSIONS`
 // including `tsx` and `mts` for this very naming scheme, so the build resolves a
-// `adw-button.android.tsx` that this scan could not see.
+// `gtk-button.android.tsx` that this scan could not see.
 const NS_WIDGET_FILE = new RegExp(`^adw-([a-z0-9-]+)(?:\\.(?:android|ios))?\\.(?:${TS_SOURCE_EXTENSIONS.join('|')})$`);
 
 /** Declaring a class AT ALL is what makes a file a widget file — the word in prose is not. */

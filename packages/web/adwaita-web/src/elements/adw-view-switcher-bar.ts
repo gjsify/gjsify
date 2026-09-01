@@ -23,13 +23,13 @@ import { ViewSwitcherBarState, buildViewSwitcherButtons, viewSwitcherPagesFromSt
 
 import type { AdwViewStack } from './adw-view-stack.js';
 import { applyDescription, applyIndicator, applySwitcherIcon } from './view-switcher-dom.js';
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 import { attachRovingFocus } from './roving-focus.js';
 
 /** The DOM nodes one bar button owns — the bar paints the derived model onto them. */
 interface BarButtonNodes {
     button: HTMLButtonElement;
-    icon: AdwIcon;
+    icon: GtkImage;
     label: HTMLSpanElement;
     indicator: HTMLSpanElement;
 }
@@ -227,7 +227,7 @@ export class AdwViewSwitcherBar extends HTMLElement {
         // recomputing the mapping — the spelling `<adw-inline-view-switcher>` uses.
         button.dataset.pageIndex = String(pageIndex);
 
-        const icon = createAdwIcon(null, 'adw-view-switcher-bar-icon');
+        const icon = createGtkImage(null, 'adw-view-switcher-bar-icon');
 
         const label = document.createElement('span');
         label.className = 'adw-view-switcher-bar-label';

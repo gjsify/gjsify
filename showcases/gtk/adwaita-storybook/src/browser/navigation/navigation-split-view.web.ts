@@ -6,7 +6,7 @@ import { navigationSplitViewMeta } from '../../navigation/navigation-split-view.
 
 /** GTK symbolic name (e.g. "folder-symbolic") → adwaita-web icon class. */
 function iconClass(gtkName: string): string {
-    return `adw-icon adw-icon--${gtkName.replace(/-symbolic$/, '')}`;
+    return `gtk-image adw-icon--${gtkName.replace(/-symbolic$/, '')}`;
 }
 
 export class NavigationSplitViewWebStory extends StoryElement {

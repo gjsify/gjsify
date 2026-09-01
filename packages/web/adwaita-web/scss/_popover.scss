@@ -1,4 +1,4 @@
-// _popover.scss — <adw-popover>, the one popover surface in this package.
+// _popover.scss — <gtk-popover>, the one popover surface in this package.
 //
 // It replaces three hand-rolled copies (`.adw-menu-button-popover`,
 // `.adw-drop-down-popover`, `.adw-split-button-menu`) that disagreed with
@@ -38,7 +38,7 @@
 // drop-down already used; the split button's 4px was the odd one out.
 $popover-gap: 6px;
 
-adw-popover {
+gtk-popover {
   // $popover_radius = $menu_radius + 6 (_common.scss:10,13). Exposed as a token
   // so consumers re-theme it the same way as the rest (ADR 0010), with the
   // libadwaita value as the fallback.

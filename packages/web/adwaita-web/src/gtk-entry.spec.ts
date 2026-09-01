@@ -1,4 +1,4 @@
-// DOM-level tests for <adw-entry>'s length arithmetic.
+// DOM-level tests for <gtk-entry>'s length arithmetic.
 //
 // The element had NO max length and no text length, while its NativeScript twin has
 // composed `@gjsify/adwaita-core`'s since it shipped — so the same consumer got a
@@ -10,22 +10,22 @@
 import { describe, expect, it } from '@gjsify/unit';
 import { ENTRY_MAX_LENGTH_VECTORS, ENTRY_TEXT_LENGTH_VECTORS } from '@gjsify/adwaita-core/conformance';
 
-import type { AdwEntry } from './elements/adw-entry.js';
+import type { GtkEntry } from './elements/gtk-entry.js';
 
 /** Mount an entry with the given attributes. */
-function mountEntry(attrs: Record<string, string> = {}): AdwEntry {
-    const entry = document.createElement('adw-entry') as AdwEntry;
+function mountEntry(attrs: Record<string, string> = {}): GtkEntry {
+    const entry = document.createElement('gtk-entry') as GtkEntry;
     for (const [name, value] of Object.entries(attrs)) entry.setAttribute(name, value);
     document.body.appendChild(entry);
     return entry;
 }
 
 function unmountAll(): void {
-    for (const entry of Array.from(document.querySelectorAll('adw-entry'))) entry.remove();
+    for (const entry of Array.from(document.querySelectorAll('gtk-entry'))) entry.remove();
 }
 
-export const AdwEntryTest = async () => {
-    await describe('<adw-entry> text length', async () => {
+export const GtkEntryTest = async () => {
+    await describe('<gtk-entry> text length', async () => {
         for (const { text, length, rule } of ENTRY_TEXT_LENGTH_VECTORS) {
             await it(`${JSON.stringify(text)} → ${length} — ${rule}`, () => {
                 const entry = mountEntry();
@@ -36,7 +36,7 @@ export const AdwEntryTest = async () => {
         }
     });
 
-    await describe('<adw-entry> max length', async () => {
+    await describe('<gtk-entry> max length', async () => {
         for (const { text, maxLength, clamped, length, rule } of ENTRY_MAX_LENGTH_VECTORS) {
             await it(`${JSON.stringify(text)} @ ${maxLength} — ${rule}`, () => {
                 const entry = mountEntry({ maxlength: String(maxLength) });
