@@ -421,15 +421,44 @@ export default async () => {
                 expect(threw(() => registry.selectDefault('linux')).message).toContain('no registered theme');
             });
 
-            await it('puts the palette AHEAD of the document, so a theme can read its own colours', async () => {
-                const registry = new ThemeRegistry({ display });
-                const document = registry.documentOf({
-                    name: 'x',
-                    namedColors: { 'accent-bg-color': 'rgb(1 2 3)' },
-                    css: '.gjsify-theme-probe { color: var(--accent-bg-color); }',
-                });
-                expect(document.indexOf(':root') < document.indexOf('.gjsify-theme-probe')).toBe(true);
-            });
+            await itWithRegistry(
+                'emits the palette first, so a theme’s own css can override it',
+                async (registry) => {
+                    // The order is real; the REASON given for it was not. It said the
+                    // palette goes first "so the theme's own rules can read what it just
+                    // set", and that is measurably not a constraint: a rule using
+                    // `var(--x)` BEFORE the `:root` that defines it resolves identically
+                    // (rgb(7,8,9) both ways), because a custom property computes
+                    // independently of source order. What the order DOES decide is the
+                    // override direction — at equal specificity the LAST definition in a
+                    // document wins (measured) — so palette-first is what lets a theme's
+                    // own `css` redefine a name its own `namedColors` set, rather than the
+                    // palette silently winning over the stylesheet the project wrote.
+                    registry.register({
+                        name: 'ordered',
+                        namedColors: { 'accent-bg-color': 'rgb(1 2 3)' },
+                        css:
+                            ':root { --accent-bg-color: rgb(4 5 6); }\n' +
+                            '.gjsify-theme-probe { color: var(--accent-bg-color); }',
+                    });
+                    registry.select('ordered');
+                    expect(colour()).toBe('rgb(4,5,6)');
+
+                    // And the document's shape, because both halves have to be PRESENT
+                    // before their order means anything: with the palette dropped
+                    // entirely `indexOf(':root')` is -1, which still reads as "before"
+                    // the rule and would keep an index comparison green over exactly the
+                    // regression it is there to catch.
+                    const document = registry.documentOf({
+                        name: 'x',
+                        namedColors: { 'accent-bg-color': 'rgb(1 2 3)' },
+                        css: '.gjsify-theme-probe { color: var(--accent-bg-color); }',
+                    });
+                    expect(document).toContain('--accent-bg-color: rgb(1 2 3)');
+                    expect(document).toContain('.gjsify-theme-probe');
+                    expect(document.indexOf(':root') < document.indexOf('.gjsify-theme-probe')).toBe(true);
+                },
+            );
 
             await it('makes the neutral default an EMPTY document, which is the statement', async () => {
                 const registry = new ThemeRegistry({ display });

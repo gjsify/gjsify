@@ -209,7 +209,8 @@ export interface Theme {
      * Adwaita named colours to redefine, WITHOUT the `--` prefix.
      *
      * `{ 'accent-bg-color': 'rgb(53 132 228)' }`. Emitted as a `:root` block ahead of
-     * {@link Theme.css}, so the theme's own rules can read what it just set.
+     * {@link Theme.css}, so a rule in {@link Theme.css} redefining one of these names
+     * WINS — the last definition in a document is the one that applies.
      */
     readonly namedColors?: Readonly<Record<string, string>>;
     /**
@@ -307,7 +308,11 @@ export class ThemeRegistry {
     documentOf(theme: Theme): string {
         const colors = Object.entries(theme.namedColors ?? {});
         const parts: string[] = [];
-        // The palette FIRST, so the theme's own rules can read what it just set.
+        // The palette FIRST, so a theme's own `css` can redefine a name its own
+        // palette set: at equal specificity the LAST definition in a document wins.
+        // NOT so its rules can read the palette — measured, `var()` resolves the same
+        // whichever comes first, because a custom property computes independently of
+        // source order.
         if (colors.length > 0) {
             parts.push(`:root {\n${colors.map(([name, value]) => `    --${name}: ${value};`).join('\n')}\n}`);
         }
