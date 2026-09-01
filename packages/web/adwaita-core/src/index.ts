@@ -701,6 +701,8 @@ export {
     normalizeWrapPolicy,
     resolveWrapBoxChildOrder,
     resolveWrapBoxLine,
+    wrapBoxChildFlex,
+    wrapBoxFlexStyle,
     wrapBoxLengthToPx,
     wrapPolicyFlexShrink,
 } from './wrap-box.js';
@@ -709,6 +711,9 @@ export type {
     AdwWrapBoxOrientation,
     AdwWrapBoxPackDirection,
     AdwWrapPolicy,
+    WrapBoxChildFlex,
     WrapBoxChildOrderOp,
+    WrapBoxFlexInput,
+    WrapBoxFlexStyle,
     WrapBoxLineLayout,
 } from './wrap-box.js';
