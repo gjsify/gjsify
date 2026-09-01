@@ -138,6 +138,18 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                     ] }
             ] }
     },
+    { widget: 'Adw.WrapBox', root:
+        { tag: 'adw-wrap-box', gtype: 'AdwWrapBox', props: {"childSpacing":8,"lineSpacing":8}, children: [
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Design","cssClasses":["pill"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Adwaita","cssClasses":["pill"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"GNOME","cssClasses":["pill"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"GTK","cssClasses":["pill"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Typescript","cssClasses":["pill"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Storybook","cssClasses":["pill"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Wrapping","cssClasses":["pill"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Layout","cssClasses":["pill"]} }
+            ] }
+    },
     { widget: 'Adw.OverlaySplitView', root:
         { tag: 'adw-overlay-split-view', gtype: 'AdwOverlaySplitView', props: {"showSidebar":true}, children: [
                 { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', slot: 'sidebar', children: [

@@ -203,4 +203,25 @@ export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
             defaultSlot: 'content',
         },
     },
+    {
+        gtype: 'AdwWrapBox',
+        ctor: () => Adw.WrapBox,
+        // `GtkBox`'s policy, on the libadwaita widget that wraps. MEASURED on
+        // libadwaita 1.9.3: `append`, `prepend`, `remove`, `remove_all`,
+        // `insert_child_after` and `reorder_child_after` are all present, so the O(1)
+        // reorder path is real and this pays no tail re-append.
+        //
+        // Curated because the generated table cannot be: `adw-wrap-box` was a tag a
+        // renderer could CREATE and never fill — `uncurated-placement` on the first
+        // child — which, for a container whose entire purpose is holding children, is
+        // the hole `AdwClamp` had. Found from `@gjsify/adwaita-react-native`, whose
+        // `AdwWrapBox` is this host's first consumer of the tag.
+        children: {
+            kind: 'ordered',
+            append: 'append',
+            after: 'insert_child_after',
+            remove: 'remove',
+            reorder: 'native',
+        },
+    },
 ];

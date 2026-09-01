@@ -32,14 +32,16 @@ built, which is the only way to tell a template that renders from one that rende
 something else: an attribute arrives as a string, and a child a widget has no slot for
 is added to the layout anyway.
 
-The third, **UI frameworks**, is on all four as well. The clamp, the header bar and
-the toolbar view show the same widget written in Solid, Vue and React through
+The third, **UI frameworks**, is on all four as well: each shows the same widget
+written in Solid, Vue and React through
 [`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host),
 with a [`@gjsify/react-native`](/gjsify/frameworks/react-native/) tab beside them. The
-wrap box shows the recorded reason instead: `@gjsify/gtk-host` has no child policy for
-`AdwWrapBox` yet, and a renderer that guessed one would call `add`, `append` or
-`set_child` and be wrong at exit 0. That window renders a GTK window,
-not a phone screen — which is why it is not the NativeScript one, and the [React Native
+wrap box only recently joined them. `@gjsify/gtk-host` had no child policy for
+`AdwWrapBox`, so a child placed in one was refused by name — deliberately, because a
+renderer that guessed the policy would call `add`, `append` or `set_child` and be
+wrong at exit 0. The policy is now curated against libadwaita, so the block has a tree
+like the other three. That window renders a GTK window, not a phone screen — which is
+why it is not the NativeScript one, and the [React Native
 page](/gjsify/frameworks/react-native/#adwaita-widgets) says what does and does not
 exist there.
 

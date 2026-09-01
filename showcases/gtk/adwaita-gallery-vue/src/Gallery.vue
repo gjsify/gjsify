@@ -164,6 +164,43 @@
                 />
             </gtk-box>
         </adw-toolbar-view>
+        <adw-wrap-box
+            :child-spacing="8"
+            :line-spacing="8"
+        >
+            <gtk-button
+                label="Design"
+                :css-classes="['pill']"
+            />
+            <gtk-button
+                label="Adwaita"
+                :css-classes="['pill']"
+            />
+            <gtk-button
+                label="GNOME"
+                :css-classes="['pill']"
+            />
+            <gtk-button
+                label="GTK"
+                :css-classes="['pill']"
+            />
+            <gtk-button
+                label="Typescript"
+                :css-classes="['pill']"
+            />
+            <gtk-button
+                label="Storybook"
+                :css-classes="['pill']"
+            />
+            <gtk-button
+                label="Wrapping"
+                :css-classes="['pill']"
+            />
+            <gtk-button
+                label="Layout"
+                :css-classes="['pill']"
+            />
+        </adw-wrap-box>
         <adw-overlay-split-view :show-sidebar="true">
             <adw-toolbar-view slot="sidebar">
                 <adw-header-bar slot="top">

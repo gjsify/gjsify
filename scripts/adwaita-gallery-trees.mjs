@@ -276,6 +276,24 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    {
+        widget: 'Adw.WrapBox',
+        page: 'layout',
+        // A REFUSAL UNTIL THIS BRANCH. `adw-wrap-box` was a generated tag with no
+        // curated placement rule, so every child was an `uncurated-placement` — for a
+        // container whose entire purpose is holding children. The policy is now in
+        // `descriptors/adw.ts`, so the block gets the tree it always could have had.
+        //
+        // The eight chips are the block's own preview, so the four tabs on the page
+        // read as one widget written four ways rather than as four examples.
+        root: {
+            tag: 'adw-wrap-box',
+            props: { childSpacing: 8, lineSpacing: 8 },
+            children: ['Design', 'Adwaita', 'GNOME', 'GTK', 'Typescript', 'Storybook', 'Wrapping', 'Layout'].map(
+                (label) => ({ tag: 'gtk-button', props: { label, cssClasses: ['pill'] } }),
+            ),
+        },
+    },
     // -------------------------------------------------------------- navigation
     {
         widget: 'Adw.OverlaySplitView',
@@ -519,9 +537,11 @@ export const ADWAITA_GALLERY_TREES = [
  */
 export const ADWAITA_GALLERY_REFUSALS = {
     // Measured by `showcases/gtk/adwaita-gallery-solid/src/refusals.ts`: the host
-    // raises `uncurated-placement` BY NAME when the child is materialised. Nine of
-    // them, which is every entry in this group, and the probe fails if any starts
-    // being accepted.
+    // raises `uncurated-placement` BY NAME when the child is materialised — for
+    // every entry in this group, and the probe fails if any starts being accepted.
+    // NOT counted here any more: this note read "Nine of them", and a widget leaves
+    // this group the day its descriptor is curated, which is the second time a
+    // hand-kept number beside this list went stale. The list is the count.
     //
     // COUNT THE GROUP, not the probe. This note read "13 of 13", and the probe has
     // driven ELEVEN placements since it landed in #1376 — never thirteen. Two of the
@@ -531,13 +551,14 @@ export const ADWAITA_GALLERY_REFUSALS = {
     // ACCEPTED and left the list, restated beside a list that was already shorter —
     // a number kept by hand next to the thing it counts.
     //
-    // Nothing holds the two lists against each other, which is why neither the count
-    // nor a stale entry has a mechanism behind it. It is a plain-Node question: an
-    // `uncurated-placement` entry is one whose GType has no curated descriptor under
-    // `packages/framework/gtk-host/src/descriptors/`, and every placement the probe
-    // drives is either an entry here or ledgered in the probe with its own reason.
-    // That arm belongs beside the refusal arms of `check-generated-website-data.mjs`.
-    'Adw.WrapBox': 'uncurated-placement: AdwWrapBox has no child policy.',
+    // THE ARM THIS NOTE ASKED FOR EXISTS: arm 5b of
+    // `check-generated-website-data.mjs` holds the two lists against each other in
+    // both directions — an `uncurated-placement` entry whose GType has acquired a
+    // curated descriptor under `packages/framework/gtk-host/src/descriptors/` fails,
+    // and so does an entry no placement probes, a probed parent that is neither an
+    // entry here nor ledgered in the probe, and a ledgered parent nothing probes. It
+    // is what caught `Adw.WrapBox` the moment its descriptor landed, before the
+    // gallery could ship a refusal that had stopped being true.
     'Adw.PreferencesDialog': 'uncurated-placement: a page cannot be a child of AdwPreferencesDialog.',
     'Adw.BottomSheet': 'uncurated-placement: no child policy for the sheet or the content.',
     'Adw.Carousel': 'uncurated-placement: AdwCarousel has no child policy.',
