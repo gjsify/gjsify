@@ -158,6 +158,48 @@ export function render(entries, label, module) {
     return lines.join('\n');
 }
 
+/**
+ * The refusals a generated module declares, as `(name, module)` pairs.
+ *
+ * WHY THE COMPARISON IS THIS AND NOT THE BYTES. `run generate` is
+ * `node scripts/generate-exports.mjs && gjsify format src/generated`, so the FORMATTER
+ * is part of generation — and two of the eighteen surfaces emit something it changes:
+ * the one with nothing to refuse emits a second trailing blank line, and
+ * `expo-status-bar` has a name long enough that the call wraps over four lines. A
+ * byte-for-byte check therefore called both files permanently stale no matter how
+ * often they were regenerated, because the thing on disk is the formatter's output and
+ * the thing being compared was this function's.
+ *
+ * The rule that fixes it is already written down one comparison further on, for
+ * `own-exports.ts`: "its exact bytes are the formatter's claim while the derivation's
+ * claim is the set". This is that rule applied to the modules it was not applied to.
+ *
+ * The set is the (name, module) PAIR rather than the name, because the module is what
+ * makes a refusal answer from the right surface — dropping it is how `expo-image`'s
+ * planned `Image` reported react-native's "is available".
+ */
+export function readRefusals(source) {
+    const out = [];
+    // MASKED FIRST, through the same function the own-export derivation uses: a
+    // commented-out `export const Ghost = unsupported(…)` is documentation, not an
+    // export, and the first version of this reader reported it. `maskSource` blanks
+    // comments and string CONTENT while preserving length, so the match offsets below
+    // still line up with the original text.
+    for (const match of maskSource(source).matchAll(
+        /export const ([A-Za-z_$][\w$]*)\s*=\s*unsupported\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*'((?:[^'\\]|\\.)*)'\s*,?\s*\)/g,
+    )) {
+        // The NAMES come back out of the ORIGINAL text, because `maskSource` blanks
+        // what is between the quotes. Length-preserving masking is what makes that a
+        // slice by index rather than a second parse.
+        const literal = /'((?:[^'\\]|\\.)*)'\s*,\s*'((?:[^'\\]|\\.)*)'/.exec(
+            source.slice(match.index, match.index + match[0].length),
+        );
+        if (literal === null) continue;
+        out.push({ binding: match[1], name: literal[1], module: literal[2] });
+    }
+    return out;
+}
+
 /** Statuses in the order a reader wants to see them, with a heading each. */
 const SECTIONS = [
     ['supported', 'Supported'],

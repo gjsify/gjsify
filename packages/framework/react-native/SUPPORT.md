@@ -27,7 +27,7 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | export | tier | GTK | why |
 |---|---|---|---|
 | `View` | P1 | Gtk.Box, or Gtk.Overlay when a child is absolutely positioned | The container primitive. Which widget it becomes depends on its children, not on the element. |
-| `Text` | P1 | Gtk.Label | Wrapping is ON by default in React Native and OFF on a Gtk.Label, so the default is set explicitly. |
+| `Text` | P1 | Gtk.Label | THREE Gtk.Label defaults disagree with React Native’s and are set explicitly — wrap, xalign and yalign. The whole set of default divergences, including the ones that agree, is enumerated in primitives/defaults.ts. |
 | `Pressable` | P1 | Gtk.Button (flat) | Press state is a GTK CSS :active pseudo-class; children-as-a-function is implemented over the state flag, and costs nothing when it is unused. |
 | `ScrollView` | P1 | Gtk.ScrolledWindow + an implicit content box | contentContainerStyle styles the inner box, which is a second styleable node. |
 | `ActivityIndicator` | P1 | Adw.Spinner | Direct counterpart. |
@@ -138,7 +138,7 @@ Imported from `expo-router`; answered by `@gjsify/react-native/router`.
 
 | export | tier | GTK | why |
 |---|---|---|---|
-| `router` | P1 | Adw.NavigationView (push/pop) via React Navigation’s StackActions | push, back, replace and navigate — the four methods the measured application calls, 19 of the 27 calls being push. |
+| `router` | P1 | Adw.NavigationView (push/pop) via React Navigation’s StackActions | push, back, replace, navigate and canGoBack. Every href-taking method accepts BOTH argument shapes — a path string and expo-router’s { pathname, params } object. |
 | `useLocalSearchParams` | P1 | — | The current route’s params — the [param] values and the query string — read through React Navigation’s own useRoute(). |
 | `usePathname` | P1 | — | The current URL without its query string, from React Navigation’s getPathFromState over the published root state. |
 | `Stack` | P1 | Adw.NavigationView + Adw.NavigationPage | The stack navigator: React declares which pages exist, the widget owns their order, and the route key is the tag that joins the two. |
