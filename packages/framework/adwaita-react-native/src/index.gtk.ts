@@ -8,20 +8,31 @@
 // replacement, `scripts/check-adwaita-rn-platform-split.mjs`.
 
 export type {
+    AdwAvatarProps,
+    AdwBannerProps,
     AdwBinProps,
+    AdwButtonContentProps,
     AdwClampProps,
     AdwHeaderBarProps,
+    AdwSpinnerProps,
     AdwStatusPageProps,
+    AdwToastOverlayHandle,
+    AdwToastOverlayProps,
     AdwToolbarViewProps,
     AdwWidgetProps,
     AdwWindowTitleProps,
     AdwWrapBoxProps,
 } from './props.js';
 
+export { AdwAvatar } from './widgets/avatar.gtk.js';
+export { AdwBanner } from './widgets/banner.gtk.js';
 export { AdwBin } from './widgets/bin.gtk.js';
+export { AdwButtonContent } from './widgets/button-content.gtk.js';
 export { AdwClamp } from './widgets/clamp.gtk.js';
 export { AdwHeaderBar } from './widgets/header-bar.gtk.js';
+export { AdwSpinner } from './widgets/spinner.gtk.js';
 export { AdwStatusPage } from './widgets/status-page.gtk.js';
+export { AdwToastOverlay } from './widgets/toast-overlay.gtk.js';
 export { AdwToolbarView } from './widgets/toolbar-view.gtk.js';
 export { AdwWindowTitle } from './widgets/window-title.gtk.js';
 export { AdwWrapBox } from './widgets/wrap-box.gtk.js';
@@ -37,12 +48,30 @@ export { AdwWrapBox } from './widgets/wrap-box.gtk.js';
 // from drifting is rule 8 of `check-adwaita-rn-platform-split.mjs`, which holds the
 // members of `Adw` against the widgets on disk in both directions.
 
+import { AdwAvatar as Avatar } from './widgets/avatar.gtk.js';
+import { AdwBanner as Banner } from './widgets/banner.gtk.js';
 import { AdwBin as Bin } from './widgets/bin.gtk.js';
+import { AdwButtonContent as ButtonContent } from './widgets/button-content.gtk.js';
 import { AdwClamp as Clamp } from './widgets/clamp.gtk.js';
 import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.gtk.js';
+import { AdwSpinner as Spinner } from './widgets/spinner.gtk.js';
 import { AdwStatusPage as StatusPage } from './widgets/status-page.gtk.js';
+import { AdwToastOverlay as ToastOverlay } from './widgets/toast-overlay.gtk.js';
 import { AdwToolbarView as ToolbarView } from './widgets/toolbar-view.gtk.js';
 import { AdwWindowTitle as WindowTitle } from './widgets/window-title.gtk.js';
 import { AdwWrapBox as WrapBox } from './widgets/wrap-box.gtk.js';
 
-export const Adw = { Bin, Clamp, HeaderBar, StatusPage, ToolbarView, WindowTitle, WrapBox };
+export const Adw = {
+    Avatar,
+    Banner,
+    Bin,
+    ButtonContent,
+    Clamp,
+    HeaderBar,
+    Spinner,
+    StatusPage,
+    ToastOverlay,
+    ToolbarView,
+    WindowTitle,
+    WrapBox,
+};

@@ -10,20 +10,31 @@
 // is what makes both halves satisfy it.
 
 export type {
+    AdwAvatarProps,
+    AdwBannerProps,
     AdwBinProps,
+    AdwButtonContentProps,
     AdwClampProps,
     AdwHeaderBarProps,
+    AdwSpinnerProps,
     AdwStatusPageProps,
+    AdwToastOverlayHandle,
+    AdwToastOverlayProps,
     AdwToolbarViewProps,
     AdwWidgetProps,
     AdwWindowTitleProps,
     AdwWrapBoxProps,
 } from './props.js';
 
+export { AdwAvatar } from './widgets/avatar.js';
+export { AdwBanner } from './widgets/banner.js';
 export { AdwBin } from './widgets/bin.js';
+export { AdwButtonContent } from './widgets/button-content.js';
 export { AdwClamp } from './widgets/clamp.js';
 export { AdwHeaderBar } from './widgets/header-bar.js';
+export { AdwSpinner } from './widgets/spinner.js';
 export { AdwStatusPage } from './widgets/status-page.js';
+export { AdwToastOverlay } from './widgets/toast-overlay.js';
 export { AdwToolbarView } from './widgets/toolbar-view.js';
 export { AdwWindowTitle } from './widgets/window-title.js';
 export { AdwWrapBox } from './widgets/wrap-box.js';
@@ -39,12 +50,30 @@ export { AdwWrapBox } from './widgets/wrap-box.js';
 // from drifting is rule 8 of `check-adwaita-rn-platform-split.mjs`, which holds the
 // members of `Adw` against the widgets on disk in both directions.
 
+import { AdwAvatar as Avatar } from './widgets/avatar.js';
+import { AdwBanner as Banner } from './widgets/banner.js';
 import { AdwBin as Bin } from './widgets/bin.js';
+import { AdwButtonContent as ButtonContent } from './widgets/button-content.js';
 import { AdwClamp as Clamp } from './widgets/clamp.js';
 import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.js';
+import { AdwSpinner as Spinner } from './widgets/spinner.js';
 import { AdwStatusPage as StatusPage } from './widgets/status-page.js';
+import { AdwToastOverlay as ToastOverlay } from './widgets/toast-overlay.js';
 import { AdwToolbarView as ToolbarView } from './widgets/toolbar-view.js';
 import { AdwWindowTitle as WindowTitle } from './widgets/window-title.js';
 import { AdwWrapBox as WrapBox } from './widgets/wrap-box.js';
 
-export const Adw = { Bin, Clamp, HeaderBar, StatusPage, ToolbarView, WindowTitle, WrapBox };
+export const Adw = {
+    Avatar,
+    Banner,
+    Bin,
+    ButtonContent,
+    Clamp,
+    HeaderBar,
+    Spinner,
+    StatusPage,
+    ToastOverlay,
+    ToolbarView,
+    WindowTitle,
+    WrapBox,
+};

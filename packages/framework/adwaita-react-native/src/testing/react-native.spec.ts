@@ -44,12 +44,15 @@ import { RCT_TEXT, RCT_VIEW, Text, View } from './react-native.js';
 export type DoublePropsMatchReactNative = Assert<SameKeys<Parameters<typeof View>[0], Parameters<typeof RealView>[0]>>;
 
 /**
- * The same contract for `Text`, which the window title, the status page and the header
- * bar all render.
+ * The same contract for `Text`, which most of this package's widgets render.
  *
  * A SECOND PRIMITIVE IS A SECOND CHANCE TO INVENT ONE. `View` was pinned from the day it
- * existed and `Text` arrived later, with three widgets already leaning on it — which is
- * exactly the order in which a double acquires a prop React Native does not have.
+ * existed and `Text` arrived later, with widgets already leaning on it — which is exactly
+ * the order in which a double acquires a prop React Native does not have. And it is not
+ * redundant with the assertion above: `ViewProps` and `TextProps` are different key sets
+ * — `numberOfLines`, `ellipsizeMode` and `onPress` are on one and not the other — so a
+ * `Text` double annotated `typeof RealView` by a copy-paste would satisfy every assertion
+ * about `View` and none about the component the widgets actually use.
  */
 export type TextPropsMatchReactNative = Assert<SameKeys<Parameters<typeof Text>[0], Parameters<typeof RealText>[0]>>;
 

@@ -17,10 +17,13 @@ approximation.
 
 ## What this is, honestly
 
-**A walking skeleton, not yet a widget set.** The table below is the whole of it. Every
-row carries the whole vertical — both platform halves, the resolution mechanism, the
-`exports` entry, a gate, and a suite on each side that reads the REAL tree — and the
-widgets that are not in it are repetition against a boundary that has been measured.
+**Not a widget set yet.** The table below is the whole of it, and every row carries the
+whole vertical — both platform halves, the resolution mechanism, the `exports` entry, a
+gate, and a suite on each side that reads the REAL tree. `AdwBin` and `AdwClamp` came
+first and proved that shape; the groups since are where it starts earning its keep, and
+the content-and-feedback widgets are the clearest case — each has a DERIVATION as its
+shared half (an initials hash, a palette index, a queue policy, a ring geometry), so the
+two implementations are held to the same number rather than to the same shape.
 
 **The promise is the Adwaita design language on React Native, not "your app runs".**
 Unlike [`@gjsify/react-native`](../react-native) — the opposite direction, which was
@@ -46,10 +49,15 @@ a GTK-only consumer does not need it installed.
 
 | widget | props | notes |
 |---|---|---|
+| `AdwAvatar` | `size` (**required**), `text`, `showInitials`, `iconName` | Initials and palette entry from one port of `extract_initials_from_text` + `set_class_color`. `size` is required because libadwaita's default is the `-1` "ask the stylesheet" sentinel and neither renderer here has one |
+| `AdwBanner` | `title`, `buttonLabel`, `revealed`, `useMarkup`, `buttonStyle`, `onButtonClicked` | An omitted `useMarkup` is FALSE on both halves — the value the widget reads back, not the TRUE its `GParamSpec` declares |
 | `AdwBin` | `children` | One child, no layout of its own |
+| `AdwButtonContent` | `iconName`, `label`, `useUnderline`, `canShrink` | Four derivations from the core, including the 6px gap that is `border-spacing` and not `GtkBox:spacing` |
 | `AdwClamp` | `children`, `maximumSize` (600), `tighteningThreshold` (400) | Constrain a child's width and centre it, on libadwaita's easing curve |
 | `AdwHeaderBar` | `start`, `titleWidget`, `title`, `subtitle`, `end` | The three slots as PROPS, in draw order. No window controls: a phone has none |
+| `AdwSpinner` | `widthRequest`, `heightRequest` | The BOX and the RING are two numbers: an unbounded box around a ring capped at 64 |
 | `AdwStatusPage` | `children`, `iconName`, `title`, `description` | A centred empty state. The icon draws on GTK only |
+| `AdwToastOverlay` | `children`, `ref` (`addToast`, `dismissAll`) | One toast at a time. A toast is PUSHED through the ref, never declared as a prop — `add_toast` is a call |
 | `AdwToolbarView` | `children` (the content), `topBar`, `bottomBar`, `topBarStyle` (`flat`), `bottomBarStyle` (`flat`), `extendContentToTopEdge` (false), `extendContentToBottomEdge` (false) | Content framed by bars. The two styles reach the real widget on GTK and draw nothing on a phone |
 | `AdwWindowTitle` | `title`, `subtitle` | Two labels; an EMPTY one takes no space, a blank one does |
 | `AdwWrapBox` | `children` plus libadwaita's fourteen: `childSpacing`/`childSpacingUnit`, `lineSpacing`/`lineSpacingUnit`, `align`, `justify`, `justifyLastLine`, `lineHomogeneous`, `naturalLineLength`/`naturalLineLengthUnit`, `packDirection`, `wrapReverse`, `wrapPolicy`, `orientation` | Children flow onto new lines. The line DECISION is `@gjsify/adwaita-core`'s, the line BREAKING is Yoga's |
@@ -122,6 +130,10 @@ nothing:
 | GTK: a slot is the slot it was written into | the style class libadwaita puts on the box it packs into — `start`/`end` on the header bar, `top-bar`/`bottom-bar` on the toolbar view. `pack_start`, `pack_end`, `add_top_bar` and `add_bottom_bar` are all WRITE-ONLY, so an assertion that the child is merely present passes with the child in the wrong slot |
 | both halves agree on the number | two frames, one of them ON the easing curve: 1000 points at `maximumSize` 400 gives width 400 at offset 300, and 700 points at the default 600/400 gives **575 at offset 62**, where a `min()` would give 600 |
 | both halves answer the same for a property value GObject cannot store | `normalizeClampSize` from `@gjsify/adwaita-core`, run by **both** halves — the same call `@gjsify/adwaita-web` and `@gjsify/adwaita-nativescript` make. `400.7` &rarr; 400, `NaN` &rarr; the default 600, `-5` &rarr; the range floor 0, asserted on both sides |
+| both halves pick the same avatar colour, from the same bytes | libadwaita PUBLISHES its answer: `set_class_color` stamps `color{n}` on the avatar's internal gizmo. GTK reads `color11` off the live tree for "Ada Lovelace" and `color6` for "Grace Hopper"; React Native paints `#8c75d9` and `#eba831`, the same two entries flattened. Two names, because one agreeing proves only that both landed in a bucket once — the derivation is `g_str_hash` over UTF-8 BYTES, and a renderer hashing UTF-16 code units agrees for plenty of ASCII names |
+| both halves show ONE toast for two adds | measured on libadwaita 1.9.3 as a single `AdwToastWidget` carrying the first title, and asserted of `@gjsify/adwaita-core`'s `AdwToastQueue` on the other side. Neither half runs the other's queue |
+| the millisecond&rarr;second conversion cannot turn a brief toast into a permanent one | `Adw.Toast:timeout` counts whole seconds and reads back 5 on a default toast; `DEFAULT_TOAST_TIMEOUT` counts 5000 ms. The conversion is `ceil`, asserted against libadwaita's own default rather than against itself — `Math.round(400 / 1000)` is 0, which is "until dismissed" |
+| the spinner's box and its ring are held on the half where each is a node | GTK measures the BOX (`[16, 16]` unrequested, 200 requested, no upper bound); React Native asserts the RING, which on GTK is an `AdwSpinnerPaintable` and not a widget at all — 64 points with an 8-point stroke inside a 200-point box |
 
 **Not proven: Yoga, and the device.** A `width` in a style object is an instruction to a
 layout engine that no test here runs. The React Native half is type-checked and
@@ -164,12 +176,16 @@ than smoothed over.
   an `AdwWindowTitle` centre. This is the same divergence `@gjsify/adwaita-web` and
   `@gjsify/adwaita-nativescript` carry, recorded as `HeaderBarRenderState.derivedSubtitle`
   in `@gjsify/adwaita-core`.
-- **`AdwStatusPage` draws no icon on React Native.** `icon-name` names an entry in an
-  ICON THEME and React Native has none — no `Image` source a GNOME symbolic name resolves
-  to, and no renderer for the SVG `@gjsify/adwaita-nativescript` substituted instead.
-  Drawing the name as text would put the literal `folder-symbolic` on screen. The prop is
-  carried so a GTK consumer's props stay portable, and the ABSENCE of an icon node is
-  asserted, so the day one appears it is a decision and not a drift.
+- **Neither renderer here resolves an icon theme, so `iconName` is accepted and not
+  drawn.** `icon-name` names an entry in an ICON THEME and React Native has none — no
+  `Image` source a GNOME symbolic name resolves to, and no renderer for the SVG
+  `@gjsify/adwaita-nativescript` substituted instead. Drawing the name as text would put
+  the literal `folder-symbolic` on screen. So `AdwStatusPage` shows no icon, `AdwAvatar`'s
+  icon mode is a coloured circle with the initials hidden where GTK draws
+  `adw-avatar-default-symbolic`, and `AdwButtonContent`'s icon slot sits in the row with
+  libadwaita's own `hexpand` and holds no glyph. The props are carried so a GTK consumer's
+  props stay portable, and the ABSENCE of an icon node is asserted in each case, so the
+  day one appears it is a decision and not a drift.
 - **`AdwToolbarView` does not run libadwaita's allocation on React Native, and cannot.**
   `adw_toolbar_view_size_allocate` is two chained CLAMPs over the bars' MINIMUM and
   NATURAL heights — ported as `toolbarViewAllocate` and held to vectors — and React
@@ -201,6 +217,41 @@ than smoothed over.
   `@gjsify/adwaita-core`'s `wrapBoxFlexStyle` rather than in a conformance vector. The
   GTK half runs none of it: `Adw.WrapBox` is `adw-wrap-layout.c` itself, and the suite
   reads the continuum back off the live tree.
+- **`AdwAvatar`'s font size is the CAP, not a measurement.** `update_font_size` scales
+  the label's measured aspect ratio against `avatarMaxFontSize(size)`; React Native
+  reports a text box only through `onLayout`, i.e. after layout — the same missing
+  measure pass that makes `AdwClamp` pass `childMin: 0`. Using the cap alone stays inside
+  libadwaita's bound. The NativeScript port's `size * 0.4` heuristic is deliberately not
+  copied: it is not monotonic in `size` and exceeds the cap above ~54 points.
+- **`AdwButtonContent` cannot stamp `image-text-button`.** `adw_button_content_root` puts
+  the class on the nearest `GtkButton` ancestor, and this package ships no button for it
+  to find. `buttonContentStyleTargetIndex` holds the retarget rule for a renderer that has
+  a tree to walk; when a button lands here, that is the call to make.
+- **`AdwSpinner` draws the track and not the arc.** `AdwSpinnerPaintable`'s segment
+  extends, overlaps, contracts and idles on an ease-in-out-sine while the whole figure
+  turns, and drawing it needs a path renderer that is not a dependency of this package.
+  What is drawn is the circle underneath — `ADW_SPINNER_TRACK_OPACITY` of the current
+  colour, exactly what the browser renderer paints under its arc. The `_spinner.scss`
+  substitute (a fixed 90-degree `border-top-color` chase at 0.8s) is a different animation
+  with a different period, so copying it would put a wrong number where there is an absent
+  one. **The suite asserts the track's opacity and nothing about motion** — there is no
+  animation assertion here, because there is no animation to assert.
+- **`Adw.Toast:timeout` is lossy in the other direction.** GObject stores whole seconds,
+  so 1500 ms is 2 s on GTK and stays 1500 ms on React Native.
+- **A toast's action button has no callback.** `Adw.Toast` expresses its action as
+  `action-name`, a `GAction` this package has no surface for, so pressing the button does
+  what both other renderers do: dismiss the current toast, which advances the queue.
+- **`dismissAll`'s REMOVAL is asserted only on React Native.**
+  `adw_toast_overlay_dismiss_all` animates the strip out over real time, and pumping the
+  main context for ~1.6s leaves the `AdwToastWidget` in place — measured. GTK asserts that
+  the call lands and costs no diagnostic; the removal is asserted where the queue is ours.
+- **`AdwBanner` reduces markup to its plain text.** React Native has no inline-markup
+  layer, and painting `<b>Metered</b>` literally is further from what GTK draws than
+  painting `Metered` is. Unparseable markup keeps the raw string, which is Pango's own
+  fallback.
+- **A press assertion proves the widget ASKS for the press, never that a tap arrives.**
+  The `react-native` double forwards `onPress` verbatim; the real runtime wires it through
+  the press responder. Same class of gap as Yoga, one layer up.
 - **`Adw.ClampScrollable` has no counterpart and will not get one.** It binds its four
   scroll properties onto its child, which is a GTK adoption concern; on React Native
   scrolling belongs to the `ScrollView`, not to the clamp. This is an asymmetry, not a

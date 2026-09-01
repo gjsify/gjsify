@@ -9,21 +9,24 @@
 // libadwaita's documentation is the property they write.
 
 import type {
+    AdwBannerButtonStyle,
     AdwLengthUnit,
+    AdwToast,
     AdwToolbarStyle,
     AdwWrapBoxJustify,
     AdwWrapBoxOrientation,
     AdwWrapBoxPackDirection,
     AdwWrapPolicy,
 } from '@gjsify/adwaita-core';
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 
 /**
  * What a widget that HOLDS a child accepts.
  *
- * Not every widget does. `Adw.WindowTitle` is two labels and no child slot, so
- * {@link AdwWindowTitleProps} deliberately does not extend this — a `children` a widget
- * would have to drop is a hole in the surface, not a convenience.
+ * Not every widget does. `Adw.WindowTitle` is two labels and no child slot, and
+ * `Adw.Avatar`, `Adw.Banner`, `Adw.Spinner` and `Adw.ButtonContent` are leaves — so
+ * their prop types deliberately do not extend this. A `children` a widget would have to
+ * drop is a hole in the surface, not a convenience.
  */
 export interface AdwWidgetProps {
     children?: ReactNode;
@@ -176,4 +179,123 @@ export interface AdwWrapBoxProps extends AdwWidgetProps {
     wrapPolicy?: AdwWrapPolicy;
     /** `orientation` — the axis children are packed along. Default `horizontal`. */
     orientation?: AdwWrapBoxOrientation;
+}
+
+/**
+ * `Adw.Avatar` — a round avatar showing initials derived from a name, or a
+ * fallback icon.
+ *
+ * `size` IS REQUIRED, and that is the one place this file departs from "libadwaita's
+ * defaults are the defaults". `AdwAvatar:size`'s GParamSpec default is the `-1`
+ * sentinel meaning "take the size from the stylesheet", and a renderer with no
+ * stylesheet cannot honour a stylesheet value. Measured against libadwaita 1.9.3, that
+ * path is degenerate on GTK too: a default-constructed avatar measures 20 wide and 18
+ * tall — not even square — and raises one `Pango-CRITICAL` from `update_font_size`,
+ * because the font cap for a negative size is negative. Reproducing that is not a goal
+ * and inventing a number behind the caller's back is how the two halves come to
+ * disagree, so the caller says.
+ *
+ * `custom-image` IS ABSENT. It is a `GdkPaintable` on GTK and an image source on React
+ * Native — two types with no shared spelling, and this file may import neither. The
+ * consequence is that `avatarMode` here only ever answers `'initials'` or `'icon'`.
+ */
+export interface AdwAvatarProps {
+    /** `size` — the diameter. Required; see above. */
+    size: number;
+    /** `text` — the name the initials AND the colour are derived from. */
+    text?: string;
+    /** `show-initials` — initials instead of the fallback icon. Default false. */
+    showInitials?: boolean;
+    /** `icon-name` — the fallback icon. Default libadwaita's `adw-avatar-default-symbolic`. */
+    iconName?: string;
+}
+
+/**
+ * `Adw.Banner` — a full-width strip carrying one in-context message and an optional
+ * action button.
+ *
+ * ON `useMarkup`'s DEFAULT, which is measured and not the one written down.
+ * `AdwBanner:use-markup`'s GParamSpec declares TRUE (adw-banner.c:422-425) and
+ * `@gjsify/adwaita-core`'s `ADW_BANNER_DEFAULTS` records that — but a freshly
+ * constructed `Adw.Banner` READS BACK FALSE, measured on libadwaita 1.9.3.
+ * `adw_banner_get_use_markup` delegates to `gtk_label_get_use_markup (self->title)`,
+ * `adw-banner.ui` never sets `use-markup` on that label, and a pspec default is only
+ * applied to properties construction actually writes. So the declared default is never
+ * reached. Both halves here answer FALSE for an omitted value, because that is what the
+ * widget on the other side of the surface answers.
+ */
+export interface AdwBannerProps {
+    /** `title` — the message. Pango markup when {@link useMarkup}. */
+    title?: string;
+    /** `button-label` — empty means no button. Its `_` is always a mnemonic marker. */
+    buttonLabel?: string;
+    /** `revealed` — whether the strip is on screen. Default false. */
+    revealed?: boolean;
+    /** `use-markup` — whether {@link title} is Pango markup. Default false; see above. */
+    useMarkup?: boolean;
+    /** `button-style` — grey (`'default'`) or `.suggested-action`. */
+    buttonStyle?: AdwBannerButtonStyle;
+    /** `button-clicked` — the action button was pressed. */
+    onButtonClicked?: () => void;
+}
+
+/**
+ * `Adw.Spinner` — a busy indicator.
+ *
+ * THE PROPERTIES ARE `GtkWidget`'s, BECAUSE `Adw.Spinner` HAS NONE OF ITS OWN. Its
+ * whole `GParamSpec` set is inherited: `adw_spinner_measure` reports `MIN_SIZE` as both
+ * the minimum AND the natural size, so the widget never grows on its own and the only
+ * way to make one bigger is to ask for a size. Measured on libadwaita 1.9.3: a fresh
+ * spinner measures `[16, 16]` and one with `width-request` 200 measures `[200, 200]`.
+ * A `size` prop would therefore be a renderer-ism of exactly the kind `maximumSize`
+ * exists to avoid — the two other Adwaita renderers each invented one.
+ *
+ * The BOX and the RING are different numbers, and only the box is a property: the ring
+ * is `spinnerGeometry`'s, capped at 64 and centred on the box, so a 200-point request
+ * occupies 200 points of layout around a 64-point ring.
+ */
+export interface AdwSpinnerProps {
+    /** `width-request` — the box width. Unset (or `-1`) is libadwaita's natural 16. */
+    widthRequest?: number;
+    /** `height-request` — the box height. Unset (or `-1`) is libadwaita's natural 16. */
+    heightRequest?: number;
+}
+
+/** `Adw.ButtonContent` — an icon paired with a label, for the inside of a button. */
+export interface AdwButtonContentProps {
+    /** `icon-name` — an icon-theme name. Empty draws `image-missing`, it does not hide the icon. */
+    iconName?: string;
+    /** `label` — empty hides the label node. */
+    label?: string;
+    /** `use-underline` — whether `_` marks a mnemonic in {@link label}. Default false. */
+    useUnderline?: boolean;
+    /** `can-shrink` — whether the label ellipsizes rather than widening the button. Default false. */
+    canShrink?: boolean;
+}
+
+/**
+ * What a caller does to an {@link AdwToastOverlayProps} through its `ref`.
+ *
+ * A TOAST IS PUSHED, NEVER DECLARED, and that is libadwaita's shape rather than a
+ * React convenience: `adw_toast_overlay_add_toast` is a call, the overlay owns the
+ * queue, and nothing about "which toast is on screen" is a property a caller writes.
+ * Modelling it as a `toasts={[…]}` array would put the ordering in the caller's hands
+ * on one half and in libadwaita's on the other.
+ *
+ * `dismissAll` and not `dismiss`: `adw_toast_overlay_dismiss_all` is the only dismissal
+ * the OVERLAY has. Dismissing just the current toast is `adw_toast_dismiss`, a method on
+ * the toast, so an overlay-level `dismiss()` would be a name libadwaita does not have —
+ * and `AdwToastQueue.clear()` is the same operation on the other half.
+ */
+export interface AdwToastOverlayHandle {
+    /** `add_toast` — show it now if the slot is free, otherwise queue it FIFO. */
+    addToast(toast: AdwToast): void;
+    /** `dismiss_all` — dismiss the visible toast and discard everything behind it. */
+    dismissAll(): void;
+}
+
+/** `Adw.ToastOverlay` — wraps content and shows one transient toast at a time over it. */
+export interface AdwToastOverlayProps extends AdwWidgetProps {
+    /** The imperative surface — see {@link AdwToastOverlayHandle}. */
+    ref?: Ref<AdwToastOverlayHandle>;
 }

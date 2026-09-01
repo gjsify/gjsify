@@ -36,18 +36,33 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import type * as AvatarBase from './widgets/avatar.js';
+import type * as AvatarGtk from './widgets/avatar.gtk.js';
+import type * as AvatarNative from './widgets/avatar.native.js';
+import type * as BannerBase from './widgets/banner.js';
+import type * as BannerGtk from './widgets/banner.gtk.js';
+import type * as BannerNative from './widgets/banner.native.js';
 import type * as BinBase from './widgets/bin.js';
 import type * as BinGtk from './widgets/bin.gtk.js';
 import type * as BinNative from './widgets/bin.native.js';
+import type * as ButtonContentBase from './widgets/button-content.js';
+import type * as ButtonContentGtk from './widgets/button-content.gtk.js';
+import type * as ButtonContentNative from './widgets/button-content.native.js';
 import type * as ClampBase from './widgets/clamp.js';
 import type * as ClampGtk from './widgets/clamp.gtk.js';
 import type * as ClampNative from './widgets/clamp.native.js';
 import type * as HeaderBarBase from './widgets/header-bar.js';
 import type * as HeaderBarGtk from './widgets/header-bar.gtk.js';
 import type * as HeaderBarNative from './widgets/header-bar.native.js';
+import type * as SpinnerBase from './widgets/spinner.js';
+import type * as SpinnerGtk from './widgets/spinner.gtk.js';
+import type * as SpinnerNative from './widgets/spinner.native.js';
 import type * as StatusPageBase from './widgets/status-page.js';
 import type * as StatusPageGtk from './widgets/status-page.gtk.js';
 import type * as StatusPageNative from './widgets/status-page.native.js';
+import type * as ToastOverlayBase from './widgets/toast-overlay.js';
+import type * as ToastOverlayGtk from './widgets/toast-overlay.gtk.js';
+import type * as ToastOverlayNative from './widgets/toast-overlay.native.js';
 import type * as ToolbarViewBase from './widgets/toolbar-view.js';
 import type * as ToolbarViewGtk from './widgets/toolbar-view.gtk.js';
 import type * as ToolbarViewNative from './widgets/toolbar-view.native.js';
@@ -117,8 +132,18 @@ type SatisfiesBase<Platform, Base, Name extends keyof Base & keyof Platform> = P
     ? SameKeys<PropsOf<Platform[Name]>, PropsOf<Base[Name]>>
     : false;
 
+export type AvatarGtkSatisfiesBase = Assert<SatisfiesBase<typeof AvatarGtk, typeof AvatarBase, 'AdwAvatar'>>;
+export type AvatarNativeSatisfiesBase = Assert<SatisfiesBase<typeof AvatarNative, typeof AvatarBase, 'AdwAvatar'>>;
+export type BannerGtkSatisfiesBase = Assert<SatisfiesBase<typeof BannerGtk, typeof BannerBase, 'AdwBanner'>>;
+export type BannerNativeSatisfiesBase = Assert<SatisfiesBase<typeof BannerNative, typeof BannerBase, 'AdwBanner'>>;
 export type BinGtkSatisfiesBase = Assert<SatisfiesBase<typeof BinGtk, typeof BinBase, 'AdwBin'>>;
 export type BinNativeSatisfiesBase = Assert<SatisfiesBase<typeof BinNative, typeof BinBase, 'AdwBin'>>;
+export type ButtonContentGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof ButtonContentGtk, typeof ButtonContentBase, 'AdwButtonContent'>
+>;
+export type ButtonContentNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof ButtonContentNative, typeof ButtonContentBase, 'AdwButtonContent'>
+>;
 export type ClampGtkSatisfiesBase = Assert<SatisfiesBase<typeof ClampGtk, typeof ClampBase, 'AdwClamp'>>;
 export type ClampNativeSatisfiesBase = Assert<SatisfiesBase<typeof ClampNative, typeof ClampBase, 'AdwClamp'>>;
 export type HeaderBarGtkSatisfiesBase = Assert<
@@ -127,11 +152,19 @@ export type HeaderBarGtkSatisfiesBase = Assert<
 export type HeaderBarNativeSatisfiesBase = Assert<
     SatisfiesBase<typeof HeaderBarNative, typeof HeaderBarBase, 'AdwHeaderBar'>
 >;
+export type SpinnerGtkSatisfiesBase = Assert<SatisfiesBase<typeof SpinnerGtk, typeof SpinnerBase, 'AdwSpinner'>>;
+export type SpinnerNativeSatisfiesBase = Assert<SatisfiesBase<typeof SpinnerNative, typeof SpinnerBase, 'AdwSpinner'>>;
 export type StatusPageGtkSatisfiesBase = Assert<
     SatisfiesBase<typeof StatusPageGtk, typeof StatusPageBase, 'AdwStatusPage'>
 >;
 export type StatusPageNativeSatisfiesBase = Assert<
     SatisfiesBase<typeof StatusPageNative, typeof StatusPageBase, 'AdwStatusPage'>
+>;
+export type ToastOverlayGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof ToastOverlayGtk, typeof ToastOverlayBase, 'AdwToastOverlay'>
+>;
+export type ToastOverlayNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof ToastOverlayNative, typeof ToastOverlayBase, 'AdwToastOverlay'>
 >;
 export type ToolbarViewGtkSatisfiesBase = Assert<
     SatisfiesBase<typeof ToolbarViewGtk, typeof ToolbarViewBase, 'AdwToolbarView'>
@@ -157,14 +190,24 @@ export type WrapBoxNativeSatisfiesBase = Assert<SatisfiesBase<typeof WrapBoxNati
  * would otherwise wave a missing widget through.
  */
 export const PARITY_ASSERTIONS = [
+    'AvatarGtkSatisfiesBase',
+    'AvatarNativeSatisfiesBase',
+    'BannerGtkSatisfiesBase',
+    'BannerNativeSatisfiesBase',
     'BinGtkSatisfiesBase',
     'BinNativeSatisfiesBase',
+    'ButtonContentGtkSatisfiesBase',
+    'ButtonContentNativeSatisfiesBase',
     'ClampGtkSatisfiesBase',
     'ClampNativeSatisfiesBase',
     'HeaderBarGtkSatisfiesBase',
     'HeaderBarNativeSatisfiesBase',
+    'SpinnerGtkSatisfiesBase',
+    'SpinnerNativeSatisfiesBase',
     'StatusPageGtkSatisfiesBase',
     'StatusPageNativeSatisfiesBase',
+    'ToastOverlayGtkSatisfiesBase',
+    'ToastOverlayNativeSatisfiesBase',
     'ToolbarViewGtkSatisfiesBase',
     'ToolbarViewNativeSatisfiesBase',
     'WindowTitleGtkSatisfiesBase',
@@ -198,14 +241,24 @@ export default async () => {
             // still add is COMPLETENESS: one assertion per widget per platform, which
             // is the half a deleted alias would silently take with it.
             expect([...PARITY_ASSERTIONS].sort()).toStrictEqual([
+                'AvatarGtkSatisfiesBase',
+                'AvatarNativeSatisfiesBase',
+                'BannerGtkSatisfiesBase',
+                'BannerNativeSatisfiesBase',
                 'BinGtkSatisfiesBase',
                 'BinNativeSatisfiesBase',
+                'ButtonContentGtkSatisfiesBase',
+                'ButtonContentNativeSatisfiesBase',
                 'ClampGtkSatisfiesBase',
                 'ClampNativeSatisfiesBase',
                 'HeaderBarGtkSatisfiesBase',
                 'HeaderBarNativeSatisfiesBase',
+                'SpinnerGtkSatisfiesBase',
+                'SpinnerNativeSatisfiesBase',
                 'StatusPageGtkSatisfiesBase',
                 'StatusPageNativeSatisfiesBase',
+                'ToastOverlayGtkSatisfiesBase',
+                'ToastOverlayNativeSatisfiesBase',
                 'ToolbarViewGtkSatisfiesBase',
                 'ToolbarViewNativeSatisfiesBase',
                 'WindowTitleGtkSatisfiesBase',
