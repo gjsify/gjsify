@@ -1588,6 +1588,24 @@ export const isImportable = (name: string, module?: string): boolean => {
 };
 
 /**
+ * The two specifiers a sentence has to name, in the order a reader meets them.
+ *
+ * THE NPM MODULE FIRST, and it is not decoration: three of the eighteen targets do not
+ * contain their module's name at all — `expo-router` is answered by
+ * `@gjsify/react-native/router`, `@expo/vector-icons` by
+ * `@gjsify/react-native/vector-icons` and
+ * `@react-native-async-storage/async-storage` by `@gjsify/react-native/async-storage`.
+ * A sentence prefixed with the TARGET alone therefore named a specifier the reader
+ * never wrote: `import { Tabs } from 'expo-router'` was answered by
+ * "@gjsify/react-native/router: …", which reads as an unrelated package. ADR 0036 § 3
+ * and § 6 both say the sentence prints the module; for those three it did not.
+ *
+ * The target stays, because it is the answer to "where do I import it from" for a
+ * gjsify-native application and for the two names that moved surface.
+ */
+const specifiers = (surface: Surface): string => `${surface.module} → ${surface.target}`;
+
+/**
  * The sentence a build error and a runtime throw both print.
  *
  * One function so the two cannot drift into describing the same gap differently —
@@ -1623,21 +1641,22 @@ export function explainUnsupported(name: string, module?: string): string {
                 `name, and it is available.`
             );
         }
-        return `${surface.target}: "${name}" ${surface.unknown}`;
+        return `${specifiers(surface)}: "${name}" ${surface.unknown}`;
     }
-    const where = entry.tier ? ` (tier ${entry.tier})` : '';
+    const where = specifiers(surface);
+    const tier = entry.tier ? ` (tier ${entry.tier})` : '';
     const gtk = entry.gtk ? ` The GTK counterpart is ${entry.gtk}.` : '';
     switch (entry.status) {
         case 'supported':
         case 'partial':
-            return `${surface.target}: "${name}" is available.`;
+            return `${where}: "${name}" is available.`;
         case 'planned':
-            return `${surface.target}: "${name}" is not implemented yet${where}. ${entry.reason}${gtk}`;
+            return `${where}: "${name}" is not implemented yet${tier}. ${entry.reason}${gtk}`;
         case 'refused':
-            return `${surface.target}: "${name}" will not be implemented. ${entry.reason}`;
+            return `${where}: "${name}" will not be implemented. ${entry.reason}`;
         case 'no-desktop-meaning':
-            return `${surface.target}: "${name}" has no meaning on a desktop window${where}. ${entry.reason}`;
+            return `${where}: "${name}" has no meaning on a desktop window${tier}. ${entry.reason}`;
         case 'not-reachable':
-            return `${surface.target}: "${name}" cannot be implemented in this build chain. ${entry.reason}`;
+            return `${where}: "${name}" cannot be implemented in this build chain. ${entry.reason}`;
     }
 }

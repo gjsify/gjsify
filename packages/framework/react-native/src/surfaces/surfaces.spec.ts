@@ -208,6 +208,33 @@ export default async () => {
             expect(declared).toContain('DECLARED');
         });
 
+        await it('names the export, the npm module AND the answering subpath, on every row', async () => {
+            // ADR 0036 § 3 CLAIMS THIS AND NOTHING HELD IT. The sentence used to be
+            // prefixed with the TARGET alone, and three of the eighteen targets do not
+            // contain their module's name: `expo-router` → `…/router`,
+            // `@expo/vector-icons` → `…/vector-icons`,
+            // `@react-native-async-storage/async-storage` → `…/async-storage`. So
+            // `import { Tabs } from 'expo-router'` was answered by
+            // "@gjsify/react-native/router: …" — a specifier the reader never wrote, on
+            // the one surface where the module and the subpath disagree most.
+            //
+            // Asserted over EVERY entry rather than the three, because the next surface
+            // whose last path segment differs from its npm name would reintroduce it.
+            const silent: string[] = [];
+            for (const surface of SURFACES) {
+                for (const name of Object.keys(surface.table)) {
+                    const message = explainUnsupported(name, surface.module);
+                    if (!message.includes(`"${name}"`)) silent.push(`${surface.module}.${name}: no export name`);
+                    if (!message.includes(surface.module)) silent.push(`${surface.module}.${name}: no npm module`);
+                    if (!message.includes(surface.target)) silent.push(`${surface.module}.${name}: no target`);
+                }
+            }
+            expect(silent).toStrictEqual([]);
+            // Not vacuous: an empty registry, or a table with no keys, satisfies an
+            // empty problem list.
+            expect(SURFACES.reduce((total, surface) => total + Object.keys(surface.table).length, 0) > 100).toBe(true);
+        });
+
         await it('exports every name EXACTLY once — real or refusing, never both', async () => {
             // The constraint the whole mechanism rests on, across all eighteen modules.
             // A name that is real AND generated resolves to whichever `export *` lost

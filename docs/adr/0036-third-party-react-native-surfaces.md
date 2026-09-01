@@ -136,8 +136,12 @@ order — `react-native` first, which is what it did before. `explainUnsupported
 reader did not mean is visible rather than plausible.
 
 What replaces the disjointness invariant: a name may appear in several tables, and
-`support-table.spec.ts` asserts instead that every row's entry produces a sentence
-naming both the export and its module.
+`surfaces/surfaces.spec.ts` asserts instead that every row's entry produces a sentence
+naming the export, the npm module **and** the subpath that answered — all three,
+because three targets do not contain their module's name (`expo-router` → `…/router`,
+`@expo/vector-icons` → `…/vector-icons`,
+`@react-native-async-storage/async-storage` → `…/async-storage`), so a sentence built
+from the target alone names a specifier the reader never wrote.
 
 ### 4. A shared answer is REUSED, never re-decided
 

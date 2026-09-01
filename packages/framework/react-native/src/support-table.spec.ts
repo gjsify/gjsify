@@ -245,7 +245,15 @@ export default async () => {
 
         await it('names the module a reader should import the name FROM', async () => {
             for (const name of ROUTER_NAMES) {
-                expect(explainUnsupported(name)).toContain('@gjsify/react-native/router');
+                const message = explainUnsupported(name);
+                // BOTH SPECIFIERS, and this surface is the reason: a porter writes
+                // `expo-router` and the answer lives at `@gjsify/react-native/router`,
+                // so a sentence carrying only the second names a package they never
+                // wrote. The registry-wide form of this vector is in
+                // `surfaces/surfaces.spec.ts`; this one keeps the router surface honest
+                // from the file that owns it.
+                expect(message).toContain('expo-router');
+                expect(message).toContain('@gjsify/react-native/router');
             }
         });
 
