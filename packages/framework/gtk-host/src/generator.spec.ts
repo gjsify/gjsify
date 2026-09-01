@@ -26,15 +26,6 @@
 
 import { expect, it, on } from '@gjsify/unit';
 
-import {
-    DECLS as VOCABULARY_DECLS,
-    ENUM_NICKS as VOCABULARY_ENUM_NICKS,
-    OWN_PROPS as VOCABULARY_OWN_PROPS,
-    OWN_SIGNALS as VOCABULARY_OWN_SIGNALS,
-    PROVENANCE as VOCABULARY_PROVENANCE,
-    SINCE as VOCABULARY_SINCE,
-} from '@girs/gtk-4.0/vocabulary';
-
 import { GTK_HOSTS } from './testing/gate.mjs';
 
 import { emitWidgets, type GateFailure, type WidgetRow } from './generator/emit.mjs';
@@ -99,6 +90,28 @@ const entryProps: GtkEntryProps = {
 };
 
 export default async () => {
+    // Loaded INSIDE the suite, and both halves of that matter.
+    //
+    // Dynamic, because on `--app node` the bundler redirects the `@girs/*` scope to an
+    // empty module: a static import of this subpath fails the bundle with six
+    // MISSING_EXPORTs before anything runs. The vocabulary is runtime-neutral — zero
+    // `gi://` references, loadable under plain Node — so the redirect is over-broad.
+    // A narrower one is attempted in `gjs-imports-empty.ts`; it does not take effect,
+    // and where the specifier is actually claimed is unresolved.
+    //
+    // Inside the suite rather than at module scope, because top-level await deadlocks
+    // GJS here: as a module-scope `await import(...)` this file took the GJS leg from
+    // ~2 minutes to over five hours at 91% CPU with no output — a hang, not a slow
+    // test, and one CI would have reported as a timeout with nothing to read.
+    const {
+        DECLS: VOCABULARY_DECLS,
+        ENUM_NICKS: VOCABULARY_ENUM_NICKS,
+        OWN_PROPS: VOCABULARY_OWN_PROPS,
+        OWN_SIGNALS: VOCABULARY_OWN_SIGNALS,
+        PROVENANCE: VOCABULARY_PROVENANCE,
+        SINCE: VOCABULARY_SINCE,
+    } = (await import('@girs/gtk-4.0/vocabulary')) as typeof import('@girs/gtk-4.0/vocabulary');
+
     await on(GTK_HOSTS, async () => {
         await it('states the namespace, version and library it was generated against', async () => {
             // `main.mts` builds the artefact's provenance line out of these three
