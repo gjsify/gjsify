@@ -16,9 +16,12 @@
 // the same blindness that had kept it out of the ADR 0010 reset list.
 //
 // So this module is the ONE reader, of BOTH renderers: the NativeScript widget scan
-// was a second copy in the same two files, with the same drift ahead of it. `adw-` is
-// the whole naming rule the tree follows, and stripping it ({@link elementName}) leaves
-// the bare name widget files and `*.meta.ts` story names are already spelled in.
+// was a second copy in the same two files, with the same drift ahead of it. A web tag
+// carries the prefix of the library that owns its GType — `adw-action-row` and
+// `gtk-entry` alike, ADR 0034 clause 1 — and stripping it ({@link elementName}) leaves
+// the bare name widget files and `*.meta.ts` story names are already spelled in. The
+// NativeScript surface is `adw-` throughout, which is why {@link widgetClass} keeps a
+// fixed prefix and only {@link tagClass} reads one.
 //
 // It answers the core-edge question here too ({@link coreReach}), for the same reason
 // and one more: that derivation lived privately in `generate-status.mjs`, which CI
@@ -122,7 +125,14 @@ export function adwaitaStoryMetas(root) {
 
 // The registration WITH the class it registers, in any quote style: reading the class
 // is what makes a HALF rename fail instead of shrinking the set (see the throw below).
-const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"`](adw-[a-z0-9-]+)['"`]\s*,\s*([A-Za-z0-9_]+)/g;
+//
+// BOTH PREFIXES, because the web surface names an element after the library that owns
+// its GType (ADR 0034 clause 1): `<gtk-entry>` is `GtkEntry` and `<adw-action-row>` is
+// `AdwActionRow`. A pattern that read only `adw-` would not have MISSED those nine
+// elements quietly — `DEFINE_CALL` below counts what it could not parse and the reader
+// throws — but it would have made the rename unlandable, which is the same wall from
+// the other side.
+const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"`]((?:adw|gtk)-[a-z0-9-]+)['"`]\s*,\s*([A-Za-z0-9_]+)/g;
 
 // The discriminator for the pattern itself: a call it cannot read is an element the
 // whole tree is blind to, and counting only what matched can never show that.
@@ -170,14 +180,28 @@ function sourceFiles(dir) {
 }
 
 /** `adw-preferences-page` → `preferences-page`: the key rows, ledger entries and stories share. */
-export const elementName = (tag) => tag.slice('adw-'.length);
+export const elementName = (tag) => tag.slice(tag.indexOf('-') + 1);
 
-/** `preferences-page` → `AdwPreferencesPage`: the class both renderers name it after. */
-export const widgetClass = (name) =>
-    `Adw${name
+/** `preferences-page` → `PreferencesPage`, the tail every class name below ends in. */
+const pascalCase = (name) =>
+    name
         .split('-')
         .map((part) => part[0].toUpperCase() + part.slice(1))
-        .join('')}`;
+        .join('');
+
+/** `preferences-page` → `AdwPreferencesPage`: the class both renderers name it after. */
+export const widgetClass = (name) => `Adw${pascalCase(name)}`;
+
+/**
+ * `gtk-entry` → `GtkEntry`, `adw-action-row` → `AdwActionRow`: the class a TAG names.
+ *
+ * The prefix is read off the tag rather than fixed at `Adw`, which is the whole of
+ * ADR 0034 clause 1 as a function — the namespace belongs to whichever library owns the
+ * GType, and `gtk-host/src/tags.ts` derives the tag from the GType by the same rule
+ * running the other way. {@link widgetClass} stays `Adw`-only because the two
+ * NativeScript-shaped surfaces are keyed on a BARE name with no prefix to read.
+ */
+export const tagClass = (tag) => `${pascalCase(tag.slice(0, tag.indexOf('-')))}${pascalCase(elementName(tag))}`;
 
 /** The shared headless behaviour both renderers are meant to delegate to. */
 const CORE_PACKAGE = '@gjsify/adwaita-core';
@@ -277,7 +301,7 @@ export function observedAttributesByClass(text) {
         );
     }
 
-    const classes = [...code.matchAll(/\bclass\s+(Adw[A-Za-z0-9]*)(?:\s+extends\s+([A-Za-z0-9_.]+))?/g)];
+    const classes = [...code.matchAll(/\bclass\s+((?:Adw|Gtk)[A-Za-z0-9]*)(?:\s+extends\s+([A-Za-z0-9_.]+))?/g)];
     for (let i = 0; i < classes.length; i++) {
         const name = classes[i][1];
         if (classes[i][2]) extendsBase.set(name, classes[i][2]);
@@ -401,7 +425,7 @@ export function observedAttributes(root) {
     }
 
     for (const [tag, file] of tags) {
-        const klass = widgetClass(elementName(tag));
+        const klass = tagClass(tag);
         if (badClasses.has(klass)) {
             unreadable.push(`${tag} (${klass} in ${file})`);
             continue;
@@ -627,7 +651,7 @@ export function adwaitaWebElements(root) {
         let matched = 0;
         for (const [, tag, registered] of text.matchAll(DEFINE_PATTERN)) {
             matched += 1;
-            const expected = widgetClass(elementName(tag));
+            const expected = tagClass(tag);
             if (registered !== expected) {
                 throw new Error(
                     `${relative(root, file)} registers <${tag}> as ${registered}, not ${expected}. ` +
@@ -644,14 +668,14 @@ export function adwaitaWebElements(root) {
     if (unreadable.length > 0) {
         throw new Error(
             `customElements.define(…) this reader could not parse, in ${unreadable.join(', ')}: a tag ` +
-                'outside the `adw-` rule, or a spelling DEFINE_PATTERN does not match. Either way that ' +
-                'element has no matrix row and no ADR 0010 reset entry, and nothing else would say so.',
+                'outside the `adw-`/`gtk-` rule, or a spelling DEFINE_PATTERN does not match. Either way ' +
+                'that element has no matrix row and no ADR 0010 reset entry, and nothing else would say so.',
         );
     }
 
     if (defined.size === 0) {
         throw new Error(
-            `no customElements.define('adw-…') calls found under ${ADWAITA_WEB_SRC}. ` +
+            `no customElements.define('adw-…'/'gtk-…') calls found under ${ADWAITA_WEB_SRC}. ` +
                 'Either the package moved or DEFINE_PATTERN stopped matching — a scan that ' +
                 'finds nothing passes vacuously, so this is a failure, not a pass.',
         );
