@@ -42,11 +42,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import {
-    attributeCells,
-    galleryElementTag,
-    sampleAttributes,
-} from '../website/src/components/attr-sample.mjs';
+import { attributeCells, galleryElementTag, sampleAttributes } from '../website/src/components/attr-sample.mjs';
 import { observedAttributes } from './adwaita-elements.mjs';
 
 const rootFlag = process.argv.indexOf('--root');

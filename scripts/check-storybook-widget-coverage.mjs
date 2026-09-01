@@ -181,7 +181,7 @@ const ONE_RENDERER_ONLY = {
     icon: {
         only: 'nativescript',
         decision:
-            'THE SAME WIDGET AS `image` BELOW, under the other surface\'s spelling — `NS_WIDGET_ALIGNMENT` in check-vocabulary-alignment.mjs declares `adw-icon` to be `GtkImage`, and that declaration is what the vocabulary distance counts. The browser element took the GIR name on 2026-09-01 (ADR 0034 clause 1, § Amendment 5) and the NativeScript port deliberately did not: ADR 0034 refuses that rename on cost — the port is published at 49 versions with an XML element vocabulary whose failure on a phone is a silent unresolved module. So this row is a NAMING asymmetry that the vocabulary gate already measures, not a missing port, and it retires the day the NativeScript widget converges.',
+            "THE SAME WIDGET AS `image` BELOW, under the other surface's spelling — `NS_WIDGET_ALIGNMENT` in check-vocabulary-alignment.mjs declares `adw-icon` to be `GtkImage`, and that declaration is what the vocabulary distance counts. The browser element took the GIR name on 2026-09-01 (ADR 0034 clause 1, § Amendment 5) and the NativeScript port deliberately did not: ADR 0034 refuses that rename on cost — the port is published at 49 versions with an XML element vocabulary whose failure on a phone is a silent unresolved module. So this row is a NAMING asymmetry that the vocabulary gate already measures, not a missing port, and it retires the day the NativeScript widget converges.",
     },
     image: {
         only: 'web',
@@ -363,7 +363,9 @@ function vectorFailures(name, entry, exported) {
     if (entry.vectors === undefined) return [];
     // Unchecked, a bare string spreads into 19 findings about the letter `R`.
     if (!Array.isArray(entry.vectors)) {
-        return [`${spell(name)}: \`vectors\` must be a LIST of conformance table names, not a ${typeof entry.vectors}.`];
+        return [
+            `${spell(name)}: \`vectors\` must be a LIST of conformance table names, not a ${typeof entry.vectors}.`,
+        ];
     }
     const problems = [];
     const other = OTHER_RENDERER[entry.only];

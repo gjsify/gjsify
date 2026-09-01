@@ -242,7 +242,8 @@ const PROPERTY_KINDS = ['gir', 'own', 'gap'];
 const WEB_ELEMENT_ALIGNMENT = {
     // The grouped check button. Its plain sibling took the GIR name; this one cannot.
     'adw-radio': {
-        webOnly: 'GTK4 has no radio TYPE. A radio is a GtkCheckButton with its group property set — "The check button whose group this widget belongs to", generated/props.ts on GtkCheckButtonProps.group — and <gtk-check-button> now carries that GType under its GIR name. One tag cannot name two constructors, so this is the grouped convenience form with no GType of its own to be named after, the same shape as <adw-card>. The exclusivity the browser gets free from <input type=radio name> is RadioGroupState in adwaita-core (checks.ts:10-14).',
+        webOnly:
+            'GTK4 has no radio TYPE. A radio is a GtkCheckButton with its group property set — "The check button whose group this widget belongs to", generated/props.ts on GtkCheckButtonProps.group — and <gtk-check-button> now carries that GType under its GIR name. One tag cannot name two constructors, so this is the grouped convenience form with no GType of its own to be named after, the same shape as <adw-card>. The exclusivity the browser gets free from <input type=radio name> is RadioGroupState in adwaita-core (checks.ts:10-14).',
     },
     // A libadwaita GObject that is not a GtkWidget, so it has no tag here.
     'adw-sidebar-item': { webOnly: 'AdwSidebarItem descends from GObject.Object, not GtkWidget' },
