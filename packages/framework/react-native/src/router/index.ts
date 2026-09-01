@@ -20,6 +20,9 @@
 // cannot know: which GTK operation a stack diff is, what the widget's own `popped`
 // means, and how long a closing page has to stay mounted.
 
+export { hrefFrom, paramsInHref, paramsSeenBy, patternParams } from './href.js';
+export type { Href, HrefObject } from './href.js';
+
 export { router, usePathname, useLocalSearchParams, navigationRef } from './navigation.js';
 export { Stack, type StackProps, type StackScreenOptions } from './stack.js';
 export { Tabs, type TabsProps, type TabScreenOptions } from './tabs.js';

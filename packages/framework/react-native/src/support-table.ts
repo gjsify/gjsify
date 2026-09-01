@@ -680,12 +680,14 @@ export const ROUTER_SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         status: 'partial',
         tier: 'P1',
         gtk: 'Adw.NavigationView (push/pop) via React Navigation’s StackActions',
-        reason: 'push, back, replace and navigate — the four methods the measured application calls, 19 of the 27 calls being push.',
+        reason: 'push, back, replace, navigate and canGoBack. Every href-taking method accepts BOTH argument shapes — a path string and expo-router’s { pathname, params } object.',
         limits: [
+            'ARGUMENT SHAPES, because naming only the methods is the half that let a defect through: push/navigate/replace take `string | { pathname, params }`; back() and canGoBack() take nothing. A params value is a string, a number or a boolean — anything structural is refused by name, because a URL segment is a string and useLocalSearchParams reads it back as one. Params the pattern has no slot for become a query string, which useLocalSearchParams also answers for, so the round trip is total.',
+            'The object form used to be missing and it did NOT throw: it interpolated as "[object Object]", so the push succeeded, no route matched, and every parameterised navigation landed on +not-found — 10 call sites in one measured application. `hrefFrom` and `useLocalSearchParams` now share one definition of what a param is, so a drift between writing and reading is a defect the layer detects in itself.',
             'push falls back to NAVIGATE when the navigator that owns the target is not mounted yet. StackActions.push is dispatched at ONE navigator and an href can name a screen several navigators down; for an unmounted navigator, arriving there IS the new entry, so the fallback is correct rather than approximate — but a push into a mounted navigator that is not a stack cannot add an entry, because PUSH is the stack router’s action and no other router answers it.',
-            'back() THROWS when there is nothing to go back to, where expo-router and React Navigation both return quietly. A quiet return is a back button that does nothing with no message, which is the silent drop this layer refuses everywhere else.',
-            'setParams, dismiss, dismissAll, dismissTo and canGoBack are not implemented. They are not in the measured surface, and each is a named refusal rather than an undefined property read.',
-            'An href is a path. expo-router also accepts an object form ({ pathname, params }); this layer takes the string, which is what all 27 measured calls pass.',
+            'back() THROWS when there is nothing to go back to, where expo-router and React Navigation both return quietly. A quiet return is a back button that does nothing with no message, which is the silent drop this layer refuses everywhere else. canGoBack() is the question that lets a caller avoid it, and it answers false before the container is ready — nothing has been navigated to yet, so there is genuinely nowhere to go back to.',
+            'setParams, dismiss, dismissAll and dismissTo are present functions that THROW with their reason. The dismiss family needs a modal stack this layer has no portal seam for (see Modal); setParams edits the current route’s params in place, so the URL would stop describing the screen and usePathname would answer for a path that is no longer the route’s — replace({ pathname, params }) changes both together.',
+            'A catch-all pathname ([...rest]) is refused, with the file-tree parser’s own reason: React Navigation’s path config has no multi-segment wildcard that also carries its parts as a param.',
         ],
     },
     useLocalSearchParams: {

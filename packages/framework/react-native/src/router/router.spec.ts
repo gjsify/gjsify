@@ -571,6 +571,87 @@ export default async () => {
                 });
             });
 
+            await it('pushes the OBJECT form, and the params reach the screen', async () => {
+                // THE DEFECT, end to end. `router.push({ pathname, params })` used to
+                // interpolate as "[object Object]", match no route and land on
+                // +not-found — no build error, no throw, 10 measured call sites. This
+                // is the round trip `href.spec.ts` asserts in the pure half, driven
+                // through React Navigation and the widget instead.
+                await mounted(app(), async (container) => {
+                    const view = find(container, 'AdwNavigationView') as Adw.NavigationView;
+                    router.push({ pathname: '/detail/[id]', params: { id: '7' } });
+                    const turns = await settle(() => stackTitles(view).length === 2);
+                    expect(turns >= 0).toBe(true);
+                    expect(stackTitles(view)).toStrictEqual(['Home', 'Detail']);
+                    expect(observed.params).toStrictEqual({ id: '7' });
+                    expect(observed.pathname).toBe('/detail/7');
+                });
+            });
+
+            await it('carries a leftover param through the query string', async () => {
+                // The half a segment cannot hold. `useLocalSearchParams` answers for
+                // the query as well, so the round trip stays total: what the pattern
+                // has no slot for still arrives.
+                await mounted(app(), async (container) => {
+                    const view = find(container, 'AdwNavigationView') as Adw.NavigationView;
+                    router.push({ pathname: '/detail/[id]', params: { id: '7', tab: 'reviews' } });
+                    await settle(() => stackTitles(view).length === 2);
+                    expect(observed.params).toStrictEqual({ id: '7', tab: 'reviews' });
+                    // The PATH is the path — expo-router splits the query off, and so
+                    // does `usePathname`.
+                    expect(observed.pathname).toBe('/detail/7');
+                });
+            });
+
+            await it('takes the object form on replace and navigate too', async () => {
+                await mounted(app(), async (container) => {
+                    const view = find(container, 'AdwNavigationView') as Adw.NavigationView;
+                    router.push({ pathname: '/detail/[id]', params: { id: '7' } });
+                    await settle(() => stackTitles(view).length === 2);
+                    router.replace({ pathname: '/detail/[id]', params: { id: '8' } });
+                    await settle(() => observed.params.id === '8');
+                    expect(stackTitles(view)).toStrictEqual(['Home', 'Detail']);
+                    router.navigate({ pathname: '/' });
+                    await settle(() => observed.pathname === '/');
+                    expect(observed.pathname).toBe('/');
+                });
+            });
+
+            await it('answers canGoBack, which is how a back button decides to exist', async () => {
+                // Absent until now, so a consumer's `goBack` helper carried a latent
+                // `router.canGoBack is not a function` — reached the moment anything
+                // asked before popping.
+                await mounted(app(), async (container) => {
+                    const view = find(container, 'AdwNavigationView') as Adw.NavigationView;
+                    expect(router.canGoBack()).toBe(false);
+                    router.push('/detail/7');
+                    await settle(() => stackTitles(view).length === 2);
+                    expect(router.canGoBack()).toBe(true);
+                    router.back();
+                    await settle(() => stackTitles(view).length === 1);
+                    expect(router.canGoBack()).toBe(false);
+                });
+            });
+
+            await it('refuses the dismiss family and setParams BY NAME, as the table says', async () => {
+                // The table already called these "a named refusal rather than an
+                // undefined property read" — and they were absent, so reaching for one
+                // was `router.dismissTo is not a function`, which names nothing.
+                await mounted(app(), () => {
+                    for (const call of ['dismiss', 'dismissAll', 'dismissTo', 'setParams'] as const) {
+                        const member = (router as unknown as Record<string, () => void>)[call];
+                        expect(typeof member).toBe('function');
+                        let message = '';
+                        try {
+                            member();
+                        } catch (error) {
+                            message = (error as Error).message;
+                        }
+                        expect(message).toContain(`router.${call}()`);
+                    }
+                });
+            });
+
             await it('uses the ROUTE KEY as the widget tag, which is the join', async () => {
                 await mounted(app(), async (container) => {
                     const view = find(container, 'AdwNavigationView') as Adw.NavigationView;
