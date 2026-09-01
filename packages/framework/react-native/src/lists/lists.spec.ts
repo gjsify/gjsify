@@ -23,7 +23,7 @@
 import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=4.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
-import { lookupWidget, registerBuiltinWidgets } from '@gjsify/gtk-host';
+import { lookupWidget, paramSpecs, registerBuiltinWidgets } from '@gjsify/gtk-host';
 import { gtkChildren, installDiagnosticsGate } from '@gjsify/gtk-host/conformance';
 import { createRoot } from '@gjsify/gtk-host/react';
 import { MINIMAL_TOKENS, type StyleTokens } from '@gjsify/gtk-host/style';
@@ -175,17 +175,23 @@ export default async () => {
                 // Which is why the React root goes into the widget the factory PUTS in
                 // the item, not into the item.
                 expect(GObject.type_is_a(Gtk.ListItem.$gtype, Gtk.Widget.$gtype)).toBe(false);
-                const child = GObject.Object.list_properties
-                    .call(Gtk.ListItem)
-                    .find((spec) => spec.get_name() === 'child');
+                // Read through `paramSpecs`, which calls `list_properties()` DIRECTLY
+                // on the class. The borrowed form
+                // (`GObject.Object.list_properties.call(Gtk.ListItem)`) that used to
+                // stand here resolves under gjs and answers array(0) over the reverse
+                // bridge, because node-gi's class proxy takes no `g_type_class_ref` —
+                // so these two vectors would have read "the class has no such
+                // property" on the one leg that could see it, with nothing thrown
+                // (#1438, and `gjsify/no-gobject-method-borrow` now refuses the shape).
+                const specs = paramSpecs(Gtk.ListItem as never, 'GtkListItem');
+                const child = specs.get('child');
                 expect(child !== undefined).toBe(true);
                 expect((child!.flags & GObject.ParamFlags.WRITABLE) !== 0).toBe(true);
                 // And `item` is READ-ONLY (measured: `set_property('item', …)` is a
                 // GLib-GObject-CRITICAL), which is why no spec can hand-build a BOUND
                 // list item and why these vectors go through a real view in a window.
-                const item = GObject.Object.list_properties
-                    .call(Gtk.ListItem)
-                    .find((spec) => spec.get_name() === 'item');
+                const item = specs.get('item');
+                expect(item !== undefined).toBe(true);
                 expect((item!.flags & GObject.ParamFlags.WRITABLE) === 0).toBe(true);
             });
         });

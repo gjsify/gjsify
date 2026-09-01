@@ -22,6 +22,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import { expect, it, on } from '@gjsify/unit';
 
 import { StyleSheetError } from './document.js';
+import { paramSpecs } from '../props.js';
 import { StyleSheet } from './sheet.js';
 import {
     ADWAITA_NAMED_COLOR_PROBES,
@@ -126,11 +127,19 @@ export default async () => {
                 // `rgb(17 34 51)`. Setting the accent as a custom property is
                 // therefore not a workaround for a read-only property; it is the only
                 // mechanism that can express the value at all.
-                const spec = GObject.Object.find_property.call(
-                    Adw.StyleManager as unknown as GObject.ObjectClass,
+                // READ THROUGH THE HOST'S OWN READER, and that is the fix for a
+                // SECOND defect this vector carried — one the first was masking.
+                // `GObject.Object.find_property.call(SomeClass, …)` returns a spec
+                // under gjs and NULL over the reverse bridge (issue #1438: the gap is
+                // specifically the `.call()` form against a class the process has not
+                // realised, because node-gi's class proxy takes no `g_type_class_ref`;
+                // the same call as `SomeClass.find_property(…)` answers on both).
+                // `paramSpecs` is the direct form, already used by `gtk-props.spec.ts`,
+                // so this is one reader for the package rather than a third spelling.
+                const spec = paramSpecs(Adw.StyleManager as unknown as GObject.ObjectClass, 'AdwStyleManager').get(
                     'accent-color',
                 );
-                expect(spec === null).toBe(false);
+                expect(spec === undefined).toBe(false);
 
                 // Asserted, and this one is safe where the flag was not: a property
                 // GAINING a setter is an additive change libadwaita can make and did,

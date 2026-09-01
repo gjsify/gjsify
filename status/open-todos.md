@@ -54,6 +54,15 @@ Worth a rule the OS legs can enforce — something that flags an assertion whose
 runtime-provided flag or version — because all three of these were invisible until a leg
 that nobody watches went red.
 
+One instance of the class DID get its mechanism, and the way it was found is the argument
+for building the rest: `gjsify/no-gobject-method-borrow` now refuses
+`GObject.Object.<method>.call(SomeClass)`. A hand-written `grep` over 3585 tracked files
+reported the tree clean; the rule then found TWO more live sites, because the call was
+split across two lines (`GObject.Object.list_properties` / `.call(Gtk.ListItem)`) and a
+line-based search cannot see through a line break. The false all-clear was reported as a
+measurement before the rule contradicted it — which is the same failure one level up, and
+the reason a defect class invisible on one OS wants an AST rule rather than a sweep.
+
 ### `packages/framework/AGENTS.md` is 150 bytes from silent truncation
 
 It is **32324 bytes** against the 32 KiB (32768) ceiling at which Codex truncates a
