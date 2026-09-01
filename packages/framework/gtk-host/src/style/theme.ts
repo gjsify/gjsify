@@ -355,6 +355,30 @@ export class ThemeRegistry {
         this.select(chosen);
     }
 
+    /**
+     * Take the theme document off the display, leaving nothing behind.
+     *
+     * Selecting the neutral theme reloads the document to empty, which is all an
+     * application needs. It is NOT all a TEST needs, and the difference was measured
+     * in this file's own spec: a vector that read "libadwaita's own accent" read the
+     * PREVIOUS vector's green instead, because that registry's provider was still on
+     * the shared display with a `--accent-bg-color` in it — and the assertion named
+     * "back to Adwaita exactly" then passed against the green. Ownership belongs with
+     * whoever created the registry, so there has to be a way to give it up.
+     *
+     * The provider is removed from the display it was INSTALLED on rather than from
+     * whatever `Gdk.Display.get_default()` answers now. A later `select()` installs
+     * again: position relative to the generated sheet is decided by the priority
+     * numbers, not by insertion order, so re-installing cannot land in the wrong
+     * place (decision 2).
+     */
+    dispose(): void {
+        if (this.#installedOn === null) return;
+        Gtk.StyleContext.remove_provider_for_display(this.#installedOn, this.#provider);
+        this.#installedOn = null;
+        this.#current = null;
+    }
+
     #install(): void {
         if (this.#installedOn !== null) return;
         this.#installedOn = installProvider(

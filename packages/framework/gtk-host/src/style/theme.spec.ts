@@ -88,6 +88,35 @@ export default async () => {
         };
         const drop = (one: Gtk.CssProvider): void => Gtk.StyleContext.remove_provider_for_display(display, one);
 
+        /**
+         * `it`, with a registry that comes OFF the display when the vector ends —
+         * however it ends.
+         *
+         * Every registry here installs its provider on the one display this file
+         * shares, so a registry that outlives its vector decides the next one's
+         * result. Measured, in this file: the vector below named "back to Adwaita
+         * exactly" read `rgb(0,128,0)` as libadwaita's own accent, because the
+         * previous vector's provider was still installed with that green in it — the
+         * assertion passed and checked nothing. `finally` and not a trailing call,
+         * because a vector that FAILS must not hand its state to its neighbour: this
+         * file's own sibling gate exists for a blame that surfaced twelve tests away.
+         *
+         * Vectors that only `register()` (or whose `select()` throws) install nothing
+         * and construct their registry inline — there is nothing to take off.
+         */
+        const itWithRegistry = async (
+            name: string,
+            body: (registry: ThemeRegistry) => Promise<void>,
+        ): Promise<void> =>
+            it(name, async () => {
+                const registry = new ThemeRegistry({ display });
+                try {
+                    await body(registry);
+                } finally {
+                    registry.dispose();
+                }
+            }) as Promise<void>;
+
         // libadwaita's own accent, read before any theme is installed. The reset at
         // the end of the accent vector is asserted against it, so "put it back" is a
         // checked claim rather than a hopeful call.
@@ -111,7 +140,7 @@ export default async () => {
                 expect(present).toStrictEqual([]);
             });
 
-            await it('sets an accent no enum could carry, whatever the property allows', async () => {
+            await itWithRegistry('sets an accent no enum could carry, whatever the property allows', async (registry) => {
                 // WHAT THIS VECTOR REPLACED ASSERTED `Adw.StyleManager:accent-color`
                 // READ-ONLY, and went red on the darwin leg — which was read as "the
                 // property is writable there" and is NOT what happened. That leg read
@@ -164,19 +193,18 @@ export default async () => {
                 // An accent that is not one of the nine, set through the registry and
                 // resolved by the same cascade every Adwaita rule reads. THIS is what
                 // goes red if someone ever rewires the seam to the property.
-                const registry = new ThemeRegistry({ display });
                 registry.register({ name: 'token-accent', namedColors: { 'accent-bg-color': 'rgb(17 34 51)' } });
                 registry.select('token-accent');
                 expect(resolved('accent-bg-color')).toBe('rgb(17,34,51)');
 
-                // PUT BACK, and not out of tidiness: a registry installs its provider
-                // on the SHARED display and nothing takes it off again, so a theme
-                // left selected here outranks the 199/201 providers the priority group
-                // below installs — measured, as a red vector in a group this one does
-                // not belong to. Selecting the neutral theme reloads the document to
-                // empty, which restores libadwaita's own values exactly; that is the
-                // guarantee the neutral default exists to give, used here to keep this
-                // vector from deciding the result of the next one.
+                // PUT BACK, and not out of tidiness: a theme left selected outranks the
+                // 199/201 providers the priority group below installs — measured, as a
+                // red vector in a group this one does not belong to. Selecting the
+                // neutral theme reloads the document to empty, which restores
+                // libadwaita's own values exactly; that is the guarantee the neutral
+                // default exists to give, and asserting it here is what makes it a
+                // checked claim rather than a hopeful call. The provider itself comes
+                // off the display when this vector ends, which is a different job.
                 registry.register(NEUTRAL_THEME);
                 registry.select('neutral');
                 expect(resolved('accent-bg-color')).toBe(adwaitaAccent);
@@ -264,25 +292,28 @@ export default async () => {
         });
 
         await gated(diagnostics, 'the theme registry', async () => {
-            await it('sets a named colour that Adwaita’s own rules then resolve', async () => {
+            await itWithRegistry('sets a named colour that Adwaita’s own rules then resolve', async (registry) => {
                 // End to end, and the claim decision 1 rests on: the accent is set as a
                 // CUSTOM PROPERTY because the StyleManager property is read-only, and
                 // this is what proves the custom property actually reaches the cascade
                 // every Adwaita rule reads.
-                const registry = new ThemeRegistry({ display });
                 registry.register({ name: 'accented', namedColors: { 'accent-bg-color': 'rgb(0 128 0)' } });
                 registry.select('accented');
                 expect(resolved('accent-bg-color')).toBe('rgb(0,128,0)');
             });
 
-            await it('switches at runtime, and back to Adwaita exactly', async () => {
+            await itWithRegistry('switches at runtime, and back to Adwaita exactly', async (registry) => {
                 // The product direction is several named themes selectable from the
                 // application's own settings, so the switch is the feature and not a
                 // detail. Returning to the neutral theme restores libadwaita's own
                 // value, which is what makes the empty default document a statement
                 // rather than a placeholder.
-                const registry = new ThemeRegistry({ display });
-                const adwaita = resolved('accent-bg-color');
+                //
+                // Asserted against `adwaitaAccent`, read at file scope before anything
+                // was installed, and NOT against a value read here: this vector used to
+                // read one here, and what it read was the previous vector's green off a
+                // provider still on the display — so "back to Adwaita exactly" was
+                // measured against the thing it was supposed to be different from.
                 registry
                     .register(NEUTRAL_THEME)
                     .register({ name: 'green', namedColors: { 'accent-bg-color': 'rgb(0 128 0)' } })
@@ -294,11 +325,11 @@ export default async () => {
                 expect(resolved('accent-bg-color')).toBe('rgb(0,0,200)');
                 expect(registry.current).toBe('blue');
                 registry.select('neutral');
-                expect(resolved('accent-bg-color')).toBe(adwaita);
+                expect(resolved('accent-bg-color')).toBe(adwaitaAccent);
                 expect(registry.current).toBe('neutral');
             });
 
-            await it('loses to the generated sheet on a property both set', async () => {
+            await itWithRegistry('loses to the generated sheet on a property both set', async (registry) => {
                 // The two documents in one vector, through the real classes rather than
                 // through hand-built providers: whatever the theme says, the class the
                 // author wrote at the element wins.
@@ -306,7 +337,6 @@ export default async () => {
                 // equal priority GTK resolves by insertion order, so selecting first
                 // would let the sheet win for the wrong reason and the vector would
                 // pass with the priority "simplified" to APPLICATION.
-                const registry = new ThemeRegistry({ display });
                 const sheet = new StyleSheet({ display });
                 const name = sheet.classFor(['color: rgb(88 88 88)']);
                 sheet.flush();
@@ -367,22 +397,23 @@ export default async () => {
                 expect(error.message).toContain('neutral');
             });
 
-            await it('picks the default by platform, letting the application’s own theme win', async () => {
-                // The product direction's other half: one look per desktop, chosen by
-                // the host OS. The platform is a PARAMETER — this package never reads
-                // `process.platform` — which is also what lets a settings screen preview
-                // another desktop's look.
-                const mac: Theme = { name: 'mac-ish', defaultOn: ['darwin'] };
-                const registry = new ThemeRegistry({ display });
-                registry.register(NEUTRAL_THEME).register(mac);
-                registry.selectDefault('darwin');
-                expect(registry.current).toBe('mac-ish');
-                // Neutral declares every platform, so a desktop with no dedicated look
-                // still resolves — and the LAST match wins, which is how an application
-                // registering after the neutral one gets its own.
-                registry.selectDefault('win32');
-                expect(registry.current).toBe('neutral');
-            });
+            await itWithRegistry(
+                'picks the default by platform, letting the application’s own theme win',
+                async (registry) => {
+                    // The product direction's other half: one look per desktop, chosen
+                    // by the host OS. The platform is a PARAMETER — this package never
+                    // reads `process.platform` — which is also what lets a settings
+                    // screen preview another desktop's look.
+                    const mac: Theme = { name: 'mac-ish', defaultOn: ['darwin'] };
+                    registry.register(NEUTRAL_THEME).register(mac);
+                    registry.selectDefault('darwin');
+                    expect(registry.current).toBe('mac-ish');
+                    // The LAST match wins, which is how an application registering after
+                    // the neutral one gets its own.
+                    registry.selectDefault('win32');
+                    expect(registry.current).toBe('neutral');
+                },
+            );
 
             await it('refuses to guess when nothing declares itself the default', async () => {
                 const registry = new ThemeRegistry({ display });
