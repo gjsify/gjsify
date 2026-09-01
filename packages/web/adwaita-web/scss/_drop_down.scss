@@ -1,8 +1,8 @@
-// _drop_down.scss — adw-drop-down: a standalone dropdown selector (the web
+// _drop_down.scss — gtk-drop-down: a standalone dropdown selector (the web
 // counterpart of Gtk.DropDown). A normal Adwaita button showing the current
 // selection + a `pan-down` chevron, dropping an elevated Adwaita popover list of
 // options. The popover reproduces libadwaita's popover.menu > contents surface
-// (soft triple shadow), the items its modelbutton rows, matching <adw-menu-button>.
+// (soft triple shadow), the items its modelbutton rows, matching <gtk-menu-button>.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_popovers.scss (popover > contents)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss (modelbutton rows)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_dropdowns.scss (dropdown button)
@@ -76,7 +76,7 @@
     opacity: 0.55;
   }
 
-  // The popover SURFACE is `<adw-popover>`'s (`_popover.scss`, the `[menu]`
+  // The popover SURFACE is `<gtk-popover>`'s (`_popover.scss`, the `[menu]`
   // variant — a dropdown's popover is a `popover.menu`, _dropdowns.scss:22).
   // What stays here is what libadwaita ALSO scopes to `dropdown`:
   //   - the extra 6px above the contents (`popover.menu { padding-top: 6px }`,

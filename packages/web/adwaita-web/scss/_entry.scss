@@ -1,10 +1,10 @@
-// _entry.scss — adw-entry / .adw-entry text input (e.g. a browser URL bar).
+// _entry.scss — gtk-entry / .adw-entry text input (e.g. a browser URL bar).
 // Reference: refs/libadwaita/src/stylesheet/widgets/_entries.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
-// <adw-entry> hosts an inner <input class="adw-entry">; it fills its flex slot.
-adw-entry {
+// <gtk-entry> hosts an inner <input class="adw-entry">; it fills its flex slot.
+gtk-entry {
   display: flex;
   flex: 1;
   min-width: 0;

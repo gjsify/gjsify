@@ -1,6 +1,6 @@
-// <adw-popover> — the elevated surface that pops up next to an anchor, the web
+// <gtk-popover> — the elevated surface that pops up next to an anchor, the web
 // counterpart of GtkPopover as libadwaita styles it. It is the ONE popover in this
-// package: `<adw-menu-button>`, `<adw-drop-down>` and `<adw-split-button>` all use it
+// package: `<gtk-menu-button>`, `<gtk-drop-down>` and `<adw-split-button>` all use it
 // rather than building their own, which is what keeps the 15px radius, the
 // three-layer shadow, Escape dismissal and the wrap arithmetic in one place.
 //
@@ -51,22 +51,22 @@
 import { PopoverState, resolvePopoverKey } from '@gjsify/adwaita-core';
 
 /** Which side of the anchor the surface sits on. */
-export type AdwPopoverPosition = 'bottom' | 'top' | 'start' | 'end';
+export type GtkPopoverPosition = 'bottom' | 'top' | 'start' | 'end';
 
 /** Which edge of the anchor the surface lines up with. */
-export type AdwPopoverAlign = 'start' | 'end';
+export type GtkPopoverAlign = 'start' | 'end';
 
 /** The ARIA role of the surface — it decides the row role consumers give their items. */
-export type AdwPopoverRole = 'menu' | 'listbox';
+export type GtkPopoverRole = 'menu' | 'listbox';
 
-const POSITIONS: readonly AdwPopoverPosition[] = ['bottom', 'top', 'start', 'end'];
-const ALIGNS: readonly AdwPopoverAlign[] = ['start', 'end'];
-const ROLES: readonly AdwPopoverRole[] = ['menu', 'listbox'];
+const POSITIONS: readonly GtkPopoverPosition[] = ['bottom', 'top', 'start', 'end'];
+const ALIGNS: readonly GtkPopoverAlign[] = ['start', 'end'];
+const ROLES: readonly GtkPopoverRole[] = ['menu', 'listbox'];
 
 /** The row selector keyboard navigation walks. */
 const ITEM_SELECTOR = '.adw-popover-item';
 
-export class AdwPopover extends HTMLElement {
+export class GtkPopover extends HTMLElement {
     private readonly _state = new PopoverState();
     private _anchor: HTMLElement | null = null;
     private _initialized = false;
@@ -116,27 +116,27 @@ export class AdwPopover extends HTMLElement {
         this._anchor = value;
     }
 
-    get position(): AdwPopoverPosition {
+    get position(): GtkPopoverPosition {
         const value = this.getAttribute('position');
-        return POSITIONS.includes(value as AdwPopoverPosition) ? (value as AdwPopoverPosition) : 'bottom';
+        return POSITIONS.includes(value as GtkPopoverPosition) ? (value as GtkPopoverPosition) : 'bottom';
     }
 
-    set position(value: AdwPopoverPosition) {
+    set position(value: GtkPopoverPosition) {
         this.setAttribute('position', value);
     }
 
-    get align(): AdwPopoverAlign {
+    get align(): GtkPopoverAlign {
         const value = this.getAttribute('align');
-        return ALIGNS.includes(value as AdwPopoverAlign) ? (value as AdwPopoverAlign) : 'start';
+        return ALIGNS.includes(value as GtkPopoverAlign) ? (value as GtkPopoverAlign) : 'start';
     }
 
-    set align(value: AdwPopoverAlign) {
+    set align(value: GtkPopoverAlign) {
         this.setAttribute('align', value);
     }
 
-    get popoverRole(): AdwPopoverRole {
+    get popoverRole(): GtkPopoverRole {
         const value = this.getAttribute('role');
-        return ROLES.includes(value as AdwPopoverRole) ? (value as AdwPopoverRole) : 'menu';
+        return ROLES.includes(value as GtkPopoverRole) ? (value as GtkPopoverRole) : 'menu';
     }
 
     /** The navigable rows, in DOM order. Hidden rows are skipped — a filtered list navigates what it shows. */
@@ -275,4 +275,4 @@ export class AdwPopover extends HTMLElement {
     }
 }
 
-customElements.define('adw-popover', AdwPopover);
+customElements.define('gtk-popover', GtkPopover);

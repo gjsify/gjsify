@@ -11,7 +11,7 @@
 // deliberate swatch — measured in `adwaita-web/scss/_icon.scss`, beside the rule that
 // ended it.
 //
-// No test could see it — `adw-icon.spec.ts` asserted the class STRING, which had always
+// No test could see it — `gtk-image.spec.ts` asserted the class STRING, which had always
 // been applied, correctly, to nothing. The silence bought four renderer-comparison
 // surfaces drawing a different glyph from the GTK pane they exist to be compared
 // against: the browser storybook substituted `view-grid` for `view-paged-symbolic` under
@@ -53,7 +53,7 @@
 //
 // COMMENTS ARE STRIPPED FIRST, and only whole-line `//` ones — a bare `//` mid-line is
 // a URL far more often than a comment. A name that appears only in prose is not
-// emitted; before the strip, `adw-icon.spec.ts`' own explanation of the bug (a comment
+// emitted; before the strip, `gtk-image.spec.ts`' own explanation of the bug (a comment
 // spelling `adw-icon--a b`) registered `a` as an emitted icon.
 //
 // STILL BLIND to a name assembled at runtime — `icon.iconName = someRecord.icon`, with
@@ -114,8 +114,8 @@ const ICON_CONST = /(?:^|[^A-Za-z0-9_$])[A-Z][A-Z0-9_]*ICON(?:_NAME)?\s*=\s*(['"
 const MARKUP_ATTR = new RegExp(`(?:^|[^A-Za-z0-9_$-])(?:${KEY_ALT})=(['"])([^'"]*)\\1`, 'g');
 /** `el.setAttribute('icon', 'go-next')`. */
 const SET_ATTRIBUTE = new RegExp(`setAttribute\\(\\s*(['"\`])(?:${KEY_ALT})\\1\\s*,\\s*(['"\`])([^'"\`]*)\\2`, 'g');
-/** `createAdwIcon('go-next', …)`. */
-const CREATE_ICON = /createAdwIcon\(\s*(['"`])([^'"`]*)\1/g;
+/** `createGtkImage('go-next', …)`. */
+const CREATE_ICON = /createGtkImage\(\s*(['"`])([^'"`]*)\1/g;
 /** A hand-written `class="adw-icon adw-icon--window-close"`, as the website writes it. */
 const MASK_CLASS = /adw-icon--([a-z0-9-]+)/g;
 /** `mask-image: var(--icon-sidebar-show)` — a partial consuming an icon without the class. */
@@ -150,7 +150,7 @@ const SHAPES = {
     },
 };
 
-/** Every shape a surface that hands `<adw-icon>` a NAME can spell one in. */
+/** Every shape a surface that hands `<gtk-image>` a NAME can spell one in. */
 const NAME_SHAPES = ['js', 'markup', 'setAttribute', 'createIcon', 'maskClass'];
 
 /**
@@ -161,7 +161,7 @@ const NAME_SHAPES = ['js', 'markup', 'setAttribute', 'createIcon', 'maskClass'];
 const SOURCES = [
     {
         // The widgets themselves and the partials that mask an icon without going
-        // through `<adw-icon>` at all (`_combo_row.scss`' arrow).
+        // through `<gtk-image>` at all (`_combo_row.scss`' arrow).
         root: 'packages/web/adwaita-web/src',
         shapes: NAME_SHAPES,
         // The compiled stylesheet, inlined as a TS string, contains every mask class by
@@ -276,24 +276,41 @@ function filesUnder(source) {
     return found;
 }
 
-/** Every emitted icon name, mapped to the posix-spelled files that emit it. */
+/**
+ * Every emitted icon name mapped to the posix-spelled files that emit it, and — the
+ * second return — how many names each SHAPE contributed.
+ *
+ * THE SHAPE TALLY IS A DISCRIMINATOR, not a statistic. A shape is a regex naming a
+ * spelling in the tree, and a rename on the other side of the repository turns it into
+ * a reader of something that no longer exists: `createIcon` spelled `createAdwIcon`
+ * for a while after ADR 0034 § Amendment 5 renamed the helper to `createGtkImage`, and
+ * that arm scanned NOTHING while the gate printed the same 44 names and exited 0,
+ * because the four icons it used to reach were each named somewhere else too. Injecting
+ * `createGtkImage('no-such-glyph')` into a shipping widget was still exit 0. A shape
+ * that matches nowhere is the only observable that separates "this spelling is absent
+ * from the tree" from "this reader is broken", and it cannot be read off the name set.
+ */
 function emittedNames() {
     const emitted = new Map();
+    const shapeHits = new Map(Object.keys(SHAPES).map((shape) => [shape, 0]));
     for (const source of SOURCES) {
         for (const file of filesUnder(source)) {
             const code = stripComments(readFileSync(file, 'utf8'));
-            const add = (raw) => {
-                const name = normalizeIconName(raw);
-                // `''` is the guard's own answer for an absent or unusable name, and
-                // `<adw-icon>` draws nothing for it — there is no class to demand.
-                if (name === '') return;
-                if (!emitted.has(name)) emitted.set(name, new Set());
-                emitted.get(name).add(toPosixPath(relative(ROOT, file)));
-            };
-            for (const shape of source.shapes) SHAPES[shape](code, add);
+            for (const shape of source.shapes) {
+                const add = (raw) => {
+                    shapeHits.set(shape, shapeHits.get(shape) + 1);
+                    const name = normalizeIconName(raw);
+                    // `''` is the guard's own answer for an absent or unusable name, and
+                    // `<gtk-image>` draws nothing for it — there is no class to demand.
+                    if (name === '') return;
+                    if (!emitted.has(name)) emitted.set(name, new Set());
+                    emitted.get(name).add(toPosixPath(relative(ROOT, file)));
+                };
+                SHAPES[shape](code, add);
+            }
         }
     }
-    return emitted;
+    return { emitted, shapeHits };
 }
 
 /** The keys of the ICONS map in `build-scss.mjs`, read from the committed source. */
@@ -334,7 +351,7 @@ function vendoredGlyphs() {
     return names;
 }
 
-const emitted = emittedNames();
+const { emitted, shapeHits } = emittedNames();
 const compiled = compiledNames();
 const vendored = vendoredGlyphs();
 
@@ -369,6 +386,20 @@ const reviewed = ledger.reviewed ?? {};
 const listed = new Set(Object.keys(reviewed));
 
 const failures = [];
+
+// ARM 4: every SHAPE reads something. See {@link emittedNames} for the incident — a
+// reader whose spelling left the tree is indistinguishable from a spelling the tree
+// never uses, and the name set cannot tell them apart. No exemption list: a shape
+// nothing spells any more is a shape to DELETE, and deleting it is one line.
+for (const [shape, hits] of shapeHits) {
+    if (hits === 0) {
+        failures.push(
+            `the \`${shape}\` shape matched nothing in any of the ${SOURCES.length} sources — it reads a ` +
+                'spelling the tree no longer has, so that whole arm is scanning nothing. Repair the regex ' +
+                'in SHAPES, or delete the shape and the sources that name it',
+        );
+    }
+}
 
 for (const [name, messages] of problems) {
     if (listed.has(name)) continue;

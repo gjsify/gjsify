@@ -27,7 +27,7 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_entries.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
-// edit icon node is <adw-icon>.
+// edit icon node is <gtk-image>.
 
 import {
     ENTRY_ROW_APPLY_ICON_NAME,
@@ -38,7 +38,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren, type AdwSlottedChildren } from '../slotted-children.js';
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 
 /**
  * Show/hide a rendered part. `hidden` carries the semantics and is what the conformance
@@ -66,7 +66,7 @@ export class AdwEntryRow extends HTMLElement {
     protected _title!: HTMLSpanElement;
     /** The `editable-area` gizmo: both titles plus the input. */
     protected _area!: HTMLDivElement;
-    protected _editIcon!: AdwIcon;
+    protected _editIcon!: GtkImage;
     protected _indicator!: HTMLSpanElement;
     protected _applyButton!: HTMLButtonElement;
     protected _prefixes!: HTMLDivElement;
@@ -326,11 +326,11 @@ export class AdwEntryRow extends HTMLElement {
         // The libadwaita name travels in `data-icon-name`; the drawn glyph is
         // the curated @gjsify/adwaita-icons spelling of the same symbolic, which
         // is a different string (`adw-entry-edit-symbolic` vs `document-edit`).
-        this._editIcon = createAdwIcon('document-edit', 'adw-row-edit', `${prefix}-edit`);
+        this._editIcon = createGtkImage('document-edit', 'adw-row-edit', `${prefix}-edit`);
         this._editIcon.dataset.iconName = ENTRY_ROW_EDIT_ICON_NAME;
 
         // Author-supplied light-DOM children are KEPT and stay LIVE: `replaceChildren` used
-        // to discard them silently, so `<adw-entry-row><adw-button>Go</adw-button>` rendered
+        // to discard them silently, so `<adw-entry-row><gtk-button>Go</gtk-button>` rendered
         // without its button, and the snapshot that fixed that was still a one-shot read — a
         // suffix appended after connect sat outside the affordance box. ELEMENTS only, on
         // both paths: GtkBuildable also only ever adopts widgets, and keeping stray

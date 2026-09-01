@@ -52,11 +52,11 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 // selection state machine composed from @gjsify/adwaita-core, the icon node
-// from <adw-icon>.
+// from <gtk-image>.
 
 import { ToggleGroupState } from '@gjsify/adwaita-core';
 
-import { createAdwIcon } from './adw-icon.js';
+import { createGtkImage } from './gtk-image.js';
 import { attachRovingFocus } from './roving-focus.js';
 
 /** A single toggle. Children of <adw-toggle-group>; consumed at connect time. */
@@ -141,7 +141,7 @@ export class AdwToggleGroup extends HTMLElement {
 
             const label = toggle.getAttribute('label') ?? '';
             const icon = toggle.getAttribute('icon-name') ?? '';
-            if (icon) btn.appendChild(createAdwIcon(icon));
+            if (icon) btn.appendChild(createGtkImage(icon));
             if (label) btn.appendChild(document.createTextNode(label));
 
             // An icon-only toggle has no text — give it an accessible name.

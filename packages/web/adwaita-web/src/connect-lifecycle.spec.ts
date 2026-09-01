@@ -27,7 +27,7 @@ import * as adwaitaWeb from './index.js';
 
 /**
  * Elements that cannot RENDER a child, however the DOM lets you append one. A container
- * getter returning one of these is an imperative handle (`<adw-entry>.input`, for
+ * getter returning one of these is an imperative handle (`<gtk-entry>.input`, for
  * focus and selection), not an append point, and appending to it measures 0 forever.
  * The HTML void-element set, not a per-widget ledger — a new container still enrols
  * itself; only a new void element in the spec would need a line here.
@@ -101,7 +101,7 @@ function registeredElements(): { tags: string[]; unregistered: string[] } {
  * Each half earns its place. No setter, because a container you append into is not one
  * you replace by assignment — that is what separates `topBar` from `anchor` and
  * `activatableWidget`. Contained, because the handle has to be part of THIS widget's
- * own subtree — `<adw-popover>.anchor` defaults to `parentElement` and is not. And a
+ * own subtree — `<gtk-popover>.anchor` defaults to `parentElement` and is not. And a
  * value that is not an element at all (`items`, `groups`, a `null` slot on an empty
  * widget) is nothing to append to.
  *
@@ -326,9 +326,9 @@ export const AdwConnectLifecycleTest = async () => {
             });
         }
 
-        await it('<adw-popover> still dismisses on an outside click after a move', async () => {
+        await it('<gtk-popover> still dismisses on an outside click after a move', async () => {
             const first = visibleHost();
-            const popover = document.createElement('adw-popover');
+            const popover = document.createElement('gtk-popover');
             first.appendChild(popover);
             (popover as HTMLElement & { popup(): void }).popup();
 

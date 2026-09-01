@@ -41,7 +41,7 @@ const ACTION_ROW_TAGS: ReadonlySet<string> = new Set([
 /**
  * `ADW_IS_PREFERENCES_ROW` for the browser elements — the first clause of
  * `row_has_title`. Spelled out rather than inferred from the `adw-` prefix, because a
- * group's boxed list legitimately holds other things: a bare `<adw-button>` dropped in as
+ * group's boxed list legitimately holds other things: a bare `<gtk-button>` dropped in as
  * a footer is not a preferences row and must not be searchable.
  */
 const PREFERENCES_ROW_TAGS: ReadonlySet<string> = new Set([

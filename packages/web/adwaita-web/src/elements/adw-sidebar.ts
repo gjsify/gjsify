@@ -43,7 +43,7 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_sidebars.scss (.navigation-sidebar, sidebar)
 // Copyright (c) 2025 GNOME Foundation Inc. (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
-// icon nodes are <adw-icon>.
+// icon nodes are <gtk-image>.
 
 import {
     ADW_SIDEBAR_NO_SELECTION,
@@ -56,7 +56,7 @@ import {
     type SidebarSelectionChange,
 } from '@gjsify/adwaita-core';
 
-import { createAdwIcon } from './adw-icon.js';
+import { createGtkImage } from './gtk-image.js';
 import { attachRovingFocus } from './roving-focus.js';
 
 // The sidebar consumes its declared children and drops them from the tree, so a later
@@ -348,7 +348,7 @@ export class AdwSidebar extends HTMLElement {
         row.hidden = item.visible === false;
         row.disabled = item.enabled === false;
 
-        const iconEl = createAdwIcon(item.iconName ?? null, 'adw-sidebar-item-icon');
+        const iconEl = createGtkImage(item.iconName ?? null, 'adw-sidebar-item-icon');
         iconEl.hidden = !flat.iconVisible;
         row.appendChild(iconEl);
 
@@ -371,7 +371,7 @@ export class AdwSidebar extends HTMLElement {
 
         // Page mode adds a trailing chevron on every row, the way the boxed-list
         // AdwActionRow carries a `go-next-symbolic` arrow.
-        row.appendChild(createAdwIcon('go-next', 'adw-sidebar-item-arrow'));
+        row.appendChild(createGtkImage('go-next', 'adw-sidebar-item-arrow'));
 
         row.addEventListener('click', () => this._activate(flat.index));
 

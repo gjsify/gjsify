@@ -22,7 +22,7 @@
 
 import { PasswordEntryRowState, type PasswordEntryRowRenderState } from '@gjsify/adwaita-core';
 
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 
 import { AdwEntryRow } from './adw-entry-row.js';
 
@@ -30,7 +30,7 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
     /** The headless peek + caps-lock derivation, composing the parent row's state. */
     private readonly _password = new PasswordEntryRowState(this._state);
     private _toggle!: HTMLButtonElement;
-    private _toggleIcon!: AdwIcon;
+    private _toggleIcon!: GtkImage;
 
     static get observedAttributes(): string[] {
         return [...AdwEntryRow.observedAttributes, 'revealed'];
@@ -73,7 +73,7 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
         this._toggle = document.createElement('button');
         this._toggle.type = 'button';
         this._toggle.className = `adw-button flat circular icon-only ${this._classPrefix}-toggle`;
-        this._toggleIcon = createAdwIcon(null);
+        this._toggleIcon = createGtkImage(null);
         this._toggle.append(this._toggleIcon);
         this._toggle.addEventListener('click', () => this._password.togglePeek());
         // Installed through add_suffix as C does, so it is the FIRST suffix and a

@@ -148,7 +148,7 @@ export default async () => {
         });
 
         await it('setSelectedIndex returns whether it changed', () => {
-            // The return IS the notify gate: `<adw-drop-down>` fires `notify::selected`
+            // The return IS the notify gate: `<gtk-drop-down>` fires `notify::selected`
             // off it rather than keeping a second copy of the index to compare.
             const state = twoOptions();
             expect(state.setSelectedIndex(1)).toBe(true);

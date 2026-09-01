@@ -1,11 +1,11 @@
-// <adw-menu-button> — the web counterpart of Gtk.MenuButton, which libadwaita styles
+// <gtk-menu-button> — the web counterpart of Gtk.MenuButton, which libadwaita styles
 // but never subclassed: by default the flat `open-menu-symbolic` app-menu button used
 // at the end of a header bar. Clicking it toggles an Adwaita-styled popover under the
 // button, dismissed on an outside click or Escape, with arrow-key navigation.
 //
-// The popover is `<adw-popover>` and the dismissal/keyboard machine is
+// The popover is `<gtk-popover>` and the dismissal/keyboard machine is
 // `@gjsify/adwaita-core`'s (ADR 0004); this element keeps only what is a menu button:
-// the icon, the item model, the title. Icons go through `<adw-icon>`, whose
+// the icon, the item model, the title. Icons go through `<gtk-image>`, whose
 // `normalizeIconName` guard is what keeps a multi-token `icon-name="a b"` from
 // shipping a stray CSS class — for the button icon and for every menu entry's.
 //
@@ -30,19 +30,28 @@ import {
 import type { AdwMenuEntry, SplitButtonDirection } from '@gjsify/adwaita-core';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
-// `adw-popover` is defined before this module's `customElements.define` can upgrade a
-// server-rendered `<adw-menu-button>` and build one. A combined
-// `import { AdwPopover }` would NOT do it — the binding is only used in type position,
+// `gtk-popover` is defined before this module's `customElements.define` can upgrade a
+// server-rendered `<gtk-menu-button>` and build one. A combined
+// `import { GtkPopover }` would NOT do it — the binding is only used in type position,
 // and this package compiles without `verbatimModuleSyntax`, so TypeScript would elide
 // the statement and take the registration with it.
-import './adw-popover.js';
-import type { AdwPopover } from './adw-popover.js';
+import './gtk-popover.js';
+import type { GtkPopover } from './gtk-popover.js';
 
-import { createAdwIcon } from './adw-icon.js';
+import { createGtkImage } from './gtk-image.js';
 
 /**
- * A menu entry — `@gjsify/adwaita-core`'s {@link AdwMenuEntry}, re-exported under the
- * name this element has always used.
+ * A menu entry — `@gjsify/adwaita-core`'s {@link AdwMenuEntry} under the name both
+ * renderers export it as.
+ *
+ * IT KEEPS THE `Adw` PREFIX WHILE THE ELEMENT ABOVE IT DOES NOT, and the reason is not
+ * "the name it has always used" — ADR 0034 clause 1 just moved every name in this file
+ * that had one. It is that this is not a WIDGET name: clause 1 is about the tag, and
+ * this is the descriptor a consumer writes menu entries with. `@gjsify/adwaita-
+ * nativescript` exports `AdwMenuItem` for the same type, and that port deliberately
+ * keeps `Adw` throughout, so renaming this half would give one object two spellings —
+ * which is the thing the ADR is removing, not applying. (`GtkDropDownOption` next door
+ * DID move: its NativeScript twin exports no such name, so there was nothing to split.)
  *
  * It used to be a SECOND declaration of the same shape, and the NativeScript menu
  * button declared a THIRD that was missing `icon` entirely. One type, so a consumer
@@ -65,9 +74,9 @@ const POPOVER_POSITIONS = {
     right: 'end',
 } as const;
 
-export class AdwMenuButton extends HTMLElement {
+export class GtkMenuButton extends HTMLElement {
     private _buttonEl!: HTMLButtonElement;
-    private _popoverEl!: AdwPopover;
+    private _popoverEl!: GtkPopover;
     private _items: AdwMenuItem[] = [];
     private _menuTitle = '';
     private _initialized = false;
@@ -124,7 +133,7 @@ export class AdwMenuButton extends HTMLElement {
         this._buttonEl.setAttribute('aria-haspopup', 'menu');
         this._buttonEl.setAttribute('aria-expanded', 'false');
 
-        this._popoverEl = document.createElement('adw-popover') as AdwPopover;
+        this._popoverEl = document.createElement('gtk-popover') as GtkPopover;
         this._popoverEl.classList.add('adw-menu-button-popover');
         this._popoverEl.setAttribute('role', 'menu');
         // `gtk_menu_button_set_menu_model` builds a GtkPopoverMenu, whose CSS
@@ -190,7 +199,7 @@ export class AdwMenuButton extends HTMLElement {
 
         this._buttonEl.replaceChildren();
         this._buttonEl.appendChild(
-            createAdwIcon(this.getAttribute('icon-name') ?? 'open-menu', 'adw-menu-button-icon'),
+            createGtkImage(this.getAttribute('icon-name') ?? 'open-menu', 'adw-menu-button-icon'),
         );
         this._buttonEl.setAttribute('aria-label', this.getAttribute('menu-title') || 'Menu');
 
@@ -219,8 +228,8 @@ export class AdwMenuButton extends HTMLElement {
             // An entry that asked for NO icon gets no icon node — the emptiness of the
             // declared name, not whether it resolved. Testing `resolvedIconName` dropped
             // the node for a name that was given and merely undrawable, which is the one
-            // case a reader needs to SEE; `<adw-icon>` draws `image-missing` there.
-            const entryIcon = createAdwIcon(entry.icon ?? null, 'adw-menu-button-item-icon');
+            // case a reader needs to SEE; `<gtk-image>` draws `image-missing` there.
+            const entryIcon = createGtkImage(entry.icon ?? null, 'adw-menu-button-item-icon');
             if (stringIsNotEmpty(entry.icon)) item.appendChild(entryIcon);
             const labelEl = document.createElement('span');
             labelEl.className = 'adw-menu-button-item-label';
@@ -245,4 +254,4 @@ export class AdwMenuButton extends HTMLElement {
     }
 }
 
-customElements.define('adw-menu-button', AdwMenuButton);
+customElements.define('gtk-menu-button', GtkMenuButton);

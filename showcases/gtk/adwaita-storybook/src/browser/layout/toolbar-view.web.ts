@@ -49,12 +49,12 @@ export class ToolbarViewWebStory extends StoryElement {
         bottomBar.style.padding = 'var(--spacing-xs, 6px)';
         bottomBar.style.borderTop = '1px solid var(--separator-color, rgba(0, 0, 0, 0.15))';
 
-        const addButton = document.createElement('adw-button');
+        const addButton = document.createElement('gtk-button');
         addButton.setAttribute('icon', 'list-add');
         addButton.setAttribute('flat', '');
         addButton.setAttribute('tooltip', 'Add');
 
-        const removeButton = document.createElement('adw-button');
+        const removeButton = document.createElement('gtk-button');
         removeButton.setAttribute('icon', 'list-remove');
         removeButton.setAttribute('flat', '');
         removeButton.setAttribute('tooltip', 'Remove');
@@ -64,7 +64,7 @@ export class ToolbarViewWebStory extends StoryElement {
         selectionLabel.style.flex = '1 1 auto';
         selectionLabel.style.textAlign = 'center';
 
-        const shareButton = document.createElement('adw-button');
+        const shareButton = document.createElement('gtk-button');
         shareButton.setAttribute('icon', 'send-to');
         shareButton.setAttribute('flat', '');
         shareButton.setAttribute('tooltip', 'Share');

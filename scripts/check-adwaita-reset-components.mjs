@@ -19,7 +19,7 @@
 //
 // WHAT IT CHECKS, both directions
 //
-//   1. a `customElements.define('adw-…')` with no `$adw-components` entry  → FAIL
+//   1. a `customElements.define(…)` with no `$adw-components` entry        → FAIL
 //      (the incident: the element silently loses the isolation floor)
 //   2. an entry with no `define` behind it                                 → FAIL
 //      (a renamed or deleted element whose selector now matches nothing —

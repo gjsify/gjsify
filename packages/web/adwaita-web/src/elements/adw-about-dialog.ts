@@ -55,7 +55,7 @@
 // Reference: refs/adwaita-web/adwaita-web/scss/_about_dialog.scss (web layout)
 // Copyright (c) 2022-2024 GNOME Foundation Inc. / Purism SPC (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
-// icon nodes are <adw-icon>; the derivations live in @gjsify/adwaita-core.
+// icon nodes are <gtk-image>; the derivations live in @gjsify/adwaita-core.
 
 import {
     ADW_ABOUT_DIALOG_LABELS,
@@ -67,7 +67,7 @@ import {
     stripMnemonic,
 } from '@gjsify/adwaita-core';
 
-import { createAdwIcon } from './adw-icon.js';
+import { createGtkImage } from './gtk-image.js';
 import { AdwModalSurface } from './modal-surface.js';
 
 /** A template label with its mnemonic marker removed — this renderer has no accelerator layer. */
@@ -440,7 +440,7 @@ export class AdwAboutDialog extends HTMLElement {
         // `image-missing` rather than three stray classes; that is also what GTK draws for
         // it on a machine without the app installed.
         if (visibility.appIcon) {
-            body.appendChild(createAdwIcon(this.applicationIcon, 'adw-about-dialog-icon'));
+            body.appendChild(createGtkImage(this.applicationIcon, 'adw-about-dialog-icon'));
         }
 
         // No fallback: an unset name means no label.
@@ -518,7 +518,7 @@ export class AdwAboutDialog extends HTMLElement {
         row.setAttribute('title', title);
         row.setAttribute('activatable', '');
 
-        const chevron = createAdwIcon('go-next', 'adw-about-dialog-chevron');
+        const chevron = createGtkImage('go-next', 'adw-about-dialog-chevron');
         chevron.setAttribute('slot', 'suffix');
         row.appendChild(chevron);
 
@@ -569,7 +569,7 @@ export class AdwAboutDialog extends HTMLElement {
         row.setAttribute('activatable', '');
         row.classList.add('adw-about-dialog-link-row');
 
-        const chevron = createAdwIcon('go-next', 'adw-about-dialog-chevron');
+        const chevron = createGtkImage('go-next', 'adw-about-dialog-chevron');
         chevron.setAttribute('slot', 'suffix');
         row.appendChild(chevron);
 
@@ -603,7 +603,7 @@ export class AdwAboutDialog extends HTMLElement {
             const uri = person.uri ?? '';
             row.setAttribute('activatable', '');
             row.classList.add('adw-about-dialog-link-row');
-            const chevron = createAdwIcon('go-next', 'adw-about-dialog-chevron');
+            const chevron = createGtkImage('go-next', 'adw-about-dialog-chevron');
             chevron.setAttribute('slot', 'suffix');
             row.appendChild(chevron);
             row.addEventListener('activated', () => this._activateLink(uri));

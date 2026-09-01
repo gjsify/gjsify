@@ -88,7 +88,7 @@ const distDir = resolve(pkgRoot, 'dist');
 // a glyph that came from somewhere other than @gjsify/adwaita-icons. Its header carries
 // the surface list and the incident. Before the gate existed, an unresolvable name was
 // not an error of any kind: the icon painted a solid 16px square in the widget's text
-// colour and `adw-icon.spec.ts` asserted only that the class STRING had been applied.
+// colour and `gtk-image.spec.ts` asserted only that the class STRING had been applied.
 // That is why the browser storybook drew `view-grid` where its GTK twin drew
 // `view-paged-symbolic` — the right name resolved to a square, so a different one was
 // substituted and the divergence recorded as prose.

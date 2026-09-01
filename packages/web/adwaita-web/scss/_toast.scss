@@ -121,7 +121,7 @@ adw-toast-overlay {
   }
 
   // Close affordance — `window-close-symbolic` in a 24px circle, as upstream builds it
-  // (adw-toast-widget.ui:64). The element supplies the <adw-icon>; this only places it.
+  // (adw-toast-widget.ui:64). The element supplies the <gtk-image>; this only places it.
   .adw-toast-close-button {
     box-sizing: border-box;
     flex-shrink: 0;

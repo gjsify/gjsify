@@ -34,7 +34,7 @@ export class ToastWebStory extends StoryElement {
         center.style.width = '100%';
         center.style.height = '100%';
 
-        const button = document.createElement('adw-button');
+        const button = document.createElement('gtk-button');
         button.textContent = 'Show toast';
         button.setAttribute('pill', '');
         button.setAttribute('suggested', '');

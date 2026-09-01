@@ -111,7 +111,7 @@
     }
   }
 
-  // The dropdown menu is `<adw-popover>` (`_popover.scss`), and this was the
+  // The dropdown menu is `<gtk-popover>` (`_popover.scss`), and this was the
   // WORST of the three hand-rolled surfaces: `--button-radius` (9px) where
   // libadwaita's popover is 15px, under a two-layer shadow that exists nowhere
   // in the vendored stylesheet (`popover > contents` has three,

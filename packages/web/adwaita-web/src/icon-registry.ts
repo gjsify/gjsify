@@ -10,16 +10,16 @@
 // That is this module. `registerIcon` writes the SAME pair the generator writes — the
 // custom property on the document element, the mask class into a stylesheet this module
 // owns — so a registered icon is indistinguishable from a compiled one at every later
-// point: `<adw-icon icon-name="…">`, a hand-written `class="adw-icon adw-icon--…"`, a
+// point: `<gtk-image icon-name="…">`, a hand-written `class="adw-icon adw-icon--…"`, a
 // widget attribute, `var(--icon-…)` in the consumer's own CSS.
 //
 //   import { registerIcon } from '@gjsify/adwaita-web';
 //   import { dialogErrorSymbolic } from '@gjsify/adwaita-icons/status';
 //
 //   registerIcon('dialog-error-symbolic', dialogErrorSymbolic);
-//   // …then anywhere: <adw-icon icon-name="dialog-error-symbolic"></adw-icon>
+//   // …then anywhere: <gtk-image icon-name="dialog-error-symbolic"></gtk-image>
 //
-// Register BEFORE the icon is mounted where you can. An `<adw-icon>` already in the
+// Register BEFORE the icon is mounted where you can. A `<gtk-image>` already in the
 // document draws the `image-missing` fallback (see `_icon.scss`) until the registration
 // lands; the CSS is live, so it corrects itself on the next style recalculation with no
 // re-render, but there is a visible frame in between.
@@ -30,7 +30,7 @@
 import { normalizeIconName } from '@gjsify/adwaita-core';
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
-import { MASK_CLASS_PREFIX } from './elements/adw-icon.js';
+import { MASK_CLASS_PREFIX } from './elements/gtk-image.js';
 
 /** Marks the one `<style>` element this module owns, so a reload reuses it. */
 const REGISTRY_STYLE_ID = 'adwaita-web-icon-registry';
@@ -96,8 +96,8 @@ function svgRootOf(source: string): Element {
  * BOTH arguments are checked and a wrong one THROWS rather than registering nothing: unlike
  * a render, this is an explicit call with a wrong argument, and silently doing nothing is
  * the failure mode this whole area exists to end. The name is normalized exactly as
- * `<adw-icon icon-name>` normalizes it — a single `-symbolic` suffix comes off, and the rest
- * must be one CSS token; the SVG has to parse to an `<svg>` root. `<adw-icon>` draws
+ * `<gtk-image icon-name>` normalizes it — a single `-symbolic` suffix comes off, and the rest
+ * must be one CSS token; the SVG has to parse to an `<svg>` root. `<gtk-image>` draws
  * `image-missing` for the same unusable name instead — there it came from markup, and
  * taking the page down over a typo is not proportionate.
  *

@@ -8,7 +8,7 @@ and/or `refs/libadwaita/src/stylesheet/widgets/_<name>.scss`.
 **What already exists is NOT tracked here.** The per-widget matrix above — which widget has a GTK
 story, a browser element, a NativeScript view, and which of them actually delegate to
 `@gjsify/adwaita-core` — is derived from the tree on every generation. This section used to carry
-that table by hand, and it drifted twelve widgets behind the code: `<adw-button>`, `<adw-entry>`,
+that table by hand, and it drifted twelve widgets behind the code: `<gtk-button>`, `<gtk-entry>`,
 `<adw-action-row>`, `<adw-banner>`, `<adw-bottom-sheet>`, `<adw-status-page>`,
 `<adw-toggle-group>`, `<adw-split-button>`, `<adw-expander-row>`, `<adw-carousel>`,
 `<adw-avatar>` and `<adw-wrap-box>` all sat under "Planned" long after they shipped. Nothing that

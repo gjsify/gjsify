@@ -21,13 +21,13 @@
 
 import { BUTTON_ROW_ACTIVATABLE, ButtonRowState } from '@gjsify/adwaita-core';
 
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 import { attachRowActivation } from './row-activation.js';
 
 export class AdwButtonRow extends HTMLElement {
     private _contentsEl!: HTMLDivElement;
-    private _startIconEl!: AdwIcon;
-    private _endIconEl!: AdwIcon;
+    private _startIconEl!: GtkImage;
+    private _endIconEl!: GtkImage;
     private _titleEl!: HTMLSpanElement;
     /** The headless title + start/end icon state (ADR 0004). */
     private readonly _state = new ButtonRowState();
@@ -43,12 +43,12 @@ export class AdwButtonRow extends HTMLElement {
         this._contentsEl = document.createElement('div');
         this._contentsEl.className = 'adw-button-row-contents';
 
-        this._startIconEl = createAdwIcon(null, 'start');
+        this._startIconEl = createGtkImage(null, 'start');
 
         this._titleEl = document.createElement('span');
         this._titleEl.className = 'adw-button-row-title';
 
-        this._endIconEl = createAdwIcon(null, 'end');
+        this._endIconEl = createGtkImage(null, 'end');
 
         this._contentsEl.append(this._startIconEl, this._titleEl, this._endIconEl);
         this.replaceChildren(this._contentsEl);
@@ -89,7 +89,7 @@ export class AdwButtonRow extends HTMLElement {
      * The `start` / `end` position class is set once at construction — it is
      * where the node sits, not what it draws — so only the name changes here.
      */
-    private _paintIcon(el: AdwIcon, iconName: string, visible: boolean) {
+    private _paintIcon(el: GtkImage, iconName: string, visible: boolean) {
         el.iconName = visible ? iconName : null;
         el.hidden = !visible;
     }

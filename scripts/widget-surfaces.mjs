@@ -54,7 +54,7 @@ export const SURFACE_ROLES = ['reference', 'renderer'];
  * Every surface this repository can READ, and how.
  *
  * `widgets(root)` returns the surface's widget vocabulary in the tag namespace
- * (`adw-entry`, `gtk-button`) — the namespace the GIR tag table is keyed in, so the
+ * (`adw-action-row`, `gtk-button`) — the namespace the GIR tag table is keyed in, so the
  * "already shares a spelling" comparison stays a lookup rather than a second
  * transformation. The `reference` entry has no reader here: its vocabulary IS the
  * generated table `check-vocabulary-alignment.mjs` reads directly, and a second reader of

@@ -15,7 +15,7 @@ export class DropDownWebStory extends StoryElement {
     }
 
     initialize(): void {
-        this._dropDown = document.createElement('adw-drop-down');
+        this._dropDown = document.createElement('gtk-drop-down');
         this._dropDown.setAttribute('options', JSON.stringify(DROP_DOWN_OPTIONS));
         this._apply();
         this.addContent(this._dropDown);

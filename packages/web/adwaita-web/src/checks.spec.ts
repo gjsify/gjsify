@@ -1,4 +1,4 @@
-// DOM-level tests for <adw-checkbox> and <adw-radio>, plus the browser side of
+// DOM-level tests for <gtk-check-button> and <adw-radio>, plus the browser side of
 // the `RADIO_GROUP_VECTORS` conformance table.
 //
 // The browser's native radio exclusivity is NOT enough: `<input type="radio" name="g">`
@@ -14,7 +14,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 import { RADIO_GROUP_VECTORS } from '@gjsify/adwaita-core/conformance';
 
-import type { AdwCheckbox, AdwRadio } from './elements/adw-checks.js';
+import type { GtkCheckButton, AdwRadio } from './elements/checks.js';
 
 function host(): HTMLElement {
     const el = document.createElement('div');
@@ -22,9 +22,9 @@ function host(): HTMLElement {
     return el;
 }
 
-function mountCheckbox(): { el: AdwCheckbox; parent: HTMLElement } {
+function mountCheckbox(): { el: GtkCheckButton; parent: HTMLElement } {
     const parent = host();
-    const el = document.createElement('adw-checkbox') as AdwCheckbox;
+    const el = document.createElement('gtk-check-button') as GtkCheckButton;
     parent.appendChild(el);
     return { el, parent };
 }
@@ -51,7 +51,7 @@ function glyph(check: HTMLElement): string {
 }
 
 export const AdwChecksTest = async () => {
-    await describe('<adw-checkbox> state', async () => {
+    await describe('<gtk-check-button> state', async () => {
         await it('builds the input + indicator + label markup', () => {
             const { el, parent } = mountCheckbox();
             const { input, indicator, label } = parts(el);
@@ -69,13 +69,13 @@ export const AdwChecksTest = async () => {
 
         await it('adopts authored child nodes as the label, and the attribute wins', () => {
             const parent = host();
-            const authored = document.createElement('adw-checkbox') as AdwCheckbox;
+            const authored = document.createElement('gtk-check-button') as GtkCheckButton;
             authored.textContent = 'Enable';
             parent.appendChild(authored);
             expect(parts(authored).label.textContent).toBe('Enable');
             expect(parts(authored).label.hidden).toBe(false);
 
-            const labelled = document.createElement('adw-checkbox') as AdwCheckbox;
+            const labelled = document.createElement('gtk-check-button') as GtkCheckButton;
             labelled.setAttribute('label', 'From the attribute');
             labelled.textContent = 'ignored';
             parent.appendChild(labelled);
@@ -133,7 +133,7 @@ export const AdwChecksTest = async () => {
         });
     });
 
-    await describe('<adw-checkbox> indeterminate', async () => {
+    await describe('<gtk-check-button> indeterminate', async () => {
         await it('announces as mixed and outranks checked', () => {
             const { el, parent } = mountCheckbox();
             el.checked = true;
@@ -152,7 +152,7 @@ export const AdwChecksTest = async () => {
             // three states proves the cascade, not just that a mask exists.
             const parent = host();
             const make = (attrs: string[]) => {
-                const el = document.createElement('adw-checkbox') as AdwCheckbox;
+                const el = document.createElement('gtk-check-button') as GtkCheckButton;
                 for (const attr of attrs) el.setAttribute(attr, '');
                 parent.appendChild(el);
                 return el;
@@ -181,7 +181,7 @@ export const AdwChecksTest = async () => {
     await describe('check and radio share one stylesheet', async () => {
         await it('both draw the 14px + 3px indicator, differing only in the radius', () => {
             const parent = host();
-            const check = document.createElement('adw-checkbox') as AdwCheckbox;
+            const check = document.createElement('gtk-check-button') as GtkCheckButton;
             const radio = document.createElement('adw-radio') as AdwRadio;
             parent.append(check, radio);
 
@@ -219,7 +219,7 @@ export const AdwChecksTest = async () => {
             radio.setAttribute('name', 'fill-checked');
             radio.setAttribute('value', 'x');
             radio.setAttribute('checked', '');
-            const check = document.createElement('adw-checkbox') as AdwCheckbox;
+            const check = document.createElement('gtk-check-button') as GtkCheckButton;
             check.setAttribute('checked', '');
             parent.append(plain, radio, check);
 

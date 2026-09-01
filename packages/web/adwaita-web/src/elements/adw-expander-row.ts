@@ -17,7 +17,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 // disclosure state machine composed from @gjsify/adwaita-core, the enable
-// switch from <adw-switch> and the chevron from <adw-icon>.
+// switch from <gtk-switch> and the chevron from <gtk-image>.
 
 import { ExpanderState, deriveRowLabels } from '@gjsify/adwaita-core';
 
@@ -25,22 +25,22 @@ import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
-// `adw-switch` is defined before this module's `customElements.define` can upgrade a
+// `gtk-switch` is defined before this module's `customElements.define` can upgrade a
 // server-rendered `<adw-expander-row>` and build one. A combined
-// `import { AdwSwitch }` would NOT do it — the binding is only used in type position,
+// `import { GtkSwitch }` would NOT do it — the binding is only used in type position,
 // and this package compiles without `verbatimModuleSyntax`, so TypeScript would elide
 // the statement and take the registration with it.
-import './adw-switch.js';
-import type { AdwSwitch } from './adw-switch.js';
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import './gtk-switch.js';
+import type { GtkSwitch } from './gtk-switch.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 import { attachRowActivation } from './row-activation.js';
 
 export class AdwExpanderRow extends HTMLElement {
     private _headerEl!: HTMLDivElement;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
-    private _enableSwitch!: AdwSwitch;
-    private _chevronEl!: AdwIcon;
+    private _enableSwitch!: GtkSwitch;
+    private _chevronEl!: GtkImage;
     private _contentEl!: HTMLDivElement;
     private _prefixEl!: HTMLDivElement;
     private _suffixEl!: HTMLDivElement;
@@ -118,11 +118,11 @@ export class AdwExpanderRow extends HTMLElement {
         textEl.append(this._titleEl, this._subtitleEl);
 
         // Clicking the enable switch does NOT toggle the disclosure.
-        this._enableSwitch = document.createElement('adw-switch') as AdwSwitch;
+        this._enableSwitch = document.createElement('gtk-switch') as GtkSwitch;
         this._enableSwitch.classList.add('adw-expander-row-enable-switch');
         this._enableSwitch.active = this.enableExpansion;
 
-        this._chevronEl = createAdwIcon('go-down', 'adw-expander-row-chevron');
+        this._chevronEl = createGtkImage('go-down', 'adw-expander-row-chevron');
 
         this._prefixEl = document.createElement('div');
         this._prefixEl.className = 'adw-expander-row-prefix';

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Every `adw-*` web element against the GIR properties of the widget it names — and the
+// Every web element against the GIR properties of the widget it names — and the
 // check proves itself on broken input before it looks at the repository.
 //
 // WHY THIS EXISTS. `<adw-alert-dialog>` shipped observing FOUR attributes while
@@ -32,7 +32,7 @@
 // carries information.
 //
 // KNOWN_GAPS IS A MEASURED BACKLOG, NOT A BLESSING. A number of scalar properties
-// across the adw-* elements are unobserved today; THIS SCRIPT PRINTS THE LIVE FIGURE
+// across the web elements are unobserved today; THIS SCRIPT PRINTS THE LIVE FIGURE
 // on every run, and the stamped one that used to stand here said 83 against a real 75
 // — a second copy of a number the run already computes. They are listed rather than
 // individually justified, because inventing a rationale per entry would be worse than
@@ -51,7 +51,8 @@ import { observedAttributes } from './adwaita-elements.mjs';
 const ROOT = process.cwd();
 
 /**
- * Scalar GIR properties no `adw-*` element observes yet, measured 2026-08-26.
+ * Scalar GIR properties no web element observes yet, measured 2026-08-26 and extended
+ * on 2026-09-01 by the nine elements the GIR rename made measurable at all.
  * A gap NOT listed here fails; a listed gap the element now observes fails too.
  */
 const KNOWN_GAPS = {
@@ -118,6 +119,59 @@ const KNOWN_GAPS = {
     'adw-toolbar-view': ['reveal-bottom-bars', 'reveal-top-bars'],
     'adw-view-stack': ['enable-transitions', 'hhomogeneous', 'transition-duration', 'vhomogeneous'],
     'adw-window': ['adaptive-preview'],
+    // ── Visible for the first time on 2026-09-01, when nine elements took the GIR
+    // name of the widget they always were (ADR 0034 clause 1, § Amendment 5). The
+    // GAPS are not new: `<adw-entry>` observed five attributes against `GtkEntry`'s
+    // scalar surface for its whole life, and this check could not see it, because a
+    // tag with no GIR counterpart has nothing to be measured against. Renaming the
+    // tag is what put them in front of the ratchet.
+    //
+    // Two shapes are mixed in here on purpose, because separating them would be a
+    // verdict nobody has reached: an attribute the element simply does not carry
+    // (`gtk-image/pixel-size`), and one it carries under its own spelling
+    // (`gtk-entry` observes `placeholder` and `maxlength`, GTK spells them
+    // `placeholder-text` and `max-length`). The second is the ATTRIBUTE-level form of
+    // the property distance ADR 0034 § Amendment 2 measures for NativeScript, and it
+    // is a rename of a published attribute — out of scope for the tag rename that
+    // exposed it, and listed rather than quietly done.
+    'gtk-button': ['can-shrink', 'has-frame', 'icon-name', 'use-underline'],
+    'gtk-check-button': ['active', 'inconsistent', 'use-underline'],
+    'gtk-drop-down': ['search-match-mode', 'show-arrow'],
+    'gtk-entry': [
+        'activates-default',
+        'enable-emoji-completion',
+        'has-frame',
+        'im-module',
+        'input-hints',
+        'input-purpose',
+        'invisible-char',
+        'invisible-char-set',
+        'max-length',
+        'menu-entry-icon-primary-text',
+        'menu-entry-icon-secondary-text',
+        'overwrite-mode',
+        'placeholder-text',
+        'primary-icon-activatable',
+        'primary-icon-name',
+        'primary-icon-sensitive',
+        'primary-icon-tooltip-markup',
+        'primary-icon-tooltip-text',
+        'progress-fraction',
+        'progress-pulse-step',
+        'secondary-icon-activatable',
+        'secondary-icon-name',
+        'secondary-icon-sensitive',
+        'secondary-icon-tooltip-markup',
+        'secondary-icon-tooltip-text',
+        'show-emoji-icon',
+        'truncate-multiline',
+        'visibility',
+    ],
+    'gtk-image': ['file', 'icon-size', 'pixel-size', 'resource', 'use-fallback'],
+    'gtk-menu-button': ['active', 'always-show-arrow', 'can-shrink', 'has-frame', 'label', 'primary', 'use-underline'],
+    'gtk-popover': ['autohide', 'cascade-popdown', 'has-arrow', 'mnemonics-visible'],
+    'gtk-progress-bar': ['ellipsize', 'pulse-step'],
+    'gtk-switch': ['state'],
 };
 
 /** A GIR type that holds an object — a slot on this renderer, never an attribute. */
@@ -439,6 +493,6 @@ const mapped = [...real.byTag.keys()].filter((tag) => {
 const backlog = Object.values(KNOWN_GAPS).flat().length;
 console.log(
     `check-adwaita-element-properties: self-test green — ${VECTORS.length} vector(s). ` +
-        `${mapped} adw-* elements hold their widget's scalar GIR properties; ` +
+        `${mapped} web elements hold their widget's scalar GIR properties; ` +
         `${backlog} property/ies across ${Object.keys(KNOWN_GAPS).length} elements remain a declared backlog.`,
 );

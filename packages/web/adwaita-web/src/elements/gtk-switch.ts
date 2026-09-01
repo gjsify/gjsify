@@ -1,4 +1,4 @@
-// <adw-switch> — the Adwaita toggle, as an element. A 44×24 track with a hidden
+// <gtk-switch> — the Adwaita toggle, as an element. A 44×24 track with a hidden
 // checkbox behind it and a knob that slides on `active`.
 //
 // The styles are the UNSCOPED `scss/_switch.scss`, so `.adw-switch` exists outside a
@@ -29,7 +29,7 @@
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-export class AdwSwitch extends HTMLElement {
+export class GtkSwitch extends HTMLElement {
     private _input!: HTMLInputElement;
     private _slider!: HTMLSpanElement;
     private _initialized = false;
@@ -44,7 +44,7 @@ export class AdwSwitch extends HTMLElement {
      * `adw_switch_row_init` does `gtk_widget_set_can_focus (self->slider, FALSE)`
      * (adw-switch-row.c:159) and makes the ROW activatable instead, so a switch row is ONE
      * tab stop announced as its own title — not a bare checkbox followed by a label that
-     * cannot be reached. A standalone `<adw-switch>` keeps its checkbox focusable.
+     * cannot be reached. A standalone `<gtk-switch>` keeps its checkbox focusable.
      */
     get unfocusable(): boolean {
         return this.hasAttribute('unfocusable');
@@ -125,4 +125,4 @@ export class AdwSwitch extends HTMLElement {
     }
 }
 
-customElements.define('adw-switch', AdwSwitch);
+customElements.define('gtk-switch', GtkSwitch);

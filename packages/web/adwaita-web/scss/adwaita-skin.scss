@@ -13,7 +13,7 @@
 // Style-isolation boundary — emitted before the components so their own rules
 // override this typographic/box-model floor (see _reset.scss).
 @use 'reset';
-// The ONE symbolic-icon box, behind <adw-icon>. Emitted before every widget that
+// The ONE symbolic-icon box, behind <gtk-image>. Emitted before every widget that
 // draws one, so a context that sizes its own icons (the about dialog's 96px, the
 // split button's 14px arrows, the view switcher's 16px) still wins on ordinary
 // specificity.
@@ -46,7 +46,7 @@
 @use 'menu_button';
 @use 'drop_down';
 @use 'toggle_group';
-// The ONE toggle, behind <adw-switch>. Emitted before `switch_row` and
+// The ONE toggle, behind <gtk-switch>. Emitted before `switch_row` and
 // `expander_row`, the two widgets that host one — and which each carried their
 // own copy of it until it was lifted out of `adw-switch-row {}`.
 @use 'switch';

@@ -1,4 +1,4 @@
-// What an icon actually DRAWS — the assertion `adw-icon.spec.ts` did not make.
+// What an icon actually DRAWS — the assertion `gtk-image.spec.ts` did not make.
 //
 // THE INCIDENT. `_icon.scss` set `background-color: currentColor` plus mask sizing and no
 // `mask-image`, so a name outside the compiled `.adw-icon--<name>` set painted a solid 16px
@@ -15,7 +15,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { isIconAvailable, registerIcon } from './icon-registry.js';
-import type { AdwIcon } from './elements/adw-icon.js';
+import type { GtkImage } from './elements/gtk-image.js';
 
 /** A name no compiled entry can collide with, for the "not shipped" arm. */
 const ABSENT = 'gjsify-registry-probe';
@@ -25,10 +25,10 @@ const PROBE_SVG = `<svg height="16px" viewBox="0 0 16 16" width="16px" xmlns="ht
     <path d="m 4 4 h 8 v 8 h -8 z m 0 0" fill="currentColor"/>
 </svg>`;
 
-function mount(iconName: string | null): { el: AdwIcon; host: HTMLElement } {
+function mount(iconName: string | null): { el: GtkImage; host: HTMLElement } {
     const host = document.createElement('div');
     document.body.appendChild(host);
-    const el = document.createElement('adw-icon') as AdwIcon;
+    const el = document.createElement('gtk-image') as GtkImage;
     if (iconName !== null) el.iconName = iconName;
     host.appendChild(el);
     return { el, host };
@@ -56,7 +56,7 @@ export function fallbackMask(): string {
 }
 
 export const AdwIconRegistryTest = async () => {
-    await describe('<adw-icon> resolves a name to a real mask', async () => {
+    await describe('<gtk-image> resolves a name to a real mask', async () => {
         await it('a compiled name draws its OWN glyph, not the fallback', () => {
             const { el, host } = mount('go-next');
             const mask = maskOf(el);
@@ -111,7 +111,7 @@ export const AdwIconRegistryTest = async () => {
 
     await describe('a name carried by STATE still resolves', async () => {
         await it("the password row's peek toggle draws both of its glyphs", () => {
-            // These two reach `<adw-icon>.iconName` as `state.peekIconName`, a property of
+            // These two reach `<gtk-image>.iconName` as `state.peekIconName`, a property of
             // the core's `PasswordEntryRowState`, so no literal spells them at the point of
             // use. `check-adwaita-icon-masks.mjs` reads their DECLARATIONS
             // (`PASSWORD_REVEAL_ICON_NAME`), which proves the map entry exists — never that

@@ -153,7 +153,7 @@ const ROOT_ACTION_PREVIEW = `
     <adw-window-title slot="center" title="Contacts"></adw-window-title>
   </adw-header-bar>
   <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-    <adw-button label="Open contact" pill suggested></adw-button>
+    <gtk-button label="Open contact" pill suggested></gtk-button>
   </div>
 </adw-toolbar-view>`;
 
@@ -530,7 +530,7 @@ export const AdwChromeTest = async () => {
             const host = mountPreview(ROOT_ACTION_PREVIEW);
             await settle();
             const area = host.querySelector('.adw-toolbar-view-content') as HTMLElement;
-            const button = host.querySelector('adw-button') as HTMLElement;
+            const button = host.querySelector('gtk-button') as HTMLElement;
 
             expect(heightOf(area.firstElementChild)).toBe(heightOf(area));
             // A pill button that grew to the pane's height would be the fill applied

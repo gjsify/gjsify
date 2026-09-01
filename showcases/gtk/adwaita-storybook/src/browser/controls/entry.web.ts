@@ -15,7 +15,7 @@ export class EntryWebStory extends StoryElement {
     }
 
     initialize(): void {
-        this._entry = document.createElement('adw-entry');
+        this._entry = document.createElement('gtk-entry');
         this._entry.style.minWidth = '280px';
         this._apply();
         this.addContent(this._entry);
@@ -29,7 +29,7 @@ export class EntryWebStory extends StoryElement {
         if (!this._entry) return;
         this._entry.setAttribute('value', this.args.text as string);
         this._entry.setAttribute('placeholder', this.args.placeholder as string);
-        // `<adw-entry>` has no `editable`: the browser spelling of a field you may
+        // `<gtk-entry>` has no `editable`: the browser spelling of a field you may
         // read but not change is `disabled`, which also greys it — the one place
         // this rendering cannot match GtkEditable:editable exactly.
         if (this.args.editable as boolean) this._entry.removeAttribute('disabled');

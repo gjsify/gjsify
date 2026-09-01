@@ -79,30 +79,30 @@ export { AdwStatusPage } from './elements/adw-status-page.js';
 export { AdwWindow } from './elements/adw-window.js';
 export { AdwHeaderBar } from './elements/adw-header-bar.js';
 export { AdwWindowTitle } from './elements/adw-window-title.js';
-export { AdwButton } from './elements/adw-button.js';
+export { GtkButton } from './elements/gtk-button.js';
 export { AdwButtonContent } from './elements/adw-button-content.js';
 // The ONE symbolic-icon node and the ONE toggle, exported before the widgets that build
 // them so the barrel's definition order matches theirs. Each host ALSO imports them
 // directly, which is what actually guarantees the tags are defined before a
 // server-rendered host upgrades.
-export { AdwIcon, createAdwIcon } from './elements/adw-icon.js';
-export { AdwSwitch } from './elements/adw-switch.js';
+export { GtkImage, createGtkImage } from './elements/gtk-image.js';
+export { GtkSwitch } from './elements/gtk-switch.js';
 // The two form-control primitives. ONE module, because upstream merges their
 // stylesheet (`_checks.scss`; there is no `_radio.scss` in libadwaita) and
 // everything but the corner radius, the glyph and the group is shared.
-export { AdwCheckbox, AdwRadio } from './elements/adw-checks.js';
+export { GtkCheckButton, AdwRadio } from './elements/checks.js';
 // The determinate progress indicator — <adw-spinner> covers only the indeterminate case.
-export { AdwProgressBar } from './elements/adw-progress-bar.js';
+export { GtkProgressBar } from './elements/gtk-progress-bar.js';
 // A keyboard shortcut, drawn as keycaps. The accelerator GRAMMAR lives in
 // @gjsify/adwaita-core; this element only builds the nodes.
 export { AdwShortcutLabel } from './elements/adw-shortcut-label.js';
 // The ONE popover surface, exported before its three hosts for the same reason as
-// <adw-icon> above.
-export { AdwPopover } from './elements/adw-popover.js';
-export type { AdwPopoverAlign, AdwPopoverPosition, AdwPopoverRole } from './elements/adw-popover.js';
+// <gtk-image> above.
+export { GtkPopover } from './elements/gtk-popover.js';
+export type { GtkPopoverAlign, GtkPopoverPosition, GtkPopoverRole } from './elements/gtk-popover.js';
 export { AdwSplitButton } from './elements/adw-split-button.js';
 export { AdwToggle, AdwToggleGroup } from './elements/adw-toggle-group.js';
-export { AdwEntry } from './elements/adw-entry.js';
+export { GtkEntry } from './elements/gtk-entry.js';
 export { AdwPreferencesGroup } from './elements/adw-preferences-group.js';
 export { AdwActionRow } from './elements/adw-action-row.js';
 export { AdwEntryRow } from './elements/adw-entry-row.js';
@@ -124,10 +124,10 @@ export { AdwInlineViewSwitcher, AdwViewStackPage } from './elements/adw-inline-v
 export { AdwViewStack } from './elements/adw-view-stack.js';
 export type { AdwViewStackPageInfo } from './elements/adw-view-stack.js';
 export { AdwViewSwitcherBar } from './elements/adw-view-switcher-bar.js';
-export { AdwMenuButton } from './elements/adw-menu-button.js';
-export type { AdwMenuItem } from './elements/adw-menu-button.js';
-export { AdwDropDown } from './elements/adw-drop-down.js';
-export type { AdwDropDownOption } from './elements/adw-drop-down.js';
+export { GtkMenuButton } from './elements/gtk-menu-button.js';
+export type { AdwMenuItem } from './elements/gtk-menu-button.js';
+export { GtkDropDown } from './elements/gtk-drop-down.js';
+export type { GtkDropDownOption } from './elements/gtk-drop-down.js';
 export { AdwNavigationPage, AdwNavigationView } from './elements/adw-navigation-view.js';
 export { AdwBottomSheet, AdwBottomSheetContent, AdwBottomSheetSheet } from './elements/adw-bottom-sheet.js';
 export { AdwSidebar, AdwSidebarItem, AdwSidebarSection } from './elements/adw-sidebar.js';

@@ -11,7 +11,7 @@
 //
 // Measured 2026-08-15, and the size of the hole is the argument for the check: of the
 // 43 widgets implemented on BOTH renderers, NINE had no story anywhere — including
-// `adw-entry`, `adw-drop-down`, `adw-menu-button` and `adw-view-switcher-bar`, four
+// `gtk-entry`, `gtk-drop-down`, `gtk-menu-button` and `adw-view-switcher-bar`, four
 // ordinary widgets a reader would expect to find first. The GTK storybook is the
 // reference implementation the other two are aligned against; a widget it never shows
 // is a widget with no reference.
@@ -97,7 +97,6 @@ const NO_STORY_OF_ITS_OWN = {
         'Feedback/Preferences Dialog renders it — the story builds an `Adw.PreferencesPage`, fills it with a group of rows and adds it to the dialog. A page only ever appears inside a preferences dialog, so the story is named after the thing the reader is looking for.',
     'view-stack':
         'A stack shows exactly one page and offers no way to change it — alone it is a blank preview. Every switcher story builds one and drives it: View Switcher, Inline View Switcher, View Switcher Bar.',
-    icon: 'There is no Adwaita or GTK icon WIDGET to reference. GTK draws a `Gtk.Image` inline (the navigation stories do), and the browser element exists because CSS needs a box to hang a symbolic on. A story would demonstrate a GTK primitive, not an Adwaita widget.',
     'data-grid':
         'The one widget here with no GTK renderer at all — it is an original @gjsify widget, not a libadwaita port. A GTK story would have to hand-assemble a `Gtk.Grid`, i.e. put a fourth implementation in a showcase where no package owns it. If a GTK data grid is wanted it starts as a package (#1050).',
 };
@@ -139,6 +138,18 @@ const NO_STORY_OF_ITS_OWN = {
  * decision leaves driven from ONE side. It is checked (see {@link vectorFailures}), so
  * the ledger doubles as the port-cost record: the tables a second renderer would
  * inherit for free are exactly the ones listed here.
+ *
+ * `sameWidgetAs` is optional and names the OTHER entry this one is one widget with. The
+ * join here is the BARE name, so a widget the two renderers spell differently arrives as
+ * two rows that each look like a missing port — `icon` on NativeScript and `image` on the
+ * browser are `GtkImage` twice. Two `decision` sentences can say so, and did; nothing
+ * read them, because {@link MIN_REASON} counts characters. The field is the readable half
+ * of the same claim: it must name an entry that exists, that names this one back, and
+ * that sits on the OTHER renderer — a pair pointing the same way is not an asymmetry
+ * explained, and that is the shape a third copy of this row would take. Neither half of
+ * the pair needs an exemption for the day it converges: `sameWidgetAs` cannot survive it,
+ * because a widget on both renderers leaves this ledger entirely and the "it is on BOTH
+ * renderers now" rule below deletes the row.
  */
 const ONE_RENDERER_ONLY = {
     'alert-response': {
@@ -170,7 +181,7 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
-    checkbox: {
+    'check-button': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
         vectors: ['RADIO_GROUP_VECTORS'],
@@ -178,6 +189,18 @@ const ONE_RENDERER_ONLY = {
     dialog: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    icon: {
+        only: 'nativescript',
+        sameWidgetAs: 'image',
+        decision:
+            'WHY the pair `sameWidgetAs` declares is still two rows: `NS_WIDGET_ALIGNMENT` in check-vocabulary-alignment.mjs declares `adw-icon` to be `GtkImage`, and that declaration is what the vocabulary distance counts. The browser element took the GIR name on 2026-09-01 (ADR 0034 clause 1, § Amendment 5) and the NativeScript port deliberately did not: ADR 0034 refuses that rename on cost — the port is published at 49 versions with an XML element vocabulary whose failure on a phone is a silent unresolved module. So this row is a NAMING asymmetry that the vocabulary gate already measures, not a missing port, and it retires the day the NativeScript widget converges.',
+    },
+    image: {
+        only: 'web',
+        sameWidgetAs: 'icon',
+        decision:
+            'The browser spelling of `GtkImage`; `sameWidgetAs` carries the pairing. What this entry holds that the field cannot is the STORY exemption it inherits the day the pair converges: there is no Adwaita or GTK icon WIDGET to reference; GTK draws a `Gtk.Image` inline (the navigation stories do), and the browser element exists because CSS needs a box to hang a symbolic on, so a story would demonstrate a GTK primitive rather than an Adwaita widget.',
     },
     'image-button': {
         only: 'nativescript',
@@ -192,7 +215,7 @@ const ONE_RENDERER_ONLY = {
     popover: {
         only: 'web',
         decision:
-            'Recorded in packages/nativescript-bridge/adwaita/src/widgets/adw-drop-down.ts:14-16 — the NativeScript file, not the browser one of the same name: "the NS subset has none, so the options open in the platform `action()` sheet, the same substitution `AdwComboRow`, `AdwSplitButton` and `AdwMenuButton` make." Upstream has no AdwPopover either — GtkPopover styled by _popovers.scss.',
+            'Recorded in packages/nativescript-bridge/adwaita/src/widgets/adw-drop-down.ts:14-16 — the NativeScript file, which no longer shares a name with the browser one: "the NS subset has none, so the options open in the platform `action()` sheet, the same substitution `AdwComboRow`, `AdwSplitButton` and `AdwMenuButton` make." Upstream has no AdwPopover either — GtkPopover styled by _popovers.scss.',
         vectors: ['POPOVER_SURFACE_VECTORS', 'POPOVER_KEY_VECTORS'],
     },
     'progress-bar': {
@@ -227,7 +250,7 @@ const ONE_RENDERER_ONLY = {
     switch: {
         only: 'web',
         decision:
-            'Upstream has no AdwSwitch: _switch.scss styles the GtkSwitch node. `@nativescript/core` ships a real `Switch` view, which `AdwSwitchRow` installs directly; the browser has no such control, so `<adw-switch>` is the 44x24 track a hidden checkbox needs to look like one. Its own header records there is no behaviour to port either — "the state is one boolean with no derivation" (adw-switch.ts:7-8).',
+            'Upstream has no AdwSwitch: _switch.scss styles the GtkSwitch node. `@nativescript/core` ships a real `Switch` view, which `AdwSwitchRow` installs directly; the browser has no such control, so `<gtk-switch>` is the 44x24 track a hidden checkbox needs to look like one. Its own header records there is no behaviour to port either — "the state is one boolean with no derivation" (gtk-switch.ts:7-8).',
     },
     'tab-page': {
         only: 'web',
@@ -354,7 +377,9 @@ function vectorFailures(name, entry, exported) {
     if (entry.vectors === undefined) return [];
     // Unchecked, a bare string spreads into 19 findings about the letter `R`.
     if (!Array.isArray(entry.vectors)) {
-        return [`adw-${name}: \`vectors\` must be a LIST of conformance table names, not a ${typeof entry.vectors}.`];
+        return [
+            `${spell(name)}: \`vectors\` must be a LIST of conformance table names, not a ${typeof entry.vectors}.`,
+        ];
     }
     const problems = [];
     const other = OTHER_RENDERER[entry.only];
@@ -362,17 +387,48 @@ function vectorFailures(name, entry, exported) {
     for (const table of entry.vectors) {
         if (!exported().has(table)) {
             problems.push(
-                `adw-${name}: \`vectors\` names ${table}, which ${CORE_CONFORMANCE} does not export. ` +
+                `${spell(name)}: \`vectors\` names ${table}, which ${CORE_CONFORMANCE} does not export. ` +
                     'A table that is not there strands nothing.',
             );
         } else if (driven.has(table)) {
             problems.push(
-                `adw-${name}: \`vectors\` claims ${table} is driven from one side, but the ${other} renderer ` +
+                `${spell(name)}: \`vectors\` claims ${table} is driven from one side, but the ${other} renderer ` +
                     'drives it too — the asymmetry this entry describes is over, so re-read the entry.',
             );
         }
     }
     return problems;
+}
+
+/**
+ * The three things `sameWidgetAs` claims, each of which can be wrong on its own: the
+ * partner EXISTS, it names this entry BACK, and it is on the OTHER renderer. Only the
+ * third distinguishes "one widget, two spellings" from two rows that happen to mention
+ * each other, and it is the one a copied entry gets wrong.
+ */
+function pairFailures(name, entry) {
+    if (entry.sameWidgetAs === undefined) return [];
+    const partner = ONE_RENDERER_ONLY[entry.sameWidgetAs];
+    if (partner === undefined) {
+        return [
+            `${spell(name)}: \`sameWidgetAs\` names \`${entry.sameWidgetAs}\`, which is not an entry here. ` +
+                'One widget under two spellings is two rows in THIS ledger, or it is not this shape at all.',
+        ];
+    }
+    if (partner.sameWidgetAs !== name) {
+        return [
+            `${spell(name)}: \`sameWidgetAs\` names \`${entry.sameWidgetAs}\`, which does not name it back. ` +
+                'A pairing one side believes in is a claim about the other side that nobody made.',
+        ];
+    }
+    if (partner.only === entry.only) {
+        return [
+            `${spell(name)}: \`sameWidgetAs\` pairs it with \`${entry.sameWidgetAs}\`, but both are ` +
+                `\`only: '${entry.only}'\`. A pair on ONE renderer explains no asymmetry — it is two widgets ` +
+                'that renderer ships, or one row too many.',
+        ];
+    }
+    return [];
 }
 
 /** @type {Map<string, string>} */
@@ -391,7 +447,20 @@ try {
     process.exit(1);
 }
 
-const web = new Set([...defines.keys()].map(elementName));
+// The WEB side keyed on its bare name, alongside the tag it is actually registered
+// under. Both are needed and they are no longer the same string with `adw-` in front:
+// a web element is named after the library that owns its GType (ADR 0034 clause 1), so
+// `image` is `<gtk-image>` and `check-button` is `<gtk-check-button>` while `sidebar` is
+// still `<adw-sidebar>`. Rebuilding a tag by prefixing `adw-` found no file for the
+// renamed ones and printed an empty parenthesis where the path belongs.
+const webTags = new Map([...defines.keys()].map((tag) => [elementName(tag), tag]));
+const web = new Set(webTags.keys());
+
+/**
+ * How to SPELL a widget in a message: its web tag where the browser has one, else the
+ * NativeScript file spelling, which is `adw-` throughout.
+ */
+const spell = (name) => webTags.get(name) ?? `adw-${name}`;
 
 const onBothRenderers = [...web].filter((name) => ns.has(name)).sort();
 const failures = [];
@@ -400,24 +469,24 @@ for (const name of onBothRenderers) {
     if (stories.has(name)) continue;
     if (name in NO_STORY_OF_ITS_OWN) continue;
     failures.push(
-        `adw-${name}: shipped by both renderers, rendered by no story. Add ${name}.meta.ts + its three\n` +
+        `${spell(name)}: shipped by both renderers, rendered by no story. Add ${name}.meta.ts + its three\n` +
             '    renderings, or add it to NO_STORY_OF_ITS_OWN in this script with the reason.',
     );
 }
 
 for (const [name, reason] of Object.entries(NO_STORY_OF_ITS_OWN)) {
     if (stories.has(name)) {
-        failures.push(`adw-${name}: exempted here, but ${name}.meta.ts exists — drop the stale exemption.`);
+        failures.push(`${spell(name)}: exempted here, but ${name}.meta.ts exists — drop the stale exemption.`);
     } else if (!web.has(name) || !ns.has(name)) {
         const where = web.has(name) ? 'the browser only' : ns.has(name) ? 'NativeScript only' : 'neither renderer';
         failures.push(
-            `adw-${name}: exempted here, but it is on ${where} — outside this check's scope, so the entry covers nothing.`,
+            `${spell(name)}: exempted here, but it is on ${where} — outside this check's scope, so the entry covers nothing.`,
         );
     } else if (reason.trim().length < MIN_REASON) {
         // Without this, `icon: ''` bought a story exemption in silence while
         // `decision: ''` did not — one file, two ledgers, one bar.
         failures.push(
-            `adw-${name}: exempted here with no real reason — say where the reader finds this widget ` +
+            `${spell(name)}: exempted here with no real reason — say where the reader finds this widget ` +
                 'instead, or why a GTK story could show nothing honest.',
         );
     }
@@ -436,9 +505,9 @@ const anchors = todoAnchors();
 
 for (const [name, side] of [...asymmetric].sort()) {
     if (name in ONE_RENDERER_ONLY) continue;
-    const file = toPosixPath(defines.get(`adw-${name}`) ?? ns.get(name) ?? '');
+    const file = toPosixPath(defines.get(spell(name)) ?? ns.get(name) ?? '');
     unverdicted.push(
-        `adw-${name} (${file}): on ${SIDE_LABEL[side]}, and nothing says whether that is a gap or a\n` +
+        `${spell(name)} (${file}): on ${SIDE_LABEL[side]}, and nothing says whether that is a gap or a\n` +
             `    decision. Add it to ONE_RENDERER_ONLY as { only: '${side}', decision: '…' } — or, if the port\n` +
             `    is simply unwritten, { only: '${side}', gap: '#<issue>' } — or an open-todos anchor.`,
     );
@@ -448,21 +517,21 @@ for (const [name, entry] of Object.entries(ONE_RENDERER_ONLY)) {
     const side = asymmetric.get(name);
     if (side === undefined) {
         const where = web.has(name) && ns.has(name) ? 'on BOTH renderers now — it landed' : 'on NEITHER renderer';
-        unverdicted.push(`adw-${name}: ledgered as one-renderer-only, but it is ${where}. Drop the entry.`);
+        unverdicted.push(`${spell(name)}: ledgered as one-renderer-only, but it is ${where}. Drop the entry.`);
         continue;
     }
     // BEFORE the side comparison: a missing or misspelled `only` is not a flipped
     // asymmetry, and reporting it as one sends the author to re-read a sound reason.
     if (!SIDES.includes(entry.only)) {
         unverdicted.push(
-            `adw-${name}: \`only\` is \`${JSON.stringify(entry.only)}\` — it must be one of ${SIDES.map((s) => `'${s}'`).join(' / ')}, ` +
+            `${spell(name)}: \`only\` is \`${JSON.stringify(entry.only)}\` — it must be one of ${SIDES.map((s) => `'${s}'`).join(' / ')}, ` +
                 'the two renderers this ledger compares.',
         );
         continue;
     }
     if (entry.only !== side) {
         unverdicted.push(
-            `adw-${name}: ledgered as \`only: '${entry.only}'\`, but the tree has it on ${SIDE_LABEL[side]}. ` +
+            `${spell(name)}: ledgered as \`only: '${entry.only}'\`, but the tree has it on ${SIDE_LABEL[side]}. ` +
                 'The asymmetry flipped, so the reason recorded here is about the wrong renderer — re-read it.',
         );
         continue;
@@ -471,37 +540,38 @@ for (const [name, entry] of Object.entries(ONE_RENDERER_ONLY)) {
     const gap = typeof entry.gap === 'string';
     if (gap === (typeof entry.decision === 'string')) {
         unverdicted.push(
-            `adw-${name}: needs exactly one of \`decision\` (the other renderer expresses it differently) ` +
+            `${spell(name)}: needs exactly one of \`decision\` (the other renderer expresses it differently) ` +
                 'and `gap` (a port nobody has written). Neither, or both, records nothing.',
         );
     } else if (gap) {
         const todo = GAP_TODO.exec(entry.gap);
         if (!GAP_ISSUE.test(entry.gap) && todo === null) {
             unverdicted.push(
-                `adw-${name}: \`gap\` must be \`#<issue>\`, or the open-todos anchor — that word, a colon and ` +
+                `${spell(name)}: \`gap\` must be \`#<issue>\`, or the open-todos anchor — that word, a colon and ` +
                     `enough of a \`### \` heading in ${OPEN_TODOS} to name it. "${entry.gap}" points nowhere.`,
             );
         } else if (todo !== null) {
             const matched = todoAnchorMatches(anchors, todo[1]);
             if (matched.length === 0) {
                 unverdicted.push(
-                    `adw-${name}: \`gap\` anchors to "${entry.gap}", but no \`### \` heading in ${OPEN_TODOS} ` +
+                    `${spell(name)}: \`gap\` anchors to "${entry.gap}", but no \`### \` heading in ${OPEN_TODOS} ` +
                         'contains that text — the entry was renamed or deleted, or it was never written.',
                 );
-            } else if (!matched.some((section) => section.body.includes(`adw-${name}`))) {
+            } else if (!matched.some((section) => section.body.includes(spell(name)))) {
                 unverdicted.push(
-                    `adw-${name}: \`gap\` anchors to "${entry.gap}", but that section of ${OPEN_TODOS} never ` +
-                        `names adw-${name}. A heading is not a record — either write what this gap is waiting ` +
+                    `${spell(name)}: \`gap\` anchors to "${entry.gap}", but that section of ${OPEN_TODOS} never ` +
+                        `names ${spell(name)}. A heading is not a record — either write what this gap is waiting ` +
                         'on there, or re-point the `gap` at the issue that now tracks it.',
                 );
             }
         }
     } else if (entry.decision.trim().length < MIN_REASON) {
         unverdicted.push(
-            `adw-${name}: \`decision\` with no real reason — say what the other renderer does INSTEAD, or ` +
+            `${spell(name)}: \`decision\` with no real reason — say what the other renderer does INSTEAD, or ` +
                 'why there is nothing there to do.',
         );
     }
+    unverdicted.push(...pairFailures(name, entry));
 
     unverdicted.push(...vectorFailures(name, entry, exported));
 }

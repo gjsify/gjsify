@@ -1,4 +1,4 @@
-// <adw-progress-bar> — the DETERMINATE progress indicator, and the partner to
+// <gtk-progress-bar> — the DETERMINATE progress indicator, and the partner to
 // <adw-spinner>, which only ever covers "busy, no idea how long".
 //
 // NO CORE STATE MACHINE: the whole behaviour is `CLAMP(fraction, 0, 1)` plus a pulsing
@@ -9,9 +9,9 @@
 // `gtk_progress_bar_pulse()`'s step semantics (the `pulse-step` default, how the block
 // reflects at the ends, whether it resets `fraction`) are NOT reproduced: GtkProgressBar
 // is a GTK widget, `refs/gtk` is an uninitialized submodule here and libadwaita vendors
-// no `adw-progress-bar.c`, so none of it is verifiable. What ships instead is the
+// no `gtk-progress-bar.c`, so none of it is verifiable. What ships instead is the
 // vendored port's web idiom — a CSS keyframe animation that runs while `pulsing` is set
-// — so {@link AdwProgressBar.pulse} ENTERS that state and is idempotent afterwards. The
+// — so {@link GtkProgressBar.pulse} ENTERS that state and is idempotent afterwards. The
 // default `show-text` label `NN%` is likewise this port's, not GTK's format string.
 //
 // `osd` is libadwaita's `.osd` STYLE CLASS: a 2px troughless bar for under a header bar.
@@ -29,7 +29,7 @@
 
 import { glibClamp } from '@gjsify/adwaita-core';
 
-export class AdwProgressBar extends HTMLElement {
+export class GtkProgressBar extends HTMLElement {
     private _trough!: HTMLSpanElement;
     private _progress!: HTMLSpanElement;
     private _text!: HTMLSpanElement;
@@ -166,4 +166,4 @@ export class AdwProgressBar extends HTMLElement {
     }
 }
 
-customElements.define('adw-progress-bar', AdwProgressBar);
+customElements.define('gtk-progress-bar', GtkProgressBar);

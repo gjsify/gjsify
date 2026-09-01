@@ -8,7 +8,7 @@
 // each listed FILENAMES matching `adw-*.ts` in `src/elements/`, non-recursively. Same
 // CI job, 65 against 50, and the smaller answer fed the published widget matrix.
 //
-// A filename is not the element. `adw-checks.ts` defines `adw-checkbox` and
+// A filename is not the element. `checks.ts` defines `gtk-check-button` and
 // `adw-radio`: the matrix scored a widget no page can use, and none for either it can.
 // `adw-preferences-dialog.ts` also defines `adw-preferences-page`, so the matrix
 // published "adwaita-web does not have it" about an element consumers already use.
@@ -16,9 +16,12 @@
 // the same blindness that had kept it out of the ADR 0010 reset list.
 //
 // So this module is the ONE reader, of BOTH renderers: the NativeScript widget scan
-// was a second copy in the same two files, with the same drift ahead of it. `adw-` is
-// the whole naming rule the tree follows, and stripping it ({@link elementName}) leaves
-// the bare name widget files and `*.meta.ts` story names are already spelled in.
+// was a second copy in the same two files, with the same drift ahead of it. A web tag
+// carries the prefix of the library that owns its GType — `adw-action-row` and
+// `gtk-entry` alike, ADR 0034 clause 1 — and stripping it ({@link elementName}) leaves
+// the bare name widget files and `*.meta.ts` story names are already spelled in. The
+// NativeScript surface is `adw-` throughout, which is why {@link widgetClass} keeps a
+// fixed prefix and only {@link tagClass} reads one.
 //
 // It answers the core-edge question here too ({@link coreReach}), for the same reason
 // and one more: that derivation lived privately in `generate-status.mjs`, which CI
@@ -122,7 +125,14 @@ export function adwaitaStoryMetas(root) {
 
 // The registration WITH the class it registers, in any quote style: reading the class
 // is what makes a HALF rename fail instead of shrinking the set (see the throw below).
-const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"`](adw-[a-z0-9-]+)['"`]\s*,\s*([A-Za-z0-9_]+)/g;
+//
+// BOTH PREFIXES, because the web surface names an element after the library that owns
+// its GType (ADR 0034 clause 1): `<gtk-entry>` is `GtkEntry` and `<adw-action-row>` is
+// `AdwActionRow`. A pattern that read only `adw-` would not have MISSED those nine
+// elements quietly — `DEFINE_CALL` below counts what it could not parse and the reader
+// throws — but it would have made the rename unlandable, which is the same wall from
+// the other side.
+const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"`]((?:adw|gtk)-[a-z0-9-]+)['"`]\s*,\s*([A-Za-z0-9_]+)/g;
 
 // The discriminator for the pattern itself: a call it cannot read is an element the
 // whole tree is blind to, and counting only what matched can never show that.
@@ -170,14 +180,28 @@ function sourceFiles(dir) {
 }
 
 /** `adw-preferences-page` → `preferences-page`: the key rows, ledger entries and stories share. */
-export const elementName = (tag) => tag.slice('adw-'.length);
+export const elementName = (tag) => tag.slice(tag.indexOf('-') + 1);
 
-/** `preferences-page` → `AdwPreferencesPage`: the class both renderers name it after. */
-export const widgetClass = (name) =>
-    `Adw${name
+/** `preferences-page` → `PreferencesPage`, the tail every class name below ends in. */
+const pascalCase = (name) =>
+    name
         .split('-')
         .map((part) => part[0].toUpperCase() + part.slice(1))
-        .join('')}`;
+        .join('');
+
+/** `preferences-page` → `AdwPreferencesPage`: the class both renderers name it after. */
+export const widgetClass = (name) => `Adw${pascalCase(name)}`;
+
+/**
+ * `gtk-entry` → `GtkEntry`, `adw-action-row` → `AdwActionRow`: the class a TAG names.
+ *
+ * The prefix is read off the tag rather than fixed at `Adw`, which is the whole of
+ * ADR 0034 clause 1 as a function — the namespace belongs to whichever library owns the
+ * GType, and `gtk-host/src/tags.ts` derives the tag from the GType by the same rule
+ * running the other way. {@link widgetClass} stays `Adw`-only because the two
+ * NativeScript-shaped surfaces are keyed on a BARE name with no prefix to read.
+ */
+export const tagClass = (tag) => `${pascalCase(tag.slice(0, tag.indexOf('-')))}${pascalCase(elementName(tag))}`;
 
 /** The shared headless behaviour both renderers are meant to delegate to. */
 const CORE_PACKAGE = '@gjsify/adwaita-core';
@@ -209,7 +233,7 @@ function fileHeader(text) {
 /**
  * `{ type A, type B }` — a named clause with no value binding at all. Neither renderer
  * sets `verbatimModuleSyntax`, so TypeScript erases such a statement whole; the web
- * `adw-menu-button` carries a separate side-effect import for precisely that reason.
+ * `gtk-menu-button` carries a separate side-effect import for precisely that reason.
  */
 function bindsOnlyTypes(clause) {
     const named = /^\{([^}]*)\}$/.exec(clause.trim());
@@ -236,8 +260,8 @@ export function stripComments(text) {
 /**
  * `observedAttributes` per CLASS, from the returned array literal.
  *
- * PER CLASS and not per file, because a file is not an element: `adw-checks.ts`
- * defines `<adw-checkbox>` and `<adw-radio>`, and `adw-preferences-dialog.ts`
+ * PER CLASS and not per file, because a file is not an element: `checks.ts`
+ * defines `<gtk-check-button>` and `<adw-radio>`, and `adw-preferences-dialog.ts`
  * also defines `<adw-preferences-page>`. Reading a file's first literal and
  * attributing it to every tag the file registers is the same mistake as reading
  * a FILENAME for the element set, which is the incident at the top of this file.
@@ -277,7 +301,7 @@ export function observedAttributesByClass(text) {
         );
     }
 
-    const classes = [...code.matchAll(/\bclass\s+(Adw[A-Za-z0-9]*)(?:\s+extends\s+([A-Za-z0-9_.]+))?/g)];
+    const classes = [...code.matchAll(/\bclass\s+((?:Adw|Gtk)[A-Za-z0-9]*)(?:\s+extends\s+([A-Za-z0-9_.]+))?/g)];
     for (let i = 0; i < classes.length; i++) {
         const name = classes[i][1];
         if (classes[i][2]) extendsBase.set(name, classes[i][2]);
@@ -401,7 +425,7 @@ export function observedAttributes(root) {
     }
 
     for (const [tag, file] of tags) {
-        const klass = widgetClass(elementName(tag));
+        const klass = tagClass(tag);
         if (badClasses.has(klass)) {
             unreadable.push(`${tag} (${klass} in ${file})`);
             continue;
@@ -500,14 +524,14 @@ function valueImports(text) {
  *
  * "Backed by core" is an import edge we can SEE, which a sentence about core and an
  * erased `import type` are not — both were counted: `adw-header-bar` imports core
- * NOWHERE and was published core-backed off a comment, `adw-menu-button` off a type.
+ * NOWHERE and was published core-backed off a comment, `gtk-menu-button` off a type.
  *
  * ONE HOP, and never DERIVED into another renderer element. A renderer delegates through a
  * helper for a reason the tree makes visible: an NS spec cannot import a module that
  * `extends GridLayout`, so the pure half moves out (`chrome.ts`, `avatar-color.ts`)
  * and the helper is where the core edge lives. A transitive walk would report a
  * widget as core-backed because something four modules away imports core, which is
- * not the same claim; and `adw-source-view` embeds `adw-icon`, whose edge is not a
+ * not the same claim; and `adw-source-view` embeds `gtk-image`, whose edge is not a
  * claim about the source view. The verdict is per FILE: every tag
  * `adw-alert-dialog.ts` registers carries that one file's edge, no finer.
  *
@@ -627,7 +651,7 @@ export function adwaitaWebElements(root) {
         let matched = 0;
         for (const [, tag, registered] of text.matchAll(DEFINE_PATTERN)) {
             matched += 1;
-            const expected = widgetClass(elementName(tag));
+            const expected = tagClass(tag);
             if (registered !== expected) {
                 throw new Error(
                     `${relative(root, file)} registers <${tag}> as ${registered}, not ${expected}. ` +
@@ -644,14 +668,14 @@ export function adwaitaWebElements(root) {
     if (unreadable.length > 0) {
         throw new Error(
             `customElements.define(…) this reader could not parse, in ${unreadable.join(', ')}: a tag ` +
-                'outside the `adw-` rule, or a spelling DEFINE_PATTERN does not match. Either way that ' +
-                'element has no matrix row and no ADR 0010 reset entry, and nothing else would say so.',
+                'outside the `adw-`/`gtk-` rule, or a spelling DEFINE_PATTERN does not match. Either way ' +
+                'that element has no matrix row and no ADR 0010 reset entry, and nothing else would say so.',
         );
     }
 
     if (defined.size === 0) {
         throw new Error(
-            `no customElements.define('adw-…') calls found under ${ADWAITA_WEB_SRC}. ` +
+            `no customElements.define('adw-…'/'gtk-…') calls found under ${ADWAITA_WEB_SRC}. ` +
                 'Either the package moved or DEFINE_PATTERN stopped matching — a scan that ' +
                 'finds nothing passes vacuously, so this is a failure, not a pass.',
         );
@@ -675,15 +699,15 @@ function verifyCoreVia(files, elements, root) {
     for (const file of files) reach(file);
 }
 
-// `adw-button.ts`, plus the `.android`/`.ios` halves NativeScript splits a module into
+// `gtk-button.ts`, plus the `.android`/`.ios` halves NativeScript splits a module into
 // (`icons.android.ts` beside `icons.ios.ts` here already): two files, one widget. Any
-// other dotted name — `adw-button.d.ts` — is not a widget name and is not read as one,
+// other dotted name — `gtk-button.d.ts` — is not a widget name and is not read as one,
 // which the `[a-z0-9-]+` base still guarantees.
 //
 // The extension comes from the shared vocabulary because `.ts` alone CONTRADICTED the
 // rule one layer down: `nativescript-platforms.mjs` declares `VARIANT_EXTENSIONS`
 // including `tsx` and `mts` for this very naming scheme, so the build resolves a
-// `adw-button.android.tsx` that this scan could not see.
+// `gtk-button.android.tsx` that this scan could not see.
 const NS_WIDGET_FILE = new RegExp(`^adw-([a-z0-9-]+)(?:\\.(?:android|ios))?\\.(?:${TS_SOURCE_EXTENSIONS.join('|')})$`);
 
 /** Declaring a class AT ALL is what makes a file a widget file — the word in prose is not. */

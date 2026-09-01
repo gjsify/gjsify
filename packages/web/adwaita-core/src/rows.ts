@@ -103,7 +103,7 @@ export type AdwComboOptionInput = string | { value?: unknown; label?: unknown };
  * A bare string is both value and label (`Gtk.StringList`'s model, which is what
  * `Adw.ComboRow` is fed in the common case). In a descriptor either half stands in for the
  * missing other, so `{ label: 'Apple' }` is addressable by the value `'Apple'` rather than
- * by `undefined`. ONE home for the rule, so `<adw-combo-row>` and `<adw-drop-down>` cannot
+ * by `undefined`. ONE home for the rule, so `<adw-combo-row>` and `<gtk-drop-down>` cannot
  * accept two different option vocabularies.
  */
 export function normalizeComboOptions(raw: ReadonlyArray<AdwComboOptionInput> | null | undefined): AdwComboOption[] {
@@ -262,7 +262,7 @@ export class ComboState {
      * GtkSingleSelection does with it is not verifiable here. Each renderer therefore states
      * its own answer against this one predicate: {@link setSelectedIndex} keeps the permissive
      * model (an index past the end is how "nothing selected" is spelled and
-     * {@link selectedValue} reads `''`), while `<adw-drop-down>` rejects the set, as its
+     * {@link selectedValue} reads `''`), while `<gtk-drop-down>` rejects the set, as its
      * published `selected` docs promise.
      */
     hasIndex(index: number): boolean {

@@ -5,16 +5,16 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss (AdwStatusPage)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
-// icon node is <adw-icon>.
+// icon node is <gtk-image>.
 
 import { stringIsNotEmpty } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
 import { bindSlottedChildren } from '../slotted-children.js';
-import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { type GtkImage, createGtkImage } from './gtk-image.js';
 
 export class AdwStatusPage extends HTMLElement {
-    private _iconEl!: AdwIcon;
+    private _iconEl!: GtkImage;
     private _titleEl!: HTMLSpanElement;
     private _descEl!: HTMLSpanElement;
     private _childEl!: HTMLDivElement;
@@ -28,7 +28,7 @@ export class AdwStatusPage extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        this._iconEl = createAdwIcon(null, 'adw-status-page-icon');
+        this._iconEl = createGtkImage(null, 'adw-status-page-icon');
 
         this._titleEl = document.createElement('span');
         this._titleEl.className = 'adw-status-page-title';

@@ -1,17 +1,17 @@
-// DOM-level tests for <adw-icon>, driven by the SAME `normalizeIconName` vectors the
+// DOM-level tests for <gtk-image>, driven by the SAME `normalizeIconName` vectors the
 // core suite asserts against (`@gjsify/adwaita-core/conformance`).
 //
 // The icon-name class must never be built by hand: a name is only usable once it is
 // known to be a SINGLE CSS token, and hand-built spans skipped that check, so
 // `icon-name="a b"` interpolated a stray second class and shipped it through
-// `<adw-menu-button>` for its own icon and for every JSON menu entry's. The vectors run
+// `<gtk-menu-button>` for its own icon and for every JSON menu entry's. The vectors run
 // against the ELEMENT, so hand-building the class again fails naming the input.
 import { describe, expect, it } from '@gjsify/unit';
 
 import { VIEW_STACK_ICON_NAME_VECTORS } from '@gjsify/adwaita-core/conformance';
 
-import type { AdwIcon } from './elements/adw-icon.js';
-import type { AdwMenuButton } from './elements/adw-menu-button.js';
+import type { GtkImage } from './elements/gtk-image.js';
+import type { GtkMenuButton } from './elements/gtk-menu-button.js';
 
 function mount<T extends HTMLElement>(tag: string): { el: T; host: HTMLElement } {
     const host = document.createElement('div');
@@ -26,11 +26,11 @@ function extraClasses(el: HTMLElement): string[] {
     return [...el.classList].filter((c) => c !== 'adw-icon').sort();
 }
 
-export const AdwIconTest = async () => {
-    await describe('<adw-icon> mask class (normalizeIconName vectors)', async () => {
+export const GtkImageTest = async () => {
+    await describe('<gtk-image> mask class (normalizeIconName vectors)', async () => {
         for (const { icon, normalized, rule } of VIEW_STACK_ICON_NAME_VECTORS) {
             await it(`${JSON.stringify(icon)} → ${JSON.stringify(normalized)} — ${rule}`, () => {
-                const { el, host } = mount<AdwIcon>('adw-icon');
+                const { el, host } = mount<GtkImage>('gtk-image');
                 el.iconName = icon ?? null;
 
                 expect(el.resolvedIconName).toBe(normalized);
@@ -51,15 +51,15 @@ export const AdwIconTest = async () => {
         }
     });
 
-    await describe('<adw-icon> node contract', async () => {
+    await describe('<gtk-image> node contract', async () => {
         await it('is decorative — the accessible name belongs to the host control', () => {
-            const { el, host } = mount<AdwIcon>('adw-icon');
+            const { el, host } = mount<GtkImage>('gtk-image');
             expect(el.getAttribute('aria-hidden')).toBe('true');
             host.remove();
         });
 
         await it('swaps ONLY the mask class, keeping the caller position classes', () => {
-            const { el, host } = mount<AdwIcon>('adw-icon');
+            const { el, host } = mount<GtkImage>('gtk-image');
             el.classList.add('adw-drop-down-arrow', 'start');
             el.iconName = 'go-down';
             expect(extraClasses(el)).toStrictEqual(['adw-drop-down-arrow', 'adw-icon--go-down', 'start']);
@@ -75,7 +75,7 @@ export const AdwIconTest = async () => {
         });
 
         await it('sizes the box AND the mask together', () => {
-            const { el, host } = mount<AdwIcon>('adw-icon');
+            const { el, host } = mount<GtkImage>('gtk-image');
             el.iconName = 'go-next';
             // Unset: the stylesheet's 16px.
             expect(el.size).toBe(null);
@@ -97,13 +97,13 @@ export const AdwIconTest = async () => {
         });
 
         await it('paints in the INHERITED colour, not the boundary reset colour', () => {
-            // `.adw-icon` masks with `currentColor` and <adw-icon> is a custom element, so
+            // `.adw-icon` masks with `currentColor` and <gtk-image> is a custom element, so
             // the ADR-0010 `$adw-components` reset re-roots `color` on it: without
             // `color: inherit` in `_icon.scss` every icon repaints in `--window-fg-color`
             // regardless of the button it sits in.
             const { el: box, host } = mount<HTMLElement>('div');
             box.style.color = 'rgb(255, 0, 0)';
-            const icon = document.createElement('adw-icon') as AdwIcon;
+            const icon = document.createElement('gtk-image') as GtkImage;
             icon.iconName = 'go-next';
             box.appendChild(icon);
             expect(getComputedStyle(icon).backgroundColor).toBe('rgb(255, 0, 0)');
@@ -112,8 +112,8 @@ export const AdwIconTest = async () => {
     });
 
     await describe('the hand-rolled copies are gone', async () => {
-        await it('<adw-menu-button> no longer injects a stray class from its icon-name', () => {
-            const { el, host } = mount<AdwMenuButton>('adw-menu-button');
+        await it('<gtk-menu-button> no longer injects a stray class from its icon-name', () => {
+            const { el, host } = mount<GtkMenuButton>('gtk-menu-button');
             el.setAttribute('icon-name', 'a b');
             const icon = el.querySelector('.adw-icon') as HTMLElement;
             // `adw-icon--a b` would have added a second, unrelated `b` class. What it gets
@@ -122,8 +122,8 @@ export const AdwIconTest = async () => {
             host.remove();
         });
 
-        await it('<adw-menu-button> menu entries guard their icons too', () => {
-            const { el, host } = mount<AdwMenuButton>('adw-menu-button');
+        await it('<gtk-menu-button> menu entries guard their icons too', () => {
+            const { el, host } = mount<GtkMenuButton>('gtk-menu-button');
             el.menuItems = [
                 { label: 'Bad', icon: 'a b' },
                 { label: 'Good', icon: 'view-refresh-symbolic' },
@@ -142,17 +142,17 @@ export const AdwIconTest = async () => {
             host.remove();
         });
 
-        await it('every icon in the package is an <adw-icon>', () => {
+        await it('every icon in the package is a <gtk-image>', () => {
             // Asserted structurally: a page of every icon-drawing widget, and no bare span
             // carrying the base class — so a new hand-rolled `<span class="adw-icon …">`
             // fails here even when it guards its own name correctly.
             const { el: page, host } = mount<HTMLElement>('div');
             page.innerHTML = `
-                <adw-button icon="go-next" label="Next"></adw-button>
+                <gtk-button icon="go-next" label="Next"></gtk-button>
                 <adw-button-row title="Row" start-icon-name="list-add" end-icon-name="go-next"></adw-button-row>
                 <adw-status-page icon="folder" title="Empty"></adw-status-page>
                 <adw-split-button label="Save" menu='[{"label":"Save As"}]'></adw-split-button>
-                <adw-drop-down options='["a","b"]'></adw-drop-down>
+                <gtk-drop-down options='["a","b"]'></gtk-drop-down>
                 <adw-expander-row title="More" show-enable-switch></adw-expander-row>
                 <adw-avatar text="Ada" icon="avatar-default"></adw-avatar>
                 <adw-toggle-group><adw-toggle icon-name="view-list"></adw-toggle></adw-toggle-group>
@@ -160,7 +160,7 @@ export const AdwIconTest = async () => {
             const bareSpans = [...host.querySelectorAll('span.adw-icon')];
             expect(bareSpans.length).toBe(0);
             // …and the icons really are there, so the check is not vacuous.
-            expect(host.querySelectorAll('adw-icon.adw-icon').length > 5).toBe(true);
+            expect(host.querySelectorAll('gtk-image.adw-icon').length > 5).toBe(true);
             host.remove();
         });
     });

@@ -1,4 +1,4 @@
-// DOM-level tests for <adw-menu-button>'s `menu` attribute.
+// DOM-level tests for <gtk-menu-button>'s `menu` attribute.
 //
 // The element parsed the JSON itself, and the copy was weaker than the core parser
 // the split button next to it already used: it kept `id` and `icon` whatever their
@@ -11,7 +11,7 @@ import { SPLIT_BUTTON_MENU_PARSE_VECTORS } from '@gjsify/adwaita-core/conformanc
 
 /** Mount a menu button carrying `menu` as JSON, and return its rendered item labels. */
 function mountWithMenu(json: string): { el: HTMLElement; labels: string[] } {
-    const el = document.createElement('adw-menu-button');
+    const el = document.createElement('gtk-menu-button');
     el.setAttribute('menu', json);
     document.body.appendChild(el);
     const labels = Array.from(el.querySelectorAll('.adw-popover button')).map((b) => b.textContent?.trim() ?? '');
@@ -19,11 +19,11 @@ function mountWithMenu(json: string): { el: HTMLElement; labels: string[] } {
 }
 
 function unmountAll(): void {
-    for (const el of Array.from(document.querySelectorAll('adw-menu-button'))) el.remove();
+    for (const el of Array.from(document.querySelectorAll('gtk-menu-button'))) el.remove();
 }
 
-export const AdwMenuButtonTest = async () => {
-    await describe('<adw-menu-button> menu attribute', async () => {
+export const GtkMenuButtonTest = async () => {
+    await describe('<gtk-menu-button> menu attribute', async () => {
         for (const { json, entries, rule } of SPLIT_BUTTON_MENU_PARSE_VECTORS) {
             await it(`${rule}`, () => {
                 const { labels } = mountWithMenu(json ?? '');
@@ -33,7 +33,7 @@ export const AdwMenuButtonTest = async () => {
         }
 
         await it('drops a non-string id instead of leaking a number into the event', () => {
-            const el = document.createElement('adw-menu-button');
+            const el = document.createElement('gtk-menu-button');
             el.setAttribute('menu', '[{"label":"Open","id":7}]');
             document.body.appendChild(el);
 

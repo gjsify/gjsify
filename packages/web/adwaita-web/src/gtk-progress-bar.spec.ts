@@ -1,4 +1,4 @@
-// DOM-level tests for <adw-progress-bar>.
+// DOM-level tests for <gtk-progress-bar>.
 //
 // Three things matter more than the attribute round-trips: the CLAMP is GLib's
 // (`glibClamp` from `@gjsify/adwaita-core`, not a local `Math.min/max`); a ZERO fraction
@@ -9,18 +9,18 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import type { AdwProgressBar } from './elements/adw-progress-bar.js';
+import type { GtkProgressBar } from './elements/gtk-progress-bar.js';
 
-function mount(): { el: AdwProgressBar; host: HTMLElement } {
+function mount(): { el: GtkProgressBar; host: HTMLElement } {
     const host = document.createElement('div');
     document.body.appendChild(host);
-    const el = document.createElement('adw-progress-bar') as AdwProgressBar;
+    const el = document.createElement('gtk-progress-bar') as GtkProgressBar;
     host.appendChild(el);
     return { el, host };
 }
 
 /** The parts, by the markup contract the stylesheet selects on. */
-function parts(bar: AdwProgressBar): { trough: HTMLElement; progress: HTMLElement; text: HTMLElement } {
+function parts(bar: GtkProgressBar): { trough: HTMLElement; progress: HTMLElement; text: HTMLElement } {
     return {
         trough: bar.querySelector('.adw-progress-bar-trough') as HTMLElement,
         progress: bar.querySelector('.adw-progress-bar-progress') as HTMLElement,
@@ -28,8 +28,8 @@ function parts(bar: AdwProgressBar): { trough: HTMLElement; progress: HTMLElemen
     };
 }
 
-export const AdwProgressBarTest = async () => {
-    await describe('<adw-progress-bar> fraction', async () => {
+export const GtkProgressBarTest = async () => {
+    await describe('<gtk-progress-bar> fraction', async () => {
         await it('starts empty, with the trough flagged so the indicator disappears', () => {
             const { el, host } = mount();
             const { trough, progress } = parts(el);
@@ -68,7 +68,7 @@ export const AdwProgressBarTest = async () => {
         });
     });
 
-    await describe('<adw-progress-bar> indeterminate', async () => {
+    await describe('<gtk-progress-bar> indeterminate', async () => {
         await it('pulse() enters the pulsing state and drops aria-valuenow', () => {
             const { el, host } = mount();
             el.fraction = 0.4;
@@ -98,7 +98,7 @@ export const AdwProgressBarTest = async () => {
         });
     });
 
-    await describe('<adw-progress-bar> text', async () => {
+    await describe('<gtk-progress-bar> text', async () => {
         await it('hides the text node until show-text, then shows the percentage', () => {
             const { el, host } = mount();
             expect(parts(el).text.hidden).toBe(true);
@@ -134,7 +134,7 @@ export const AdwProgressBarTest = async () => {
         });
     });
 
-    await describe('<adw-progress-bar> variants', async () => {
+    await describe('<gtk-progress-bar> variants', async () => {
         await it('is an 8px trough by default and a 2px hairline with osd', () => {
             // The 8px is libadwaita's (_progress-bar.scss) and the 2px is its
             // `.osd` variant — NOT the vendored web port's 6px, which
@@ -148,8 +148,8 @@ export const AdwProgressBarTest = async () => {
             // transition to be part-way through.
             const host = document.createElement('div');
             document.body.appendChild(host);
-            const plain = document.createElement('adw-progress-bar') as AdwProgressBar;
-            const osd = document.createElement('adw-progress-bar') as AdwProgressBar;
+            const plain = document.createElement('gtk-progress-bar') as GtkProgressBar;
+            const osd = document.createElement('gtk-progress-bar') as GtkProgressBar;
             osd.setAttribute('osd', '');
             host.append(plain, osd);
 

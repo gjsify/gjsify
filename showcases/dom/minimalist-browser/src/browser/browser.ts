@@ -10,7 +10,7 @@ import '@gjsify/adwaita-web'; // registers the custom elements + self-injects th
 // default sans on macOS, on Windows and on any Linux that is not GNOME — and looks right
 // only on the machine it was written on.
 import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
-import type { AdwEntry, AdwHeaderBar } from '@gjsify/adwaita-web';
+import type { GtkEntry, AdwHeaderBar } from '@gjsify/adwaita-web';
 import { BrowserCore, BUILTIN_PAGE_URLS, DEFAULT_HOME_URL, type IFrameHandle } from '../browser-demo.js';
 
 // Idempotent, and a no-op where there is no `document` — so a build-time import of this
@@ -70,7 +70,7 @@ function ensureStyles(): void {
 }
 
 function iconButton(icon: string, tooltip: string): HTMLElement {
-    const b = document.createElement('adw-button');
+    const b = document.createElement('gtk-button');
     b.setAttribute('icon', icon);
     b.setAttribute('tooltip', tooltip);
     b.setAttribute('flat', '');
@@ -107,7 +107,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     forwardBtn.setAttribute('disabled', '');
     header.startSection?.append(backBtn, forwardBtn, reloadBtn);
 
-    const urlEntry = document.createElement('adw-entry') as AdwEntry;
+    const urlEntry = document.createElement('gtk-entry') as GtkEntry;
     urlEntry.classList.add('mb-url');
     urlEntry.setAttribute('placeholder', 'Search or enter address');
     urlEntry.setAttribute('value', homeUrl);
@@ -121,7 +121,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     quickLabel.textContent = 'Demo pages';
     quicknav.appendChild(quickLabel);
     for (const url of BUILTIN_PAGE_URLS) {
-        const b = document.createElement('adw-button');
+        const b = document.createElement('gtk-button');
         b.setAttribute('label', url);
         b.setAttribute('flat', '');
         b.addEventListener('click', () => core.navigate(url));

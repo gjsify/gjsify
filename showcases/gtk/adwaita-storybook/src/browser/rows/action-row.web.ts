@@ -5,7 +5,7 @@ import { actionRowMeta } from '../../rows/action-row.meta.js';
 
 /** GTK symbolic name (e.g. "folder-symbolic") → adwaita-web icon class. */
 function iconClass(gtkName: string): string {
-    return `adw-icon adw-icon--${gtkName.replace(/-symbolic$/, '')}`;
+    return `gtk-image adw-icon--${gtkName.replace(/-symbolic$/, '')}`;
 }
 
 export class ActionRowWebStory extends StoryElement {
@@ -27,7 +27,7 @@ export class ActionRowWebStory extends StoryElement {
         this._icon.setAttribute('slot', 'prefix');
         this._icon.className = iconClass(this.args.iconName as string);
 
-        const button = document.createElement('adw-button');
+        const button = document.createElement('gtk-button');
         button.setAttribute('slot', 'suffix');
         button.setAttribute('icon', 'go-next');
         button.setAttribute('flat', '');

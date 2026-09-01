@@ -457,7 +457,7 @@ export class AdwNavigationView extends HTMLElement {
         const start = (headerBar as { startSection?: HTMLElement | null }).startSection ?? null;
         if (!start) return;
 
-        const back = document.createElement('adw-button');
+        const back = document.createElement('gtk-button');
         back.classList.add('adw-navigation-back-button');
         back.setAttribute('icon', 'go-previous');
         back.setAttribute('flat', '');

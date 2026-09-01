@@ -80,11 +80,11 @@ const CONTRACT_SPECS = [`${ADWAITA_WEB_SRC}/keyboard-operable.spec.ts`, 'tests/b
  * that has nothing to do with its items shows up here as a diff to be argued for.
  */
 const ROVING_LEDGER = {
-    'packages/web/adwaita-web/src/elements/adw-drop-down.ts': 'own keydown listener',
+    'packages/web/adwaita-web/src/elements/gtk-drop-down.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-inline-view-switcher.ts': 'via ./roving-focus.js',
-    'packages/web/adwaita-web/src/elements/adw-menu-button.ts': 'via <adw-popover>',
+    'packages/web/adwaita-web/src/elements/gtk-menu-button.ts': 'via <gtk-popover>',
     'packages/web/adwaita-web/src/elements/adw-sidebar.ts': 'via ./roving-focus.js',
-    'packages/web/adwaita-web/src/elements/adw-split-button.ts': 'via <adw-popover>',
+    'packages/web/adwaita-web/src/elements/adw-split-button.ts': 'via <gtk-popover>',
     'packages/web/adwaita-web/src/elements/adw-tab-view.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-toggle-group.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-view-switcher-bar.ts': 'via ./roving-focus.js',
@@ -114,7 +114,12 @@ const NEGATIVE_TABINDEX = [
     // of this call wraps across lines in the tree today.
     new RegExp(String.raw`${RECEIVER}\.setAttribute\(\s*['"\`]tabindex['"\`]\s*,[^;]*?-\s*1`, 'g'),
 ];
-const CREATE_ADW_ELEMENT = /createElement\(\s*['"`](adw-[a-z0-9-]+)['"`]/g;
+// BOTH PREFIXES: a web element is named after the library that owns its GType
+// (ADR 0034 clause 1), so the element that discharges arm (c) for `<gtk-menu-button>`
+// and `<adw-split-button>` is `<gtk-popover>`. An `adw-`-only reader saw neither and
+// reported both widgets as keyboard-unreachable — a false positive is how a gate gets
+// turned off, which is the lesson its own siblings' headers record.
+const CREATE_WEB_ELEMENT = /createElement\(\s*['"`]((?:adw|gtk)-[a-z0-9-]+)['"`]/g;
 
 /** Value imports of a RELATIVE module: `{ a, b }` / `X` / `* as ns`, never `import type`. */
 function relativeImports(code) {
@@ -238,8 +243,8 @@ for (const [file, text] of code) {
         continue;
     }
 
-    // (c) creates an <adw-…> element whose defining file registers one.
-    const viaTag = [...text.matchAll(CREATE_ADW_ELEMENT)].map(([, tag]) => tag).find(tagHandlesKeys);
+    // (c) creates an <adw-…>/<gtk-…> element whose defining file registers one.
+    const viaTag = [...text.matchAll(CREATE_WEB_ELEMENT)].map(([, tag]) => tag).find(tagHandlesKeys);
     if (viaTag !== undefined) {
         roving.set(rel(file), `via <${viaTag}>`);
         continue;
@@ -252,7 +257,7 @@ for (const [file, text] of code) {
         '    by NO key — worse than the plain tab stops it replaced. Measured on four widgets.',
         '    Fix: `attachRovingFocus({ host, orientation, items, select })` from',
         `    ${ADWAITA_WEB_SRC}/elements/roving-focus.ts, or put the items inside an element that`,
-        '    already handles the keys (the `<adw-popover>` shape).',
+        '    already handles the keys (the `<gtk-popover>` shape).',
     );
 }
 

@@ -173,9 +173,9 @@ the trailing one.
   <Fragment slot="preview">
     ```html
     <adw-header-bar style="width: 100%;">
-      <adw-button slot="start" icon="go-previous" flat></adw-button>
+      <gtk-button slot="start" icon="go-previous" flat></gtk-button>
       <adw-window-title slot="center" title="Text Editor" subtitle="notes.md"></adw-window-title>
-      <adw-button slot="end" icon="open-menu" flat></adw-button>
+      <gtk-button slot="end" icon="open-menu" flat></gtk-button>
     </adw-header-bar>
     ```
   </Fragment>
@@ -283,10 +283,10 @@ the view moves.
       </adw-header-bar>
       <adw-status-page icon="folder-documents" title="Your library" description="Content sits between the toolbars and scrolls independently of them."></adw-status-page>
       <div slot="bottom" class="toolbar" style="border-top: 1px solid var(--separator-color, rgba(0, 0, 0, 0.15));">
-        <adw-button icon="list-add" flat tooltip="Add"></adw-button>
-        <adw-button icon="list-remove" flat tooltip="Remove"></adw-button>
+        <gtk-button icon="list-add" flat tooltip="Add"></gtk-button>
+        <gtk-button icon="list-remove" flat tooltip="Remove"></gtk-button>
         <span style="flex: 1 1 auto; text-align: center;">Selection: none</span>
-        <adw-button icon="send-to" flat tooltip="Share"></adw-button>
+        <gtk-button icon="send-to" flat tooltip="Share"></gtk-button>
       </div>
     </adw-toolbar-view>
     ```
@@ -462,14 +462,14 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
   <Fragment slot="preview">
     ```html
     <adw-wrap-box child-spacing="8" line-spacing="8">
-      <adw-button label="Design" pill></adw-button>
-      <adw-button label="Adwaita" pill></adw-button>
-      <adw-button label="GNOME" pill></adw-button>
-      <adw-button label="GTK" pill></adw-button>
-      <adw-button label="Typescript" pill></adw-button>
-      <adw-button label="Storybook" pill></adw-button>
-      <adw-button label="Wrapping" pill></adw-button>
-      <adw-button label="Layout" pill></adw-button>
+      <gtk-button label="Design" pill></gtk-button>
+      <gtk-button label="Adwaita" pill></gtk-button>
+      <gtk-button label="GNOME" pill></gtk-button>
+      <gtk-button label="GTK" pill></gtk-button>
+      <gtk-button label="Typescript" pill></gtk-button>
+      <gtk-button label="Storybook" pill></gtk-button>
+      <gtk-button label="Wrapping" pill></gtk-button>
+      <gtk-button label="Layout" pill></gtk-button>
     </adw-wrap-box>
     ```
   </Fragment>

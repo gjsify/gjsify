@@ -26,7 +26,7 @@ import { AdwBreakpointsTest } from './breakpoints.spec.js';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwAlertDialogTest } from './adw-alert-dialog.spec.js';
-import { AdwDropDownTest } from './adw-drop-down.spec.js';
+import { GtkDropDownTest } from './gtk-drop-down.spec.js';
 import { AdwRowStateTest } from './adw-row-state.spec.js';
 import { AdwTabViewTest } from './adw-tab-view.spec.js';
 import { AdwToastOverlayTest } from './adw-toast-overlay.spec.js';
@@ -34,16 +34,16 @@ import { AdwViewSwitcherBarTest } from './adw-view-switcher-bar.spec.js';
 import { AdwStyleIsolationTest } from './style-isolation.spec.js';
 import { AdwWrapBoxTest } from './adw-wrap-box.spec.js';
 import { AdwHeaderBarTest } from './adw-header-bar.spec.js';
-import { AdwEntryTest } from './adw-entry.spec.js';
-import { AdwMenuButtonTest } from './adw-menu-button.spec.js';
-import { AdwButtonTest } from './adw-button.spec.js';
+import { GtkEntryTest } from './gtk-entry.spec.js';
+import { GtkMenuButtonTest } from './gtk-menu-button.spec.js';
+import { GtkButtonTest } from './gtk-button.spec.js';
 import { AdwBannerTest } from './adw-banner.spec.js';
 import { AdwButtonContentTest } from './adw-button-content.spec.js';
-import { AdwIconTest } from './adw-icon.spec.js';
+import { GtkImageTest } from './gtk-image.spec.js';
 import { AdwIconRegistryTest } from './icon-registry.spec.js';
-import { AdwSwitchTest } from './adw-switch.spec.js';
-import { AdwChecksTest } from './adw-checks.spec.js';
-import { AdwProgressBarTest } from './adw-progress-bar.spec.js';
+import { GtkSwitchTest } from './gtk-switch.spec.js';
+import { AdwChecksTest } from './checks.spec.js';
+import { GtkProgressBarTest } from './gtk-progress-bar.spec.js';
 import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
 import { AdwStyleClassesTest } from './style-classes.spec.js';
 import { AdwAccentTest } from './adw-accent.spec.js';
@@ -66,11 +66,11 @@ run({
     AdwAlertDialogTest,
     AdwBannerTest,
     AdwButtonContentTest,
-    AdwIconTest,
+    GtkImageTest,
     AdwIconRegistryTest,
-    AdwSwitchTest,
+    GtkSwitchTest,
     AdwChecksTest,
-    AdwProgressBarTest,
+    GtkProgressBarTest,
     AdwAvatarTest,
     AdwCarouselTest,
     AdwBottomSheetTest,
@@ -85,7 +85,7 @@ run({
     AdwBreakpointsTest,
     AdwDataGridTest,
     AdwDialogTest,
-    AdwDropDownTest,
+    GtkDropDownTest,
     AdwRowStateTest,
     AdwTabViewTest,
     AdwToastOverlayTest,
@@ -93,9 +93,9 @@ run({
     AdwStyleIsolationTest,
     AdwWrapBoxTest,
     AdwHeaderBarTest,
-    AdwEntryTest,
-    AdwMenuButtonTest,
-    AdwButtonTest,
+    GtkEntryTest,
+    GtkMenuButtonTest,
+    GtkButtonTest,
     AdwViewStackTest,
     AdwNavigationViewTest,
     AdwSidebarTest,

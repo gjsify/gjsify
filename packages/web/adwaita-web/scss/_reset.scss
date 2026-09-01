@@ -18,7 +18,9 @@
 // neutralises.
 
 // Every custom element adwaita-web defines — one entry per `customElements
-// .define('adw-…')` call under `src/`.
+// .define(…)` call under `src/`, in BOTH namespaces: a tag carries the prefix of
+// the library that owns its GType (ADR 0034 clause 1), so `gtk-entry` is on this
+// list beside `adw-action-row`.
 //
 // DERIVED, NOT REMEMBERED: `scripts/check-adwaita-reset-components.mjs` walks
 // those calls and fails on any tag missing from this list (and on any entry with
@@ -29,19 +31,19 @@
 $adw-components:
   adw-about-dialog, adw-action-row, adw-alert-dialog, adw-alert-response,
   adw-avatar, adw-banner, adw-bottom-sheet, adw-bottom-sheet-content,
-  adw-bottom-sheet-sheet, adw-button, adw-button-content, adw-button-row,
+  adw-bottom-sheet-sheet, gtk-button, adw-button-content, adw-button-row,
   adw-card, adw-carousel, adw-carousel-indicator-dots,
-  adw-carousel-indicator-lines, adw-checkbox, adw-clamp, adw-combo-row,
+  adw-carousel-indicator-lines, gtk-check-button, adw-clamp, adw-combo-row,
   adw-data-grid,
-  adw-dialog, adw-drop-down, adw-entry, adw-entry-row, adw-expander-row,
-  adw-header-bar, adw-icon, adw-inline-view-switcher, adw-menu-button,
+  adw-dialog, gtk-drop-down, gtk-entry, adw-entry-row, adw-expander-row,
+  adw-header-bar, gtk-image, adw-inline-view-switcher, gtk-menu-button,
   adw-navigation-page,
   adw-navigation-split-view, adw-navigation-view, adw-overlay-split-view,
-  adw-password-entry-row, adw-popover, adw-preferences-dialog,
-  adw-preferences-group, adw-preferences-page, adw-progress-bar, adw-radio,
+  adw-password-entry-row, gtk-popover, adw-preferences-dialog,
+  adw-preferences-group, adw-preferences-page, gtk-progress-bar, adw-radio,
   adw-shortcut-label, adw-sidebar, adw-sidebar-item,
   adw-sidebar-section, adw-source-view, adw-spinner, adw-spin-row,
-  adw-split-button, adw-status-page, adw-switch, adw-switch-row,
+  adw-split-button, adw-status-page, gtk-switch, adw-switch-row,
   adw-tab-page, adw-tab-view, adw-toast-overlay, adw-toggle, adw-toggle-group,
   adw-toolbar-view, adw-view-stack, adw-view-stack-page, adw-view-switcher,
   adw-view-switcher-bar, adw-view-switcher-page, adw-window, adw-window-title,

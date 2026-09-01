@@ -13,7 +13,7 @@
 //
 //   - `<adw-navigation-split-view breakpoint="max-width: 720px">` lost its
 //     ResizeObserver and never collapsed again, however narrow the page got;
-//   - `<adw-popover>` lost the two document listeners and came back visible with
+//   - `<gtk-popover>` lost the two document listeners and came back visible with
 //     neither outside-click nor Escape dismissal — and the only ways to re-arm them
 //     are the two that just died.
 //
@@ -41,7 +41,7 @@
 //
 // SCOPE IS "DEFINES BOTH CALLBACKS", never "spells its guard `_initialized`". Keying
 // scope on the field NAME was measured: renaming it to `_built` dropped the pre-fix
-// `<adw-popover>` out of the check entirely, the class count fell 13 → 12 and the gate
+// `<gtk-popover>` out of the check entirely, the class count fell 13 → 12 and the gate
 // printed OK on the byte-identical defect. The guard field is DERIVED instead — the
 // private flag `connectedCallback` (or the method it calls as its FIRST statement)
 // both branches on and sets to `true` — and it narrows the reconnect PATH, not the set
@@ -211,7 +211,7 @@ const CLEARS = /^\s*(?:undefined|null|void\s+0)\s*$/;
  * Listeners are keyed by RECEIVER, not by the fact that a listener exists. Both looser
  * spellings were measured to pass on a real defect: with "some receiver other than
  * `this`" a single `this._arrowEl.addEventListener(…)` — a node this element BUILT —
- * satisfied the pre-fix `<adw-popover>`, whose document listeners were still never
+ * satisfied the pre-fix `<gtk-popover>`, whose document listeners were still never
  * re-added; and on the disposer side, matching any assignment let
  * `this._disposeBreakpoint = undefined` — a RELEASE — count as the rebind for the
  * pre-fix `<adw-navigation-split-view>`. Hence {@link CLEARS}.
