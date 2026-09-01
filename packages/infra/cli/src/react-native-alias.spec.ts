@@ -20,6 +20,7 @@ import {
     ReactNativeAliasTargetMissingError,
     ReactNativeDeepImportError,
     REACT_NATIVE_ALIAS_TARGET,
+    type LayerReader,
 } from '@gjsify/rolldown-plugin-gjsify';
 
 const IMPORTER = '/proj/src/screen.tsx';
@@ -51,10 +52,31 @@ function mockCtx(resolveMap: Record<string, { id: string; external?: boolean }> 
 
 const withTarget = () => mockCtx({ [REACT_NATIVE_ALIAS_TARGET]: { id: TARGET_ID } });
 
+/**
+ * The layer, handed in rather than resolved (ADR 0036).
+ *
+ * The plugin reads the surface registry off `@gjsify/react-native/support-table` in a
+ * real build; these vectors are about the ALIAS, so the registry arrives as a fixture
+ * and `ctx.asked` stays a record of what the alias itself asked for.
+ */
+const layerOf = (rows: readonly { module: string; target: string }[]): LayerReader => ({
+    SURFACES: rows,
+    isImportable: () => true,
+    explainUnsupported: () => 'x',
+});
+
+const ROOT_ONLY = layerOf([{ module: 'react-native', target: REACT_NATIVE_ALIAS_TARGET }]);
+
 export default async () => {
     await describe('react-native alias: what counts as the package', async () => {
-        await it('classifies the exact root', () => {
-            expect(classifyReactNativeSpecifier('react-native')).toStrictEqual({ kind: 'root' });
+        await it('classifies the exact root, and names the target it rewrites to', () => {
+            // The TARGET is part of the classification now (ADR 0036): a surface's
+            // answer is a subpath of this package, and the alias would otherwise have to
+            // recompute which one from the specifier.
+            expect(classifyReactNativeSpecifier('react-native')).toStrictEqual({
+                kind: 'root',
+                target: REACT_NATIVE_ALIAS_TARGET,
+            });
         });
 
         await it('classifies a subpath, keeping the subpath for the message', () => {
@@ -64,9 +86,12 @@ export default async () => {
             });
         });
 
-        // The prefix trap. The last two are `not-reachable` in ADR 0032's own
-        // table (they need a Babel worklet transform that is not in this chain),
-        // and the first is rejected by design — none of them is this package.
+        // The prefix trap, and it got sharper with ADR 0036 rather than softer:
+        // `react-native-gesture-handler` and `react-native-safe-area-context` ARE
+        // declared surfaces now, so the exact-match pass has to run before the
+        // `react-native/` subpath test — and a specifier that is not in the rows handed
+        // in is `other`, never a guess. `react-native-web` is rejected by design;
+        // `react-native-reanimated` is `not-reachable` in ADR 0032's own table.
         await it('is not a prefix match', () => {
             for (const near of [
                 'react-native-web',
@@ -77,6 +102,25 @@ export default async () => {
             ]) {
                 expect(classifyReactNativeSpecifier(near)).toStrictEqual({ kind: 'other' });
             }
+        });
+
+        await it('claims a surface the registry declares, and only through the registry', async () => {
+            const rows = [
+                { module: 'react-native', target: REACT_NATIVE_ALIAS_TARGET },
+                {
+                    module: 'react-native-gesture-handler',
+                    target: `${REACT_NATIVE_ALIAS_TARGET}/react-native-gesture-handler`,
+                },
+            ];
+            expect(classifyReactNativeSpecifier('react-native-gesture-handler', rows)).toStrictEqual({
+                kind: 'root',
+                target: `${REACT_NATIVE_ALIAS_TARGET}/react-native-gesture-handler`,
+            });
+            // The SAME specifier is `other` against rows that do not declare it. The
+            // registry decides; the plugin never guesses from the shape of a name.
+            expect(classifyReactNativeSpecifier('react-native-gesture-handler', [rows[0]!])).toStrictEqual({
+                kind: 'other',
+            });
         });
 
         // Otherwise the rewrite target rewrites itself.
@@ -91,23 +135,46 @@ export default async () => {
     await describe('react-native alias: the plugin', async () => {
         await it('rewrites the bare root onto the gjsify layer', async () => {
             const ctx = withTarget();
-            const resolved = await handlerOf(reactNativeAliasPlugin()).call(ctx, 'react-native', IMPORTER);
+            const resolved = await handlerOf(reactNativeAliasPlugin({ layer: ROOT_ONLY })).call(
+                ctx,
+                'react-native',
+                IMPORTER,
+            );
             expect(resolved?.id).toBe(TARGET_ID);
             expect(ctx.asked).toStrictEqual([REACT_NATIVE_ALIAS_TARGET]);
         });
 
+        await it('rewrites a third-party surface onto ITS subpath', async () => {
+            const target = `${REACT_NATIVE_ALIAS_TARGET}/expo-font`;
+            const ctx = mockCtx({ [target]: { id: '/proj/node_modules/x/expo-font.js' } });
+            const layer = layerOf([
+                { module: 'react-native', target: REACT_NATIVE_ALIAS_TARGET },
+                { module: 'expo-font', target },
+            ]);
+            const resolved = await handlerOf(reactNativeAliasPlugin({ layer })).call(ctx, 'expo-font', IMPORTER);
+            expect(resolved?.id).toBe('/proj/node_modules/x/expo-font.js');
+            expect(ctx.asked).toStrictEqual([target]);
+        });
+
         await it('claims the root on an ENTRY module too', async () => {
             const ctx = withTarget();
-            const resolved = await handlerOf(reactNativeAliasPlugin()).call(ctx, 'react-native', undefined);
+            const resolved = await handlerOf(reactNativeAliasPlugin({ layer: ROOT_ONLY })).call(
+                ctx,
+                'react-native',
+                undefined,
+            );
             expect(resolved?.id).toBe(TARGET_ID);
         });
 
-        await it('ignores every specifier that is not the package', async () => {
+        await it('ignores every specifier that is not a declared surface', async () => {
             const ctx = withTarget();
-            const plugin = reactNativeAliasPlugin();
+            const plugin = reactNativeAliasPlugin({ layer: ROOT_ONLY });
             for (const other of ['react', 'react-native-web', REACT_NATIVE_ALIAS_TARGET, './card', 'node:fs']) {
                 expect(await handlerOf(plugin).call(ctx, other, IMPORTER)).toBe(null);
             }
+            // NOTHING WAS ASKED, which is the half that matters: this hook runs for
+            // every specifier in the build, so a resolve per miss would be a resolve per
+            // import in the project.
             expect(ctx.asked).toStrictEqual([]);
         });
 
@@ -115,7 +182,7 @@ export default async () => {
             const ctx = withTarget();
             let thrown: unknown;
             try {
-                await handlerOf(reactNativeAliasPlugin()).call(
+                await handlerOf(reactNativeAliasPlugin({ layer: ROOT_ONLY })).call(
                     ctx,
                     'react-native/Libraries/Components/View/View',
                     IMPORTER,
@@ -135,7 +202,7 @@ export default async () => {
             const ctx = mockCtx();
             let thrown: unknown;
             try {
-                await handlerOf(reactNativeAliasPlugin()).call(ctx, 'react-native', IMPORTER);
+                await handlerOf(reactNativeAliasPlugin({ layer: ROOT_ONLY })).call(ctx, 'react-native', IMPORTER);
             } catch (error) {
                 thrown = error;
             }
@@ -149,11 +216,34 @@ export default async () => {
             const ctx = mockCtx({ [REACT_NATIVE_ALIAS_TARGET]: { id: TARGET_ID, external: true } });
             let thrown: unknown;
             try {
-                await handlerOf(reactNativeAliasPlugin()).call(ctx, 'react-native', IMPORTER);
+                await handlerOf(reactNativeAliasPlugin({ layer: ROOT_ONLY })).call(ctx, 'react-native', IMPORTER);
             } catch (error) {
                 thrown = error;
             }
             expect(thrown instanceof ReactNativeAliasTargetMissingError).toBe(true);
+        });
+
+        // WHAT HAPPENS WHEN THE LAYER CANNOT BE READ AT ALL, which is a real state: the
+        // opt-in is on and `@gjsify/react-native` is not installed. The alias falls back
+        // to the ONE row whose name is a fact rather than a lookup, so `react-native`
+        // still gets its named error and nothing else in the build starts throwing —
+        // which is what would happen if a failed registry read propagated out of a hook
+        // that runs for every specifier.
+        await it('degrades to the one row it knows when the layer is unreadable', async () => {
+            const ctx = mockCtx();
+            const plugin = reactNativeAliasPlugin();
+            let thrown: unknown;
+            try {
+                await handlerOf(plugin).call(ctx, 'react-native', IMPORTER);
+            } catch (error) {
+                thrown = error;
+            }
+            expect(thrown instanceof ReactNativeAliasTargetMissingError).toBe(true);
+            // And a surface it can no longer know about is left alone rather than
+            // refused: `expo-font` simply resolves the way it did before ADR 0036.
+            expect(await handlerOf(plugin).call(ctx, 'expo-font', IMPORTER)).toBe(null);
+            // The failed read is CACHED: one attempt, not one per specifier.
+            expect(ctx.asked.filter((id) => id.endsWith('/support-table')).length).toBe(1);
         });
     });
 };

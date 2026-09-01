@@ -36,22 +36,28 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import {
+    classifyReactNativeSpecifier,
     findSupportViolations,
     formatOpaqueReference,
     formatSupportViolations,
     ImportScanParseError,
     loadSupportTable,
+    ReactNativeDeepImportError,
     scanNamedImports,
     SUPPORT_TABLE_SUBPATH,
+    SURFACE_MENTION,
     SupportTableUnreadableError,
+    watchedSpecifiers,
     WATCHED_SPECIFIERS,
+    type AliasedSurface,
     type SupportTableReader,
 } from '@gjsify/rolldown-plugin-gjsify';
 
 const ID = '/proj/src/screen.tsx';
 
-/** A three-row stand-in for the real table, in the same two-function shape. */
+/** A three-row stand-in for the real layer, in the same shape the gate reads. */
 const FIXTURE_TABLE: SupportTableReader = {
+    SURFACES: [{ module: 'react-native', target: '@gjsify/react-native' }],
     isImportable: (name) => name === 'View' || name === 'Text',
     explainUnsupported: (name) =>
         name === 'FlatList'
@@ -290,10 +296,12 @@ export default async () => {
 
         await it('resolves the subpath and takes the two functions off it', async () => {
             const table = await loadSupportTable(resolverFor('/proj/rn/lib/esm/support-table.js'), ID, async () => ({
+                SURFACES: [{ module: 'react-native', target: '@gjsify/react-native' }],
                 isImportable: () => true,
                 explainUnsupported: () => 'x',
             }));
             expect(table.isImportable('View')).toBe(true);
+            expect(table.SURFACES.length).toBe(1);
         });
 
         // No second source to fall back on, by design (§ 8).
@@ -324,7 +332,11 @@ export default async () => {
             let thrown: unknown;
             try {
                 await loadSupportTable(resolverFor('/proj/rn/lib/esm/support-table.js'), ID, async () => ({
-                    SUPPORT_TABLE: {},
+                    // The two functions, and NO `SURFACES` — which is the skew ADR 0036
+                    // adds: a layer that predates the registry has the table and not the
+                    // list of specifiers the gate has to watch.
+                    isImportable: () => true,
+                    explainUnsupported: () => 'x',
                 }));
             } catch (error) {
                 thrown = error;
@@ -343,6 +355,99 @@ export default async () => {
                 thrown = error;
             }
             expect(thrown instanceof SupportTableUnreadableError).toBe(true);
+        });
+    });
+
+    await describe('react-native gate: the surface registry (ADR 0036)', async () => {
+        await it('watches BOTH spellings of every surface', async () => {
+            const surfaces: readonly AliasedSurface[] = [
+                { module: 'expo-font', target: '@gjsify/react-native/expo-font' },
+                { module: '@expo/vector-icons', target: '@gjsify/react-native/vector-icons' },
+            ];
+            expect(watchedSpecifiers(surfaces)).toStrictEqual([
+                'expo-font',
+                '@gjsify/react-native/expo-font',
+                '@expo/vector-icons',
+                '@gjsify/react-native/vector-icons',
+            ]);
+            // The fallback is what a build without the layer gets, and it is the pair
+            // that was the WHOLE list before the registry.
+            expect(WATCHED_SPECIFIERS).toStrictEqual(['react-native', '@gjsify/react-native']);
+        });
+
+        await it('judges a name against the MODULE it was imported from', async () => {
+            // The vector the registry exists for. One name, two surfaces, two answers —
+            // and the gate has to pass the specifier for the second one to be reachable
+            // at all. Without it, `Image` from `expo-image` gets react-native's verdict.
+            const layer: SupportTableReader = {
+                SURFACES: [
+                    { module: 'react-native', target: '@gjsify/react-native' },
+                    { module: 'expo-image', target: '@gjsify/react-native/expo-image' },
+                ],
+                isImportable: (name, module) => name === 'Image' && module === 'react-native',
+                explainUnsupported: (name, module) => `${module}: "${name}" is not implemented yet.`,
+            };
+            const specifiers = watchedSpecifiers(layer.SURFACES);
+            const code = `import { Image } from 'react-native';\nimport { Image as Expo } from 'expo-image';\n`;
+            const { named } = scanNamedImports(code, ID, specifiers);
+            expect(named.map((entry) => entry.specifier)).toStrictEqual(['react-native', 'expo-image']);
+            const violations = findSupportViolations(named, layer);
+            expect(violations.map((violation) => violation.specifier)).toStrictEqual(['expo-image']);
+            // The message names the specifier, so a reader with two `Image` imports in
+            // one file learns which one the gate refused.
+            expect(formatSupportViolations(ID, violations)).toContain('from "expo-image"');
+        });
+
+        // The vector that holds these prefilters against the LAYER's own eighteen rows
+        // lives in `@gjsify/react-native`'s `surfaces/surfaces.spec.ts`, not here: it
+        // needs the registry, and `@gjsify/rolldown-plugin-gjsify` is tier 1 while the
+        // layer is tier 3 — a tier-1 package may not depend on a higher tier, devDep
+        // included. The direction that IS allowed is the layer importing the plugin, so
+        // that is where the joint claim is asserted.
+
+        await it('does NOT match the word "export", which a bare fragment test would', async () => {
+            // The measurement that shaped `SURFACE_MENTION`: `export` contains `expo`,
+            // so an unanchored test matches every module in the tree and the gate would
+            // read the layer for all of them.
+            expect(SURFACE_MENTION.test('export const a = 1;')).toBe(false);
+            expect(SURFACE_MENTION.test('// exposure of an expo-like idea')).toBe(false);
+            expect(SURFACE_MENTION.test("import x from 'expo-font';")).toBe(true);
+        });
+
+        await it('classifies a surface specifier against the rows it was given', async () => {
+            const surfaces: readonly AliasedSurface[] = [
+                { module: 'react-native', target: '@gjsify/react-native' },
+                {
+                    module: 'react-native-safe-area-context',
+                    target: '@gjsify/react-native/react-native-safe-area-context',
+                },
+            ];
+            expect(classifyReactNativeSpecifier('react-native', surfaces)).toStrictEqual({
+                kind: 'root',
+                target: '@gjsify/react-native',
+            });
+            expect(classifyReactNativeSpecifier('react-native-safe-area-context', surfaces)).toStrictEqual({
+                kind: 'root',
+                target: '@gjsify/react-native/react-native-safe-area-context',
+            });
+            // THE ORDER THAT MATTERS. `react-native-web` starts with the same eleven
+            // characters as `react-native` and is not a surface; the exact-match pass
+            // runs first, and the deep-import test only fires for `react-native/`.
+            expect(classifyReactNativeSpecifier('react-native-web', surfaces)).toStrictEqual({ kind: 'other' });
+            expect(classifyReactNativeSpecifier('react-native-reanimated', surfaces)).toStrictEqual({ kind: 'other' });
+            expect(classifyReactNativeSpecifier('react-native/Libraries/Text', surfaces)).toStrictEqual({
+                kind: 'subpath',
+                subpath: 'Libraries/Text',
+            });
+            // A surface that is NOT in the rows handed in is `other`, not a guess: the
+            // registry decides, and the prefilter only says "ask".
+            expect(classifyReactNativeSpecifier('expo-font', surfaces)).toStrictEqual({ kind: 'other' });
+        });
+
+        await it('names the importer for a deep import into React Native’s internals', async () => {
+            const error = new ReactNativeDeepImportError('react-native/Libraries/Text', ID);
+            expect(error.message).toContain('react-native/Libraries/Text');
+            expect(error.message).toContain(ID);
         });
     });
 };

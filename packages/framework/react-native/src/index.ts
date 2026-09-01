@@ -91,7 +91,7 @@ export type {
 export { useColorScheme, useWindowDimensions } from './hooks.js';
 
 // `Animated` and `Easing`. The subset ADR 0032 measured — a value, a timing and a
-// view — over `Adw.TimedAnimation`, with the other 25 members of `Animated` present
+// view — over `Adw.TimedAnimation`, with every other member of `Animated` present
 // as functions that refuse with their own reason. `animated/value.ts` records why the
 // VALUE and not the widget property is the source of truth, and `animated/easing.ts`
 // carries the measured curve-by-curve mapping onto `AdwEasing`.
@@ -137,7 +137,7 @@ export function unstable_batchedUpdates<T, R>(callback: (argument: T) => R, argu
 // Everything this layer does not answer for yet. Generated from the support table
 // (`scripts/generate-exports.mjs`), because a bundler needs static export names to
 // resolve an import at all and a loop cannot produce them.
-export * from './generated/unsupported-exports.js';
+export * from './generated/unsupported-react-native.js';
 
 // The table itself is public: a consumer building their own tooling — a lint rule, a
 // dashboard, a migration script — should read the same data the gate reads rather

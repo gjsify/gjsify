@@ -274,6 +274,72 @@ function selfTest() {
     }
     if (!starThrew) fail('self-test: a star re-export that cannot be followed must throw, not silently narrow');
 
+    // THE SURFACE REGISTRY PARSER (ADR 0036). It decides which specifiers the gate
+    // watches and which subpath the alias rewrites to, so a row it drops is a surface
+    // that silently stops being answered, and a row it invents is an alias onto a
+    // subpath that does not exist. The negatives carry it, as everywhere else here.
+    const surfaceSource = (rows) => `export const SURFACES: readonly Surface[] = [\n${rows}\n];\nexport const X = 1;\n`;
+    const rootRow =
+        "    {\n        module: 'react-native',\n        target: PACKAGE,\n        label: 'React Native',\n" +
+        "        declaration: 'SUPPORT_TABLE',\n        table: SUPPORT_TABLE,\n        unknown: STALE,\n    },";
+    const subRow =
+        "    {\n        module: 'expo-font',\n        target: `${PACKAGE}/expo-font`,\n        label: 'expo-font',\n" +
+        "        declaration: 'EXPO_FONT_TABLE',\n        table: EXPO_FONT_TABLE,\n        unknown: D('expo-font'),\n    },";
+    ok(
+        'the root row keeps the package itself as its target',
+        generator.readSurfaces(surfaceSource(rootRow)).map((s) => [s.module, s.target, s.slug]),
+        [['react-native', '@gjsify/react-native', 'react-native']],
+    );
+    ok(
+        'a subpath row derives its target and its generated module',
+        generator.readSurfaces(surfaceSource(subRow)).map((s) => [s.module, s.target, s.slug]),
+        [['expo-font', '@gjsify/react-native/expo-font', 'expo-font']],
+    );
+    ok(
+        'a scoped module name survives the parse',
+        generator
+            .readSurfaces(
+                surfaceSource(
+                    "    {\n        module: '@react-native-async-storage/async-storage',\n" +
+                        '        target: `${PACKAGE}/async-storage`,\n' +
+                        "        label: '@react-native-async-storage/async-storage',\n" +
+                        "        declaration: 'ASYNC_STORAGE_TABLE',\n        table: T,\n        unknown: U,\n    },",
+                ),
+            )
+            .map((s) => s.module),
+        ['@react-native-async-storage/async-storage'],
+    );
+    ok(
+        'every row is read, not just the first',
+        generator.readSurfaces(surfaceSource(`${rootRow}\n${subRow}`)).length,
+        2,
+    );
+    // Negatives. A row missing a field must THROW rather than produce a half surface:
+    // a row with no declaration would make the generator read the wrong table, and a
+    // row with no target would make the alias rewrite onto `undefined`.
+    for (const [name, broken] of [
+        ['no declaration', rootRow.replace("        declaration: 'SUPPORT_TABLE',\n", '')],
+        ['no module', rootRow.replace("        module: 'react-native',\n", '')],
+        ['no target', rootRow.replace('        target: PACKAGE,\n', '')],
+    ]) {
+        vectors++;
+        let threwRow = false;
+        try {
+            generator.readSurfaces(surfaceSource(broken));
+        } catch {
+            threwRow = true;
+        }
+        if (!threwRow) fail(`self-test: a SURFACES row with ${name} must throw, not parse`);
+    }
+    vectors++;
+    let emptyThrew = false;
+    try {
+        generator.readSurfaces('export const SURFACES: readonly Surface[] = [\n];\n');
+    } catch {
+        emptyThrew = true;
+    }
+    if (!emptyThrew) fail('self-test: an empty SURFACES literal must throw — every reader would then watch nothing');
+
     ok(
         'the tables keep every name they judge',
         generator.readOwnExports(`export { View, configureStyle } from './x.js';`, '/m/index.ts', ['View'], NO_STAR),
@@ -358,53 +424,73 @@ compare(
 // to nothing because the export was never regenerated after the entry was added.
 {
     const source = readFileSync(TABLE_TS, 'utf8');
-    const readme = readFileSync(join(PKG, 'README.md'), 'utf8');
     const hint = '  run: gjsify workspace @gjsify/react-native run generate';
-    for (const spec of generator.TABLES) {
-        const entries = generator.readEntries(source, spec.declaration);
-        const expected = generator.render(entries, spec.label);
-        const relative = spec.out.slice(spec.out.indexOf('src/'));
-        const actual = existsSync(spec.out) ? readFileSync(spec.out, 'utf8') : '';
-        if (actual !== expected) fail(`${relative} is stale\n${hint}`);
+    const surfaces = generator.readSurfaces(source);
+    const sections = [];
+    const judgedNames = [];
 
-        // The README's support section is the table's THIRD reader (ADR 0032 § 8). It
-        // drifts the most quietly of the three: nothing fails, a consumer just reads a
-        // status that stopped being true.
-        const table = generator.readTable(source, spec.declaration);
-        const block = generator.renderReadmeTable(entries, table, spec.begin, spec.end);
-        const begin = readme.indexOf(spec.begin);
-        const end = readme.indexOf(spec.end);
-        if (begin === -1 || end === -1) {
-            fail(`README.md has lost the ${spec.begin} markers`);
-        } else if (readme.slice(begin, end + spec.end.length) !== block) {
-            fail(`README.md's generated ${spec.label} support section is stale\n${hint}`);
+    // ONE ROW PER MODULE, and one target per row. Two rows claiming `expo-font` would
+    // make `surfaceFor` answer from whichever came first — silently, because both
+    // lookups succeed — which is the collision the registry replaced the old
+    // disjointness invariant with.
+    const seenModules = new Set();
+    const seenTargets = new Set();
+    for (const surface of surfaces) {
+        if (seenModules.has(surface.module)) fail(`two SURFACES rows claim the module "${surface.module}"`);
+        if (seenTargets.has(surface.target)) fail(`two SURFACES rows claim the target "${surface.target}"`);
+        seenModules.add(surface.module);
+        seenTargets.add(surface.target);
+    }
+
+    // EVERY TARGET MUST BE A DECLARED SUBPATH. A row whose target the `exports` map
+    // does not carry is a gate that refuses an import and an alias that rewrites it
+    // onto a specifier a consumer's Node cannot resolve — loud, and pointing at the
+    // wrong thing.
+    const manifest = JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8'));
+    const declaredSubpaths = new Set(Object.keys(manifest.exports ?? {}));
+    for (const surface of surfaces) {
+        const subpath =
+            surface.target === generator.PACKAGE ? '.' : `.${surface.target.slice(generator.PACKAGE.length)}`;
+        if (!declaredSubpaths.has(subpath)) {
+            fail(
+                `SURFACES row "${surface.module}" targets ${surface.target}, which package.json#exports does not ` +
+                    `declare (looked for "${subpath}")`,
+            );
         }
     }
 
-    // THE TWO KEY SETS MUST BE DISJOINT. A name in both gives `explainUnsupported`
-    // two answers and `isImportable` whichever table it looked in first — and the
-    // collision is silent, because both lookups succeed. Checked here as well as in
-    // the spec because this script is what a version bump runs.
-    const rnKeys = readTableKeys(source, 'SUPPORT_TABLE');
-    const routerKeys = readTableKeys(source, 'ROUTER_SUPPORT_TABLE');
-    const both = routerKeys.filter((name) => rnKeys.includes(name));
-    if (both.length > 0) {
-        fail(
-            `${both.length} name(s) are in BOTH support tables — ${both.join(', ')}\n` +
-                '  a name belongs to one surface; rename or remove one of the entries',
+    for (const surface of surfaces) {
+        const entries = generator.readEntries(source, surface.declaration);
+        if (entries.length === 0) fail(`${surface.declaration} (${surface.module}) declares no names at all`);
+        for (const entry of entries) judgedNames.push(entry.name);
+        const expected = generator.render(entries, surface.label, surface.module);
+        const relative = surface.out.slice(surface.out.indexOf('src/'));
+        const actual = existsSync(surface.out) ? readFileSync(surface.out, 'utf8') : '';
+        if (actual !== expected) fail(`${relative} is stale\n${hint}`);
+        sections.push(
+            generator.renderSurfaceSection(surface, entries, generator.readTable(source, surface.declaration)),
         );
     }
+
+    // The support document is the table's THIRD reader (ADR 0032 § 8, ADR 0036 § 6).
+    // It drifts the most quietly of the three: nothing fails, a consumer just reads a
+    // status that stopped being true. Compared byte for byte, because the whole file
+    // is generated and there are no markers to lose.
+    const expectedDoc = generator.renderSupportDoc(sections);
+    const actualDoc = existsSync(generator.SUPPORT_DOC) ? readFileSync(generator.SUPPORT_DOC, 'utf8') : '';
+    if (actualDoc !== expectedDoc) fail(`SUPPORT.md is stale\n${hint}`);
+
     console.log(
-        `${label}: ${routerKeys.length} expo-router name(s) declared, disjoint from the ${rnKeys.length} React Native ones.`,
+        `${label}: ${surfaces.length} surface(s) declared — ${surfaces.map((surface) => surface.module).join(', ')}.`,
     );
 
     // THE SECOND POPULATION the § 8 build gate answers for: the names this layer adds
     // on top of react-native's surface, which by construction have no table entry.
-    // Compared as a NAME SET rather than byte-for-byte like the two modules above, and
+    // Compared as a NAME SET rather than byte-for-byte like the modules above, and
     // the difference is deliberate: `run generate` pipes this file through `gjsify
     // format`, so its exact bytes are the formatter's claim while the derivation's
     // claim is the set.
-    const derivedOwn = generator.readOwnExports(readFileSync(INDEX_TS, 'utf8'), INDEX_TS, [...rnKeys, ...routerKeys]);
+    const derivedOwn = generator.readOwnExports(readFileSync(INDEX_TS, 'utf8'), INDEX_TS, judgedNames);
     const committedOwn = generator.readOwnExportNames(readFileSync(OWN_TS, 'utf8'));
     const ownAgreed = compare(
         'own exports vs src/index.ts',
@@ -416,7 +502,7 @@ compare(
     // A name the gate lets through WITHOUT a table entry must not also be one a table
     // judges. `isImportable` asks the tables first, so a collision would be silent —
     // the derived list would be describing a name it does not decide.
-    const judgedToo = committedOwn.filter((name) => rnKeys.includes(name) || routerKeys.includes(name));
+    const judgedToo = committedOwn.filter((name) => judgedNames.includes(name));
     if (judgedToo.length > 0) {
         fail(
             `${judgedToo.length} own export(s) are also support-table names — ${judgedToo.join(', ')}\n` +

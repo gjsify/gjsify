@@ -13,6 +13,7 @@ import hrefSuite from './router/href.spec.js';
 import routerWidgetsSuite from './router/router.spec.js';
 import routesSuite from './router/routes.spec.js';
 import solidSuite from './solid/solid.spec.js';
+import surfacesSuite from './surfaces/surfaces.spec.js';
 import stylesheetSuite from './stylesheet.spec.js';
 import supportTableSuite from './support-table.spec.js';
 import unsupportedSuite from './unsupported.spec.js';
@@ -32,6 +33,7 @@ run({
     listsSuite,
     solidSuite,
     hrefSuite,
+    surfacesSuite,
     routesSuite,
     routerWidgetsSuite,
 });

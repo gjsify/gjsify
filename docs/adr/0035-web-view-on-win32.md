@@ -1,4 +1,4 @@
-# ADR 0035 — `@gjsify/iframe` on Windows: WebView2 behind the same `gi://WebKit` 6.0 namespace
+# ADR 0036 — `@gjsify/iframe` on Windows: WebView2 behind the same `gi://WebKit` 6.0 namespace
 
 - **Status:** Proposed (2026-08-31)
 - **Scope:** `@gjsify/iframe` (Framework pillar) and its `WebKit.WebView` dependency on `win32-x64`; a new per-target package set (distribution per ADR 0017, OS axis per ADR 0018, artifact dependencies per ADR 0024). Sibling of [ADR 0022](0022-webkit-on-darwin.md), which decided the same question for darwin.
@@ -168,7 +168,7 @@ direction.
 Run on `windows-latest` (WebView2 Evergreen **151.0.4129.101**) on 2026-08-31, in the
 process shape this has to hold in: a **non-bundled console process**, no `WinMain`, no
 application message loop. `docs/poc/webview2-win32-probe.cpp`, dispatched by the
-`WebView2 probe (ADR 0035)` workflow.
+`WebView2 probe (ADR 0036)` workflow.
 
 | question | answer |
 |---|---|
@@ -248,7 +248,7 @@ Nothing of the backend is implemented. The order, once the spike answers:
 
 1. **The probe is written and HAS RUN** (§ *What the spike answered*) — `docs/poc/webview2-win32-probe.cpp`,
    built and run by `docs/poc/webview2-win32-probe.ps1`, dispatchable as the
-   `WebView2 probe (ADR 0035)` workflow. It answers questions 1, 3 and 5, the three
+   `WebView2 probe (ADR 0036)` workflow. It answers questions 1, 3 and 5, the three
    that need no widget, and it links no GLib on purpose: what decides the design is
    the one property `g_main_loop_run()` has — it does not dispatch Win32 window
    messages — and a `Sleep()` loop has that property while a second GLib pulled from

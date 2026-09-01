@@ -87,12 +87,22 @@ export type { RnRouteManifestOptions, FoundRoute } from './plugins/rn-route-mani
 export {
     reactNativeAliasPlugin,
     classifyReactNativeSpecifier,
+    couldBeSurfaceSpecifier,
+    loadLayer,
+    FALLBACK_SURFACES,
     REACT_NATIVE_ALIAS_TARGET,
     REACT_NATIVE_SPECIFIER,
     ReactNativeDeepImportError,
     ReactNativeAliasTargetMissingError,
+    SURFACE_MENTION,
+    SURFACE_NAME_PREFIXES,
 } from './plugins/react-native-alias.js';
-export type { ReactNativeSpecifierKind } from './plugins/react-native-alias.js';
+export type {
+    AliasedSurface,
+    LayerReader,
+    ReactNativeAliasOptions,
+    ReactNativeSpecifierKind,
+} from './plugins/react-native-alias.js';
 export {
     reactNativeSupportGatePlugin,
     loadSupportTable,
@@ -102,6 +112,7 @@ export {
     formatUnreadableModule,
     SUPPORT_TABLE_SUBPATH,
     WATCHED_SPECIFIERS,
+    watchedSpecifiers,
     ReactNativeUnsupportedImportError,
     SupportTableUnreadableError,
 } from './plugins/react-native-gate.js';

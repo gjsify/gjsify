@@ -1,4 +1,4 @@
-// `Animated`, and the twenty-five names it does not answer for.
+// `Animated`, and every name it does not answer for.
 //
 // THE SUBSET IS THE MEASUREMENT. ADR 0032 read `Animated` in a production-shaped
 // React Native application of 28 routes and found it in EXACTLY ONE FILE, using
