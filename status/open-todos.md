@@ -4,93 +4,6 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
-### Several named themes, one per desktop, selectable from the app's own settings
-
-`ThemeRegistry` (`packages/framework/gtk-host/src/style/theme.ts`) is built and ships
-exactly ONE theme: the neutral default, whose document is empty so an application looks
-like the desktop it is on. The product direction it was shaped to fit is not built:
-**several named themes — one that looks at home on each of the three desktop operating
-systems — with the default chosen by the host OS and the theme selectable at runtime
-from the application's own settings.** The runtime switch doubles as the way all three
-looks get tested on one machine, which is the reason it is a registry rather than a
-document loaded at startup.
-
-What is already in place, so the direction fits without a redesign: named registration,
-`select()` at runtime on one provider whose document is replaced, `selectDefault(platform)`
-choosing by an OS name the CALLER supplies, the containment probe at registration, and the
-measured provider priority (`PRIORITY_SETTINGS`, above libadwaita's own at 200 and below
-the generated sheet at 600, order-independently). What is missing is the two other themes,
-the settings UI that switches them, and a decision about what "at home on macOS" and "at
-home on Windows" actually mean in Adwaita's named colours — which is a design question and
-not a coding one, and should not be answered by guessing three palettes.
-
-The one thing NOT to reach for while doing it: `Adw.StyleManager:accent-color`. It is an
-ENUM (`AdwAccentColor`, nine named accents), so a token colour has no representation in it
-on ANY runtime — an accent is a `--accent-bg-color` redefinition in the theme's document,
-never a property write. It is read-only as well, on every closure measured and in
-libadwaita's own source, but do not build on THAT: the enum is the reason that survives a
-later release, a flag is not.
-
-### A correctly measured host fact, written as a layer invariant
-
-Two instances landed on one day: a POSIX-shaped expectation in an image-path test, and
-GTK's Unix print stack inside a platform-neutrally declared table. Both were measured
-correctly. Both were then written as though they were true of the layer rather than of the
-machine they were measured on, and each surfaced only when a leg ran somewhere else.
-
-**A third case looked like this class and is a DIFFERENT one, which is the more useful
-half.** `Adw.StyleManager:accent-color` was asserted READ-ONLY; the darwin leg went red;
-that was diagnosed as "the property is writable there" and written into a module comment,
-a website page and this file. It is false. libadwaita installs the ParamSpec
-`G_PARAM_READABLE` only, read at 1.10.alpha.1, and the flag now printed by
-`theme.spec.ts` reads read-only on all four measured closures. The leg went red because
-the vector read the spec through `GObject.Object.find_property.call(…)`, which answers null
-over the reverse bridge: the assertion that failed was `spec === null`, two lines above the
-flag, and the flag was never read there at all.
-
-So the shape to add to the ledger is not "a host fact written as a layer invariant" but
-**a red assertion on another OS read as a fact about that OS**. It is the more dangerous of
-the two, because it manufactures a measurement that was never taken: the first shape at
-least starts from something true. It reached a person as a product fact before CI could
-contradict it, and the conclusion it was used to support ("an accent is a CSS redefinition,
-not a property write") happens to be right for an unrelated and stronger reason — the
-property is an enum of nine named accents, so it cannot carry a token colour on any
-runtime, writable or not. A right answer resting on a wrong reason is the shape that breaks
-the moment someone acts on the reason. The cheap guard is procedural: a red assertion on a
-leg you cannot watch names the ASSERTION that failed before it names a cause, and a vector
-whose first assertion is a null check will report the null check.
-
-The mechanism this wants is not more care. A spec asserting a `ParamSpec` flag, a `libc`
-default, a path separator or an installed library's version is asserting a property of the
-CLOSURE it runs in; the portable claim is almost always about the EFFECT one layer up.
-Worth a rule the OS legs can enforce — something that flags an assertion whose subject is a
-runtime-provided flag or version — because every one of these was invisible until a leg
-that nobody watches went red.
-
-One instance of the class DID get its mechanism, and the way it was found is the argument
-for building the rest: `gjsify/no-gobject-method-borrow` now refuses
-`GObject.Object.<method>.call(SomeClass)`. A hand-written `grep` over 3585 tracked files
-reported the tree clean; the rule then found TWO more live sites, because the call was
-split across two lines (`GObject.Object.list_properties` / `.call(Gtk.ListItem)`) and a
-line-based search cannot see through a line break. The false all-clear was reported as a
-measurement before the rule contradicted it — which is the same failure one level up, and
-the reason a defect class invisible on one OS wants an AST rule rather than a sweep.
-
-### `packages/framework/AGENTS.md` is 444 bytes from silent truncation
-
-It is **32324 bytes** against the 32 KiB (32768) ceiling at which Codex truncates a
-project doc's tail *without saying so* — 444 bytes of headroom, and `status/agent-context-budget.json`
-pins the ceiling at the current size, so the next addition of any substance fails
-`check-agent-context-size` (measured: a 294-byte line did). The ratchet is doing its job;
-what it cannot do is shrink the file.
-
-The growth is in one place and the fix is the one the root AGENTS.md already prescribes:
-the `react-native` and `gtk-host` rows carry numbered lists of MEASUREMENTS — the kind of
-detail that belongs in `docs/` or on the website, linked from the rule that needs it. Moving
-those out is what buys room for the next real rule; raising the ceiling instead buys 444
-bytes once and then hits a limit that fails silently rather than loudly. Do NOT delete the
-incidents behind them — a rule without its reason gets "simplified" back into the bug.
-
 ### One package, two module instances — a "singleton" the bundle duplicates
 
 `@gjsify/adwaita-nativescript` is bundled **TWICE** into the NativeScript storybook
@@ -475,9 +388,9 @@ web-only with a reason. The gjsify half of ADR 0029 is what made it cheap; it do
 depend on the `@girs` subpath.
 
 What the check deliberately does NOT prove is BEHAVIOUR. Agreeing on `adw-action-row`
-as a name says nothing about the two renderers producing the same tree, and sharing one
-outright is weaker still: `<gtk-check-button>` now IS the tag `GtkCheckButton` carries,
-and nothing here asserts that it behaves like one.
+as a name says nothing about the two renderers producing the same tree, and the
+`gtk`-alias half is weaker still: it asserts that `<adw-checkbox>` is declared to mean
+`gtk-check-button`, never that it behaves like one.
 
 The criterion that closes the GOAL out is in ADR 0027 § 9 and is unchanged: the same
 authored tree, rendered through the GTK host and through `adwaita-web`, satisfies the
@@ -523,17 +436,17 @@ Where each stands:
 | surface | GIR naming | declared |
 |---|---|---|
 | `gtk-host` | holds by construction (`src/tags.ts:18`) | declares `role: reference` |
-| `adwaita-web` | **holds** — the 10 that violated it took the GIR name (ADR 0034 § Amendment 5) | **held** — 12 web-only declarations, each with a reason |
+| `adwaita-web` | 10 elements violate it (`adw-entry` is `GtkEntry`) | **held** — all 21 declared, all 21 with a reason |
 | `adwaita-nativescript` | 4 violate it; 2 more have no counterpart | **held** — 8 widget entries + 52 property entries, `gir`/`composes`/`own`, each with a reason |
 | `adwaita-react-native` | holds (`AdwBin`, `AdwClamp`) | **held** — declared, read from the base barrel, empty ledger |
 
 **The clause 2 column is gone from this table on purpose.** It said `absent` three times,
 and it was already wrong for React Native, which exports `Adw` on all three of its barrels
 (ADR 0034 § Amendment 3). `check-vocabulary-alignment.mjs` now reads each surface's own
-`src/index.ts` for `export const Adw`/`Gtk` and prints the tally on every run — on every run
-`Namespace exports (ADR 0034 clause 2): N of 3 renderer(s)`, with the surfaces named. A column here would be a second
-answer to a question the gate already answers, which is the shape of every count this ledger
-has had to correct.
+`src/index.ts` for `export const Adw`/`Gtk` and prints the tally on every run, as its last
+summary line. No figure is repeated here: the sentence above already said the copy is what
+drifts, and the first version of this paragraph quoted `1 of 3` and was overtaken by
+`adwaita-web` two commits later in the same branch.
 
 **Enrolment is a per-package declaration now, not a list in the gate.** `gjsify.widgetVocabulary`
 (`{ "role": "reference" | "renderer" }`) on each of the four, joined to the readers in
@@ -543,11 +456,10 @@ gate and the vocabulary gate cannot answer differently. A fifth surface joins th
 declaring itself: a declaration with no reader fails, a reader whose package stopped
 declaring fails, and a declared renderer no half of the check compares fails.
 
-**The clearest instance is closed**: `gtk-host` said `<gtk-entry>` for Solid, Vue and
-React alike while `adwaita-web` said `<adw-entry>` for the same widget, both on the same
-gallery page under one block titled `Gtk.Entry`. They differ in render target (GTK vs DOM)
-and not in what the widget is, and both now spell it `<gtk-entry>`. What is left of clause
-1 is the NativeScript port's six.
+**The clearest instance needs no cross-runtime argument**: `gtk-host` says `<gtk-entry>`
+for Solid, Vue and React alike and `adwaita-web` says `<adw-entry>` for the same widget,
+both on the same gallery page under one block titled `Gtk.Entry`. They differ in render
+target (GTK vs DOM) and not in what the widget is, and ADR 0027 § 9's goal names both.
 
 **[ADR 0034](../docs/adr/0034-widget-vocabulary-convergence.md) proposes the cut** — the
 rule stated once and surface-neutral (named from the GIR · exported as a namespace · every
@@ -689,10 +601,16 @@ ts-for-gir#436. A released `@girs` now omits `libraryVersion` where the library 
 none, so that detector reads for a shape that can no longer be published. It goes away
 rather than moving anywhere.
 
-**Still open upstream, found while consuming the vocabulary:** interface signals. Only
+**Still open upstream, found while consuming the vocabulary — two, and each has a
+self-retiring guard rather than a note.** First, interface signals: only
 `IntrospectedClass.fromXML` reads `<glib:signal>`; `IntrospectedInterface` has no `signals`
 field at all, so `GtkEditable`, `GtkCellEditable`, `GtkColorChooser` and `GtkFontChooser`
-contribute 8 signals that reach no surface. Fixing it touches the emitter for all 705
+contribute 8 signals that reach no surface — 7 of which the installed GTK does emit, held
+by `leaves no signal of the installed GTK out of the surface` (an `it.failing` in
+`generated.spec.ts`). Second, `caller-allocates="0"` out parameters: `@girs` 4.5.0 spells
+`GtkSpinButton::input` as `input: (new_value: number) => number`, so reading that slot as a
+value type-checks again — the generator used to give it `OutParam`. Held by
+`type-tests/jsx/known-hole-out-param.tsx`, which must COMPILE and goes red the day it stops. Fixing it touches the emitter for all 705
 packages and is noted in `VocabularyDecl.signals` in ts-for-gir. The sibling defect —
 `OWN_SIGNALS` keyed by creatable widget while `OWN_PROPS` is keyed by declaration, which
 lost every signal of every abstract base including `GtkWidget`'s 13 — is fixed in
@@ -1055,7 +973,7 @@ A/B-proven, and the slot rule proven in BOTH directions (a web-only glyph fails 
 it, and the honest answer for each is different:
 
 - **Whether a preview is INTERACTIVE.** `navigation.mdx` says "click **Open contact**
-  to push the detail page"; the button carries no handler and `<gtk-button>` has no
+  to push the detail page"; the button carries no handler and `<adw-button>` has no
   action attribute. It needs a browser to see, so no cheap static gate exists. The
   storybook wires it in JS (`navigation-view.web.ts:63-65`) and that line was dropped
   when the sample was written. The bottom sheet's "Toggle sheet" button had the same
@@ -2319,13 +2237,13 @@ for a dismissal. Both are spec'd (`split-button.spec.ts:144-174`, incl. the
 `Cancel` case). `adw-alert-dialog.ts` solves the same problem the other correct
 way, delegating to core's `resolveLabel`.
 
-`gtk-menu-button.ts:85`, `adw-combo-row.ts:132` and `gtk-drop-down.ts:116` each
+`adw-menu-button.ts:85`, `adw-combo-row.ts:132` and `adw-drop-down.ts:116` each
 call `labels.indexOf(chosen)` over the raw labels with a bare
 `cancelButtonText: 'Cancel'` instead — the addressing core documents as wrong in
 `SplitButtonState.activateMenuEntry` ("silently dispatches the first of two
 identically named entries and cannot tell an entry called `Cancel` from a
 dismissed sheet"). `adw-menu-button` also carries its own `entry.id ?? entry.label`
-fallback, which the browser twin repeats at `gtk-menu-button.ts:229`.
+fallback, which the browser twin repeats at `adw-menu-button.ts:229`.
 
 Deferred rather than done here because the home is NOT the local helper: both
 renderers need it, so `menuSheetActions`/`resolveMenuChoice` belong in
@@ -3706,7 +3624,7 @@ that borrows a name for a field and proves nothing about vectors.
 
 Not the same gap as the four above, and it should not be filed under their
 heading: those modules have no table to drive, these have one nobody drives.
-`glibClamp` is the sharpest case — `gtk-progress-bar.ts` calls it directly in
+`glibClamp` is the sharpest case — `adw-progress-bar.ts` calls it directly in
 the browser, so the seam exists; what is missing is a spec row that varies the
 bounds far enough to tell `CLAMP` from `Math.min`/`Math.max`. The
 `resolveNavigationSidebarWidth` path already does that through
@@ -3835,14 +3753,14 @@ Most are decisions with a reason next to them. These are the ones nobody has set
 from outside the port — each is a product question, not scheduled work, which is
 exactly why they must not be written as decisions.
 
-- **`<gtk-check-button>` and `<adw-radio>` on NativeScript.** The headless half already
+- **`adw-checkbox` and `adw-radio` on NativeScript.** The headless half already
   exists: `@gjsify/adwaita-core` carries `RadioGroupState` and `RADIO_GROUP_VECTORS`,
   driven today by core's own spec (`checks.spec.ts`) and the browser suite, by no
   NativeScript spec. What does not exist is the decision. `@nativescript/core` ships no
   checkbox view (nothing under its `ui/`), and libadwaita's own phone idiom for a
   boolean is `AdwSwitchRow`, which this port already has — so the question is whether
   a checkbox belongs on a touch target at all, not how to build one.
-- **`<gtk-progress-bar>` on NativeScript.** libadwaita styles the GtkProgressBar node in
+- **`adw-progress-bar` on NativeScript.** libadwaita styles the GtkProgressBar node in
   `stylesheet/widgets/_progress-bar.scss` and the browser ships the element; the
   NativeScript port has no progress widget. The PLATFORM half is not what is missing:
   `@nativescript/core` ships a determinate `Progress` (`value`/`maxValue`, `ui/progress`),

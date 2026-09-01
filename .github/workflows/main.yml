@@ -437,7 +437,7 @@ jobs:
       # Every manifest agreeing on `^4.1.0` is perfectly consistent, and our lockfile
       # holds it here — but a published package's declaration is what a stranger
       # installs against, with no lockfile of ours, and `@gjsify/gtk-host` consumes
-      # `@girs/<ns>/surface`. A minor `@girs` release moving that subpath under such an
+      # `@girs/<ns>/vocabulary`. A minor `@girs` release moving that subpath under such an
       # install is the hazard ADR 0029 § Risks 1 names.
       #
       # A script and not `upgrade --check --exact`, which answers the same question for a
