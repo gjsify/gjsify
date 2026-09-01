@@ -7,8 +7,9 @@
 //
 // EVERYTHING ELSE IS `not-reachable`, WHICH IS NOT A SCHEDULE. `Gesture` and
 // `GestureDetector` run WORKLETS, compiled by a Babel plugin that is not in this
-// build chain — ADR 0032's own Consequences name this library as the reason that
-// status exists. The legacy handler components (`PanGestureHandler` and friends) need
+// build chain — ADR 0032's own Consequences are where that status comes from, and the
+// library they name there is `react-native-reanimated`, which is the worklet compiler
+// this API is built on rather than this package. The legacy handler components (`PanGestureHandler` and friends) need
 // no worklets and GTK really has the controllers (`Gtk.GestureDrag`,
 // `Gtk.GestureClick`, `Gtk.GestureZoom`); what they need is an arbitration model, and
 // GTK's is claim/deny on a `Gtk.GestureGroup` rather than React Native's. That is

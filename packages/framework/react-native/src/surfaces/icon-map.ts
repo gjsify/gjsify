@@ -1,7 +1,7 @@
 // Ionicons' names → the icon theme's symbolic names, and the refusal for the rest.
 //
 // TWO PROVENANCES, AND THEY ARE NOT THE SAME STRENGTH. The GTK half is MEASURED:
-// `icon-map.spec.ts` asserts every target below is present in the installed icon
+// `surfaces.spec.ts` asserts every target below is present in the installed icon
 // theme, which is the half that can go wrong silently — GTK draws `image-missing` for
 // an icon it does not have and reports nothing, so a mapping table with an unmeasured
 // target would put a broken-image glyph in a shipped application. The Ionicons half is

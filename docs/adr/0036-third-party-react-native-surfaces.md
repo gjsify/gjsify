@@ -103,8 +103,11 @@ cases — and that unification pays for itself immediately: `import { Stack } fr
 Everything downstream is the same machinery pointed at a longer list, which is why
 this is a registry and not a copy:
 
-- the **generator** already takes a `TABLES` array (`scripts/generate-exports.mjs`) —
-  it gains rows, not code;
+- the **generator** reads the registry out of `support-table.ts`' source
+  (`scripts/generate-exports.mjs`) and emits one module per row. It did gain code, not
+  only rows — a parser for the `SURFACES` literal, a refusal reader for the staleness
+  comparison, and `SUPPORT.md` — and every one of those is self-tested in
+  `check-rn-surface.mjs`;
 - the **alias plugin** reads the registry instead of one constant, and its
   "target does not resolve" error becomes per surface;
 - the **gate** watches every declared specifier;
@@ -200,7 +203,7 @@ row only if it reaches a platform** — a native module, a native view, or a dev
 capability. Everything else is a dependency the application installs, and the honest
 answer is silence.
 
-### 5a. The criterion is not "is it a platform surface" — it is "can a consumer answer it"
+### 5.1 The criterion is not "is it a platform surface" — it is "can a consumer answer it"
 
 That is sharper than the class boundaries above, and it comes from a port rather than
 from reasoning. A consumer-side wrapper was written for the measured application, and
@@ -222,7 +225,7 @@ So the question to ask of a candidate surface is not "does it touch a platform" 
 answers are *build it*, *let them*, and *neither*. `hitSlop` is the reminder that the
 third one is real: not every refusal wants implementing.
 
-### 5b. Four expected surfaces are DECLARED and never imported
+### 5.2 Four expected surfaces are DECLARED and never imported
 
 Also measured on the port, and it is the finding that trims this ADR's own scope:
 `expo-linking`, `expo-web-browser`, `expo-constants` and `expo-system-ui` appear in the
@@ -234,8 +237,8 @@ same defect as an untriggered CI guard, one layer up: the mechanism exists, the 
 says it is covered, and nothing was ever asked of it.
 
 That does not delete their rows. A row costs a table entry and buys a build error with
-a reason instead of npm's "cannot find package", which is exactly what § 5b's
-declared-not-built class is for. What it changes is the ORDER: a surface earns
+a reason instead of npm's "cannot find package", which is exactly what § 5's
+declared-not-built class (b) is for. What it changes is the ORDER: a surface earns
 implementation when an application is measured importing it, and a declared dependency
 is not that measurement.
 

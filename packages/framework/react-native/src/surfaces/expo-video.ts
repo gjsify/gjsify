@@ -1,4 +1,4 @@
-// `expo-video` — declared, and answered on another track (ADR 0036 § 5b).
+// `expo-video` — declared, and answered on another track (ADR 0036 § 5 (b)).
 //
 // A ROW AND A POINTER, not a folder. Before ADR 0036 an import of this package failed
 // at MODULE RESOLUTION: the bundler said npm could not find it, which tells a porter

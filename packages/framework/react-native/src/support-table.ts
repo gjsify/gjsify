@@ -1186,7 +1186,7 @@ export const VECTOR_ICONS_TABLE: Readonly<Record<string, SupportEntry>> = {
     createIconSetFromIcoMoon: { status: 'refused', reason: 'As createIconSet.' },
 };
 
-// --- the surfaces this project deliberately does not build (ADR 0036 § 5b) ----
+// --- the surfaces this project does not build HERE (ADR 0036 § 5) -------------
 //
 // A row and a pointer, so the gate refuses the import with a reason instead of the
 // bundler failing on module resolution. Each of these has a real desktop answer and
