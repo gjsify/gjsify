@@ -16,6 +16,9 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import * as adwaitaWeb from './index.js';
+// See `exported-elements.ts`: the widget classes live inside the exported `Adw`/`Gtk`
+// objects, so a top-level `Object.values` finds only the web-only stragglers.
+import { exportedElementClasses } from './exported-elements.js';
 import { bindSlottedChildren, slottedChildrenOf } from './slotted-children.js';
 
 /** One microtask checkpoint — where a MutationObserver callback lands. */
@@ -164,9 +167,8 @@ export const AdwSlottedChildrenTest = async () => {
     // declared child and an appended one in the same place.
     await describe('every slotted element adopts a late child where it adopts a declared one', async () => {
         const tags: string[] = [];
-        for (const exported of Object.values(adwaitaWeb)) {
-            if (typeof exported !== 'function' || !(exported.prototype instanceof HTMLElement)) continue;
-            const tag = customElements.getName(exported as CustomElementConstructor);
+        for (const exported of exportedElementClasses(adwaitaWeb)) {
+            const tag = customElements.getName(exported);
             if (tag !== null) tags.push(tag);
         }
         tags.sort();

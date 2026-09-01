@@ -10,7 +10,7 @@ import '@gjsify/adwaita-web'; // registers the custom elements + self-injects th
 // default sans on macOS, on Windows and on any Linux that is not GNOME — and looks right
 // only on the machine it was written on.
 import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
-import type { GtkEntry, AdwHeaderBar } from '@gjsify/adwaita-web';
+import type { Adw, Gtk } from '@gjsify/adwaita-web';
 import { BrowserCore, BUILTIN_PAGE_URLS, DEFAULT_HOME_URL, type IFrameHandle } from '../browser-demo.js';
 
 // Idempotent, and a no-op where there is no `document` — so a build-time import of this
@@ -84,7 +84,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     const win = document.createElement('adw-window');
     win.classList.add('mb-window');
 
-    const header = document.createElement('adw-header-bar') as AdwHeaderBar;
+    const header = document.createElement('adw-header-bar') as Adw.HeaderBar;
 
     const quicknav = document.createElement('div');
     quicknav.className = 'mb-quicknav';
@@ -107,7 +107,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     forwardBtn.setAttribute('disabled', '');
     header.startSection?.append(backBtn, forwardBtn, reloadBtn);
 
-    const urlEntry = document.createElement('gtk-entry') as GtkEntry;
+    const urlEntry = document.createElement('gtk-entry') as Gtk.Entry;
     urlEntry.classList.add('mb-url');
     urlEntry.setAttribute('placeholder', 'Search or enter address');
     urlEntry.setAttribute('value', homeUrl);

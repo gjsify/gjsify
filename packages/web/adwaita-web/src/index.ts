@@ -63,8 +63,34 @@ export type { AdwUndershootEdges } from './scroll-shading.js';
 // `icon-registry.ts` for the full recipe.
 export { isIconAvailable, registerIcon } from './icon-registry.js';
 
-export { AdwAvatar } from './elements/adw-avatar.js';
-export { AdwBanner } from './elements/adw-banner.js';
+// THE WIDGET CLASSES ARE REACHABLE ONLY AS `Adw.<Name>` / `Gtk.<Name>` (ADR 0034
+// clause 2 + § Amendment 6). This line used to be the LAST one in the file, under a
+// run of `export { AdwActionRow } …` re-exports it duplicated one for one; those are
+// gone, and with them the second spelling. `<adw-action-row>` and `<gtk-entry>` are
+// unchanged — this was never about the tags.
+//
+// IT IS ALSO WHAT PULLS THE ELEMENT MODULES IN, so importing this barrel still
+// registers everything. The old order comment ("exported before the widgets that build
+// them") described a sequence that is not load-bearing and never was: every host
+// imports its prerequisite itself (`import './gtk-switch.js'` in the switch rows,
+// `createGtkImage` from `./gtk-image.js` in every widget that draws an icon), so the
+// module graph fixes the order whatever a barrel does. The order that IS load-bearing
+// is the one inside a single module, and `scripts/check-adwaita-upgrade-order.mjs`
+// holds that.
+export { Adw, Gtk } from './namespace.js';
+
+// WHAT DID NOT MOVE INTO THE NAMESPACE, and the rule that decides it. A member exists
+// for an element whose GIR tag names a real widget; `WEB_ELEMENT_ALIGNMENT` declares the
+// rest `webOnly`, meaning no widget in the reference vocabulary stands behind it, so
+// there is no GIR name to export it under and inventing one would be held against
+// nothing but prose (ADR 0034 § 5). Those classes therefore keep their flat name, and
+// that is not a second spelling: it is their only one.
+//
+// Everything else below is not a widget class at all — a factory, a helper, or a type —
+// and a type has no namespace member to move to.
+
+// Two elements with no GTK counterpart: `.adw-card` is a style class here and a styled
+// container on GTK, and the grid is presentational where GTK would use a plain Gtk.Grid.
 export { AdwCard } from './elements/adw-card.js';
 export { AdwDataGrid } from './elements/adw-data-grid.js';
 export type {
@@ -73,71 +99,33 @@ export type {
     AdwDataGridRow,
     AdwDataGridRowVariant,
 } from './elements/adw-data-grid.js';
-export { AdwClamp } from './elements/adw-clamp.js';
-export { AdwSpinner } from './elements/adw-spinner.js';
-export { AdwStatusPage } from './elements/adw-status-page.js';
-export { AdwWindow } from './elements/adw-window.js';
-export { AdwHeaderBar } from './elements/adw-header-bar.js';
-export { AdwWindowTitle } from './elements/adw-window-title.js';
-export { GtkButton } from './elements/gtk-button.js';
-export { AdwButtonContent } from './elements/adw-button-content.js';
-// The ONE symbolic-icon node and the ONE toggle, exported before the widgets that build
-// them so the barrel's definition order matches theirs. Each host ALSO imports them
-// directly, which is what actually guarantees the tags are defined before a
-// server-rendered host upgrades.
-export { GtkImage, createGtkImage } from './elements/gtk-image.js';
-export { GtkSwitch } from './elements/gtk-switch.js';
-// The two form-control primitives. ONE module, because upstream merges their
-// stylesheet (`_checks.scss`; there is no `_radio.scss` in libadwaita) and
-// everything but the corner radius, the glyph and the group is shared.
-export { GtkCheckButton, AdwRadio } from './elements/checks.js';
-// The determinate progress indicator — <adw-spinner> covers only the indeterminate case.
-export { GtkProgressBar } from './elements/gtk-progress-bar.js';
-// A keyboard shortcut, drawn as keycaps. The accelerator GRAMMAR lives in
-// @gjsify/adwaita-core; this element only builds the nodes.
-export { AdwShortcutLabel } from './elements/adw-shortcut-label.js';
-// The ONE popover surface, exported before its three hosts for the same reason as
-// <gtk-image> above.
-export { GtkPopover } from './elements/gtk-popover.js';
-export type { GtkPopoverAlign, GtkPopoverPosition, GtkPopoverRole } from './elements/gtk-popover.js';
-export { AdwSplitButton } from './elements/adw-split-button.js';
-export { AdwToggle, AdwToggleGroup } from './elements/adw-toggle-group.js';
-export { GtkEntry } from './elements/gtk-entry.js';
-export { AdwPreferencesGroup } from './elements/adw-preferences-group.js';
-export { AdwActionRow } from './elements/adw-action-row.js';
-export { AdwEntryRow } from './elements/adw-entry-row.js';
-export { AdwSwitchRow } from './elements/adw-switch-row.js';
-export { AdwComboRow } from './elements/adw-combo-row.js';
-export { AdwSpinRow } from './elements/adw-spin-row.js';
-export { AdwButtonRow } from './elements/adw-button-row.js';
-export { AdwExpanderRow } from './elements/adw-expander-row.js';
-export { AdwPasswordEntryRow } from './elements/adw-password-entry-row.js';
-export { AdwToastOverlay } from './elements/adw-toast-overlay.js';
-export { AdwToolbarView } from './elements/adw-toolbar-view.js';
-export { AdwWrapBox } from './elements/adw-wrap-box.js';
-export { AdwOverlaySplitView } from './elements/adw-overlay-split-view.js';
-export { AdwNavigationSplitView } from './elements/adw-navigation-split-view.js';
-export { AdwCarousel, AdwCarouselIndicatorDots, AdwCarouselIndicatorLines } from './elements/adw-carousel.js';
-export { AdwTabPage, AdwTabView } from './elements/adw-tab-view.js';
-export { AdwViewSwitcher, AdwViewSwitcherPage } from './elements/adw-view-switcher.js';
-export { AdwInlineViewSwitcher, AdwViewStackPage } from './elements/adw-inline-view-switcher.js';
-export { AdwViewStack } from './elements/adw-view-stack.js';
-export type { AdwViewStackPageInfo } from './elements/adw-view-stack.js';
-export { AdwViewSwitcherBar } from './elements/adw-view-switcher-bar.js';
-export { GtkMenuButton } from './elements/gtk-menu-button.js';
-export type { AdwMenuItem } from './elements/gtk-menu-button.js';
-export { GtkDropDown } from './elements/gtk-drop-down.js';
-export type { GtkDropDownOption } from './elements/gtk-drop-down.js';
-export { AdwNavigationPage, AdwNavigationView } from './elements/adw-navigation-view.js';
-export { AdwBottomSheet, AdwBottomSheetContent, AdwBottomSheetSheet } from './elements/adw-bottom-sheet.js';
-export { AdwSidebar, AdwSidebarItem, AdwSidebarSection } from './elements/adw-sidebar.js';
-export { AdwAboutDialog } from './elements/adw-about-dialog.js';
-export { AdwAlertDialog, AdwAlertResponse } from './elements/adw-alert-dialog.js';
-export { AdwPreferencesDialog, AdwPreferencesPage } from './elements/adw-preferences-dialog.js';
-export { AdwDialog } from './elements/adw-dialog.js';
-export type { AdwDialogPresentationMode } from './elements/adw-dialog.js';
 
-// ADR 0034 clause 2 — the same widgets, reachable as `Adw.ActionRow` / `Gtk.Entry`. LAST,
-// so every element module above is already evaluated and no tag is defined later than it
-// was: this line only adds a second spelling, it must not move a registration.
-export { Adw, Gtk } from './namespace.js';
+// The symbolic-icon FACTORY. `Gtk.Image` is the element; this builds one without a tag,
+// which the icon-drawing element modules use internally and a consumer with its own
+// chrome needs.
+export { createGtkImage } from './elements/gtk-image.js';
+
+// GTK4 has no radio TYPE — a radio is a GtkCheckButton with its `group` set — so
+// `Gtk.CheckButton` is the plain form and the grouped one has only this name.
+export { AdwRadio } from './elements/checks.js';
+
+// The declarative children of four composites. Each descends from `GObject.Object` and
+// not `GtkWidget` on GTK, so the table of concrete widgets has no row for them; the day
+// it grows one, its member appears in `namespace.ts` by itself.
+export { AdwTabPage } from './elements/adw-tab-view.js';
+export { AdwViewSwitcherPage } from './elements/adw-view-switcher.js';
+export { AdwViewStackPage } from './elements/adw-inline-view-switcher.js';
+export { AdwSidebarItem, AdwSidebarSection } from './elements/adw-sidebar.js';
+
+// Slot wrappers and a declarative response: on GTK these are `set_content()`,
+// `set_sheet()` and `add_response()` — calls, not widgets.
+export { AdwBottomSheetContent, AdwBottomSheetSheet } from './elements/adw-bottom-sheet.js';
+export { AdwAlertResponse } from './elements/adw-alert-dialog.js';
+
+// Supporting types — the option bags, enums and unions the widgets above take and
+// return. Not widgets, so clause 2 has nothing to say about them.
+export type { GtkPopoverAlign, GtkPopoverPosition, GtkPopoverRole } from './elements/gtk-popover.js';
+export type { AdwViewStackPageInfo } from './elements/adw-view-stack.js';
+export type { AdwMenuItem } from './elements/gtk-menu-button.js';
+export type { GtkDropDownOption } from './elements/gtk-drop-down.js';
+export type { AdwDialogPresentationMode } from './elements/adw-dialog.js';

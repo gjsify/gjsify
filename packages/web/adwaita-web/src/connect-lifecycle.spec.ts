@@ -24,6 +24,10 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import * as adwaitaWeb from './index.js';
+// Not a bare `Object.values` walk: since ADR 0034 § Amendment 6 the widget classes are
+// members of the exported `Adw`/`Gtk` objects, so a top-level scan reaches only the
+// web-only stragglers while reading as if it swept the package.
+import { exportedElementClasses } from './exported-elements.js';
 
 /**
  * Elements that cannot RENDER a child, however the DOM lets you append one. A container
@@ -85,9 +89,8 @@ function reveal(el: HTMLElement): void {
 function registeredElements(): { tags: string[]; unregistered: string[] } {
     const tags: string[] = [];
     const unregistered: string[] = [];
-    for (const exported of Object.values(adwaitaWeb)) {
-        if (typeof exported !== 'function' || !(exported.prototype instanceof HTMLElement)) continue;
-        const tag = customElements.getName(exported as CustomElementConstructor);
+    for (const exported of exportedElementClasses(adwaitaWeb)) {
+        const tag = customElements.getName(exported);
         if (tag === null) unregistered.push(exported.name);
         else tags.push(tag);
     }

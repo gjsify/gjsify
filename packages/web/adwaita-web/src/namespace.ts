@@ -1,6 +1,12 @@
-// ADR 0034 clause 2 — the vocabulary is also reachable as a NAMESPACE (`Adw.ActionRow`,
-// `Gtk.Entry`), not only as prefixed classes. Additive: every `Adw…` export keeps working,
-// every `<adw-…>` tag keeps working, and nothing published moves.
+// ADR 0034 clause 2 — the vocabulary is reachable as a NAMESPACE (`Adw.ActionRow`,
+// `Gtk.Entry`), and since § Amendment 6 that is the ONLY way to reach one of these
+// widget classes: the prefixed `AdwActionRow` / `GtkEntry` exports are gone from the
+// package root. The TAGS are untouched — `<adw-action-row>` and `<gtk-entry>` are what
+// they were, and this file changes no registration.
+//
+// It landed additive, and the amendment says why that could not be the end state: a
+// second spelling that never goes away is a permanent second vocabulary, which is the
+// thing clause 2 exists to remove.
 //
 // WHICH NAMESPACE A MEMBER LANDS IN IS NOT A CHOICE MADE HERE. It is read off the GIR tag
 // the element already answers to, which is clause 1 applied rather than restated:
@@ -148,3 +154,75 @@ export const Gtk = {
     ProgressBar: GtkProgressBar,
     Switch: GtkSwitch,
 };
+
+/**
+ * …and the same members as TYPES, so `Adw.ActionRow` annotates a variable as well as
+ * constructs one. Without this half the namespace would be reachable in value position
+ * only, and removing the flat classes would have cost consumers the annotation they
+ * actually import (all seven call sites in this repository imported them with
+ * `import type`).
+ *
+ * WRITTEN AS `InstanceType<typeof Adw.X>`, NOT `AdwX`, SO THE LIST CANNOT DRIFT UPWARDS:
+ * a type for a member the object above does not have is `error TS2339` from `gjsify tsc`,
+ * not a name that quietly resolves. The other direction — a member with no type — is not
+ * held here; it surfaces as a compile error at the first consumer that annotates with it.
+ */
+export namespace Adw {
+    export type AboutDialog = InstanceType<typeof Adw.AboutDialog>;
+    export type ActionRow = InstanceType<typeof Adw.ActionRow>;
+    export type AlertDialog = InstanceType<typeof Adw.AlertDialog>;
+    export type Avatar = InstanceType<typeof Adw.Avatar>;
+    export type Banner = InstanceType<typeof Adw.Banner>;
+    export type BottomSheet = InstanceType<typeof Adw.BottomSheet>;
+    export type ButtonContent = InstanceType<typeof Adw.ButtonContent>;
+    export type ButtonRow = InstanceType<typeof Adw.ButtonRow>;
+    export type Carousel = InstanceType<typeof Adw.Carousel>;
+    export type CarouselIndicatorDots = InstanceType<typeof Adw.CarouselIndicatorDots>;
+    export type CarouselIndicatorLines = InstanceType<typeof Adw.CarouselIndicatorLines>;
+    export type Clamp = InstanceType<typeof Adw.Clamp>;
+    export type ComboRow = InstanceType<typeof Adw.ComboRow>;
+    export type Dialog = InstanceType<typeof Adw.Dialog>;
+    export type EntryRow = InstanceType<typeof Adw.EntryRow>;
+    export type ExpanderRow = InstanceType<typeof Adw.ExpanderRow>;
+    export type HeaderBar = InstanceType<typeof Adw.HeaderBar>;
+    export type InlineViewSwitcher = InstanceType<typeof Adw.InlineViewSwitcher>;
+    export type NavigationPage = InstanceType<typeof Adw.NavigationPage>;
+    export type NavigationSplitView = InstanceType<typeof Adw.NavigationSplitView>;
+    export type NavigationView = InstanceType<typeof Adw.NavigationView>;
+    export type OverlaySplitView = InstanceType<typeof Adw.OverlaySplitView>;
+    export type PasswordEntryRow = InstanceType<typeof Adw.PasswordEntryRow>;
+    export type PreferencesDialog = InstanceType<typeof Adw.PreferencesDialog>;
+    export type PreferencesGroup = InstanceType<typeof Adw.PreferencesGroup>;
+    export type PreferencesPage = InstanceType<typeof Adw.PreferencesPage>;
+    export type ShortcutLabel = InstanceType<typeof Adw.ShortcutLabel>;
+    export type Sidebar = InstanceType<typeof Adw.Sidebar>;
+    export type SpinRow = InstanceType<typeof Adw.SpinRow>;
+    export type Spinner = InstanceType<typeof Adw.Spinner>;
+    export type SplitButton = InstanceType<typeof Adw.SplitButton>;
+    export type StatusPage = InstanceType<typeof Adw.StatusPage>;
+    export type SwitchRow = InstanceType<typeof Adw.SwitchRow>;
+    export type TabView = InstanceType<typeof Adw.TabView>;
+    export type ToastOverlay = InstanceType<typeof Adw.ToastOverlay>;
+    export type Toggle = InstanceType<typeof Adw.Toggle>;
+    export type ToggleGroup = InstanceType<typeof Adw.ToggleGroup>;
+    export type ToolbarView = InstanceType<typeof Adw.ToolbarView>;
+    export type ViewStack = InstanceType<typeof Adw.ViewStack>;
+    export type ViewSwitcher = InstanceType<typeof Adw.ViewSwitcher>;
+    export type ViewSwitcherBar = InstanceType<typeof Adw.ViewSwitcherBar>;
+    export type Window = InstanceType<typeof Adw.Window>;
+    export type WindowTitle = InstanceType<typeof Adw.WindowTitle>;
+    export type WrapBox = InstanceType<typeof Adw.WrapBox>;
+}
+
+/** The GTK half's instance types, on the same terms as `Adw`'s above. */
+export namespace Gtk {
+    export type Button = InstanceType<typeof Gtk.Button>;
+    export type CheckButton = InstanceType<typeof Gtk.CheckButton>;
+    export type DropDown = InstanceType<typeof Gtk.DropDown>;
+    export type Entry = InstanceType<typeof Gtk.Entry>;
+    export type Image = InstanceType<typeof Gtk.Image>;
+    export type MenuButton = InstanceType<typeof Gtk.MenuButton>;
+    export type Popover = InstanceType<typeof Gtk.Popover>;
+    export type ProgressBar = InstanceType<typeof Gtk.ProgressBar>;
+    export type Switch = InstanceType<typeof Gtk.Switch>;
+}
