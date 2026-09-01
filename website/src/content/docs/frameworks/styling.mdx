@@ -349,14 +349,26 @@ neutral theme is how an application returns to Adwaita *exactly*, which is measu
 true — reloading the provider to the empty string restores every named colour to
 libadwaita's own value.
 
-### The accent is not a property you can set
+### The accent is a custom property, not `AdwStyleManager`
 
-**Measured on libadwaita 1.9.3: `AdwStyleManager:accent-color` is read-only.** It
-reports what the user chose; assigning to it throws *Property
-AdwStyleManager.accent-color is not writable*, and the ParamSpec carries no
-`WRITABLE` flag. So "set the accent from the application's tokens" is not a property
-write at all — it is a CSS custom property, `--accent-bg-color` and its 47 siblings,
-redefined on `:root`, which is what Adwaita's own rules resolve against.
+**`AdwStyleManager:accent-color` cannot carry a design token's accent on any runtime,
+because it is an enum.** `AdwAccentColor` has nine members — BLUE, TEAL, GREEN,
+YELLOW, ORANGE, RED, PINK, PURPLE, SLATE — so `rgb(17 34 51)` has no representation
+in it. The accent is therefore a CSS custom property: `--accent-bg-color` and its 47
+siblings, redefined on `:root`, which is what Adwaita's own rules resolve against.
+
+**Whether that property is even writable depends on the runtime**, and this page said
+otherwise until it was measured on more than one. It is read-only on one host —
+assigning throws *Property AdwStyleManager.accent-color is not writable* — and
+**writable** on the darwin runtime bundle, whose libadwaita is later and grew a
+setter. Both are true, and neither is a fact about this layer.
+
+The distinction is worth the paragraph, because "the property is locked" and "the
+property is the wrong shape" lead to different code. The first invites *just set the
+property* the moment someone's own machine allows it — which produces an application
+that ignores its own accent token on every host where it is read-only, and can only
+ever reach nine colours on the hosts where it is not. The theme registry reads and
+writes that property nowhere, and branches on its writability nowhere.
 
 48 named colours are measured to exist and are the set a theme may override. A name
 libadwaita does not define is refused: `--acccent-bg-color` is a perfectly valid

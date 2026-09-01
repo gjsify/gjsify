@@ -24,9 +24,35 @@ the settings UI that switches them, and a decision about what "at home on macOS"
 home on Windows" actually mean in Adwaita's named colours — which is a design question and
 not a coding one, and should not be answered by guessing three palettes.
 
-The one thing NOT to reach for while doing it: `Adw.StyleManager:accent-color` is
-read-only (measured, libadwaita 1.9.3). An accent is a `--accent-bg-color` redefinition in
-the theme's document, never a property write.
+The one thing NOT to reach for while doing it: `Adw.StyleManager:accent-color`. It is an
+ENUM (`AdwAccentColor`, nine named accents), so a token colour has no representation in it
+on ANY runtime — an accent is a `--accent-bg-color` redefinition in the theme's document,
+never a property write. Its WRITABILITY additionally varies (read-only on one host,
+writable on the darwin runtime bundle), so it is not something to branch on either.
+
+### A correctly measured host fact, written as a layer invariant
+
+Three instances landed on one day: a POSIX-shaped expectation in an image-path test,
+GTK's Unix print stack inside a platform-neutrally declared table, and
+`Adw.StyleManager:accent-color` asserted READ-ONLY. Each was measured correctly. Each was
+then written as though it were true of the layer rather than of the machine it was
+measured on, and each surfaced only when a leg ran somewhere else.
+
+The accent one is the instructive one, because the wrong claim reached a person before it
+reached CI: "the accent cannot be set directly, it must go through a CSS redefinition" was
+passed on as a product fact, and on at least one of the three target platforms the premise
+is false — the property is writable there. The CONCLUSION happened to survive, but for a
+different and stronger reason than the one given: `accent-color` is an enum of nine named
+accents, so it cannot carry a design token's colour on any runtime, writable or not. A
+right answer resting on a wrong reason is the shape that breaks the moment someone acts on
+the reason.
+
+The mechanism this wants is not more care. A spec asserting a `ParamSpec` flag, a `libc`
+default, a path separator or an installed library's version is asserting a property of the
+CLOSURE it runs in; the portable claim is almost always about the EFFECT one layer up.
+Worth a rule the OS legs can enforce — something that flags an assertion whose subject is a
+runtime-provided flag or version — because all three of these were invisible until a leg
+that nobody watches went red.
 
 ### `packages/framework/AGENTS.md` is 150 bytes from silent truncation
 

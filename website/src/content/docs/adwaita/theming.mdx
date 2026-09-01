@@ -146,9 +146,11 @@ entry point.
 ## On the desktop, the accent is not yours to set through `AdwStyleManager`
 
 A native GTK app takes its accent from the user's GNOME setting, and
-**`AdwStyleManager:accent-color` is read-only** — measured on libadwaita 1.9.3,
-assigning to it throws *Property AdwStyleManager.accent-color is not writable*. So
-the property is a report, never a setting.
+`AdwStyleManager:accent-color` is the wrong handle for an app's own accent on every
+runtime: it is an **enum** (`AdwAccentColor` — nine named accents), so a token colour
+like `#9141ac` has no representation in it. Whether it is writable at all *varies* —
+measured read-only on one host and writable on a later libadwaita — so it is not
+something to branch on either.
 
 A native app *can* still override the palette, and by the same mechanism this page
 uses on the web: redefining `--accent-bg-color` and its siblings on `:root`, in a

@@ -11,14 +11,29 @@
 // THREE DECISIONS, ALL MEASURED ON gtk 4.22.4 / libadwaita 1.9.3. Every one of them
 // is a case where the plausible guess is wrong.
 //
-// 1. **`Adw.StyleManager:accent-color` is READ-ONLY.** It reports what the USER
-//    chose in their desktop settings; assigning to it throws `Property
-//    AdwStyleManager.accent-color is not writable` (measured — the ParamSpec carries
-//    no WRITABLE flag). So "set the accent from the application's tokens" is not a
-//    property write at all. It is a CSS custom property: `--accent-bg-color` and its
-//    47 siblings, redefined on `:root`, which is what Adwaita's own rules resolve
-//    against. Measured end to end — a `:root` override changes what a `var()` reader
-//    sees, and therefore what every Adwaita rule reading the same name paints.
+// 1. **`Adw.StyleManager:accent-color` cannot carry a design token's accent — on
+//    ANY runtime — because it is an ENUM.** `AdwAccentColor` has nine members
+//    (BLUE, TEAL, GREEN, YELLOW, ORANGE, RED, PINK, PURPLE, SLATE, measured), so
+//    `rgb(17 34 51)` has no representation in it. The accent is therefore a CSS
+//    custom property: `--accent-bg-color` and its 47 siblings, redefined on
+//    `:root`, which is what Adwaita's own rules resolve against. Measured end to
+//    end — a `:root` override changes what a `var()` reader sees, and therefore
+//    what every Adwaita rule reading the same name paints.
+//
+//    WHETHER THE PROPERTY IS WRITABLE VARIES BY RUNTIME, and this module used to
+//    say it did not. Measured read-only on one host (assigning throws `Property
+//    AdwStyleManager.accent-color is not writable`) and WRITABLE on the darwin
+//    runtime bundle, whose libadwaita is later and grew a setter. Both are true;
+//    neither is a fact about this layer. The correction matters because the old
+//    reasoning made the CSS route sound like a WORKAROUND for a locked property —
+//    which invites "just set the property" the moment someone's own machine allows
+//    it, and that produces an application that ignores its own accent token on
+//    every host where the property is read-only, and can only ever reach nine
+//    colours on the hosts where it is not.
+//
+//    So nothing here reads or writes that property, and nothing branches on its
+//    writability: the custom-property route is the only one that expresses the
+//    value, and it is the same on every target.
 //
 //    The legacy `@define-color accent_bg_color …` spelling still works too, and is
 //    NOT what this module emits: `--accent-bg-color` is the current one, and mixing

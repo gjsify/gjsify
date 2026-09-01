@@ -87,6 +87,11 @@ export default async () => {
         };
         const drop = (one: Gtk.CssProvider): void => Gtk.StyleContext.remove_provider_for_display(display, one);
 
+        // libadwaita's own accent, read before any theme is installed. The reset at
+        // the end of the accent vector is asserted against it, so "put it back" is a
+        // checked claim rather than a hopeful call.
+        const adwaitaAccent = resolved('accent-bg-color');
+
         await gated(diagnostics, 'the Adwaita named colours, re-measured', async () => {
             await it('defines every name the table claims', async () => {
                 // The reason this is measured rather than read: a name libadwaita does
@@ -105,16 +110,63 @@ export default async () => {
                 expect(present).toStrictEqual([]);
             });
 
-            await it('reports Adw.StyleManager:accent-color as READ-ONLY', async () => {
-                // The measurement that decides HOW an accent is set. If a libadwaita
-                // release ever makes it writable this goes red, and the module's
-                // decision 1 gets to be revisited on evidence instead of on a memory.
+            await it('sets an accent no enum could carry, whatever the property allows', async () => {
+                // WHAT THIS VECTOR REPLACED WAS TRUE AND TOO NARROW, and the correction
+                // is the point. It asserted `Adw.StyleManager:accent-color` is
+                // READ-ONLY — measured, correctly, on one host. It is WRITABLE on the
+                // darwin runtime bundle, whose libadwaita is later and grew a setter.
+                // The measurement was right about the machine it ran on and was
+                // written as an invariant about the layer, which is how a green suite
+                // becomes a red one on a platform nobody ran it on.
+                //
+                // The claim that holds on every runtime is about the EFFECT, and it is
+                // the stronger reason anyway: `accent-color` is an ENUM —
+                // `AdwAccentColor`, nine named accents (measured) — and not a colour.
+                // So on NO runtime, writable or not, can it carry a design token's
+                // `rgb(17 34 51)`. Setting the accent as a custom property is
+                // therefore not a workaround for a read-only property; it is the only
+                // mechanism that can express the value at all.
                 const spec = GObject.Object.find_property.call(
                     Adw.StyleManager as unknown as GObject.ObjectClass,
                     'accent-color',
                 );
                 expect(spec === null).toBe(false);
-                expect(((spec as GObject.ParamSpec).flags & GObject.ParamFlags.WRITABLE) !== 0).toBe(false);
+
+                // Asserted, and this one is safe where the flag was not: a property
+                // GAINING a setter is an additive change libadwaita can make and did,
+                // while changing its value type from an enum to a colour would break
+                // its own ABI. Different risk class, so it can carry the reason.
+                expect(GObject.type_is_a((spec as GObject.ParamSpec).value_type, GObject.TYPE_ENUM)).toBe(true);
+
+                // REPORTED, never asserted: which side of the split this runtime is
+                // on. It belongs in the log so a future change stays visible, and out
+                // of an expectation, because BOTH answers are correct.
+                const writable = ((spec as GObject.ParamSpec).flags & GObject.ParamFlags.WRITABLE) !== 0;
+                console.log(
+                    `      [measured] Adw.StyleManager:accent-color is ${writable ? 'WRITABLE' : 'read-only'} here — ` +
+                        'both occur across the shipped libadwaita closures, and this layer depends on neither',
+                );
+
+                // An accent that is not one of the nine, set through the registry and
+                // resolved by the same cascade every Adwaita rule reads. THIS is what
+                // goes red if someone rewires the seam to the property because their
+                // own machine happened to allow it.
+                const registry = new ThemeRegistry({ display });
+                registry.register({ name: 'token-accent', namedColors: { 'accent-bg-color': 'rgb(17 34 51)' } });
+                registry.select('token-accent');
+                expect(resolved('accent-bg-color')).toBe('rgb(17,34,51)');
+
+                // PUT BACK, and not out of tidiness: a registry installs its provider
+                // on the SHARED display and nothing takes it off again, so a theme
+                // left selected here outranks the 199/201 providers the priority group
+                // below installs — measured, as a red vector in a group this one does
+                // not belong to. Selecting the neutral theme reloads the document to
+                // empty, which restores libadwaita's own values exactly; that is the
+                // guarantee the neutral default exists to give, used here to keep this
+                // vector from deciding the result of the next one.
+                registry.register(NEUTRAL_THEME);
+                registry.select('neutral');
+                expect(resolved('accent-bg-color')).toBe(adwaitaAccent);
             });
         });
 
