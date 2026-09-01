@@ -166,6 +166,7 @@ import { fileURLToPath } from 'node:url';
 import {
     adwaitaNativeScriptWidgets,
     elementName,
+    namespaceBarrelMembers,
     settablePropertiesOfClass,
     widgetClass,
     widgetClassOfTag,
@@ -203,7 +204,7 @@ const RN_TABLE_SOURCE = 'RN_WIDGET_ALIGNMENT in scripts/check-vocabulary-alignme
 const NS_PROPERTY_TABLE_SOURCE = 'NS_PROPERTY_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
 
 /** Where the web surface's clause-2 namespace lives. Named in every namespace failure. */
-const NAMESPACE_SOURCE = 'the Adw/Gtk namespace in packages/web/adwaita-web/src/namespace.ts';
+const NAMESPACE_SOURCE = 'the Adw/Gtk namespace barrels in packages/web/adwaita-web/src/namespace/';
 
 /**
  * The floor a declared divergence has to clear, borrowed rather than invented:
@@ -2019,8 +2020,55 @@ const READER_VECTORS = [
     ["// see `packages/*` for the rest\nconst t = 'gtk-box';\n/** doc */\nconst y = 2;", [], ["'gtk-box'"]],
 ];
 
-function readerSelfTest() {
+/**
+ * The namespace-BARREL reader gets its own, for the same reason and one sharper.
+ *
+ * `namespaceExport` has two shapes to read now — an object literal and a module
+ * (`export * as Adw from './namespace/adw.js'`, ADR 0034 § Amendment 6) — and the second
+ * one's under-read is the expensive kind: a member line the parser fails to see is
+ * reported as `Adw.Clamp is missing from the namespace barrels`, about a file that has
+ * the line. That is `readDialect`'s incident in a new place, so it gets the same answer.
+ *
+ * Each vector is a barrel fragment plus the `member:binding` pairs the reader must find.
+ */
+const NAMESPACE_BARREL_VECTORS = [
+    ["export { AdwClamp as Clamp } from '../elements/adw-clamp.js';", ['Clamp:AdwClamp']],
+    // Several members on one line, and one bound to its own name.
+    [
+        "export { AdwToggle as Toggle, AdwToggleGroup } from '../elements/adw-toggle-group.js';",
+        ['Toggle:AdwToggle', 'AdwToggleGroup:AdwToggleGroup'],
+    ],
+    // Whitespace and a wrapped list — oxfmt writes both shapes.
+    ["export {\n    AdwBanner as Banner,\n} from '../elements/adw-banner.js';", ['Banner:AdwBanner']],
+    // A TYPE re-export is not a member: the namespace's job is the constructors.
+    ["export type { AdwMenuItem as MenuItem } from '../elements/gtk-menu-button.js';", []],
+    [
+        "export { type AdwMenuItem as MenuItem, GtkMenuButton as MenuButton } from '../elements/gtk-menu-button.js';",
+        ['MenuButton:GtkMenuButton'],
+    ],
+    // A local declaration is not a re-export, so it is not a member either.
+    ['export const Clamp = 1;', []],
+];
+
+function namespaceBarrelSelfTest() {
     const failures = [];
+    for (const [source, want] of NAMESPACE_BARREL_VECTORS) {
+        let got;
+        try {
+            got = [...namespaceBarrelMembers(source, 'vector')].map(([m, b]) => `${m}:${b}`);
+        } catch {
+            // An empty read THROWS by design; a vector that wants nothing wants the throw.
+            got = [];
+        }
+        if (got.sort().join(',') !== [...want].sort().join(',')) {
+            failures.push(`namespaceBarrelMembers(${JSON.stringify(source)}) found [${got}], wanted [${want}]`);
+        }
+    }
+    return failures;
+}
+
+function readerSelfTest() {
+    const failures = [...namespaceBarrelSelfTest()];
     for (const [source, wantImports, wantLiterals] of READER_VECTORS) {
         const { imported, literals } = readDialect(source);
         const got = [...imported].sort().join(',');
@@ -2187,7 +2235,7 @@ const census = propertyCensus(world);
 const propConverge = kindCount(NS_PROPERTY_ALIGNMENT, 'gir');
 console.log(
     `check-vocabulary-alignment: self-test green — ${VECTORS.length - 1} failing vector(s), ` +
-        `${READER_VECTORS.length} reader vector(s). ` +
+        `${READER_VECTORS.length + NAMESPACE_BARREL_VECTORS.length} reader vector(s). ` +
         `${world.surfaces.declared.length} declared widget surface(s), every one of them read. ` +
         `${world.runtime.size} GTK tags across ${DIALECTS.length} dialect surfaces + the runtime table + the ` +
         `surface data; ${world.webElements.length} ${WEB_SURFACE} elements — ${shared} share a spelling, ` +

@@ -64,7 +64,7 @@ export type { AdwUndershootEdges } from './scroll-shading.js';
 export { isIconAvailable, registerIcon } from './icon-registry.js';
 
 // THE WIDGET CLASSES ARE REACHABLE ONLY AS `Adw.<Name>` / `Gtk.<Name>` (ADR 0034
-// clause 2 + § Amendment 6). This line used to be the LAST one in the file, under a
+// clause 2 + § Amendment 6). The namespace used to be the LAST line in the file, under a
 // run of `export { AdwActionRow } …` re-exports it duplicated one for one; those are
 // gone, and with them the second spelling. `<adw-action-row>` and `<gtk-entry>` are
 // unchanged — this was never about the tags.
@@ -77,7 +77,15 @@ export { isIconAvailable, registerIcon } from './icon-registry.js';
 // module graph fixes the order whatever a barrel does. The order that IS load-bearing
 // is the one inside a single module, and `scripts/check-adwaita-upgrade-order.mjs`
 // holds that.
-export { Adw, Gtk } from './namespace.js';
+//
+// `export * as`, NOT an object literal, and that is a bundler constraint rather than a
+// preference: a module namespace carries the TYPE meaning of every name in it, so
+// `as Adw.HeaderBar` works with no second list of instance types — and the merge that
+// would have produced those types (`export const Adw` beside `export namespace Adw`) is
+// a PARSE_ERROR in rolldown's oxc parser even though `tsc` accepts it. The reasoning is
+// in `namespace/adw.ts`.
+export * as Adw from './namespace/adw.js';
+export * as Gtk from './namespace/gtk.js';
 
 // WHAT DID NOT MOVE INTO THE NAMESPACE, and the rule that decides it. A member exists
 // for an element whose GIR tag names a real widget; `WEB_ELEMENT_ALIGNMENT` declares the

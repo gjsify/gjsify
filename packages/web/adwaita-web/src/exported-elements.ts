@@ -12,9 +12,12 @@
 // than it reads, and the next removal will be smaller.
 //
 // So the walk goes ONE LEVEL into the exported objects, which is where `Adw` and `Gtk`
-// put their members. One level and not a recursion: the namespaces are flat by
-// construction (`namespace.ts` builds them from a single object literal each), and a
-// deep walk would start reporting whatever a future export happens to hang off itself.
+// put their members. `typeof` is what picks them out and it does not care that they are
+// MODULE namespaces rather than plain objects (`export * as Adw from
+// ./namespace/adw.js`) — a module namespace answers `object` and enumerates under
+// `Object.values` like any other. One level and not a recursion: both barrels are flat
+// by construction, and a deep walk would start reporting whatever a future export
+// happens to hang off itself.
 //
 // It is a module rather than a copy in each spec because the second copy is where a
 // helper gets lifted, and this was already the second copy.

@@ -847,6 +847,59 @@ const NAMESPACE_DECLARATION = /export const (Adw|Gtk) = \{([^}]*)\}/g;
 /** `export { Adw, Gtk } from './namespace.js'` — the one hop {@link namespaceExport} follows. */
 const NAMESPACE_REEXPORT = /export\s*\{([^}]*)\}\s*from\s*'(\.[^']*)'/g;
 
+/** `export * as Adw from './namespace/adw.js'` — the OTHER shape, one module per namespace. */
+const NAMESPACE_STAR_REEXPORT = /export\s*\*\s*as\s+([A-Za-z0-9_$]+)\s*from\s*'(\.[^']*)'/g;
+
+/** `export { AdwActionRow as ActionRow } from '…'` — a member of a namespace BARREL. */
+const NAMESPACE_BARREL_MEMBER = /export\s*\{([^}]*)\}\s*from\s*'[^']*'/g;
+
+/**
+ * The members of a namespace BARREL — a module that IS the namespace, reached by
+ * `export * as Adw from '…'`. Every `export { <binding> as <member> } from '…'` line is
+ * one member; a re-export without an `as` binds a member to its own name.
+ *
+ * A module namespace is the other legal spelling of clause 2 and, on the web surface,
+ * the only one that survives the toolchain: `export const Adw = { … }` merged with an
+ * `export namespace Adw { … }` of instance types is what makes `Adw.HeaderBar` usable in
+ * TYPE position, `tsc` accepts that merge, and rolldown's oxc parser rejects it at PARSE
+ * time (`Identifier `Adw` has already been declared`). A module namespace carries both
+ * meanings off one list and needs no merge, so the reader has to know this shape.
+ *
+ * THROWS on a barrel with no member: a namespace module that exports nothing is a broken
+ * file, and answering it with an empty member map would report it as a surface whose
+ * vocabulary happens to be empty — the vacuous pass this whole module refuses elsewhere.
+ *
+ * EXPORTED for the reader vectors in `check-vocabulary-alignment.mjs`, not for callers:
+ * {@link namespaceExport} is the entry point. It is a reader, and an under-reading reader
+ * here does not go quiet — it reports `Adw.Clamp is missing from the namespace barrels`
+ * about a file that has the line, which is the loud-and-wrong shape those vectors exist
+ * for.
+ *
+ * @param {string} code already-comment-stripped source of the namespace module
+ * @param {string} where the module's repo-relative path, for the throw
+ * @returns {Map<string, string>} member → bound identifier
+ */
+export function namespaceBarrelMembers(code, where) {
+    /** @type {Map<string, string>} */
+    const members = new Map();
+    for (const [, names] of code.matchAll(NAMESPACE_BARREL_MEMBER)) {
+        for (const entry of names.split(',')) {
+            const name = entry.trim();
+            if (name === '' || name.startsWith('type ')) continue;
+            const [binding, member] = name.split(/\s+as\s+/).map((half) => half.trim());
+            members.set(member === undefined || member === '' ? binding : member, binding);
+        }
+    }
+    if (members.size === 0) {
+        throw new Error(
+            `${where} is re-exported as a namespace and has no \`export { X as Y } from '…'\` member. ` +
+                'Either the barrel moved or its export shape changed — a namespace that reads as empty ' +
+                'passes every consumer of this reader at once, so this is a failure, not a pass.',
+        );
+    }
+    return new Map([...members].sort(([a], [b]) => a.localeCompare(b)));
+}
+
 /**
  * The `Adw`/`Gtk` object literals in one already-comment-stripped source.
  *
@@ -896,6 +949,17 @@ function namespaceMembers(code) {
  * — the surface names a namespace module it does not have, and reporting that as "no
  * namespace" would answer a broken file with the word for an honest absence.
  *
+ * TWO SHAPES ARE READ, and the second one is not a style choice. A surface may build the
+ * namespace as an object literal (`export const Adw = { Bin, Clamp }` — React Native, and
+ * the shape NativeScript will take) or AS A MODULE (`export * as Adw from
+ * './namespace/adw.js'`, whose every `export { AdwBin as Bin } from '…'` line is a
+ * member — `@gjsify/adwaita-web`). The web surface has to use the second: the object
+ * literal alone gives `Adw.Bin` in value position only, and the merged `export namespace
+ * Adw { … }` that would add the instance types is a rolldown PARSE_ERROR
+ * (`Identifier `Adw` has already been declared`) even though `tsc` accepts the merge.
+ * A module namespace carries the value AND the type meaning off ONE list. Both shapes
+ * yield the same member → binding map, which is the only thing callers see.
+ *
  * THE BINDING IS READ, not only the member name. `Gtk.Entry` naming `AdwEntry` and
  * `Gtk.Entry` naming `AdwButton` are the same member list and different vocabularies,
  * so a consumer that holds the members against the widgets on disk needs the right-hand
@@ -911,19 +975,35 @@ export function namespaceExport(root, srcDir) {
     if (!existsSync(path)) return null;
     const code = stripComments(readFileSync(path, 'utf8'));
     const found = namespaceMembers(code);
-    for (const [, names, specifier] of code.matchAll(NAMESPACE_REEXPORT)) {
-        const exported = names.split(',').map((name) => name.trim());
-        if (!exported.some((name) => NAMESPACE_NAMES.includes(name))) continue;
+
+    /** Resolve one hop, or throw naming what the barrel pointed at. */
+    const hop = (specifier, what) => {
         const source = resolveLocalSource(path, specifier);
         if (source === null) {
             throw new Error(
-                `${srcDir}/index.ts re-exports ${exported.filter((name) => NAMESPACE_NAMES.includes(name)).join(', ')} ` +
-                    `from '${specifier}', which resolves to no source file.`,
+                `${srcDir}/index.ts re-exports ${what} from '${specifier}', which resolves to no source file.`,
             );
         }
+        return source;
+    };
+
+    for (const [, names, specifier] of code.matchAll(NAMESPACE_REEXPORT)) {
+        const exported = names.split(',').map((name) => name.trim());
+        if (!exported.some((name) => NAMESPACE_NAMES.includes(name))) continue;
+        const source = hop(specifier, exported.filter((name) => NAMESPACE_NAMES.includes(name)).join(', '));
         for (const [namespace, members] of namespaceMembers(stripComments(readFileSync(source, 'utf8')))) {
             found.set(namespace, members);
         }
     }
+
+    for (const [, namespace, specifier] of code.matchAll(NAMESPACE_STAR_REEXPORT)) {
+        if (!NAMESPACE_NAMES.includes(namespace)) continue;
+        const source = hop(specifier, `\`* as ${namespace}\``);
+        found.set(
+            namespace,
+            namespaceBarrelMembers(stripComments(readFileSync(source, 'utf8')), toPosixPath(relative(root, source))),
+        );
+    }
+
     return found.size === 0 ? null : found;
 }
