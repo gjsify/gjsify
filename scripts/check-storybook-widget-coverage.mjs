@@ -138,6 +138,18 @@ const NO_STORY_OF_ITS_OWN = {
  * decision leaves driven from ONE side. It is checked (see {@link vectorFailures}), so
  * the ledger doubles as the port-cost record: the tables a second renderer would
  * inherit for free are exactly the ones listed here.
+ *
+ * `sameWidgetAs` is optional and names the OTHER entry this one is one widget with. The
+ * join here is the BARE name, so a widget the two renderers spell differently arrives as
+ * two rows that each look like a missing port — `icon` on NativeScript and `image` on the
+ * browser are `GtkImage` twice. Two `decision` sentences can say so, and did; nothing
+ * read them, because {@link MIN_REASON} counts characters. The field is the readable half
+ * of the same claim: it must name an entry that exists, that names this one back, and
+ * that sits on the OTHER renderer — a pair pointing the same way is not an asymmetry
+ * explained, and that is the shape a third copy of this row would take. Neither half of
+ * the pair needs an exemption for the day it converges: `sameWidgetAs` cannot survive it,
+ * because a widget on both renderers leaves this ledger entirely and the "it is on BOTH
+ * renderers now" rule below deletes the row.
  */
 const ONE_RENDERER_ONLY = {
     'alert-response': {
@@ -180,13 +192,15 @@ const ONE_RENDERER_ONLY = {
     },
     icon: {
         only: 'nativescript',
+        sameWidgetAs: 'image',
         decision:
-            "THE SAME WIDGET AS `image` BELOW, under the other surface's spelling — `NS_WIDGET_ALIGNMENT` in check-vocabulary-alignment.mjs declares `adw-icon` to be `GtkImage`, and that declaration is what the vocabulary distance counts. The browser element took the GIR name on 2026-09-01 (ADR 0034 clause 1, § Amendment 5) and the NativeScript port deliberately did not: ADR 0034 refuses that rename on cost — the port is published at 49 versions with an XML element vocabulary whose failure on a phone is a silent unresolved module. So this row is a NAMING asymmetry that the vocabulary gate already measures, not a missing port, and it retires the day the NativeScript widget converges.",
+            'WHY the pair `sameWidgetAs` declares is still two rows: `NS_WIDGET_ALIGNMENT` in check-vocabulary-alignment.mjs declares `adw-icon` to be `GtkImage`, and that declaration is what the vocabulary distance counts. The browser element took the GIR name on 2026-09-01 (ADR 0034 clause 1, § Amendment 5) and the NativeScript port deliberately did not: ADR 0034 refuses that rename on cost — the port is published at 49 versions with an XML element vocabulary whose failure on a phone is a silent unresolved module. So this row is a NAMING asymmetry that the vocabulary gate already measures, not a missing port, and it retires the day the NativeScript widget converges.',
     },
     image: {
         only: 'web',
+        sameWidgetAs: 'icon',
         decision:
-            'THE SAME WIDGET AS `icon` ABOVE — this is the browser spelling of `GtkImage`, and the pair is one widget both renderers ship under two names, not two widgets. Its STORY exemption, which this entry inherits when the pair converges: there is no Adwaita or GTK icon WIDGET to reference; GTK draws a `Gtk.Image` inline (the navigation stories do), and the browser element exists because CSS needs a box to hang a symbolic on, so a story would demonstrate a GTK primitive rather than an Adwaita widget.',
+            'The browser spelling of `GtkImage`; `sameWidgetAs` carries the pairing. What this entry holds that the field cannot is the STORY exemption it inherits the day the pair converges: there is no Adwaita or GTK icon WIDGET to reference; GTK draws a `Gtk.Image` inline (the navigation stories do), and the browser element exists because CSS needs a box to hang a symbolic on, so a story would demonstrate a GTK primitive rather than an Adwaita widget.',
     },
     'image-button': {
         only: 'nativescript',
@@ -386,6 +400,37 @@ function vectorFailures(name, entry, exported) {
     return problems;
 }
 
+/**
+ * The three things `sameWidgetAs` claims, each of which can be wrong on its own: the
+ * partner EXISTS, it names this entry BACK, and it is on the OTHER renderer. Only the
+ * third distinguishes "one widget, two spellings" from two rows that happen to mention
+ * each other, and it is the one a copied entry gets wrong.
+ */
+function pairFailures(name, entry) {
+    if (entry.sameWidgetAs === undefined) return [];
+    const partner = ONE_RENDERER_ONLY[entry.sameWidgetAs];
+    if (partner === undefined) {
+        return [
+            `${spell(name)}: \`sameWidgetAs\` names \`${entry.sameWidgetAs}\`, which is not an entry here. ` +
+                'One widget under two spellings is two rows in THIS ledger, or it is not this shape at all.',
+        ];
+    }
+    if (partner.sameWidgetAs !== name) {
+        return [
+            `${spell(name)}: \`sameWidgetAs\` names \`${entry.sameWidgetAs}\`, which does not name it back. ` +
+                'A pairing one side believes in is a claim about the other side that nobody made.',
+        ];
+    }
+    if (partner.only === entry.only) {
+        return [
+            `${spell(name)}: \`sameWidgetAs\` pairs it with \`${entry.sameWidgetAs}\`, but both are ` +
+                `\`only: '${entry.only}'\`. A pair on ONE renderer explains no asymmetry — it is two widgets ` +
+                'that renderer ships, or one row too many.',
+        ];
+    }
+    return [];
+}
+
 /** @type {Map<string, string>} */
 let defines;
 /** @type {Map<string, string>} */
@@ -526,6 +571,7 @@ for (const [name, entry] of Object.entries(ONE_RENDERER_ONLY)) {
                 'why there is nothing there to do.',
         );
     }
+    unverdicted.push(...pairFailures(name, entry));
 
     unverdicted.push(...vectorFailures(name, entry, exported));
 }
