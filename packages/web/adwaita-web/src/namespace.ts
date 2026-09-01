@@ -47,28 +47,28 @@ import { AdwBanner } from './elements/adw-banner.js';
 import { AdwBottomSheet } from './elements/adw-bottom-sheet.js';
 import { AdwButtonContent } from './elements/adw-button-content.js';
 import { AdwButtonRow } from './elements/adw-button-row.js';
-import { AdwButton } from './elements/adw-button.js';
+import { GtkButton } from './elements/gtk-button.js';
 import { AdwCarousel, AdwCarouselIndicatorDots, AdwCarouselIndicatorLines } from './elements/adw-carousel.js';
-import { AdwCheckbox } from './elements/adw-checks.js';
+import { GtkCheckButton } from './elements/checks.js';
 import { AdwClamp } from './elements/adw-clamp.js';
 import { AdwComboRow } from './elements/adw-combo-row.js';
 import { AdwDialog } from './elements/adw-dialog.js';
-import { AdwDropDown } from './elements/adw-drop-down.js';
+import { GtkDropDown } from './elements/gtk-drop-down.js';
 import { AdwEntryRow } from './elements/adw-entry-row.js';
-import { AdwEntry } from './elements/adw-entry.js';
+import { GtkEntry } from './elements/gtk-entry.js';
 import { AdwExpanderRow } from './elements/adw-expander-row.js';
 import { AdwHeaderBar } from './elements/adw-header-bar.js';
-import { AdwIcon } from './elements/adw-icon.js';
+import { GtkImage } from './elements/gtk-image.js';
 import { AdwInlineViewSwitcher } from './elements/adw-inline-view-switcher.js';
-import { AdwMenuButton } from './elements/adw-menu-button.js';
+import { GtkMenuButton } from './elements/gtk-menu-button.js';
 import { AdwNavigationSplitView } from './elements/adw-navigation-split-view.js';
 import { AdwNavigationPage, AdwNavigationView } from './elements/adw-navigation-view.js';
 import { AdwOverlaySplitView } from './elements/adw-overlay-split-view.js';
 import { AdwPasswordEntryRow } from './elements/adw-password-entry-row.js';
-import { AdwPopover } from './elements/adw-popover.js';
+import { GtkPopover } from './elements/gtk-popover.js';
 import { AdwPreferencesDialog, AdwPreferencesPage } from './elements/adw-preferences-dialog.js';
 import { AdwPreferencesGroup } from './elements/adw-preferences-group.js';
-import { AdwProgressBar } from './elements/adw-progress-bar.js';
+import { GtkProgressBar } from './elements/gtk-progress-bar.js';
 import { AdwShortcutLabel } from './elements/adw-shortcut-label.js';
 import { AdwSidebar } from './elements/adw-sidebar.js';
 import { AdwSpinRow } from './elements/adw-spin-row.js';
@@ -76,7 +76,7 @@ import { AdwSpinner } from './elements/adw-spinner.js';
 import { AdwSplitButton } from './elements/adw-split-button.js';
 import { AdwStatusPage } from './elements/adw-status-page.js';
 import { AdwSwitchRow } from './elements/adw-switch-row.js';
-import { AdwSwitch } from './elements/adw-switch.js';
+import { GtkSwitch } from './elements/gtk-switch.js';
 import { AdwTabView } from './elements/adw-tab-view.js';
 import { AdwToastOverlay } from './elements/adw-toast-overlay.js';
 import { AdwToggle, AdwToggleGroup } from './elements/adw-toggle-group.js';
@@ -138,13 +138,13 @@ export const Adw = {
 
 /** The GTK half: the elements the alignment table declares an alias of a `gtk-*` tag. */
 export const Gtk = {
-    Button: AdwButton,
-    CheckButton: AdwCheckbox,
-    DropDown: AdwDropDown,
-    Entry: AdwEntry,
-    Image: AdwIcon,
-    MenuButton: AdwMenuButton,
-    Popover: AdwPopover,
-    ProgressBar: AdwProgressBar,
-    Switch: AdwSwitch,
+    Button: GtkButton,
+    CheckButton: GtkCheckButton,
+    DropDown: GtkDropDown,
+    Entry: GtkEntry,
+    Image: GtkImage,
+    MenuButton: GtkMenuButton,
+    Popover: GtkPopover,
+    ProgressBar: GtkProgressBar,
+    Switch: GtkSwitch,
 };

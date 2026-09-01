@@ -168,6 +168,7 @@ import {
     elementName,
     settablePropertiesOfClass,
     widgetClass,
+    widgetClassOfTag,
 } from './adwaita-elements.mjs';
 import { WIDGET_SURFACE_READERS, declaredWidgetSurfaces, enrolmentProblems } from './widget-surfaces.mjs';
 
@@ -853,7 +854,7 @@ function rendererWidgetProblems(surface) {
         ];
     }
     for (const widget of widgets) {
-        const klass = widgetClass(elementName(widget));
+        const klass = widgetClassOfTag(widget);
         const entry = table[widget];
         if (runtimeTags.has(widget)) {
             if (entry) {
@@ -931,7 +932,7 @@ function rendererWidgetProblems(surface) {
     for (const widget of declared) {
         if (!present.has(widget)) {
             problems.push(
-                `the alignment table declares ${widgetClass(elementName(widget))}, which ` +
+                `the alignment table declares ${widgetClassOfTag(widget)}, which ` +
                     `${surface.package} no longer ships — drop the entry from ${tableSource}`,
             );
         }
@@ -1034,7 +1035,7 @@ function namespaceProblems(world) {
             continue;
         }
         for (const [member, elements] of members) {
-            const classes = elements.map((element) => widgetClass(elementName(element)));
+            const classes = elements.map((element) => widgetClassOfTag(element));
             const binding = actual.get(member);
             if (binding === undefined) {
                 problems.push(
@@ -1164,7 +1165,7 @@ function propertyProblems(world) {
         for (const gtype of counterparts) {
             for (const key of interfaceKeys(interfaces, byGType.get(gtype) ?? '')) keys.add(key);
         }
-        const klass = widgetClass(elementName(widget));
+        const klass = widgetClassOfTag(widget);
         const against = counterparts.join(' + ');
         for (const property of nsProperties.get(widget)) {
             const key = `${widget}.${property}`;
