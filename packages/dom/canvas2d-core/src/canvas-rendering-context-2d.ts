@@ -9,8 +9,8 @@
 import Cairo from 'cairo';
 // `gi://`, not the legacy `imports.gi` global: the portable spelling also resolves on the
 // `--app node` reverse bridge (AGENTS.md § The legacy imports.* object is NOT an API).
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 
 // Bare side-effect import so the method groups' `declare module` augmentations survive into the
 // emitted .d.ts — tsc keeps bare imports but strips the value-only one at the bottom, and without

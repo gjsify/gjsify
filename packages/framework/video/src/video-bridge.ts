@@ -6,7 +6,7 @@
 // Reference: refs/showtime/showtime/play.py (gtk4paintablesink + glsinkbin).
 // Pattern follows packages/dom/canvas2d/src/canvas-drawing-area.ts.
 
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import type Gst from 'gi://Gst?version=1.0';

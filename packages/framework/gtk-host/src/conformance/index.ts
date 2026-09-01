@@ -11,7 +11,7 @@ export {
 // describe the GTK that is actually installed, and a vector must read the REAL
 // widget tree — never our shadow tree, which would happily agree with itself.
 
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import type Gtk from '@girs/gtk-4.0';
 
 import { BUILTIN_DESCRIPTORS } from '../descriptors/index.js';

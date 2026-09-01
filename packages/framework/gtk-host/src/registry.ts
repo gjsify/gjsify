@@ -9,7 +9,7 @@
 // with nothing to scan would have reported green while proving nothing, which is the
 // failure class this repo pays most for.
 
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 
 import { err } from './errors.js';
 import { tagOf } from './tags.js';

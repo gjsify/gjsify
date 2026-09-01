@@ -212,7 +212,7 @@ export async function collectValueExports(file, seen = new Set()) {
     // (`@gjsify/fs` alone produced five). That only surfaces once a slot is
     // flipped to `polyfill` — i.e. exactly when someone reads the list.
     for (const m of text.matchAll(/^export\s*\{([^}]*)\}\s*(?:from\s*['"][^'"]+['"]\s*)?;?/gm)) {
-        const members = m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        const members = m[1].replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
         for (const raw of members.split(',')) {
             const t = raw.trim();
             if (!t || /^type\s/.test(t)) continue;

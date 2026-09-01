@@ -1,7 +1,7 @@
 // A Gtk.GLArea subclass that carries the WebGL bootstrapping for
 // HTMLCanvasElement.
 
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 // Value import: `Gdk.GLAPI` is read at construction (see `set_allowed_apis`).
 import Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';

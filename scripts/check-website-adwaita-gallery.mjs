@@ -256,7 +256,7 @@ const TAB_MAP = 'tabs.map(';
  * Line comments are anchored to the start of a line so that a `https://` inside an
  * attribute is not read as one.
  */
-const withoutComments = (text) => text.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/^[ \t]*\/\/.*$/gm, '');
+const withoutComments = (text) => text.replaceAll(/^[ \t]*\/\/.*$/gm, '').replaceAll(/\/\*[\s\S]*?\*\//g, '');
 
 /**
  * Arm 9: the live preview is emitted BEFORE the code tabs, inside the tab view, and

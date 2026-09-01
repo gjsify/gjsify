@@ -16,8 +16,8 @@
 // Exit code 0 = every scenario behaved as documented on this GJS; non-zero =
 // a scenario regressed (the expectation no longer holds on this runtime).
 
-import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
+import GLib from 'gi://GLib?version=2.0';
+import Gio from 'gi://Gio?version=2.0';
 
 const system = imports.system;
 

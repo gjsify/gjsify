@@ -254,7 +254,7 @@ function bindsOnlyTypes(clause) {
  * @param {string} text
  */
 export function stripComments(text) {
-    return text.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1');
+    return text.replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1').replaceAll(/\/\*[\s\S]*?\*\//g, '');
 }
 
 /**

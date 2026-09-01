@@ -24,7 +24,7 @@
 // waits) otherwise proves nothing beyond "it started".
 
 import Adw from 'gi://Adw?version=1';
-import GLib from 'gi://GLib';
+import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import system from 'system';
 

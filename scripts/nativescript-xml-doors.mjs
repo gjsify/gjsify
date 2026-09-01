@@ -83,7 +83,7 @@ export const SETTER_ONLY_ON_BASE = {
 };
 
 /** Strip comments, so a coercer NAMED in prose is not mistaken for one that runs. */
-export const executable = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+export const executable = (text) => text.replace(/(^|[^:])\/\/.*$/gm, '$1').replace(/\/\*[\s\S]*?\*\//g, '');
 
 /**
  * Every source a type alias might be declared in — the widgets plus the headless core.

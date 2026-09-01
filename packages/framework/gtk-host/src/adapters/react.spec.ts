@@ -25,7 +25,7 @@
 
 import { expect, it, on } from '@gjsify/unit';
 
-import GLib from 'gi://GLib';
+import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Reconciler from 'react-reconciler';
 import { ConcurrentRoot } from 'react-reconciler/constants.js';

@@ -185,6 +185,16 @@ jobs:
       - name: Check the CLI reads its own version through one resolver
         run: node scripts/check-cli-own-version-read.mjs
 
+      # `import Gtk from 'gi://Gtk'` asks the loader for whichever Gtk it finds first.
+      # The tree already pinned almost everywhere — 83 GLib, 83 Gio, 72 Gtk — and held
+      # nothing, so 52 unpinned ones sat among them. For Gio/GObject/Pango exactly one
+      # version is installed and they resolved correctly; the case that is not
+      # hypothetical is WebKit2-4.1 beside WebKit-6.0, where the wrong pick loads a
+      # second toolkit into the same address space. A rule that covers only the
+      # namespace someone was already bitten by covers the wrong set.
+      - name: Check every gi:// import states its version
+        run: node scripts/check-gi-import-versions.mjs
+
       # Comment volume has no natural limit, so nothing failed while `cli-fail.ts` grew
       # a 47-line yargs research diary above a 3-line function (ratio 9.3), while
       # `rolldown-plugin-gjsify` reached one comment line per code line, or while

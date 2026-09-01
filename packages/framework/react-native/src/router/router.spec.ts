@@ -21,8 +21,8 @@
 // describe #15 printed to stderr, the case still reported a tick, and the blame
 // surfaced twelve tests later on an innocent neighbour.
 
-import GLib from 'gi://GLib';
-import GObject from 'gi://GObject';
+import GLib from 'gi://GLib?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
 import { lookupWidget, registerBuiltinWidgets } from '@gjsify/gtk-host';

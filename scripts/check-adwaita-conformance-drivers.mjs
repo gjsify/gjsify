@@ -240,7 +240,7 @@ function tablesIn(file) {
 }
 
 /** Comment bodies, blanked; `[^:]` keeps `https://` out of it. */
-const withoutComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+const withoutComments = (source) => source.replace(/(^|[^:])\/\/.*$/gm, '$1').replace(/\/\*[\s\S]*?\*\//g, ' ');
 
 /**
  * Which of `names` each `*.spec.ts` under `dir` NAMES, outside a comment.

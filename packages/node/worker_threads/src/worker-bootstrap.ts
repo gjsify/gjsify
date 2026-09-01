@@ -30,8 +30,8 @@
 // dormant and any incoming __sab placeholder will fail loudly when
 // resolveTag throws.
 export const BOOTSTRAP_CODE = `\
-import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
+import GLib from 'gi://GLib?version=2.0';
+import Gio from 'gi://Gio?version=2.0';
 import System from 'system';
 
 const loop = new GLib.MainLoop(null, false);

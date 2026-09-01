@@ -4,11 +4,11 @@
 // runtime says what a value must look like. That split is deliberate: the table
 // travels with the package, the coercion travels with the user's GTK.
 
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import Gdk from 'gi://Gdk?version=4.0';
-import Pango from 'gi://Pango';
+import Pango from 'gi://Pango?version=1.0';
 
 import { err } from './errors.js';
 import type { WidgetDescriptor } from './types.js';

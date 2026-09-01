@@ -247,7 +247,7 @@ function metaControlNames(code) {
 
 /** Whole-line `//` and every `/* *\/` — see the header on why not mid-line `//`. */
 function stripComments(code) {
-    return code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    return code.replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
 function filesUnder(source) {

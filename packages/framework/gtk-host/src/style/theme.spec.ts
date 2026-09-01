@@ -16,7 +16,7 @@
 // resolved value is the truth, the pixel is a picture of a cache.
 
 import Gdk from 'gi://Gdk?version=4.0';
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import Adw from 'gi://Adw?version=1';
 import Gtk from 'gi://Gtk?version=4.0';
 import { expect, it, on } from '@gjsify/unit';
