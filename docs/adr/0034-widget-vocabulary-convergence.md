@@ -2,7 +2,11 @@
 
 - Status: **Proposed** — amended twice on 2026-08-30: § Amendment (the premise under the
   stage order moved; stages 2 and 3 landed first) and § Amendment 2 (stages 6 and 4 landed;
-  the property numbers were re-measured and moved)
+  the property numbers were re-measured and moved); and on 2026-09-01 by § Amendment 5
+  (clause 1 holds on `@gjsify/adwaita-web`: nine elements took their GIR names, `<adw-radio>`
+  became a declared `webOnly`, and the printed distance was widened to the surface it had
+  been leaving out). Amendments 3 and 4, which carry clause 2 onto React Native and the web,
+  are in flight on #1449 and land ahead of this one.
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -1177,3 +1181,148 @@ it also listed are done.
 - **Behaviour, still.** `AdwEntry.placeholder` is DECLARED to be `placeholder-text`;
   nothing asserts it behaves like one. The closing criterion stays ADR 0027 § 9's
   conformance vectors, unchanged.
+
+## Amendment 5, 2026-09-01 — clause 1 holds on the web surface, and the distance was measuring two surfaces out of three
+
+`@gjsify/adwaita-web` names every element it registers after the library that owns the
+GType. The nine that did not now do:
+
+| was | is | GType |
+|---|---|---|
+| `<adw-button>` | `<gtk-button>` | `GtkButton` |
+| `<adw-checkbox>` | `<gtk-check-button>` | `GtkCheckButton` |
+| `<adw-drop-down>` | `<gtk-drop-down>` | `GtkDropDown` |
+| `<adw-entry>` | `<gtk-entry>` | `GtkEntry` |
+| `<adw-icon>` | `<gtk-image>` | `GtkImage` |
+| `<adw-menu-button>` | `<gtk-menu-button>` | `GtkMenuButton` |
+| `<adw-popover>` | `<gtk-popover>` | `GtkPopover` |
+| `<adw-progress-bar>` | `<gtk-progress-bar>` | `GtkProgressBar` |
+| `<adw-switch>` | `<gtk-switch>` | `GtkSwitch` |
+
+The targets were read out of `WEB_ELEMENT_ALIGNMENT`, not chosen: every one of them is the
+`gtk` field of that element's own entry, and every entry's `why` already said the widget is
+GTK's and the `adw-` was the design system. The class and the module follow the tag —
+`AdwEntry` is `GtkEntry` in `elements/gtk-entry.ts` — and `elements/adw-checks.ts` becomes
+`elements/checks.ts`, because it registers one element from each namespace and naming the
+file after either would put the mixing back one level down.
+
+**NO ALIAS, NO DEPRECATION LAYER.** `<adw-entry>` is gone, not redirected. The package is
+alpha and unversioned against outside consumers, and an alias would keep exactly the thing
+the ADR is removing: two spellings for one widget, with the wrong one still working, still
+copied out of a search result, and still needing an entry in a table. The cost of the
+refusal is that a page written against the old tags renders nothing — loudly, since an
+unregistered custom element is an inert `HTMLElement`, not an error.
+
+### The TAG moved and the CSS CLASS did not, and that is the whole shape of the change
+
+`<gtk-entry class="adw-entry">` — a GTK widget, Adwaita-styled — is the intended end state
+and not a transitional one. The tag names the WIDGET and follows the GIR; the class names
+the SKIN and follows libadwaita's stylesheet, which is what `refs/libadwaita`'s
+`_entries.scss` is and what the `why` fields cite. So `scss/_entry.scss` now opens
+`gtk-entry { … }` above an unchanged `.adw-entry { … }`, `_icon.scss` masks `.adw-icon`
+under a `<gtk-image>` heading, and `input.className = 'adw-entry'` inside `GtkEntry` is
+correct as written.
+
+Measured on `adw-entry` alone before the change: 35 tag occurrences against 87 CSS ones.
+A blind replacement takes the styling with it, so each site was read. Repo-wide, 636
+occurrences moved and 129 deliberately did not; five that a context rule got wrong were
+caught by reading the diff — three `h('span', { class: 'adw-icon …' })` calls in the
+storybook, and two prose sentences about the NativeScript `AdwIcon`, whose class did not
+move.
+
+### `<adw-radio>` keeps its name, and its kind changes from `gtk` to `webOnly`
+
+Two elements declared `gtk-check-button`, and one tag cannot name two constructors. The
+plain form takes the GIR name — the same verdict § Amendment 4 reached one level up, where
+`Gtk.CheckButton` is `AdwCheckbox` and the grouped one stays reachable under its own name.
+
+`<adw-radio>` therefore stays `<adw-radio>`, and its entry moves to `webOnly`. That is not
+a demotion to "no GTK widget behind it": there plainly is one, and the entry says so. It is
+the honest reading of what the kinds MEAN. A `gtk` entry says *this should converge, and
+here is why it has not yet*; `<adw-radio>` can never converge, because GTK4 has no radio
+TYPE to converge towards — a radio is a `GtkCheckButton` with its `group` set, which is
+what `GtkCheckButtonProps.group` says in `generated/props.ts`. An entry that permanently
+promises a convergence that cannot happen is worse than one that records why there is
+nothing to promise.
+
+So `webOnly` now covers two shapes and the table's header says which: no GTK widget at all
+(`<adw-card>` is a style class, `<adw-alert-response>` is a method call), or a widget whose
+GIR name a sibling element already carries. Both are the same verdict — no GIR name is left
+for this element to converge on — which is why they are one kind rather than two. The
+alternative considered and rejected was merging the two elements into a single
+`<gtk-check-button group="…">`, which is what GTK actually does: it is a behaviour change,
+not a rename (a different native `<input type>`, a different ARIA role, a different
+upgrade path for server-rendered markup), and `elements/checks.ts`' own header already
+argues for keeping them as two elements over one partial.
+
+### § 3's "never a rename" is not refuted, and a rename happened beside it
+
+§ 3 is about clause 2, the NAMESPACE EXPORT: satisfying it moves nothing, because an export
+is additive. That still holds and nothing here contradicts it. What this amendment records
+is a separate act on clause 1 — the elements that were named WRONG were renamed — and the
+two are not in tension: § 3 promises that adopting the namespace costs no consumer
+anything, and says nothing about elements that name the wrong library. The distinction
+matters because § 3's sentences are quotable in the other direction ("`<adw-entry>` keeps
+working"), and after this amendment they are true of the namespace and false of the tag.
+
+### The distance was narrower than its own sentence
+
+"Distance to one vocabulary" summed the RENDERER tables only. The web surface's ten aliases
+— ten elements naming a GTK widget under an `adw-` spelling, the exact thing the number
+claims to measure — were not in it. The omission is old and structural rather than an
+oversight in arithmetic: `WEB_ELEMENT_ALIGNMENT` was the only table when the line was
+written, `renderers` was everything else, and the day the renderers grew a second table
+nobody re-read the sentence.
+
+So the number moved twice, and only the second move is progress:
+
+| | printed distance |
+|---|---|
+| before, renderers only | **6** |
+| the web surface counted, nothing else changed | **16** |
+| after the nine renames | **6** |
+
+The web element segment is where the work shows: `65 elements — 44 share a spelling, 10
+alias one, 11 declared web-only` became `65 elements — 53 share a spelling, 0 alias one,
+12 declared web-only`. What is left of clause 1 anywhere is the NativeScript port's six,
+which this ADR already refuses to rename on cost.
+
+### What renaming the tags made VISIBLE, which is the larger finding
+
+`check-adwaita-element-properties.mjs` holds every element against the scalar GIR
+properties of the widget it names. It could not see these nine at all: a tag with no GIR
+counterpart has nothing to be measured against, so nine elements sat outside a ratchet that
+has been running since 2026-08-26. Renaming them added **56** property gaps to
+`KNOWN_GAPS` in one commit — the backlog goes from 75 across 28 elements to 131 across 37 —
+and not one of them is new. `<adw-entry>` observed five attributes against `GtkEntry`'s
+scalar surface for its whole life.
+
+Two shapes are mixed in that 56 and are listed rather than separated, because separating
+them would be a verdict nobody has reached: an attribute the element does not carry
+(`gtk-image/pixel-size`), and one it carries under its own spelling — `gtk-entry` observes
+`placeholder` and `maxlength` where GTK spells them `placeholder-text` and `max-length`.
+The second is `AdwEntry.placeholder` vs `GtkEntry:placeholder-text`, the example § Amendment
+2 uses for the NativeScript property distance, now measurable on the web surface too. It is
+a rename of a PUBLISHED attribute and out of scope here; what changed is that it is
+countable.
+
+### What it cost, stated because it is a loss and not a rounding error
+
+`check-storybook-widget-coverage.mjs` joins the two renderers on the BARE name, and the
+rename split two of those joins: the browser's `image` no longer meets NativeScript's
+`icon`, and `checkbox` became `check-button`. The pair is one widget — `NS_WIDGET_ALIGNMENT`
+declares `adw-icon` to be `GtkImage` and the distance counts it — but this check cannot see
+that, so `GtkImage` left the both-renderers scope that demands a story, and its story
+exemption had to be carried into two asymmetry entries that each say the other is the same
+widget. Making the join vocabulary-aware needs the alignment tables out of
+`check-vocabulary-alignment.mjs`, which runs a self-test and exits at module scope and
+therefore cannot be imported; that extraction is a separate change and this is the entry
+that says why it is owed. The row retires by itself the day the NativeScript widget
+converges.
+
+Three copies of one derivation also surfaced and were lifted: `AdwWidget.astro` and the two
+gates that check its attribute pane each rebuilt a gallery title into an element tag by
+prefixing `adw-`, and one of the copies carried a comment saying a second spelling "would be
+the drift this file is against". It was, the moment the prefix stopped being a constant.
+`galleryElementTag` in `website/src/components/attr-sample.mjs` is now the one of them, and
+it reads the namespace out of the title instead of assuming it.
