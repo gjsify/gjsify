@@ -129,13 +129,28 @@ const OS_DECISION_PATTERNS = [
  * never blank a line that carries CODE, because a hidden decision is a wrong
  * `supported` claim, while a surviving comment is only a false report someone
  * argues with. So it blanks exactly two shapes — a line whose content STARTS with
- * `//`, and the interior of an unterminated `/* … *\/` block — and leaves every
- * line with code on it alone, an inline `/* … *\/` and a trailing `// …` included.
+ * `//`, and the interior of a block whose line STARTS with `/*` and does not close
+ * it — and leaves every line with code on it alone, an inline `/* … *\/`, a
+ * trailing `// …` and a mid-line block opener included.
  *
- * The `startsWith` is what makes the first shape safe: `import Gtk from
- * 'gi://Gtk?version=4.0'` contains `//` and does NOT start with it, so a naive
+ * BOTH shapes are anchored on the START of the trimmed line, and that anchor is
+ * the whole safety argument. For `//` it is obvious: `import Gtk from
+ * 'gi://Gtk?version=4.0'` contains `//` and does not start with it, so a naive
  * "cut at the first //" would have deleted the import — and with it any decision
- * further along the line.
+ * further along the line. For `/*` the same hazard is less obvious and was
+ * MEASURED: a `/*` inside a STRING opens a phantom block that runs until some
+ * later line happens to contain `*\/`, blanking every line between. 144 tracked
+ * files carry such a line, and they are ordinary — a glob (`['src/**', …]`, whose
+ * `/*` never closes) or prose about a package (`'@gjsify/* end-to-end'`). One of
+ * them swallowed 30 following lines including a `process.cwd()` read. No verdict
+ * changes today (differenced over the whole shipping corpus: 0), which is exactly
+ * when to close it: the failure it would eventually produce is a package that
+ * reads the OS being reported as clean, and that direction is the one this
+ * function's contract says must never happen.
+ *
+ * The cost is the other direction, and it is the cheap one: a block comment that
+ * OPENS mid-line keeps its prose visible, so a false report stays possible where a
+ * hidden decision no longer is.
  *
  * @param {string} text
  * @returns {string}
@@ -154,22 +169,75 @@ function withoutComments(text) {
             out.push(line.slice(end + 2));
             continue;
         }
-        if (line.trim().startsWith('//')) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('//')) {
             out.push('');
             continue;
         }
-        const start = line.indexOf('/*');
-        // Only an UNTERMINATED opener starts a block. A `/* … */` closed on its own
-        // line leaves the line intact, which keeps this from having to reason about
-        // a `/*` inside a string — `'src/**/*.ts'` carries both halves and closes.
-        if (start !== -1 && line.indexOf('*/', start + 2) === -1) {
+        // Only an UNTERMINATED opener at the start of the line starts a block. A
+        // `/* … */` closed on the same line leaves the line intact, and an opener
+        // with code (or a string) before it is left alone entirely — see above.
+        if (trimmed.startsWith('/*') && line.indexOf('*/', line.indexOf('/*') + 2) === -1) {
             inBlock = true;
-            out.push(line.slice(0, start));
+            out.push('');
             continue;
         }
         out.push(line);
     }
     return out.join('\n');
+}
+
+/**
+ * The comment-stripper's own vectors, run on every audit rather than in a suite.
+ *
+ * `decidesOnOs` decides who owes an OS declaration, and `withoutComments` is the
+ * half of it that can be wrong in the expensive direction — silently, because a
+ * hidden decision presents as a package that simply owes nothing. This package has
+ * no test runner of its own; the rule is reached by `audit-runtimes --check`, a
+ * required job, so the vectors run there and their failures are the rule's.
+ *
+ * @returns {string[]} one message per vector that did not answer as stated
+ */
+export function commentStrippingSelfTest() {
+    /** @type {Array<{ name: string, source: string, decides: boolean }>} */
+    const vectors = [
+        {
+            name: 'a line comment stating the module does NOT read the platform',
+            source: '// The platform is a PARAMETER: this module never reads `process.platform`.\nexport const x = 1;\n',
+            decides: false,
+        },
+        {
+            name: 'the same sentence inside a JSDoc block',
+            source: '/**\n * The `process.platform` values this theme is the default for.\n */\nexport const y = 2;\n',
+            decides: false,
+        },
+        {
+            name: 'a real read is still a decision',
+            source: 'export const os = process.platform;\n',
+            decides: true,
+        },
+        {
+            name: 'a decision on a line that also carries `//` inside a string',
+            source: "import Gtk from 'gi://Gtk?version=4.0';\nexport const os = process.platform;\n",
+            decides: true,
+        },
+        {
+            name: 'a decision after a glob whose `/*` never closes',
+            source: "const globs = ['src/**', 'tests/**'];\nexport const os = process.platform;\n",
+            decides: true,
+        },
+    ];
+    const failures = [];
+    for (const vector of vectors) {
+        const answer = decidesOnOs(vector.source);
+        if (answer !== vector.decides) {
+            failures.push(
+                `os-axis comment stripping: "${vector.name}" answered ${answer}, expected ${vector.decides}. ` +
+                    `\`withoutComments\` is ${vector.decides ? 'hiding a real OS decision' : 'reading prose as code'}.`,
+            );
+        }
+    }
+    return failures;
 }
 
 /**
@@ -233,7 +301,9 @@ export function osDecisionSites(pkg) {
  * @param {import('../context.mjs').ConformanceContext} ctx
  */
 function auditOsAxis(ctx) {
-    const failures = [];
+    // The instrument before the measurement: a broken comment-stripper makes every
+    // verdict below unattributable, so it answers for itself first.
+    const failures = commentStrippingSelfTest();
     const notes = [];
     let candidates = 0;
     let declared = 0;
