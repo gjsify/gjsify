@@ -88,7 +88,7 @@ export const noGObjectMethodBorrowRule: Rule = {
                         'array(9) under gjs and array(0) over node-gi, while `Gtk.ListItem.list_properties()` is 9 ' +
                         'on both. Nothing throws — you get an empty array or null, which reads as "the class has no ' +
                         `such property". Call it directly on the class (\`SomeClass.${method.name}(…)\`), or in this ` +
-                        'repo use `paramSpecs(SomeClass, \'GTypeName\')` from `@gjsify/gtk-host`, which is the direct ' +
+                        "repo use `paramSpecs(SomeClass, 'GTypeName')` from `@gjsify/gtk-host`, which is the direct " +
                         'form behind a cache. See issue #1438.',
                     node,
                 });
