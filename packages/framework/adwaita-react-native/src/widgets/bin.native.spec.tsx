@@ -17,21 +17,11 @@
 // the assertions are about the SHAPE of the tree, not only that one exists.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { act, create, type ReactTestRendererJSON } from 'react-test-renderer';
+import type { ReactTestRendererJSON } from 'react-test-renderer';
 
 import { RCT_VIEW, View } from '../testing/react-native.js';
+import { mounted } from '../testing/render.spec.js';
 import { AdwBin } from './bin.native.js';
-
-/** React's own opt-in for a test environment; the reason is in `clamp.native.spec.tsx`. */
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-function mounted(element: React.ReactElement): ReactTestRendererJSON {
-    let renderer!: ReturnType<typeof create>;
-    act(() => {
-        renderer = create(element);
-    });
-    return renderer.toJSON() as ReactTestRendererJSON;
-}
 
 export default async () => {
     await describe('AdwBin on React Native — the tree it emits', async () => {

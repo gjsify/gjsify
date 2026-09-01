@@ -42,6 +42,21 @@ import type * as BinNative from './widgets/bin.native.js';
 import type * as ClampBase from './widgets/clamp.js';
 import type * as ClampGtk from './widgets/clamp.gtk.js';
 import type * as ClampNative from './widgets/clamp.native.js';
+import type * as HeaderBarBase from './widgets/header-bar.js';
+import type * as HeaderBarGtk from './widgets/header-bar.gtk.js';
+import type * as HeaderBarNative from './widgets/header-bar.native.js';
+import type * as StatusPageBase from './widgets/status-page.js';
+import type * as StatusPageGtk from './widgets/status-page.gtk.js';
+import type * as StatusPageNative from './widgets/status-page.native.js';
+import type * as ToolbarViewBase from './widgets/toolbar-view.js';
+import type * as ToolbarViewGtk from './widgets/toolbar-view.gtk.js';
+import type * as ToolbarViewNative from './widgets/toolbar-view.native.js';
+import type * as WindowTitleBase from './widgets/window-title.js';
+import type * as WindowTitleGtk from './widgets/window-title.gtk.js';
+import type * as WindowTitleNative from './widgets/window-title.native.js';
+import type * as WrapBoxBase from './widgets/wrap-box.js';
+import type * as WrapBoxGtk from './widgets/wrap-box.gtk.js';
+import type * as WrapBoxNative from './widgets/wrap-box.native.js';
 
 import { refuseBaseModule } from './refuse.js';
 
@@ -106,6 +121,32 @@ export type BinGtkSatisfiesBase = Assert<SatisfiesBase<typeof BinGtk, typeof Bin
 export type BinNativeSatisfiesBase = Assert<SatisfiesBase<typeof BinNative, typeof BinBase, 'AdwBin'>>;
 export type ClampGtkSatisfiesBase = Assert<SatisfiesBase<typeof ClampGtk, typeof ClampBase, 'AdwClamp'>>;
 export type ClampNativeSatisfiesBase = Assert<SatisfiesBase<typeof ClampNative, typeof ClampBase, 'AdwClamp'>>;
+export type HeaderBarGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof HeaderBarGtk, typeof HeaderBarBase, 'AdwHeaderBar'>
+>;
+export type HeaderBarNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof HeaderBarNative, typeof HeaderBarBase, 'AdwHeaderBar'>
+>;
+export type StatusPageGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof StatusPageGtk, typeof StatusPageBase, 'AdwStatusPage'>
+>;
+export type StatusPageNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof StatusPageNative, typeof StatusPageBase, 'AdwStatusPage'>
+>;
+export type ToolbarViewGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof ToolbarViewGtk, typeof ToolbarViewBase, 'AdwToolbarView'>
+>;
+export type ToolbarViewNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof ToolbarViewNative, typeof ToolbarViewBase, 'AdwToolbarView'>
+>;
+export type WindowTitleGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof WindowTitleGtk, typeof WindowTitleBase, 'AdwWindowTitle'>
+>;
+export type WindowTitleNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof WindowTitleNative, typeof WindowTitleBase, 'AdwWindowTitle'>
+>;
+export type WrapBoxGtkSatisfiesBase = Assert<SatisfiesBase<typeof WrapBoxGtk, typeof WrapBoxBase, 'AdwWrapBox'>>;
+export type WrapBoxNativeSatisfiesBase = Assert<SatisfiesBase<typeof WrapBoxNative, typeof WrapBoxBase, 'AdwWrapBox'>>;
 
 /**
  * The names above, as data, so the RUNTIME half can assert the set is complete.
@@ -120,6 +161,16 @@ export const PARITY_ASSERTIONS = [
     'BinNativeSatisfiesBase',
     'ClampGtkSatisfiesBase',
     'ClampNativeSatisfiesBase',
+    'HeaderBarGtkSatisfiesBase',
+    'HeaderBarNativeSatisfiesBase',
+    'StatusPageGtkSatisfiesBase',
+    'StatusPageNativeSatisfiesBase',
+    'ToolbarViewGtkSatisfiesBase',
+    'ToolbarViewNativeSatisfiesBase',
+    'WindowTitleGtkSatisfiesBase',
+    'WindowTitleNativeSatisfiesBase',
+    'WrapBoxGtkSatisfiesBase',
+    'WrapBoxNativeSatisfiesBase',
 ] as const;
 
 /**
@@ -151,6 +202,16 @@ export default async () => {
                 'BinNativeSatisfiesBase',
                 'ClampGtkSatisfiesBase',
                 'ClampNativeSatisfiesBase',
+                'HeaderBarGtkSatisfiesBase',
+                'HeaderBarNativeSatisfiesBase',
+                'StatusPageGtkSatisfiesBase',
+                'StatusPageNativeSatisfiesBase',
+                'ToolbarViewGtkSatisfiesBase',
+                'ToolbarViewNativeSatisfiesBase',
+                'WindowTitleGtkSatisfiesBase',
+                'WindowTitleNativeSatisfiesBase',
+                'WrapBoxGtkSatisfiesBase',
+                'WrapBoxNativeSatisfiesBase',
             ]);
         });
     });

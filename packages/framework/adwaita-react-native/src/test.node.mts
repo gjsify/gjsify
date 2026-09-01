@@ -12,11 +12,21 @@ import { run } from '@gjsify/unit';
 import binNativeSuite from './widgets/bin.native.spec.js';
 import clampNativeSuite from './widgets/clamp.native.spec.js';
 import doubleSuite from './testing/react-native.spec.js';
+import headerBarNativeSuite from './widgets/header-bar.native.spec.js';
 import paritySuite from './parity.spec.js';
+import statusPageNativeSuite from './widgets/status-page.native.spec.js';
+import toolbarViewNativeSuite from './widgets/toolbar-view.native.spec.js';
+import windowTitleNativeSuite from './widgets/window-title.native.spec.js';
+import wrapBoxNativeSuite from './widgets/wrap-box.native.spec.js';
 
 run({
     paritySuite,
     doubleSuite,
     binNativeSuite,
     clampNativeSuite,
+    headerBarNativeSuite,
+    statusPageNativeSuite,
+    toolbarViewNativeSuite,
+    windowTitleNativeSuite,
+    wrapBoxNativeSuite,
 });

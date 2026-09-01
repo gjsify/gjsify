@@ -19,7 +19,7 @@
 // asserted as an instruction and never as a measured pixel. The README carries that gap.
 
 import { createElement, type ReactElement } from 'react';
-import type { View as RealView } from 'react-native';
+import type { Text as RealText, View as RealView } from 'react-native';
 
 /**
  * The host element name `View` renders as.
@@ -39,3 +39,22 @@ export const RCT_VIEW = 'RCTView';
  * against React's intrinsic elements and knows nothing about React Native's.
  */
 export const View: typeof RealView = (props): ReactElement => createElement(RCT_VIEW, props as Record<string, unknown>);
+
+/**
+ * The host element name `Text` renders as.
+ *
+ * `RCTText` is React Native's own — `TextNativeComponent.js:57` registers the top-level
+ * text view under `uiViewClassName: 'RCTText'`, with `RCTVirtualText` for a NESTED one.
+ * This double never nests, so the outer name is the whole of what a tree assertion here
+ * can see; a widget that starts nesting text needs the second name and a reason.
+ */
+export const RCT_TEXT = 'RCTText';
+
+/**
+ * `react-native`'s `Text`, as a host component.
+ *
+ * Same contract as {@link View} and for the same reason: the `typeof RealText`
+ * annotation is what stops the double from growing a surface of its own, and
+ * `react-native.spec.ts` falsifies it rather than restating it.
+ */
+export const Text: typeof RealText = (props): ReactElement => createElement(RCT_TEXT, props as Record<string, unknown>);

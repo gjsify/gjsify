@@ -38,47 +38,25 @@
 // because the scheduler's `typeof navigator` probe is in both builds.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { act, create, type ReactTestRendererJSON } from 'react-test-renderer';
+import { act, type ReactTestRendererJSON } from 'react-test-renderer';
 
 import { RCT_VIEW } from '../testing/react-native.js';
+import { mount, mounted, onlyChild, type Style } from '../testing/render.spec.js';
 import { AdwClamp } from './clamp.native.js';
-
-/**
- * React's own opt-in for a test environment.
- *
- * Without it every `act()` prints "The current testing environment is not configured
- * to support act(...)" and React declines to own the flush — the assertions happened
- * to pass anyway, which is the worst version of this: a warning nobody reads standing
- * between the suite and a guarantee it thinks it has.
- */
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 /** The frame the GTK half is photographed in, so both are asked the same question. */
 const FRAME_WIDTH = 1000;
 
-type Style = Record<string, unknown> | undefined;
-
 /** Mount, and read the tree BEFORE any layout has been delivered. */
-function firstFrame(element: React.ReactElement): ReactTestRendererJSON {
-    let renderer!: ReturnType<typeof create>;
-    act(() => {
-        renderer = create(element);
-    });
-    return renderer.toJSON() as ReactTestRendererJSON;
-}
+const firstFrame = mounted;
 
 /**
  * Mount, deliver one `onLayout` at `width`, and read the tree the clamp settled on.
  *
- * ONE renderer, read twice. Creating a second renderer for the post-layout read would
- * hand back a pre-layout snapshot — the state lives in the first one — and the suite
- * would then assert the unclamped tree while claiming to assert the clamped one.
+ * ONE renderer, read twice — the reason is on `mount` in `../testing/render.spec.ts`.
  */
 function settled(element: React.ReactElement, width: number): ReactTestRendererJSON {
-    let renderer!: ReturnType<typeof create>;
-    act(() => {
-        renderer = create(element);
-    });
+    const renderer = mount(element);
     const before = renderer.toJSON() as ReactTestRendererJSON;
     const onLayout = before.props.onLayout as ((event: unknown) => void) | undefined;
     if (typeof onLayout !== 'function') {
@@ -89,14 +67,6 @@ function settled(element: React.ReactElement, width: number): ReactTestRendererJ
     });
     return renderer.toJSON() as ReactTestRendererJSON;
 }
-
-const onlyChild = (node: ReactTestRendererJSON): ReactTestRendererJSON => {
-    const children = node.children ?? [];
-    if (children.length !== 1 || typeof children[0] === 'string') {
-        throw new Error(`expected exactly one element child, got ${JSON.stringify(children)}`);
-    }
-    return children[0] as ReactTestRendererJSON;
-};
 
 export default async () => {
     await describe('AdwClamp on React Native — the tree it emits', async () => {
