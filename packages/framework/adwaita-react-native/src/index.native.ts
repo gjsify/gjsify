@@ -6,14 +6,20 @@
 // literal-naming rule the barrel below follows.
 
 export type {
+    AdwActionRowProps,
     AdwAvatarProps,
     AdwBannerProps,
     AdwBinProps,
     AdwButtonContentProps,
+    AdwButtonRowProps,
     AdwClampProps,
+    AdwEntryRowProps,
+    AdwExpanderRowProps,
     AdwHeaderBarProps,
+    AdwRowProps,
     AdwSpinnerProps,
     AdwStatusPageProps,
+    AdwSwitchRowProps,
     AdwToastOverlayHandle,
     AdwToastOverlayProps,
     AdwToolbarViewProps,
@@ -22,14 +28,19 @@ export type {
     AdwWrapBoxProps,
 } from './props.js';
 
+export { AdwActionRow } from './widgets/action-row.native.js';
 export { AdwAvatar } from './widgets/avatar.native.js';
 export { AdwBanner } from './widgets/banner.native.js';
 export { AdwBin } from './widgets/bin.native.js';
 export { AdwButtonContent } from './widgets/button-content.native.js';
+export { AdwButtonRow } from './widgets/button-row.native.js';
 export { AdwClamp } from './widgets/clamp.native.js';
+export { AdwEntryRow } from './widgets/entry-row.native.js';
+export { AdwExpanderRow } from './widgets/expander-row.native.js';
 export { AdwHeaderBar } from './widgets/header-bar.native.js';
 export { AdwSpinner } from './widgets/spinner.native.js';
 export { AdwStatusPage } from './widgets/status-page.native.js';
+export { AdwSwitchRow } from './widgets/switch-row.native.js';
 export { AdwToastOverlay } from './widgets/toast-overlay.native.js';
 export { AdwToolbarView } from './widgets/toolbar-view.native.js';
 export { AdwWindowTitle } from './widgets/window-title.native.js';
@@ -46,28 +57,38 @@ export { AdwWrapBox } from './widgets/wrap-box.native.js';
 // from drifting is rule 8 of `check-adwaita-rn-platform-split.mjs`, which holds the
 // members of `Adw` against the widgets on disk in both directions.
 
+import { AdwActionRow as ActionRow } from './widgets/action-row.native.js';
 import { AdwAvatar as Avatar } from './widgets/avatar.native.js';
 import { AdwBanner as Banner } from './widgets/banner.native.js';
 import { AdwBin as Bin } from './widgets/bin.native.js';
 import { AdwButtonContent as ButtonContent } from './widgets/button-content.native.js';
+import { AdwButtonRow as ButtonRow } from './widgets/button-row.native.js';
 import { AdwClamp as Clamp } from './widgets/clamp.native.js';
+import { AdwEntryRow as EntryRow } from './widgets/entry-row.native.js';
+import { AdwExpanderRow as ExpanderRow } from './widgets/expander-row.native.js';
 import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.native.js';
 import { AdwSpinner as Spinner } from './widgets/spinner.native.js';
 import { AdwStatusPage as StatusPage } from './widgets/status-page.native.js';
+import { AdwSwitchRow as SwitchRow } from './widgets/switch-row.native.js';
 import { AdwToastOverlay as ToastOverlay } from './widgets/toast-overlay.native.js';
 import { AdwToolbarView as ToolbarView } from './widgets/toolbar-view.native.js';
 import { AdwWindowTitle as WindowTitle } from './widgets/window-title.native.js';
 import { AdwWrapBox as WrapBox } from './widgets/wrap-box.native.js';
 
 export const Adw = {
+    ActionRow,
     Avatar,
     Banner,
     Bin,
     ButtonContent,
+    ButtonRow,
     Clamp,
+    EntryRow,
+    ExpanderRow,
     HeaderBar,
     Spinner,
     StatusPage,
+    SwitchRow,
     ToastOverlay,
     ToolbarView,
     WindowTitle,

@@ -11,6 +11,11 @@
             "react-native": "./lib/esm/index.native.js",
             "default": "./lib/esm/index.gtk.js"
         },
+        "./widgets/action-row": {
+            "types": "./lib/types/widgets/action-row.d.ts",
+            "react-native": "./lib/esm/widgets/action-row.native.js",
+            "default": "./lib/esm/widgets/action-row.gtk.js"
+        },
         "./widgets/avatar": {
             "types": "./lib/types/widgets/avatar.d.ts",
             "react-native": "./lib/esm/widgets/avatar.native.js",
@@ -31,10 +36,25 @@
             "react-native": "./lib/esm/widgets/button-content.native.js",
             "default": "./lib/esm/widgets/button-content.gtk.js"
         },
+        "./widgets/button-row": {
+            "types": "./lib/types/widgets/button-row.d.ts",
+            "react-native": "./lib/esm/widgets/button-row.native.js",
+            "default": "./lib/esm/widgets/button-row.gtk.js"
+        },
         "./widgets/clamp": {
             "types": "./lib/types/widgets/clamp.d.ts",
             "react-native": "./lib/esm/widgets/clamp.native.js",
             "default": "./lib/esm/widgets/clamp.gtk.js"
+        },
+        "./widgets/entry-row": {
+            "types": "./lib/types/widgets/entry-row.d.ts",
+            "react-native": "./lib/esm/widgets/entry-row.native.js",
+            "default": "./lib/esm/widgets/entry-row.gtk.js"
+        },
+        "./widgets/expander-row": {
+            "types": "./lib/types/widgets/expander-row.d.ts",
+            "react-native": "./lib/esm/widgets/expander-row.native.js",
+            "default": "./lib/esm/widgets/expander-row.gtk.js"
         },
         "./widgets/header-bar": {
             "types": "./lib/types/widgets/header-bar.d.ts",
@@ -50,6 +70,11 @@
             "types": "./lib/types/widgets/status-page.d.ts",
             "react-native": "./lib/esm/widgets/status-page.native.js",
             "default": "./lib/esm/widgets/status-page.gtk.js"
+        },
+        "./widgets/switch-row": {
+            "types": "./lib/types/widgets/switch-row.d.ts",
+            "react-native": "./lib/esm/widgets/switch-row.native.js",
+            "default": "./lib/esm/widgets/switch-row.gtk.js"
         },
         "./widgets/toast-overlay": {
             "types": "./lib/types/widgets/toast-overlay.d.ts",

@@ -9,10 +9,26 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { isValidElement } from 'react';
-import type { Text as RealText, View as RealView } from 'react-native';
+import type {
+    Pressable as RealPressable,
+    Switch as RealSwitch,
+    Text as RealText,
+    TextInput as RealTextInput,
+    View as RealView,
+} from 'react-native';
 
 import type { Assert, SameKeys } from '../parity.spec.js';
-import { RCT_TEXT, RCT_VIEW, Text, View } from './react-native.js';
+import {
+    Pressable,
+    RCT_SWITCH,
+    RCT_TEXT,
+    RCT_TEXT_INPUT,
+    RCT_VIEW,
+    Switch,
+    Text,
+    TextInput,
+    View,
+} from './react-native.js';
 
 /**
  * The double accepts EXACTLY React Native's `View` props — same names, no more, no
@@ -56,11 +72,33 @@ export type DoublePropsMatchReactNative = Assert<SameKeys<Parameters<typeof View
  */
 export type TextPropsMatchReactNative = Assert<SameKeys<Parameters<typeof Text>[0], Parameters<typeof RealText>[0]>>;
 
+/**
+ * The same instrument for the three primitives the boxed-list rows added.
+ *
+ * One alias per primitive rather than a mapped type over them: `SameKeys` is a
+ * CONSTRAINT violation when it fails, and the diagnostic then names the alias — which
+ * names the primitive. A mapped type would report one error naming the map.
+ */
+export type PressablePropsMatchReactNative = Assert<
+    SameKeys<Parameters<typeof Pressable>[0], Parameters<typeof RealPressable>[0]>
+>;
+export type SwitchPropsMatchReactNative = Assert<
+    SameKeys<Parameters<typeof Switch>[0], Parameters<typeof RealSwitch>[0]>
+>;
+export type TextInputPropsMatchReactNative = Assert<
+    SameKeys<Parameters<typeof TextInput>[0], Parameters<typeof RealTextInput>[0]>
+>;
+
 /** The value half: the double is still React Native's `View` by type, at runtime too. */
 const CONTRACT: typeof RealView = View;
 
-/** The same, for `Text`. */
-const TEXT_CONTRACT: typeof RealText = Text;
+/** The same value half for the four primitives above, each held by its own annotation. */
+const CONTRACTS: Array<[name: string, double: unknown, host: string]> = [
+    ['Text', Text satisfies typeof RealText, RCT_TEXT],
+    ['Pressable', Pressable satisfies typeof RealPressable, RCT_VIEW],
+    ['Switch', Switch satisfies typeof RealSwitch, RCT_SWITCH],
+    ['TextInput', TextInput satisfies typeof RealTextInput, RCT_TEXT_INPUT],
+];
 
 export default async () => {
     await describe('the react-native double', async () => {
@@ -83,12 +121,39 @@ export default async () => {
             expect(element.props.style).toBe(style);
         });
 
-        await it('renders Text as react-native’s own host name, not a made-up one', async () => {
-            expect(typeof TEXT_CONTRACT).toBe('function');
-            const element = Text({ children: 'inside' });
-            expect(isValidElement(element)).toBe(true);
-            expect((element as { type: unknown }).type).toBe(RCT_TEXT);
-            expect(RCT_TEXT).toBe('RCTText');
+        await it('renders each added primitive as react-native’s own host element', async () => {
+            // The COUNT is asserted first: a `CONTRACTS` list that lost an entry would
+            // otherwise leave this row green over three primitives instead of four,
+            // which is the vacuous-scan shape the gates in `scripts/` all refuse.
+            expect(CONTRACTS.length).toBe(4);
+            for (const [name, double, host] of CONTRACTS) {
+                const render = double as (props: Record<string, unknown>) => unknown;
+                const element = render({ children: null }) as { type: unknown };
+                expect(`${name}:${String(element.type)}`).toBe(`${name}:${host}`);
+            }
+            // The loop only proves each double renders ITS CONSTANT. These pin the
+            // constants themselves to React Native's own spellings — the half a renamed
+            // constant would otherwise carry past the loop unseen.
+            expect([RCT_VIEW, RCT_TEXT, RCT_SWITCH, RCT_TEXT_INPUT]).toStrictEqual([
+                'RCTView',
+                'RCTText',
+                'RCTSwitch',
+                'RCTSinglelineTextInputView',
+            ]);
+        });
+
+        await it('refuses TextInput.State rather than inventing a focus registry', async () => {
+            // `typeof RealTextInput` demands the static, and the double cannot answer it
+            // honestly off-device. A stub returning `undefined` would say “nothing is
+            // focused”, which no test here has earned.
+            let message = '<no refusal>';
+            try {
+                TextInput.State.currentlyFocusedInput();
+            } catch (error) {
+                message = error instanceof Error ? error.message : `<not an Error: ${typeof error}>`;
+            }
+            expect(message).toContain('TextInput.State.currentlyFocusedInput()');
+            expect(message).toContain('not in the test double');
         });
     });
 };

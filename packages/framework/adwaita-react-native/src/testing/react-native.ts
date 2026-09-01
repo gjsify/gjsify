@@ -25,10 +25,25 @@
 // branches on `Platform.OS`, and moves a numeric `size` out of the prop and into a style.
 // A double of it would be a nesting and a prop placement real React Native never emits,
 // and every assertion written against it would be about this file. `spinner.native.tsx`
-// says at its head that this is why it does not use one.
+// says at its head that this is why it does not use one. `Pressable` is the one entry
+// below that is not a host element upstream — it wraps a `View` and transforms nothing —
+// and its docblock names both the single place it and the real component differ and the
+// rule that keeps a suite from asserting on that difference.
+//
+// THE HOST NAMES ARE REACT NATIVE'S OWN, read out of the installed package rather than
+// remembered, so a tree assertion reads the same as one written against the real runtime.
+// Two of them are PLATFORM-SPLIT upstream and the constants below carry the iOS spelling
+// with the Android one named beside it; every assertion in this package goes through the
+// constant, so nothing here claims a platform.
 
 import { createElement, type ReactElement } from 'react';
-import type { Text as RealText, View as RealView } from 'react-native';
+import type {
+    Pressable as RealPressable,
+    Switch as RealSwitch,
+    Text as RealText,
+    TextInput as RealTextInput,
+    View as RealView,
+} from 'react-native';
 
 /**
  * The host element name `View` renders as.
@@ -40,16 +55,6 @@ import type { Text as RealText, View as RealView } from 'react-native';
 export const RCT_VIEW = 'RCTView';
 
 /**
- * `react-native`'s `View`, as a host component.
- *
- * The `typeof RealView` annotation IS the contract: a double that grew a prop React
- * Native does not have, or lost one it does, is a compile error here rather than a green
- * test against a private fiction. `props` is widened because `createElement` is typed
- * against React's intrinsic elements and knows nothing about React Native's.
- */
-export const View: typeof RealView = (props): ReactElement => createElement(RCT_VIEW, props as Record<string, unknown>);
-
-/**
  * The host element name `Text` renders as.
  *
  * `RCTText` is React Native's own — `TextNativeComponent.js:57` registers the top-level
@@ -58,6 +63,35 @@ export const View: typeof RealView = (props): ReactElement => createElement(RCT_
  * can see; a widget that starts nesting text needs the second name and a reason.
  */
 export const RCT_TEXT = 'RCTText';
+
+/**
+ * `Switch`'s host element.
+ *
+ * PLATFORM-SPLIT UPSTREAM: `SwitchNativeComponent` declares `paperComponentName:
+ * 'RCTSwitch'` and `AndroidSwitchNativeComponent` declares `'AndroidSwitch'`, so there is
+ * no single true answer and this is the iOS one. Nothing in this package depends on which
+ * — the suites read this constant.
+ */
+export const RCT_SWITCH = 'RCTSwitch';
+
+/**
+ * `TextInput`'s host element, single-line.
+ *
+ * PLATFORM-SPLIT the same way: `RCTSingelineTextInputNativeComponent` declares
+ * `uiViewClassName: 'RCTSinglelineTextInputView'` and `AndroidTextInputNativeComponent`
+ * declares `'AndroidTextInput'`.
+ */
+export const RCT_TEXT_INPUT = 'RCTSinglelineTextInputView';
+
+/**
+ * `react-native`'s `View`, as a host component.
+ *
+ * The `typeof RealView` annotation IS the contract: a double that grew a prop React
+ * Native does not have, or lost one it does, is a compile error here rather than a green
+ * test against a private fiction. `props` is widened because `createElement` is typed
+ * against React's intrinsic elements and knows nothing about React Native's.
+ */
+export const View: typeof RealView = (props): ReactElement => createElement(RCT_VIEW, props as Record<string, unknown>);
 
 /**
  * `react-native`'s `Text`, as a host component.
@@ -72,3 +106,55 @@ export const RCT_TEXT = 'RCTText';
  * README carries it too.
  */
 export const Text: typeof RealText = (props): ReactElement => createElement(RCT_TEXT, props as Record<string, unknown>);
+
+/**
+ * `react-native`'s `Pressable`, as a host component rendering a view.
+ *
+ * REAL `Pressable` DOES RENDER A `View` — it is a wrapper that turns press props into
+ * responder handlers — but it does NOT forward `onPress` to the host node, and this
+ * double does. That is why every assertion about press behaviour in this package reads
+ * the props off the COMPOSITE (`renderer.root.findByType(Pressable)`) and only the
+ * nesting off `toJSON()`: what a widget hands to `Pressable` is a fact about the widget,
+ * and what `Pressable` then does with it is React Native's business and is not measured
+ * here.
+ */
+export const Pressable: typeof RealPressable = (props): ReactElement =>
+    createElement(RCT_VIEW, props as Record<string, unknown>);
+
+/** `react-native`'s `Switch`, as a host component. Same contract as {@link View}. */
+export const Switch: typeof RealSwitch = (props): ReactElement =>
+    createElement(RCT_SWITCH, props as Record<string, unknown>);
+
+/**
+ * `TextInput.State` — the module-scoped focus registry React Native's `TextInput` carries
+ * as a STATIC, which is why this one primitive cannot be a bare function where the others
+ * can: `typeof RealTextInput` demands the four members below.
+ *
+ * Each REFUSES rather than answering. Nothing in this package calls them, and the two
+ * stub shapes that would compile are both worse: `() => undefined` says "nothing is
+ * focused", which is an answer a widget could act on and which no test could have earned,
+ * and a no-op `focusTextInput` says a focus happened. A named throw is the failure this
+ * repository can attribute.
+ */
+const refuseTextInputState = (member: string): never => {
+    throw new Error(
+        `@gjsify/adwaita-react-native: TextInput.State.${member}() is not in the test double. ` +
+            "It is React Native's module-scoped focus registry, which needs a running host; " +
+            'a widget that has started to call it needs a real device or a different oracle, ' +
+            'not a stub answer this suite invented.',
+    );
+};
+
+/** `react-native`'s `TextInput`, as a host component. Same contract as {@link View}. */
+export const TextInput: typeof RealTextInput = Object.assign(
+    (props: Parameters<typeof RealTextInput>[0]): ReactElement =>
+        createElement(RCT_TEXT_INPUT, props as Record<string, unknown>),
+    {
+        State: {
+            currentlyFocusedInput: () => refuseTextInputState('currentlyFocusedInput'),
+            currentlyFocusedField: () => refuseTextInputState('currentlyFocusedField'),
+            focusTextInput: () => refuseTextInputState('focusTextInput'),
+            blurTextInput: () => refuseTextInputState('blurTextInput'),
+        },
+    },
+);

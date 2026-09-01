@@ -12,6 +12,7 @@ import clampGtkSuite from './widgets/clamp.gtk.spec.js';
 import contentGtkSuite from './widgets/content.gtk.spec.js';
 import headerBarGtkSuite from './widgets/header-bar.gtk.spec.js';
 import paritySuite from './parity.spec.js';
+import rowsGtkSuite from './widgets/rows.gtk.spec.js';
 import statusPageGtkSuite from './widgets/status-page.gtk.spec.js';
 import toolbarViewGtkSuite from './widgets/toolbar-view.gtk.spec.js';
 import windowTitleGtkSuite from './widgets/window-title.gtk.spec.js';
@@ -22,6 +23,7 @@ run({
     clampGtkSuite,
     contentGtkSuite,
     headerBarGtkSuite,
+    rowsGtkSuite,
     statusPageGtkSuite,
     toolbarViewGtkSuite,
     windowTitleGtkSuite,

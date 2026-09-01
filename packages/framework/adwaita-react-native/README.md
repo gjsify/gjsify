@@ -23,7 +23,18 @@ gate, and a suite on each side that reads the REAL tree. `AdwBin` and `AdwClamp`
 first and proved that shape; the groups since are where it starts earning its keep, and
 the content-and-feedback widgets are the clearest case — each has a DERIVATION as its
 shared half (an initials hash, a palette index, a queue policy, a ring geometry), so the
-two implementations are held to the same number rather than to the same shape.
+two implementations are held to the same number rather than to the same shape. The
+boxed-list rows carry that argument across a whole preferences page. What is not here is
+everything else libadwaita has: navigation, dialogs, the view switchers, the lists.
+
+**Nothing here re-implements a rule that already has an owner.** Every derivation the
+rows share — `string_is_not_empty` on both labels, `Adw.EntryRow`'s `update_empty` truth
+table and its apply latch, character-counted truncation, the switch row's two routes into
+one transition, the expander's disclosure — comes from
+[`@gjsify/adwaita-core`](../../web/adwaita-core), which is the same call
+`@gjsify/adwaita-web` and `@gjsify/adwaita-nativescript` make. The GTK half calls none of
+it: the C original is right there, and the core's value on that path is as the oracle the
+React Native half is measured against.
 
 **The promise is the Adwaita design language on React Native, not "your app runs".**
 Unlike [`@gjsify/react-native`](../react-native) — the opposite direction, which was
@@ -49,14 +60,19 @@ a GTK-only consumer does not need it installed.
 
 | widget | props | notes |
 |---|---|---|
+| `AdwActionRow` | `title`, `subtitle`, `activatable` (false), `onActivated`, `children` | The fundamental boxed-list row. `children` are the SUFFIX |
 | `AdwAvatar` | `size` (**required**), `text`, `showInitials`, `iconName` | Initials and palette entry from one port of `extract_initials_from_text` + `set_class_color`. `size` is required because libadwaita's default is the `-1` "ask the stylesheet" sentinel and neither renderer here has one |
 | `AdwBanner` | `title`, `buttonLabel`, `revealed`, `useMarkup`, `buttonStyle`, `onButtonClicked` | An omitted `useMarkup` is FALSE on both halves — the value the widget reads back, not the TRUE its `GParamSpec` declares |
 | `AdwBin` | `children` | One child, no layout of its own |
 | `AdwButtonContent` | `iconName`, `label`, `useUnderline`, `canShrink` | Four derivations from the core, including the 6px gap that is `border-spacing` and not `GtkBox:spacing` |
+| `AdwButtonRow` | `title`, `onActivated` | A row that behaves like a button — always activatable, and holds no children at all |
 | `AdwClamp` | `children`, `maximumSize` (600), `tighteningThreshold` (400) | Constrain a child's width and centre it, on libadwaita's easing curve |
+| `AdwEntryRow` | `title`, `text`, `maxLength` (0), `editable` (true), `showApplyButton` (false), `onNotifyText`, `onApply`, `onEntryActivated` | The row IS the entry. `max-length` counts CHARACTERS |
+| `AdwExpanderRow` | `title`, `subtitle`, `expanded` (false), `onNotifyExpanded`, `children` | `children` are the DISCLOSED rows. The header toggles, the disclosure does not |
 | `AdwHeaderBar` | `start`, `titleWidget`, `title`, `subtitle`, `end` | The three slots as PROPS, in draw order. No window controls: a phone has none |
 | `AdwSpinner` | `widthRequest`, `heightRequest` | The BOX and the RING are two numbers: an unbounded box around a ring capped at 64 |
 | `AdwStatusPage` | `children`, `iconName`, `title`, `description` | A centred empty state. The icon draws on GTK only |
+| `AdwSwitchRow` | `title`, `subtitle`, `active` (false), `onNotifyActive` | Controlled. The whole row toggles, not only the handle |
 | `AdwToastOverlay` | `children`, `ref` (`addToast`, `dismissAll`) | One toast at a time. A toast is PUSHED through the ref, never declared as a prop — `add_toast` is a call |
 | `AdwToolbarView` | `children` (the content), `topBar`, `bottomBar`, `topBarStyle` (`flat`), `bottomBarStyle` (`flat`), `extendContentToTopEdge` (false), `extendContentToBottomEdge` (false) | Content framed by bars. The two styles reach the real widget on GTK and draw nothing on a phone |
 | `AdwWindowTitle` | `title`, `subtitle` | Two labels; an EMPTY one takes no space, a blank one does |
@@ -66,6 +82,11 @@ Props are libadwaita's own names, camelCased — `maximumSize` is `AdwClamp:maxi
 not a React Native `maxWidth` — so the property you look up in libadwaita's documentation
 is the property you write. Defaults are libadwaita's.
 
+A signal is named the way [`@gjsify/gtk-host`](../gtk-host)'s generated surface names it
+(`onActivated` for `::activated`, `onNotifyActive` for `notify::active`), because the GTK
+half hands the prop straight to the host and a second spelling here would be a translation
+table nothing checks.
+
 **A slot is a prop, never a `slot`-carrying child.** `AdwHeaderBar`'s three ends and
 `AdwToolbarView`'s two bars are props because gtk-host routes a child by a `slot` prop on
 the CHILD, and a prop of a React component is an arbitrary `ReactNode` with nothing to
@@ -74,10 +95,35 @@ nothing, so the slot would be silently dropped for exactly the children this pac
 ships. Each slot therefore gets one container widget on GTK, which is also what
 libadwaita puts there itself.
 
+**A property this package does not carry is ABSENT, never present and ignored** — the
+omissions are listed under [Named divergences](#named-divergences). Two rules decide who
+owns a value: `AdwSwitchRow:active` is strictly CONTROLLED (React Native's own contract for
+`Switch`, and what a GTK consumer gets from the host's echo guard), while
+`AdwEntryRow:text` and `AdwExpanderRow:expanded` are owned by the ROW — the prop seeds
+them and overwrites them when it CHANGES, and a keystroke or a tap the consumer does not
+echo back still stands. That is GObject's contract rather than React's, and both halves
+follow it for the same mechanical reason: `@gjsify/gtk-host` patches a property only when
+the prop changes, and `@gjsify/adwaita-core`'s state machines are the buffer on the other
+side.
+
 **Neither half styles text.** Bold-and-dim is `@gjsify/adwaita-web`'s stylesheet and
 `@gjsify/adwaita-nativescript`'s theme CSS; this package has no theme layer to read
 `@gjsify/adwaita-core`'s tokens through, so what the React Native half carries is layout
 and visibility. Inventing a styling seam is a decision this slice does not make.
+
+### `AdwExpanderRow` needs a curated placement, and this package added it
+
+`Adw.ExpanderRow` was in `@gjsify/gtk-host`'s GENERATED table, which knows the tag and no
+placement rule, so every child of an `<adw-expander-row>` was an `uncurated-placement`
+refusal. The policy is now curated in `gtk-host/src/descriptors/adw.ts` — `add_row` as the
+default slot, `add_prefix`/`add_suffix` by name — and it needed one thing the `slotted`
+policy did not have: `add_row` hands the child to an inner `Gtk.ListBox`, and
+`gtk_list_box_remove` does NOT unwrap the implicit `GtkListBoxRow` that box makes for a
+non-row child, so the child leaks on unmount behind one `Gtk-WARNING`. Measured on GTK
+4.22.4, and caught by the host's own "every slotted descriptor survives a round trip
+through every slot" mechanism before this shipped. So `slotted` now takes the same
+per-slot `wrapSlots` that `indexed` already declared for `GtkListBox`, and the host makes
+the row itself. Any widget can go in a disclosure.
 
 ## How the two halves are selected
 
@@ -134,6 +180,16 @@ nothing:
 | both halves show ONE toast for two adds | measured on libadwaita 1.9.3 as a single `AdwToastWidget` carrying the first title, and asserted of `@gjsify/adwaita-core`'s `AdwToastQueue` on the other side. Neither half runs the other's queue |
 | the millisecond&rarr;second conversion cannot turn a brief toast into a permanent one | `Adw.Toast:timeout` counts whole seconds and reads back 5 on a default toast; `DEFAULT_TOAST_TIMEOUT` counts 5000 ms. The conversion is `ceil`, asserted against libadwaita's own default rather than against itself — `Math.round(400 / 1000)` is 0, which is "until dismissed" |
 | the spinner's box and its ring are held on the half where each is a node | GTK measures the BOX (`[16, 16]` unrequested, 200 requested, no upper bound); React Native asserts the RING, which on GTK is an `AdwSpinnerPaintable` and not a widget at all — 64 points with an 8-point stroke inside a 200-point box |
+| the rows share libadwaita's derivations rather than re-deriving them | the React Native half runs `@gjsify/adwaita-core` and the GTK half reads the answer back off the real widget: `activatable` false on `Adw.ActionRow` and `BUTTON_ROW_ACTIVATABLE` true on `Adw.ButtonRow`, the `notify` gate that stays SILENT for a set to the value already held on both the switch row and the expander, and `max-length` keeping `'🔒é'` — 2 characters, 3 UTF-16 units — where `TextInput.maxLength` would cut the pair in half |
+| `AdwExpanderRow`: the disclosure is an ALLOCATION, not a flag | the live GTK tree, with animations off: the disclosed row is unmapped at 0×0 and still PARENTED while collapsed, and 596 wide below the header once revealed, with the expander's height equal to its header list plus its revealer to the point (109 = 55 + 54 on libadwaita 1.9.3) |
+| `AdwExpanderRow`: an unechoed toggle survives the next render, on both halves | a second render with the prop unchanged, asserted on each side — the GTK one against the real widget through `@gjsify/gtk-host`'s patch-on-change, the React Native one through `ExpanderState` |
+
+**Not proven: the row THEME.** What the rows lay out is structure — `flexDirection: 'row'`
+is what makes a row a row — and what they do not carry is padding, the type scale, the
+dim-label colour and the row separator. `@gjsify/adwaita-core`'s `/tokens` subpath states
+outright that projecting its CSS custom properties onto a React Native style scale is a
+mapping decision of its own, and this slice does not make it. The rows are correct and
+unstyled.
 
 **Not proven: Yoga, and the device.** A `width` in a style object is an instruction to a
 layout engine that no test here runs. The React Native half is type-checked and
@@ -256,3 +312,40 @@ than smoothed over.
   scroll properties onto its child, which is a GTK adoption concern; on React Native
   scrolling belongs to the `ScrollView`, not to the clamp. This is an asymmetry, not a
   missing widget.
+- **No icons anywhere on the React Native half.** `AdwActionRow:icon-name`,
+  `AdwButtonRow:start-icon-name`/`:end-icon-name` and `Adw.EntryRow`'s edit and indicator
+  icons all name an entry in a GTK ICON THEME, and this package ships no icon renderer for
+  React Native. The PROPS are therefore absent from the surface rather than accepted on one
+  half and dropped on the other. Two affordances that are the widget's own rather than a
+  caller's prop do get a stand-in CHARACTER — the entry row's apply button (`✓`) and the
+  expander's chevron (`▾`/`▴`) — because without them those two widgets give a user no
+  signal that they do anything. Neither is what `@gjsify/adwaita-web` draws: that renderer
+  masks a generated `.adw-icon--<name>` CSS class and shows no text at all.
+- **`add_prefix` has no counterpart.** `Adw.ActionRow` and `Adw.ExpanderRow` both have a
+  prefix slot, reachable on the GTK half by writing `slot="prefix"` on a child. React
+  Native has no slot mechanism, and giving the surface a `prefix` PROP taking a node would
+  be a second child channel that only one half implements, so the surface offers `children`
+  only — the suffix on the action row, the disclosure on the expander.
+- **`AdwExpanderRow` carries no `enable-expansion` and no `show-enable-switch`.** The
+  enable switch is a SECOND control inside the row with its own veto over the disclosure,
+  and the rule tying the two flags together lives in no shared place:
+  `@gjsify/adwaita-core`'s `ExpanderState` — what all three renderers compose — models the
+  disclosure alone. Adding it here would create a fourth private copy of a rule three
+  renderers need; lifting it into the core first is what would close this, and this slice
+  does not do it.
+- **A disclosed child must be a real row on GTK, and can be anything on React Native.**
+  `adw_expander_row_add_row` hands the widget to an inner `Gtk.ListBox`, which wraps a
+  non-row child in an implicit `GtkListBoxRow` that `remove` then cannot find — measured on
+  libadwaita 1.9.3, a `Gtk.Label` disclosed child leaks on unmount behind a single
+  `Gtk-WARNING`, an `Adw.ActionRow` round-trips cleanly. The curated descriptor carries the
+  measurement. A React Native `View` has no such rule.
+- **`AdwEntryRow`'s empty↔filled cross-fade is a hard swap.** libadwaita animates between
+  the placeholder and the floating title over its own duration; the React Native half
+  switches at the two endpoints, the same compromise `@gjsify/adwaita-nativescript` makes,
+  because a cross-fade needs an animation seam this slice does not add.
+- **`AdwSwitchRow` is strictly controlled and `Adw.SwitchRow` is not.** React Native's own
+  contract for `Switch` is that the component renders the `value` prop whatever the user
+  does, so a toggle the consumer declines to echo back is not kept here — where GTK keeps
+  it. The other two stateful rows go the GTK way (see [Widgets](#widgets)); this one goes
+  React Native's, because a `Switch` that disagrees with its `value` prop is a bug on that
+  platform.

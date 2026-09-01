@@ -6,7 +6,18 @@
 // PROPS ARE NAMED IN LIBADWAITA'S VOCABULARY, camelCased. `maximumSize` is
 // `AdwClamp:maximum-size`, not a React Native `maxWidth` — the package's promise is the
 // Adwaita design language on React Native, so the property a reader looks up in
-// libadwaita's documentation is the property they write.
+// libadwaita's documentation is the property they write. A SIGNAL is named the way
+// `@gjsify/gtk-host`'s generated surface names it (`onActivated` for `::activated`,
+// `onNotifyActive` for `notify::active`), for the same reason one level out: the GTK half
+// hands the prop straight to the host, so a second spelling here would be a translation
+// table nothing checks.
+//
+// A PROPERTY THIS PACKAGE DOES NOT CARRY IS ABSENT, NEVER PRESENT AND IGNORED. The
+// boxed-list rows have icon-name properties (`AdwButtonRow:start-icon-name`,
+// `AdwActionRow:icon-name`) that name an entry in a GTK ICON THEME, which React Native
+// has no counterpart for and this package ships no renderer for. A prop that reaches one
+// half and evaporates on the other is the divergence the whole package exists to close,
+// so those names are not declared at all and the omissions are listed in the README.
 
 import type {
     AdwBannerButtonStyle,
@@ -23,9 +34,12 @@ import type { ReactNode, Ref } from 'react';
 /**
  * What a widget that HOLDS a child accepts.
  *
- * Not every widget does. `Adw.WindowTitle` is two labels and no child slot, and
- * `Adw.Avatar`, `Adw.Banner`, `Adw.Spinner` and `Adw.ButtonContent` are leaves — so
- * their prop types deliberately do not extend this. A `children` a widget would have to
+ * Not every widget does. `Adw.WindowTitle` is two labels and no child slot; `Adw.Avatar`,
+ * `Adw.Banner`, `Adw.Spinner` and `Adw.ButtonContent` are leaves; `Adw.ButtonRow` has no
+ * child API in libadwaita at all, and `Adw.SwitchRow` and `Adw.EntryRow` fill their one
+ * slot themselves. Their prop types deliberately do NOT extend this, so a child written
+ * into one is a TYPE error rather than a node `@gjsify/gtk-host` refuses at runtime on one
+ * half while React Native renders it on the other. A `children` a widget would have to
  * drop is a hole in the surface, not a convenience.
  */
 export interface AdwWidgetProps {
@@ -298,4 +312,140 @@ export interface AdwToastOverlayHandle {
 export interface AdwToastOverlayProps extends AdwWidgetProps {
     /** The imperative surface — see {@link AdwToastOverlayHandle}. */
     ref?: Ref<AdwToastOverlayHandle>;
+}
+
+/**
+ * The two labels every boxed-list row draws — `AdwPreferencesRow:title` and
+ * `AdwActionRow:subtitle`.
+ *
+ * Their VISIBILITY is a derivation and not a prop: libadwaita binds `string_is_not_empty`
+ * onto both labels, so an empty title hides its label instead of leaving a blank line.
+ * `@gjsify/adwaita-core`'s `deriveRowLabels` is that rule, and the React Native half runs
+ * it — the GTK half gets it from the real widget.
+ */
+export interface AdwRowProps {
+    /** `title` — the row's first line. */
+    title?: string;
+    /** `subtitle` — the dim second line. */
+    subtitle?: string;
+}
+
+/**
+ * `Adw.ActionRow` — the fundamental boxed-list row: two labels and a trailing slot.
+ *
+ * CHILDREN ARE THE SUFFIX, which is `@gjsify/gtk-host`'s curated default slot for this
+ * widget (`add_suffix`) and therefore not a choice made here. `add_prefix` is reachable on
+ * GTK by writing `slot="prefix"` on the child and has no counterpart on the React Native
+ * half, so this surface does not offer it — see the README.
+ */
+export interface AdwActionRowProps extends AdwRowProps, AdwWidgetProps {
+    /**
+     * `GtkListBoxRow:activatable` — whether a click activates the row.
+     *
+     * `Adw.ActionRow`'s own template sets it FALSE, so an omitted prop is a row that does
+     * not react to a click, on both halves.
+     */
+    activatable?: boolean;
+    /** `AdwActionRow::activated`. */
+    onActivated?: () => void;
+}
+
+/**
+ * `Adw.ButtonRow` — a boxed-list row that behaves like a button.
+ *
+ * NO `activatable`: the upstream template hardcodes `activatable=True` and the class
+ * documentation says "AdwButtonRow is always activatable", so there is no opt-out to
+ * model. `@gjsify/adwaita-core` exports that fact as `BUTTON_ROW_ACTIVATABLE` and the
+ * React Native half reads it rather than writing `true`.
+ */
+export interface AdwButtonRowProps {
+    /** `title` — the centred label. */
+    title?: string;
+    /** `AdwButtonRow::activated`. */
+    onActivated?: () => void;
+}
+
+/**
+ * `Adw.SwitchRow` — a row whose trailing control is a switch.
+ *
+ * CONTROLLED, on both halves: `active` is the value the row shows and `onNotifyActive` is
+ * the only way it changes. That is React Native's own contract for `Switch` ("a controlled
+ * component that requires an `onValueChange` callback that updates the `value` prop"), and
+ * it is also what a GTK consumer gets from `@gjsify/gtk-host`, whose echo guard drops the
+ * `notify::active` raised by the host's own property write.
+ */
+export interface AdwSwitchRowProps extends AdwRowProps {
+    /** `Adw.SwitchRow:active` — whether the switch is on. Default `false`. */
+    active?: boolean;
+    /**
+     * `notify::active`, with the new value.
+     *
+     * libadwaita has exactly ONE notify path for this property and it cannot see where the
+     * change came from, so a drag on the handle and a click on the title arrive here
+     * identically — the row is the control, not just the slider.
+     */
+    onNotifyActive?: (active: boolean) => void;
+}
+
+/**
+ * `Adw.EntryRow` — a boxed-list row that is itself a text entry.
+ *
+ * THE ROW OWNS ITS TEXT, which is GObject's contract and not React's: `text` seeds the
+ * entry and overwrites it whenever the prop CHANGES, and a keystroke that the consumer
+ * does not echo back still stands. Both halves behave that way for the same reason — on
+ * GTK because `@gjsify/gtk-host` patches a property only when it changes, on React Native
+ * because `@gjsify/adwaita-core`'s `EntryRowState` is the buffer.
+ */
+export interface AdwEntryRowProps {
+    /** `title` — the floating label, and the placeholder while the row is empty. */
+    title?: string;
+    /** `GtkEditable:text` — the entry contents. */
+    text?: string;
+    /**
+     * `Adw.EntryRow:max-length` — maximum number of CHARACTERS, `0` (the default) meaning
+     * unlimited. Code points, never UTF-16 units: `@gjsify/adwaita-core`'s `clampEntryText`
+     * is what counts them on the React Native half, because `TextInput`'s own `maxLength`
+     * counts units and cuts a surrogate pair in half.
+     */
+    maxLength?: number;
+    /** `GtkEditable:editable` — whether the entry accepts edits. Default `true`. */
+    editable?: boolean;
+    /** `Adw.EntryRow:show-apply-button` — typing reveals an apply button. Default `false`. */
+    showApplyButton?: boolean;
+    /** `notify::text`, with the new contents. */
+    onNotifyText?: (text: string) => void;
+    /** `AdwEntryRow::apply` — the apply button, or Enter while it shows. */
+    onApply?: () => void;
+    /** `AdwEntryRow::entry-activated` — Enter when there is nothing to apply. */
+    onEntryActivated?: () => void;
+}
+
+/**
+ * `Adw.ExpanderRow` — a boxed-list row that discloses further rows beneath itself.
+ *
+ * CHILDREN ARE THE DISCLOSED ROWS, which is `@gjsify/gtk-host`'s curated default slot
+ * for this widget (`add_row`) and therefore not a choice made here. `add_prefix` and
+ * `add_suffix` are reachable on GTK by writing `slot="prefix"` / `slot="suffix"` on a
+ * child and have no counterpart on the React Native half, so this surface does not offer
+ * them — see the README.
+ *
+ * THE ROW OWNS ITS DISCLOSURE, the way `Adw.EntryRow` owns its text and for the same
+ * mechanical reason: `expanded` seeds the row and overwrites it whenever the PROP
+ * changes, and a tap the consumer does not echo back still stands. On GTK because the
+ * real widget toggles itself and `@gjsify/gtk-host` patches a property only when the prop
+ * changes; on React Native because `@gjsify/adwaita-core`'s `ExpanderState` is the
+ * buffer.
+ */
+export interface AdwExpanderRowProps extends AdwRowProps, AdwWidgetProps {
+    /** `Adw.ExpanderRow:expanded` — whether the disclosure is revealed. Default `false`. */
+    expanded?: boolean;
+    /**
+     * `notify::expanded`, with the new flag.
+     *
+     * A change the CONSUMER made does not come back through here — on GTK because
+     * `@gjsify/gtk-host` drops the notify raised inside its own property write, on React
+     * Native because the prop-sync path does not call it. Both halves therefore report a
+     * disclosure the USER made and nothing else.
+     */
+    onNotifyExpanded?: (expanded: boolean) => void;
 }
