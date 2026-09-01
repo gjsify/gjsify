@@ -117,6 +117,27 @@ export const lookupEnumNick = (gtypeName: string, nick: string): number | undefi
     resolveEnumValue(gtypeName, nick).value;
 
 /**
+ * The member names an installed enum registers, or `undefined` if this host has none.
+ *
+ * The INVERSE of {@link lookupEnumNick}, and it exists for the one question that
+ * function cannot answer: a nick the vocabulary never emitted is absent from every
+ * list a check could iterate, so only the host's own members can reveal it. Read off
+ * the same `ENUM_NAMESPACES` table, so the two cannot disagree about where an enum
+ * lives — a second copy of that list is what made `Pango` missing once already.
+ *
+ * `$gtype` and anything non-numeric are not members; GJS puts both on the same object.
+ */
+export function enumMembers(gtypeName: string): string[] | undefined {
+    for (const [prefix, ns] of ENUM_NAMESPACES) {
+        if (!gtypeName.startsWith(prefix)) continue;
+        const enumObject = ns[gtypeName.slice(prefix.length)] as Record<string, unknown> | undefined;
+        if (!enumObject) continue; // prefix matched by accident — keep looking
+        return Object.keys(enumObject).filter((key) => key !== '$gtype' && typeof enumObject[key] === 'number');
+    }
+    return undefined;
+}
+
+/**
  * Turn an authored value into one GObject will actually store.
  *
  * The enum branch is the whole reason this function exists: GObject accepts a
