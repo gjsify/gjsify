@@ -104,10 +104,7 @@ export default async () => {
          * Vectors that only `register()` (or whose `select()` throws) install nothing
          * and construct their registry inline — there is nothing to take off.
          */
-        const itWithRegistry = async (
-            name: string,
-            body: (registry: ThemeRegistry) => Promise<void>,
-        ): Promise<void> =>
+        const itWithRegistry = async (name: string, body: (registry: ThemeRegistry) => Promise<void>): Promise<void> =>
             it(name, async () => {
                 const registry = new ThemeRegistry({ display });
                 try {
@@ -140,75 +137,78 @@ export default async () => {
                 expect(present).toStrictEqual([]);
             });
 
-            await itWithRegistry('sets an accent no enum could carry, whatever the property allows', async (registry) => {
-                // WHAT THIS VECTOR REPLACED ASSERTED `Adw.StyleManager:accent-color`
-                // READ-ONLY, and went red on the darwin leg — which was read as "the
-                // property is writable there" and is NOT what happened. That leg read
-                // the spec through `GObject.Object.find_property.call(…)`, which
-                // answers null over the reverse bridge, so the assertion that failed
-                // was the `spec === null` one two lines above the flag: the flag was
-                // never read there at all. Measured since, on every closure this suite
-                // runs on — linux/1.9.3, win32-x64, darwin-x64, darwin-arm64 — the
-                // property is read-only, and libadwaita installs the ParamSpec
-                // `G_PARAM_READABLE` only, since 1.6 and still at 1.10.alpha.1. A red
-                // assertion on another OS is not by itself a fact about that OS.
-                //
-                // The vector still does not assert the flag, and the reason survives
-                // the correction: a ParamSpec FLAG is a fact about the installed
-                // libadwaita, which a later release may add to. The claim that holds
-                // on every runtime is about the EFFECT, and it is the stronger reason
-                // anyway: `accent-color` is an ENUM — `AdwAccentColor`, nine named
-                // accents (measured) — and not a colour. So on NO runtime, writable or
-                // not, can it carry a design token's `rgb(17 34 51)`. Setting the
-                // accent as a custom property is therefore not a workaround for a
-                // read-only property; it is the only mechanism that can express the
-                // value at all.
-                // READ THROUGH THE HOST'S OWN READER, and that is the fix for a
-                // SECOND defect this vector carried — one the first was masking.
-                // `GObject.Object.find_property.call(SomeClass, …)` returns a spec
-                // under gjs and NULL over the reverse bridge (issue #1438: the gap is
-                // specifically the `.call()` form against a class the process has not
-                // realised, because node-gi's class proxy takes no `g_type_class_ref`;
-                // the same call as `SomeClass.find_property(…)` answers on both).
-                // `paramSpecs` is the direct form, already used by `gtk-props.spec.ts`,
-                // so this is one reader for the package rather than a third spelling.
-                const spec = paramSpecs(Adw.StyleManager, 'AdwStyleManager').get('accent-color');
-                expect(spec === undefined).toBe(false);
+            await itWithRegistry(
+                'sets an accent no enum could carry, whatever the property allows',
+                async (registry) => {
+                    // WHAT THIS VECTOR REPLACED ASSERTED `Adw.StyleManager:accent-color`
+                    // READ-ONLY, and went red on the darwin leg — which was read as "the
+                    // property is writable there" and is NOT what happened. That leg read
+                    // the spec through `GObject.Object.find_property.call(…)`, which
+                    // answers null over the reverse bridge, so the assertion that failed
+                    // was the `spec === null` one two lines above the flag: the flag was
+                    // never read there at all. Measured since, on every closure this suite
+                    // runs on — linux/1.9.3, win32-x64, darwin-x64, darwin-arm64 — the
+                    // property is read-only, and libadwaita installs the ParamSpec
+                    // `G_PARAM_READABLE` only, since 1.6 and still at 1.10.alpha.1. A red
+                    // assertion on another OS is not by itself a fact about that OS.
+                    //
+                    // The vector still does not assert the flag, and the reason survives
+                    // the correction: a ParamSpec FLAG is a fact about the installed
+                    // libadwaita, which a later release may add to. The claim that holds
+                    // on every runtime is about the EFFECT, and it is the stronger reason
+                    // anyway: `accent-color` is an ENUM — `AdwAccentColor`, nine named
+                    // accents (measured) — and not a colour. So on NO runtime, writable or
+                    // not, can it carry a design token's `rgb(17 34 51)`. Setting the
+                    // accent as a custom property is therefore not a workaround for a
+                    // read-only property; it is the only mechanism that can express the
+                    // value at all.
+                    // READ THROUGH THE HOST'S OWN READER, and that is the fix for a
+                    // SECOND defect this vector carried — one the first was masking.
+                    // `GObject.Object.find_property.call(SomeClass, …)` returns a spec
+                    // under gjs and NULL over the reverse bridge (issue #1438: the gap is
+                    // specifically the `.call()` form against a class the process has not
+                    // realised, because node-gi's class proxy takes no `g_type_class_ref`;
+                    // the same call as `SomeClass.find_property(…)` answers on both).
+                    // `paramSpecs` is the direct form, already used by `gtk-props.spec.ts`,
+                    // so this is one reader for the package rather than a third spelling.
+                    const spec = paramSpecs(Adw.StyleManager, 'AdwStyleManager').get('accent-color');
+                    expect(spec === undefined).toBe(false);
 
-                // Asserted, and this one is safe where the flag is not: a property
-                // GAINING a setter is an additive change libadwaita may make, while
-                // changing its value type from an enum to a colour would break its own
-                // ABI. Different risk class, so it can carry the reason.
-                expect(GObject.type_is_a((spec as GObject.ParamSpec).value_type, GObject.TYPE_ENUM)).toBe(true);
+                    // Asserted, and this one is safe where the flag is not: a property
+                    // GAINING a setter is an additive change libadwaita may make, while
+                    // changing its value type from an enum to a colour would break its own
+                    // ABI. Different risk class, so it can carry the reason.
+                    expect(GObject.type_is_a((spec as GObject.ParamSpec).value_type, GObject.TYPE_ENUM)).toBe(true);
 
-                // REPORTED, never asserted, and the log line is where a future change
-                // becomes visible without this suite claiming the flag is an invariant
-                // of the layer. Read-only on every closure measured so far.
-                const writable = ((spec as GObject.ParamSpec).flags & GObject.ParamFlags.WRITABLE) !== 0;
-                console.log(
-                    `      [measured] Adw.StyleManager:accent-color is ${writable ? 'WRITABLE' : 'read-only'} here — ` +
-                        'a ParamSpec flag is a fact about the installed libadwaita, and this layer depends on neither answer',
-                );
+                    // REPORTED, never asserted, and the log line is where a future change
+                    // becomes visible without this suite claiming the flag is an invariant
+                    // of the layer. Read-only on every closure measured so far.
+                    const writable = ((spec as GObject.ParamSpec).flags & GObject.ParamFlags.WRITABLE) !== 0;
+                    console.log(
+                        `      [measured] Adw.StyleManager:accent-color is ${writable ? 'WRITABLE' : 'read-only'} here — ` +
+                            'a ParamSpec flag is a fact about the installed libadwaita, and this layer depends on neither answer',
+                    );
 
-                // An accent that is not one of the nine, set through the registry and
-                // resolved by the same cascade every Adwaita rule reads. THIS is what
-                // goes red if someone ever rewires the seam to the property.
-                registry.register({ name: 'token-accent', namedColors: { 'accent-bg-color': 'rgb(17 34 51)' } });
-                registry.select('token-accent');
-                expect(resolved('accent-bg-color')).toBe('rgb(17,34,51)');
+                    // An accent that is not one of the nine, set through the registry and
+                    // resolved by the same cascade every Adwaita rule reads. THIS is what
+                    // goes red if someone ever rewires the seam to the property.
+                    registry.register({ name: 'token-accent', namedColors: { 'accent-bg-color': 'rgb(17 34 51)' } });
+                    registry.select('token-accent');
+                    expect(resolved('accent-bg-color')).toBe('rgb(17,34,51)');
 
-                // PUT BACK, and not out of tidiness: a theme left selected outranks the
-                // 199/201 providers the priority group below installs — measured, as a
-                // red vector in a group this one does not belong to. Selecting the
-                // neutral theme reloads the document to empty, which restores
-                // libadwaita's own values exactly; that is the guarantee the neutral
-                // default exists to give, and asserting it here is what makes it a
-                // checked claim rather than a hopeful call. The provider itself comes
-                // off the display when this vector ends, which is a different job.
-                registry.register(NEUTRAL_THEME);
-                registry.select('neutral');
-                expect(resolved('accent-bg-color')).toBe(adwaitaAccent);
-            });
+                    // PUT BACK, and not out of tidiness: a theme left selected outranks the
+                    // 199/201 providers the priority group below installs — measured, as a
+                    // red vector in a group this one does not belong to. Selecting the
+                    // neutral theme reloads the document to empty, which restores
+                    // libadwaita's own values exactly; that is the guarantee the neutral
+                    // default exists to give, and asserting it here is what makes it a
+                    // checked claim rather than a hopeful call. The provider itself comes
+                    // off the display when this vector ends, which is a different job.
+                    registry.register(NEUTRAL_THEME);
+                    registry.select('neutral');
+                    expect(resolved('accent-bg-color')).toBe(adwaitaAccent);
+                },
+            );
         });
 
         await gated(diagnostics, 'the provider priority, in both directions', async () => {
@@ -428,44 +428,41 @@ export default async () => {
                 expect(threw(() => registry.selectDefault('linux')).message).toContain('no registered theme');
             });
 
-            await itWithRegistry(
-                'emits the palette first, so a theme’s own css can override it',
-                async (registry) => {
-                    // The order is real; the REASON given for it was not. It said the
-                    // palette goes first "so the theme's own rules can read what it just
-                    // set", and that is measurably not a constraint: a rule using
-                    // `var(--x)` BEFORE the `:root` that defines it resolves identically
-                    // (rgb(7,8,9) both ways), because a custom property computes
-                    // independently of source order. What the order DOES decide is the
-                    // override direction — at equal specificity the LAST definition in a
-                    // document wins (measured) — so palette-first is what lets a theme's
-                    // own `css` redefine a name its own `namedColors` set, rather than the
-                    // palette silently winning over the stylesheet the project wrote.
-                    registry.register({
-                        name: 'ordered',
-                        namedColors: { 'accent-bg-color': 'rgb(1 2 3)' },
-                        css:
-                            ':root { --accent-bg-color: rgb(4 5 6); }\n' +
-                            '.gjsify-theme-probe { color: var(--accent-bg-color); }',
-                    });
-                    registry.select('ordered');
-                    expect(colour()).toBe('rgb(4,5,6)');
+            await itWithRegistry('emits the palette first, so a theme’s own css can override it', async (registry) => {
+                // The order is real; the REASON given for it was not. It said the
+                // palette goes first "so the theme's own rules can read what it just
+                // set", and that is measurably not a constraint: a rule using
+                // `var(--x)` BEFORE the `:root` that defines it resolves identically
+                // (rgb(7,8,9) both ways), because a custom property computes
+                // independently of source order. What the order DOES decide is the
+                // override direction — at equal specificity the LAST definition in a
+                // document wins (measured) — so palette-first is what lets a theme's
+                // own `css` redefine a name its own `namedColors` set, rather than the
+                // palette silently winning over the stylesheet the project wrote.
+                registry.register({
+                    name: 'ordered',
+                    namedColors: { 'accent-bg-color': 'rgb(1 2 3)' },
+                    css:
+                        ':root { --accent-bg-color: rgb(4 5 6); }\n' +
+                        '.gjsify-theme-probe { color: var(--accent-bg-color); }',
+                });
+                registry.select('ordered');
+                expect(colour()).toBe('rgb(4,5,6)');
 
-                    // And the document's shape, because both halves have to be PRESENT
-                    // before their order means anything: with the palette dropped
-                    // entirely `indexOf(':root')` is -1, which still reads as "before"
-                    // the rule and would keep an index comparison green over exactly the
-                    // regression it is there to catch.
-                    const document = registry.documentOf({
-                        name: 'x',
-                        namedColors: { 'accent-bg-color': 'rgb(1 2 3)' },
-                        css: '.gjsify-theme-probe { color: var(--accent-bg-color); }',
-                    });
-                    expect(document).toContain('--accent-bg-color: rgb(1 2 3)');
-                    expect(document).toContain('.gjsify-theme-probe');
-                    expect(document.indexOf(':root') < document.indexOf('.gjsify-theme-probe')).toBe(true);
-                },
-            );
+                // And the document's shape, because both halves have to be PRESENT
+                // before their order means anything: with the palette dropped
+                // entirely `indexOf(':root')` is -1, which still reads as "before"
+                // the rule and would keep an index comparison green over exactly the
+                // regression it is there to catch.
+                const document = registry.documentOf({
+                    name: 'x',
+                    namedColors: { 'accent-bg-color': 'rgb(1 2 3)' },
+                    css: '.gjsify-theme-probe { color: var(--accent-bg-color); }',
+                });
+                expect(document).toContain('--accent-bg-color: rgb(1 2 3)');
+                expect(document).toContain('.gjsify-theme-probe');
+                expect(document.indexOf(':root') < document.indexOf('.gjsify-theme-probe')).toBe(true);
+            });
 
             await it('makes the neutral default an EMPTY document, which is the statement', async () => {
                 const registry = new ThemeRegistry({ display });
