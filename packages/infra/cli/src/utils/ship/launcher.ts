@@ -27,13 +27,13 @@
 //
 // IT ALSO CARRIES THE FONTS, and that reader is not GLib (ADR 0037). fontconfig
 // expands the stock `fonts.conf`'s `<dir prefix="xdg">fonts</dir>` over
-// `XDG_DATA_DIRS` as well as `XDG_DATA_HOME` — measured on fontconfig 2.17.0
-// (Fedora 44) and 2.14.1 (`org.gnome.Platform//43`), in every list position,
-// recursively, with a cold cache — so this one export is the whole mechanism
-// behind `gjsify.ship.fonts` outside a `/usr` prefix, and it is what reaches
-// `/app/share/fonts` in a Flatpak. `fonts-conf(5)` documents only
-// `XDG_DATA_HOME`, so the behaviour is not re-derivable from the manual: do not
-// narrow this line to the GLib readers on the strength of what the man page says.
+// `XDG_DATA_DIRS` as well as `XDG_DATA_HOME`, so this one export is the whole
+// mechanism behind `gjsify.ship.fonts` outside a `/usr` prefix and is what
+// reaches `/app/share/fonts` in a Flatpak. `fonts-conf(5)` documents only
+// `XDG_DATA_HOME`: the behaviour is NOT re-derivable from the manual, so do not
+// narrow this line to the GLib readers on the strength of what the man page
+// says. Measured across fontconfig 2.14.1 → 2.18.3 — ADR 0037 § What was
+// measured has the versions and the control.
 //
 // THREE FORMS, because neither other OS runs this file. macOS runs a `/bin/sh`
 // script too but cannot use `readlink -f` and must not be handed a `DYLD_*`;
@@ -47,7 +47,22 @@ import { posix } from 'node:path';
 
 import type { LauncherRuntime } from './app-runtime.js';
 import type { Layout } from './layout.js';
+import { SHARE } from './share-dirs.js';
 import type { ShipSettings } from './types.js';
+
+/**
+ * `<the layout's data dir>/fonts/<appId>` — the staged face directory (ADR 0037).
+ *
+ * ONE spelling, and the leaf comes off `SHARE.fonts` rather than being typed out,
+ * because all three forms below want a path `planFonts` decides. A literal in each
+ * would keep naming the old directory the day that constant moves, and the suites
+ * would then pass PAST each other rather than fail: the launcher tests read this
+ * string, the payload test reads the plan, and neither can see that the two
+ * disagree.
+ */
+function stagedFontDir(dataDir: string, appId: string): string {
+    return `${dataDir}/${posix.basename(SHARE.fonts)}/${appId}`;
+}
 
 /** POSIX-shell single-quote: the only escape inside `'…'` is `'\''`. */
 function shellQuote(value: string): string {
@@ -158,16 +173,13 @@ function renderPrefixLauncher(settings: ShipSettings, bundleRelPath: string, lay
     }
 
     // Where the faces landed, handed over for the same reason and in the same
-    // shape as the catalogue directory above (ADR 0037). On Linux fontconfig
-    // already finds them by itself, so this is the OS where the variable is
-    // redundant — it is exported anyway because the ONE thing a consumer must not
-    // have to write is an OS branch around a path this command chose. Windows is
-    // where it is load-bearing: nothing there reaches a font file by
-    // configuration, so the app registers it with
-    // `PangoCairo.FontMap.get_default().add_font_file()` and this is how it learns
-    // which directory to walk.
+    // shape as the catalogue directory above (ADR 0037) — and REDUNDANT on this
+    // OS, where fontconfig has already found them through XDG_DATA_DIRS. Exported
+    // anyway, because the one thing a consumer must not have to write is an OS
+    // branch around a path this command chose; `Layout.fontGap` says where the
+    // variable is the mechanism instead of a courtesy.
     if (settings.fontFiles.length > 0) {
-        lines.push(`GJSIFY_FONT_DIR="$prefix"/${dirs.data}/fonts/${settings.appId}`, 'export GJSIFY_FONT_DIR');
+        lines.push(`GJSIFY_FONT_DIR="$prefix"/${stagedFontDir(dirs.data, settings.appId)}`, 'export GJSIFY_FONT_DIR');
     }
 
     lines.push(`exec ${execLine(layout, `"$prefix"/${dirs.bundle}/${bundleRelPath}`, settings)} "$@"`, '');
@@ -305,7 +317,10 @@ function renderAppBundleLauncher(
     // so a consumer that wants to name a bundled family has one spelling on three
     // operating systems instead of an OS branch.
     if (settings.fontFiles.length > 0) {
-        lines.push(`GJSIFY_FONT_DIR="$contents/${under(dirs.data)}/fonts/${settings.appId}"`, 'export GJSIFY_FONT_DIR');
+        lines.push(
+            `GJSIFY_FONT_DIR="$contents/${stagedFontDir(under(dirs.data), settings.appId)}"`,
+            'export GJSIFY_FONT_DIR',
+        );
     }
 
     // `"$here/node"`, not `node`. The bare name is true of a developer's machine
@@ -402,19 +417,15 @@ function renderWindowsLauncher(
     if (settings.localeFiles.length > 0) {
         lines.push(`set "GJSIFY_LOCALE_DIR=${at(dirs.data)}\\locale"`);
     }
-    // THE ONE OS WHERE THIS VARIABLE IS THE WHOLE HANDOVER (ADR 0037). GTK4 here
-    // is pangowin32, whose font map is populated by
-    // `pango_win32_dwrite_font_map_populate()` — DirectWrite's system font
-    // collection plus Pango's own font-set builder, and NOT a filesystem search
-    // path. There is no env var, no manifest element and no side-by-side entry
-    // that activates a font file for one process; `AddFontResourceEx(FR_PRIVATE)`
-    // registers with GDI, which that populate call never consults. So the app
-    // registers the faces itself with
-    // `PangoCairo.FontMap.get_default().add_font_file()` (Pango 1.56+, in the
-    // typelib, and on win32 it clears the map's cache and emits `changed`, so it
-    // works after the map exists), and this line is how it is told where.
+    // THE ONE OS WHERE THIS VARIABLE IS THE WHOLE HANDOVER (ADR 0037), because
+    // Windows has no declarative font activation at all and the app must call
+    // `PangoCairo.FontMap.get_default().add_font_file()` itself. This line is how
+    // it is told where. Do NOT drop it as redundant with XDG_DATA_DIRS above —
+    // that one reaches no face here. Which three mechanisms look like they would
+    // and do not is `LAYOUTS.windows.fontGap` in `layout.ts`, beside the string
+    // the command prints.
     if (settings.fontFiles.length > 0) {
-        lines.push(`set "GJSIFY_FONT_DIR=${at(dirs.data)}\\fonts\\${windowsPath(settings.appId)}"`);
+        lines.push(`set "GJSIFY_FONT_DIR=${at(stagedFontDir(dirs.data, settings.appId))}"`);
     }
 
     // `"%HERE%node.exe"`, not `node`. The bare name is true of a developer's
