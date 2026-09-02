@@ -2502,7 +2502,7 @@ jobs:
         # symptom is a win32-only `getGType` returning null for one type.
         run: node packages/framework/webview2-native/scripts/check-def-exports.mjs
 
-      - name: Hold every quoted #include to the target's include path
+      - name: "Hold every quoted #include to the include path"
         if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
         # `src/cpp/` is the ONE translation unit no non-Windows host compiles, so
         # the step above proves nothing about it and neither does `meson compile`
