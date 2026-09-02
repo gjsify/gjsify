@@ -373,6 +373,56 @@ export default async () => {
             });
         });
 
+        await gated('the ordering table both halves answer alike', async () => {
+            // The twin of `navigation-split-view.native.spec.tsx`'s describe of the same
+            // subject, which reads the pane NAME off `resolveNavigationStack`. Until this
+            // one existed, the ordering table — the thing that makes a collapsed split
+            // view a navigation stack rather than an `if (showContent)` — was asserted
+            // against the CORE on one half and against nothing on the other, so
+            // "libadwaita answers the same" was a claim.
+            //
+            // The visible page is read off the internal `AdwNavigationView`. There is no
+            // getter for it, and `show-content` alone would not do: for the lone-child row
+            // the property STAYS true (`set_show_content` takes its early return when
+            // either pane is missing) while the sidebar is what is on screen, which is
+            // precisely the case a flag-keyed renderer gets wrong.
+            const visibleTag = (view: Gtk.Widget): string | null =>
+                (find(view, 'AdwNavigationView') as Adw.NavigationView).get_visible_page()?.tag ?? null;
+
+            const collapsed = (showContent: boolean, lone: boolean, body: (view: Gtk.Widget) => void): void =>
+                laidOut(
+                    <AdwNavigationSplitView
+                        sidebar={<gtk-label label="sidebar" />}
+                        sidebarTag="sidebar"
+                        sidebarTitle="Sidebar"
+                        contentTag="content"
+                        contentTitle="Content"
+                        collapsed={true}
+                        showContent={showContent}
+                    >
+                        {lone ? undefined : <gtk-label label="content" />}
+                    </AdwNavigationSplitView>,
+                    (container) => body(find(container, 'AdwNavigationSplitView')),
+                );
+
+            await it('shows the SIDEBAR when collapsed and show-content is false', async () => {
+                collapsed(false, false, (view) => expect(visibleTag(view)).toBe('sidebar'));
+            });
+
+            await it('shows the CONTENT when collapsed and show-content is true', async () => {
+                collapsed(true, false, (view) => expect(visibleTag(view)).toBe('content'));
+            });
+
+            await it('keeps a LONE child visible whatever show-content says', async () => {
+                collapsed(true, true, (view) => {
+                    // The property the caller authored is still true …
+                    expect((view as Adw.NavigationSplitView).showContent).toBe(true);
+                    // … and the sidebar is the page on screen anyway.
+                    expect(visibleTag(view)).toBe('sidebar');
+                });
+            });
+        });
+
         if (display !== null) {
             await gated('the allocation, not only the setter', async () => {
                 await it('splits a 1000-point frame 250 / 750, as the core does', async () => {
