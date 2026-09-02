@@ -515,6 +515,9 @@ export interface AdwPreferencesGroupProps extends AdwWidgetProps {
 /**
  * `Adw.ComboRow` — a row that picks one item out of a list.
  *
+ * The two labels are {@link AdwRowProps}', which every boxed-list row shares — including
+ * their derived visibility, which is not `title !== ''`.
+ *
  * `model` IS THE LIBADWAITA NAME AND NOT THE LIBADWAITA TYPE, which is the one liberty this
  * surface takes and the reason it can exist at all. `AdwComboRow:model` is a
  * `Gio.ListModel`; a props file that may import neither `gi://Gio` nor `react-native` cannot
@@ -538,11 +541,7 @@ export interface AdwPreferencesGroupProps extends AdwWidgetProps {
  * `search-match-mode` are all absent, and all for the `model` reason one step further: each
  * is a `Gtk.*` instance. Neither sibling renderer has them either.
  */
-export interface AdwComboRowProps {
-    /** `title` — the row's heading. */
-    title?: string;
-    /** `subtitle` — the dim second line. */
-    subtitle?: string;
+export interface AdwComboRowProps extends AdwRowProps {
     /** `model` — the selectable items. See above on the type. */
     model?: readonly AdwComboOptionInput[];
     /** `selected` — the position of the selected item. Default 0. */
@@ -555,6 +554,8 @@ export interface AdwComboRowProps {
 
 /**
  * `Adw.SpinRow` — a row holding a number with a stepper.
+ *
+ * The two labels are {@link AdwRowProps}', as on every other boxed-list row here.
  *
  * THE RANGE IS THREE SCALARS AND libadwaita SPELLS IT AS ONE OBJECT. `AdwSpinRow:adjustment`
  * is a `Gtk.Adjustment` — a GObject that is not a widget, which is what the gallery refuses
@@ -580,11 +581,7 @@ export interface AdwComboRowProps {
  * have, so carrying them would mean a property GTK honours and the phone ignores. Neither
  * sibling renderer has them either.
  */
-export interface AdwSpinRowProps {
-    /** `title` — the row's heading. */
-    title?: string;
-    /** `subtitle` — the dim second line. */
-    subtitle?: string;
+export interface AdwSpinRowProps extends AdwRowProps {
     /** `value` — the current number, clamped into {@link lower}…{@link upper}. Default 0. */
     value?: number;
     /** `Gtk.Adjustment:lower` — the smallest value the stepper reaches. Default 0. */
@@ -610,6 +607,11 @@ export interface AdwSpinRowProps {
  * `@gjsify/adwaita-core`'s `PasswordEntryRowState` composes an `EntryRowState` for the same
  * reason the C subclasses rather than copies.
  *
+ * WHICH IS WHY IT EXTENDS RATHER THAN RESTATES {@link AdwEntryRowProps}. The two carried the
+ * same eight members written out twice, and a second copy of a prop surface is the shape that
+ * drifts silently: a member added to the entry row would simply not reach this one, and
+ * `parity.spec.ts` compares each widget against its OWN base, so nothing would notice.
+ *
  * `revealed` IS THEREFORE NOT A PROP, although both sibling renderers publish one. It is not
  * a libadwaita property, the peek state is private to the widget, and a prop would be the
  * one place this file invents a name. The button owns it on both halves.
@@ -618,21 +620,4 @@ export interface AdwSpinRowProps {
  * `attributes` are absent — the last two by type, the first by there being no default widget
  * on a phone. Neither sibling renderer has them.
  */
-export interface AdwPasswordEntryRowProps {
-    /** `title` — the label, or the placeholder while the row is empty. Never both. */
-    title?: string;
-    /** `text` — the contents. Counted in CODE POINTS against {@link maxLength}. */
-    text?: string;
-    /** `max-length` — the character cap. `0` (the default) is unlimited. */
-    maxLength?: number;
-    /** `editable` — whether the entry accepts edits. Default TRUE, as `GtkEditable`'s is. */
-    editable?: boolean;
-    /** `show-apply-button` — whether an edit raises an apply button. Default false. */
-    showApplyButton?: boolean;
-    /** `notify::text` — the contents changed and were not refused by {@link maxLength}. */
-    onNotifyText?: (text: string) => void;
-    /** `apply` — the apply button was pressed, or Enter applied a pending edit. */
-    onApply?: () => void;
-    /** `entry-activated` — Enter with nothing pending. Exactly one of the two fires. */
-    onEntryActivated?: () => void;
-}
+export interface AdwPasswordEntryRowProps extends AdwEntryRowProps {}
