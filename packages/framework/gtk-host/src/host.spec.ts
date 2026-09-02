@@ -990,6 +990,45 @@ export default async () => {
                 expect(stackOrder(widget)).toStrictEqual(['c', 'b', 'a']);
             });
 
+            await it('removing a page after a visible-child switch leaves nothing dangling', async () => {
+                // Reproduced from an application: an `Adw.ViewStack` behind a tab
+                // router logged ~300 `gtk_widget_set_child_visible: assertion
+                // 'GTK_IS_WIDGET (widget)' failed` in twelve seconds, at exit 0.
+                // The defect is libadwaita's — `hideBeforeRemove` in `types.ts`
+                // carries the source lines — but THIS host is what drives it: a
+                // keyed reorder is `remove-all`, so every round removes every page.
+                // Measured in the application, patched against unpatched: 296
+                // criticals before, 0 after, with the React loop unchanged.
+                //
+                // Every precondition below was measured one at a time, and each one
+                // alone is silent: an unrealised stack, the switch without the
+                // remove, the remove without the switch. The stale pointer is only
+                // read on dispose, so the window has to go away inside the test.
+                const stack = createElement('AdwViewStack');
+                const widget = materialize(stack) as unknown as Adw.ViewStack;
+                const [a, b] = ['a', 'b'].map((n) =>
+                    createElement('GtkLabel', { label: n, layout: { name: n, title: n } }),
+                );
+                insert(a, stack);
+                insert(b, stack);
+                const removed = materialize(a) as unknown as Gtk.Widget;
+
+                const window = new Gtk.Window();
+                window.set_child(widget as unknown as Gtk.Widget);
+                window.present();
+
+                widget.set_visible_child_name('b');
+                remove(a);
+
+                // Not the same assertion as the gate's: this one guards the RESTORE.
+                // Hiding without putting `visible` back would be silent here and
+                // would lose the page on the next keyed move, which is a remove and
+                // a re-append of everything.
+                expect(removed.get_visible()).toBe(true);
+
+                window.destroy();
+            });
+
             await it('a slotted insert-before lands in document order', async () => {
                 const bar = createElement('AdwHeaderBar');
                 const widget = materialize(bar) as unknown as Adw.HeaderBar;

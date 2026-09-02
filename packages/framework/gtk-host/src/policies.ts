@@ -346,9 +346,19 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
             host[policy.remove](address);
             return;
         }
+        case 'keyed': {
+            // Why a widget can need to be hidden before it is removed, and why the
+            // visibility goes back on: the `hideBeforeRemove` docblock in `types.ts`.
+            // A child that is ALREADY hidden needs nothing — libadwaita ran its own
+            // cleanup when it was hidden, which is the very path this borrows.
+            const restoreVisible = policy.hideBeforeRemove === true && address.get_visible();
+            if (restoreVisible) address.set_visible(false);
+            host[policy.remove](address);
+            if (restoreVisible) address.set_visible(true);
+            return;
+        }
         case 'ordered':
         case 'indexed':
-        case 'keyed':
         case 'coords':
             host[policy.remove](address);
             return;

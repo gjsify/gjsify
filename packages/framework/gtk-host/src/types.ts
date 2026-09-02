@@ -170,7 +170,40 @@ export type ChildPolicy =
      * `adw_navigation_view_add(page)` takes one. `descriptorProblems()` checks
      * that a method EXISTS, never how many arguments it wants.
      */
-    | { kind: 'keyed'; add: string; remove: string; nameFrom: string; titled: boolean }
+    | {
+          kind: 'keyed';
+          add: string;
+          remove: string;
+          nameFrom: string;
+          titled: boolean;
+          /**
+           * Take the child out of view BEFORE the parent removes it, and put its
+           * own `visible` back afterwards. Declared per widget, because it is a
+           * defect in one of them rather than a property of being keyed.
+           *
+           * MEASURED on libadwaita 1.9.3 / GJS 1.88.1: `adw_view_stack_remove`
+           * clears `visible_child` and then does `g_clear_object (&page->widget)`,
+           * but it never clears `last_visible_child` — three lines apart in the
+           * same function. A later reader of that pointer then dereferences a page
+           * whose widget is NULL:
+           *
+           *     Gtk-CRITICAL **: gtk_widget_set_child_visible: assertion 'GTK_IS_WIDGET (widget)' failed
+           *
+           * Reproducer, no renderer involved: add `a` and `b`, present a window
+           * holding the stack, `set_visible_child_name('b')`, `remove(a)`, dispose.
+           * Either step alone is quiet, and an unrealised stack is quiet too — the
+           * pointer is only read on dispose, snapshot, size-allocate, or the
+           * `adw_animation_skip` an add performs mid-transition. `Gtk.Stack` does
+           * NOT reproduce, so this is libadwaita's copy of the pattern, not GTK's.
+           *
+           * Hiding first is libadwaita's OWN cleanup: the visibility notify runs
+           * `update_child_visible`, which does clear `last_visible_child`. The
+           * restore afterwards is load-bearing, not cosmetic — `reorderMode`
+           * answers `remove-all` for `keyed`, so a reorder removes and re-appends
+           * every child, and one left hidden would never come back.
+           */
+          hideBeforeRemove?: boolean;
+      }
     /** `Gtk.Grid`: position is data on the child, so document order carries nothing. */
     | { kind: 'coords'; attach: string; remove: string }
     /**

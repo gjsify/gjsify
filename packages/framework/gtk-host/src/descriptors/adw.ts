@@ -163,7 +163,17 @@ export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
         // and is NOT used — it is a fourth argument this policy has no field for, and
         // an icon belongs to the `Adw.ViewStackPage` the add RETURNS. Reaching that
         // page is a `get_page(child)` call, one layer up.
-        children: { kind: 'keyed', add: 'add_titled', remove: 'remove', nameFrom: 'name', titled: true },
+        children: {
+            kind: 'keyed',
+            add: 'add_titled',
+            remove: 'remove',
+            nameFrom: 'name',
+            titled: true,
+            // libadwaita never clears `last_visible_child` when a page is removed,
+            // and a keyed reorder removes every page. See `types.ts` for the
+            // measurement and the exact critical this suppresses.
+            hideBeforeRemove: true,
+        },
     },
     {
         gtype: 'AdwClamp',
