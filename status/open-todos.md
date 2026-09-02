@@ -957,14 +957,32 @@ in the typelib since Pango 1.56, and on win32 it clears the map's cache and emit
 in `GJSIFY_FONT_DIR` and `Layout.fontGap` prints the call, which is a handover rather
 than a fix: every consumer that ships a face writes the same loop.
 
-It belongs in the GTK host layer (ADR 0027), which is where an application's startup
-already lives, and one call covers Windows AND Linux — `pango_fc_font_map_add_font_file`
-implements the same vfunc, process-locally, with no config file. macOS stays the odd one
-out: the CoreText font map implements no `add_font_file` at all and falls through to the
-base impl's `G_IO_ERROR_NOT_SUPPORTED`, which is why `ATSApplicationFontsPath` is the
-darwin mechanism and must stay so. What blocks it is not the call but the API shape —
-whether the host registers eagerly from `GJSIFY_FONT_DIR`, or exposes a function an app
-calls — and no leg in this repository can verify the Windows half either way.
+The home is `@gjsify/adwaita-app` (ADR 0009, under ADR 0027's host layer), beside
+`initLocale` — which is the SAME shape one variable over: `resolveLocaleDir` reads
+`GJSIFY_LOCALE_DIR` off the launcher `gjsify ship` wrote, and ADR 0037 § 4 chose
+`GJSIFY_FONT_DIR` on that precedent. An `initFonts()` there registers every face the
+directory holds, and one call covers Windows AND Linux —
+`pango_fc_font_map_add_font_file` implements the same vfunc, process-locally, with no
+config file. macOS stays the odd one out: the CoreText font map implements no
+`add_font_file` at all and falls through to the base impl's `G_IO_ERROR_NOT_SUPPORTED`,
+which is why `ATSApplicationFontsPath` is the darwin mechanism and must stay so.
+
+**The Linux half IS verifiable here, so verifiability is not what blocks this.** Measured
+on this host (GJS, Pango 1.57.1, `PangoCairoFcFontMap`): a family absent from
+`list_families()` is present after `add_font_file()` on the staged face. What is open is
+the API SHAPE — whether the shell registers eagerly on `startup` or exposes a function the
+app calls, and whether a face that fails to open aborts or warns — plus the Windows
+confirmation, which no leg here can produce. A Linux-green `initFonts()` would already
+remove the loop every consumer otherwise copies.
+
+`@gjsify/react-native`'s `expo-font` surface is the SECOND caller and it has a stake of
+its own: `useFonts` answers `[true, null]` on its first render because "fonts are
+INSTALLED and the platform's font map discovers them", and on Windows that is true only
+once somebody has registered them. Registering `GJSIFY_FONT_DIR` on that surface's module
+load — it cannot resolve the hook's asset-registry values, but it can register the
+directory `gjsify ship` named — would make the row honest on all three OSes rather than on
+two. Same call, same open API question; decide it once, in the shell, and have the surface
+use it.
 
 ### The win32 GTK bundle ships fontconfig config that nothing reads
 
