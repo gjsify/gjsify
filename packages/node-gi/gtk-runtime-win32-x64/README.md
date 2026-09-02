@@ -24,7 +24,7 @@ gtk/
   bin/                     GTK/GLib/cairo/pango/graphene/gdk-pixbuf DLLs (+ deps)
   girepository-1.0/        typelibs — ONLY those this bundle can back (see below)
   lib/ share/ etc/         --windowing only: pixbuf loaders, schemas, icons, fontconfig
-  licenses/                license texts recovered from the gvsbuild prefix
+  licenses/                license texts from the gvsbuild prefix, plus vendored ones
   THIRD-PARTY-NOTICES.md   what is bundled, under which terms, and that it is unmodified
   manifest.json            counts + sizes + DLL list + symmetry/license proof
 ```
@@ -67,8 +67,20 @@ not shipped):
    (`share/doc/<project>/COPYING|LICENSE`, `share/licenses/<project>/*`) into
    `gtk/licenses/` and write `gtk/THIRD-PARTY-NOTICES.md`, which lists every bundled
    DLL and states that the DLLs are byte-identical copies (no relocation on Windows).
-   Per-DLL attribution is deliberately NOT invented: the prefix is one flat build tree,
-   so the whole corpus ships and the notice says the mapping is not recoverable.
+   Per-DLL *terms* are deliberately NOT invented: the prefix is one flat build tree, so
+   the notice says the DLL→project mapping is not recoverable from it.
+
+   "The whole corpus ships" used to stand here and was measured false. Counted on a real
+   artifact: 90 shipped binaries against 45 projects the prefix documents, leaving **14
+   binaries whose project had no license text at all** — `glib` among them, five DLLs
+   under LGPL-2.1-or-later, missing from every win32 tarball published before this. The
+   coverage check only ran its per-binary rules under `attribution: "per-binary"`, and
+   this bundle passes `prefix`, so it effectively asserted that *some* license text
+   existed. A corpus of one file would have satisfied it.
+   So every shipped binary is now named against a project (`WIN32_LICENSE_FAMILIES`, a
+   NAME map — it carries no terms), coverage is enforced in both attribution modes, and
+   texts the prefix does not install are vendored under `licenses-not-in-prefix/` with
+   their provenance pinned to the gvsbuild version.
 
 Contrast with macOS, where dyld bakes each dylib's dependency install-names, so the
 darwin bundle must rewrite every reference to `@loader_path/<leaf>` and ad-hoc
