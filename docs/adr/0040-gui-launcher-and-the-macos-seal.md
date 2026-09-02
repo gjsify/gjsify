@@ -145,7 +145,7 @@ mistake the first draft made:
 | question | probe | decides |
 |---|---|---|
 | does this process own a console? | `GetConsoleCP() != 0` | whether `cmd.exe` may be given one of its own (`CREATE_NO_WINDOW`) |
-| can this process write anywhere? | `GetStdHandle(STD_OUTPUT_HANDLE)` usable | whether the child's output needs a file |
+| can this process write anywhere? | `GetStdHandle` usable for `STD_OUTPUT_HANDLE` **and** `STD_ERROR_HANDLE` | whether the child's output needs a file, and for which stream |
 
 They come apart in both directions, and both were measured on the VM. A scheduled
 task has a console with **no window**, so `GetConsoleWindow` — the obvious probe, and
@@ -153,10 +153,22 @@ the first one written — answered "no console" and sent a run whose caller had
 redirected `> file` into a `%TEMP%` log instead. A GUI process started with
 `Start-Process -RedirectStandardOutput` has a usable handle and no console at all.
 
+**The second question is asked of BOTH output handles, and the first version asked
+it only of stdout.** That version reads as the branch that keeps everything and is
+the one place where this design broke its own rule: `fd 2` is where an uncaught
+exception's trace comes out, Node prints it from C++, and a launch with a live
+stdout and a dead stderr therefore passed the child a handle nothing could be
+written to. Measured — see § *The measurement* — and it is the only defect in this
+ADR that was found by reading the code against its own principle rather than by
+running it.
+
 The result is that output is never lost: a terminal launch writes to the terminal, a
-redirected launch writes to the redirect, and only a launch with nowhere to write at
-all — a double-click — falls back to `%TEMP%\<binaryName>.launch.log`. The stub
-waits for the child and exits with its status, so `%ERRORLEVEL%` stays truthful.
+redirected launch writes to the redirect, a launch with one live stream keeps that
+stream and puts the other in the log, and only a launch with nowhere to write at
+all — a double-click — sends both to `%TEMP%\<binaryName>.launch.log`. The log
+replaces exactly the handles that are dead, so a caller's surviving redirect is
+never overwritten. The stub waits for the child and exits with its status, so
+`%ERRORLEVEL%` stays truthful.
 
 ### D4. The `.msi` shortcut points at the `.exe`
 
@@ -239,6 +251,37 @@ Three more behaviours, measured the same day:
 - a program directory at `C:\src\d3 space\my app.exe` with arguments → correct argv,
   correct exit code. `cmd.exe /s /c ""<path>" <args>"` is the quoting that survives a
   space in the path.
+
+**And the whole point of the exercise, on a real crash.** The `.cmd` replaced with
+one that runs `node.exe -e` (v24.18.1, the VM's own), printing to stdout and stderr
+and then throwing from a timer, started by ShellExecute with no console: the
+`%TEMP%` log carries the `console.log` line, the `process.stderr.write` line, and
+the **complete uncaught-exception report** — source line, caret, `Error: boom from
+the app`, three stack frames and the `Node.js v24.18.1` banner. That report is
+printed by C++ `FWrite`, which is exactly the output § *Context* says a
+`Subsystem`-patched `node.exe` discards and no JS can recapture. Exit 1 propagated.
+
+**The stderr probe, red before green** (2026-09-02, § D3's second question). The
+branch needs a process with NO console and a live stdout beside a dead stderr, which
+`Start-Process` cannot produce — it is constructible with `CreateProcessW` +
+`DETACHED_PROCESS` and `STARTF_USESTDHANDLES`, `hStdOutput` = an inheritable file,
+`hStdError` = NULL:
+
+| stub | caller's stdout file | `%TEMP%` log | exit |
+|---|---|---|---|
+| stdout-only probe (before) | `console.log` line | **none — never opened** | 1 |
+| both probed (after) | `console.log` line, unchanged | stderr line **plus the whole backtrace** | 1 |
+| both probed, `hStdError` = `INVALID_HANDLE_VALUE` | `console.log` line | same as above | 1 |
+
+So the loss was real, the fix does not touch the surviving redirect, and both
+spellings of a dead handle take the same path.
+
+**One rig trap worth the sentence, because it made the case look unreachable.**
+PowerShell coerces `$null` to `""` for a `[string]` P/Invoke parameter, so
+`CreateProcessW` refused **every** invocation with `ERROR_INVALID_NAME` (123) —
+including `cmd.exe` — until `lpApplicationName` was passed as `[NullString]::Value`.
+A harness that fails identically for every input reads as "this state cannot be
+constructed", which is the shape of a measurement that never happened.
 
 **macOS: the seal ran, and nothing past it did.** The macOS VM is shut down and
 this repository holds no Apple credential — but `macos-suites.yml`'s ad-hoc leg

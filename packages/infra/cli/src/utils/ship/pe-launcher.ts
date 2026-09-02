@@ -281,14 +281,15 @@ export interface GuiLauncherInput {
  *      is the documented flag that makes `cmd.exe` strip exactly the outer pair
  *      of quotes and take the rest literally, which is the only form that
  *      survives a program directory with a space in its path.
- *   4. `GetConsoleCP` and `GetStdHandle` — two probes, not one — decide the two
- *      remaining arguments: a console to inherit means no flags and no redirect
- *      (the terminal sees everything an unhidden `.cmd` shows today); no console
- *      but a usable stdout means `CREATE_NO_WINDOW` and the caller's own handles;
- *      neither means `CREATE_NO_WINDOW` plus a log file inherited as the child's
- *      stdout and stderr. `GetConsoleWindow` is deliberately NOT the probe — it
- *      answers NULL for a windowless console, and the comment at step 4 below
- *      carries the measurement that cost.
+ *   4. `GetConsoleCP` and `GetStdHandle` — two questions, three handles — decide
+ *      the two remaining arguments: a console to inherit means no flags and no
+ *      redirect (the terminal sees everything an unhidden `.cmd` shows today); no
+ *      console but a usable stdout AND stderr means `CREATE_NO_WINDOW` and the
+ *      caller's own handles; a dead handle on either means `CREATE_NO_WINDOW` plus
+ *      `%TEMP%\<logLeaf>`, substituted for the dead one only so a caller's
+ *      surviving redirect is never overwritten. `GetConsoleWindow` is deliberately
+ *      NOT the probe — it answers NULL for a windowless console, and the comment at
+ *      step 4 below carries the measurement that cost.
  *   5. wait, and exit with the child's status — so `<App>.exe` in a script is a
  *      truthful `%ERRORLEVEL%` and not a fire-and-forget.
  */
@@ -419,9 +420,31 @@ function emitStub(): Emitter {
     // named explicitly — a process that allocates a console gets that console's
     // buffers as its standard handles unless `STARTF_USESTDHANDLES` says otherwise.
     movImm32(emit, 'r14d', CREATE_NO_WINDOW);
+    // BOTH HANDLES ARE PROBED, not just stdout, and the reason is the whole point
+    // of this file: `fd 2` is where an uncaught exception's trace comes out, and
+    // Node prints it from C++ (`src/debug_utils.cc`), so a dead stderr loses the
+    // one output that says why the app did not start.
+    //
+    // MEASURED, red before green, on `win11-gjsify` (2026-09-02). The state is
+    // constructible with `CreateProcessW` + `DETACHED_PROCESS` (no console at all)
+    // and `STARTF_USESTDHANDLES` where `hStdOutput` is a real file and `hStdError`
+    // is NULL: with `rbx` probed alone, the child's `console.log` reached the
+    // caller's file and the stderr line plus the entire uncaught-exception trace
+    // reached NOTHING — no `%TEMP%` log was even opened, because stdout looked
+    // fine. With both probed, the trace lands in `%TEMP%\<logLeaf>` and the
+    // caller's stdout redirect is untouched. `INVALID_HANDLE_VALUE` in place of
+    // NULL takes the same path, measured separately.
+    //
+    // The predicate is the SAME for both, deliberately: NULL or
+    // `INVALID_HANDLE_VALUE`. A handle that is neither is the caller's, and the
+    // caller's redirect always wins over our log file.
     emit.push(0x48, 0x85, 0xdb); // test rbx, rbx
     emit.jcc('e', 'needLog');
     emit.push(0x48, 0x83, 0xfb, 0xff); // cmp rbx, -1  (INVALID_HANDLE_VALUE)
+    emit.jcc('e', 'needLog');
+    emit.push(0x48, 0x85, 0xf6); // test rsi, rsi
+    emit.jcc('e', 'needLog');
+    emit.push(0x48, 0x83, 0xfe, 0xff); // cmp rsi, -1
     emit.jcc('ne', 'useStdHandles');
 
     emit.label('needLog');
@@ -451,7 +474,23 @@ function emitStub(): Emitter {
     // A `%TEMP%` that cannot be written to is not a reason to refuse to start the
     // app: run it with no window and no output rather than not at all.
     emit.jcc('e', 'create');
+    // THE LOG REPLACES ONLY WHAT IS UNUSABLE. Both handles reach here when either
+    // one is dead, so substituting blindly would overwrite a redirect the caller
+    // asked for — `cmd /c "app.exe > file"` with a broken stderr must still put
+    // stdout in `file`. Each is tested again against the same predicate as above
+    // and only the dead one becomes the log.
+    emit.push(0x48, 0x85, 0xdb); // test rbx, rbx
+    emit.jcc('e', 'logIsStdout');
+    emit.push(0x48, 0x83, 0xfb, 0xff); // cmp rbx, -1
+    emit.jcc('ne', 'stdoutKept');
+    emit.label('logIsStdout');
     emit.push(0x48, 0x89, 0xc3); // mov rbx, rax
+    emit.label('stdoutKept');
+    emit.push(0x48, 0x85, 0xf6); // test rsi, rsi
+    emit.jcc('e', 'logIsStderr');
+    emit.push(0x48, 0x83, 0xfe, 0xff); // cmp rsi, -1
+    emit.jcc('ne', 'useStdHandles');
+    emit.label('logIsStderr');
     emit.push(0x48, 0x89, 0xc6); // mov rsi, rax
 
     emit.label('useStdHandles');
