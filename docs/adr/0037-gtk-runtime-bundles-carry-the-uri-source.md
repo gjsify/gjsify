@@ -104,6 +104,28 @@ including over https.** Concretely:
   second gvsbuild invocation, because gst-plugins-good's `soup` feature is meson `auto`
   and *silently* produces no plugin when libsoup is absent from the prefix. The prefix
   assertion after the build now names `gstsoup.dll` instead of counting plugins.
+- **The bundles ship the TLS implementation, not the trust anchors.** `supports_tls()` —
+  the question decision 4's data set and the first version of the runtime gate both asked —
+  answers for the module's PRESENCE, and is `true` on a bundle that rejects every
+  certificate in existence. Measured on linux-x64 by bind-mounting an empty directory over
+  p11-kit's module dirs: `gst-elements.test.mjs` passed in full at exit 0, and every
+  handshake failed with `Unacceptable TLS certificate`. The anchors reach the shipped
+  gnutls through the shipped libp11-kit (it is in the cost table above), which resolves its
+  trust module out of a compiled-in directory — `/usr/share/p11-kit/modules`,
+  `/etc/pkcs11/modules`, i.e. the BUILD prefix — and unlike GIO's module dir there is no env
+  override to repoint it with: the entire `P11_KIT_*` surface is `DEBUG`, `NO_USER_CONFIG`,
+  `STRICT` and `URI_LOWERCASE`. So decision 2's repair does not reach this layer, and
+  decision 4's file-list check cannot see it either.
+- **So the anchors are asked of the running backend, on the OS the bundle is for.**
+  `gst-elements.test.mjs` asserts `g_tls_backend_get_default_database()` is non-NULL —
+  glib-networking returns NULL exactly when the system trust holds zero certificates — and
+  that file runs on the staged bundle in the darwin and win32 windowing jobs. It is a LOWER
+  BOUND, deliberately: a non-empty database still does not say which roots are in it, and no
+  offline check can. What it does settle is the difference between "a TLS backend loaded"
+  and "TLS can succeed", which is the difference this ADR's second measured row is about one
+  layer up. If it reports red on a platform, that bundle needs a trust payload of its own
+  before it may claim https; the measurement above was taken on Linux, and the per-platform
+  answer is the CI leg's to give, not this document's to predict.
 - Widening again needs the same evidence this did: a measured user-visible gap, a measured
   closure cost, and a gate that fails when the payload is absent. The list is not a
   starting point that grows by argument.

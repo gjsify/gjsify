@@ -63,8 +63,9 @@ export const GST_AUDIO_PLUGINS = [
     //   • libsoup. The plugin does not link it. Since 1.18 it g_module_opens
     //     `libsoup-3.0.0.dylib` / `soup-3.0-0.dll` by leaf name through its own loader shim, so
     //     `otool -L` reports glib + gstreamer and nothing else, and a closure walk seeded from the
-    //     plugin finds no soup at all. Measured on darwin-x64: +1.35 MiB (libsoup 521 KiB, plus
-    //     libpsl and libnghttp2).
+    //     plugin finds no soup at all. Measured on darwin-x64: +2.8 MiB — libsoup 521 KiB, plus
+    //     libpsl, libnghttp2 and libsqlite3, the last of which enters only because
+    //     build-gtk-runtime-darwin.mjs § resolveBrewDep now follows a KEG-ONLY reference.
     //   • a GIO TLS backend. libsoup does https through `GTlsConnection`, whose implementation is
     //     a glib-networking MODULE that GIO g_module_opens out of its module dir — and the bundles
     //     ship their own libgio while shipping no module, so every TLS request in a
@@ -73,11 +74,20 @@ export const GST_AUDIO_PLUGINS = [
     //     souphttpsrc, i.e. the http-only half of this widening would have shipped and looked
     //     finished. +6.67 MiB. It is a declared `tls-backend` data set in bundle-data.mjs, so its
     //     absence fails the build and the publish gate instead of the user's stream.
+    //   • NOT the trust anchors, and that asymmetry is the one to remember: the two payloads above
+    //     make https RESOLVE, not SUCCEED. The shipped gnutls reaches its roots through the
+    //     shipped libp11-kit, which finds its trust module in a COMPILED-IN directory with no env
+    //     override — so it cannot be repointed the way GIO_MODULE_DIR repoints the module above,
+    //     and no file list can check it. gst-elements.test.mjs asks the running backend instead;
+    //     ADR 0037 § Consequences carries the measurement.
     //
-    // ~8 MiB on a 76 MB bundle, and no licensing question of the kind this file's header keeps
-    // out: the addition is LGPL-2.1+/LGPL-3+ dynamic libraries of the same family as the GLib and
-    // GTK already relocated here — no codec, no patent claim, nothing whose redistribution is the
-    // product author's call rather than ours.
+    // ~9.6 MiB, +13 %. The per-library table lives ONCE, in ADR 0037 § Decision drivers — this
+    // line carried its own ~8 MiB before review, a figure taken before the keg-only lookup pulled
+    // libsqlite3 into the closure, i.e. the second-copy drift this file's own header warns about.
+    // And no licensing question of the kind this file's header keeps out: the addition is
+    // LGPL-2.1+/LGPL-3+ dynamic libraries of the same family as the GLib and GTK already
+    // relocated here — no codec, no patent claim, nothing whose redistribution is the product
+    // author's call rather than ours.
     'soup',
     // Output. `autodetect` is autoaudiosink, which picks the platform sink below.
     'autodetect',

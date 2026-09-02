@@ -102,4 +102,34 @@ test('the bundle carries a TLS backend, so https is more than an element name', 
             'lib/gio/modules or nothing told GIO where it is. Every https URL fails as a stream error ' +
             'until it does; see the tls-backend data set in scripts/bundle-data.mjs.',
     );
+
+    // ONE LAYER DOWN, and the layer that decides whether https actually WORKS. A
+    // backend is an implementation, and an implementation with no trust anchors
+    // rejects every certificate — so supports_tls() above is satisfied by a bundle on
+    // which nothing can connect. Measured on linux-x64 by bind-mounting an empty dir
+    // over p11-kit's module dirs: supports_tls() stayed true, this whole FILE stayed
+    // green at exit 0, and every handshake failed with `Unacceptable TLS certificate`.
+    //
+    // The anchors are the one part of the TLS payload the bundle does NOT ship. The
+    // shipped gnutls reaches them through the shipped libp11-kit, which resolves its
+    // trust module out of a COMPILED-IN directory (/usr/share/p11-kit/modules,
+    // /etc/pkcs11/modules) — the BUILD prefix — and unlike GIO's module dir there is no
+    // env override to repoint it with: the whole P11_KIT_* surface is DEBUG,
+    // NO_USER_CONFIG, STRICT and URI_LOWERCASE. So this cannot be asserted from the
+    // tarball's file list either; it has to be ASKED of the running backend, on the OS
+    // the bundle is for, which is where this file runs.
+    //
+    // get_default_database() is the call that separates the two: glib-networking
+    // returns NULL for it when the system trust holds zero certificates, while
+    // supports_tls() keeps answering for the module's mere presence. It is a lower
+    // bound — a non-empty database still says nothing about WHICH roots are in it —
+    // but it is the difference between "a TLS backend loaded" and "TLS can succeed".
+    assert.ok(
+        backend.get_default_database(),
+        'the TLS backend has NO trust anchors: g_tls_backend_get_default_database() is NULL, which ' +
+            'glib-networking returns when the system trust contains zero certificates. souphttpsrc ' +
+            'resolves, the backend loads, supports_tls() is true — and every https certificate is ' +
+            'rejected. The bundle ships the TLS implementation but not the anchors, and the shipped ' +
+            'p11-kit looks for its trust module in the BUILD prefix with no env override available.',
+    );
 });
