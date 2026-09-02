@@ -2010,9 +2010,23 @@ Discriminating on `ref_count` at notify time (2 under `run_dispose`, 1 under fin
 
 ### `@gjsify/node-gi` — `gc-cross-thread` dies at the cross-env worker roughly 1 run in 10
 
-Written down because the next red CI run will otherwise be blamed on whatever PR is open. Under the FULL parallel `npm run test:gc` (never when the file runs alone — 22/22 clean there), `test/gc-cross-thread.test.mjs` occasionally reports `✖ … 'test failed'` with **no failing subtest**: the process dies after test 7 (`soak`) and the last three never report — `cross-env: a worker wrapping a singleton the owner cached does not UAF (DEFECT 1)`, `reentrant-drain`, and `liveness`. So the file is lost inside the cross-env WORKER test, and the suite total drops 617 → 615.
+Written down because the next red CI run will otherwise be blamed on whatever PR is open. Under the FULL parallel `npm run test:gc` — and, less often, with the file alone; see the three-point run below, which overturns the 22/22-clean standalone reading this entry first carried — `test/gc-cross-thread.test.mjs` occasionally reports `✖ … 'test failed'` with **no failing subtest**: the process dies after test 7 (`soak`) and the last three never report — `cross-env: a worker wrapping a singleton the owner cached does not UAF (DEFECT 1)`, `reentrant-drain`, and `liveness`. So the file is lost inside the cross-env WORKER test, and the suite total drops 617 → 615.
 
-Measured on `3356ac7c66`, i.e. BEFORE the weak-net work in that PR: 1 in 12. It is not new, and it is not a toggle-model regression — file-parallel CPU contention is what makes it appear. Whoever picks it up should start from the worker in test 8 and run the file under artificial load rather than trying to reproduce it standalone.
+Measured on `3356ac7c66`, i.e. BEFORE the weak-net work in that PR: 1 in 12. It is not new, and it is not a toggle-model regression — file-parallel CPU contention is what makes it appear. Whoever picks it up should start from the worker in test 8; artificial load raises the rate, but it is not the ingredient.
+
+**Three points, freshly built, and it reproduces STANDALONE.** Run to answer one question — whether the ownership fix in `503ea7c8e7` introduced this — with the addon rebuilt from scratch at each revision and 20 runs each of `NODE_GI_NATIVE=build node --test --expose-gc test/gc-cross-thread.test.mjs`, the file alone, nothing else running. `test/gc-cross-thread.test.mjs` is byte-identical at all three revisions, so only `src/toggle.cc` differs between them:
+
+| revision | | failures |
+|---|---|---|
+| `f1034428cd` | `503ea7c8e7^` — before the ownership fix | 3/20 |
+| `87c5835f60` | `main` | 2/20 |
+| `f51400b68e` | this branch | 3/20 |
+
+Every failure had the shape described above, the one CI reports: `tests 9 / pass 8 / fail 1`, `soak` reported, the last three absent. **8 failures in 60 single-file runs across three independent builds** (20-thread Linux desktop, node 24.19.0), so "never when the file runs alone" describes the host that first measured it rather than the defect.
+
+**The three numbers do not support a ranking, and are recorded with that limit.** At n=20 and a rate near 1 in 8, 2 and 3 are the same measurement; separating even a factor-of-two effect would take roughly 200 runs per point. What they do establish is what was asked: no point is clean, none is dramatically worse — the crash predates the ownership fix, and this branch does not close it either. A number kept without its uncertainty gets read later as precision it never had.
+
+**Possibly a different class from the `worker.terminate()` mid-native-call residual, and deliberately not filed as a correction of it.** Both are nondeterministic crashes around worker teardown, but that one is a SIGSEGV at 12/200 with a named mechanism — a terminate landing while the worker OS thread sits inside a blocking GLib call — while this one loses the file inside the cross-env worker with no failing subtest at all. Nothing measured here shows they are one thing, and merging them on resemblance would cost the next reader both rates.
 
 ### `@gjsify/node-gi` — the `$gtype` surface is incomplete
 
