@@ -127,6 +127,44 @@ test('resurrection: re-fetching a collected-wrapper object is safe', { ...gcOpts
     assert.equal(back.name, 'res', 'a resurrected wrapper is valid and usable');
 });
 
+// ---- Case 4b: resurrection RACING the External's pending finalizer (#1475) ----
+// An EMPTY napi_ref proves the wrapper was COLLECTED, not that its finalizer has
+// RUN: V8 resets the weak persistent inside the first-pass weak callback (during
+// gc()), and Node defers the finalizer to a SetImmediate. Resurrecting inside that
+// window used to free the old wrapper record; the allocator handed the identical
+// block straight to the fresh wrapper, and the stale finalizer then queued a
+// teardown for the LIVE one — removing its toggle ref, freeing the GObject under a
+// reachable JS wrapper, and double-freeing the record (STATUS_HEAP_CORRUPTION on
+// Windows, SIGSEGV on Linux).
+//
+// Two details make this reach the window Case 4 above cannot:
+//   * NO await between gc() and the re-fetch — any loop turn drains the finalizer
+//     queue first, which is exactly why Case 4's `await settle()` never caught it;
+//   * g_cancellable_push_current stores a BORROWED pointer (no ref), so the GObject
+//     stays reachable from C at refcount 1 — the only shape whose wrapper is weak
+//     (collectable) while C can still hand the object back. A container that refs
+//     its member toggles the wrapper UP and pins it, so it can never be collected.
+test('resurrection: re-fetch while the old finalizer is still pending', { ...gcOpts }, async () => {
+    const Gio = requireGi('Gio', '2.0');
+    (() => {
+        const c = new Gio.Cancellable();
+        c.push_current();
+    })();
+    globalThis.gc();
+    globalThis.gc();
+
+    const back = Gio.Cancellable.get_current();
+    assert.ok(back, 'the borrowed cancellable is handed back from C');
+    assert.equal(back.is_cancelled(), false, 'the resurrected wrapper is immediately usable');
+
+    await settle(); // the predecessor's finalizer runs HERE
+
+    assert.equal(back.is_cancelled(), false, 'the resurrected wrapper outlives its predecessor');
+    back.cancel();
+    assert.equal(back.is_cancelled(), true, 'and is still a live GObject afterwards');
+    back.pop_current();
+});
+
 // ---- Case 5: subclass vfunc-instance integration (#647) ----
 // At L0 the wrapper is a non-extensible External (no JS expando possible), so the
 // integration assertion is wrapper IDENTITY: the vfunc `this` is the very same
