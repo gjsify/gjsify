@@ -197,19 +197,19 @@ test('array of GObjects IN: Gio.ListStore.splice replaces the model in one call'
     assert.equal(store.get_n_items(), 0);
 });
 
-test('an IN array of POINTER struct elements marshals, and the by-value kind still refuses', () => {
+test('an IN array of POINTER struct elements marshals', () => {
     // `IsSupportedElementType` deferred every non-object INTERFACE element under one
     // label, so an array of struct POINTERS was refused with the same message as an
     // array of by-value records — though the two are nothing alike in cost. Measured
     // against the installed typelib: `GLib.Variant.new_tuple`'s `children` element is
     // `tag=interface ptr=1 kind=STRUCT`, one pointer slot, the shape an object element
-    // already had. `Gtk.Accessible.update_property`'s values are `ptr=0 kind=STRUCT
-    // size=24`, which needs a per-element size and an ownership rule and stays deferred.
+    // already had.
     //
-    // Both halves are asserted HERE, in one test, on purpose: admitting the pointer
-    // kind by widening the refusal instead of narrowing it would lay 24-byte GValues
-    // out at an 8-byte stride and hand a callee garbage — a defect no assertion about
-    // `new_tuple` alone could see.
+    // The BY-VALUE kind is a different write path with a different width and its own
+    // ownership rule, and it lives in `byvalue-elements.test.mjs`. What stays here is
+    // the pointer half, because the two must not be admitted by the same widening: one
+    // predicate answering yes to both would lay 24-byte GValues out at an 8-byte
+    // stride, which is why `is_pointer` is tested rather than the kind.
     const GLib = requireGi('GLib', '2.0');
 
     const tuple = GLib.Variant.new_tuple([GLib.Variant.new_int32(42), GLib.Variant.new_string('x')]);
@@ -225,21 +225,12 @@ test('an IN array of POINTER struct elements marshals, and the by-value kind sti
     // read as "no argument".
     assert.equal(GLib.Variant.new_tuple([]).get_type_string(), '()');
 
-    // CONTROL 1 — the BY-VALUE kind must still refuse, and it is asserted on a real
-    // callable rather than on prose. `GLib.parse_debug_string` takes an IN array of
-    // `DebugKey` BY VALUE (measured: `ptr=0 kind=STRUCT size=16`), which is the same
-    // shape as `Gtk.Accessible.update_property`'s `GValue` values and needs no display
-    // to call. If a future widening drops the `is_pointer` test, this goes green while
-    // laying 16-byte records out at an 8-byte stride — so it is the assertion that
-    // catches exactly the mistake this change was careful not to make.
-    assert.throws(
-        () => callFunction('GLib', 'parse_debug_string', ['all', [{ key: 'a', value: 1 }], 1]),
-        /struct\/union\/enum element parameters are not yet supported/,
-        'a by-value struct element must still be deferred BEFORE the invoke',
-    );
-
-    // CONTROL 2 — an element that is no handle at all is still named, so admitting the
-    // pointer kind did not turn the refusal into a silent nullptr.
+    // CONTROL — an element that is no handle at all is still named, so admitting the
+    // pointer kind did not turn the refusal into a silent nullptr. It also separates
+    // the two paths: this message comes from the GIArgument route, and a by-value
+    // record refused for the same reason answers with a different one
+    // (`byvalue-elements.test.mjs` pins that), so a future change that routed pointer
+    // elements through the record writer would show up here rather than pass quietly.
     assert.throws(
         () => GLib.Variant.new_tuple([{ not: 'a variant' }]),
         /expected a GObject or boxed handle as a container element/,

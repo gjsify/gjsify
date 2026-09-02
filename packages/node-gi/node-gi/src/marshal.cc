@@ -911,7 +911,16 @@ Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
 
 // Element-type support shared by every container kind. *why receives a short
 // label on refusal (so the caller can throw a precise deferral message).
-static bool IsSupportedElementType(GITypeInfo* elem, std::string* why) {
+//
+// `byValueOk` is true only where the element is a SIZED CELL the IN path lays out
+// itself — a C array being built for an IN argument. It is false for a read-back
+// (ReadCElement still dereferences an interface element as a pointer) and false for
+// GList/GSList/GHashTable, whose elements are POINTER slots filled through
+// gi_type_info_hash_pointer_from_argument: that helper passes a pointer through
+// unchanged, which is right for a pointer-struct element and meaningless for a
+// four-byte enum or a twenty-four-byte record. So the by-value admission is scoped to
+// the one container kind that has somewhere to put the bytes.
+static bool IsSupportedElementType(GITypeInfo* elem, std::string* why, bool byValueOk) {
   switch (gi_type_info_get_tag(elem)) {
     case GI_TYPE_TAG_BOOLEAN:
     case GI_TYPE_TAG_INT8:
@@ -953,6 +962,16 @@ static bool IsSupportedElementType(GITypeInfo* elem, std::string* why) {
       if (!ok && iface != nullptr && GI_IS_STRUCT_INFO(iface) && gi_type_info_is_pointer(elem)) {
         ok = true;
       }
+      // BY-VALUE elements, admitted only where there is a sized cell to write them
+      // into (see `byValueOk`). An enum/flags element is its storage integer; a
+      // record/union element is its own bytes, copied out of a boxed handle. Both go
+      // through CInElementSize + ElementToCArrayCell, which is the write path that
+      // does NOT run the GIArgument union through memcpy — see the note there.
+      if (!ok && byValueOk && iface != nullptr && !gi_type_info_is_pointer(elem) &&
+          (GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface) || GI_IS_STRUCT_INFO(iface) ||
+           GI_IS_UNION_INFO(iface))) {
+        ok = true;
+      }
       if (!ok && why != nullptr) *why = "struct/union/enum element";
       if (iface != nullptr) gi_base_info_unref(iface);
       return ok;
@@ -968,7 +987,7 @@ static bool IsSupportedElementType(GITypeInfo* elem, std::string* why) {
 // up front. Array-type kind is intentionally NOT restricted here — the read side
 // (GIArrayToJs) handles C/BYTE_ARRAY/GArray/GPtrArray; the IN side rejects
 // GArray/GPtrArray separately (they're rare as IN in headless GLib).
-bool IsSupportedContainerType(GITypeInfo* type, std::string* why) {
+bool IsSupportedContainerType(GITypeInfo* type, std::string* why, ContainerUse use) {
   switch (gi_type_info_get_tag(type)) {
     case GI_TYPE_TAG_ARRAY:
     case GI_TYPE_TAG_GLIST:
@@ -978,7 +997,14 @@ bool IsSupportedContainerType(GITypeInfo* type, std::string* why) {
         if (why != nullptr) *why = "untyped container";
         return false;
       }
-      bool ok = IsSupportedElementType(elem, why);
+      // A by-value element needs a sized cell, which only a C array being BUILT has.
+      // GArray is deliberately excluded alongside the lists: its elements are sized,
+      // but g_array_append_vals copies from a buffer this path would have to size the
+      // same way, and no installed typelib has a by-value-element GArray as IN.
+      bool byValueOk = use == ContainerUse::kIn &&
+                       gi_type_info_get_tag(type) == GI_TYPE_TAG_ARRAY &&
+                       gi_type_info_get_array_type(type) == GI_ARRAY_TYPE_C;
+      bool ok = IsSupportedElementType(elem, why, byValueOk);
       gi_base_info_unref(elem);
       return ok;
     }
@@ -993,7 +1019,7 @@ bool IsSupportedContainerType(GITypeInfo* type, std::string* why) {
                  ktag == GI_TYPE_TAG_INT8 || ktag == GI_TYPE_TAG_UINT8 ||
                  ktag == GI_TYPE_TAG_INT16 || ktag == GI_TYPE_TAG_UINT16 ||
                  ktag == GI_TYPE_TAG_INT32 || ktag == GI_TYPE_TAG_UINT32;
-      bool vok = vt != nullptr && IsSupportedElementType(vt, nullptr);
+      bool vok = vt != nullptr && IsSupportedElementType(vt, nullptr, false);
       if (!kok && why != nullptr) *why = "unsupported GHashTable key";
       else if (!vok && why != nullptr) *why = "unsupported GHashTable value";
       if (kt != nullptr) gi_base_info_unref(kt);
@@ -1027,6 +1053,88 @@ size_t CElementSize(GITypeInfo* elem) {
   }
 }
 
+// Storage size of one C-array element on the IN path, INCLUDING the by-value
+// interface elements CElementSize declines to size.
+//
+// Deliberately NOT folded into CElementSize, and the split is a scope statement rather
+// than duplication: CElementSize is also the READ stride (GIArrayToJs), where a
+// by-value interface element is still unreadable — ReadCElement dereferences it as a
+// pointer, which is why ElementsAreReadable exists. Teaching CElementSize the true
+// size there would turn a wrong stride in front of a wrong read into a RIGHT stride in
+// front of a wrong read: more plausible output, the same defect. Opening the read side
+// is separate work (this file records it at the inline-record field path and calls.cc
+// records it at CALLER_ALLOCATES); until then the IN path answers for itself. Every
+// non-interface tag delegates, so the two answers cannot drift.
+//
+// An enum's size is its OWN storage type, not a hardcoded 4: gi_enum_info_get_storage
+// _type is what the typelib records for the C enum, and gjs's sizeof(unsigned int) is
+// an assumption this does not have to inherit.
+static size_t CInElementSize(GITypeInfo* elem) {
+  if (gi_type_info_get_tag(elem) != GI_TYPE_TAG_INTERFACE) return CElementSize(elem);
+  if (gi_type_info_is_pointer(elem)) return sizeof(gpointer);
+  GIBaseInfo* iface = gi_type_info_get_interface(elem);
+  if (iface == nullptr) return sizeof(gpointer);
+  size_t size;
+  if (GI_IS_ENUM_INFO(iface) || GI_IS_FLAGS_INFO(iface)) {
+    switch (gi_enum_info_get_storage_type(reinterpret_cast<GIEnumInfo*>(iface))) {
+      case GI_TYPE_TAG_INT8:
+      case GI_TYPE_TAG_UINT8: size = 1; break;
+      case GI_TYPE_TAG_INT16:
+      case GI_TYPE_TAG_UINT16: size = 2; break;
+      case GI_TYPE_TAG_INT64:
+      case GI_TYPE_TAG_UINT64: size = 8; break;
+      default: size = 4; break;  // int32/uint32 and anything unannotated
+    }
+  } else if (GI_IS_STRUCT_INFO(iface)) {
+    size = gi_struct_info_get_size(reinterpret_cast<GIStructInfo*>(iface));
+  } else if (GI_IS_UNION_INFO(iface)) {
+    size = gi_union_info_get_size(reinterpret_cast<GIUnionInfo*>(iface));
+  } else {
+    size = sizeof(gpointer);  // object/interface instance: one pointer slot
+  }
+  gi_base_info_unref(iface);
+  return size;
+}
+
+// Whether an element is a by-value RECORD (struct or union) — the one kind that must
+// not travel through a GIArgument. See ByValueRecordToCell.
+static bool IsByValueRecordElement(GITypeInfo* elem) {
+  if (gi_type_info_get_tag(elem) != GI_TYPE_TAG_INTERFACE) return false;
+  if (gi_type_info_is_pointer(elem)) return false;
+  GIBaseInfo* iface = gi_type_info_get_interface(elem);
+  if (iface == nullptr) return false;
+  bool record = GI_IS_STRUCT_INFO(iface) || GI_IS_UNION_INFO(iface);
+  gi_base_info_unref(iface);
+  return record;
+}
+
+// The GType of a by-value record element, or G_TYPE_INVALID for an unregistered one.
+static GType ByValueRecordGType(GITypeInfo* elem) {
+  GIBaseInfo* iface = gi_type_info_get_interface(elem);
+  if (iface == nullptr) return G_TYPE_INVALID;
+  GType gtype = GI_IS_REGISTERED_TYPE_INFO(iface)
+                    ? gi_registered_type_info_get_g_type(
+                          reinterpret_cast<GIRegisteredTypeInfo*>(iface))
+                    : G_TYPE_INVALID;
+  gi_base_info_unref(iface);
+  return gtype == G_TYPE_NONE ? G_TYPE_INVALID : gtype;
+}
+
+// Whether a by-value record element array is one this path OWNS the contents of —
+// true only for GValue, the one element kind written by initialising in place rather
+// than by copying a caller's bytes. FreeInContainer needs the same answer, so it is
+// derived from the type both times instead of carried in InContainer: a flag would be
+// a second truth that a later element kind could get wrong in only one of the places.
+static bool ElementsAreOwnedGValues(GITypeInfo* type) {
+  if (gi_type_info_get_tag(type) != GI_TYPE_TAG_ARRAY) return false;
+  if (gi_type_info_get_array_type(type) != GI_ARRAY_TYPE_C) return false;
+  GITypeInfo* elem = gi_type_info_get_param_type(type, 0);
+  if (elem == nullptr) return false;
+  bool owned = IsByValueRecordElement(elem) && ByValueRecordGType(elem) == G_TYPE_VALUE;
+  gi_base_info_unref(elem);
+  return owned;
+}
+
 // Write the array's element count into a length arg's GIArgument slot (IN length
 // autofill). The field is selected by the length arg's own tag; the slot is
 // zero-initialised so writing the matching field is correct on little-endian
@@ -1043,6 +1151,29 @@ void WriteLengthValue(GITypeInfo* lenType, GIArgument* slot, long n) {
     case GI_TYPE_TAG_UINT64: slot->v_uint64 = static_cast<guint64>(n); break;
     default: slot->v_int64 = static_cast<gint64>(n); break;  // gsize/gtype: LE-safe
   }
+}
+
+// Two array arguments can name the SAME length argument — `Gtk.Accessible
+// .update_property(n, properties[], values[])` is the shape, and `update_state` and
+// `update_relation` repeat it. The autofill writes that argument once per array, so the
+// LAST array silently decides the count the callee then reads BOTH arrays by; a shorter
+// one is read past its end, inside the callee, with nothing on this side to attribute it
+// to afterwards.
+//
+// gjs does not check this — measured on 1.88.1: `update_property([LABEL, DESCRIPTION],
+// ['only one'])` is accepted and reads out of bounds. Refusing it is therefore a
+// deliberate divergence, and the cheaper side of one: the caller passed two arrays that
+// cannot both be right, and the alternative to a TypeError is an overread.
+bool RecordLengthWrite(std::vector<LengthWrite>* seen, unsigned int index, long count,
+                       long* other) {
+  for (const LengthWrite& w : *seen) {
+    if (w.index != index) continue;
+    if (w.count == count) return true;
+    if (other != nullptr) *other = w.count;
+    return false;
+  }
+  seen->push_back(LengthWrite{index, count});
+  return true;
 }
 
 // Read a length value the callee wrote into a length arg's slot (OUT length).
@@ -1355,6 +1486,28 @@ static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, 
                         : g_strdup(NodeGiToUtf8(v).c_str());
       return true;
     case GI_TYPE_TAG_INTERFACE: {
+      // A BY-VALUE enum/flags element is a plain JS number, and it is the one interface
+      // element that legitimately reaches this function without a handle. It writes the
+      // member's integer into the union's low bytes; JsToCArray then copies exactly
+      // CInElementSize bytes, which for an enum is its own storage size (1/2/4/8) and
+      // therefore never more than the union holds. Flags take the unsigned field for
+      // the same reason g_value_set_flags does — a mask with the top bit set must not
+      // become negative on its way through.
+      if (!gi_type_info_is_pointer(elem)) {
+        GIBaseInfo* enumIface = gi_type_info_get_interface(elem);
+        if (enumIface != nullptr &&
+            (GI_IS_ENUM_INFO(enumIface) || GI_IS_FLAGS_INFO(enumIface))) {
+          bool isFlags = GI_IS_FLAGS_INFO(enumIface);
+          gi_base_info_unref(enumIface);
+          if (isFlags) {
+            a->v_uint32 = NodeGiToUint32(v);
+          } else {
+            a->v_int32 = NodeGiToInt32(v);
+          }
+          return true;
+        }
+        if (enumIface != nullptr) gi_base_info_unref(enumIface);
+      }
       if (v.IsNull() || v.IsUndefined()) {
         a->v_pointer = nullptr;
         return true;
@@ -1398,6 +1551,89 @@ static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, 
   }
 }
 
+// The introspected size of a record handle's own type, or 0 when it has none.
+static size_t BoxedInfoSize(GIBaseInfo* info) {
+  if (info == nullptr) return 0;
+  if (GI_IS_STRUCT_INFO(info)) return gi_struct_info_get_size(reinterpret_cast<GIStructInfo*>(info));
+  if (GI_IS_UNION_INFO(info)) return gi_union_info_get_size(reinterpret_cast<GIUnionInfo*>(info));
+  return 0;
+}
+
+// Write ONE by-value record element straight into its C-array cell.
+//
+// WHY THIS IS NOT A GIArgument, which is the whole reason the function exists. The
+// array write loop copies `elemSize` bytes out of a GIArgument — a union, eight bytes
+// wide. A by-value record is its own size: GValue is 24 on this ABI, Gio.ActionEntry
+// 64. Sizing the loop without moving the record off the union would read sixteen bytes
+// past it, off the stack, once per element, and would produce a green build with
+// plausible-looking output. So a record never enters a GIArgument; its bytes are
+// written where they finally live.
+//
+// TWO SOURCES, and only one of them leaves us owning anything:
+//  * GObject.Value — INITIALISED IN PLACE, either from any JS value (gjs 1.88.1
+//    accepts `update_property([Gtk.AccessibleProperty.LABEL], ['text'])`, measured)
+//    or by copying an existing GObject.Value handle. Both end with a GValue THIS call
+//    constructed, so it is unset after the invoke — see ElementsAreOwnedGValues and
+//    FreeInContainer. Copying rather than memcpy'ing a handle's GValue is what makes
+//    that rule uniform: a bitwise copy would share the string or boxed the original
+//    holds, and unsetting it would free the handle's contents underneath JS.
+//  * every other record — COPIED from a boxed handle, which is also what gjs requires
+//    (measured: a plain object is refused there with "not a subclass of
+//    GObject_Struct"). The copy shares whatever the source points at, so nothing here
+//    is freed and the handle keeps owning its own storage across the invoke.
+//
+// THE TYPE CHECK IS A SAFETY PROPERTY rather than ergonomics: copying `elemSize` bytes
+// out of a handle of a DIFFERENT record type reads past the end of the source whenever
+// the source is smaller. So the source must be the element's own type — compared by
+// GType where the element has one, and by introspected size where it does not, an
+// unregistered struct having no GType to compare.
+static bool ByValueRecordToCell(Napi::Env env, GITypeInfo* elem, Napi::Value v, void* dst,
+                                size_t elemSize) {
+  GType want = ByValueRecordGType(elem);
+  if (want == G_TYPE_VALUE) {
+    GValue* cell = static_cast<GValue*>(dst);
+    memset(cell, 0, elemSize);
+    if (NodeGiIsGValueHandle(v)) {
+      BoxedHandle* h = TryGetBoxedHandle(v);
+      GValue* src = h == nullptr ? nullptr : static_cast<GValue*>(h->ptr);
+      if (src == nullptr || !G_IS_VALUE(src)) {
+        Napi::TypeError::New(env,
+                             "an uninitialised GObject.Value cannot be an array element")
+            .ThrowAsJavaScriptException();
+        return false;
+      }
+      g_value_init(cell, G_VALUE_TYPE(src));
+      g_value_copy(src, cell);
+      return true;
+    }
+    return JsToFreshGValue(env, v, cell);
+  }
+
+  BoxedHandle* h = TryGetBoxedHandle(v);
+  if (h == nullptr || h->ptr == nullptr) {
+    Napi::TypeError::New(
+        env, std::string("expected a ") +
+                 (want == G_TYPE_INVALID ? "record" : g_type_name(want)) +
+                 " handle as a by-value array element")
+        .ThrowAsJavaScriptException();
+    return false;
+  }
+  bool sameType = want != G_TYPE_INVALID
+                      ? (h->gtype != G_TYPE_INVALID && g_type_is_a(h->gtype, want))
+                      : (BoxedInfoSize(h->info) == elemSize && elemSize > 0);
+  if (!sameType) {
+    Napi::TypeError::New(
+        env, std::string("a by-value array element must be a ") +
+                 (want == G_TYPE_INVALID ? "record of the same size" : g_type_name(want)) +
+                 ", got " +
+                 (h->gtype == G_TYPE_INVALID ? "an unregistered record" : g_type_name(h->gtype)))
+        .ThrowAsJavaScriptException();
+    return false;
+  }
+  memcpy(dst, h->ptr, elemSize);
+  return true;
+}
+
 // Build a C array / GStrv / GByteArray / GArray / GPtrArray from a JS value.
 // *outCount = element count (for the IN length autofill + later free). Throws +
 // returns false on refusal (BEFORE the invoke).
@@ -1409,7 +1645,10 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfe
   GITypeInfo* elem = gi_type_info_get_param_type(type, 0);
   GITypeTag etag = gi_type_info_get_tag(elem);
   bool zt = gi_type_info_is_zero_terminated(type);
-  size_t elemSize = CElementSize(elem);
+  // CInElementSize, not CElementSize: this is the write side, and it is the side that
+  // knows how wide a by-value element's cell is (see the note on that function).
+  size_t elemSize = CInElementSize(elem);
+  bool byValueRecord = IsByValueRecordElement(elem);
   bool isByte = etag == GI_TYPE_TAG_UINT8 || etag == GI_TYPE_TAG_INT8;
   *outPtr = nullptr;
   *outCount = 0;
@@ -1523,20 +1762,38 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfe
   // pdata memcpy (refs/gjs/gi/arg.cpp gjs_value_to_basic_array_gi_argument).
   void* buf = g_malloc0(elemSize * (count + (zt ? 1 : 0)));
   bool ok = true;
+  long written = 0;
   for (long i = 0; i < count && ok; i++) {
+    void* dst = static_cast<char*>(buf) + i * elemSize;
+    if (byValueRecord) {
+      // The record writes ITSELF into the cell — it never passes through a GIArgument,
+      // because the union is eight bytes and the record is its own size.
+      ok = ByValueRecordToCell(env, elem, arr.Get(static_cast<uint32_t>(i)), dst, elemSize);
+      if (ok) written++;
+      continue;
+    }
     GIArgument a;
     ok = ElementToGIArgument(env, elem, arr.Get(static_cast<uint32_t>(i)), &a, elemTransfer);
     if (!ok) break;
-    void* dst = static_cast<char*>(buf) + i * elemSize;
     // Copy the element's storage bytes (LE: the low elemSize bytes of the union
     // alias the active field — v_string/v_pointer for pointers, the scalar
-    // otherwise).
+    // otherwise). elemSize never exceeds the union here: the one element kind that is
+    // wider took the branch above.
     memcpy(dst, &a, elemSize);
+    written++;
   }
   if (!ok) {
-    // Partial g_strdup'd strings — and, on an EVERYTHING container, the refs/copies
-    // already taken for earlier elements — leak on this error path (pre-checked, rare:
-    // it needs a non-handle value mid-array). A leak, never a double free.
+    // The GValues already initialised are ours and are released here — the container is
+    // never recorded for cleanup on this path, so nothing else will. (Partial
+    // g_strdup'd strings, and on an EVERYTHING container the refs/copies taken for
+    // earlier elements, still leak: pre-checked and rare, needing a non-handle value
+    // mid-array. A leak, never a double free.)
+    if (byValueRecord && ElementsAreOwnedGValues(type)) {
+      for (long i = 0; i < written; i++) {
+        GValue* cell = reinterpret_cast<GValue*>(static_cast<char*>(buf) + i * elemSize);
+        if (G_IS_VALUE(cell)) g_value_unset(cell);
+      }
+    }
     g_free(buf);
     gi_base_info_unref(elem);
     return false;
@@ -1746,6 +2003,18 @@ void FreeInContainer(const InContainer& c) {
           g_free(s);
         }
       } else {
+        // A GValue element array is the one C array whose CELLS hold something beyond
+        // their own bytes: JsToCArray initialised each one (from a JS value or by
+        // copying a handle's GValue), so each one holds a string, a boxed or a ref that
+        // g_free on the buffer would strand. Only this transfer reaches here — on
+        // EVERYTHING/CONTAINER the callee owns the buffer and unsets them itself.
+        if (ElementsAreOwnedGValues(c.type)) {
+          size_t elemSize = elem != nullptr ? CInElementSize(elem) : 0;
+          for (long i = 0; elemSize > 0 && i < c.count; i++) {
+            GValue* cell = reinterpret_cast<GValue*>(static_cast<char*>(c.ptr) + i * elemSize);
+            if (G_IS_VALUE(cell)) g_value_unset(cell);
+          }
+        }
         g_free(c.ptr);
       }
     }
