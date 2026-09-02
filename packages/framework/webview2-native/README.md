@@ -13,6 +13,17 @@ Sibling: [`@gjsify/webkit-native`](../webkit-native/README.md) does the same job
 on macOS with Apple's WebKit behind it (ADR 0022). On Linux there is no shim —
 `gi://WebKit` 6.0 is the real WebKitGTK.
 
+> **State: stage 1 is written, not yet demonstrated.** No `win32-x64` artifact
+> has been built or loaded — the MSVC job failed on its first run — so
+> `scripts/probe-win32.mjs`, the only thing that says a page loads, has not
+> executed. What IS checked on every pull request is the whole portable half and
+> the whole GIR contract: the C compiles on Fedora, `g-ir-scanner` runs its
+> dumper, the GIR carries the signals and properties only that run can produce,
+> and `probe-types.js` passes 24 assertions under gjs. Everything that needs the
+> engine — the message-pump `GSource`, `load_html`, `evaluate_javascript`,
+> `get_snapshot`, the `postMessage` bridge, the child-`HWND` hosting — is
+> unproven. ADR 0035 is `Proposed` for exactly this reason.
+
 ## Why this exists
 
 WebKit's **GTK port** targets X11 and Wayland; there is no Windows GTK port
@@ -39,8 +50,15 @@ half, and that is what stage 1 below is honest about.
 | `evaluate_javascript()` → a value with `to_string()` | `ExecuteScript` (which returns JSON — see below) |
 | `get_snapshot()` → `Gdk.Texture` | `CapturePreview` (PNG) decoded by `gdk_texture_new_from_bytes()` |
 
-That list is ADR 0035 decision 4's counted subset and deliberately nothing
-wider — it is the surface `@gjsify/iframe` actually uses, not WebKitGTK's.
+That is the surface `@gjsify/iframe` actually uses, not WebKitGTK's — ADR 0035
+decision 4, which now counts **six** instance methods rather than the four ADR
+0022 recorded: `get_uri()` and `get_user_content_manager()` are live call sites
+too, and a backend built to the shorter list would have compiled, installed and
+broken the consumer at run time. Alongside them stage 1 carries eight WebKitGTK
+parity names (`reload`, `is_loading`, `remove_all_scripts`,
+`unregister_script_message_handler`, `user_script_new_for_world`,
+`Value.is_string` / `is_null` / `is_undefined`) so code written against the real
+thing does not meet an `undefined`, and nothing wider than that.
 
 ## The three things that are not obvious
 
@@ -123,9 +141,13 @@ are not distinguishable in JSON — so `is_null()` is true for both and
 Each fails loudly rather than silently, which is the difference between a subset
 and a lie:
 
-- **Named script worlds are ignored, with a warning.** WebView2 has no public
-  isolated-world API; `new_for_world()` exists so the call site stays portable
-  and says what it did.
+- **Named script worlds are ignored, with a warning from every entry point that
+  takes one** — `UserScript`, `evaluate_javascript`,
+  `register_script_message_handler`, `unregister_script_message_handler`.
+  WebView2 has no public isolated-world API; `new_for_world()` exists so the call
+  site stays portable and says what it did. The darwin backend HONOURS the same
+  argument (`WKContentWorld`), so the same call is isolated there and not here —
+  a divergence, not a no-op, which is why silence was the wrong answer.
 - **A user script carrying an allow or block list is REFUSED, with a warning.**
   WebView2's injection point has no URL filter. Warning and injecting anyway is
   precisely the failure a block list exists to prevent, so this narrows in the
@@ -133,8 +155,23 @@ and a lie:
   this; it is outside ADR 0035 decision 4's counted subset.
 - **`UserScriptInjectionTime.END` is approximated** by a document-start script
   that defers itself to `DOMContentLoaded` — WebView2 has one injection point.
-- **`SnapshotRegion.FULL_DOCUMENT` returns the viewport.** `CapturePreview`
-  captures what is laid out, not the whole scrollable document.
+- **`SnapshotRegion.FULL_DOCUMENT` returns the viewport, with a warning.**
+  `CapturePreview` captures what is laid out, not the whole scrollable document.
+- **`SnapshotOptions` other than `NONE` are ignored, with a warning.**
+  `CapturePreview` has no transparent-background and no selection-highlighting
+  option. Both snapshot divergences are reported by the portable layer at the
+  call, not by the engine, so a caller whose snapshot never arrives for want of
+  an engine or a pump still learns the arguments would not have been honoured.
+- **`Settings.allow-file-access-from-file-urls` is not offered.** It existed,
+  was writable, and reached nothing — WebView2's equivalent is a
+  browser-command-line switch on the process-wide environment, not a per-view
+  setting. An absent property raises a GJS warning at the call; a present one
+  that does nothing raises none.
+- **`evaluate_javascript`'s `source_uri` is ignored, and it is the one divergence
+  here that does not warn.** `ExecuteScript` has no source-URI parameter, and the
+  argument changes nothing observable except the text attributed to a script in
+  an error — warning for a cosmetic loss is how the behavioural warnings beside
+  it get tuned out.
 - **`Settings.enable-write-console-messages-to-stdout` is not honoured.**
   WebView2 has no console-forwarding API short of a DevTools Protocol session;
   `@gjsify/iframe`'s console-capture user script works on every backend.

@@ -1,9 +1,9 @@
 # ADR 0035 — `@gjsify/iframe` on Windows: WebView2 behind the same `gi://WebKit` 6.0 namespace
 
-- **Status:** Accepted (2026-09-02)
+- **Status:** Proposed (2026-09-02) — the design is settled and measured; the win32 half is not yet built. In this repository `Accepted` tracks the IMPLEMENTATION, not the draft (ADR 0022 reached it once darwin ran), and this ADR was briefly raised to it before anything had compiled. **What exists and is checked, on every pull request:** the portable C compiles on Fedora, `g-ir-scanner` builds and runs its dumper, the resulting GIR carries `load-changed` / `load-failed` / `script-message-received` plus the four properties and `parent="Gtk.Widget"`, `probe-types.js` passes 24 assertions under gjs (enum numbering, the boxed positional `UserScript`, `WebView` subclassable, `Gio._promisify` on both async pairs, the `Settings` property set, two divergence warnings), and `check-def-exports.mjs` holds the module-definition file to the header at 34/34. **What does not exist:** no `win32-x64` artifact has ever been built or loaded — the MSVC job failed on its first run — so `scripts/probe-win32.mjs`, the one thing that says a page loads, has never executed. Raise this to `Accepted` when it has.
 - **Scope:** `@gjsify/iframe` (Framework pillar) and its `WebKit.WebView` dependency on `win32-x64`; a new per-target package set (distribution per ADR 0017, OS axis per ADR 0018, artifact dependencies per ADR 0024). Sibling of [ADR 0022](0022-webkit-on-darwin.md), which decided the same question for darwin.
 - **The spike has run.** It was written before the code, because ADR 0022's Proposed draft got two of its own decisions wrong and only measurement overturned them; § *What the spike answered* now carries the results, measured on a `windows-latest` runner on 2026-08-31. The staging below survives them, with one refinement it did not anticipate. What remains unmeasured is stage 2's frame transport, and it is marked as such.
-- **Stage 1 is implemented** as `@gjsify/webview2-native`; stage 2 is unstarted. What landed, and what stage 1 deliberately does not do, are in § *Implementation*.
+- **Stage 1 is WRITTEN, not yet demonstrated**, as `@gjsify/webview2-native`; stage 2 is unstarted. What landed, what has been verified and where, and what stage 1 deliberately does not do, are in § *Implementation*.
 
 ## Context
 
@@ -131,13 +131,30 @@ direction.
    puts it under a rounded clip or over another widget gets a diagnostic, not a
    surprise. GTK's failure mode is exit 0, and "my rounded corners do nothing" is
    indistinguishable from an application bug forever.
-4. **The API subset is the one ADR 0022 already counted**, because it is the
-   consumer's, not the platform's: `WebKit.WebView` (25 occurrences over the 14
-   files `@gjsify/iframe` ships), `LoadEvent` (5), `UserContentManager` (3),
-   `UserScript` + `UserScriptInjectionTime` + `UserContentInjectedFrames` (2 each),
-   `SnapshotRegion` (2), `SnapshotOptions` and `Settings` (1 each), and four
-   instance methods — `evaluate_javascript` (14 call sites), `get_snapshot` (5),
-   `load_html` and `load_uri` (1 each). Nothing wider ships in stage 1.
+4. **The API subset is the consumer's, not the platform's** — counted over the 14
+   files `@gjsify/iframe` ships: `WebKit.WebView` (23 occurrences), `LoadEvent`
+   (5), `UserContentManager` (3), `UserScript` + `UserScriptInjectionTime` +
+   `UserContentInjectedFrames` (2 each), `SnapshotRegion` (2), `SnapshotOptions`
+   and `Settings` (1 each), and **six** instance methods —
+   `evaluate_javascript` (14 call sites), `get_snapshot` (5), `get_uri` (2),
+   `load_html`, `load_uri` and `get_user_content_manager` (1 each).
+
+   **ADR 0022's count said four methods and it was wrong**, which is recorded
+   here rather than quietly fixed: `get_uri()` and `get_user_content_manager()`
+   are both live call sites in `iframe-bridge.ts` and `message-bridge.ts`, so a
+   backend built to the literal list would have compiled, installed, and broken
+   the consumer at run time — the same shape of mistake as a final `WebView`. A
+   counted subset is only load-bearing if the count is right.
+
+   Beyond that set, stage 1 ships **eight** further entry points, all of them
+   WebKitGTK parity names carried so a consumer written against the real thing
+   does not meet an `undefined`: `reload`, `is_loading`,
+   `remove_all_scripts`, `unregister_script_message_handler`,
+   `user_script_new_for_world`, and `Value.is_string` / `is_null` /
+   `is_undefined`. Plus the three names decision 3 and the pump require
+   (`get_hosting_mode`, `get_overlay_constraints`, `get_message_pump_state`) and
+   the `Value` type itself, which stands in for `JSCValue`. Nothing wider than
+   that, and nothing narrower than the measured consumer set.
 5. **The Evergreen runtime is a declared dependency, not an assumption.** ADR 0024
    already emits honest floors for Linux packages and warns when no published
    distribution satisfies one. The `.msi` gains the same treatment for the WebView2
@@ -286,8 +303,10 @@ or be replaced by an assertion that does not need one.
 
 ## Implementation
 
-Steps 1 to 3 have landed as `@gjsify/webview2-native` +
-`@gjsify/webview2-native-win32-x64`; steps 4 and 5 have not.
+Steps 1 to 3 are WRITTEN as `@gjsify/webview2-native` +
+`@gjsify/webview2-native-win32-x64` and step 2's half is verified on every pull
+request; step 3's is not verified at all, because no win32 artifact has been
+built. Steps 4 and 5 have not been started.
 
 1. **The probe is written and HAS RUN** (§ *What the spike answered*) — `docs/poc/webview2-win32-probe.cpp`,
    built and run by `docs/poc/webview2-win32-probe.ps1`, dispatchable as the
@@ -336,6 +355,14 @@ Steps 1 to 3 have landed as `@gjsify/webview2-native` +
    loads a document through node-gi, waits for `LoadEvent.FINISHED`, reads a
    marker back out of the DOM with `evaluate_javascript` and captures a PNG — a
    `getGType` probe would have gone green on an artifact that cannot load a page.
+   **It has not run yet.** The MSVC job failed on its first run, before staging,
+   with `C1083` on the seam header: the library target carried no
+   `include_directories`, so a quoted include from `src/cpp/` could not reach
+   `src/c/` — invisible everywhere else, because `src/cpp/` is the one translation
+   unit no other host compiles. `scripts/check-include-paths.mjs` now holds every
+   quoted include to the target's include path on the Fedora job, which is the
+   cheap half of that failure: the symptom needs MSVC, the cause is a path that
+   does not exist.
 4. `gjsify ship windows`: the runtime dependency from decision 5. **NOT DONE.**
    Read § *What a real Windows desktop added* before writing the detection.
 5. Only then stage 2, as its own ADR amendment with its own measurements.
@@ -352,10 +379,39 @@ subset and a lie:
   in the safe direction for both list kinds. Porting darwin's in-script guard is
   what closes it; it is outside decision 4's counted subset, and the two copies
   it would create is why it was not simply lifted.
-- **Named script worlds are ignored**, with a warning. WebView2 has no public
-  isolated-world API, where `WKContentWorld` gave darwin one.
-- **`SnapshotRegion.FULL_DOCUMENT` returns the viewport.** `CapturePreview`
-  captures what is laid out.
+- **Named script worlds are ignored**, with a warning from EVERY entry point that
+  takes one. WebView2 has no public isolated-world API, where `WKContentWorld`
+  gave darwin one — so the same call is isolated there and not here, which is why
+  a warning and not silence. Three of the four entry points
+  (`evaluate_javascript`, `register_script_message_handler`,
+  `unregister_script_message_handler`) originally dropped the argument with a bare
+  `(void) world_name;` on the reasoning that `UserScript` had already warned; a
+  caller reaches any of them without ever constructing a `UserScript`, so nothing
+  warned at all. One warner, once per world NAME, named by call site, asserted by
+  `probe-types.js` (the two display-free paths) and `probe-win32.mjs` (the third).
+- **`SnapshotOptions` other than `NONE` are ignored**, with a warning.
+  `CapturePreview` has no transparent-background and no selection-highlighting
+  option. This was the one divergence that fell SILENTLY — a bare
+  `(void) options;` in the engine, in no list — and it stayed invisible because
+  `@gjsify/iframe` only ever passes `NONE`.
+- **`Settings.allow-file-access-from-file-urls` is not offered at all.** It was
+  installed, readable and writable, and the value never crossed the seam, so
+  setting it was a no-op with no diagnostic — which is what the type's own rule
+  ("a silently-ignored setting is worse than an absent one") forbids. WebView2's
+  equivalent is a browser-command-line switch on the process-wide environment
+  rather than a per-view setting, so honouring it is not a one-line change. An
+  absent property at least raises a GJS warning at the call.
+- **`evaluate_javascript`'s `source_uri` is ignored WITHOUT a warning**, and that
+  asymmetry is deliberate: `ExecuteScript` has no source-URI parameter, and the
+  argument changes nothing observable except the text attributed to a script in
+  an error. Warning for a cosmetic loss is how the behavioural warnings beside it
+  get tuned out.
+- **`SnapshotRegion.FULL_DOCUMENT` returns the viewport**, with a warning.
+  `CapturePreview` captures what is laid out. Both snapshot divergences are
+  reported by the PORTABLE layer at the call rather than by the engine: they are
+  properties of the API contract, so a caller whose snapshot never arrives for
+  want of an engine or a pump still learns that the arguments would not have been
+  honoured either.
 - **`Settings.enable-write-console-messages-to-stdout` is not honoured** —
   no console-forwarding API short of a DevTools Protocol session.
 - **An unregistered script-message channel accepts `postMessage`** where
