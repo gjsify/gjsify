@@ -36,7 +36,7 @@ import Adw from 'gi://Adw?version=1';
 import type Gtk from 'gi://Gtk?version=4.0';
 import { expect, it } from '@gjsify/unit';
 import { blankReason, shotEvidence } from '@gjsify/gtk-host';
-import { measureSplitViewHorizontal, resolveSidebarBounds } from '@gjsify/adwaita-core';
+import { measureSplitViewHorizontal, resolveOverlaySidebarWidth, resolveSidebarBounds } from '@gjsify/adwaita-core';
 
 import type { AdwNavigationViewHandle } from '../props.js';
 import { FRAME_WIDTH, capture, find, laidOut, typeOf, withGtk } from '../testing/gtk.spec.js';
@@ -145,6 +145,41 @@ export default async () => {
                         expect(view.showSidebar).toBe(true);
                         // No `Adw.NavigationPage` here: these two slots take `GtkWidget`.
                         expect(typeOf(view.sidebar as Gtk.Widget)).toBe('GtkBox');
+                    },
+                );
+            });
+
+            await it('pins and collapses in ONE commit without losing the sidebar', async () => {
+                // THE WRITE ORDER, AS A THING THAT GOES RED, and the twin of the row of
+                // the same name in `overlay-split-view.native.spec.tsx`.
+                // `adw_overlay_split_view_set_collapsed` calls `set_show_sidebar (self,
+                // !collapsed, …)` for an UNPINNED sidebar, so `collapsed` has to be
+                // written after `pin-sidebar` — and gtk-host writes props in ELEMENT
+                // order, on the update path from `Object.keys(newProps)` and at mount
+                // from the insertion order `g_object_new_with_properties` preserves. The
+                // mount case is covered by the row above, which authors both flags at
+                // once; this one changes both in a single commit, which is the case that
+                // depends on nothing but the order two JSX attributes are written in.
+                laidOut(
+                    <AdwOverlaySplitView sidebar={<gtk-label label="sidebar" />}>
+                        <gtk-label label="content" />
+                    </AdwOverlaySplitView>,
+                    (container, _window, rerender) => {
+                        const view = find(container, 'AdwOverlaySplitView') as Adw.OverlaySplitView;
+                        expect(view.showSidebar).toBe(true);
+                        rerender(
+                            <AdwOverlaySplitView
+                                sidebar={<gtk-label label="sidebar" />}
+                                pinSidebar={true}
+                                collapsed={true}
+                            >
+                                <gtk-label label="content" />
+                            </AdwOverlaySplitView>,
+                        );
+                        expect(view.collapsed).toBe(true);
+                        expect(view.pinSidebar).toBe(true);
+                        // Pinned BEFORE collapsing, so the collapse left it alone.
+                        expect(view.showSidebar).toBe(true);
                     },
                 );
             });
@@ -366,24 +401,35 @@ export default async () => {
                 });
             });
 
-            await gated('the container minimum, which is also the core\u2019s', async () => {
-                // WHAT THIS DESCRIBE REPLACED, AND WHY IT COULD NOT BE WRITTEN.
+            await gated('the container minimum and the overlay cap, both the core\u2019s', async () => {
+                // WHAT THIS DESCRIBE REPLACED, AND HOW MUCH OF IT COULD NOT BE WRITTEN.
                 // `resolveNavigationSidebarWidth` and `resolveOverlaySidebarWidth` are
                 // genuinely different rules — the first caps the sidebar's MAX BOUND by
                 // `width - content_min`, the second caps the RESULT — and the core's own
-                // header names a 300-point vector where they answer 180 and 100. That
-                // vector is unreachable through a GTK window, measured: `measure` reports
-                // `sidebar_min + content_min` as the view's own minimum, GTK never
-                // allocates a widget below its minimum, and the two rules agree at every
-                // width from that minimum upwards. The 300-point frame below is allocated
-                // 380. So the disagreement is a property of the two FUNCTIONS, held by
-                // `@gjsify/adwaita-core`'s own vectors, and asserting it here would have
-                // meant asserting a number the widget cannot produce.
+                // header names a 300-point vector where they answer 180 and 100. The PAIR
+                // is unreachable through GTK windows, measured, but only because of the
+                // NAVIGATION half: `measure_uncollapsed` reports `sidebar_min +
+                // content_min`, GTK never allocates below a widget's minimum, and from
+                // that minimum upwards `width - content_min` never falls under
+                // `sidebar_min`, so the bound cap never inverts. The 300-point frame in
+                // the first row below is allocated 380. Asserting the two answers side by
+                // side would therefore mean asserting a number one of the widgets cannot
+                // produce; the disagreement itself is held by `@gjsify/adwaita-core`'s own
+                // vectors and by its `the two widgets disagree on the SAME input`.
                 //
-                // What IS reachable is the minimum itself, and it is the same arithmetic:
-                // `measureSplitViewHorizontal` computes it, and this reads GTK's answer
-                // back. The React Native half cannot be asked — a component there is
-                // handed an already-laid-out size and never reports a minimum upwards,
+                // THE OVERLAY'S OWN ANSWER IS NOT UNREACHABLE, and the second row is it.
+                // Its minimum is `(int) (sidebar_min * show_progress) + content_min`
+                // (adw-overlay-split-view.c), so a HIDDEN sidebar takes the whole
+                // `sidebar_min` term out and 300 points is a width GTK will give it —
+                // measured on libadwaita 1.9.3, no diagnostic, the sidebar allocated 100.
+                // Without that row the result-cap, which is one of the two documented
+                // differences between the widgets, had no GTK-side measurement at all:
+                // both other overlay rows sit where the two rules agree.
+                //
+                // The MINIMUM is the same arithmetic on the other side:
+                // `measureSplitViewHorizontal` computes it and the first row reads GTK's
+                // answer back. The React Native half cannot be asked — a component there
+                // is handed an already-laid-out size and never reports a minimum upwards,
                 // which is the `childMin` divergence `AdwClamp` already carries.
                 await it('refuses to be narrower than sidebar minimum plus content minimum', async () => {
                     const bounds = resolveSidebarBounds({ sidebarWidthUnit: 'px' }, 0);
@@ -413,6 +459,39 @@ export default async () => {
                             expect(view.get_width()).toBe(measured.minimum);
                             // And at that width both rules answer 180, the lower bound.
                             expect(allocatedWidth(view.sidebar as Gtk.Widget, view)).toBe(bounds.min);
+                        },
+                        { frameWidth: SQUEEZED_FRAME_WIDTH },
+                    );
+                });
+
+                await it('caps the OVERLAY sidebar by the content minimum, where its sibling caps the bound', async () => {
+                    // 100, and the navigation widget answers 180 for the same input —
+                    // see the head of this describe for which half of that pair a GTK
+                    // window can be asked about and why. Written as the core's own call
+                    // AND as the literal, so a changed default falls here rather than
+                    // letting both sides move together.
+                    const capped = resolveOverlaySidebarWidth({
+                        totalWidth: SQUEEZED_FRAME_WIDTH,
+                        contentMin: CONTENT_MINIMUM,
+                        sidebarWidthUnit: 'px',
+                    });
+                    expect(capped).toBe(100);
+
+                    laidOut(
+                        // `show-sidebar: false` is what takes the view's minimum down to
+                        // the content's own; the sidebar is still ALLOCATED, off the
+                        // leading edge, which is what makes the width readable.
+                        <AdwOverlaySplitView
+                            sidebar={<gtk-label label="s" />}
+                            showSidebar={false}
+                            sidebarWidthUnit="px"
+                        >
+                            <gtk-label label="c" width-request={CONTENT_MINIMUM} />
+                        </AdwOverlaySplitView>,
+                        (container) => {
+                            const view = find(container, 'AdwOverlaySplitView') as Adw.OverlaySplitView;
+                            expect(view.get_width()).toBe(SQUEEZED_FRAME_WIDTH);
+                            expect(allocatedWidth(view.sidebar as Gtk.Widget, view)).toBe(capped);
                         },
                         { frameWidth: SQUEEZED_FRAME_WIDTH },
                     );

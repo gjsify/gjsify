@@ -475,14 +475,18 @@ than smoothed over.
   cannot refuse to be narrower than its contents the way GTK does (the GTK suite asserts
   that refusal at 380 against `measureSplitViewHorizontal`; the React Native suite cannot
   ask). Same class as `AdwClamp`'s `childMin`.
-- **The two sidebar-width rules disagree only where GTK cannot go.**
+- **The two sidebar-width rules can only be told apart one at a time on GTK.**
   `resolveNavigationSidebarWidth` caps the sidebar's MAX BOUND by `width - content_min`
   and `resolveOverlaySidebarWidth` caps the RESULT, which the core's own vectors separate
-  at 300 points (180 versus 100). Measured through the real widgets, that width is
-  unreachable: `measure` makes `sidebar_min + content_min` the view's minimum, GTK never
-  allocates below it, and from there upwards the two rules agree. So the difference is a
-  property of the two functions, held by `@gjsify/adwaita-core`'s vectors, and this
-  package asserts the minimum instead.
+  at 300 points (180 versus 100). The NAVIGATION half of that pair is unreachable through
+  a window: `measure_uncollapsed` makes `sidebar_min + content_min` its minimum, GTK never
+  allocates below a minimum, and from there upwards `width - content_min` never falls under
+  `sidebar_min`, so the bound cap never inverts. The OVERLAY half is reachable, because its
+  minimum is `(int) (sidebar_min * show_progress) + content_min` — a hidden sidebar takes
+  that term out — and the GTK suite reads its 100 off the live tree. So the two answers are
+  never asserted side by side here; the disagreement itself is held by
+  `@gjsify/adwaita-core`'s vectors, and this package asserts the navigation minimum and the
+  overlay cap separately.
 - **The overlay's reveal is instant on React Native.** libadwaita animates with a spring
   `(1, 0.5, 500)`; `@gjsify/adwaita-web` approximates it from `requestAnimationFrame` and
   `@gjsify/adwaita-nativescript` from `View.animate()`. React Native's own answer is
