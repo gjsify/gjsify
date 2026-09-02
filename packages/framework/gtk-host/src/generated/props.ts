@@ -2868,6 +2868,8 @@ export interface GtkCellEditableProps {
     /** Indicates whether editing on the cell has been canceled. */
     editingCanceled?: boolean;
     'editing-canceled'?: boolean;
+    onEditingDone?: Gtk.CellEditable.SignalSignatures['editing-done'];
+    onRemoveWidget?: Gtk.CellEditable.SignalSignatures['remove-widget'];
     onNotifyEditingCanceled?: NotifyHandler;
 }
 
@@ -3004,6 +3006,7 @@ export interface GtkColorChooserProps {
      */
     useAlpha?: boolean;
     'use-alpha'?: boolean;
+    onColorActivated?: Gtk.ColorChooser.SignalSignatures['color-activated'];
     onNotifyRgba?: NotifyHandler;
     onNotifyUseAlpha?: NotifyHandler;
 }
@@ -3263,6 +3266,10 @@ export interface GtkEditableProps {
     'width-chars'?: number;
     /** The horizontal alignment, from 0 (left) to 1 (right). */
     xalign?: number;
+    onChanged?: Gtk.Editable.SignalSignatures['changed'];
+    onDeleteText?: Gtk.Editable.SignalSignatures['delete-text'];
+    onInputIntercepted?: Gtk.Editable.SignalSignatures['input-intercepted'];
+    onInsertText?: Gtk.Editable.SignalSignatures['insert-text'];
     onNotifyEditable?: NotifyHandler;
     onNotifyEnableUndo?: NotifyHandler;
     onNotifyInputInterceptor?: NotifyHandler;
@@ -3667,6 +3674,7 @@ export interface GtkFontChooserProps {
      */
     showPreviewEntry?: boolean;
     'show-preview-entry'?: boolean;
+    onFontActivated?: Gtk.FontChooser.SignalSignatures['font-activated'];
     onNotifyFont?: NotifyHandler;
     onNotifyFontDesc?: NotifyHandler;
     onNotifyLanguage?: NotifyHandler;

@@ -31,8 +31,8 @@
     "@gjsify/webrtc": "workspace:^"
   },
   "devDependencies": {
-    "@girs/gjs": "4.5.0",
-    "@girs/glib-2.0": "4.5.0",
+    "@girs/gjs": "4.6.0",
+    "@girs/glib-2.0": "4.6.0",
     "@gjsify/cli": "workspace:^",
     "@gjsify/node-globals": "workspace:^",
     "@gjsify/runtime": "workspace:^",

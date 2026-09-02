@@ -447,46 +447,49 @@ export default async () => {
                 expect(problems).toStrictEqual([]);
             });
 
-            await it.failing(
-                'leaves no signal of the installed GTK out of the surface',
-                async () => {
-                    // THE REVERSE of the check above, and the asymmetry it closes was
-                    // paid for: properties have had both directions for as long as this
-                    // file has existed, signals only ever had the forward one. So the
-                    // vocabulary migration removed SEVEN signals of the installed GTK
-                    // from the surface — `<gtk-entry onChanged={…}>` stopped
-                    // type-checking — and every check in this file stayed green,
-                    // because nothing asks what the surface is MISSING.
-                    //
-                    // Asked per DECLARATION rather than per widget, against the same
-                    // `DECLS` chain `surfaceMembers` walks, so a base the vocabulary
-                    // deliberately dropped is never consulted and cannot appear here.
-                    const missing: string[] = [];
-                    const asked = new Set<string>();
-                    for (const w of GENERATED_WIDGETS) {
-                        for (const declaration of DECLS[w.gtype] ?? []) {
-                            if (asked.has(declaration)) continue;
-                            const gtype = declarationGType(declaration);
-                            if (!gtype) continue; // not in this library — judged once, above
-                            asked.add(declaration);
-                            const offered = new Set(OWN_SIGNALS[declaration] ?? []);
-                            for (const id of GObject.signal_list_ids(gtype)) {
-                                const signal = GObject.signal_name(id);
-                                if (signal && !offered.has(signal)) missing.push(`${declaration}::${signal}`);
-                            }
+            await it('leaves no signal of the installed GTK out of the surface', async () => {
+                // THE REVERSE of the check above, and the asymmetry it closes was
+                // paid for: properties have had both directions for as long as this
+                // file has existed, signals only ever had the forward one. So the
+                // vocabulary migration removed SEVEN signals of the installed GTK
+                // from the surface — `<gtk-entry onChanged={…}>` stopped
+                // type-checking — and every check in this file stayed green,
+                // because nothing asks what the surface is MISSING.
+                //
+                // Asked per DECLARATION rather than per widget, against the same
+                // `DECLS` chain `surfaceMembers` walks, so a base the vocabulary
+                // deliberately dropped is never consulted and cannot appear here.
+                //
+                // THIS RAN UNDER `it.failing` FOR ONE RELEASE, and what it caught is
+                // why it exists. `IntrospectedInterface` in ts-for-gir had no
+                // `signals` field — only `IntrospectedClass.fromXML` read
+                // `<glib:signal>` — so every signal a GObject INTERFACE registers
+                // reached no vocabulary. Measured on Gtk-4.0: 8 signals over
+                // GtkEditable, GtkCellEditable, GtkColorChooser and GtkFontChooser,
+                // which through `implements` is 50 handler slots across 17 concrete
+                // widgets. `<gtk-entry onChanged>` was five of them. Fixed upstream
+                // in ts-for-gir #460 and released as @girs 4.6.0; the guard retired
+                // itself by going green, which under `it.failing` is a failure.
+                const missing: string[] = [];
+                const asked = new Set<string>();
+                for (const w of GENERATED_WIDGETS) {
+                    for (const declaration of DECLS[w.gtype] ?? []) {
+                        if (asked.has(declaration)) continue;
+                        const gtype = declarationGType(declaration);
+                        if (!gtype) continue; // not in this library — judged once, above
+                        asked.add(declaration);
+                        const offered = new Set(OWN_SIGNALS[declaration] ?? []);
+                        for (const id of GObject.signal_list_ids(gtype)) {
+                            const signal = GObject.signal_name(id);
+                            if (signal && !offered.has(signal)) missing.push(`${declaration}::${signal}`);
                         }
                     }
-                    // Not vacuous: an empty chain would satisfy the assertion with
-                    // nothing asked.
-                    expect(asked.size > 100).toBe(true);
-                    expect(missing).toStrictEqual([]);
-                },
-                'ts-for-gir reads <glib:signal> only in IntrospectedClass.fromXML; IntrospectedInterface ' +
-                    'has no signals field, so GtkEditable (changed, insert-text, delete-text), GtkCellEditable ' +
-                    '(editing-done, remove-widget), GtkColorChooser (color-activated) and GtkFontChooser ' +
-                    '(font-activated) reach no vocabulary. Tracked in status/open-todos.md § The @girs/* ' +
-                    'vocabulary is consumed; this retires itself the day a released @girs carries them.',
-            );
+                }
+                // Not vacuous: an empty chain would satisfy the assertion with
+                // nothing asked.
+                expect(asked.size > 100).toBe(true);
+                expect(missing).toStrictEqual([]);
+            });
 
             await it('compares versions the way the two rules above rely on', async () => {
                 // The version rule is the reason those two checks can be exact
