@@ -67,7 +67,7 @@ a GTK-only consumer does not need it installed.
 | `AdwButtonContent` | `iconName`, `label`, `useUnderline`, `canShrink` | Four derivations from the core, including the 6px gap that is `border-spacing` and not `GtkBox:spacing` |
 | `AdwButtonRow` | `title`, `onActivated` | A row that behaves like a button — always activatable, and holds no children at all |
 | `AdwClamp` | `children`, `maximumSize` (600), `tighteningThreshold` (400) | Constrain a child's width and centre it, on libadwaita's easing curve |
-| `AdwComboRow` | `title`, `subtitle`, `model`, `selected`, `useSubtitle`, `onNotifySelected` | Pick one item of a list. `model` keeps libadwaita's NAME and takes `@gjsify/adwaita-core`'s option vocabulary instead of a `Gio.ListModel` — the GTK half builds the real `Gtk.StringList`. One item or none is not a choice: no chevron, and the row is not activatable |
+| `AdwComboRow` | `title`, `subtitle`, `model`, `selected`, `useSubtitle`, `onNotifySelected` | Pick one item of a list. `model` keeps libadwaita's NAME and takes `@gjsify/adwaita-core`'s option vocabulary instead of a `Gio.ListModel` — the GTK half builds the real `Gtk.StringList`. One item or none is not a choice: no chevron, and the row is not activatable. `useSubtitle` MOVES the value into the subtitle rather than adding a second copy of it |
 | `AdwEntryRow` | `title`, `text`, `maxLength` (0), `editable` (true), `showApplyButton` (false), `onNotifyText`, `onApply`, `onEntryActivated` | The row IS the entry. `max-length` counts CHARACTERS |
 | `AdwExpanderRow` | `title`, `subtitle`, `expanded` (false), `onNotifyExpanded`, `children` | `children` are the DISCLOSED rows. The header toggles, the disclosure does not |
 | `AdwHeaderBar` | `start`, `titleWidget`, `title`, `subtitle`, `end` | The three slots as PROPS, in draw order. No window controls: a phone has none |
@@ -236,6 +236,17 @@ than smoothed over.
   and wraps, which still runs the real `ComboState.select` guard — bounds and
   no-op-on-same — so the arithmetic underneath is the shipped one and only the gesture is
   this half's own.
+- **`AdwComboRow`'s `useSubtitle` publishes the value at once on React Native and on the
+  next selection change on GTK.** What both halves DO agree on is that the value is drawn in
+  one place: `adw-combo-row.ui` binds the inline value view's `visible` to `use-subtitle`
+  with `sync-create|invert-boolean`, and this half hides its trailing label the same way.
+  What they cannot agree on is WHEN the subtitle picks the value up.
+  `adw_combo_row_set_use_subtitle` calls `selection_changed`, while the subtitle is written
+  by `selection_item_changed` — a different function, reached only from
+  `notify::selected-item` and `set_model` — so an authored subtitle survives switching
+  `use-subtitle` on and is replaced by the next selection change. Measured on libadwaita
+  1.9.3 and asserted on both halves. Reproducing the lag here would mean carrying a
+  libadwaita ordering artefact into a renderer that has no reason for it.
 - **`AdwSpinRow`'s range is spelled `lower`/`upper`/`stepIncrement`, where the two sibling
   Adwaita renderers spell it `min`/`max`/`step`.** Those are
   `adw_spin_row_new_with_range`'s PARAMETER names; these are `Gtk.Adjustment`'s own GObject

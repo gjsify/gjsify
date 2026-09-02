@@ -546,7 +546,17 @@ export interface AdwComboRowProps extends AdwRowProps {
     model?: readonly AdwComboOptionInput[];
     /** `selected` — the position of the selected item. Default 0. */
     selected?: number;
-    /** `use-subtitle` — whether the selected item's label REPLACES {@link subtitle}. Default false. */
+    /**
+     * `use-subtitle` — whether the selected item's label REPLACES {@link subtitle}. Default false.
+     *
+     * REPLACES, not "appears twice": `adw-combo-row.ui` binds the inline value view's `visible`
+     * to this property with `sync-create|invert-boolean`, so the value is drawn in the subtitle
+     * OR in the trailing slot and never in both. Both halves are held to that.
+     *
+     * WHEN the subtitle picks the value up is a NAMED DIVERGENCE, in the README: this surface
+     * publishes it at once, libadwaita on the next selection change. Measured — the setter calls
+     * `selection_changed`, and the subtitle is written by `selection_item_changed`.
+     */
     useSubtitle?: boolean;
     /** `notify::selected` — the selected position moved. */
     onNotifySelected?: (selected: number) => void;

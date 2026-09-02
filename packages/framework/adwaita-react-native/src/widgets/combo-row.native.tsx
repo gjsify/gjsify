@@ -25,6 +25,12 @@
 // `@gjsify/gtk-host` patches a property only when the prop changes, so an unechoed pick
 // survives there as well.
 //
+// `useSubtitle` MOVES THE VALUE, IT DOES NOT ADD A SECOND ONE. `adw-combo-row.ui` binds the
+// inline `current` view's `visible` to `use-subtitle` with `invert-boolean`, and
+// `selection_changed` writes the item's representation into the SUBTITLE — so libadwaita draws
+// the value in exactly one place either way. Drawing it in the label column AND in the trailing
+// slot was this half's own, and a row with `useSubtitle` on read the value twice.
+//
 // THERE IS NO POPOVER. `Adw.ComboRow` opens a `GtkPopover` over a `GtkListView`; this half
 // advances to the next option on each press and wraps, which is what a row with no overlay
 // layer can do honestly. The README names it. What the press DOES exercise is the real
@@ -152,7 +158,7 @@ export function AdwComboRow({
             onPress={advance}
         >
             <AdwRowLabels title={title} subtitle={useSubtitle === true ? snapshot.label : subtitle} />
-            <Text>{snapshot.label}</Text>
+            <Text style={useSubtitle === true ? ADW_ROW_HIDDEN_STYLE : undefined}>{snapshot.label}</Text>
             <View style={snapshot.presentsChooser ? undefined : ADW_ROW_HIDDEN_STYLE}>
                 <Text>{CHEVRON_GLYPH}</Text>
             </View>

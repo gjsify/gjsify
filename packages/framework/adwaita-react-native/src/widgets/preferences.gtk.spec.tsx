@@ -57,6 +57,28 @@ function headerLabels(group: Gtk.Widget): [string, boolean][] {
     return found;
 }
 
+/**
+ * The inline value view `adw-combo-row.ui` binds to `use-subtitle`, inverted.
+ *
+ * The walk SKIPS the popover, which holds a second `GtkListView` — the chooser's list. A
+ * breadth-first `find` happens to reach the inline one first today; that is an accident of
+ * where libadwaita puts the popover, and an assertion resting on it would flip silently.
+ */
+function inlineValueView(row: Gtk.Widget): Gtk.Widget {
+    const walk = (widget: Gtk.Widget): Gtk.Widget | null => {
+        for (let child = widget.get_first_child(); child !== null; child = child.get_next_sibling()) {
+            if (typeOf(child) === 'GtkPopover') continue;
+            if (typeOf(child) === 'GtkListView') return child;
+            const found = walk(child);
+            if (found !== null) return found;
+        }
+        return null;
+    };
+    const found = walk(row);
+    if (found === null) throw new Error('the combo row draws no inline GtkListView');
+    return found;
+}
+
 /** A `GtkListBox`'s children, which is what `Adw.PreferencesGroup` counts. */
 function rowCount(listbox: Gtk.Widget): number {
     let count = 0;
@@ -242,6 +264,59 @@ export default async () => {
                         const row = find(container, 'AdwComboRow') as Adw.ComboRow;
                         expect(row.title).toBe('Theme');
                         expect(comboSelectedIndex(row.selected)).toBe(2);
+                    },
+                );
+            });
+
+            await it('hides the inline value under useSubtitle — the pair', async () => {
+                // The BINDING, which is the half that is deterministic: `adw-combo-row.ui`
+                // gives the inline `current` view `visible` bound to `use-subtitle` with
+                // `sync-create|invert-boolean`, so the value never occupies both the
+                // trailing slot and the subtitle. The React Native half asserts the same
+                // fact as a hidden trailing label; before it did, that half drew the value
+                // twice.
+                const row = (container: Gtk.Widget): Adw.ComboRow => find(container, 'AdwComboRow') as Adw.ComboRow;
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwComboRow title="Style" subtitle="Authored" model={['Light', 'Dark']} selected={1} />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        expect(inlineValueView(row(container)).get_visible()).toBe(true);
+                    },
+                );
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwComboRow
+                            title="Style"
+                            subtitle="Authored"
+                            model={['Light', 'Dark']}
+                            selected={1}
+                            useSubtitle={true}
+                        />
+                    </AdwPreferencesGroup>,
+                    (container, _window, rerender) => {
+                        expect(inlineValueView(row(container)).get_visible()).toBe(false);
+                        // WHEN THE VALUE REACHES THE SUBTITLE IS WHERE THE TWO HALVES PART,
+                        // and this is the measurement behind the README's divergence rather
+                        // than a guess: `adw_combo_row_set_use_subtitle` calls
+                        // `selection_changed`, and the subtitle is written by
+                        // `selection_item_changed` — a different function, reached only from
+                        // `notify::selected-item` and `set_model`. So the AUTHORED subtitle
+                        // survives switching `use-subtitle` on…
+                        expect(row(container).subtitle).toBe('Authored');
+                        rerender(
+                            <AdwPreferencesGroup title="Appearance">
+                                <AdwComboRow
+                                    title="Style"
+                                    subtitle="Authored"
+                                    model={['Light', 'Dark']}
+                                    selected={0}
+                                    useSubtitle={true}
+                                />
+                            </AdwPreferencesGroup>,
+                        );
+                        // …and the next selection change is what publishes it.
+                        expect(row(container).subtitle).toBe('Light');
                     },
                 );
             });

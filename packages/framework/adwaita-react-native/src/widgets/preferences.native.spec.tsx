@@ -69,6 +69,16 @@ const texts = (node: ReactTestRendererJSON): [string, boolean][] =>
 const headerLabels = (group: ReactTestRendererJSON): [string, boolean][] =>
     childrenOf(childrenOf(group)[0] as ReactTestRendererJSON).map((n) => [textOf(n), !hidden(n)]);
 
+/**
+ * A ROW's two labels, as `[text, visible]` — the same reading, one level down.
+ *
+ * `AdwRowLabels` is child 0 of every row here, exactly as the header box is child 0 of the
+ * group, so the reader is the same shape and is spelled separately only because "header" is
+ * not what it names on a row.
+ */
+const rowLabels = (row: ReactTestRendererJSON): [string, boolean][] =>
+    childrenOf(childrenOf(row)[0] as ReactTestRendererJSON).map((n) => [textOf(n), !hidden(n)]);
+
 /** A row's trailing value label — child 1, after the label column. */
 const valueLabel = (row: ReactTestRendererJSON): [string, boolean] => {
     const node = childrenOf(row)[1] as ReactTestRendererJSON;
@@ -233,6 +243,36 @@ export default async () => {
             const chevronOf = (tree: ReactTestRendererJSON): ReactTestRendererJSON =>
                 flatten(tree).filter((n) => n.type === RCT_TEXT && textOf(n) === '▾')[0] as ReactTestRendererJSON;
             expect(hidden(childrenOf(one).filter((n) => n.children?.includes(chevronOf(one)))[0] ?? one)).toBe(true);
+        });
+
+        await it('moves the value into the subtitle under useSubtitle, once — the pair', async () => {
+            const off = mounted(
+                <AdwComboRow title="Style" subtitle="Authored" model={['Light', 'Dark']} selected={1} />,
+            );
+            const on = mounted(
+                <AdwComboRow
+                    title="Style"
+                    subtitle="Authored"
+                    model={['Light', 'Dark']}
+                    selected={1}
+                    useSubtitle={true}
+                />,
+            );
+            // `adw-combo-row.ui` binds the inline value view's `visible` to `use-subtitle`
+            // INVERTED, and `selection_changed` writes the item into the subtitle — so
+            // libadwaita draws the value in exactly one place. BOTH readings are asserted,
+            // because asserting only the subtitle passes over a row that draws it twice,
+            // which is what this half did.
+            expect(rowLabels(off)).toStrictEqual([
+                ['Style', true],
+                ['Authored', true],
+            ]);
+            expect(valueLabel(off)).toStrictEqual(['Dark', true]);
+            expect(rowLabels(on)).toStrictEqual([
+                ['Style', true],
+                ['Dark', true],
+            ]);
+            expect(valueLabel(on)).toStrictEqual(['Dark', false]);
         });
 
         await it('spells an empty model’s selection the way the core does — the pair', async () => {
