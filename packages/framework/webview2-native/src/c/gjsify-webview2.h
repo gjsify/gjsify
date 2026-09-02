@@ -207,15 +207,18 @@ void gjsify_webview2_user_script_unref(GjsifyWebView2UserScript *self);
  * @allow_list: (nullable) (array zero-terminated=1): URI patterns to allow, or %NULL for all.
  * @block_list: (nullable) (array zero-terminated=1): URI patterns to block, or %NULL for none.
  *
- * The lists are `scheme://host/path` patterns as WebKitGTK's are, with `*`
- * wildcards; `*` as a scheme means http or https, and a `*.` host prefix matches
- * subdomains. WebView2's `AddScriptToExecuteOnDocumentCreated` carries no URL
- * filter, so a script with a non-empty list is wrapped in a guard that tests the
- * document's URL before running — the same treatment, and the same cost, as the
- * darwin backend's: the guard is a labelled block, so a filtered script's
- * top-level `let`, `const` and `class` are block-scoped rather than global.
- * `var` and function declarations are unaffected, and a script with no lists is
- * not wrapped at all.
+ * A NON-EMPTY LIST OF EITHER KIND MAKES THE SCRIPT REFUSED, with a warning, by
+ * gjsify_webview2_user_content_manager_add_script(). WebView2's
+ * `AddScriptToExecuteOnDocumentCreated` carries no URL filter, and injecting the
+ * script anyway would run it on origins the caller excluded — the exact failure
+ * a block list exists to prevent — so refusing narrows in the safe direction for
+ * both list kinds. Porting darwin's in-script guard (the source wrapped in a
+ * labelled block that tests the document's URL) is what closes this; it is
+ * outside ADR 0035 decision 4's counted subset and is not in this build.
+ *
+ * The patterns themselves are WebKitGTK's `scheme://host/path` shape and are
+ * kept unparsed: nothing here reads them, so a spelling this backend would have
+ * got wrong cannot be mistaken for one it honoured.
  *
  * Returns: (transfer full): a new script.
  */
