@@ -93,6 +93,9 @@ built `--app node` and executed over the reverse bridge, so a gjs-green/node-red
 diff is attributable
 ([ADR 0030](https://github.com/gjsify/gjsify/blob/main/docs/adr/0030-one-corpus-gjs-as-oracle.md)).
 Both legs run every test in the suite, `/register` included; neither stands down.
+The same bundle also runs green on Bun and Deno — one `--app node` bundle serves
+all three Node-API hosts — which is why the register gate names all four runtimes
+rather than only the one CI happens to invoke.
 
 One import spelling is load-bearing rather than incidental: the ports come from
 `@gjsify/message-channel/core`, not from the bare package. That package declares

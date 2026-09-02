@@ -9,13 +9,15 @@
 //   - IFrameBridge.installGlobals() installs the SAME pair imperatively
 //
 // Per AGENTS.md testing rule 7 these live in a dedicated file: `/register` pulls
-// WebKit through its import chain, so it runs only where that chain resolves.
-// Both declared runtimes resolve it — GJS natively, Node through node-gi's
-// `requireGi()` after `--app node` rewrites the `gi://` specifiers — so the gate
-// names both. It was `on('Gjs', …)` while the node slot was `"none"`, which left
-// `/register` the one part of the package the node leg did not cover; the gate,
-// not the code, was what excluded it. Class-level tests use named imports and
-// live in index.spec.ts.
+// WebKit through its import chain, so it runs only where that chain resolves —
+// and the gate names every runtime that does: GJS natively, plus the three
+// Node-API hosts through node-gi's `requireGi()` once `--app node` has rewritten
+// the `gi://` specifiers (ONE bundle serves node, bun and deno). It was
+// `on('Gjs', …)` while the node slot was `"none"`, which read as `/register`
+// being the one part the node leg could not cover. The GATE was what excluded
+// it, not the code — measured, all of these pass on every one of the four.
+// A stand-down is only honest until somebody checks. Class-level tests use
+// named imports and live in index.spec.ts.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import '@gjsify/iframe/register';
@@ -28,7 +30,7 @@ import { Document } from '@gjsify/dom-elements';
 import { HTMLIFrameElement, IFrameBridge } from '@gjsify/iframe';
 
 export default async () => {
-    await on(['Gjs', 'Node.js'], async () => {
+    await on(['Gjs', 'Node.js', 'Bun', 'Deno'], async () => {
         await describe('@gjsify/iframe/register — element factory', async () => {
             await it("document.createElement('iframe') returns an HTMLIFrameElement", async () => {
                 const doc = new Document();

@@ -315,7 +315,10 @@ the tree, not a caveat of this one.
 `on('Gjs', …)`, which read as `/register` being the one part the node leg could
 not cover. The GATE was the reason, not the code: `--app node` resolves the same
 WebKit import chain through `requireGi()`, and widened to
-`on(['Gjs', 'Node.js'], …)` those tests pass on Node at the same count as on GJS.
+`on(['Gjs', 'Node.js', 'Bun', 'Deno'], …)` those tests pass on all four at the
+same count as on GJS (measured: node 24.19.0, bun 1.3.14, deno 2.9.4 — ONE
+`--app node` bundle serves the three Node-API hosts, so a gate naming one of
+them stood the other two down for no measured reason either).
 A gate written while the slot said `none` outlives the reason it was written for,
 and the axis ledger reports it as a stand-down either way — which is honest about
 what ran, and says nothing about what could have.
