@@ -90,7 +90,12 @@ import {
 } from '../utils/ship/signing.js';
 import { renderLauncher } from '../utils/ship/launcher.js';
 import { buildRpm } from '../utils/ship/rpm.js';
-import { declaredBundlePath, resolveShipSettings, type ShipPackageManifest } from '../utils/ship/settings.js';
+import {
+    declaredBundlePath,
+    resolveShipApp,
+    resolveShipSettings,
+    type ShipPackageManifest,
+} from '../utils/ship/settings.js';
 import {
     assertExpectedTarget,
     assertFormatsStaged,
@@ -264,13 +269,27 @@ async function assemble(args: ShipOptions): Promise<void> {
     const configData = await config.forCommand(projectDir);
     const ship = configData.ship ?? {};
     const flatpak = configData.flatpak ?? {};
-    assertShippableTarget(configData.app);
-    // Resolved HERE and not from `settings`, because the format list is decided
-    // before anything is built and `resolveShipSettings` runs after. The
-    // defaulting rule is the one `resolveShipSettings` states and must stay the
-    // same one: an undeclared target means `gjs`, never the host runtime this
-    // command happens to run under.
-    const interpreter: 'gjs' | 'node' = configData.app === 'node' ? 'node' : 'gjs';
+    // THE ONE RESOLUTION, and it runs HERE because the format list is decided
+    // before anything is built while `resolveShipSettings` runs after. Its result
+    // is threaded into the settings rather than re-derived there: two defaulting
+    // rules for one question is how the format list and the emitted `Depends:`
+    // came to answer for different targets.
+    //
+    // PER LAYOUT, which is the whole of #1486's fix. `gjsify.app` is the project
+    // DEFAULT and `gjsify.ship.app.<os>` overrides it for this run's target, so a
+    // GTK4 app can be GJS on Linux and Node on macOS and Windows — the split ADR
+    // 0024 § 4 argues for — without the macOS answer moving the Linux `Depends:`.
+    const resolvedApp = resolveShipApp({ project: configData.app, perTarget: ship.app, layoutOs: layout.os });
+    const interpreter = resolvedApp.app;
+    // SAID, not swallowed, like every other narrowing in this function. An
+    // override that changed the launcher, the dependency and the format list
+    // without a line of output is one nobody can tell from the project default.
+    if (resolvedApp.overridden) {
+        console.log(
+            `${LOG} runtime for ${layout.name}: ${interpreter} — \`${resolvedApp.key}\` overrides ` +
+                `\`gjsify.app${configData.app === undefined ? '' : `: "${configData.app}"`}\`.`,
+        );
+    }
     const pkg = (readPackageJson(join(projectDir, 'package.json')) ?? {}) as ShipPackageManifest;
 
     // Resolved before anything is built or written: a typo'd `--target`
@@ -322,8 +341,11 @@ async function assemble(args: ShipOptions): Promise<void> {
         if (unusable.length > 0) {
             console.log(
                 `${LOG} ${unusable.map((format) => format.id).join(', ')} wrap the ${layout.name} layout but ` +
-                    `cannot run \`gjsify.app: "${interpreter}"\` — ${unusable[0]?.interpreterGap ?? ''}. ` +
-                    'Assembling the layout only; pass --target to be told the same thing as an error.',
+                    `cannot run \`${interpreter}\`, which \`${resolvedApp.key}\` resolves to — ` +
+                    `${unusable[0]?.interpreterGap ?? ''}. Set \`gjsify.ship.app.${layout.os}\` to ` +
+                    `"${unusable[0]?.interpreters.join('" / "')}" to ship this OS on that runtime; it leaves every ` +
+                    'other target on `gjsify.app`. Assembling the layout only; pass --target to be told the same ' +
+                    'thing as an error.',
             );
         }
     }
@@ -368,7 +390,11 @@ async function assemble(args: ShipOptions): Promise<void> {
         flatpak,
         cli: { outDir: args.out, arch: args.arch, layoutOs: layout.os },
         discovered,
-        app: configData.app,
+        // The RESOLVED runtime, never `configData.app`. Everything downstream —
+        // the launcher, `deriveDepends`, the carried runtime, the stage manifest —
+        // reads `settings.app`, so this is the one hand-off that decides whether
+        // those generators speak about this target or about the project.
+        app: interpreter,
     });
     for (const warning of warnings) console.warn(`${LOG} ${warning}`);
     // BEFORE anything is staged, and NOT under `assertCanPack` (which `--stage`
@@ -621,7 +647,11 @@ async function assemble(args: ShipOptions): Promise<void> {
         // above has already SAID in its own words rather than repeating here.
         const none =
             unusable.length > 0
-                ? `(none — ${unusable.map((format) => format.id).join(' and ')} need \`gjsify.app: "node"\`)`
+                ? // The key that fixes it, which used to be `gjsify.app` and is now
+                  // this target's own: naming the project field here is how a macOS
+                  // stage came to move the Linux `Depends:` (#1486).
+                  `(none — ${unusable.map((format) => format.id).join(' and ')} need ` +
+                  `\`gjsify.ship.app.${layout.os}: "node"\`)`
                 : formatIdsFor(layout.os).length === 0
                   ? `(none — no format wraps the ${layout.name} layout)`
                   : '(none asked for)';
@@ -1252,8 +1282,10 @@ function assertPackable(
         throw new Error(
             `gjsify ship: ${unusable.map((format) => format.id).join(' and ')} wrap the ${layout.name} ` +
                 `layout, and neither can run this project — ${unusable[0]?.interpreterGap ?? ''}.\n` +
-                `    \`gjsify ship ${layout.name} --stage\` assembles the tree anyway; packing it is what ` +
-                'the milestone that stages an interpreter is for (#1354 M2b).',
+                `    Set \`gjsify.ship.app.${layout.os}\` to ` +
+                `"${unusable[0]?.interpreters.join('" / "')}" — it overrides \`gjsify.app\` for THIS target and\n` +
+                '    leaves every other one alone, which is what lets one project be GJS on Linux and Node here.\n' +
+                `    \`gjsify ship ${layout.name} --stage\` assembles the tree either way.`,
         );
     }
     // A THIRD emptiness, and the one the last throw in this function used to
@@ -1320,67 +1352,12 @@ function assertPackable(
 }
 
 /**
- * Refuse a build target this command cannot package correctly.
- *
- * `gjs` and `node` are packageable: `renderLauncher` execs the one
- * `settings.app` names and `deriveDepends` declares the same one — `gjs >= …`,
- * or `nodejs (>= 24)` / `nodejs(engine) >= 24`. Until #1354's M0 this said "only
- * `gjs` can be packaged today", which was true: the launcher execed gjs
- * unconditionally, so a `--app node` package would have installed and died at
- * startup.
- *
- * `browser` and `nativescript` stay refused, and not for want of a launcher
- * line: a browser bundle has no process to start, and NativeScript ships as an
- * APK/IPA through a different pipeline entirely (ADR 0024 § 4).
- *
- * DELIBERATELY NOT PER LAYOUT, and the first cut of the layout axis got this
- * exactly backwards. Reading ADR § 4's runtime table as a per-layout `app`
- * requirement refused `gjsify.app: "gjs"` for the macOS layout — i.e. refused the
- * entire audience of this command from assembling a `.app` — while a project with
- * no `gjsify.app` key sailed through and staged a launcher naming `node` in front
- * of a GJS bundle. Both halves came from the same mistake: § 4 derives the runtime
- * a SHIPPED ARTIFACT carries, which is `Layout.shippedRuntime` and is printed as
- * `Layout.runtimeGap`. What the launcher execs is what the PAYLOAD was built for,
- * and that is `settings.app` on every layout.
- *
- * An undeclared target is the common case for a GJS app and is allowed. It must
- * NOT be resolved through `Config.forBuild`, whose fallback is the HOST runtime
- * — that would refuse, or worse silently re-target, a perfectly good GJS project
- * merely for running this command under Node.
- *
- * WHY THIS REFUSES AND `Layout.runtimeGap` ONLY WARNS, since the two describe
- * neighbouring predicaments and get opposite treatment. A target this command
- * cannot package would leave here as an ARTIFACT — a `.deb` a stranger installs,
- * which then fails at startup, with no gate between here and their machine. The
- * `runtimeGap` warns about something that is not an artifact: it is printed over a
- * staged tree, and only when that tree carries no interpreter of its own.
- *
- * This paragraph used to end "the day a Windows format exists, that warning has to
- * become this refusal". #1354 M3 is that day, and the refusal it became is
- * {@link assertFormatCanRunInterpreter} — per FORMAT rather than per layout,
- * because what a runtime can execute is a property of the container and not of the
- * tree it wraps. This function stayed exactly as wide as it was.
- *
- * Phase one only. Phase two does not re-read `gjsify.app` — it has no project —
- * but it is not unchecked either: `assertLauncherMatchesInterpreter` compares
- * the staged `bin/<name>`'s own `exec` line against the dependency about to be
- * written.
- */
-function assertShippableTarget(app: string | undefined): void {
-    if (app === undefined || app === 'gjs' || app === 'node') return;
-    throw new Error(
-        `gjsify ship: this project declares \`gjsify.app: "${app}"\`, and only \`gjs\` and \`node\` can be ` +
-            'packaged. A browser bundle has no process to launch, and a NativeScript app ships as an APK/IPA ' +
-            'through a different pipeline. ADR 0024 § 4 has the runtime-per-OS table.',
-    );
-}
-
-/**
  * Refuse a format whose runtime cannot provide the interpreter the launcher execs.
  *
  * THE HOLE THIS CLOSES, and it was opened by the commit that made `--app node`
- * packageable. `assertShippableTarget` used to refuse `app: 'node'` outright, so
- * no format ever saw one. Lifting that made deb and rpm correct and left Flatpak
+ * packageable. The shippable-target refusal — `resolveShipApp` in
+ * `utils/ship/settings.ts`, a free function in this file until #1486 — used to
+ * refuse `app: 'node'` outright, so no format ever saw one. Lifting that made deb and rpm correct and left Flatpak
  * silently wrong: measured at exit 0, a `--target flatpak --stage` with
  * `app: 'node'` emitted a manifest with `runtime: org.gnome.Platform`,
  * `runtime-version: 50`, no `sdk-extensions` and no `append-path`, beside a
@@ -1398,14 +1375,18 @@ function assertShippableTarget(app: string | undefined): void {
 function assertFormatCanRunInterpreter(format: FormatDescriptor, app: 'gjs' | 'node'): void {
     if (format.interpreters.includes(app)) return;
     throw new Error(
-        `gjsify ship: this project is \`gjsify.app: "${app}"\`, and the ${format.id} runtime cannot run it — ` +
-            `it provides ${format.interpreters.join(', ')}.\n` +
+        // The TARGET's runtime, not "this project is": since #1486 the two can
+        // differ, and a message naming `gjsify.app` for a per-target answer sends
+        // the reader to the key whose edit moves every OTHER target's `Depends:`.
+        `gjsify ship: this ${format.layoutOs} target runs \`${app}\`, and the ${format.id} runtime cannot ` +
+            `run it — it provides ${format.interpreters.join(', ')}.\n` +
             // The ROW's own sentence, not one written here. Hardcoded, this
             // paragraph told the first `.app` author about
             // `org.freedesktop.Sdk.Extension.node2x` and the GNOME runtime.
             `    ${format.interpreterGap}.\n` +
-            '    Build the formats that wrap this layout and can run it, or ship this app as ' +
-            `\`gjsify.app: "${format.interpreters.join('" / "')}"\`.`,
+            '    Build the formats that wrap this layout and can run it, or set ' +
+            `\`gjsify.ship.app.${format.layoutOs}: "${format.interpreters.join('" / "')}"\` ` +
+            '(which overrides `gjsify.app` for this target alone).',
     );
 }
 

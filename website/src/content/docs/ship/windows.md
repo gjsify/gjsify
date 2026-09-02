@@ -26,11 +26,30 @@ Windows, publishes no arm64 binaries, so there is no GTK for a Windows on ARM
 artifact to load. `--arch arm64` is refused by name rather than producing a
 directory that cannot start.
 
-## Your project has to be a Node project
+## The windows target has to be a Node target
 
-Set `gjsify.app` to `"node"`. There is no GJS host on Windows at all, so nothing
-on that operating system can run a `--app gjs` payload. Ship says so before it
-packs anything.
+There is no GJS host on Windows at all, so nothing on that operating system can
+run a `gjs` payload. Ship says so before it packs anything.
+
+Set it for **this target alone**, and a Linux package of the same project stays
+on GJS:
+
+```jsonc
+{
+  "gjsify": {
+    "app": "gjs",                       // the project default — Linux keeps it
+    "ship": { "app": { "win32": "node" } }  // and Windows does not
+  }
+}
+```
+
+The key is `win32`, the `process.platform` spelling — not `windows`, the
+spelling the command positional takes. A key nothing reads would leave the
+target on the project default with nothing to say so, so `gjsify ship` and the
+manifest audit both refuse it by name.
+
+Setting `gjsify.app` to `"node"` works too and moves every target with it,
+including the Linux `.deb`'s `Depends:`.
 
 ## What your package.json declares
 
@@ -217,7 +236,7 @@ process computes about itself. The positional accepts both `windows` and
 
 | Message says | Fix |
 |---|---|
-| the windows layout cannot run a `gjs` app | set `gjsify.app` to `"node"` and rebuild the bundle for Node |
+| the windows layout cannot run a `gjs` app | set `gjsify.ship.app.win32` to `"node"` (or `gjsify.app`, for every target) and rebuild the bundle for Node |
 | `the windows layout is not assemblable for --arch arm64` | use `--arch x64`; there is no Windows on ARM GTK to load |
 | `packing a msi on … needs … wixl` | install `msitools`, or WiX Toolset v3.14 on Windows |
 | `is not a version an .msi can carry` | set `gjsify.ship.version` to a plain `x.y.z` |

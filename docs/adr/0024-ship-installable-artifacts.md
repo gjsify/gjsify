@@ -143,6 +143,13 @@ preference.
 | `--app browser` | — | no OS-package question |
 | `--app nativescript` | — | APK/IPA is a different pipeline; out of scope |
 
+**Amended 2026-09-02 (§ A22).** This table has a row per OS and the implementation had ONE field to
+read it with — `gjsify.app` — so the split it argues for was not expressible: a project could not be
+GJS on Linux and Node on macOS. It is `gjsify.ship.app.<os>` over `gjsify.app` now, resolved once
+per target. The heading's *"not chosen per app"* keeps its meaning and narrows its scope: nothing
+here is DERIVED from the layout, an author states it per OS, and this table is what they are
+choosing between.
+
 **GJS on macOS is a real option and deliberately not the first one.** It works: the macOS CI
 leg runs `test:gjs` on both architectures, which the Windows leg cannot. What is missing is a
 *relocatable* GJS — `packages/node-gi/scripts/build-gtk-runtime-darwin.mjs` says so in its own
@@ -1315,3 +1322,77 @@ blob DIFFERS; without it a correct run could report every image `identical` and 
 additionally blocked by something measurable on our side — the payload round trip is bytes plus mode
 and carries no extended attributes, which is where a script main-executable's signature would have
 to live.
+
+## Amendment, 2026-09-02 — one field answered two questions, so § 4's own table was unstatable
+
+§ 4 has a row per operating system and argues the split hard: Linux takes GJS from the
+distribution, macOS and Windows take Node because there is no relocatable GJS for either. The
+implementation had ONE field to read that table with, `gjsify.app`, and a project therefore could
+not say what § 4 derives.
+
+### A22. `gjsify.app` is the DEFAULT; each ship target resolves its own runtime
+
+**Measured on a GTK4 application rather than derived from the schema.** `gjsify ship darwin
+--stage` and `ship windows --stage` both assembled a layout and then reported
+`formats (none — macos-app and macos-app-zip need gjsify.app: "node")`. Setting that field produced
+the two formats — **and moved the Linux dependency with them**, `Depends: gjs (>= 1.86)` becoming
+`Depends: nodejs (>= 24)`, which apt refuses on trixie, Ubuntu 24.04 and Ubuntu 26.04. A macOS
+decision made the Linux package uninstallable, because the deb generator read the PROJECT field
+rather than the resolved runtime of ITS OWN target.
+
+The field carried two questions: *which runtime the application needs*, and *which package formats
+a target can build*. Same answer for a single-OS project, different answers for the cross-OS one
+§ 4 describes — and only the first could be stated.
+
+**The decision.** `gjsify.app` becomes the DEFAULT and every ship target may override it:
+`gjsify.ship.app.{linux,darwin,win32}`, keyed in the `process.platform` spelling because the value
+that resolves is chosen by the LAYOUT being assembled and never by the host doing the assembling —
+the same rule § A12 gives for `gjsify.ship.sign`. One resolver (`resolveShipApp`,
+`utils/ship/settings.ts`) turns the pair into a runtime — `commands/ship.ts`'s free
+`assertShippableTarget` folds into it, so the `browser`/`nativescript` refusal names the KEY that
+carried the value rather than saying *"this project declares"*, which with two keys no longer
+locates it — and every generator reads that result:
+the launcher, `deriveDepends`, the carried `@gjsify/node-runtime-*`/`gtk-runtime-*` closure, the
+format-availability filter, and `resolveShipSettings`, whose input is the already-resolved value
+and typed `'gjs' | 'node'` so that handing it the project field does not compile. `--from-stage` is
+untouched and needs to be: the stage manifest has always recorded the RESOLVED value, so the
+packing host reads an answer rather than a default.
+
+**There is deliberately no per-layout DEFAULT**, and this is the trap the layout axis already fell
+into once. An absent override means `gjsify.app` and never `Layout.shippedRuntime`: defaulting
+darwin to Node is exactly the measured defect that paragraph records — a project with no
+`gjsify.app` key staged `exec node …/gjs.js` in front of a bundle opening with
+`import Gtk from 'gi://Gtk?version=4.0'`, at exit 0. § 4 derives what an artifact CARRIES; what it
+RUNS is what its author says.
+
+**The alternative that looks smaller is the wrong one**, recorded because it will be proposed
+again: simply offering `macos-app`/`windows-dir` under `app: "gjs"`. It makes the output richer and
+leaves the question unanswered — it would stage a bundle whose runtime assumption nobody stated,
+and the next finding is an artifact that finds no GJS on the target machine. Better to make the
+field resolvable than to decouple its effect.
+
+**A mis-keyed override is the silent failure, so it is a rule and not a convention.**
+`manifest-conformance`'s `ship` rule refuses a key outside `{linux,darwin,win32}` and a value
+outside `{gjs,node}` — `gjsify.ship.app.windows`, the `gjsify ship <os>` POSITIONAL's spelling,
+resolves to nothing, so that target quietly keeps the project-wide answer and the author reads it
+as gjsify not supporting the split, with every gate green. That is § A12's *"an identity under a key
+nothing reads ships UNSIGNED with nothing to say so"*, one table over. The override is also PRINTED
+at stage time: one that silently changes the launcher, the dependency and the format list is one
+nobody can tell from the default.
+
+**The test guards the CLASS — a generator reading a project-wide field where a per-target one was
+meant — and needs two directions to do it.** `tests/e2e/ship` asserts (a) a project with
+`app: "gjs"` and `ship.app.win32: "node"` whose Linux `.deb`/`.rpm` carries NO Node dependency while
+`windows-dir` is offered anyway, and (b) the mirror: `app: "node"` with `ship.app.linux: "gjs"`,
+whose Linux package must depend on `gjs`. (a) alone is not discriminating — there the project field
+and the Linux answer agree, so a generator that regressed to reading the project field would still
+emit `Depends: gjs` and the assertion would distinguish nothing. Both were red before the fix, (a)
+on `windows-dir must be offered, got: (none)` and (b) on a staged launcher reading `exec node
+"$prefix"/lib/ship-demo/gjs.js`.
+
+**What this does NOT do, stated so the amendment is not read as more than it is.** The runtime is
+per target; the BUNDLE is still one path (`gjsify.ship.bundle`, falling back to `gjsify.main`). A
+project that is GJS on Linux and Node on Windows builds two bundles — `dist/<name>.gjs.js` beside
+`dist/<name>.node.mjs` is the layout this tree documents as normal, and `discoverPayload` stages
+both — but every layout's launcher names the same one of them. That is the next axis, and it is a
+separate question with a separate config surface; `status/open-todos.md` carries it.

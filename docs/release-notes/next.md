@@ -244,6 +244,32 @@ itself.
 See [#1354](https://github.com/gjsify/gjsify/issues/1354) and
 `docs/adr/0024-ship-installable-artifacts.md`.
 
+### One project, GJS on Linux and Node on macOS and Windows
+
+Everything above needs a Node runtime, and until now saying so said it about the whole project.
+`gjsify ship darwin --stage` reported `formats (none — macos-app and macos-app-zip need
+gjsify.app: "node")`, and setting that field produced the bundle **and moved the Linux dependency
+with it**: `Depends: gjs (>= 1.86)` became `Depends: nodejs (>= 24)`, which apt refuses on Debian
+trixie, Ubuntu 24.04 and Ubuntu 26.04. Asking for a `.app` made the `.deb` uninstallable.
+
+One field was answering two questions — which runtime the application needs, and which formats a
+target can build. It is per target now:
+
+```jsonc
+{
+  "gjsify": {
+    "app": "gjs",
+    "ship": { "app": { "darwin": "node", "win32": "node" } }
+  }
+}
+```
+
+`gjsify.app` stays the default and each target may override it, keyed `linux` / `darwin` / `win32`.
+Every generator reads the runtime of its own target — the launcher, the emitted `Depends:`, the
+carried interpreter and GTK closure, the format list — so the Linux package of that project still
+depends on `gjs` and still execs `gjs -m`. An override is printed at stage time, and a key outside
+those three is refused by name rather than silently leaving the target on the project default.
+
 ---
 
 ### Lists no framework owns

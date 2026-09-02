@@ -9,7 +9,14 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { descriptionParagraphs, deriveBinaryName, resolveShipSettings, type SettingsInput } from './settings.js';
+import {
+    descriptionParagraphs,
+    deriveBinaryName,
+    resolveShipApp,
+    resolveShipSettings,
+    type SettingsInput,
+} from './settings.js';
+import type { ShipAppOptions } from '../../types/config-data.js';
 import { normaliseVersion } from './version.js';
 
 function input(overrides: Partial<SettingsInput> = {}): SettingsInput {
@@ -18,6 +25,9 @@ function input(overrides: Partial<SettingsInput> = {}): SettingsInput {
         pkg: { name: 'hello-app', version: '1.2.3', license: 'MIT', author: 'Dev <dev@example.org>' },
         ship: { appId: 'org.example.Hello' },
         flatpak: {},
+        // Already RESOLVED, which is the contract: `resolveShipSettings` does no
+        // defaulting of its own, so every caller has been through `resolveShipApp`.
+        app: 'gjs',
         cli: { layoutOs: 'linux' },
         discovered: {
             bundlePath: '/project/dist/gjs.js',
@@ -141,6 +151,56 @@ export default async () => {
 
         await it('refuses a version no package manager can order', async () => {
             expect(() => normaliseVersion('not-a-version')).toThrow('not a usable package version');
+        });
+    });
+
+    await describe('resolveShipApp', async () => {
+        await it('defaults to gjs, and to the project field when one is declared', async () => {
+            // An undeclared target is the common case for a GJS app and it means
+            // GJS — never the host runtime this command happens to run under.
+            expect(resolveShipApp({ layoutOs: 'linux' }).app).toBe('gjs');
+            expect(resolveShipApp({ project: 'node', layoutOs: 'linux' }).app).toBe('node');
+            expect(resolveShipApp({ project: 'node', layoutOs: 'darwin' }).key).toBe('gjsify.app');
+        });
+
+        await it('lets ONE target override the project default and leaves the others alone', async () => {
+            // The split ADR 0024 § 4 argues for: GJS on Linux from the
+            // distribution, Node where no relocatable GJS exists. Before #1486
+            // saying the second half said the first half too.
+            const perTarget = { darwin: 'node', win32: 'node' } as const;
+            expect(resolveShipApp({ project: 'gjs', perTarget, layoutOs: 'linux' }).app).toBe('gjs');
+            expect(resolveShipApp({ project: 'gjs', perTarget, layoutOs: 'darwin' }).app).toBe('node');
+            expect(resolveShipApp({ project: 'gjs', perTarget, layoutOs: 'win32' }).app).toBe('node');
+        });
+
+        await it('reports which key answered, so the override is never silent', async () => {
+            const overridden = resolveShipApp({ project: 'gjs', perTarget: { win32: 'node' }, layoutOs: 'win32' });
+            expect(overridden.key).toBe('gjsify.ship.app.win32');
+            expect(overridden.overridden).toBe(true);
+            const inherited = resolveShipApp({ project: 'gjs', perTarget: { win32: 'node' }, layoutOs: 'linux' });
+            expect(inherited.key).toBe('gjsify.app');
+            expect(inherited.overridden).toBe(false);
+        });
+
+        await it('refuses a runtime that cannot be packaged, and names the key that carried it', async () => {
+            // A browser bundle has no process to launch and a NativeScript app
+            // ships as an APK/IPA. WHICH key said so matters now that two can:
+            // "this project declares" no longer locates the value to edit.
+            expect(() => resolveShipApp({ project: 'browser', layoutOs: 'linux' })).toThrow(
+                '`gjsify.app` is "browser"',
+            );
+            // The cast is the POINT, not a workaround: this value arrives from a
+            // JSON config file that TypeScript never sees, so the type is a
+            // statement about our callers and the refusal is the only real check.
+            const fromJson = { darwin: 'browser' } as unknown as ShipAppOptions;
+            expect(() => resolveShipApp({ project: 'gjs', perTarget: fromJson, layoutOs: 'darwin' })).toThrow(
+                '`gjsify.ship.app.darwin` is "browser"',
+            );
+            // And an unshippable PROJECT default is not reached when the target
+            // overrides it: what ships is what the target says.
+            expect(
+                resolveShipApp({ project: 'nativescript', perTarget: { darwin: 'node' }, layoutOs: 'darwin' }).app,
+            ).toBe('node');
         });
     });
 

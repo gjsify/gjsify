@@ -115,7 +115,7 @@ export interface Layout {
      * M1 may honestly claim. A layout with no packer produces no installable
      * artifact, so writing `exec node` into a stage assembled from a `--app gjs`
      * bundle would put a runtime that cannot read the payload in front of it —
-     * the exact defect `assertShippableTarget` exists to prevent, produced by the
+     * the exact defect `resolveShipApp`'s refusal exists to prevent, produced by the
      * code meant to prevent it. Measured before this was data: `gjsify ship
      * darwin --stage` on a project with no `gjsify.app` key exited 0 and staged
      * `exec node "$contents/Resources/lib/gjs.js"` in front of a bundle whose

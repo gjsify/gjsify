@@ -96,6 +96,26 @@ const PATH_KEYS = ['icon', 'schemas', 'licenseFile'];
  */
 const SIGN_OSES = new Set(['darwin', 'win32']);
 
+/**
+ * The OSes `gjsify.ship.app` may be keyed on, and the runtimes it may name.
+ *
+ * The `process.platform` spelling again, for the reason `SIGN_OSES` gives: the
+ * value that resolves is chosen by the LAYOUT being assembled. All three are in,
+ * unlike signing — a Linux artifact very much has a runtime, and it is the one
+ * that emits `Depends: gjs (>= 1.86)` or `Depends: nodejs (>= 24)`.
+ *
+ * THE FAILURE THIS CATCHES IS THE SILENT ONE, and it is worse here than for an
+ * identity. `gjsify.ship.app.windows: "node"` — the `gjsify ship <os>`
+ * POSITIONAL's spelling — resolves to nothing, so that target quietly keeps the
+ * project-wide `gjsify.app`: the Windows formats stay unavailable and the author
+ * reads it as gjsify not supporting the split, with every gate green. An
+ * unrecognised RUNTIME is the same shape one level down; `browser` and
+ * `nativescript` are refused for ADR 0024 § 4's reason — no process to launch,
+ * and an APK/IPA pipeline that is not this one.
+ */
+const APP_OSES = new Set(['linux', 'darwin', 'win32']);
+const APP_RUNTIMES = new Set(['gjs', 'node']);
+
 export function auditShip(ctx) {
     const failures = [];
     let declared = 0;
@@ -152,6 +172,36 @@ export function auditShip(ctx) {
                     `${pkg.rel}/package.json: \`gjsify.ship.targets\` names "${target}", which \`gjsify ship\` cannot ` +
                         `build. Known targets: ${[...TARGETS].join(', ')}.`,
                 );
+            }
+        }
+
+        const app = block.app;
+        if (app !== undefined) {
+            if (app === null || typeof app !== 'object' || Array.isArray(app)) {
+                failures.push(
+                    `${pkg.rel}/package.json: \`gjsify.ship.app\` must be an object keyed by OS — it is the ` +
+                        `PER-TARGET override of \`gjsify.app\`, not a second spelling of it.`,
+                );
+            } else {
+                for (const [os, runtime] of Object.entries(app)) {
+                    if (!APP_OSES.has(os)) {
+                        failures.push(
+                            `${pkg.rel}/package.json: \`gjsify.ship.app.${os}\` is not an OS \`gjsify ship\` ` +
+                                `assembles for. Known: ${[...APP_OSES].join(', ')} — the \`process.platform\` ` +
+                                `spelling, not the \`gjsify ship <os>\` positional's. A runtime under a key nothing ` +
+                                `reads leaves that target on \`gjsify.app\` with nothing to say so.`,
+                        );
+                        continue;
+                    }
+                    if (!APP_RUNTIMES.has(runtime)) {
+                        failures.push(
+                            `${pkg.rel}/package.json: \`gjsify.ship.app.${os}\` is "${runtime}", and only ` +
+                                `${[...APP_RUNTIMES].join(' and ')} can be packaged. A browser bundle has no ` +
+                                `process to launch, and a NativeScript app ships as an APK/IPA through a different ` +
+                                `pipeline (ADR 0024 § 4).`,
+                        );
+                    }
+                }
             }
         }
 

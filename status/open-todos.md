@@ -1035,41 +1035,31 @@ misled. These are the upstream source of that claim, and a stale comment is how 
 grows back. Left for a commit of its own because both files path-filter CI job
 selection, and editing them from a docs branch is churn where it is riskiest.
 
-### `gjsify.app` answers two questions on one field, so a per-OS runtime split is not expressible
+### `gjsify ship`: the RUNTIME is per target, the BUNDLE is still one path
 
-**Measured on a real project rather than derived from the schema.** A GTK4 application
-whose Linux target runs on GJS and whose macOS/Windows targets run on Node — the exact
-split ADR 0024 § 4 argues for, since there is no relocatable GJS for either — cannot say
-so. `gjsify ship darwin --stage` and `ship windows --stage` both assemble a layout and
-then report `formats (none — macos-app and macos-app-zip need gjsify.app: "node")`. Set
-that field and the two OSes produce their formats, and the LINUX deb changes with them:
-`Depends: gjs (>= 1.86)` becomes `Depends: nodejs (>= 24)`.
+The runtime half is closed (#1486, ADR 0024 § A22): `gjsify.ship.app.{linux,darwin,win32}`
+overrides `gjsify.app` per target, one resolver answers, and every generator reads the
+runtime of ITS OWN target — so stating macOS's answer no longer moves the Linux
+`Depends:`. What that makes askable is the next question, and it is genuinely a different
+one.
 
-**The field carries two questions.** Which runtime the application needs, and which
-package formats a target can build. They are the same answer for a single-OS project and
-different answers for a cross-OS one, and today only the first can be stated. The deb
-generator reads the PROJECT field rather than the resolved runtime of ITS target, which
-is why the Linux arm changes when a macOS decision is made.
+**`gjsify.ship.bundle` is a single path**, falling back to `gjsify.main` then
+`package.json#main`, and every layout's launcher names the file it resolves to. A project
+that is GJS on Linux and Node on Windows has TWO bundles — `dist/<name>.gjs.js` beside
+`dist/<name>.node.mjs` is the layout `resolve-gjs-entry.ts` documents as normal — and
+`discoverPayload` already stages both, because it takes the whole directory beside the
+bundle. So the payload is right and the launcher's exec line is not: the Windows `.cmd`
+runs `node` over whichever single file the project declared.
 
-**The shape a fix would take**, recorded because the smaller-looking alternative is the
-wrong one: make `gjsify.app` the DEFAULT and let each ship target override it, then have
-every generator read the resolved runtime of its own target and never the project field.
-The tempting alternative — simply offering `macos-app`/`windows-dir` under
-`app: "gjs"` — makes the output richer and leaves the question unanswered: it would stage
-a bundle whose runtime assumption nobody stated, and the next finding is an artifact that
-finds no GJS on the target machine. Better to make the field resolvable than to decouple
-its effect.
-
-**The test that pins it is cheaper than the discussion**, and it guards the class rather
-than the fix: a project with `app: "gjs"` and a windows target on `node`, asserting that
-the deb carries NO `Depends: nodejs` and that `windows-dir` appears anyway. Red today,
-and red again the next time some generator reads a project-wide field where a per-target
-one was meant.
-
-**What already works, so the gap is exactly this and not more:** all three layouts stage
-from one Linux host, the runtime packages exist (`@gjsify/node-runtime-{darwin-x64,
-win32-x64}` and the matching `gtk-runtime-*`, 119/89/73/77 MiB unpacked at 0.45.0), and
-every missing piece is named by the command itself rather than guessed.
+**What makes it non-obvious rather than a five-line follow-up.** The bundle path is read
+before the settings are resolved (`declaredBundlePath` feeds `discoverPayload`), several
+other keys are addressed relative to it, and `assertLauncherMatchesInterpreter` compares
+the launcher with the DEPENDENCY — never with the bundle's dialect, which nothing reads.
+So the failure mode is silent in exactly the way the runtime one was: a `.app` or a
+program directory that assembles, packs and installs, and dies at first launch on a
+machine nobody here owns. A fix wants the same shape as § A22 — one resolver, per target,
+with the resolved value in the stage manifest — plus a discriminator that can tell a GJS
+bundle from a Node one, which is the part that does not exist yet.
 
 ### `gjsify ship --sign`: three things M6 did not prove, each with what WAS measured
 

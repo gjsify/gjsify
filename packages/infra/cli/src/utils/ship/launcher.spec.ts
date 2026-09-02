@@ -71,7 +71,7 @@ function settings(execArgs: string[]): ShipSettings {
 export default async () => {
     await describe('ship launcher interpreter', async () => {
         await it("execs the payload's own runtime on every layout", () => {
-            // `assertShippableTarget` allows only a `--app gjs` bundle, so `gjs -m`
+            // This fixture's target resolves to `gjs` (`resolveShipApp`), so `gjs -m`
             // is the only interpreter that can read what is staged. ADR 0024 § 4's
             // Node answer is about a SHIPPED ARTIFACT and arrives with #1354 M0's
             // bundled interpreter; naming it here put `exec node` in front of a
