@@ -5,11 +5,11 @@ import { StoryElement, type StoryArgs, type StoryMeta, type WebStoryModule } fro
 // TYPE-ONLY: the bar is driven through `setStack()`/`reveal`, not attributes, and a
 // hand-written structural interface here would be a second copy of that API that
 // nothing keeps in step. The import erases, so the bundle keeps no edge to the package.
-import type { AdwViewStack, AdwViewSwitcherBar } from '@gjsify/adwaita-web';
+import type { Adw } from '@gjsify/adwaita-web';
 import { VIEW_SWITCHER_BAR_PAGES, viewSwitcherBarMeta } from '../../view-switching/view-switcher-bar.meta.js';
 
 export class ViewSwitcherBarWebStory extends StoryElement {
-    private _bar: AdwViewSwitcherBar | null = null;
+    private _bar: Adw.ViewSwitcherBar | null = null;
 
     constructor() {
         super(ViewSwitcherBarWebStory.getMetadata(), 'Default');
@@ -20,7 +20,7 @@ export class ViewSwitcherBarWebStory extends StoryElement {
     }
 
     initialize(): void {
-        const stack = document.createElement('adw-view-stack') as AdwViewStack;
+        const stack = document.createElement('adw-view-stack') as Adw.ViewStack;
         stack.style.flex = '1';
         for (const page of VIEW_SWITCHER_BAR_PAGES) {
             const status = document.createElement('adw-status-page');
@@ -35,7 +35,7 @@ export class ViewSwitcherBarWebStory extends StoryElement {
             stack.appendChild(child);
         }
 
-        const bar = document.createElement('adw-view-switcher-bar') as AdwViewSwitcherBar;
+        const bar = document.createElement('adw-view-switcher-bar') as Adw.ViewSwitcherBar;
         bar.setAttribute('slot', 'bottom');
 
         // A toolbar view, so the bar sits where libadwaita puts it — at the bottom

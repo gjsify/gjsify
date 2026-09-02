@@ -10,7 +10,7 @@ import '@gjsify/adwaita-web'; // registers the custom elements + self-injects th
 // default sans on macOS, on Windows and on any Linux that is not GNOME — and looks right
 // only on the machine it was written on.
 import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
-import type { AdwOverlaySplitView, AdwHeaderBar } from '@gjsify/adwaita-web';
+import type { Adw } from '@gjsify/adwaita-web';
 import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
 import { start, type PixelDemo } from '../three-demo.js';
 
@@ -47,7 +47,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     win.setAttribute('width', '1100');
     win.setAttribute('height', '700');
 
-    const headerBar = document.createElement('adw-header-bar') as AdwHeaderBar;
+    const headerBar = document.createElement('adw-header-bar') as Adw.HeaderBar;
     headerBar.setAttribute('title', 'Pixel Post-Processing');
 
     const toggleBtn = document.createElement('button');
@@ -59,7 +59,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     pauseBtn.title = 'Pause Rendering';
     setButtonIcon(pauseBtn, mediaPlaybackPauseSymbolic);
 
-    const splitView = document.createElement('adw-overlay-split-view') as AdwOverlaySplitView;
+    const splitView = document.createElement('adw-overlay-split-view') as Adw.OverlaySplitView;
     splitView.setAttribute('min-sidebar-width', '280');
     splitView.setAttribute('max-sidebar-width', '400');
     splitView.setAttribute('sidebar-width-fraction', '0.30');

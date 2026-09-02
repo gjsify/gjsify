@@ -16,7 +16,7 @@ import '@gjsify/adwaita-web';
 // default sans on macOS, on Windows and on any Linux that is not GNOME — and looks right
 // only on the machine it was written on.
 import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
-import type { AdwOverlaySplitView } from '@gjsify/adwaita-web';
+import type { Adw } from '@gjsify/adwaita-web';
 import { start, MODEL_LIST, DEFAULT_MODEL_INDEX, type LDrawDemo } from '../three-demo.js';
 
 // Idempotent, and a no-op where there is no `document` — so a build-time import of this
@@ -50,7 +50,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
 
     // A showcase has two hosts — the standalone page and the website embed — and only the former
     // loads `browser/webgl.css`, so the layout has to live here rather than in that stylesheet.
-    const splitView = document.createElement('adw-overlay-split-view') as AdwOverlaySplitView;
+    const splitView = document.createElement('adw-overlay-split-view') as Adw.OverlaySplitView;
     splitView.setAttribute('min-sidebar-width', '280');
     splitView.setAttribute('max-sidebar-width', '400');
     splitView.setAttribute('sidebar-width-fraction', '0.30');

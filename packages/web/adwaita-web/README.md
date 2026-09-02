@@ -1,6 +1,8 @@
 # @gjsify/adwaita-web
 
-Browser Adwaita UI components as Custom Elements, bringing the Libadwaita look (light/dark) to the web with no GJS dependencies. Provides `AdwWindow`, `AdwHeaderBar`, `GtkButton`, `GtkEntry`, `AdwPreferencesGroup`, `AdwCard`, `AdwSwitchRow`, `AdwComboRow`, `AdwSpinRow`, `AdwToastOverlay`, and `AdwOverlaySplitView` (plus a `.adw-linked` button-group helper), backed by SCSS that mirrors the upstream `refs/adwaita-web` and `refs/libadwaita` color/sizing tokens.
+Browser Adwaita UI components as Custom Elements, bringing the Libadwaita look (light/dark) to the web with no GJS dependencies. Backed by SCSS that mirrors the upstream `refs/adwaita-web` and `refs/libadwaita` color/sizing tokens.
+
+Write the tags — `<adw-window>`, `<adw-header-bar>`, `<gtk-button>`, `<gtk-entry>`, `<adw-preferences-group>`, `<adw-switch-row>`, `<adw-overlay-split-view>` and the rest — or reach the classes through the GIR namespace the tag names: `Adw.Window`, `Gtk.Button`, `Adw.OverlaySplitView`. Each tag carries the prefix of the library that owns its GType, and the namespace member is that split read back (ADR 0034). There are no `AdwWindow`/`GtkButton` class exports at the package root; the elements with no GTK counterpart at all — `AdwCard`, `AdwDataGrid`, the declarative page and slot wrappers — keep their flat name, because it is their only one.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 

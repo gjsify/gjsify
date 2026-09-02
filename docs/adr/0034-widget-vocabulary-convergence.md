@@ -6,7 +6,11 @@
   (clause 1 holds on `@gjsify/adwaita-web`: nine elements took their GIR names, `<adw-radio>`
   became a declared `webOnly`, and the printed distance was widened to the surface it had
   been leaving out). Amendments 3 and 4, which carry clause 2 onto React Native and the web,
-  are in flight on #1449 and land ahead of this one.
+  are in flight on #1449 and land ahead of this one. § Amendment 6 (2026-09-01) REVERSES
+  part of § 3 for `@gjsify/adwaita-web`: the namespace is no longer additive there, the
+  flat `Adw…`/`Gtk…` widget-class exports are gone from the package root, and the
+  namespace became a MODULE (`export * as Adw`) so it can be annotated with as well as
+  constructed from.
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -599,6 +603,11 @@ Read the table as the work list. It is also the argument for the ordering in
 three clauses is nearly free, and it is the row whose cost rises at the next release cut.
 
 ### 3. The namespace is a RE-EXPORT layer, never a rename
+
+> **Superseded in part by § Amendment 6 (2026-09-01)** for `@gjsify/adwaita-web`: the
+> "all of it is additive" sentence below described the adoption step, and on that surface
+> the flat widget classes have since been removed. The re-export mechanism, and the
+> refusal to rename the CLASSES, are unchanged everywhere.
 
 Clause 2 is satisfied by an export, not by moving anything. Each surface gains
 
@@ -1469,3 +1478,148 @@ prefixing `adw-`, and one of the copies carried a comment saying a second spelli
 the drift this file is against". It was, the moment the prefix stopped being a constant.
 `galleryElementTag` in `website/src/components/attr-sample.mjs` is now the one of them, and
 it reads the namespace out of the title instead of assuming it.
+
+## Amendment 6, 2026-09-01 — the namespace is the surface, and the flat classes are gone
+
+§ 3 says the namespace is "a RE-EXPORT layer, never a rename", that "**all of it is
+additive**", and that `AdwEntry` keeps working. On `@gjsify/adwaita-web` it no longer
+does. Every widget class the package root exported under a prefixed name — `AdwActionRow`,
+`GtkEntry`, and the rest of that run — is removed from `src/index.ts`. `Adw.ActionRow` and
+`Gtk.Entry` are the only spellings left.
+
+**Why the clause that said "additive" is the clause being amended.** § 3's promise was
+about the COST of adoption, and it bought what it was meant to buy: the export landed
+without touching a consumer, and § Amendment 4 could hold it with a rule instead of a
+migration. What it did not decide is what happens afterwards. A second spelling that is
+never removed is not a migration path, it is a permanent second vocabulary — the exact
+thing § 1 was written against, one level in from the four flattened GTK widgets that
+started this ADR. The repository owner asked for the flat names to go; the argument for
+going was already in § 1, and § 3 only ever deferred it.
+
+The other three refusals in § 3 stand unchanged. The namespace is still not a rename of
+the CLASSES: `elements/gtk-entry.ts` still declares `class GtkEntry`, because
+`scripts/check-adwaita-tag-vs-class.mjs` derives that name from the tag and clause 1 is
+what puts the tag there. What moved is one line in one barrel. The TAGS did not move
+either — `<adw-action-row>` and `<gtk-entry>` are what § Amendment 5 left them.
+
+### The split is widget-with-a-GIR-name versus everything else, and it is not 53 out of 53
+
+The removal is not "every capitalised export". Of the package root's value exports:
+
+| | count | what happens |
+|---|---|---|
+| widget classes with a namespace member | 53 | flat export **removed**; reachable as `Adw.X` / `Gtk.X` |
+| element classes declared `webOnly` | 11 | flat export **kept** |
+| non-widget values (helpers, constants, one factory) | 11 | flat export **kept** |
+| supporting types, enums and unions | 13 | flat export **kept** (`export type`) |
+
+The eleven `webOnly` classes are the interesting column, and they are kept for the reason
+§ Amendment 4 gave for their having no member in the first place: no widget in the
+reference vocabulary stands behind them, so there is no GIR name to export them under.
+Inventing `Adw.Card` or `Adw.SidebarItem` to make the root uniform would put four names
+back in the export whose only support is this repository's prose — § 5's half that cannot
+go red — and would do it in the name of removing a second vocabulary. **A flat name that
+is a widget's ONLY name is not a second spelling.** The duplication clause 2 removes is
+two spellings of one widget, and after this amendment the package root has none.
+
+`createGtkImage` is in the third row and is worth naming, because it looks like the second:
+it is the factory that builds a `<gtk-image>` node without a tag, used by every element
+that draws an icon. `Gtk.Image` is the class; a factory is not a widget and has no GIR name
+either.
+
+### The types had to become reachable, and the first way of doing it did not survive the bundler
+
+`export const Adw = { ActionRow: AdwActionRow, … }` gives `Adw.ActionRow` in VALUE position
+only. Every one of the seven call sites in this repository that imported a flat widget
+class imported it with `import type`, to annotate a `document.createElement(...) as …`
+cast. Removing the flat export without a type would have replaced a name with
+`InstanceType<typeof Adw.HeaderBar>`, which is the same convergence spelled worse.
+
+**The first attempt merged each object with a type-only `export namespace` of the same
+name. `tsc` accepts that; rolldown's oxc parser does not, and the failure is a
+`PARSE_ERROR`:**
+
+```
+rolldown: Bundler::generate: BatchedBuildDiagnostic([
+  BuildDiagnostic { severity: Error, kind: "PARSE_ERROR",
+                    message: "Identifier `Adw` has already been declared" },
+  BuildDiagnostic { severity: Error, kind: "PARSE_ERROR",
+                    message: "Identifier `Gtk` has already been declared" }])
+```
+
+Declaration merging is a type-checker rule; the parser sees two bindings of one name and
+stops. It took down every showcase that imports the package — and `gjsify tsc --noEmit`
+was green on the same tree, in the package AND in the consumers, because **the two tools
+check different things and the bundler is the stricter one**. That is the note worth
+keeping: on this repository, "the types compile" is not evidence that the code builds.
+
+**What it is instead: `export * as`, and the namespace is a MODULE.** `src/namespace.ts`
+became `src/namespace/adw.ts` + `src/namespace/gtk.ts`, each a barrel of
+`export { AdwActionRow as ActionRow } from '../elements/adw-action-row.js';` lines, and
+`src/index.ts` does `export * as Adw from './namespace/adw.js'`. No TypeScript construct
+at all — a module namespace carries the value AND the type meaning of every name in it, so
+`new Adw.ActionRow()` and `as Adw.ActionRow` both work.
+
+This is better than what it replaced and not merely equal to it. The merged version needed
+a member in the object and a matching entry in the type namespace: two lines per widget,
+in two lists, in one file. Here there is **one line per widget and one list**, so the
+question "can the types drift from the values" has no place to happen. It is also closer
+to what § 3 asked for — the members are re-exports, not construction, and the module that
+holds them is a barrel in the sense this repository already uses.
+
+`namespaceExport` in `scripts/adwaita-elements.mjs` therefore DID need the change the
+brief anticipated, and it reads a second shape rather than a looser one: an object literal
+(`export const Adw = { Bin, Clamp }` — React Native, and what NativeScript will be) or a
+module (`export * as Adw from '…'`, whose `export { X as Y } from` lines are its members).
+Both yield the same member → binding map. A barrel that yields NO member throws, for the
+reason every other reader in that file throws on an empty scan. The gate still prints
+`Namespace exports (ADR 0034 clause 2): 2 of 3 renderer(s) — @gjsify/adwaita-web exports
+Adw with 44 and Gtk with 9`.
+
+§ Amendment 4's "**Where it lives**" paragraph names `src/namespace.ts`; that was true the
+day it was written and the file is now the two modules above.
+
+### What the flat exports were silently load-bearing for
+
+Two browser drivers — `connect-lifecycle.spec.ts` and `slotted-children.spec.ts` — derive
+their element set from the package rather than from a list: `Object.values` of the module
+namespace, kept to the functions whose prototype is an `HTMLElement`. That worked because
+the barrel re-exported every widget class flat. After the removal the identical scan finds
+eleven classes instead of sixty-four, and **nothing about it looks different**: it still
+enumerates, still asserts per tag, still passes. The only thing between that and a green
+run reporting a fifth of the coverage it used to was `connect-lifecycle.spec.ts`'s
+`tags.length > 40` floor.
+
+A floor catches a collapse. It does not catch a scan that is merely narrower than it
+reads, and the next removal will be smaller. So the walk is now one shared function —
+`exportedElementClasses` in `src/exported-elements.ts`, one level into the exported objects
+because that is where `Adw` and `Gtk` put their members — rather than the same eight lines
+in two files.
+
+The number is a SET COMPARISON and not a net: the package's browser bundle runs **4633
+assertions on the commit before this change and 4633 after it**, so nothing was traded for
+anything. A/B on the helper, each branch built and run separately, exit codes read without
+a pipe: with the top-level-only scan restored the leg exits 1 with two floors red
+(`finds the elements and their containers`, `finds the elements that declare slots`) and
+**4446** assertions — 187 gone; with the helper, exit 0 at 4633.
+
+### The local build that was green did not build a single consumer, and the reason is a name
+
+`gjsify run build` passed on the tree that CI then failed. It is not a stale-artifact
+story: the root script's `foreach` carries `--exclude "@gjsify/example-*"`, and **every
+one of the 23 showcases under `showcases/` is named `@gjsify/example-…`**. So the one
+command that sounds like "build everything" builds no consumer of any package in this
+repository, and an export SHAPE — as opposed to an export's type — is only ever exercised
+by a consumer bundle. `gjsify run build:examples` is the command that reaches them, and
+`gjsify workspace @gjsify/example-dom-canvas2d-fireworks build` is the one that reproduces
+this failure in about a minute.
+
+Worth writing down because the gap is not obvious from either side: the exclusion is there
+so a library change does not pay for 23 app bundles on every run, and the name
+`build`/`build:examples` does not say that the second one is where the type-checker stops
+being the authority.
+
+This is the third time in this ADR that the interesting finding was not the change but
+what the change made visible. § Amendment 5 found nine elements sitting outside a property
+ratchet; this one found two drivers whose subject was the export list and not the registry,
+and a build command whose scope nobody had had a reason to read.
