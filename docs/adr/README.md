@@ -55,7 +55,7 @@ the TODO records the *what's left*.
 | [0032](0032-react-native-on-the-gtk-host.md) | A React Native view layer over the GTK host, split so every binding can use the shared half | Proposed |
 | [0033](0033-declarative-templates-preferred.md) | A widget tree is declared in a template file; TypeScript holds the behaviour | Proposed |
 | [0034](0034-widget-vocabulary-convergence.md) | Every widget surface: named from the GIR, exported as a namespace, remainder declared | Proposed |
-| [0035](0035-web-view-on-win32.md) | A web view on Windows: WebView2 behind the same `gi://WebKit` 6.0 namespace | Proposed |
+| [0035](0035-web-view-on-win32.md) | A web view on Windows: WebView2 behind the same `gi://WebKit` 6.0 namespace | Accepted |
 | [0036](0036-third-party-react-native-surfaces.md) | Third-party React Native surfaces: one registry, one package, one subpath each | Proposed |
 | [0037](0037-gtk-runtime-bundles-carry-the-uri-source.md) | The GTK runtime bundles carry the http(s) source, and the TLS backend behind it | Accepted |
 | [0038](0038-shipped-application-fonts.md) | A shipped application font: one payload directory, and the declarative mechanism each OS actually has | Accepted |

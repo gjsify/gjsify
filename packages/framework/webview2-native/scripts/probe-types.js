@@ -27,8 +27,8 @@
 
 import system from 'system';
 
-import GObject from 'gi://GObject';
-import Gio from 'gi://Gio';
+import GObject from 'gi://GObject?version=2.0';
+import Gio from 'gi://Gio?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import WebKit from 'gi://WebKit?version=6.0';
 
