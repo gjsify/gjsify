@@ -476,7 +476,15 @@ export interface AdwPreferencesPageProps extends AdwWidgetProps {
     iconName?: string;
     /** `name` — the view-stack child name. NOT `GtkWidget:name`, which the page shadows. */
     name?: string;
-    /** `description` — the line above the first group. Empty takes no space. */
+    /**
+     * `description` — the line above the first group. Empty takes no space.
+     *
+     * ON THE RAW STRING, unlike {@link AdwPreferencesGroupProps}' two labels.
+     * `adw_preferences_page_set_description` tests `description && *description` while
+     * `update_title_visibility` reads the label's DISPLAYED text, so a pure-markup page
+     * description is visible on GTK where a pure-markup group title is not. Both halves
+     * therefore agree here, and the group's divergence must not be copied onto this one.
+     */
     description?: string;
     /** `description-centered` — whether {@link description} is centred. Default false. */
     descriptionCentered?: boolean;

@@ -213,7 +213,10 @@ than smoothed over.
   `RCTScrollView` around a second content `View` and moves `contentContainerStyle` onto it.
   A double of it would be a nesting real React Native never emits, and every assertion
   written against it would be about the double — the measured reason `spinner.native.tsx`
-  refuses `ActivityIndicator`.
+  refuses `ActivityIndicator`. The same wrapper carries the page's CLAMP:
+  `adw-preferences-page.ui` puts an `AdwClamp` inside the scrolled window, so a wide window
+  centres the groups at the clamp width while this half stretches them. `AdwClamp` is in
+  this package, so a consumer that wants both wraps with both.
 - **`AdwPreferencesGroup` has no `header-suffix` and no `separate-rows`.** The first is a
   placement question, not a naming one: `header-suffix` holds a WIDGET, so a React surface
   has to spell it as a slot, and the group's curated descriptor in `@gjsify/gtk-host` is
