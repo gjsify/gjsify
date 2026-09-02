@@ -38,11 +38,8 @@
 // `/opt/homebrew/lib` (Homebrew arm64), `/opt/local/lib` (MacPorts) or a custom
 // prefix without needing to know that any of them exist.
 //
-// THAT IS ONE LAYOUT, NOT THE LAYOUT — see {@link giLibraryDirsForTypelibDir}. A
-// STAGED pair (an ADR 0017 prebuild directory, `gjsify.ship.bundledTypelibs`) puts
-// the typelib and its backer in ONE directory, so reading any named typelib
-// directory as "the libraries are one level up" answers with a real path that holds
-// nothing.
+// THAT IS ONE LAYOUT, NOT THE LAYOUT — {@link giLibraryDirsForTypelibDir} holds the
+// second one and the measurement that found it.
 //
 // PURE FUNCTION of injected host facts (platform / env / fs / pkg-config), like
 // `hostTarget()` beside it and the CLI's `resolvePrebuildDirName()` — so the
@@ -56,9 +53,10 @@
 // the child. The CLI cannot IMPORT this module: ADR 0005 Decision 2 forbids a
 // Tier-1 package taking a dependency edge on `@gjsify/node-gi`. So the port is
 // pinned by an agreement test — `packages/infra/cli/src/utils/system-gi.spec.ts`
-// imports THIS file by relative path and asserts both implementations return
-// identical arrays for a table of injected inputs. Change one, change both; the
-// eventual lift to a shared package is tracked in `status/open-todos.md`.
+// imports THIS file by relative path and asserts identical arrays for a table of
+// injected inputs. It pins a THIRD copy the same way, `@gjsify/utils/core`'s
+// `system-gi-dirs.ts`. Change one, change all three; the lift that deletes two of
+// them is tracked in `status/open-todos.md`.
 import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 // POSIX path semantics, not the HOST's. This function answers a question about
@@ -93,9 +91,9 @@ const PROBED_GI_LIBDIRS = {
 /**
  * The subdir GI installs typelibs into — historically `1.0` even for the girepository-2.0 API.
  *
- * Exported so `gi-typelib.ts` shares it rather than keeping a third copy of the
- * one string this whole layout rule turns on. Both mirrors export it, so the
- * agreement suite still compares two files that differ only in language.
+ * Exported because the whole layout rule turns on this one string and all three
+ * copies of the rule must turn on the SAME one; the agreement suite compares it
+ * across them rather than trusting three literals to stay equal.
  */
 export const TYPELIB_SUBDIR = 'girepository-1.0';
 
@@ -116,8 +114,15 @@ export const TYPELIB_SUBDIR = 'girepository-1.0';
  * directory GI itself named is GI's own layout, and its parent is the answer.
  * Absent that name the layout is UNKNOWN — a relocated stack's typelib directory
  * carries no required name — so both readings are offered and `existsDir` keeps
- * whichever is real. Offering both is what makes this layout-tolerant; picking one
- * by guess is the defect below.
+ * whichever is real.
+ *
+ * OFFERING BOTH IS CHEAP AND ORDER IS NOT. The caller prepends the survivors to a
+ * loader search path, so a directory that names nothing costs one `stat` per miss —
+ * but whichever comes FIRST is where a bare leaf resolves from, and only the staged
+ * reading can hold a library at all. Hence staged-then-parent, and hence the marker
+ * DECIDING for the install layout rather than a probe offering both everywhere:
+ * `<libdir>/girepository-1.0/` is the one directory guaranteed to hold no library,
+ * and the canonical case must gain no noise.
  *
  * MEASURED, and the parent-only derivation is what it cost. macOS 15.7.9 / Node
  * 24.18.1 / `@gjsify/webkit-native` 0.45.0, with

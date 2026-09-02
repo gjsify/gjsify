@@ -3,10 +3,12 @@
 // dynamic loader can find the ones a typelib names by BARE LEAF
 // (`libgtk-4.1.dylib`, `libgdk_pixbuf-2.0.0.dylib`, …).
 //
-// A PINNED MIRROR of `packages/node-gi/node-gi/system-gi.js` — the two must agree
-// and `system-gi.spec.ts` asserts it over a table of injected host shapes. Why a
-// mirror and not an import, and what is owed to retire it:
-// `status/open-todos.md` § "systemGiLibraryDirs() lives in two places".
+// A PINNED MIRROR of `packages/node-gi/node-gi/system-gi.js`, and of
+// `@gjsify/utils/core`'s `system-gi-dirs.ts` — all three must agree and
+// `system-gi.spec.ts` asserts it over a table of injected host shapes. Why a mirror
+// and not an import, and what is owed to retire THIS copy (a delegation to
+// `@gjsify/utils`, which the CLI already depends on):
+// `status/open-todos.md` § "systemGiLibraryDirs() lives in three places".
 //
 // WHY THIS EXISTS. A failed `dlopen('libgtk-4.1.dylib')` surfaces one layer up as
 // something that reads like a type-system bug — `TypeError: Gtk.DrawingArea is not
@@ -90,9 +92,9 @@ export const PROBED_GI_LIBDIRS: Record<string, readonly string[]> = {
 /**
  * The subdir GI installs typelibs into — historically `1.0` even for the girepository-2.0 API.
  *
- * Exported so `gi-typelib.ts` shares it rather than keeping a third copy of the
- * one string this whole layout rule turns on. Both mirrors export it, so the
- * agreement suite still compares two files that differ only in language.
+ * Exported so `gi-typelib.ts` shares it rather than keeping a fourth copy of the
+ * one string this whole layout rule turns on, and compared across all three copies
+ * by the agreement suite rather than trusting three literals to stay equal.
  */
 export const TYPELIB_SUBDIR = 'girepository-1.0';
 
@@ -103,12 +105,11 @@ export const TYPELIB_SUBDIR = 'girepository-1.0';
  * the libraries in the PARENT (`<libdir>/girepository-1.0/…`), while a STAGED pair —
  * an ADR 0017 prebuild directory, `gjsify.ship.bundledTypelibs` — keeps them in the
  * DIRECTORY ITSELF. {@link TYPELIB_SUBDIR} as the basename is a positive signal for
- * the first; absent it the layout is unknown, so both readings are offered and the
- * caller's `existsDir` keeps whichever is real.
+ * the first; absent it, both readings are offered and the caller's `existsDir` keeps
+ * whichever is real.
  *
- * The measurement that bought this — a darwin host that found `WebKit-6.0.typelib`
- * and never `libgjsifywebkit.dylib` because the parent-only derivation named the
- * prebuild directory's PARENT — is in the ORIGINAL, `system-gi.js`.
+ * The measurement, and why the ORDER of the two is the load-bearing half, are in the
+ * ORIGINAL, `packages/node-gi/node-gi/system-gi.js`.
  */
 export function giLibraryDirsForTypelibDir(typelibDir: string): string[] {
     const parent = dirname(typelibDir);

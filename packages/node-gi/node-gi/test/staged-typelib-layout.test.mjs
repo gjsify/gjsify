@@ -10,21 +10,11 @@
 // typelib and the dylib in the same directory and let the production readers
 // (`statSync`, `readdirSync`, `readFileSync`) meet it.
 //
-// The two defects, measured on the macOS 15.7.9 x86_64 VM (Node 24.18.1) against the
-// published 0.45.0 packages, `@gjsify/webkit-native` — the only WebKit a darwin host
-// has (ADR 0022):
-//
-//   env-free               Typelib file for namespace 'WebKit', version '6.0' not found
-//   GI_TYPELIB_PATH only   GLib-GIRepository-WARNING: Failed to load shared library
-//                          'libgjsifywebkit.dylib' referenced by the typelib
-//                          → TypeError: WebKit.WebView is not a constructible GObject type
-//   both variables         loads, LoadEvent.FINISHED
-//
-// Row 1 is the discovery gap (`native-prebuilds.js`, ADR 0021 § The Node host). Row 2
-// is the LAYOUT gap: dyld's trace named
-// `…/webkit-native-darwin-x64/prebuilds/libgjsifywebkit.dylib`, the PARENT of the
-// directory the dylib is in — `dirname(<typelib dir>)`, which is GI's INSTALL layout
-// (`<libdir>/girepository-1.0/`) applied to a directory that does not have it.
+// The two, measured on the macOS 15.7.9 x86_64 VM against the published 0.45.0
+// `@gjsify/webkit-native`, are each recorded next to the code that answers them:
+// DISCOVERY (finding the staged directory with nothing in the environment) in
+// `native-prebuilds.js` + ADR 0021 § The Node host, LAYOUT (reading it as its own
+// libdir) in `system-gi.js` § `giLibraryDirsForTypelibDir`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
@@ -32,7 +22,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { giLibraryDirsForTypelibDir, systemGiLibraryDirs, TYPELIB_SUBDIR } from '../system-gi.js';
-import { activateNativePrebuilds, discoverPrebuiltTypelibDirs, resetNativePrebuildsForTests } from '../native-prebuilds.js';
+import {
+    activateNativePrebuilds,
+    discoverPrebuiltTypelibDirs,
+    resetNativePrebuildsForTests,
+} from '../native-prebuilds.js';
 
 /**
  * An installed `@gjsify/webkit-native-darwin-x64` as npm hoists it: the typelib and
