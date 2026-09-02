@@ -47,7 +47,8 @@ struct NodeGiInstance {
   napi_ref handle_ref;     // ref to the canonical External; strong=rooted, weak=not
   bool rooted;             // true ⇒ handle_ref currently strong (mirrors node-gtk !dying)
   bool toggle_added;       // a toggle ref is currently installed
-  bool teardown_queued;    // a finalizer already scheduled the idle teardown (dedupe)
+  bool teardown_queued;    // the External's finalizer HAS RUN (and queued the teardown)
+  bool settled;            // resurrection detached this record; the pending finalizer frees it
 };
 
 // The single N-API env that OWNS the toggle machinery (qdata cache + global drain
@@ -467,7 +468,18 @@ static void OnGObjectFinalized(gpointer data, GObject* /*where_the_object_was*/)
 // but where re-entering GObject teardown is still unsafe). Do the MINIMUM: queue
 // the teardown + wake the drain async (crash mode 1).
 static void NodeGiInstanceFinalize(Napi::Env /*env*/, GObject* /*data*/, NodeGiInstance* inst) {
-  if (inst == nullptr || inst->teardown_queued) return;
+  if (inst == nullptr) return;
+  if (inst->settled) {
+    // Resurrection got here first: SettleCollectedInstance already detached and
+    // disarmed this record and deliberately left it allocated for US to free
+    // (see the ownership note there). Nothing left to tear down.
+    if (NodeGiToggleDebugEnabled())
+      NodeGiToggleDebugLog("finalizer: freeing settled inst %p (resurrected earlier)",
+                           static_cast<void*>(inst));
+    delete inst;
+    return;
+  }
+  if (inst->teardown_queued) return;
   inst->teardown_queued = true;
   {
     std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
@@ -495,7 +507,23 @@ static void NodeGiInstanceFinalize(Napi::Env /*env*/, GObject* /*data*/, NodeGiI
 // toggle ref per GObject). The caller holds a construction ref on obj, so dropping
 // the old toggle ref here cannot drive refcount to 0 / dispose. Main-thread only (==
 // the drain thread), so the pending idle teardown cannot be running concurrently.
+//
+// WHO FREES `old` (#1475): an EMPTY napi_ref proves the wrapper was COLLECTED, not
+// that its finalizer has RUN. V8 resets the weak persistent inside the first-pass
+// weak callback, during GC; Node then defers NodeGiInstanceFinalize to a SetImmediate
+// (node_napi_env__::EnqueueFinalizer). Freeing `old` inside that window is a
+// use-after-free with a reliable second act: the allocator hands the very same block
+// straight back to the fresh `new NodeGiInstance()` below (measured: identical
+// address every run), so the stale finalizer then reads the LIVE wrapper's record,
+// sees teardown_queued == false, and queues a teardown that removes the LIVE toggle
+// ref — dropping the GObject's last ref while JS still holds a wrapper for it. The
+// wreckage surfaces one drain later as `g_object_weak_unref: couldn't find weak ref`
+// plus a double napi_delete_reference / double free (STATUS_HEAP_CORRUPTION on
+// Windows, SIGSEGV on Linux). So ownership of the free follows the finalizer:
+// teardown_queued == true means it already ran and nobody else will free the record;
+// otherwise it is still pending and IT frees the record, guided by `settled`.
 static void SettleCollectedInstance(GObject* obj, NodeGiInstance* old) {
+  bool finalizer_pending = false;
   {
     std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
     // Cancel old's pending teardown + any queued toggles that reference it, so the
@@ -508,6 +536,8 @@ static void SettleCollectedInstance(GObject* obj, NodeGiInstance* old) {
     // Detach qdata only if it still points at old (resurrection-safe).
     if (g_object_get_qdata(obj, NodeGiWrapperQuark()) == old)
       g_object_set_qdata(obj, NodeGiWrapperQuark(), nullptr);
+    finalizer_pending = !old->teardown_queued;
+    old->settled = true;
   }
   if (old->gobject != nullptr) {
     g_object_weak_unref(obj, OnGObjectFinalized, old);
@@ -515,8 +545,23 @@ static void SettleCollectedInstance(GObject* obj, NodeGiInstance* old) {
     // once. We hold a construction ref, so this cannot dispose obj.
     if (old->toggle_added) g_object_remove_toggle_ref(obj, NodeGiToggleNotify, nullptr);
   }
-  if (old->handle_ref != nullptr) napi_delete_reference(old->env, old->handle_ref);
-  delete old;
+  // Disarm every handle the record still carries, so a pending finalizer that
+  // reaches it finds nothing to act on even if `settled` were ever missed.
+  old->gobject = nullptr;
+  old->toggle_added = false;
+  if (old->handle_ref != nullptr) {
+    napi_delete_reference(old->env, old->handle_ref);
+    old->handle_ref = nullptr;
+  }
+  if (NodeGiToggleDebugEnabled())
+    NodeGiToggleDebugLog("settle: detached inst %p (obj %p); %s", static_cast<void*>(old),
+                         static_cast<void*>(obj),
+                         finalizer_pending ? "finalizer pending, it frees the record"
+                                           : "finalizer already ran, freeing here");
+  // Only free when the finalizer has already run; otherwise it owns the free. If a
+  // process dies before draining its finalizer queue the record is not freed — the
+  // same bounded leak-at-exit the shutdown-dropped teardowns already accept.
+  if (!finalizer_pending) delete old;
 }
 
 // Cache-aware factory: the caller owns exactly ONE non-floating "construction"
@@ -580,6 +625,7 @@ Napi::Value MakeGObjectHandle(Napi::Env env, GObject* obj) {
   inst->rooted = true;
   inst->toggle_added = false;
   inst->teardown_queued = false;
+  inst->settled = false;
 
   Napi::External<GObject> ext =
       Napi::External<GObject>::New(env, obj, NodeGiInstanceFinalize, inst);
