@@ -5,6 +5,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import {
     ADW_BUTTON_CONTENT_DEFAULTS,
+    BUTTON_CONTENT_BOX_SPACING,
     BUTTON_CONTENT_FALLBACK_ICON,
     BUTTON_CONTENT_STYLE_CLASS,
     buttonContentEllipsize,
@@ -40,6 +41,17 @@ export default async () => {
                 expect(DEFAULT_BY_PROPERTY[property]).toBe(value);
             });
         }
+    });
+
+    await describe('BUTTON_CONTENT_BOX_SPACING (measured, not read off a selector)', async () => {
+        await it('is the 6px the widget actually draws, not GtkBox:spacing', () => {
+            // Against libadwaita 1.9.3, an AdwButtonContent with an icon and a label
+            // inside a presented GtkButton: image at x=161 width=16, label at x=183.
+            // The same widget's `GtkBox:spacing` reads 0, so a renderer that copied the
+            // PROPERTY would draw the two touching — which is why the number is here and
+            // not derived by a renderer from the box it can see.
+            expect(BUTTON_CONTENT_BOX_SPACING).toBe(6);
+        });
     });
 
     await describe('buttonContentIconName (:355-358 — code, not the :228/:343 docs)', async () => {

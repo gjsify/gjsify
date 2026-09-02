@@ -17,6 +17,15 @@
 // which nesting, after which state transitions. WHAT IT DOES NOT PROVE is Yoga: a `width`
 // in a style object is an instruction to a layout engine that is not here, so a size is
 // asserted as an instruction and never as a measured pixel. The README carries that gap.
+//
+// WHAT MAY BE DOUBLED, AND WHAT MAY NOT. Only a React Native component that IS a host
+// element with its props forwarded — `View` renders `RCTView`, `Text` renders `RCTText`,
+// both with the props they were given. A COMPOSITE that transforms its props is out, and
+// the measured case is `ActivityIndicator`: it wraps a native node inside a `View`,
+// branches on `Platform.OS`, and moves a numeric `size` out of the prop and into a style.
+// A double of it would be a nesting and a prop placement real React Native never emits,
+// and every assertion written against it would be about this file. `spinner.native.tsx`
+// says at its head that this is why it does not use one.
 
 import { createElement, type ReactElement } from 'react';
 import type { Text as RealText, View as RealView } from 'react-native';
@@ -56,5 +65,10 @@ export const RCT_TEXT = 'RCTText';
  * Same contract as {@link View} and for the same reason: the `typeof RealText`
  * annotation is what stops the double from growing a surface of its own, and
  * `react-native.spec.ts` falsifies it rather than restating it.
+ *
+ * The real `Text` additionally wires `onPress` through the press responder and reads an
+ * inherited text context, neither of which is reproduced — so a spec here asserts that a
+ * widget ASKS for a press, never that a tap arrives. Same class of gap as Yoga, and the
+ * README carries it too.
  */
 export const Text: typeof RealText = (props): ReactElement => createElement(RCT_TEXT, props as Record<string, unknown>);

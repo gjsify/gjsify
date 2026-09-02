@@ -137,6 +137,22 @@ export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
         children: { kind: 'single', set: 'set_child' },
     },
     {
+        gtype: 'AdwToastOverlay',
+        ctor: () => Adw.ToastOverlay,
+        // MEASURED on libadwaita 1.9.3: the only child-taking pair on this class is
+        // `set_child`/`get_child` — the same `AdwBin` rule. `add_toast` and
+        // `dismiss_all` are on it too and are NOT placement: an `Adw.Toast` is a
+        // GObject, not a widget, and libadwaita builds the `AdwToastWidget` that shows
+        // it itself. So the overlay has exactly one child (the wrapped content) and the
+        // toast layer is not addressable from a renderer at all.
+        //
+        // It was uncurated until `@gjsify/adwaita-react-native` needed it, which means
+        // `<adw-toast-overlay>` with a child raised `uncurated-placement` in every JSX
+        // dialect this host serves — the same hole `AdwClamp` had, on the widget an
+        // application wraps its whole window in.
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
         gtype: 'AdwClampScrollable',
         ctor: () => Adw.ClampScrollable,
         // The scrollable sibling, and the same measurement: `set_child`/`get_child`.
