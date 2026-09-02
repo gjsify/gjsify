@@ -64,6 +64,17 @@ const BINARY = 'ship-demo';
 const COMPARATOR = join(MONOREPO_ROOT, '.github', 'ship-oracle', 'verify-signed-arrival.mjs');
 
 /**
+ * The Mach-O images the darwin half plants, ONE list for every use of them.
+ *
+ * The names are load-bearing rather than decorative: `libmarked` carries a marker
+ * `--identifier` from its pre-sign (ADR 0024 § A21) and `libplain` does not, and
+ * the arrival assertions name each one. A count on its own would pass with the
+ * right total and the wrong file, which is why what is asserted below is the SET
+ * plus a floor, and never a bare number.
+ */
+const FIXTURE_IMAGES = ['libmarked.dylib', 'libplain.dylib'];
+
+/**
  * `codesign` is the whole of the darwin half.
  *
  * `xcrun -f codesign` is deliberately NOT how this is asked: `xcrun` resolves
@@ -417,15 +428,14 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
         it('signs every image, changes nothing else, and codesign verifies the result', async () => {
             if (!HAS_CODESIGN) return;
             const project = scaffoldNodeApp(mkdtempSync(join(tmpDir, 'adhoc-')), {
-                extraFiles: {
-                    [`lib/${BINARY}/gi/libmarked.dylib`]: 'native/libmarked.dylib',
-                    [`lib/${BINARY}/gi/libplain.dylib`]: 'native/libplain.dylib',
-                },
+                extraFiles: Object.fromEntries(
+                    FIXTURE_IMAGES.map((leaf) => [`lib/${BINARY}/gi/${leaf}`, `native/${leaf}`]),
+                ),
             });
             mkdirSync(join(project, 'native'), { recursive: true });
             const source = join(project, 'native', 'demo.c');
             writeFileSync(source, 'int gjsify_ship_demo(void) { return 42; }\n');
-            for (const leaf of ['libmarked.dylib', 'libplain.dylib']) {
+            for (const leaf of FIXTURE_IMAGES) {
                 execFileSync('cc', ['-dynamiclib', '-o', join(project, 'native', leaf), source], { stdio: 'pipe' });
             }
             // PRE-SIGNED, and with a marker identifier on one of the two, because
@@ -497,7 +507,7 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
             // our comparator says the mutation was confined, `codesign --verify`
             // says the signature it made is a valid one. Neither answers the
             // other's question.
-            for (const leaf of ['libmarked.dylib', 'libplain.dylib']) {
+            for (const leaf of FIXTURE_IMAGES) {
                 execFileSync('codesign', ['--verify', '--strict', join(artifact, 'Contents', 'Frameworks', leaf)], {
                     stdio: 'pipe',
                 });
@@ -536,18 +546,44 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
             // on a non-zero exit, so the negative was checking nothing that was
             // not already checked.
             //
-            // `libmarked` is `signature-only` and `libplain` is `identical`, which
-            // is the predicted split rather than a surprise: an ad-hoc signature
-            // over an unchanged file is reproducible, so only the image whose
-            // previous signature carried a different `--identifier` comes back
-            // with different bytes. That is exactly what the marker is for, and
-            // asserting BOTH is what makes the fixture's reason checkable.
-            assert.match(report, /signature-only: Contents\/Frameworks\/libmarked\.dylib/);
-            // The added COUNT is now a range and not a number, because the seal
-            // decides how many components it writes: the licence overlay is one,
-            // `Contents/_CodeSignature/` is the rest. `0 problem(s)` is still the
-            // assertion that matters — every other file arrived unchanged.
-            assert.match(report, /\d+ identical, 1 signature-only, [2-9]\d* declared-added, 0 problem\(s\)/, report);
+            // EVERY FIXTURE IMAGE COMES BACK `signature-only`, BY NAME. Before
+            // ADR 0040 only `libmarked` did, and the change is ours rather than
+            // codesign's: this fixture pre-signs with a plain `codesign --force
+            // --sign -`, and the signer now adds `--options runtime` and
+            // `--entitlements`, both of which live in the CODE DIRECTORY — so an
+            // image whose previous blob was made without them cannot re-sign to
+            // byte-identical. § A21's `--identifier` marker is therefore no longer
+            // the only thing guaranteeing an observable difference. MEASURED on
+            // darwin-arm64 AND darwin-x64 / macos-26 (2026-09-02), where an
+            // expectation of `1 signature-only` went red on both legs.
+            //
+            // NAMES AND NOT A COUNT, because a count is satisfied by the right
+            // total over the wrong file — and because it is the names that carry
+            // the regression: drop the hardened runtime from the per-image argv and
+            // `libplain`'s line disappears while a total could still add up.
+            for (const leaf of FIXTURE_IMAGES) {
+                assert.match(report, new RegExp(`signature-only: Contents/Frameworks/${leaf.replace(/\./g, '\\.')}`));
+            }
+            // THE SEAL, named in the report. `CodeResources` is the one component
+            // `codesign` must write for a bundle to read as signed at all, so it is
+            // asserted by name; how many others land beside it is codesign's
+            // decision (four on macos-26, five in Apple's superset), which is why
+            // the declared-added count is not asserted at all — the licence overlay
+            // is one of them and the seal is the rest.
+            assert.match(report, /added \(declared\): Contents\/_CodeSignature\/CodeResources/);
+            // THE SUMMARY: `0 problem(s)` is the assertion that matters — every
+            // other file arrived unchanged — and the signature-only total is a
+            // FLOOR for the same reason the signed count above is one:
+            // `resolveCarriedRuntime` may stage an interpreter beside these two
+            // when the workspace's node-runtime payload happens to be fetched, and
+            // that image would be re-signed too. An equality here would fail on a
+            // runner whose state changed and prove nothing extra when it passed.
+            const summary = /(\d+) identical, (\d+) signature-only, (\d+) declared-added, 0 problem\(s\)/.exec(report);
+            assert.ok(summary, `no clean summary line in:\n${report}`);
+            assert.ok(
+                Number(summary[2]) >= FIXTURE_IMAGES.length,
+                `${summary[2]} image(s) came back signature-only; the fixture plants ${FIXTURE_IMAGES.length}`,
+            );
 
             // THE SEAL ITSELF, on the artifact rather than in the report: a
             // bundle without `CodeResources` is a bundle `codesign --verify`
