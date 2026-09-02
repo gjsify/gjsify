@@ -362,8 +362,9 @@ Ubuntu 26.04. Every generator now reads the runtime of ITS OWN target — the la
 already-resolved value, typed `'gjs' | 'node'`, so handing it the project field does not compile.
 There is deliberately no per-LAYOUT default: an absent override means `gjsify.app` and never
 `Layout.shippedRuntime`, which is the mirror-image defect two paragraphs down. A key outside
-`{linux,darwin,win32}` is refused by `manifest-conformance`'s `ship` rule for `gjsify.ship.sign`'s
-reason — `gjsify.ship.app.windows` resolves to nothing and leaves the target silently on the
+`{linux,darwin,win32}` is refused by NAME, by `resolveShipApp` on every `gjsify ship` run and by
+`manifest-conformance`'s `ship` rule in a tree nobody has shipped from yet — `gjsify.ship.sign`'s
+reason: `gjsify.ship.app.windows` resolves to nothing and would leave that target silently on the
 project-wide answer.
 
 `utils/ship/payload.ts`'s `readLauncherInterpreters` strips a surrounding shell quote before taking
@@ -409,14 +410,14 @@ of guessing is not silence but naming whichever token landed in the program posi
 interpreter and there is no relocatable GJS to put in one. The two windows rows say the same thing
 for a harder reason (#1354 M3): there is no GJS host on Windows AT ALL — not a system one to depend
 on and not a relocatable one to carry — so a `--app gjs` payload has nothing anywhere that could run
-it. So the two questions are asked in two
-places and give two different answers for one project: the launcher execs what the payload was built
-for, and the FORMAT says what its runtime can provide. A project whose darwin target resolves to `gjs` therefore stages the
-darwin layout and cannot pack it — and the distinction between those is load-bearing rather than
-pedantic. Since #1486 that is a statement the author can change for darwin ALONE
-(`gjsify.ship.app.darwin`), which is what the refusal now names. A DERIVED default set is filtered by the interpreter, with the dropped formats and the
-reason printed; a typed `--target macos-app` is refused by name. The first cut refused both, which
-made `gjsify ship darwin --stage` exit 1 for every project this command has.
+it. So the two questions are asked in two places and give two different answers for one project: the
+launcher execs what the payload was built for, and the FORMAT says what its runtime can provide. A
+project whose darwin target resolves to `gjs` therefore stages the darwin layout and cannot pack it
+— and the distinction between those is load-bearing rather than pedantic. Since #1486 that is a
+statement the author can change for darwin ALONE (`gjsify.ship.app.darwin`), which is what the
+refusal now names. A DERIVED default set is filtered by the interpreter, with the dropped formats
+and the reason printed; a typed `--target macos-app` is refused by name. The first cut refused both,
+which made `gjsify ship darwin --stage` exit 1 for every project this command has.
 
 That is the SECOND time this pair of questions has been collapsed into one, and the first is worth
 keeping beside it because the two failures are mirror images. The first cut of the LAYOUT axis read

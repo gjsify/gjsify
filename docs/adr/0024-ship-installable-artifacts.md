@@ -1371,14 +1371,17 @@ leaves the question unanswered — it would stage a bundle whose runtime assumpt
 and the next finding is an artifact that finds no GJS on the target machine. Better to make the
 field resolvable than to decouple its effect.
 
-**A mis-keyed override is the silent failure, so it is a rule and not a convention.**
-`manifest-conformance`'s `ship` rule refuses a key outside `{linux,darwin,win32}` and a value
-outside `{gjs,node}` — `gjsify.ship.app.windows`, the `gjsify ship <os>` POSITIONAL's spelling,
+**A mis-keyed override is the silent failure, so it is a rule and not a convention — and it is
+refused on BOTH surfaces.** `gjsify.ship.app.windows`, the `gjsify ship <os>` POSITIONAL's spelling,
 resolves to nothing, so that target quietly keeps the project-wide answer and the author reads it
 as gjsify not supporting the split, with every gate green. That is § A12's *"an identity under a key
-nothing reads ships UNSIGNED with nothing to say so"*, one table over. The override is also PRINTED
-at stage time: one that silently changes the launcher, the dependency and the format list is one
-nobody can tell from the default.
+nothing reads ships UNSIGNED with nothing to say so"*, one table over. `resolveShipApp` therefore
+refuses an unknown KEY on every `gjsify ship` run — the WHOLE table, not this run's key, because
+`gjsify ship linux` is the run most likely to be sitting in front of the typo and a check that fires
+only on the mis-keyed OS never fires at all — and the value that resolves must be `gjs` or `node`.
+`manifest-conformance`'s `ship` rule refuses the same two shapes over the whole table, for the tree
+nobody has shipped from yet. The override is also PRINTED at stage time: one that silently changes
+the launcher, the dependency and the format list is one nobody can tell from the default.
 
 **The test guards the CLASS — a generator reading a project-wide field where a per-target one was
 meant — and needs two directions to do it.** `tests/e2e/ship` asserts (a) a project with
@@ -1388,7 +1391,13 @@ whose Linux package must depend on `gjs`. (a) alone is not discriminating — th
 and the Linux answer agree, so a generator that regressed to reading the project field would still
 emit `Depends: gjs` and the assertion would distinguish nothing. Both were red before the fix, (a)
 on `windows-dir must be offered, got: (none)` and (b) on a staged launcher reading `exec node
-"$prefix"/lib/ship-demo/gjs.js`.
+"$prefix"/lib/ship-demo/gjs.js`. Re-measured on review, one regression at a time rather than only
+against the whole revert: a format filter reading the project field reddens (a) alone, and a
+settings hand-off reading it reddens both — so neither direction is carried by the other.
+
+The conformance half is held by `tests/e2e/ship-declaration`, which drives the rule over synthetic
+roots for the mis-keyed OS, the unshippable runtime and the scalar written where the table goes. A
+rule with no red case looks exactly like a rule that passes.
 
 **What this does NOT do, stated so the amendment is not read as more than it is.** The runtime is
 per target; the BUNDLE is still one path (`gjsify.ship.bundle`, falling back to `gjsify.main`). A

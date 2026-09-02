@@ -202,6 +202,23 @@ export default async () => {
                 resolveShipApp({ project: 'nativescript', perTarget: { darwin: 'node' }, layoutOs: 'darwin' }).app,
             ).toBe('node');
         });
+
+        await it('refuses a key it does not read, on the run that does not read it either', async () => {
+            // THE SILENT ONE. `windows` is the `gjsify ship <os>` POSITIONAL's
+            // spelling, so a runtime under it resolves to nothing, that target
+            // quietly keeps `gjsify.app`, and the author reads the unchanged output
+            // as gjsify not supporting the split — with every gate green.
+            const misKeyed = { windows: 'node' } as unknown as ShipAppOptions;
+            expect(() => resolveShipApp({ project: 'gjs', perTarget: misKeyed, layoutOs: 'win32' })).toThrow(
+                '`gjsify.ship.app.windows` is not an OS',
+            );
+            // The WHOLE table is checked, not this run's key: `gjsify ship linux`
+            // is the run most likely to be sitting in front of the typo, and a
+            // check that only fires on the mis-keyed OS never fires at all.
+            expect(() => resolveShipApp({ project: 'gjs', perTarget: misKeyed, layoutOs: 'linux' })).toThrow(
+                '`gjsify.ship.app.windows` is not an OS',
+            );
+        });
     });
 
     await describe('descriptionParagraphs', async () => {

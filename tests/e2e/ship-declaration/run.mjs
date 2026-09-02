@@ -158,6 +158,50 @@ describe('ship declaration invariant', { timeout: 5 * 60 * 1000 }, () => {
         assert.match(run(root).failures.join('\n'), /must be an object/);
     });
 
+    // `gjsify.ship.app` — the PER-TARGET runtime override (ADR 0024 § A22). The
+    // failure this rule exists for is the SILENT one: a runtime under a key
+    // nothing reads leaves that target on the project-wide `gjsify.app`, so the
+    // formats stay unavailable and the author reads it as gjsify not supporting
+    // the split, with every gate green. `gjsify ship` refuses the same mis-key
+    // (`resolveShipApp`); this is the half that fires in a tree nobody has run
+    // `ship` in yet.
+    describe('the per-target runtime override', () => {
+        it('passes all three keys, which is what distinguishes it from `sign`', () => {
+            const root = makeRoot('app-ok');
+            addPackage(root, 'app', {
+                name: '@fixture/app',
+                gjsify: { ship: { app: { linux: 'gjs', darwin: 'node', win32: 'node' } } },
+            });
+            assert.deepEqual(run(root).failures, []);
+        });
+
+        it('FAILS the `gjsify ship <os>` positional spelling', () => {
+            const root = makeRoot('app-poskey');
+            addPackage(root, 'app', {
+                name: '@fixture/app',
+                gjsify: { ship: { app: { windows: 'node' } } },
+            });
+            assert.match(run(root).failures.join('\n'), /`gjsify\.ship\.app\.windows` is not an OS/);
+        });
+
+        it('FAILS a runtime no format can wrap', () => {
+            const root = makeRoot('app-runtime');
+            addPackage(root, 'app', {
+                name: '@fixture/app',
+                gjsify: { ship: { app: { darwin: 'browser' } } },
+            });
+            assert.match(run(root).failures.join('\n'), /`gjsify\.ship\.app\.darwin` is "browser"/);
+        });
+
+        it('FAILS the project field written here by mistake', () => {
+            // `"app": "node"` is what a reader of `gjsify.app` types first, and it
+            // is not a second spelling of that field — it is the table over it.
+            const root = makeRoot('app-scalar');
+            addPackage(root, 'app', { name: '@fixture/app', gjsify: { ship: { app: 'node' } } });
+            assert.match(run(root).failures.join('\n'), /`gjsify\.ship\.app` must be an object keyed by OS/);
+        });
+    });
+
     // `TARGETS` in the rule above is the ONE copy of the ship format vocabulary the
     // compiler cannot bind: it lives in a package that must not import the CLI,
     // because the rule is `scope: 'portable'` and runs where `@gjsify/cli` is not a

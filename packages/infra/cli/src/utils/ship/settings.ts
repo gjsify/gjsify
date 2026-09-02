@@ -73,13 +73,12 @@ export interface SettingsInput {
     cli: { outDir?: string; arch?: string; layoutOs: HostOs };
     discovered: DiscoveredPayload;
     /**
-     * The runtime {@link resolveShipApp} resolved for THIS run's target.
+     * THIS TARGET's runtime, as {@link resolveShipApp} resolved it — never the
+     * raw `gjsify.app`.
      *
-     * Already resolved and already narrowed, never the raw `gjsify.app`. The type
-     * is what enforces it: a caller handing the project field straight through
-     * does not compile, which is the defect this field used to carry — every
-     * generator downstream reads `settings.app`, so a project-wide value arriving
-     * here made a macOS decision move the Linux `Depends:`.
+     * The TYPE is the enforcement: a caller handing the project field straight
+     * through no longer compiles. That is exactly the regression this field used
+     * to carry in silence, since every generator downstream reads `settings.app`.
      */
     app: 'gjs' | 'node';
 }
@@ -95,23 +94,27 @@ export interface ResolvedShipApp {
 }
 
 /**
+ * The OS keys `gjsify.ship.app` may carry — {@link HostOs}, the
+ * `process.platform` spelling.
+ *
+ * `satisfies Record<HostOs, true>` rather than a bare list: a fourth layout
+ * cannot arrive without this object failing to compile, so the accepted set
+ * stays total without a second place to remember to update.
+ */
+const SHIP_APP_OSES = { linux: true, darwin: true, win32: true } as const satisfies Record<HostOs, true>;
+
+/**
  * The ONE place a ship target's runtime is decided: `gjsify.app` as the DEFAULT,
  * `gjsify.ship.app.<os>` as this target's override.
  *
- * Every generator reads the result and none reads the project field, because the
- * two are not the same question. `gjsify.app` says what the application was
- * BUILT as; a shipped artifact's runtime is per OS (ADR 0024 § 4), and stating
- * darwin's must not move Linux's. It did: with one field, `gjsify ship darwin`
- * refused its formats until `gjsify.app` was set to `"node"`, and setting it
- * turned the Linux `.deb`'s `Depends: gjs (>= 1.86)` into `Depends: nodejs
- * (>= 24)` — a package that then refuses to install on trixie, Ubuntu 24.04 and
- * Ubuntu 26.04, for a macOS decision.
- *
- * `browser` and `nativescript` are refused here rather than deeper down, and not
- * for want of a launcher line: a browser bundle has no process to start, and a
- * NativeScript app ships as an APK/IPA through a different pipeline entirely
- * (ADR 0024 § 4). The refusal names the KEY that carried the value, because with
- * two keys "this project declares" no longer locates it.
+ * WHY IT IS PER TARGET, measured on a GTK4 application rather than derived from
+ * the schema: with one field, `gjsify ship darwin` refused its formats until
+ * `gjsify.app` was `"node"` — and setting it turned the LINUX `.deb`'s
+ * `Depends: gjs (>= 1.86)` into `Depends: nodejs (>= 24)`, which apt refuses on
+ * trixie, Ubuntu 24.04 and Ubuntu 26.04. A macOS decision made the Linux package
+ * uninstallable, because every generator read the PROJECT field instead of the
+ * resolved runtime of its OWN target (#1486, ADR 0024 § A22). Nothing downstream
+ * reads either key; they all read `settings.app`, which is this result.
  *
  * NOT PER LAYOUT BY DEFAULT, and the first cut of the layout axis got this
  * exactly backwards. Reading ADR § 4's runtime table as a per-layout
@@ -130,26 +133,25 @@ export interface ResolvedShipApp {
  * whose launcher execs `node`. An undeclared target is the common case for a GJS
  * app, and it means GJS.
  *
- * WHY THIS REFUSES WHERE `Layout.runtimeGap` ONLY WARNS, since the two describe
- * neighbouring predicaments and get opposite treatment. A runtime this command
- * cannot package would leave here as an ARTIFACT — a `.deb` a stranger installs,
- * which then fails at startup, with no gate between here and their machine. The
- * `runtimeGap` warns about something that is not an artifact: it is printed over
- * a staged tree, and only when that tree carries no interpreter of its own. The
- * per-FORMAT half of the same question is `assertFormatCanRunInterpreter`, which
- * asks what a container can EXECUTE rather than what an author declared.
+ * TWO REFUSALS, and each is here because the alternative to refusing is SILENT.
+ * A `browser` or `nativescript` value has no artifact to be — no process to
+ * start, an APK/IPA through another pipeline (§ 4) — and would otherwise leave
+ * here as a `.deb` a stranger installs and cannot run, with no gate between here
+ * and their machine; `Layout.runtimeGap` only WARNS because what it describes is
+ * a staged tree rather than an artifact, and the per-FORMAT half of the question
+ * is `assertFormatCanRunInterpreter`, which asks what a container can EXECUTE.
+ * A key outside {@link SHIP_APP_OSES} — `windows`, the `gjsify ship <os>`
+ * POSITIONAL's spelling — would resolve to nothing and leave that target on the
+ * project-wide answer with every gate green, which is why the author who typed
+ * it reads the result as gjsify not supporting the split at all. Both refusals
+ * name the KEY that carried the value: with two keys, "this project declares" no
+ * longer locates it.
  *
- * Until #1354 M0 the refusal read "only `gjs` can be packaged today", and that
- * was true: the launcher execed gjs unconditionally, so a `--app node` package
- * would have installed and died at startup. Both are packageable now —
- * `renderLauncher` execs the one this resolves to and `deriveDepends` declares
- * the same one, `gjs >= …` or `nodejs (>= 24)` / `nodejs(engine) >= 24`.
- *
- * Phase one only. `gjsify ship --from-stage` has no project to read either key
- * from and does not need one: the resolved value is what the stage manifest
- * records, so the packing host reads an answer rather than a default — and
- * `assertLauncherMatchesInterpreter` still compares the staged `bin/<name>`'s own
- * `exec` line against the dependency about to be written.
+ * `gjsify ship --from-stage` reads neither key and needs neither: the stage
+ * manifest records the RESOLVED value, so the packing host reads an answer
+ * rather than a default, and `assertLauncherMatchesInterpreter` still compares
+ * the staged `bin/<name>`'s own `exec` line against the dependency about to be
+ * written.
  */
 export function resolveShipApp(input: {
     /** `gjsify.app` as DECLARED — `undefined` when the project declares nothing. */
@@ -159,7 +161,21 @@ export function resolveShipApp(input: {
     /** The layout this run assembles. */
     layoutOs: HostOs;
 }): ResolvedShipApp {
-    const override = input.perTarget?.[input.layoutOs];
+    const perTarget = input.perTarget ?? {};
+    // The WHOLE table, not only this run's key: a mis-keyed override is silent by
+    // construction, so `gjsify ship linux` is the run that has to say `windows` is
+    // not a key. Checking only the resolving key would leave the typo to be found
+    // by the `gjsify ship windows` that already reads as unsupported.
+    for (const os of Object.keys(perTarget)) {
+        if (Object.hasOwn(SHIP_APP_OSES, os)) continue;
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.app.${os}\` is not an OS this command assembles for. Known: ` +
+                `${Object.keys(SHIP_APP_OSES).join(', ')} — the \`process.platform\` spelling, not the ` +
+                "`gjsify ship <os>` positional's. A runtime under a key nothing reads leaves that target on " +
+                '`gjsify.app` with nothing to say so.',
+        );
+    }
+    const override = perTarget[input.layoutOs];
     const overridden = override !== undefined;
     const key = overridden ? `gjsify.ship.app.${input.layoutOs}` : 'gjsify.app';
     const declared = overridden ? override : input.project;
@@ -219,11 +235,9 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
     const appId = ship.appId ?? flatpak.appId ?? reverseDnsOrThrow(pkg.name, binaryName);
     const name = metadata.name ?? titleCase(binaryName);
     const kind = metadata.kind ?? 'app';
-    // NOT resolved here. `resolveShipApp` above is the one place that turns
-    // `gjsify.app` plus `gjsify.ship.app.<os>` into a runtime, and this function
-    // is reached AFTER the format list has already been decided from it — a
-    // second defaulting rule here would be the second path the two could disagree
-    // on, which is precisely what a per-target runtime cannot afford.
+    // NOT resolved here: `resolveShipApp` already did, before the format list was
+    // decided from it. A second defaulting rule in this function would be the
+    // second path those two answers could come apart on.
     const app = input.app;
 
     const rawVersion = ship.version ?? pkg.version;
