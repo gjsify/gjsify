@@ -181,6 +181,33 @@ not tell them apart, and installing one over the other would leave both on the
 machine. Set `gjsify.ship.version` to a plain `x.y.z`, or drop `msi` from the
 targets for prerelease builds.
 
+## Shipped fonts need one call from your app here
+
+`gjsify.ship.fonts` stages your faces into `share/fonts/<appId>/` and the launcher
+exports `GJSIFY_FONT_DIR` pointing at it. On Windows that is where the command's job
+ends: `pangocairo` selects the win32 backend, which populates from DirectWrite alone,
+so a fontconfig directory is inert here. Measured — the default font map stays at its
+82 system families even when your config is the only one loaded.
+
+So register them yourself, once, before the first styled widget:
+
+```js
+import GLib from 'gi://GLib';
+import Pango from 'gi://Pango';
+
+const dir = GLib.getenv('GJSIFY_FONT_DIR');
+if (dir) {
+  for (const file of listFontFiles(dir)) {
+    Pango.FontMap.get_default().add_font_file(file);
+  }
+}
+```
+
+`add_font_file()` arrived in Pango 1.56 and works on Linux too, so the same call
+covers both and you do not need an OS branch. Skip it and Pango falls back to a
+system face — silently. The app merely looks wrong, with no error and no exit code,
+which is why this section exists rather than a warning at build time.
+
 ## One thing to know before you hand it to a user
 
 `node.exe` is a console-subsystem program and the Node release ships no windowed

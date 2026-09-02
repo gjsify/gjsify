@@ -147,6 +147,18 @@ surprise.
 icon. Your icon is still staged under `Contents/Resources/share/icons/`, where
 GTK finds it for in-app use.
 
+## Shipped fonts need nothing from your app here
+
+`gjsify.ship.fonts` stages your faces into the bundle and adds an
+`ATSApplicationFontsPath` entry to `Contents/Info.plist`, so macOS activates them
+before any of your code runs. That is the reason for choosing the declarative route
+over a call: the CoreText font map has no re-scan path, and the OS gets there first.
+
+Two honest limits. The key is emitted from Apple's own documentation of it, and **no
+CI leg here starts an `.app`** — so that macOS then resolves the family is not
+something this project has measured, unlike the Linux and Windows halves. And a
+`.app` is the only macOS layout that carries fonts; there is no `.pkg` path.
+
 ## Make a .dmg
 
 A `.dmg` is a UDIF image over a real HFS+ volume, and the only program that
