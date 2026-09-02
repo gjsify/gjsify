@@ -44,10 +44,13 @@ import {
     type Ref,
 } from 'react';
 
+import { accessor } from './accessor.js';
+import { onLiveRegion } from './announce.js';
 import { ParentContext, ParentProvider } from './parent-context.js';
 import { onGesture, onPressStateChange } from './press.js';
 import type { ClassNameInput } from './primitives/classes.js';
 import { PrimitiveError } from './primitives/errors.js';
+import { createHandle, type TextInputHandle } from './primitives/handles.js';
 import {
     declaresAbsolute,
     resolvePrimitive,
@@ -55,6 +58,7 @@ import {
     type ChildFacts,
     type PrimitivePlan,
     type PrimitiveProps,
+    type ResolvedAnnouncement,
     type ResolvedEvent,
     type ResolvedFile,
     type ResolvedGesture,
@@ -72,15 +76,19 @@ export interface CommonProps {
     className?: ClassNameInput;
     style?: StyleInput;
     children?: ReactNode;
-    /** The `Gtk.Widget` itself — the host's `getPublicInstance` hands back the real widget. */
+    /**
+     * The `Gtk.Widget` itself — except where React Native documents an imperative
+     * handle, which is `<TextInput>` and its {@link TextInputHandle}.
+     *
+     * `unknown` rather than `Gtk.Widget`, because the two values are not one type and
+     * the primitive decides which arrives. A component that has a handle declares it:
+     * `useRef<TextInput>(null)` resolves to the handle's members.
+     */
     ref?: Ref<unknown>;
     testID?: string;
 }
 
 type AnyProps = Readonly<Record<string, unknown>>;
-
-/** `max-length` → `maxLength`: the spelling GJS installs the JS accessor under. */
-const accessor = (name: string): string => name.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 
 const isTextNode = (child: ReactNode): boolean => typeof child === 'string' || typeof child === 'number';
 
@@ -254,16 +262,30 @@ export function usePlan(primitive: string, authored: object): Rendered {
     // Memoised on the user's ref identity: a new callback ref every render makes
     // React detach (call with null) and re-attach on every commit, which would leave
     // `widgetRef.current` null for the duration of a handler that fired in between.
+    //
+    // TWO DIFFERENT VALUES, and the split is the point. This layer's own seams
+    // (`useSignals`, `useGestures`, `Pressable`'s state watch) need the WIDGET, and
+    // the application's `ref` gets what React Native gives it: an imperative handle
+    // where the component documents one (`TextInput`), the widget everywhere else.
+    // `plan.handle` is L2's answer, so both L3s hand back the same thing.
+    const handleKind = plan.handle;
+    const tag = plan.node.tag;
     const mergedRef = useMemo(
         () => (widget: unknown) => {
             signals.widgetRef.current = widget;
-            if (typeof userRef === 'function') userRef(widget);
-            else if (userRef !== null && userRef !== undefined) (userRef as { current: unknown }).current = widget;
+            // `null` on detach stays `null` — a handle wrapping a detached widget
+            // would be an object whose every method reaches a widget React has
+            // already dropped, and `ref.current === null` is how a React application
+            // asks whether it is mounted.
+            const published = widget === null || widget === undefined ? widget : createHandle(handleKind, widget, tag);
+            if (typeof userRef === 'function') userRef(published);
+            else if (userRef !== null && userRef !== undefined) (userRef as { current: unknown }).current = published;
         },
-        [userRef, signals.widgetRef],
+        [userRef, signals.widgetRef, handleKind, tag],
     );
 
     useGestures(plan.gestures, props, signals.widgetRef);
+    useLiveRegions(plan.announcements, signals.widgetRef);
     const files = useFiles(plan.files);
 
     const extra: Record<string, unknown> = { ...signals.props, ref: mergedRef, ...files.outer };
@@ -365,6 +387,43 @@ function useGestures(gestures: readonly ResolvedGesture[], props: AnyProps, widg
 }
 
 /**
+ * L2's `announcements` → a screen-reader announcement whenever the content changes.
+ *
+ * AN EFFECT AND NOT AN `on:<signal>` PROP, and the difference is the whole feature:
+ * the host suppresses a `notify::` raised inside its OWN property write, and a
+ * `<Text>`'s content IS a host write — so an announcement routed through the host's
+ * handler map fires on a change made from outside React and NEVER on the one the
+ * application made. `announce.ts` carries the measurement.
+ *
+ * An effect also gets the first render right by construction: it runs after the commit
+ * that wrote the initial text, so a mount announces nothing. React Native's live region
+ * speaks an update, and a screen reader that read every label on first paint would be
+ * unusable.
+ */
+function useLiveRegions(announcements: readonly ResolvedAnnouncement[], widgetRef: { current: unknown }): void {
+    // The SIGNATURE, exactly as `useSignals` and `useGestures` do it: `announcements`
+    // is freshly allocated by every `resolvePrimitive` call, so depending on the array
+    // itself would disconnect and reconnect on every commit.
+    const signature = announcements.map((one) => `${one.signal}>${one.read}>${one.priority}`).join('|');
+    useEffect(() => {
+        const widget = widgetRef.current;
+        if (signature === '' || widget === null || widget === undefined) return;
+        const disposers = signature.split('|').map((entry) => {
+            const [signal, read, priority] = entry.split('>');
+            return onLiveRegion(widget as Parameters<typeof onLiveRegion>[0], {
+                prop: 'accessibilityLiveRegion',
+                signal: signal as string,
+                read: read as string,
+                priority: priority as ResolvedAnnouncement['priority'],
+            });
+        });
+        return () => {
+            for (const dispose of disposers) dispose();
+        };
+    }, [signature, widgetRef]);
+}
+
+/**
  * A plan plus its children → the React elements.
  *
  * THREE arrangements, and the plan says which one without this function ever
@@ -427,6 +486,15 @@ export interface TextProps extends CommonProps {
     numberOfLines?: number;
     ellipsizeMode?: 'head' | 'middle' | 'tail';
     selectable?: boolean;
+    /**
+     * Announce this label's text when it changes — `Gtk.Accessible.announce()`.
+     *
+     * Declared on `Text` ALONE, and that is the whole of what GTK can answer: the
+     * announcement is imperative, so the layer needs both the moment and the message,
+     * and a `Gtk.Label` is the one widget whose content is a property. Every other
+     * primitive refuses the prop by name.
+     */
+    accessibilityLiveRegion?: 'none' | 'polite' | 'assertive';
 }
 
 export function Text(props: TextProps): ReactElement {
@@ -506,7 +574,11 @@ export function ActivityIndicator(props: ActivityIndicatorProps): ReactElement {
     return render(usePlan('ActivityIndicator', props));
 }
 
-export interface TextInputProps extends CommonProps {
+// `Omit<…, 'ref'>` because the ref's TYPE narrows here: `Ref<TextInputHandle>` is not
+// assignable to `Ref<unknown>` under `strictFunctionTypes` (a `RefCallback`'s
+// parameter is contravariant), so the property has to be replaced rather than
+// refined. `PressableProps` omits `children` for the same structural reason.
+export interface TextInputProps extends Omit<CommonProps, 'ref'> {
     value?: string;
     defaultValue?: string;
     placeholder?: string;
@@ -518,7 +590,30 @@ export interface TextInputProps extends CommonProps {
     maxLength?: number;
     secureTextEntry?: boolean;
     keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'number-pad' | 'numeric' | 'decimal-pad' | 'url';
+    /** A declared no-op: there is no autofill service on a GTK desktop. `keyboardType` is the hint that lands. */
+    autoComplete?: string;
+    /** `autoComplete`'s iOS spelling, and the same absent addressee. */
+    textContentType?: string;
+    /** A declared no-op: each widget has one Return behaviour, and `multiline` picks the widget. */
+    submitBehavior?: 'submit' | 'blurAndSubmit' | 'newline';
+    ref?: Ref<TextInputHandle>;
 }
+
+/**
+ * The INSTANCE type, because in React Native `TextInput` is a class.
+ *
+ * `useRef<TextInput>(null)` and `passwordRef.current?.focus()` are ordinary React
+ * Native code, and both were broken here: the name was a function, so it was a value
+ * and not a type, and the ref carried the bare `Gtk.Widget`. An interface merges with
+ * the function declaration below — they occupy different declaration spaces — so the
+ * name means the component in an expression and the handle in a type position,
+ * exactly as the class does upstream.
+ *
+ * What it does NOT copy is React Native's `TextInput extends React.Component`: the
+ * component here is a function, and nothing may read `props`/`state`/`setState` off
+ * a ref. Those are not part of the ref contract upstream either.
+ */
+export interface TextInput extends TextInputHandle {}
 
 export function TextInput(props: TextInputProps): ReactElement {
     return render(usePlan('TextInput', props));

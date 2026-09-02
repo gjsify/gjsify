@@ -41,6 +41,7 @@ import { createElement as createReactElement, type ReactNode } from 'react';
 import { createSignal } from 'solid-js';
 
 import { PrimitiveError } from '../primitives/errors.js';
+import type { TextInputHandle } from '../primitives/handles.js';
 import { configureStyle, resetStyleConfig } from '../style-config.js';
 import * as react from '../components.js';
 import * as solid from './index.js';
@@ -860,6 +861,51 @@ export default async () => {
                         const box = gtkChildren(container)[0];
                         expect(held === box).toBe(true);
                         expect((box as Gtk.Widget).name).toBe('held');
+                    },
+                );
+            });
+
+            await it('gives a TextInput ref the same imperative handle React gets', async () => {
+                // The handle is L2's (`plan.handle`), so the two bindings cannot
+                // disagree about it — which is the whole reason it is a table field
+                // rather than something either L3 assembles. One built inside the React
+                // binding would have been a vocabulary this one does not have.
+                let held: unknown = null;
+                mounted(
+                    () => solid.TextInput({ value: 'hello', ref: (handle: unknown) => (held = handle) }),
+                    (container) => {
+                        const entry = gtkChildren(container)[0] as Gtk.Entry;
+                        const handle = held as TextInputHandle;
+                        expect(handle.widget).toBe(entry);
+                        handle.clear();
+                        expect(entry.text).toBe('');
+                    },
+                );
+            });
+
+            await it('announces a Text live region when the SIGNAL changes its content', async () => {
+                // The application's own change, not one made from outside — which is
+                // the only one a live region is for, and the one the host's echo guard
+                // hides from a handler bound as a prop (`announce.ts`). Solid's update
+                // path here is `replaceText` into the same sink, and it is still a host
+                // write, so this is the same claim the React binding's vector makes
+                // through a re-render.
+                const seen: [string, number][] = [];
+                const [text, setText] = createSignal('first');
+                mounted(
+                    () =>
+                        solid.Text({
+                            accessibilityLiveRegion: 'assertive',
+                            get children() {
+                                return text();
+                            },
+                        }),
+                    (container) => {
+                        const label = gtkChildren(container)[0] as Gtk.Label;
+                        (label as unknown as Record<string, unknown>).announce = (message: string, priority: number) =>
+                            seen.push([message, priority]);
+                        setText('second');
+                        expect(seen).toStrictEqual([['second', Gtk.AccessibleAnnouncementPriority.HIGH]]);
                     },
                 );
             });

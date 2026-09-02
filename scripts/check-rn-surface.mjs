@@ -616,6 +616,24 @@ compare(
     const actualDoc = existsSync(generator.SUPPORT_DOC) ? readFileSync(generator.SUPPORT_DOC, 'utf8') : '';
     if (actualDoc !== expectedDoc) fail(`SUPPORT.md is stale\n${hint}`);
 
+    // THE PROP SURFACE (ADR 0037), the second published table, with the same third
+    // reader. `@gjsify/react-native/prop-table` has to be a real subpath — without it
+    // a consumer's build-time test cannot import the answers at all, which is the
+    // whole point of publishing them — and `PROPS.md` is generated from the same
+    // `primitives/table.ts` the renderer executes, so it is compared byte for byte
+    // exactly as `SUPPORT.md` is. `readPropSurface` IMPORTS that table rather than
+    // parsing it; the generator's own header says why a parser is the wrong tool
+    // there, and why the two modules it loads may hold no relative value import.
+    if (!declaredSubpaths.has('./prop-table')) {
+        fail(
+            'package.json#exports does not declare "./prop-table" — the published prop surface (ADR 0037) is ' +
+                'unreachable, and a consumer can then only discover a refused prop by rendering',
+        );
+    }
+    const expectedProps = generator.renderPropDoc(await generator.readPropSurface());
+    const actualProps = existsSync(generator.PROP_DOC) ? readFileSync(generator.PROP_DOC, 'utf8') : '';
+    if (actualProps !== expectedProps) fail(`PROPS.md is stale\n${hint}`);
+
     console.log(
         `${label}: ${surfaces.length} surface(s) declared — ${surfaces.map((surface) => surface.module).join(', ')}.`,
     );

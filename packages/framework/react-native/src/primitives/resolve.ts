@@ -32,6 +32,7 @@
 
 import type { LayoutIntent, StyleProps, StyleTokens } from '@gjsify/gtk-host/style';
 
+import { unknownPrimitiveDetail, unknownPropDetail } from './answers.js';
 import type { ClassNameInput } from './classes.js';
 import { PrimitiveError } from './errors.js';
 import {
@@ -47,6 +48,7 @@ import {
     FRAMEWORK_PROPS,
     PRIMITIVES,
     type ContentSpec,
+    type HandleKind,
     type NodeKind,
     type PrimitiveSpec,
     type PropertyRoute,
@@ -174,6 +176,27 @@ export interface ResolvedGesture {
     readonly signal: string;
 }
 
+/**
+ * A live region: announce this widget's own text when the signal says it changed.
+ *
+ * Decided here and CALLED one layer up, for the reason {@link ResolvedFile} is:
+ * `Gtk.Accessible.announce()` takes a `Gtk.AccessibleAnnouncementPriority` enum
+ * member, and nothing under `primitives/` imports `gi://`. L2 holds the whole of the
+ * decision — which primitive can answer the prop at all, which signal reports the
+ * change, which property carries the message, and which GTK priority each React
+ * Native level is — and none of the call.
+ */
+export interface ResolvedAnnouncement {
+    /** The React Native prop that asked for it. */
+    readonly prop: string;
+    /** The GObject signal that means "the content changed". */
+    readonly signal: string;
+    /** The widget property holding the message. */
+    readonly read: string;
+    /** The `Gtk.AccessibleAnnouncementPriority` nick. */
+    readonly priority: 'low' | 'medium' | 'high';
+}
+
 export interface PrimitivePlan {
     readonly primitive: string;
     /** The node the PARENT adopts. */
@@ -195,6 +218,10 @@ export interface PrimitivePlan {
     readonly files: readonly ResolvedFile[];
     /** Presses that arrive through a gesture controller instead of a signal. */
     readonly gestures: readonly ResolvedGesture[];
+    /** Live regions this element declares. At most one, and empty for every primitive but `Text`. */
+    readonly announcements: readonly ResolvedAnnouncement[];
+    /** What a `ref` on this element receives, or null for the widget itself. */
+    readonly handle: HandleKind | null;
     /** Where a text child goes, or null when text under this primitive is refused. */
     readonly textSink: string | null;
     /** What this element publishes to its children. */
@@ -229,11 +256,7 @@ export function declaresAbsolute(props: PrimitiveProps, tokens: StyleTokens, pri
 export function resolvePrimitive(primitive: string, props: PrimitiveProps, context: PrimitiveContext): PrimitivePlan {
     const base = PRIMITIVES[primitive];
     if (base === undefined) {
-        throw new PrimitiveError(
-            primitive,
-            '',
-            `is not a primitive this layer answers for. Known: ${Object.keys(PRIMITIVES).sort().join(', ')}`,
-        );
+        throw new PrimitiveError(primitive, '', unknownPrimitiveDetail(Object.keys(PRIMITIVES)));
     }
     // 1. `switchOn`: one React Native prop, two GTK widgets.
     const spec = base.switchOn !== undefined && props[base.switchOn.prop] === true ? base.switchOn.whenTrue : base;
@@ -250,6 +273,7 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
     const events: ResolvedEvent[] = [];
     const files: ResolvedFile[] = [];
     const gestures: ResolvedGesture[] = [];
+    const announcements: ResolvedAnnouncement[] = [];
     const contentStyleProps: ReadonlySet<string> = new Set(
         [content?.styleProp, content?.classNameProp, spec.backdrop?.styleProp, spec.backdrop?.classNameProp].filter(
             (name): name is string => typeof name === 'string',
@@ -289,12 +313,10 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
         if (value === undefined) continue;
         const route = spec.props[prop];
         if (route === undefined) {
-            throw new PrimitiveError(
-                primitive,
-                `prop "${prop}"`,
-                `is not a prop this primitive answers for. It takes: ${Object.keys(spec.props).sort().join(', ')}. ` +
-                    'An unlisted prop is refused rather than dropped: a prop that silently does nothing is indistinguishable from a bug in the application, forever',
-            );
+            // The DETAIL is `answers.ts`', not a copy: `@gjsify/react-native/prop-table`
+            // publishes the same sentence, so a consumer's test reads what a render
+            // would have thrown rather than a paraphrase of it.
+            throw new PrimitiveError(primitive, `prop "${prop}"`, unknownPropDetail(spec));
         }
         for (const one of Array.isArray(route) ? (route as readonly PropRoute[]) : [route as PropRoute]) {
             applyRoute(one, prop, value, {
@@ -307,6 +329,7 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
                 events,
                 files,
                 gestures,
+                announcements,
             });
         }
     }
@@ -373,6 +396,8 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
             events,
             files,
             gestures,
+            announcements,
+            handle: spec.handle ?? null,
             textSink: spec.textSink,
             childContext: { ...resolved.childContext, orientation: childOrientation, overlay: true },
             intent: resolved.remaining,
@@ -406,6 +431,8 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
         events,
         files,
         gestures,
+        announcements,
+        handle: spec.handle ?? null,
         textSink: spec.textSink,
         childContext:
             contentResolved === null
@@ -500,6 +527,7 @@ interface RouteSink {
     readonly events: ResolvedEvent[];
     readonly files: ResolvedFile[];
     readonly gestures: ResolvedGesture[];
+    readonly announcements: ResolvedAnnouncement[];
 }
 
 function applyRoute(route: PropRoute, prop: string, value: unknown, sink: RouteSink): void {
@@ -543,6 +571,26 @@ function applyRoute(route: PropRoute, prop: string, value: unknown, sink: RouteS
             }
             sink.gestures.push({ prop, signal: route.signal });
             return;
+        case 'announce': {
+            // The VALUE decides, and an unknown one is refused by name through the
+            // same message a `map` route gives — React Native's three levels are the
+            // whole vocabulary, so a fourth spelling is a typo rather than a gap.
+            const priority = route.map[String(value)];
+            if (priority === undefined) {
+                throw new PrimitiveError(
+                    sink.primitive,
+                    `prop "${prop}"`,
+                    `has no GTK equivalent for ${describe(value)}. Known: ${Object.keys(route.map).sort().join(', ')}. ` +
+                        'A value absent from that list is absent because GTK has no member for it, not because the table is short',
+                );
+            }
+            // `none` is a real answer and not an omission: React Native's own default
+            // for the prop, and "do not announce" is what GTK does when nobody calls
+            // `announce()`. So there is nothing to record.
+            if (priority === null) return;
+            sink.announcements.push({ prop, signal: route.signal, read: route.read, priority });
+            return;
+        }
         case 'property': {
             const on = nodeOf(route.on, sink, prop);
             const target =

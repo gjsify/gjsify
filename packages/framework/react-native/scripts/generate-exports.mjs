@@ -13,7 +13,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
 const TABLE = join(PKG, 'src/support-table.ts');
@@ -21,6 +21,8 @@ export const INDEX = join(PKG, 'src/index.ts');
 export const OWN_OUT = join(PKG, 'src/generated/own-exports.ts');
 /** The whole support document, generated end to end (ADR 0036 § 6). */
 export const SUPPORT_DOC = join(PKG, 'SUPPORT.md');
+/** The PROP surface's document — one section per primitive (ADR 0037). */
+export const PROP_DOC = join(PKG, 'PROPS.md');
 
 /** The package every surface is a subpath of. `support-table.ts` spells it the same way. */
 export const PACKAGE = '@gjsify/react-native';
@@ -296,6 +298,103 @@ export function renderSupportDoc(sections) {
     ].join('\n');
 }
 
+// --- the PROP surface (ADR 0037) -----------------------------------------------
+//
+// IMPORTED, not parsed, and that is the one place in this file where the two differ.
+// Every reader above parses `support-table.ts`' SOURCE because a consumer's
+// `node_modules` ships `lib` and not `src` and this generator runs before a build.
+// The same constraint holds here — `check-rn-surface.mjs` runs in a job that
+// deliberately does no install and no build — but a PARSER is the wrong instrument
+// for `primitives/table.ts`: its rows spread shared records (`...COMMON`,
+// `...TEXT_INPUT_COMMON`) and CALL functions to build refusal sentences
+// (`PRESSED_STYLE_IS_CSS('active:opacity-70')`), so a parse would report the spread
+// instead of the row's answer — a second truth about the one question this layer
+// exists to answer.
+//
+// Node's own TypeScript type stripping resolves that: `import()` of a `.ts` file
+// needs no build, no install and no flag on the Node the `check` job pins. The two
+// modules it loads are chosen for it — `primitives/table.ts` and `primitives/
+// answers.ts` are the only two with no VALUE import of a sibling, because Node does
+// NOT rewrite a `./x.js` specifier to `./x.ts`. `answers.ts`' header records that
+// constraint at the other end, so a value import added there fails here loudly rather
+// than silently changing what this document is derived from.
+
+/** The prop table and its classifier, loaded from source. */
+export async function readPropSurface() {
+    const table = await import(pathToFileURL(join(PKG, 'src/primitives/table.ts')).href);
+    const answers = await import(pathToFileURL(join(PKG, 'src/primitives/answers.ts')).href);
+    return { table, answers };
+}
+
+/** A `|` ENDS a Markdown cell, so every cell escapes its own. Learnt from `Platform`'s reason. */
+const cell = (text) => String(text).replaceAll('|', '\\|');
+
+/** One primitive (or one variant of one) → its section. */
+function renderPrimitiveSection(heading, primitive, spec, note, { table, answers }) {
+    const out = [`## ${heading}`, ''];
+    const facts = [`widget \`${spec.tag}\``];
+    if (spec.content !== undefined) facts.push(`children go into \`${spec.content.tag}\``);
+    if (spec.backdrop !== undefined) facts.push(`backdrop \`${spec.backdrop.tag}\``);
+    facts.push(spec.textSink === null ? 'takes no text child' : `a text child writes \`${spec.textSink}\``);
+    if (spec.handle !== undefined) facts.push(`a \`ref\` receives the \`${spec.handle}\` handle, not the widget`);
+    out.push(`${facts.join(' · ')}.`, '');
+    if (note !== null) out.push(note, '');
+    out.push('| prop | answer | GTK | why |', '|---|---|---|---|');
+    for (const prop of answers.propNamesOf(spec)) {
+        const answer = answers.answerFor(primitive, spec, prop, table.FRAMEWORK_PROPS);
+        out.push(
+            `| \`${prop}\` | ${answer.status} | ${answer.gtk.length === 0 ? '—' : answer.gtk.map((one) => `\`${cell(one)}\``).join(', ')} | ${answer.why === '' ? '—' : cell(answer.why)} |`,
+        );
+    }
+    out.push('');
+    return out.join('\n');
+}
+
+/**
+ * The whole prop document.
+ *
+ * A SEPARATE FILE from `SUPPORT.md` for the reason ADR 0036 § 2 made that one a
+ * separate file from the README: the two answer different questions at different
+ * grains, and ~500 prop rows in front of the import surface would bury it.
+ */
+export function renderPropDoc(surface) {
+    const { table } = surface;
+    const sections = [];
+    for (const [primitive, spec] of Object.entries(table.PRIMITIVES)) {
+        sections.push(renderPrimitiveSection(`\`<${primitive}>\``, primitive, spec, null, surface));
+        const branch = spec.switchOn;
+        if (branch === undefined) continue;
+        sections.push(
+            renderPrimitiveSection(
+                `\`<${primitive} ${branch.prop}>\``,
+                primitive,
+                branch.whenTrue,
+                `One React Native prop, two GTK widgets: \`${branch.prop}\` selects this row instead of the one above.`,
+                surface,
+            ),
+        );
+    }
+    return [
+        '<!-- GENERATED by scripts/generate-exports.mjs — do not edit. -->',
+        '',
+        '# What `@gjsify/react-native` does with each prop',
+        '',
+        'One section per primitive, generated from `src/primitives/table.ts` — the same data the',
+        'renderer executes and `@gjsify/react-native/prop-table` publishes, so this document cannot',
+        'disagree with what a render does.',
+        '',
+        "The **answer** column is `acceptsProp()`'s: `property`, `event`, `style`, `file`, `gesture` and",
+        '`announcement` reach GTK; `ignored` is a DECLARED no-op, which is an answer and not a refusal;',
+        '`refused` throws a `PrimitiveError` at render time. A prop that appears in no row throws too,',
+        'naming the ones that are here.',
+        '',
+        'Ask this from a test rather than reading it: `acceptsProp("Text", "onPress")` is `false` and',
+        '`explainProp("Text", "onPress")` is the sentence a render would have thrown (ADR 0037).',
+        '',
+        ...sections,
+    ].join('\n');
+}
+
 /** The table as data, from source — statuses, tiers, gtk and reasons. */
 export function readTable(source, declaration = 'SUPPORT_TABLE') {
     const body = tableBody(source, declaration);
@@ -521,6 +620,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
     writeFileSync(SUPPORT_DOC, renderSupportDoc(sections));
     console.log(`generate-exports: ${surfaces.length} surface section(s) → SUPPORT.md`);
+
+    const propSurface = await readPropSurface();
+    const propDoc = renderPropDoc(propSurface);
+    writeFileSync(PROP_DOC, propDoc);
+    console.log(
+        `generate-exports: ${propDoc.split('\n').filter((line) => line.startsWith('| `')).length} prop row(s) → PROPS.md`,
+    );
 
     // THE ROOT SURFACE'S TABLE, not all eighteen. `src/index.ts` is the ROOT module, so
     // the only table that can judge one of its exports is react-native's — and

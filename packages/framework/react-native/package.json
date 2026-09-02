@@ -22,6 +22,10 @@
             "types": "./lib/types/support-table.d.ts",
             "default": "./lib/esm/support-table.js"
         },
+        "./prop-table": {
+            "types": "./lib/types/prop-table.d.ts",
+            "default": "./lib/esm/prop-table.js"
+        },
         "./expo-status-bar": {
             "types": "./lib/types/surfaces/expo-status-bar.d.ts",
             "default": "./lib/esm/surfaces/expo-status-bar.js"
@@ -91,6 +95,7 @@
         "lib",
         "react-native-surface.json",
         "SUPPORT.md",
+        "PROPS.md",
         "!lib/types/**/*.spec.d.ts"
     ],
     "scripts": {

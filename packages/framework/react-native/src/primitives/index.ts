@@ -7,7 +7,11 @@
 // framework, and a barrel that leaked a React type would be the first place that
 // stopped being true.
 
+export { answerFor, isAccepted, propNamesOf, unknownPrimitiveDetail, unknownPropDetail } from './answers.js';
+export type { PropAnswer, PropStatus } from './answers.js';
 export { splitVariants } from './classes.js';
+export { createHandle } from './handles.js';
+export type { TextInputHandle } from './handles.js';
 export { DEFAULT_ROWS, NORMALISED_DEFAULTS, defaultRowFor } from './defaults.js';
 export type { DefaultRow, DefaultVerdict } from './defaults.js';
 export type { ClassGroups, ClassNameInput } from './classes.js';
@@ -19,6 +23,7 @@ export type {
     PrimitiveContext,
     PrimitivePlan,
     PrimitiveProps,
+    ResolvedAnnouncement,
     ResolvedEvent,
     ResolvedFile,
     ResolvedGesture,
@@ -28,11 +33,13 @@ export { flattenStyle, mintClass, normalise, variantDeclarations } from './style
 export type { ClassNameSink, StyleAuthored, StyleInput, StyleObject } from './style.js';
 export { FRAMEWORK_PROPS, PRIMITIVE_NAMES, PRIMITIVES } from './table.js';
 export type {
+    AnnounceRoute,
     Coercion,
     ContentSpec,
     EventRoute,
     FileRoute,
     GestureRoute,
+    HandleKind,
     IgnoredRoute,
     NodeKind,
     PrimitiveSpec,

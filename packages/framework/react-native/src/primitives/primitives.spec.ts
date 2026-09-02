@@ -16,6 +16,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { MINIMAL_TOKENS, type StyleTokens, UnknownUtilityError } from '@gjsify/gtk-host/style';
 
 import { PrimitiveError } from './errors.js';
+import { createHandle, type TextInputHandle } from './handles.js';
 import { declaresAbsolute, resolvePrimitive, type ChildContext, type PrimitivePlan } from './resolve.js';
 import type { ClassNameSink } from './style.js';
 import { PRIMITIVES, PRIMITIVE_NAMES } from './table.js';
@@ -940,6 +941,115 @@ export default async () => {
             for (const name of ['Image', 'ImageBackground', 'Button', 'FlatList', 'SafeAreaView', 'StatusBar']) {
                 expect(SUPPORT_TABLE[name]?.limits?.length ?? 0).toBeGreaterThan(0);
             }
+        });
+    });
+
+    await describe('the imperative handle (ADR 0037)', async () => {
+        await it('is declared by the table, not by a binding', async () => {
+            // Both L3s read `plan.handle`, so this is where the answer lives. Every
+            // other primitive hands a `ref` the widget, which is what it always did.
+            expect(plan('TextInput', {}).plan.handle).toBe('text-input');
+            expect(plan('TextInput', { multiline: true }).plan.handle).toBe('text-input');
+            expect(plan('View', {}).plan.handle).toBe(null);
+            expect(plan('Text', {}).plan.handle).toBe(null);
+        });
+
+        await it('focuses through grab_focus, and blurs only what it holds itself', async () => {
+            // A STUB root, because a real one cannot answer: `Gtk.Root.get_focus()`
+            // stays null until the compositor activates the window (measured, and
+            // `widgets.spec.ts` holds the other half — that every method called below
+            // is one the real GTK classes install). What IS asserted here is the
+            // behaviour that would otherwise be a bug in a user's window: `blur()`
+            // writes `set_focus(null)`, which unsets the root's focus widget WHOEVER
+            // it is, so an unguarded blur on an unfocused input takes the focus away
+            // from whatever really had it.
+            let grabs = 0;
+            const root = {
+                focused: null as unknown,
+                get_focus(): unknown {
+                    return this.focused;
+                },
+                set_focus(widget: unknown): void {
+                    this.focused = widget;
+                },
+            };
+            const widget = {
+                grab_focus: () => {
+                    grabs++;
+                    return true;
+                },
+                is_focus: () => root.focused === widget,
+                get_root: () => root,
+                set_text: () => undefined,
+                select_region: () => undefined,
+            };
+            const handle = createHandle('text-input', widget, 'GtkEntry') as TextInputHandle;
+
+            handle.focus();
+            expect(grabs).toBe(1);
+
+            const somebodyElse = { name: 'other' };
+            root.focused = somebodyElse;
+            expect(handle.isFocused()).toBe(false);
+            handle.blur();
+            expect(root.focused).toBe(somebodyElse);
+
+            root.focused = widget;
+            expect(handle.isFocused()).toBe(true);
+            handle.blur();
+            expect(root.focused).toBe(null);
+        });
+
+        await it('hands the widget back, so nothing the ref used to reach is lost', async () => {
+            const widget = { grab_focus: () => true, is_focus: () => false, get_root: () => null };
+            expect((createHandle('text-input', widget, 'GtkEntry') as TextInputHandle).widget).toBe(widget);
+            // The ordinary case: no handle kind, and the ref value IS the widget.
+            expect(createHandle(null, widget, 'GtkBox')).toBe(widget);
+        });
+    });
+
+    await describe('accessibilityLiveRegion (ADR 0037)', async () => {
+        await it('is a live region on Text, with GTK’s own priority for each level', async () => {
+            expect(plan('Text', { accessibilityLiveRegion: 'polite' }).plan.announcements).toStrictEqual([
+                { prop: 'accessibilityLiveRegion', signal: 'notify::label', read: 'label', priority: 'medium' },
+            ]);
+            expect(plan('Text', { accessibilityLiveRegion: 'assertive' }).plan.announcements[0]?.priority).toBe('high');
+        });
+
+        await it('records nothing for "none", which is React Native’s own default', async () => {
+            expect(plan('Text', { accessibilityLiveRegion: 'none' }).plan.announcements).toStrictEqual([]);
+            expect(plan('Text', {}).plan.announcements).toStrictEqual([]);
+        });
+
+        await it('refuses a level GTK has no answer for, by name', async () => {
+            expect(threw(() => plan('Text', { accessibilityLiveRegion: 'loud' })).message).toContain(
+                'has no GTK equivalent',
+            );
+        });
+
+        await it('refuses the prop elsewhere for the RIGHT reason — announce exists, the watch does not', async () => {
+            // The reason matters as much as the refusal: "GTK4 has no property" would
+            // send a reader looking for one, and `Gtk.Accessible.announce()` has been
+            // there since 4.14. What a `View` lacks is the moment and the message.
+            const message = threw(() => plan('View', { accessibilityLiveRegion: 'polite' })).message;
+            expect(message).toContain('`Gtk.Accessible.announce(message, priority)` since 4.14');
+            expect(message).toContain('content is a SUBTREE');
+        });
+    });
+
+    await describe('the three props with no addressee on a desktop (ADR 0037)', async () => {
+        await it('accepts autoComplete, textContentType and submitBehavior as declared no-ops', async () => {
+            // Ordinary React Native code that a porter cannot rewrite into something a
+            // desktop would honour, so a refusal would refuse a correct program. What
+            // the entries buy is that the argument is written down ONCE, in the layer,
+            // instead of being made again in every application.
+            const { plan: resolved } = plan('TextInput', {
+                autoComplete: 'email',
+                textContentType: 'emailAddress',
+                submitBehavior: 'submit',
+            });
+            expect(resolved.node.tag).toBe('GtkEntry');
+            expect(resolved.node.props).toStrictEqual({});
         });
     });
 };

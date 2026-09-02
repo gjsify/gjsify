@@ -32,6 +32,46 @@ a real `react-native` install when one is resolvable — and it prints which of 
 it did, because a gate that silently degrades to the weaker half is worse than one
 that has only the weaker half.
 
+## The PROP surface is a contract too, and it is published
+
+The support table answers "may this application import this name". One grain finer
+sits `src/primitives/table.ts`, which decides what each PRIMITIVE does with each
+PROP — and until [ADR 0037](../../../docs/adr/0037-react-native-prop-surface.md) it
+was not an entry point, so a refusal could only be discovered by RENDERING. That cost
+a whole tree once: a `<Text onPress>` in a tab stack that mounts every tab from the
+start route threw out of a render, and React unmounts the root when a render throws
+with no error boundary above it — 92 125 bytes of widget dump clean against 12 848
+with the throw, same screen, same host.
+
+The refusal is right and it still throws: a prop that silently does nothing is
+indistinguishable from a bug in the application, forever. What was missing is a way to
+ask FIRST, and that is `@gjsify/react-native/prop-table`:
+
+```ts
+import { acceptsProp, explainProp } from '@gjsify/react-native/prop-table';
+
+// in your own test suite, before a window exists
+expect(acceptsProp('Text', 'onPress')).toBe(false);
+expect(explainProp('Text', 'onPress')).toContain('Wrap it in a `<Pressable>`');
+```
+
+`explainProp` returns the very sentence a render would have thrown — one classifier
+(`src/primitives/answers.ts`) serves both, so the static answer cannot drift from the
+runtime one. [PROPS.md](PROPS.md) is the generated document, one section per
+primitive, held byte for byte by `check-rn-surface.mjs`.
+
+## `<TextInput>`'s ref is a handle, not the widget
+
+React Native's `TextInput` is a class, so `useRef<TextInput>(null)` and
+`ref.current?.focus()` are ordinary code. Here `TextInput` is a component function
+merged with an instance interface, and the ref receives `focus`, `blur`, `clear`,
+`isFocused` and `setSelection` over GTK, plus `widget` — the `Gtk.Entry` or
+`Gtk.TextView` itself, which is where anything the handle does not answer lives.
+`measure`, `measureInWindow`, `measureLayout` and `setNativeProps` are present and
+**refuse by name**, because an absent method is `undefined is not a function`.
+
+Every other primitive's ref is the `Gtk.Widget`, unchanged.
+
 ## Getting a window
 
 ```ts
