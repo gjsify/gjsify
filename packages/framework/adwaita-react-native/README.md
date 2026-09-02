@@ -71,6 +71,10 @@ a GTK-only consumer does not need it installed.
 | `AdwEntryRow` | `title`, `text`, `maxLength` (0), `editable` (true), `showApplyButton` (false), `onNotifyText`, `onApply`, `onEntryActivated` | The row IS the entry. `max-length` counts CHARACTERS |
 | `AdwExpanderRow` | `title`, `subtitle`, `expanded` (false), `onNotifyExpanded`, `children` | `children` are the DISCLOSED rows. The header toggles, the disclosure does not |
 | `AdwHeaderBar` | `start`, `titleWidget`, `title`, `subtitle`, `end` | The three slots as PROPS, in draw order. No window controls: a phone has none |
+| `AdwNavigationPage` | `children`, `title`, `tag`, `canPop` (true) | One page of a navigation view, or one pane of a navigation split view. A widget on GTK because `adw_navigation_view_add` takes one; three properties and no drawing of its own |
+| `AdwNavigationSplitView` | `children` (the content), `sidebar`, `sidebarTag`, `contentTag`, `sidebarTitle`, `contentTitle`, `collapsed`, `showContent`, `sidebarPosition`, plus the four sizing props | Sidebar beside content; a navigation stack when collapsed. Both panes are wrapped in an `Adw.NavigationPage` on GTK, because the two slots take nothing else |
+| `AdwNavigationView` | `children` (the pages, first is the root), `animateTransitions` (true), `popOnEscape` (true), `ref` (`push`, `pop`, `popToTag`, `replaceWithTags`, `visiblePageTag`, `canGoBack`, `backButtonTooltip`) | A page stack. Pushed BY TAG through the ref, never by prop — `Adw.NavigationView:visible-page` is read-only |
+| `AdwOverlaySplitView` | `children` (the content), `sidebar`, `collapsed`, `showSidebar` (true), `pinSidebar`, `sidebarPosition`, `enableShowGesture` (true), `enableHideGesture` (true), `onNotifyShowSidebar`, plus the four sizing props | Sidebar that slides OVER the content when collapsed. Collapsing hides an unpinned sidebar itself, which is what `onNotifyShowSidebar` reports |
 | `AdwPasswordEntryRow` | `title`, `text`, `maxLength`, `editable`, `showApplyButton`, `onNotifyText`, `onApply`, `onEntryActivated` | `Adw.EntryRow`'s surface exactly — the subclass declares no property of its own. `maxLength` counts CHARACTERS through the core, never `TextInput.maxLength`'s UTF-16 units |
 | `AdwPreferencesGroup` | `children` (the rows), `title`, `description` | A titled card. Five visibility answers from one `derivePreferencesGroupHeader` call; the card hides itself at zero rows while its header stays |
 | `AdwPreferencesPage` | `children` (the groups), `title`, `iconName`, `name`, `description`, `descriptionCentered`, `useUnderline` | Four of the five properties are identity a view switcher reads, drawn by neither half — as in libadwaita. Only `description` is painted |
@@ -80,6 +84,8 @@ a GTK-only consumer does not need it installed.
 | `AdwSwitchRow` | `title`, `subtitle`, `active` (false), `onNotifyActive` | Controlled. The whole row toggles, not only the handle |
 | `AdwToastOverlay` | `children`, `ref` (`addToast`, `dismissAll`) | One toast at a time. A toast is PUSHED through the ref, never declared as a prop — `add_toast` is a call |
 | `AdwToolbarView` | `children` (the content), `topBar`, `bottomBar`, `topBarStyle` (`flat`), `bottomBarStyle` (`flat`), `extendContentToTopEdge` (false), `extendContentToBottomEdge` (false) | Content framed by bars. The two styles reach the real widget on GTK and draw nothing on a phone |
+| `AdwViewStack` | `pages` (`name`, `title`, `iconName`, `visible`, `badgeNumber`, `needsAttention`, `useUnderline`, `child`), `visibleChildName`, `onNotifyVisibleChild` | Named pages, one visible. A page is a PROP OBJECT because `Adw.ViewStackPage` is a GObject and not a widget |
+| `AdwViewSwitcher` | `AdwViewStack`'s props plus `policy` (`narrow`) | A button row over the stack. It BUNDLES the stack libadwaita keeps separate, as both other renderers do — on GTK it still builds a real `Adw.ViewStack` and binds it to `Adw.ViewSwitcher:stack` |
 | `AdwWindowTitle` | `title`, `subtitle` | Two labels; an EMPTY one takes no space, a blank one does |
 | `AdwWrapBox` | `children` plus libadwaita's fourteen: `childSpacing`/`childSpacingUnit`, `lineSpacing`/`lineSpacingUnit`, `align`, `justify`, `justifyLastLine`, `lineHomogeneous`, `naturalLineLength`/`naturalLineLengthUnit`, `packDirection`, `wrapReverse`, `wrapPolicy`, `orientation` | Children flow onto new lines. The line DECISION is `@gjsify/adwaita-core`'s, the line BREAKING is Yoga's |
 
@@ -444,3 +450,83 @@ than smoothed over.
   it. The other two stateful rows go the GTK way (see [Widgets](#widgets)); this one goes
   React Native's, because a `Switch` that disagrees with its `value` prop is a bug on that
   platform.
+- **The navigation view animates on GTK and swaps instantly on React Native, and there
+  is no automatic back button.** `animateTransitions` reaches the real
+  `Adw.NavigationView` and reaches `NavigationViewState` on the other half, where nothing
+  spends it — this package has no animation layer, which is the same position
+  `@gjsify/adwaita-nativescript` records ("kept for API parity"). `popOnEscape` is inert
+  for the plainer reason that a phone has no Escape key. And where the browser renderer
+  finds an `<adw-header-bar>` inside the visible page and injects a back button into it,
+  neither NativeScript nor this package can identify a header bar inside an opaque child:
+  `canGoBack()` and `backButtonTooltip()` on the handle are libadwaita's own two
+  derivations, and the caller wires its own button to them.
+- **An untitled `Adw.NavigationPage` is a GTK warning and nothing at all on React
+  Native.** Measured on libadwaita 1.9.3: a page with no title prints `AdwNavigationPage
+  0x… is missing a title. To hide a header bar title, consider using
+  AdwHeaderBar:show-title instead.` The React Native half has no counterpart, so the
+  `'Back'` tooltip fallback — which needs an empty title — is asserted on that half only,
+  against the constant both halves import from `@gjsify/adwaita-core`.
+- **Neither split view has a content minimum to protect on React Native.** libadwaita
+  caps the sidebar with the content pane's own minimum width and reports
+  `sidebar_min + content_min` as the view's own minimum; React Native hands a component an
+  already-laid-out size and never a child's intrinsic minimum, so `contentMin` and
+  `sidebarChildMin` go in as 0. The consequences are one-directional and both measured:
+  the sidebar can take its full share of a view too narrow for both panes, and the view
+  cannot refuse to be narrower than its contents the way GTK does (the GTK suite asserts
+  that refusal at 380 against `measureSplitViewHorizontal`; the React Native suite cannot
+  ask). Same class as `AdwClamp`'s `childMin`.
+- **The two sidebar-width rules can only be told apart one at a time on GTK.**
+  `resolveNavigationSidebarWidth` caps the sidebar's MAX BOUND by `width - content_min`
+  and `resolveOverlaySidebarWidth` caps the RESULT, which the core's own vectors separate
+  at 300 points (180 versus 100). The NAVIGATION half of that pair is unreachable through
+  a window: `measure_uncollapsed` makes `sidebar_min + content_min` its minimum, GTK never
+  allocates below a minimum, and from there upwards `width - content_min` never falls under
+  `sidebar_min`, so the bound cap never inverts. The OVERLAY half is reachable, because its
+  minimum is `(int) (sidebar_min * show_progress) + content_min` — a hidden sidebar takes
+  that term out — and the GTK suite reads its 100 off the live tree. So the two answers are
+  never asserted side by side here; the disagreement itself is held by
+  `@gjsify/adwaita-core`'s vectors, and this package asserts the navigation minimum and the
+  overlay cap separately.
+- **The overlay's reveal is instant on React Native.** libadwaita animates with a spring
+  `(1, 0.5, 500)`; `@gjsify/adwaita-web` approximates it from `requestAnimationFrame` and
+  `@gjsify/adwaita-nativescript` from `View.animate()`. React Native's own answer is
+  `Animated`, a COMPOSITE surface the test double may not stand in for, so the core's
+  `INSTANT_SPLIT_VIEW_ANIMATOR` default stands and `enableShowGesture` /
+  `enableHideGesture` are carried and inert. `show-progress` still runs through the core,
+  so the continuum is expressible the day an animator is plugged in.
+- **The React Native split views resolve `start`/`end` against `ltr` only.**
+  `isSidebarAtVisualStart` takes a reading direction, GTK resolves it from the widget, and
+  React Native's lives on `I18nManager` — not a host component, so not something
+  `testing/react-native.ts` may double. The core call still takes the parameter; closing
+  this is one argument.
+- **`sidebar-position: end` is invisible on a COLLAPSED React Native split view.**
+  `resolveNavigationStack` builds the stack the other way round for `end` — the content is
+  the root page and the sidebar is pushed on top of it — but the LAST entry, which is the
+  pane on screen, is the same for both positions at every value of `show-content`. What
+  differs is the push/pop DIRECTION, which a renderer spends on a slide and this one has
+  none of. The position IS asserted where it is observable: the docked draw order.
+- **`sidebarTitle` and `contentTitle` reach a real page on GTK and nothing on a phone.**
+  They are `Adw.NavigationPage:title` of the wrap `AdwNavigationSplitView` puts around each
+  pane, which libadwaita uses for the header of a collapsed view. The React Native half has
+  no header bar to put a title in, so it carries them and draws neither — the same shape as
+  `iconName`.
+- **`onNotifyVisibleChild` does not carry the same set of changes on both halves.** A
+  press on the switcher reaches both. A change the CALLER made through
+  `visibleChildName` reaches the React Native half only — it re-applies the prop through
+  `selectName` and reports what the stack settled on, while gtk-host drops the notify
+  raised inside its own property write, which is the same rule `onNotifyExpanded` already
+  records. The mount AUTO-PICK reaches neither: libadwaita notifies it from inside
+  `adw_view_stack_add_titled`, before React has committed the `ref` the settled name
+  would be read off (measured — the GTK half used to report `''` there, a name no page
+  carries), and on the other half the core's auto-pick lands before the subscription
+  exists. Both halves are asserted at the two ends of that.
+- **`AdwViewSwitcher` bundles the stack libadwaita keeps separate.** `Adw.ViewSwitcher:stack`
+  points at an `Adw.ViewStack` elsewhere in the tree, and a React prop cannot hold a widget
+  that does not exist yet on the half where widgets exist at all. Both other renderers made
+  the same call. On GTK nothing is simulated: the component builds a real `Adw.ViewStack`
+  and writes it into that property, which the GTK suite asserts by identity.
+- **The switcher's buttons carry no icon.** Same icon-theme rule as above, with one extra
+  consequence worth naming: a page with an icon and NO title still gets a button, because
+  `isViewSwitcherButtonVisible` tests both — and on React Native that button's label is
+  empty. The button's ORIENTATION is still applied, since it is what arranges the label
+  and the badge.

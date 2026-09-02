@@ -21,10 +21,16 @@ export type {
     AdwEntryRowProps,
     AdwExpanderRowProps,
     AdwHeaderBarProps,
+    AdwNavigationPageProps,
+    AdwNavigationSplitViewProps,
+    AdwNavigationViewHandle,
+    AdwNavigationViewProps,
+    AdwOverlaySplitViewProps,
     AdwPasswordEntryRowProps,
     AdwPreferencesGroupProps,
     AdwPreferencesPageProps,
     AdwRowProps,
+    AdwSidebarWidthProps,
     AdwSpinRowProps,
     AdwSpinnerProps,
     AdwStatusPageProps,
@@ -32,6 +38,9 @@ export type {
     AdwToastOverlayHandle,
     AdwToastOverlayProps,
     AdwToolbarViewProps,
+    AdwViewStackPageProps,
+    AdwViewStackProps,
+    AdwViewSwitcherProps,
     AdwWidgetProps,
     AdwWindowTitleProps,
     AdwWrapBoxProps,
@@ -48,6 +57,10 @@ export { AdwComboRow } from './widgets/combo-row.js';
 export { AdwEntryRow } from './widgets/entry-row.js';
 export { AdwExpanderRow } from './widgets/expander-row.js';
 export { AdwHeaderBar } from './widgets/header-bar.js';
+export { AdwNavigationPage } from './widgets/navigation-page.js';
+export { AdwNavigationSplitView } from './widgets/navigation-split-view.js';
+export { AdwNavigationView } from './widgets/navigation-view.js';
+export { AdwOverlaySplitView } from './widgets/overlay-split-view.js';
 export { AdwPasswordEntryRow } from './widgets/password-entry-row.js';
 export { AdwPreferencesGroup } from './widgets/preferences-group.js';
 export { AdwPreferencesPage } from './widgets/preferences-page.js';
@@ -57,6 +70,8 @@ export { AdwStatusPage } from './widgets/status-page.js';
 export { AdwSwitchRow } from './widgets/switch-row.js';
 export { AdwToastOverlay } from './widgets/toast-overlay.js';
 export { AdwToolbarView } from './widgets/toolbar-view.js';
+export { AdwViewStack } from './widgets/view-stack.js';
+export { AdwViewSwitcher } from './widgets/view-switcher.js';
 export { AdwWindowTitle } from './widgets/window-title.js';
 export { AdwWrapBox } from './widgets/wrap-box.js';
 
@@ -82,6 +97,10 @@ import { AdwComboRow as ComboRow } from './widgets/combo-row.js';
 import { AdwEntryRow as EntryRow } from './widgets/entry-row.js';
 import { AdwExpanderRow as ExpanderRow } from './widgets/expander-row.js';
 import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.js';
+import { AdwNavigationPage as NavigationPage } from './widgets/navigation-page.js';
+import { AdwNavigationSplitView as NavigationSplitView } from './widgets/navigation-split-view.js';
+import { AdwNavigationView as NavigationView } from './widgets/navigation-view.js';
+import { AdwOverlaySplitView as OverlaySplitView } from './widgets/overlay-split-view.js';
 import { AdwPasswordEntryRow as PasswordEntryRow } from './widgets/password-entry-row.js';
 import { AdwPreferencesGroup as PreferencesGroup } from './widgets/preferences-group.js';
 import { AdwPreferencesPage as PreferencesPage } from './widgets/preferences-page.js';
@@ -91,6 +110,8 @@ import { AdwStatusPage as StatusPage } from './widgets/status-page.js';
 import { AdwSwitchRow as SwitchRow } from './widgets/switch-row.js';
 import { AdwToastOverlay as ToastOverlay } from './widgets/toast-overlay.js';
 import { AdwToolbarView as ToolbarView } from './widgets/toolbar-view.js';
+import { AdwViewStack as ViewStack } from './widgets/view-stack.js';
+import { AdwViewSwitcher as ViewSwitcher } from './widgets/view-switcher.js';
 import { AdwWindowTitle as WindowTitle } from './widgets/window-title.js';
 import { AdwWrapBox as WrapBox } from './widgets/wrap-box.js';
 
@@ -106,6 +127,10 @@ export const Adw = {
     EntryRow,
     ExpanderRow,
     HeaderBar,
+    NavigationPage,
+    NavigationSplitView,
+    NavigationView,
+    OverlaySplitView,
     PasswordEntryRow,
     PreferencesGroup,
     PreferencesPage,
@@ -115,6 +140,8 @@ export const Adw = {
     SwitchRow,
     ToastOverlay,
     ToolbarView,
+    ViewStack,
+    ViewSwitcher,
     WindowTitle,
     WrapBox,
 };
