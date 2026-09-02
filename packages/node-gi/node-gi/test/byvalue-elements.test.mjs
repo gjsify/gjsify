@@ -148,76 +148,85 @@ test('a by-value element must be a record of the element’s own type', () => {
     // got a pass — the code was right and the expectation was not.
 });
 
-test('an IN array of enum elements marshals at the enum’s own stride', {
-    skip: needs('Atk', '1.0'),
-}, () => {
-    // The one path with no core subject — measured while writing this file: GLib,
-    // GObject and Gio have no by-value enum array parameter at all. `Atk.StateSet` is
-    // the cheapest one that exists, needing no display and holding a pure in-memory
-    // bitset. An enum's storage is 4 where a pointer is 8, so at the wrong stride the
-    // SECOND member lands in the first one's padding and is never added — while the
-    // element count stays two either way.
-    const Atk = requireGi('Atk', '1.0');
-    const set = new Atk.StateSet();
+test(
+    'an IN array of enum elements marshals at the enum’s own stride',
+    {
+        skip: needs('Atk', '1.0'),
+    },
+    () => {
+        // The one path with no core subject — measured while writing this file: GLib,
+        // GObject and Gio have no by-value enum array parameter at all. `Atk.StateSet` is
+        // the cheapest one that exists, needing no display and holding a pure in-memory
+        // bitset. An enum's storage is 4 where a pointer is 8, so at the wrong stride the
+        // SECOND member lands in the first one's padding and is never added — while the
+        // element count stays two either way.
+        const Atk = requireGi('Atk', '1.0');
+        const set = new Atk.StateSet();
 
-    set.add_states([Atk.StateType.VISIBLE, Atk.StateType.ENABLED]);
+        set.add_states([Atk.StateType.VISIBLE, Atk.StateType.ENABLED]);
 
-    assert.equal(set.contains_states([Atk.StateType.VISIBLE, Atk.StateType.ENABLED]), true);
-    // A state that was NOT added must still be absent, or "contains" could be answering
-    // true for anything and the line above would prove nothing.
-    assert.equal(set.contains_states([Atk.StateType.BUSY]), false);
-    // The empty array is the boundary the refusal path also took, and it must not be
-    // read as "no argument".
-    assert.equal(set.contains_states([]), true);
-});
+        assert.equal(set.contains_states([Atk.StateType.VISIBLE, Atk.StateType.ENABLED]), true);
+        // A state that was NOT added must still be absent, or "contains" could be answering
+        // true for anything and the line above would prove nothing.
+        assert.equal(set.contains_states([Atk.StateType.BUSY]), false);
+        // The empty array is the boundary the refusal path also took, and it must not be
+        // read as "no argument".
+        assert.equal(set.contains_states([]), true);
+    },
+);
 
-test('a by-value record that is NOT a GValue is copied from its handle', {
-    skip: needs('Graphene', '1.0'),
-}, () => {
-    // The other half of the element rule: a GValue cell is initialised in place, every
-    // other record is a bitwise copy out of a boxed handle. `Graphene.Point3D` is 12
-    // bytes — not 8, not 16 — so a pointer-sized stride cannot accidentally produce the
-    // right answer, and `Box.init_from_points` reports both elements back.
-    //
-    // Gated because Graphene is not on every leg; the GValue cases above are the ones
-    // that always run.
-    const Graphene = requireGi('Graphene', '1.0');
+test(
+    'a by-value record that is NOT a GValue is copied from its handle',
+    {
+        skip: needs('Graphene', '1.0'),
+    },
+    () => {
+        // The other half of the element rule: a GValue cell is initialised in place, every
+        // other record is a bitwise copy out of a boxed handle. `Graphene.Point3D` is 12
+        // bytes — not 8, not 16 — so a pointer-sized stride cannot accidentally produce the
+        // right answer, and `Box.init_from_points` reports both elements back.
+        //
+        // Gated because Graphene is not on every leg; the GValue cases above are the ones
+        // that always run.
+        const Graphene = requireGi('Graphene', '1.0');
 
-    const near = new Graphene.Point3D();
-    near.init(1, 2, 3);
-    const far = new Graphene.Point3D();
-    far.init(7, 8, 9);
+        const near = new Graphene.Point3D();
+        near.init(1, 2, 3);
+        const far = new Graphene.Point3D();
+        far.init(7, 8, 9);
 
-    const box = new Graphene.Box();
-    box.init_from_points([near, far]);
+        const box = new Graphene.Box();
+        box.init_from_points([near, far]);
 
-    const min = box.get_min();
-    const max = box.get_max();
-    assert.deepEqual([min.x, min.y, min.z, max.x, max.y, max.z], [1, 2, 3, 7, 8, 9]);
-});
+        const min = box.get_min();
+        const max = box.get_max();
+        assert.deepEqual([min.x, min.y, min.z, max.x, max.y, max.z], [1, 2, 3, 7, 8, 9]);
+    },
+);
 
-test('a by-value record array whose callee adopts the elements is refused', {
-    skip: needs('Gsf', '1'),
-}, () => {
-    // The ownership hole the POINTER half of this work shipped once and had to fix,
-    // wearing a different shape. A by-value cell is a bitwise copy of a handle's
-    // storage, so it shares whatever that record points at — safe exactly while we free
-    // the buffer ourselves. On `transfer full` the callee frees the elements too, and
-    // it would be freeing strings and boxeds the caller's handles still own. An
-    // arbitrary record has no copy function to deep-copy with, so there is no general
-    // remedy and the refusal is the answer.
-    //
-    // The cost is measured rather than assumed: across every installed typelib, of the
-    // 140 IN parameters with a by-value element, 139 are `transfer=none` and exactly
-    // ONE is not — this call, which exists to free what it is given. It is also the
-    // only subject for this assertion, which is why the test is gated instead of
-    // rewritten.
-    const Gsf = requireGi('Gsf', '1');
-    assert.throws(
-        () => Gsf.property_settings_free([]),
-        /transfer other than none is not yet supported/,
-    );
-});
+test(
+    'a by-value record array whose callee adopts the elements is refused',
+    {
+        skip: needs('Gsf', '1'),
+    },
+    () => {
+        // The ownership hole the POINTER half of this work shipped once and had to fix,
+        // wearing a different shape. A by-value cell is a bitwise copy of a handle's
+        // storage, so it shares whatever that record points at — safe exactly while we free
+        // the buffer ourselves. On `transfer full` the callee frees the elements too, and
+        // it would be freeing strings and boxeds the caller's handles still own. An
+        // arbitrary record has no copy function to deep-copy with, so there is no general
+        // remedy and the refusal is the answer.
+        //
+        // The cost is measured rather than assumed: across every installed typelib, of the
+        // 140 IN parameters with a by-value element, 139 are `transfer=none` and exactly
+        // ONE is not — this call, which exists to free what it is given. It is also the
+        // only subject for this assertion, which is why the test is gated instead of
+        // rewritten.
+        const Gsf = requireGi('Gsf', '1');
+        assert.throws(() => Gsf.property_settings_free([]), /transfer other than none is not yet supported/);
+    },
+);
 
 const skipDisplay = haveDisplay ? false : 'no display (DISPLAY / WAYLAND_DISPLAY unset)';
 
@@ -237,19 +246,12 @@ test('the Gtk.Accessible update surface answers on node', { skip: skipDisplay },
     const value = new GObject.Value();
     value.init(GObject.TYPE_STRING);
     value.set_string('a described label');
-    button.update_property(
-        [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
-        ['a label', value],
-    );
+    button.update_property([Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION], ['a label', value]);
 
     button.update_state([Gtk.AccessibleState.BUSY], [true]);
 
     assert.throws(
-        () =>
-            button.update_property(
-                [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
-                ['only one'],
-            ),
+        () => button.update_property([Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION], ['only one']),
         /two arrays share length argument 0/,
     );
 });
