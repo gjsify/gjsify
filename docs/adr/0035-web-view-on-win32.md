@@ -223,8 +223,11 @@ install-time detection that reads the 64-bit path reports "not installed" on a
 machine that has the runtime — the class of check that is green in CI and wrong
 at the user, which is the whole failure decision 5 exists to prevent. Detection
 must read both views (or use `GetAvailableCoreWebView2BrowserVersionString`,
-which is view-independent and is what the backend itself uses), and it must say
-in the code why.
+which is view-independent), and it must say in the code why. NB the backend does not
+read the registry at all: it lets `CreateCoreWebView2EnvironmentWithOptions`
+do the lookup and names `HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)` when there
+is none — so the installer's detection is new code, not a call the shim
+already makes.
 
 **There is no `gi://` substrate to wire up, confirmed rather than assumed.**
 `@gjsify/gtk-runtime-win32-x64@0.45.0` ships **45 typelibs and none of them is

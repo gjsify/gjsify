@@ -181,8 +181,10 @@ key exists only under
 `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-…}` — the
 64-bit view does not have it. A detector reading the 64-bit path alone reports
 "not installed" on a machine that has it: green in CI, wrong at the user. The
-view-independent answer is `GetAvailableCoreWebView2BrowserVersionString`, which
-is what this backend itself uses.
+view-independent answer is `GetAvailableCoreWebView2BrowserVersionString`. This
+backend reads no registry key of its own — it lets
+`CreateCoreWebView2EnvironmentWithOptions` do the lookup and names the HRESULT —
+so that detection is code the installer still owes.
 
 ## Building
 
