@@ -154,6 +154,32 @@ export default async () => {
             expect(files.find((f) => f.path === 'share/locale/de/LC_MESSAGES/hello.mo')?.mode).toBe(0o644);
         });
 
+        await it('stages faces under the app id, basenames untouched', async () => {
+            // The app id is what keeps a face called `Regular.ttf` from being one of two files
+            // claiming a path on a `/usr` prefix, with install order deciding the winner — the same
+            // argument that already puts it on the schema and the mime document (ADR 0037). Unlike
+            // those two the basename is the foundry's and is left alone.
+            const staged = planStage(
+                settings({ fontFiles: ['/p/data/fonts/Brand-Regular.ttf', '/p/data/fonts/mono/Brand-Mono.otf'] }),
+                inputs(),
+            ).map((file) => file.path);
+            expect(staged.includes('share/fonts/org.example.Hello/Brand-Regular.ttf')).toBe(true);
+            expect(staged.includes('share/fonts/org.example.Hello/Brand-Mono.otf')).toBe(true);
+        });
+
+        await it('refuses two faces that would install as the same file', async () => {
+            // `discoverFonts` walks subdirectories, so two families can legitimately arrive
+            // carrying the same basename — and flattening them means one silently does not ship.
+            // The symptom of a missing face is a SUBSTITUTED typeface at exit 0, never an error,
+            // which is why this is a refusal and not a last-one-wins.
+            expect(() =>
+                planStage(
+                    settings({ fontFiles: ['/p/data/fonts/sans/Regular.ttf', '/p/data/fonts/mono/Regular.ttf'] }),
+                    inputs(),
+                ),
+            ).toThrow('both install as');
+        });
+
         await it('refuses an extra file that escapes the prefix', async () => {
             expect(() => planStage(settings({ extraFiles: { '../etc/passwd': '/project/evil' } }), inputs())).toThrow(
                 'escapes the install prefix',
