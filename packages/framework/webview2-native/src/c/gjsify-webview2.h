@@ -413,14 +413,21 @@ GjsifyWebView2HostingMode gjsify_webview2_web_view_get_hosting_mode(GjsifyWebVie
  * @self: the view.
  *
  * The arrangements this view is currently in that an OS-composited overlay
- * cannot honour — an ancestor that clips (a #GtkScrolledWindow, a #GtkViewport),
- * something drawn over it (a #GtkOverlay where this is the main child), a
- * fractional opacity, a transform. Each is also emitted ONCE per view as a
- * #GLib warning naming the widget, because a consumer who never calls this is
+ * cannot honour. Detected, on allocation and on map: an ancestor that clips
+ * (a #GtkScrolledWindow, a #GtkViewport), an ancestor #GtkPopover, something
+ * drawn over it (a #GtkOverlay where this is the main child), and a fractional
+ * opacity on this widget or any ancestor. Each is also emitted ONCE per view as
+ * a #GLib warning naming the widget, because a consumer who never calls this is
  * exactly the consumer who needs to be told.
  *
- * Empty when the view is in an arrangement the overlay does satisfy, which is
- * the common one: a full-page document in a window.
+ * TWO ARRANGEMENTS ARE BROKEN AND NOT DETECTED, and an empty list therefore
+ * does not mean "correct": a CSS `border-radius` reaching this widget is not
+ * readable from the public API at all, and a render transform on an ancestor is
+ * not looked for. Detection is by widget type and by two GTK properties, which
+ * catches every arrangement that has actually been reported against an
+ * overlay-hosted web view — but a caller must read this list as a lower bound.
+ *
+ * Empty otherwise, which is the common case: a full-page document in a window.
  *
  * Returns: (transfer full) (array zero-terminated=1): the constraint messages.
  */
