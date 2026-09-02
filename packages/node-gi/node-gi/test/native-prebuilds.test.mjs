@@ -92,10 +92,14 @@ test('ignores a declared prebuild dir that ships no typelib', () => {
 });
 
 test('leaves gtk-runtime-* to the GTK activation', () => {
-    // Which GTK a process uses is a policy decision (ADR 0023) applied in
-    // gtk-runtime.js. Prepending the bundle from here too would put a second copy of
-    // the same typelibs on the path and defeat a gtkSource() of "system" — the
-    // two-copies hazard #920 records.
+    // A guard against a shape that does not exist YET, and the test says so rather
+    // than implying it is load-bearing today: no published gtk-runtime package
+    // declares `gjsify.prebuilds`, and their bundle lives at `<pkg>/gtk/` rather than
+    // under a declared prebuilds dir, so this walk would not reach one anyway. The
+    // manifest below therefore FABRICATES the key, to pin the behaviour if that ever
+    // changes. Which GTK a process uses is a policy decision (ADR 0023) applied in
+    // gtk-runtime.js against `gtkSource()`; a second copy of those typelibs on the
+    // path is the hazard #920 records.
     const nm = '/app/node_modules';
     const pkg = `${nm}/@gjsify/gtk-runtime-darwin-x64`;
     const prebuild = `${pkg}/prebuilds/darwin-x64`;
@@ -325,4 +329,124 @@ test('a directory GI refuses is skipped without losing the rest', () => {
     // must not appear in the returned claim.
     assert.deepEqual(activateNativePrebuilds(guarded, { ...options, fs }), [near]);
     assert.deepEqual(native.search, [near]);
+});
+
+// ---------------------------------------------------------------------------
+// The second pass, and the target spelling. Both were found by review: the first
+// revision reimplemented pass 1 of `detect-native-packages.ts`'s two-pass algorithm,
+// whose own comment says pass 1 is insufficient, and hardcoded `${platform}-${arch}`
+// against a repo whose `hostPlatformTokens()` calls itself the single definition.
+// ---------------------------------------------------------------------------
+
+/** A facade declaring prebuilds, with its per-target companion placed by `where`. */
+function splitTree({ where, target = 'darwin-x64' }) {
+    const root = '/app';
+    const rootNm = `${root}/node_modules`;
+    const facade = `${rootNm}/@gjsify/webkit-native`;
+    const companionNm = where === 'nested' ? `${facade}/node_modules` : rootNm;
+    const companion = `${companionNm}/@gjsify/webkit-native-${target}`;
+    const prebuild = `${companion}/prebuilds/${target}`;
+    const dirs = {
+        [rootNm]: [dir('@gjsify')],
+        [`${rootNm}/@gjsify`]:
+            where === 'nested' ? [dir('webkit-native')] : [dir('webkit-native'), dir(`webkit-native-${target}`)],
+        [facade]: [dir('prebuilds')],
+        [`${facade}/prebuilds`]: [],
+        [companion]: [dir('prebuilds')],
+        [`${companion}/prebuilds`]: [dir(target)],
+        [prebuild]: [file('WebKit-6.0.typelib'), file('libgjsifywebkit.dylib')],
+    };
+    if (where === 'nested') {
+        dirs[companionNm] = [dir('@gjsify')];
+        dirs[`${companionNm}/@gjsify`] = [dir(`webkit-native-${target}`)];
+    }
+    return {
+        root,
+        prebuild,
+        fs: fakeFs({
+            dirs,
+            manifests: {
+                [`${facade}/package.json`]: {
+                    name: '@gjsify/webkit-native',
+                    gjsify: { prebuilds: 'prebuilds', platforms: [target] },
+                },
+                [`${companion}/package.json`]: {
+                    name: `@gjsify/webkit-native-${target}`,
+                    gjsify: { prebuilds: 'prebuilds', platforms: [target] },
+                },
+            },
+        }),
+    };
+}
+
+test('resolves the companion when npm hoists it beside the facade', () => {
+    const { root, prebuild, fs } = splitTree({ where: 'hoisted' });
+    assert.deepEqual(discoverPrebuiltTypelibDirs({ startDir: root, platform: 'darwin', arch: 'x64', fs }), [prebuild]);
+});
+
+test('resolves the companion when it is NESTED under the facade', () => {
+    // Walking up from node-gi never enters `@gjsify/webkit-native/node_modules`, so
+    // pass one cannot see this at all. `resolvePlatformSibling` restarts the walk from
+    // the DECLARING package's directory, and this is the shape that needs it — a
+    // version conflict blocks hoisting, and pnpm with hoisting off looks the same.
+    const { root, prebuild, fs } = splitTree({ where: 'nested' });
+    assert.deepEqual(discoverPrebuiltTypelibDirs({ startDir: root, platform: 'darwin', arch: 'x64', fs }), [prebuild]);
+});
+
+test('loads a pre-rename tarball under the legacy uname spelling', () => {
+    // AGENTS.md keeps `linux-x86_64` READ-only so tarballs published before the rename
+    // still load. A single `${platform}-${arch}` probe cannot see one.
+    const nm = '/app/node_modules';
+    const pkg = `${nm}/@gjsify/tls-native-linux-x86_64`;
+    const prebuild = `${pkg}/prebuilds/linux-x86_64`;
+    const fs = fakeFs({
+        dirs: {
+            [nm]: [dir('@gjsify')],
+            [`${nm}/@gjsify`]: [dir('tls-native-linux-x86_64')],
+            [pkg]: [dir('prebuilds')],
+            [`${pkg}/prebuilds`]: [dir('linux-x86_64')],
+            [prebuild]: [file('GjsifyTls-1.0.typelib')],
+        },
+        manifests: {
+            [`${pkg}/package.json`]: {
+                name: '@gjsify/tls-native-linux-x86_64',
+                gjsify: { prebuilds: 'prebuilds', platforms: ['linux-x86_64'] },
+            },
+        },
+    });
+    assert.deepEqual(discoverPrebuiltTypelibDirs({ startDir: '/app', platform: 'linux', arch: 'x64', fs }), [prebuild]);
+});
+
+test('prefers the musl directory on a musl host, and only on linux', () => {
+    const nm = '/app/node_modules';
+    const pkg = `${nm}/@gjsify/x-linux-x64`;
+    const fs = fakeFs({
+        dirs: {
+            [nm]: [dir('@gjsify')],
+            [`${nm}/@gjsify`]: [dir('x-linux-x64')],
+            [pkg]: [dir('prebuilds')],
+            [`${pkg}/prebuilds`]: [dir('linux-x64'), dir('linux-x64-musl')],
+            [`${pkg}/prebuilds/linux-x64`]: [file('X-1.0.typelib')],
+            [`${pkg}/prebuilds/linux-x64-musl`]: [file('X-1.0.typelib')],
+        },
+        manifests: {
+            [`${pkg}/package.json`]: { name: '@gjsify/x-linux-x64', gjsify: { prebuilds: 'prebuilds' } },
+        },
+    });
+    const musl = discoverPrebuiltTypelibDirs({
+        startDir: '/app',
+        platform: 'linux',
+        arch: 'x64',
+        musl: true,
+        fs,
+    });
+    assert.deepEqual(musl, [`${pkg}/prebuilds/linux-x64-musl`]);
+    const glibc = discoverPrebuiltTypelibDirs({
+        startDir: '/app',
+        platform: 'linux',
+        arch: 'x64',
+        musl: false,
+        fs,
+    });
+    assert.deepEqual(glibc, [`${pkg}/prebuilds/linux-x64`]);
 });
