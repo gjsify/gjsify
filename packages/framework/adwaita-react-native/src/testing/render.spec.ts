@@ -46,6 +46,30 @@ export function mount(element: React.ReactElement): ReactTestRenderer {
 export const mounted = (element: React.ReactElement): ReactTestRendererJSON =>
     mount(element).toJSON() as ReactTestRendererJSON;
 
+/**
+ * Mount, deliver ONE `onLayout` at `width`, and read the tree the widget settled on.
+ *
+ * Every size-aware widget in this package binds to the size of the VIEW rather than of
+ * the window, so its root node carries the `onLayout` and nothing downstream knows a size
+ * until one arrives. The missing-handler case is a THROW and not a skip: a widget that
+ * stopped emitting `onLayout` would otherwise leave every assertion below it reading the
+ * pre-layout tree and passing.
+ *
+ * ONE renderer, read twice — the reason is on {@link mount}.
+ */
+export function settled(element: React.ReactElement, width: number, height = 100): ReactTestRendererJSON {
+    const renderer = mount(element);
+    const before = renderer.toJSON() as ReactTestRendererJSON;
+    const onLayout = before.props.onLayout as ((event: unknown) => void) | undefined;
+    if (typeof onLayout !== 'function') {
+        throw new Error('the root view carries no onLayout, so no size can ever reach the widget');
+    }
+    act(() => {
+        onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height } } });
+    });
+    return renderer.toJSON() as ReactTestRendererJSON;
+}
+
 /** A node's element children, with text children refused rather than silently skipped. */
 export function childrenOf(node: ReactTestRendererJSON): ReactTestRendererJSON[] {
     const children = node.children ?? [];

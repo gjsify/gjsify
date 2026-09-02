@@ -69,6 +69,18 @@ import type * as ExpanderRowNative from './widgets/expander-row.native.js';
 import type * as HeaderBarBase from './widgets/header-bar.js';
 import type * as HeaderBarGtk from './widgets/header-bar.gtk.js';
 import type * as HeaderBarNative from './widgets/header-bar.native.js';
+import type * as NavigationPageBase from './widgets/navigation-page.js';
+import type * as NavigationPageGtk from './widgets/navigation-page.gtk.js';
+import type * as NavigationPageNative from './widgets/navigation-page.native.js';
+import type * as NavigationSplitViewBase from './widgets/navigation-split-view.js';
+import type * as NavigationSplitViewGtk from './widgets/navigation-split-view.gtk.js';
+import type * as NavigationSplitViewNative from './widgets/navigation-split-view.native.js';
+import type * as NavigationViewBase from './widgets/navigation-view.js';
+import type * as NavigationViewGtk from './widgets/navigation-view.gtk.js';
+import type * as NavigationViewNative from './widgets/navigation-view.native.js';
+import type * as OverlaySplitViewBase from './widgets/overlay-split-view.js';
+import type * as OverlaySplitViewGtk from './widgets/overlay-split-view.gtk.js';
+import type * as OverlaySplitViewNative from './widgets/overlay-split-view.native.js';
 import type * as PasswordEntryRowBase from './widgets/password-entry-row.js';
 import type * as PasswordEntryRowGtk from './widgets/password-entry-row.gtk.js';
 import type * as PasswordEntryRowNative from './widgets/password-entry-row.native.js';
@@ -96,6 +108,12 @@ import type * as ToastOverlayNative from './widgets/toast-overlay.native.js';
 import type * as ToolbarViewBase from './widgets/toolbar-view.js';
 import type * as ToolbarViewGtk from './widgets/toolbar-view.gtk.js';
 import type * as ToolbarViewNative from './widgets/toolbar-view.native.js';
+import type * as ViewStackBase from './widgets/view-stack.js';
+import type * as ViewStackGtk from './widgets/view-stack.gtk.js';
+import type * as ViewStackNative from './widgets/view-stack.native.js';
+import type * as ViewSwitcherBase from './widgets/view-switcher.js';
+import type * as ViewSwitcherGtk from './widgets/view-switcher.gtk.js';
+import type * as ViewSwitcherNative from './widgets/view-switcher.native.js';
 import type * as WindowTitleBase from './widgets/window-title.js';
 import type * as WindowTitleGtk from './widgets/window-title.gtk.js';
 import type * as WindowTitleNative from './widgets/window-title.native.js';
@@ -228,6 +246,31 @@ export type PreferencesPageNativeSatisfiesBase = Assert<
 >;
 export type SpinRowGtkSatisfiesBase = Assert<SatisfiesBase<typeof SpinRowGtk, typeof SpinRowBase, 'AdwSpinRow'>>;
 export type SpinRowNativeSatisfiesBase = Assert<SatisfiesBase<typeof SpinRowNative, typeof SpinRowBase, 'AdwSpinRow'>>;
+
+export type NavigationPageGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof NavigationPageGtk, typeof NavigationPageBase, 'AdwNavigationPage'>
+>;
+export type NavigationPageNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof NavigationPageNative, typeof NavigationPageBase, 'AdwNavigationPage'>
+>;
+export type NavigationSplitViewGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof NavigationSplitViewGtk, typeof NavigationSplitViewBase, 'AdwNavigationSplitView'>
+>;
+export type NavigationSplitViewNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof NavigationSplitViewNative, typeof NavigationSplitViewBase, 'AdwNavigationSplitView'>
+>;
+export type NavigationViewGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof NavigationViewGtk, typeof NavigationViewBase, 'AdwNavigationView'>
+>;
+export type NavigationViewNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof NavigationViewNative, typeof NavigationViewBase, 'AdwNavigationView'>
+>;
+export type OverlaySplitViewGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof OverlaySplitViewGtk, typeof OverlaySplitViewBase, 'AdwOverlaySplitView'>
+>;
+export type OverlaySplitViewNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof OverlaySplitViewNative, typeof OverlaySplitViewBase, 'AdwOverlaySplitView'>
+>;
 export type SpinnerGtkSatisfiesBase = Assert<SatisfiesBase<typeof SpinnerGtk, typeof SpinnerBase, 'AdwSpinner'>>;
 export type SpinnerNativeSatisfiesBase = Assert<SatisfiesBase<typeof SpinnerNative, typeof SpinnerBase, 'AdwSpinner'>>;
 export type StatusPageGtkSatisfiesBase = Assert<
@@ -253,6 +296,18 @@ export type ToolbarViewGtkSatisfiesBase = Assert<
 >;
 export type ToolbarViewNativeSatisfiesBase = Assert<
     SatisfiesBase<typeof ToolbarViewNative, typeof ToolbarViewBase, 'AdwToolbarView'>
+>;
+export type ViewStackGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof ViewStackGtk, typeof ViewStackBase, 'AdwViewStack'>
+>;
+export type ViewStackNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof ViewStackNative, typeof ViewStackBase, 'AdwViewStack'>
+>;
+export type ViewSwitcherGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof ViewSwitcherGtk, typeof ViewSwitcherBase, 'AdwViewSwitcher'>
+>;
+export type ViewSwitcherNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof ViewSwitcherNative, typeof ViewSwitcherBase, 'AdwViewSwitcher'>
 >;
 export type WindowTitleGtkSatisfiesBase = Assert<
     SatisfiesBase<typeof WindowTitleGtk, typeof WindowTitleBase, 'AdwWindowTitle'>
@@ -302,6 +357,15 @@ export const PARITY_ASSERTIONS = [
     'PreferencesPageNativeSatisfiesBase',
     'SpinRowGtkSatisfiesBase',
     'SpinRowNativeSatisfiesBase',
+
+    'NavigationPageGtkSatisfiesBase',
+    'NavigationPageNativeSatisfiesBase',
+    'NavigationSplitViewGtkSatisfiesBase',
+    'NavigationSplitViewNativeSatisfiesBase',
+    'NavigationViewGtkSatisfiesBase',
+    'NavigationViewNativeSatisfiesBase',
+    'OverlaySplitViewGtkSatisfiesBase',
+    'OverlaySplitViewNativeSatisfiesBase',
     'SpinnerGtkSatisfiesBase',
     'SpinnerNativeSatisfiesBase',
     'StatusPageGtkSatisfiesBase',
@@ -312,6 +376,10 @@ export const PARITY_ASSERTIONS = [
     'ToastOverlayNativeSatisfiesBase',
     'ToolbarViewGtkSatisfiesBase',
     'ToolbarViewNativeSatisfiesBase',
+    'ViewStackGtkSatisfiesBase',
+    'ViewStackNativeSatisfiesBase',
+    'ViewSwitcherGtkSatisfiesBase',
+    'ViewSwitcherNativeSatisfiesBase',
     'WindowTitleGtkSatisfiesBase',
     'WindowTitleNativeSatisfiesBase',
     'WrapBoxGtkSatisfiesBase',
@@ -373,6 +441,15 @@ export default async () => {
                 'PreferencesPageNativeSatisfiesBase',
                 'SpinRowGtkSatisfiesBase',
                 'SpinRowNativeSatisfiesBase',
+
+                'NavigationPageGtkSatisfiesBase',
+                'NavigationPageNativeSatisfiesBase',
+                'NavigationSplitViewGtkSatisfiesBase',
+                'NavigationSplitViewNativeSatisfiesBase',
+                'NavigationViewGtkSatisfiesBase',
+                'NavigationViewNativeSatisfiesBase',
+                'OverlaySplitViewGtkSatisfiesBase',
+                'OverlaySplitViewNativeSatisfiesBase',
                 'SpinnerGtkSatisfiesBase',
                 'SpinnerNativeSatisfiesBase',
                 'StatusPageGtkSatisfiesBase',
@@ -383,6 +460,10 @@ export default async () => {
                 'ToastOverlayNativeSatisfiesBase',
                 'ToolbarViewGtkSatisfiesBase',
                 'ToolbarViewNativeSatisfiesBase',
+                'ViewStackGtkSatisfiesBase',
+                'ViewStackNativeSatisfiesBase',
+                'ViewSwitcherGtkSatisfiesBase',
+                'ViewSwitcherNativeSatisfiesBase',
                 'WindowTitleGtkSatisfiesBase',
                 'WindowTitleNativeSatisfiesBase',
                 'WrapBoxGtkSatisfiesBase',

@@ -23,8 +23,10 @@ import type {
     AdwBannerButtonStyle,
     AdwComboOptionInput,
     AdwLengthUnit,
+    AdwPackType,
     AdwToast,
     AdwToolbarStyle,
+    AdwViewSwitcherPolicy,
     AdwWrapBoxJustify,
     AdwWrapBoxOrientation,
     AdwWrapBoxPackDirection,
@@ -639,3 +641,291 @@ export interface AdwSpinRowProps extends AdwRowProps {
  * on a phone. Neither sibling renderer has them.
  */
 export interface AdwPasswordEntryRowProps extends AdwEntryRowProps {}
+
+// --- The navigation group ---
+//
+// `Adw.NavigationView`, the two split views, `Adw.ViewStack` and `Adw.ViewSwitcher`.
+// What separates them from everything above is that four of the five hold STATE a
+// caller does not own: which page is on top of a stack, which pane a collapsed split
+// view is showing, which page of a stack is selected. On GTK that state is
+// libadwaita's own C; on React Native it is `@gjsify/adwaita-core`'s port of the same
+// machine — `NavigationViewState`, `NavigationSplitViewState`, `OverlaySplitViewState`
+// and `ViewSwitcherState`, the classes `@gjsify/adwaita-web` and
+// `@gjsify/adwaita-nativescript` already run. Neither half re-derives the other's
+// answer, which is the rule `clamp.gtk.tsx` states for `clampAllocate`.
+
+/**
+ * `Adw.NavigationPage` — one page of an {@link AdwNavigationViewProps}.
+ *
+ * IT IS A WIDGET IN ITS OWN RIGHT ON GTK AND THAT IS WHY IT IS ONE HERE.
+ * `adw_navigation_view_add` takes an `AdwNavigationPage`, not a `GtkWidget`, and so do
+ * `adw_navigation_split_view_set_sidebar` / `_set_content` — a `Gtk.Box` handed to any
+ * of them is a rejected child. `@gjsify/adwaita-web` exposes it as its own element
+ * (`<adw-navigation-page>`) for the same reason; `@gjsify/adwaita-nativescript` does
+ * not, because a NativeScript `View` cannot carry the tag and it keeps the tag of
+ * record in the core instead.
+ */
+export interface AdwNavigationPageProps extends AdwWidgetProps {
+    /**
+     * `title` — this page's title, and the NEXT page's back-button tooltip. Default `''`.
+     *
+     * OPTIONAL IN THE TYPE AND EXPECTED IN PRACTICE, measured on libadwaita 1.9.3: a page
+     * with no title prints `AdwNavigationPage 0x… is missing a title. To hide a header bar
+     * title, consider using AdwHeaderBar:show-title instead.` — a real GTK diagnostic that
+     * the React Native half has no counterpart for, and one the GTK suite's
+     * `installDiagnosticsGate` fails on. It is not `g_return_if_fail`, so the widget still
+     * works; it is the difference between an omitted title and a deliberate one.
+     */
+    title?: string;
+    /**
+     * `tag` — the page's identity, unique within one view.
+     *
+     * `''` is a LEGAL tag and not "untagged": the C tag table is a plain `g_str_hash`
+     * table and only a NULL tag is skipped (`add_page`). An omitted prop is the NULL.
+     */
+    tag?: string;
+    /**
+     * `can-pop` — whether a shortcut or the back button may leave this page. Default true.
+     *
+     * It does NOT gate {@link AdwNavigationViewHandle.pop}, which is libadwaita's own
+     * split: `adw_navigation_view_pop` ignores it and only `pop_shortcut_cb` and
+     * `AdwBackButton` consult it.
+     */
+    canPop?: boolean;
+}
+
+/**
+ * What a caller does to an {@link AdwNavigationViewProps} through its `ref`.
+ *
+ * A PAGE IS PUSHED BY TAG, NEVER BY HANDLE, and that is the one place this surface is
+ * narrower than libadwaita's. `adw_navigation_view_push` takes an `AdwNavigationPage`
+ * and `pop_to_page` likewise; a page handle is an `Adw.NavigationPage` on GTK and a
+ * React element on React Native — two types with no shared spelling, the same wall
+ * `custom-image` hits on {@link AdwAvatarProps}. The tag overloads are strings on both
+ * halves, and a tag is what makes a page addressable at all, so those are the surface.
+ *
+ * `visiblePageTag`, `canGoBack` and `backButtonTooltip` are METHODS rather than
+ * properties because they are reads of live widget state: `Adw.NavigationView` answers
+ * them from its own stack, the React Native half from `NavigationViewState`, and a
+ * value snapshotted into an object at `useImperativeHandle` time would be stale by the
+ * first push.
+ */
+export interface AdwNavigationViewHandle {
+    /**
+     * `push_by_tag` — push the page carrying `tag`.
+     *
+     * Returns nothing, because `adw_navigation_view_push_by_tag` returns `void`: an
+     * unknown tag is a `g_critical`, not a `false`.
+     */
+    push(tag: string): void;
+    /** `pop` — pop the visible page. `false` when it was the root. */
+    pop(): boolean;
+    /** `pop_to_tag` — pop until the page carrying `tag` is visible. */
+    popToTag(tag: string): boolean;
+    /** `replace_with_tags` — replace the whole stack. The last tag becomes visible. */
+    replaceWithTags(tags: readonly string[]): void;
+    /** `visible-page`'s tag, or `null` — for an untagged page too. */
+    visiblePageTag(): string | null;
+    /** `AdwBackButton`'s visibility rule: a previous page exists AND the visible page `can-pop`. */
+    canGoBack(): boolean;
+    /** That button's tooltip — the revealed page's title, or `'Back'`. `null` when there is no button. */
+    backButtonTooltip(): string | null;
+}
+
+/**
+ * `Adw.NavigationView` — a stack of pages, one visible at a time.
+ *
+ * `children` ARE THE STATICALLY-ADDED PAGES, in `adw_navigation_view_add` order, and
+ * the first one is the root: `add_page` auto-pushes whenever the stack is EMPTY, so a
+ * declared page 0 becomes visible without anyone pushing it. Both other renderers
+ * snapshot their declared children exactly this way.
+ *
+ * Every mutation after that is a CALL through {@link AdwNavigationViewHandle}, not a
+ * prop, and that is libadwaita's shape rather than a React convenience:
+ * `Adw.NavigationView:visible-page` is READ-ONLY, and `push`/`pop` are methods. A
+ * `visiblePageTag={…}` prop would put the stack in the caller's hands on one half and
+ * in libadwaita's on the other.
+ */
+export interface AdwNavigationViewProps extends AdwWidgetProps {
+    /**
+     * `animate-transitions` — whether a push or a pop slides. Default true.
+     *
+     * CARRIED ON BOTH HALVES AND ANIMATED ONLY ON GTK, which is the same shape
+     * `@gjsify/adwaita-nativescript` records ("kept for API parity"): this package has
+     * no animation layer, so the swap is instant on React Native either way. The value
+     * still reaches `NavigationViewState`, whose `finishTransition()` seam is what a
+     * renderer with no animation settles immediately.
+     */
+    animateTransitions?: boolean;
+    /**
+     * `pop-on-escape` — whether Escape pops the visible page. Default true.
+     *
+     * Carried and inert on React Native, where there is no Escape key: the core's
+     * `popFromEscape()` is what it gates, and nothing on a phone calls it.
+     */
+    popOnEscape?: boolean;
+    /** The imperative surface — see {@link AdwNavigationViewHandle}. */
+    ref?: Ref<AdwNavigationViewHandle>;
+}
+
+/**
+ * The four sizing properties both split views share, under libadwaita's own names.
+ *
+ * They come as a QUARTET and not a single width because that is what the widgets are:
+ * a FRACTION of the view, clamped between a minimum and a maximum, with the two bounds
+ * written in a scale-aware unit. `@gjsify/adwaita-core` resolves them —
+ * `resolveSidebarBounds` then `resolveNavigationSidebarWidth` /
+ * `resolveOverlaySidebarWidth`, which answer the SAME input differently and both
+ * halves of this package run.
+ */
+export interface AdwSidebarWidthProps {
+    /** `min-sidebar-width`, in {@link sidebarWidthUnit}. Default 180. */
+    minSidebarWidth?: number;
+    /** `max-sidebar-width`, in {@link sidebarWidthUnit}. Default 280. Raised to the minimum when below it. */
+    maxSidebarWidth?: number;
+    /** `sidebar-width-fraction` — the share of the view the sidebar asks for. Default 0.25. */
+    sidebarWidthFraction?: number;
+    /** `sidebar-width-unit`. Default `sp`, which is a pixel passthrough at 96 dpi. */
+    sidebarWidthUnit?: AdwLengthUnit;
+}
+
+/**
+ * `Adw.NavigationSplitView` — a sidebar beside content, which becomes a navigation
+ * stack when collapsed.
+ *
+ * `children` IS THE CONTENT PANE and {@link sidebar} is a prop, the same split
+ * {@link AdwToolbarViewProps} makes and for the same reason — gtk-host routes a child
+ * by a `slot` prop on the CHILD, which a `ReactNode` handed in as a prop has nothing
+ * to carry.
+ *
+ * BOTH PANES ARE WRAPPED IN AN `Adw.NavigationPage` ON GTK, and that is not a
+ * convenience: `adw_navigation_split_view_set_sidebar` takes an `AdwNavigationPage`,
+ * so an unwrapped `Gtk.Box` is a rejected child. Hence the four `sidebar*` /
+ * `content*` page properties below — the tag pair is what
+ * `@gjsify/adwaita-nativescript` calls `sidebarTag`/`contentTag` for exactly this
+ * reason ("a `View` is not an `Adw.NavigationPage`"), and `@gjsify/adwaita-web` reads
+ * the same `tag` off its slotted pane.
+ */
+export interface AdwNavigationSplitViewProps extends AdwWidgetProps, AdwSidebarWidthProps {
+    /** `sidebar` — the sidebar pane's content. */
+    sidebar?: ReactNode;
+    /** The sidebar page's `Adw.NavigationPage:tag`. Colliding with {@link contentTag} is refused. */
+    sidebarTag?: string;
+    /** The content page's `Adw.NavigationPage:tag`. */
+    contentTag?: string;
+    /** The sidebar page's `Adw.NavigationPage:title`. */
+    sidebarTitle?: string;
+    /** The content page's `Adw.NavigationPage:title`. */
+    contentTitle?: string;
+    /** `collapsed` — one pane at a time. Default false. */
+    collapsed?: boolean;
+    /**
+     * `show-content` — which pane a COLLAPSED view shows. Default false (the sidebar).
+     *
+     * It is not the whole answer, which is the widget's entire point: a LONE child
+     * stays visible whatever this says, and with `sidebar-position: end` the CONTENT is
+     * the root page. That ordering table is `resolveNavigationStack` in the core, and
+     * both halves read `visiblePane` out of it rather than this flag.
+     */
+    showContent?: boolean;
+    /** `sidebar-position` — which side the sidebar is packed on. Default `start`. */
+    sidebarPosition?: AdwPackType;
+}
+
+/**
+ * `Adw.OverlaySplitView` — a sidebar beside content, which slides OVER it when
+ * collapsed instead of replacing it.
+ *
+ * Its panes are plain `GtkWidget`s, so unlike {@link AdwNavigationSplitViewProps}
+ * nothing is wrapped and there are no page properties.
+ */
+export interface AdwOverlaySplitViewProps extends AdwWidgetProps, AdwSidebarWidthProps {
+    /** `sidebar` — the sidebar pane's content. `children` is the content pane. */
+    sidebar?: ReactNode;
+    /** `collapsed` — the sidebar overlays rather than docks. Default false. */
+    collapsed?: boolean;
+    /**
+     * `show-sidebar` — whether the sidebar is revealed. Default TRUE.
+     *
+     * IT IS NOT PURELY A CALLER'S VALUE, and that is why {@link onNotifyShowSidebar}
+     * exists: unless {@link pinSidebar} is set, collapsing HIDES the sidebar and
+     * uncollapsing SHOWS it (`adw_overlay_split_view_set_collapsed`). Both halves
+     * report that back rather than silently disagreeing with the prop.
+     */
+    showSidebar?: boolean;
+    /** `pin-sidebar` — collapsing leaves {@link showSidebar} alone. Default false. */
+    pinSidebar?: boolean;
+    /** `sidebar-position`. Default `start`. */
+    sidebarPosition?: AdwPackType;
+    /** `enable-show-gesture` — edge-swipe to open. Default true. */
+    enableShowGesture?: boolean;
+    /** `enable-hide-gesture` — swipe to close. Default true. */
+    enableHideGesture?: boolean;
+    /** `notify::show-sidebar` — the value the widget settled on, the caller's or its own. */
+    onNotifyShowSidebar?: (showSidebar: boolean) => void;
+}
+
+/**
+ * One page of an {@link AdwViewStackProps}.
+ *
+ * IT IS A PROP OBJECT AND NOT A WIDGET, because `Adw.ViewStackPage` is not one: it is
+ * a GObject the stack hands back from `adw_view_stack_get_page (child)`, so it can be
+ * neither a JSX child nor a `slot`. Both other renderers reach the same shape from the
+ * other direction — `@gjsify/adwaita-web` consumes its `<adw-view-stack-page>`
+ * children into descriptors at connect, `@gjsify/adwaita-nativescript` takes
+ * `add(content, name, title, icon)` — and `@gjsify/adwaita-core`'s
+ * `AdwViewStackPageSpec` is the record both already build.
+ */
+export interface AdwViewStackPageProps {
+    /** `name` — the page's identity, and what `visible-child-name` selects. */
+    name: string;
+    /** `title` — falls back to {@link name} when absent, which is the core's own deviation from C. */
+    title?: string;
+    /** `icon-name` — carried on both halves, drawn only on GTK (no icon theme on a phone). */
+    iconName?: string;
+    /** `visible` — whether the page participates in selection at all. Default true. */
+    visible?: boolean;
+    /** `badge-number` — 0 is no badge; above 999 the label is `999+`. Default 0. */
+    badgeNumber?: number;
+    /** `needs-attention` — the bare dot, with or without a badge. Default false. */
+    needsAttention?: boolean;
+    /** `use-underline` — whether `_` marks a mnemonic in {@link title}. Default false. */
+    useUnderline?: boolean;
+    /** The page body. */
+    child?: ReactNode;
+}
+
+/**
+ * `Adw.ViewStack` — named pages, one visible at a time.
+ *
+ * `visibleChildName` is AUTHORED, not owned: an absent one leaves the stack on its own
+ * auto-pick (`adw_view_stack_add` selects the first VISIBLE page and notifies), and an
+ * unknown name is REFUSED rather than clamped — `adw_view_stack_set_visible_child_name`
+ * warns and leaves the selection alone. Both rules are `ViewStackState`'s, which is
+ * what `@gjsify/adwaita-web` and `@gjsify/adwaita-nativescript` run too.
+ */
+export interface AdwViewStackProps {
+    /** The pages, in `add` order. */
+    pages?: readonly AdwViewStackPageProps[];
+    /** `visible-child-name` — which page to show. */
+    visibleChildName?: string;
+    /** `notify::visible-child` — the name the stack settled on, including an auto-pick. */
+    onNotifyVisibleChild?: (name: string) => void;
+}
+
+/**
+ * `Adw.ViewSwitcher` — a row of buttons over an {@link AdwViewStackProps}.
+ *
+ * IT BUNDLES THE STACK LIBADWAITA KEEPS SEPARATE, and so do both other renderers.
+ * `Adw.ViewSwitcher:stack` is a WIDGET-valued property — the switcher points at an
+ * `Adw.ViewStack` somewhere else in the tree — and a React prop cannot hold a widget
+ * that does not exist yet on the half where widgets exist at all. So the switcher owns
+ * its pages here, exactly as `<adw-view-switcher>` and NativeScript's
+ * `AdwViewSwitcherBase` do; on GTK it still builds a real `Adw.ViewStack` and hands it
+ * to a real `Adw.ViewSwitcher` through that property, so nothing about the widget is
+ * simulated.
+ */
+export interface AdwViewSwitcherProps extends AdwViewStackProps {
+    /** `policy` — `narrow` stacks icon over label, `wide` puts them side by side. Default `narrow`. */
+    policy?: AdwViewSwitcherPolicy;
+}

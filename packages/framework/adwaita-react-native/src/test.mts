@@ -11,6 +11,7 @@ import { run } from '@gjsify/unit';
 import clampGtkSuite from './widgets/clamp.gtk.spec.js';
 import contentGtkSuite from './widgets/content.gtk.spec.js';
 import headerBarGtkSuite from './widgets/header-bar.gtk.spec.js';
+import navigationGtkSuite from './widgets/navigation.gtk.spec.js';
 import paritySuite from './parity.spec.js';
 import preferencesGtkSuite from './widgets/preferences.gtk.spec.js';
 import rowsGtkSuite from './widgets/rows.gtk.spec.js';
@@ -24,6 +25,7 @@ run({
     clampGtkSuite,
     contentGtkSuite,
     headerBarGtkSuite,
+    navigationGtkSuite,
     preferencesGtkSuite,
     rowsGtkSuite,
     statusPageGtkSuite,

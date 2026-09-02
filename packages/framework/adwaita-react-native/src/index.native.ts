@@ -17,10 +17,16 @@ export type {
     AdwEntryRowProps,
     AdwExpanderRowProps,
     AdwHeaderBarProps,
+    AdwNavigationPageProps,
+    AdwNavigationSplitViewProps,
+    AdwNavigationViewHandle,
+    AdwNavigationViewProps,
+    AdwOverlaySplitViewProps,
     AdwPasswordEntryRowProps,
     AdwPreferencesGroupProps,
     AdwPreferencesPageProps,
     AdwRowProps,
+    AdwSidebarWidthProps,
     AdwSpinRowProps,
     AdwSpinnerProps,
     AdwStatusPageProps,
@@ -28,6 +34,9 @@ export type {
     AdwToastOverlayHandle,
     AdwToastOverlayProps,
     AdwToolbarViewProps,
+    AdwViewStackPageProps,
+    AdwViewStackProps,
+    AdwViewSwitcherProps,
     AdwWidgetProps,
     AdwWindowTitleProps,
     AdwWrapBoxProps,
@@ -44,6 +53,10 @@ export { AdwComboRow } from './widgets/combo-row.native.js';
 export { AdwEntryRow } from './widgets/entry-row.native.js';
 export { AdwExpanderRow } from './widgets/expander-row.native.js';
 export { AdwHeaderBar } from './widgets/header-bar.native.js';
+export { AdwNavigationPage } from './widgets/navigation-page.native.js';
+export { AdwNavigationSplitView } from './widgets/navigation-split-view.native.js';
+export { AdwNavigationView } from './widgets/navigation-view.native.js';
+export { AdwOverlaySplitView } from './widgets/overlay-split-view.native.js';
 export { AdwPasswordEntryRow } from './widgets/password-entry-row.native.js';
 export { AdwPreferencesGroup } from './widgets/preferences-group.native.js';
 export { AdwPreferencesPage } from './widgets/preferences-page.native.js';
@@ -53,6 +66,8 @@ export { AdwStatusPage } from './widgets/status-page.native.js';
 export { AdwSwitchRow } from './widgets/switch-row.native.js';
 export { AdwToastOverlay } from './widgets/toast-overlay.native.js';
 export { AdwToolbarView } from './widgets/toolbar-view.native.js';
+export { AdwViewStack } from './widgets/view-stack.native.js';
+export { AdwViewSwitcher } from './widgets/view-switcher.native.js';
 export { AdwWindowTitle } from './widgets/window-title.native.js';
 export { AdwWrapBox } from './widgets/wrap-box.native.js';
 
@@ -78,6 +93,10 @@ import { AdwComboRow as ComboRow } from './widgets/combo-row.native.js';
 import { AdwEntryRow as EntryRow } from './widgets/entry-row.native.js';
 import { AdwExpanderRow as ExpanderRow } from './widgets/expander-row.native.js';
 import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.native.js';
+import { AdwNavigationPage as NavigationPage } from './widgets/navigation-page.native.js';
+import { AdwNavigationSplitView as NavigationSplitView } from './widgets/navigation-split-view.native.js';
+import { AdwNavigationView as NavigationView } from './widgets/navigation-view.native.js';
+import { AdwOverlaySplitView as OverlaySplitView } from './widgets/overlay-split-view.native.js';
 import { AdwPasswordEntryRow as PasswordEntryRow } from './widgets/password-entry-row.native.js';
 import { AdwPreferencesGroup as PreferencesGroup } from './widgets/preferences-group.native.js';
 import { AdwPreferencesPage as PreferencesPage } from './widgets/preferences-page.native.js';
@@ -87,6 +106,8 @@ import { AdwStatusPage as StatusPage } from './widgets/status-page.native.js';
 import { AdwSwitchRow as SwitchRow } from './widgets/switch-row.native.js';
 import { AdwToastOverlay as ToastOverlay } from './widgets/toast-overlay.native.js';
 import { AdwToolbarView as ToolbarView } from './widgets/toolbar-view.native.js';
+import { AdwViewStack as ViewStack } from './widgets/view-stack.native.js';
+import { AdwViewSwitcher as ViewSwitcher } from './widgets/view-switcher.native.js';
 import { AdwWindowTitle as WindowTitle } from './widgets/window-title.native.js';
 import { AdwWrapBox as WrapBox } from './widgets/wrap-box.native.js';
 
@@ -102,6 +123,10 @@ export const Adw = {
     EntryRow,
     ExpanderRow,
     HeaderBar,
+    NavigationPage,
+    NavigationSplitView,
+    NavigationView,
+    OverlaySplitView,
     PasswordEntryRow,
     PreferencesGroup,
     PreferencesPage,
@@ -111,6 +136,8 @@ export const Adw = {
     SwitchRow,
     ToastOverlay,
     ToolbarView,
+    ViewStack,
+    ViewSwitcher,
     WindowTitle,
     WrapBox,
 };

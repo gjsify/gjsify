@@ -66,10 +66,30 @@
             "react-native": "./lib/esm/widgets/header-bar.native.js",
             "default": "./lib/esm/widgets/header-bar.gtk.js"
         },
+        "./widgets/navigation-page": {
+            "types": "./lib/types/widgets/navigation-page.d.ts",
+            "react-native": "./lib/esm/widgets/navigation-page.native.js",
+            "default": "./lib/esm/widgets/navigation-page.gtk.js"
+        },
+        "./widgets/navigation-split-view": {
+            "types": "./lib/types/widgets/navigation-split-view.d.ts",
+            "react-native": "./lib/esm/widgets/navigation-split-view.native.js",
+            "default": "./lib/esm/widgets/navigation-split-view.gtk.js"
+        },
+        "./widgets/navigation-view": {
+            "types": "./lib/types/widgets/navigation-view.d.ts",
+            "react-native": "./lib/esm/widgets/navigation-view.native.js",
+            "default": "./lib/esm/widgets/navigation-view.gtk.js"
+        },
         "./widgets/password-entry-row": {
             "types": "./lib/types/widgets/password-entry-row.d.ts",
             "react-native": "./lib/esm/widgets/password-entry-row.native.js",
             "default": "./lib/esm/widgets/password-entry-row.gtk.js"
+        },
+        "./widgets/overlay-split-view": {
+            "types": "./lib/types/widgets/overlay-split-view.d.ts",
+            "react-native": "./lib/esm/widgets/overlay-split-view.native.js",
+            "default": "./lib/esm/widgets/overlay-split-view.gtk.js"
         },
         "./widgets/preferences-group": {
             "types": "./lib/types/widgets/preferences-group.d.ts",
@@ -110,6 +130,16 @@
             "types": "./lib/types/widgets/toolbar-view.d.ts",
             "react-native": "./lib/esm/widgets/toolbar-view.native.js",
             "default": "./lib/esm/widgets/toolbar-view.gtk.js"
+        },
+        "./widgets/view-stack": {
+            "types": "./lib/types/widgets/view-stack.d.ts",
+            "react-native": "./lib/esm/widgets/view-stack.native.js",
+            "default": "./lib/esm/widgets/view-stack.gtk.js"
+        },
+        "./widgets/view-switcher": {
+            "types": "./lib/types/widgets/view-switcher.d.ts",
+            "react-native": "./lib/esm/widgets/view-switcher.native.js",
+            "default": "./lib/esm/widgets/view-switcher.gtk.js"
         },
         "./widgets/window-title": {
             "types": "./lib/types/widgets/window-title.d.ts",

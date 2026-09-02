@@ -38,10 +38,9 @@
 // because the scheduler's `typeof navigator` probe is in both builds.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { act, type ReactTestRendererJSON } from 'react-test-renderer';
 
 import { RCT_VIEW } from '../testing/react-native.js';
-import { mount, mounted, onlyChild, type Style } from '../testing/render.spec.js';
+import { mounted, onlyChild, settled, type Style } from '../testing/render.spec.js';
 import { AdwClamp } from './clamp.native.js';
 
 /** The frame the GTK half is photographed in, so both are asked the same question. */
@@ -49,24 +48,6 @@ const FRAME_WIDTH = 1000;
 
 /** Mount, and read the tree BEFORE any layout has been delivered. */
 const firstFrame = mounted;
-
-/**
- * Mount, deliver one `onLayout` at `width`, and read the tree the clamp settled on.
- *
- * ONE renderer, read twice — the reason is on `mount` in `../testing/render.spec.ts`.
- */
-function settled(element: React.ReactElement, width: number): ReactTestRendererJSON {
-    const renderer = mount(element);
-    const before = renderer.toJSON() as ReactTestRendererJSON;
-    const onLayout = before.props.onLayout as ((event: unknown) => void) | undefined;
-    if (typeof onLayout !== 'function') {
-        throw new Error('the outer view carries no onLayout, so no size can ever reach the clamp');
-    }
-    act(() => {
-        onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 100 } } });
-    });
-    return renderer.toJSON() as ReactTestRendererJSON;
-}
 
 export default async () => {
     await describe('AdwClamp on React Native — the tree it emits', async () => {
