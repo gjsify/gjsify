@@ -98,11 +98,15 @@ const selfTestFailures = [];
 for (const [source, expected] of GIRS_RUNTIME_IMPORT_VECTORS) {
     const found = [...girsRuntimeImports(source)].map((entry) => entry.specifier);
     if (JSON.stringify(found) !== JSON.stringify(expected)) {
-        selfTestFailures.push(`  ${JSON.stringify(source)}\n    expected ${JSON.stringify(expected)}, got ${JSON.stringify(found)}`);
+        selfTestFailures.push(
+            `  ${JSON.stringify(source)}\n    expected ${JSON.stringify(expected)}, got ${JSON.stringify(found)}`,
+        );
     }
 }
 if (selfTestFailures.length > 0) {
-    process.stderr.write(`check-girs-runtime-imports: the reader failed its own vectors:\n${selfTestFailures.join('\n')}\n`);
+    process.stderr.write(
+        `check-girs-runtime-imports: the reader failed its own vectors:\n${selfTestFailures.join('\n')}\n`,
+    );
     process.exit(1);
 }
 
@@ -134,7 +138,9 @@ const stale = [...pendingHits.entries()].filter(([, hits]) => hits === 0).map(([
 const remaining = [...pendingHits.values()].reduce((sum, hits) => sum + hits, 0);
 
 if (offenders.length > 0) {
-    process.stderr.write(`check-girs-runtime-imports: ${offenders.length} runtime import(s) of the type vocabulary:\n\n`);
+    process.stderr.write(
+        `check-girs-runtime-imports: ${offenders.length} runtime import(s) of the type vocabulary:\n\n`,
+    );
     for (const offender of offenders) process.stderr.write(`  ${offender}\n`);
     process.stderr.write(
         '\n`@girs/*` has no runtime. Reach the library through the loader instead:\n' +
