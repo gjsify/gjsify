@@ -342,6 +342,31 @@ either), and the day a consumer needs the throw, the place to add it is the
 `vfunc_` branch of `makeClassPrototype`'s `materialize` (gi.js), gated on the
 engine addressing the slot.
 
+### node-gi: two `GLib.Error` shapes, and only one of them can be passed back IN
+
+A GError node-gi hands to JS takes one of two shapes, and they are not the same
+object. A **thrown** one — a failed sync invoke, via `ThrowGError` → the L1
+builder — is the `GLibError` JS class: `instanceof GLib.Error`, `.domain` the
+quark NAME string with the number on `.domainQuark` (a divergence gjs does not
+have, already documented in `docs/node-gi-gjs-surface.md`). A **marshalled** one
+— a GError-typed return or OUT parameter — is a boxed handle over the real
+`GError*`: `.domain` the numeric GQuark, as on gjs, but `instanceof GLib.Error`
+false, because L1 shadows the introspected `GLib.Error` with the JS class.
+
+Consequence, measured while landing #1495's IN direction: only the boxed one can
+go back into a GError IN argument. `GLib.propagate_error(caughtError)` and
+`GLib.propagate_error(new GLib.Error(domain, code, msg))` both refuse with
+`expected a GLib.Error for argument 'src', got Object`, while gjs accepts both —
+there, the two shapes are one object. The marshalling arm is not what is missing:
+the JS class has no `GError*` behind it at all, and `GLib.Error.new_literal` (the
+introspected constructor that would make one) is exactly what the shadow hides.
+
+Not fixed here because it is an L1 identity decision, not a type-tag arm: either
+the class gains a lazily-built backing GError, or the shadow goes and `instanceof`
++ `.matches()` move onto the boxed handle. Both change what every existing
+`catch` sees, so it wants its own conformance program pinning the two shapes'
+surfaces before either is picked.
+
 ### The Vue plugin's virtual suffix is coupled to deepkit's filter, and nothing checks it
 
 `@gjsify/rolldown-plugin-vue` mints module ids ending in `VIRTUAL_SUFFIX =
