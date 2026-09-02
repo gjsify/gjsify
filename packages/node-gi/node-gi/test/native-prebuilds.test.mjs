@@ -350,8 +350,12 @@ function splitTree({ where, target = 'darwin-x64' }) {
         [rootNm]: [dir('@gjsify')],
         [`${rootNm}/@gjsify`]:
             where === 'nested' ? [dir('webkit-native')] : [dir('webkit-native'), dir(`webkit-native-${target}`)],
-        [facade]: [dir('prebuilds')],
-        [`${facade}/prebuilds`]: [],
+        // NO `prebuilds` directory on the facade, which is the real shape:
+        // `@gjsify/webkit-native` declares the key and ships `"files": []`. An earlier
+        // fixture gave it an empty one, and that single wrong detail let a pre-filter
+        // that skipped the facade — and so skipped the sibling walk — pass this test
+        // while failing on a real nested install.
+        [facade]: [],
         [companion]: [dir('prebuilds')],
         [`${companion}/prebuilds`]: [dir(target)],
         [prebuild]: [file('WebKit-6.0.typelib'), file('libgjsifywebkit.dylib')],
@@ -384,11 +388,16 @@ test('resolves the companion when npm hoists it beside the facade', () => {
     assert.deepEqual(discoverPrebuiltTypelibDirs({ startDir: root, platform: 'darwin', arch: 'x64', fs }), [prebuild]);
 });
 
-test('resolves the companion when it is NESTED under the facade', () => {
-    // Walking up from node-gi never enters `@gjsify/webkit-native/node_modules`, so
-    // pass one cannot see this at all. `resolvePlatformSibling` restarts the walk from
-    // the DECLARING package's directory, and this is the shape that needs it — a
-    // version conflict blocks hoisting, and pnpm with hoisting off looks the same.
+test('resolves the companion when it is NESTED under a DECLARING facade', () => {
+    // Walking up from node-gi never enters the facade's own `node_modules`, so pass one
+    // cannot see this; the second pass restarts from the declaring package's directory.
+    //
+    // "DECLARING" is load-bearing and the fixture below is deliberate about it: this
+    // covers a facade that carries `gjsify.prebuilds`. The published
+    // `@gjsify/webkit-native` does NOT — it declares only `gjsify.platforms` and two
+    // optionalDependencies — so a companion nested under THAT one is found by neither
+    // this resolver nor the CLI's, for want of a candidate to start from. Measured on a
+    // real darwin install; recorded in the module header rather than papered over.
     const { root, prebuild, fs } = splitTree({ where: 'nested' });
     assert.deepEqual(discoverPrebuiltTypelibDirs({ startDir: root, platform: 'darwin', arch: 'x64', fs }), [prebuild]);
 });

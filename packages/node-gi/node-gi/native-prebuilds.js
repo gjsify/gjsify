@@ -37,13 +37,25 @@
 //     "the SINGLE definition of the musl preference order … so it cannot drift", and
 //     the root AGENTS.md keeps the retired `linux-x86_64` spelling readable so
 //     pre-rename tarballs still load. Hardcoding one spelling broke both.
-//   * `resolvePlatformSibling()` — the SECOND pass. A facade package declares
+//   * `resolvePlatformSibling()` — the SECOND pass, for a package that declares
 //     `gjsify.prebuilds` while the artifacts live in a per-target companion
-//     (`<name>-<token>`), and walking up from node-gi never enters that facade's own
-//     `node_modules`. Measured against real trees: the hoisted layout resolved, the
-//     nested one and a pnpm tree with hoisting off found NOTHING — and the split is
-//     exactly `@gjsify/webkit-native` + `@gjsify/webkit-native-darwin-x64`, the case
-//     this module exists for.
+//     (`<name>-<token>`). Walking up from node-gi never enters that package's own
+//     `node_modules`, so pass one cannot see a companion nested under it.
+//
+// A LIMIT BOTH RESOLVERS SHARE, measured rather than assumed, because the obvious
+// reading of the paragraph above is wrong. `checkPackage()` requires
+// `gjsify.prebuilds` to be a string before a package is a candidate at all — and the
+// PUBLISHED `@gjsify/webkit-native` does not declare it. It declares `gjsify.platforms`
+// and two `optionalDependencies`, and ships `"files": []`. So when npm nests the
+// companion under that facade (a version conflict, or pnpm with hoisting off), neither
+// this module NOR `detectNativePackages()` finds the typelib: there is no declaring
+// package to start the second pass from. Verified on the darwin VM against a real
+// nested install — `requireGi('WebKit', '6.0')` fails there under both resolvers.
+//
+// That is a gap in the SHARED contract, not something to paper over here with a third
+// mechanism keyed off `optionalDependencies`. The ordinary hoisted layout, which is
+// what npm produces absent a conflict, resolves — and is what the acceptance below
+// measures.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -210,13 +222,22 @@ function siblingStagedDir(pkgDir, pkgName, tokens, fs) {
  * and win32 branches are exercisable from a Linux host — the discipline
  * `detect-native-packages.ts` already states.
  *
- * COST. This runs before any namespace is required, on every addon load, and an
- * application with no native prebuild at all pays it too. The first revision read
- * every `package.json` in the tree: 940 reads and 14.7 ms warm on a 1315-package
- * install. A package cannot stage anything without a directory to stage it in, and
- * `statSync` is far cheaper than open + read + parse, so the manifest is read only for
- * a package that HAS the conventional directory or is named like a per-target
- * companion. Both shapes are covered; nothing else is opened.
+ * COST, and it is NOT cheap: this reads every `package.json` in the tree — 940 reads
+ * and about 14 ms warm on a 1315-package install — before any namespace is required,
+ * on every addon load, and an application with no native prebuild pays it too.
+ *
+ * A cheaper pre-filter was tried and is recorded here because it looked right and was
+ * not. Skipping a package that has no `prebuilds/` directory (a cheap `stat`) cut the
+ * reads to 109 — and broke the second pass entirely, because the FACADE is exactly the
+ * package that declares prebuilds while shipping none: `@gjsify/webkit-native` has
+ * `"files": []`. Skipping it skips the sibling walk that is the whole point. Measured
+ * on the darwin VM against a real nested install: `requireGi('WebKit', '6.0')` back to
+ * "Typelib file … not found". A package is a facade only according to its MANIFEST, so
+ * the manifest is what has to be read.
+ *
+ * Narrowing the scan to `@gjsify/*` would cut it honestly, but it is a different
+ * contract — "any package declaring `gjsify.prebuilds`" is what the CLI implements —
+ * and it should be decided rather than smuggled in as an optimisation.
  */
 export function discoverPrebuiltTypelibDirs({ startDir, platform, arch, musl, fs = REAL_FS }) {
     const tokens = targetCandidates(platform, arch, musl ?? hostIsMusl(platform));
@@ -234,11 +255,8 @@ export function discoverPrebuiltTypelibDirs({ startDir, platform, arch, musl, fs
             // on the path is the hazard #920 records.
             if (name.includes('gtk-runtime-')) continue;
 
-            const looksLikeCompanion = tokens.some((t) => name.endsWith(`-${t}`));
-            if (!looksLikeCompanion && !fs.isDirectory(join(pkgDir, 'prebuilds'))) continue;
-
             const manifest = fs.readJson(join(pkgDir, 'package.json'));
-            if (manifest === null) continue;
+            if (manifest?.gjsify?.prebuilds === undefined) continue;
 
             const staged =
                 stagedDirFor(pkgDir, manifest, tokens, fs) ??
