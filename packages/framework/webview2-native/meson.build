@@ -80,11 +80,21 @@ else
     sources += files('src/c/gjsify-webview2-unsupported.c')
 endif
 
+# MSVC exports NOTHING from a DLL on its own, so the symbol list is a file rather
+# than a property of the source — see the header of `gjsifywebview2.def`. Passed
+# through `kwargs:` because the option is meaningless to every other linker and a
+# `.def` handed to GCC is a link input rather than an export list.
+library_kwargs = {}
+if is_windows
+    library_kwargs += {'vs_module_defs': 'gjsifywebview2.def'}
+endif
+
 libgjsifywebview2 = library('gjsifywebview2', sources,
     dependencies: dependencies,
     cpp_args: cpp_args,
     link_args: link_args,
     install: true,
+    kwargs: library_kwargs,
     # PE has no rpath; ELF does, and it is the same requirement
     # `check-prebuild-loader-path.mjs` enforces on every shipped prebuild — the
     # library has to be findable beside its typelib. Only the win32 artifact

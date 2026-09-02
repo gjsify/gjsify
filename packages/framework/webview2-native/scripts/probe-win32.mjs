@@ -54,6 +54,8 @@ const GLib = requireGi('GLib', '2.0');
 const Gtk = requireGi('Gtk', '4.0');
 
 const MARKER = 'gjsify/webview2/loaded';
+const CHANNEL = 'gjsifyProbe';
+const POSTED = 'from the user script';
 const PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>probe</title></head>
 <body><h1 id="marker">${MARKER}</h1></body></html>`;
 
@@ -79,7 +81,31 @@ if (failures.length > 0) {
 
 Gtk.init();
 
-const view = new WebKit.WebView();
+// Every type this package exports is touched here, and that is deliberate: on
+// win32 the DLL exports only what `gjsifywebview2.def` lists, so a symbol dropped
+// from that list is a `…_get_type` GI cannot find. Constructing each type turns
+// that into a named failure on the run that drops it, rather than into a report
+// from a user.
+const settings = new WebKit.Settings();
+check("WebKit.Settings constructs with WebKitGTK's defaults", settings.enable_javascript === true);
+
+const manager = new WebKit.UserContentManager();
+manager.register_script_message_handler(CHANNEL, null);
+manager.add_script(
+    new WebKit.UserScript(
+        `window.webkit.messageHandlers.${CHANNEL}.postMessage(${JSON.stringify(POSTED)});`,
+        WebKit.UserContentInjectedFrames.ALL_FRAMES,
+        WebKit.UserScriptInjectionTime.START,
+        null,
+        null,
+    ),
+);
+let received = null;
+manager.connect(`script-message-received::${CHANNEL}`, (_manager, value) => {
+    received = value.to_string();
+});
+
+const view = new WebKit.WebView({ user_content_manager: manager });
 check('new WebKit.WebView() is a Gtk.Widget', view instanceof Gtk.Widget, `hosting mode ${view.get_hosting_mode()}`);
 check('hosting mode is OVERLAY (ADR 0035 stage 1)', view.get_hosting_mode() === WebKit.HostingMode.OVERLAY);
 check('the Win32 message pump is ATTACHED', view.get_message_pump_state() === WebKit.MessagePumpState.ATTACHED);
@@ -135,6 +161,18 @@ view.connect('load-changed', (_view, event) => {
                     } catch (error) {
                         check('get_snapshot returns an encodable GdkTexture', false, String(error));
                     }
+                    // The postMessage bridge, end to end: a document-start user
+                    // script reached `window.webkit.messageHandlers.<name>` and
+                    // the host turned it back into a detailed GObject signal.
+                    // Asserted HERE rather than on arrival because its ORDERING
+                    // was a real bug — WebView2 runs document-start scripts in
+                    // registration order, so the page side has to be in place
+                    // before any user script that uses it.
+                    check(
+                        "script-message-received carries the page's postMessage",
+                        received === POSTED,
+                        `got ${JSON.stringify(received)}`,
+                    );
                     done();
                 },
             );

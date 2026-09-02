@@ -35,7 +35,7 @@ half, and that is what stage 1 below is honest about.
 | `WebKit.UserContentManager` / `UserScript` | `AddScriptToExecuteOnDocumentCreated` |
 | `WebKit.Settings` | `ICoreWebView2Settings` |
 | `load-changed` + `WebKit.LoadEvent` | `NavigationStarting` / `ContentLoading` / `NavigationCompleted` |
-| `script-message-received::<name>` | `window.chrome.webview.postMessage`, behind a `window.webkit.messageHandlers.<name>` shim |
+| `script-message-received::<name>` | `window.chrome.webview.postMessage`, behind a `window.webkit.messageHandlers` object injected once per view |
 | `evaluate_javascript()` → a value with `to_string()` | `ExecuteScript` (which returns JSON — see below) |
 | `get_snapshot()` → `Gdk.Texture` | `CapturePreview` (PNG) decoded by `gdk_texture_new_from_bytes()` |
 
@@ -138,6 +138,14 @@ and a lie:
 - **`Settings.enable-write-console-messages-to-stdout` is not honoured.**
   WebView2 has no console-forwarding API short of a DevTools Protocol session;
   `@gjsify/iframe`'s console-capture user script works on every backend.
+- **An UNREGISTERED message channel accepts `postMessage` instead of throwing.**
+  WebKitGTK leaves `window.webkit.messageHandlers.foo` `undefined` until a
+  manager registers it, so a page posting to it gets a TypeError. Here one
+  auto-vivifying object is installed per view, ahead of every user script,
+  because WebView2 runs document-start scripts in registration order and a
+  per-handler shim would run *after* a bootstrap script that uses it — which is
+  the whole `@gjsify/iframe` bridge. The host warns once per unknown channel,
+  naming it, rather than discarding the message in silence.
 - **`x64` only.** `gvsbuild` publishes no arm64 GTK, so ADR 0024's `--arch arm64`
   refusal on Windows already forecloses the question.
 

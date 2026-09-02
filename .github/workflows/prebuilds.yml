@@ -84,6 +84,7 @@ on:
       - 'packages/framework/webview2-native/scripts/**'
       - 'packages/framework/webview2-native/meson.build'
       - 'packages/framework/webview2-native/meson_options.txt'
+      - 'packages/framework/webview2-native/gjsifywebview2.def'
       - 'packages/web/webrtc-native/src/vala/**'
       - 'packages/web/webrtc-native/meson.build'
       - 'packages/node/http-soup-bridge/src/vala/**'
@@ -154,6 +155,7 @@ on:
       - 'packages/framework/webview2-native/scripts/**'
       - 'packages/framework/webview2-native/meson.build'
       - 'packages/framework/webview2-native/meson_options.txt'
+      - 'packages/framework/webview2-native/gjsifywebview2.def'
       - 'packages/web/webrtc-native/src/vala/**'
       - 'packages/web/webrtc-native/meson.build'
       - 'packages/node/http-soup-bridge/src/vala/**'
@@ -2472,6 +2474,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # The image bakes no nodejs, and `check-ci-image-packages.mjs` holds every job
+      # on it to providing its own.
+      - name: Use Node.js 24
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
       - name: Verify the baked toolchain + record the scanner's provenance
         if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
         # The GIR is opaque by the time MSVC sees it, so "the scanner rejected
@@ -2482,6 +2492,15 @@ jobs:
           meson --version
           gjs --version
           pkg-config --modversion glib-2.0 gobject-2.0 gio-2.0 gtk4
+
+      - name: Hold the module-definition file to the header
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        # MSVC exports nothing from a DLL on its own, so `gjsifywebview2.def` is a
+        # second copy of the header's function list. This is what makes it a
+        # derivation rather than a promise — and it runs HERE because the failure
+        # is two text files disagreeing, which is readable on any host, while its
+        # symptom is a win32-only `getGType` returning null for one type.
+        run: node packages/framework/webview2-native/scripts/check-def-exports.mjs
 
       - name: Emit WebKit-6.0.gir with g-ir-scanner
         if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}

@@ -71,31 +71,6 @@ gchar *ToUtf8(const wchar_t *wide)
         reinterpret_cast<const gunichar2 *>(wide), -1, nullptr, nullptr, nullptr);
 }
 
-// A JS string literal built one character at a time, so a channel name
-// containing a quote cannot end the literal and become page-visible code.
-// Deliberately NOT `g_strescape()`, which emits OCTAL escapes for every
-// non-ASCII byte — a legacy octal escape is a SyntaxError under `"use strict"`,
-// the mistake ADR 0022's darwin backend records having made once.
-void AppendJsString(GString *out, const char *value)
-{
-    g_string_append_c(out, '"');
-    for (const guchar *p = reinterpret_cast<const guchar *>(value); *p != '\0'; p++) {
-        switch (*p) {
-            case '"': g_string_append(out, "\\\""); break;
-            case '\\': g_string_append(out, "\\\\"); break;
-            case '\n': g_string_append(out, "\\n"); break;
-            case '\r': g_string_append(out, "\\r"); break;
-            default:
-                if (*p < 0x20) {
-                    g_string_append_printf(out, "\\u%04x", *p);
-                } else {
-                    g_string_append_c(out, static_cast<gchar>(*p));
-                }
-        }
-    }
-    g_string_append_c(out, '"');
-}
-
 gchar *DescribeHresult(const char *what, HRESULT hr)
 {
     if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
@@ -404,6 +379,9 @@ struct _GjsifyWebView2Backend {
 
     std::vector<std::wstring> script_ids;   // AddScriptToExecuteOnDocumentCreated ids
     std::vector<std::string> handler_names; // registered message-handler channels
+    // Kept out of `script_ids` so `remove_all_scripts()` cannot take the bridge
+    // down with the user's scripts.
+    std::wstring preamble_id;
 
     EventRegistrationToken navigation_starting = {};
     EventRegistrationToken content_loading = {};
@@ -435,20 +413,29 @@ bool IsLive(GjsifyWebView2Backend *backend)
 // parser on this side — GLib has none and json-glib is not a dependency here.
 constexpr wchar_t kChannelSeparator = L'\x01';
 
-std::wstring MessageHandlerShim(const std::string &name)
-{
-    GString *js = g_string_new(nullptr);
-    g_string_append(js, "(function(){var w=window.webkit=window.webkit||{};");
-    g_string_append(js, "var m=w.messageHandlers=w.messageHandlers||{};var n=");
-    AppendJsString(js, name.c_str());
-    g_string_append(js, ";m[n]={postMessage:function(b){");
-    g_string_append(js, "window.chrome.webview.postMessage(n+'\\u0001'+JSON.stringify(b));");
-    g_string_append(js, "}};})();");
-
-    std::wstring wide = ToWide(js->str);
-    g_string_free(js, TRUE);
-    return wide;
-}
+// The page side of `script-message-received`, injected ONCE per view at
+// document-start and BEFORE any user script.
+//
+// ORDER IS THE WHOLE REASON IT IS SHAPED LIKE THIS. WebView2 runs
+// document-start scripts in the order they were added, and WebKitGTK's message
+// handlers are not scripts at all — so a per-handler shim would run after any
+// user script registered before it, and `@gjsify/iframe`'s bootstrap script
+// (which posts at document-start) would find `window.webkit` undefined. One
+// preamble registered before everything else removes the ordering question
+// instead of answering it per call.
+//
+// It auto-vivifies, so a channel registered after this text was fixed still
+// works. The cost is a real divergence from WebKitGTK, where an UNREGISTERED
+// `window.webkit.messageHandlers.foo` is `undefined` and the page gets a
+// TypeError: here the page can post to a channel nobody listens to. That is not
+// swallowed — the host warns once per unknown channel, naming it.
+const char *kMessageHandlersPreamble =
+    "(function(){var w=window.webkit=window.webkit||{};var c={};"
+    "var make=function(n){return {postMessage:function(b){"
+    "window.chrome.webview.postMessage(n+'\\u0001'+JSON.stringify(b));}};};"
+    "w.messageHandlers=new Proxy({},{get:function(_t,n){"
+    "if(typeof n!=='string'){return undefined;}"
+    "if(!c[n]){c[n]=make(n);}return c[n];},has:function(){return true;}});})();";
 
 // `NavigateToString` has no base-URI argument, so a caller's base URI becomes a
 // `<base>` element inside the document's own `<head>`. Two refusals rather than a
@@ -704,6 +691,20 @@ void WireEvents(GjsifyWebView2Backend *backend)
 {
     ICoreWebView2 *webview = backend->webview.Get();
 
+    // BEFORE the queue is flushed, which is what puts it ahead of every user
+    // script in `AddScriptToExecuteOnDocumentCreated`'s execution order.
+    std::wstring preamble = ToWide(kMessageHandlersPreamble);
+    webview->AddScriptToExecuteOnDocumentCreated(
+        preamble.c_str(),
+        Callback<ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler>(
+            [backend](HRESULT result, LPCWSTR id) -> HRESULT {
+                if (IsLive(backend) && SUCCEEDED(result) && id != nullptr) {
+                    backend->preamble_id = id;
+                }
+                return S_OK;
+            })
+            .Get());
+
     webview->add_NavigationStarting(
         Callback<ICoreWebView2NavigationStartingEventHandler>(
             [backend](ICoreWebView2 *, ICoreWebView2NavigationStartingEventArgs *args) -> HRESULT {
@@ -810,24 +811,38 @@ void WireEvents(GjsifyWebView2Backend *backend)
                     // `window.chrome.webview.postMessage` itself.
                     return S_OK;
                 }
+                std::string channel_utf8;
                 gchar *channel = ToUtf8(message.substr(0, split).c_str());
                 gchar *body = ToUtf8(message.substr(split + 1).c_str());
-                gjsify_webview2_web_view_emit_script_message(backend->view, channel, body);
+                if (channel != nullptr) {
+                    channel_utf8 = channel;
+                }
+
+                // The preamble auto-vivifies, so a page CAN post to a channel
+                // nobody registered — where WebKitGTK would have thrown a
+                // TypeError on an undefined handler. Warned rather than dropped:
+                // a message going nowhere with no diagnostic is the one outcome
+                // worse than the divergence itself.
+                bool known = std::find(backend->handler_names.begin(),
+                                       backend->handler_names.end(),
+                                       channel_utf8) != backend->handler_names.end();
+                if (known) {
+                    gjsify_webview2_web_view_emit_script_message(backend->view, channel, body);
+                } else {
+                    g_warning("WebKit(WebView2): a page posted to the script-message channel "
+                              "'%s', which no UserContentManager registered. On WebKitGTK "
+                              "window.webkit.messageHandlers.%s would have been undefined; this "
+                              "backend's handler object accepts any name, so the message is "
+                              "discarded here instead of throwing there.",
+                              channel_utf8.c_str(),
+                              channel_utf8.c_str());
+                }
                 g_free(channel);
                 g_free(body);
                 return S_OK;
             })
             .Get(),
         &backend->web_message_received);
-}
-
-// A completion handler that does nothing. `ExecuteScript`'s handler argument is
-// not documented as optional, and passing null is the kind of thing that works
-// until it does not.
-ComPtr<ICoreWebView2ExecuteScriptCompletedHandler> IgnoreScriptResult()
-{
-    return Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
-        [](HRESULT, LPCWSTR) -> HRESULT { return S_OK; });
 }
 
 }  // namespace
@@ -1031,7 +1046,10 @@ void gjsify_webview2_backend_set_parent(GjsifyWebView2Backend *backend, GdkSurfa
 
     HWND parent = nullptr;
     if (surface != nullptr && GDK_IS_WIN32_SURFACE(surface)) {
-        parent = gdk_win32_surface_get_handle(surface);
+        // The cast is load-bearing in C++ and would be invisible in C: GTK4
+        // declares this as returning `HGDIOBJ`, which is a `void *`, and C++ does
+        // not convert that to `HWND` implicitly.
+        parent = static_cast<HWND>(gdk_win32_surface_get_handle(surface));
     }
     if (parent == nullptr) {
         parent = ParkingWindow();
@@ -1157,53 +1175,25 @@ void gjsify_webview2_backend_remove_all_scripts(GjsifyWebView2Backend *backend)
     });
 }
 
+// Registration is HOST-SIDE ONLY. The page side is the one preamble above, which
+// answers to any channel name, so there is nothing to inject here and nothing to
+// order against a user script — which is the bug this shape exists to remove.
+// The name list is what decides whether an arriving message becomes a signal.
 void gjsify_webview2_backend_register_message_handler(
     GjsifyWebView2Backend *backend, const gchar *name)
 {
     std::string channel(name != nullptr ? name : "");
-    std::wstring shim = MessageHandlerShim(channel);
-
-    WhenSettled(backend, [backend, channel, shim]() {
-        if (backend->webview == nullptr) {
-            return;
-        }
+    if (std::find(backend->handler_names.begin(), backend->handler_names.end(), channel) ==
+        backend->handler_names.end()) {
         backend->handler_names.push_back(channel);
-        backend->webview->AddScriptToExecuteOnDocumentCreated(
-            shim.c_str(),
-            Callback<ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler>(
-                [backend](HRESULT result, LPCWSTR id) -> HRESULT {
-                    if (IsLive(backend) && SUCCEEDED(result) && id != nullptr) {
-                        backend->script_ids.push_back(std::wstring(id));
-                    }
-                    return S_OK;
-                })
-                .Get());
-        // …and into the document that is already loaded, so registering a handler
-        // after a page has loaded works the way WebKitGTK's does.
-        backend->webview->ExecuteScript(shim.c_str(), IgnoreScriptResult().Get());
-    });
+    }
 }
 
 void gjsify_webview2_backend_unregister_message_handler(
     GjsifyWebView2Backend *backend, const gchar *name)
 {
     std::string channel(name != nullptr ? name : "");
-
-    WhenSettled(backend, [backend, channel]() {
-        if (backend->webview == nullptr) {
-            return;
-        }
-        for (auto it = backend->handler_names.begin(); it != backend->handler_names.end(); ++it) {
-            if (*it == channel) {
-                backend->handler_names.erase(it);
-                break;
-            }
-        }
-        GString *js = g_string_new("try{delete window.webkit.messageHandlers[");
-        AppendJsString(js, channel.c_str());
-        g_string_append(js, "];}catch(e){}");
-        std::wstring wide = ToWide(js->str);
-        g_string_free(js, TRUE);
-        backend->webview->ExecuteScript(wide.c_str(), IgnoreScriptResult().Get());
-    });
+    backend->handler_names.erase(
+        std::remove(backend->handler_names.begin(), backend->handler_names.end(), channel),
+        backend->handler_names.end());
 }
