@@ -362,6 +362,11 @@ struct InContainer {
   gpointer ptr;
   GITransfer transfer;
   long count;  // element count (to free C-array strings)
+  // For a by-value GValue array: the caller's own GValue per element, or nullptr where
+  // the element came from a plain JS value and there is nothing to write back to. See
+  // the write-back note in FreeInContainer — some callees FILL the cells, and the
+  // typelib does not say which.
+  std::vector<gpointer> writeBack;
 };
 
 // How a container argument is used, which decides which ELEMENT kinds are

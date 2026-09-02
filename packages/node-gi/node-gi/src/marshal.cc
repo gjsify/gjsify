@@ -1588,7 +1588,8 @@ static size_t BoxedInfoSize(GIBaseInfo* info) {
 // GType where the element has one, and by introspected size where it does not, an
 // unregistered struct having no GType to compare.
 static bool ByValueRecordToCell(Napi::Env env, GITypeInfo* elem, Napi::Value v, void* dst,
-                                size_t elemSize) {
+                                size_t elemSize, gpointer* writeBackTo) {
+  if (writeBackTo != nullptr) *writeBackTo = nullptr;
   GType want = ByValueRecordGType(elem);
   if (want == G_TYPE_VALUE) {
     GValue* cell = static_cast<GValue*>(dst);
@@ -1604,6 +1605,7 @@ static bool ByValueRecordToCell(Napi::Env env, GITypeInfo* elem, Napi::Value v, 
       }
       g_value_init(cell, G_VALUE_TYPE(src));
       g_value_copy(src, cell);
+      if (writeBackTo != nullptr) *writeBackTo = src;
       return true;
     }
     return JsToFreshGValue(env, v, cell);
@@ -1638,7 +1640,7 @@ static bool ByValueRecordToCell(Napi::Env env, GITypeInfo* elem, Napi::Value v, 
 // *outCount = element count (for the IN length autofill + later free). Throws +
 // returns false on refusal (BEFORE the invoke).
 static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfer transfer,
-                       gpointer* outPtr, long* outCount) {
+                       gpointer* outPtr, long* outCount, std::vector<gpointer>* writeBack) {
   GITransfer elemTransfer =
       transfer == GI_TRANSFER_EVERYTHING ? GI_TRANSFER_EVERYTHING : GI_TRANSFER_NOTHING;
   GIArrayType at = gi_type_info_get_array_type(type);
@@ -1790,8 +1792,16 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfe
     if (byValueRecord) {
       // The record writes ITSELF into the cell — it never passes through a GIArgument,
       // because the union is eight bytes and the record is its own size.
-      ok = ByValueRecordToCell(env, elem, arr.Get(static_cast<uint32_t>(i)), dst, elemSize);
-      if (ok) written++;
+      gpointer source = nullptr;
+      ok = ByValueRecordToCell(env, elem, arr.Get(static_cast<uint32_t>(i)), dst, elemSize,
+                               &source);
+      if (ok) {
+        if (writeBack != nullptr) {
+          writeBack->resize(static_cast<size_t>(i) + 1, nullptr);
+          (*writeBack)[static_cast<size_t>(i)] = source;
+        }
+        written++;
+      }
       continue;
     }
     GIArgument a;
@@ -2034,7 +2044,33 @@ void FreeInContainer(const InContainer& c) {
           size_t elemSize = elem != nullptr ? CInElementSize(elem) : 0;
           for (long i = 0; elemSize > 0 && i < c.count; i++) {
             GValue* cell = reinterpret_cast<GValue*>(static_cast<char*>(c.ptr) + i * elemSize);
-            if (G_IS_VALUE(cell)) g_value_unset(cell);
+            if (!G_IS_VALUE(cell)) continue;
+            // WRITE-BACK, and the reason it is not optional. Some callees FILL these
+            // cells rather than read them — `GObject.Object.getv`, `Gst.Object
+            // .get_g_value_array`, `Gst.ControlBinding.get_g_value_array` — and the
+            // typelib gives NO way to tell them apart: measured on `g_object_getv`,
+            // its `values` parameter reports direction=IN, caller-allocates=false,
+            // transfer=none, byte for byte the same flags as `GLib.parse_debug_string`'s
+            // read-only `keys`. Without this, such a call silently does nothing, which
+            // is worse than the refusal it replaced. (gjs has the same gap: `getv`
+            // there also leaves the caller's GValue empty — measured on 1.88.1. This is
+            // a deliberate divergence, and the annotation is an upstream candidate.)
+            //
+            // `g_value_copy` rather than a memcpy: the cell is unset immediately after,
+            // and a bitwise copy would leave the caller's GValue pointing at a string
+            // this line is about to free. The type is matched first because g_value_copy
+            // requires it, and a callee may have set a type the caller did not.
+            GValue* dest = i < static_cast<long>(c.writeBack.size())
+                               ? static_cast<GValue*>(c.writeBack[static_cast<size_t>(i)])
+                               : nullptr;
+            if (dest != nullptr) {
+              if (!G_IS_VALUE(dest) || G_VALUE_TYPE(dest) != G_VALUE_TYPE(cell)) {
+                if (G_IS_VALUE(dest)) g_value_unset(dest);
+                g_value_init(dest, G_VALUE_TYPE(cell));
+              }
+              g_value_copy(cell, dest);
+            }
+            g_value_unset(cell);
           }
         }
         g_free(c.ptr);
@@ -2070,23 +2106,24 @@ bool JsToInContainer(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfer 
   GITypeTag tag = gi_type_info_get_tag(type);
   *outCount = 0;
   bool ok = false;
+  std::vector<gpointer> writeBack;
   if (tag == GI_TYPE_TAG_ARRAY) {
-    ok = JsToCArray(env, v, type, transfer, outPtr, outCount);
+    ok = JsToCArray(env, v, type, transfer, outPtr, outCount, &writeBack);
   } else if (tag == GI_TYPE_TAG_GLIST || tag == GI_TYPE_TAG_GSLIST) {
     ok = JsToGListLike(env, v, type, tag == GI_TYPE_TAG_GSLIST, transfer, outPtr);
   } else if (tag == GI_TYPE_TAG_GHASH) {
     ok = JsToGHashIn(env, v, type, transfer, outPtr);
   }
   if (ok && *outPtr != nullptr) {
-    containers->push_back(InContainer{
-        reinterpret_cast<GITypeInfo*>(gi_base_info_ref(type)), *outPtr, transfer, *outCount});
+    containers->push_back(InContainer{reinterpret_cast<GITypeInfo*>(gi_base_info_ref(type)),
+                                     *outPtr, transfer, *outCount, std::move(writeBack)});
   } else if (!ok && *outPtr != nullptr) {
     // An element conversion threw mid-build (JsToGListLike / JsToGHashIn still
     // published the partial container). It was never recorded for cleanup, so
     // the nodes (and any g_strdup'd keys/string values) would leak. Free it now
     // with NOTHING semantics — we still own all of it; the callee never saw it.
     InContainer partial{reinterpret_cast<GITypeInfo*>(gi_base_info_ref(type)), *outPtr,
-                        GI_TRANSFER_NOTHING, *outCount};
+                        GI_TRANSFER_NOTHING, *outCount, {}};
     FreeInContainer(partial);  // unrefs the type ref taken above
     *outPtr = nullptr;
   }
