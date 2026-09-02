@@ -46,6 +46,11 @@
             "react-native": "./lib/esm/widgets/clamp.native.js",
             "default": "./lib/esm/widgets/clamp.gtk.js"
         },
+        "./widgets/combo-row": {
+            "types": "./lib/types/widgets/combo-row.d.ts",
+            "react-native": "./lib/esm/widgets/combo-row.native.js",
+            "default": "./lib/esm/widgets/combo-row.gtk.js"
+        },
         "./widgets/entry-row": {
             "types": "./lib/types/widgets/entry-row.d.ts",
             "react-native": "./lib/esm/widgets/entry-row.native.js",
@@ -60,6 +65,26 @@
             "types": "./lib/types/widgets/header-bar.d.ts",
             "react-native": "./lib/esm/widgets/header-bar.native.js",
             "default": "./lib/esm/widgets/header-bar.gtk.js"
+        },
+        "./widgets/password-entry-row": {
+            "types": "./lib/types/widgets/password-entry-row.d.ts",
+            "react-native": "./lib/esm/widgets/password-entry-row.native.js",
+            "default": "./lib/esm/widgets/password-entry-row.gtk.js"
+        },
+        "./widgets/preferences-group": {
+            "types": "./lib/types/widgets/preferences-group.d.ts",
+            "react-native": "./lib/esm/widgets/preferences-group.native.js",
+            "default": "./lib/esm/widgets/preferences-group.gtk.js"
+        },
+        "./widgets/preferences-page": {
+            "types": "./lib/types/widgets/preferences-page.d.ts",
+            "react-native": "./lib/esm/widgets/preferences-page.native.js",
+            "default": "./lib/esm/widgets/preferences-page.gtk.js"
+        },
+        "./widgets/spin-row": {
+            "types": "./lib/types/widgets/spin-row.d.ts",
+            "react-native": "./lib/esm/widgets/spin-row.native.js",
+            "default": "./lib/esm/widgets/spin-row.gtk.js"
         },
         "./widgets/spinner": {
             "types": "./lib/types/widgets/spinner.d.ts",

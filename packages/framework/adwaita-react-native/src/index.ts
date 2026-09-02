@@ -17,10 +17,15 @@ export type {
     AdwButtonContentProps,
     AdwButtonRowProps,
     AdwClampProps,
+    AdwComboRowProps,
     AdwEntryRowProps,
     AdwExpanderRowProps,
     AdwHeaderBarProps,
+    AdwPasswordEntryRowProps,
+    AdwPreferencesGroupProps,
+    AdwPreferencesPageProps,
     AdwRowProps,
+    AdwSpinRowProps,
     AdwSpinnerProps,
     AdwStatusPageProps,
     AdwSwitchRowProps,
@@ -39,9 +44,14 @@ export { AdwBin } from './widgets/bin.js';
 export { AdwButtonContent } from './widgets/button-content.js';
 export { AdwButtonRow } from './widgets/button-row.js';
 export { AdwClamp } from './widgets/clamp.js';
+export { AdwComboRow } from './widgets/combo-row.js';
 export { AdwEntryRow } from './widgets/entry-row.js';
 export { AdwExpanderRow } from './widgets/expander-row.js';
 export { AdwHeaderBar } from './widgets/header-bar.js';
+export { AdwPasswordEntryRow } from './widgets/password-entry-row.js';
+export { AdwPreferencesGroup } from './widgets/preferences-group.js';
+export { AdwPreferencesPage } from './widgets/preferences-page.js';
+export { AdwSpinRow } from './widgets/spin-row.js';
 export { AdwSpinner } from './widgets/spinner.js';
 export { AdwStatusPage } from './widgets/status-page.js';
 export { AdwSwitchRow } from './widgets/switch-row.js';
@@ -68,9 +78,14 @@ import { AdwBin as Bin } from './widgets/bin.js';
 import { AdwButtonContent as ButtonContent } from './widgets/button-content.js';
 import { AdwButtonRow as ButtonRow } from './widgets/button-row.js';
 import { AdwClamp as Clamp } from './widgets/clamp.js';
+import { AdwComboRow as ComboRow } from './widgets/combo-row.js';
 import { AdwEntryRow as EntryRow } from './widgets/entry-row.js';
 import { AdwExpanderRow as ExpanderRow } from './widgets/expander-row.js';
 import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.js';
+import { AdwPasswordEntryRow as PasswordEntryRow } from './widgets/password-entry-row.js';
+import { AdwPreferencesGroup as PreferencesGroup } from './widgets/preferences-group.js';
+import { AdwPreferencesPage as PreferencesPage } from './widgets/preferences-page.js';
+import { AdwSpinRow as SpinRow } from './widgets/spin-row.js';
 import { AdwSpinner as Spinner } from './widgets/spinner.js';
 import { AdwStatusPage as StatusPage } from './widgets/status-page.js';
 import { AdwSwitchRow as SwitchRow } from './widgets/switch-row.js';
@@ -87,9 +102,14 @@ export const Adw = {
     ButtonContent,
     ButtonRow,
     Clamp,
+    ComboRow,
     EntryRow,
     ExpanderRow,
     HeaderBar,
+    PasswordEntryRow,
+    PreferencesGroup,
+    PreferencesPage,
+    SpinRow,
     Spinner,
     StatusPage,
     SwitchRow,

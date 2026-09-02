@@ -1,0 +1,365 @@
+/** @jsxImportSource @gjsify/gtk-host/react */
+// The preferences group's GTK half, against the libadwaita that is installed.
+//
+// THE NUMBERS IN THIS FILE ARE THE NUMBERS `preferences.native.spec.tsx` ASSERTS. That is
+// what "one API surface, two implementations" has to mean if it means anything: not two
+// files that compile, but two renderers agreeing on a number neither of them invented.
+// Each `gated` describe below has a same-named counterpart there, and every `expect` marked
+// "the pair" is asserted twice — once off the live GTK tree here, once off a React tree
+// there.
+//
+// WHY THE PROPERTY AND NOT THE PICTURE, for most of it. `clamp.gtk.spec.tsx` photographs,
+// because a clamp's whole subject is an allocation and GTK's failure mode is exit 0 with an
+// empty window. These five widgets are about STATE — which label is visible, which item is
+// selected, what the entry masks — and a photograph cannot answer any of it. What replaces
+// it is that every assertion below reads a property off the REAL widget after a real
+// allocation, and `withGtk`'s diagnostics gate makes "and libadwaita said nothing about it"
+// an assertion rather than a hope. The one place a size WOULD be the answer — is the group's
+// hidden card actually taking no space — is asserted as `get_visible()`, because that is the
+// property `update_listbox_visibility` writes and a zero height would also be true of a card
+// that simply has nothing in it.
+//
+// THE CONTROLS ARE ALLOCATED, WHICH IS NOT FREE. An empty `Gtk.Box` appended after layout is
+// 0×0, so a suite that only asks "did something render" proves nothing about a control that
+// was never given a size. Every row asserted here is inside a `laidOut` window that has been
+// pumped to a real frame, and the rows that carry a control assert a NUMBER off it.
+
+import type Adw from 'gi://Adw?version=1';
+import type Gtk from 'gi://Gtk?version=4.0';
+import { expect, it } from '@gjsify/unit';
+
+import { find, laidOut, typeOf, withGtk } from '../testing/gtk.spec.js';
+import { AdwComboRow, comboSelectedIndex } from './combo-row.gtk.js';
+import { AdwPasswordEntryRow } from './password-entry-row.gtk.js';
+import { AdwPreferencesGroup } from './preferences-group.gtk.js';
+import { AdwPreferencesPage } from './preferences-page.gtk.js';
+import { AdwSpinRow } from './spin-row.gtk.js';
+
+/**
+ * The group HEADER's labels, as `[text, visible]` — the two `update_*_visibility` writes.
+ *
+ * The walk stops at the `GtkListBox`, and that is what makes the assertion exact rather than
+ * a search. A group holding one row has THREE empty labels in it — the header's description
+ * and the row's title and subtitle — so `find the label reading ''` would match whichever
+ * came first and pass for the wrong one. Scoped to the header, the answer is a two-element
+ * array and can be compared whole.
+ */
+function headerLabels(group: Gtk.Widget): [string, boolean][] {
+    const found: [string, boolean][] = [];
+    const walk = (widget: Gtk.Widget): void => {
+        for (let child = widget.get_first_child(); child !== null; child = child.get_next_sibling()) {
+            if (typeOf(child) === 'GtkListBox') continue;
+            if (typeOf(child) === 'GtkLabel') found.push([(child as Gtk.Label).label, child.get_visible()]);
+            walk(child);
+        }
+    };
+    walk(group);
+    return found;
+}
+
+/** A `GtkListBox`'s children, which is what `Adw.PreferencesGroup` counts. */
+function rowCount(listbox: Gtk.Widget): number {
+    let count = 0;
+    for (let child = listbox.get_first_child(); child !== null; child = child.get_next_sibling()) count += 1;
+    return count;
+}
+
+export default async () => {
+    await withGtk(async ({ gated }) => {
+        await gated('the widgets are the real libadwaita ones', async () => {
+            await it('renders AdwPreferencesPage as an Adw.PreferencesPage carrying its identity', async () => {
+                laidOut(
+                    <AdwPreferencesPage title="General" iconName="preferences-system-symbolic" name="general">
+                        <AdwPreferencesGroup title="Appearance" />
+                    </AdwPreferencesPage>,
+                    (container) => {
+                        const page = find(container, 'AdwPreferencesPage') as Adw.PreferencesPage;
+                        expect(page.title).toBe('General');
+                        expect(page.iconName).toBe('preferences-system-symbolic');
+                        // `name` is the PAGE's property and not `GtkWidget:name` — the two
+                        // collide, and gtk-host's generated table omits the widget one from
+                        // this tag for exactly that reason. Reading it back is what says the
+                        // right one was written.
+                        expect(page.name).toBe('general');
+                        expect(typeOf(find(page, 'AdwPreferencesGroup'))).toBe('AdwPreferencesGroup');
+                    },
+                );
+            });
+
+            await it('renders AdwPreferencesGroup as an Adw.PreferencesGroup holding its rows', async () => {
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance" description="How it looks">
+                        <AdwComboRow title="Style" model={['Light', 'Dark']} />
+                        <AdwSpinRow title="Scale" />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        const group = find(container, 'AdwPreferencesGroup') as Adw.PreferencesGroup;
+                        expect(group.title).toBe('Appearance');
+                        expect(group.description).toBe('How it looks');
+                        // The `ordered` policy appended BOTH, in order — a `single` policy
+                        // would have kept only the last, which is the divergence
+                        // `clamp.gtk.spec.tsx` pins for `Adw.Bin`.
+                        expect(rowCount(find(group, 'GtkListBox'))).toBe(2);
+                    },
+                );
+            });
+
+            await it('renders the three rows as their real Adw types', async () => {
+                laidOut(
+                    <AdwPreferencesGroup title="All three">
+                        <AdwComboRow title="Style" model={['Light', 'Dark']} />
+                        <AdwSpinRow title="Scale" />
+                        <AdwPasswordEntryRow title="Password" />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        const group = find(container, 'AdwPreferencesGroup');
+                        expect(typeOf(find(group, 'AdwComboRow'))).toBe('AdwComboRow');
+                        expect(typeOf(find(group, 'AdwSpinRow'))).toBe('AdwSpinRow');
+                        expect(typeOf(find(group, 'AdwPasswordEntryRow'))).toBe('AdwPasswordEntryRow');
+                    },
+                );
+            });
+        });
+
+        // `update_title_visibility`, `update_description_visibility` and
+        // `update_listbox_visibility` — three of the five answers
+        // `derivePreferencesGroupHeader` gives the React Native half in one call. The pair
+        // suite asserts the same three off a React tree.
+        await gated('the group header both halves answer alike', async () => {
+            await it('hides the description label when the description is empty — the pair', async () => {
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwComboRow title="Style" model={['Light', 'Dark']} />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        const group = find(container, 'AdwPreferencesGroup');
+                        // The title label carries the text and is visible; the description
+                        // label is present, empty and NOT visible. BOTH are in the tree, and
+                        // the array is compared WHOLE — an assertion that only looked for the
+                        // hidden one would also pass over a header that lost its title.
+                        expect(headerLabels(group)).toStrictEqual([
+                            ['Appearance', true],
+                            ['', false],
+                        ]);
+                    },
+                );
+            });
+
+            await it('shows both header labels when both are set — the pair', async () => {
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance" description="How it looks">
+                        <AdwComboRow title="Style" model={['Light', 'Dark']} />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        const group = find(container, 'AdwPreferencesGroup');
+                        expect(headerLabels(group)).toStrictEqual([
+                            ['Appearance', true],
+                            ['How it looks', true],
+                        ]);
+                    },
+                );
+            });
+
+            await it('hides the CARD at zero rows and shows it at one — the pair', async () => {
+                laidOut(<AdwPreferencesGroup title="Appearance" />, (container, _window, rerender) => {
+                    const group = find(container, 'AdwPreferencesGroup');
+                    // `update_listbox_visibility` reads the RAW child count, so this is
+                    // the assertion that separates "the group is empty" from "the group
+                    // is gone": the HEADER stays, the card does not.
+                    expect(find(group, 'GtkListBox').get_visible()).toBe(false);
+                    // …and the HEADER stays. An empty group still announces what it is.
+                    expect(headerLabels(group)).toStrictEqual([
+                        ['Appearance', true],
+                        ['', false],
+                    ]);
+
+                    rerender(
+                        <AdwPreferencesGroup title="Appearance">
+                            <AdwComboRow title="Style" model={['Light', 'Dark']} />
+                        </AdwPreferencesGroup>,
+                    );
+                    const after = find(container, 'AdwPreferencesGroup');
+                    expect(find(after, 'GtkListBox').get_visible()).toBe(true);
+                    expect(rowCount(find(after, 'GtkListBox'))).toBe(1);
+                });
+            });
+        });
+
+        // `ComboState`'s selection model, against the `GtkSingleSelection` it is a port of.
+        await gated('the combo row both halves answer alike', async () => {
+            await it('carries the model and the selected position — the pair', async () => {
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwComboRow title="Style" model={['Light', 'Dark', 'System']} selected={1} />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        const row = find(container, 'AdwComboRow') as Adw.ComboRow;
+                        expect(row.model?.get_n_items()).toBe(3);
+                        expect(comboSelectedIndex(row.selected)).toBe(1);
+                    },
+                );
+            });
+
+            await it('is NOT activatable at one option and IS at two — the pair', async () => {
+                // `model_changed` sets `gtk_list_box_row_set_activatable (n_items > 1)`: one
+                // item is not a choice, so the row stops being one. This is the number the
+                // React Native half asserts as `presentsChooser`, and it is the rule a
+                // hand-written port drops — a one-item combo that still looks tappable.
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwComboRow title="Style" model={['Light']} />
+                    </AdwPreferencesGroup>,
+                    (container, _window, rerender) => {
+                        expect((find(container, 'AdwComboRow') as Gtk.ListBoxRow).activatable).toBe(false);
+                        rerender(
+                            <AdwPreferencesGroup title="Appearance">
+                                <AdwComboRow title="Style" model={['Light', 'Dark']} />
+                            </AdwPreferencesGroup>,
+                        );
+                        expect((find(container, 'AdwComboRow') as Gtk.ListBoxRow).activatable).toBe(true);
+                    },
+                );
+            });
+
+            await it('keeps the selection across an unrelated re-render', async () => {
+                // WHAT THE MEMO IN `combo-row.gtk.tsx` IS FOR, as an assertion rather than a
+                // paragraph. gtk-host writes a property only when the prop CHANGES, and a
+                // freshly constructed `Gtk.StringList` is a new value on every render — so
+                // without the memo an unrelated prop change rewrites `model`, and
+                // `adw_combo_row_set_model` takes the selection back to 0. Nothing else in
+                // this suite re-renders a combo row, so nothing else can see it.
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwComboRow title="Style" model={['Light', 'Dark', 'System']} selected={2} />
+                    </AdwPreferencesGroup>,
+                    (container, _window, rerender) => {
+                        expect(comboSelectedIndex((find(container, 'AdwComboRow') as Adw.ComboRow).selected)).toBe(2);
+                        rerender(
+                            <AdwPreferencesGroup title="Appearance">
+                                <AdwComboRow title="Theme" model={['Light', 'Dark', 'System']} selected={2} />
+                            </AdwPreferencesGroup>,
+                        );
+                        const row = find(container, 'AdwComboRow') as Adw.ComboRow;
+                        expect(row.title).toBe('Theme');
+                        expect(comboSelectedIndex(row.selected)).toBe(2);
+                    },
+                );
+            });
+
+            await it('spells an empty model’s selection the way the core does — the pair', async () => {
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwComboRow title="Style" model={[]} />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        const row = find(container, 'AdwComboRow') as Adw.ComboRow;
+                        // `AdwComboRow:selected` is a `guint`, so libadwaita stores
+                        // `GTK_INVALID_LIST_POSITION` — 4294967295. `comboSelectedIndex`
+                        // translates it to the `-1` `@gjsify/adwaita-core` uses, so one state
+                        // has one spelling across the two halves.
+                        expect(row.selected).toBe(0xff_ff_ff_ff);
+                        expect(comboSelectedIndex(row.selected)).toBe(-1);
+                    },
+                );
+            });
+        });
+
+        // `SpinState`'s clamp, against the `Gtk.Adjustment` it is a port of.
+        await gated('the spin row both halves answer alike', async () => {
+            await it('carries the authored range and value — the pair', async () => {
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwSpinRow title="Scale" lower={0} upper={200} stepIncrement={25} value={50} />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        const row = find(container, 'AdwSpinRow') as Adw.SpinRow;
+                        expect(row.value).toBe(50);
+                        expect(row.adjustment.lower).toBe(0);
+                        expect(row.adjustment.upper).toBe(200);
+                        expect(row.adjustment.stepIncrement).toBe(25);
+                    },
+                );
+            });
+
+            await it('clamps a value authored below the range — the pair', async () => {
+                // The row a hand-written port gets wrong: `value` is not stored and then
+                // corrected, it never exists out of range. 5 into 10…20 is 10 on both halves.
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwSpinRow title="Scale" lower={10} upper={20} value={5} />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        expect((find(container, 'AdwSpinRow') as Adw.SpinRow).value).toBe(10);
+                    },
+                );
+            });
+
+            await it('re-clamps when a bound moves under the value — the pair', async () => {
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwSpinRow title="Scale" lower={0} upper={100} value={80} />
+                    </AdwPreferencesGroup>,
+                    (container, _window, rerender) => {
+                        expect((find(container, 'AdwSpinRow') as Adw.SpinRow).value).toBe(80);
+                        rerender(
+                            <AdwPreferencesGroup title="Appearance">
+                                <AdwSpinRow title="Scale" lower={0} upper={50} value={80} />
+                            </AdwPreferencesGroup>,
+                        );
+                        // 80 was legal and is not any more. Both halves answer 50.
+                        expect((find(container, 'AdwSpinRow') as Adw.SpinRow).value).toBe(50);
+                    },
+                );
+            });
+
+            await it('formats the value with `digits` — the pair, as a STRING', async () => {
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwSpinRow title="Scale" lower={0} upper={10} stepIncrement={1} value={3.14159} digits={2} />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        const row = find(container, 'AdwSpinRow') as Adw.SpinRow;
+                        expect(row.digits).toBe(2);
+                        // `Adw.SpinRow` implements `GtkEditable`, so the DISPLAYED text is
+                        // readable — and asserting the number alone would leave the two
+                        // halves free to draw 3.14159 and 3.14.
+                        //
+                        // THE SEPARATOR IS THE PROCESS LOCALE'S AND THE DIGITS ARE NOT.
+                        // Measured on gjs 1.88.1 under a de_DE locale: this reads `3,14`,
+                        // where the React Native half's `toFixed(2)` gives `3.14` on every
+                        // machine there is. `gtk_spin_button_update` formats through the C
+                        // library's locale; `Number.prototype.toFixed` is specified never to.
+                        // So the two halves agree on the DIGIT CONTENT and disagree on one
+                        // character, and the README names it. Normalising the separator here
+                        // keeps the pair a real assertion; building the expectation from the
+                        // locale instead would make this test measure the RUNNER, which is a
+                        // green that says nothing.
+                        expect(row.get_text().replace(',', '.')).toBe('3.14');
+                    },
+                );
+            });
+        });
+
+        // `EntryRowState` + `PasswordEntryRowState`, against the widget they are a port of.
+        await gated('the password entry row both halves answer alike', async () => {
+            await it('masks its contents on mount — the pair', async () => {
+                laidOut(<AdwPasswordEntryRow title="Password" text="hunter2" />, (container) => {
+                    const row = find(container, 'AdwPasswordEntryRow') as Adw.PasswordEntryRow;
+                    expect(row.get_text()).toBe('hunter2');
+                    // `gtk_text_set_visibility (FALSE)` is what the mask IS, and the internal
+                    // `GtkText` is where it lives. The React Native half asserts the same
+                    // state as `secureTextEntry: true`.
+                    expect((find(row, 'GtkText') as Gtk.Text).visibility).toBe(false);
+                });
+            });
+
+            await it('counts `max-length` and truncates past it — the pair', async () => {
+                laidOut(<AdwPasswordEntryRow title="Password" text="abcdefgh" maxLength={4} />, (container) => {
+                    const row = find(container, 'AdwPasswordEntryRow') as Adw.PasswordEntryRow;
+                    expect(row.maxLength).toBe(4);
+                    expect(row.get_text()).toBe('abcd');
+                });
+            });
+        });
+    });
+};

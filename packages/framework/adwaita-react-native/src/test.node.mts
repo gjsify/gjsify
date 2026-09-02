@@ -17,6 +17,7 @@ import clampNativeSuite from './widgets/clamp.native.spec.js';
 import doubleSuite from './testing/react-native.spec.js';
 import headerBarNativeSuite from './widgets/header-bar.native.spec.js';
 import paritySuite from './parity.spec.js';
+import preferencesNativeSuite from './widgets/preferences.native.spec.js';
 import rowsNativeSuite from './widgets/rows.native.spec.js';
 import spinnerNativeSuite from './widgets/spinner.native.spec.js';
 import statusPageNativeSuite from './widgets/status-page.native.spec.js';
@@ -34,6 +35,7 @@ run({
     buttonContentNativeSuite,
     clampNativeSuite,
     headerBarNativeSuite,
+    preferencesNativeSuite,
     rowsNativeSuite,
     spinnerNativeSuite,
     statusPageNativeSuite,
