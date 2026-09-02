@@ -191,11 +191,12 @@
 # WHAT THE NUMBERS ATTRIBUTE TO, because a count is not a finding
 #
 # win32's react-native probe read 7 of 848 against 2 of 857 on darwin (measured
-# 2026-08-31), which looks like a Windows wall and is not one. Attributed: 2 were the
+# 2026-08-31), which looks like a Windows wall and is not one. Attributed: 2 are the
 # cross-OS #1438 baseline and 1 a knock-on of one of those (the same `popped` seam) —
-# all three closed in the engine, which is why darwin's step is a gate now and this
-# one's expected count is FOUR. 2 are inherited from the
-# gtk-host table defect above (#1446), and 2 are POSIX-shaped ASSERTIONS — the
+# fixed in the ENGINE on 2026-09-02 and still counted here, because the fix is in the
+# addon's C++ and these legs install the PUBLISHED addon (see the table above): the
+# first release carrying it is what removes them, not the merge. 2 are inherited from
+# the gtk-host table defect above (#1446), and 2 are POSIX-shaped ASSERTIONS — the
 # Image/ImageBackground vectors round-trip `/nonexistent-gjsify-vector.png` through
 # `Gio.File.new_for_path` and assert `get_path()` returns it unchanged, where
 # `get_path()` answers the NATIVE path and GLib correctly hands back
@@ -235,12 +236,12 @@
 #     non-interactive session anyway (window stations are per-session, and
 #     `MainWindowTitle` is empty for every GTK4 window — an assertion there needs
 #     `EnumWindows` by PID from inside the interactive session).
-#   · `@gjsify/react-native`'s step GATES on darwin and is still a `continue-on-error`
-#     PROBE on win32 — see the two step comments. It was a probe on both while its
-#     Node-target suite was red on LINUX (#1438): a leg failing on that would have
-#     been red for a defect with nothing to do with either operating system, which is
-#     the reason `node-gi.yml` kept `gtk-host` out of CI until it went in at 0
-#     failures. What still holds win32 back is named there and is win32's own.
+#   · `@gjsify/react-native`'s step is a `continue-on-error` PROBE on both — see the
+#     darwin step's comment, which carries the measurement that corrected its own
+#     retirement condition. In short: an engine fix in THIS checkout is invisible to
+#     these legs until it is PUBLISHED, because the addon here is the released one, so
+#     a gate would report a defect the leg cannot fix and did not find. Same reason
+#     `node-gi.yml` kept `gtk-host` out of CI until it went in at 0 failures.
 #   · only `win32-x64`. gvsbuild publishes no arm64 GTK, so there is no
 #     `@gjsify/gtk-runtime-win32-arm64` to install and nothing to measure.
 #
@@ -399,12 +400,27 @@ jobs:
           GTK_A11Y: none
         run: node ../../infra/cli/lib/index.js run test:gjs-on-node
 
-      # A GATE since #1438 closed — the retirement condition the probe carried, met.
-      # This suite was red on LINUX on the Node target for two class-realization gaps
-      # in node-gi, and gating on it would have reported a defect this leg did not
-      # find and cannot see; both are fixed in the engine and the Linux node leg is
-      # 1222 of 1222, so a failure here is now darwin's to explain.
-      - name: '@gjsify/react-native — the full suite on the shipped closure'
+      # A PROBE, and the retirement condition it used to carry — "when #1438 closes" —
+      # was WRONG, which this leg proved by going red the moment #1438 closed and the
+      # step was flipped to a gate. #1438's fix is in the ADDON'S C++
+      # (`GetGType`/`CallStaticMethod`), and the table at the top of this file says
+      # what runs here: node-gi's JS is the CHECKOUT'S, the addon is the PUBLISHED
+      # one. So this leg CANNOT see an engine fix that has not been released yet —
+      # measured on 2026-09-02, when the Linux node leg read 1222 of 1222 with a
+      # locally built addon and this leg read 1 of 1220 with the published 0.45.0
+      # binary, the same `popped` assertion on both arches. That is not a darwin
+      # finding and gating on it reports one.
+      #
+      # The distinction is the point of the leg, not a flaw in it: it answers "does
+      # the artifact a stranger downloads run this layer" (ADR 0024 § 4), and the
+      # honest answer for an unreleased fix is "not yet".
+      #
+      # RETIREMENT CONDITION, corrected: not an issue number but a RELEASE — the first
+      # published `@gjsify/node-gi` carrying #1438's engine fix. Delete
+      # `continue-on-error` and this comment on the first run where the only failures
+      # left are this operating system's own.
+      - name: '@gjsify/react-native — probe (gating blocked until the engine fix ships)'
+        continue-on-error: true
         working-directory: packages/framework/react-native
         env:
           NODE_GI_NATIVE: prebuild
@@ -530,13 +546,11 @@ jobs:
           GTK_A11Y: none
         run: node ..\..\infra\cli\lib\index.js run test:gjs-on-node
 
-      # STILL a probe here, where the darwin copy is now a gate: #1438 closed, but
-      # win32's remaining four are two inherited from the gtk-host table above
-      # (#1446) and two POSIX-shaped assertions in this package's own image vectors
-      # — see the header's attribution. Retirement condition: when #1446 closes and
-      # those two assertions read `get_path()` as the native path it is, delete
-      # `continue-on-error` and this comment.
-      - name: '@gjsify/react-native — probe (gating blocked on #1446 + two POSIX assertions)'
+      # See the darwin job's copy of this step for why the published addon means an
+      # unreleased engine fix is invisible here. On top of that, win32 has its own
+      # two: the gtk-host table's Unix-only rows (#1446) and the POSIX-shaped image
+      # assertions in the header's attribution.
+      - name: '@gjsify/react-native — probe (gating blocked on the engine release + #1446)'
         continue-on-error: true
         working-directory: packages/framework/react-native
         env:
