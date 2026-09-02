@@ -41,11 +41,17 @@ one payload under `ship/stage/`, and wraps that payload once per format into
 assembles the layout of the host you are sitting at, so name the operating
 system whenever you want one you are not on.
 
-| Command | What lands in `ship/out/` | Your app declares |
+| Command | What lands in `ship/out/` | That target runs |
 |---|---|---|
-| `gjsify ship linux` | `my-app_1.2.3-1_all.deb`, `my-app-1.2.3-1.noarch.rpm` | `gjsify.app: "gjs"` or `"node"` |
-| `gjsify ship darwin` | `My App.app`, `my-app-1.2.3-1.arm64.zip` | `gjsify.app: "node"` |
-| `gjsify ship windows` | `My App/`, `my-app-1.2.3-1.x64.zip` | `gjsify.app: "node"` |
+| `gjsify ship linux` | `my-app_1.2.3-1_all.deb`, `my-app-1.2.3-1.noarch.rpm` | `gjs` or `node` |
+| `gjsify ship darwin` | `My App.app`, `my-app-1.2.3-1.arm64.zip` | `node` |
+| `gjsify ship windows` | `My App/`, `my-app-1.2.3-1.x64.zip` | `node` |
+
+Each target's runtime is its own: `gjsify.ship.app.<os>`, keyed `linux`,
+`darwin`, `win32`, falling back to `gjsify.app`. So one project can be GJS on
+Linux and Node where no GJS exists, and stating the second half does not restate
+the first — before that key, asking for a `.app` moved the Linux package's
+`Depends:` with it.
 
 Assembling is never host-bound, so one workstation produces all three artifact
 sets. Packing is a different question, and two formats out of nine answer it
@@ -54,9 +60,8 @@ differently. See [where each format can be packed](#where-each-format-can-be-pac
 A Linux package declares its interpreter and its GTK libraries as dependencies
 and takes them from the distribution. The macOS bundle and the Windows program
 directory carry a Node interpreter and a GTK closure inside themselves, because
-neither operating system ships one. That is why those two accept
-`gjsify.app: "node"` only, and why they need extra packages in your
-`package.json`.
+neither operating system ships one. That is why those two accept `node` only,
+and why they need extra packages in your `package.json`.
 
 - [Linux packages](/gjsify/ship/linux-packages/) covers `.deb`, `.rpm` and the
   Flatpak bundle.
@@ -78,7 +83,7 @@ run.
 | `license` (an SPDX id such as `"MIT"`) | a required field in `.deb` and `.rpm` | `gjsify.ship.license.project` |
 | `author` as `"Name <you@example.org>"` | `Maintainer:`, `Packager:` and the MSI's `Publisher` | `gjsify.ship.maintainer` |
 | `gjsify.main` (or `main`) | the built bundle the launcher runs | `gjsify.ship.bundle` |
-| `gjsify.app` | the interpreter the launcher execs, `gjs -m` or `node`. Ship refuses a package whose launcher and declared dependency disagree | none |
+| `gjsify.app` | the interpreter the launcher execs, `gjs -m` or `node`. Ship refuses a package whose launcher and declared dependency disagree | `gjsify.ship.app.<os>`, per target |
 | `scripts.build` | the build step ship runs first | pass `--skip-build` instead |
 
 Two more you have to set yourself, because nothing can derive them:
