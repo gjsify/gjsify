@@ -58,22 +58,48 @@ one layer up.
   reconnect, ICY metadata — and it cannot use `playbin3`/`uridecodebin3` at all, because
   those take a URI, not a pad. For pushing bytes you already hold, `appsrc` remains the
   right answer and nothing here changes it.
-- **Cost has to be a number, not a feeling.** Measured on darwin-x64 (Homebrew
-  `gstreamer` 1.28.5, `libsoup` 3.6.6, `glib-networking` 2.80.1):
+- **Cost has to be a number, not a feeling — and it is a number PER PLATFORM.** Both
+  columns below are file-set differences between the published `0.45.0` bundle and the
+  widened artifact of the run that built this branch, not estimates.
+
+  darwin-x64 (Homebrew `gstreamer` 1.28.5, `libsoup` 3.6.6, `glib-networking` 2.80.1):
 
   | | |
   |---|---|
-  | `libgstsoup` | 107 KiB |
-  | libsoup + libpsl + libnghttp2 + libsqlite3 | ~2.8 MiB |
-  | `libgiognutls` + gnutls, nettle, hogweed, gmp, p11-kit, libtasn1, libidn2, libunistring | 6.67 MiB |
-  | **total** | **~9.6 MiB on an 85 MiB bundle (+13 %)** |
+  | `libgstsoup` | 122 KiB |
+  | libsoup + libpsl + libnghttp2 + libsqlite3 | 2.02 MiB |
+  | `libgiognutls` + gnutls, nettle, hogweed, gmp, p11-kit, libtasn1, libidn2, libunistring | 6.83 MiB |
+  | `Soup-3.0.typelib` + the added licence texts | 411 KiB |
+  | **total** | **9.36 MiB on a 72.7 MiB bundle (+13 %)** |
 
-- **Licensing raises nothing new.** Everything added is LGPL-2.1+ / LGPL-3+ dynamically
-  linked libraries of the same family as the GLib and GTK the bundle already relocates and
-  attributes per binary. This is *not* the category the allowlist keeps out — x264, x265,
-  faac and fdk-aac are excluded because redistributing a GPL- or patent-encumbered codec
-  inside a runtime bundle is the product author's decision, not the runtime's. No codec and
-  no patent claim enters here.
+  win32-x64 (gvsbuild), and it is **not** the same order of magnitude — the number this
+  ADR first carried was the darwin one, stated as if it were the cost:
+
+  | | |
+  |---|---|
+  | `gstsoup.dll` + `Soup-3.0.typelib` + the two GIO modules | 199 KiB |
+  | libsoup + libpsl + nghttp2 + sqlite3 | 3.62 MiB |
+  | OpenSSL (`libcrypto-3-x64`, `libssl-3-x64`) — gvsbuild's TLS backend is `gioopenssl` | 8.21 MiB |
+  | MIT Kerberos (`gssapi64`, `krb5_64`, `comerr64`, `k5sprt64`) — libsoup's Negotiate auth | 1.73 MiB |
+  | **ICU (`icudt78` 31.6 MiB, `icuuc78`, `harfbuzz-icu`)** — pulled in by `psl-5.dll` | **34.04 MiB** |
+  | **total** | **47.80 MiB on a 77.5 MiB bundle (+62 %)** |
+
+  ICU alone is more than three times the entire darwin addition, and it arrives for one
+  transitive reason: gvsbuild builds libpsl against ICU where Homebrew builds it against
+  libidn2 + libunistring (2.2 MiB, already in the darwin column). Nothing about the
+  DECISION needs ICU. Reducing it is a gvsbuild-side change — build libpsl with
+  `-Druntime=libidn2`, or drop PSL from libsoup — and is follow-up work, not a blocker
+  recorded as solved.
+
+- **Licensing raises nothing new *in kind*, but "all LGPL" is not true.** The payload is
+  mixed and the notice payload has to say so: LGPL-2.1+/LGPL-3+ (libsoup, glib-networking,
+  gnutls, nettle, hogweed, gmp, libtasn1, libidn2, libunistring), **Apache-2.0** (OpenSSL 3
+  on win32), **MIT** (libpsl, nghttp2, MIT Kerberos), BSD (p11-kit), Unicode/ICU, and
+  public domain (SQLite). What matters for the allowlist is that none of it is the excluded
+  category — x264, x265, faac and fdk-aac are kept out because redistributing a GPL- or
+  patent-encumbered *codec* inside a runtime bundle is the product author's decision, not
+  the runtime's. **No codec and no patent claim enters here**, and that part of the claim
+  holds on both platforms.
 
 ## Decision
 
@@ -95,8 +121,22 @@ including over https.** Concretely:
 
 ## Consequences
 
-- The bundles grow ~13 %. That is the price of the capability and it is stated in the
-  allowlist next to the entry that costs it.
+- The bundles grow **+13 % on darwin and +62 % on win32**, and the asymmetry is the part
+  to carry forward: the two platforms do not pay the same price for the same decision, so
+  a single percentage stated without its platform is wrong on one of them. The allowlist
+  entry that costs it points here rather than restating the table.
+- **`libcrypto-3-x64.dll` and `libssl-3-x64.dll` currently ship with no licence text.**
+  The win32 licence step attributes by PREFIX — it scans `share/licenses` and `share/doc`
+  and copies what it finds — and `assertLicenseCoverage` only runs its per-binary checks
+  when `attribution === 'per-binary'`, which is the darwin mode. So the gvsbuild prefix
+  shipping no OpenSSL licence directory is invisible to every gate: the win32 bundle names
+  45 components and none of them is OpenSSL. Apache-2.0 § 4 requires the licence to travel
+  with the binary, so this is a redistribution defect, not a tidiness one. It is NOT
+  introduced by the decision above — it is exposed by it, because OpenSSL is the first
+  Apache-2.0 payload the prefix scan has had to cover. Repair, in order: make the gvsbuild
+  step install OpenSSL's `LICENSE.txt` into the prefix's licence tree, and then give the
+  win32 builder a named-component assertion so a future unlicensed family fails the build
+  instead of shipping. Until both land, the win32 bundle must not be published.
 - `Soup-3.0.typelib` now has a backing library in the bundle, so the typelib planner stops
   dropping it. `@gjsify/{tls,http2,ws}` gain a working TLS stack on a bundle-activated
   process as a consequence, not as a separate feature.

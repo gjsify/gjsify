@@ -81,13 +81,21 @@ export const GST_AUDIO_PLUGINS = [
     //     and no file list can check it. gst-elements.test.mjs asks the running backend instead;
     //     ADR 0037 § Consequences carries the measurement.
     //
-    // ~9.6 MiB, +13 %. The per-library table lives ONCE, in ADR 0037 § Decision drivers — this
+    // 9.36 MiB (+13 %) on darwin-x64 — and 47.8 MiB (+62 %) on win32-x64, which is NOT the same
+    // decision costing the same thing twice: gvsbuild builds libpsl against ICU, so `icudt78.dll`
+    // alone is 31.6 MiB. The per-platform table lives ONCE, in ADR 0037 § Decision drivers — this
     // line carried its own ~8 MiB before review, a figure taken before the keg-only lookup pulled
     // libsqlite3 into the closure, i.e. the second-copy drift this file's own header warns about.
-    // And no licensing question of the kind this file's header keeps out: the addition is
-    // LGPL-2.1+/LGPL-3+ dynamic libraries of the same family as the GLib and GTK already
-    // relocated here — no codec, no patent claim, nothing whose redistribution is the product
-    // author's call rather than ours.
+    // Quote a percentage without its platform and it is wrong on the other one.
+    //
+    // No licensing question OF THE KIND THIS FILE'S HEADER KEEPS OUT — but the payload is mixed,
+    // not the "all LGPL" this line first claimed: LGPL-2.1+/LGPL-3+ (libsoup, glib-networking,
+    // gnutls and its closure), Apache-2.0 (OpenSSL 3, which is gvsbuild's TLS backend), MIT
+    // (libpsl, nghttp2, MIT Kerberos), BSD (p11-kit), Unicode (ICU), public domain (SQLite). What
+    // the header excludes is the CODEC question — x264, x265, faac, fdk-aac — and none of that
+    // enters here: no codec, no patent claim, nothing whose redistribution is the product author's
+    // call rather than ours. See ADR 0037 § Consequences for the OpenSSL licence text that is
+    // currently NOT shipped on win32.
     'soup',
     // Output. `autodetect` is autoaudiosink, which picks the platform sink below.
     'autodetect',
