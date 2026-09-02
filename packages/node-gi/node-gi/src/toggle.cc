@@ -503,7 +503,7 @@ static void NodeGiToggleNotify(gpointer /*data*/, GObject* obj, gboolean is_last
 // hand that GObject back to JS read the freed record (`napi_get_reference_value`
 // on its `handle_ref`) or fed it to the drain, where `g_object_get_qdata` on the
 // recycled record's `gobject` field is the documented SIGSEGV. Regression:
-// gc-identity "a run_dispose()d object leaves no freed record in its qdata".
+// gc-identity "run_dispose: a surviving object keeps no freed record in its qdata".
 //
 // WHY THE LOCK AND NOT AN ATOMIC. An atomic exchange on `gobject` would remove the
 // data race and keep the bug: the reader would still be free to act on a pointer
@@ -524,8 +524,8 @@ static void NodeGiToggleNotify(gpointer /*data*/, GObject* obj, gboolean is_last
 // crossing prints `Unexpected number of toggle-refs` instead, the new wrapper never
 // goes weak, and the GObject is immortal. The old code leaked the same toggle ref
 // and took a use-after-free with it. Pinned by gc-identity "run_dispose costs
-// wrapper identity"; the adoption fix that would retire this, and the ref_count
-// discriminator rejected for it, are in status/open-todos.md.
+// wrapper identity"; the tombstone design that would retire this, and the
+// ref_count discriminator rejected for it, are in status/open-todos.md.
 static void OnGObjectFinalized(gpointer data, GObject* where_the_object_was) {
   NodeGiInstance* inst = static_cast<NodeGiInstance*>(data);
   bool enqueued = false;
