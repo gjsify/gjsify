@@ -3,7 +3,7 @@
 - **Status:** Accepted (2026-09-02)
 - **Scope:** `@gjsify/iframe` (Framework pillar) and its `WebKit.WebView` dependency on `win32-x64`; a new per-target package set (distribution per ADR 0017, OS axis per ADR 0018, artifact dependencies per ADR 0024). Sibling of [ADR 0022](0022-webkit-on-darwin.md), which decided the same question for darwin.
 - **The spike has run.** It was written before the code, because ADR 0022's Proposed draft got two of its own decisions wrong and only measurement overturned them; § *What the spike answered* now carries the results, measured on a `windows-latest` runner on 2026-08-31. The staging below survives them, with one refinement it did not anticipate. What remains unmeasured is stage 2's frame transport, and it is marked as such.
-- **Stage 1 is implemented** as `@gjsify/webview2-native`; stage 2 is unstarted. What landed, and the four things stage 1 deliberately does not do, are in § *Implementation*.
+- **Stage 1 is implemented** as `@gjsify/webview2-native`; stage 2 is unstarted. What landed, and what stage 1 deliberately does not do, are in § *Implementation*.
 
 ## Context
 
@@ -320,6 +320,15 @@ Steps 1 to 3 have landed as `@gjsify/webview2-native` +
    The pump is a `GSource` refcounted on live views, attached at construction,
    and `WebKit.MessagePumpState` + a named `GError` on every content-level call
    is what makes its absence loud instead of an eight-second timeout.
+   **The page side of `script-message-received` is ONE preamble per view, not one
+   shim per handler**, and that is an ordering finding rather than a style
+   choice: WebView2 runs `AddScriptToExecuteOnDocumentCreated` scripts in
+   registration order while WebKitGTK's message handlers are not scripts at all,
+   so a per-handler shim runs *after* any user script registered before it — and
+   `@gjsify/iframe`'s bootstrap script posts at document-start. One
+   auto-vivifying `window.webkit.messageHandlers` installed ahead of everything
+   else removes the question instead of answering it per call.
+
    **The load test is the assertion, not the build**: `scripts/probe-win32.mjs`
    loads a document through node-gi, waits for `LoadEvent.FINISHED`, reads a
    marker back out of the DOM with `evaluate_javascript` and captures a PNG — a
@@ -330,8 +339,8 @@ Steps 1 to 3 have landed as `@gjsify/webview2-native` +
 
 ### What stage 1 does not do
 
-Four gaps, each failing loudly rather than silently, because that is the
-difference between a subset and a lie:
+Each fails loudly rather than silently, because that is the difference between a
+subset and a lie:
 
 - **A user script carrying an allow or block list is REFUSED**, with a warning.
   WebView2's injection point has no URL filter, and ADR 0022 records what
@@ -346,6 +355,10 @@ difference between a subset and a lie:
   captures what is laid out.
 - **`Settings.enable-write-console-messages-to-stdout` is not honoured** —
   no console-forwarding API short of a DevTools Protocol session.
+- **An unregistered script-message channel accepts `postMessage`** where
+  WebKitGTK leaves the handler `undefined` and the page gets a TypeError. That
+  falls out of the ordering fix below, and the host warns once per unknown
+  channel rather than discarding the message in silence.
 
 ## Do not
 
