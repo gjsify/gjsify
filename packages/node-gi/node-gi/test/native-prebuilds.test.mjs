@@ -19,7 +19,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 
-import { discoverPrebuiltTypelibDirs } from '../native-prebuilds.js';
+import {
+    activateNativePrebuilds,
+    discoverPrebuiltTypelibDirs,
+    resetNativePrebuildsForTests,
+} from '../native-prebuilds.js';
 
 /**
  * A fake filesystem over a plain map of `path -> entry`.
@@ -214,4 +218,111 @@ test('de-duplicates a directory reachable twice', () => {
     assert.deepEqual(discoverPrebuiltTypelibDirs({ startDir: '/app', platform: 'darwin', arch: 'x64', fs }), [
         prebuild,
     ]);
+});
+
+// ---- THE ACTIVATION ---------------------------------------------------------
+//
+// Discovery returns nearest-first, but GI only ever sees what `prependSearchPath`
+// hands it, and a prepend makes the LAST call win. The order the search path ends
+// up in is therefore a property of the activation, not of the discovery, and the
+// same assertions `gi-library-path.test.mjs` makes about `activateGiLibraryPath`
+// apply here: reported == handed, the reported order survives the prepend, and it
+// runs at most once. Without these, a reversed loop or a dropped `unshift` would
+// leave every test above green while a HOISTED copy shadowed a nested one.
+
+/** Two installs of the same package, one nearer the start dir than the other. */
+function twoInstallTree() {
+    const near = '/app/node_modules/@gjsify/webkit-native-darwin-x64';
+    const far = '/node_modules/@gjsify/webkit-native-darwin-x64';
+    const manifest = { name: '@gjsify/webkit-native-darwin-x64', gjsify: { prebuilds: 'prebuilds' } };
+    const dirs = {};
+    const manifests = {};
+    for (const [nm, pkg] of [
+        ['/app/node_modules', near],
+        ['/node_modules', far],
+    ]) {
+        dirs[nm] = [dir('@gjsify')];
+        dirs[`${nm}/@gjsify`] = [dir('webkit-native-darwin-x64')];
+        dirs[pkg] = [dir('prebuilds')];
+        dirs[`${pkg}/prebuilds`] = [dir('darwin-x64')];
+        dirs[`${pkg}/prebuilds/darwin-x64`] = [file('WebKit-6.0.typelib')];
+        manifests[`${pkg}/package.json`] = manifest;
+    }
+    return {
+        fs: fakeFs({ dirs, manifests }),
+        near: `${near}/prebuilds/darwin-x64`,
+        far: `${far}/prebuilds/darwin-x64`,
+        options: { startDir: '/app', platform: 'darwin', arch: 'x64' },
+    };
+}
+
+/** An addon stub recording what the activation handed to GI, in call order. */
+function recordingNative() {
+    const search = [];
+    const library = [];
+    return { search, library, prependSearchPath: (p) => search.push(p), prependLibraryPath: (p) => library.push(p) };
+}
+
+test('an addon without the binding is left completely alone', () => {
+    resetNativePrebuildsForTests();
+    // Predates `prependSearchPath`: the search path must stay exactly as it was,
+    // which is the state before this module existed.
+    assert.deepEqual(activateNativePrebuilds({}), []);
+    resetNativePrebuildsForTests();
+    assert.deepEqual(activateNativePrebuilds(undefined), []);
+});
+
+test('it runs at most once', () => {
+    resetNativePrebuildsForTests();
+    const { fs, options } = twoInstallTree();
+    const native = recordingNative();
+    activateNativePrebuilds(native, { ...options, fs });
+    const afterFirst = native.search.length;
+    assert.equal(afterFirst, 2);
+    // index.js activates at import time; a consumer calling it again would
+    // otherwise grow GI's search path by the whole set on every call.
+    assert.deepEqual(activateNativePrebuilds(native, { ...options, fs }).length, 2);
+    assert.equal(native.search.length, afterFirst);
+});
+
+test('every directory it reports was actually handed to GI, on both paths', () => {
+    resetNativePrebuildsForTests();
+    const { fs, options } = twoInstallTree();
+    const native = recordingNative();
+    const applied = activateNativePrebuilds(native, { ...options, fs });
+    // The return value is the claim, `search` is what happened. Drift between them
+    // would make "nothing to add" indistinguishable from a silent failure.
+    assert.deepEqual([...native.search].sort(), [...applied].sort());
+    // A typelib is half an answer: the library it names sits in the same directory,
+    // so both paths get the same set.
+    assert.deepEqual(native.library, native.search);
+});
+
+test('the nearest install still wins after the prepend', () => {
+    resetNativePrebuildsForTests();
+    const { fs, near, far, options } = twoInstallTree();
+    const native = recordingNative();
+    const applied = activateNativePrebuilds(native, { ...options, fs });
+    assert.deepEqual(applied, [near, far]);
+    // LAST prepend wins, so the activation walks in reverse; what GI ends up
+    // searching FIRST must still be the nearest install.
+    assert.deepEqual([...native.search].reverse(), applied);
+});
+
+test('a directory GI refuses is skipped without losing the rest', () => {
+    resetNativePrebuildsForTests();
+    const { fs, near, far, options } = twoInstallTree();
+    const native = recordingNative();
+    const reject = far;
+    const guarded = {
+        prependSearchPath: (p) => {
+            if (p === reject) throw new TypeError('prependSearchPath(path: string)');
+            native.search.push(p);
+        },
+        prependLibraryPath: (p) => native.library.push(p),
+    };
+    // Never fatal, and never a half-truth either: a directory GI would not take
+    // must not appear in the returned claim.
+    assert.deepEqual(activateNativePrebuilds(guarded, { ...options, fs }), [near]);
+    assert.deepEqual(native.search, [near]);
 });
