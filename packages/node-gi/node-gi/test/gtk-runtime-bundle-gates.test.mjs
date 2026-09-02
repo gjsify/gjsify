@@ -898,6 +898,24 @@ test('win32 folds case, darwin does not — bin/ is a Windows directory', () => 
     );
 });
 
+test("BOTH builders' actual argument shapes work — darwin a Set, win32 a Map iterator", () => {
+    // Not a style point: win32 holds its closure as a Map of leaf -> source path, so the
+    // call site passes `binDlls.values()`. Passing the Map ITSELF yields [k, v] pairs and
+    // throws on .replace — caught in review, and only ever on a Windows runner otherwise.
+    const darwin = new Set(['libglib-2.0.0.dylib', 'libgstsoup.dylib']);
+    assert.deepEqual(duplicatedModuleLeaves(darwin, ['/b/lib/gstreamer-1.0/libgstsoup.dylib']), ['libgstsoup.dylib']);
+    const win32 = new Map([
+        ['glib-2.0-0.dll', 'C:\\gtk\\bin\\glib-2.0-0.dll'],
+        ['gstsoup.dll', 'C:\\gtk\\bin\\gstsoup.dll'],
+    ]);
+    assert.deepEqual(
+        duplicatedModuleLeaves(win32.values(), ['C:\\b\\lib\\gstreamer-1.0\\gstsoup.dll'], {
+            caseInsensitive: true,
+        }),
+        ['gstsoup.dll'],
+    );
+});
+
 test('the operator message names the leaves and refuses the tempting repair', () => {
     const message = formatDuplicatedModuleProblems(['libgstsoup.dylib'], { flatDir: '/b/lib' });
     assert.match(message, /MODULES DUPLICATED INTO \/b\/lib — 1 leaf/);

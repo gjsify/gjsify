@@ -653,7 +653,10 @@ if (WINDOWING) {
     // Rule 3: no module § 4a/4g/4h placed may ALSO be a flat bin/ entry. Case-folded,
     // because bin/ is a Windows directory. The darwin twin of this gate stands after its
     // § 3, and duplicatedModuleLeaves carries the class.
-    const duplicatedModules = duplicatedModuleLeaves(binDlls, placedModuleLeaves, { caseInsensitive: true });
+    // `binDlls` is a Map (leaf -> resolved source); its VALUES are what § 2a copied.
+    const duplicatedModules = duplicatedModuleLeaves(binDlls.values(), placedModuleLeaves, {
+        caseInsensitive: true,
+    });
     if (duplicatedModules.length > 0) {
         console.error(`build-gtk-runtime: ${formatDuplicatedModuleProblems(duplicatedModules, { flatDir: binOut })}`);
         process.exit(1);
