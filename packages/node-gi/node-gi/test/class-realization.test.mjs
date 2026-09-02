@@ -84,7 +84,10 @@ test('reading an unclassed GType takes no class ref, so GLib stays quiet', () =>
     // measures the SAME addon this file is measuring.
     const res = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { encoding: 'utf8' });
     assert.equal(res.stdout, 'GBytes GFile GBusType');
-    assert.equal(/CRITICAL|WARNING/.test(res.stderr), false, `GLib complained:\n${res.stderr}`);
+    // The LOG DOMAIN, not any diagnostic: an unguarded ref logs GLib-GObject-CRITICAL
+    // ("cannot retrieve class for invalid (unclassed) type"), while a host with an odd
+    // GIO module set can log GLib-GIO-WARNING for reasons that are not this test's.
+    assert.equal(/GLib-GObject-CRITICAL/.test(res.stderr), false, `GObject complained:\n${res.stderr}`);
 });
 
 // ---- Symptom 2: a class-struct static answers for the class it was CALLED on ----
