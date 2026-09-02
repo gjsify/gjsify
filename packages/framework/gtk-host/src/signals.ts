@@ -93,8 +93,9 @@ export function isEventProp(prop: string): boolean {
  * A stack rather than a counter, because the echo guard needs two facts and not
  * one: WHETHER a host write is open (`inHostWrite`) and WHICH object it is
  * writing (`isHostWriteTarget`). A nested write on a different object is still
- * our write, so the stack is what makes the depth right; `null` is the entry for
- * a window that has no object yet, which is construction.
+ * our write, so the stack is what makes the depth right; `null` is the entry for a
+ * window with no object under it — construction, or a write whose non-notify
+ * consequences must still reach the consumer (`writeVisible` in `policies.ts`).
  *
  * Why both facts, measured on gjs 1.88.1 / GTK 4.22.4 — an emission during a
  * host write falls into one of two kinds, and only one of them is an echo:
@@ -181,10 +182,12 @@ export function setHandler(el: HostElement, prop: string, next: ((...args: unkno
         // module-wide leg keeps only `notify`, which reports nothing but a
         // property.
         //
-        // The window is exactly one constructor call or one property write (the
-        // four `beginHostWrite` sites in `host.ts`) — child insertion is outside
-        // it — so nothing a user could have caused is inside. What IS inside is
-        // everything GTK does as a knock-on, which is why the target matters.
+        // The window is exactly one constructor call, one property write (the four
+        // sites in `host.ts`), or the `visible` bracket `hideBeforeRemove` puts
+        // around a remove (`writeVisible` in `policies.ts`) — child insertion and
+        // the remove itself are outside it — so nothing a user could have caused is
+        // inside. What IS inside is everything GTK does as a knock-on, which is why
+        // the target matters.
         //
         // One hazard to keep in view if the table grows: a handler the HOST
         // installs on an object whose OWN signals fire from inside a write would

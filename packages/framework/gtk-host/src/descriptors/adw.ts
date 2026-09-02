@@ -163,6 +163,16 @@ export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
         // and is NOT used — it is a fourth argument this policy has no field for, and
         // an icon belongs to the `Adw.ViewStackPage` the add RETURNS. Reaching that
         // page is a `get_page(child)` call, one layer up.
+        //
+        // AND `remove-all` COSTS THE PAGE OBJECT. A reorder removes and re-adds every
+        // child, so every `Adw.ViewStackPage` is rebuilt. `name` and `title` come back
+        // because `add_titled` re-supplies them from `layout`; MEASURED, `icon-name`,
+        // `badge-number`, `needs-attention` and `use-underline` do not —
+        // `go-home-symbolic/7/true/true` before a reversal, `null/0/false/false`
+        // after. A layer that sets them therefore has to re-apply on every commit,
+        // which is what `useViewStackPageProperties` in `@gjsify/adwaita-react-native`
+        // does with a dependency-array-free effect. Pre-existing and unrelated to
+        // `hideBeforeRemove` below: both arms of that A/B lose the same four.
         children: {
             kind: 'keyed',
             add: 'add_titled',

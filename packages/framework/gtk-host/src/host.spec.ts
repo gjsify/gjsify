@@ -992,18 +992,21 @@ export default async () => {
 
             await it('removing a page after a visible-child switch leaves nothing dangling', async () => {
                 // Reproduced from an application: an `Adw.ViewStack` behind a tab
-                // router logged ~300 `gtk_widget_set_child_visible: assertion
+                // router logged hundreds of `gtk_widget_set_child_visible: assertion
                 // 'GTK_IS_WIDGET (widget)' failed` in twelve seconds, at exit 0.
                 // The defect is libadwaita's — `hideBeforeRemove` in `types.ts`
                 // carries the source lines — but THIS host is what drives it: a
                 // keyed reorder is `remove-all`, so every round removes every page.
-                // Measured in the application, patched against unpatched: 296
-                // criticals before, 0 after, with the React loop unchanged.
+                // Measured in the application, unpatched twice and patched three
+                // times: 296 and 131 criticals against 0, 0, 0, with the React
+                // render count unchanged. The two unpatched runs differing by more
+                // than a factor of two is why neither is quoted as THE number.
                 //
                 // Every precondition below was measured one at a time, and each one
-                // alone is silent: an unrealised stack, the switch without the
-                // remove, the remove without the switch. The stale pointer is only
-                // read on dispose, so the window has to go away inside the test.
+                // alone is silent: a stack never made visible, the switch without
+                // the remove, the remove without the switch. The read that fires is
+                // on UNMAP, so the window has to go away inside the test — measured,
+                // a queued resize and a direct `measure()` leave it quiet.
                 const stack = createElement('AdwViewStack');
                 const widget = materialize(stack) as unknown as Adw.ViewStack;
                 const [a, b] = ['a', 'b'].map((n) =>
@@ -1027,6 +1030,106 @@ export default async () => {
                 expect(removed.get_visible()).toBe(true);
 
                 window.destroy();
+            });
+
+            await it('the hide before a remove costs a consumer no signal', async () => {
+                // THE PRICE OF THE FIX ABOVE, and the reason `writeVisible` in
+                // `policies.ts` opens a host-write window rather than calling
+                // `set_visible` straight. A plain remove emits no property change at
+                // all; the hide/restore pair emits three. MEASURED, removing the
+                // VISIBLE page of an `Adw.ViewStack`: two `notify::visible` on the
+                // child, plus one `notify::visible-child-name` on the STACK, because
+                // hiding the visible child runs libadwaita's `update_child_visible`
+                // and that picks another page. `<Tabs>` in `@gjsify/react-native`
+                // binds that stack signal and reads it as THE USER CLICKED, so the
+                // traffic is a navigation and not only noise.
+                const stack = createElement('AdwViewStack');
+                const widget = materialize(stack) as unknown as Adw.ViewStack;
+                const pages = ['a', 'b', 'c'].map((n) =>
+                    createElement('GtkLabel', { label: n, layout: { name: n, title: n } }),
+                );
+                for (const page of pages) insert(page, stack);
+                const removed = materialize(pages[0]) as unknown as Gtk.Widget;
+
+                const window = new Gtk.Window();
+                window.set_child(widget as unknown as Gtk.Widget);
+                window.present();
+                // libadwaita auto-picks the first page, so removing `a` IS the loud
+                // case — the one where the hide moves the selection.
+                expect(widget.get_visible_child_name()).toBe('a');
+
+                const seen: string[] = [];
+                setEventHandler(stack, 'on:notify::visible-child-name', () => {
+                    seen.push(`stack:${widget.get_visible_child_name()}`);
+                });
+                setEventHandler(pages[0], 'onNotifyVisible', () => {
+                    seen.push('a:visible');
+                });
+
+                remove(pages[0]);
+                expect(seen).toStrictEqual([]);
+
+                // The control for the half that was quiet, without which an
+                // unconnected handler would pass this vector: a change the host did
+                // NOT make reaches both handlers.
+                widget.set_visible_child_name('c');
+                removed.set_visible(false);
+                expect(seen).toStrictEqual(['stack:c', 'a:visible']);
+
+                window.destroy();
+            });
+
+            await it('every keyed container survives the sequence that strands a page', async () => {
+                // WHY `hideBeforeRemove` IS A FIELD AND NOT THE KIND, kept as a
+                // measurement rather than a sentence. `Adw.ViewStack` strands
+                // `last_visible_child` on a remove; `Gtk.Stack` and
+                // `Adw.NavigationView`, driven through the same sequence, do not.
+                //
+                // A table and not a list of three vectors, because the trap is the
+                // FOURTH keyed descriptor: one added without a row here fails the
+                // equality below, and the only way to add a row is to run the widget
+                // through the sequence and read what the gate says.
+                const drive: Record<
+                    string,
+                    { page: (name: string) => HostElement; show: (widget: Gtk.Widget, name: string) => void }
+                > = {
+                    GtkStack: {
+                        page: (name) => createElement('GtkLabel', { label: name, layout: { name, title: name } }),
+                        show: (widget, name) => (widget as unknown as Gtk.Stack).set_visible_child_name(name),
+                    },
+                    AdwViewStack: {
+                        page: (name) => createElement('GtkLabel', { label: name, layout: { name, title: name } }),
+                        show: (widget, name) => (widget as unknown as Adw.ViewStack).set_visible_child_name(name),
+                    },
+                    AdwNavigationView: {
+                        page: (name) => {
+                            const page = createElement('AdwNavigationPage', { title: name, tag: name });
+                            insert(createElement('GtkLabel', { label: name }), page);
+                            return page;
+                        },
+                        show: (widget, name) => (widget as unknown as Adw.NavigationView).push_by_tag(name),
+                    },
+                };
+                const keyed = BUILTIN_DESCRIPTORS.filter((d) => d.children.kind === 'keyed').map((d) => d.gtype);
+                expect([...keyed].sort()).toStrictEqual(Object.keys(drive).sort());
+
+                for (const gtype of keyed) {
+                    const { page, show } = drive[gtype];
+                    const parent = createElement(gtype);
+                    const widget = materialize(parent) as unknown as Gtk.Widget;
+                    const [first, second] = ['a', 'b'].map(page);
+                    insert(first, parent);
+                    insert(second, parent);
+
+                    const window = new Gtk.Window();
+                    window.set_child(widget);
+                    window.present();
+                    show(widget, 'b');
+                    remove(first);
+                    // The UNMAP is the read that fires, so the window has to go away
+                    // inside the loop or the gate has nothing to see.
+                    window.destroy();
+                }
             });
 
             await it('a slotted insert-before lands in document order', async () => {

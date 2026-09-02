@@ -181,26 +181,48 @@ export type ChildPolicy =
            * own `visible` back afterwards. Declared per widget, because it is a
            * defect in one of them rather than a property of being keyed.
            *
-           * MEASURED on libadwaita 1.9.3 / GJS 1.88.1: `adw_view_stack_remove`
-           * clears `visible_child` and then does `g_clear_object (&page->widget)`,
-           * but it never clears `last_visible_child` — three lines apart in the
-           * same function. A later reader of that pointer then dereferences a page
-           * whose widget is NULL:
+           * The defect is libadwaita's. `stack_remove` — what both
+           * `adw_view_stack_remove` and dispose call — clears `visible_child`, then
+           * does `g_clear_object (&page->widget)`, and never touches
+           * `last_visible_child`, which can still point at that same page. A later
+           * reader then dereferences a page whose widget is NULL:
            *
            *     Gtk-CRITICAL **: gtk_widget_set_child_visible: assertion 'GTK_IS_WIDGET (widget)' failed
            *
-           * Reproducer, no renderer involved: add `a` and `b`, present a window
-           * holding the stack, `set_visible_child_name('b')`, `remove(a)`, dispose.
-           * Either step alone is quiet, and an unrealised stack is quiet too — the
-           * pointer is only read on dispose, snapshot, size-allocate, or the
-           * `adw_animation_skip` an add performs mid-transition. `Gtk.Stack` does
-           * NOT reproduce, so this is libadwaita's copy of the pattern, not GTK's.
+           * Source: `refs/libadwaita/src/adw-view-stack.c` — `stack_remove` at 1184,
+           * the stale read at 934 in `transition_done_cb`. Read at 42f647f
+           * (1.10.alpha.1); that file is byte-identical at the 1.9.3 tag, which is
+           * what is installed here, so one reading covers both.
+           *
+           * MEASURED on libadwaita 1.9.3 / GTK 4.22.4 / GJS 1.88.1. Reproducer, no
+           * renderer involved: add `a` and `b`, present a window holding the stack,
+           * `set_visible_child_name('b')`, `remove(a)`, then let the window go away.
+           * Each precondition alone is silent, a stack never made visible included —
+           * `set_visible_child` only records `last_visible_child` when
+           * `gtk_widget_is_visible` answers yes. `Gtk.Stack` and
+           * `Adw.NavigationView`, the other two `keyed` descriptors, do not
+           * reproduce it at all, which is why this is a field and not the kind.
+           *
+           * WHICH read fires decides what a test has to do, so it is measured rather
+           * than listed: the UNMAP one. `AdwAnimation` connects `adw_animation_skip`
+           * to its widget's `unmap` (`adw-animation.c`) and the skip runs
+           * `transition_done_cb`, so merely hiding the window is enough and
+           * destroying it does the same — while a queued resize plus draw, and a
+           * direct `measure()`, both stayed quiet. The file's other reads (snapshot,
+           * size-allocate, measure) are real paths this reproducer does not reach.
            *
            * Hiding first is libadwaita's OWN cleanup: the visibility notify runs
-           * `update_child_visible`, which does clear `last_visible_child`. The
-           * restore afterwards is load-bearing, not cosmetic — `reorderMode`
-           * answers `remove-all` for `keyed`, so a reorder removes and re-appends
-           * every child, and one left hidden would never come back.
+           * `update_child_visible`, which does clear `last_visible_child`. Measured
+           * SUFFICIENT and not merely necessary — 400 randomised
+           * add/remove/switch/reorder steps against a live 200 ms transition, three
+           * seeds, 44/23/25 criticals unpatched against 0/0/0 patched.
+           *
+           * The restore is load-bearing. `reorderMode` answers `remove-all` for
+           * `keyed`, and measured, a reversal that hides without restoring leaves the
+           * stack with no visible child and no way back: the last line of
+           * `adw_view_stack_set_visible_child_name` is
+           * `if (gtk_widget_get_visible (page->widget)) set_visible_child (...)`, so
+           * for a hidden page it is a no-op with no warning at all.
            */
           hideBeforeRemove?: boolean;
       }
