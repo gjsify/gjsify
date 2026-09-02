@@ -66,6 +66,27 @@ function headerLabels(group: Gtk.Widget): [string, boolean][] {
 }
 
 /**
+ * The group's header box — the widget `update_header_visibility` writes.
+ *
+ * Found by its style class rather than by position, because it is what libadwaita puts the
+ * class on: `adw-preferences-group.ui` names the box `header` and the stylesheet's
+ * `min-height`/`margin-bottom` rules key off it.
+ */
+function headerBox(group: Gtk.Widget): Gtk.Widget {
+    const walk = (widget: Gtk.Widget): Gtk.Widget | null => {
+        for (let child = widget.get_first_child(); child !== null; child = child.get_next_sibling()) {
+            if (child.has_css_class('header')) return child;
+            const found = walk(child);
+            if (found !== null) return found;
+        }
+        return null;
+    };
+    const found = walk(group);
+    if (found === null) throw new Error('the preferences group has no .header box');
+    return found;
+}
+
+/**
  * The inline value view `adw-combo-row.ui` binds to `use-subtitle`, inverted.
  *
  * The walk SKIPS the popover, which holds a second `GtkListView` — the chooser's list. A
@@ -200,6 +221,46 @@ export default async () => {
                             ['Appearance', true],
                             ['How it looks', true],
                         ]);
+                    },
+                );
+            });
+
+            await it('hides the whole HEADER when neither label is set — the pair', async () => {
+                laidOut(
+                    <AdwPreferencesGroup>
+                        <AdwComboRow title="Style" model={['Light', 'Dark']} />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        const group = find(container, 'AdwPreferencesGroup');
+                        // The third of the five answers, and the only one the other rows
+                        // cannot reach: with a title set the header box is visible whatever
+                        // else is true. The React Native half asserts the same fixture.
+                        expect(headerBox(group).get_visible()).toBe(false);
+                        // …and the card stays. A group with rows and no heading is a real
+                        // state.
+                        expect(find(group, 'GtkListBox').get_visible()).toBe(true);
+                    },
+                );
+            });
+
+            await it('hides a pure-markup title, where React Native paints it — the divergence', async () => {
+                laidOut(
+                    <AdwPreferencesGroup title="<b></b>">
+                        <AdwComboRow title="Style" model={['Light', 'Dark']} />
+                    </AdwPreferencesGroup>,
+                    (container) => {
+                        const group = find(container, 'AdwPreferencesGroup');
+                        // `adw-preferences-group.ui` sets `use-markup` on both labels and
+                        // `update_title_visibility` reads `gtk_label_get_text` — the
+                        // DISPLAYED text, markup already parsed — so this title is an empty
+                        // label here. The React Native half has no Pango, paints the string
+                        // verbatim and shows it. Both sides of the README's divergence are
+                        // now measured off the same fixture rather than described.
+                        expect(headerLabels(group)).toStrictEqual([
+                            ['<b></b>', false],
+                            ['', false],
+                        ]);
+                        expect(headerBox(group).get_visible()).toBe(false);
                     },
                 );
             });

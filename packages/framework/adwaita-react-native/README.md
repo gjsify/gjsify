@@ -261,6 +261,14 @@ than smoothed over.
   on every machine there is. The two halves therefore agree on the DIGIT COUNT and differ by
   one character. Both suites assert the digits; neither builds its expectation from the
   locale, because a test that did would be measuring the machine it runs on.
+- **A range that moves past itself notifies twice more on React Native than on GTK.** The
+  GTK half builds one new `Gtk.Adjustment` from `lower`, `upper` and `stepIncrement`
+  together, so moving 0…100/50 to 200…300/250 is a single step. The React Native half
+  applies each property in its own effect — one per setter, because each has its own guard
+  in the C — so it passes through an inverted range: `setMin(200)` runs while the maximum is
+  still 100, and `SpinState`'s clamp answers the maximum. `onNotifyValue` therefore reports
+  `100, 200, 250` where GTK reports the end state. The settled value is the same on both,
+  React batches the renders, and the stream is asserted so that changing it is a decision.
 - **`AdwSpinRow` carries no `climb-rate`, `snap-to-ticks`, `numeric`, `update-policy` or
   `wrap`.** Each needs an editable text entry or a key-repeat timer the React Native half
   does not have, so carrying them would mean a property GTK honours and the phone ignores.

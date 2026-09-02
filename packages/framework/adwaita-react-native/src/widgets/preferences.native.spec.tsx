@@ -211,6 +211,42 @@ export default async () => {
             ]);
         });
 
+        await it('hides the whole HEADER when neither label is set — the pair', async () => {
+            // `update_header_visibility` is the third answer, and the only one the other
+            // rows here cannot reach: with a title set the header box is visible whatever
+            // else is true, so `headerVisible` could be replaced by `true` and stay green.
+            // It is a three-way OR, and this fixture is the only input that falsifies all
+            // three — which also pins the `hasHeaderSuffix: false` literal at the call site,
+            // since a `true` there would keep the header up with no labels in it.
+            const bare = mounted(
+                <AdwPreferencesGroup>
+                    <AdwComboRow title="Style" model={['Light', 'Dark']} />
+                </AdwPreferencesGroup>,
+            );
+            expect(hidden(childrenOf(bare)[0] as ReactTestRendererJSON)).toBe(true);
+            // …and the CARD is still there. A group with rows and no heading is a real
+            // state, and hiding the header must not take the rows with it.
+            expect(hidden(childrenOf(bare)[1] as ReactTestRendererJSON)).toBe(false);
+        });
+
+        await it('paints a pure-markup title, where GTK hides it — the divergence', async () => {
+            // The README names this one. `derivePreferencesGroupHeader` reads the DISPLAYED
+            // text, and `adw-preferences-group.ui` sets `use-markup` on both labels — so
+            // `<b></b>` is an empty label on GTK. This half has no Pango and passes
+            // `useMarkup: false`, which is the case the core documents that value for.
+            // Asserted rather than described: passing `true` here would hide the label, and
+            // the GTK suite asserts the other side of the same fixture.
+            const tree = mounted(
+                <AdwPreferencesGroup title="<b></b>">
+                    <AdwComboRow title="Style" model={['Light', 'Dark']} />
+                </AdwPreferencesGroup>,
+            );
+            expect(headerLabels(tree)).toStrictEqual([
+                ['<b></b>', true],
+                ['', false],
+            ]);
+        });
+
         await it('hides the CARD at zero rows and shows it at one — the pair', async () => {
             const empty = mounted(<AdwPreferencesGroup title="Appearance" />);
             // The card is the SECOND child of the group; the first is the header. Reading it
@@ -338,6 +374,37 @@ export default async () => {
             expect(seen).toStrictEqual([1, 2, 0]);
         });
 
+        await it('does not re-apply an equal model handed to it as a fresh array', async () => {
+            // `model={['Light', 'Dark']}` written inline is a NEW array every render, and
+            // `setOptions` is the one core setter with no unchanged-value guard: keyed on
+            // the array's identity the mount effect would re-apply and re-emit on every
+            // parent render, reporting a selection change nobody made. Keyed on the
+            // CONTENT it is silent, which is what the GTK half does by not writing an
+            // unchanged prop at all.
+            const seen: number[] = [];
+            const renderer = mount(
+                <AdwComboRow
+                    title="Style"
+                    model={['Light', 'Dark']}
+                    selected={1}
+                    onNotifySelected={(v) => seen.push(v)}
+                />,
+            );
+            expect(seen).toStrictEqual([]);
+            act(() => {
+                renderer.update(
+                    <AdwComboRow
+                        title="Theme"
+                        model={['Light', 'Dark']}
+                        selected={1}
+                        onNotifySelected={(v) => seen.push(v)}
+                    />,
+                );
+            });
+            expect(seen).toStrictEqual([]);
+            expect(valueLabel(renderer.toJSON() as ReactTestRendererJSON)).toStrictEqual(['Dark', true]);
+        });
+
         await it('does nothing at one option — the press the chooser rule refuses', async () => {
             const seen: number[] = [];
             const renderer = mount(
@@ -368,6 +435,47 @@ export default async () => {
         await it('clamps a value authored below the range — the pair', async () => {
             const tree = mounted(<AdwSpinRow title="Scale" lower={10} upper={20} value={5} />);
             expect(valueLabel(tree)).toStrictEqual(['10', true]);
+        });
+
+        await it('applies the bounds before the value, so a range that MOVES is not clamped away', async () => {
+            // `setValue` clamps against whatever range is installed at the time, so the
+            // four prop effects have to run bounds-first. Every other fixture here straddles
+            // `SpinState`'s default 0…100 and cannot see the order; this one moves the range
+            // ENTIRELY above it, so applying the value first would clamp 250 to 100, then
+            // `setMin(200)` would re-clamp it to 200 and the row would settle two steps from
+            // where it was authored. Swapping the four effects makes this the only red row.
+            //
+            // The INITIALISER's order is the same and is NOT held here: `mount` flushes
+            // effects inside `act`, so the settled tree is the effects' answer either way.
+            // What the initialiser buys is the first frame, which this harness cannot read —
+            // `create()` outside `act` returns a null tree on React 19 (`render.spec.ts`).
+            const tree = mounted(<AdwSpinRow title="Scale" lower={200} upper={300} value={250} />);
+            expect(valueLabel(tree)).toStrictEqual(['250', true]);
+
+            const seen: number[] = [];
+            const renderer = mount(
+                <AdwSpinRow title="Scale" lower={0} upper={100} value={50} onNotifyValue={(v) => seen.push(v)} />,
+            );
+            act(() => {
+                renderer.update(
+                    <AdwSpinRow
+                        title="Scale"
+                        lower={200}
+                        upper={300}
+                        value={250}
+                        onNotifyValue={(v) => seen.push(v)}
+                    />,
+                );
+            });
+            expect(valueLabel(renderer.toJSON() as ReactTestRendererJSON)).toStrictEqual(['250', true]);
+            // THE WHOLE STREAM, INCLUDING THE 100 — which is a real intermediate and not a
+            // rounding artefact. `setMin(200)` runs while `_max` is still 100, so the range
+            // is momentarily INVERTED and `Math.min(max, Math.max(min, v))` answers the max:
+            // 100. `setMax(300)` then re-clamps to 200 and the value effect lands 250. The
+            // GTK half has no such stream — it builds one new `Gtk.Adjustment` from all
+            // three numbers at once — so this is asserted here and named in the README
+            // rather than smoothed into a number the two halves do not share.
+            expect(seen).toStrictEqual([100, 200, 250]);
         });
 
         await it('re-clamps when a bound moves under the value — the pair', async () => {
