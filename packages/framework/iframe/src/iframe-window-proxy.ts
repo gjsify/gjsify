@@ -5,7 +5,7 @@
 import { EventTarget } from '@gjsify/dom-events';
 
 import type { MessageBridge } from './message-bridge.js';
-import type { MessagePort } from '@gjsify/message-channel';
+import type { MessagePort } from '@gjsify/message-channel/core';
 
 /**
  * Deliberately NOT a full BrowserWindow: only the subset of the Window API that

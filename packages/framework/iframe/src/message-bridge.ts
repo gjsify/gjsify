@@ -12,7 +12,7 @@ import './promisify.js';
 
 import type { IFrameWindowProxy } from './iframe-window-proxy.js';
 import type { ConsoleCallback, ConsoleLogEntry, IFrameMessageData } from './types/index.js';
-import type { MessagePort } from '@gjsify/message-channel';
+import type { MessagePort } from '@gjsify/message-channel/core';
 import { BridgePortTransport } from './iframe-message-channel.js';
 import { encodeBinariesForJson, decodeBinariesFromJson, BINARY_SERIALIZER_INJECTED_SRC } from './serialize.js';
 import { buildConsoleCaptureScript, ConsoleBuffer, parseConsoleEnvelope } from './console-capture.js';

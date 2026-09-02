@@ -288,17 +288,37 @@ the opposite:
   and run over the reverse bridge: **275/275 on node, bun AND deno** (Fedora 44,
   GJS 1.88.0, Node 24.15.0, girepository-2.0 2.88.1). Re-measured while writing
   this amendment on GJS 1.88.1 / Node 24.19.0, with `DISPLAY` and
-  `WAYLAND_DISPLAY` both unset: **291/291 on gjs, 275/275 on node**, the bundle
-  carrying `requireGi("WebKit","6.0")` beside `GLib`, `Gio`, `GObject` and
-  `GdkPixbuf`. The 16-test difference is the whole of it and is accounted for:
-  `register.spec.ts` is wrapped in `on('Gjs', …)`, so on Node it stands down and
-  the axis ledger says so (`Gjs: 0 tests from 0 gates, 1 stood down`) rather than
-  reporting a green it did not earn. `/register` is therefore the one part of this
-  package the node leg does NOT cover.
+  `WAYLAND_DISPLAY` both unset: **the two legs agree test for test**, the node
+  bundle carrying `requireGi("WebKit","6.0")` beside `GLib`, `Gio`, `GObject` and
+  `GdkPixbuf`.
 - `packages/framework/webkit-native/README.md` — on darwin-x64 under Node 24,
   `load_html()` on a `WebKit.WebView` reaches `LoadEvent.FINISHED` via `STARTED`
   and `COMMITTED`, so the CFRunLoop drain decision 2 rests on is serviced on Node
-  as well as on GJS.
+  as well as on GJS. Re-measured 2026-09-02 on macOS 15.7.9 / Node 24.18.1
+  against the published 0.45.0 packages, with `evaluate_javascript()` reading
+  back the loaded document: 12 runs, natural exit and `process.exit()` alike, no
+  crash on teardown, and a bare `GLib.MainLoop.run()` is enough — no
+  `Adw.Application`. That run is also what settled how far the claim reaches,
+  below.
+
+**What `node: "polyfill"` claims here is the `--app node` BUILD**, not a bare
+`node_modules` import. The published `lib/esm` carries literal
+`gi://WebKit?version=6.0` specifiers, and Node has no loader hook for that scheme
+(`ERR_UNSUPPORTED_ESM_URL_SCHEME`), so a Node consumer reaches this package
+through `gjsify build --app node`, which is what rewrites the specifier to
+`requireGi(…)`. That is the runtime axis as the root `AGENTS.md`
+§ *Runtime & platform model* defines it — the quintuplet is the INPUT to slot
+routing, read at build config time — and it is true of every GJS-bound package in
+the tree, not a caveat of this one.
+
+`register.spec.ts` stood down on the node leg while it was wrapped in
+`on('Gjs', …)`, which read as `/register` being the one part the node leg could
+not cover. The GATE was the reason, not the code: `--app node` resolves the same
+WebKit import chain through `requireGi()`, and widened to
+`on(['Gjs', 'Node.js'], …)` those tests pass on Node at the same count as on GJS.
+A gate written while the slot said `none` outlives the reason it was written for,
+and the axis ledger reports it as a stand-down either way — which is honest about
+what ran, and says nothing about what could have.
 
 The reason this matters is not portability for its own sake. **There is no GJS
 host for this pillar on macOS or on Windows** — ADR 0024 § 4 puts macOS
@@ -328,6 +348,37 @@ the BRIDGE rather than a node consumer story. What is mechanised is the other
 direction, in the `reverse-bridge-leg` conformance rule: a package that reaches
 Node only through the reverse bridge and declares `node: "polyfill"` must run a
 Node suite CI actually reaches.
+
+#### What the leg found: `@gjsify/message-channel` routed the ports away
+
+The node leg does not merely re-run the gjs corpus; it ran a DIFFERENT program
+until this change, and the difference was a defect in the shipping path rather
+than in the test. `@gjsify/message-channel` declares `node: "native"`, so ADR 0014
+routing sent the bare specifier to `./globals` — Node's own `MessageChannel` — on
+every `--app node` build of this package, not just in the suite. That port is not
+substitutable here: `BridgePortTransport` plugs into the polyfill's transport
+hook, `MessageBridge._registerTransferredPort()` reads `port._partner`, and
+`substitutePorts()` recognises a port by `Symbol.toStringTag === 'MessagePort'`.
+Measured on Node 24.19.0, a host `MessagePort` has none of the three: no hook, no
+`_partner`, and `Symbol.toStringTag` `EventTarget` (its channel: `Object`). The
+suite already said so — `IFrameMessageChannel — Symbol.toStringTag identifies the
+types` is the test that goes red without the substitution — and the same
+substitution takes `_registerTransferredPort()` down its `partner missing` throw
+branch and leaves `substitutePorts()` matching nothing. The port-transfer half of
+the WebKit bridge, gone on the node target.
+
+The fix is at the source, per AGENTS.md § *Don't patch* (pure-JS → native swap:
+keep the pure-JS path at a subpath): `@gjsify/message-channel` now exports
+`./core`, the same implementation at a specifier the alias layer does not rewrite
+(it matches exact specifiers), declared all-`polyfill` in `gjsify.runtimeSubpaths`.
+`@gjsify/iframe` imports the seam from there. `native` stays right for the package
+itself — a consumer who wants a transferable port on Node wants Node's — and the
+slot claim of THIS package now describes the program a consumer actually gets.
+
+A build-level `--alias` on the test leg would have made the suite green without
+any of that, which is what makes this worth writing down: on a leg whose whole
+purpose is corpus identity, an alias that forces the corpus back into agreement
+buys the green and hides the divergence it was built to surface.
 
 ## Consequences
 

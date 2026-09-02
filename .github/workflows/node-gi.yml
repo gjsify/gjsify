@@ -679,9 +679,9 @@ jobs:
   # the `node` slot): the package binds GJS through nothing but `gi://`, and Node
   # is the ONLY host macOS and Windows have for the WebView pillar, so this leg is
   # what stands behind `runtimes.node: "polyfill"` on the two platforms no `gjs`
-  # leg can reach. It needs no display (measured: 275/275 with DISPLAY and
-  # WAYLAND_DISPLAY both unset) and runs under xvfb anyway, because it shares the
-  # step recipe with gtk-host and a second recipe is a second thing to keep true.
+  # leg can reach. It needs no display (measured with DISPLAY and WAYLAND_DISPLAY
+  # both unset) and runs under xvfb anyway, because it shares the step recipe with
+  # gtk-host and a second recipe is a second thing to keep true.
   gtk-host-node:
     name: framework suites over the reverse bridge (Node + Xvfb / Fedora 44)
     runs-on: ubuntu-latest
@@ -746,9 +746,9 @@ jobs:
 
       # Build the two libs + their transitive workspace deps (incl. @gjsify/unit).
       # build:gjsify (the --library step) emits the lib/esm/*.js the --app node
-      # bundle inlines — no .d.ts emit needed here. @gjsify/message-channel comes
-      # in through iframe's closure, and its lib is what the leg's forced-polyfill
-      # alias points at (see the run step).
+      # bundle inlines — no .d.ts emit needed here. `--with-dependencies` is what
+      # brings @gjsify/message-channel's lib in through iframe's closure, which the
+      # iframe leg reaches by its `/core` subpath.
       - name: Build the framework libs under Node (+ workspace deps)
         run: |
           export PATH="$PWD/node_modules/.bin:$PATH"
@@ -787,12 +787,12 @@ jobs:
       # (ADR 0022 § Amendment — the `node` slot), and the only leg that exercises
       # the pillar on the host macOS and Windows actually have.
       #
-      # Its `build:test:node` carries one alias, and it is load-bearing rather than
-      # incidental: `@gjsify/message-channel` declares `node: "native"`, so ADR
-      # 0014's routing would hand the node leg Node's own MessageChannel while the
-      # gjs leg runs ours — two different programs, and ADR 0030's attribution gone.
-      # Measured without it: 274 tests with `Symbol.toStringTag identifies the
-      # types` red, because Node's MessageChannel answers `[object Object]`.
+      # It takes no build flags of its own, and that is the point rather than an
+      # omission: the first version of this leg carried an `--alias` forcing
+      # `@gjsify/message-channel` back onto its polyfill, which made the suite
+      # green over a divergence the SHIPPING node build also had (ADR 0022
+      # § Amendment → "What the leg found"). The alias is gone because the source
+      # is fixed; if a future one seems necessary here, that is the finding.
       - name: Run the iframe suite on node-gi (xvfb + dbus)
         working-directory: packages/framework/iframe
         run: |
