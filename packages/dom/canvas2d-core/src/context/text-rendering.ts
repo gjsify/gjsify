@@ -5,8 +5,8 @@
 // Original: see canvas-rendering-context-2d.ts pre-split.
 
 import Cairo from 'cairo';
-import Pango from 'gi://Pango';
-import PangoCairo from 'gi://PangoCairo';
+import Pango from 'gi://Pango?version=1.0';
+import PangoCairo from 'gi://PangoCairo?version=1.0';
 
 import type { CanvasRenderingContext2D } from '../canvas-rendering-context-2d.js';
 import { parseColor } from '../color.js';

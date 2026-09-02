@@ -1,6 +1,6 @@
 // A Gtk.DrawingArea subclass carrying the Canvas 2D bootstrapping, Cairo-backed.
 
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import type Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';

@@ -8,8 +8,8 @@
 // <out-dir> directory to write <slug>.png screenshots into
 // [title]   optional single "Category/Name" to shoot (default: all stories)
 
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 
 const IFACE = 'org.gjsify.Devtools';
 

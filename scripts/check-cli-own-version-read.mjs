@@ -64,6 +64,7 @@ import {
     TS_SOURCE_EXTENSIONS,
     sourceExtensionRe,
 } from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI_SRC = join(REPO_ROOT, 'packages/infra/cli/src');
@@ -128,15 +129,18 @@ if (files.length === 0) {
     process.exit(1);
 }
 
-// Blank out comment bodies while preserving line numbering: the rule this check
-// enforces is precisely the kind a comment needs to QUOTE in order to explain
-// itself, and a guard that fires on its own rationale trains people to delete
-// the rationale.
-function stripComments(text) {
-    return text
-        .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-        .replace(/(^|[^:])\/\/[^\n]*/g, (m, lead) => lead + ' '.repeat(m.length - lead.length));
-}
+// Comments are removed, line numbering intact: the rule this check enforces is precisely
+// the kind a comment needs to QUOTE in order to explain itself, and a guard that fires on
+// its own rationale trains people to delete the rationale.
+//
+// The reader is `scripts/strip-comments.mjs`, a lexical scanner, because no PAIR of
+// regexes can do this. Removing block comments first let a line comment ending in `/*` —
+// `@gjsify/*`, `packages/*`, `src/*`, all common here — pair with the next `*/` below and
+// blank everything between; removing line comments first let a block comment containing a
+// `//` lose its terminator and swallow the declaration under it instead. Measured over
+// this check's own corpus, block-first hid 2448 code lines across 47 of its 285 files. A
+// guard that cannot see two thousand lines of what it guards is not a weak guard, it is a
+// decoration.
 
 const offenders = [];
 for (const file of files) {

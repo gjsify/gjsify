@@ -1,7 +1,7 @@
 // A WebKit.WebView subclass carrying the bootstrapping for HTMLIFrameElement.
 
 import GLib from 'gi://GLib?version=2.0';
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import WebKit from 'gi://WebKit?version=6.0';
 
 import { Document, notifyElementResize } from '@gjsify/dom-elements';

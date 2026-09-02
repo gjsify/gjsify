@@ -29,7 +29,7 @@
 // renders a perfect initial tree and then has no reactivity at all, with no error.
 // A render-only smoke test passes against it; only an update can tell the two apart.
 
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
 import { registerBuiltinWidgets } from '@gjsify/gtk-host';

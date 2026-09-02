@@ -423,7 +423,7 @@ export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
         name: 'framework-free-clean',
         files: {
             'src/adapters/toy.ts': CLEAN_ADAPTER,
-            'src/list/index.ts': `import Gio from 'gi://Gio';\n\nexport const store = () => Gio.ListStore;\n`,
+            'src/list/index.ts': `import Gio from 'gi://Gio?version=2.0';\n\nexport const store = () => Gio.ListStore;\n`,
         },
         frameworkFree: ['./list'],
         expect: { files: 1, problems: [], blockers: [] },

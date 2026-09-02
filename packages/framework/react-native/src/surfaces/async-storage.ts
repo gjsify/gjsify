@@ -36,8 +36,8 @@
 // application exists — so a read before the application is constructed throws by name
 // rather than writing to a directory called `gjs`.
 
-import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
+import GLib from 'gi://GLib?version=2.0';
+import Gio from 'gi://Gio?version=2.0';
 
 import { PrimitiveError } from '../primitives/errors.js';
 

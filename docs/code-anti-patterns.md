@@ -23,7 +23,7 @@ Recurring shapes LLM-written code gets wrong (cf. GNOME reviewers' list, 2026-07
 |**try/catch around a call that cannot throw.** Before wrapping, answer: *can this block throw at all?* For GI calls read the GIR — only `throws="1"` functions raise a GError→JS exception; a method that reports failure via a return code cannot throw, and "best-effort" is ignoring a return value, not wrapping a non-throwing call. A kept catch must STATE ITS REASON. Measured (#880, the `eslint/no-empty` sweep): the empty catch around the http2 teardown GOAWAY flush hid that the flush never wrote (the flag it was called after made it early-return — the peer only ever saw a bare FIN); try/catches around `GLib.Source.destroy` (no throw path) and around SessionBridge calls that report via return codes were deleted; the legitimate swallows (Gio close/shutdown on an already-dead peer, temp-cert cleanup, spec teardown) now say why. `eslint/no-empty` is `error` — a bare `catch {}` does not land. The worst variant swallows a `ReferenceError` from a missing binding into a silent wrong answer (see the `crypto` `Math.random()` incident above and § CJS-ESM rule 1).
 |**paranoid probes for what the workspace guarantees.** Redundant `x?.m?.()` / `typeof x.m === 'function'` on our own classes or lockfile-pinned deps is written to span versions that don't coexist here, and it hides real bugs as silent no-calls. The SANCTIONED probes are the documented ones: register existence guards (§ Tree-shakeable globals rule 2), host-runtime detection (`isGjs()`/`isNode()` single source § Build; the `globalThis.imports?.gi` probe shape; NS `typeof java !== 'undefined'`), optional native-bridge loads (`imports.gi.GjsifyX` in try/catch — the typelib genuinely may be absent), `isNativeStreamUsable` before replacing a native stream. Each guards a REAL per-runtime/per-install variance and says so at the site. Everything else: import it and call it.
 |**comments that restate the code.** Comment WHY, never WHAT — a restating comment is a second copy the reviewer must diff against the code, and their drift reads as documentation while being a bug. JSDoc for public APIs; trivial/internal code stays bare.
-|**duplication instead of a helper.** The SECOND copy is where you lift a helper — copies drift, and the drifted copy fails in a CONSUMER while the owning package's tests stay green. Measured (#869): the root-relative-URL rewrite existed hand-written in three packages, and the drifted one (`fetch`) broke every root-relative fetch on node while its siblings worked; the entropy chain was two locally-defensible copies wrong in composition (webcrypto row). The literal line `app.runAsync([imports.system.programInvocationName, ...ARGV])` is currently triplicated across `storybook`/`devtools-browser`/`adwaita-app` — a consolidation target, not a pattern to extend. The lift targets exist and are the pattern: `@gjsify/utils/core`, `storybook-core`, `adwaita-app` are each "the helper the copies forced".
+|**duplication instead of a helper.** The SECOND copy is where you lift a helper — copies drift, and the drifted copy fails in a CONSUMER while the owning package's tests stay green. Measured (#869): the root-relative-URL rewrite existed hand-written in three packages, and the drifted one (`fetch`) broke every root-relative fetch on node while its siblings worked; the entropy chain was two locally-defensible copies wrong in composition (webcrypto row). The literal line `app.runAsync([imports.system.programInvocationName, ...ARGV])` is currently triplicated across `storybook`/`devtools-browser`/`adwaita-app` — a consolidation target, not a pattern to extend. The lift targets exist and are the pattern: `@gjsify/utils/core`, `storybook-core`, `adwaita-app` are each "the helper the copies forced". The eight-copy comment stripper below is the same story with a reader instead of a rewriter.
 |**scattered lifecycle.** Init and teardown live together: cleanup beside creation, ownership in ONE place, wired to the exit the host actually HAS — and teardown must not assume the process lives long enough. Measured: the GStreamer pipeline registry (webaudio row) exists because per-call-site `set_state(NULL)` could not fix teardown spread over sites with process-lifetime assumptions; `decodeAudioDataSync` tears down in `finally` so a throw cannot leak a PLAYING pipeline. No `_destroyed`/`_enabled` boolean flags where nulling the reference says the same and cannot desync; release children BEFORE chaining up to the parent's destroy, never after.
 |**shelling out where an API exists.** A spawned command line is an injection surface and a quoting-bug factory. Standing in-repo counter-example (fix at next touch, never copy): `@gjsify/fs`'s GJS `linkSync`/`link` run ``GLib.spawn_command_line_sync(`ln ${existing} ${new}`)`` — unquoted interpolation, so a path with a space or shell metachar breaks or injects (`packages/node/fs/src/{sync,callback}.ts`). When a subprocess IS the job, pass an argv array (`Gio.Subprocess`), never an interpolated command line.
 |**monolithic entry points.** `index.ts` = barrel re-exports only; commands/views/features are modules composed by a thin entry. A class owning bootstrap AND business logic AND IO is three classes.
@@ -218,3 +218,44 @@ the one a user installs.
 The resolver's own doc comment already said "deliberately NOT a fixed
 `../../package.json` read", and a fourth copy grew beside it regardless. Prose
 does not fail a PR; the check does.
+
+## A comment stripper written as two regexes
+
+Every static check that reads source has to blank comments first, or it reports a
+name that appears only in prose. The obvious implementation is two passes —
+`.replace(/\/\*[\s\S]*?\*\//g, '')` and `.replace(/\/\/[^\n]*/g, '')` — and nine
+readers in this repository each wrote their own.
+
+Neither regex can tell a comment from a string, so the ORDER of the two decides
+which half of the tree goes invisible, and BOTH orders are wrong:
+
+- **block comments first** lets a line comment ending in `/*` — `@girs/*`,
+  `packages/*`, `src/*`, all common here — pair with the next `*/` anywhere below,
+  usually the opening of the following JSDoc. Everything between is blanked.
+- **line comments first** lets a block comment CONTAINING a `//` lose its
+  terminator, after which the `/*` pairs with the next `*/` instead and swallows
+  the declaration under it. `packages/infra/npm-registry/src/types.ts` documents a
+  field as keyed by a `//host/path/:` prefix; under that order its `authTokens`
+  declaration disappears.
+
+Neither can see a glob pattern in a string either: `globSync('**/*.ts')` opens a
+fake block comment in `packages/node/fs/src/glob.spec.ts` whichever way round the
+passes go, and the two orders simply blank different halves of the file.
+
+Measured 2026-09-01 over the 3642 tracked JS/TS sources, against the stateful
+scanner as ground truth: **block-first hid 7780 code lines in 226 files;
+line-first hid 3503 in 104.** Swapping the order halves a class it cannot close.
+
+A reader that sees nothing reports nothing, and that is indistinguishable from a
+clean tree — the whole class is a green run that checked nothing. It had
+already been paid for once: `check-adapter-import-direction.mjs` rewrote its
+stripper as a stateful scanner after a regex read `const re = /[/*]/;` as an open
+block comment that ran to EOF, and the run printed
+"1 adapter(s) carry no widget knowledge", exit 0, over a live violation.
+
+**The one implementation is
+[`packages/infra/manifest-conformance/lib/strip-comments.mjs`](../packages/infra/manifest-conformance/lib/strip-comments.mjs)** —
+a lexical scanner that knows strings, template holes and regex literals, keeps
+every non-comment byte and every line boundary, and hides 0 code lines. Its
+self-test runs on IMPORT, with one vector per shape, so every consumer inherits
+the proof. Do not write a ninth copy; import it.

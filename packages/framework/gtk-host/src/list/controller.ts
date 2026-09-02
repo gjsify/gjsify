@@ -49,8 +49,8 @@
 //
 // Values through `gi://`, types through `@girs/*`.
 
-import Gio from 'gi://Gio';
-import GObject from 'gi://GObject';
+import Gio from 'gi://Gio?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 /**

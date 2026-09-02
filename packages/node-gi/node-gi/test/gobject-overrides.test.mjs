@@ -98,7 +98,7 @@ test(
         const ours = signalsByFuncProbe(GObject, Gio).join('\n');
         const theirs = gjsProbeLines(
             signalsByFuncProbe,
-            `import GObject from 'gi://GObject';\nimport Gio from 'gi://Gio';\nconst __args = [GObject, Gio];`,
+            `import GObject from 'gi://GObject?version=2.0';\nimport Gio from 'gi://Gio?version=2.0';\nconst __args = [GObject, Gio];`,
         ).join('\n');
         assert.equal(ours, theirs, 'node-gi and gjs by-func signal ops agree line-for-line');
     },
@@ -192,9 +192,10 @@ test('GObject.Value: new/init/set_*/get_*/copy + the 2-arg convenience', () => {
 
 test('GObject.Value is byte-identical to gjs (gold standard)', { skip: hasGjs ? false : 'gjs not on PATH' }, () => {
     const ours = valueProbe(GObject).join('\n');
-    const theirs = gjsProbeLines(valueProbe, `import GObject from 'gi://GObject';\nconst __args = [GObject];`).join(
-        '\n',
-    );
+    const theirs = gjsProbeLines(
+        valueProbe,
+        `import GObject from 'gi://GObject?version=2.0';\nconst __args = [GObject];`,
+    ).join('\n');
     assert.equal(ours, theirs, 'node-gi and gjs GObject.Value agree line-for-line');
 });
 

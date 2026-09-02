@@ -36,7 +36,7 @@
 import Adw from 'gi://Adw?version=1';
 import Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
 import { registerBuiltinWidgets, shotEvidence, blankReason, type CaptureWidget } from '@gjsify/gtk-host';

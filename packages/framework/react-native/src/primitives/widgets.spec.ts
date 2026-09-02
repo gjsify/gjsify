@@ -25,7 +25,7 @@
 // the blame surfaced twelve tests later on an innocent neighbour.
 
 import Gdk from 'gi://Gdk?version=4.0';
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
 import { lookupWidget, paramSpecs, registerBuiltinWidgets } from '@gjsify/gtk-host';

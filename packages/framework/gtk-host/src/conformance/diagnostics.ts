@@ -9,7 +9,7 @@
 // Every adapter's vectors should install this. A renderer that emits a critical
 // has not "worked with a warning"; it has produced a tree GTK refused.
 
-import GLib from 'gi://GLib';
+import GLib from 'gi://GLib?version=2.0';
 
 /**
  * Declared locally, deliberately: this module is GJS-only, and `console.error`

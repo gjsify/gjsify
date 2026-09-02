@@ -6,7 +6,7 @@
 // and the Svelte custom-renderer PR's 19 attribute-shaped methods. Anything an
 // adapter needs beyond these is that framework's own tax and lives in its file.
 
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import type Gtk from '@girs/gtk-4.0';
 
 import { err, GtkHostError } from './errors.js';

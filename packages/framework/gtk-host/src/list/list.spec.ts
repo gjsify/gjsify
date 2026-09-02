@@ -20,7 +20,7 @@
 // whichever of the two a dialect takes; a spec that reached for a flush seam would be
 // testing a shortcut and would go green against either.
 
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { expect, it, on } from '@gjsify/unit';
 

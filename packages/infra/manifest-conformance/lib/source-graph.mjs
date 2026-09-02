@@ -22,6 +22,7 @@ import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { TS_SOURCE_EXTENSIONS, isDeclarationFile, sourceExtensionRe } from './source-extensions.mjs';
+import { stripComments } from './strip-comments.mjs';
 
 /** A VALUE import of a `@girs/*` type package — it resolves to a `gi://` body. */
 export const GIRS_VALUE_RE = /^\s*import\s+(?!type\b)[^;]*from\s+['"]@girs\//m;
@@ -212,7 +213,7 @@ export async function collectValueExports(file, seen = new Set()) {
     // (`@gjsify/fs` alone produced five). That only surfaces once a slot is
     // flipped to `polyfill` — i.e. exactly when someone reads the list.
     for (const m of text.matchAll(/^export\s*\{([^}]*)\}\s*(?:from\s*['"][^'"]+['"]\s*)?;?/gm)) {
-        const members = m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        const members = stripComments(m[1]);
         for (const raw of members.split(',')) {
             const t = raw.trim();
             if (!t || /^type\s/.test(t)) continue;

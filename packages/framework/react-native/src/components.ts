@@ -29,7 +29,7 @@
 // signal arguments at all. L2 says WHICH widget property holds the value
 // (`ResolvedEvent.read`); this file reads it off the widget its ref holds.
 
-import Gio from 'gi://Gio';
+import Gio from 'gi://Gio?version=2.0';
 import {
     Children,
     createElement,

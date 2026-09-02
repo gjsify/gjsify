@@ -5,7 +5,7 @@
 // `package.json#sideEffects` (AGENTS.md § Tree-shakeable globals).
 
 import Gdk from 'gi://Gdk?version=4.0';
-import GdkPixbuf from 'gi://GdkPixbuf';
+import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import type Cairo from 'cairo';
 
 import { type CanvasImageHandle, type CanvasPixelBridge, setCanvasPixelBridge } from './pixel-bridge.js';

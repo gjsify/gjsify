@@ -35,6 +35,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import { TS_SOURCE_EXTENSIONS } from '../packages/infra/manifest-conformance/lib/source-extensions.mjs';
+import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 
 /** Directories that never hold first-party sources. */
 export const SKIP = new Set(['node_modules', 'dist', 'lib', '.git', 'refs', 'tmp']);
@@ -104,30 +105,13 @@ export function isTestEntry(name) {
  * A regex pair would be shorter and WRONG: `packages/node/url/src/test.browser.mts` is
  * built out of `'http://example.com/…'` literals, and a `//`-to-end-of-line strip eats
  * the rest of every line one of them sits on — measured, it deletes real code from that
- * entry today. So this walks the source and skips quoted runs, because a check that
- * reads the file differently from the engine that runs it is the bug, not the guard.
+ * entry today. So the reader walks the source and skips quoted runs, because a check that
+ * reads the file differently from the engine that runs it is the bug, not the guard. It is
+ * `manifest-conformance/lib/strip-comments.mjs`, and it also lexes regex literals — the
+ * local copy this re-export replaced did not, so a `/'/` left string state open for the
+ * rest of it.
  */
-export function stripComments(source) {
-    let out = '';
-    let i = 0;
-    while (i < source.length) {
-        const c = source[i];
-        if (c === '/' && source[i + 1] === '/') {
-            while (i < source.length && source[i] !== '\n') i++;
-        } else if (c === '/' && source[i + 1] === '*') {
-            const end = source.indexOf('*/', i + 2);
-            i = end === -1 ? source.length : end + 2;
-        } else if (c === "'" || c === '"' || c === '`') {
-            const start = i++;
-            while (i < source.length && source[i] !== c) i += source[i] === '\\' ? 2 : 1;
-            out += source.slice(start, ++i);
-        } else {
-            out += c;
-            i++;
-        }
-    }
-    return out;
-}
+export { stripComments };
 
 /**
  * A relative specifier as the file on disk.

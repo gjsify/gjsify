@@ -8,7 +8,7 @@ These packages let you draw with the browser APIs inside a real GTK window. You 
 ## Draw on a canvas
 
 ```typescript
-import Adw from 'gi://Adw';
+import Adw from 'gi://Adw?version=1';
 import { Canvas2DBridge } from '@gjsify/canvas2d';
 
 const bridge = new Canvas2DBridge();
@@ -35,7 +35,7 @@ win.present();
 ## Render with WebGL
 
 ```typescript
-import Adw from 'gi://Adw';
+import Adw from 'gi://Adw?version=1';
 import { WebGLBridge } from '@gjsify/webgl';
 
 const bridge = new WebGLBridge();

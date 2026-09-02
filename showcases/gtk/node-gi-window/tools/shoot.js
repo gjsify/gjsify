@@ -7,8 +7,8 @@
 //
 // <app-id>  eu.jumplink.NodeGiWindow (the devtools object path is derived from it)
 // <out.png> file to write the PNG into
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 
 const IFACE = 'org.gjsify.Devtools';
 const [appId, outPath] = ARGV;

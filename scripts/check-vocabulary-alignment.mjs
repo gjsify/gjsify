@@ -156,6 +156,11 @@ import {
     settablePropertiesOfClass,
     widgetClass,
 } from './adwaita-elements.mjs';
+// `stripComments`, so a rule about DECLARATIONS is not answered by prose: these files
+// explain what they deliberately do not contain, and they name those things. A naive match
+// reports the explanation as the violation — measured on the sibling check for the
+// generated surface, whose first run failed on a word inside its own header.
+import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
 import { WIDGET_SURFACE_READERS, declaredWidgetSurfaces, enrolmentProblems } from './widget-surfaces.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -616,15 +621,6 @@ const RENDERER_TABLES = {
 const WEB_SURFACE = '@gjsify/adwaita-web';
 
 // ------------------------------------------------------------------ readers
-
-/**
- * Strip comments so a rule about DECLARATIONS is not answered by prose.
- *
- * These files explain what they deliberately do not contain, and they name those things.
- * A naive match reports the explanation as the violation — measured on the sibling check
- * for the generated surface, whose first run failed on a word inside its own header.
- */
-const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
 
 /** The body of `export interface <name> { … }`, or null. */
 function interfaceBody(text, name) {
@@ -1803,6 +1799,24 @@ const READER_VECTORS = [
     ["throw new Error('GtkWidget expected here');", [], []],
     ["// 'gtk-box' in a comment is prose, not a table\nconst x = 1;", [], []],
     ['let w: Gtk.Widget | null = null;', [], []],
+    // A LINE COMMENT CONTAINING `/*` MUST NOT OPEN A BLOCK COMMENT. `@girs/*`,
+    // `packages/*` and `src/*` all end a line comment with those two characters, and a
+    // stripper that removes block comments FIRST then pairs that `/*` with the next `*/`
+    // anywhere below — usually the opening of the next JSDoc, often hundreds of lines
+    // down. Everything between goes invisible, and a reader that sees nothing reports
+    // nothing, which is indistinguishable from a file that contains nothing.
+    //
+    // Measured repo-wide: that ordering hid 7780 code lines across 226 of 3642 tracked
+    // JS/TS sources, for every check that shared the idiom. In THIS reader's own corpus
+    // the numbers did not move — which is why it needs a vector rather than a diff, since
+    // nothing in the real tree makes it go red.
+    // The `*/` that closes the fake block comment is part of the vector, not decoration:
+    // without a later `*/` the lazy block regex simply finds no match and the bug does not
+    // reproduce. A first draft of these two omitted it and passed under BOTH orderings —
+    // an assertion that cannot go red, which is the thing the rest of this file exists to
+    // prevent. Here the next JSDoc supplies it, exactly as a real source file does.
+    ["// types through `@girs/*`\nimport type { A } from './generated/props.js';\n/** doc */\nconst x = 1;", ['A'], []],
+    ["// see `packages/*` for the rest\nconst t = 'gtk-box';\n/** doc */\nconst y = 2;", [], ["'gtk-box'"]],
 ];
 
 function readerSelfTest() {

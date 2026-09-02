@@ -590,7 +590,7 @@ describe('oxlint plugin gjsify/no-css-side-effect-import E2E', { timeout: 5 * 60
 // is invisible to a line-based grep, which reported the tree clean while two live
 // sites stood in it. The direct form and an unrelated borrow must stay silent — a
 // rule that flagged `Array.prototype.slice.call` would be turned off within a day.
-const BORROW_FIXTURE = `import GObject from 'gi://GObject';
+const BORROW_FIXTURE = `import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 const one = GObject.Object.list_properties.call(Gtk.ListItem);
@@ -602,7 +602,7 @@ const four = GObject.Object.prototype.find_property.call(Gtk.ListItem, 'child');
 export const all = [one, two, three, four];
 `;
 
-const DIRECT_FIXTURE = `import GObject from 'gi://GObject';
+const DIRECT_FIXTURE = `import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 // The repair the rule's message names, in both spellings.

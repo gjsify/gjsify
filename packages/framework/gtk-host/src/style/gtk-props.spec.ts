@@ -13,7 +13,7 @@
 // universal one because `orientation` is not on `Gtk.Widget`. A table that only
 // asserted presences would agree with a GTK in which all three were false.
 
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { expect, it, on } from '@gjsify/unit';
 

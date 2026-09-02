@@ -2,7 +2,7 @@
 
 import { expect, it, on } from '@gjsify/unit';
 
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 // Type position only — the descriptors pull Adw in for value use themselves.
 import type Adw from 'gi://Adw?version=1';

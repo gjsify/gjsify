@@ -225,7 +225,8 @@ async function probeGamepadBackend(options: LoadGamepadBackendOptions): Promise<
     // `gi://*` (`gjsGiNodePlugin`, `gjsImportsEmptyPlugin`, the `--app gjs` externals
     // predicate) matches the resolved specifier at BUILD time, so a template literal
     // would leave the import unclaimed on all four targets.
-    const importer = options.importer ?? (() => import('gi://Manette') as Promise<{ default: typeof Manette }>);
+    const importer =
+        options.importer ?? (() => import('gi://Manette?version=0.2') as Promise<{ default: typeof Manette }>);
 
     let module: typeof Manette;
     try {

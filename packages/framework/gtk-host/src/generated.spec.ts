@@ -15,7 +15,7 @@
 import { expect, it, on } from '@gjsify/unit';
 
 import Adw from 'gi://Adw?version=1';
-import GObject from 'gi://GObject';
+import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { installDiagnosticsGate } from './conformance/index.js';
