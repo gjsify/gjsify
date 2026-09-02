@@ -670,8 +670,14 @@ on three environment variables it never uses. It is **UNVERIFIED end to end**: n
 Apple account, which is precisely the credential M6 does without. The App Store Connect API-key form
 is not implemented — `status/open-todos.md` carries it, with what was measured.
 
-**Stapling, the bundle seal and the hardened runtime landed with ADR 0040**, and all three are
-UNVERIFIED for the same reason: this repository has no macOS host of its own.
+**Stapling, the bundle seal and the hardened runtime landed with ADR 0040**, and they are not at the
+same confidence level — which is the distinction worth keeping, because "no macOS host of its own"
+was the reason given for all three and it is only true of two. The ad-hoc `macos-suites` leg IS a
+macOS host: it has MEASURED that `codesign` accepts `--options runtime --entitlements` with
+`--sign -`, that the seal lands in `Contents/_CodeSignature/` (four components on macos-26) and that
+it changes nothing else in the payload. What has never run is `codesign --verify --strict` on the
+BUNDLE, the ZIP round trip with a seal in it, `notarytool` and `stapler` — the last two because they
+need an Apple account. `status/open-todos.md` carries all four with their measurements attached.
 
 |the `<App>.app` is SEALED after every Mach-O inside it is signed. The reason it was not is recorded
 in ADR 0040 as a factual error rather than a deferral: Apple's extended-attribute rule is for a

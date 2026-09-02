@@ -2,7 +2,7 @@
 
 - **Status:** Proposed (2026-09-02)
 - **Scope:** `gjsify ship`'s windows layout and its darwin signing path — `packages/infra/cli/src/utils/ship/{pe-launcher,layout,msi,signing,formats,plist}.ts`. Amends [ADR 0024](0024-ship-installable-artifacts.md) § M3 (the console-window gap) and § A16 (what a signature does not settle).
-- **What is measured and what is not:** the Windows half is measured end to end, by hand, on the `win11-gjsify` VM in session 1 — the numbers are in § *The measurement*. The macOS half is **not**: this repository has no macOS host of its own, and everything below is argv and file structure decided from Apple's documentation and held by unit tests. Every such claim is marked UNVERIFIED where it lives in the code.
+- **What is measured and what is not:** the Windows half is measured end to end, by hand, on the `win11-gjsify` VM in session 1 — the numbers are in § *The measurement*, and they were reproduced independently on a second run of the same instrument. The macOS half is measured only as far as the ad-hoc CI leg reaches: the seal is MADE and CONFINED on a real macOS host (§ *The measurement* → *macOS*), while the bundle-level verify, the ZIP round trip, notarisation, stapling and `signtool` have not run. Every unrun claim is marked UNVERIFIED where it lives in the code.
 
 ## Context
 
@@ -234,8 +234,45 @@ Three more behaviours, measured the same day:
   correct exit code. `cmd.exe /s /c ""<path>" <args>"` is the quoting that survives a
   space in the path.
 
-**macOS: nothing.** The macOS VM is shut down and this repository holds no Apple
-credential. The darwin half of § D5 and § D6 has never run.
+**macOS: the seal ran, and nothing past it did.** The macOS VM is shut down and
+this repository holds no Apple credential — but `macos-suites.yml`'s ad-hoc leg
+(ADR 0024 § A21) is a real macOS host, and it is where § D5's first half was
+measured on the first push of this branch: run 33677262483, job 100404973432,
+`macos-26-arm64` / darwin-arm64, `/usr/bin/codesign`, 2026-09-02.
+
+- **`codesign` accepted `--options runtime --entitlements` with `--sign -`.** Both
+  staged dylibs and the `<App>.app` root were signed, exit 0. § D5's reasoning
+  that the hardened runtime is a code-directory bit an ad-hoc signature can carry
+  is therefore measured and not inferred.
+- **The seal exists and is confined.** `Contents/_CodeSignature/` arrived with
+  **four** components — `CodeDirectory`, `CodeRequirements`, `CodeResources`,
+  `CodeSignature`; `CodeRequirements-1` is in Apple's superset and not in this
+  one, which is exactly why the declaration is a DIRECTORY. The arrival
+  comparator over the packed `.app` read **11 identical, 2 signature-only, 5
+  declared-added, 0 problem(s)**: the seal wrote where it was declared to and the
+  rest of the tree arrived byte-identical.
+- **Apple's own reader passed on the images**, `codesign --verify --strict` on
+  both dylibs inside the artifact.
+- **The run was still RED, and the expectation was the wrong half.** § A21's
+  fixture pre-signs with a plain `codesign --force --sign -`, so its assertion of
+  `1 signature-only` encoded a signer that re-signed with the same options. With
+  `--options runtime` and `--entitlements` in the code directory, an image whose
+  old blob lacked them cannot re-sign to byte-identical: **both** images come back
+  `signature-only`, and § A21's `--identifier` marker is no longer the only thing
+  guaranteeing an observable difference. The assertion now names both images and
+  the count, because 2 is a property of our own argv — drop the hardened runtime
+  and `libplain` reverts to `identical`.
+
+**What is still UNVERIFIED on darwin, narrowed to what it actually is.** Not the
+seal's existence — that is measured above — but everything past it:
+`codesign --verify --strict` on the BUNDLE (the assertion sits after the one that
+went red, so it has not executed yet); the ZIP round trip, which is this
+amendment's whole correction to the old refusal and is argued from TN3126 plus
+"regular 0644 files" rather than measured, because the darwin leg signs only
+`--target macos-app` and never `macos-app-zip`; `notarytool`, which needs an
+Apple account; `xcrun stapler`, which needs a ticket; `signtool`, which needs a
+certificate; and § A16 in both directions. The first two are reachable on the
+existing leg with no credential, and `status/open-todos.md` carries them.
 
 ## Consequences
 

@@ -1142,9 +1142,28 @@ zip carries, and TN2206 says *"a properly-signed app that has all of its files i
 the correct places will not contain any signatures stored as extended
 attributes."* What was actually blocking it was `signPayload`'s own file-set rule,
 which now permits exactly the seal's directory. `--options runtime` and four
-entitlements are passed too. All of it is UNVERIFIED end to end for the same reason
-as the two above: no macOS host in this repository has run a `--sign` over a real
-`.app`, and the ad-hoc CI leg is the only thing that has ever run `codesign` here.
+entitlements are passed too.
+
+**MEASURED, on the ad-hoc leg, on the first push of ADR 0040** (run 33677262483,
+`macos-26-arm64`): `codesign` accepted `--options runtime --entitlements` with
+`--sign -`; the seal arrived as **four** files under `Contents/_CodeSignature/`
+(`CodeRequirements-1` is in Apple's superset and not in this run's); the arrival
+comparator read *11 identical, 2 signature-only, 5 declared-added, 0 problem(s)*;
+and `codesign --verify --strict` passed on both images. **Two things are still
+unrun and neither needs a credential**, which makes them the next measurement
+rather than a gap to live with:
+
+1. `codesign --verify --strict` on the BUNDLE. The assertion exists and sits after
+   the one that went red on the count, so it has never executed.
+2. **the ZIP round trip** — the claim this whole correction rests on. The darwin
+   leg signs `--target macos-app` only; nothing signs `macos-app-zip`, unzips it
+   and re-verifies. Until it does, "a plain zip carries `_CodeSignature/`" is
+   TN3126 plus mode-0644 reasoning, not a measurement.
+
+Everything past those two — a Developer ID, `notarytool`, `xcrun stapler`,
+`signtool` — is UNVERIFIED for the reasons the entries above give, and the ad-hoc
+leg over TWO images (§ A21, not 106) remains the only thing that has ever run
+`codesign` here.
 
 **§ A16 is still open in both directions.** `disable-library-validation` is not
 granted — § A4's re-sign of every image in the closure is the design of record, and
