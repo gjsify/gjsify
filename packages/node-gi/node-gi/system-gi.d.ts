@@ -10,6 +10,10 @@ export interface SystemGiOptions {
     /** `pkg-config`'s `.pc` search directories; defaults to {@link pkgConfigSearchDirs}. */
     searchDirs?: (env: NodeJS.ProcessEnv) => string[];
 }
+/** The subdir GI's own install layout puts typelibs in — the marker that names that layout. */
+export const TYPELIB_SUBDIR: string;
+/** Library dirs a typelib dir implies, most specific first — install layout and staged layout, unverified. */
+export function giLibraryDirsForTypelibDir(typelibDir: string): string[];
 /** Split an OS search-path variable, dropping empty segments. */
 export function splitSearchPath(value: string | undefined, separator?: string): string[];
 /** `$PKG_CONFIG_PATH` plus `pkg-config`'s own `pc_path`; memoized, absent pkg-config yields just the env. */

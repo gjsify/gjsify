@@ -32,6 +32,8 @@
 // `<libdir>/libgtk-4.1.dylib`. A directory holding `girepository-1.0/` therefore IS
 // a GI library directory, which is what makes this package-manager-agnostic — it
 // lands on Homebrew, MacPorts or a custom prefix without knowing any of them exist.
+// THAT IS ONE LAYOUT, NOT THE LAYOUT — {@link giLibraryDirsForTypelibDir}; a staged
+// pair keeps typelib and backer in ONE directory, and the incident is in the ORIGINAL.
 //
 // PURE FUNCTION of injected host facts (platform / env / fs / pkg-config), like
 // `resolvePrebuildDirName()` and `buildNativeEnv()` beside it, so the darwin branch
@@ -94,6 +96,25 @@ export const PROBED_GI_LIBDIRS: Record<string, readonly string[]> = {
  */
 export const TYPELIB_SUBDIR = 'girepository-1.0';
 
+/**
+ * The library directories a typelib directory implies, most specific first.
+ *
+ * TWO LAYOUTS, and a path alone cannot always say which: GI's INSTALL layout keeps
+ * the libraries in the PARENT (`<libdir>/girepository-1.0/…`), while a STAGED pair —
+ * an ADR 0017 prebuild directory, `gjsify.ship.bundledTypelibs` — keeps them in the
+ * DIRECTORY ITSELF. {@link TYPELIB_SUBDIR} as the basename is a positive signal for
+ * the first; absent it the layout is unknown, so both readings are offered and the
+ * caller's `existsDir` keeps whichever is real.
+ *
+ * The measurement that bought this — a darwin host that found `WebKit-6.0.typelib`
+ * and never `libgjsifywebkit.dylib` because the parent-only derivation named the
+ * prebuild directory's PARENT — is in the ORIGINAL, `system-gi.js`.
+ */
+export function giLibraryDirsForTypelibDir(typelibDir: string): string[] {
+    const parent = dirname(typelibDir);
+    return basename(typelibDir) === TYPELIB_SUBDIR ? [parent] : [typelibDir, parent];
+}
+
 /** Memoized `pkg-config` answer: the spawn happens at most once per process. */
 let pkgConfigDirsCache: string[] | null = null;
 
@@ -140,8 +161,9 @@ export function pkgConfigSearchDirs(env: Record<string, string | undefined>): st
  *
  * Three sources, in precedence order:
  *   1. `GI_TYPELIB_PATH` — the host stating outright where typelibs live; the
- *      libraries are the sibling `dirname()`. Accepted on directory existence
- *      alone: an explicit statement is not second-guessed.
+ *      libraries are wherever {@link giLibraryDirsForTypelibDir} says the layout
+ *      puts them. Accepted on directory existence alone: an explicit statement is
+ *      not second-guessed.
  *   2. `pkg-config`'s `.pc` search path → each `<dir>/pkgconfig`'s parent. The
  *      general mechanism (any prefix, including a custom one).
  *   3. {@link PROBED_GI_LIBDIRS} — the standard macOS prefixes, for the common
@@ -176,10 +198,11 @@ export function systemGiLibraryDirs({
         if (dir && dir !== '/' && !out.includes(dir)) out.push(dir);
     };
 
-    // 1. Explicit: the typelib dir's sibling libdir.
+    // 1. Explicit: the libdirs each typelib dir implies, both layouts.
     for (const typelibDir of splitSearchPath(env['GI_TYPELIB_PATH'])) {
-        const libDir = dirname(typelibDir);
-        if (existsDir(libDir)) add(libDir);
+        for (const libDir of giLibraryDirsForTypelibDir(typelibDir)) {
+            if (existsDir(libDir)) add(libDir);
+        }
     }
 
     // 2 + 3. Candidate prefixes, believed only on the girepository-1.0 marker.

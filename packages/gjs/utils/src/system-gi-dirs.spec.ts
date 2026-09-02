@@ -64,6 +64,29 @@ export default async () => {
                 }),
             ).toStrictEqual([]);
         });
+
+        await it('reads a STAGED pair’s own directory as the libdir', async () => {
+            // A prebuild directory (ADR 0017) holds `WebKit-6.0.typelib` AND
+            // `libgjsifywebkit.dylib`, so GI's install layout does not describe it and
+            // the parent-only derivation named a real directory holding nothing —
+            // measured on darwin, where that prebuild is the only WebKit there is.
+            const staged = '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds/darwin-x64';
+            expect(
+                systemGiLibraryDirs({ platform: 'darwin', typelibPath: staged, existsDir: dirs(staged) }),
+            ).toStrictEqual([staged]);
+        });
+
+        await it('keeps offering the parent where the layout is unnamed', async () => {
+            // A relocated INSTALL layout carries no required directory name, so the
+            // parent stays reachable — the staged reading is added, not substituted.
+            expect(
+                systemGiLibraryDirs({
+                    platform: 'darwin',
+                    typelibPath: '/opt/mystack/lib/typelibs',
+                    existsDir: dirs('/opt/mystack/lib'),
+                }),
+            ).toStrictEqual(['/opt/mystack/lib']);
+        });
     });
 
     await describe('systemGiLibraryDirs: a guessed prefix must show the marker', async () => {

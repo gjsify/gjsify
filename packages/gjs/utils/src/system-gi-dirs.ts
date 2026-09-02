@@ -51,6 +51,27 @@ function basename(path: string): string {
     return parts.length === 0 ? '' : parts[parts.length - 1];
 }
 
+/**
+ * The library directories a typelib directory implies, most specific first.
+ *
+ * TWO LAYOUTS, and a path alone cannot always say which: GI's INSTALL layout keeps
+ * the libraries in the PARENT (`<libdir>/girepository-1.0/Gtk-4.0.typelib` beside
+ * `<libdir>/libgtk-4.1.dylib`), while a STAGED pair — an ADR 0017 prebuild
+ * directory, `gjsify.ship.bundledTypelibs` — keeps them in the DIRECTORY ITSELF.
+ * {@link TYPELIB_SUBDIR} as the basename is a positive signal for the first; absent
+ * it the layout is unknown, so both readings are offered and the caller's
+ * `existsDir` keeps whichever is real.
+ *
+ * The measurement that bought this — a darwin host that resolved
+ * `WebKit-6.0.typelib` and never `libgjsifywebkit.dylib`, because the parent-only
+ * derivation named the prebuild directory's PARENT — is recorded in
+ * `packages/node-gi/node-gi/system-gi.js`, the copy that runs it.
+ */
+export function giLibraryDirsForTypelibDir(typelibDir: string): string[] {
+    const parent = dirname(typelibDir);
+    return basename(typelibDir) === TYPELIB_SUBDIR ? [parent] : [typelibDir, parent];
+}
+
 export interface SystemGiLibraryDirsHost {
     /** `process.platform`, or the platform being reasoned about. */
     platform: string;
@@ -69,8 +90,9 @@ export interface SystemGiLibraryDirsHost {
  * Three sources, in precedence order:
  *
  *   1. `GI_TYPELIB_PATH` — the host stating outright where typelibs live; the
- *      libraries are the sibling `dirname()`. Believed on directory existence
- *      alone, because an explicit statement is not second-guessed.
+ *      libraries are wherever {@link giLibraryDirsForTypelibDir} says the layout
+ *      puts them. Believed on directory existence alone, because an explicit
+ *      statement is not second-guessed.
  *   2. `pkg-config`'s `.pc` search path → each `<dir>/pkgconfig`'s parent. The
  *      general mechanism, covering a custom prefix.
  *   3. {@link PROBED_GI_LIBDIRS}.
@@ -88,8 +110,9 @@ export function systemGiLibraryDirs(host: SystemGiLibraryDirsHost): string[] {
     };
 
     for (const typelibDir of splitSearchPath(host.typelibPath)) {
-        const libDir = dirname(typelibDir);
-        if (host.existsDir(libDir)) add(libDir);
+        for (const libDir of giLibraryDirsForTypelibDir(typelibDir)) {
+            if (host.existsDir(libDir)) add(libDir);
+        }
     }
 
     const candidates: string[] = [];

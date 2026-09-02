@@ -38,6 +38,12 @@
 // `/opt/homebrew/lib` (Homebrew arm64), `/opt/local/lib` (MacPorts) or a custom
 // prefix without needing to know that any of them exist.
 //
+// THAT IS ONE LAYOUT, NOT THE LAYOUT — see {@link giLibraryDirsForTypelibDir}. A
+// STAGED pair (an ADR 0017 prebuild directory, `gjsify.ship.bundledTypelibs`) puts
+// the typelib and its backer in ONE directory, so reading any named typelib
+// directory as "the libraries are one level up" answers with a real path that holds
+// nothing.
+//
 // PURE FUNCTION of injected host facts (platform / env / fs / pkg-config), like
 // `hostTarget()` beside it and the CLI's `resolvePrebuildDirName()` — so the
 // darwin branch is unit-testable from a Linux host and the host values are read
@@ -92,6 +98,47 @@ const PROBED_GI_LIBDIRS = {
  * agreement suite still compares two files that differ only in language.
  */
 export const TYPELIB_SUBDIR = 'girepository-1.0';
+
+/**
+ * The library directories a typelib directory implies, most specific first.
+ *
+ * TWO LAYOUTS put a typelib and the library it names in different places, and a
+ * path on its own cannot always tell which one it is looking at:
+ *
+ *   * GI's INSTALL layout — `<libdir>/girepository-1.0/Gtk-4.0.typelib` beside
+ *     `<libdir>/libgtk-4.1.dylib`. The libdir is the PARENT.
+ *   * A STAGED layout — the pair sits FLAT in one directory. That is what an
+ *     ADR 0017 prebuild is (`<pkg>/prebuilds/darwin-x64/WebKit-6.0.typelib` beside
+ *     `libgjsifywebkit.dylib`) and what `gjsify.ship.bundledTypelibs` stages. The
+ *     libdir is the DIRECTORY ITSELF.
+ *
+ * {@link TYPELIB_SUBDIR} as the basename is a POSITIVE signal for the first: a
+ * directory GI itself named is GI's own layout, and its parent is the answer.
+ * Absent that name the layout is UNKNOWN — a relocated stack's typelib directory
+ * carries no required name — so both readings are offered and `existsDir` keeps
+ * whichever is real. Offering both is what makes this layout-tolerant; picking one
+ * by guess is the defect below.
+ *
+ * MEASURED, and the parent-only derivation is what it cost. macOS 15.7.9 / Node
+ * 24.18.1 / `@gjsify/webkit-native` 0.45.0, with
+ * `GI_TYPELIB_PATH=<…>/webkit-native-darwin-x64/prebuilds/darwin-x64` and nothing
+ * else: GI found the typelib and never its backer.
+ *
+ *     GLib-GIRepository-WARNING: Failed to load shared library
+ *       'libgjsifywebkit.dylib' referenced by the typelib
+ *     TypeError: WebKit.WebView is not a constructible GObject type
+ *
+ * dyld's own trace named `…/webkit-native-darwin-x64/prebuilds/libgjsifywebkit.dylib`
+ * — the PARENT of the directory the dylib is in, which is this function's previous
+ * answer written out. On darwin that is not a degraded search but a dead one:
+ * `@gjsify/webkit-native` is the only WebKit any darwin host has (ADR 0022).
+ * @param {string} typelibDir one entry of a `GI_TYPELIB_PATH`
+ * @returns {string[]} candidate library directories, unverified
+ */
+export function giLibraryDirsForTypelibDir(typelibDir) {
+    const parent = dirname(typelibDir);
+    return basename(typelibDir) === TYPELIB_SUBDIR ? [parent] : [typelibDir, parent];
+}
 
 /** Memoized `pkg-config` answer: the spawn happens at most once per process. */
 let pkgConfigDirsCache = null;
@@ -156,8 +203,9 @@ export function pkgConfigSearchDirs(env) {
  *
  * Three sources, in precedence order:
  *   1. `GI_TYPELIB_PATH` — the host stating outright where typelibs live; the
- *      libraries are the sibling `dirname()`. Accepted on directory existence
- *      alone: an explicit statement is not second-guessed.
+ *      libraries are wherever {@link giLibraryDirsForTypelibDir} says the layout
+ *      puts them. Accepted on directory existence alone: an explicit statement is
+ *      not second-guessed.
  *   2. `pkg-config`'s `.pc` search path → each `<dir>/pkgconfig`'s parent. The
  *      general mechanism (any prefix, including a custom one).
  *   3. {@link PROBED_GI_LIBDIRS} — the standard macOS prefixes, for the common
@@ -201,10 +249,11 @@ export function systemGiLibraryDirs({
         if (dir && dir !== '/' && !out.includes(dir)) out.push(dir);
     };
 
-    // 1. Explicit: the typelib dir's sibling libdir.
+    // 1. Explicit: the libdirs each typelib dir implies, both layouts.
     for (const typelibDir of splitSearchPath(env.GI_TYPELIB_PATH)) {
-        const libDir = dirname(typelibDir);
-        if (existsDir(libDir)) add(libDir);
+        for (const libDir of giLibraryDirsForTypelibDir(typelibDir)) {
+            if (existsDir(libDir)) add(libDir);
+        }
     }
 
     // 2 + 3. Candidate prefixes, believed only on the girepository-1.0 marker.

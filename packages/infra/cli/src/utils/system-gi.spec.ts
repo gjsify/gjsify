@@ -19,6 +19,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import {
     composeDyldFallback,
     dyldDefaultFallbackDirs,
+    giLibraryDirsForTypelibDir,
     pathCovers,
     splitSearchPath,
     systemGiLibraryDirs,
@@ -167,6 +168,37 @@ export default async () => {
             expect(dirs).toStrictEqual(['/opt/mystack/lib']);
         });
 
+        await it('reads a STAGED typelib dir as its own libdir', async () => {
+            // The defect: an ADR 0017 prebuild directory holds `WebKit-6.0.typelib`
+            // AND `libgjsifywebkit.dylib`, so GI's install layout — typelibs one level
+            // BELOW the libraries — does not describe it, and `dirname()` alone named
+            // the prebuilds/ parent, a real directory holding nothing. Measured on the
+            // macOS 15.7.9 VM: the typelib resolved and its backer never did.
+            const staged = '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds/darwin-x64';
+            expect(
+                systemGiLibraryDirs({
+                    platform: 'darwin',
+                    env: { GI_TYPELIB_PATH: staged },
+                    existsDir: dirsExist([staged, '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds']),
+                    searchDirs: noPkgConfig,
+                })[0],
+            ).toBe(staged);
+        });
+
+        await it('offers only the parent for GI’s own install layout', async () => {
+            // `<libdir>/girepository-1.0/` holds no library, so it must not reach a
+            // loader search path — which is why the marker DECIDES rather than a probe
+            // offering both everywhere.
+            expect(
+                systemGiLibraryDirs({
+                    platform: 'darwin',
+                    env: { GI_TYPELIB_PATH: '/usr/local/lib/girepository-1.0' },
+                    existsDir: dirsExist(['/usr/local/lib', '/usr/local/lib/girepository-1.0']),
+                    searchDirs: noPkgConfig,
+                }),
+            ).toStrictEqual(['/usr/local/lib']);
+        });
+
         await it('ranks the three sources most-specific-first', async () => {
             // All three sources live at once: GI_TYPELIB_PATH (in its own given
             // order) → pkg-config → probed prefixes.
@@ -311,6 +343,27 @@ export default async () => {
                 why: 'a Mac with no GI stack at all',
                 opts: { platform: 'darwin', env: {}, existsDir: () => false, searchDirs: noPkgConfig },
             },
+            {
+                why: 'a STAGED prebuild dir, typelib and dylib together',
+                opts: {
+                    platform: 'darwin',
+                    env: { GI_TYPELIB_PATH: '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds/darwin-x64' },
+                    existsDir: dirsExist([
+                        '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds/darwin-x64',
+                        '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds',
+                    ]),
+                    searchDirs: noPkgConfig,
+                },
+            },
+            {
+                why: 'a staged dir whose parent does not exist',
+                opts: {
+                    platform: 'darwin',
+                    env: { GI_TYPELIB_PATH: '/app/staged' },
+                    existsDir: dirsExist(['/app/staged']),
+                    searchDirs: noPkgConfig,
+                },
+            },
         ];
 
         for (const { why, opts } of cases) {
@@ -318,6 +371,23 @@ export default async () => {
                 expect(systemGiLibraryDirs(opts)).toStrictEqual(nodeGi.systemGiLibraryDirs(opts));
             });
         }
+
+        await it('agrees on which libdirs a typelib dir implies', async () => {
+            // The layout decision itself, not only its effect through
+            // `systemGiLibraryDirs` — a mirror that agreed on the outputs while
+            // disagreeing here would drift the moment either grows a second caller.
+            for (const typelibDir of [
+                '/usr/local/lib/girepository-1.0',
+                '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds/darwin-x64',
+                '/opt/mystack/lib/typelibs',
+                '/girepository-1.0',
+                '/staged',
+            ]) {
+                expect(giLibraryDirsForTypelibDir(typelibDir)).toStrictEqual(
+                    nodeGi.giLibraryDirsForTypelibDir(typelibDir),
+                );
+            }
+        });
 
         await it('agrees on splitSearchPath and pathCovers too', async () => {
             for (const [value, sep] of [

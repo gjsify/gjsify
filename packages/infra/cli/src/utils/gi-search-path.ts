@@ -44,9 +44,17 @@ interface GiRepository {
  *
  * `globalThis.imports?.gi` is both the sanctioned GJS probe spelling
  * (`.oxlintrc.json`) and the correct CONDITION, so no `isGjs()` beside it: the
- * question is "is there a GIRepository to prepend to", and a Node host answers
- * no by itself — the required no-op, since on Node the CLI uses the npm
- * `rolldown` crate and never wants a prebuild.
+ * question is "is there a GIRepository to prepend to", and a plain Node process has
+ * none — nothing here to write to, which is the required no-op.
+ *
+ * NOT because a Node host wants no prebuild. That justification stood here and is
+ * false exactly where it matters: on darwin `@gjsify/webkit-native`'s prebuild is
+ * the ONLY WebKit any host has (ADR 0022), and ADR 0024 § 4 puts macOS and Windows
+ * applications on Node + node-gi. What is true is narrower — the CLI on Node uses
+ * the npm `rolldown` crate — and generalising it to "a Node host never wants a
+ * prebuild" is what kept every OTHER Node prebuild env-bound until
+ * `@gjsify/node-gi`'s `native-prebuilds.js` (ADR 0021 § The Node host). The Node
+ * host is covered THERE, in the package that owns a GIRepository, not here.
  *
  * `dup_default()` is GLib >= 2.86, probed as a capability rather than caught:
  * an older GLib simply keeps today's behaviour (the launcher's environment, or

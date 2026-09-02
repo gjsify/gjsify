@@ -35,9 +35,10 @@ vendored as-is — gjsify ships its own dual (GJS + Node) example/test infra.
 
 - **Node.js ≥ 20, Bun ≥ 1.3, or Deno ≥ 2** — the engine is a Node-API addon, so
   ONE binary serves all three (see [Runtimes](#runtimes-node--bun--deno)).
-- **No C++ toolchain on the four prebuilt targets.** The published tarball ships
-  `prebuilds/<platform>-<arch>/node_gi.node` for `linux-x64`, `linux-arm64`,
-  `darwin-arm64` and `win32-x64` (`package.json#gjsify.platforms`), and the
+- **No C++ toolchain on a prebuilt target.** The published tarball ships
+  `prebuilds/<platform>-<arch>/node_gi.node` for every target
+  `package.json#gjsify.platforms` declares — `linux-x64`, `linux-arm64`,
+  `darwin-arm64`, `darwin-x64`, `win32-x64` — and the
   `install` script (`scripts/install.mjs`) uses it instead of building: a source
   build is the FALLBACK for a host with no prebuild, not the default. Force it
   with `NODE_GI_BUILD_FROM_SOURCE=1` (or npm's `--build-from-source`); skip it
@@ -84,12 +85,25 @@ npm install @gjsify/gtk-runtime-darwin-arm64   # macOS Apple silicon
 npm install @gjsify/gtk-runtime-darwin-x64     # macOS Intel
 ```
 
-All three declare `os`/`cpu`, so npm/yarn/pnpm skip them off-platform. Making them
-`optionalDependencies` of this package (which would remove the manual step
-without any consumer-side platform branching) is pending two decisions outside
-this package — the ADR-0003 dependency-direction rule between node-gi's tier
-and the bundles', and `os`/`cpu` filtering in `gjsify install`'s native
-backend, which currently places foreign-platform optional deps.
+All three declare `os`/`cpu`, so npm/yarn/pnpm skip them off-platform.
+
+**This package will not declare one, and that is a decision, not a gap** —
+[ADR 0023 § 1 + § 3](../../../docs/adr/0023-gtk-source-precedence.md). Whoever
+SHIPS an application declares the bundle (for the showcases that is the `gjsify`
+CLI, which adds `@gjsify/gtk-runtime-<target>` to the tree it assembles); node-gi
+declares it in no dependency field at all. The reason is #910: a CI job compiled
+the addon against Homebrew GTK and then ran it on a bundle it had never been
+linked against, producing wrong method entries and a 29-minute timeout. #920
+reverted the dependency and the prohibition was written down. Pairing a
+from-source addon with a bundle is not a preference that came out wrong, it is
+an ABI error, so the bundle cannot arrive by default.
+
+What that costs is worth stating rather than discovering: on a Mac or a Windows
+box with **no** system GTK and **no** bundle installed, `@gjsify/node-gi` does
+not load at all — its addon's own link closure (`libgirepository-2.0`,
+`libglib-2.0`, `libcairo`) is unresolvable, and the failure names only the
+`.node` file (#1063). The addon's rpath lists exactly the two places it accepts:
+a sibling `gtk-runtime-<target>/gtk/lib`, and the host's `/usr/local/lib`.
 
 ## Usage
 
