@@ -281,10 +281,14 @@ export interface GuiLauncherInput {
  *      is the documented flag that makes `cmd.exe` strip exactly the outer pair
  *      of quotes and take the rest literally, which is the only form that
  *      survives a program directory with a space in its path.
- *   4. `GetConsoleWindow` decides the two remaining arguments: a console to
- *      inherit means no flags and no redirect (the terminal sees everything an
- *      unhidden `.cmd` shows today); no console means `CREATE_NO_WINDOW` plus a
- *      log file inherited as the child's stdout and stderr.
+ *   4. `GetConsoleCP` and `GetStdHandle` — two probes, not one — decide the two
+ *      remaining arguments: a console to inherit means no flags and no redirect
+ *      (the terminal sees everything an unhidden `.cmd` shows today); no console
+ *      but a usable stdout means `CREATE_NO_WINDOW` and the caller's own handles;
+ *      neither means `CREATE_NO_WINDOW` plus a log file inherited as the child's
+ *      stdout and stderr. `GetConsoleWindow` is deliberately NOT the probe — it
+ *      answers NULL for a windowless console, and the comment at step 4 below
+ *      carries the measurement that cost.
  *   5. wait, and exit with the child's status — so `<App>.exe` in a script is a
  *      truthful `%ERRORLEVEL%` and not a fire-and-forget.
  */
