@@ -405,7 +405,7 @@ bool IsLive(GjsifyWebView2Backend *backend)
 
 // The separator between a channel name and its JSON payload, chosen so it cannot
 // occur in the payload: `JSON.stringify` emits a control character inside a
-// string as the six ASCII characters ``, never as a literal one. That is
+// string as a six-character escape sequence, never as a literal one. That is
 // what lets the whole message travel as a STRING and be read back with no JSON
 // parser on this side — GLib has none and json-glib is not a dependency here.
 constexpr wchar_t kChannelSeparator = L'\x01';
