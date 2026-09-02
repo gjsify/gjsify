@@ -20,8 +20,10 @@
 // carries the prefix of the library that owns its GType — `adw-action-row` and
 // `gtk-entry` alike, ADR 0034 clause 1 — and stripping it ({@link elementName}) leaves
 // the bare name widget files and `*.meta.ts` story names are already spelled in. The
-// NativeScript surface is `adw-` throughout, which is why {@link widgetClass} keeps a
-// fixed prefix and only {@link tagClass} reads one.
+// NativeScript surface carries the prefix too, since ADR 0034 clause 1 reached it, so
+// both renderer readers key on the TAG and read the class off it ({@link tagClass});
+// {@link widgetClass} keeps a fixed `Adw` for the React Native barrel, whose modules
+// have no prefix to read.
 //
 // It answers the core-edge question here too ({@link coreReach}), for the same reason
 // and one more: that derivation lived privately in `generate-status.mjs`, which CI
@@ -199,8 +201,8 @@ export const widgetClass = (name) => `Adw${pascalCase(name)}`;
  * The prefix is read off the tag rather than fixed at `Adw`, which is the whole of
  * ADR 0034 clause 1 as a function — the namespace belongs to whichever library owns the
  * GType, and `gtk-host/src/tags.ts` derives the tag from the GType by the same rule
- * running the other way. {@link widgetClass} stays `Adw`-only because the two
- * NativeScript-shaped surfaces are keyed on a BARE name with no prefix to read.
+ * running the other way. {@link widgetClass} stays `Adw`-only for the React Native
+ * barrel, whose modules are a BARE name with no prefix to read.
  *
  * WHY A TAG-AWARE ONE EXISTS AT ALL: hard-coding `Adw` is wrong for anything keyed on a
  * tag, and silently so. ADR 0034 clause 1 gave nine web elements a `gtk-` spelling, and
@@ -715,7 +717,9 @@ function verifyCoreVia(files, elements, root) {
 // rule one layer down: `nativescript-platforms.mjs` declares `VARIANT_EXTENSIONS`
 // including `tsx` and `mts` for this very naming scheme, so the build resolves a
 // `gtk-button.android.tsx` that this scan could not see.
-const NS_WIDGET_FILE = new RegExp(`^adw-([a-z0-9-]+)(?:\\.(?:android|ios))?\\.(?:${TS_SOURCE_EXTENSIONS.join('|')})$`);
+const NS_WIDGET_FILE = new RegExp(
+    `^((?:adw|gtk)-[a-z0-9-]+)(?:\\.(?:android|ios))?\\.(?:${TS_SOURCE_EXTENSIONS.join('|')})$`,
+);
 
 /** Declaring a class AT ALL is what makes a file a widget file — the word in prose is not. */
 const CLASS_DECLARATION = /^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+[A-Za-z0-9_]+/m;
@@ -729,8 +733,9 @@ const exportsClass = (text, name) =>
  * Every widget the NativeScript Adwaita port ships → its repo-relative file.
  *
  * NativeScript has no `customElements.define`. A widget here is a class extending a
- * `@nativescript/core` view, named `Adw<Widget>` in `adw-<name>.ts`, and every file
- * here but one is that. The exception is `adw-accent.ts`, two functions that push CSS
+ * `@nativescript/core` view, named after the library that owns its GType — `AdwSwitchRow`
+ * in `adw-switch-row.ts`, `GtkEntry` in `gtk-entry.ts` (ADR 0034 clause 1) — and every
+ * file here but one is that. The exception is `adw-accent.ts`, two functions that push CSS
  * at `Application`: no view, nothing to place in a layout, and the directory listing
  * scored it as a NativeScript-only WIDGET the browser had yet to port.
  *
@@ -738,8 +743,13 @@ const exportsClass = (text, name) =>
  * one and does not export it under the name its filename promises THROWS. Same
  * vacuous-scan contract as {@link adwaitaWebElements}.
  *
+ * KEYED ON THE TAG, not on the bare name, because the prefix is now information: `button`
+ * alone cannot say whether the file is `adw-button.ts` or `gtk-button.ts`, and the ledger
+ * this feeds is keyed on exactly that distinction. Callers wanting the bare name have
+ * {@link elementName}, the same hop `adwaitaWebElements`' callers already make.
+ *
  * @param {string} root repository root
- * @returns {Map<string, string>} bare widget name → repo-relative file
+ * @returns {Map<string, string>} widget tag → repo-relative file
  */
 export function adwaitaNativeScriptWidgets(root) {
     const dir = join(root, ADWAITA_NS_WIDGETS);
@@ -752,7 +762,7 @@ export function adwaitaNativeScriptWidgets(root) {
         if (!match) continue;
         const text = readFileSync(file, 'utf8');
         if (!CLASS_DECLARATION.test(text)) continue;
-        const expected = widgetClass(match[1]);
+        const expected = tagClass(match[1]);
         if (!exportsClass(text, expected)) {
             throw new Error(
                 `${relative(root, file)} declares a class but does not export ${expected}. ` +
@@ -766,9 +776,9 @@ export function adwaitaNativeScriptWidgets(root) {
 
     if (widgets.size === 0) {
         throw new Error(
-            `no adw-<name>.ts file under ${ADWAITA_NS_WIDGETS} exports an Adw* class. ` +
-                'Either the package moved or the naming convention changed — a scan that ' +
-                'finds nothing passes vacuously, so this is a failure, not a pass.',
+            `no adw-<name>.ts / gtk-<name>.ts file under ${ADWAITA_NS_WIDGETS} exports the class ` +
+                'its filename promises. Either the package moved or the naming convention changed — ' +
+                'a scan that finds nothing passes vacuously, so this is a failure, not a pass.',
         );
     }
 

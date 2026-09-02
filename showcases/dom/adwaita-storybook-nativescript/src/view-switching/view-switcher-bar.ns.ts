@@ -30,7 +30,7 @@ export class ViewSwitcherBarNsStory extends StoryView {
         const stack = new AdwViewStack();
         for (const page of VIEW_SWITCHER_BAR_PAGES) {
             const status = new AdwStatusPage();
-            status.icon = ICONS[page.icon] ?? '';
+            status.iconName = ICONS[page.icon] ?? '';
             status.title = page.title;
             status.description = `The ${page.title.toLowerCase()} page.`;
             stack.add(status, page.name, page.title, ICONS[page.icon]);

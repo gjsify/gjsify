@@ -17,12 +17,10 @@ import {
     AdwAvatar,
     AdwBanner,
     AdwBottomSheet,
-    AdwButton,
     AdwButtonContent,
     AdwButtonRow,
     AdwCarousel,
     AdwClamp,
-    AdwEntry,
     AdwEntryRow,
     AdwExpanderRow,
     AdwHeaderBar,
@@ -41,6 +39,8 @@ import {
     AdwToolbarView,
     AdwWindowTitle,
     AdwWrapBox,
+    GtkButton,
+    GtkEntry,
 } from '@gjsify/adwaita-nativescript';
 
 /** One node of a declared template tree. */
@@ -68,12 +68,10 @@ export const ELEMENT_CLASSES: Record<string, new () => View> = {
     AdwAvatar,
     AdwBanner,
     AdwBottomSheet,
-    AdwButton,
     AdwButtonContent,
     AdwButtonRow,
     AdwCarousel,
     AdwClamp,
-    AdwEntry,
     AdwEntryRow,
     AdwExpanderRow,
     AdwHeaderBar,
@@ -92,6 +90,8 @@ export const ELEMENT_CLASSES: Record<string, new () => View> = {
     AdwToolbarView,
     AdwWindowTitle,
     AdwWrapBox,
+    GtkButton,
+    GtkEntry,
     Label,
     StackLayout,
 };
@@ -138,14 +138,14 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Gtk.Button', view: 'GtkButton', root:
         { tag: 'StackLayout', props: {"orientation":"horizontal"}, children: [
-                { tag: 'AdwButton', props: {"text":"Pill","variant":"pill"} },
-                { tag: 'AdwButton', props: {"text":"Suggested","variant":"suggested"} },
-                { tag: 'AdwButton', props: {"text":"Delete","variant":"destructive"} },
-                { tag: 'AdwButton', props: {"text":"Flat","variant":"flat"} }
+                { tag: 'GtkButton', props: {"text":"Pill","variant":"pill"} },
+                { tag: 'GtkButton', props: {"text":"Suggested","variant":"suggested"} },
+                { tag: 'GtkButton', props: {"text":"Delete","variant":"destructive"} },
+                { tag: 'GtkButton', props: {"text":"Flat","variant":"flat"} }
             ] }
     },
     { widget: 'Gtk.Entry', view: 'GtkEntry', root:
-        { tag: 'AdwEntry', props: {"placeholder":"Search files…"} }
+        { tag: 'GtkEntry', props: {"placeholderText":"Search files…"} }
     },
     { widget: 'Adw.Clamp', view: 'AdwClamp', root:
         { tag: 'AdwClamp', props: {"maximumSize":400,"tighteningThreshold":300}, children: [
@@ -154,9 +154,9 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Adw.HeaderBar', view: 'AdwHeaderBar', root:
         { tag: 'AdwHeaderBar', children: [
-                { tag: 'AdwButton', slot: 'startBox', props: {"text":"‹","variant":"flat"} },
+                { tag: 'GtkButton', slot: 'startBox', props: {"text":"‹","variant":"flat"} },
                 { tag: 'AdwWindowTitle', slot: 'titleWidget', props: {"title":"Text Editor","subtitle":"notes.md"} },
-                { tag: 'AdwButton', slot: 'endBox', props: {"text":"≡","variant":"flat"} }
+                { tag: 'GtkButton', slot: 'endBox', props: {"text":"≡","variant":"flat"} }
             ] }
     },
     { widget: 'Adw.ToolbarView', view: 'AdwToolbarView', root:
@@ -170,12 +170,12 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Adw.WrapBox', view: 'AdwWrapBox', root:
         { tag: 'AdwWrapBox', props: {"childSpacing":8,"lineSpacing":8}, children: [
-                { tag: 'AdwButton', props: {"text":"Design","variant":"pill"} },
-                { tag: 'AdwButton', props: {"text":"Adwaita","variant":"pill"} },
-                { tag: 'AdwButton', props: {"text":"GNOME","variant":"pill"} },
-                { tag: 'AdwButton', props: {"text":"GTK","variant":"pill"} },
-                { tag: 'AdwButton', props: {"text":"TypeScript","variant":"pill"} },
-                { tag: 'AdwButton', props: {"text":"Storybook","variant":"pill"} }
+                { tag: 'GtkButton', props: {"text":"Design","variant":"pill"} },
+                { tag: 'GtkButton', props: {"text":"Adwaita","variant":"pill"} },
+                { tag: 'GtkButton', props: {"text":"GNOME","variant":"pill"} },
+                { tag: 'GtkButton', props: {"text":"GTK","variant":"pill"} },
+                { tag: 'GtkButton', props: {"text":"TypeScript","variant":"pill"} },
+                { tag: 'GtkButton', props: {"text":"Storybook","variant":"pill"} }
             ] }
     },
     { widget: 'Adw.Avatar', view: 'AdwAvatar', root:

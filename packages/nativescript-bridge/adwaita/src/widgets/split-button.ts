@@ -98,12 +98,12 @@ export function splitButtonArrowSvg(direction: SplitButtonDirection): string {
 }
 
 /**
- * Apply `AdwSplitButton.actionIcon = svg` to the content machine. The SVG string IS
+ * Apply `AdwSplitButton.iconName = svg` to the content machine. The SVG string IS
  * the icon identity on NativeScript, so it goes where GTK puts the icon NAME.
  *
  * C offers no "unset the icon", only the side effect of filling another slot, so an
  * empty SVG clears the content and lets the label half take over again — what a
- * caller assigning `actionIcon` from a nullable lookup expects.
+ * caller assigning `iconName` from a nullable lookup expects.
  */
 export function setActionIcon(state: SplitButtonState, svg: string | null | undefined): void {
     const next = svg ?? '';

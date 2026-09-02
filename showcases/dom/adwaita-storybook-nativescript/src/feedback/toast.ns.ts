@@ -3,7 +3,7 @@
 // renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwButton, AdwToastOverlay } from '@gjsify/adwaita-nativescript';
+import { GtkButton, AdwToastOverlay } from '@gjsify/adwaita-nativescript';
 import { toastMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 /** Story: an AdwToast presented through an AdwToastOverlay on button press. */
@@ -19,7 +19,7 @@ export class ToastNsStory extends StoryView {
     }
 
     initialize(): void {
-        const button = new AdwButton();
+        const button = new GtkButton();
         button.text = 'Show toast';
         button.variant = 'pill';
         button.horizontalAlignment = 'center';

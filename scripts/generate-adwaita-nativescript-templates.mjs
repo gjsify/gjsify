@@ -49,6 +49,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { ADWAITA_GALLERY_NS_REFUSALS, ADWAITA_GALLERY_NS_TEMPLATES } from './adwaita-gallery-ns-templates.mjs';
+import { WIDGET_CLASS } from './nativescript-xml-doors.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const INDENT = '  ';
@@ -76,14 +77,32 @@ export const NS_OXFMT_EXEMPT_OUTPUTS = [NS_GENERATED.website, NS_GENERATED.expec
 /** `Adw.Clamp` -> `AdwClamp`: the view file's name, and the probe's label. */
 export const viewNameOf = (widget) => widget.replace('.', '');
 
-/** An element from this package carries the `adw:` prefix; NativeScript's own do not. */
-const qualify = (tag) => (tag.startsWith('Adw') ? `adw:${tag}` : tag);
+/**
+ * An element THIS package declares, told from a NativeScript-core one.
+ *
+ * `WIDGET_CLASS` and not `Adw` — the shared vocabulary, so this reads the same
+ * question the gates read. `startsWith('Adw')` was the test until ADR 0034 clause 1
+ * renamed four widgets to `Gtk*`, and then it answered "NativeScript core" for
+ * `GtkButton` and `GtkEntry`: the two functions below silently dropped them, which is
+ * `check-generated-website-data.mjs`'s prefix-as-membership-test defect arriving in
+ * the generator. Nothing went red, because both outputs came from this one answer.
+ * `check-generated-website-data.mjs` now holds it against the widget-class index.
+ */
+const OWN_ELEMENT = new RegExp(`^${WIDGET_CLASS}$`);
 
-/** Every `Adw*` element the templates name — exactly what the barrel must re-export. */
+/**
+ * An element from this package carries the `adw:` prefix; NativeScript's own do not.
+ *
+ * The prefix names the MODULE `~/adwaita`, never a library, so `<adw:GtkEntry>` is the
+ * right spelling for a widget ADR 0034 renamed — the two vocabularies are unrelated.
+ */
+const qualify = (tag) => (OWN_ELEMENT.test(tag) ? `adw:${tag}` : tag);
+
+/** Every element of this package the templates name — exactly what the barrel must re-export. */
 export function elementsUsed() {
     const used = new Set();
     const walk = (node) => {
-        if (node.tag.startsWith('Adw')) used.add(node.tag);
+        if (OWN_ELEMENT.test(node.tag)) used.add(node.tag);
         for (const child of node.children ?? []) walk(child);
     };
     for (const template of ADWAITA_GALLERY_NS_TEMPLATES) walk(template.root);

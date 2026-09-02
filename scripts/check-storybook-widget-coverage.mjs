@@ -194,7 +194,7 @@ const ONE_RENDERER_ONLY = {
         only: 'nativescript',
         sameWidgetAs: 'image',
         decision:
-            'WHY the pair `sameWidgetAs` declares is still two rows: `NS_WIDGET_ALIGNMENT` in check-vocabulary-alignment.mjs declares `adw-icon` to be `GtkImage`, and that declaration is what the vocabulary distance counts. The browser element took the GIR name on 2026-09-01 (ADR 0034 clause 1, § Amendment 5) and the NativeScript port deliberately did not: ADR 0034 refuses that rename on cost — the port is published at 49 versions with an XML element vocabulary whose failure on a phone is a silent unresolved module. So this row is a NAMING asymmetry that the vocabulary gate already measures, not a missing port, and it retires the day the NativeScript widget converges.',
+            'WHY the pair `sameWidgetAs` declares is still two rows: `NS_WIDGET_ALIGNMENT` in check-vocabulary-alignment.mjs declares `adw-icon` to be `GtkImage`, and that declaration is what the vocabulary distance counts. The browser element took the GIR name on 2026-09-01 (ADR 0034 clause 1, § Amendment 5), and the NativeScript port renamed four widgets on the same rule and deliberately left this one (§ Amendment 6): converging it also changes the BARE name — `icon` to `image` — that THIS check joins the two renderers on, so doing it on one surface alone turns one widget into two one-renderer-only widgets and invalidates its own NO_STORY_OF_ITS_OWN exemption. So this row is a NAMING asymmetry that the vocabulary gate already measures, not a missing port, and it retires the day the two surfaces rename together.',
     },
     image: {
         only: 'web',
@@ -215,7 +215,7 @@ const ONE_RENDERER_ONLY = {
     popover: {
         only: 'web',
         decision:
-            'Recorded in packages/nativescript-bridge/adwaita/src/widgets/adw-drop-down.ts:14-16 — the NativeScript file, which no longer shares a name with the browser one: "the NS subset has none, so the options open in the platform `action()` sheet, the same substitution `AdwComboRow`, `AdwSplitButton` and `AdwMenuButton` make." Upstream has no AdwPopover either — GtkPopover styled by _popovers.scss.',
+            'Recorded in packages/nativescript-bridge/adwaita/src/widgets/gtk-drop-down.ts:19-21 — the NativeScript file, not the browser one of the same name: "the NS subset has none, so the options open in the platform `action()` sheet, the same substitution `AdwComboRow`, `AdwSplitButton` and `GtkMenuButton` make." Upstream has no AdwPopover either — GtkPopover styled by _popovers.scss.',
         vectors: ['POPOVER_SURFACE_VECTORS', 'POPOVER_KEY_VECTORS'],
     },
     'progress-bar': {
@@ -439,7 +439,7 @@ let ns;
 let stories;
 try {
     defines = adwaitaWebElements(ROOT);
-    ns = adwaitaNativeScriptWidgets(ROOT);
+    ns = new Map([...adwaitaNativeScriptWidgets(ROOT)].map(([tag, file]) => [elementName(tag), file]));
     stories = new Set(adwaitaStoryMetas(ROOT).keys());
 } catch (error) {
     // All three readers throw on a vacuous scan by design; catch to keep this script's prefix.

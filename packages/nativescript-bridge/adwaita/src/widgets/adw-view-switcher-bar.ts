@@ -179,7 +179,7 @@ export class AdwViewSwitcherBar extends GridLayout {
             nodes.button.className = model.selected
                 ? 'adw-viewswitcherbar-button active'
                 : 'adw-viewswitcherbar-button';
-            nodes.icon.icon = nsIconSvg(model.iconName);
+            nodes.icon.iconName = nsIconSvg(model.iconName);
             nodes.label.text = model.label;
             nodes.badge.text = model.badgeLabel;
             nodes.badge.visibility = model.badgeLabel.length > 0 || model.needsAttention ? 'visible' : 'collapse';

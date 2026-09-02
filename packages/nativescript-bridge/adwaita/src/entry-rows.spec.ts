@@ -55,7 +55,7 @@ function makeViews(): EntryRowViews {
 }
 
 function makePasswordViews(): PasswordEntryRowViews {
-    return { field: { secure: false }, peekButton: { icon: '' } };
+    return { field: { secure: false }, peekButton: { iconName: '' } };
 }
 
 /** A row wired exactly like `AdwEntryRow`: state → painter, on every change. */
@@ -226,7 +226,7 @@ export const AdwEntryRowsNsTest = async () => {
                 for (const step of steps) applyPasswordStep(password, state, step);
 
                 expect(passwordViews.field.secure).toBe(!expected.revealed);
-                expect(passwordViews.peekButton.icon).toBe(
+                expect(passwordViews.peekButton.iconName).toBe(
                     expected.peekIconName === 'view-conceal-symbolic' ? viewConcealSymbolic : viewRevealSymbolic,
                 );
                 // The caps-lock warning lives on the PARENT row — the password

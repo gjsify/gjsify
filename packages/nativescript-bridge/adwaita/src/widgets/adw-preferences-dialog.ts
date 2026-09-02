@@ -83,7 +83,7 @@ export class AdwPreferencesDialog extends GridLayout {
         // Circular flat close button with a REAL window-close symbolic icon —
         // matching Adw.PreferencesDialog's header close (not a `✕` glyph).
         const closeButton = new AdwImageButton();
-        closeButton.icon = windowCloseSymbolic;
+        closeButton.iconName = windowCloseSymbolic;
         closeButton.className = `${closeButton.className} adw-preferences-dialog-close`.trim();
         closeButton.addEventListener('tap', () => this.close());
         GridLayout.setColumn(closeButton, 1);

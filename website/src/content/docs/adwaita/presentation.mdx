@@ -325,15 +325,15 @@ give the user a way out, such as a button that creates their first document.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwButton, AdwStatusPage } from '@gjsify/adwaita-nativescript';
+    import { GtkButton, AdwStatusPage } from '@gjsify/adwaita-nativescript';
     import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 
-    const button = new AdwButton();
+    const button = new GtkButton();
     button.text = 'New Document';
     button.variant = 'suggested-action';
 
     const page = new AdwStatusPage();
-    page.icon = folderSymbolic; // an Adwaita symbolic icon (SVG string)
+    page.iconName = folderSymbolic; // an Adwaita symbolic icon (SVG string)
     page.title = 'No Documents';
     page.description = 'Documents you create or open will appear here.';
     page.setChild(button);

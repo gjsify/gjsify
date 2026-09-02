@@ -31,7 +31,7 @@ export const NS_WIDGETS_DIR = 'packages/nativescript-bridge/adwaita/src/widgets'
  * `'default' | AdwButtonStyleClass`, and that second half is a headless type in
  * `@gjsify/adwaita-core` derived from an `as const` array. A resolver that stopped at
  * the widget directory answered "not a string" for a type that is nothing but strings,
- * and every `<AdwButton variant="pill">` in the gallery failed a check that was wrong.
+ * and every `<GtkButton variant="pill">` in the gallery failed a check that was wrong.
  */
 export const NS_TYPE_DIRS = [
     NS_WIDGETS_DIR,
@@ -119,6 +119,38 @@ export function readTypeSources(root) {
     return texts;
 }
 
+/**
+ * The ambient `@nativescript/core` slice this package declares for itself.
+ *
+ * `@nativescript/core` is an optional peer and absent from the workspace install, so
+ * this file IS the only in-repo statement of what a NativeScript view already carries.
+ * A reader asking "does this widget have that property" needs it, because the answer is
+ * yes for `className` and `opacity` without any widget declaring them.
+ */
+export const NS_CORE_TYPES = 'packages/nativescript-bridge/adwaita/src/ns-core.d.ts';
+
+/**
+ * Every property name the ambient slice declares, from any of its declarations.
+ *
+ * Deliberately over-broad — event-payload and options-bag keys land in here too. The
+ * set is used to EXEMPT a name from "this widget has no such property", so a name too
+ * many costs coverage and a name too few costs a false alarm, and only one of those
+ * gets a check switched off.
+ */
+export function readCoreProperties(root) {
+    const text = readFileSync(join(root, NS_CORE_TYPES), 'utf8');
+    return new Set([...text.matchAll(/^\s{4,}([A-Za-z_$][A-Za-z0-9_$]*)\??:/gm)].map((m) => m[1]));
+}
+
+/**
+ * A widget class name on this surface: the library prefix, then the widget.
+ *
+ * `Adw\w+` alone was the whole rule until ADR 0034 clause 1 landed here — four widgets
+ * are `Gtk*` now (`gtk-entry.ts` exports `GtkEntry`), and a reader that cannot see them
+ * reports a shipped widget as "not a widget class in the package".
+ */
+export const WIDGET_CLASS = '(?:Adw|Gtk)\\w+';
+
 /** Every widget source, indexed by the class it declares. */
 export function readWidgets(root) {
     const sources = new Map();
@@ -129,7 +161,8 @@ export function readWidgets(root) {
         files.set(file, text);
         // The file NAME is not the class name for every widget — `AdwSplitViewBase`
         // lives in `split-view-base.ts` — so the index is built from the declarations.
-        for (const [, name] of text.matchAll(/export (?:abstract )?class (Adw\w+)/g)) sources.set(name, { file, text });
+        const declares = new RegExp(`export (?:abstract )?class (${WIDGET_CLASS})`, 'g');
+        for (const [, name] of text.matchAll(declares)) sources.set(name, { file, text });
     }
     return { sources, files };
 }
@@ -138,7 +171,8 @@ export function readWidgets(root) {
 export function readElements(root) {
     const text = readFileSync(join(root, NS_WIDGETS_DIR, 'index.ts'), 'utf8');
     const block = /const ELEMENTS = \{([\s\S]*?)\n\} as const;/.exec(text);
-    return new Set(block === null ? [] : [...block[1].matchAll(/^\s{4}(Adw\w+),/gm)].map((m) => m[1]));
+    const listed = new RegExp(`^\\s{4}(${WIDGET_CLASS}),`, 'gm');
+    return new Set(block === null ? [] : [...block[1].matchAll(listed)].map((m) => m[1]));
 }
 
 /** A class and every ancestor of it inside this package, nearest first. */
@@ -147,7 +181,7 @@ export function chainOf(sources, tag) {
     for (let name = tag; name !== undefined && sources.has(name);) {
         const { text } = sources.get(name);
         chain.push(text);
-        name = new RegExp(`export (?:abstract )?class ${name}\\b[^{]*?extends (Adw\\w+)`).exec(text)?.[1];
+        name = new RegExp(`export (?:abstract )?class ${name}\\b[^{]*?extends (${WIDGET_CLASS})`).exec(text)?.[1];
     }
     return chain;
 }
@@ -378,7 +412,7 @@ export function attributeKind(texts, annotation, seen = new Set()) {
  * Every member a class declares, its in-package ancestors included.
  *
  * Getters, setters and methods in one set, because a refusal reason names a member the
- * way a reader would — `AdwDropDown.options`, `AdwToastOverlay.showToast` — without
+ * way a reader would — `GtkDropDown.options`, `AdwToastOverlay.showToast` — without
  * caring which of the three it is.
  */
 export function membersOf(sources, tag) {

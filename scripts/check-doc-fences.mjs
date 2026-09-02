@@ -96,6 +96,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { membersOf, NS_CORE_TYPES, readCoreProperties, readWidgets, WIDGET_CLASS } from './nativescript-xml-doors.mjs';
+
 const rootFlag = process.argv.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : process.argv[rootFlag + 1];
 
@@ -577,6 +579,53 @@ function checkStyleTokens(text, where, fenceList) {
 }
 
 // ---------------------------------------------------------------------------
+// Arm: a NativeScript fence writing a property the widget does not have
+// ---------------------------------------------------------------------------
+
+/**
+ * `const x = new AdwToggleGroup(); x.selected = 0;` — where `AdwToggleGroup` has no
+ * `selected` any more.
+ *
+ * THE INCIDENT is the one this file already exists for, in the dialect the other arms
+ * do not read. ADR 0034 clause 1 renamed `AdwToggleGroup.selected` to `active`, and
+ * `buttons.mdx` kept teaching the old name. Nothing could see it: a NativeScript view
+ * takes an unknown assignment as a dead own-property, the showcase that would type-check
+ * the same code is `private` with `@nativescript/core` as an optional peer, and the arms
+ * above read imports and icon glyphs. The sample compiles for a reader and does nothing —
+ * the shape in this header's item 4, one dialect over.
+ *
+ * The widget's members come from the port's own source and the exemption from its ambient
+ * `@nativescript/core` slice, so the pair of them is what a real NativeScript program
+ * would resolve against.
+ */
+const NS_CONSTRUCTION = new RegExp(
+    `\\b(?:const|let|var)\\s+([A-Za-z0-9_$]+)\\s*=\\s*new\\s+(${WIDGET_CLASS})\\s*\\(`,
+    'g',
+);
+
+function checkNativescriptFence(fence, where, nsWidgets, coreProperties) {
+    const held = new Map();
+    for (const [, variable, klass] of fence.body.matchAll(NS_CONSTRUCTION)) {
+        if (nsWidgets.has(klass)) held.set(variable, klass);
+    }
+    let writes = 0;
+    for (const [, variable, property] of fence.body.matchAll(/\b([A-Za-z0-9_$]+)\.([A-Za-z0-9_$]+)\s*=[^=]/g)) {
+        const klass = held.get(variable);
+        if (klass === undefined) continue;
+        writes += 1;
+        if (coreProperties.has(property) || membersOf(nsWidgets, klass).has(property)) continue;
+        fail(
+            `${where}:${fence.line}`,
+            `\`${variable}.${property} = …\` — ${klass} has no such member, and NativeScript takes an ` +
+                'unknown assignment as a dead own-property. The sample runs and that line does nothing. ' +
+                'A renamed property is the usual cause; the ambient core slice ' +
+                `(${NS_CORE_TYPES}) is the other place the name could legitimately live.`,
+        );
+    }
+    return writes;
+}
+
+// ---------------------------------------------------------------------------
 // Run
 // ---------------------------------------------------------------------------
 
@@ -600,6 +649,8 @@ const icons = readIconExports();
 const roundTripped = assertKebabRoundTrips(icons);
 const webIcons = readWebIconNames();
 const styled = readStyledClasses();
+const { sources: nsWidgets } = readWidgets(ROOT);
+const nsCoreProperties = readCoreProperties(ROOT);
 
 const sources = [
     ...DOCS_SECTIONS.flatMap((section) =>
@@ -626,6 +677,7 @@ const blueprint = blueprintAvailable(dir);
 let tsFences = 0;
 let blueprintFences = 0;
 let styledFences = 0;
+let nsWrites = 0;
 
 try {
     for (const rel of sources) {
@@ -636,10 +688,15 @@ try {
         }
         const text = readFileSync(abs, 'utf8');
         const list = fences(text);
+        const slots = slotAtLine(text.split('\n'));
         for (const fence of list) {
             if (fence.lang !== 'ts') continue;
             tsFences++;
             checkTsFence(fence, rel, icons);
+            // The fence opener sits INSIDE the Fragment, so its own line names the slot.
+            if (slots[fence.line] === 'nativescript') {
+                nsWrites += checkNativescriptFence(fence, rel, nsWidgets, nsCoreProperties);
+            }
         }
         checkIconStrings(text, rel, icons, webIcons, exempt);
         checkClasses(text, rel, styled, webIcons, exempt);
@@ -671,6 +728,13 @@ if (styledFences === 0) {
     fail('scan', 'no className-bearing tsx fence was found — the TOKENS extractor is broken, not the docs');
 }
 if (blueprintFences === 0) fail('scan', 'no `blueprint` fence was found — the extractor is broken');
+if (nsWrites === 0) {
+    fail(
+        'scan',
+        'no property write on a constructed NativeScript widget was found in any `nativescript` fence — ' +
+            'the extractor is broken, not the docs',
+    );
+}
 
 if (blueprint.ok) {
     notes.push(`${blueprintFences} blueprint fence(s) compiled with blueprint-compiler`);
@@ -691,6 +755,10 @@ notes.push(
 notes.push(
     `${styledFences} className-bearing tsx fence(s) across the gallery and ${frameworkSources.length} ` +
         'frameworks page(s), each with the token step at or above it',
+);
+notes.push(
+    `${nsWrites} property write(s) in nativescript fences held against ${nsWidgets.size} widget class(es) ` +
+        `and ${nsCoreProperties.size} ambient core name(s)`,
 );
 if (exempt.size > 0) notes.push(`${exempt.size} exemption(s) from ${LEDGER.replace(`${ROOT}/`, '')}`);
 

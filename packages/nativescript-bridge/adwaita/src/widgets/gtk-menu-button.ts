@@ -1,7 +1,11 @@
-// AdwMenuButton — a Libadwaita-style menu button for NativeScript.
+// GtkMenuButton — the Adwaita-styled GTK menu button for NativeScript.
+//
+// NAMED FOR THE LIBRARY THAT OWNS THE GTYPE (ADR 0034 clause 1), which this file's own
+// FIDELITY note already stated: "libadwaita has no menu button of its own; it styles the
+// GTK one".
 //
 // A flat icon button (extends {@link AdwImageButton}) that, when tapped, opens a
-// native `action()` menu built from {@link AdwMenuButton.menuItems} and emits
+// native `action()` menu built from {@link GtkMenuButton.menuItems} and emits
 // `menuItemActivated` with the chosen item. Mirrors `Gtk.MenuButton` used with a
 // `Gio.Menu` model — the app/primary-menu pattern in an Adwaita header bar
 // (`open-menu-symbolic` → About / Preferences / Quit …). libadwaita has no menu
@@ -25,7 +29,7 @@ import { AdwImageButton } from './adw-image-button.js';
 export const MENU_ITEM_ACTIVATED = 'menuItemActivated';
 
 /**
- * One entry in an {@link AdwMenuButton}'s menu — `@gjsify/adwaita-core`'s
+ * One entry in an {@link GtkMenuButton}'s menu — `@gjsify/adwaita-core`'s
  * {@link AdwMenuEntry}, under the name this widget has always used.
  *
  * It used to be a THIRD declaration of the same shape (the browser element had a
@@ -41,11 +45,11 @@ export interface MenuItemActivatedEventData extends EventData {
     id: string;
     /** The chosen item's label. */
     label: string;
-    /** The chosen item's index in {@link AdwMenuButton.menuItems}. */
+    /** The chosen item's index in {@link GtkMenuButton.menuItems}. */
     index: number;
 }
 
-export class AdwMenuButton extends AdwImageButton {
+export class GtkMenuButton extends AdwImageButton {
     private _items: AdwMenuItem[] = [];
     private _menuTitle = '';
 

@@ -42,7 +42,7 @@ export class ToolbarViewNsStory extends StoryView {
 
         // Content — a status page sits between the toolbars.
         const content = new AdwStatusPage();
-        content.icon = folderSymbolic;
+        content.iconName = folderSymbolic;
         content.title = 'Your library';
         content.description = 'Content sits between the toolbars and scrolls independently of them.';
         view.setContent(content);
@@ -54,11 +54,11 @@ export class ToolbarViewNsStory extends StoryView {
         const bottomBar = new AdwHeaderBar();
 
         const addButton = new AdwImageButton();
-        addButton.icon = listAddSymbolic;
+        addButton.iconName = listAddSymbolic;
         bottomBar.packStart(addButton);
 
         const removeButton = new AdwImageButton();
-        removeButton.icon = listRemoveSymbolic;
+        removeButton.iconName = listRemoveSymbolic;
         bottomBar.packStart(removeButton);
 
         const selectionLabel = new AdwWindowTitle();
@@ -66,7 +66,7 @@ export class ToolbarViewNsStory extends StoryView {
         bottomBar.setTitleWidget(selectionLabel);
 
         const shareButton = new AdwImageButton();
-        shareButton.icon = sendToSymbolic;
+        shareButton.iconName = sendToSymbolic;
         bottomBar.packEnd(shareButton);
 
         view.addBottomBar(bottomBar);

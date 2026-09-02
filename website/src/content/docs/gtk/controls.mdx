@@ -31,10 +31,9 @@ GTK 4 is the reference here, typed by
 [`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). The browser port
 spells both controls the way the GIR does — `<gtk-entry>` and `<gtk-drop-down>`,
 the same tags `@gjsify/gtk-host` uses — because a widget is named after the library
-that owns it and the Adwaita part of these two is the stylesheet. NativeScript still
-says `AdwEntry` and `AdwDropDown`; that port ships one Adwaita-styled widget set
-without dividing it by owning library, and converging it is tracked rather than done.
-Where a port behaves differently, its own window says so.
+that owns it and the Adwaita part of these two is the stylesheet. The NativeScript
+port names them by the same rule, `GtkEntry` and `GtkDropDown`. Where a port behaves
+differently, its own window says so.
 
 :::note
 The previews run the browser port, so behaviour the toolkits drive natively can
@@ -91,10 +90,10 @@ control in row presentation, and the label doubles as the row title.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwEntry } from '@gjsify/adwaita-nativescript';
+    import { GtkEntry } from '@gjsify/adwaita-nativescript';
 
-    const entry = new AdwEntry();
-    entry.placeholder = 'Search files…';
+    const entry = new GtkEntry();
+    entry.placeholderText = 'Search files…';
     entry.text = 'notes.md';
     entry.editable = false;
     ```
@@ -144,9 +143,9 @@ presented as a boxed-list row, use
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwDropDown } from '@gjsify/adwaita-nativescript';
+    import { GtkDropDown } from '@gjsify/adwaita-nativescript';
 
-    const dropDown = new AdwDropDown();
+    const dropDown = new GtkDropDown();
     dropDown.options = ['Automatic', 'Always', 'Never', 'When busy'].map((label) => ({ value: label, label }));
     dropDown.selected = 0;
     // The list opens as the platform action sheet, which has no search field —

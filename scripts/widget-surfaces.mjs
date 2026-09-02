@@ -93,8 +93,8 @@ export const WIDGET_SURFACE_READERS = {
     '@gjsify/adwaita-nativescript': {
         role: 'renderer',
         namespace: (root) => namespaceExport(root, 'packages/nativescript-bridge/adwaita/src'),
-        reads: 'the adw-<name>.ts widget files under packages/nativescript-bridge/adwaita/src/widgets',
-        widgets: (root) => [...adwaitaNativeScriptWidgets(root).keys()].map((name) => `adw-${name}`),
+        reads: 'the adw-<name>.ts / gtk-<name>.ts widget files under packages/nativescript-bridge/adwaita/src/widgets',
+        widgets: (root) => [...adwaitaNativeScriptWidgets(root).keys()],
     },
     '@gjsify/adwaita-react-native': {
         role: 'renderer',

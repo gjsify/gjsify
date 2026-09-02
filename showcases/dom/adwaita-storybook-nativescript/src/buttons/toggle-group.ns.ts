@@ -41,7 +41,7 @@ export class ToggleGroupNsStory extends StoryView {
 
     private _syncGroup(): void {
         if (!this._group) return;
-        this._group.selected = this.args.active as number;
+        this._group.active = this.args.active as number;
         this._applyStyle(this.args.style as string);
     }
 

@@ -201,11 +201,11 @@ row responds to a click, which is how you open a detail page.
     row.subtitle = 'Connected to Highgarden 5GHz';
 
     const icon = new AdwIcon();
-    icon.icon = networkWirelessSymbolic; // an Adwaita symbolic icon (SVG string)
+    icon.iconName = networkWirelessSymbolic; // an Adwaita symbolic icon (SVG string)
     row.setPrefix(icon);
 
     const chevron = new AdwIcon();
-    chevron.icon = goNextSymbolic;
+    chevron.iconName = goNextSymbolic;
     row.setSuffix(chevron);
     ```
   </Fragment>
@@ -415,7 +415,7 @@ selection is an index into the model you gave it, not the string itself.
     row.title = 'Accent colour';
     row.subtitle = 'Used to highlight selected items';
     row.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((s) => ({ label: s, value: s }));
-    row.selectedIndex = 1;
+    row.selected = 1;
     ```
   </Fragment>
 </AdwWidget>
@@ -601,7 +601,7 @@ Adwaita style classes (`.suggested-action`, `.destructive-action`).
 
     const row = new AdwButtonRow();
     row.title = 'Add account';
-    row.startIcon = listAddSymbolic; // an Adwaita symbolic icon (SVG string)
+    row.startIconName = listAddSymbolic; // an Adwaita symbolic icon (SVG string)
     row.className = 'adw-button-row suggested-action';
     ```
   </Fragment>

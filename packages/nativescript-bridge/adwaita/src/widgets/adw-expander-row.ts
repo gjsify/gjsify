@@ -83,7 +83,7 @@ export class AdwExpanderRow extends AdwActionRow {
         // Adwaita expanders use a plain chevron affordance (pan-down = collapsed,
         // pan-up = expanded) — a REAL symbolic icon, not a `▾` glyph or a button.
         const toggle = new AdwIcon();
-        toggle.icon = panDownSymbolic;
+        toggle.iconName = panDownSymbolic;
         toggle.className = `${toggle.className} adw-expander-toggle`.trim();
         this.setSuffix(toggle);
         this._toggle = toggle;
@@ -91,7 +91,7 @@ export class AdwExpanderRow extends AdwActionRow {
         // The core state drives the reveal + chevron + notify.
         this._state.subscribe((expanded) => {
             this._disclosure.visibility = expanded ? 'visible' : 'collapse';
-            this._toggle.icon = expanded ? panUpSymbolic : panDownSymbolic;
+            this._toggle.iconName = expanded ? panUpSymbolic : panDownSymbolic;
             const data: NotifyExpandedEventData = {
                 eventName: NOTIFY_EXPANDED,
                 object: this,

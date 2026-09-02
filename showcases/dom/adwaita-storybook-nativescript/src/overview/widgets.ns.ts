@@ -7,7 +7,7 @@ import { StackLayout } from '@nativescript/core';
 import {
     AdwActionRow,
     AdwBanner,
-    AdwButton,
+    GtkButton,
     AdwComboRow,
     AdwEntryRow,
     AdwExpanderRow,
@@ -70,7 +70,7 @@ export class OverviewWidgetsNsStory extends StoryView {
         const accent = new AdwComboRow();
         accent.title = OVERVIEW_TEXT.accentColor;
         accent.options = OVERVIEW_ACCENT_OPTIONS.map((label) => ({ label, value: label.toLowerCase() }));
-        accent.selectedIndex = 0;
+        accent.selected = 0;
         appearance.addRow(accent);
 
         page.addGroup(appearance);
@@ -137,12 +137,12 @@ export class OverviewWidgetsNsStory extends StoryView {
         buttons.orientation = 'horizontal';
         buttons.className = 'adw-action-buttons';
 
-        const save = new AdwButton();
+        const save = new GtkButton();
         save.text = OVERVIEW_TEXT.save;
         save.variant = 'suggested-action';
         buttons.addChild(save);
 
-        const remove = new AdwButton();
+        const remove = new GtkButton();
         remove.text = OVERVIEW_TEXT.delete;
         remove.variant = 'destructive-action';
         buttons.addChild(remove);

@@ -426,7 +426,7 @@ the web port renders them stacked instead.
     const accent = new AdwComboRow();
     accent.title = 'Accent colour';
     accent.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((label) => ({ label, value: label }));
-    accent.selectedIndex = 0;
+    accent.selected = 0;
     group.addRow(accent);
 
     const fontSize = new AdwSpinRow();

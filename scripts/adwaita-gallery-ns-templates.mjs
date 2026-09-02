@@ -7,7 +7,7 @@
 // The Solid/Vue/React trees beside this file are written in `@gjsify/gtk-host`'s
 // vocabulary, and that vocabulary is GTK's: `gtk-label`, `gtk-button`, `cssClasses`,
 // `iconName`. NativeScript's is a different widget set on a different toolkit —
-// `Label`, `AdwButton`, `class`, an `icon` that is an SVG SOURCE rather than a name.
+// `Label`, `GtkButton`, `class`, an `iconName` that is an SVG SOURCE rather than a name.
 // A generator that turned one into the other would need exactly the hand-written
 // alias table of tags AND semantics that `adwaita-gallery-trees.mjs` refuses in its
 // own header, one toolkit further apart. So the port describes itself, here, and
@@ -82,7 +82,7 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
         widget: 'Adw.ActionRow',
         page: 'boxed-lists',
         // The prefix icon and the chevron the GTK snippet carries are NOT here, and
-        // the reason is one door up: `AdwIcon.icon` takes an SVG SOURCE, not an icon
+        // the reason is one door up: `AdwIcon.iconName` takes an SVG SOURCE, not an icon
         // name, so a template that wanted one would have to inline the whole
         // document into an attribute. The measured pattern in this port is an `id`
         // in the markup and the icon assigned in the code-behind — which is what the
@@ -163,7 +163,7 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
     {
         widget: 'Adw.ButtonContent',
         page: 'buttons',
-        // No `icon`: it is an SVG source string. `label` is the half a template can
+        // No `iconName`: it is an SVG source string. `label` is the half a template can
         // hold, and the loader beside it assigns the icon by id.
         root: { tag: 'AdwButtonContent', props: { id: 'download', label: 'Download' } },
     },
@@ -174,10 +174,10 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
             tag: 'StackLayout',
             props: { orientation: 'horizontal' },
             children: [
-                { tag: 'AdwButton', props: { text: 'Pill', variant: 'pill' } },
-                { tag: 'AdwButton', props: { text: 'Suggested', variant: 'suggested' } },
-                { tag: 'AdwButton', props: { text: 'Delete', variant: 'destructive' } },
-                { tag: 'AdwButton', props: { text: 'Flat', variant: 'flat' } },
+                { tag: 'GtkButton', props: { text: 'Pill', variant: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'Suggested', variant: 'suggested' } },
+                { tag: 'GtkButton', props: { text: 'Delete', variant: 'destructive' } },
+                { tag: 'GtkButton', props: { text: 'Flat', variant: 'flat' } },
             ],
         },
     },
@@ -185,7 +185,7 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
     {
         widget: 'Gtk.Entry',
         page: 'controls',
-        root: { tag: 'AdwEntry', props: { placeholder: 'Search files…' } },
+        root: { tag: 'GtkEntry', props: { placeholderText: 'Search files…' } },
     },
     // ------------------------------------------------------------------ layout
     {
@@ -212,13 +212,13 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
         root: {
             tag: 'AdwHeaderBar',
             children: [
-                { tag: 'AdwButton', slot: 'startBox', props: { text: '‹', variant: 'flat' } },
+                { tag: 'GtkButton', slot: 'startBox', props: { text: '‹', variant: 'flat' } },
                 {
                     tag: 'AdwWindowTitle',
                     slot: 'titleWidget',
                     props: { title: 'Text Editor', subtitle: 'notes.md' },
                 },
-                { tag: 'AdwButton', slot: 'endBox', props: { text: '≡', variant: 'flat' } },
+                { tag: 'GtkButton', slot: 'endBox', props: { text: '≡', variant: 'flat' } },
             ],
         },
     },
@@ -267,12 +267,12 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
             tag: 'AdwWrapBox',
             props: { childSpacing: 8, lineSpacing: 8 },
             children: [
-                { tag: 'AdwButton', props: { text: 'Design', variant: 'pill' } },
-                { tag: 'AdwButton', props: { text: 'Adwaita', variant: 'pill' } },
-                { tag: 'AdwButton', props: { text: 'GNOME', variant: 'pill' } },
-                { tag: 'AdwButton', props: { text: 'GTK', variant: 'pill' } },
-                { tag: 'AdwButton', props: { text: 'TypeScript', variant: 'pill' } },
-                { tag: 'AdwButton', props: { text: 'Storybook', variant: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'Design', variant: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'Adwaita', variant: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'GNOME', variant: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'GTK', variant: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'TypeScript', variant: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'Storybook', variant: 'pill' } },
             ],
         },
     },
@@ -303,7 +303,7 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
     {
         widget: 'Adw.StatusPage',
         page: 'presentation',
-        // `iconText` and not `icon`: the icon property is an SVG source, the text one
+        // `iconText` and not `iconName`: the icon property is an SVG source, the text one
         // is the glyph fallback this port exposes for exactly the case where a name
         // is all the caller has.
         root: {
@@ -545,9 +545,9 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
  */
 export const ADWAITA_GALLERY_NS_REFUSALS = {
     // --- a property XML cannot carry ---
-    'Gtk.DropDown': 'AdwDropDown.options is an array of choices; an XML attribute is a string.',
+    'Gtk.DropDown': 'GtkDropDown.options is an array of choices; an XML attribute is a string.',
     'Adw.ComboRow': 'AdwComboRow.options is an array of choices; an XML attribute is a string.',
-    'Gtk.MenuButton': 'AdwMenuButton.menuItems is an array of menu items; an XML attribute is a string.',
+    'Gtk.MenuButton': 'GtkMenuButton.menuItems is an array of menu items; an XML attribute is a string.',
     'Adw.SplitButton': 'AdwSplitButton.menu is an array of menu items; an XML attribute is a string.',
     'Adw.ToggleGroup': 'AdwToggleGroup.options is an array of toggles; an XML attribute is a string.',
     'Adw.Sidebar': 'AdwSidebar.items and .sections are arrays of item descriptors; an XML attribute is a string.',

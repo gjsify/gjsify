@@ -69,7 +69,7 @@ export class SidebarNsStory extends StoryView {
     private _syncContent(): void {
         if (!this._sidebar || !this._status) return;
         const item = this.items[this._sidebar.selected] ?? this.items[0];
-        this._status.icon = item.icon;
+        this._status.iconName = item.icon;
         this._status.title = item.title;
         this._status.description = item.subtitle;
     }

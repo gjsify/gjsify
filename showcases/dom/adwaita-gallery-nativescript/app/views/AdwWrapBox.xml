@@ -4,27 +4,27 @@
   childSpacing="8"
   lineSpacing="8"
 >
-  <adw:AdwButton
+  <adw:GtkButton
     text="Design"
     variant="pill"
   />
-  <adw:AdwButton
+  <adw:GtkButton
     text="Adwaita"
     variant="pill"
   />
-  <adw:AdwButton
+  <adw:GtkButton
     text="GNOME"
     variant="pill"
   />
-  <adw:AdwButton
+  <adw:GtkButton
     text="GTK"
     variant="pill"
   />
-  <adw:AdwButton
+  <adw:GtkButton
     text="TypeScript"
     variant="pill"
   />
-  <adw:AdwButton
+  <adw:GtkButton
     text="Storybook"
     variant="pill"
   />

@@ -62,7 +62,7 @@ export class OverlaySplitViewNsStory extends StoryView {
 
     private buildContent(): View {
         const status = new AdwStatusPage();
-        status.icon = folderMusicSymbolic;
+        status.iconName = folderMusicSymbolic;
         status.title = 'Your Library';
         status.description = 'Toggle the sidebar to browse sections. Collapse it to overlay the content.';
 

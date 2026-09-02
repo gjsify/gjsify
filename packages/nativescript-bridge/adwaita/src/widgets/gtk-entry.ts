@@ -1,4 +1,9 @@
-// AdwEntry — a standalone Adwaita text entry for NativeScript.
+// GtkEntry — the Adwaita-styled GTK text entry for NativeScript.
+//
+// NAMED FOR THE LIBRARY THAT OWNS THE GTYPE (ADR 0034 clause 1): libadwaita styles
+// `GtkEntry` in `_entries.scss` and subclasses nothing. `AdwEntryRow` is the row form and
+// IS a genuine Adw type; this one is not, which the next paragraph already said in prose
+// while the class name said otherwise.
 //
 // The bare input — what `Gtk.Entry` is, and the counterpart of
 // `@gjsify/adwaita-web`'s `<gtk-entry>`: a filled, rounded field that stands on
@@ -34,7 +39,7 @@ import { GridLayout, ItemSpec, TextField, type EventData } from '@nativescript/c
 import { ENTRY_ROW_MAX_LENGTH_LIMIT, clampEntryText, entryTextLength } from '@gjsify/adwaita-core';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 
-/** Event name emitted when {@link AdwEntry.text} changes. Mirrors GObject `notify::text`. */
+/** Event name emitted when {@link GtkEntry.text} changes. Mirrors GObject `notify::text`. */
 export const NOTIFY_TEXT = 'notify::text';
 
 /** Event name emitted when the return key is pressed — `Gtk.Entry::activate`. */
@@ -48,7 +53,7 @@ export interface NotifyEntryTextEventData extends EventData {
     textLength: number;
 }
 
-export class AdwEntry extends GridLayout {
+export class GtkEntry extends GridLayout {
     /** The real input. Chrome-less: the box around it paints the Adwaita surface. */
     protected readonly _field: TextField;
     private _text = '';
@@ -134,11 +139,11 @@ export class AdwEntry extends GridLayout {
     }
 
     /** Placeholder shown while the entry is empty (`Gtk.Entry:placeholder-text`). */
-    get placeholder(): string {
+    get placeholderText(): string {
         return this._field.hint ?? '';
     }
 
-    set placeholder(value: string) {
+    set placeholderText(value: string) {
         this._field.hint = value ?? '';
     }
 

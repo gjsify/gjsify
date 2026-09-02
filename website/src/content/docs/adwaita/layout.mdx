@@ -255,7 +255,7 @@ the trailing one.
   <Fragment slot="nativescript">
     ```ts
     // app/adwaita.ts — the module the template's `xmlns:adw="~/adwaita"` resolves to.
-    export { AdwButton, AdwHeaderBar, AdwWindowTitle } from '@gjsify/adwaita-nativescript';
+    export { GtkButton, AdwHeaderBar, AdwWindowTitle } from '@gjsify/adwaita-nativescript';
 
     // app/views/header-bar.ts — the loader.
     import { Builder } from '@nativescript/core';
@@ -446,9 +446,9 @@ the view moves.
     // decodes no SVG, so the widget rasterises the markup itself. An XML attribute
     // is a string, so the template declares the buttons and gives them ids, and the
     // loader hands each one its glyph.
-    view.getViewById<AdwStatusPage>('library').icon = folderSymbolic;
-    view.getViewById<AdwImageButton>('add').icon = listAddSymbolic;
-    view.getViewById<AdwImageButton>('share').icon = sendToSymbolic;
+    view.getViewById<AdwStatusPage>('library').iconName = folderSymbolic;
+    view.getViewById<AdwImageButton>('add').iconName = listAddSymbolic;
+    view.getViewById<AdwImageButton>('share').iconName = sendToSymbolic;
     ```
   </Fragment>
 </AdwWidget>
@@ -552,7 +552,7 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
   <Fragment slot="nativescript">
     ```ts
     // app/adwaita.ts — the module the template's `xmlns:adw="~/adwaita"` resolves to.
-    export { AdwButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+    export { GtkButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
 
     // app/views/wrap-box.ts — the loader. A fixed run of chips is a tree, so it is
     // the template's; build the children here instead when the run comes from data.

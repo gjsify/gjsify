@@ -3,7 +3,7 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwActionRow, AdwBottomSheet, AdwButton, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
+import { AdwActionRow, AdwBottomSheet, GtkButton, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
 import { Label, StackLayout } from '@nativescript/core';
 import { bottomSheetMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
@@ -24,7 +24,7 @@ export class BottomSheetNsStory extends StoryView {
         center.horizontalAlignment = 'center';
         center.verticalAlignment = 'middle';
 
-        const toggle = new AdwButton();
+        const toggle = new GtkButton();
         toggle.text = 'Toggle sheet';
         toggle.variant = 'pill';
         toggle.addEventListener('tap', () => {

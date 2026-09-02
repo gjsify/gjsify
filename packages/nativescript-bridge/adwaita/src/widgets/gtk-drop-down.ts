@@ -1,4 +1,9 @@
-// AdwDropDown — a Libadwaita-style standalone dropdown selector for NativeScript.
+// GtkDropDown — the Adwaita-styled GTK dropdown selector for NativeScript.
+//
+// NAMED FOR THE LIBRARY THAT OWNS THE GTYPE (ADR 0034 clause 1): libadwaita vendors no
+// `adw-drop-down.c` and ships no dropdown type, as the FIDELITY note below says while
+// listing what it therefore cannot reproduce. `AdwComboRow` is the boxed-list row form
+// and IS a genuine Adw type; this one is `Gtk.DropDown`.
 //
 // The toolbar/inline twin of {@link AdwComboRow}: the same selection, without the
 // boxed-list row around it. A button-shaped horizontal box showing the selected
@@ -13,7 +18,7 @@
 //
 // FIDELITY: approximated for the popover — the NS subset has none, so the options open
 // in the platform `action()` sheet, the same substitution `AdwComboRow`,
-// `AdwSplitButton` and `AdwMenuButton` make. Two unhideable consequences: the sheet has
+// `AdwSplitButton` and `GtkMenuButton` make. Two unhideable consequences: the sheet has
 // no search field, so `Gtk.DropDown:enable-search` is deliberately ABSENT rather than
 // accepted-and-ignored; and the sheet marks nothing as selected, so the current option
 // is visible only on the button (libadwaita vendors no `adw-drop-down.c`, so GtkDropDown's
@@ -32,7 +37,7 @@ import { AdwIcon } from './adw-icon.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
 
-/** Event name emitted when {@link AdwDropDown.selected} changes through a pick. Mirrors GObject `notify::selected`. */
+/** Event name emitted when {@link GtkDropDown.selected} changes through a pick. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
 
 /** Payload of the `notify::selected` event. */
@@ -45,7 +50,7 @@ export interface NotifyDropDownSelectedEventData extends EventData {
     label: string;
 }
 
-export class AdwDropDown extends StackLayout {
+export class GtkDropDown extends StackLayout {
     /** The button label — the selected option. */
     protected readonly _label: Label;
     /** The down-chevron — a real Adwaita `pan-down-symbolic` icon. */
@@ -72,7 +77,7 @@ export class AdwDropDown extends StackLayout {
         // button's own foreground.
         const chevron = new AdwIcon();
         chevron.className = 'adw-drop-down-chevron';
-        chevron.icon = panDownSymbolic;
+        chevron.iconName = panDownSymbolic;
 
         this.addChild(label);
         this.addChild(chevron);
@@ -153,7 +158,7 @@ export class AdwDropDown extends StackLayout {
     /**
      * Optional title shown atop the chooser sheet. A SUBSTITUTION affordance:
      * GTK's popover has no title, but a bare native sheet gives no clue what is
-     * being chosen — the same reason `AdwMenuButton` carries `menuTitle`.
+     * being chosen — the same reason `GtkMenuButton` carries `menuTitle`.
      */
     get chooserTitle(): string {
         return this._chooserTitle;

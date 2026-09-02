@@ -1,6 +1,6 @@
-// AdwDropDown's selection, against the shared conformance table.
+// GtkDropDown's selection, against the shared conformance table.
 //
-// The widget itself cannot be imported here — `AdwDropDown extends StackLayout`
+// The widget itself cannot be imported here — `GtkDropDown extends StackLayout`
 // evaluates the bare `@nativescript/core` specifier at module-eval, which is
 // unresolvable on GJS/Node. It needs no pure sibling either, because it holds no
 // logic to extract: `ComboState` (`@gjsify/adwaita-core`) IS the selection, and
@@ -42,7 +42,7 @@ function applyStep(state: ComboState, step: ComboSelectionStep): void {
 }
 
 export const AdwDropDownNsTest = async () => {
-    await describe('AdwDropDown selection (libadwaita conformance vectors)', async () => {
+    await describe('GtkDropDown selection (libadwaita conformance vectors)', async () => {
         for (const vector of COMBO_SELECTION_VECTORS) {
             await it(`${vector.name} — ${vector.rule}`, () => {
                 const state = new ComboState();

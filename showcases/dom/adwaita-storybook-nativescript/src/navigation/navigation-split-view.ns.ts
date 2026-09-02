@@ -53,7 +53,7 @@ export class NavigationSplitViewNsStory extends StoryView {
     /** A status page inside a toolbar view — the content page. */
     private buildContent(): View {
         const status = new AdwStatusPage();
-        status.icon = mailUnreadSymbolic;
+        status.iconName = mailUnreadSymbolic;
         status.title = 'All Mail';
         status.description = 'Select a conversation from the list to read it here.';
 

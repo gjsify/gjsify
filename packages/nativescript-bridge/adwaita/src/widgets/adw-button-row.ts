@@ -127,11 +127,11 @@ export class AdwButtonRow extends AdwActionRow {
      * A leading Adwaita symbolic SVG string before the centered title (e.g.
      * `listAddSymbolic`). Empty collapses the icon.
      */
-    get startIcon(): string {
+    get startIconName(): string {
         return this._buttonState.startIconName;
     }
 
-    set startIcon(value: string) {
+    set startIconName(value: string) {
         if (this._buttonState.setStartIconName(value)) this._applyIcons();
     }
 
@@ -139,11 +139,11 @@ export class AdwButtonRow extends AdwActionRow {
      * A trailing Adwaita symbolic SVG string after the centered title (e.g.
      * `goNextSymbolic`) — `Adw.ButtonRow:end-icon-name`. Empty collapses it.
      */
-    get endIcon(): string {
+    get endIconName(): string {
         return this._buttonState.endIconName;
     }
 
-    set endIcon(value: string) {
+    set endIconName(value: string) {
         if (this._buttonState.setEndIconName(value)) this._applyIcons();
     }
 
@@ -174,9 +174,9 @@ export class AdwButtonRow extends AdwActionRow {
     /** Push the derived icon payload + visibility onto the two `AdwIcon`s. */
     private _applyIcons(): void {
         const visuals = buttonRowIconVisuals(this._buttonState.state);
-        this._startIcon.icon = visuals.startIcon;
+        this._startIcon.iconName = visuals.startIcon;
         this._startIcon.visibility = visuals.startIconVisibility;
-        this._endIcon.icon = visuals.endIcon;
+        this._endIcon.iconName = visuals.endIcon;
         this._endIcon.visibility = visuals.endIconVisibility;
     }
 }

@@ -105,13 +105,13 @@ export class AdwStatusPage extends GridLayout {
      * hides it. Matches `Adw.StatusPage`'s themed icon. Mutually exclusive with
      * {@link iconText} — whichever was set last wins.
      */
-    get icon(): string {
+    get iconName(): string {
         return this._iconSvg;
     }
 
-    set icon(value: string) {
+    set iconName(value: string) {
         this._iconSvg = value ?? '';
-        this._icon.icon = this._iconSvg;
+        this._icon.iconName = this._iconSvg;
         this._icon.visibility = statusPageIconVisibility(this._iconSvg);
         // Last one set wins: showing the SVG hides the glyph, and clearing it
         // leaves the page with no icon rather than falling back to a stale glyph.

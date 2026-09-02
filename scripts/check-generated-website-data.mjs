@@ -113,7 +113,13 @@ import {
     readTypeSources,
     readWidgets,
     setterOf,
+    WIDGET_CLASS,
 } from './nativescript-xml-doors.mjs';
+
+// A class NAMED IN PROSE: the library prefix plus a capital, so `GtkDropDown` in a
+// refusal reason is a mention and `Gtk.DropDown` — the gallery block's title, sitting in
+// the same sentence — is not.
+const CLASS_MENTION = /\b((?:Adw|Gtk)[A-Z]\w*)(?:\.(\w+))?/g;
 
 const rootFlag = process.argv.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : process.argv[rootFlag + 1];
@@ -558,21 +564,34 @@ if (checkedSnippets === 0) failures.push('no snippet was matched against a probe
 const NS_CORE_PROPS = {
     id: 'ViewBase.id — the handle a code-behind reaches a template child by.',
     class: 'ViewBase.className, spelled `class` in markup.',
-    text: 'TextBase.text — AdwButton extends NativeScript Button, whose label IS `text`.',
+    text: 'TextBase.text — GtkButton extends NativeScript Button, whose label IS `text`.',
     textWrap: 'TextBase.textWrap.',
     orientation: 'LayoutBase orientation on StackLayout.',
 };
 
 let nsSources = new Map();
+let nsFiles = new Map();
 let nsTypes = [];
 let nsElements = new Set();
 try {
-    ({ sources: nsSources } = readWidgets(ROOT));
+    ({ sources: nsSources, files: nsFiles } = readWidgets(ROOT));
     nsTypes = readTypeSources(ROOT);
     nsElements = readElements(ROOT);
 } catch {
     // Reported below: an empty index would make arm 8 pass vacuously.
 }
+
+/**
+ * Every class the widget files declare, read with NO prefix rule at all.
+ *
+ * `nsSources` cannot answer this: its index is built with `WIDGET_CLASS`, so a class
+ * the pattern does not recognise is missing from BOTH sides of any comparison against
+ * it and the disagreement cancels out. This one reads `export class <anything>`, which
+ * is why it can contradict the pattern.
+ */
+const nsDeclaredClasses = new Set(
+    [...nsFiles.values()].flatMap((text) => [...text.matchAll(/export (?:abstract )?class (\w+)/g)].map((m) => m[1])),
+);
 
 if (nsSources.size === 0) {
     failures.push('no @gjsify/adwaita-nativescript widget source was readable — arm 8 would prove nothing');
@@ -612,8 +631,13 @@ if (nsSources.size === 0) {
     const literalKind = (value) =>
         typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'boolean' : 'string';
 
+    // A class THIS package declares, told from a NativeScript-core one by its library
+    // prefix. `Adw` alone was the test until ADR 0034 clause 1 renamed four widgets to
+    // `Gtk*`: those then read as core classes, so no setter was looked up for them and
+    // every attribute they carry fell through to NS_CORE_PROPS as an unexplained one.
+    const OWN_CLASS = new RegExp(`^${WIDGET_CLASS}$`);
     const walkNs = (node, widget, parent) => {
-        const own = node.tag.startsWith('Adw');
+        const own = OWN_CLASS.test(node.tag);
         if (own && !nsSources.has(node.tag)) {
             failures.push(`${widget}: <${node.tag}> is not a widget class in @gjsify/adwaita-nativescript.`);
             return;
@@ -714,14 +738,14 @@ if (nsSources.size === 0) {
 
     // An exemption earns its place per (element, property) and not per NAME: `text`
     // is `AdwEntryRow`'s own setter AND NativeScript `Button`'s, and testing the name
-    // alone reported the entry as stale while `<AdwButton text="Pill">` still needed
+    // alone reported the entry as stale while `<GtkButton text="Pill">` still needed
     // it. Stale means NO use in the templates falls through to core.
     for (const name of Object.keys(NS_CORE_PROPS)) {
         let uses = 0;
         let fellThrough = 0;
         for (const template of ADWAITA_GALLERY_NS_TEMPLATES) {
             const walk = (node) => {
-                if (node.tag.startsWith('Adw') && Object.hasOwn(node.props ?? {}, name)) {
+                if (OWN_CLASS.test(node.tag) && Object.hasOwn(node.props ?? {}, name)) {
                     uses += 1;
                     if (setterOf(nsSources, node.tag, name) === null) fellThrough += 1;
                 }
@@ -745,7 +769,7 @@ if (nsSources.size === 0) {
     // about the wrong object is the most durable kind of wrong, because every reader
     // checks the sentence and not the object.
     for (const [widget, reason] of Object.entries(ADWAITA_GALLERY_NS_REFUSALS)) {
-        const mentions = [...reason.matchAll(/\b(Adw[A-Z]\w*)(?:\.(\w+))?/g)];
+        const mentions = [...reason.matchAll(CLASS_MENTION)];
         if (mentions.length === 0) {
             failures.push(
                 `the refusal for "${widget}" names no widget class, so nothing can hold it against the port. ` +
@@ -779,7 +803,7 @@ if (nsSources.size === 0) {
             }
         }
         if (reason.includes('_addChildFromBuilder')) {
-            const [, tag] = /\b(Adw[A-Z]\w*)/.exec(reason) ?? [];
+            const [, tag] = new RegExp(CLASS_MENTION.source).exec(reason) ?? [];
             if (
                 tag !== undefined &&
                 chainOf(nsSources, tag).some((text) => /^\s{4}_addChildFromBuilder\(/m.test(text))
@@ -794,6 +818,21 @@ if (nsSources.size === 0) {
     notes.push(`${Object.keys(ADWAITA_GALLERY_NS_REFUSALS).length} refusal reason(s) held against the widget classes`);
 
     // Arm 9: the bytes a reader copies are the bytes the probe inflated.
+    //
+    // AND, on the same bytes, the two things that decide whether they LOAD. The
+    // byte-compare alone cannot ask them: it holds the file against the generator that
+    // wrote it, so a generator wrong about which elements are its own is wrong on both
+    // sides and stays green — which is how ADR 0034 clause 1's four `Gtk*` renames
+    // shipped unprefixed and unexported, out of one `startsWith('Adw')`. These two read
+    // the emitted text against `nsDeclaredClasses`, which is `export class <anything>`
+    // over the widget files and knows no prefix rule, so a generator cannot agree with
+    // itself past them.
+    const barrelText = readFileSync(join(ROOT, NS_GENERATED.barrel), 'utf8');
+    const ownTagsOf = (node, into = new Set()) => {
+        if (nsDeclaredClasses.has(node.tag)) into.add(node.tag);
+        for (const child of node.children ?? []) ownTagsOf(child, into);
+        return into;
+    };
     let checkedTemplates = 0;
     for (const template of ADWAITA_GALLERY_NS_TEMPLATES) {
         const rel = `${NS_GENERATED.views}/${viewNameOf(template.widget)}.xml`;
@@ -803,6 +842,22 @@ if (nsSources.size === 0) {
         } catch {
             failures.push(`${template.widget}: ${rel} is missing, so its template was inflated nowhere.`);
             continue;
+        }
+        for (const tag of ownTagsOf(template.root)) {
+            if (new RegExp(`</?(?!adw:)${tag}[\\s/>.]`).test(have)) {
+                failures.push(
+                    `${template.widget}: ${rel} names <${tag}> without the \`adw:\` prefix, and ${tag} is a class ` +
+                        'this package declares. NativeScript resolves an unprefixed element against its OWN ' +
+                        'components, so Builder finds nothing and the template renders none of it.',
+                );
+            }
+            if (!new RegExp(`^\\s+${tag},$`, 'm').test(barrelText)) {
+                failures.push(
+                    `${template.widget}: ${rel} names <${tag}>, which ${NS_GENERATED.barrel} does not re-export. ` +
+                        'That barrel IS the module `xmlns:adw` points at, so the load fails with `Module ' +
+                        `'${tag}' not found for element\`.`,
+                );
+            }
         }
         if (have === templateFor(template.root, template.note)) {
             checkedTemplates += 1;

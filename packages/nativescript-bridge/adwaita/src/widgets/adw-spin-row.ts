@@ -66,11 +66,11 @@ export class AdwSpinRow extends AdwActionRow {
         // REAL Adwaita symbolic icons in circular flat buttons (value-decrease /
         // value-increase), matching Adw.SpinRow's stepper — not `−`/`+` glyphs.
         const minus = new AdwImageButton();
-        minus.icon = valueDecreaseSymbolic;
+        minus.iconName = valueDecreaseSymbolic;
         minus.className = `${minus.className} adw-spin-button adw-spin-minus`.trim();
 
         const plus = new AdwImageButton();
-        plus.icon = valueIncreaseSymbolic;
+        plus.iconName = valueIncreaseSymbolic;
         plus.className = `${plus.className} adw-spin-button adw-spin-plus`.trim();
 
         // Native order: the value sits BEFORE the stepper buttons (`16  −  +`).

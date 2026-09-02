@@ -1,7 +1,7 @@
 // Row state-machine conformance vectors — the spec both renderers are held to.
 //
 // `ComboState` (rows.ts) is shared by FOUR widgets across the two ports — the browser's
-// `<adw-combo-row>` and `<gtk-drop-down>`, NativeScript's `AdwComboRow` and `AdwDropDown`
+// `<adw-combo-row>` and `<gtk-drop-down>`, NativeScript's `AdwComboRow` and `GtkDropDown`
 // — each of which had its own spec asserting its own reading. This table is the reading.
 //
 // TWO DELIBERATE DIVERGENCES FROM THE C, recorded rather than encoded silently:

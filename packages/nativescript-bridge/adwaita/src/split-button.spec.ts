@@ -83,7 +83,7 @@ export const AdwSplitButtonNsTest = async () => {
         }
     });
 
-    await describe('AdwSplitButton.actionIcon ⟷ label (the real setActionIcon mapping)', async () => {
+    await describe('AdwSplitButton.iconName ⟷ label (the real setActionIcon mapping)', async () => {
         await it('an SVG replaces the label, and clearing it hands the half back', () => {
             const state = new SplitButtonState();
             state.setLabel('Save');

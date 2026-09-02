@@ -55,7 +55,7 @@ export class InlineViewSwitcherNsStory extends StoryView {
 
     private _buildPage(page: { title: string; icon: string; body: string }): AdwStatusPage {
         const status = new AdwStatusPage();
-        status.icon = page.icon;
+        status.iconName = page.icon;
         status.title = page.title;
         status.description = page.body;
         return status;
