@@ -372,7 +372,7 @@ bool IsSupportedOutType(GITypeInfo* type, std::string* why) {
       // Container OUT/return — arrays (incl. GStrv / byte arrays), GList/GSList,
       // and string-keyed GHashTable. Element-type support is checked here so an
       // exotic combo defers cleanly before the invoke.
-      return IsSupportedContainerType(type, why);
+      return IsSupportedContainerType(type, why, ContainerUse::kReadBack);
     default:
       if (why != nullptr)
         *why = "type tag " + std::to_string(static_cast<int>(gi_type_info_get_tag(type)));
@@ -583,6 +583,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   CreatedValues createdValues;
   bool ok = true;
   size_t jsCursor = 0;
+  std::vector<LengthWrite> lengthWrites;
   for (unsigned int i = 0; i < n_args && ok; i++) {
     if (skip[i]) {
       // A length arg that is OUT/INOUT: the callee writes the array length into
@@ -710,7 +711,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
           // that call was removed from the suite and must not come back.
           Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
           jsCursor++;
-          if (!IsSupportedContainerType(ti, &why)) {
+          if (!IsSupportedContainerType(ti, &why, ContainerUse::kReadBack)) {
             Napi::TypeError::New(env, displayName + ": INOUT " + why +
                                           " parameters are not yet supported")
                 .ThrowAsJavaScriptException();
@@ -825,7 +826,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
       if (tg == GI_TYPE_TAG_ARRAY || tg == GI_TYPE_TAG_GLIST || tg == GI_TYPE_TAG_GSLIST ||
           tg == GI_TYPE_TAG_GHASH) {
         std::string why;
-        if (!IsSupportedContainerType(ti, &why)) {
+        if (!IsSupportedContainerType(ti, &why, ContainerUse::kIn)) {
           Napi::TypeError::New(env, displayName + ": IN " + why +
                                         " parameters are not yet supported")
               .ThrowAsJavaScriptException();
@@ -842,11 +843,21 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
               unsigned int L = 0;
               if (gi_type_info_get_array_length_index(ti, &L) && L < n_args &&
                   dirs[L] == GI_DIRECTION_IN && inPos[L] >= 0) {
-                GIArgInfo* la = gi_callable_info_get_arg(callable, L);
-                GITypeInfo* lt = gi_arg_info_get_type_info(la);
-                WriteLengthValue(lt, &in_args[inPos[L]], ccount);
-                gi_base_info_unref(lt);
-                gi_base_info_unref(la);
+                long other = 0;
+                if (!RecordLengthWrite(&lengthWrites, L, ccount, &other)) {
+                  Napi::TypeError::New(
+                      env, displayName + ": two arrays share length argument " +
+                               std::to_string(L) + " but have different lengths (" +
+                               std::to_string(other) + " and " + std::to_string(ccount) + ")")
+                      .ThrowAsJavaScriptException();
+                  ok = false;
+                } else {
+                  GIArgInfo* la = gi_callable_info_get_arg(callable, L);
+                  GITypeInfo* lt = gi_arg_info_get_type_info(la);
+                  WriteLengthValue(lt, &in_args[inPos[L]], ccount);
+                  gi_base_info_unref(lt);
+                  gi_base_info_unref(la);
+                }
               }
             }
           }

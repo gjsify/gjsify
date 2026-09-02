@@ -362,15 +362,40 @@ struct InContainer {
   gpointer ptr;
   GITransfer transfer;
   long count;  // element count (to free C-array strings)
+  // For a by-value GValue array: the caller's own GValue per element, or nullptr where
+  // the element came from a plain JS value and there is nothing to write back to. See
+  // the write-back note in FreeInContainer — some callees FILL the cells, and the
+  // typelib does not say which.
+  std::vector<gpointer> writeBack;
 };
 
-bool IsSupportedContainerType(GITypeInfo* type, std::string* why);
+// How a container argument is used, which decides which ELEMENT kinds are
+// marshallable. The two directions are not symmetric: the IN path builds a C buffer
+// and can therefore lay out a BY-VALUE element (an enum's int, a record's own bytes),
+// while a read-back — an OUT/INOUT parameter or a return — hands the buffer to
+// ReadCElement, which still dereferences an interface element as a pointer. Passing
+// kIn where the value is later read would admit a shape that marshals in and misreads
+// out, so the caller states the direction rather than the predicate guessing it.
+enum class ContainerUse { kIn, kReadBack };
+
+bool IsSupportedContainerType(GITypeInfo* type, std::string* why, ContainerUse use);
 // Whether `type` is a supported OUT/INOUT marshalling type (fundamentals, strings,
 // object/interface/enum/flags, struct/boxed/union, and containers). Shared by the
 // function-invoke path (calls.cc) and the vfunc chain-up path (class.cc).
 bool IsSupportedOutType(GITypeInfo* type, std::string* why);
 size_t CElementSize(GITypeInfo* elem);
 void WriteLengthValue(GITypeInfo* lenType, GIArgument* slot, long n);
+
+// One IN length-argument autofill, remembered so a SECOND array naming the same length
+// argument can be checked against it rather than silently overwriting it.
+struct LengthWrite {
+  unsigned int index;
+  long count;
+};
+// Record `count` for length argument `index`. Returns false when that argument was
+// already filled with a DIFFERENT count, and reports the earlier one in *other.
+bool RecordLengthWrite(std::vector<LengthWrite>* seen, unsigned int index, long count,
+                       long* other);
 Napi::Value ReadOutOrReturn(Napi::Env env, GICallableInfo* callable, GITypeInfo* ti,
                             GIArgument* arg, GITransfer transfer,
                             std::vector<GIArgument>* slots);

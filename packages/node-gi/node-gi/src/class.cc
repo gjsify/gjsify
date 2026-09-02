@@ -723,6 +723,7 @@ static Napi::Value InvokeVFuncPointer(Napi::Env env, GObject* obj, GICallableInf
   // an all-IN vfunc jsCursor == i, so the IN-only path is byte-identical to before.
   bool ok = true;
   size_t jsCursor = 0;
+  std::vector<LengthWrite> lengthWrites;
   for (unsigned int i = 0; i < nDeclared && ok; i++) {
     if (skip[i]) {
       // An OUT/INOUT array-length arg: wire its slot so the callee writes the count.
@@ -796,7 +797,7 @@ static Napi::Value InvokeVFuncPointer(Napi::Env env, GObject* obj, GICallableInf
         // transfer by ReadOutOrReturn below.
         Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
         jsCursor++;
-        if (!IsSupportedContainerType(ti, &why)) {
+        if (!IsSupportedContainerType(ti, &why, ContainerUse::kReadBack)) {
           Napi::TypeError::New(env, where + ": INOUT " + why +
                                         " parameters are not yet supported")
               .ThrowAsJavaScriptException();
@@ -850,7 +851,7 @@ static Napi::Value InvokeVFuncPointer(Napi::Env env, GObject* obj, GICallableInf
       std::string why;
       Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
       jsCursor++;
-      if (!IsSupportedContainerType(ti, &why)) {
+      if (!IsSupportedContainerType(ti, &why, ContainerUse::kIn)) {
         Napi::TypeError::New(env, where + ": IN " + why +
                                       " parameters are not yet supported")
             .ThrowAsJavaScriptException();
@@ -866,11 +867,21 @@ static Napi::Value InvokeVFuncPointer(Napi::Env env, GObject* obj, GICallableInf
             unsigned int L = 0;
             if (gi_type_info_get_array_length_index(ti, &L) && L < nDeclared &&
                 dirs[L] == GI_DIRECTION_IN) {
-              GIArgInfo* la = gi_callable_info_get_arg(ci, L);
-              GITypeInfo* lt = gi_arg_info_get_type_info(la);
-              WriteLengthValue(lt, &giArgs[1 + L], ccount);
-              gi_base_info_unref(lt);
-              gi_base_info_unref(la);
+              long other = 0;
+              if (!RecordLengthWrite(&lengthWrites, L, ccount, &other)) {
+                Napi::TypeError::New(
+                    env, where + ": two arrays share length argument " + std::to_string(L) +
+                             " but have different lengths (" + std::to_string(other) + " and " +
+                             std::to_string(ccount) + ")")
+                    .ThrowAsJavaScriptException();
+                ok = false;
+              } else {
+                GIArgInfo* la = gi_callable_info_get_arg(ci, L);
+                GITypeInfo* lt = gi_arg_info_get_type_info(la);
+                WriteLengthValue(lt, &giArgs[1 + L], ccount);
+                gi_base_info_unref(lt);
+                gi_base_info_unref(la);
+              }
             }
           }
         }
