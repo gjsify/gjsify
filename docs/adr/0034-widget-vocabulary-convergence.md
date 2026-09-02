@@ -2,15 +2,16 @@
 
 - Status: **Proposed** — amended twice on 2026-08-30: § Amendment (the premise under the
   stage order moved; stages 2 and 3 landed first) and § Amendment 2 (stages 6 and 4 landed;
-  the property numbers were re-measured and moved); and on 2026-09-01 by § Amendment 5
-  (clause 1 holds on `@gjsify/adwaita-web`: nine elements took their GIR names, `<adw-radio>`
+  the property numbers were re-measured and moved); and four times on 2026-09-01.
+  § Amendments 3 and 4 carry clause 2 onto React Native and the web. § Amendment 5 holds
+  clause 1 on `@gjsify/adwaita-web`: nine elements took their GIR names, `<adw-radio>`
   became a declared `webOnly`, and the printed distance was widened to the surface it had
-  been leaving out). Amendments 3 and 4, which carry clause 2 onto React Native and the web,
-  are in flight on #1449 and land ahead of this one. § Amendment 6 (2026-09-01) REVERSES
-  part of § 3 for `@gjsify/adwaita-web`: the namespace is no longer additive there, the
-  flat `Adw…`/`Gtk…` widget-class exports are gone from the package root, and the
-  namespace became a MODULE (`export * as Adw`) so it can be annotated with as well as
-  constructed from.
+  been leaving out. § Amendment 6 REVERSES part of § 3 for `@gjsify/adwaita-web`: the
+  namespace is no longer additive there, the flat `Adw…`/`Gtk…` widget-class exports are
+  gone from the package root, and the namespace became a MODULE (`export * as Adw`) so it
+  can be annotated with as well as constructed from. § Amendment 7 carries both clauses
+  onto `@gjsify/adwaita-nativescript`, the last surface: four widgets took their GIR names,
+  eleven property names converged, and clause 2 now holds on all three.
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -593,7 +594,7 @@ without one is indistinguishable from a decision nobody made.
 |---|---|---|---|---|
 | `@gjsify/gtk-host` | **holds by construction** — the prefix is derived from the GType | n/a: the tags *are* the vocabulary, and `@girs` supplies `Gtk`/`Adw` | n/a | none |
 | `@gjsify/adwaita-web` | **violated for 10 elements** (`adw-entry` is `GtkEntry`, …) | **absent** — registers tags, exports no namespace | **half-held**: every one of the 21 is declared, but the 10 aliases carry no reason | 11 web-only, each with a reason |
-| `@gjsify/adwaita-nativescript` | **violated for 4** (`AdwEntry`, `AdwButton`, `AdwDropDown`, `AdwMenuButton`) | **absent** | **held since stage 3** for widget names and **since stage 6** for property names | 2 with no counterpart; property names re-measured in § Amendment 2 |
+| `@gjsify/adwaita-nativescript` | **violated for 1** (`AdwIcon` is `GtkImage`); the other four converged — § Amendment 5 | **held** — `src/namespace.ts`, § Amendment 5 | **held since stage 3** for widget names and **since stage 6** for property names | 2 with no counterpart; property names re-measured in § Amendment 2 and again in § Amendment 5 |
 | `@gjsify/adwaita-react-native` | **holds** — `AdwBin`, `AdwClamp` | **absent** | **held since stage 4**: it declares itself a surface and is read | none, today |
 | the docs | `controls.mdx` is 100 % GTK under an `Adwaita` heading; 4 `Gtk.*` blocks in all | there is no `Gtk` section | no | — |
 | the next surface | — | — | — | — |
@@ -1623,3 +1624,160 @@ This is the third time in this ADR that the interesting finding was not the chan
 what the change made visible. § Amendment 5 found nine elements sitting outside a property
 ratchet; this one found two drivers whose subject was the export list and not the registry,
 and a build command whose scope nobody had had a reason to read.
+
+## Amendment 7, 2026-09-01 — clause 2 holds on all three, and the NativeScript names moved
+
+`@gjsify/adwaita-nativescript` exports `Adw` (38 members) and `Gtk` (5) from
+`src/namespace.ts`, and the summary line reads **`Namespace exports (ADR 0034 clause 2):
+3 of 3 renderer(s)`**. Clause 2 is done.
+
+**The lookup § 3 predicted is the whole difference, and it was the easy half.** This
+ledger is keyed on GTYPES (`gir: 'GtkButton'`), not on tags, so placing a member goes
+through the generated widget table before the prefix split can run. That made
+`namespaceProblems` take a *surface descriptor* rather than the web world it used to read
+four fields off: one rule, two surfaces, and the only per-surface part is how a widget
+resolves to a GIR tag. React Native stays where it was — rule 8 of
+`check-adwaita-rn-platform-split.mjs` — because the three-barrel split makes its question
+a different one, and a surface this file is handed no `namespace` for is simply not held
+here.
+
+**The shape is the object literal, not the module § Amendment 6 moved the web surface to.**
+That amendment's constraint was a bundler one — declaration merging is a type-checker rule
+and rolldown's parser refuses two bindings of a name — and it applies to a barrel that must
+carry a TYPE meaning as well as a value one. Nothing here annotates with `Adw.ActionRow`:
+this surface's widgets are constructed and its consumers import the class. So the literal
+stays, `namespaceExport` reads both shapes already, and the day a consumer needs the type
+meaning this file moves the same way with no rule to change.
+
+**Three widgets get no member, and one of them refutes § 1's own sentence.**
+`AdwSliderRow` and `AdwDataGrid` are `own`: no counterpart type, so no GIR name.
+`AdwImageButton` is a `composes`, and § 1 says a composition *"converges in NAME
+(`gtk-button`), never in shape"* — but this port ALSO ships the plain button, which is
+`GtkButton` now, so the name § 1 hands it is taken. One GIR name cannot name two
+constructors: the same collision `Gtk.CheckButton` met on the web surface (§ Amendment 4),
+arriving from the other direction. The plain form holds the name; the composed one keeps
+its own and converges in neither. § 1 has no word for that outcome, and the ledger entry
+says so rather than pretending it is one of the four kinds it fits worst.
+
+### Clause 1: four of the five renamed, and the fifth is blocked on a sibling
+
+`AdwButton`, `AdwDropDown`, `AdwEntry` and `AdwMenuButton` are `GtkButton`,
+`GtkDropDown`, `GtkEntry` and `GtkMenuButton`, in `gtk-*.ts`. **No alias, no
+back-compat shim** — the repo is alpha and the owner decided that; each file's header
+already carried the reason its class name contradicted (*"libadwaita has no menu button
+of its own; it styles the GTK one"*).
+
+`AdwIcon` → `GtkImage` did NOT happen, and the reason is not the port. Converging it is
+the only one of the five that also changes the **bare** name (`icon` → `image`), and the
+bare name is what `check-storybook-widget-coverage.mjs` joins the two renderers on. Doing
+it here alone turns one widget into two one-renderer-only widgets, and invalidates its own
+`NO_STORY_OF_ITS_OWN` exemption: three failures whose only repair is three ledger entries
+that would each state something false. The two surfaces rename together, in one change.
+That is a cross-surface coupling § 1 does not mention and the next converging port will
+meet: **a rename is per-surface only where the bare name survives it.**
+
+### What the readers cost, which is more than the rename did
+
+`adwaitaNativeScriptWidgets` now keys on the TAG rather than the bare name — `button`
+alone cannot say whether the file is `adw-button.ts` or `gtk-button.ts`, and the ledger it
+feeds is keyed on exactly that distinction. Everything downstream takes `elementName(tag)`,
+the hop the web reader's callers already made.
+
+The defect worth recording is in `check-generated-website-data.mjs`, which used
+`node.tag.startsWith('Adw')` to mean *"a class this package declares"*. Under the rename a
+`Gtk*` widget read as a NativeScript-CORE class, so no setter was ever looked up for it and
+every attribute it carries fell through to the core-property exemption list — the gate went
+red saying `<GtkButton>` has no setter `variant`, which it does. A prefix used as a
+*membership test* is the shape to look for: it is invisible while exactly one prefix exists.
+
+### The property names: eleven of twenty-five, and the rule that split them
+
+| converged | to |
+|---|---|
+| `AdwButtonContent.icon`, `AdwIcon.icon`, `AdwImageButton.icon`, `AdwStatusPage.icon`, `AdwSplitButton.actionIcon` | `iconName` |
+| `AdwButtonRow.startIcon` / `.endIcon` | `startIconName` / `endIconName` |
+| `AdwComboRow.selectedIndex` | `selected` |
+| `AdwToggleGroup.selected` | `active` |
+| `GtkEntry.placeholder` | `placeholderText` |
+| `AdwSplitButton.disabled` | `sensitive` — a rename AND an inversion |
+
+**A name converges when the two sides hold the same KIND of value and differ only in
+spelling.** A string is a string whether it is a theme name or an SVG source, which is why
+every icon slot moved. `disabled` → `sensitive` moved too, and it is the one that had to:
+a `disabled` sitting beside GTK's `sensitive` is the false friend this ADR exists to
+remove, and leaving it declared would have been leaving it.
+
+The ones that stayed are not a backlog of the same shape. Almost all of them are a SHAPE
+difference wearing a name — the GIR key holds a list model (`model`, `menuModel`), an
+adjustment (`adjustment`), a widget (`titleWidget`), a page object (`selectedPage`), a
+class list (`cssClasses`) or a name where the port holds an index (`visibleChildName`).
+Taking those names would put a GTK word on a value that is not the GTK thing, which is the
+flattening this ADR undoes, one level down. Some of those are additionally structural:
+`AdwSpinRow`'s `min`/`max`/`step` and `AdwHeaderBar`'s `title`/`subtitle` each collapse
+into ONE key, and one name cannot be two.
+
+`AdwBottomSheet.openState` is the single entry the rule does not reach, and naming it is
+the point: both sides hold a BOOLEAN, so the rule says converge. What stops it is a
+collision inside JavaScript — `open` is taken by the class's own `open()` method, and
+libadwaita gives the type no method names to rename those to, so converging would trade a
+declared property divergence for an invented, undeclared method one.
+
+**No per-group count is written here.** The first draft of this paragraph split the
+remainder eleven-plus-three, which comes to fifteen against a table of fourteen and put
+`openState` in a bucket it does not belong to. § *Why the distance has to be PRINTED by a
+gate and not written in prose* is about the total; a breakdown beside it is the same
+hazard one level down.
+
+### The numbers, and what is left
+
+    Distance to one vocabulary: 2 widget name(s) and 14 property name(s)   (was 6 and 25)
+    46 @gjsify/adwaita-nativescript widgets — 42 share a spelling, 2 should converge, 2 declared own, 0 undecided
+    143 settable properties — 102 agree with the counterpart's ConstructorProps, 41 do not
+
+A/B, each branch separately, real exit codes read without a pipe: a deleted member
+(`Adw.Clamp`), an invented member (`Adw.Ghost`), a member bound to another widget
+(`Gtk.Entry: AdwButton`), an alias placed under the wrong namespace, the whole export
+removed from the barrel, a converged widget renamed back to `adw-*`, a widget file whose
+class stopped matching its name, a ledger entry left behind for a converged widget, a
+converged property renamed back, and a ledger entry left behind for a converged property:
+exit 1 each time, exit 0 restored each time.
+
+What is left of the convergence on this surface is `AdwIcon` (with `@gjsify/adwaita-web`,
+in one change), `AdwImageButton` (nothing to converge to), and the property names whose
+GIR key names a different kind of value.
+
+### What the rename left behind, and the two gates that now hold it
+
+Review of this branch found six call sites the rename missed, in two shapes, and neither
+gate above could see either — so the fix is two arms rather than six edits.
+
+**The prefix used as a membership test, a second time.** § *What the readers cost* records
+`check-generated-website-data.mjs` reading `startsWith('Adw')` as *"a class this package
+declares"*. `scripts/generate-adwaita-nativescript-templates.mjs` asked the same question
+the same way, twice: to decide which element gets the `adw:` module prefix, and to decide
+what the probe app's `xmlns` barrel re-exports. So `GtkButton` and `GtkEntry` shipped into
+`app/views/*.xml` UNPREFIXED — NativeScript then resolves them against its own components
+and Builder finds nothing — and out of the barrel entirely. Every gate was green, because
+the arm that reads those files compares them with the generator that wrote them: one
+answer, wrong on both sides. The generator now uses the shared `WIDGET_CLASS`, and
+`check-generated-website-data.mjs` holds the emitted bytes against `export class
+<anything>` over the widget files, which knows no prefix rule.
+
+**A converged property still written under its old name.** `AdwToggleGroup.selected`
+became `active`, and four story files plus one published fence kept assigning `.selected`
+and `.icon`. A NativeScript view takes an unknown assignment as a dead own-property — no
+throw, no warning — and the showcase that would type-check the same code is `private`,
+declares `@nativescript/core` as an optional peer and is compiled by no CI job. So the
+storybook's `active` control moved and did nothing, which is the exact incident
+`check-storybook-control-parity.mjs` opens with, and `buttons.mdx` taught the dead name.
+Both corpora now hold every write on a constructed widget against that widget's members
+plus the ambient `ns-core.d.ts` slice: `check-storybook-control-parity.mjs` for the
+stories, `check-doc-fences.mjs` for the fences.
+
+**A rename is per-surface only where the bare name survives it** — § *Clause 1* already
+says that about `AdwIcon`. These two add the other half: a rename is only DONE where every
+reader that decides "is this ours" and every caller that writes the name have been asked,
+and on this surface neither question had an oracle. Four A/B pairs, each after the
+formatter ran (a wrapped guard is a defused guard): an unprefixed element, a barrel export
+dropped, a story write renamed back, a fence write renamed back — exit 1 each, exit 0
+restored each.
