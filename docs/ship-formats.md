@@ -193,15 +193,19 @@ would refuse a host that has WiX installed.
 
 **What the installer does, and the one thing it does not.** It lays the program directory under
 `%ProgramFiles%\<App>` (overridable with `msiexec INSTALLDIR=…`, which is how the CI leg installs
-into a prefix it owns), writes one advertised Start-Menu shortcut aimed at the same `.cmd` the zip's
+into a prefix it owns), writes one advertised Start-Menu shortcut aimed at the same `.exe` the zip's
 user double-clicks, and removes all three on `msiexec /x`. There is deliberately no publisher level:
 the installed tree is then byte-for-byte the tree `windows-dir-zip` expands to, which is what lets
 the two artifacts be compared against each other at all.
 
-It does NOT close the console-window gap. `node.exe` is a CONSOLE-subsystem image and the Node
-release ships no `nodew.exe`, so a shortcut to the `.cmd` pops a console behind the GUI exactly as
-the `.cmd` does — and no CI leg can observe it, because every Windows leg starts the app from a
-shell and already has one.
+**The console-window gap is closed, and the `.msi` is one half of it** (ADR 0040). `node.exe` is a
+CONSOLE-subsystem image, the Node release ships no `nodew.exe`, and `cmd.exe` is a console image
+too — so a shortcut to the `.cmd` used to pop a console behind the GUI exactly as a double-click
+did. The windows LAYOUT now stages a GUI-subsystem launcher of its own beside the batch one
+(`utils/ship/pe-launcher.ts`), and this shortcut points at that. Still no CI leg can observe the
+difference: every Windows leg starts the app from a shell and already has a console. It was measured
+by hand on `win11-gjsify` in session 1 — the `.cmd` adds two visible console-host windows, the
+`.exe` adds none, and both exit with the app's own status.
 
 **Five things were measured against `msitools 0.106.58-1.fc44` before the renderer was written**,
 each with a plausible wrong answer: `wixl -a x64` sets `msidbComponentAttributes64bit` (256) by
@@ -664,8 +668,26 @@ path.
 value the next line reads — which is the trap `refs/node/tools/osx-notarize.sh` falls into, guarding
 on three environment variables it never uses. It is **UNVERIFIED end to end**: notarisation needs an
 Apple account, which is precisely the credential M6 does without. The App Store Connect API-key form
-is not implemented, and stapling is not implemented — `status/open-todos.md` carries both, with what
-was measured for each.
+is not implemented — `status/open-todos.md` carries it, with what was measured.
+
+**Stapling, the bundle seal and the hardened runtime landed with ADR 0040**, and all three are
+UNVERIFIED for the same reason: this repository has no macOS host of its own.
+
+|the `<App>.app` is SEALED after every Mach-O inside it is signed. The reason it was not is recorded
+in ADR 0040 as a factual error rather than a deferral: Apple's extended-attribute rule is for a
+LOOSE file, and TN3126 puts a *"bundle without a Mach-O image"* — which is what a script-launcher
+`.app` is — in `Contents/_CodeSignature/`, as regular files a plain zip carries. `signPayload` now
+permits exactly those additions and refuses every other one; `partitionSignedFileSet` is the pure
+function that decides it, and the only half of the seal checkable without a Mac
+|`--options runtime` and `--entitlements` on both identities, `--timestamp` on a named one only. The
+hardened runtime is a code-directory bit, which an ad-hoc signature has; a timestamp is a CMS
+countersignature over a certificate, which it has not. Four entitlements are granted and two of the
+reference's six deliberately are not — `get-task-allow` (notarisation refuses it) and
+`disable-library-validation` (ADR 0024 § A16's question, and § A4's re-sign is the design of record)
+|`xcrun stapler staple` runs after a successful notarisation on the formats whose container can hold
+a ticket — `canCarryTicket` in `formats.ts`. The `.dmg` can; the `.zip` cannot, and Apple's own
+remedy (staple the items that went into the archive, then re-create it) is printed instead of a
+claim
 
 ## `DistroFormatId` is not `FormatId`
 
