@@ -226,27 +226,6 @@ export type HeaderBarGtkSatisfiesBase = Assert<
 export type HeaderBarNativeSatisfiesBase = Assert<
     SatisfiesBase<typeof HeaderBarNative, typeof HeaderBarBase, 'AdwHeaderBar'>
 >;
-export type PasswordEntryRowGtkSatisfiesBase = Assert<
-    SatisfiesBase<typeof PasswordEntryRowGtk, typeof PasswordEntryRowBase, 'AdwPasswordEntryRow'>
->;
-export type PasswordEntryRowNativeSatisfiesBase = Assert<
-    SatisfiesBase<typeof PasswordEntryRowNative, typeof PasswordEntryRowBase, 'AdwPasswordEntryRow'>
->;
-export type PreferencesGroupGtkSatisfiesBase = Assert<
-    SatisfiesBase<typeof PreferencesGroupGtk, typeof PreferencesGroupBase, 'AdwPreferencesGroup'>
->;
-export type PreferencesGroupNativeSatisfiesBase = Assert<
-    SatisfiesBase<typeof PreferencesGroupNative, typeof PreferencesGroupBase, 'AdwPreferencesGroup'>
->;
-export type PreferencesPageGtkSatisfiesBase = Assert<
-    SatisfiesBase<typeof PreferencesPageGtk, typeof PreferencesPageBase, 'AdwPreferencesPage'>
->;
-export type PreferencesPageNativeSatisfiesBase = Assert<
-    SatisfiesBase<typeof PreferencesPageNative, typeof PreferencesPageBase, 'AdwPreferencesPage'>
->;
-export type SpinRowGtkSatisfiesBase = Assert<SatisfiesBase<typeof SpinRowGtk, typeof SpinRowBase, 'AdwSpinRow'>>;
-export type SpinRowNativeSatisfiesBase = Assert<SatisfiesBase<typeof SpinRowNative, typeof SpinRowBase, 'AdwSpinRow'>>;
-
 export type NavigationPageGtkSatisfiesBase = Assert<
     SatisfiesBase<typeof NavigationPageGtk, typeof NavigationPageBase, 'AdwNavigationPage'>
 >;
@@ -271,8 +250,28 @@ export type OverlaySplitViewGtkSatisfiesBase = Assert<
 export type OverlaySplitViewNativeSatisfiesBase = Assert<
     SatisfiesBase<typeof OverlaySplitViewNative, typeof OverlaySplitViewBase, 'AdwOverlaySplitView'>
 >;
+export type PasswordEntryRowGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof PasswordEntryRowGtk, typeof PasswordEntryRowBase, 'AdwPasswordEntryRow'>
+>;
+export type PasswordEntryRowNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof PasswordEntryRowNative, typeof PasswordEntryRowBase, 'AdwPasswordEntryRow'>
+>;
+export type PreferencesGroupGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof PreferencesGroupGtk, typeof PreferencesGroupBase, 'AdwPreferencesGroup'>
+>;
+export type PreferencesGroupNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof PreferencesGroupNative, typeof PreferencesGroupBase, 'AdwPreferencesGroup'>
+>;
+export type PreferencesPageGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof PreferencesPageGtk, typeof PreferencesPageBase, 'AdwPreferencesPage'>
+>;
+export type PreferencesPageNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof PreferencesPageNative, typeof PreferencesPageBase, 'AdwPreferencesPage'>
+>;
 export type SpinnerGtkSatisfiesBase = Assert<SatisfiesBase<typeof SpinnerGtk, typeof SpinnerBase, 'AdwSpinner'>>;
 export type SpinnerNativeSatisfiesBase = Assert<SatisfiesBase<typeof SpinnerNative, typeof SpinnerBase, 'AdwSpinner'>>;
+export type SpinRowGtkSatisfiesBase = Assert<SatisfiesBase<typeof SpinRowGtk, typeof SpinRowBase, 'AdwSpinRow'>>;
+export type SpinRowNativeSatisfiesBase = Assert<SatisfiesBase<typeof SpinRowNative, typeof SpinRowBase, 'AdwSpinRow'>>;
 export type StatusPageGtkSatisfiesBase = Assert<
     SatisfiesBase<typeof StatusPageGtk, typeof StatusPageBase, 'AdwStatusPage'>
 >;
@@ -433,15 +432,6 @@ export default async () => {
                 'ExpanderRowNativeSatisfiesBase',
                 'HeaderBarGtkSatisfiesBase',
                 'HeaderBarNativeSatisfiesBase',
-                'PasswordEntryRowGtkSatisfiesBase',
-                'PasswordEntryRowNativeSatisfiesBase',
-                'PreferencesGroupGtkSatisfiesBase',
-                'PreferencesGroupNativeSatisfiesBase',
-                'PreferencesPageGtkSatisfiesBase',
-                'PreferencesPageNativeSatisfiesBase',
-                'SpinRowGtkSatisfiesBase',
-                'SpinRowNativeSatisfiesBase',
-
                 'NavigationPageGtkSatisfiesBase',
                 'NavigationPageNativeSatisfiesBase',
                 'NavigationSplitViewGtkSatisfiesBase',
@@ -450,6 +440,14 @@ export default async () => {
                 'NavigationViewNativeSatisfiesBase',
                 'OverlaySplitViewGtkSatisfiesBase',
                 'OverlaySplitViewNativeSatisfiesBase',
+                'PasswordEntryRowGtkSatisfiesBase',
+                'PasswordEntryRowNativeSatisfiesBase',
+                'PreferencesGroupGtkSatisfiesBase',
+                'PreferencesGroupNativeSatisfiesBase',
+                'PreferencesPageGtkSatisfiesBase',
+                'PreferencesPageNativeSatisfiesBase',
+                'SpinRowGtkSatisfiesBase',
+                'SpinRowNativeSatisfiesBase',
                 'SpinnerGtkSatisfiesBase',
                 'SpinnerNativeSatisfiesBase',
                 'StatusPageGtkSatisfiesBase',
