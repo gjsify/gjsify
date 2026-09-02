@@ -2502,6 +2502,15 @@ jobs:
         # symptom is a win32-only `getGType` returning null for one type.
         run: node packages/framework/webview2-native/scripts/check-def-exports.mjs
 
+      - name: Hold every quoted #include to the target's include path
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        # `src/cpp/` is the ONE translation unit no non-Windows host compiles, so
+        # the step above proves nothing about it and neither does `meson compile`
+        # here. This does, lexically: a quoted include that resolves nowhere is
+        # MSVC C1083, and that is what the first Windows run of this package hit
+        # after this job had gone green.
+        run: node packages/framework/webview2-native/scripts/check-include-paths.mjs
+
       - name: Emit WebKit-6.0.gir with g-ir-scanner
         if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
         working-directory: packages/framework/webview2-native

@@ -45,6 +45,15 @@ dependencies = [
 sources = files('src/c/gjsify-webview2.c')
 headers = files('src/c/gjsify-webview2.h')
 
+# `src/cpp/gjsify-webview2-win32.cpp` includes `"gjsify-webview2-backend.h"`, which
+# lives in `src/c/`. A quoted include searches the INCLUDING file's directory
+# first and the target's include path after that, so without this the seam header
+# is unreachable from `src/cpp/` on every compiler — and the failure is win32-only
+# because `src/cpp/` is the one translation unit no other host compiles. Measured:
+# MSVC C1083 on the first Windows run of this package, after the Fedora job that
+# compiles the portable half had gone green.
+include_dirs = include_directories('src/c')
+
 link_args = []
 cpp_args = []
 
@@ -96,6 +105,7 @@ endif
 
 libgjsifywebview2 = library('gjsifywebview2', sources,
     dependencies: dependencies,
+    include_directories: include_dirs,
     cpp_args: cpp_args,
     link_args: link_args,
     install: true,
