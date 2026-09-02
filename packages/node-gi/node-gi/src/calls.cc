@@ -1466,9 +1466,9 @@ static gpointer ClassStructInstanceForGType(GType gtype) {
 // SUBCLASS's. node-gi bound the name to the type it was READ from, so both spellings
 // answered the declarer's pspecs — GObject's zero — with nothing thrown (#1438). A
 // plain static (Gio.File.new_for_path) ignores `this` in gjs too, so it ignores this
-// argument here; and a receiver that is not `g_type_is_a` the type the name was read
-// from is ignored rather than trusted, so no C function can be handed the class
-// pointer of an unrelated type.
+// argument here; and a receiver that is not `g_type_is_a` the DECLARING type (see
+// ResolveClassStructMethod) is ignored rather than trusted, so no C function can be
+// handed the class pointer of an unrelated type.
 Napi::Value CallStaticMethod(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {

@@ -1672,7 +1672,8 @@ function makeClass(namespace, typeName) {
             // GtkListItem's 9 pspecs, and an INHERITED `Subclass.list_properties()` reads
             // the subclass's. Binding the name to the type it was read from answered the
             // declarer's instead (GObject's zero), silently (#1438). The engine ignores the
-            // receiver for a plain static and for a type that is not `g_type_is_a` this one.
+            // receiver for a plain static and for a type that is not `g_type_is_a` the class
+            // struct's DECLARING type.
             return function (...args) {
                 const receiverGType = this === undefined || this === proxy ? null : gtypeOf(this);
                 return wrapReturn(
