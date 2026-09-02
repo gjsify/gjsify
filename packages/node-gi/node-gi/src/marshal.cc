@@ -892,6 +892,22 @@ Napi::Value GIArgumentToJs(Napi::Env env, GITypeInfo* type, GIArgument* arg,
 //    pass it, and free it (container + any g_strdup'd strings) AFTER the invoke.
 //    TRANSFER_EVERYTHING / TRANSFER_CONTAINER means the callee adopts what we
 //    built — we must NOT free it (that would UAF / double-free).
+//  * IN, PER ELEMENT: the container transfer also decides who owns the ELEMENTS,
+//    and the two answers differ. CONTAINER hands over only the container, so the
+//    elements stay ours and a borrowed pointer is right. EVERYTHING hands over the
+//    elements TOO — a borrowed object/boxed pointer there is freed by the callee
+//    AND by the JS handle that still owns it. Measured on the pointer-struct case
+//    the moment it was admitted: `Pango.Font.descriptions_free([desc])` (`descs` is
+//    `(transfer full)`) read back garbage and died in `free(): invalid size`. So
+//    ElementToGIArgument takes the ELEMENT transfer — NOTHING for a borrow (incl.
+//    CONTAINER), EVERYTHING for adoption, exactly the rule the read side already
+//    uses — and refs/copies on EVERYTHING. Strings were always right (g_strdup'd
+//    per element either way).
+//  * IN, ROOTING: a borrowed element pointer stays valid across the invoke because
+//    the JS array is an ARGUMENT of the running native call — it and everything
+//    reachable from it are held by that call's handle scope, which is not popped
+//    until we return. So nothing can be collected between building the container
+//    and the callee reading it, not even an element a getter/Proxy synthesised.
 
 // Element-type support shared by every container kind. *why receives a short
 // label on refusal (so the caller can throw a precise deferral message).
@@ -916,12 +932,16 @@ static bool IsSupportedElementType(GITypeInfo* elem, std::string* why) {
       bool ok = iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_INTERFACE_INFO(iface));
       // A struct element that is a POINTER occupies exactly one pointer slot, which is
       // the same shape an object element already has: CElementSize answers
-      // sizeof(gpointer), the write loop memcpy's the low 8 bytes, and
-      // FreeInContainer's non-string branch frees the buffer without touching what the
-      // pointers point at — correct for a borrowed handle. So it needs no new
-      // machinery, only admission. `GLib.Variant.new_tuple` is the call this unblocks:
-      // measured against the installed typelib, its `children` element is
-      // `tag=interface ptr=1 kind=STRUCT`.
+      // sizeof(gpointer) and the write loop memcpy's the low 8 bytes.
+      // `GLib.Variant.new_tuple` is the call this unblocks: measured against the
+      // installed typelib, its `children` element is `tag=interface ptr=1 kind=STRUCT`.
+      //
+      // Admission alone was NOT enough, and the reading that said it was is worth
+      // keeping: "FreeInContainer's non-string branch already frees the buffer without
+      // touching what the pointers point at" is true and beside the point, because
+      // FreeInContainer runs only for TRANSFER_NOTHING. On a (transfer full) container
+      // the CALLEE frees the elements — see the per-element half of the OWNERSHIP note
+      // above and ElementToGIArgument, which is where that is now handled.
       //
       // A BY-VALUE struct element stays refused, and the distinction is the whole point
       // of testing is_pointer here rather than the kind alone: `Gtk.Accessible
@@ -1304,10 +1324,14 @@ Napi::Value ReadOutOrReturn(Napi::Env env, GICallableInfo* callable, GITypeInfo*
   }
 }
 
-// Fill a GIArgument for a single list/hash element from a JS value. Strings are
-// g_strdup'd (the container owns them); objects contribute their borrowed
-// handle pointer. Throws + returns false on an unsupported element.
-static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, GIArgument* a) {
+// Fill a GIArgument for a single array/list/hash element from a JS value. Strings
+// are g_strdup'd (the container owns them). `elemTransfer` is the ELEMENT half of
+// the container's transfer (see the OWNERSHIP note above): NOTHING → an object /
+// boxed handle contributes its BORROWED pointer; EVERYTHING → the callee adopts
+// the element, so it gets a ref (objects) or an independent copy (boxed) instead.
+// Throws + returns false on an unsupported element.
+static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, GIArgument* a,
+                                GITransfer elemTransfer) {
   memset(a, 0, sizeof(*a));
   switch (gi_type_info_get_tag(elem)) {
     // Scalar coercions via the terminate-safe helpers (common.h): a swallowed
@@ -1336,17 +1360,33 @@ static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, 
         return true;
       }
       if (v.IsExternal() && v.As<Napi::External<GObject>>().CheckTypeTag(&kGObjectHandleTag)) {
-        a->v_pointer = v.As<Napi::External<GObject>>().Data();
+        GObject* obj = v.As<Napi::External<GObject>>().Data();
+        // The callee adopts one ref PER ELEMENT on EVERYTHING (Gdk.ContentProvider
+        // .new_union's `providers`, Gtk.ClosureExpression.new's `params`, the
+        // Gst/GstPbutils `*_list_free` helpers): hand it one it may drop, never the
+        // wrapper's own — that would under-ref and free the object out from under JS.
+        if (obj != nullptr && elemTransfer == GI_TRANSFER_EVERYTHING) g_object_ref(obj);
+        a->v_pointer = obj;
         return true;
       }
-      // A boxed/struct handle contributes its borrowed pointer, exactly as an object
-      // handle does. Only reachable for a POINTER struct element — IsSupportedElementType
+      // A boxed/struct handle contributes its pointer, exactly as an object handle
+      // does. Only reachable for a POINTER struct element — IsSupportedElementType
       // refuses the by-value kind before the invoke, so no by-value record can arrive
-      // here and be silently treated as a pointer.
+      // here and be silently treated as a pointer. TransferBoxedIn is the SAME
+      // adopt-or-borrow helper the scalar boxed IN arg uses (g_variant_ref /
+      // g_boxed_copy on EVERYTHING, relinquish for a struct with no copy function),
+      // so a container element and a plain argument cannot drift apart.
       if (BoxedHandle* boxed = TryGetBoxedHandle(v); boxed != nullptr) {
-        a->v_pointer = boxed->ptr;
+        a->v_pointer = TransferBoxedIn(boxed, elemTransfer);
         return true;
       }
+      // Everything else refuses LOUDLY here rather than silently contributing a
+      // nullptr. Two element kinds reach this on purpose: a GObject FUNDAMENTAL
+      // (GskRenderNode — object info, so the predicate admits it, but its handle
+      // carries kFundamentalHandleTag) and a FOREIGN struct (cairo, kCairoHandleTag),
+      // neither of which owns its pointer the way the two branches above assume. No
+      // installed typelib has a foreign-struct container element today; if one is
+      // added, route it through ForeignStructOps::to rather than widening this test.
       Napi::TypeError::New(env, "expected a GObject or boxed handle as a container element")
           .ThrowAsJavaScriptException();
       return false;
@@ -1361,8 +1401,10 @@ static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, 
 // Build a C array / GStrv / GByteArray / GArray / GPtrArray from a JS value.
 // *outCount = element count (for the IN length autofill + later free). Throws +
 // returns false on refusal (BEFORE the invoke).
-static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer* outPtr,
-                       long* outCount) {
+static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfer transfer,
+                       gpointer* outPtr, long* outCount) {
+  GITransfer elemTransfer =
+      transfer == GI_TRANSFER_EVERYTHING ? GI_TRANSFER_EVERYTHING : GI_TRANSFER_NOTHING;
   GIArrayType at = gi_type_info_get_array_type(type);
   GITypeInfo* elem = gi_type_info_get_param_type(type, 0);
   GITypeTag etag = gi_type_info_get_tag(elem);
@@ -1483,7 +1525,7 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
   bool ok = true;
   for (long i = 0; i < count && ok; i++) {
     GIArgument a;
-    ok = ElementToGIArgument(env, elem, arr.Get(static_cast<uint32_t>(i)), &a);
+    ok = ElementToGIArgument(env, elem, arr.Get(static_cast<uint32_t>(i)), &a, elemTransfer);
     if (!ok) break;
     void* dst = static_cast<char*>(buf) + i * elemSize;
     // Copy the element's storage bytes (LE: the low elemSize bytes of the union
@@ -1492,7 +1534,10 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
     memcpy(dst, &a, elemSize);
   }
   if (!ok) {
-    g_free(buf);  // partial g_strdup'd strings leak on this error path (pre-checked, rare)
+    // Partial g_strdup'd strings — and, on an EVERYTHING container, the refs/copies
+    // already taken for earlier elements — leak on this error path (pre-checked, rare:
+    // it needs a non-handle value mid-array). A leak, never a double free.
+    g_free(buf);
     gi_base_info_unref(elem);
     return false;
   }
@@ -1525,7 +1570,9 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer*
 
 // Build a GList / GSList from a JS array.
 static bool JsToGListLike(Napi::Env env, Napi::Value v, GITypeInfo* type, bool isSList,
-                          gpointer* outPtr) {
+                          GITransfer transfer, gpointer* outPtr) {
+  GITransfer elemTransfer =
+      transfer == GI_TRANSFER_EVERYTHING ? GI_TRANSFER_EVERYTHING : GI_TRANSFER_NOTHING;
   *outPtr = nullptr;
   if (!v.IsArray()) {
     Napi::TypeError::New(env, "expected an array for the list argument").ThrowAsJavaScriptException();
@@ -1538,8 +1585,12 @@ static bool JsToGListLike(Napi::Env env, Napi::Value v, GITypeInfo* type, bool i
   bool ok = true;
   for (uint32_t i = 0; i < arr.Length() && ok; i++) {
     GIArgument a;
-    ok = ElementToGIArgument(env, elem, arr.Get(i), &a);
+    ok = ElementToGIArgument(env, elem, arr.Get(i), &a, elemTransfer);
     if (!ok) break;
+    // Measured, not assumed: for an INTERFACE element that is a pointer this helper
+    // passes v_pointer through unchanged and gi_type_info_argument_from_hash_pointer
+    // reads the same address back, so a pointer-struct element fills a node's data
+    // slot exactly as an object element does.
     gpointer p = gi_type_info_hash_pointer_from_argument(elem, &a);
     if (!isSList) glist = g_list_prepend(glist, p);
     else gslist = g_slist_prepend(gslist, p);
@@ -1561,7 +1612,14 @@ static bool JsToGListLike(Napi::Env env, Napi::Value v, GITypeInfo* type, bool i
 // Key/value GDestroyNotify funcs are attached so a transfer-none teardown
 // (g_hash_table_unref in FreeInContainer) releases everything; a transfer-full
 // hash is adopted by the callee, which frees it (and thus runs the notifies).
-static bool JsToGHashIn(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer* outPtr) {
+static bool JsToGHashIn(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfer transfer,
+                        gpointer* outPtr) {
+  // A hash's VALUE destroy-notify is set below for the string/heap kinds only, so an
+  // EVERYTHING hash of object/boxed values leaks the copies rather than double-freeing
+  // the originals. That is the safe side of the trade and the only one reachable: no
+  // installed typelib has an EVERYTHING GHashTable IN with a POINTER-STRUCT value.
+  GITransfer elemTransfer =
+      transfer == GI_TRANSFER_EVERYTHING ? GI_TRANSFER_EVERYTHING : GI_TRANSFER_NOTHING;
   *outPtr = nullptr;
   if (!v.IsObject() || v.IsArray()) {
     Napi::TypeError::New(env, "expected an object for the GHashTable argument")
@@ -1605,7 +1663,7 @@ static bool JsToGHashIn(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer
     } else {
       GIArgument ka;
       Napi::Value keyNum = Napi::Number::New(env, static_cast<double>(g_ascii_strtoll(ks.c_str(), nullptr, 10)));
-      ok = ElementToGIArgument(env, kt, keyNum, &ka);
+      ok = ElementToGIArgument(env, kt, keyNum, &ka, GI_TRANSFER_NOTHING);
       if (!ok) break;
       kp = gi_type_info_hash_pointer_from_argument(kt, &ka);
     }
@@ -1616,7 +1674,7 @@ static bool JsToGHashIn(Napi::Env env, Napi::Value v, GITypeInfo* type, gpointer
     Napi::Value val = obj.Get(key);
     gpointer vp = nullptr;
     GIArgument va;
-    ok = ElementToGIArgument(env, vt, val, &va);
+    ok = ElementToGIArgument(env, vt, val, &va, elemTransfer);
     if (!ok) {
       g_free(kp);
       break;
@@ -1722,11 +1780,11 @@ bool JsToInContainer(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfer 
   *outCount = 0;
   bool ok = false;
   if (tag == GI_TYPE_TAG_ARRAY) {
-    ok = JsToCArray(env, v, type, outPtr, outCount);
+    ok = JsToCArray(env, v, type, transfer, outPtr, outCount);
   } else if (tag == GI_TYPE_TAG_GLIST || tag == GI_TYPE_TAG_GSLIST) {
-    ok = JsToGListLike(env, v, type, tag == GI_TYPE_TAG_GSLIST, outPtr);
+    ok = JsToGListLike(env, v, type, tag == GI_TYPE_TAG_GSLIST, transfer, outPtr);
   } else if (tag == GI_TYPE_TAG_GHASH) {
-    ok = JsToGHashIn(env, v, type, outPtr);
+    ok = JsToGHashIn(env, v, type, transfer, outPtr);
   }
   if (ok && *outPtr != nullptr) {
     containers->push_back(InContainer{
