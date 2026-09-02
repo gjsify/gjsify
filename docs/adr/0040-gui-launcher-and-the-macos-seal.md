@@ -117,8 +117,14 @@ things a generated image costs nothing:
    committed binary would need a CI job whose only job is to prove the committed
    bytes are the ones the source produces.
 2. **a licence row.** A stub linked against mingw's CRT carries mingw's terms into
-   every artifact `gjsify ship` writes. This one calls twelve documented `kernel32`
-   exports and links nothing, so the only licence in it is this repository's.
+   every artifact `gjsify ship` writes. This one imports documented `kernel32`
+   exports and NOTHING else — `IMPORTS` in `pe-launcher.ts` is the whole list, and
+   `pe-launcher.spec.ts` reads the emitted image's own strings back and asserts
+   that `KERNEL32.dll` is the ONLY `.dll` among them — so the only licence in it is
+   this repository's. (It said "twelve" and the list is thirteen:
+   a live count, unheld by any check, drifting exactly the way root AGENTS.md says
+   a live count drifts. What the number was there to establish is "one DLL, no
+   CRT", and that is what it now says.)
 3. **review.** The bytes of a checked-in binary are not reviewable; the function that
    emits them is, and `pe-launcher.spec.ts` reads the result back on any host.
 
