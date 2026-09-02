@@ -66,28 +66,67 @@ const FIXTURES = 'scripts/girs-runtime-import-fixtures.mjs';
 /**
  * Every RUNTIME import of an `@girs/*` package in `source`.
  *
- * A runtime import is one that binds a value: a default binding, a namespace binding, or
- * named bindings that are not `type`-qualified. `import type …`, `export … from` and
- * a specifier inside a comment are not.
+ * A runtime import is one that BINDS A VALUE: a default binding, a namespace binding,
+ * named bindings that are not `type`-qualified, or a dynamic `import(…)`. Not:
+ * `import type …`, `import { type X }`, `export … from`, or a bare side-effect import,
+ * which binds nothing.
+ *
+ * WHOLE TEXT, NOT LINE BY LINE, and that is the whole repair. The first version read one
+ * line at a time and was therefore blind to every import list this repository's own
+ * formatter had wrapped — eight live value bindings in `gtk-host`'s generator spec, from
+ * a directory that is not pending, over which the gate printed OK. A reader whose scope
+ * is narrower than the language it reads fails silently by construction.
+ *
+ * A SUBPATH IS NOT A NAMESPACE. Only the bare package maps to a `gi://` specifier;
+ * `@girs/gtk-4.0/vocabulary` is generated data (ADR 0029) with no counterpart at all.
+ * Stated as a boundary rather than an exemption list, so it also holds for the next
+ * subpath somebody adds.
+ *
+ * COMMENTS. The static form must begin a line, which is what keeps a specifier quoted in
+ * prose out — the rule this file's own docblocks depend on. The dynamic form appears
+ * mid-expression and cannot use that, so a match is dropped when what precedes it on its
+ * line opens a line comment or continues a block one.
  */
 function* girsRuntimeImports(source) {
-    const lines = source.split('\n');
-    for (let index = 0; index < lines.length; index++) {
-        const line = lines[index];
-        const match = /^\s*import\s+(?!type\s)([^;]*?)\s*from\s*['"](@girs\/[^'"]+)['"]/.exec(line);
-        if (match === null) continue;
+    const lineOf = (index) => source.slice(0, index).split('\n').length;
+    /** Only the bare package: `@girs/<pkg>` and nothing after it. */
+    const isNamespacePackage = (specifier) => /^@girs\/[^/]+$/.test(specifier);
+
+    // A static import statement, starting a line, with a clause that may span lines. The
+    // clause cannot contain `;`, which is what stops the match from running past the end
+    // of one statement into the `from` of a later `export … from`.
+    const STATIC = /^[ \t]*import\s+(?!type\s)([^;]*?)\s*from\s*['"](@girs\/[^'"]+)['"]/gm;
+    for (const match of source.matchAll(STATIC)) {
         const [, bindings, specifier] = match;
-        // `import { type Widget } from …` binds no value; `import { Button }` does.
-        const named = /^\{([^}]*)\}$/.exec(bindings.trim());
+        if (!isNamespacePackage(specifier)) continue;
+        // `import { type Widget, type Align }` binds no value; `import { Button }` does.
+        const named = /^\{([\s\S]*)\}$/.exec(bindings.trim());
         if (named !== null) {
-            const anyValue = named[1]
+            const bindsValue = named[1]
                 .split(',')
                 .map((entry) => entry.trim())
                 .filter((entry) => entry.length > 0)
                 .some((entry) => !entry.startsWith('type '));
-            if (!anyValue) continue;
+            if (!bindsValue) continue;
         }
-        yield { line: index + 1, specifier, text: line.trim() };
+        // Whitespace collapsed rather than the first line taken: a wrapped list reported
+        // as `import {` names nothing a reader can act on.
+        yield { line: lineOf(match.index), specifier, text: match[0].trim().replace(/\s+/g, ' ') };
+    }
+
+    // A dynamic import, anywhere in an expression.
+    const DYNAMIC = /\bimport\s*\(\s*['"](@girs\/[^'"]+)['"]\s*\)/g;
+    for (const match of source.matchAll(DYNAMIC)) {
+        const specifier = match[1];
+        if (!isNamespacePackage(specifier)) continue;
+        const lineStart = source.lastIndexOf('\n', match.index) + 1;
+        const before = source.slice(lineStart, match.index);
+        if (before.includes('//') || before.trimStart().startsWith('*')) continue;
+        yield {
+            line: lineOf(match.index),
+            specifier,
+            text: source.slice(lineStart, match.index + match[0].length).trim(),
+        };
     }
 }
 
