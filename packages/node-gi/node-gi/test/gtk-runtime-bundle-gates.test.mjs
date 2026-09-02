@@ -46,7 +46,9 @@ import {
 import {
     WINDOWING_DATA_SETS,
     copyTreeDereferenced,
+    duplicatedModuleLeaves,
     findSymlinks,
+    formatDuplicatedModuleProblems,
     formatSymlinkProblems,
     formatWindowingDataProblems,
     verifyWindowingData,
@@ -849,3 +851,57 @@ function nativeLibraryIndexOf(names, caseInsensitive) {
     for (const name of names) writeFileSync(join(dir, name), '');
     return nativeLibraryIndex(dir, { caseInsensitive });
 }
+
+// --- rule 3: a module must not ALSO be a flat library entry -------------------
+// The gate that would have caught the 24 duplicated GStreamer plugins. Every other gate
+// was green on that bundle: the count checks counted the module dir, `verifyRelocation`
+// verified BOTH copies (each was correctly relocated), and the typelib symmetry check
+// looks at libraries, not plugins. A correct extra copy is invisible to all of them.
+
+test('a module placed in its own dir and NOT in the flat dir is clean', () => {
+    assert.deepEqual(
+        duplicatedModuleLeaves(
+            ['libglib-2.0.0.dylib', 'libgstreamer-1.0.0.dylib'],
+            ['/b/lib/gstreamer-1.0/libgstsoup.dylib', '/b/lib/gio/modules/libgiognutls.so'],
+        ),
+        [],
+    );
+});
+
+test('the SAME leaf in both places is reported — the 24-plugin defect', () => {
+    // Exactly the shape the darwin artifact had: the plugin under lib/gstreamer-1.0/ AND
+    // a second copy in flat lib/, because the walk resolved the plugin's own install name.
+    assert.deepEqual(
+        duplicatedModuleLeaves(
+            ['libglib-2.0.0.dylib', 'libgstsoup.dylib', 'libgstplayback.dylib'],
+            ['/b/lib/gstreamer-1.0/libgstsoup.dylib', '/b/lib/gstreamer-1.0/libgstplayback.dylib'],
+        ),
+        ['libgstplayback.dylib', 'libgstsoup.dylib'],
+    );
+});
+
+test('the flat side may be given as PATHS, not only leaves', () => {
+    // darwin passes a Set of leaves, win32 a Set of bin/ file names; neither should have
+    // to normalise at the call site.
+    assert.deepEqual(duplicatedModuleLeaves(['/b/lib/libgstsoup.dylib'], ['/b/lib/gstreamer-1.0/libgstsoup.dylib']), [
+        'libgstsoup.dylib',
+    ]);
+});
+
+test('win32 folds case, darwin does not — bin/ is a Windows directory', () => {
+    assert.deepEqual(duplicatedModuleLeaves(['GstSoup.dll'], ['C:\\b\\lib\\gstreamer-1.0\\gstsoup.dll']), []);
+    assert.deepEqual(
+        duplicatedModuleLeaves(['GstSoup.dll'], ['C:\\b\\lib\\gstreamer-1.0\\gstsoup.dll'], {
+            caseInsensitive: true,
+        }),
+        ['gstsoup.dll'],
+    );
+});
+
+test('the operator message names the leaves and refuses the tempting repair', () => {
+    const message = formatDuplicatedModuleProblems(['libgstsoup.dylib'], { flatDir: '/b/lib' });
+    assert.match(message, /MODULES DUPLICATED INTO \/b\/lib — 1 leaf/);
+    assert.match(message, /libgstsoup\.dylib/);
+    // The repair is at the WALK. Deleting the flat copy afterwards hides the reference.
+    assert.match(message, /Do NOT delete the flat copy as a post-step/);
+});

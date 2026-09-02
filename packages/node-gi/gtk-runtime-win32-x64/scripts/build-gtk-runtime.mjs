@@ -45,7 +45,9 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     copyTreeDereferenced,
+    duplicatedModuleLeaves,
     findSymlinks,
+    formatDuplicatedModuleProblems,
     formatSymlinkProblems,
     formatWindowingDataProblems,
     verifyWindowingData,
@@ -170,10 +172,18 @@ const WINDOWING_SEED_PATTERNS = [
     // build with no audio and no message.
     /^gstreamer-1\.0-.*\.dll$/i,
     /^gstapp-1\.0-.*\.dll$/i,
-    // libsoup, which `gstsoup.dll` § 4g ships opens with g_module_open rather than
-    // linking, so the dumpbin walk seeded from the plugin finds no soup at all —
-    // gst-plugins.mjs § soup carries the measurement and the darwin twin of this seed.
-    // It also backs `Soup-3.0.typelib`, which § 3's symmetry rule was correctly dropping.
+    // libsoup, and NOT for the reason its darwin twin exists — the two OSes build the
+    // soup plugin differently and only one of them hides the dependency. gst-plugins-good
+    // takes the `host_system == 'windows'` branch of ext/soup/meson.build, which LINKS
+    // libsoup; measured on the shipped DLL, `gstsoup.dll`'s import table names
+    // `soup-3.0-0.dll` outright, so the dumpbin walk seeded from the plugin does reach it.
+    // (On darwin the same plugin g_module_opens libsoup by leaf through its loader shim
+    // and the otool walk finds nothing — that is where the seed is load-bearing.)
+    //
+    // It is seeded here anyway, for the reason that survives the difference: it backs
+    // `Soup-3.0.typelib`, which § 3's symmetry rule was correctly dropping, and the seed
+    // states that requirement rather than inheriting it from how -good happened to be
+    // configured. gst-plugins.mjs § soup carries the measurement.
     /^soup-3\.0-.*\.dll$/i,
 ];
 
@@ -452,6 +462,12 @@ const windowing = {
     fontconfig: false,
     gtksource: false,
 };
+// Every loadable module § 4a/4g/4h PLACES in its own directory, for the rule-3 gate below
+// them: a module must not ALSO be a flat bin/ entry. This leg is CLEAN today — dumpbin's
+// import table does not name the file it describes, so nothing queues a module the way
+// `otool -L` did on darwin — and the gate is here so it stays a fact rather than a
+// property of which walker each OS happens to use. See duplicatedModuleLeaves.
+const placedModuleLeaves = [];
 if (WINDOWING) {
     // 4a. gdk-pixbuf loaders + a TOPLEVEL-relative loaders.cache. The cache maps each
     // decoder DLL to its mime/extensions, and the query tool emits absolute build paths
@@ -469,6 +485,7 @@ if (WINDOWING) {
         for (const f of readdirSync(gdkPixbufLoaderDir)) {
             if (f.toLowerCase().endsWith('.dll')) {
                 copyFileSync(join(gdkPixbufLoaderDir, f), join(loadersOut, f));
+                placedModuleLeaves.push(f);
                 windowing.pixbufLoaders++;
             }
         }
@@ -533,6 +550,7 @@ if (WINDOWING) {
             copyFileSync(join(gstPluginDir, f), dest);
             bytes += statSync(dest).size;
             shippedGstPlugins.push(f);
+            placedModuleLeaves.push(f);
             windowing.gstPlugins++;
         }
         // The scanner, which GStreamer FORKS so a plugin that crashes on load cannot
@@ -609,6 +627,7 @@ if (WINDOWING) {
             const dest = join(modulesOut, basename(src));
             copyFileSync(src, dest);
             bytes += statSync(dest).size;
+            placedModuleLeaves.push(basename(src));
             windowing.gioModules++;
         }
         if (windowing.gioModules === 0) {
@@ -628,6 +647,15 @@ if (WINDOWING) {
                 'Repair: add glib-networking to the gvsbuild build (it is a dependency of the libsoup3 ' +
                 'project, so building libsoup3 brings it).',
         );
+        process.exit(1);
+    }
+
+    // Rule 3: no module § 4a/4g/4h placed may ALSO be a flat bin/ entry. Case-folded,
+    // because bin/ is a Windows directory. The darwin twin of this gate stands after its
+    // § 3, and duplicatedModuleLeaves carries the class.
+    const duplicatedModules = duplicatedModuleLeaves(binDlls, placedModuleLeaves, { caseInsensitive: true });
+    if (duplicatedModules.length > 0) {
+        console.error(`build-gtk-runtime: ${formatDuplicatedModuleProblems(duplicatedModules, { flatDir: binOut })}`);
         process.exit(1);
     }
 

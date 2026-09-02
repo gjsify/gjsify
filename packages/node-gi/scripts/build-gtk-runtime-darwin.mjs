@@ -77,7 +77,9 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     copyTreeDereferenced,
+    duplicatedModuleLeaves,
     findSymlinks,
+    formatDuplicatedModuleProblems,
     formatSymlinkProblems,
     formatWindowingDataProblems,
     verifyWindowingData,
@@ -252,8 +254,30 @@ function isSystemPath(p) {
     return p.startsWith('/usr/lib/') || p.startsWith('/System/');
 }
 
+/** `realpathSync` that answers null instead of throwing, for refs like `@rpath/x`. */
+function realpathOrNull(p) {
+    try {
+        return realpathSync(p);
+    } catch {
+        return null;
+    }
+}
+
 // Parse an `otool -L <lib>` output into the list of dependency install paths
-// (skipping the first line — the library's own id — and system libraries).
+// (skipping the library's own id and system libraries).
+//
+// THE ID IS NOT DROPPED BY POSITION, and the difference is a shipped defect. `otool -L
+// <file>` prints `<file>:` as its first line and then, FOR A DYLIB ONLY, the install
+// name (LC_ID_DYLIB) before the real dependencies — a loadable BUNDLE (a GIO module, a
+// gdk-pixbuf loader) carries no id at all, so `slice(1)` cannot mean "past the id" for
+// both shapes and used to leave every dylib's own id in the list. That was inert only
+// while § 1 resolved a LEAF against `<prefix>/lib`: a plugin's leaf is not there. Once
+// § 1 began resolving whole REFERENCES (resolveBrewDep, for keg-only formulas), the id
+// — an absolute path into the Cellar — resolved to the plugin itself, and all 24
+// GStreamer plugins were copied into flat `lib/` beside the copies § 2c places, +3.4
+// MiB of duplicates. Measured on the darwin-x64 artifact of the run that added `soup`.
+// So the id is removed BY VALUE: nothing links itself, and the check costs one
+// realpath per line.
 function otoolDeps(libPath) {
     let out;
     try {
@@ -261,13 +285,15 @@ function otoolDeps(libPath) {
     } catch {
         return [];
     }
-    const lines = out.split('\n').slice(1); // line 0 is the id, not a dep
+    const self = realpathOrNull(libPath);
+    const lines = out.split('\n').slice(1); // line 0 is the `<file>:` header
     const deps = [];
     for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
         const path = trimmed.split(' (')[0];
         if (!path || isSystemPath(path)) continue;
+        if (self && realpathOrNull(path) === self) continue; // the image's own id
         deps.push(path);
     }
     return deps;
@@ -785,6 +811,19 @@ verifyRelocation([
     ...gstPluginImages,
     ...gioModuleImages,
 ]);
+
+// And the check verifyRelocation CANNOT make, because a duplicate is correctly
+// relocated: no module § 2b–2d placed may ALSO be a flat lib/ entry. See
+// duplicatedModuleLeaves for the class and the 24-plugin instance it was written on.
+const duplicatedModules = duplicatedModuleLeaves(bundledLeaves, [
+    ...pixbufLoaderImages,
+    ...gstPluginImages,
+    ...gioModuleImages,
+]);
+if (duplicatedModules.length > 0) {
+    console.error(`build-gtk-runtime: ${formatDuplicatedModuleProblems(duplicatedModules, { flatDir: libOut })}`);
+    process.exit(1);
+}
 
 // --- 4. typelibs — only the ones this bundle can actually BACK --------------
 // The brew typelib dir is shared by every installed formula, so copying it wholesale

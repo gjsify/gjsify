@@ -323,3 +323,57 @@ export function formatWindowingDataProblems(problems, { bundleDir }) {
         'consumer. Fix the build prefix (see the per-set repair) — do NOT downgrade the step back to a warning.'
     );
 }
+
+/**
+ * Rule 3, asserted on the finished bundle by both builders: a LOADABLE MODULE MUST NOT
+ * ALSO BE A FLAT LIBRARY ENTRY.
+ *
+ * The builders have two different placements. The flat library dir (`lib/` on darwin,
+ * `bin/` on win32) holds the linked closure; a plugin, an image loader or a GIO module
+ * is placed in its OWN directory by the section that owns it, because it needs a
+ * different relocation prefix and is never resolved by leaf from the library path. A
+ * leaf that appears in both was pulled into the closure by a reference that NAMES it,
+ * and it then ships twice.
+ *
+ * This is a class, not an incident. The instance that produced it: `otool -L` prints a
+ * dylib's own install name among its dependencies, and once the darwin closure walk
+ * began resolving whole references (for keg-only formulas) that id — an absolute path
+ * into the Cellar — resolved to the plugin itself, so all 24 GStreamer plugins were
+ * copied into flat `lib/` as well, +3.4 MiB. The duplicate is inert (nothing resolves a
+ * plugin by leaf), which is exactly why nothing noticed: every existing gate counts
+ * files or verifies relocation, and both are happy with a correct extra copy.
+ * @param {Iterable<string>} flatLeaves leaf names in the bundle's flat library dir
+ * @param {Iterable<string>} modulePaths paths of the modules the builder PLACED
+ * @param {{ caseInsensitive?: boolean }} [opts] fold case, as win32's `bin/` requires
+ * @returns {string[]} leaves that are in both, sorted
+ */
+export function duplicatedModuleLeaves(flatLeaves, modulePaths, { caseInsensitive = false } = {}) {
+    const fold = (s) => (caseInsensitive ? s.toLowerCase() : s);
+    const flat = new Set();
+    for (const entry of flatLeaves) flat.add(fold(entry.replace(/^.*[\\/]/, '')));
+    const dupes = new Set();
+    for (const p of modulePaths) {
+        const leaf = p.replace(/^.*[\\/]/, '');
+        if (flat.has(fold(leaf))) dupes.add(leaf);
+    }
+    return [...dupes].sort();
+}
+
+/**
+ * One shared operator message for {@link duplicatedModuleLeaves}, so both builders
+ * spell the repair the same way.
+ * @param {string[]} leaves
+ * @param {{ flatDir: string }} opts
+ * @returns {string}
+ */
+export function formatDuplicatedModuleProblems(leaves, { flatDir }) {
+    return (
+        `MODULES DUPLICATED INTO ${flatDir} — ${leaves.length} leaf/leaves:\n  ${leaves.join('\n  ')}\n` +
+        'Each of these is placed in its own module directory by the builder AND was copied into the flat ' +
+        'library dir by the closure walk, so the bundle ships two copies of it. A module reaches the closure ' +
+        "only through a reference that names it — an image's own install name (LC_ID_DYLIB), or a real link " +
+        'against a module, which is itself a defect. Repair: find the reference that queued it and drop it at ' +
+        'the walk, not here. Do NOT delete the flat copy as a post-step: that hides the reference and the next ' +
+        'module directory added to the bundle repeats it.'
+    );
+}
