@@ -208,3 +208,32 @@ export function renderInfoPlist(input: LayoutMetadataInput): string {
 export function renderPkgInfo(): string {
     return `${PACKAGE_TYPE}${SIGNATURE}`;
 }
+
+/**
+ * Render the entitlements plist `codesign --entitlements` takes.
+ *
+ * A SEPARATE FILE FROM `Info.plist` and a separate function, because it is a
+ * different document with a different reader: `Info.plist` describes the bundle
+ * to LaunchServices and ships inside it, while this one is an INPUT to the
+ * signature — `codesign` embeds the claims and the file itself is never staged.
+ *
+ * Every value is `<true/>`. An entitlement of this class is a boolean capability,
+ * and a `<false/>` entry is not "off", it is the same as absent — so a renderer
+ * taking values would offer a spelling with no meaning.
+ *
+ * WHICH KEYS, and why the set is not the reference's, is
+ * `utils/ship/signing.ts`'s decision; this function renders what it is given.
+ */
+export function renderEntitlements(keys: readonly string[]): string {
+    const entries = keys.map((key) => `\t<key>${xmlText(key)}</key>\n\t<true/>`).join('\n');
+    return [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+        '<plist version="1.0">',
+        '<dict>',
+        entries,
+        '</dict>',
+        '</plist>',
+        '',
+    ].join('\n');
+}

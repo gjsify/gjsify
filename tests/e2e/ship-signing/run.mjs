@@ -89,9 +89,11 @@ function scaffoldNodeApp(dir, shipExtras = {}) {
  * `codesign` on.
  *
  * MEASURED ON THE FIRST DARWIN RUN, and it is why this exists: with no image in
- * the payload the signer prints *"nothing in this payload is a Mach-O image, so
- * codesign signed 0 file(s)"* and exits 0 — correctly, because a `--app gjs`
- * payload really is JavaScript and a launcher. An identity is only ever
+ * the payload the signer had nothing to invoke `codesign` on and exited 0 —
+ * correctly, because a `--app gjs` payload really is JavaScript and a launcher.
+ * (ADR 0040 gave darwin a bundle SEAL, so that path now signs the `.app` itself
+ * and only a signer with nothing to seal prints *"nothing in this payload is a
+ * Mach-O image"*; the reason this fixture exists is unchanged.) An identity is only ever
  * validated by the tool that consumes it, so a run with nothing to sign cannot
  * tell a real Developer ID from `Nobody At All`. Both refusals below therefore
  * need a signable file, and they get a SYNTHETIC one rather than a compiled
@@ -362,6 +364,25 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
             assert.match(compare([b, a, '--allow-added', 'Contents/Resources/LICENSE']), /1 declared-added/);
         });
 
+        it('accepts a whole declared DIRECTORY, and only that directory', () => {
+            // What a bundle seal needs: `codesign` writes into
+            // `Contents/_CodeSignature/` and decides which of the five components
+            // it writes, so the DIRECTORY is the claim this repository can make
+            // (ADR 0040). The negative half is the point — a prefix flag that
+            // matched a sibling name would let anything through.
+            const [b, a] = trees('added-prefix');
+            mkdirSync(join(a, 'Contents', '_CodeSignature'), { recursive: true });
+            writeFileSync(join(a, 'Contents', '_CodeSignature', 'CodeResources'), '<plist/>\n');
+            writeFileSync(join(a, 'Contents', '_CodeSignature', 'CodeDirectory'), 'blob\n');
+            assert.match(compare([b, a, '--allow-added-prefix', 'Contents/_CodeSignature']), /2 declared-added/);
+            // `Contents/_CodeSignatureX/` is a DIFFERENT directory, and a prefix
+            // compared without its separator would have taken it.
+            mkdirSync(join(a, 'Contents', '_CodeSignatureX'), { recursive: true });
+            writeFileSync(join(a, 'Contents', '_CodeSignatureX', 'sneak'), 'no\n');
+            const said = compareExpectingFailure([b, a, '--allow-added-prefix', 'Contents/_CodeSignature']);
+            assert.match(said, /_CodeSignatureX\/sneak: is in the signed tree/);
+        });
+
         it('refuses a file that vanished', () => {
             const [b, a] = trees('removed');
             rmSync(join(a, 'Contents', 'Info.plist'));
@@ -498,6 +519,13 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
                 // The first darwin run got this wrong and the comparator named
                 // the exact path — the mechanism working, not a fixture detail.
                 `Contents/Resources/share/licenses/${BINARY}/LICENSE`,
+                // AND THE SEAL. `codesign` on the bundle writes into
+                // `Contents/_CodeSignature/` (ADR 0040, Apple TN3126), and WHICH
+                // of the five components it writes is its decision — so the
+                // DIRECTORY is declared and the file names are not, because the
+                // file names are not a claim this repository can make.
+                '--allow-added-prefix',
+                'Contents/_CodeSignature',
                 '--min-signed',
                 '1',
             ]);
@@ -515,7 +543,25 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
             // with different bytes. That is exactly what the marker is for, and
             // asserting BOTH is what makes the fixture's reason checkable.
             assert.match(report, /signature-only: Contents\/Frameworks\/libmarked\.dylib/);
-            assert.match(report, /\d+ identical, 1 signature-only, 1 declared-added, 0 problem\(s\)/, report);
+            // The added COUNT is now a range and not a number, because the seal
+            // decides how many components it writes: the licence overlay is one,
+            // `Contents/_CodeSignature/` is the rest. `0 problem(s)` is still the
+            // assertion that matters — every other file arrived unchanged.
+            assert.match(report, /\d+ identical, 1 signature-only, [2-9]\d* declared-added, 0 problem\(s\)/, report);
+
+            // THE SEAL ITSELF, on the artifact rather than in the report: a
+            // bundle without `CodeResources` is a bundle `codesign --verify`
+            // reads as unsigned, and it is the file ADR 0040 exists to prove
+            // survives the payload round trip.
+            assert.ok(
+                existsSync(join(artifact, 'Contents', '_CodeSignature', 'CodeResources')),
+                'the packed .app carries no Contents/_CodeSignature/CodeResources',
+            );
+            // Apple's own reader on the BUNDLE, which is a different question
+            // from the per-image verification above: that one says each dylib's
+            // signature is valid, this one says the bundle's seal covers the
+            // tree it shipped with.
+            execFileSync('codesign', ['--verify', '--strict', artifact], { stdio: 'pipe' });
         });
 
         it('refuses an identity this host does not hold', async () => {

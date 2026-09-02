@@ -47,6 +47,7 @@ import { localizeMetadata } from '../utils/ship/localize-metadata.js';
 import {
     assertHostCanFinish,
     assertToolsInstalled,
+    canCarryTicket,
     configuredFormats,
     defaultFormatIds,
     formatIdsFor,
@@ -82,6 +83,7 @@ import { assertOverlayIsLicensed, planOverlay, planStage, type StageInputs } fro
 import {
     assertHostCanSign,
     notarizeArtifact,
+    stapleArtifact,
     resolveNotaryPlan,
     resolveSignPlan,
     signPayload,
@@ -1028,6 +1030,13 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                   identity: input.sign.identity,
                   signer: input.sign.signer,
                   workDir: join(outRoot, 'signed', format.id),
+                  // What the darwin signer SEALS, from the layout that named it —
+                  // `<App>.app` there, `''` on the two layouts with no bundle.
+                  bundleRoot: layout.root(settings),
+                  // OUTSIDE `signed/<id>/`: that directory is listed and compared
+                  // with the payload, so an entitlements plist written into it would
+                  // read as a file `codesign` added.
+                  entitlementsPath: join(outRoot, 'signed', `${format.id}.entitlements.plist`),
                   verbose: input.verbose,
                   log: (line) => console.log(`${LOG} ${line}`),
               })
@@ -1222,6 +1231,28 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 verbose: input.verbose,
                 log: (line) => console.log(`${LOG} ${line}`),
             });
+            // AND THEN THE TICKET, on the artifacts that can hold one. Submitting
+            // and stapling are two questions with two answers, and the `.zip` is
+            // where they come apart: the notary service accepts it and `stapler`
+            // refuses it. Without the ticket the artifact still installs — every
+            // launch asks Gatekeeper online instead, and fails closed on a machine
+            // with no network, which is the failure a user reads as "the app is
+            // damaged".
+            if (canCarryTicket(format.id)) {
+                await stapleArtifact({
+                    notary: input.notarize.notary,
+                    artifact: target,
+                    verbose: input.verbose,
+                    log: (line) => console.log(`${LOG} ${line}`),
+                });
+            } else {
+                console.warn(
+                    `${LOG} ${format.id} is notarised and NOT stapled: \`stapler\` takes a UDIF image, a ` +
+                        "signed flat package or a code-signed bundle, and an archive is none of them. Apple's " +
+                        'remedy is to staple each item that went INTO the archive and re-create it — for this ' +
+                        'artifact that is the `.app`, which `--target macos-app` writes beside it.',
+                );
+            }
         }
     }
     return { format: format.id, path: target, size };
