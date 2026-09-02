@@ -21,6 +21,7 @@
 
 import type {
     AdwBannerButtonStyle,
+    AdwComboOptionInput,
     AdwLengthUnit,
     AdwToast,
     AdwToolbarStyle,
@@ -315,6 +316,7 @@ export interface AdwToastOverlayProps extends AdwWidgetProps {
 }
 
 /**
+/**
  * The two labels every boxed-list row draws — `AdwPreferencesRow:title` and
  * `AdwActionRow:subtitle`.
  *
@@ -449,3 +451,191 @@ export interface AdwExpanderRowProps extends AdwRowProps, AdwWidgetProps {
      */
     onNotifyExpanded?: (expanded: boolean) => void;
 }
+
+/**
+ * `Adw.PreferencesPage` — a scrolling page of {@link AdwPreferencesGroupProps}.
+ *
+ * FOUR OF THE FIVE PROPERTIES ARE IDENTITY, NOT PAINT, and that is libadwaita's design
+ * rather than a thin port: `adw_preferences_dialog_add` binds `title`, `name`, `icon-name`
+ * and `use-underline` onto the view-stack page it wraps the page in, and
+ * `create_search_row_subtitle` reads the title back when a second page is visible. The page
+ * itself draws none of them — a view switcher and the search results do. Both sibling
+ * renderers carry them for the same reason and paint them just as little.
+ *
+ * `description` IS the exception: it is drawn at the top of the page, above the first
+ * group, and both halves draw it.
+ *
+ * `banner` IS ABSENT. `AdwPreferencesPage:banner` takes an `Adw.Banner` INSTANCE — a
+ * GObject, not a description of one — and this file may import neither `gi://Adw` nor a
+ * React Native module. Same wall, and the same answer, as `AdwAvatarProps`' `custom-image`.
+ */
+export interface AdwPreferencesPageProps extends AdwWidgetProps {
+    /** `title` — shown by a view switcher and by search results, never by the page. */
+    title?: string;
+    /** `icon-name` — the symbolic a view switcher shows. Carried on both halves, drawn on neither. */
+    iconName?: string;
+    /** `name` — the view-stack child name. NOT `GtkWidget:name`, which the page shadows. */
+    name?: string;
+    /**
+     * `description` — the line above the first group. Empty takes no space.
+     *
+     * ON THE RAW STRING, unlike {@link AdwPreferencesGroupProps}' two labels.
+     * `adw_preferences_page_set_description` tests `description && *description` while
+     * `update_title_visibility` reads the label's DISPLAYED text, so a pure-markup page
+     * description is visible on GTK where a pure-markup group title is not. Both halves
+     * therefore agree here, and the group's divergence must not be copied onto this one.
+     */
+    description?: string;
+    /** `description-centered` — whether {@link description} is centred. Default false. */
+    descriptionCentered?: boolean;
+    /** `use-underline` — whether `_` marks a mnemonic in {@link title}. Default false. */
+    useUnderline?: boolean;
+}
+
+/**
+ * `Adw.PreferencesGroup` — a titled card of rows.
+ *
+ * THE FIVE VISIBILITY ANSWERS COME FROM `derivePreferencesGroupHeader`, on the React Native
+ * half, and from libadwaita on the GTK one. They are not `title !== ''`: `header-visible` is
+ * a three-way OR, `single-line` is load-bearing for the stylesheet's `min-height: 34px`, and
+ * `listbox-visible` reads the RAW child count — `update_listbox_visibility` counts
+ * `gtk_widget_observe_children`, not the title-filtered model `get_rows` builds, so a row
+ * with an empty title still keeps the card painted.
+ *
+ * `header-suffix` IS ABSENT, and it is a placement question rather than a naming one.
+ * `AdwPreferencesGroup:header-suffix` holds a WIDGET, so a React surface has to spell it as
+ * a slot — and the group's curated descriptor in `@gjsify/gtk-host` is `ordered`
+ * (`add`/`remove`, `remove-all` to reorder), which has no slots at all. Adding one means
+ * changing a placement policy other conformance vectors already assert, with its own
+ * measurement; it is not something a widget lands on the way past. The README names it.
+ *
+ * `separate-rows` IS ABSENT for the opposite reason: it is pure card styling, and this
+ * package's React Native half draws no theme (see `row-shell.native.tsx`), so the GTK half
+ * would honour it and the phone half could only ignore it.
+ */
+export interface AdwPreferencesGroupProps extends AdwWidgetProps {
+    /** `title` — the card's heading. Hidden when empty, not merely blank. */
+    title?: string;
+    /** `description` — the dim line under it. Hidden when empty, and it forces a two-line header. */
+    description?: string;
+}
+
+/**
+ * `Adw.ComboRow` — a row that picks one item out of a list.
+ *
+ * The two labels are {@link AdwRowProps}', which every boxed-list row shares — including
+ * their derived visibility, which is not `title !== ''`.
+ *
+ * `model` IS THE LIBADWAITA NAME AND NOT THE LIBADWAITA TYPE, which is the one liberty this
+ * surface takes and the reason it can exist at all. `AdwComboRow:model` is a
+ * `Gio.ListModel`; a props file that may import neither `gi://Gio` nor `react-native` cannot
+ * name that type, and the gallery refuses the widget outright for exactly this
+ * (`adwaita-gallery-trees.mjs`: "its items are a Gio.ListModel; a row without them teaches
+ * the wrong thing"). What both halves CAN share is `@gjsify/adwaita-core`'s
+ * `AdwComboOptionInput` — the option vocabulary `<adw-combo-row>` and
+ * `@gjsify/adwaita-nativescript` already accept — so the property keeps libadwaita's name
+ * and takes the shared description of a model. The GTK half turns it into the real
+ * `Gtk.StringList` it has to be; the React Native half feeds it to `ComboState`.
+ *
+ * `onNotifySelected` FIRES ON EVERY CHANGE, INCLUDING A PROGRAMMATIC ONE. `ComboState` tags
+ * its changes `interactive` and a renderer that re-emits `notify::selected` itself is meant
+ * to gate on it — but the GTK half does not re-emit anything, it is a real GObject, and
+ * `notify::` fires whenever the property moves. Gating the React Native half on
+ * `interactive` would therefore make the two halves disagree about the most ordinary thing a
+ * consumer does. A consumer that wants user picks only compares against the value it
+ * authored.
+ *
+ * `expression`, `factory`, `list-factory`, `header-factory`, `enable-search` and
+ * `search-match-mode` are all absent, and all for the `model` reason one step further: each
+ * is a `Gtk.*` instance. Neither sibling renderer has them either.
+ */
+export interface AdwComboRowProps extends AdwRowProps {
+    /** `model` — the selectable items. See above on the type. */
+    model?: readonly AdwComboOptionInput[];
+    /** `selected` — the position of the selected item. Default 0. */
+    selected?: number;
+    /**
+     * `use-subtitle` — whether the selected item's label REPLACES {@link subtitle}. Default false.
+     *
+     * REPLACES, not "appears twice": `adw-combo-row.ui` binds the inline value view's `visible`
+     * to this property with `sync-create|invert-boolean`, so the value is drawn in the subtitle
+     * OR in the trailing slot and never in both. Both halves are held to that.
+     *
+     * WHEN the subtitle picks the value up is a NAMED DIVERGENCE, in the README: this surface
+     * publishes it at once, libadwaita on the next selection change. Measured — the setter calls
+     * `selection_changed`, and the subtitle is written by `selection_item_changed`.
+     */
+    useSubtitle?: boolean;
+    /** `notify::selected` — the selected position moved. */
+    onNotifySelected?: (selected: number) => void;
+}
+
+/**
+ * `Adw.SpinRow` — a row holding a number with a stepper.
+ *
+ * The two labels are {@link AdwRowProps}', as on every other boxed-list row here.
+ *
+ * THE RANGE IS THREE SCALARS AND libadwaita SPELLS IT AS ONE OBJECT. `AdwSpinRow:adjustment`
+ * is a `Gtk.Adjustment` — a GObject that is not a widget, which is what the gallery refuses
+ * the widget for — so the same rule as {@link AdwComboRowProps}' `model` applies: this file
+ * cannot name the type, and the three values it carries are named here instead. The names
+ * are the ADJUSTMENT's own GObject property names — `Gtk.Adjustment:lower`, `:upper`,
+ * `:step-increment` — rather than a fourth private spelling.
+ *
+ * THAT IS A DECLARED DIVERGENCE FROM THE TWO SIBLING RENDERERS, which flatten the same three
+ * onto `min`/`max`/`step`. Those are `adw_spin_row_new_with_range`'s PARAMETER names, not
+ * property names, and `props.ts`' rule is that a caller writes the property they would look
+ * up in libadwaita's documentation. `@gjsify/adwaita-core`'s `SpinState` calls them
+ * `min`/`max`/`step` internally; both halves here map onto that, so the arithmetic is still
+ * shared and only the spelling at the surface differs.
+ *
+ * `digits` IS A ROW PROPERTY AND NOT AN ADJUSTMENT ONE — `AdwSpinRow:digits`, the number of
+ * decimal places DISPLAYED. It is carried because it is the only one of the row's own
+ * properties both halves can honour: the core has no `digits`, so the React Native half
+ * formats with it directly and the GTK half hands it to the real widget.
+ *
+ * `climb-rate`, `snap-to-ticks`, `numeric`, `update-policy` and `wrap` are absent: each
+ * needs an editable text entry or a key-repeat timer that the React Native half does not
+ * have, so carrying them would mean a property GTK honours and the phone ignores. Neither
+ * sibling renderer has them either.
+ */
+export interface AdwSpinRowProps extends AdwRowProps {
+    /** `value` — the current number, clamped into {@link lower}…{@link upper}. Default 0. */
+    value?: number;
+    /** `Gtk.Adjustment:lower` — the smallest value the stepper reaches. Default 0. */
+    lower?: number;
+    /** `Gtk.Adjustment:upper` — the largest. Default 100, which is `SpinState`'s own. */
+    upper?: number;
+    /** `Gtk.Adjustment:step-increment` — one stepper press. Default 1. */
+    stepIncrement?: number;
+    /** `digits` — decimal places DISPLAYED. Default 0. */
+    digits?: number;
+    /** `notify::value` — the value moved. Same rule as {@link AdwComboRowProps.onNotifySelected}. */
+    onNotifyValue?: (value: number) => void;
+}
+
+/**
+ * `Adw.PasswordEntryRow` — an entry row whose contents are masked, with a peek button.
+ *
+ * IT DECLARES NO PROPERTIES OF ITS OWN, and that is measured rather than assumed:
+ * `AdwPasswordEntryRowProps` in `@gjsify/gtk-host`'s generated table is an EMPTY interface
+ * over `AdwEntryRowProps`. Everything the subclass adds is behaviour — the mask, the peek
+ * toggle installed through `add_suffix`, and the caps-lock indicator driven through the
+ * private `adw_entry_row_set_show_indicator` hook. So this surface is `Adw.EntryRow`'s, and
+ * `@gjsify/adwaita-core`'s `PasswordEntryRowState` composes an `EntryRowState` for the same
+ * reason the C subclasses rather than copies.
+ *
+ * WHICH IS WHY IT EXTENDS RATHER THAN RESTATES {@link AdwEntryRowProps}. The two carried the
+ * same eight members written out twice, and a second copy of a prop surface is the shape that
+ * drifts silently: a member added to the entry row would simply not reach this one, and
+ * `parity.spec.ts` compares each widget against its OWN base, so nothing would notice.
+ *
+ * `revealed` IS THEREFORE NOT A PROP, although both sibling renderers publish one. It is not
+ * a libadwaita property, the peek state is private to the widget, and a prop would be the
+ * one place this file invents a name. The button owns it on both halves.
+ *
+ * `activates-default`, `enable-emoji-completion`, `input-hints`, `input-purpose` and
+ * `attributes` are absent — the last two by type, the first by there being no default widget
+ * on a phone. Neither sibling renderer has them.
+ */
+export interface AdwPasswordEntryRowProps extends AdwEntryRowProps {}

@@ -15,10 +15,15 @@ export type {
     AdwButtonContentProps,
     AdwButtonRowProps,
     AdwClampProps,
+    AdwComboRowProps,
     AdwEntryRowProps,
     AdwExpanderRowProps,
     AdwHeaderBarProps,
+    AdwPasswordEntryRowProps,
+    AdwPreferencesGroupProps,
+    AdwPreferencesPageProps,
     AdwRowProps,
+    AdwSpinRowProps,
     AdwSpinnerProps,
     AdwStatusPageProps,
     AdwSwitchRowProps,
@@ -37,9 +42,14 @@ export { AdwBin } from './widgets/bin.gtk.js';
 export { AdwButtonContent } from './widgets/button-content.gtk.js';
 export { AdwButtonRow } from './widgets/button-row.gtk.js';
 export { AdwClamp } from './widgets/clamp.gtk.js';
+export { AdwComboRow } from './widgets/combo-row.gtk.js';
 export { AdwEntryRow } from './widgets/entry-row.gtk.js';
 export { AdwExpanderRow } from './widgets/expander-row.gtk.js';
 export { AdwHeaderBar } from './widgets/header-bar.gtk.js';
+export { AdwPasswordEntryRow } from './widgets/password-entry-row.gtk.js';
+export { AdwPreferencesGroup } from './widgets/preferences-group.gtk.js';
+export { AdwPreferencesPage } from './widgets/preferences-page.gtk.js';
+export { AdwSpinRow } from './widgets/spin-row.gtk.js';
 export { AdwSpinner } from './widgets/spinner.gtk.js';
 export { AdwStatusPage } from './widgets/status-page.gtk.js';
 export { AdwSwitchRow } from './widgets/switch-row.gtk.js';
@@ -66,9 +76,14 @@ import { AdwBin as Bin } from './widgets/bin.gtk.js';
 import { AdwButtonContent as ButtonContent } from './widgets/button-content.gtk.js';
 import { AdwButtonRow as ButtonRow } from './widgets/button-row.gtk.js';
 import { AdwClamp as Clamp } from './widgets/clamp.gtk.js';
+import { AdwComboRow as ComboRow } from './widgets/combo-row.gtk.js';
 import { AdwEntryRow as EntryRow } from './widgets/entry-row.gtk.js';
 import { AdwExpanderRow as ExpanderRow } from './widgets/expander-row.gtk.js';
 import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.gtk.js';
+import { AdwPasswordEntryRow as PasswordEntryRow } from './widgets/password-entry-row.gtk.js';
+import { AdwPreferencesGroup as PreferencesGroup } from './widgets/preferences-group.gtk.js';
+import { AdwPreferencesPage as PreferencesPage } from './widgets/preferences-page.gtk.js';
+import { AdwSpinRow as SpinRow } from './widgets/spin-row.gtk.js';
 import { AdwSpinner as Spinner } from './widgets/spinner.gtk.js';
 import { AdwStatusPage as StatusPage } from './widgets/status-page.gtk.js';
 import { AdwSwitchRow as SwitchRow } from './widgets/switch-row.gtk.js';
@@ -85,9 +100,14 @@ export const Adw = {
     ButtonContent,
     ButtonRow,
     Clamp,
+    ComboRow,
     EntryRow,
     ExpanderRow,
     HeaderBar,
+    PasswordEntryRow,
+    PreferencesGroup,
+    PreferencesPage,
+    SpinRow,
     Spinner,
     StatusPage,
     SwitchRow,

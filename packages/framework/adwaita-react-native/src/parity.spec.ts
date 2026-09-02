@@ -57,6 +57,9 @@ import type * as ButtonRowNative from './widgets/button-row.native.js';
 import type * as ClampBase from './widgets/clamp.js';
 import type * as ClampGtk from './widgets/clamp.gtk.js';
 import type * as ClampNative from './widgets/clamp.native.js';
+import type * as ComboRowBase from './widgets/combo-row.js';
+import type * as ComboRowGtk from './widgets/combo-row.gtk.js';
+import type * as ComboRowNative from './widgets/combo-row.native.js';
 import type * as EntryRowBase from './widgets/entry-row.js';
 import type * as EntryRowGtk from './widgets/entry-row.gtk.js';
 import type * as EntryRowNative from './widgets/entry-row.native.js';
@@ -66,6 +69,18 @@ import type * as ExpanderRowNative from './widgets/expander-row.native.js';
 import type * as HeaderBarBase from './widgets/header-bar.js';
 import type * as HeaderBarGtk from './widgets/header-bar.gtk.js';
 import type * as HeaderBarNative from './widgets/header-bar.native.js';
+import type * as PasswordEntryRowBase from './widgets/password-entry-row.js';
+import type * as PasswordEntryRowGtk from './widgets/password-entry-row.gtk.js';
+import type * as PasswordEntryRowNative from './widgets/password-entry-row.native.js';
+import type * as PreferencesGroupBase from './widgets/preferences-group.js';
+import type * as PreferencesGroupGtk from './widgets/preferences-group.gtk.js';
+import type * as PreferencesGroupNative from './widgets/preferences-group.native.js';
+import type * as PreferencesPageBase from './widgets/preferences-page.js';
+import type * as PreferencesPageGtk from './widgets/preferences-page.gtk.js';
+import type * as PreferencesPageNative from './widgets/preferences-page.native.js';
+import type * as SpinRowBase from './widgets/spin-row.js';
+import type * as SpinRowGtk from './widgets/spin-row.gtk.js';
+import type * as SpinRowNative from './widgets/spin-row.native.js';
 import type * as SpinnerBase from './widgets/spinner.js';
 import type * as SpinnerGtk from './widgets/spinner.gtk.js';
 import type * as SpinnerNative from './widgets/spinner.native.js';
@@ -173,6 +188,10 @@ export type ButtonRowNativeSatisfiesBase = Assert<
 >;
 export type ClampGtkSatisfiesBase = Assert<SatisfiesBase<typeof ClampGtk, typeof ClampBase, 'AdwClamp'>>;
 export type ClampNativeSatisfiesBase = Assert<SatisfiesBase<typeof ClampNative, typeof ClampBase, 'AdwClamp'>>;
+export type ComboRowGtkSatisfiesBase = Assert<SatisfiesBase<typeof ComboRowGtk, typeof ComboRowBase, 'AdwComboRow'>>;
+export type ComboRowNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof ComboRowNative, typeof ComboRowBase, 'AdwComboRow'>
+>;
 export type EntryRowGtkSatisfiesBase = Assert<SatisfiesBase<typeof EntryRowGtk, typeof EntryRowBase, 'AdwEntryRow'>>;
 export type EntryRowNativeSatisfiesBase = Assert<
     SatisfiesBase<typeof EntryRowNative, typeof EntryRowBase, 'AdwEntryRow'>
@@ -189,6 +208,26 @@ export type HeaderBarGtkSatisfiesBase = Assert<
 export type HeaderBarNativeSatisfiesBase = Assert<
     SatisfiesBase<typeof HeaderBarNative, typeof HeaderBarBase, 'AdwHeaderBar'>
 >;
+export type PasswordEntryRowGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof PasswordEntryRowGtk, typeof PasswordEntryRowBase, 'AdwPasswordEntryRow'>
+>;
+export type PasswordEntryRowNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof PasswordEntryRowNative, typeof PasswordEntryRowBase, 'AdwPasswordEntryRow'>
+>;
+export type PreferencesGroupGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof PreferencesGroupGtk, typeof PreferencesGroupBase, 'AdwPreferencesGroup'>
+>;
+export type PreferencesGroupNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof PreferencesGroupNative, typeof PreferencesGroupBase, 'AdwPreferencesGroup'>
+>;
+export type PreferencesPageGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof PreferencesPageGtk, typeof PreferencesPageBase, 'AdwPreferencesPage'>
+>;
+export type PreferencesPageNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof PreferencesPageNative, typeof PreferencesPageBase, 'AdwPreferencesPage'>
+>;
+export type SpinRowGtkSatisfiesBase = Assert<SatisfiesBase<typeof SpinRowGtk, typeof SpinRowBase, 'AdwSpinRow'>>;
+export type SpinRowNativeSatisfiesBase = Assert<SatisfiesBase<typeof SpinRowNative, typeof SpinRowBase, 'AdwSpinRow'>>;
 export type SpinnerGtkSatisfiesBase = Assert<SatisfiesBase<typeof SpinnerGtk, typeof SpinnerBase, 'AdwSpinner'>>;
 export type SpinnerNativeSatisfiesBase = Assert<SatisfiesBase<typeof SpinnerNative, typeof SpinnerBase, 'AdwSpinner'>>;
 export type StatusPageGtkSatisfiesBase = Assert<
@@ -247,12 +286,22 @@ export const PARITY_ASSERTIONS = [
     'ButtonRowNativeSatisfiesBase',
     'ClampGtkSatisfiesBase',
     'ClampNativeSatisfiesBase',
+    'ComboRowGtkSatisfiesBase',
+    'ComboRowNativeSatisfiesBase',
     'EntryRowGtkSatisfiesBase',
     'EntryRowNativeSatisfiesBase',
     'ExpanderRowGtkSatisfiesBase',
     'ExpanderRowNativeSatisfiesBase',
     'HeaderBarGtkSatisfiesBase',
     'HeaderBarNativeSatisfiesBase',
+    'PasswordEntryRowGtkSatisfiesBase',
+    'PasswordEntryRowNativeSatisfiesBase',
+    'PreferencesGroupGtkSatisfiesBase',
+    'PreferencesGroupNativeSatisfiesBase',
+    'PreferencesPageGtkSatisfiesBase',
+    'PreferencesPageNativeSatisfiesBase',
+    'SpinRowGtkSatisfiesBase',
+    'SpinRowNativeSatisfiesBase',
     'SpinnerGtkSatisfiesBase',
     'SpinnerNativeSatisfiesBase',
     'StatusPageGtkSatisfiesBase',
@@ -308,12 +357,22 @@ export default async () => {
                 'ButtonRowNativeSatisfiesBase',
                 'ClampGtkSatisfiesBase',
                 'ClampNativeSatisfiesBase',
+                'ComboRowGtkSatisfiesBase',
+                'ComboRowNativeSatisfiesBase',
                 'EntryRowGtkSatisfiesBase',
                 'EntryRowNativeSatisfiesBase',
                 'ExpanderRowGtkSatisfiesBase',
                 'ExpanderRowNativeSatisfiesBase',
                 'HeaderBarGtkSatisfiesBase',
                 'HeaderBarNativeSatisfiesBase',
+                'PasswordEntryRowGtkSatisfiesBase',
+                'PasswordEntryRowNativeSatisfiesBase',
+                'PreferencesGroupGtkSatisfiesBase',
+                'PreferencesGroupNativeSatisfiesBase',
+                'PreferencesPageGtkSatisfiesBase',
+                'PreferencesPageNativeSatisfiesBase',
+                'SpinRowGtkSatisfiesBase',
+                'SpinRowNativeSatisfiesBase',
                 'SpinnerGtkSatisfiesBase',
                 'SpinnerNativeSatisfiesBase',
                 'StatusPageGtkSatisfiesBase',

@@ -13,10 +13,15 @@ export type {
     AdwButtonContentProps,
     AdwButtonRowProps,
     AdwClampProps,
+    AdwComboRowProps,
     AdwEntryRowProps,
     AdwExpanderRowProps,
     AdwHeaderBarProps,
+    AdwPasswordEntryRowProps,
+    AdwPreferencesGroupProps,
+    AdwPreferencesPageProps,
     AdwRowProps,
+    AdwSpinRowProps,
     AdwSpinnerProps,
     AdwStatusPageProps,
     AdwSwitchRowProps,
@@ -35,9 +40,14 @@ export { AdwBin } from './widgets/bin.native.js';
 export { AdwButtonContent } from './widgets/button-content.native.js';
 export { AdwButtonRow } from './widgets/button-row.native.js';
 export { AdwClamp } from './widgets/clamp.native.js';
+export { AdwComboRow } from './widgets/combo-row.native.js';
 export { AdwEntryRow } from './widgets/entry-row.native.js';
 export { AdwExpanderRow } from './widgets/expander-row.native.js';
 export { AdwHeaderBar } from './widgets/header-bar.native.js';
+export { AdwPasswordEntryRow } from './widgets/password-entry-row.native.js';
+export { AdwPreferencesGroup } from './widgets/preferences-group.native.js';
+export { AdwPreferencesPage } from './widgets/preferences-page.native.js';
+export { AdwSpinRow } from './widgets/spin-row.native.js';
 export { AdwSpinner } from './widgets/spinner.native.js';
 export { AdwStatusPage } from './widgets/status-page.native.js';
 export { AdwSwitchRow } from './widgets/switch-row.native.js';
@@ -64,9 +74,14 @@ import { AdwBin as Bin } from './widgets/bin.native.js';
 import { AdwButtonContent as ButtonContent } from './widgets/button-content.native.js';
 import { AdwButtonRow as ButtonRow } from './widgets/button-row.native.js';
 import { AdwClamp as Clamp } from './widgets/clamp.native.js';
+import { AdwComboRow as ComboRow } from './widgets/combo-row.native.js';
 import { AdwEntryRow as EntryRow } from './widgets/entry-row.native.js';
 import { AdwExpanderRow as ExpanderRow } from './widgets/expander-row.native.js';
 import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.native.js';
+import { AdwPasswordEntryRow as PasswordEntryRow } from './widgets/password-entry-row.native.js';
+import { AdwPreferencesGroup as PreferencesGroup } from './widgets/preferences-group.native.js';
+import { AdwPreferencesPage as PreferencesPage } from './widgets/preferences-page.native.js';
+import { AdwSpinRow as SpinRow } from './widgets/spin-row.native.js';
 import { AdwSpinner as Spinner } from './widgets/spinner.native.js';
 import { AdwStatusPage as StatusPage } from './widgets/status-page.native.js';
 import { AdwSwitchRow as SwitchRow } from './widgets/switch-row.native.js';
@@ -83,9 +98,14 @@ export const Adw = {
     ButtonContent,
     ButtonRow,
     Clamp,
+    ComboRow,
     EntryRow,
     ExpanderRow,
     HeaderBar,
+    PasswordEntryRow,
+    PreferencesGroup,
+    PreferencesPage,
+    SpinRow,
     Spinner,
     StatusPage,
     SwitchRow,

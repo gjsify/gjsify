@@ -67,9 +67,14 @@ a GTK-only consumer does not need it installed.
 | `AdwButtonContent` | `iconName`, `label`, `useUnderline`, `canShrink` | Four derivations from the core, including the 6px gap that is `border-spacing` and not `GtkBox:spacing` |
 | `AdwButtonRow` | `title`, `onActivated` | A row that behaves like a button — always activatable, and holds no children at all |
 | `AdwClamp` | `children`, `maximumSize` (600), `tighteningThreshold` (400) | Constrain a child's width and centre it, on libadwaita's easing curve |
+| `AdwComboRow` | `title`, `subtitle`, `model`, `selected`, `useSubtitle`, `onNotifySelected` | Pick one item of a list. `model` keeps libadwaita's NAME and takes `@gjsify/adwaita-core`'s option vocabulary instead of a `Gio.ListModel` — the GTK half builds the real `Gtk.StringList`. One item or none is not a choice: no chevron, and the row is not activatable. `useSubtitle` MOVES the value into the subtitle rather than adding a second copy of it |
 | `AdwEntryRow` | `title`, `text`, `maxLength` (0), `editable` (true), `showApplyButton` (false), `onNotifyText`, `onApply`, `onEntryActivated` | The row IS the entry. `max-length` counts CHARACTERS |
 | `AdwExpanderRow` | `title`, `subtitle`, `expanded` (false), `onNotifyExpanded`, `children` | `children` are the DISCLOSED rows. The header toggles, the disclosure does not |
 | `AdwHeaderBar` | `start`, `titleWidget`, `title`, `subtitle`, `end` | The three slots as PROPS, in draw order. No window controls: a phone has none |
+| `AdwPasswordEntryRow` | `title`, `text`, `maxLength`, `editable`, `showApplyButton`, `onNotifyText`, `onApply`, `onEntryActivated` | `Adw.EntryRow`'s surface exactly — the subclass declares no property of its own. `maxLength` counts CHARACTERS through the core, never `TextInput.maxLength`'s UTF-16 units |
+| `AdwPreferencesGroup` | `children` (the rows), `title`, `description` | A titled card. Five visibility answers from one `derivePreferencesGroupHeader` call; the card hides itself at zero rows while its header stays |
+| `AdwPreferencesPage` | `children` (the groups), `title`, `iconName`, `name`, `description`, `descriptionCentered`, `useUnderline` | Four of the five properties are identity a view switcher reads, drawn by neither half — as in libadwaita. Only `description` is painted |
+| `AdwSpinRow` | `title`, `subtitle`, `value`, `lower`, `upper`, `stepIncrement`, `digits`, `onNotifyValue` | The range is `Gtk.Adjustment`'s three own property names rather than a fourth private spelling. Every mutation clamps, including a bound that moves under the value |
 | `AdwSpinner` | `widthRequest`, `heightRequest` | The BOX and the RING are two numbers: an unbounded box around a ring capped at 64 |
 | `AdwStatusPage` | `children`, `iconName`, `title`, `description` | A centred empty state. The icon draws on GTK only |
 | `AdwSwitchRow` | `title`, `subtitle`, `active` (false), `onNotifyActive` | Controlled. The whole row toggles, not only the handle |
@@ -201,6 +206,96 @@ and until then it is a gap, not a formality.
 These are places where the two halves cannot be made identical, written down rather
 than smoothed over.
 
+- **`AdwPreferencesPage` is not a scroller on React Native.** `Adw.PreferencesPage` wraps
+  its groups in a `GtkScrolledWindow`; this half emits the column and a consumer wraps it.
+  Not a shortcut: `testing/react-native.ts` may only double a React Native component that
+  IS a host element with its props forwarded, and `ScrollView` is a COMPOSITE that renders
+  `RCTScrollView` around a second content `View` and moves `contentContainerStyle` onto it.
+  A double of it would be a nesting real React Native never emits, and every assertion
+  written against it would be about the double — the measured reason `spinner.native.tsx`
+  refuses `ActivityIndicator`. The same wrapper carries the page's CLAMP:
+  `adw-preferences-page.ui` puts an `AdwClamp` inside the scrolled window, so a wide window
+  centres the groups at the clamp width while this half stretches them. `AdwClamp` is in
+  this package, so a consumer that wants both wraps with both.
+- **`AdwPreferencesGroup` has no `header-suffix` and no `separate-rows`.** The first is a
+  placement question, not a naming one: `header-suffix` holds a WIDGET, so a React surface
+  has to spell it as a slot, and the group's curated descriptor in `@gjsify/gtk-host` is
+  `ordered` — `add`/`remove`, `remove-all` to reorder, because `Adw.PreferencesGroup.insert`
+  does not exist on libadwaita 1.x — which has no slots at all. Adding one changes a
+  placement policy other conformance vectors already assert, with its own measurement. The
+  second is pure card styling, and this package's React Native half draws no theme.
+- **`AdwPreferencesGroup`'s `single-line` header state is derived and not drawn.** It is a
+  stylesheet number — `min-height: 34px` against `margin-bottom: 6px` — and there is no
+  theme layer here to spend it in. It is computed because it comes out of the same core call
+  as the four states that ARE drawn.
+- **A pure-markup group title is hidden on GTK and shown on React Native.**
+  `adw-preferences-group.ui` sets `use-markup` on both header labels, and libadwaita's
+  visibility test reads the DISPLAYED text — so `<b></b>` is an empty label there. This half
+  paints the string verbatim and passes `useMarkup: false`, which is the case
+  `derivePreferencesGroupHeader` documents that value for, and which both sibling renderers
+  pass as well.
+- **`AdwComboRow` has no popover on React Native.** `Adw.ComboRow` opens a `GtkPopover` over
+  a `GtkListView`; a row with no overlay layer cannot. The press advances to the next option
+  and wraps, which still runs the real `ComboState.select` guard — bounds and
+  no-op-on-same — so the arithmetic underneath is the shipped one and only the gesture is
+  this half's own.
+- **`AdwComboRow`'s `useSubtitle` publishes the value at once on React Native and on the
+  next selection change on GTK.** What both halves DO agree on is that the value is drawn in
+  one place: `adw-combo-row.ui` binds the inline value view's `visible` to `use-subtitle`
+  with `sync-create|invert-boolean`, and this half hides its trailing label the same way.
+  What they cannot agree on is WHEN the subtitle picks the value up.
+  `adw_combo_row_set_use_subtitle` calls `selection_changed`, while the subtitle is written
+  by `selection_item_changed` — a different function, reached only from
+  `notify::selected-item` and `set_model` — so an authored subtitle survives switching
+  `use-subtitle` on and is replaced by the next selection change. Measured on libadwaita
+  1.9.3 and asserted on both halves. Reproducing the lag here would mean carrying a
+  libadwaita ordering artefact into a renderer that has no reason for it.
+- **`AdwSpinRow`'s range is spelled `lower`/`upper`/`stepIncrement`, where the two sibling
+  Adwaita renderers spell it `min`/`max`/`step`.** Those are
+  `adw_spin_row_new_with_range`'s PARAMETER names; these are `Gtk.Adjustment`'s own GObject
+  property names for the same three values, and this package's rule is that a caller writes
+  the property they would look up in libadwaita's documentation. The arithmetic is still
+  shared — both halves map onto `@gjsify/adwaita-core`'s `SpinState`, which uses the short
+  names internally.
+- **`AdwSpinRow`'s decimal separator is the process locale's on GTK and always `.` on React
+  Native.** `gtk_spin_button_update` formats the displayed value through the C library's
+  locale — measured on gjs 1.88.1 under a de_DE locale, a `digits={2}` row of 3.14159 reads
+  `3,14` — while `Number.prototype.toFixed` is specified never to localise and gives `3.14`
+  on every machine there is. The two halves therefore agree on the DIGIT COUNT and differ by
+  one character. Both suites assert the digits; neither builds its expectation from the
+  locale, because a test that did would be measuring the machine it runs on.
+- **A range that moves past itself notifies twice more on React Native than on GTK.** The
+  GTK half builds one new `Gtk.Adjustment` from `lower`, `upper` and `stepIncrement`
+  together, so moving 0…100/50 to 200…300/250 is a single step. The React Native half
+  applies each property in its own effect — one per setter, because each has its own guard
+  in the C — so it passes through an inverted range: `setMin(200)` runs while the maximum is
+  still 100, and `SpinState`'s clamp answers the maximum. `onNotifyValue` therefore reports
+  `100, 200, 250` where GTK reports the end state. The settled value is the same on both,
+  React batches the renders, and the stream is asserted so that changing it is a decision.
+- **`AdwSpinRow` carries no `climb-rate`, `snap-to-ticks`, `numeric`, `update-policy` or
+  `wrap`.** Each needs an editable text entry or a key-repeat timer the React Native half
+  does not have, so carrying them would mean a property GTK honours and the phone ignores.
+  Neither sibling renderer has them either.
+- **`AdwPasswordEntryRow`'s caps-lock indicator is present and can never show.**
+  `indicatorVisible` is `editing && show_indicator`, and `show_indicator` is pushed from
+  `!revealed && capsLockOn` — but React Native exposes no keyboard modifier state, and this
+  surface carries no prop libadwaita does not have, so nothing can set it. The node stays in
+  the tree, hidden, and a test asserts that: "no caps-lock warning" and "no caps-lock
+  support" must not be the same picture. `@gjsify/adwaita-nativescript` hit the same wall
+  and answered it with a host seam, which is a surface this package does not have.
+- **`AdwPasswordEntryRow` publishes no `revealed`, where both sibling renderers do.**
+  `Adw.PasswordEntryRow` declares no property of its own — its generated prop interface is
+  empty over `AdwEntryRowProps` — and the peek state is private to the widget. A `revealed`
+  prop would be the one place this surface invents a name; the button owns it on both halves.
+- **The glyphs on the three rows are this half's own.** The chevron, the two steppers, the
+  apply check, the caps-lock arrow and the peek pair all stand in for icon-theme names the
+  core carries as data (`pan-down-symbolic`, `value-increase-symbolic`,
+  `adw-entry-apply-symbolic`, `caps-lock-symbolic`, `view-reveal-symbolic`). They are NOT
+  what `@gjsify/adwaita-web` draws — that renderer masks a generated CSS class from the same
+  names and draws no text at all — so they are named here as a divergence rather than as a
+  shared fallback. The accessible NAMES beside them do come from the core, so
+  "Show Password"/"Hide Password"/"Apply"/"Caps Lock is on" are one string in one place
+  across three renderers.
 - **`AdwClamp` ignores the child's intrinsic minimum on React Native.** libadwaita's
   clamp is a two-pass measure-then-allocate, and a child minimum wider than the clamp
   RAISES all three thresholds — which is how such a child still gets its minimum
