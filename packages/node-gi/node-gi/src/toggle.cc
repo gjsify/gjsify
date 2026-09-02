@@ -495,8 +495,11 @@ static void NodeGiToggleNotify(gpointer /*data*/, GObject* obj, gboolean is_last
 // "The object was finalized" is NOT what this callback means, and reading it that
 // way is what left a live GObject holding a freed record. `g_object_run_dispose`
 // notifies every GWeakNotify (and clears every GWeakRef) on an object that stays
-// ALIVE — measured on glib 2.88.3, and it is not exotic: `gtk_window_destroy()`
-// calls it, so every GTK app that closes a window walks through here. The old
+// ALIVE — measured on glib 2.88.3. Every `run_dispose()` a JS program makes lands
+// here, and so does `gtk_native_dialog_destroy()`, whose own docs promise it keeps
+// the object's references (measured, GTK 4.22.4: notify fires, dialog alive at
+// rc=1). NOT `gtk_window_destroy()`, measured on the same GTK: it unrealizes and
+// unrefs, it does not run_dispose — that was GTK3's `gtk_widget_destroy`. The old
 // callback only nulled `inst->gobject`, so the teardown then skipped its
 // `g_object_set_qdata(obj, quark, nullptr)` — and the surviving GObject kept a
 // qdata pointer to the record the teardown went on to `delete`. The next thing to

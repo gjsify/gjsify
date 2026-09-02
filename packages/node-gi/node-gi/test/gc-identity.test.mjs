@@ -194,8 +194,8 @@ test('resurrection: re-fetch while the old finalizer is still pending', { ...gcO
 // ---- Case 4c: the weak-ref net fires on a LIVE object (g_object_run_dispose) ----
 // `g_object_run_dispose` notifies every GWeakNotify — and clears every GWeakRef —
 // on an object that goes on living (measured on glib 2.88.3), and it is not an
-// exotic call: `gtk_window_destroy()` is one, so every GTK app that closes a window
-// walks this path. The binding read that notify as "the GObject was finalized",
+// exotic call: any program can make it, and `gtk_native_dialog_destroy()` does, on
+// an object its docs promise to keep. The binding read that notify as "finalized",
 // nulled its cached pointer, and the teardown then skipped the
 // `g_object_set_qdata(obj, quark, nullptr)` it does under that pointer — leaving a
 // LIVE GObject holding a qdata pointer to the record the teardown went on to free.
