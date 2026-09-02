@@ -1873,7 +1873,26 @@ Two cases remain, and the second one bites harder.
 
 That is the SAME deferred work `calls.cc` already records at its CALLER_ALLOCATES site — "a struct-by-value element array would need `gi_struct_info_get_size` per element + field-access read-back (a later PR)". One piece of work with two entrances, now both closed to it. Doing it means teaching `CElementSize` the record size for non-pointer interface elements and `ReadCElement` to hand back a borrowing sub-handle at `src` rather than dereferencing it — `refs/gjs/gi/arg.cpp` is the reference. Affected fields include `Pango.GlyphString.glyphs`, `GObject.EnumClass.values`, `Gio.InputMessage.vectors`; `GObject.SignalQuery.param_types` is the adjacent `GI_TYPE_TAG_GTYPE` gap, which `ReadCElement` answers with `undefined`.
 
-### `@gjsify/node-gi` — an IN array of enum or struct elements is refused, which takes accessibility off every node host
+### `@gjsify/node-gi` — an IN array of enum or BY-VALUE struct elements is refused, which takes accessibility off every node host
+
+**PARTLY CLOSED.** The POINTER-struct half is done: `IsSupportedElementType` now admits an INTERFACE element that is a struct AND `gi_type_info_is_pointer`, which is one pointer slot and therefore the shape an object element already had — `CElementSize` was already right, the write loop already copies the low 8 bytes, and `FreeInContainer`'s non-string branch already frees the buffer without touching what the pointers point at (correct for a borrowed handle). `ElementToGIArgument` learned to take a `kBoxedHandleTag` External beside the GObject one. Measured: `GLib.Variant.new_tuple([…])` now builds `(is)` with both children reading back, the empty tuple gives `()`, node-gi's own suite is 565 of 578 with 0 failures, and `@gjsify/devtools`'s node leg went from **3 of 131 failing to 1 of 136**.
+
+**What remains is the BY-VALUE half, and the distinction is the whole reason `is_pointer` is tested rather than the kind.** Measured against the installed typelib rather than a GIR that may not match it:
+
+| call | element | pointer | kind | size |
+|---|---|---|---|---|
+| `GLib.Variant.new_tuple` `children` | `Variant` | **yes** | struct | — |
+| `Gtk.Accessible.update_property` arg 1 | `AccessibleProperty` | no | **enum** | 4 |
+| `Gtk.Accessible.update_property` arg 2 | `Value` | no | **struct** | **24** |
+
+So the accessibility surface is NOT unblocked by this, and admitting it by widening the refusal instead of narrowing it would lay 24-byte `GValue`s out at an 8-byte stride and hand the callee garbage. `test/arrays.test.mjs` holds both halves in one test, with the by-value control taken on `GLib.parse_debug_string` (an IN array of `DebugKey` by value, size 16) because it needs no display.
+
+The two pieces still owed, in the order they are worth doing: **enum elements** (4 bytes by value, so `CElementSize` has to learn a size it currently answers as `sizeof(gpointer)`, and `ElementToGIArgument` has to write `v_int32` — the reviewer's correction to an earlier "near-free" reading, which was wrong), then **by-value records**, which need `gi_struct_info_get_size` per element plus an ownership rule (each in-place `g_value_init` would need unsetting and `FreeInContainer` has no branch for it) and are the same deferred work this file records at the INLINE-record read side and at `calls.cc`'s CALLER_ALLOCATES note.
+
+One caution for whoever takes the enum half: `IsSupportedElementType` is shared with GList/GSList/GHashTable, where elements are pointer slots filled through `gi_type_info_hash_pointer_from_argument` rather than sized array cells. What that helper does with an enum element is NOT claimed here — measure it rather than assume the array answer carries over.
+
+The original entry follows.
+
 
 `IsSupportedElementType` (`src/marshal.cc:898`) carries the numeric fundamentals, boolean, utf8/filename and GObject/interface instances. Everything else DEFERS, under two DIFFERENT labels: an INTERFACE element that is neither an object nor an interface — enum, flags, struct, union — refuses as `"struct/union/enum element"`; every other tag (nested container, unichar, GType) refuses as `"nested-container element"`. `IsSupportedContainerType` passes the verdict on and the IN path throws BEFORE the invoke, at two sites of different kinds: `src/calls.cc:828` inside `InvokeFunctionInfo`, which serves a plain function AND an instance method alike (the instance is prepended — the `GtkButton.` prefix below comes from its method entry point at `calls.cc:1225`), and `src/class.cc:853` inside `InvokeVFuncPointer`, which is the separate `vfunc_*` call-out, not a method call. The deferral is DECLARED — the `SCOPE` paragraph directly above `IsSupportedElementType` lists these combos and commits to throwing a clear "<type> not yet supported" before the invoke — and it is not a bug. What was not known is which real call it costs.
 

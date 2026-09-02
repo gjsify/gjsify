@@ -914,6 +914,25 @@ static bool IsSupportedElementType(GITypeInfo* elem, std::string* why) {
     case GI_TYPE_TAG_INTERFACE: {
       GIBaseInfo* iface = gi_type_info_get_interface(elem);
       bool ok = iface != nullptr && (GI_IS_OBJECT_INFO(iface) || GI_IS_INTERFACE_INFO(iface));
+      // A struct element that is a POINTER occupies exactly one pointer slot, which is
+      // the same shape an object element already has: CElementSize answers
+      // sizeof(gpointer), the write loop memcpy's the low 8 bytes, and
+      // FreeInContainer's non-string branch frees the buffer without touching what the
+      // pointers point at — correct for a borrowed handle. So it needs no new
+      // machinery, only admission. `GLib.Variant.new_tuple` is the call this unblocks:
+      // measured against the installed typelib, its `children` element is
+      // `tag=interface ptr=1 kind=STRUCT`.
+      //
+      // A BY-VALUE struct element stays refused, and the distinction is the whole point
+      // of testing is_pointer here rather than the kind alone: `Gtk.Accessible
+      // .update_property`'s values are `ptr=0 kind=STRUCT size=24`, so admitting them
+      // would lay 24-byte GValues out at an 8-byte stride and hand the callee garbage.
+      // That case needs gi_struct_info_get_size plus an ownership rule (each in-place
+      // g_value_init would need unsetting, and FreeInContainer has no branch for it) —
+      // the same deferred work this file already records at its CALLER_ALLOCATES site.
+      if (!ok && iface != nullptr && GI_IS_STRUCT_INFO(iface) && gi_type_info_is_pointer(elem)) {
+        ok = true;
+      }
       if (!ok && why != nullptr) *why = "struct/union/enum element";
       if (iface != nullptr) gi_base_info_unref(iface);
       return ok;
@@ -1320,7 +1339,15 @@ static bool ElementToGIArgument(Napi::Env env, GITypeInfo* elem, Napi::Value v, 
         a->v_pointer = v.As<Napi::External<GObject>>().Data();
         return true;
       }
-      Napi::TypeError::New(env, "expected a GObject handle as a container element")
+      // A boxed/struct handle contributes its borrowed pointer, exactly as an object
+      // handle does. Only reachable for a POINTER struct element — IsSupportedElementType
+      // refuses the by-value kind before the invoke, so no by-value record can arrive
+      // here and be silently treated as a pointer.
+      if (BoxedHandle* boxed = TryGetBoxedHandle(v); boxed != nullptr) {
+        a->v_pointer = boxed->ptr;
+        return true;
+      }
+      Napi::TypeError::New(env, "expected a GObject or boxed handle as a container element")
           .ThrowAsJavaScriptException();
       return false;
     }
