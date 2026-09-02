@@ -9,10 +9,24 @@
 // generated from here, so one declaration describes both platform builds. `parity.spec.ts`
 // is what makes both halves satisfy it.
 
-export type { AdwBinProps, AdwClampProps, AdwWidgetProps } from './props.js';
+export type {
+    AdwBinProps,
+    AdwClampProps,
+    AdwHeaderBarProps,
+    AdwStatusPageProps,
+    AdwToolbarViewProps,
+    AdwWidgetProps,
+    AdwWindowTitleProps,
+    AdwWrapBoxProps,
+} from './props.js';
 
 export { AdwBin } from './widgets/bin.js';
 export { AdwClamp } from './widgets/clamp.js';
+export { AdwHeaderBar } from './widgets/header-bar.js';
+export { AdwStatusPage } from './widgets/status-page.js';
+export { AdwToolbarView } from './widgets/toolbar-view.js';
+export { AdwWindowTitle } from './widgets/window-title.js';
+export { AdwWrapBox } from './widgets/wrap-box.js';
 
 // ADR 0034 clause 2 — the vocabulary is also reachable as a NAMESPACE, not only as
 // prefixed classes. Additive: `AdwBin` keeps working and nothing published moves.
@@ -27,5 +41,10 @@ export { AdwClamp } from './widgets/clamp.js';
 
 import { AdwBin as Bin } from './widgets/bin.js';
 import { AdwClamp as Clamp } from './widgets/clamp.js';
+import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.js';
+import { AdwStatusPage as StatusPage } from './widgets/status-page.js';
+import { AdwToolbarView as ToolbarView } from './widgets/toolbar-view.js';
+import { AdwWindowTitle as WindowTitle } from './widgets/window-title.js';
+import { AdwWrapBox as WrapBox } from './widgets/wrap-box.js';
 
-export const Adw = { Bin, Clamp };
+export const Adw = { Bin, Clamp, HeaderBar, StatusPage, ToolbarView, WindowTitle, WrapBox };

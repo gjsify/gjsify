@@ -21,6 +21,31 @@
             "react-native": "./lib/esm/widgets/clamp.native.js",
             "default": "./lib/esm/widgets/clamp.gtk.js"
         },
+        "./widgets/header-bar": {
+            "types": "./lib/types/widgets/header-bar.d.ts",
+            "react-native": "./lib/esm/widgets/header-bar.native.js",
+            "default": "./lib/esm/widgets/header-bar.gtk.js"
+        },
+        "./widgets/status-page": {
+            "types": "./lib/types/widgets/status-page.d.ts",
+            "react-native": "./lib/esm/widgets/status-page.native.js",
+            "default": "./lib/esm/widgets/status-page.gtk.js"
+        },
+        "./widgets/toolbar-view": {
+            "types": "./lib/types/widgets/toolbar-view.d.ts",
+            "react-native": "./lib/esm/widgets/toolbar-view.native.js",
+            "default": "./lib/esm/widgets/toolbar-view.gtk.js"
+        },
+        "./widgets/window-title": {
+            "types": "./lib/types/widgets/window-title.d.ts",
+            "react-native": "./lib/esm/widgets/window-title.native.js",
+            "default": "./lib/esm/widgets/window-title.gtk.js"
+        },
+        "./widgets/wrap-box": {
+            "types": "./lib/types/widgets/wrap-box.d.ts",
+            "react-native": "./lib/esm/widgets/wrap-box.native.js",
+            "default": "./lib/esm/widgets/wrap-box.gtk.js"
+        },
         "./testing/react-native": {
             "types": "./lib/types/testing/react-native.d.ts",
             "default": "./lib/esm/testing/react-native.js"

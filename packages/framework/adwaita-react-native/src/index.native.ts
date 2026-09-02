@@ -5,10 +5,24 @@
 // read off a changelog, is in `scripts/check-adwaita-rn-platform-split.mjs`; so is the
 // literal-naming rule the barrel below follows.
 
-export type { AdwBinProps, AdwClampProps, AdwWidgetProps } from './props.js';
+export type {
+    AdwBinProps,
+    AdwClampProps,
+    AdwHeaderBarProps,
+    AdwStatusPageProps,
+    AdwToolbarViewProps,
+    AdwWidgetProps,
+    AdwWindowTitleProps,
+    AdwWrapBoxProps,
+} from './props.js';
 
 export { AdwBin } from './widgets/bin.native.js';
 export { AdwClamp } from './widgets/clamp.native.js';
+export { AdwHeaderBar } from './widgets/header-bar.native.js';
+export { AdwStatusPage } from './widgets/status-page.native.js';
+export { AdwToolbarView } from './widgets/toolbar-view.native.js';
+export { AdwWindowTitle } from './widgets/window-title.native.js';
+export { AdwWrapBox } from './widgets/wrap-box.native.js';
 
 // ADR 0034 clause 2 — the vocabulary is also reachable as a NAMESPACE, not only as
 // prefixed classes. Additive: `AdwBin` keeps working and nothing published moves.
@@ -23,5 +37,10 @@ export { AdwClamp } from './widgets/clamp.native.js';
 
 import { AdwBin as Bin } from './widgets/bin.native.js';
 import { AdwClamp as Clamp } from './widgets/clamp.native.js';
+import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.native.js';
+import { AdwStatusPage as StatusPage } from './widgets/status-page.native.js';
+import { AdwToolbarView as ToolbarView } from './widgets/toolbar-view.native.js';
+import { AdwWindowTitle as WindowTitle } from './widgets/window-title.native.js';
+import { AdwWrapBox as WrapBox } from './widgets/wrap-box.native.js';
 
-export const Adw = { Bin, Clamp };
+export const Adw = { Bin, Clamp, HeaderBar, StatusPage, ToolbarView, WindowTitle, WrapBox };

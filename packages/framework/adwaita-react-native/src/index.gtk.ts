@@ -7,10 +7,24 @@
 // `metro-resolver@0.87.0` that settles it lives with the gate that enforces the
 // replacement, `scripts/check-adwaita-rn-platform-split.mjs`.
 
-export type { AdwBinProps, AdwClampProps, AdwWidgetProps } from './props.js';
+export type {
+    AdwBinProps,
+    AdwClampProps,
+    AdwHeaderBarProps,
+    AdwStatusPageProps,
+    AdwToolbarViewProps,
+    AdwWidgetProps,
+    AdwWindowTitleProps,
+    AdwWrapBoxProps,
+} from './props.js';
 
 export { AdwBin } from './widgets/bin.gtk.js';
 export { AdwClamp } from './widgets/clamp.gtk.js';
+export { AdwHeaderBar } from './widgets/header-bar.gtk.js';
+export { AdwStatusPage } from './widgets/status-page.gtk.js';
+export { AdwToolbarView } from './widgets/toolbar-view.gtk.js';
+export { AdwWindowTitle } from './widgets/window-title.gtk.js';
+export { AdwWrapBox } from './widgets/wrap-box.gtk.js';
 
 // ADR 0034 clause 2 — the vocabulary is also reachable as a NAMESPACE, not only as
 // prefixed classes. Additive: `AdwBin` keeps working and nothing published moves.
@@ -25,5 +39,10 @@ export { AdwClamp } from './widgets/clamp.gtk.js';
 
 import { AdwBin as Bin } from './widgets/bin.gtk.js';
 import { AdwClamp as Clamp } from './widgets/clamp.gtk.js';
+import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.gtk.js';
+import { AdwStatusPage as StatusPage } from './widgets/status-page.gtk.js';
+import { AdwToolbarView as ToolbarView } from './widgets/toolbar-view.gtk.js';
+import { AdwWindowTitle as WindowTitle } from './widgets/window-title.gtk.js';
+import { AdwWrapBox as WrapBox } from './widgets/wrap-box.gtk.js';
 
-export const Adw = { Bin, Clamp };
+export const Adw = { Bin, Clamp, HeaderBar, StatusPage, ToolbarView, WindowTitle, WrapBox };

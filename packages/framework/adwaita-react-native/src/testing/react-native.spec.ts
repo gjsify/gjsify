@@ -9,10 +9,10 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { isValidElement } from 'react';
-import type { View as RealView } from 'react-native';
+import type { Text as RealText, View as RealView } from 'react-native';
 
 import type { Assert, SameKeys } from '../parity.spec.js';
-import { RCT_VIEW, View } from './react-native.js';
+import { RCT_TEXT, RCT_VIEW, Text, View } from './react-native.js';
 
 /**
  * The double accepts EXACTLY React Native's `View` props — same names, no more, no
@@ -43,8 +43,21 @@ import { RCT_VIEW, View } from './react-native.js';
  */
 export type DoublePropsMatchReactNative = Assert<SameKeys<Parameters<typeof View>[0], Parameters<typeof RealView>[0]>>;
 
+/**
+ * The same contract for `Text`, which the window title, the status page and the header
+ * bar all render.
+ *
+ * A SECOND PRIMITIVE IS A SECOND CHANCE TO INVENT ONE. `View` was pinned from the day it
+ * existed and `Text` arrived later, with three widgets already leaning on it — which is
+ * exactly the order in which a double acquires a prop React Native does not have.
+ */
+export type TextPropsMatchReactNative = Assert<SameKeys<Parameters<typeof Text>[0], Parameters<typeof RealText>[0]>>;
+
 /** The value half: the double is still React Native's `View` by type, at runtime too. */
 const CONTRACT: typeof RealView = View;
+
+/** The same, for `Text`. */
+const TEXT_CONTRACT: typeof RealText = Text;
 
 export default async () => {
     await describe('the react-native double', async () => {
@@ -65,6 +78,14 @@ export default async () => {
             const style = { width: 400 };
             const element = View({ style }) as { props: Record<string, unknown> };
             expect(element.props.style).toBe(style);
+        });
+
+        await it('renders Text as react-native’s own host name, not a made-up one', async () => {
+            expect(typeof TEXT_CONTRACT).toBe('function');
+            const element = Text({ children: 'inside' });
+            expect(isValidElement(element)).toBe(true);
+            expect((element as { type: unknown }).type).toBe(RCT_TEXT);
+            expect(RCT_TEXT).toBe('RCTText');
         });
     });
 };

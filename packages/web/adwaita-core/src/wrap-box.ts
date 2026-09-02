@@ -1,11 +1,27 @@
 // `Adw.WrapBox` — the portable half, headless (ADR 0004).
 //
-// The line-BREAKING engine stays out: neither renderer can be fed that decision, because
-// CSS flexbox breaks lines itself and NativeScript's `FlexboxLayout` breaks them in native
-// code. What IS portable is everything the engine decides BEFORE it measures — the
-// property normalisers, the justify/align/last-line decision table and the child-ORDER
-// arithmetic — and both renderers map onto the same flex primitives, so both consume all
-// three.
+// The line-BREAKING engine stays out: no renderer can be fed that decision, because CSS
+// flexbox breaks lines itself, NativeScript's `FlexboxLayout` breaks them in native code
+// and React Native's Yoga does the same. What IS portable is everything the engine
+// decides BEFORE it measures — the property normalisers, the justify/align/last-line
+// decision table and the child-ORDER arithmetic — and every renderer maps onto the same
+// flex primitives, so all of them consume all three.
+//
+// AND THE FLEX MAPPING ITSELF IS HERE for the same reason, one step further out:
+// `wrapBoxFlexStyle`/`wrapBoxChildFlex` turn that decision into `flex-direction`,
+// `justify-content`, `align-content` and the two child factors, which is the SAME answer
+// on a browser, on NativeScript and on React Native. The `align` snap below is the part
+// that had drifted furthest from being a shared rule: it is an approximation of a
+// continuum, so it is not a conformance vector, and a per-renderer copy of an
+// approximation is how two renderers end up approximating differently.
+//
+// TWO OF THE THREE RENDERERS READ IT, NOT THREE. It was written out in
+// `@gjsify/adwaita-nativescript` first; that copy is gone and both it and
+// `@gjsify/adwaita-react-native` call in here. `@gjsify/adwaita-web`'s `<adw-wrap-box>`
+// still has its own `alignToJustifyContent` and its own container mapping, so the
+// duplication this lift was for is closed on two sides and open on the third — the exact
+// shape that produces two renderers approximating differently. Closing it is an edit to
+// that element and belongs with the next change to it.
 //
 // Reference: refs/libadwaita/src/adw-wrap-box.c
 // Reference: refs/libadwaita/src/adw-wrap-layout.c
@@ -188,6 +204,110 @@ export function resolveWrapBoxLine(input: {
  */
 export function wrapPolicyFlexShrink(policy: AdwWrapPolicy): number {
     return policy === 'minimum' ? 1 : 0;
+}
+
+/** The flexbox knobs a wrap box's properties resolve to. */
+export interface WrapBoxFlexStyle {
+    /** The main axis, reversed for `end-to-start`. */
+    flexDirection: 'row' | 'row-reverse' | 'column' | 'column-reverse';
+    /** Always wrapping; reversed by `wrap-reverse`. */
+    flexWrap: 'wrap' | 'wrap-reverse';
+    /** Where a COMPLETE line's leftover space goes. */
+    justifyContent: 'flex-start' | 'center' | 'flex-end' | 'space-between';
+    /** `line-homogeneous` stretches the lines across the cross axis. */
+    alignContent: 'stretch' | 'flex-start';
+    /** `flex-grow` for a child on a complete line. */
+    childFlexGrow: number;
+    /** `flex-shrink` for every child — `wrap-policy`. */
+    childFlexShrink: number;
+}
+
+/** The widget properties {@link wrapBoxFlexStyle} and {@link wrapBoxChildFlex} read. */
+export interface WrapBoxFlexInput {
+    orientation: AdwWrapBoxOrientation;
+    packDirection: AdwWrapBoxPackDirection;
+    wrapReverse: boolean;
+    justify: AdwWrapBoxJustify;
+    justifyLastLine: boolean;
+    align: number;
+    lineHomogeneous: boolean;
+    wrapPolicy: AdwWrapPolicy;
+}
+
+/**
+ * `align` as a `justify-content` keyword.
+ *
+ * C offsets the whole line block by `roundf (length_delta * align)` — a continuum.
+ * Flexbox has three main-axis positions, so the nearest one is taken. This is the
+ * RENDERERS' approximation and not libadwaita's rule, which is why it is not a
+ * conformance vector; it is here rather than in each renderer because every renderer
+ * that has to make it is flex-based and each had written it out for itself. Which ones
+ * read it today, and which one still does not, is at the top of this file.
+ */
+function alignToJustifyContent(align: number): 'flex-start' | 'center' | 'flex-end' {
+    if (align < 0.25) return 'flex-start';
+    if (align < 0.75) return 'center';
+    return 'flex-end';
+}
+
+/**
+ * The CONTAINER half of the line decision, resolved onto flexbox.
+ *
+ * The line DECISION is {@link resolveWrapBoxLine}, held to `WRAP_BOX_LINE_VECTORS`;
+ * this only maps its answer onto the knobs a flex container has. A flex container has
+ * ONE `justify-content` for every line, so it can carry the COMPLETE-line rule and
+ * nothing else — the final-line rule needs a per-child answer
+ * ({@link wrapBoxChildFlex}) or, in a browser, a `:only-child` selector.
+ */
+export function wrapBoxFlexStyle(input: WrapBoxFlexInput): WrapBoxFlexStyle {
+    const axis = input.orientation === 'vertical' ? 'column' : 'row';
+    const line = resolveWrapBoxLine({
+        justify: input.justify,
+        justifyLastLine: input.justifyLastLine,
+        align: input.align,
+        lastLine: false,
+        childrenInLine: 2,
+    });
+    return {
+        flexDirection: input.packDirection === 'end-to-start' ? (`${axis}-reverse` as const) : axis,
+        flexWrap: input.wrapReverse ? 'wrap-reverse' : 'wrap',
+        justifyContent: line.growGaps ? 'space-between' : alignToJustifyContent(line.align),
+        alignContent: input.lineHomogeneous ? 'stretch' : 'flex-start',
+        childFlexGrow: line.growChildren ? 1 : 0,
+        childFlexShrink: wrapPolicyFlexShrink(input.wrapPolicy),
+    };
+}
+
+/** What one child of the box gets set on it. */
+export interface WrapBoxChildFlex {
+    /** `flex-grow` — whether this child absorbs its line's leftover. */
+    flexGrow: number;
+    /** `flex-shrink` — `wrap-policy`, the same for every child. */
+    flexShrink: number;
+}
+
+/**
+ * The PER-CHILD half of the decision, which the container knobs cannot carry.
+ *
+ * A box with exactly ONE child has one line, that line is the LAST one, and its child
+ * is alone on it — so it is governed by `justify-last-line`, and `spread` STRETCHES it
+ * rather than spreading anything (C guards the keep-at-minimum branch with
+ * `n_children > 1`).
+ *
+ * `childCount` is the box's own child count, the most a renderer knows without a layout
+ * pass: 1 is the lone-child-on-the-final-line case exactly, anything more means at
+ * least one complete line.
+ */
+export function wrapBoxChildFlex(input: WrapBoxFlexInput, childCount: number): WrapBoxChildFlex {
+    const alone = childCount === 1;
+    const line = resolveWrapBoxLine({
+        justify: input.justify,
+        justifyLastLine: input.justifyLastLine,
+        align: input.align,
+        lastLine: alone,
+        childrenInLine: alone ? 1 : 2,
+    });
+    return { flexGrow: line.growChildren ? 1 : 0, flexShrink: wrapPolicyFlexShrink(input.wrapPolicy) };
 }
 
 /** Which child-list operation is being resolved. */

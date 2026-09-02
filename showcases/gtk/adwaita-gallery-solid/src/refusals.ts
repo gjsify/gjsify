@@ -36,9 +36,18 @@ registerBuiltinWidgets();
 Gtk.init();
 installDiagnosticsGate().reset();
 
-/** Every placement the refusal list claims is impossible, as parent + child. */
+/**
+ * Every placement the refusal list claims is impossible, as parent + child.
+ *
+ * A PLACEMENT LEAVES THIS LIST WHEN ITS PARENT IS CURATED, and `<adw-wrap-box>` is
+ * the entry that did: it was probed here for as long as the tag had no child policy,
+ * curating it made the gallery's refusal false, and arm 5b of
+ * `check-generated-website-data.mjs` — the arm this probe's first payment argued for —
+ * refused the pair in the same run, without needing the probe to run at all. If the
+ * descriptor were ever dropped again, that arm demands the entry back rather than
+ * letting the gallery quietly lose a widget.
+ */
 const PLACEMENTS: readonly [parent: string, child: string][] = [
-    ['adw-wrap-box', 'gtk-button'],
     ['adw-preferences-dialog', 'adw-preferences-page'],
     ['adw-bottom-sheet', 'gtk-box'],
     ['adw-carousel', 'gtk-label'],

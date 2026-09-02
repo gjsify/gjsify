@@ -9,9 +9,19 @@
 import { run } from '@gjsify/unit';
 
 import clampGtkSuite from './widgets/clamp.gtk.spec.js';
+import headerBarGtkSuite from './widgets/header-bar.gtk.spec.js';
 import paritySuite from './parity.spec.js';
+import statusPageGtkSuite from './widgets/status-page.gtk.spec.js';
+import toolbarViewGtkSuite from './widgets/toolbar-view.gtk.spec.js';
+import windowTitleGtkSuite from './widgets/window-title.gtk.spec.js';
+import wrapBoxGtkSuite from './widgets/wrap-box.gtk.spec.js';
 
 run({
     paritySuite,
     clampGtkSuite,
+    headerBarGtkSuite,
+    statusPageGtkSuite,
+    toolbarViewGtkSuite,
+    windowTitleGtkSuite,
+    wrapBoxGtkSuite,
 });
