@@ -10,7 +10,10 @@
 // `digits` IS THIS FILE'S, BECAUSE THE CORE HAS NO `digits`. `SpinState` is the adjustment
 // and an adjustment has no display format; `AdwSpinRow:digits` is a ROW property. So the
 // value is formatted here with `toFixed`, and the GTK half hands the same number to the real
-// widget — which is why the two suites assert the same STRING, not just the same number.
+// widget — which is why the two suites assert a rendered STRING and not just the number.
+// They assert the same DIGITS and not the same string: `gtk_spin_button_update` formats
+// through the C library's locale (measured `3,14` under de_DE) where `toFixed` is specified
+// never to, so the GTK suite normalises the separator and the README names the divergence.
 // `toFixed` and not a hand-rolled truncation: `Adw.SpinRow` renders through
 // `gtk_spin_button_set_digits`, which rounds half away from zero, and so does `toFixed`.
 //

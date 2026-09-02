@@ -19,6 +19,14 @@
 // property `update_listbox_visibility` writes and a zero height would also be true of a card
 // that simply has nothing in it.
 //
+// A COMBO ROW IS MEASURED INSIDE A GROUP BECAUSE IT HAS TO BE. `AdwComboRow` does not
+// override `GtkWidget:grab_focus`, so an activatable one alone in a window reaches
+// `gtk_list_box_row_grab_focus` and raises `assertion 'box != NULL' failed` — at exit 0,
+// which is why `installDiagnosticsGate` is what turns it red. `Adw.EntryRow` and
+// `Adw.SpinRow` DO override it and delegate to an inner widget, so the two bare
+// `AdwPasswordEntryRow` fixtures below are not the same case. Verified by moving one combo
+// row out of its group: the gate fires.
+//
 // THE CONTROLS ARE ALLOCATED, WHICH IS NOT FREE. An empty `Gtk.Box` appended after layout is
 // 0×0, so a suite that only asks "did something render" proves nothing about a control that
 // was never given a size. Every row asserted here is inside a `laidOut` window that has been
