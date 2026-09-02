@@ -460,6 +460,20 @@ export function maybeWireGtkWindowingEnv() {
         const scanner = join(bundle.dir, 'libexec', 'gstreamer-1.0', gstScannerLeaf());
         if (existsSync(scanner)) setIfUnset('GST_PLUGIN_SCANNER', scanner);
     }
+
+    // The GIO modules, and specifically the TLS backend. `GTlsConnection` has no
+    // implementation in GIO itself — glib-networking ships one as a module GIO
+    // g_module_opens out of ONE directory, whose compiled-in default is the BUILD
+    // machine's prefix. On a user's box that path is absent (or, worse, a foreign
+    // glib-networking against a different GLib), so a bundle-activated process fell back
+    // to the dummy backend and every https request failed: `souphttpsrc` reports
+    // "Internal data stream error", @gjsify/{tls,http2,ws} fail the same way one layer up.
+    //
+    // GIO_MODULE_DIR, not GIO_EXTRA_MODULES, for GST_PLUGIN_SYSTEM_PATH's reason: it
+    // REPLACES the compiled-in default rather than adding to it, and mixing a host's
+    // modules into the bundle's own GIO is the case we are avoiding, not one to preserve.
+    const gioModules = join(bundle.dir, 'lib', 'gio', 'modules');
+    if (existsSync(gioModules)) setIfUnset('GIO_MODULE_DIR', gioModules);
 }
 
 /** The plugin scanner's leaf name — the bundles ship the same tree on both OSes. */

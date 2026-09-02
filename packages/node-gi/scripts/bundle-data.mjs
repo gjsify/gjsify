@@ -181,6 +181,20 @@ export const WINDOWING_DATA_SETS = [
         requires: [{ tree: 'share/gtksourceview-5' }],
         remedy: 'brew install gtksourceview5 (darwin) / use a gvsbuild prefix that ships share/gtksourceview-5 (win32)',
     },
+    {
+        // The `pixbuf-loaders` shape one layer down: a bundle that brings its OWN libgio brings
+        // its own GIO module dir, and shipped nothing to put in it. GIO resolves
+        // `GTlsBackend` by g_module_open out of that dir, so with no module every https request
+        // in a bundle-activated process gets the DUMMY backend — `souphttpsrc` on an https URL
+        // fails as "Internal data stream error", and so does anything else on Gio/Soup TLS.
+        // Measured on darwin-x64 by emptying the module dir; see gst-plugins.mjs § soup.
+        id: 'tls-backend',
+        namespace: 'Gio',
+        what: 'a GIO TLS backend module (glib-networking)',
+        why: 'GTlsConnection is a g_module_open-ed implementation, so a bundle with its own libgio and no module answers every https request with the dummy backend — the failure reads as a network error rather than a missing module',
+        requires: [{ glob: 'lib/gio/modules/*' }],
+        remedy: 'brew install glib-networking (darwin) / add glib-networking to the gvsbuild build (win32), then re-run the builder — the module dir is lib/gio/modules and node-gi points GIO_MODULE_DIR at it',
+    },
 ];
 
 /**

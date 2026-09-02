@@ -63,7 +63,7 @@ import {
     formatMissingGlImplementation,
 } from '../../scripts/gl-implementation.mjs';
 import { decodeProbeProblems, spawnDecodeProbe } from '../../scripts/decode-probe.mjs';
-import { isBundledGstPlugin } from '../../scripts/gst-plugins.mjs';
+import { isBundledGstPlugin, missingRequiredGstPlugins } from '../../scripts/gst-plugins.mjs';
 import { bundleRelativeLoaderCache, loaderCacheProblems } from '../../scripts/pixbuf-loader-cache.mjs';
 import {
     REQUIRED_NAMESPACES,
@@ -170,6 +170,11 @@ const WINDOWING_SEED_PATTERNS = [
     // build with no audio and no message.
     /^gstreamer-1\.0-.*\.dll$/i,
     /^gstapp-1\.0-.*\.dll$/i,
+    // libsoup, which `gstsoup.dll` § 4g ships opens with g_module_open rather than
+    // linking, so the dumpbin walk seeded from the plugin finds no soup at all —
+    // gst-plugins.mjs § soup carries the measurement and the darwin twin of this seed.
+    // It also backs `Soup-3.0.typelib`, which § 3's symmetry rule was correctly dropping.
+    /^soup-3\.0-.*\.dll$/i,
 ];
 
 // Locate an MSVC/gvsbuild tool: env override, then the gvsbuild <prefix>/bin
@@ -296,9 +301,20 @@ if (WINDOWING && existsSync(gstPluginDir)) {
         }
     }
 }
+// And for the GIO modules (§ 4h) — the TLS backend. Same shape again: outside bin/,
+// nothing links them, so without seeding here their backing DLLs never reach bin/ and
+// the module cannot load on a machine without the build prefix.
+const gioModuleDir = join(PREFIX, 'lib', 'gio', 'modules');
+const gioModuleSeeds = [];
+if (WINDOWING && existsSync(gioModuleDir)) {
+    for (const f of readdirSync(gioModuleDir)) {
+        if (f.toLowerCase().endsWith('.dll')) gioModuleSeeds.push(join(gioModuleDir, f));
+    }
+}
 console.log(
     `build-gtk-runtime: ${seeds.length} seed DLLs${loaderSeeds.length ? ` + ${loaderSeeds.length} pixbuf loaders` : ''}` +
-        `${gstPluginSeeds.length ? ` + ${gstPluginSeeds.length} gst plugins` : ''}`,
+        `${gstPluginSeeds.length ? ` + ${gstPluginSeeds.length} gst plugins` : ''}` +
+        `${gioModuleSeeds.length ? ` + ${gioModuleSeeds.length} gio modules` : ''}`,
 );
 
 const dumpbin = findDumpbin();
@@ -309,7 +325,7 @@ if (dumpbin) {
     console.log(`build-gtk-runtime: walking the DLL closure with ${dumpbin}`);
     // Seed with bin/ seeds (leaf names) + external loader DLLs (full paths) so THEIR
     // deps are walked into bin/ even though the loaders live outside bin/.
-    const queue = [...seeds, ...loaderSeeds, ...gstPluginSeeds];
+    const queue = [...seeds, ...loaderSeeds, ...gstPluginSeeds, ...gioModuleSeeds];
     while (queue.length) {
         const entry = queue.shift();
         const isPath = entry.includes('\\') || entry.includes('/');
@@ -430,6 +446,7 @@ if (typelibPlan.dropped.length > 0) {
 const windowing = {
     pixbufLoaders: 0,
     gstPlugins: 0,
+    gioModules: 0,
     schemas: false,
     iconThemes: [],
     fontconfig: false,
@@ -507,6 +524,7 @@ if (WINDOWING) {
         const pluginsOut = join(OUT, 'lib', 'gstreamer-1.0');
         mkdirSync(pluginsOut, { recursive: true });
         let bytes = 0;
+        const shippedGstPlugins = [];
         for (const f of readdirSync(gstPluginDir)) {
             if (!f.toLowerCase().endsWith('.dll')) continue;
             // The AUDIO PATH only, same rule and same reasons as darwin.
@@ -514,6 +532,7 @@ if (WINDOWING) {
             const dest = join(pluginsOut, f);
             copyFileSync(join(gstPluginDir, f), dest);
             bytes += statSync(dest).size;
+            shippedGstPlugins.push(f);
             windowing.gstPlugins++;
         }
         // The scanner, which GStreamer FORKS so a plugin that crashes on load cannot
@@ -547,6 +566,22 @@ if (WINDOWING) {
             );
             process.exit(1);
         }
+        // ZERO IS NEVER RIGHT, one element deeper — the darwin builder carries the twin
+        // of this block. The count above passed on every published bundle while
+        // `souphttpsrc` was absent from all of them, because a count cannot say WHICH
+        // plugin is gone.
+        const missingRequired = missingRequiredGstPlugins(shippedGstPlugins);
+        if (missingRequired.length > 0) {
+            console.error(
+                `build-gtk-runtime: ${gstPluginDir} produced no plugin for ${missingRequired.join(', ')} — ` +
+                    'gst-plugins.mjs marks these required because a bundle without them reports a healthy ' +
+                    'Gst.init() and then fails in the application (no appsrc / no decodebin / no source ' +
+                    'element for an http(s) URI). `soup` comes from gst-plugins-good and needs libsoup3 ' +
+                    'built into the same gvsbuild prefix FIRST, else meson disables the plugin silently. ' +
+                    'Do NOT drop the name from GST_REQUIRED_PLUGINS to get a green build.',
+            );
+            process.exit(1);
+        }
         console.log(
             `build-gtk-runtime: GStreamer — ${windowing.gstPlugins} plugin(s), ` +
                 `${(bytes / 1024 / 1024).toFixed(1)} MiB`,
@@ -556,6 +591,44 @@ if (WINDOWING) {
             `build-gtk-runtime: WARNING — ${gstPluginDir} missing; no GStreamer plugins bundled ` +
                 '(Gst.init() would succeed and decode nothing)',
         );
+    }
+
+    // 4h. GIO modules — the TLS backend. `GTlsConnection` has no implementation in GIO
+    // itself: glib-networking ships one as a module GIO g_module_opens out of its module
+    // dir. The bundle brings its own GIO and brought no module, so every https request in
+    // a bundle-activated process got the DUMMY backend — `souphttpsrc` on an https URL
+    // fails as "Internal data stream error", and @gjsify/tls, /http2 and /ws the same way
+    // one layer up. No relocation (Windows resolves the backing DLLs by search path, and
+    // the closure walk already put them in bin/); node-gi points GIO_MODULE_DIR here.
+    // Declared as the `tls-backend` data set, so § 5b fails an empty one.
+    if (existsSync(gioModuleDir)) {
+        const modulesOut = join(OUT, 'lib', 'gio', 'modules');
+        mkdirSync(modulesOut, { recursive: true });
+        let bytes = 0;
+        for (const src of gioModuleSeeds) {
+            const dest = join(modulesOut, basename(src));
+            copyFileSync(src, dest);
+            bytes += statSync(dest).size;
+            windowing.gioModules++;
+        }
+        if (windowing.gioModules === 0) {
+            console.error(
+                `build-gtk-runtime: ${gioModuleDir} holds no GIO module DLL — the bundle would ship its ` +
+                    'own GIO with no TLS backend behind it, so every https request gets the dummy backend ' +
+                    'and fails as a network error. Repair: add glib-networking to the gvsbuild build.',
+            );
+            process.exit(1);
+        }
+        console.log(
+            `build-gtk-runtime: GIO modules — ${windowing.gioModules} module(s), ${(bytes / 1024).toFixed(0)} KiB`,
+        );
+    } else {
+        console.error(
+            `build-gtk-runtime: ${gioModuleDir} missing — no GIO TLS backend to bundle. ` +
+                'Repair: add glib-networking to the gvsbuild build (it is a dependency of the libsoup3 ' +
+                'project, so building libsoup3 brings it).',
+        );
+        process.exit(1);
     }
 
     // 4b. Compiled GSettings schemas (GTK/Adwaita read org.gnome.desktop.interface

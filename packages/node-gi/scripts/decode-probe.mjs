@@ -75,6 +75,8 @@ export const HOST_GTK_ENV = [
     'GST_PLUGIN_SYSTEM_PATH',
     'GST_PLUGIN_PATH',
     'GST_PLUGIN_SCANNER',
+    'GIO_MODULE_DIR',
+    'GIO_EXTRA_MODULES',
 ];
 
 /** Is `dir` the prefix itself, or below it? Case- and separator-folded like the OS. */

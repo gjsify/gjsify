@@ -594,7 +594,14 @@ test('findSymlinks reports a DANGLING link too, and an absent tree is empty', ()
 // on the bad input — one per declared set, plus the vacuous shapes.
 
 /** A complete windowing data tree, the shape both builders produce. */
-function windowingBundle({ schemas = true, icons = true, gtksource = true, iconIndex = true, loaders = true } = {}) {
+function windowingBundle({
+    schemas = true,
+    icons = true,
+    gtksource = true,
+    iconIndex = true,
+    loaders = true,
+    gioModules = true,
+} = {}) {
     const root = fixtureDir();
     if (schemas) {
         mkdirSync(join(root, 'share/glib-2.0/schemas'), { recursive: true });
@@ -610,7 +617,18 @@ function windowingBundle({ schemas = true, icons = true, gtksource = true, iconI
         writeFileSync(join(root, 'share/gtksourceview-5/language-specs/language2.rng'), '<grammar/>');
     }
     if (loaders) writePixbufLoaders(root);
+    if (gioModules) writeGioModules(root);
     return root;
+}
+
+/**
+ * The GIO TLS backend module both builders ship. Leaf differs per platform (brew names it
+ * `libgiognutls.so`, gvsbuild `gioopenssl.dll`), so the set requires ONE non-empty file in
+ * the dir and never a name.
+ */
+function writeGioModules(root, { module = 'libgiognutls.so' } = {}) {
+    mkdirSync(join(root, 'lib/gio/modules'), { recursive: true });
+    writeFileSync(join(root, `lib/gio/modules/${module}`), 'module');
 }
 
 /**
@@ -638,7 +656,7 @@ test('a complete windowing bundle passes, and every set is REPORTED as applied',
     assert.deepEqual(result.problems, []);
     assert.deepEqual(
         result.applied.map((a) => a.id),
-        ['schemas', 'icons', 'pixbuf-loaders', 'gtksource'],
+        ['schemas', 'icons', 'pixbuf-loaders', 'gtksource', 'tls-backend'],
     );
     // Positive counts, not merely "no complaints": every applied set found real files.
     for (const applied of result.applied) assert.ok(applied.files > 0, `${applied.id} counted no file`);
@@ -650,6 +668,7 @@ test('a missing declared data set FAILS — one case per set', () => {
         ['icons', /icons: nothing matches share\/icons\/\*\/index\.theme/],
         ['gtksource', /gtksource: share\/gtksourceview-5\/ holds no non-empty file/],
         ['loaders', /pixbuf-loaders: lib\/gdk-pixbuf-2\.0\/2\.10\.0\/loaders\.cache is missing or empty/],
+        ['gioModules', /tls-backend: nothing matches lib\/gio\/modules\/\*/],
     ]) {
         const result = verifyWindowingData({
             bundleDir: windowingBundle({ [absent]: false }),
@@ -683,6 +702,7 @@ test('an icon theme with an index but NO icons fails the second half of the set'
     writeFileSync(join(root, 'share/icons/Adwaita/index.theme'), ''); // empty index — no theme
     writeFileSync(join(root, 'share/gtksourceview-5/language.dtd'), '<!ELEMENT x EMPTY>');
     writePixbufLoaders(root); // present, so the count below is about the ICONS set alone
+    writeGioModules(root); // ditto — the TLS backend set applies to every Gio-shipping bundle
     const result = verifyWindowingData({ bundleDir: root, shippedNamespaces: GTK_NAMESPACES });
     assert.equal(result.problems.length, 2, 'both the index glob and the tree count must complain');
     assert.match(result.problems.join('\n'), /nothing matches share\/icons\/\*\/index\.theme/);
@@ -703,7 +723,7 @@ test('a set is required by the NAMESPACE the bundle ships, not by a flag', () =>
     assert.deepEqual(result.problems, []);
     assert.deepEqual(
         result.applied.map((a) => a.id),
-        ['schemas', 'icons'],
+        ['schemas', 'icons', 'tls-backend'],
     );
     assert.deepEqual(result.skipped, [
         { id: 'pixbuf-loaders', namespace: 'GdkPixbuf' },
