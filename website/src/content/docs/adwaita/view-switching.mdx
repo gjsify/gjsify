@@ -155,7 +155,7 @@ swaps between the two on a breakpoint.
 
     const page = (icon: string, title: string, description: string): AdwStatusPage => {
         const status = new AdwStatusPage();
-        status.icon = icon; // a real Adwaita symbolic icon (SVG string)
+        status.iconName = icon; // a real Adwaita symbolic icon (SVG string)
         status.title = title;
         status.description = description;
         return status;
@@ -291,7 +291,7 @@ does not appear.
         { name: 'archive', title: 'Archive', icon: folderSymbolic },
     ]) {
         const status = new AdwStatusPage();
-        status.icon = page.icon; // an Adwaita symbolic icon (SVG string)
+        status.iconName = page.icon; // an Adwaita symbolic icon (SVG string)
         status.title = page.title;
         stack.add(status, page.name, page.title, page.icon);
     }
@@ -382,7 +382,7 @@ disappears once a single page is left, so a one-tab document looks chrome-free.
 
     const page = (title: string, body: string): AdwStatusPage => {
         const status = new AdwStatusPage();
-        status.icon = viewGridSymbolic; // a real Adwaita symbolic icon (SVG string)
+        status.iconName = viewGridSymbolic; // a real Adwaita symbolic icon (SVG string)
         status.title = title;
         status.description = body;
         return status;
@@ -514,7 +514,7 @@ makes it fit a header bar or a tight toolbar.
 
     const page = (icon: string, title: string, body: string): AdwStatusPage => {
         const status = new AdwStatusPage();
-        status.icon = icon; // a real Adwaita symbolic icon (SVG string)
+        status.iconName = icon; // a real Adwaita symbolic icon (SVG string)
         status.title = title;
         status.description = body;
         return status;

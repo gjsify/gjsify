@@ -54,7 +54,7 @@ export interface PasswordEntryRowViews {
     /** The masked field. */
     field: { secure: boolean };
     /** The peek toggle, whose `icon` takes an Adwaita symbolic SVG string. */
-    peekButton: { icon: string };
+    peekButton: { iconName: string };
 }
 
 /** Base class list of an entry row, before the state classes. */
@@ -141,5 +141,5 @@ export function peekIconSvg(iconName: PasswordEntryRowRenderState['peekIconName'
 /** Paint one password-entry-row render snapshot — `notify_visibility_cb` (C:62-81). */
 export function applyPasswordEntryRowState(views: PasswordEntryRowViews, state: PasswordEntryRowRenderState): void {
     views.field.secure = !state.revealed;
-    views.peekButton.icon = peekIconSvg(state.peekIconName);
+    views.peekButton.iconName = peekIconSvg(state.peekIconName);
 }

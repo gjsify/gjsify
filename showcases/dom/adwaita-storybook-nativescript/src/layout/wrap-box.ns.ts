@@ -3,7 +3,7 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+import { GtkButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
 import { wrapBoxMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 const TAGS = ['Design', 'Adwaita', 'GNOME', 'GTK', 'Typescript', 'Storybook', 'Wrapping', 'Layout'];
@@ -24,7 +24,7 @@ export class WrapBoxNsStory extends StoryView {
         this._wrap.width = 460;
 
         for (const tag of TAGS) {
-            const chip = new AdwButton();
+            const chip = new GtkButton();
             chip.text = tag;
             chip.variant = 'pill';
             this._wrap.add(chip);

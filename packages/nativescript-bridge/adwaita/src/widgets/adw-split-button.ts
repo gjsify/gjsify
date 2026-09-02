@@ -67,7 +67,16 @@ export class AdwSplitButton extends GridLayout {
     private readonly _state = new SplitButtonState();
     /** Which of the two action views is currently parented. */
     private _showingIcon = false;
-    private _disabled = false;
+    /**
+     * `GtkWidget:sensitive`, in GTK's polarity and no other.
+     *
+     * The field was `_disabled` while the property was, and the rename INVERTED the
+     * property. Keeping the old polarity inside would have left every reader holding
+     * two of them, one negation apart, in a class where a forgotten `!` dims a live
+     * button and emits nothing — silently, because NativeScript has no insensitive
+     * state to contradict it. One polarity, so there is nothing to forget.
+     */
+    private _sensitive = true;
 
     constructor() {
         super();
@@ -107,7 +116,7 @@ export class AdwSplitButton extends GridLayout {
 
         const chevron = new AdwIcon();
         chevron.className = `${chevron.className} adw-split-button-chevron`.trim();
-        chevron.icon = splitButtonArrowSvg(this._state.direction);
+        chevron.iconName = splitButtonArrowSvg(this._state.direction);
         chevron.horizontalAlignment = 'center';
         chevron.verticalAlignment = 'middle';
         dropdownPart.addChild(chevron);
@@ -117,7 +126,7 @@ export class AdwSplitButton extends GridLayout {
         this._chevron = chevron;
 
         actionPart.addEventListener('tap', () => {
-            if (this._disabled) return;
+            if (!this._sensitive) return;
             const data: EventData = { eventName: CLICKED, object: this };
             this.notify(data);
         });
@@ -142,7 +151,7 @@ export class AdwSplitButton extends GridLayout {
     private async _openMenu(): Promise<void> {
         // A sheet is already up — the platform owns the interaction until it
         // resolves, so a second tap must not present a second one.
-        if (this._disabled || this._state.open || !this._state.dropdownEnabled) return;
+        if (!this._sensitive || this._state.open || !this._state.dropdownEnabled) return;
         const entries = this._state.menuModel ?? [];
         const actions = menuSheetActions(entries, MENU_CANCEL_LABEL);
 
@@ -177,7 +186,7 @@ export class AdwSplitButton extends GridLayout {
         const { mode, label, iconName, direction, dropdownEnabled } = this._state;
 
         const wantIcon = mode === 'icon';
-        if (wantIcon) this._actionIcon.icon = iconName ?? '';
+        if (wantIcon) this._actionIcon.iconName = iconName ?? '';
         // An empty/child action half shows an empty label — there is nothing to
         // paint, and the label view is the one that is already parented.
         else this._actionLabel.text = label ?? '';
@@ -188,13 +197,13 @@ export class AdwSplitButton extends GridLayout {
             this._showingIcon = wantIcon;
         }
 
-        this._chevron.icon = splitButtonArrowSvg(direction);
+        this._chevron.iconName = splitButtonArrowSvg(direction);
         // `splitbutton:disabled { filter: Opacity(var(--disabled-opacity)) }`
         // (_buttons.scss:509-515). The NS CSS subset has no filter, so the dim is
         // applied inline; a dead dropdown dims on its own, like an insensitive
         // GtkMenuButton.
         this._dropdownPart.opacity = dropdownEnabled ? 1 : SPLIT_BUTTON_DISABLED_OPACITY;
-        this.opacity = this._disabled ? SPLIT_BUTTON_DISABLED_OPACITY : 1;
+        this.opacity = this._sensitive ? 1 : SPLIT_BUTTON_DISABLED_OPACITY;
     }
 
     /**
@@ -217,11 +226,11 @@ export class AdwSplitButton extends GridLayout {
      * The SVG string IS the icon identity here, so it is what the state machine
      * stores as the icon name; NS resolves no icon theme.
      */
-    get actionIcon(): string {
+    get iconName(): string {
         return this._state.iconName ?? '';
     }
 
-    set actionIcon(svg: string) {
+    set iconName(svg: string) {
         setActionIcon(this._state, svg);
     }
 
@@ -266,16 +275,22 @@ export class AdwSplitButton extends GridLayout {
         this._state.setUseUnderline(!!value);
     }
 
-    /** Whether the control is insensitive: dimmed, and emitting neither signal. */
-    get disabled(): boolean {
-        return this._disabled;
+    /**
+     * Whether the control is sensitive — `GtkWidget:sensitive`, so `false` is the
+     * insensitive state: dimmed, and emitting neither signal.
+     *
+     * The port spelled this `disabled` until ADR 0034 clause 1. Converging the name
+     * INVERTS it, which is why the ledger recorded the pair rather than renaming
+     * quietly: a `sensitive` that still meant `disabled` is worse than either name.
+     */
+    get sensitive(): boolean {
+        return this._sensitive;
     }
 
-    set disabled(raw: boolean | string) {
-        const value = xmlBoolean(raw, this.disabled);
-        const next = !!value;
-        if (next === this._disabled) return;
-        this._disabled = next;
+    set sensitive(raw: boolean | string) {
+        const next = !!xmlBoolean(raw, this._sensitive);
+        if (next === this._sensitive) return;
+        this._sensitive = next;
         this._render();
     }
 

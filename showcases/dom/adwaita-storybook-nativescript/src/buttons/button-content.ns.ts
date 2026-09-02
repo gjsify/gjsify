@@ -1,7 +1,7 @@
 // NativeScript port of the Button Content story, sharing its metadata with the GTK and browser twins
 // through the renderer-agnostic *.meta.ts barrel.
 //
-// Those twins put an AdwButtonContent inside a pill button. NS AdwButton extends a text-only Button
+// Those twins put an AdwButtonContent inside a pill button. NS GtkButton extends a text-only Button
 // and cannot host a child widget, so the content goes in a StackLayout carrying the same classes —
 // the same workaround the browser twin uses.
 
@@ -45,7 +45,7 @@ export class ButtonContentNsStory extends StoryView {
         this._syncContent();
 
         // Mirror the suggested-action pill button the native/browser twins wrap
-        // the content in. AdwButton is text-only, so style a wrapping layout.
+        // the content in. GtkButton is text-only, so style a wrapping layout.
         const button = new StackLayout();
         button.orientation = 'horizontal';
         button.horizontalAlignment = 'center';
@@ -67,7 +67,7 @@ export class ButtonContentNsStory extends StoryView {
     private _syncContent(): void {
         if (!this._content) return;
         this._content.label = this.args.label as string;
-        this._content.icon = iconSvg(this.args.iconName as string);
+        this._content.iconName = iconSvg(this.args.iconName as string);
         // `canShrink` round-trips and reports its PangoEllipsizeMode, but the NS
         // CSS subset has no ellipsize — the control reflects the state rather
         // than truncating the label. See AdwButtonContent.canShrink.

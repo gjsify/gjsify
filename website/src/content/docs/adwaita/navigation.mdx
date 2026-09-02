@@ -197,7 +197,7 @@ the sidebar and the content each their own navigation page and header bar.
 
     // Content: a status page inside a toolbar view.
     const status = new AdwStatusPage();
-    status.icon = mailUnreadSymbolic;
+    status.iconName = mailUnreadSymbolic;
     status.title = 'All Mail';
     status.description = 'Select a conversation from the list to read it here.';
     const contentHeader = new AdwHeaderBar();
@@ -357,7 +357,7 @@ navigation pane that should not push the main content aside on a narrow window.
     sidebar.setContent(sidebarList);
 
     const status = new AdwStatusPage();
-    status.icon = folderMusicSymbolic;
+    status.iconName = folderMusicSymbolic;
     status.title = 'Your Library';
     status.description = 'Toggle the sidebar to browse sections. Collapse it to overlay the content.';
     const content = new AdwToolbarView();
@@ -492,7 +492,7 @@ the detail page and watch the back button appear.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwButton, AdwHeaderBar, AdwNavigationView, AdwStatusPage, AdwToolbarView } from '@gjsify/adwaita-nativescript';
+    import { GtkButton, AdwHeaderBar, AdwNavigationView, AdwStatusPage, AdwToolbarView } from '@gjsify/adwaita-nativescript';
     import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 
     const view = new AdwNavigationView();
@@ -501,7 +501,7 @@ the detail page and watch the back button appear.
     const detailHeader = new AdwHeaderBar();
     detailHeader.title = 'Ada Lovelace';
     const detailStatus = new AdwStatusPage();
-    detailStatus.icon = avatarDefaultSymbolic;
+    detailStatus.iconName = avatarDefaultSymbolic;
     detailStatus.title = 'Ada Lovelace';
     detailStatus.description = 'Mathematician and writer, the first computer programmer.';
     const detail = new AdwToolbarView();
@@ -511,7 +511,7 @@ the detail page and watch the back button appear.
     // Root page: a pill button that pushes the detail page by tag.
     const rootHeader = new AdwHeaderBar();
     rootHeader.title = 'Contacts';
-    const open = new AdwButton();
+    const open = new GtkButton();
     open.text = 'Open contact';
     open.variant = 'pill';
     open.addEventListener('tap', () => view.push('detail'));
@@ -650,7 +650,7 @@ already knows how to be one.
     const status = new AdwStatusPage();
     const syncContent = () => {
         const it = items[sidebar.selected] ?? items[0];
-        status.icon = it.icon;
+        status.iconName = it.icon;
         status.title = it.title;
         status.description = it.subtitle;
     };
@@ -822,7 +822,7 @@ content pane, not to work.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwActionRow, AdwBottomSheet, AdwButton, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
+    import { AdwActionRow, AdwBottomSheet, GtkButton, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
     import { Label, StackLayout } from '@nativescript/core';
 
     const sheet = new AdwBottomSheet();
@@ -831,7 +831,7 @@ content pane, not to work.
     const center = new StackLayout();
     center.horizontalAlignment = 'center';
     center.verticalAlignment = 'middle';
-    const toggle = new AdwButton();
+    const toggle = new GtkButton();
     toggle.text = 'Toggle sheet';
     toggle.variant = 'pill';
     toggle.addEventListener('tap', () => { sheet.openState = !sheet.openState; });

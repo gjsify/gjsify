@@ -64,7 +64,7 @@ export class ButtonRowNsStory extends StoryView {
     private _syncRow(): void {
         if (!this._row) return;
         this._row.title = this.args.title as string;
-        this._row.startIcon = iconSvg(this.args.startIconName as string);
+        this._row.startIconName = iconSvg(this.args.startIconName as string);
         this._applyStyle(this.args.style as string);
     }
 

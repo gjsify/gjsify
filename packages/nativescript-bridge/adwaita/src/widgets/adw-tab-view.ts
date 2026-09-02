@@ -452,7 +452,7 @@ export class AdwTabView extends GridLayout {
 
         const close = new AdwImageButton();
         close.className = `${close.className} adw-tab-close`.trim();
-        close.icon = windowCloseSymbolic;
+        close.iconName = windowCloseSymbolic;
         close.iconSize = 12;
         close.verticalAlignment = 'middle';
         close.addEventListener('tap', () => this._state.closePage(page.id));
@@ -485,9 +485,9 @@ export class AdwTabView extends GridLayout {
         // own falls back to the view's default-icon, and on a pinned tab the
         // indicator REPLACES the icon.
         const icons = tabIconState(page, this._defaultIcon);
-        chip.icon.icon = icons.icon ?? '';
+        chip.icon.iconName = icons.icon ?? '';
         chip.icon.visibility = icons.iconVisible && icons.icon !== null ? 'visible' : 'collapse';
-        chip.indicator.icon = page.indicatorIcon ?? '';
+        chip.indicator.iconName = page.indicatorIcon ?? '';
         chip.indicator.visibility = icons.indicatorVisible ? 'visible' : 'collapse';
     }
 

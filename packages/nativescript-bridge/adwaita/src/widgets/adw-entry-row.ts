@@ -146,7 +146,7 @@ export class AdwEntryRow extends AdwActionRow {
         // from the vendored theme is its counterpart.
         const applyButton = new AdwImageButton();
         applyButton.className = `${applyButton.className} adw-entry-apply`.trim();
-        applyButton.icon = objectSelectSymbolic;
+        applyButton.iconName = objectSelectSymbolic;
         // `suggested-action` (adw-entry-row.ui:99) is an accent fill with
         // `--accent-fg-color` on top — white in BOTH schemes, so pinning it here
         // is not a light-mode choice. It cannot come from the stylesheet: the
@@ -160,7 +160,7 @@ export class AdwEntryRow extends AdwActionRow {
 
         const editIcon = new AdwIcon();
         editIcon.className = NS_EDIT_ICON_CLASS;
-        editIcon.icon = documentEditSymbolic;
+        editIcon.iconName = documentEditSymbolic;
         suffixes.addChild(editIcon);
         this._editIcon = editIcon;
 
@@ -282,7 +282,7 @@ export class AdwEntryRow extends AdwActionRow {
 
     /** `adw_entry_row_set_indicator_icon_name`, as an Adwaita symbolic SVG. */
     setIndicatorIcon(svg: string): void {
-        this._indicator.icon = svg;
+        this._indicator.iconName = svg;
     }
 
     /** Apply the pending edit — the apply button tap. */

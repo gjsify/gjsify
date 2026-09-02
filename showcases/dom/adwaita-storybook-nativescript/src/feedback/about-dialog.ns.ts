@@ -3,7 +3,7 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwAboutDialog, AdwButton } from '@gjsify/adwaita-nativescript';
+import { AdwAboutDialog, GtkButton } from '@gjsify/adwaita-nativescript';
 import { aboutDialogMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 import { GridLayout, ItemSpec } from '@nativescript/core';
 
@@ -35,7 +35,7 @@ export class AboutDialogNsStory extends StoryView {
         stack.addColumn(new ItemSpec(1, 'star'));
         stack.addRow(new ItemSpec(1, 'star'));
 
-        const button = new AdwButton();
+        const button = new GtkButton();
         button.text = 'Show dialog';
         button.variant = 'pill';
         button.horizontalAlignment = 'center';

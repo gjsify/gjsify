@@ -62,6 +62,7 @@ import {
     settersOf,
     stringTolerant,
     STRING_TOLERANT,
+    WIDGET_CLASS,
 } from './nativescript-xml-doors.mjs';
 
 const rootFlag = process.argv.indexOf('--root');
@@ -93,7 +94,7 @@ for (const tag of elements) {
     for (let name = tag; name !== undefined && sources.has(name);) {
         reachable.add(name);
         const { text } = sources.get(name);
-        name = new RegExp(`export (?:abstract )?class ${name}\\b[^{]*?extends (Adw\\w+)`).exec(text)?.[1];
+        name = new RegExp(`export (?:abstract )?class ${name}\\b[^{]*?extends (${WIDGET_CLASS})`).exec(text)?.[1];
     }
 }
 
@@ -196,7 +197,9 @@ for (const [file, why] of Object.entries(NOT_AN_XML_WIDGET)) {
         failures.push(`NOT_AN_XML_WIDGET names ${NS_WIDGETS_DIR}/${file}, which is not there. Drop the entry.`);
         continue;
     }
-    const declared = [...text.matchAll(/export (?:abstract )?class (Adw\w+)/g)].map((m) => m[1]);
+    const declared = [...text.matchAll(new RegExp(`export (?:abstract )?class (${WIDGET_CLASS})`, 'g'))].map(
+        (m) => m[1],
+    );
     const offered = declared.filter((name) => elements.has(name) || reachable.has(name));
     if (offered.length > 0) {
         failures.push(

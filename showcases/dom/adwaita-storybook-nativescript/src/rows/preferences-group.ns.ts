@@ -4,7 +4,7 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import {
-    AdwButton,
+    GtkButton,
     AdwClamp,
     AdwComboRow,
     AdwEntryRow,
@@ -43,13 +43,13 @@ export class PreferencesGroupNsStory extends StoryView {
         const regionRow = new AdwComboRow();
         regionRow.title = 'Region';
         regionRow.options = REGION_OPTIONS.map((s) => ({ label: s, value: s }));
-        regionRow.selectedIndex = 0;
+        regionRow.selected = 0;
         this._group.addRow(regionRow);
 
         // The native story's `headerSuffix` is a flat "Sign out" Gtk.Button in the
         // group header — the NS group now has that slot, so the three renderers
         // present the story identically instead of moving the button into a row.
-        const signOut = new AdwButton();
+        const signOut = new GtkButton();
         signOut.variant = 'flat';
         signOut.text = 'Sign out';
         this._group.headerSuffix = signOut;

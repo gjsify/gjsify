@@ -3,7 +3,7 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwButton, AdwHeaderBar, AdwWindowTitle } from '@gjsify/adwaita-nativescript';
+import { GtkButton, AdwHeaderBar, AdwWindowTitle } from '@gjsify/adwaita-nativescript';
 import { headerBarMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class HeaderBarNsStory extends StoryView {
@@ -26,13 +26,13 @@ export class HeaderBarNsStory extends StoryView {
         this._headerBar.setTitleWidget(this._title);
 
         // Start control — a flat back button (glyph label; NS has no icon theme).
-        const backButton = new AdwButton();
+        const backButton = new GtkButton();
         backButton.text = '‹';
         backButton.variant = 'flat';
         this._headerBar.packStart(backButton);
 
         // End control — a flat menu button.
-        const menuButton = new AdwButton();
+        const menuButton = new GtkButton();
         menuButton.text = '≡';
         menuButton.variant = 'flat';
         this._headerBar.packEnd(menuButton);

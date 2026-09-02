@@ -1,4 +1,4 @@
-// AdwEntry's character arithmetic, against the SAME vectors the entry ROW is
+// GtkEntry's character arithmetic, against the SAME vectors the entry ROW is
 // held to (`@gjsify/adwaita-core/conformance`).
 //
 // The widget cannot be imported here (`extends GridLayout` evaluates the bare
@@ -21,7 +21,7 @@ import { ENTRY_ROW_MAX_LENGTH_LIMIT, clampEntryText, entryTextLength } from '@gj
 import { ENTRY_MAX_LENGTH_VECTORS, ENTRY_TEXT_LENGTH_VECTORS } from '@gjsify/adwaita-core/conformance';
 
 export const AdwEntryNsTest = async () => {
-    await describe('AdwEntry text length (characters, not UTF-16 units)', async () => {
+    await describe('GtkEntry text length (characters, not UTF-16 units)', async () => {
         for (const { text, length, rule } of ENTRY_TEXT_LENGTH_VECTORS) {
             await it(`${JSON.stringify(text)} → ${length} — ${rule}`, () => {
                 expect(entryTextLength(text)).toBe(length);
@@ -29,13 +29,13 @@ export const AdwEntryNsTest = async () => {
         }
 
         await it('reports 0 for an entry that was never written', () => {
-            // `AdwEntry` starts at `''`, and the getter runs before any field
+            // `GtkEntry` starts at `''`, and the getter runs before any field
             // event has been seen.
             expect(entryTextLength('')).toBe(0);
         });
     });
 
-    await describe('AdwEntry max-length truncation', async () => {
+    await describe('GtkEntry max-length truncation', async () => {
         for (const { text, maxLength, clamped, length, rule } of ENTRY_MAX_LENGTH_VECTORS) {
             await it(`${JSON.stringify(text)} @ ${maxLength} — ${rule}`, () => {
                 const applied = clampEntryText(text, maxLength);
@@ -47,7 +47,7 @@ export const AdwEntryNsTest = async () => {
         }
 
         await it('treats every non-positive limit as unlimited', () => {
-            // `AdwEntry.maxLength` floors its input at 0, and 0 is the documented
+            // `GtkEntry.maxLength` floors its input at 0, and 0 is the documented
             // "no limit" value — so a caller passing a negative must not end up
             // with an entry that can hold nothing.
             expect(clampEntryText('Ada Lovelace', 0)).toBe('Ada Lovelace');
@@ -56,7 +56,7 @@ export const AdwEntryNsTest = async () => {
         });
 
         await it('caps the limit at the 16-bit ceiling, which stays a shared constant', () => {
-            // `AdwEntry.maxLength` clamps into `[0, ENTRY_ROW_MAX_LENGTH_LIMIT]`
+            // `GtkEntry.maxLength` clamps into `[0, ENTRY_ROW_MAX_LENGTH_LIMIT]`
             // — the bound `Adw.EntryRow` declares (`G_MAXUINT16`,
             // adw-entry-row.c:666-669, :678-682), taken from the core rather than
             // respelt on this port. `Gtk.Entry`'s own range is not vendored here.

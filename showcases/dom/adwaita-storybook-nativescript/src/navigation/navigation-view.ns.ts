@@ -4,7 +4,7 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import {
-    AdwButton,
+    GtkButton,
     AdwHeaderBar,
     AdwNavigationView,
     AdwStatusPage,
@@ -38,7 +38,7 @@ export class NavigationViewNsStory extends StoryView {
         this._detailHeader.title = detailTitle;
 
         this._detailStatus = new AdwStatusPage();
-        this._detailStatus.icon = avatarDefaultSymbolic;
+        this._detailStatus.iconName = avatarDefaultSymbolic;
         this._detailStatus.title = detailTitle;
         this._detailStatus.description = 'Mathematician and writer, the first computer programmer.';
 
@@ -50,7 +50,7 @@ export class NavigationViewNsStory extends StoryView {
         this._rootHeader = new AdwHeaderBar();
         this._rootHeader.title = this.args.rootTitle as string;
 
-        const openButton = new AdwButton();
+        const openButton = new GtkButton();
         openButton.text = 'Open contact';
         openButton.variant = 'pill';
         openButton.horizontalAlignment = 'center';

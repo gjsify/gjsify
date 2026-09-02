@@ -4,7 +4,7 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import {
-    AdwButton,
+    GtkButton,
     AdwComboRow,
     AdwPreferencesDialog,
     AdwPreferencesGroup,
@@ -64,7 +64,7 @@ export class PreferencesDialogNsStory extends StoryView {
         const accent = new AdwComboRow();
         accent.title = 'Accent colour';
         accent.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((label) => ({ label, value: label }));
-        accent.selectedIndex = 0;
+        accent.selected = 0;
         group.addRow(accent);
 
         // Font size — a spin row bounded 8–24, defaulting to 12.
@@ -89,7 +89,7 @@ export class PreferencesDialogNsStory extends StoryView {
         stack.addColumn(new ItemSpec(1, 'star'));
         stack.addRow(new ItemSpec(1, 'star'));
 
-        const button = new AdwButton();
+        const button = new GtkButton();
         button.text = 'Show dialog';
         button.variant = 'pill';
         button.horizontalAlignment = 'center';

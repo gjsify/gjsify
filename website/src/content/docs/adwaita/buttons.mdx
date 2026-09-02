@@ -93,9 +93,9 @@ short.
     const content = new AdwButtonContent();
     content.iconColor = '#ffffff';
     content.label = 'Download';
-    content.icon = folderDownloadSymbolic; // an Adwaita symbolic icon (SVG string)
+    content.iconName = folderDownloadSymbolic; // an Adwaita symbolic icon (SVG string)
 
-    // AdwButton is text-only, so a styled layout wraps the content.
+    // GtkButton is text-only, so a styled layout wraps the content.
     const button = new StackLayout();
     button.orientation = 'horizontal';
     button.className = 'adw-button suggested-action pill';
@@ -175,7 +175,7 @@ header bar or toolbar, where a raised button looks too heavy.
 
     const button = new AdwSplitButton();
     button.menu = ['Save as…', 'Export', 'Print'];
-    button.actionIcon = documentSaveSymbolic; // an Adwaita symbolic icon (SVG string)
+    button.iconName = documentSaveSymbolic; // an Adwaita symbolic icon (SVG string)
     // With no icon set, the label drives the action half: button.label = 'Save';
     // button.className = 'adw-split-button flat'; // the header-bar / toolbar variant
     ```
@@ -265,7 +265,7 @@ once set", and the only setter is class-level.
         { label: 'Grid', icon: viewGridSymbolic },
         { label: 'Columns', icon: viewPagedSymbolic },
     ]);
-    group.selected = 0;
+    group.active = 0;
     ```
   </Fragment>
 </AdwWidget>

@@ -309,7 +309,7 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         const header = new AdwHeaderBar();
         header.className = `${header.className} sb-detail-header`.trim();
         const back = new AdwImageButton();
-        back.icon = goPreviousSymbolic;
+        back.iconName = goPreviousSymbolic;
         back.className = `${back.className} sb-back-button`.trim();
         back.addEventListener('tap', () => this.root.showSidebarPane());
         // Hidden in wide layout — nothing to navigate back from while the sidebar stays
@@ -323,7 +323,7 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         header.setTitleWidget(this._previewTitle);
 
         const controlsToggle = new AdwImageButton();
-        controlsToggle.icon = sidebarShowRightSymbolic;
+        controlsToggle.iconName = sidebarShowRightSymbolic;
         controlsToggle.className = `${controlsToggle.className} sb-controls-toggle`.trim();
         controlsToggle.addEventListener('tap', () => {
             this._controlsSplit.showSidebar = !this._controlsSplit.showSidebar;
@@ -331,7 +331,7 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         // Appearance belongs to the STORYBOOK, so it sits in the chrome next to the
         // controls toggle rather than in any story's controls.
         const appearance = new AdwImageButton();
-        appearance.icon = colorSelectSymbolic;
+        appearance.iconName = colorSelectSymbolic;
         appearance.className = `${appearance.className} sb-appearance-button`.trim();
         appearance.addEventListener('tap', () => this._presentAppearance());
         header.packEnd(appearance);

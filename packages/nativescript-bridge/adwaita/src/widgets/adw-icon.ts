@@ -66,11 +66,11 @@ export class AdwIcon extends Image {
     }
 
     /** The Adwaita symbolic SVG string to render (e.g. `panDownSymbolic`). */
-    get icon(): string {
+    get iconName(): string {
         return this._iconSvg;
     }
 
-    set icon(svg: string) {
+    set iconName(svg: string) {
         this._iconSvg = svg ?? '';
         this._render();
     }

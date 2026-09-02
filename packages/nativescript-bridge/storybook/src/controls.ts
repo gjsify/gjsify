@@ -135,9 +135,9 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
         row.addEventListener(NOTIFY_SELECTED, (e) => cb((e as NotifySelectedEventData).selected));
         return {
             node: row,
-            get: () => row.selectedIndex,
+            get: () => row.selected,
             set: (v) => {
-                row.selectedIndex = v;
+                row.selected = v;
             },
             onChange: (fn) => {
                 cb = fn;

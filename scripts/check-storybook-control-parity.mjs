@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Every control a story DECLARES is READ by all three of its renderings.
+// Every control a story DECLARES is READ by all three of its renderings — and every
+// property a NativeScript story WRITES is one its widget has.
 //
 // THE INCIDENT
 //
@@ -59,6 +60,7 @@ import {
     storyFilesWith,
     stripComments,
 } from './adwaita-elements.mjs';
+import { membersOf, NS_CORE_TYPES, readCoreProperties, readWidgets, WIDGET_CLASS } from './nativescript-xml-doors.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
@@ -88,7 +90,13 @@ const TARGETS = [
         src: ADWAITA_STORY_SRC,
         widgets: (root) => new Map([...adwaitaWebElements(root)].map(([tag, file]) => [elementName(tag), file])),
     },
-    { suffix: '.ns.ts', label: 'NativeScript', src: ADWAITA_NS_STORY_SRC, widgets: adwaitaNativeScriptWidgets },
+    {
+        suffix: '.ns.ts',
+        label: 'NativeScript',
+        src: ADWAITA_NS_STORY_SRC,
+        widgets: (root) =>
+            new Map([...adwaitaNativeScriptWidgets(root)].map(([tag, file]) => [elementName(tag), file])),
+    },
 ];
 
 // The sanctioned "cannot honour it" read. Stripping these is how the arm above
@@ -205,6 +213,60 @@ const settersOf = (file) => {
     return setters.get(file);
 };
 
+/**
+ * A NativeScript story writing a property its widget does not have.
+ *
+ * SAME INCIDENT, ONE DIALECT OVER. The header above is about a control the story never
+ * reads; this is about a control it reads and then writes into nothing. NativeScript
+ * views take an unknown assignment as a dead own-property — no throw, no warning — and
+ * the showcase is `private`, ships `@nativescript/core` as an optional peer and is
+ * therefore type-checked by no CI job, so the compiler is not watching either.
+ * MEASURED: ADR 0034 clause 1 renamed `AdwToggleGroup.selected` to `active` and
+ * `toggle-group.ns.ts` kept assigning `.selected`, which every gate passed — the control
+ * moved and did nothing, which is the sentence this file opens with.
+ *
+ * The widget class comes from the story's own field ANNOTATION, so the reach is every
+ * package widget a story holds rather than only the one it is named after. `membersOf`
+ * covers in-package ancestors; {@link readCoreProperties} covers what a NativeScript view
+ * already carries, and nothing else is exempt.
+ */
+const NS_WIDGET_FIELD = new RegExp(`\\b_([A-Za-z0-9_$]+)\\s*:\\s*(${WIDGET_CLASS})\\b`, 'g');
+let nsWidgetSources = new Map();
+let nsCoreProperties = new Set();
+try {
+    ({ sources: nsWidgetSources } = readWidgets(ROOT));
+    nsCoreProperties = readCoreProperties(ROOT);
+} catch (error) {
+    console.error(`check-storybook-control-parity: ${error.message}`);
+    process.exit(1);
+}
+if (nsWidgetSources.size === 0 || nsCoreProperties.size === 0) {
+    console.error(
+        'check-storybook-control-parity: the NativeScript widget index or the ambient core slice read as\n' +
+            `  empty. Without both, the dead-write arm exempts everything — check ${NS_CORE_TYPES}.`,
+    );
+    process.exit(1);
+}
+let deadWriteChecked = 0;
+
+/** Every `this._field.prop = …` in a NativeScript story whose widget has no such member. */
+function deadWrites(code) {
+    const fields = new Map();
+    for (const [, field, klass] of code.matchAll(NS_WIDGET_FIELD)) {
+        if (nsWidgetSources.has(klass)) fields.set(field, klass);
+    }
+    const found = [];
+    for (const [, field, property] of code.matchAll(/\bthis\._([A-Za-z0-9_$]+)\.([A-Za-z0-9_$]+)\s*=[^=]/g)) {
+        const klass = fields.get(field);
+        if (klass === undefined) continue;
+        deadWriteChecked += 1;
+        if (nsCoreProperties.has(property)) continue;
+        if (membersOf(nsWidgetSources, klass).has(property)) continue;
+        found.push({ field, klass, property });
+    }
+    return found;
+}
+
 let declared = 0;
 let held = 0;
 let voided = 0;
@@ -272,6 +334,27 @@ if (declared === 0) {
     process.exit(1);
 }
 
+// Per FILE and not per control: a story that declares no control still writes to its
+// widget, and the loop above skips a meta with an empty control set entirely.
+const nativescript = renderings.find((target) => target.label === 'NativeScript');
+for (const [name, file] of nativescript?.files ?? []) {
+    for (const { field, klass, property } of deadWrites(stripComments(readFileSync(file, 'utf8')))) {
+        failures.push(
+            `${name}@NativeScript: writes \`this._${field}.${property}\`, and ${klass} has no such member.\n` +
+                '    NativeScript takes the assignment as a dead own-property — no throw, no warning — so the\n' +
+                '    control moves and does nothing. Check whether the property was RENAMED: this is what a\n' +
+                '    converged name leaves behind at a call site the rename missed.',
+        );
+    }
+}
+if (deadWriteChecked === 0) {
+    console.error(
+        'check-storybook-control-parity: no `this._field.property =` write on a declared widget was found\n' +
+            '  in any NativeScript story. That is a broken scan, not a storybook that sets nothing.',
+    );
+    process.exit(1);
+}
+
 // Against the keys the walk REACHED, not against the meta names: an entry naming a
 // deleted control, or a target label spelled `web` instead of `browser`, passed a
 // meta-only test and was counted in the summary — a ledger figure naming nothing.
@@ -299,4 +382,8 @@ console.log(
     `check-storybook-control-parity: ${declared} (control, rendering) pairs — ${held} wired, ` +
         `${voided} read for parity where the target has no property to set, ` +
         `${ledgered} ledgered as unreadable.`,
+);
+console.log(
+    `check-storybook-control-parity: ${deadWriteChecked} write(s) to a declared NativeScript widget, ` +
+        `each held against that widget's members and the ambient ${NS_CORE_TYPES} slice.`,
 );

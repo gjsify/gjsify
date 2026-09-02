@@ -18,13 +18,13 @@ export {
     AdwEntryRow,
     NOTIFY_TEXT,
     AdwPasswordEntryRow,
-    AdwEntry,
+    GtkEntry,
     ENTRY_ACTIVATE,
     NOTIFY_ENTRY_TEXT,
     AdwComboRow,
     ComboState,
     NOTIFY_SELECTED,
-    AdwDropDown,
+    GtkDropDown,
     NOTIFY_DROP_DOWN_SELECTED,
     AdwSpinRow,
     SpinState,
@@ -34,10 +34,10 @@ export {
     AdwExpanderRow,
     ExpanderState,
     NOTIFY_EXPANDED,
-    AdwButton,
+    GtkButton,
     AdwImageButton,
     DEFAULT_ICON_BUTTON_ICON_SIZE,
-    AdwMenuButton,
+    GtkMenuButton,
     MENU_ITEM_ACTIVATED,
     AdwIcon,
     DEFAULT_ADW_ICON_SIZE,
@@ -222,6 +222,10 @@ export type {
     BreakpointDimension,
     BreakpointSize,
 } from './widgets/index.js';
+
+// ADR 0034 clause 2 — the same widgets under their GIR names (`Adw.SwitchRow`,
+// `Gtk.Entry`). Beside the barrel, never inside it: see the header of `namespace.ts`.
+export { Adw, Gtk } from './namespace.js';
 
 // Fonts
 export {

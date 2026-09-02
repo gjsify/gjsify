@@ -250,7 +250,7 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
                 : 'collapse';
             nodes.button.orientation = model.orientation === 'horizontal' ? 'horizontal' : 'vertical';
             nodes.button.className = model.selected ? `${this.buttonClass} active` : this.buttonClass;
-            nodes.icon.icon = nsIconSvg(model.iconName);
+            nodes.icon.iconName = nsIconSvg(model.iconName);
             nodes.icon.visibility = showIcon ? 'visible' : 'collapse';
             nodes.label.text = model.label;
             nodes.label.visibility = showLabel ? 'visible' : 'collapse';

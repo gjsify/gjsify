@@ -35,7 +35,7 @@ import { xmlNumber } from './xml-values.js';
 export { ComboState } from '@gjsify/adwaita-core';
 export type { AdwComboOption, ComboStateChange, ComboStateListener } from '@gjsify/adwaita-core';
 
-/** Event name emitted when {@link AdwComboRow.selectedIndex} changes. Mirrors GObject `notify::selected`. */
+/** Event name emitted when {@link AdwComboRow.selected} changes. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
 
 /** Payload of the `notify::selected` event. */
@@ -71,7 +71,7 @@ export class AdwComboRow extends AdwActionRow {
         chevron.className = 'adw-combo-chevron';
         chevron.iconColor = '#9a9a9a'; // dim — matches the old chevron's ~0.45 alpha
         chevron.iconSize = 16;
-        chevron.icon = panDownSymbolic;
+        chevron.iconName = panDownSymbolic;
 
         suffix.addChild(valueLabel);
         suffix.addChild(chevron);
@@ -143,12 +143,12 @@ export class AdwComboRow extends AdwActionRow {
     }
 
     /** The selected option index. Updates the inline value label. */
-    get selectedIndex(): number {
+    get selected(): number {
         return this._state.selectedIndex;
     }
 
-    set selectedIndex(raw: number | string) {
-        const value = xmlNumber(raw, this.selectedIndex);
+    set selected(raw: number | string) {
+        const value = xmlNumber(raw, this.selected);
         this._state.setSelectedIndex(value);
     }
 

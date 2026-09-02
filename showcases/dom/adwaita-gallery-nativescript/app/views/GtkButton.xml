@@ -3,19 +3,19 @@
   xmlns:adw="~/adwaita"
   orientation="horizontal"
 >
-  <adw:AdwButton
+  <adw:GtkButton
     text="Pill"
     variant="pill"
   />
-  <adw:AdwButton
+  <adw:GtkButton
     text="Suggested"
     variant="suggested"
   />
-  <adw:AdwButton
+  <adw:GtkButton
     text="Delete"
     variant="destructive"
   />
-  <adw:AdwButton
+  <adw:GtkButton
     text="Flat"
     variant="flat"
   />

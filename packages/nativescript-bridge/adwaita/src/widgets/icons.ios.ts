@@ -10,7 +10,7 @@
 // Resolved in place of the base `icons.ts` by the gjsify NS build's
 // `platformResolvePlugin` on the iOS target. Until this module existed, that
 // resolution found nothing and the base returned `null`, so EVERY icon-bearing
-// widget — AdwIcon, AdwImageButton, AdwMenuButton, AdwButtonContent and every
+// widget — AdwIcon, AdwImageButton, GtkMenuButton, AdwButtonContent and every
 // row with an icon — silently rendered no icon at all on iOS, while
 // `package.json` declared `nativescriptPlatforms: ['android', 'ios']`.
 //

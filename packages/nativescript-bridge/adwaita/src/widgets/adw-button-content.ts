@@ -59,7 +59,7 @@ export class AdwButtonContent extends StackLayout {
         const icon = new AdwIcon();
         icon.className = `${icon.className} adw-button-content-icon`.trim();
         icon.verticalAlignment = 'middle';
-        icon.icon = buttonContentIconSvg('');
+        icon.iconName = buttonContentIconSvg('');
         this.addChild(icon);
         this._icon = icon;
 
@@ -101,13 +101,13 @@ export class AdwButtonContent extends StackLayout {
      * the C sets that fallback (:355-356) and never hides `self->icon`. The doc
      * comments at :228/:343 say otherwise — see `buttonContentIconSvg`.
      */
-    get icon(): string {
+    get iconName(): string {
         return this._props.iconName;
     }
 
-    set icon(svg: string) {
+    set iconName(svg: string) {
         this._props.iconName = svg ?? '';
-        this._icon.icon = buttonContentIconSvg(this._props.iconName);
+        this._icon.iconName = buttonContentIconSvg(this._props.iconName);
     }
 
     /** Whether the icon currently shown is the empty-slot fallback. */

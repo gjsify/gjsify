@@ -30,10 +30,9 @@ GTK 4 is the reference here, typed by
 [`@girs/gtk-4.0`](https://www.npmjs.com/package/@girs/gtk-4.0). The browser port
 spells both buttons the way the GIR does — `<gtk-button>` and `<gtk-menu-button>`,
 the same tags `@gjsify/gtk-host` uses — because a widget is named after the library
-that owns it and the Adwaita part of these two is the stylesheet. NativeScript still
-says `AdwButton` and `AdwMenuButton`; that port ships one Adwaita-styled widget set
-without dividing it by owning library, and converging it is tracked rather than done.
-Where a port behaves differently, its own window says so.
+that owns it and the Adwaita part of these two is the stylesheet. The NativeScript
+port names them by the same rule, `GtkButton` and `GtkMenuButton`. Where a port
+behaves differently, its own window says so.
 
 :::note
 The previews run the browser port, so behaviour the toolkits drive natively can
@@ -134,28 +133,28 @@ each other and mean the same thing everywhere in the toolkit, so a
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+    import { GtkButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
 
     const box = new AdwWrapBox();
     box.childSpacing = 12;
     box.lineSpacing = 12;
 
-    const pill = new AdwButton();
+    const pill = new GtkButton();
     pill.text = 'Pill';
     pill.variant = 'pill';
     box.add(pill);
 
-    const suggested = new AdwButton();
+    const suggested = new GtkButton();
     suggested.text = 'Suggested';
     suggested.variant = 'suggested-action';
     box.add(suggested);
 
-    const destructive = new AdwButton();
+    const destructive = new GtkButton();
     destructive.text = 'Delete';
     destructive.variant = 'destructive-action';
     box.add(destructive);
 
-    const flat = new AdwButton();
+    const flat = new GtkButton();
     flat.text = 'Flat';
     flat.variant = 'flat';
     box.add(flat);
@@ -232,11 +231,11 @@ in the popover it opens. Libadwaita ships no menu button, so this is
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwMenuButton } from '@gjsify/adwaita-nativescript';
+    import { GtkMenuButton } from '@gjsify/adwaita-nativescript';
     import { openMenuSymbolic } from '@gjsify/adwaita-icons/actions';
 
-    const button = new AdwMenuButton();
-    button.icon = openMenuSymbolic; // an Adwaita symbolic icon (SVG string)
+    const button = new GtkMenuButton();
+    button.iconName = openMenuSymbolic; // an Adwaita symbolic icon (SVG string)
     button.menuTitle = 'Document';
     button.menuItems = [{ label: 'Save as…' }, { label: 'Export' }, { label: 'Print' }];
     // NativeScript has no popover, so the menu opens as the platform action sheet.

@@ -544,11 +544,11 @@ section used to carry — 42 widgets, 137 settable properties, 92/45, split 16 w
 candidate spelling and 29 without — came from the TypeScript compiler API over
 `@girs/gtk-4.0@4.1.0`. The gate reads the in-repo `generated/props.ts` instead, as stage 6
 specifies, and counts what each widget CLASS declares settable: **44 widgets, 143
-properties, 91 agree, 52 do not, 25 with a machine-checked convergence target and 27
+properties, 102 agree, 41 do not, 14 with a machine-checked convergence target and 27
 declared `own`**. Three deliberate differences produce that, and ADR 0034 § Amendment 2
 holds the table: the counterpart set grew because stage 3's ledger gave `AdwIcon` and
 `AdwImageButton` one; "settable" is `set <name>(` in the widget's own class body, so a
-read-only accessor like `AdwEntry.textLength` counts on neither side; and a "candidate
+read-only accessor like `GtkEntry.textLength` counts on neither side; and a "candidate
 spelling" is now an entry whose target must be a key of that counterpart or the gate fails.
 Re-run the gate before quoting any of it.
 

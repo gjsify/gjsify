@@ -3,7 +3,7 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwButton, AdwStatusPage } from '@gjsify/adwaita-nativescript';
+import { GtkButton, AdwStatusPage } from '@gjsify/adwaita-nativescript';
 import { systemSearchSymbolic } from '@gjsify/adwaita-icons/actions';
 import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
@@ -33,7 +33,7 @@ export class StatusPageNsStory extends StoryView {
         this._page = new AdwStatusPage();
 
         // Suggested-action pill button, matching the native story's child.
-        const button = new AdwButton();
+        const button = new GtkButton();
         button.text = 'New Document';
         button.variant = 'suggested-action';
         this._page.setChild(button);
@@ -49,7 +49,7 @@ export class StatusPageNsStory extends StoryView {
     private _sync(): void {
         if (!this._page) return;
         const iconName = this.args.iconName as string;
-        this._page.icon = ICON_SVGS[iconName] ?? folderSymbolic;
+        this._page.iconName = ICON_SVGS[iconName] ?? folderSymbolic;
         this._page.title = this.args.title as string;
         this._page.description = this.args.description as string;
     }

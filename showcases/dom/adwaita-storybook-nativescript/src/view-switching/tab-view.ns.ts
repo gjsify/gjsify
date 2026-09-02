@@ -41,7 +41,7 @@ export class TabViewNsStory extends StoryView {
     // no icon-theme lookup, so AdwStatusPage takes a glyph.
     private _buildPageBody(tab: { title: string; body: string }): AdwStatusPage {
         const status = new AdwStatusPage();
-        status.icon = viewGridSymbolic;
+        status.iconName = viewGridSymbolic;
         status.title = tab.title;
         status.description = tab.body;
         return status;

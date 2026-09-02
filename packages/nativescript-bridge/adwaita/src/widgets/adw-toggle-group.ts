@@ -103,7 +103,7 @@ export class AdwToggleGroup extends StackLayout {
                 const icon = new AdwIcon();
                 icon.className = `${icon.className} adw-toggle-icon`.trim();
                 icon.verticalAlignment = 'middle';
-                icon.icon = toggle.icon;
+                icon.iconName = toggle.icon;
                 seg.addChild(icon);
             }
 
@@ -136,12 +136,12 @@ export class AdwToggleGroup extends StackLayout {
     }
 
     /** The selected segment index. Swaps the active pill + emits `notify::selected`. */
-    get selected(): number {
+    get active(): number {
         return this._state.selected;
     }
 
-    set selected(raw: number | string) {
-        const value = xmlNumber(raw, this.selected);
+    set active(raw: number | string) {
+        const value = xmlNumber(raw, this.active);
         this._state.setSelected(value);
     }
 

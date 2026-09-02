@@ -89,11 +89,11 @@ export class AdwImageButton extends GridLayout {
     }
 
     /** The Adwaita symbolic SVG string to render (e.g. `goPreviousSymbolic`). */
-    get icon(): string {
+    get iconName(): string {
         return this._iconSvg;
     }
 
-    set icon(svg: string) {
+    set iconName(svg: string) {
         this._iconSvg = svg ?? '';
         this._image.width = this._iconSize;
         this._image.height = this._iconSize;

@@ -251,7 +251,7 @@ function collectAdwaitaCoverage(root) {
 
     // `adw-sidebar.ts` defines three tags, so three rows point at the same file.
     const web = absolute([...adwaitaWebElements(root)].map(([tag, file]) => [elementName(tag), file]));
-    const ns = absolute(adwaitaNativeScriptWidgets(root));
+    const ns = absolute([...adwaitaNativeScriptWidgets(root)].map(([tag, file]) => [elementName(tag), file]));
 
     // The GTK renderer's coverage IS its story set (one `.meta.ts` per widget).
     const stories = new Set();

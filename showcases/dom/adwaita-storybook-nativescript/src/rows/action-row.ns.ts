@@ -43,13 +43,13 @@ export class ActionRowNsStory extends StoryView {
         // Leading PREFIX: a REAL Adwaita symbolic icon (rasterised natively via
         // PathParser), matching Adw.ActionRow's prefix icon — not an emoji glyph.
         this._icon = new AdwIcon();
-        this._icon.icon = iconSvg(this.args.iconName as string);
+        this._icon.iconName = iconSvg(this.args.iconName as string);
         this._row.setPrefix(this._icon);
 
         // Trailing SUFFIX: the go-next chevron as a symbolic icon (the activatable
         // arrow), matching the browser/GTK twin.
         const chevron = new AdwIcon();
-        chevron.icon = goNextSymbolic;
+        chevron.iconName = goNextSymbolic;
         this._row.setSuffix(chevron);
 
         this._syncRow();
@@ -66,7 +66,7 @@ export class ActionRowNsStory extends StoryView {
 
     updateArgs(_args: StoryArgs): void {
         this._syncRow();
-        if (this._icon) this._icon.icon = iconSvg(this.args.iconName as string);
+        if (this._icon) this._icon.iconName = iconSvg(this.args.iconName as string);
     }
 
     private _syncRow(): void {

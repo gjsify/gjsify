@@ -226,7 +226,7 @@ class MockViewSwitcherBar {
     }
 }
 
-// Mirrors AdwMenuButton's action()-resolution: a chosen label maps to id/label/
+// Mirrors GtkMenuButton's action()-resolution: a chosen label maps to id/label/
 // index (id falls back to label); a cancel (undefined choice) emits nothing.
 class MockMenuButton {
     private _items: { id?: string; label: string }[] = [];
@@ -694,7 +694,7 @@ export default async () => {
         });
     });
 
-    await describe('AdwMenuButton activation (mock)', async () => {
+    await describe('GtkMenuButton activation (mock)', async () => {
         await it('emits id/label/index for a chosen item', () => {
             const mb = new MockMenuButton();
             mb.menuItems = [

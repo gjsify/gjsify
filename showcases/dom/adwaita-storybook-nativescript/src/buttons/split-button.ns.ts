@@ -61,7 +61,7 @@ abstract class SplitButtonNsStoryBase extends StoryView {
         const svg = iconSvg(this.args.iconName as string);
         // Mirror the twins: with an icon set, show only the icon; otherwise the
         // label drives the action half.
-        this._widget.actionIcon = svg;
+        this._widget.iconName = svg;
         if (!svg) this._widget.label = this.args.label as string;
     }
 }

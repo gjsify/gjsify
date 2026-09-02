@@ -42,7 +42,7 @@ export class ComboRowNsStory extends StoryView {
         if (!this._row) return;
         this._row.title = this.args.title as string;
         this._row.subtitle = this.args.subtitle as string;
-        this._row.selectedIndex = this.args.selected as number;
+        this._row.selected = this.args.selected as number;
     }
 }
 

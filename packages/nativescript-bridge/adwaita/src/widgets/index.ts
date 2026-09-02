@@ -26,20 +26,20 @@ export type { NotifyActiveEventData } from './adw-switch-row.js';
 export { AdwEntryRow, NOTIFY_TEXT } from './adw-entry-row.js';
 export type { NotifyTextEventData } from './adw-entry-row.js';
 export { AdwPasswordEntryRow } from './adw-password-entry-row.js';
-// AdwEntry is the STANDALONE entry (the row's counterpart, not its base): no
+// GtkEntry is the STANDALONE entry (the row's counterpart, not its base): no
 // core state machine — only the character arithmetic (`clampEntryText` /
 // `entryTextLength`) is shared, and it lives in `@gjsify/adwaita-core`.
-export { AdwEntry, ACTIVATE as ENTRY_ACTIVATE, NOTIFY_TEXT as NOTIFY_ENTRY_TEXT } from './adw-entry.js';
-export type { NotifyEntryTextEventData } from './adw-entry.js';
+export { GtkEntry, ACTIVATE as ENTRY_ACTIVATE, NOTIFY_TEXT as NOTIFY_ENTRY_TEXT } from './gtk-entry.js';
+export type { NotifyEntryTextEventData } from './gtk-entry.js';
 // AdwComboRow keeps the NS render (inline value + chevron + native chooser); the
 // selection state machine (ComboState + AdwComboOption) is headless
 // (`@gjsify/adwaita-core`, ADR 0004), re-exported here for consumers.
 export { AdwComboRow, ComboState, NOTIFY_SELECTED } from './adw-combo-row.js';
 export type { AdwComboOption, ComboStateChange, ComboStateListener, NotifySelectedEventData } from './adw-combo-row.js';
-// AdwDropDown is the STANDALONE dropdown (Gtk.DropDown's shape) over the very
+// GtkDropDown is the STANDALONE dropdown (Gtk.DropDown's shape) over the very
 // same `ComboState` the row composes — one selection model, two surfaces.
-export { AdwDropDown, NOTIFY_SELECTED as NOTIFY_DROP_DOWN_SELECTED } from './adw-drop-down.js';
-export type { NotifyDropDownSelectedEventData } from './adw-drop-down.js';
+export { GtkDropDown, NOTIFY_SELECTED as NOTIFY_DROP_DOWN_SELECTED } from './gtk-drop-down.js';
+export type { NotifyDropDownSelectedEventData } from './gtk-drop-down.js';
 // AdwSpinRow keeps the NS stepper render; the clamp/step state machine (SpinState)
 // is headless (`@gjsify/adwaita-core`, ADR 0004), re-exported here for consumers.
 export { AdwSpinRow, NOTIFY_VALUE, SpinState } from './adw-spin-row.js';
@@ -50,11 +50,11 @@ export type { NotifySliderValueEventData } from './adw-slider-row.js';
 // (ExpanderState) is headless (`@gjsify/adwaita-core`, ADR 0004), re-exported here.
 export { AdwExpanderRow, ExpanderState, NOTIFY_EXPANDED } from './adw-expander-row.js';
 export type { ExpanderStateListener, NotifyExpandedEventData } from './adw-expander-row.js';
-export { AdwButton } from './adw-button.js';
-export type { AdwButtonVariant } from './adw-button.js';
+export { GtkButton } from './gtk-button.js';
+export type { AdwButtonVariant } from './gtk-button.js';
 export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
-export { AdwMenuButton, MENU_ITEM_ACTIVATED } from './adw-menu-button.js';
-export type { AdwMenuItem, MenuItemActivatedEventData } from './adw-menu-button.js';
+export { GtkMenuButton, MENU_ITEM_ACTIVATED } from './gtk-menu-button.js';
+export type { AdwMenuItem, MenuItemActivatedEventData } from './gtk-menu-button.js';
 export { AdwIcon, DEFAULT_ADW_ICON_SIZE } from './adw-icon.js';
 export { AdwBanner, BUTTON_CLICKED } from './adw-banner.js';
 export { AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';
@@ -270,15 +270,15 @@ import { AdwActionRow } from './adw-action-row.js';
 import { AdwSwitchRow } from './adw-switch-row.js';
 import { AdwEntryRow } from './adw-entry-row.js';
 import { AdwPasswordEntryRow } from './adw-password-entry-row.js';
-import { AdwEntry } from './adw-entry.js';
+import { GtkEntry } from './gtk-entry.js';
 import { AdwComboRow } from './adw-combo-row.js';
-import { AdwDropDown } from './adw-drop-down.js';
+import { GtkDropDown } from './gtk-drop-down.js';
 import { AdwSpinRow } from './adw-spin-row.js';
 import { AdwSliderRow } from './adw-slider-row.js';
 import { AdwExpanderRow } from './adw-expander-row.js';
-import { AdwButton } from './adw-button.js';
+import { GtkButton } from './gtk-button.js';
 import { AdwImageButton } from './adw-image-button.js';
-import { AdwMenuButton } from './adw-menu-button.js';
+import { GtkMenuButton } from './gtk-menu-button.js';
 import { AdwIcon } from './adw-icon.js';
 import { AdwBanner } from './adw-banner.js';
 import { AdwAvatar } from './adw-avatar.js';
@@ -318,15 +318,15 @@ const ELEMENTS = {
     AdwSwitchRow,
     AdwEntryRow,
     AdwPasswordEntryRow,
-    AdwEntry,
+    GtkEntry,
     AdwComboRow,
-    AdwDropDown,
+    GtkDropDown,
     AdwSpinRow,
     AdwSliderRow,
     AdwExpanderRow,
-    AdwButton,
+    GtkButton,
     AdwImageButton,
-    AdwMenuButton,
+    GtkMenuButton,
     AdwIcon,
     AdwBanner,
     AdwAvatar,
