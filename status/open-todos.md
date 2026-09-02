@@ -1927,6 +1927,25 @@ what gjs requires, so nothing there is ours to free; the type check guarding tha
 is a safety property, because reading `elemSize` bytes out of a smaller record reads
 past its end.
 
+**The widening nearly replaced a LOUD REFUSAL with a SILENT NOTHING, which is the more
+expensive of the two and the reason this paragraph exists.** Some callees FILL a
+by-value GValue array rather than read it — `GObject.Object.getv`,
+`Gst.Object.get_g_value_array`, `Gst.ControlBinding.get_g_value_array`. Before the
+change those threw; after it they ran and did nothing, leaving the caller with an empty
+GValue that looks like a data state rather than a failure.
+
+**No annotation check could have found it.** Measured field by field: `g_object_getv`'s
+`values` reports direction=IN, caller-allocates=false, transfer=none — byte for byte
+the same metadata as `GLib.parse_debug_string`'s genuinely read-only `keys`. The typelib
+does not distinguish "the callee reads this array" from "the callee fills it", so only a
+before/after comparison of BEHAVIOUR shows it. The answer is therefore not a predicate
+but a write-back: a cell that came from a caller's GValue is copied back into it after
+the invoke, with `g_value_copy` rather than a memcpy, because the cell is unset
+immediately after and a bitwise copy would leave the caller pointing at a string that
+unset frees. gjs has the same gap — `getv` there also reads back `null`, measured on
+1.88.1 — so this is a deliberate divergence, and the annotation is recorded in
+`status/upstream-patch-candidates.md`.
+
 **One deliberate divergence from gjs.** Two arrays naming ONE length argument are
 refused when they disagree. The autofill wrote it once per array, so the last array
 silently decided the count the callee read both by. gjs does not check it — measured on
