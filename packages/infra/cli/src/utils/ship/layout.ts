@@ -143,7 +143,7 @@ export interface Layout {
      *
      * THE GAP IS NOT THE PATH (ADR 0037). `share/fonts` is reached identically on
      * all three layouts — fontconfig expands `<dir prefix="xdg">fonts</dir>` over
-     * the `XDG_DATA_DIRS` every launcher already exports, measured in two
+     * the `XDG_DATA_DIRS` every launcher already exports, measured in eight
      * independent fontconfigs. What differs per OS is whether the Pango that
      * artifact runs is fontconfig-backed at all and which `fonts.conf` it loads,
      * and both are properties of `@gjsify/gtk-runtime-<target>` rather than of this

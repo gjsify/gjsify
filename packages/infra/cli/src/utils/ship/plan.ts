@@ -139,7 +139,7 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
  * not refused by NAME: a font's filename is the foundry's and there is no
  * convention to hold it to, so the directory carries the id and the basenames are
  * left alone. fontconfig scans recursively, so nesting them costs nothing —
- * measured on fontconfig 2.17.0 and 2.14.1.
+ * measured across fontconfig 2.14.1 → 2.18.3.
  *
  * A basename appearing twice IS refused, for the reason `planIcons` refuses one:
  * two source files installing as one path means one of them is silently not

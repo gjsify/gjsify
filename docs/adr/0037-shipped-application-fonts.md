@@ -45,9 +45,12 @@ A missing face is quieter than either.
 
 ## What was measured
 
-All on Fedora 44, fontconfig **2.17.0**, FreeType 26.6.20, plus one second
-implementation named where it is used. The probe is one real TTF copied to
-`<probe>/prefix/share/fonts/org.example.App/probe.ttf`.
+All on Fedora 44, fontconfig **2.17.0**, FreeType 2.14.3 (`freetype2.pc` reports
+the libtool number 26.6.20, which is not a FreeType release), plus the seven other
+implementations in § 5. The probe is one real TTF copied to
+`<probe>/prefix/share/fonts/org.example.App/probe.ttf`, whose family is absent
+from every host and runtime tested — so a hit is the probe and never a
+substitution.
 
 **1. The stock `fonts.conf` names two things, and only one of them is a fixed path.**
 
@@ -81,10 +84,27 @@ resolves on the FIRST call and three cache files are written as a side effect.
 `fc-cache` is an optimisation here, not a precondition — which is the opposite of
 `glib-compile-schemas`, where the missing artifact aborts the process.
 
-**5. A second, older implementation agrees.** Inside `org.gnome.Platform//43`
-(fontconfig **2.14.1**), with `XDG_DATA_DIRS` carrying the probe prefix, the same
-face resolves. That runtime's own `fonts.conf` carries the same two elements and
-no `/app` entry, and Flatpak sets `XDG_DATA_DIRS=/app/share:/usr/share:…` — so
+**5. Eight independent fontconfig builds agree, across five releases.** The claim
+is a BEHAVIOUR of a third-party library that its own manual contradicts, so one
+host is not enough to build a mechanism on. Re-run in every runtime available
+here — probe prefix on `XDG_DATA_DIRS`, `XDG_DATA_HOME=/nonexistent-home`, a fresh
+`XDG_CACHE_HOME`, and a negative control (`XDG_DATA_DIRS=/usr/share`) in each:
+
+| runtime | fontconfig | control | probe prefix on `XDG_DATA_DIRS` |
+|---|---|---|---|
+| Fedora 44 (host) | 2.17.0 | fallback | **found** |
+| `org.gnome.Platform//43` | 2.14.1 | fallback | **found** |
+| `org.gnome.Platform//45`, `//46`, `//47`, `//48` | 2.15.0 | fallback | **found** |
+| `org.gnome.Platform//49` | 2.17.1 | fallback | **found** |
+| `org.gnome.Platform//master` | 2.18.3 | fallback | **found** |
+| `org.freedesktop.Platform//24.08` | 2.15.0 | fallback | **found** |
+| `org.freedesktop.Platform//25.08` | 2.17.1 | fallback | **found** |
+| `org.fedoraproject.Platform//f44` | 2.17.0 | fallback | **found** |
+
+So the expansion is not a Fedora patch, not a recent addition and not a
+regression waiting to be reverted — it is what every fontconfig in reach does.
+Each of those runtimes carries the same two `fonts.conf` elements and no `/app`
+entry, and Flatpak sets `XDG_DATA_DIRS=/app/share:/usr/share:…` — so
 `/app/share/fonts` is reached by this rule and not by a Flatpak-specific one.
 
 **6. It recurses.** The probe face is one level below `fonts/`, under a directory
@@ -205,7 +225,7 @@ is the error the first draft made.
 | | how the payload's `share/fonts/<appId>` is reached | status |
 |---|---|---|
 | Linux, `.deb` / `.rpm` (`/usr`) | the stock `fonts.conf`'s unconditional `<dir>/usr/share/fonts</dir>` | measured here |
-| Linux, Flatpak (`/app`) | `<dir prefix="xdg">fonts</dir>` over the `XDG_DATA_DIRS` Flatpak sets | measured here, twice (2.17.0 and 2.14.1) |
+| Linux, Flatpak (`/app`) | `<dir prefix="xdg">fonts</dir>` over the `XDG_DATA_DIRS` Flatpak sets | measured here, in eight fontconfig builds (2.14.1 → 2.18.3) |
 | macOS `.app` | `ATSApplicationFontsPath` in `Info.plist`, resolved against `Contents/Resources` — the OS activates the directory for THIS app at launch | primary sources; activation unverified on hardware |
 | Windows program directory | **nothing declarative exists.** The launcher exports `GJSIFY_FONT_DIR` and the app calls `PangoCairo.FontMap.get_default().add_font_file()` | primary sources; the three candidates that look like they work are each dead — see above |
 
@@ -326,9 +346,12 @@ targets the file somebody put there meaning it to ship.
   sets them itself, with `setIfUnset`, so a launcher value would silently win over
   the runtime bundle's own config. It would also be pointing at a font map neither
   non-Linux OS selects.
-- **The fontconfig floor.** The `XDG_DATA_DIRS` expansion holds in 2.14.1 and
-  2.17.0. Which release introduced it is not established here, and nothing depends
-  on the answer for the `/usr` case, which uses the unconditional `<dir>` instead.
+- **The fontconfig floor.** The `XDG_DATA_DIRS` expansion holds in every
+  fontconfig reachable from here — 2.14.1, 2.15.0, 2.17.0, 2.17.1, 2.18.3, in
+  eight independently built runtimes (§ *What was measured*, 5). Which release
+  introduced it, and whether one before 2.14.1 lacks it, is not established; the
+  `/usr` case does not depend on the answer, because it uses the unconditional
+  `<dir>` instead.
 
 ## Implementation
 

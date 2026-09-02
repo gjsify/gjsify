@@ -50,10 +50,10 @@ export const SHARE = {
      * fontconfig expands over `XDG_DATA_DIRS` as well as `XDG_DATA_HOME` — so the
      * variable the launcher already exports covers `/app` in a Flatpak and any other
      * prefix. `fonts-conf(5)` documents only `XDG_DATA_HOME` there; the expansion was
-     * measured in two independent fontconfigs (2.17.0 on Fedora 44 and 2.14.1 inside
-     * `org.gnome.Platform//43`), in every list position, recursively, with a cold
-     * cache. Behaviour, not documentation — which is why it is written here and in
-     * ADR 0037 § *What was measured* rather than re-derived from the man page.
+     * measured in EIGHT independently built fontconfigs (2.14.1 through 2.18.3), in
+     * every list position, recursively, with a cold cache and a negative control.
+     * Behaviour, not documentation — which is why it is written here and in ADR 0037
+     * § *What was measured* rather than re-derived from the man page.
      *
      * On MACOS none of that applies and the directory is the same: Pango there is
      * CoreText-backed and GTK is not built against fontconfig, so `Info.plist`'s
