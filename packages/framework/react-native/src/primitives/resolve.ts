@@ -46,6 +46,7 @@ import {
 import { mintClass, normalise, partition, variantDeclarations, type ClassNameSink, type StyleInput } from './style.js';
 import {
     FRAMEWORK_PROPS,
+    PRIMITIVE_NAMES,
     PRIMITIVES,
     type ContentSpec,
     type HandleKind,
@@ -256,7 +257,7 @@ export function declaresAbsolute(props: PrimitiveProps, tokens: StyleTokens, pri
 export function resolvePrimitive(primitive: string, props: PrimitiveProps, context: PrimitiveContext): PrimitivePlan {
     const base = PRIMITIVES[primitive];
     if (base === undefined) {
-        throw new PrimitiveError(primitive, '', unknownPrimitiveDetail(Object.keys(PRIMITIVES)));
+        throw new PrimitiveError(primitive, '', unknownPrimitiveDetail(PRIMITIVE_NAMES));
     }
     // 1. `switchOn`: one React Native prop, two GTK widgets.
     const spec = base.switchOn !== undefined && props[base.switchOn.prop] === true ? base.switchOn.whenTrue : base;

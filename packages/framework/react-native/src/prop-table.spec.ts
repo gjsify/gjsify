@@ -18,7 +18,7 @@ import { MINIMAL_TOKENS, type StyleTokens } from '@gjsify/gtk-host/style';
 import { PrimitiveError } from './primitives/errors.js';
 import { resolvePrimitive } from './primitives/resolve.js';
 import type { ClassNameSink } from './primitives/style.js';
-import { PRIMITIVES } from './primitives/table.js';
+import { PRIMITIVES, type PrimitiveSpec } from './primitives/table.js';
 import {
     PRIMITIVE_NAMES,
     PRIMITIVE_VARIANTS,
@@ -156,6 +156,35 @@ export default async () => {
                 expect(typeof row.status).toBe('string');
                 if (row.status === 'refused' || row.status === 'unknown') expect(row.why.length > 0).toBe(true);
             }
+        });
+
+        await it('carries a row for every prop the resolver skips by NAME', async () => {
+            // THE ONE WAY THE TWO CAN STILL DIVERGE, and it is the drift the sweep above
+            // cannot see. `resolvePrimitive` skips a content or backdrop node's own style
+            // props (`contentContainerStyle`, `imageStyle`, …) BEFORE it looks a route up,
+            // so a render accepts them whether or not the table names them —
+            // `answers.ts` has no such list and would call an unnamed one `unknown`, i.e.
+            // publish a refusal for a prop that renders. Every one of them is a declared
+            // `ignored` row today; a content node added tomorrow without one fails here
+            // instead of shipping a table that refuses working code.
+            const skipped: string[] = [];
+            for (const [name, base] of Object.entries(PRIMITIVES)) {
+                const branch = base.switchOn;
+                const cases: (readonly [PropVariant | undefined, PrimitiveSpec])[] = [[undefined, base]];
+                if (branch !== undefined) cases.push([{ [branch.prop]: true }, branch.whenTrue]);
+                for (const [variant, spec] of cases) {
+                    for (const prop of [
+                        spec.content?.styleProp,
+                        spec.content?.classNameProp,
+                        spec.backdrop?.styleProp,
+                        spec.backdrop?.classNameProp,
+                    ]) {
+                        if (typeof prop !== 'string') continue;
+                        if (!propNames(name, variant).includes(prop)) skipped.push(`${name}.${prop}`);
+                    }
+                }
+            }
+            expect(skipped).toStrictEqual([]);
         });
     });
 };

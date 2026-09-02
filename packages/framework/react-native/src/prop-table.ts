@@ -35,12 +35,19 @@ import {
     type PropAnswer,
     type PropStatus,
 } from './primitives/answers.js';
-import { FRAMEWORK_PROPS, PRIMITIVES, type PrimitiveSpec } from './primitives/table.js';
+import { PrimitiveError, primitiveErrorMessage } from './primitives/errors.js';
+import { FRAMEWORK_PROPS, PRIMITIVE_NAMES, PRIMITIVES, type PrimitiveSpec } from './primitives/table.js';
 
 export type { PropAnswer, PropStatus };
 
-/** Every primitive this layer answers for. Derived from the table, so it cannot disagree with it. */
-export const PRIMITIVE_NAMES: readonly string[] = Object.keys(PRIMITIVES);
+/**
+ * Every primitive this layer answers for.
+ *
+ * The table's own constant, re-exported rather than recomputed: a second
+ * `Object.keys(PRIMITIVES)` is a second thing to keep in step for no gain, and this
+ * subpath exists precisely so there is one answer.
+ */
+export { PRIMITIVE_NAMES };
 
 /**
  * One React Native prop that selects a DIFFERENT widget, and therefore a different
@@ -63,9 +70,10 @@ export type PropVariant = Readonly<Record<string, boolean>>;
 function specFor(primitive: string, variant: PropVariant | undefined): PrimitiveSpec {
     const base = PRIMITIVES[primitive];
     if (base === undefined) {
-        // The SAME sentence `resolvePrimitive` throws, so a consumer's test failure
-        // reads like the render's would have.
-        throw new Error(`@gjsify/react-native: <${primitive}> ${unknownPrimitiveDetail(PRIMITIVE_NAMES)}`);
+        // The SAME error `resolvePrimitive` throws, so a consumer's test failure reads
+        // like the render's would have — and a test that catches `PrimitiveError` does
+        // not have to catch a bare `Error` here as well.
+        throw new PrimitiveError(primitive, '', unknownPrimitiveDetail(PRIMITIVE_NAMES));
     }
     const branch = base.switchOn;
     if (branch === undefined || variant === undefined || variant[branch.prop] !== true) return base;
@@ -103,7 +111,10 @@ export function acceptsProp(primitive: string, prop: string, variant?: PropVaria
 export function explainProp(primitive: string, prop: string, variant?: PropVariant): string | null {
     const answer = propAnswer(primitive, prop, variant);
     if (isAccepted(answer.status)) return null;
-    return `@gjsify/react-native: <${primitive}> prop "${prop}" — ${answer.why}`;
+    // `PrimitiveError`'s own formatter, not a second literal shaped like it: the two
+    // agreeing is the claim, and a claim held by two copies of a template is the shape
+    // that drifts.
+    return primitiveErrorMessage(primitive, `prop "${prop}"`, answer.why);
 }
 
 /** Every prop name this primitive's table row carries, sorted. Framework props are not among them. */
