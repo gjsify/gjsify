@@ -417,14 +417,19 @@ re-priced order is in that ADR's § Amendment and § Amendment 2).
 holds widget names on three renderers and property names on one, and prints, every run:
 
 ```
-4 declared widget surface(s), every one of them read. 168 GTK tags …; 65 adw-* web elements
-— 44 share a spelling, 10 alias one, 11 declared web-only; 46 @gjsify/adwaita-nativescript
-widgets — 38 share a spelling, 6 should converge, 2 declared own, 0 undecided; 2
-@gjsify/adwaita-react-native widgets — 2 share a spelling, 0 should converge, 0 declared
-own, 0 undecided. Properties, on @gjsify/adwaita-nativescript only: 44 widgets with a GIR
-counterpart set 143 settable propert(y|ies) between them — 91 already agree with the
-counterpart's ConstructorProps, 52 do not (25 should converge, 27 declared own, 0
-undecided). Distance to one vocabulary: 6 widget name(s) and 25 property name(s).
+4 declared widget surface(s), every one of them read. 169 GTK tags across 3 dialect
+surfaces + the runtime table + the surface data; 65 @gjsify/adwaita-web elements — 53
+share a spelling, 0 alias one, 12 declared web-only; 46 @gjsify/adwaita-nativescript
+widgets — 42 share a spelling, 2 should converge, 2 declared own, 0 undecided; 12
+@gjsify/adwaita-react-native widgets — 12 share a spelling, 0 should converge, 0
+declared own, 0 undecided. Properties, on @gjsify/adwaita-nativescript only: 44
+widgets with a GIR counterpart set 143 settable propert(y|ies) between them — 102
+already agree with the counterpart's ConstructorProps, 41 do not (14 should converge,
+27 declared own, 0 undecided). Namespace exports (ADR 0034 clause 2): 3 of 3
+renderer(s) — @gjsify/adwaita-web exports Adw with 44 and Gtk with 9,
+@gjsify/adwaita-nativescript exports Adw with 38 and Gtk with 5,
+@gjsify/adwaita-react-native exports Adw with 12. Distance to one vocabulary: 2 widget
+name(s) and 14 property name(s), and both can only go down.
 ```
 
 Every one of those numbers is derived at run time. None of them is written in the check's
@@ -438,7 +443,7 @@ Where each stands:
 | `gtk-host` | holds by construction (`src/tags.ts:18`) | declares `role: reference` |
 | `adwaita-web` | 10 elements violate it (`adw-entry` is `GtkEntry`) | **held** — all 21 declared, all 21 with a reason |
 | `adwaita-nativescript` | 4 violate it; 2 more have no counterpart | **held** — 8 widget entries + 52 property entries, `gir`/`composes`/`own`, each with a reason |
-| `adwaita-react-native` | holds (`AdwBin`, `AdwClamp`) | **held** — declared, read from the base barrel, empty ledger |
+| `adwaita-react-native` | holds (12 widgets, all share a spelling) | **held** — declared, read from the base barrel, empty ledger |
 
 **The clause 2 column is gone from this table on purpose.** It said `absent` three times,
 and it was already wrong for React Native, which exports `Adw` on all three of its barrels

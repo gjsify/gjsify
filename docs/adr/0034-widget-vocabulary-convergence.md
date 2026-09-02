@@ -95,7 +95,7 @@ grep -rhoE '<AdwWidget title="[A-Za-z.]+"' \
 | `@gjsify/gtk-host` (`src/generated/widgets.ts`) | GIR-derived kebab tags | **168** — 63 `Adw*`, 105 `Gtk*` |
 | `@gjsify/adwaita-web` | `adw-*` custom elements | **65** |
 | `@gjsify/adwaita-nativescript` | `Adw*` view classes in `adw-*.ts` | **46** |
-| `@gjsify/adwaita-react-native` | `Adw*` components | **2** (`AdwBin`, `AdwClamp`) |
+| `@gjsify/adwaita-react-native` | `Adw*` components | **12** |
 
 ```sh
 grep -c "gtype: '"    packages/framework/gtk-host/src/generated/widgets.ts   # 168
