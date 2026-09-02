@@ -23,6 +23,7 @@ import {
     activateNativePrebuilds,
     discoverPrebuiltTypelibDirs,
     resetNativePrebuildsForTests,
+    resolveHostMusl,
 } from '../native-prebuilds.js';
 
 /**
@@ -458,4 +459,104 @@ test('prefers the musl directory on a musl host, and only on linux', () => {
         fs,
     });
     assert.deepEqual(glibc, [`${pkg}/prebuilds/linux-x64`]);
+});
+
+// ---------------------------------------------------------------------------
+// The two decisions this module COPIES from `detect-native-packages.ts`. Both had
+// drifted: the copy compiled, passed every test above, and answered differently
+// from the file it names as its source — which is the only failure mode a copy has.
+// ---------------------------------------------------------------------------
+
+/** One package that both DECLARES and STAGES `spelling`, and nothing else. */
+function declaredSpellingTree(spelling) {
+    const nm = '/app/node_modules';
+    const pkg = `${nm}/@gjsify/x-native`;
+    return {
+        prebuild: `${pkg}/prebuilds/${spelling}`,
+        fs: fakeFs({
+            dirs: {
+                [nm]: [dir('@gjsify')],
+                [`${nm}/@gjsify`]: [dir('x-native')],
+                [pkg]: [dir('prebuilds')],
+                [`${pkg}/prebuilds`]: [dir(spelling)],
+                [`${pkg}/prebuilds/${spelling}`]: [file('X-1.0.typelib')],
+            },
+            manifests: {
+                [`${pkg}/package.json`]: {
+                    name: '@gjsify/x-native',
+                    gjsify: { prebuilds: 'prebuilds', platforms: [spelling] },
+                },
+            },
+        }),
+    };
+}
+
+test('resolves every spelling the CLI resolves for this host', () => {
+    // Measured against `resolvePrebuildDirName()` itself, not against a reading of
+    // it: the CLI answers all five, and this module answered two. `linux-amd64` and
+    // `linux-aarch64` need `canonicalPlatformToken`'s arch folding (the declared
+    // probe compared RAW strings, so it could only ever match a token the line after
+    // it pushed anyway — dead code wearing a comment that claimed otherwise);
+    // `linux-armv7` and `linux-i686` need the two rows the legacy table was missing.
+    for (const [spelling, platform, arch] of [
+        ['linux-x86_64', 'linux', 'x64'],
+        ['linux-amd64', 'linux', 'x64'],
+        ['linux-aarch64', 'linux', 'arm64'],
+        ['linux-armv7', 'linux', 'arm'],
+        ['linux-i686', 'linux', 'ia32'],
+    ]) {
+        const { prebuild, fs } = declaredSpellingTree(spelling);
+        assert.deepEqual(
+            discoverPrebuiltTypelibDirs({ startDir: '/app', platform, arch, musl: false, fs }),
+            [prebuild],
+            `declared + staged "${spelling}" on ${platform}-${arch}`,
+        );
+    }
+});
+
+test('the declared spelling is probed BEFORE the canonical one', () => {
+    // A pre-rename tarball that ships BOTH directories must load the one it declares;
+    // order is the only thing that decides it, and the two are indistinguishable to a
+    // test that ships only one.
+    const nm = '/app/node_modules';
+    const pkg = `${nm}/@gjsify/x-native`;
+    const fs = fakeFs({
+        dirs: {
+            [nm]: [dir('@gjsify')],
+            [`${nm}/@gjsify`]: [dir('x-native')],
+            [pkg]: [dir('prebuilds')],
+            [`${pkg}/prebuilds`]: [dir('linux-x64'), dir('linux-x86_64')],
+            [`${pkg}/prebuilds/linux-x64`]: [file('X-1.0.typelib')],
+            [`${pkg}/prebuilds/linux-x86_64`]: [file('X-1.0.typelib')],
+        },
+        manifests: {
+            [`${pkg}/package.json`]: {
+                name: '@gjsify/x-native',
+                gjsify: { prebuilds: 'prebuilds', platforms: ['linux-x86_64'] },
+            },
+        },
+    });
+    assert.deepEqual(
+        discoverPrebuiltTypelibDirs({ startDir: '/app', platform: 'linux', arch: 'x64', musl: false, fs }),
+        [`${pkg}/prebuilds/linux-x86_64`],
+    );
+});
+
+test('a host that cannot answer the glibc probe is glibc, not musl', () => {
+    // `process.report` is a NODE-only API. It does not answer on bun, on deno, or
+    // under GJS — three of the four runtimes node-gi loads on. Reading that silence
+    // as "musl" made every one of them prefer a `-musl` directory on an ordinary
+    // glibc host, and a musl-linked library staged there cannot load on the platform
+    // it would then be chosen for: a silent wrong artifact, not a loud refusal.
+    assert.equal(resolveHostMusl({ platform: 'linux' }), false);
+    assert.equal(resolveHostMusl({ platform: 'linux', muslLoaderPresent: false }), false);
+    // The loader is the fact that answers where the report cannot.
+    assert.equal(resolveHostMusl({ platform: 'linux', muslLoaderPresent: true }), true);
+    // A glibc-linked process on a host that ALSO installs musl (gcompat) is glibc:
+    // the report is about the running process and wins.
+    assert.equal(resolveHostMusl({ platform: 'linux', glibcVersionRuntime: '2.41', muslLoaderPresent: true }), false);
+    // Linux-only, as npm's own `libc` field is. A caller's host facts do not get to
+    // invent a target the grammar does not have.
+    assert.equal(resolveHostMusl({ platform: 'darwin', muslLoaderPresent: true }), false);
+    assert.equal(resolveHostMusl({ platform: 'win32', muslLoaderPresent: true }), false);
 });

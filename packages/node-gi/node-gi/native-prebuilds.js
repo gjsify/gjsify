@@ -59,13 +59,45 @@
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+// `packageRoot` rather than a second `dirname(fileURLToPath(import.meta.url))` here:
+// native-paths.js exists to be the ONE definition of this package's own root, and a
+// second copy of the expression is a second chance to spell it wrong — which is
+// exactly what happened to this one (`new URL(…).pathname`, "/C:/…" on Windows)
+// while the copy in native-paths.js was right the whole time.
+import { packageRoot } from './native-paths.js';
 
-/** Mirrors NODE_ARCH_TO_LEGACY_UNAME in detect-native-packages.ts. */
-const LEGACY_UNAME_ARCH = { x64: 'x86_64', arm64: 'aarch64' };
+/**
+ * Mirrors NODE_ARCH_TO_LEGACY_UNAME in detect-native-packages.ts. ALL FOUR rows, not
+ * the two this host happens to use: a short table reads as complete and the missing
+ * rows fail as "typelib not found" on the arch nobody here tests on.
+ */
+const LEGACY_UNAME_ARCH = { x64: 'x86_64', arm64: 'aarch64', arm: 'armv7', ia32: 'i686' };
+
+/** Mirrors ARCH_ALIASES: spellings that name the same arch, folded onto the node one. */
+const ARCH_ALIASES = { x86_64: 'x64', amd64: 'x64', aarch64: 'arm64' };
 
 /** Mirrors MUSL_SUFFIX. Linux-only by construction, as the grammar has it. */
 const MUSL_SUFFIX = '-musl';
+
+/**
+ * Mirrors `canonicalPlatformToken()`: fold the ARCH half onto the node spelling so a
+ * package's own declared token compares equal to a host token.
+ *
+ * Load-bearing rather than tidiness. Without it the declared-spelling probe below
+ * compares two RAW strings, which can only ever match a token the probe beside it
+ * already adds — so the whole declaration branch was dead code, and a package
+ * declaring + staging `linux-amd64` resolved in the CLI and not here.
+ */
+function canonicalPlatformToken(token) {
+    const isMusl = token.endsWith(MUSL_SUFFIX);
+    const base = isMusl ? token.slice(0, -MUSL_SUFFIX.length) : token;
+    const dash = base.indexOf('-');
+    if (dash < 0) return token;
+    const os = base.slice(0, dash);
+    const arch = base.slice(dash + 1);
+    if (arch === '') return token;
+    return `${os}-${ARCH_ALIASES[arch] ?? arch}${isMusl ? MUSL_SUFFIX : ''}`;
+}
 
 /**
  * Directory names to probe for a host, most-specific first.
@@ -82,15 +114,62 @@ function targetCandidates(platform, arch, musl) {
     return out;
 }
 
-/** Whether this Linux process is on musl. Cheap, and `null` off Linux. */
+/**
+ * Mirrors `resolveHostLibc()`: decide a host's C library from two independently
+ * gathered facts. PURE, and exported so a test can pin the decision — the CLI keeps
+ * it that way for the same reason, since neither probe answers everywhere.
+ *
+ * TWO probes, and the SECOND is what makes the default correct:
+ *
+ *   1. `process.report.…glibcVersionRuntime` — present iff the running process is
+ *      linked against glibc, authoritative when it answers, and a NODE-only API. It
+ *      does not answer on bun, on deno, or under GJS, where `@gjsify/process` has no
+ *      `report` at all — and node-gi runs on all four.
+ *   2. musl's dynamic loader, `/lib/ld-musl-<arch>.so.1`. A fact about the SYSTEM
+ *      rather than about the process, so it answers on the three runtimes probe 1
+ *      cannot.
+ *
+ * NEITHER answering means glibc, which is a claim about the evidence and not a guess:
+ * probe 2 finding no musl loader means the host has no musl. Reading probe 1's silence
+ * as "musl" — which is what this did before, having copied only the first half — makes
+ * every bun/deno/GJS host on glibc prefer a `-musl` directory, and a musl-linked
+ * library staged there cannot load on the platform it would be chosen for. Silent
+ * wrong artifact, not a loud refusal.
+ *
+ * @param {{platform: string, glibcVersionRuntime?: string, muslLoaderPresent?: boolean}} input
+ * @returns {boolean} whether to offer `-musl` directories; false off Linux, where the
+ *   axis does not exist (npm's own `libc` field is Linux-only).
+ */
+export function resolveHostMusl(input) {
+    if (input.platform !== 'linux') return false;
+    if (typeof input.glibcVersionRuntime === 'string' && input.glibcVersionRuntime.length > 0) return false;
+    return input.muslLoaderPresent === true;
+}
+
+/** Gather the two host facts {@link resolveHostMusl} decides from. */
 function hostIsMusl(platform) {
     if (platform !== 'linux') return false;
+    let glibcVersionRuntime;
     try {
-        // The same signal the CLI uses: a glibc report names itself.
-        return !String(process.report?.getReport()?.header?.glibcVersionRuntime ?? '').length;
+        // Two ways probe 1 declines: a missing `report` short-circuits to undefined,
+        // while a bare `process` (a GJS host with no polyfill registered) or a partial
+        // `getReport` shim THROWS. Both mean the same thing here.
+        const header = process.report?.getReport()?.header;
+        if (typeof header?.glibcVersionRuntime === 'string') glibcVersionRuntime = header.glibcVersionRuntime;
     } catch {
-        return false;
+        // Probe 2 still answers.
     }
+    let muslLoaderPresent = false;
+    try {
+        // Read the directory rather than testing per-arch loader names: those
+        // (`ld-musl-x86_64`, `ld-musl-aarch64`, …) are a THIRD arch vocabulary, and
+        // this file already carries the two the repo keeps. Throws on a host with no
+        // `/lib` at all, which is the same answer as finding no loader in one.
+        muslLoaderPresent = readdirSync('/lib').some((f) => f.startsWith('ld-musl-'));
+    } catch {
+        // No `/lib` to read ⇒ no musl loader installed.
+    }
+    return resolveHostMusl({ platform, glibcVersionRuntime, muslLoaderPresent });
 }
 
 /** `@scope/name` + token -> `@scope/name-token`, as `platformPackageName` spells it. */
@@ -173,7 +252,8 @@ function stagedDirFor(pkgDir, manifest, tokens, fs) {
     for (const token of tokens) {
         if (Array.isArray(declaredPlatforms)) {
             for (const declared of declaredPlatforms) {
-                if (typeof declared === 'string' && declared === token && !names.includes(declared)) {
+                if (typeof declared !== 'string') continue;
+                if (canonicalPlatformToken(declared) === token && !names.includes(declared)) {
                     names.push(declared);
                 }
             }
@@ -222,9 +302,14 @@ function siblingStagedDir(pkgDir, pkgName, tokens, fs) {
  * and win32 branches are exercisable from a Linux host — the discipline
  * `detect-native-packages.ts` already states.
  *
- * COST, and it is NOT cheap: this reads every `package.json` in the tree — 940 reads
- * and about 14 ms warm on a 1315-package install — before any namespace is required,
- * on every addon load, and an application with no native prebuild pays it too.
+ * COST, and it is NOT cheap. Two parts, and the accounting has to name both or the
+ * second one grows unwatched: ONE `package.json` read per package in the tree, PLUS
+ * the second pass's probes for every package that declares prebuilds and resolves
+ * nothing locally — those walk to the filesystem root, per host token, opening a
+ * companion manifest that is not there. Measured on a 1691-package install
+ * (linux-x64, warm page cache): 1691 + 848 = 2539 reads, ~40 ms; ~306 ms cold. It is
+ * paid before any namespace is required, on every addon load, and by an application
+ * with no native prebuild at all.
  *
  * A cheaper pre-filter was tried and is recorded here because it looked right and was
  * not. Skipping a package that has no `prebuilds/` directory (a cheap `stat`) cut the
@@ -301,10 +386,13 @@ export function activateNativePrebuilds(native, options = {}) {
     if (typeof native?.prependSearchPath !== 'function') return activated;
 
     const {
-        // fileURLToPath, NOT `new URL(...).pathname`: on Windows that yields "/C:/…",
-        // which `dirname` turns into a path that resolves to nothing — and win32 is one
-        // of the two platforms this discovery exists for.
-        startDir = dirname(fileURLToPath(import.meta.url)),
+        // This package's own directory, which inside an installed application IS that
+        // application's tree — so the upward walk sees every `node_modules` above it.
+        // Deliberately NOT merged with `process.cwd()` the way the GJS-side helper in
+        // `gi-search-path.ts` does: that one serves a globally installed CLI sitting
+        // away from the project, while a cwd anchor here would make which typelibs a
+        // library loads depend on the shell's working directory. ADR 0021 § The Node host.
+        startDir = packageRoot,
         platform = process.platform,
         arch = process.arch,
         musl,
