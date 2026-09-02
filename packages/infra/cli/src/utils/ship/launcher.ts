@@ -25,6 +25,16 @@
 // the tree was installed. Getting that from the launcher rather than from the app
 // keeps the app free of install-layout knowledge.
 //
+// IT ALSO CARRIES THE FONTS, and that reader is not GLib (ADR 0037). fontconfig
+// expands the stock `fonts.conf`'s `<dir prefix="xdg">fonts</dir>` over
+// `XDG_DATA_DIRS` as well as `XDG_DATA_HOME` — measured on fontconfig 2.17.0
+// (Fedora 44) and 2.14.1 (`org.gnome.Platform//43`), in every list position,
+// recursively, with a cold cache — so this one export is the whole mechanism
+// behind `gjsify.ship.fonts` outside a `/usr` prefix, and it is what reaches
+// `/app/share/fonts` in a Flatpak. `fonts-conf(5)` documents only
+// `XDG_DATA_HOME`, so the behaviour is not re-derivable from the manual: do not
+// narrow this line to the GLib readers on the strength of what the man page says.
+//
 // THREE FORMS, because neither other OS runs this file. macOS runs a `/bin/sh`
 // script too but cannot use `readlink -f` and must not be handed a `DYLD_*`;
 // Windows runs `cmd.exe`, which shares no syntax with either. What they DO share
@@ -145,6 +155,19 @@ function renderPrefixLauncher(settings: ShipSettings, bundleRelPath: string, lay
     // and in any `--prefix` tree.
     if (settings.localeFiles.length > 0) {
         lines.push(`GJSIFY_LOCALE_DIR="$prefix"/${dirs.data}/locale`, 'export GJSIFY_LOCALE_DIR');
+    }
+
+    // Where the faces landed, handed over for the same reason and in the same
+    // shape as the catalogue directory above (ADR 0037). On Linux fontconfig
+    // already finds them by itself, so this is the OS where the variable is
+    // redundant — it is exported anyway because the ONE thing a consumer must not
+    // have to write is an OS branch around a path this command chose. Windows is
+    // where it is load-bearing: nothing there reaches a font file by
+    // configuration, so the app registers it with
+    // `PangoCairo.FontMap.get_default().add_font_file()` and this is how it learns
+    // which directory to walk.
+    if (settings.fontFiles.length > 0) {
+        lines.push(`GJSIFY_FONT_DIR="$prefix"/${dirs.data}/fonts/${settings.appId}`, 'export GJSIFY_FONT_DIR');
     }
 
     lines.push(`exec ${execLine(layout, `"$prefix"/${dirs.bundle}/${bundleRelPath}`, settings)} "$@"`, '');
@@ -275,6 +298,15 @@ function renderAppBundleLauncher(
     if (settings.localeFiles.length > 0) {
         lines.push(`GJSIFY_LOCALE_DIR="$contents/${under(dirs.data)}/locale"`, 'export GJSIFY_LOCALE_DIR');
     }
+    // The face directory, for the same reason as above — and on THIS OS it is
+    // informational rather than the mechanism: `Info.plist`'s
+    // `ATSApplicationFontsPath` has already had macOS activate the same directory
+    // before this script's interpreter started (ADR 0037). Exported all the same,
+    // so a consumer that wants to name a bundled family has one spelling on three
+    // operating systems instead of an OS branch.
+    if (settings.fontFiles.length > 0) {
+        lines.push(`GJSIFY_FONT_DIR="$contents/${under(dirs.data)}/fonts/${settings.appId}"`, 'export GJSIFY_FONT_DIR');
+    }
 
     // `"$here/node"`, not `node`. The bare name is true of a developer's machine
     // and false of a `.app` a stranger downloads, and the difference is not a
@@ -369,6 +401,20 @@ function renderWindowsLauncher(
     }
     if (settings.localeFiles.length > 0) {
         lines.push(`set "GJSIFY_LOCALE_DIR=${at(dirs.data)}\\locale"`);
+    }
+    // THE ONE OS WHERE THIS VARIABLE IS THE WHOLE HANDOVER (ADR 0037). GTK4 here
+    // is pangowin32, whose font map is populated by
+    // `pango_win32_dwrite_font_map_populate()` — DirectWrite's system font
+    // collection plus Pango's own font-set builder, and NOT a filesystem search
+    // path. There is no env var, no manifest element and no side-by-side entry
+    // that activates a font file for one process; `AddFontResourceEx(FR_PRIVATE)`
+    // registers with GDI, which that populate call never consults. So the app
+    // registers the faces itself with
+    // `PangoCairo.FontMap.get_default().add_font_file()` (Pango 1.56+, in the
+    // typelib, and on win32 it clears the map's cache and emits `changed`, so it
+    // works after the map exists), and this line is how it is told where.
+    if (settings.fontFiles.length > 0) {
+        lines.push(`set "GJSIFY_FONT_DIR=${at(dirs.data)}\\fonts\\${windowsPath(settings.appId)}"`);
     }
 
     // `"%HERE%node.exe"`, not `node`. The bare name is true of a developer's

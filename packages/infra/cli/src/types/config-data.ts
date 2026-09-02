@@ -533,6 +533,30 @@ export interface ConfigDataShip extends AppMetadata {
      * produces a package that installs its translations and shows none of them.
      */
     localeDir?: string;
+    /**
+     * A font file, or a directory of them, the application SHIPS (ADR 0037).
+     * Default: `data/fonts` when it exists.
+     *
+     * Staged into `share/fonts/<appId>/`, which is where fontconfig looks: under a
+     * `/usr` prefix through the stock `fonts.conf`'s unconditional
+     * `<dir>/usr/share/fonts</dir>`, and under every other prefix through
+     * `<dir prefix="xdg">fonts</dir>` plus the `XDG_DATA_DIRS` the launcher already
+     * exports. The app names the FAMILY in its styles and needs no install-layout
+     * knowledge, exactly as it needs none for icons or schemas.
+     *
+     * This is what a branded application needs: on a GNOME host the family is
+     * usually installed anyway, and on macOS, on Windows and on any Linux that is
+     * not GNOME it is not — so without shipping it Pango silently substitutes a
+     * fallback and the app merely looks wrong, at exit 0.
+     *
+     * `.woff` / `.woff2` / `.eot` are REFUSED. Whether FreeType opens a web-font
+     * wrapper is a BUILD option of the FreeType the app runs against (brotli for
+     * woff2, zlib for woff), so it is a property of the host's or the bundle's
+     * closure rather than of the file — and a font that resolves on the developer's
+     * box and not in the shipped bundle is the exact silent substitution this key
+     * exists to prevent. Ship the desktop face.
+     */
+    fonts?: string;
     /** Extra payload entries: prefix-relative destination → project-relative source. */
     extraFiles?: Record<string, string>;
     /** Arguments the launcher appends before the user's own. */

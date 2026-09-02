@@ -158,8 +158,32 @@ function arrayEntry(key: string, values: readonly string[]): string {
  * which `flatpak.spec.ts` reds. The unblocker is an independent Linux ICNS reader
  * entering the CI image; until one does, the hicolor PNG/SVG the payload already
  * carries stays the only icon, unread on macOS.
+ *
+ * A TWELFTH KEY, `ATSApplicationFontsPath`, is emitted when the bundle carries
+ * faces, and it is the first one here NOT cited to `refs/` — so the exception is
+ * stated rather than left to be noticed (ADR 0037). The rule this module opens
+ * with exists against DECORATION: the five absent keys are cosmetic, nothing a
+ * reader here can open contains them, and emitting one would be a guess with no
+ * observable behind it. This key is a MECHANISM, and its citation is Apple's own
+ * *Information Property List Key Reference*, which states the scope in the terms
+ * this command needs: *"If present, macOS activates the fonts at the specified
+ * path for use by the bundled app. The fonts are activated only for the bundled
+ * app and not for the system as a whole."* The value is a path relative to
+ * `Contents/Resources`.
+ *
+ * It is also the only route there is. Pango on macOS is CoreText-backed, GTK is
+ * not built against fontconfig on that platform, and
+ * `pango_font_map_add_font_file()` answers `G_IO_ERROR_NOT_SUPPORTED` on the
+ * CoreText map — so the alternatives are this key or a `CTFontManager` call made
+ * from inside somebody else's application, which is not a packaging command's
+ * business.
+ *
+ * WHAT THE ORACLE CAN AND CANNOT SEE: `plistlib` reads the key back like any
+ * other, so the FILE is checked. That macOS activates the directory, and that
+ * Pango's CoreText map then holds the family, is unverified here — which is what
+ * `Layout.fontGap` says out loud rather than letting a green stage imply.
  */
-export function renderInfoPlist(input: LayoutMetadataInput): string {
+export function renderInfoPlist(input: LayoutMetadataInput, fontsPath?: string): string {
     const name = assertPlistText(input.name, 'CFBundleName', 'gjsify.ship.name');
     const executable = assertPlistText(input.binaryName, 'CFBundleExecutable', 'gjsify.ship.binaryName');
     const appId = assertPlistText(input.appId, 'CFBundleIdentifier', 'gjsify.ship.appId');
@@ -173,6 +197,12 @@ export function renderInfoPlist(input: LayoutMetadataInput): string {
         // → ShortVersionString → SupportedPlatforms → Version, and `v8/gni`'s
         // CFBundle keys sort the same way. Matching them keeps a diff against a
         // real bundle readable; no claim is made about what Xcode emits.
+        //
+        // `ATSApplicationFontsPath` sorts before every `CFBundle*` key, which is
+        // where alphabetical order puts it and also where a reader looks for it.
+        // Absent, not empty, when the bundle carries no face: an empty string is a
+        // path, and macOS would activate the Resources directory itself.
+        ...(fontsPath === undefined ? [] : [stringEntry('ATSApplicationFontsPath', fontsPath)]),
         stringEntry('CFBundleDevelopmentRegion', 'en'),
         stringEntry('CFBundleDisplayName', name),
         stringEntry('CFBundleExecutable', executable),

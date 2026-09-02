@@ -66,6 +66,7 @@ import {
     type Layout,
 } from '../utils/ship/layout.js';
 import { isNodeRuntimeTarget, resolveNodeRuntime } from '../utils/ship/node-runtime.js';
+import { isUnder, SHARE } from '../utils/ship/share-dirs.js';
 import { compileSchemasForStage } from '../utils/ship/schemas.js';
 import { buildMsi, MSI_PAYLOAD_DIR } from '../utils/ship/msi.js';
 import { buildZip, zipEntriesFromPayload } from '../utils/ship/zip.js';
@@ -536,6 +537,17 @@ async function assemble(args: ShipOptions): Promise<void> {
         for (const line of runtime.missing) console.warn(`${LOG} ${line}`);
         if (runtime.launcher.interpreter === undefined && layout.runtimeGap !== undefined) {
             console.warn(`${LOG} ${layout.runtimeGap}`);
+        }
+        // The same shape one axis over (ADR 0037). `share/fonts` is NOT in the list
+        // above — it needs no install step on any layout, so `linuxInstallDependent`
+        // classifies it as portable — but "the directory is reached" and "this OS's
+        // Pango reads that directory at all" are different questions, and only the
+        // first is settled by the payload. CONDITIONAL on the payload actually
+        // carrying a face, like `runtimeGap` is on the missing interpreter: telling a
+        // project that ships no font which fontconfig its Mac would consult is noise,
+        // and noise is what trains people to stop reading these lines.
+        if (layout.fontGap !== undefined && planned.some((file) => isUnder(file.path, SHARE.fonts))) {
+            console.warn(`${LOG} ${layout.fontGap}`);
         }
         // THE OTHER AXIS, warned about HERE and refused in `packOne`, and the split
         // is the same one `runtimeGap` and `assertFormatCanRunInterpreter` already

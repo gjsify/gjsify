@@ -560,8 +560,8 @@ the sentence:
   five reported "carries 5 file(s)" for a payload carrying six: a
   `share/dbus-1/services/*.service` added through `gjsify.ship.extraFiles` is meaningful on Linux
   only because the package installs it into a system prefix, and it went unnamed. Anything under
-  `share/` that is neither classified nor known-portable (only `share/locale` is) comes back
-  `unknown`.
+  `share/` that is neither classified nor known-portable (`share/locale` and `share/fonts`) comes
+  back `unknown`.
 - **`ShareVerdict` separates `aborts` from `inert`**, because they are not one severity. Every
   launcher exports `XDG_DATA_DIRS` at the staged `share/`, so a `.app` built from this stage points
   GSettings at a schema directory holding an `.xml` and no `gschemas.compiled` — `g_settings_new()`
@@ -576,6 +576,44 @@ Flagged there and not measured here: a loose `.typelib` in `Contents/Frameworks`
 codesign/notarization complaint (a bundle's `Frameworks` is expected to hold code, and a plain data
 file there is what `codesign --deep` and notarization object to), so stage 4 may have to move it.
 `LayoutDirs.other` already cites codesign as the reason nothing lands beside `Contents/`.
+
+### Fonts: one directory, three mechanisms, and only one of them is this file's (ADR 0037)
+
+`gjsify.ship.fonts` is another payload kind whose whole point is that something ELSE goes looking
+for it — `bindtextdomain` for the catalogues, the hicolor spec for the icons, the freedesktop menu
+for the desktop entry. It stages into `share/fonts/<appId>/` on the ONE prefix-relative plan, and
+`place()` maps it per layout with no rule of its own. What differs is who reaches it, and the three
+answers are not degrees of the same thing:
+
+| layout | what reaches the payload's `share/fonts/<appId>` | evidence |
+|---|---|---|
+| linux, `/usr` | the stock `fonts.conf`'s unconditional `<dir>/usr/share/fonts</dir>` | measured, fontconfig 2.17.0 |
+| linux, `/app` | `<dir prefix="xdg">fonts</dir>` expanded over `XDG_DATA_DIRS` — which `fonts-conf(5)` does not document | measured, 2.17.0 and 2.14.1, any list position, recursively, cold cache |
+| darwin | `ATSApplicationFontsPath` in `Info.plist`, relative to `Contents/Resources`; macOS activates it for THIS app at launch | Apple's key reference; the ACTIVATION is unverified here |
+| windows | **nothing.** The launcher exports `GJSIFY_FONT_DIR` and the app calls `PangoCairo.FontMap.get_default().add_font_file()` | pango/gvsbuild/cairo sources; not run on Windows |
+
+Three things follow, each of which looks wrong until the reason is read:
+
+- **`share/fonts` is in `SHARE_PORTABLE`, and that is a narrower claim than it looks.** The list
+  means "no package install step makes this correct", which is true of a face on every layout —
+  nothing compiles it, nothing reindexes it, and fontconfig caches lazily per user (measured: a cold
+  `XDG_CACHE_HOME` resolves the face on the first call). It does NOT mean the face is FOUND on the
+  other two. That question is `Layout.fontGap`, printed separately, because it is a fact about an OS
+  rather than about a missing scriptlet.
+- **`Layout.metadata` takes the PAYLOAD now.** A manifest key that names a directory is a statement
+  about a tree, and emitting `ATSApplicationFontsPath` over a bundle carrying no face would point
+  macOS at a path that is not there. `CFBundleDocumentTypes` will need the same seam.
+- **No `fc-cache` row in `cacheRefreshCommands`, deliberately.** Measured unnecessary, and both
+  distributions run it from their own fontconfig triggers. It is the one place this design DELETES
+  a step the other five `share/` directories have. What the packers DO gain is one line:
+  `/usr/share/fonts` in `rpm.ts`'s `SYSTEM_OWNED_DIRECTORIES`, because `fonts-filesystem` owns it
+  (`rpm -qf`) and the package owns only its own `<appId>` subdirectory.
+
+`.woff`/`.woff2`/`.eot` are refused by name rather than filtered away with the strays: FreeType's
+WOFF support is a BUILD option (`FT_CONFIG_OPTION_USE_BROTLI` for woff2), so a wrapper resolves on
+the packaging host — measured: `fc-query` reads one fine on Fedora 44 — and may not in the FreeType
+inside `@gjsify/gtk-runtime-<target>`. A face that fails to open is not an error; it is Pango
+substituting a different typeface at exit 0, which is the whole class this key exists against.
 
 ### The label is checked against the payload at STAGE time
 

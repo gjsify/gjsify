@@ -937,6 +937,56 @@ it. `gjsify.loaders` is a text/dataurl plugin, not a module-type map. Worth addi
 only once the hook half above is honest, since a config key whose value the GJS engine
 cannot honour would be the same defect one level up.
 
+### A bundled font on Windows needs one call, and no `@gjsify/*` package makes it
+
+ADR 0037 stages `gjsify.ship.fonts` into `share/fonts/<appId>/` and each OS reaches it
+declaratively — except Windows, where nothing does. GTK4 there is pangowin32, whose font
+map is populated by `pango_win32_dwrite_font_map_populate()` alone: DirectWrite's system
+font collection plus Pango's own font-set builder, with no filesystem search path. The
+three mechanisms that look like they would work are each dead. fontconfig IS built and
+linked by gvsbuild, but `pangocairo-fontmap.c` selects the first backend compiled in
+(coretext → win32 → fc) and cairo's meson adds `cairo-win32` unconditionally on a Windows
+host, so the fc font map is never selected. `XDG_DATA_DIRS` does not port either:
+`FcConfigXdgDataDirs()` splits on a hardcoded colon while `FC_SEARCH_PATH_SEPARATOR` is
+`;`, so `C:\App\share` splits into `C` and `\App\share`. And
+`AddFontResourceEx(FR_PRIVATE)` registers with GDI, which that populate call never reads.
+
+So the app must call `PangoCairo.FontMap.get_default().add_font_file(path)` at startup —
+in the typelib since Pango 1.56, and on win32 it clears the map's cache and emits
+`changed`, so it works after the font map exists. `gjsify ship` hands over the directory
+in `GJSIFY_FONT_DIR` and `Layout.fontGap` prints the call, which is a handover rather
+than a fix: every consumer that ships a face writes the same loop.
+
+It belongs in the GTK host layer (ADR 0027), which is where an application's startup
+already lives, and one call covers Windows AND Linux — `pango_fc_font_map_add_font_file`
+implements the same vfunc, process-locally, with no config file. macOS stays the odd one
+out: the CoreText font map implements no `add_font_file` at all and falls through to the
+base impl's `G_IO_ERROR_NOT_SUPPORTED`, which is why `ATSApplicationFontsPath` is the
+darwin mechanism and must stay so. What blocks it is not the call but the API shape —
+whether the host registers eagerly from `GJSIFY_FONT_DIR`, or exposes a function an app
+calls — and no leg in this repository can verify the Windows half either way.
+
+### The win32 GTK bundle ships fontconfig config that nothing reads
+
+`gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs` copies `<prefix>/etc/fonts` into the
+bundle and runs `fc-cache` over it; `node-gi/gtk-runtime.js` then sets `FONTCONFIG_PATH`
+and `FONTCONFIG_FILE` at it. Per the sources cited in the entry above the fc font map is
+compiled and never selected on Windows, so none of this affects text rendering.
+
+Two things make it worth removing rather than leaving as harmless: the code comment beside
+it says gvsbuild's pango "can be fontconfig-backed … so either path works", which is the
+claim that made ADR 0037's first draft wrong in the same direction; and the builder's
+`else` branch ("no etc/fonts … skipping") is probably unreachable, because fontconfig's own
+meson installs `fonts.conf` to `<prefix>/etc/fonts` and gvsbuild builds fontconfig with the
+default `sysconfdir` — so the "when present" test always passes and the log line implying a
+choice was never true. NOT VERIFIED against a gvsbuild release artifact; if that branch has
+ever been taken, fontconfig is being excluded from the closure somewhere and that is a
+different finding.
+
+`packages/node-gi` is outside the npm workspace with its own CI, and this is a REMOVAL of
+shipped bundle content, so it wants a Windows run behind it rather than a Linux-green
+deletion.
+
 ### `@gjsify/adwaita-fonts` ships desktop TTFs, which is why the web font is opt-in
 
 The package vendors `adwaita-sans-400.ttf` (880 KB) and its italic (910 KB) — the

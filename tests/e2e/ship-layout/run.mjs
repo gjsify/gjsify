@@ -88,6 +88,29 @@ const { linuxInstallDependent } = await import(
 const DARWIN_PREBUILD = join(MONOREPO_ROOT, 'packages', 'framework', 'webgl-darwin-arm64', 'prebuilds', 'darwin-arm64');
 const DARWIN_PAYLOAD = ['libgwebgl.dylib', 'Gwebgl-0.1.typelib'];
 
+/**
+ * A REAL font face, borrowed the same way and for the same reason (ADR 0037).
+ *
+ * `gjsify.ship.fonts` is the third payload kind whose whole point is that it lands
+ * where something ELSE goes looking — `bindtextdomain` for the catalogues, the
+ * hicolor spec for the icons, and for a face a DIFFERENT looker per OS (ADR 0037:
+ * fontconfig on Linux, `ATSApplicationFontsPath` on macOS, the app's own
+ * `add_font_file` on Windows). So the suite that states the layout map has to carry
+ * one. A zero-byte placeholder would prove the map and nothing about the file being
+ * a face, and this one is 11 KB, so it costs nothing to be real.
+ */
+const FONT_SOURCE = join(
+    MONOREPO_ROOT,
+    'showcases',
+    'dom',
+    'excalibur-jelly-jumper',
+    'src',
+    'assets',
+    'fonts',
+    'Round9x13.ttf',
+);
+const FONT_LEAF = 'Round9x13.ttf';
+
 /** The display name the fixture declares — and therefore the `.app` directory's. */
 const APP_NAME = 'Ship Demo';
 const BINARY = 'ship-demo';
@@ -200,18 +223,28 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
                 );
             }
         }
+        if (!existsSync(FONT_SOURCE)) {
+            throw new Error(
+                `${FONT_SOURCE} is missing, and it is the only real font face this suite has. Without it ` +
+                    'the `share/fonts` assertions would run over an empty set, so this fails instead of skipping.',
+            );
+        }
 
         tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ship-layout-'));
         projectDir = scaffold(join(tmpDir, 'app'), (pkg) => {
-            // The one config key this suite adds, and it is the consumer's:
+            // The two config keys this suite adds, and both are the consumer's:
             // `bundledTypelibs` is how ANY app says "I carry these GI libraries
-            // myself". Nothing about the layout is derived from it — it decides
-            // WHICH files are native, not where native files go.
+            // myself", `fonts` how it says "I carry this typeface". Nothing about
+            // the layout is derived from either — they decide WHICH files are
+            // native and which are faces, not where either kind goes.
             pkg.gjsify.ship.bundledTypelibs = ['data/gi'];
+            pkg.gjsify.ship.fonts = 'data/fonts';
         });
         mkdirSync(join(projectDir, 'data', 'gi'), { recursive: true });
         for (const file of DARWIN_PAYLOAD)
             copyFileSync(join(DARWIN_PREBUILD, file), join(projectDir, 'data', 'gi', file));
+        mkdirSync(join(projectDir, 'data', 'fonts'), { recursive: true });
+        copyFileSync(FONT_SOURCE, join(projectDir, 'data', 'fonts', FONT_LEAF));
 
         for (const os of ['linux', 'darwin', 'windows']) {
             runCliSync(CLI_ENTRY, ['ship', os, '--skip-build', '--stage', '--arch', ARCH, '--out', `ship-${os}`], {
@@ -234,6 +267,10 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             'lib/ship-demo/gi/libgwebgl.dylib',
             'lib/ship-demo/gjs.js',
             `share/applications/${APP_ID}.desktop`,
+            // Under the app id, because `/usr/share/fonts` is shared with every
+            // other package on the system — the same reason the schema and the
+            // mime document carry it (ADR 0037).
+            `share/fonts/${APP_ID}/${FONT_LEAF}`,
             `share/glib-2.0/schemas/${APP_ID}.gschema.xml`,
             `share/icons/hicolor/scalable/apps/${APP_ID}.svg`,
             `share/metainfo/${APP_ID}.metainfo.xml`,
@@ -316,6 +353,18 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         // The carried GI directory reaches the loader through the environment on
         // Linux, which is exactly what macOS cannot do — see the next test.
         assert.match(launcher, /^LD_LIBRARY_PATH="\$prefix"\/lib\/ship-demo\/gi/m);
+        // …and on THIS OS the same variable carries the staged fonts (ADR 0037),
+        // which is a reader `fonts-conf(5)` does not list: fontconfig expands
+        // `<dir prefix="xdg">fonts</dir>` over XDG_DATA_DIRS as well as
+        // XDG_DATA_HOME. Pinned here because narrowing the line to its GLib readers
+        // would silently un-ship every bundled typeface while every file stayed
+        // exactly where the assertions above put it.
+        assert.match(launcher, /^XDG_DATA_DIRS="\$prefix\/share:/m);
+        // The handover, exported on all three layouts so a consumer naming a
+        // bundled family has one spelling rather than an OS branch. Redundant on
+        // Linux, where fontconfig has already found the directory; load-bearing on
+        // Windows, where nothing has.
+        assert.match(launcher, /^GJSIFY_FONT_DIR="\$prefix"\/share\/fonts\/org\.example\.ShipDemo$/m);
     });
 
     it("darwin: no readlink -f, no DYLD_, and the payload's own runtime", () => {
@@ -329,6 +378,12 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.ok(!launcher.includes('DYLD_'), 'the macOS launcher must not export a DYLD_ variable');
         assert.match(launcher, /contents=\$\(dirname -- "\$here"\)/);
         assert.match(launcher, /GI_TYPELIB_PATH="\$contents\/Frameworks"/);
+        assert.match(launcher, /XDG_DATA_DIRS="\$contents\/Resources\/share:/);
+        // The font handover (ADR 0037). Informational on macOS and NOT the
+        // mechanism — `Info.plist`'s `ATSApplicationFontsPath` is, and the OS has
+        // already acted on it before this script runs, because Pango here is
+        // CoreText-backed and never reads XDG_DATA_DIRS for a face.
+        assert.match(launcher, /GJSIFY_FONT_DIR="\$contents\/Resources\/share\/fonts\/org\.example\.ShipDemo"/);
         // `gjs -m`, not `node`, and this fixture is `--app gjs`. The launcher
         // execs what `settings.app` says the payload was BUILT for, on every
         // layout — never what the layout's row says a shipped artifact will
@@ -357,6 +412,13 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         );
         assert.match(text, /set "HERE=%~dp0"/);
         assert.match(text, /if defined PATH \(set "PATH=%HERE%lib;%PATH%"\)/);
+        assert.match(text, /if defined XDG_DATA_DIRS \(set "XDG_DATA_DIRS=%HERE%share;%XDG_DATA_DIRS%"\)/);
+        // THE ONLY OS WHERE THIS LINE IS THE WHOLE FONT STORY (ADR 0037). GTK4
+        // here is pangowin32, populated from DirectWrite — no fontconfig, no GDI,
+        // no manifest element, and XDG_DATA_DIRS above reaches no face because
+        // `FcConfigXdgDataDirs()` splits on a hardcoded colon and `C:\…` is not a
+        // list. The app registers them itself, and this is how it is told where.
+        assert.match(text, /set "GJSIFY_FONT_DIR=%HERE%share\\fonts\\org\.example\.ShipDemo"/);
         assert.match(text, /gjs -m "%HERE%app\\gjs\.js" %\*/);
     });
 
@@ -557,6 +619,15 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
                     /(^|\/)share\//.test(rel) &&
                     !rel.includes('/share/locale/') &&
                     !rel.startsWith('share/locale/') &&
+                    // `share/fonts` is portable for the reason `share/locale` is,
+                    // and the reason is MEASURED (ADR 0037): fontconfig expands
+                    // `<dir prefix="xdg">fonts</dir>` over the XDG_DATA_DIRS every
+                    // launcher already exports, so there is no install step for a
+                    // non-Linux layout to be missing. What IS open on those two
+                    // layouts — whether their Pango is fontconfig-backed at all —
+                    // is `Layout.fontGap`, printed separately and asserted below.
+                    !rel.includes('/share/fonts/') &&
+                    !rel.startsWith('share/fonts/') &&
                     // The compiled cache is the one `share/` file that is not a
                     // COST — it is what removes one, so `SHARE_PORTABLE` skips it
                     // and the warning never names it. Reported under a heading
@@ -656,7 +727,76 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.equal(status, 0);
         assert.ok(!stderr.includes('whose Linux correctness'));
         assert.ok(!stderr.includes('ABORTS:'));
+        // …and nothing about fonts either. On Linux the payload's `share/fonts`
+        // lands in a directory the stock `fonts.conf` names unconditionally, so
+        // there is no gap to report and `Layout.fontGap` is absent for that row.
+        assert.ok(!stderr.includes('fontconfig'), 'the linux layout has no font gap to warn about');
     });
+
+    // ── the font gap, per OS and only where a face is actually carried ────
+
+    it('darwin: the Info.plist points macOS at the faces the bundle carries', () => {
+        // The macOS half of ADR 0037, and it is NOT the XDG_DATA_DIRS path: Pango
+        // there is CoreText-backed and GTK is not built against fontconfig, so the
+        // env variable that carries the icons and the schemas carries no face.
+        // `ATSApplicationFontsPath` is Apple's own per-app activation, resolved
+        // against `Contents/Resources` — and it has to AGREE with where the payload
+        // actually put them, which is what this reads back off the staged tree
+        // rather than off the renderer.
+        const plist = readFileSync(join(stages.darwin, `${APP_NAME}.app`, 'Contents', 'Info.plist'), 'utf-8');
+        const declared = /<key>ATSApplicationFontsPath<\/key>\n\t<string>([^<]*)<\/string>/.exec(plist);
+        assert.ok(declared, 'the bundle carries a face, so the plist must declare where');
+        const resources = join(stages.darwin, `${APP_NAME}.app`, 'Contents', 'Resources');
+        assert.ok(
+            existsSync(join(resources, declared[1], FONT_LEAF)),
+            `ATSApplicationFontsPath is "${declared[1]}", and no face is there — the key points at nothing`,
+        );
+    });
+
+    it('darwin: a bundle with no face declares no font path at all', () => {
+        // ABSENT rather than empty, and this is the discriminator for it: an empty
+        // string is a path, and macOS would activate `Contents/Resources` itself.
+        const dir = scaffold(join(tmpDir, 'no-fonts-plist'));
+        runCliSync(CLI_ENTRY, ['ship', 'darwin', '--skip-build', '--stage', '--out', 'ship'], { cwd: dir });
+        const plist = readFileSync(join(dir, 'ship', 'stage', `${APP_NAME}.app`, 'Contents', 'Info.plist'), 'utf-8');
+        assert.ok(!plist.includes('ATSApplicationFontsPath'));
+    });
+
+    for (const [os, gap] of [
+        ['darwin', /Pango on macOS is CoreText-backed/],
+        ['windows', /pangowin32, whose font map is populated from DirectWrite/],
+    ]) {
+        it(`${os}: names what is still unverified about the face it just staged`, async () => {
+            // The payload's half is settled and asserted above — the face is in
+            // `share/fonts/<appId>/`, the plist points at it on macOS and
+            // `GJSIFY_FONT_DIR` names it everywhere. What no stage can show is
+            // whether that reaches the font map the shipped artifact's Pango
+            // actually uses, and the answer differs per OS in KIND rather than in
+            // degree. A silent no is a substituted typeface at exit 0, so it is
+            // PRINTED, on the tree that carries the file, where `runtimeGap` is.
+            const { status, stderr } = await runCliCapture(
+                ['ship', os, '--skip-build', '--stage', '--arch', ARCH, '--out', `ship-font-${os}`],
+                projectDir,
+            );
+            assert.equal(status, 0);
+            assert.match(stderr, /share\/fonts/);
+            assert.match(stderr, gap);
+        });
+
+        it(`${os}: says nothing about fonts for a project that ships none`, async () => {
+            // CONDITIONAL, like `runtimeGap` is on the missing interpreter. A
+            // warning printed over every stage is one nobody reads by the time it
+            // matters — and the base fixture ships no face, which is what makes
+            // this a discriminator rather than a restatement of the test above.
+            const dir = scaffold(join(tmpDir, `no-fonts-${os}`));
+            const { status, stderr } = await runCliCapture(
+                ['ship', os, '--skip-build', '--stage', '--out', 'ship'],
+                dir,
+            );
+            assert.equal(status, 0);
+            assert.ok(!stderr.includes('share/fonts'), `${os}: no face staged, so nothing to say about fonts`);
+        });
+    }
 
     it('takes `win32` as well as `windows`, because --expect-target prints the first', () => {
         runCliSync(CLI_ENTRY, ['ship', 'win32', '--skip-build', '--stage', '--arch', ARCH, '--out', 'ship-win32'], {
