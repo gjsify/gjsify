@@ -32,21 +32,33 @@ namespace nodegi {
 //      needed — N-API finalizers are post-GC.
 //   3. Cross-thread toggles + double-free: off-thread toggles are marshalled to
 //      the JS thread via a mutex-guarded queue drained on the GLib main context;
-//      a g_object_weak_ref safety net nulls the cached pointer if C finalizes the
-//      object under us; the idle clears qdata only if it still points at THIS
-//      wrapper (resurrection-safe); a shutdown flag disables toggles at teardown.
+//      a g_object_weak_ref net DETACHES the record from the object the moment glib
+//      says we may not touch it again (clearing qdata only if it still points at
+//      THIS wrapper — resurrection-safe); a shutdown flag disables toggles at
+//      teardown. The detach happens IN the weak notify, not in the teardown that
+//      follows it — see OnGObjectFinalized for why, and for what it costs.
 
 static GQuark NodeGiWrapperQuark() {
   static GQuark q = g_quark_from_static_string("node-gi::wrapper");
   return q;
 }
 
+// WHICH FIELDS g_queue_mutex PROTECTS, AND WHO TOUCHES THEM.
+//   `env` is written once at construction and never again — read from any thread.
+//   `handle_ref`, `rooted` and `teardown_queued`/`settled` are JS-THREAD ONLY by
+//   construction: only ApplyToggle (always on the drain/JS thread), the External's
+//   finalizer and the resurrection path write them.
+//   `gobject` and `toggle_added` are the CROSS-THREAD pair and are guarded by
+//   g_queue_mutex: OnGObjectFinalized clears them from whatever thread drops the
+//   object's last ref (or calls g_object_run_dispose), while RunTeardown and
+//   SettleCollectedInstance read them on the JS thread. The lock does more than
+//   order those writes — see OnGObjectFinalized for why an atomic would not do.
 struct NodeGiInstance {
   napi_env env;
-  GObject* gobject;        // nulled by the weak-ref safety net if C finalizes it
+  GObject* gobject;        // g_queue_mutex; cleared by the weak-ref net (see below)
   napi_ref handle_ref;     // ref to the canonical External; strong=rooted, weak=not
   bool rooted;             // true ⇒ handle_ref currently strong (mirrors node-gtk !dying)
-  bool toggle_added;       // a toggle ref is currently installed
+  bool toggle_added;       // g_queue_mutex; a REMOVABLE toggle ref is installed
   bool teardown_queued;    // the External's finalizer HAS RUN (and queued the teardown)
   bool settled;            // resurrection detached this record; the pending finalizer frees it
 };
@@ -260,6 +272,23 @@ static void ApplyToggle(NodeGiInstance* inst, bool down) {
   }
 }
 
+// Sever every link between a GObject and a wrapper record: after this, nothing can
+// reach `inst` from `obj` on any thread. Clearing qdata is what keeps a LIVE GObject
+// from outliving its record with a dangling pointer in it (see OnGObjectFinalized).
+//
+// CALLER MUST HOLD g_queue_mutex, and `obj` must be valid FOR THE DURATION OF THE
+// CALL. Each caller has its own warrant for that: the weak-ref net is handed the
+// object while it is still addressable, RunTeardown reads inst->gobject under this
+// lock, and SettleCollectedInstance is passed the caller's construction ref.
+static void DetachInstanceLocked(NodeGiInstance* inst, GObject* obj) {
+  if (obj != nullptr && g_object_get_qdata(obj, NodeGiWrapperQuark()) == inst) {
+    g_object_set_qdata(obj, NodeGiWrapperQuark(), nullptr);
+  }
+  for (auto it = g_toggle_queue.begin(); it != g_toggle_queue.end();) {
+    it = (it->inst == inst) ? g_toggle_queue.erase(it) : it + 1;
+  }
+}
+
 // Run one wrapper's teardown on the JS thread: drop the toggle ref (may dispose →
 // emit → re-enter JS — legal here, not in a finalizer/off-thread), resurrection-
 // safely, then free the wrapper.
@@ -267,30 +296,32 @@ static void ApplyToggle(NodeGiInstance* inst, bool down) {
 // ORDER MATTERS (node-gtk's GObjectTeardownIdle): remove_toggle_ref is LAST,
 // because dropping the last ref can take refcount to 0 → dispose → finalize → the
 // GObject is freed; any qdata/weak op after that would touch freed memory. So:
-//   (1) under the queue lock: detach qdata (only if it still points at US —
-//       resurrection-safe) AND cancel any queued off-thread toggles for this inst.
-//       Both under the lock — paired with the off-thread enqueue path, which
-//       re-reads qdata under the SAME lock — so a racing toggle either enqueues
-//       then gets cancelled here, or sees the cleared qdata and never enqueues;
-//       after this no NodeGiToggleNotify can find this inst.
-//   (2) g_object_weak_unref (drop the safety net before the unref below).
-//   (3) g_object_remove_toggle_ref LAST (may dispose → emit → re-enter JS, legal
-//       here on the JS thread; the object may be freed afterwards).
+//   (1) under the queue lock: READ inst->gobject, DetachInstanceLocked, drop the
+//       weak-ref net. The same lock the off-thread enqueue path and
+//       OnGObjectFinalized take, so a racing toggle either enqueues and is
+//       cancelled here, or sees the cleared qdata and never enqueues. The READ
+//       belongs inside it: it used to sit outside, paired with an unlocked write in
+//       OnGObjectFinalized, so a stale non-null pointer was reachable here BY
+//       CONSTRUCTION and `obj` could name freed memory.
+//   (2) g_object_remove_toggle_ref LAST and OUTSIDE the lock (it may dispose →
+//       emit → re-enter arbitrary JS, which must never run under this lock; legal
+//       here on the JS thread. The object may be freed afterwards). `obj` is still
+//       ours to touch there: the toggle ref we are about to remove IS a reference.
 static void RunTeardown(NodeGiInstance* inst) {
-  GObject* obj = inst->gobject;  // null if the weak-ref net already fired
+  GObject* obj = nullptr;
+  bool remove_toggle = false;
   {
     std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
-    if (obj != nullptr && g_object_get_qdata(obj, NodeGiWrapperQuark()) == inst) {
-      g_object_set_qdata(obj, NodeGiWrapperQuark(), nullptr);
-    }
-    for (auto it = g_toggle_queue.begin(); it != g_toggle_queue.end();) {
-      it = (it->inst == inst) ? g_toggle_queue.erase(it) : it + 1;
+    obj = inst->gobject;  // null once the weak-ref net has detached this record
+    DetachInstanceLocked(inst, obj);
+    if (obj != nullptr) {
+      g_object_weak_unref(obj, OnGObjectFinalized, inst);
+      remove_toggle = inst->toggle_added;
+      inst->toggle_added = false;
+      inst->gobject = nullptr;
     }
   }
-  if (obj != nullptr) {
-    g_object_weak_unref(obj, OnGObjectFinalized, inst);
-    if (inst->toggle_added) g_object_remove_toggle_ref(obj, NodeGiToggleNotify, nullptr);
-  }
+  if (remove_toggle) g_object_remove_toggle_ref(obj, NodeGiToggleNotify, nullptr);
   if (inst->handle_ref != nullptr) napi_delete_reference(inst->env, inst->handle_ref);
   delete inst;
 }
@@ -456,12 +487,75 @@ static void NodeGiToggleNotify(gpointer /*data*/, GObject* obj, gboolean is_last
   if (enqueued) WakeDrain();  // outside the lock
 }
 
-// Weak-ref safety net: if C finalizes the GObject while we still hold the toggle
-// ref (defensive — a correct toggle ref prevents this), null the cached pointer
-// so teardown never touches freed memory.
-static void OnGObjectFinalized(gpointer data, GObject* /*where_the_object_was*/) {
+// Weak-ref net: glib is telling us this record may never touch the object again.
+// It DETACHES the record here, because this callback is the LAST moment the object
+// pointer is guaranteed addressable — RunTeardown, which used to do the detaching,
+// runs later and by then has only the nulled field.
+//
+// "The object was finalized" is NOT what this callback means, and reading it that
+// way is what left a live GObject holding a freed record. `g_object_run_dispose`
+// notifies every GWeakNotify (and clears every GWeakRef) on an object that stays
+// ALIVE — measured on glib 2.88.3. Every `run_dispose()` a JS program makes lands
+// here, and so does `gtk_native_dialog_destroy()`, whose own docs promise it keeps
+// the object's references (measured, GTK 4.22.4: notify fires, dialog alive at
+// rc=1). NOT `gtk_window_destroy()`, measured on the same GTK: it unrealizes and
+// unrefs, it does not run_dispose — that was GTK3's `gtk_widget_destroy`. The old
+// callback only nulled `inst->gobject`, so the teardown then skipped its
+// `g_object_set_qdata(obj, quark, nullptr)` — and the surviving GObject kept a
+// qdata pointer to the record the teardown went on to `delete`. The next thing to
+// hand that GObject back to JS read the freed record (`napi_get_reference_value`
+// on its `handle_ref`) or fed it to the drain, where `g_object_get_qdata` on the
+// recycled record's `gobject` field is the documented SIGSEGV. Regression:
+// gc-identity "run_dispose: a surviving object keeps no freed record in its qdata".
+//
+// WHY THE LOCK AND NOT AN ATOMIC. An atomic exchange on `gobject` would remove the
+// data race and keep the bug: the reader would still be free to act on a pointer
+// that this callback is about to invalidate. g_queue_mutex gives the property that
+// is actually needed — the detach and the teardown's read-then-use of the same
+// pointer are mutually exclusive, so the two can never be interleaved. It costs no
+// deadlock risk: this callback runs with no glib lock held (a `g_object_weak_unref`
+// from inside a weak notify returns — measured), it calls no user code, and the
+// mutex is recursive, so a notify raised by a dispose already under the lock on
+// this thread re-acquires it.
+//
+// THE PRICE when the object OUTLIVES the notify: its toggle ref stays installed —
+// it cannot be removed from here (a dispose→JS re-entry inside a weak notify is
+// exactly what the teardown queue exists to avoid) and glib offers no way to learn
+// later that the object survived. Measured, glib 2.88.3: wrapper identity does not
+// survive a `run_dispose` (C hands back a NEW wrapper), that re-wrap adds a SECOND
+// toggle ref, and glib notifies only while there is exactly one — so the next 1↔2
+// crossing prints `Unexpected number of toggle-refs` instead, the new wrapper never
+// goes weak, and the GObject is immortal. The old code leaked the same toggle ref
+// and took a use-after-free with it. Pinned by gc-identity "run_dispose costs
+// wrapper identity"; the tombstone design that would retire this, and the
+// ref_count discriminator rejected for it, are in status/open-todos.md.
+static void OnGObjectFinalized(gpointer data, GObject* where_the_object_was) {
   NodeGiInstance* inst = static_cast<NodeGiInstance*>(data);
-  inst->gobject = nullptr;
+  bool enqueued = false;
+  {
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+    DetachInstanceLocked(inst, where_the_object_was);
+    inst->gobject = nullptr;
+    inst->toggle_added = false;  // no removable toggle ref left: the object is out of reach
+    // Let the husk record be COLLECTED. Detaching clears the qdata slot, so the
+    // toggle-down that `g_object_run_dispose` fires from its own closing unref no
+    // longer finds this record and can never flip it back to weak — a rooted
+    // wrapper that nothing will ever root again is a leak of the wrapper AND the
+    // object. Flip it here instead. napi_reference_unref is JS-thread-only, so an
+    // off-thread notify queues it; DetachInstanceLocked just emptied the queue of
+    // this inst, so the enqueue always lands (no opposite-direction cancel), and
+    // RunTeardown/SettleCollectedInstance cancel it again if they get there first.
+    //
+    // Gated on the shutdown flag exactly as NodeGiToggleNotify's direct apply is:
+    // glib notifies from whatever thread drops the ref, which can be long after the
+    // owner env is gone, and a napi call there is the abort that flag exists to
+    // stop. The DETACH above is pure glib and must run either way.
+    if (!g_toggle_shutdown.load()) {
+      if (OnMainThread()) ApplyToggle(inst, /*down=*/true);
+      else enqueued = EnqueueToggleLocked(inst, /*down=*/true);
+    }
+  }
+  if (enqueued) WakeDrain();  // outside the lock
 }
 
 // The canonical External's finalizer (napi_finalize, runs at a safe point post-GC
@@ -524,31 +618,34 @@ static void NodeGiInstanceFinalize(Napi::Env /*env*/, GObject* /*data*/, NodeGiI
 // otherwise it is still pending and IT frees the record, guided by `settled`.
 static void SettleCollectedInstance(GObject* obj, NodeGiInstance* old) {
   bool finalizer_pending = false;
+  bool remove_toggle = false;
   {
     std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
-    // Cancel old's pending teardown + any queued toggles that reference it, so the
+    // Cancel old's pending teardown, then DetachInstanceLocked for the rest, so the
     // drain never touches a freed inst (paired with the off-thread enqueue, which
-    // re-reads qdata under this SAME lock — and we clear qdata below).
+    // re-reads qdata under this SAME lock).
     for (auto it = g_teardown_queue.begin(); it != g_teardown_queue.end();)
       it = (it->inst == old) ? g_teardown_queue.erase(it) : it + 1;
-    for (auto it = g_toggle_queue.begin(); it != g_toggle_queue.end();)
-      it = (it->inst == old) ? g_toggle_queue.erase(it) : it + 1;
-    // Detach qdata only if it still points at old (resurrection-safe).
-    if (g_object_get_qdata(obj, NodeGiWrapperQuark()) == old)
-      g_object_set_qdata(obj, NodeGiWrapperQuark(), nullptr);
+    DetachInstanceLocked(old, obj);
     finalizer_pending = !old->teardown_queued;
     old->settled = true;
+    // `old->gobject` and `old->toggle_added` are read here, under the lock the
+    // weak-ref net clears them with — a null pointer means the net already ran and
+    // the object is out of reach, exactly as in RunTeardown.
+    if (old->gobject != nullptr) {
+      g_object_weak_unref(obj, OnGObjectFinalized, old);
+      remove_toggle = old->toggle_added;
+    }
+    // Disarm every handle the record still carries, so a pending finalizer that
+    // reaches it finds nothing to act on even if `settled` were ever missed.
+    old->gobject = nullptr;
+    old->toggle_added = false;
   }
-  if (old->gobject != nullptr) {
-    g_object_weak_unref(obj, OnGObjectFinalized, old);
-    // Remove old's toggle ref BEFORE the fresh one is added below — never two at
-    // once. We hold a construction ref, so this cannot dispose obj.
-    if (old->toggle_added) g_object_remove_toggle_ref(obj, NodeGiToggleNotify, nullptr);
-  }
-  // Disarm every handle the record still carries, so a pending finalizer that
-  // reaches it finds nothing to act on even if `settled` were ever missed.
-  old->gobject = nullptr;
-  old->toggle_added = false;
+  // Remove old's toggle ref BEFORE the fresh one is added by the caller — never two
+  // at once. The caller holds a construction ref, so this cannot dispose obj; it is
+  // still done outside the lock, because remove_toggle_ref is the one call in this
+  // file that may re-enter JS and the lock is never held across that.
+  if (remove_toggle) g_object_remove_toggle_ref(obj, NodeGiToggleNotify, nullptr);
   if (old->handle_ref != nullptr) {
     napi_delete_reference(old->env, old->handle_ref);
     old->handle_ref = nullptr;
@@ -644,14 +741,26 @@ Napi::Value MakeGObjectHandle(Napi::Env env, GObject* obj) {
   ext.TypeTag(&kGObjectHandleTag);
   napi_create_reference(env, ext, 1, &inst->handle_ref);  // start STRONG (node-gtk invariant)
 
-  g_object_set_qdata(obj, NodeGiWrapperQuark(), inst);     // overwrite (resurrection-safe)
-  g_object_weak_ref(obj, OnGObjectFinalized, inst);        // safety net
-  g_object_add_toggle_ref(obj, NodeGiToggleNotify, nullptr);
-  inst->toggle_added = true;
-  // Drop the construction ref → only the toggle ref remains. If nothing else
-  // holds obj (refcount 2→1) this fires toggle-down synchronously, flipping the
-  // fresh wrapper to weak; if C holds another ref it stays strong (rooted).
-  g_object_unref(obj);
+  // ARMING is done under the queue lock, so the record is never half-installed as
+  // far as another thread is concerned: publishing it in qdata, arming the weak-ref
+  // net and claiming `toggle_added` become one step. A toggle-notify raised from
+  // INSIDE this block runs on this thread and re-acquires the recursive lock; the
+  // notify does napi work only, never JS, so the no-lock-across-dispose invariant
+  // still holds. Without it, a foreign-thread g_object_run_dispose landing between
+  // g_object_weak_ref and `toggle_added = true` would have its detach overwritten.
+  // The unref below cannot reach dispose either — add_toggle_ref took a ref of its
+  // own, so the count is >= 2 going in — which is what makes it safe under a lock.
+  {
+    std::lock_guard<std::recursive_mutex> guard(g_queue_mutex);
+    g_object_set_qdata(obj, NodeGiWrapperQuark(), inst);   // overwrite (resurrection-safe)
+    g_object_weak_ref(obj, OnGObjectFinalized, inst);      // safety net
+    g_object_add_toggle_ref(obj, NodeGiToggleNotify, nullptr);
+    inst->toggle_added = true;
+    // Drop the construction ref → only the toggle ref remains. If nothing else
+    // holds obj (refcount 2→1) this fires toggle-down synchronously, flipping the
+    // fresh wrapper to weak; if C holds another ref it stays strong (rooted).
+    g_object_unref(obj);
+  }
   return ext;
 }
 
