@@ -675,9 +675,10 @@ same confidence level — which is the distinction worth keeping, because "no ma
 was the reason given for all three and it is only true of two. The ad-hoc `macos-suites` leg IS a
 macOS host: it has MEASURED that `codesign` accepts `--options runtime --entitlements` with
 `--sign -`, that the seal lands in `Contents/_CodeSignature/` (four components on macos-26) and that
-it changes nothing else in the payload. What has never run is `codesign --verify --strict` on the
-BUNDLE, the ZIP round trip with a seal in it, `notarytool` and `stapler` — the last two because they
-need an Apple account. `status/open-todos.md` carries all four with their measurements attached.
+it changes nothing else in the payload, and that `codesign --verify --strict` accepts the BUNDLE on
+both arches. What has never run is the ZIP round trip with a seal in it — which needs no credential
+and is the next measurement — plus `notarytool` and `stapler`, which need an Apple account.
+`status/open-todos.md` carries all three with their measurements attached.
 
 |the `<App>.app` is SEALED after every Mach-O inside it is signed. The reason it was not is recorded
 in ADR 0040 as a factual error rather than a deferral: Apple's extended-attribute rule is for a

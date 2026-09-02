@@ -1149,16 +1149,19 @@ entitlements are passed too.
 `--sign -`; the seal arrived as **four** files under `Contents/_CodeSignature/`
 (`CodeRequirements-1` is in Apple's superset and not in this run's); the arrival
 comparator read *11 identical, 2 signature-only, 5 declared-added, 0 problem(s)*;
-and `codesign --verify --strict` passed on both images. **Two things are still
-unrun and neither needs a credential**, which makes them the next measurement
-rather than a gap to live with:
+and `codesign --verify --strict` passed on both images. **Then the count was fixed
+and the leg went green on both arches** (run 33686518418, arm64 + x64, 21 of 21),
+which is what finally executed the two assertions sitting behind the failing one:
+`Contents/_CodeSignature/CodeResources` is in the packed `<App>.app`, and
+`codesign --verify --strict` accepts the BUNDLE — Apple's reader answering what the
+comparator cannot, the seal being valid over the tree it shipped with rather than
+merely confined.
 
-1. `codesign --verify --strict` on the BUNDLE. The assertion exists and sits after
-   the one that went red on the count, so it has never executed.
-2. **the ZIP round trip** — the claim this whole correction rests on. The darwin
-   leg signs `--target macos-app` only; nothing signs `macos-app-zip`, unzips it
-   and re-verifies. Until it does, "a plain zip carries `_CodeSignature/`" is
-   TN3126 plus mode-0644 reasoning, not a measurement.
+**One thing is still unrun that needs no credential**, which makes it the next
+measurement rather than a gap to live with: **the ZIP round trip** — the claim this
+whole correction rests on. The darwin leg signs `--target macos-app` only; nothing
+signs `macos-app-zip`, unzips it and re-verifies. Until it does, "a plain zip
+carries `_CodeSignature/`" is TN3126 plus mode-0644 reasoning, not a measurement.
 
 Everything past those two — a Developer ID, `notarytool`, `xcrun stapler`,
 `signtool` — is UNVERIFIED for the reasons the entries above give, and the ad-hoc

@@ -329,16 +329,25 @@ measured on the first push of this branch: run 33677262483, job 100404973432,
   the count, because 2 is a property of our own argv — drop the hardened runtime
   and `libplain` reverts to `identical`.
 
+**And on the second push, with the count fixed, the leg went green on both
+architectures** (run 33686518418, `darwin-arm64` and `darwin-x64`, 21 of 21). That
+matters beyond the colour: the two strongest assertions in that test sit AFTER the
+one that had been failing, so they had never executed. They have now.
+`Contents/_CodeSignature/CodeResources` is present in the packed `<App>.app`, and
+**`codesign --verify --strict` accepts the BUNDLE** — Apple's own reader, answering
+the question our comparator cannot: the comparator says the mutation was confined,
+this says the seal is valid over the tree it shipped with. Both on both arches.
+
 **What is still UNVERIFIED on darwin, narrowed to what it actually is.** Not the
-seal's existence — that is measured above — but everything past it:
-`codesign --verify --strict` on the BUNDLE (the assertion sits after the one that
-went red, so it has not executed yet); the ZIP round trip, which is this
-amendment's whole correction to the old refusal and is argued from TN3126 plus
-"regular 0644 files" rather than measured, because the darwin leg signs only
-`--target macos-app` and never `macos-app-zip`; `notarytool`, which needs an
-Apple account; `xcrun stapler`, which needs a ticket; `signtool`, which needs a
-certificate; and § A16 in both directions. The first two are reachable on the
-existing leg with no credential, and `status/open-todos.md` carries them.
+seal, and no longer its verification — both are measured above. What is left is
+**the ZIP round trip**: this amendment's whole correction to the old refusal is that
+`_CodeSignature/` are ordinary 0644 files a plain zip carries, and that is argued
+from TN3126 rather than measured, because the darwin leg signs `--target macos-app`
+only and nothing signs `macos-app-zip`, unzips it and re-verifies. It needs no
+credential and is the next measurement. Past it: `notarytool`, which needs an Apple
+account; `xcrun stapler`, which needs a ticket; `signtool`, which needs a
+certificate; and § A16 in both directions. `status/open-todos.md` carries all of
+them.
 
 ## Consequences
 
