@@ -66,6 +66,11 @@ GIRepository* DupDefaultRepository();
 // Init, freed by the instance-data finalizer at env teardown.
 struct NodeGiEnvData {
   napi_ref errorBuilder = nullptr;
+  // The CLASS the builder above constructs — L1's `GLib.Error`. Registered with
+  // the builder (one call, so the two cannot drift apart) and read the other way
+  // round: a GError-typed IN arg uses it to recognise an L1 error and rebuild a
+  // real GError from its fields. Per-env for the same reason as errorBuilder.
+  napi_ref errorClass = nullptr;
   // L1-registered resolver for Gtk.Template `<signal handler="…">` callbacks: given
   // (instanceHandle, handlerName) it returns the instance's bound JS method (or
   // undefined). Stored per-env for the same reason as errorBuilder (a napi_ref is
@@ -279,22 +284,32 @@ struct CreatedClosures {
   std::vector<GClosure*> transferFull;  // callee adopts; unref only when the callee never ran
 };
 
-// ---- JS bytes -> GBytes IN-args ----------------------------------------------
+// ---- C objects this layer SYNTHESISES for one IN argument --------------------
 //
+// Three IN arms build a throw-away C object out of a plain JS value, because the
+// JS side has no handle to hand over: a Uint8Array for a `GLib.Bytes` arg, a
+// number/string for a `GObject.Value` arg, an L1 `GLib.Error` for a `GError` arg.
+// All three carry the SAME lifetime rule, which is why they share one type
+// instead of a third near-identical struct: transfer-none → the callee borrowed
+// (or copied) it, so we release it after the invoke; transfer-full → the callee
+// adopted it, so it is released only when the invoke never ran.
+template <typename T>
+struct CreatedIn {
+  std::vector<T*> transferNone;  // release after the invoke (callee borrowed/copied)
+  std::vector<T*> transferFull;  // callee adopts; release only when the callee never ran
+  void Record(T* p, GITransfer transfer) {
+    (transfer == GI_TRANSFER_NOTHING ? transferNone : transferFull).push_back(p);
+  }
+};
+
 // A JS Uint8Array (or any TypedArray/DataView/ArrayBuffer) passed for a
 // `GLib.Bytes`-typed IN parameter (e.g. GdkPixbuf.Pixbuf.new_from_bytes,
 // g_compute_checksum_for_bytes) is COPIED into a fresh GBytes — exactly what GJS
 // does (refs/gjs/gi/arg-cache.cpp GBytesIn::in → gjs_byte_array_get_bytes →
-// g_bytes_new). Lifetime follows gjs: a transfer-none arg drops the fresh ref
-// after the invoke (GBytesInTransferNone::release → g_boxed_free; a callee that
-// kept the bytes holds its own ref), a transfer-full arg leaves the ref with the
-// callee (GBytesIn::release skips via the ignore_release mark). GBytes created
-// during an invoke are recorded here so calls.cc can release them on the right
-// path (mirrors CreatedClosures).
-struct CreatedBytes {
-  std::vector<GBytes*> transferNone;  // unref after the invoke (callee borrowed/ref'd)
-  std::vector<GBytes*> transferFull;  // callee adopts; unref only when the callee never ran
-};
+// g_bytes_new), and released per the rule above (gjs
+// GBytesInTransferNone::release → g_boxed_free; GBytesIn::release skips for
+// transfer-full via the ignore_release mark).
+using CreatedBytes = CreatedIn<GBytes>;
 
 // A plain JS value handed to a `GObject.Value` IN-arg is BOXED into a fresh
 // GValue whose GType is guessed from the JS value — exactly what GJS does
@@ -305,14 +320,18 @@ struct CreatedBytes {
 // with "Unsupported interface IN argument", because a JS number is not a boxed
 // handle. An existing GObject.Value boxed handle still routes through the
 // boxed-handle path and is passed through untouched.
-//
-// Lifetime mirrors CreatedBytes: the box is freed after the invoke for
-// transfer-none (the callee copied whatever it needed — g_object_set_property
-// copies into the property), and left with the callee for transfer-full.
-struct CreatedValues {
-  std::vector<GValue*> transferNone;  // free after the invoke (callee borrowed)
-  std::vector<GValue*> transferFull;  // callee adopts; free only when it never ran
-};
+using CreatedValues = CreatedIn<GValue>;
+
+// An L1 `GLib.Error` (what a `catch` hands you, and what `new GLib.Error(…)`
+// builds) has no `GError*` behind it — it is a JS class, not a boxed handle — so
+// a `GError`-typed IN arg gets a fresh `g_error_new_literal` built from its
+// domain/code/message. Without this, the hand-back direction the OUT direction
+// exists for is only open to errors that came OUT of GI in the first place:
+// `GLib.propagate_error(caught)` and `Gst.Message.new_error(src, caught, dbg)`
+// both refused where gjs accepts, which is the shape an application actually
+// writes. A marshalled GError (a boxed handle) still routes through
+// TransferBoxedIn and is not copied here.
+using CreatedErrors = CreatedIn<GError>;
 
 // Release a GValue this layer boxed: unset the held value (dropping the ref an
 // object/boxed/string GValue took) and free the struct. A plain `g_free` would
@@ -340,6 +359,9 @@ GClosure* NodeGiMakeGenericJsClosure(Napi::Env env, Napi::Value fn);
 // `values` (optional): enables the JS-value→GValue IN-arg boxing above; nullptr
 // (the default) keeps the previous behaviour (plain value → TypeError) on paths
 // that cannot release a created GValue.
+// `errors` (optional): enables the L1-GLib.Error→GError IN-arg build above;
+// nullptr (the default) keeps a marshalled boxed handle working and refuses the
+// L1 class, on paths that cannot release a created GError.
 // `argName` (optional): the introspected argument name, used ONLY in error
 // messages so a refusal reads like gjs's ("Expected type string for argument
 // 'name' but got type number"); nullptr degrades to a message without the name.
@@ -350,6 +372,7 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
                     CreatedClosures* closures = nullptr,
                     CreatedBytes* bytes = nullptr,
                     CreatedValues* values = nullptr,
+                    CreatedErrors* errors = nullptr,
                     const char* argName = nullptr);
 
 // ---- IN container building -----------------------------------------
@@ -607,6 +630,8 @@ Napi::Value BoxedMemberKind(const Napi::CallbackInfo& info);
 Napi::Value GetBoxedField(const Napi::CallbackInfo& info);
 Napi::Value SetBoxedField(const Napi::CallbackInfo& info);
 Napi::Value BoxedTypeName(const Napi::CallbackInfo& info);
+// TEST-ONLY (see marshal.cc): the address a boxed handle wraps, as hex.
+Napi::Value BoxedAddress(const Napi::CallbackInfo& info);
 // GParamSpec wrapping (object.cc): a tagged GObject-fundamental handle plus its
 // name/nick/blurb/flags/value_type/owner_type/default_value accessors.
 Napi::Value MakeParamSpecHandle(Napi::Env env, GParamSpec* pspec, GITransfer transfer);

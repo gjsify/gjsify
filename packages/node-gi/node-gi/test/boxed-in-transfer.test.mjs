@@ -27,18 +27,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { requireGi } from '../gi.js';
-
-/**
- * Drain the napi finalizer queue: boxed finalizers run off the GC's callback
- * queue on a later loop turn, so a double free only aborts after both a
- * collection AND a turn of the loop.
- */
-async function collect() {
-    for (let i = 0; i < 2; i++) {
-        globalThis.gc?.();
-        await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-}
+import { drainFinalizers } from './gc-drain.mjs';
 
 test('a (transfer full) boxed IN arg is copied, not surrendered: Pango.AttrList.insert', async () => {
     const Pango = requireGi('Pango', '1.0');
@@ -53,7 +42,7 @@ test('a (transfer full) boxed IN arg is copied, not surrendered: Pango.AttrList.
         list.insert(attr);
     }
 
-    await collect();
+    await drainFinalizers();
 
     // Still usable afterwards — the copy is a real, independent attribute.
     const list = Pango.AttrList.new();
@@ -69,7 +58,7 @@ test('a (transfer none) boxed IN arg is still a plain borrow: GLib.DateTime.diff
     const b = a.add_hours(1);
     for (let i = 0; i < 200; i++) assert.equal(b.difference(a), 3600000000);
 
-    await collect();
+    await drainFinalizers();
 
     assert.equal(a.get_year(), 2006);
     assert.equal(b.difference(a), 3600000000);
@@ -96,7 +85,7 @@ test('a (transfer full) IN container hands over COPIES of its boxed elements: Pa
     }
 
     // …and the handles survive collection, which is where the double free aborts.
-    await collect();
+    await drainFinalizers();
 
     const c = Pango.FontDescription.from_string('Monospace 9');
     Pango.Font.descriptions_free([c]);
@@ -128,7 +117,7 @@ test('a (transfer none) IN container still borrows its boxed elements: GLib.Vari
         assert.equal(child.get_int32(), 42);
     }
 
-    await collect();
+    await drainFinalizers();
 
     const child = GLib.Variant.new_string('kept');
     assert.equal(GLib.Variant.new_tuple([child]).get_type_string(), '(s)');

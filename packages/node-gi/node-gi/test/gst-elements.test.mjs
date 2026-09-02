@@ -20,18 +20,8 @@
 // any host with the bundle staged — unlike the windowing proofs beside it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { requireGi } from '../gi.js';
 
-let Gst = null;
-let loadError = null;
-try {
-    Gst = requireGi('Gst', '1.0');
-    Gst.init(null);
-} catch (err) {
-    loadError = err;
-}
-
-const skip = loadError ? `Gst 1.0 unavailable: ${loadError.message}` : false;
+import { Gst, gstSkip as skip } from './gst-gate.mjs';
 
 // The pipeline @gjsify/webaudio is built from, element by element. Named
 // individually rather than asserted as a count, because "20 plugins loaded" is the

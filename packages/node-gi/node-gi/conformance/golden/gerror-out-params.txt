@@ -1,0 +1,17 @@
+OUT is null: false
+message: boom
+code: 7
+matches(domain, 7): true
+matches(domain, 8): false
+matches(other, 7): false
+propagated message: boom
+propagated code: 7
+propagated matches(domain, 7): true
+source still readable: boom
+prefixed message: context: boom
+prefixed code: 7
+inout source untouched: boom
+constructed message: constructed
+constructed code: 9
+constructed matches(domain, 9): true
+constructed matches(other, 9): false

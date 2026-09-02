@@ -25,7 +25,23 @@ containers, struct OUT params and **caller-allocates OUT structs** — boxed
 (incl. the GValue auto-unbox) AND plain non-boxed C structs (the engine
 g_malloc0's the struct, the callee fills it in place, JS gets a field-readable
 handle that owns the storage — e.g. the `PangoRectangle`s of
-`PangoLayout.get_pixel_extents()`, the canvas2d `measureText` path). A JS
+`PangoLayout.get_pixel_extents()`, the canvas2d `measureText` path).
+A **`GError` parameter** (`GI_TYPE_TAG_ERROR`) marshals in every direction — the
+explicit one an API declares, as distinct from the implicit `throws=1` GError the
+invoker turns into a thrown `GLib.Error`. An OUT/INOUT slot reads back as a
+field-readable `GLib.Error` boxed (`Gst.Message.parse_error()`, `GLib.set_error_literal`),
+a slot the callee left alone reads back as `null` rather than an empty error, and an
+IN arg takes such a boxed and honours its transfer — borrowed for `(transfer none)`
+(`Gst.Message.new_error`), an independent `g_error_copy` for `(transfer full)`
+(`g_propagate_error` adopts and frees its `src`). An IN arg ALSO takes the OTHER
+`GLib.Error` shape node-gi hands out — the L1 JS class a `catch` or
+`new GLib.Error(…)` produces, which has no `GError*` behind it — by rebuilding a
+real GError from its domain/code/message and releasing it per the same transfer
+rule GBytes and GValue IN-args follow; an error whose domain resolves to quark 0
+is refused by name rather than marshalled into one `matches()` could never answer
+for. Until #1495 the OUT direction was
+refused before the invoke, which put every GStreamer bus-error accessor out of
+reach: an application could see that playback stopped and not why. A JS
 `Uint8Array` (or `Buffer`/`DataView`/`ArrayBuffer`) passed where a **`GLib.Bytes`
 IN-arg** is expected is copied into a fresh GBytes and released per transfer
 after the call, exactly as GJS (`GdkPixbuf.Pixbuf.new_from_bytes(pixels, …)`);

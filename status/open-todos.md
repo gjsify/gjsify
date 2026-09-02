@@ -342,6 +342,33 @@ either), and the day a consumer needs the throw, the place to add it is the
 `vfunc_` branch of `makeClassPrototype`'s `materialize` (gi.js), gated on the
 engine addressing the slot.
 
+### node-gi: two `GLib.Error` shapes, and they answer `instanceof` differently
+
+A GError node-gi hands to JS takes one of two shapes, and they are not the same
+object. A **thrown** one — a failed sync invoke, via `ThrowGError` → the L1
+builder — is the `GLibError` JS class: `instanceof GLib.Error`, `.domain` the
+quark NAME string with the number on `.domainQuark` (a divergence gjs does not
+have, already documented in `docs/node-gi-gjs-surface.md`). A **marshalled** one
+— a GError-typed return or OUT parameter — is a boxed handle over the real
+`GError*`: `.domain` the numeric GQuark, as on gjs, but `instanceof GLib.Error`
+false, because L1 shadows the introspected `GLib.Error` with the JS class.
+
+What is left open is the IDENTITY, not the marshalling. The hand-back half —
+measured while landing #1495 and fixed with it — was a separable defect and had
+to be: `GLib.propagate_error(caughtError)` refused with `expected a GLib.Error
+for argument 'src', got Object` where gjs accepts, so the direction the OUT half
+exists for was closed to exactly the errors an application holds. A GError IN arg
+now takes either shape (`CreatedErrors`, marshal.cc), which changes nothing about
+what a `catch` sees.
+
+Still divergent: `marshalled instanceof GLib.Error` is false, `.domain` is a
+number on one shape and a name string on the other, and `GLib.Error.new_literal`
+— the introspected constructor — is hidden by the shadow. Fixing THAT is an L1
+identity decision (either the class gains a lazily-built backing GError, or the
+shadow goes and `instanceof` + `.matches()` move onto the boxed handle), and both
+options change what every existing `catch` sees, so it wants its own conformance
+program pinning the two shapes' surfaces before either is picked.
+
 ### The Vue plugin's virtual suffix is coupled to deepkit's filter, and nothing checks it
 
 `@gjsify/rolldown-plugin-vue` mints module ids ending in `VIRTUAL_SUFFIX =

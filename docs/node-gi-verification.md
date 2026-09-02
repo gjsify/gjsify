@@ -54,6 +54,45 @@ parsed once at first use, zero cost when unset — never set them in production)
   env-cleanup drain race (`test/gc-cross-thread.test.mjs`, "teardown drain
   during env cleanup never aborts").
 
+### Ownership: assert the POINTER, don't wait for the crash
+
+An IN-transfer rule is a statement about pointer identity — *a transfer-full
+boxed IN arg gets an independent copy, never the block the JS handle still owns*
+— and the natural-looking test for it does not hold it. "Run the call 200 times,
+`gc()`, and see whether a double free aborts" only fails when the allocator has
+NOT recycled the block between the two frees. **Measured while reviewing #1496**:
+with `TransferBoxedIn` cut down to a bare borrow — a genuine double free on every
+one of those 200 rounds — `test/gerror-out.test.mjs` passed 5 runs out of 5, and
+the same program under `valgrind` reported 0 errors.
+
+So assert the addresses. `__boxedAddress(unwrap(value))` (index.js + gi.js,
+test-only) reports what a boxed handle wraps, and the rule becomes one
+deterministic line — `assert.notEqual(boxedAddress(dest), boxedAddress(src))` —
+that fails on the first round. It works wherever the callee stores the very
+pointer it was handed, which is the usual shape (`g_propagate_error`,
+`g_prefix_error_literal`). Keep the rounds + `drainFinalizers()` beside it: the
+identity check proves the copy is made, the rounds prove the copies are released.
+
+What this still does NOT catch is the pure LEAK half — a read-back that copies
+where it should adopt, or a synthesised IN object never released. Both keep every
+assertion green, because a leak has no observable effect in-process. Two
+instruments do catch it, neither in CI:
+
+```bash
+# 1. valgrind, twice at different volumes. `definitely lost` must be CONSTANT —
+#    a per-call leak scales with the loop, un-run finalizers at exit do not.
+NODE_GI_NATIVE=build ROUNDS=300  valgrind --leak-check=full --show-leak-kinds=definite \
+    --smc-check=all-non-file node --jitless --expose-gc <probe>.mjs
+NODE_GI_NATIVE=build ROUNDS=1500 valgrind … # same command, same totals expected
+# 2. a temporary counter: increment in MakeBoxedHandle and in
+#    FreeBoxedHandleRecord's g_boxed_free branch, print both at exit. After a
+#    gc + finalizer drain they must be EQUAL. Removed again before committing.
+```
+
+RSS is not one of them. A flat RSS over 200 000 allocate-and-drop cycles is
+consistent with a small per-call leak the allocator keeps reusing, so it can
+refute a large leak and never establish the absence of one.
+
 ## Conformance (golden-diff)
 
 The exactness oracle for GJS parity: small self-contained `gi://` programs
