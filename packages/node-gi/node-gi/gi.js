@@ -166,7 +166,12 @@ function buildGError(domainName, domainQuark, code, message) {
     error.domainQuark = domainQuark;
     return error;
 }
-native.setErrorBuilder(buildGError);
+// The CLASS is registered with the builder, because the engine needs it the other
+// way round too: a `GError`-typed IN argument recognises a caught (or `new`-ed)
+// GLib.Error by `instanceof` and rebuilds a real GError from its fields, so an
+// application can hand back the error it is holding (`GLib.propagate_error`,
+// `Gst.Message.new_error`). One call, so builder and class cannot drift apart.
+native.setErrorBuilder(buildGError, GLibError);
 
 // Stamps a makeClass prototype with its { namespace, typeName } so Gio._promisify can
 // record WHICH introspected class a registration belongs to — matched against the

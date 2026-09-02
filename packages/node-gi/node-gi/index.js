@@ -244,6 +244,9 @@ export const boxedMemberKind = native.boxedMemberKind;
 export const getBoxedField = native.getBoxedField;
 export const setBoxedField = native.setBoxedField;
 export const boxedTypeName = native.boxedTypeName;
+/** TEST-ONLY: the address a boxed handle wraps, so an ownership rule about pointer
+ * IDENTITY can be asserted instead of waited on (see marshal.cc BoxedAddress). */
+export const __boxedAddress = native.__boxedAddress;
 export const isParamSpecHandle = native.isParamSpecHandle;
 
 // True for a non-GObject GObject-fundamental handle (a GskRenderNode from

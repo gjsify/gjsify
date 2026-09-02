@@ -837,7 +837,8 @@ static Napi::Value InvokeVFuncPointer(Napi::Env env, GObject* obj, GICallableInf
         jsCursor++;
         GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
         if (JsToGIArgument(env, v, ti, &slots[i], &holds[i], tr, &ownedInStrings, nullptr,
-                           nullptr, nullptr, gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai))))
+                           nullptr, nullptr, nullptr,
+                           gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai))))
           giArgs[1 + i].v_pointer = &slots[i];
         else
           ok = false;  // JsToGIArgument already threw
@@ -892,7 +893,8 @@ static Napi::Value InvokeVFuncPointer(Napi::Env env, GObject* obj, GICallableInf
       jsCursor++;
       GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
       ok = JsToGIArgument(env, v, ti, &giArgs[1 + i], &holds[i], tr, &ownedInStrings, nullptr,
-                          nullptr, nullptr, gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai)));
+                          nullptr, nullptr, nullptr,
+                          gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai)));
     }
 
     avalue.push_back(&giArgs[1 + i]);

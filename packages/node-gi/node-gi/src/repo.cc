@@ -13,6 +13,7 @@ void NodeGiEnvDataFinalize(napi_env env, void* data, void* /*hint*/) {
   NodeGiEnvData* d = static_cast<NodeGiEnvData*>(data);
   if (d == nullptr) return;
   if (d->errorBuilder != nullptr) napi_delete_reference(env, d->errorBuilder);
+  if (d->errorClass != nullptr) napi_delete_reference(env, d->errorClass);
   if (d->templateCallbackResolver != nullptr)
     napi_delete_reference(env, d->templateCallbackResolver);
   if (d->cairoWrappers != nullptr) napi_delete_reference(env, d->cairoWrappers);
@@ -258,14 +259,18 @@ Napi::Value GetErrorDomain(const Napi::CallbackInfo& info) {
   return result;
 }
 
-// setErrorBuilder(builder: (domainName, domainQuark, code, message) => Error) -> void
+// setErrorBuilder(builder: (domainName, domainQuark, code, message) => Error,
+//                 errorClass?: typeof GLib.Error) -> void
 // Register the L1 GLib.Error factory the engine calls when a GI invoke fails, so a
-// failed sync call throws a real GLib.Error. Stored per-env (a napi_ref is env-
-// specific; the throw path is gated on the same env).
+// failed sync call throws a real GLib.Error, together with the class it builds —
+// which the GError IN-arg path needs to recognise one coming back. Both stored
+// per-env (a napi_ref is env-specific; both paths are gated on the same env), in
+// ONE call so a registration cannot supply the builder and forget the class.
 Napi::Value SetErrorBuilder(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 1 || !info[0].IsFunction()) {
-    Napi::TypeError::New(env, "setErrorBuilder(builder: function)").ThrowAsJavaScriptException();
+    Napi::TypeError::New(env, "setErrorBuilder(builder: function, errorClass?: function)")
+        .ThrowAsJavaScriptException();
     return env.Undefined();
   }
   NodeGiEnvData* d = EnvData(env);
@@ -275,6 +280,12 @@ Napi::Value SetErrorBuilder(const Napi::CallbackInfo& info) {
     d->errorBuilder = nullptr;
   }
   napi_create_reference(env, info[0], 1, &d->errorBuilder);
+  if (d->errorClass != nullptr) {
+    napi_delete_reference(env, d->errorClass);
+    d->errorClass = nullptr;
+  }
+  if (info.Length() >= 2 && info[1].IsFunction())
+    napi_create_reference(env, info[1], 1, &d->errorClass);
   return env.Undefined();
 }
 

@@ -57,10 +57,15 @@ export function getErrorDomain(namespace: string, name: string): { name: string;
 
 /**
  * Register the L1 GLib.Error factory the engine calls when a GI invoke fails, so
- * a failed sync call throws a real `GLib.Error` (instanceof, with `.matches()`).
+ * a failed sync call throws a real `GLib.Error` (instanceof, with `.matches()`),
+ * together with the CLASS it builds — which a `GError`-typed IN argument uses to
+ * recognise such an error coming back and rebuild a real `GError` from its
+ * fields. Without the class that direction accepts only a marshalled (boxed)
+ * error, so a caught one cannot be handed on.
  */
 export function setErrorBuilder(
     builder: (domainName: string, domainQuark: number, code: number, message: string) => Error,
+    errorClass?: new (domain: unknown, code: number, message: string) => Error,
 ): void;
 
 /** Prepend a directory to the GIRepository typelib search path. */
@@ -387,6 +392,14 @@ export function setBoxedField(handle: BoxedHandle, name: string, value: unknown)
  * registered GType. Lets L1 attach type-specific conveniences (GLib.Bytes.toArray).
  */
 export function boxedTypeName(value: unknown): string | null;
+/**
+ * TEST-ONLY: the address a boxed handle wraps, as a hex string (`null` for anything
+ * else). Lets a test assert an IN-transfer ownership rule — "a transfer-full boxed
+ * IN arg is handed a COPY" — directly, instead of running the call many times and
+ * waiting for a double free that only aborts when the allocator has not recycled
+ * the block. Nothing on the runtime path may branch on it.
+ */
+export function __boxedAddress(value: unknown): string | null;
 
 /**
  * Opaque handle to a GObject.ParamSpec (a GObject fundamental, ref-counted via
@@ -604,6 +617,7 @@ declare const native: {
     getBoxedField: typeof getBoxedField;
     setBoxedField: typeof setBoxedField;
     boxedTypeName: typeof boxedTypeName;
+    __boxedAddress: typeof __boxedAddress;
     isParamSpecHandle: typeof isParamSpecHandle;
     paramSpecProp: typeof paramSpecProp;
     variantNew: typeof variantNew;

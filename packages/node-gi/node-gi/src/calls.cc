@@ -365,18 +365,22 @@ bool IsSupportedOutType(GITypeInfo* type, std::string* why) {
       return ok;
     }
     case GI_TYPE_TAG_ERROR:
-      // A `GError**` OUT slot — `Gst.Message.parse_error()` and the nine other bus
+      // A plain `GError**` OUT slot — `Gst.Message.parse_error()` and the other bus
       // accessors of the GStreamer message APIs, `GLib.set_error_literal`,
-      // `GLib.propagate_error`. Every one of the 18 in a 264-typelib sweep is
-      // caller_allocates=false + transfer=EVERYTHING, i.e. the ordinary pointer
-      // slot: the callee writes a GError the caller then owns. ReadOutOrReturn
-      // falls through to GIArgumentToJs's GI_TYPE_TAG_ERROR arm (marshal.cc), which
-      // wraps it through GLib.Error's struct info — G_TYPE_ERROR is a boxed type,
-      // so the JS handle adopts the transfer-full pointer and its finalizer
-      // g_boxed_free's it (= g_error_free) exactly like any other EVERYTHING boxed
-      // OUT. A callee that leaves the slot untouched (`parse_info()` on an ERROR
-      // message) reads back the zero-initialised slot as `null`, matching gjs,
-      // because `slots` is value-initialised and that arm null-guards the pointer.
+      // `GLib.propagate_error`. Swept over the installed typelibs, EVERY GError
+      // OUT/INOUT parameter is caller_allocates=false + transfer=EVERYTHING, so
+      // this tag never reaches the caller-allocates branch above and the callee
+      // always writes a GError the caller then owns.
+      //
+      // Ownership needs nothing new: ReadOutOrReturn falls through to
+      // GIArgumentToJs's GI_TYPE_TAG_ERROR arm (marshal.cc), and G_TYPE_ERROR is a
+      // BOXED type — glib gobject/gboxed.c,
+      // `G_DEFINE_BOXED_TYPE(GError, g_error, g_error_copy, g_error_free)` — so the
+      // handle adopts a transfer-full pointer and its finalizer g_boxed_free's it
+      // (= g_error_free) exactly like any other EVERYTHING boxed OUT. A callee that
+      // leaves the slot untouched (`parse_info()` on an ERROR message) reads back as
+      // `null` and not an empty error, because `slots` is value-initialised and that
+      // arm null-guards the pointer — matching gjs.
       return true;
     case GI_TYPE_TAG_ARRAY:
     case GI_TYPE_TAG_GLIST:
@@ -594,6 +598,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // belong to the callee (dropped only when the callee never ran).
   CreatedBytes createdBytes;
   CreatedValues createdValues;
+  CreatedErrors createdErrors;
   bool ok = true;
   size_t jsCursor = 0;
   std::vector<LengthWrite> lengthWrites;
@@ -772,7 +777,8 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
           jsCursor++;
           GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
           if (JsToGIArgument(env, v, ti, &slots[i], &held[i], tr, &ownedInStrings, nullptr,
-                             nullptr, nullptr, gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai)))) {
+                             nullptr, nullptr, &createdErrors,
+                             gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai)))) {
             in_args[inPos[i]].v_pointer = &slots[i];
             out_args[outPos[i]].v_pointer = &slots[i];
           } else {
@@ -878,7 +884,7 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
       } else {
         GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
         ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i], tr, &ownedInStrings,
-                            &createdClosures, &createdBytes, &createdValues,
+                            &createdClosures, &createdBytes, &createdValues, &createdErrors,
                             gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai)));
       }
     }
@@ -900,6 +906,9 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     // Likewise every GValue boxed from a plain JS value — never adopted.
     for (GValue* gv : createdValues.transferNone) NodeGiFreeBoxedGValue(gv);
     for (GValue* gv : createdValues.transferFull) NodeGiFreeBoxedGValue(gv);
+    // Likewise every GError built from an L1 GLib.Error — never adopted.
+    for (GError* e : createdErrors.transferNone) g_error_free(e);
+    for (GError* e : createdErrors.transferFull) g_error_free(e);
     // Likewise the transfer-full-instance ref: the callee never consumed it.
     if (instanceRefTaken) g_object_unref(static_cast<GObject*>(instance));
     for (gpointer s : ownedInStrings) g_free(s);  // never reached the callee (#658)
@@ -944,6 +953,11 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
   // box is ours to free — success AND error paths, mirroring the GBytes rule.
   // Transfer-full GValues were adopted by the callee — no release.
   for (GValue* gv : createdValues.transferNone) NodeGiFreeBoxedGValue(gv);
+  // Transfer-none GError IN-args built from an L1 GLib.Error: the callee copied
+  // what it kept (gst_message_new_error copies the GError into the message), so
+  // the build is ours to free — success AND error paths, mirroring the two rules
+  // above. Transfer-full GErrors were adopted by the callee — no release.
+  for (GError* e : createdErrors.transferNone) g_error_free(e);
   if (!success) {
     for (const InContainer& c : inContainers) FreeInContainer(c);
     // A failed invoke did not adopt the transfer-full IN/INOUT strings we g_strdup'd
