@@ -44,6 +44,16 @@ packages/napi/napi/prebuilds/
 # is the mechanism; the option's comment is only the explanation.
 vala-c-export/
 
+# The same hand-off, one package over and one tool along: `WebKit-6.0.gir` is
+# scanned on Fedora — g-ir-scanner builds and RUNS a dumper program, which is
+# where the signals and the installed properties come from — and compiled to a
+# typelib on Windows beside the real DLL (ADR 0035; the `prebuilt_gir` option in
+# @gjsify/webview2-native's meson.build). `_gir/` is that build directory,
+# `gir-export/` is what the Fedora job hands over. Same rule, same reason: one
+# run, never a commit.
+_gir/
+gir-export/
+
 *.tsbuildinfo
 
 node_modules/

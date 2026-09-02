@@ -1,8 +1,9 @@
 # ADR 0035 — `@gjsify/iframe` on Windows: WebView2 behind the same `gi://WebKit` 6.0 namespace
 
-- **Status:** Proposed (2026-08-31)
+- **Status:** Accepted (2026-09-02)
 - **Scope:** `@gjsify/iframe` (Framework pillar) and its `WebKit.WebView` dependency on `win32-x64`; a new per-target package set (distribution per ADR 0017, OS axis per ADR 0018, artifact dependencies per ADR 0024). Sibling of [ADR 0022](0022-webkit-on-darwin.md), which decided the same question for darwin.
 - **The spike has run.** It was written before the code, because ADR 0022's Proposed draft got two of its own decisions wrong and only measurement overturned them; § *What the spike answered* now carries the results, measured on a `windows-latest` runner on 2026-08-31. The staging below survives them, with one refinement it did not anticipate. What remains unmeasured is stage 2's frame transport, and it is marked as such.
+- **Stage 1 is implemented** as `@gjsify/webview2-native`; stage 2 is unstarted. What landed, and the four things stage 1 deliberately does not do, are in § *Implementation*.
 
 ## Context
 
@@ -205,6 +206,44 @@ slower, and that number is not measured here. So: stage 1 does not need stage 2 
 usable for document-shaped content, and stage 2's budget is still unestablished for
 image-heavy content.
 
+## What a real Windows desktop added
+
+Four measurements from the win11-gjsify VM (Windows 11 build 26200) on
+2026-09-02, none of which a hosted runner could have made. Each one is here
+because it changes a decision rather than confirming one.
+
+**The Evergreen runtime is present, at 152.0.4191.53** — a second data point for
+question 5, one minor version ahead of the runner's, with 151.0.4129.107 still
+beside it under `C:\Program Files (x86)\Microsoft\EdgeWebView\Application`.
+
+**The Evergreen registry key exists ONLY in the 32-bit view, and that is a trap
+for decision 5.** `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-…}`
+has it; the 64-bit `HKLM\SOFTWARE\Microsoft\EdgeUpdate\Clients\…` does not. So an
+install-time detection that reads the 64-bit path reports "not installed" on a
+machine that has the runtime — the class of check that is green in CI and wrong
+at the user, which is the whole failure decision 5 exists to prevent. Detection
+must read both views (or use `GetAvailableCoreWebView2BrowserVersionString`,
+which is view-independent and is what the backend itself uses), and it must say
+in the code why.
+
+**There is no `gi://` substrate to wire up, confirmed rather than assumed.**
+`@gjsify/gtk-runtime-win32-x64@0.45.0` ships **45 typelibs and none of them is
+`WebKit`** — no `JavaScriptCore`, no `Soup` — and none of the 52 DLLs in
+`gtk/bin` is a `webkit*` or `javascriptcore*`. The context table's row 3 said
+`gvsbuild` has no WebKit; this is the same fact measured on the shipped bundle
+rather than read off a project list.
+
+**An SSH session on Windows lands in session 0, where `Gtk.init_check()` returns
+true and lies.** The process survives until `present()` and then dies with
+`0xC0000005`, which reads as a porting defect and is not one — window stations
+are per-session. Reaching the interactive session needs
+`Register-ScheduledTask -LogonType Interactive` (the PowerShell module, not
+`schtasks`: `/IT` does not combine with `/NP`, and a quoted path in `/tr` breaks
+the line). The consequence for this ADR is a design constraint, not a footnote:
+**stage 1's verification must not depend on presenting a window**, which is
+satisfied by the parking window — a view is fully usable, loadable and
+capturable with no toplevel at all.
+
 ## What the spike asked
 
 ### The questions, as they were put
@@ -244,7 +283,8 @@ or be replaced by an assertion that does not need one.
 
 ## Implementation
 
-Nothing of the backend is implemented. The order, once the spike answers:
+Steps 1 to 3 have landed as `@gjsify/webview2-native` +
+`@gjsify/webview2-native-win32-x64`; steps 4 and 5 have not.
 
 1. **The probe is written and HAS RUN** (§ *What the spike answered*) — `docs/poc/webview2-win32-probe.cpp`,
    built and run by `docs/poc/webview2-win32-probe.ps1`, dispatchable as the
@@ -256,13 +296,56 @@ Nothing of the backend is implemented. The order, once the spike answers:
    non-zero on the outcomes that invalidate this ADR (10: no loop bridge needed;
    11: no frame captured), so a red run is a result rather than a build to fix. It
    exited **0**: the pump is needed for navigation, and a frame was captured.
-2. The GObject shim: a C header with every GIR annotation and a C++/WinRT
-   implementation, producing the DLL plus `WebKit-6.0.{gir,typelib}` for the
-   subset in decision 4, staged into `prebuilds/win32-x64/` per ADR 0017.
-3. Stage 1's widget: allocation-tracking, hide-on-unmap, and the named
-   overlay-semantics API from decision 3.
-4. `gjsify ship windows`: the runtime dependency from decision 5.
+2. **The GObject shim.** `packages/framework/webview2-native/` — a pure-C header
+   carrying every GIR annotation, a portable C GObject layer, and one C++ file
+   holding all of the COM. The seam between them is
+   `src/c/gjsify-webview2-backend.h`, and it exists for a reason worth stating:
+   `g-ir-scanner` builds and RUNS a dumper against the library, which is where the
+   signals and the installed properties come from, so the library has to LINK on a
+   host that has a scanner. Fedora links it against
+   `src/c/gjsify-webview2-unsupported.c` — no behaviour, one shared refusal — and
+   the Windows half compiles the same portable C with the real backend and runs
+   `g-ir-compiler` on the scanned GIR. Two jobs of ONE `prebuilds.yml` run, so
+   drift between them is structurally impossible; the intermediate is gitignored
+   and never committed. That is `@gjsify/webgl`'s win32 shape one tool along.
+3. **Stage 1's widget.** Windowed hosting: a child `HWND` per view, re-parented
+   under the GTK toplevel's `HWND` on map and under a hidden process-wide parking
+   window otherwise, bounds tracking the allocation in device pixels, hidden by
+   hand on unmap. The parking window is what makes a view usable with no display
+   and no toplevel — which is what CI verifies and what session 0 forces (§ *What
+   a real Windows desktop added*). Decision 3's named API is
+   `WebKit.WebView.get_hosting_mode()` → `WebKit.HostingMode.OVERLAY` plus
+   `get_overlay_constraints()`, which reports the arrangements the view is
+   actually in that an overlay cannot honour and warns once per view for each.
+   The pump is a `GSource` refcounted on live views, attached at construction,
+   and `WebKit.MessagePumpState` + a named `GError` on every content-level call
+   is what makes its absence loud instead of an eight-second timeout.
+   **The load test is the assertion, not the build**: `scripts/probe-win32.mjs`
+   loads a document through node-gi, waits for `LoadEvent.FINISHED`, reads a
+   marker back out of the DOM with `evaluate_javascript` and captures a PNG — a
+   `getGType` probe would have gone green on an artifact that cannot load a page.
+4. `gjsify ship windows`: the runtime dependency from decision 5. **NOT DONE.**
+   Read § *What a real Windows desktop added* before writing the detection.
 5. Only then stage 2, as its own ADR amendment with its own measurements.
+
+### What stage 1 does not do
+
+Four gaps, each failing loudly rather than silently, because that is the
+difference between a subset and a lie:
+
+- **A user script carrying an allow or block list is REFUSED**, with a warning.
+  WebView2's injection point has no URL filter, and ADR 0022 records what
+  warning-and-injecting-anyway costs: a script running on an origin the caller
+  excluded is the exact failure a block list exists to prevent. Refusing narrows
+  in the safe direction for both list kinds. Porting darwin's in-script guard is
+  what closes it; it is outside decision 4's counted subset, and the two copies
+  it would create is why it was not simply lifted.
+- **Named script worlds are ignored**, with a warning. WebView2 has no public
+  isolated-world API, where `WKContentWorld` gave darwin one.
+- **`SnapshotRegion.FULL_DOCUMENT` returns the viewport.** `CapturePreview`
+  captures what is laid out.
+- **`Settings.enable-write-console-messages-to-stdout` is not honoured** —
+  no console-forwarding API short of a DevTools Protocol session.
 
 ## Do not
 
