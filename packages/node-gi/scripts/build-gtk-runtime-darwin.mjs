@@ -263,6 +263,21 @@ function realpathOrNull(p) {
     }
 }
 
+/**
+ * Record where a bundled binary really came from, for § 5's per-keg attribution: brew LINKS
+ * a keg's files into its prefix, and only the RESOLVED path runs through
+ * `…/Cellar/<formula>/<version>/`, which is the whole basis of the darwin licence mapping.
+ * A path that is not a link is its own source, so an unresolvable one is recorded as given
+ * rather than dropped. Every module list in § 2b–2d needs this and each used to spell the
+ * same try/catch out again.
+ * @param {Map<string, string>} sources leaf -> the path § 5 attributes through
+ * @param {string} leaf the name the binary ships under
+ * @param {string} src the path it was copied from
+ */
+function recordBinarySource(sources, leaf, src) {
+    sources.set(leaf, realpathOrNull(src) ?? src);
+}
+
 // Parse an `otool -L <lib>` output into the list of dependency install paths
 // (skipping the library's own id and system libraries).
 //
@@ -303,12 +318,7 @@ function otoolDeps(libPath) {
 // or null when it is not a Homebrew library we bundle.
 function resolveInBrew(leaf) {
     const candidate = join(brewLib, leaf);
-    if (!existsSync(candidate)) return null;
-    try {
-        return realpathSync(candidate);
-    } catch {
-        return null;
-    }
+    return existsSync(candidate) ? realpathOrNull(candidate) : null;
 }
 
 /**
@@ -331,11 +341,7 @@ function resolveBrewDep(ref) {
     const linked = resolveInBrew(basename(ref));
     if (linked) return linked;
     if (!ref.startsWith(`${brewPrefix}/`) || !existsSync(ref)) return null;
-    try {
-        return realpathSync(ref);
-    } catch {
-        return null;
-    }
+    return realpathOrNull(ref);
 }
 
 // --- 1. discover the closure ----------------------------------------------
@@ -509,11 +515,7 @@ if (WINDOWING) {
             // a tarball. The realpath is also what § 5 attributes the binary through.
             copyFileSync(src, dest);
             pixbufLoaderImages.push(dest);
-            try {
-                pixbufLoaderSources.set(f, realpathSync(src));
-            } catch {
-                pixbufLoaderSources.set(f, src); // not a link — the path IS the source
-            }
+            recordBinarySource(pixbufLoaderSources, f, src);
         }
         for (const image of pixbufLoaderImages) {
             relocate(image, { id: true, depPrefix: '@loader_path/../../..' });
@@ -634,11 +636,7 @@ if (WINDOWING) {
             copyFileSync(src, dest);
             bytes += statSync(dest).size;
             gstPluginImages.push(dest);
-            try {
-                gstPluginSources.set(f, realpathSync(src));
-            } catch {
-                gstPluginSources.set(f, src);
-            }
+            recordBinarySource(gstPluginSources, f, src);
         }
         for (const image of gstPluginImages) {
             relocate(image, { id: true, depPrefix: '@loader_path/..' });
@@ -656,11 +654,7 @@ if (WINDOWING) {
             const dest = join(scannerOut, 'gst-plugin-scanner');
             copyFileSync(scannerSrc, dest);
             gstPluginImages.push(dest);
-            try {
-                gstPluginSources.set('gst-plugin-scanner', realpathSync(scannerSrc));
-            } catch {
-                gstPluginSources.set('gst-plugin-scanner', scannerSrc);
-            }
+            recordBinarySource(gstPluginSources, 'gst-plugin-scanner', scannerSrc);
             relocate(dest, { id: false, depPrefix: '@loader_path/../../lib' });
         } else {
             console.warn(
@@ -737,11 +731,7 @@ if (WINDOWING) {
             copyFileSync(src, dest); // dereferencing — a link into the Cellar is worthless in a tarball
             bytes += statSync(dest).size;
             gioModuleImages.push(dest);
-            try {
-                gioModuleSources.set(f, realpathSync(src));
-            } catch {
-                gioModuleSources.set(f, src);
-            }
+            recordBinarySource(gioModuleSources, f, src);
         }
         for (const image of gioModuleImages) {
             relocate(image, { id: true, depPrefix: '@loader_path/../..' });
