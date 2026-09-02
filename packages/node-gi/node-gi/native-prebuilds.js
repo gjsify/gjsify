@@ -155,19 +155,21 @@ function targetCandidates(platform, arch, musl) {
  * TWO probes, and the SECOND is what makes the default correct:
  *
  *   1. `process.report.…glibcVersionRuntime` — present iff the running process is
- *      linked against glibc, authoritative when it answers, and a NODE-only API. It
- *      does not answer on bun, on deno, or under GJS, where `@gjsify/process` has no
- *      `report` at all — and node-gi runs on all four.
+ *      linked against glibc, and authoritative when it answers. Under GJS it cannot:
+ *      `@gjsify/process` implements no `report` at all. MEASURED rather than assumed
+ *      for the other two, because the obvious guess is wrong — bun 1.3.14 and deno
+ *      2.1.1 on linux-x64 BOTH answer it (`"2.43"` / `"2.38"`), so the case for probe 2
+ *      rests on the GJS host and on any build where the field is simply absent, not on
+ *      a blanket "only node has it".
  *   2. musl's dynamic loader, `/lib/ld-musl-<arch>.so.1`. A fact about the SYSTEM
- *      rather than about the process, so it answers on the three runtimes probe 1
- *      cannot.
+ *      rather than about the process, so it answers wherever probe 1 declines.
  *
  * NEITHER answering means glibc, which is a claim about the evidence and not a guess:
  * probe 2 finding no musl loader means the host has no musl. Reading probe 1's silence
  * as "musl" — which is what this did before, having copied only the first half — makes
- * every bun/deno/GJS host on glibc prefer a `-musl` directory, and a musl-linked
- * library staged there cannot load on the platform it would be chosen for. Silent
- * wrong artifact, not a loud refusal.
+ * a host on glibc prefer a `-musl` directory, and a musl-linked library staged there
+ * cannot load on the platform it would be chosen for. Silent wrong artifact, not a
+ * loud refusal.
  *
  * @param {{platform: string, glibcVersionRuntime?: string, muslLoaderPresent?: boolean}} input
  * @returns {boolean} whether to offer `-musl` directories; false off Linux, where the
