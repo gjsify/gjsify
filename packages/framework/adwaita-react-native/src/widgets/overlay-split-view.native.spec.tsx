@@ -24,7 +24,16 @@ import { describe, expect, it } from '@gjsify/unit';
 import { act } from 'react-test-renderer';
 
 import { Text } from '../testing/react-native.js';
-import { at, childrenOf, mount, onlyChild, settled, textOf, type Style } from '../testing/render.spec.js';
+import {
+    at,
+    childrenOf,
+    deliverLayout,
+    mount,
+    onlyChild,
+    settled,
+    textOf,
+    type Style,
+} from '../testing/render.spec.js';
 import { AdwOverlaySplitView } from './overlay-split-view.native.js';
 
 /** The frame the GTK half is photographed in, so both are asked the same question. */
@@ -126,6 +135,38 @@ export default async () => {
             expect((at(nodes, 1).props.style as Record<string, unknown>).opacity).toBe(0);
             // Off the leading edge by its full width, not merely transparent.
             expect((at(nodes, 1).props.style as Record<string, unknown>).left).toBe(-280);
+        });
+
+        await it('pins and collapses in ONE commit without losing the sidebar', async () => {
+            // THE WRITE ORDER, AS A THING THAT GOES RED. `setCollapsed` hides an
+            // UNPINNED sidebar itself, so the effect has to push `pin-sidebar` first —
+            // and on a commit that changes both, "first" is nothing but the order of two
+            // lines in one function body. Measured with those two lines swapped: the
+            // sidebar came back at `left: -280, opacity: 0` and every other test in this
+            // package stayed green, because they all reach the two flags either at mount
+            // or in separate commits. This is the row that fails.
+            //
+            // Its twin is in `navigation.gtk.spec.tsx`, where the same two props change
+            // in one `rerender` and gtk-host writes them in ELEMENT order.
+            const view = (pinned: boolean) => overlay({ pinSidebar: pinned, collapsed: pinned });
+            const renderer = mount(view(false));
+            deliverLayout(renderer, PHONE_FRAME_WIDTH);
+            act(() => {
+                renderer.update(view(true));
+            });
+            const nodes = childrenOf(deliverLayout(renderer, PHONE_FRAME_WIDTH));
+            // Content, shield, sidebar — the shield is there only while collapsed AND
+            // revealed, so its presence is half the assertion.
+            expect(nodes.length).toBe(3);
+            expect(paneName(nodes, 2)).toBe('sidebar');
+            expect(at(nodes, 2).props.style as Style).toStrictEqual({
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: 0,
+                width: 280,
+                opacity: 1,
+            });
         });
 
         await it('reports the value the widget settled on, not the one it was given', async () => {

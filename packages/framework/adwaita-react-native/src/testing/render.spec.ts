@@ -47,7 +47,8 @@ export const mounted = (element: React.ReactElement): ReactTestRendererJSON =>
     mount(element).toJSON() as ReactTestRendererJSON;
 
 /**
- * Mount, deliver ONE `onLayout` at `width`, and read the tree the widget settled on.
+ * Deliver ONE `onLayout` at `width` to the tree a MOUNTED renderer is showing, and read
+ * back what it settled on.
  *
  * Every size-aware widget in this package binds to the size of the VIEW rather than of
  * the window, so its root node carries the `onLayout` and nothing downstream knows a size
@@ -55,10 +56,11 @@ export const mounted = (element: React.ReactElement): ReactTestRendererJSON =>
  * stopped emitting `onLayout` would otherwise leave every assertion below it reading the
  * pre-layout tree and passing.
  *
- * ONE renderer, read twice — the reason is on {@link mount}.
+ * Separate from {@link settled} because an UPDATE needs the same delivery on a renderer
+ * that is already mounted — a widget re-reads no size on its own, so a tree read straight
+ * after `renderer.update` is still the pre-layout one.
  */
-export function settled(element: React.ReactElement, width: number, height = 100): ReactTestRendererJSON {
-    const renderer = mount(element);
+export function deliverLayout(renderer: ReactTestRenderer, width: number, height = 100): ReactTestRendererJSON {
     const before = renderer.toJSON() as ReactTestRendererJSON;
     const onLayout = before.props.onLayout as ((event: unknown) => void) | undefined;
     if (typeof onLayout !== 'function') {
@@ -69,6 +71,14 @@ export function settled(element: React.ReactElement, width: number, height = 100
     });
     return renderer.toJSON() as ReactTestRendererJSON;
 }
+
+/**
+ * Mount, deliver ONE `onLayout` at `width`, and read the tree the widget settled on.
+ *
+ * ONE renderer, read twice — the reason is on {@link mount}.
+ */
+export const settled = (element: React.ReactElement, width: number, height = 100): ReactTestRendererJSON =>
+    deliverLayout(mount(element), width, height);
 
 /** A node's element children, with text children refused rather than silently skipped. */
 export function childrenOf(node: ReactTestRendererJSON): ReactTestRendererJSON[] {

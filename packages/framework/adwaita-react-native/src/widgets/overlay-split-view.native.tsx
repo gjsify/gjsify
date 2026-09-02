@@ -41,6 +41,20 @@
 // ("a blanket re-read would clobber that decision with the stale attribute"). React has
 // no per-prop callback, so the previously-applied values live in a ref and this effect is
 // the diff.
+//
+// THE REF HOLDS PROPS, NEVER THE WIDGET'S STATE, and nothing invalidates it — which is
+// the point rather than an omission. It is prop-versus-prop exactly as gtk-host's own
+// `diffProps` is, so both halves answer a re-render with an unchanged `showSidebar` the
+// same way: the widget's own decision stands. The cost is the same on both too — a
+// caller whose `showSidebar` was already `true` when the collapse hid the sidebar has no
+// prop change left to express "show it", which is what `onNotifyShowSidebar` is for.
+//
+// AND THE ORDER INSIDE THIS EFFECT IS A RULE, so it needs a row that fails when the lines
+// move. `pins and collapses in ONE commit without losing the sidebar` in
+// `overlay-split-view.native.spec.tsx` is it: measured with `setCollapsed` moved above
+// `setPinSidebar`, the sidebar came back at `left: -280, opacity: 0` and every other test
+// in this package stayed green, because they all reach the two flags at mount or in
+// separate commits.
 
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';

@@ -19,15 +19,22 @@
 // Running both would give one widget two authorities for its own `show-sidebar`.
 //
 // `collapsed` IS WRITTEN LAST, AND THAT ORDER IS MEASURED RATHER THAN REASONED. gtk-host
-// applies props in the order they appear on the element, and
-// `adw_overlay_split_view_set_collapsed` HIDES an unpinned sidebar on its way through —
-// so with `collapsed` first, `<AdwOverlaySplitView pinSidebar collapsed>` reached
-// `set_collapsed` while `pin-sidebar` was still FALSE and read back `show-sidebar: false`
-// on libadwaita 1.9.3, with no diagnostic and a sidebar simply not on screen. Writing the
-// two flags it CONSULTS before it is the fix, and it is the same ordering
+// applies props in the order they appear on the element — at mount through the insertion
+// order `g_object_new_with_properties` preserves, on an update through
+// `Object.keys(newProps)` — and `adw_overlay_split_view_set_collapsed` HIDES an unpinned
+// sidebar on its way through (`set_show_sidebar (self, !collapsed, FALSE, 0)`). So with
+// `collapsed` first, `<AdwOverlaySplitView pinSidebar collapsed>` reached `set_collapsed`
+// while `pin-sidebar` was still FALSE and read back `show-sidebar: false` on libadwaita
+// 1.9.3, with no diagnostic and a sidebar simply not on screen. Writing the two flags it
+// CONSULTS before it is the fix, and it is the same ordering
 // `overlay-split-view.native.tsx`'s effect applies for the same reason —
 // `@gjsify/adwaita-web`'s `_readAttribute` says so in a comment ("Last: it can change
 // `show-sidebar`").
+//
+// IT IS A RULE ABOUT THE ORDER OF TWO JSX ATTRIBUTES, so it needs a row that fails when
+// they move. Two do, both in `navigation.gtk.spec.tsx`: the MOUNT case authors both flags
+// at once, and `pins and collapses in ONE commit without losing the sidebar` changes both
+// in one `rerender`. The React Native half carries the same pair of rows.
 //
 // THE NOTIFY HANDLER READS THE WIDGET BACK RATHER THAN TAKING THE VALUE FROM THE SIGNAL,
 // because a `notify::` handler in this host receives the ParamSpec alone (`attrs.ts`
