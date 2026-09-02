@@ -141,14 +141,17 @@ export interface Layout {
      * something true about this OS that the staged tree cannot show? Linux answers
      * by having none.
      *
-     * THE GAP IS NOT THE PATH (ADR 0038). `share/fonts` is reached identically on
-     * all three layouts — fontconfig expands `<dir prefix="xdg">fonts</dir>` over
-     * the `XDG_DATA_DIRS` every launcher already exports, measured in eight
-     * independent fontconfigs. What differs per OS is whether the Pango that
-     * artifact runs is fontconfig-backed at all and which `fonts.conf` it loads,
-     * and both are properties of `@gjsify/gtk-runtime-<target>` rather than of this
-     * payload. `gjsify ship` prints it only when the payload actually carries a
-     * face, so a project shipping none is told nothing.
+     * THE GAP IS NOT THE PATH (ADR 0038). The faces are STAGED identically on all
+     * three layouts and `planStage` emits one plan for them; what differs is what
+     * READS the directory. On Linux fontconfig does, expanding
+     * `<dir prefix="xdg">fonts</dir>` over the `XDG_DATA_DIRS` every launcher
+     * already exports — measured in eight independent fontconfigs — so that row has
+     * nothing to report. On the other two the reader is a property of
+     * `@gjsify/gtk-runtime-<target>` rather than of this payload, and it is not
+     * fontconfig in either: CoreText on macOS, DirectWrite on Windows, the latter
+     * measured on hardware (`LAYOUTS.windows.fontGap` carries the numbers).
+     * `gjsify ship` prints this only when the payload actually carries a face, so a
+     * project shipping none is told nothing.
      */
     fontGap?: string;
     /** Suffix the launcher's filename carries, `''` where the OS needs none. */
@@ -409,7 +412,8 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             '`@gjsify/node-runtime-win32-x64` and a `--app node` payload (#1354 M3).',
         // THE ONE LAYOUT WITH NO DECLARATIVE ANSWER AT ALL, and the three obvious
         // candidates are each dead for a different reason — written down because each
-        // one looks right until it is read.
+        // one looks right until it is read. The first is now dead by MEASUREMENT
+        // rather than by reading (ADR 0038 § W1-W3, Windows 11 / GTK 4.22.4).
         //
         //  * FONTCONFIG. gvsbuild does build it and pango links it
         //    (`-Dfontconfig=enabled`), but `pangocairo-fontmap.c` picks the first
@@ -418,7 +422,14 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         //    font map is built and never selected, and the whole `etc/fonts` +
         //    `FONTCONFIG_PATH` arrangement `@gjsify/gtk-runtime-win32-x64` ships is
         //    inert. `APPSHAREFONTDIR` even resolves to exactly this layout
-        //    (`<exe dir>\..\share\fonts`) and feeds the map nothing reads.
+        //    (`<exe dir>\..\share\fonts`) and feeds the map nothing reads. RUN: with
+        //    a `FONTCONFIG_FILE` naming the face's directory beside WINDOWSFONTDIR
+        //    the default map stays at 82 families without it — and stays at 82 when
+        //    that directory is the ONLY one configured, which is the row that shows
+        //    the map is not reading a misconfigured fontconfig but no fontconfig.
+        //    The control that makes that a finding: a `PangoFT2.FontMap` from the
+        //    SAME config in the SAME process goes 76 → 77 WITH the face, and to 5
+        //    families exclusively. The bundle also ships no `fc-cache.exe`.
         //  * XDG_DATA_DIRS, which carries the faces on Linux. `FcConfigXdgDataDirs()`
         //    splits on a HARDCODED colon (its own comment says the spec asks for one),
         //    while `FC_SEARCH_PATH_SEPARATOR` is `;` here — so `C:\App\share` splits
@@ -431,13 +442,23 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         //
         // What is left is a runtime call, which a packaging command has no business
         // making inside somebody's application — so the launcher hands over the
-        // directory (`GJSIFY_FONT_DIR`) and this string names the call.
+        // directory (`GJSIFY_FONT_DIR`) and this string names the call. That the call
+        // WORKS is measured too, and on GTK's own map rather than a loose Pango
+        // object: `label.get_pango_context().get_font_map()` IS the default map
+        // there, `add_font_file` on it answers true, families go 82 → 83 and the
+        // family then loads. With the discriminator that keeps "resolved" honest — an
+        // invented family renders as Tahoma at different metrics with a Pango
+        // warning, which is exactly what the probe family did BEFORE the call.
         fontGap:
             'the faces are staged in `share/fonts/<appId>` and the launcher exports GJSIFY_FONT_DIR at it, ' +
             'but WINDOWS HAS NO DECLARATIVE FONT ACTIVATION and nothing here reaches a bundled face on its ' +
             'own: GTK4 uses pangowin32, whose font map is populated from DirectWrite and never from ' +
-            'fontconfig or from GDI. Register them at startup — ' +
-            '`PangoCairo.FontMap.get_default().add_font_file(path)` (Pango 1.56+, in the typelib) — or the ' +
+            'fontconfig or from GDI. MEASURED on Windows 11 / GTK 4.22.4 rather than inferred (ADR 0038 ' +
+            'W1-W5): a FONTCONFIG_FILE naming the staged directory moves the default font map by nothing ' +
+            'even when it is the ONLY configuration present — that map does not read fontconfig, and exposes ' +
+            'no config_changed or set_config with which to make it — while add_font_file on the same map a ' +
+            'Gtk.Label renders through does register the family. So register them at startup: ' +
+            '`PangoCairo.FontMap.get_default().add_font_file(path)` (Pango 1.56+, in the typelib), or the ' +
             'app renders in a substituted family with no error.',
         // `.cmd`, not `.bat`: the two differ in whether a failing built-in (`set`,
         // `path`, `append`) sets ERRORLEVEL, and `.cmd` is the one where it does.

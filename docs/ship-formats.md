@@ -590,7 +590,7 @@ answers are not degrees of the same thing:
 | linux, `/usr` | the stock `fonts.conf`'s unconditional `<dir>/usr/share/fonts</dir>` | measured, fontconfig 2.17.0 |
 | linux, `/app` | `<dir prefix="xdg">fonts</dir>` expanded over `XDG_DATA_DIRS` — which `fonts-conf(5)` does not document | measured in eight fontconfig builds, 2.14.1 → 2.18.3; any list position, recursively, cold cache |
 | darwin | `ATSApplicationFontsPath` in `Info.plist`, relative to `Contents/Resources`; macOS activates it for THIS app at launch | Apple's key reference; the ACTIVATION is unverified here |
-| windows | **nothing.** The launcher exports `GJSIFY_FONT_DIR` and the app calls `PangoCairo.FontMap.get_default().add_font_file()` | pango/gvsbuild/cairo sources; not run on Windows |
+| windows | **nothing.** The launcher exports `GJSIFY_FONT_DIR` and the app calls `PangoCairo.FontMap.get_default().add_font_file()` | measured on Windows 11 / GTK 4.22.4: a `FONTCONFIG_FILE` naming the directory leaves the default font map unchanged even as the ONLY configuration, `add_font_file` on GTK's own map registers the family; what no leg here runs is a SHIPPED program directory |
 
 Three things follow, each of which looks wrong until the reason is read:
 

@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (2026-09-02)
 - **Scope:** `gjsify ship`'s payload (`gjsify.ship.fonts`), the `SHARE` directory set, and the per-OS honesty rows in `utils/ship/layout.ts`. Extends [ADR 0024](0024-ship-installable-artifacts.md) § 2 (*one payload, one layout per OS*) the way § A8 extended it for compiled gettext catalogues. It settles nothing about which GTK closure a `.app` or a Windows program directory carries — that is `@gjsify/gtk-runtime-<target>` and [ADR 0023](0023-gtk-source-precedence.md).
-- **Written after the measurements, not before** — and revised by them: the first draft assumed the Linux mechanism generalised to all three OSes, and it does not. What was RUN on this machine is the Linux half, and one of its findings contradicts `fonts-conf(5)`. macOS and Windows were researched against vendor documentation and upstream source and are marked as such throughout, never as measurements. § *What was measured* carries both, apart.
+- **Written after the measurements, not before** — and revised by them: the first draft assumed the Linux mechanism generalised to all three OSes, and it does not. What was RUN is the Linux half on this machine, where one finding contradicts `fonts-conf(5)`, and the Windows half on a Windows 11 test VM, where both candidate mechanisms were put to a face that host does not have. macOS alone is researched — vendor documentation and upstream source, marked as such throughout and never as a measurement. § *What was measured* keeps the three apart.
 
 ## Context
 
@@ -152,11 +152,74 @@ So a `fonts.conf` inside a `.app` would be inert twice over — wrong Pango back
 and no GTK-side fontconfig — and the darwin row is a different mechanism, not a
 weaker version of the Linux one.
 
-### Windows, likewise researched rather than run — and it has no declarative answer
+### Windows, RUN on hardware — both candidates answered, and neither answer was a guess
 
 The repository's own win32 builder hedges: it copies `etc/fonts` *"when present"*
 and otherwise logs *"pango uses the win32/DirectWrite backend — skipping"*. The
 hedge resolves, and not in the direction the arrangement assumes.
+
+Measured 2026-09-02 on a Windows 11 test VM (build 26200): Node v24.18.1,
+`@gjsify/gtk-runtime-win32-x64@0.45.0`, GTK 4.22.4, GLib 2.88.1, Adw 1.9.1,
+GStreamer 1.28.4. The probe is `BuilderBlocks.ttf` — 500 bytes, a valid sfnt
+carrying the family `BuilderBlocks` and a single Mac name record — taken out of
+the runtime bundle itself and NOT installed on the host, so a hit is the probe
+and never a substitution. Baseline:
+`PangoCairo.FontMap.get_default().list_families()` reports **82 families**, every
+one of them a DirectWrite face, none of them `Builder*`.
+
+**W1. The fontconfig route does not reach the font map that counts — in either
+direction.**
+
+| probe | families | `BuilderBlocks` |
+|---|---|---|
+| baseline | 82 | no |
+| own `FONTCONFIG_FILE`, probe directory ADDED beside `WINDOWSFONTDIR` | 82 | no |
+| own `FONTCONFIG_FILE`, probe directory EXCLUSIVELY | **82** | no |
+
+The exclusive row is the one that settles it. A config naming *only* the probe
+directory would leave a fontconfig-backed map with a handful of families; this one
+does not move at all. So the default map is not reading a fontconfig that was
+configured wrong — it is not reading fontconfig.
+
+**W2. And the probe font is not the reason, which is the control that makes W1 a
+finding rather than a failure.** An explicitly fontconfig-backed
+`PangoFT2.FontMap`, built in the SAME process from the SAME configuration:
+
+| probe | families | `BuilderBlocks` |
+|---|---|---|
+| additive config | 76 → **77** | **yes** |
+| exclusive config | **5** — `BuilderBlocks`, `Monospace`, `Sans`, `Serif`, `System-ui` | **yes** |
+
+fontconfig parses the configuration, walks the directory and sees the face. The
+map GTK renders through simply never asks it. The API shape says the same without
+running anything: the default font map exposes no `config_changed` and no
+`set_config`; the FT2 one exposes `config_changed`.
+
+**W3. The bundle ships no `fc-cache.exe`.** Even a consumer who wanted the
+fontconfig route could not build the cache by the ordinary means.
+
+**W4. `add_font_file()` works, and on GTK's OWN map.**
+
+| probe | result |
+|---|---|
+| `PangoCairo.FontMap.get_default().add_font_file(path)` | `true` |
+| `list_families()` after it | 82 → **83, with `BuilderBlocks`** |
+| `load_font` for that family | resolves to **`BuilderBlocks 40`** |
+| in a real window: `label.get_pango_context().get_font_map() === PangoCairo.FontMap.get_default()` | **`true`** |
+| `add_font_file` on that map, then `ctx.load_font` | `BuilderBlocks 40`, layout **54×54 px** |
+
+The identity row is what makes this a statement about GTK rather than about a
+loose Pango object: the map a widget renders through IS the default map, so
+registering into it registers for the application.
+
+**W5. The discriminator, because a substituted family is exactly what "it
+resolved" looks like.** A family that cannot exist, `ZzzNoSuchFamilyQx`, resolves
+to **`Tahoma 40`** at **63×66 px** with a Pango warning — and `BuilderBlocks`
+behaved *identically* BEFORE `add_font_file`: Tahoma, 63×66, the same warning.
+Afterwards: `BuilderBlocks`, 54×54, no warning. The green in W4 is therefore a
+different family with different metrics, not a call that returned `true`.
+
+The mechanism the sources predicted, and which W1 is the outcome of:
 
 - `pango_win32_font_map_init()` has exactly **one** population call,
   `pango_win32_dwrite_font_map_populate()`. Grepping the win32 backend for
@@ -194,10 +257,15 @@ hedge resolves, and not in the direction the arrangement assumes.
   verified against the installed typelib. On win32 it goes through
   `IDWriteFactory5::CreateFontSetBuilder` (falling back to `IDWriteFactory3`), then
   clears the map's cache and emits `changed` — so unlike CoreText it works **after**
-  the font map exists.
+  the font map exists. Run, § W4: `true`, one more family, and the widget's own
+  context loads it.
 
-Nothing in this section was executed on Windows. It is source and vendor
-documentation, and it is marked as such.
+W1–W5 were executed on Windows; the bullet list above them was not. The bullets
+are the MECHANISM and the measurements are the OUTCOME, and they agree. Two of
+the bullets stay source-only and neither is load-bearing any more — the
+`XDG_DATA_DIRS` colon split and the GDI route are reasons a dead path is dead,
+and W1 shows it dead from the other end. `AddFontResourceEx` was never called on
+the VM.
 
 ## Decision
 
@@ -227,7 +295,7 @@ is the error the first draft made.
 | Linux, `.deb` / `.rpm` (`/usr`) | the stock `fonts.conf`'s unconditional `<dir>/usr/share/fonts</dir>` | measured here |
 | Linux, Flatpak (`/app`) | `<dir prefix="xdg">fonts</dir>` over the `XDG_DATA_DIRS` Flatpak sets | measured here, in eight fontconfig builds (2.14.1 → 2.18.3) |
 | macOS `.app` | `ATSApplicationFontsPath` in `Info.plist`, resolved against `Contents/Resources` — the OS activates the directory for THIS app at launch | primary sources; activation unverified on hardware |
-| Windows program directory | **nothing declarative exists.** The launcher exports `GJSIFY_FONT_DIR` and the app calls `PangoCairo.FontMap.get_default().add_font_file()` | primary sources; the three candidates that look like they work are each dead — see above |
+| Windows program directory | **nothing declarative exists.** The launcher exports `GJSIFY_FONT_DIR` and the app calls `PangoCairo.FontMap.get_default().add_font_file()` | measured on Windows 11 (§ W1–W5): the default font map does not read fontconfig at all, and `add_font_file` puts the family on GTK's own map |
 
 On LINUX the launcher is **not changed**: `renderLauncher` has exported
 `XDG_DATA_DIRS` at the staged `share/` on every layout since ADR 0024 § 3, for the
@@ -270,7 +338,7 @@ derived rather than spelled out, unlike the two literal parents beside it.
 
 **6. What the payload cannot settle is PRINTED, per OS, and only when a face is
 carried.** `Layout.fontGap` is `runtimeGap`'s sibling: absent on Linux, and on
-each other row a sentence saying what is still unverified there.
+each other row a sentence saying what the staged tree cannot show there.
 
 - **darwin** — the mechanism is declared and its EFFECT is unverified. The plist
   key is in the bundle and points at the staged directory; that macOS activates it
@@ -280,7 +348,12 @@ each other row a sentence saying what is still unverified there.
   backend it was actually built with.
 - **windows** — there is no mechanism to declare, so the note says what the app
   must do and names the call. It is the row a reader is most likely to get wrong,
-  because three different things look like they would work and none does.
+  because three different things look like they would work and none does. Both
+  halves are now MEASURED (§ W1–W5) rather than argued from the sources: the
+  fontconfig route moves the default font map by zero families even when it is the
+  only configuration there is, and `add_font_file` moves it by one, on the very map
+  a `Gtk.Label` renders through. What the note still cannot claim is that any
+  application makes the call — no `@gjsify/*` package does yet.
 
 Conditional on the payload actually carrying a face, for the reason `runtimeGap`
 is conditional on the missing interpreter: a warning printed over every stage is
@@ -326,12 +399,12 @@ targets the file somebody put there meaning it to ship.
   than letting the green stage imply otherwise.
 - **The inert fontconfig plumbing in the win32 runtime bundle.**
   `gtk-runtime-win32-x64`'s builder copies `etc/fonts` and `node-gi/gtk-runtime.js`
-  sets `FONTCONFIG_PATH`/`FONTCONFIG_FILE` at it. Per the sources cited above the
-  fc font map is compiled and never selected, so none of it affects text — and the
-  comment beside it implies fontconfig is sometimes in play, which is worse than
-  the dead code. That is `@gjsify/node-gi`'s tree, outside this workspace and with
-  its own CI, and it is a REMOVAL that wants a Windows run behind it.
-  `status/open-todos.md`.
+  sets `FONTCONFIG_PATH`/`FONTCONFIG_FILE` at it. § W1 now measures what the
+  sources predicted — the default font map does not read fontconfig, so none of it
+  affects text — and the comment beside it implies fontconfig is sometimes in play,
+  which is worse than the dead code. The Windows run this removal wanted behind it
+  exists; what it does not have is a home in THIS workspace. That is
+  `@gjsify/node-gi`'s tree, with its own CI. `status/open-todos.md`.
 - **`AddFontResourceEx` with `FR_PRIVATE`, permanently.** Not deferred — ruled
   out. It registers with GDI, and `pango_win32_font_map_init()` populates from
   DirectWrite alone. A GDI-private font cannot reach GTK4 text even if DirectWrite
@@ -390,7 +463,8 @@ Landed with this ADR, in `packages/infra/cli`:
   made, on a plausible-looking argument from `build-gtk-runtime-darwin.mjs`'s seed
   list. fontconfig is linked into the darwin AND the win32 closures and is the
   selected backend in NEITHER. Read the backend selection, not the dependency
-  graph.
+  graph — and § W1/W2 is what that looks like when it is run instead of read: in
+  one Windows process, fontconfig sees the face and the default font map does not.
 - **Do not narrow the launcher's `XDG_DATA_DIRS` line to its GLib readers.** On
   Linux it carries the faces, and `fonts-conf(5)` lists none of that behaviour —
   so the obvious tidy-up ("this is for icons and schemas") silently un-ships every
@@ -406,7 +480,9 @@ Landed with this ADR, in `packages/infra/cli`:
 - **Do not relax the `.woff2` refusal because it works locally.** It does work
   locally; that is measurement 7, and it is the reason for the refusal rather than
   an argument against it.
-- **Do not let a file count stand in for a load.** Nothing here proves a family
-  RESOLVES on macOS or Windows. The staged tree is asserted, the resolution is
-  not, and `Layout.fontGap` is what says so out loud instead of letting a green
-  stage imply otherwise.
+- **Do not let a file count stand in for a load.** On macOS nothing here proves a
+  family RESOLVES: the staged tree is asserted and the resolution is not. On
+  Windows the CALL is proved (§ W4/W5) and the shipped tree still is not — no leg
+  here builds a program directory and runs it, and no `@gjsify/*` package makes
+  the call the launcher hands `GJSIFY_FONT_DIR` to. `Layout.fontGap` is what says
+  both out loud instead of letting a green stage imply otherwise.

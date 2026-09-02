@@ -14,9 +14,14 @@
 // process starts — Apple's key reference, not a measurement: no leg in this
 // repository runs a `.app`, which is what ADR 0038's `Layout.fontGap` prints rather
 // than letting a green stage imply. On WINDOWS GTK4 is pangowin32/DirectWrite, which
-// reaches no font file by configuration at all — a bundled face there is registered
-// by the APP at startup (`PangoCairo.FontMap.get_default().add_font_file()`, over
-// the directory `gjsify ship` names in `GJSIFY_FONT_DIR`). This hook is still right
+// reaches no font file by configuration at all — measured there, unlike the row above
+// it: Windows 11 with GTK 4.22.4, ADR 0038 § W1-W5, and in both directions. The
+// default font map does not see a face that a fontconfig configuration in the SAME
+// process demonstrably does, not even when that configuration is the only one it is
+// given; `PangoCairo.FontMap.get_default().add_font_file()` does put the family
+// there, on the very map a widget's own `PangoContext` renders through. So a bundled
+// face is registered by the APP at startup, over the directory `gjsify ship` names in
+// `GJSIFY_FONT_DIR`. This hook is still right
 // to answer immediately: it is not what performs that registration, and where the
 // registration belongs to the app it has necessarily already run. No `@gjsify/*`
 // package makes that call yet — `status/open-todos.md`.
@@ -45,7 +50,8 @@
 // build chain — the same reason `useFonts` ignores its map's VALUES and this layer
 // refuses one for `Image.source`. There is no path to register. And the call would
 // not be portable if there were: it answers `G_IO_ERROR_NOT_SUPPORTED` on the
-// CoreText font map, so it would work on Linux and Windows and lie on macOS. A
+// CoreText font map, so it would work on Linux and Windows — both measured, the
+// second on the VM above — and lie on macOS, which is the CoreText source. A
 // promise that resolved would be claiming a font was installed when it was not, and
 // the symptom is Pango silently substituting a fallback family — the exit-0 failure
 // this layer exists against.

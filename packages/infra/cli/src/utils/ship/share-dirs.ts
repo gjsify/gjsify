@@ -59,9 +59,12 @@ export const SHARE = {
      * CoreText-backed and GTK is not built against fontconfig, so `Info.plist`'s
      * `ATSApplicationFontsPath` points at this directory instead (`layout.ts`).
      *
-     * On WINDOWS nothing reaches it by configuration at all, and the launcher's
-     * `GJSIFY_FONT_DIR` hands it to the app to register. `Layout.fontGap` carries the
-     * three candidates that look like they would work and do not.
+     * On WINDOWS nothing reaches it by configuration at all — measured there, not
+     * inferred: the default font map does not read fontconfig even when the staged
+     * directory is the ONLY configuration it is given, while `add_font_file` on that
+     * same map does register the family. So the launcher's `GJSIFY_FONT_DIR` hands
+     * the directory to the app to register. `Layout.fontGap` carries the numbers and
+     * the three candidates that look like they would work and do not.
      *
      * That the PATH is one while the mechanisms are three is the point: `planStage`
      * keeps emitting one payload, and every per-OS answer is a layout decision.

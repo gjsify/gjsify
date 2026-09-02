@@ -967,13 +967,17 @@ config file. macOS stays the odd one out: the CoreText font map implements no
 `add_font_file` at all and falls through to the base impl's `G_IO_ERROR_NOT_SUPPORTED`,
 which is why `ATSApplicationFontsPath` is the darwin mechanism and must stay so.
 
-**The Linux half IS verifiable here, so verifiability is not what blocks this.** Measured
-on this host (GJS, Pango 1.57.1, `PangoCairoFcFontMap`): a family absent from
-`list_families()` is present after `add_font_file()` on the staged face. What is open is
-the API SHAPE — whether the shell registers eagerly on `startup` or exposes a function the
-app calls, and whether a face that fails to open aborts or warns — plus the Windows
-confirmation, which no leg here can produce. A Linux-green `initFonts()` would already
-remove the loop every consumer otherwise copies.
+**Neither half is blocked on verifiability, and the Windows one stopped being so on
+2026-09-02.** Measured on this host (GJS, Pango 1.57.1, `PangoCairoFcFontMap`): a family
+absent from `list_families()` is present after `add_font_file()` on the staged face.
+Measured on a Windows 11 VM as well (Node v24.18.1,
+`@gjsify/gtk-runtime-win32-x64@0.45.0`, GTK 4.22.4 — ADR 0038 § W1-W5): the call answers
+`true`, families go 82 → 83, and the map it registers into is the one
+`label.get_pango_context().get_font_map()` returns, with an invented-family
+discriminator so that "resolved" cannot mean "substituted". So `initFonts()` would be
+green on BOTH of the OSes it is for. What is open is the API SHAPE — whether the shell
+registers eagerly on `startup` or exposes a function the app calls, and whether a face
+that fails to open aborts or warns.
 
 `@gjsify/react-native`'s `expo-font` surface is the SECOND caller and it has a stake of
 its own: `useFonts` answers `[true, null]` on its first render because "fonts are
@@ -988,8 +992,16 @@ use it.
 
 `gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs` copies `<prefix>/etc/fonts` into the
 bundle and runs `fc-cache` over it; `node-gi/gtk-runtime.js` then sets `FONTCONFIG_PATH`
-and `FONTCONFIG_FILE` at it. Per the sources cited in the entry above the fc font map is
-compiled and never selected on Windows, so none of this affects text rendering.
+and `FONTCONFIG_FILE` at it. The sources cited in the entry above say the fc font map is
+compiled and never selected on Windows; that is now MEASURED (ADR 0038 § W1-W2, Windows 11
+/ GTK 4.22.4). A hand-written `FONTCONFIG_FILE` naming a face directory leaves
+`PangoCairo.FontMap.get_default().list_families()` at 82 without the face — and still at 82
+when that directory is the ONLY configured one, which is the row that distinguishes "read
+and ignored" from "not read". A `PangoFT2.FontMap` built from the same config in the same
+process does see the face. So none of this affects text rendering. The bundle also ships no
+`fc-cache.exe`: the cache is baked at build time and there is no supported way to rebuild
+it on the target, which is a second reason the arrangement cannot be made to work rather
+than merely being unused.
 
 Two things make it worth removing rather than leaving as harmless: the code comment beside
 it says gvsbuild's pango "can be fontconfig-backed … so either path works", which is the
@@ -1002,8 +1014,9 @@ ever been taken, fontconfig is being excluded from the closure somewhere and tha
 different finding.
 
 `packages/node-gi` is outside the npm workspace with its own CI, and this is a REMOVAL of
-shipped bundle content, so it wants a Windows run behind it rather than a Linux-green
-deletion.
+shipped bundle content. The Windows run it wanted behind it now exists; what it still wants
+is a PR in that tree, and one re-run there after the deletion — a Linux-green deletion is
+still not evidence for it.
 
 ### `@gjsify/adwaita-fonts` ships desktop TTFs, which is why the web font is opt-in
 

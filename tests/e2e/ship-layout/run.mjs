@@ -619,13 +619,14 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
                     /(^|\/)share\//.test(rel) &&
                     !rel.includes('/share/locale/') &&
                     !rel.startsWith('share/locale/') &&
-                    // `share/fonts` is portable for the reason `share/locale` is,
-                    // and the reason is MEASURED (ADR 0038): fontconfig expands
-                    // `<dir prefix="xdg">fonts</dir>` over the XDG_DATA_DIRS every
-                    // launcher already exports, so there is no install step for a
-                    // non-Linux layout to be missing. What IS open on those two
-                    // layouts — whether their Pango is fontconfig-backed at all —
-                    // is `Layout.fontGap`, printed separately and asserted below.
+                    // `share/fonts` is portable for the reason `share/locale` is:
+                    // nothing compiles a face and nothing reindexes one, so there
+                    // is no install step for a non-Linux layout to be MISSING.
+                    // That is a narrower claim than "the face is found" (ADR 0038)
+                    // — what READS the directory differs per OS, and on Windows it
+                    // is measured to be nothing at all until the app registers it.
+                    // That question is `Layout.fontGap`, printed separately and
+                    // asserted below.
                     !rel.includes('/share/fonts/') &&
                     !rel.startsWith('share/fonts/') &&
                     // The compiled cache is the one `share/` file that is not a
@@ -766,14 +767,16 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         ['darwin', /Pango on macOS is CoreText-backed/],
         ['windows', /pangowin32, whose font map is populated from DirectWrite/],
     ]) {
-        it(`${os}: names what is still unverified about the face it just staged`, async () => {
+        it(`${os}: names what the stage cannot settle about the face it just staged`, async () => {
             // The payload's half is settled and asserted above — the face is in
             // `share/fonts/<appId>/`, the plist points at it on macOS and
             // `GJSIFY_FONT_DIR` names it everywhere. What no stage can show is
             // whether that reaches the font map the shipped artifact's Pango
             // actually uses, and the answer differs per OS in KIND rather than in
-            // degree. A silent no is a substituted typeface at exit 0, so it is
-            // PRINTED, on the tree that carries the file, where `runtimeGap` is.
+            // degree: on macOS the activation is unverified, on Windows it is
+            // measured absent until the application itself makes a call. A silent
+            // no is a substituted typeface at exit 0, so it is PRINTED, on the tree
+            // that carries the file, where `runtimeGap` is.
             const { status, stderr } = await runCliCapture(
                 ['ship', os, '--skip-build', '--stage', '--arch', ARCH, '--out', `ship-font-${os}`],
                 projectDir,
