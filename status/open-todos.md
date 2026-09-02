@@ -1906,6 +1906,27 @@ So the accessibility surface is NOT unblocked by this, and admitting it by widen
 
 The two pieces still owed, in the order they are worth doing: **enum elements** (4 bytes by value, so `CElementSize` has to learn a size it currently answers as `sizeof(gpointer)`, and `ElementToGIArgument` has to write `v_int32` — the reviewer's correction to an earlier "near-free" reading, which was wrong), then **by-value records**, which need `gi_struct_info_get_size` per element plus an ownership rule (each in-place `g_value_init` would need unsetting and `FreeInContainer` has no branch for it) and are the same deferred work this file records at the INLINE-record read side and at `calls.cc`'s CALLER_ALLOCATES note.
 
+**The remaining work is now a transcription, not an investigation** — measured against the installed typelib on 2026-09-02, so whoever takes it does not have to rediscover the shape:
+
+```
+Gtk.Accessible.update_property(n_properties, properties[], values[])
+  arg 0  gint32   transfer=none                      <- the length arg for BOTH arrays
+  arg 1  array    transfer=none  ELEM ptr=0  enum    AccessibleProperty
+  arg 2  array    transfer=none  ELEM ptr=0  Value   size=24 align=8 fields=2
+```
+
+`update_state` and `update_relation` carry the identical shape, so all three land together.
+
+**The trap, and it is why "teach `CElementSize` the size" is NOT the change.** The C-array write loop does `memcpy(dst, &a, elemSize)` where `a` is a **GIArgument union** — eight bytes. Answering 24 for a by-value record would make that read 16 bytes PAST the union, off the stack, once per element. A by-value record needs its own write path that copies from the source record's own storage; the size is a consequence of that path, not a substitute for it. Sizing alone would produce a green build, plausible-looking output and an overread.
+
+Three more facts the implementer needs, each measured rather than reasoned:
+
+- **Both arrays share length arg 0.** The IN length autofill writes it once, so the two arrays must be checked to agree in length BEFORE the invoke — a mismatch is a read past the shorter one, in the callee.
+- **`transfer=none` means the GValues are ours.** Each element we initialise needs `g_value_unset` before the buffer is freed, or it leaks whatever it holds (a string, a boxed). `FreeInContainer`'s non-string C-array branch is a bare `g_free(c.ptr)` and has no branch for this.
+- **A JS override is probably needed too.** gjs accepts `update_property([Gtk.AccessibleProperty.LABEL], ['text'])` — a plain string, not a constructed `GObject.Value` — so the conversion lives above the marshaller. node-gi has an `overrides/` mechanism (`byte-array.js`, `gio-dbus.js`, `_signals.js` and two more) and `GObject.Value` is constructible there, so the seam exists; nothing fills it yet.
+
+Worth splitting: the enum half (4 bytes, no ownership question) is landable on its own and is the smaller risk, but it unblocks NO call by itself — `update_property` needs both arrays. So a split buys reviewability, not a working feature, and the second half should not be left standing.
+
 One caution for whoever takes the enum half: `IsSupportedElementType` is shared with GList/GSList/GHashTable, where elements are pointer slots filled through `gi_type_info_hash_pointer_from_argument` rather than sized array cells. For a POINTER-struct element that helper is now measured, not assumed — it passes `v_pointer` through unchanged and `gi_type_info_argument_from_hash_pointer` reads the same address back, so a list node holds a pointer-struct element exactly as it holds an object. What it does with an ENUM element is still NOT claimed. Note it does not refuse a by-value struct either — it passes that pointer through too — so the list path depends entirely on the predicate refusing the by-value kind first.
 
 The original entry follows.
