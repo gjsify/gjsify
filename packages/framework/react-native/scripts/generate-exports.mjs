@@ -21,7 +21,7 @@ export const INDEX = join(PKG, 'src/index.ts');
 export const OWN_OUT = join(PKG, 'src/generated/own-exports.ts');
 /** The whole support document, generated end to end (ADR 0036 § 6). */
 export const SUPPORT_DOC = join(PKG, 'SUPPORT.md');
-/** The PROP surface's document — one section per primitive (ADR 0037). */
+/** The PROP surface's document — one section per primitive (ADR 0039). */
 export const PROP_DOC = join(PKG, 'PROPS.md');
 
 /** The package every surface is a subpath of. `support-table.ts` spells it the same way. */
@@ -298,7 +298,7 @@ export function renderSupportDoc(sections) {
     ].join('\n');
 }
 
-// --- the PROP surface (ADR 0037) -----------------------------------------------
+// --- the PROP surface (ADR 0039) -----------------------------------------------
 //
 // IMPORTED, not parsed, and that is the one place in this file where the two differ.
 // Every reader above parses `support-table.ts`' SOURCE because a consumer's
@@ -389,7 +389,7 @@ export function renderPropDoc(surface) {
         'naming the ones that are here.',
         '',
         'Ask this from a test rather than reading it: `acceptsProp("Text", "onPress")` is `false` and',
-        '`explainProp("Text", "onPress")` is the sentence a render would have thrown (ADR 0037).',
+        '`explainProp("Text", "onPress")` is the sentence a render would have thrown (ADR 0039).',
         '',
         ...sections,
     ].join('\n');

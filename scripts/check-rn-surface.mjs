@@ -616,7 +616,7 @@ compare(
     const actualDoc = existsSync(generator.SUPPORT_DOC) ? readFileSync(generator.SUPPORT_DOC, 'utf8') : '';
     if (actualDoc !== expectedDoc) fail(`SUPPORT.md is stale\n${hint}`);
 
-    // THE PROP SURFACE (ADR 0037), the second published table, with the same third
+    // THE PROP SURFACE (ADR 0039), the second published table, with the same third
     // reader. `@gjsify/react-native/prop-table` has to be a real subpath — without it
     // a consumer's build-time test cannot import the answers at all, which is the
     // whole point of publishing them — and `PROPS.md` is generated from the same
@@ -626,7 +626,7 @@ compare(
     // there, and why the two modules it loads may hold no relative value import.
     if (!declaredSubpaths.has('./prop-table')) {
         fail(
-            'package.json#exports does not declare "./prop-table" — the published prop surface (ADR 0037) is ' +
+            'package.json#exports does not declare "./prop-table" — the published prop surface (ADR 0039) is ' +
                 'unreachable, and a consumer can then only discover a refused prop by rendering',
         );
     }

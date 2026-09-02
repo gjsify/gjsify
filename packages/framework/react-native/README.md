@@ -36,7 +36,7 @@ that has only the weaker half.
 
 The support table answers "may this application import this name". One grain finer
 sits `src/primitives/table.ts`, which decides what each PRIMITIVE does with each
-PROP — and until [ADR 0037](../../../docs/adr/0037-react-native-prop-surface.md) it
+PROP — and until [ADR 0039](../../../docs/adr/0039-react-native-prop-surface.md) it
 was not an entry point, so a refusal could only be discovered by RENDERING. That cost
 a whole tree once: a `<Text onPress>` in a tab stack that mounts every tab from the
 start route threw out of a render, and React unmounts the root when a render throws

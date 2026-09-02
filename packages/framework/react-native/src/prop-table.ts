@@ -25,7 +25,7 @@
 // is this module: `acceptsProp('Text', 'onPress')` is `false` in a consumer's own test
 // suite, before a window exists, and `explainProp` returns the very sentence the
 // render would have thrown — `answers.ts` is the one source both read, so the static
-// answer and the runtime answer cannot drift. ADR 0037 records the decision.
+// answer and the runtime answer cannot drift. ADR 0039 records the decision.
 
 import {
     answerFor,

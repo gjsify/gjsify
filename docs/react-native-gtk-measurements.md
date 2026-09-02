@@ -8,7 +8,7 @@ them, because a rule without its reason gets "simplified" back into the bug.
 
 Design decisions: [ADR 0032](adr/0032-react-native-on-the-gtk-host.md),
 [ADR 0036](adr/0036-third-party-react-native-surfaces.md),
-[ADR 0037](adr/0037-react-native-prop-surface.md).
+[ADR 0039](adr/0039-react-native-prop-surface.md).
 
 1. **`box.append(AdwDialog)` calls `g_error()`** → SIGABRT and a core dump, not an
    exception a host can catch and not a warning a diagnostics gate can count. So

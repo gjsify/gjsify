@@ -12,7 +12,7 @@ The **answer** column is `acceptsProp()`'s: `property`, `event`, `style`, `file`
 naming the ones that are here.
 
 Ask this from a test rather than reading it: `acceptsProp("Text", "onPress")` is `false` and
-`explainProp("Text", "onPress")` is the sentence a render would have thrown (ADR 0037).
+`explainProp("Text", "onPress")` is the sentence a render would have thrown (ADR 0039).
 
 ## `<View>`
 

@@ -944,7 +944,7 @@ export default async () => {
         });
     });
 
-    await describe('the imperative handle (ADR 0037)', async () => {
+    await describe('the imperative handle (ADR 0039)', async () => {
         await it('is declared by the table, not by a binding', async () => {
             // Both L3s read `plan.handle`, so this is where the answer lives. Every
             // other primitive hands a `ref` the widget, which is what it always did.
@@ -1008,7 +1008,7 @@ export default async () => {
         });
     });
 
-    await describe('accessibilityLiveRegion (ADR 0037)', async () => {
+    await describe('accessibilityLiveRegion (ADR 0039)', async () => {
         await it('is a live region on Text, with GTK’s own priority for each level', async () => {
             expect(plan('Text', { accessibilityLiveRegion: 'polite' }).plan.announcements).toStrictEqual([
                 { prop: 'accessibilityLiveRegion', signal: 'notify::label', read: 'label', priority: 'medium' },
@@ -1037,7 +1037,7 @@ export default async () => {
         });
     });
 
-    await describe('the three props with no addressee on a desktop (ADR 0037)', async () => {
+    await describe('the three props with no addressee on a desktop (ADR 0039)', async () => {
         await it('accepts autoComplete, textContentType and submitBehavior as declared no-ops', async () => {
             // Ordinary React Native code that a porter cannot rewrite into something a
             // desktop would honour, so a refusal would refuse a correct program. What

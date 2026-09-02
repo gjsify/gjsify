@@ -1,4 +1,4 @@
-# 37. The prop surface is published, and a refused prop keeps throwing
+# 39. The prop surface is published, and a refused prop keeps throwing
 
 - Status: **Proposed**
 - Date: 2026-09-02
