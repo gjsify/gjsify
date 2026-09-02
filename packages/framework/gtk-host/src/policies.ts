@@ -13,6 +13,7 @@
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { err, GtkHostError } from './errors.js';
+import { beginHostWrite, endHostWrite } from './signals.js';
 import type { ChildPolicy, HostElement } from './types.js';
 
 type AnyWidget = Gtk.Widget & Record<string, (...args: unknown[]) => unknown>;
@@ -346,14 +347,55 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
             host[policy.remove](address);
             return;
         }
+        case 'keyed': {
+            // Why a widget can need to be hidden before it is removed, and why the
+            // visibility goes back on: the `hideBeforeRemove` docblock in `types.ts`.
+            // A child that is ALREADY hidden needs nothing — libadwaita ran its own
+            // cleanup when it was hidden, which is the very path this borrows.
+            const restoreVisible = policy.hideBeforeRemove === true && address.get_visible();
+            if (restoreVisible) writeVisible(address, false);
+            host[policy.remove](address);
+            if (restoreVisible) writeVisible(address, true);
+            return;
+        }
         case 'ordered':
         case 'indexed':
-        case 'keyed':
         case 'coords':
             host[policy.remove](address);
             return;
         default:
             return unhandledPolicy(policy);
+    }
+}
+
+/**
+ * Write `visible` as the HOST, so `hideBeforeRemove` costs a consumer no signal.
+ *
+ * A plain remove emits no property change at all. MEASURED on libadwaita 1.9.3 /
+ * GTK 4.22.4, removing the VISIBLE page of an `Adw.ViewStack`: unbracketed, the
+ * hide/restore pair adds two `notify::visible` on the child AND one
+ * `notify::visible-child-name` on the STACK, because hiding the visible child runs
+ * libadwaita's `update_child_visible` and that picks another page. Over a keyed
+ * reorder — `remove-all`, so every page goes — a three-page reversal went from one
+ * stack notify to three (`c`, `null`, `c`) plus two per child. `<Tabs>` in
+ * `@gjsify/react-native` reads that stack notify as THE USER CLICKED and dispatches
+ * a navigation for it, so the traffic is not merely noise.
+ *
+ * The echo guard in `signals.ts` is exactly the instrument for that, and this is
+ * its only caller outside `host.ts`.
+ *
+ * `null` rather than `address` as the write target, and that is the whole reason
+ * this is a function: the target leg drops NON-notify signals too, and `unmap` is
+ * one a consumer must keep. MEASURED, same case — `unmap` fires ONCE either way (on
+ * the hide when bracketed, on `gtk_widget_unparent` when not), so `null` drops the
+ * property echo and leaves the unmap count at the unpatched 1.
+ */
+function writeVisible(address: Gtk.Widget, visible: boolean): void {
+    beginHostWrite(null);
+    try {
+        address.set_visible(visible);
+    } finally {
+        endHostWrite();
     }
 }
 
