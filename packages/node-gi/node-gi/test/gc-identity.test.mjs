@@ -191,6 +191,50 @@ test('resurrection: re-fetch while the old finalizer is still pending', { ...gcO
     back.pop_current();
 });
 
+// ---- Case 4c: the weak-ref net fires on a LIVE object (g_object_run_dispose) ----
+// `g_object_run_dispose` notifies every GWeakNotify — and clears every GWeakRef —
+// on an object that goes on living (measured on glib 2.88.3), and it is not an
+// exotic call: `gtk_window_destroy()` is one, so every GTK app that closes a window
+// walks this path. The binding read that notify as "the GObject was finalized",
+// nulled its cached pointer, and the teardown then skipped the
+// `g_object_set_qdata(obj, quark, nullptr)` it does under that pointer — leaving a
+// LIVE GObject holding a qdata pointer to the record the teardown went on to free.
+// The next thing to hand that object back to JS read the freed record
+// (`napi_get_reference_value` on its dead `handle_ref`), which is a SIGSEGV 10 runs
+// out of 10 here; the same stale record reaching the drain instead is the
+// `RunTeardown → g_object_get_qdata → g_type_check_instance_is_fundamentally_a`
+// crash reported off a GTK application.
+//
+// Same borrowed-pointer vehicle as 4b, for the same reason: `push_current` stores
+// the object WITHOUT a ref, so the wrapper stays weak (collectable) while C can
+// still hand the object back. Anything that refs it toggles the wrapper UP and pins
+// it, and the case becomes unreachable.
+test('run_dispose: a surviving object keeps no freed record in its qdata', { ...gcOpts }, async () => {
+    const Gio = requireGi('Gio', '2.0');
+    let weak;
+    (() => {
+        const c = new Gio.Cancellable();
+        c.push_current();
+        c.run_dispose(); // fires the GWeakNotify while the object is ALIVE
+        assert.equal(c.is_cancelled(), false, 'the GObject survives its own run_dispose');
+        weak = new WeakRef(c);
+    })();
+    // `new WeakRef(t)` pins t for the rest of the current job, so the collection has
+    // to be attempted a turn later (same reason as 4b).
+    await new Promise((r) => setImmediate(r));
+    await settle();
+    // The WITNESS: without a real collection + drained teardown nothing below can
+    // reach a freed record, and the case would be green-and-blind.
+    assert.equal(weak.deref(), undefined, 'the wrapper was collected and its teardown ran');
+
+    const back = Gio.Cancellable.get_current();
+    assert.ok(back, 'the borrowed cancellable is still handed back from C');
+    assert.equal(back.is_cancelled(), false, 'and re-wraps into a usable fresh wrapper');
+    back.cancel();
+    assert.equal(back.is_cancelled(), true, 'which drives the live GObject');
+    back.pop_current();
+});
+
 // ---- Case 5: subclass vfunc-instance integration (#647) ----
 // At L0 the wrapper is a non-extensible External (no JS expando possible), so the
 // integration assertion is wrapper IDENTITY: the vfunc `this` is the very same
