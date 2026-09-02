@@ -3,41 +3,29 @@
  * bridge, and which declares `gjsify.runtimes.node: "polyfill"`, must run a Node suite
  * that CI actually reaches.
  *
- * WHY THIS EXISTS. Twice now a GJS-bound package has carried a `node` slot that did not
- * describe it, and both times the declaration — not the code — was what pinned it to GJS.
- * `@gjsify/gtk-host` was `none` while a host showcase already built and ran for the node
- * target (ADR 0027 amended it), and `@gjsify/iframe` was `none` while its whole suite
- * measurably ran over the bridge (ADR 0022 § *Amendment — the `node` slot*). The audit
- * cannot catch either: `diffDeclared`'s `giUrlReachesNodeBridge` tolerance exists BECAUSE
- * both readings are honest for such a package — `--app node` claims a `gi://` specifier
- * and routes it to `@gjsify/node-gi`, so `none` and `polyfill` are each defensible from
- * the source alone. Only a RUN decides, which is ADR 0030 § Decision 6's point and
- * ADR 0027's own words: the slot flips in the change that gives it a test leg.
+ * WHY THIS EXISTS. Twice a GJS-bound package carried a `node` slot that did not describe
+ * it, and both times the DECLARATION, not the code, was what pinned it to GJS:
+ * `@gjsify/gtk-host` ([ADR 0027](../../../docs/adr/0027-gtk-host-layer.md)) and
+ * `@gjsify/iframe` ([ADR 0022](../../../docs/adr/0022-webkit-on-darwin.md) § *Amendment —
+ * the `node` slot*). The audit cannot catch either, and that is by construction:
+ * `diffDeclared`'s `giUrlReachesNodeBridge` tolerance exists BECAUSE `--app node` claims a
+ * `gi://` specifier and routes it to `@gjsify/node-gi`, so `none` and `polyfill` are each
+ * defensible from the source alone. Only a RUN decides — ADR 0030 § Decision 6.
  *
- * THE DIRECTION IS DELIBERATE, and the opposite one was written first and measured WRONG.
+ * THE DIRECTION IS DELIBERATE; the opposite one was written first and measured WRONG.
  * "A package whose `test:gjs-on-node` leg CI runs must not declare `node: none`" sounds
- * like the same statement and is not: `@gjsify/sqlite` runs exactly that leg in
- * `node-gi.yml` and is CORRECTLY `none`, because on Node you use `node:sqlite` and its leg
- * proves the BRIDGE rather than a node-consumer story. Which packages claim `polyfill` is
- * therefore a JUDGEMENT — the same shape as `CROSS_RUNTIME_PACKAGES` membership, where
- * the human picks the set and the machine holds CI to it. This rule is the machine half.
+ * like the same statement and is not: `@gjsify/sqlite` runs exactly that leg and is
+ * CORRECTLY `none`, because on Node you use `node:sqlite` and its leg proves the BRIDGE,
+ * not a node-consumer story. Which packages claim `polyfill` stays a JUDGEMENT — the same
+ * shape as `CROSS_RUNTIME_PACKAGES` membership: the human picks the set, the machine holds
+ * CI to it. This rule is the machine half, and holds the LEG, never the judgement.
  *
- * TWO WAYS TO SATISFY IT, because the tree genuinely has two:
+ * A package that is not GJS-bound is out of scope and stated rather than silently skipped:
+ * a pure-TS contract runs on Node unmodified, so there is no bridge in its claim.
  *
- *   1. `test:node` invoked from `test` — `gjsify foreach test` runs it in main.yml's
- *      sweep. `@gjsify/adwaita-react-native` is the member that arrives this way.
- *      (That `test` invokes it at all is `audit-test-scripts.mjs`'s half, not this one.)
- *   2. `test:gjs-on-node` with a workflow step that RUNS it — the corpus-identical leg
- *      ADR 0030 asks for. `@gjsify/gtk-host`, `@gjsify/react-native`, `@gjsify/iframe`.
- *
- * OUT OF SCOPE, and stated rather than silently skipped: a package that is NOT GJS-bound.
- * A pure-TS contract resolving to its own `lib/esm/index.js` runs on Node unmodified;
- * there is no bridge in the claim and nothing for a Node leg to prove that the package's
- * ordinary suite does not.
- *
- * REPO-SCOPED because it reads `.github/workflows/` — this repository's jobs, by path.
- * Structural read, no YAML dependency, for the same reason `pr-trigger-parity` and
- * `platforms-ci` hand-roll theirs.
+ * REPO-SCOPED because it reads `.github/workflows/` by path. The read is structural rather
+ * than YAML-parsed, for the same reason `pr-trigger-parity` and `platforms-ci` hand-roll
+ * theirs.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -48,7 +36,6 @@ import {
     GI_URL_RE,
     GJS_IMPORTS_GUARD_RE,
     IMPORTS_LEGACY_RE,
-    isNonShippingSource,
     listSourceFiles,
 } from '../../../packages/infra/manifest-conformance/lib/source-graph.mjs';
 
@@ -75,11 +62,12 @@ function runsLeg(test, leg) {
  */
 export function isGjsBound(pkgDir) {
     for (const file of listSourceFiles(join(pkgDir, 'src'))) {
-        if (isNonShippingSource(file)) continue;
         let source;
         try {
             source = readFileSync(file, 'utf8');
         } catch {
+            // An unreadable source file is `package-outputs`' finding, not this rule's:
+            // reporting it here would spend two rules on one defect, in different words.
             continue;
         }
         if (GI_URL_RE.test(source) || GIRS_VALUE_RE.test(source)) return true;
@@ -89,11 +77,27 @@ export function isGjsBound(pkgDir) {
 }
 
 /**
+ * The `working-directory` of the step that `lines[index]` belongs to, or `null`.
+ *
+ * Walks BACK from the `run:` line and stops at its own step's first key: a
+ * `working-directory` from an earlier step would credit the wrong package, which is worse
+ * than finding none at all.
+ */
+function stepWorkingDirectory(lines, index) {
+    for (let i = index; i >= 0; i--) {
+        const match = WORKING_DIRECTORY.exec(lines[i]);
+        if (match) return match[1].replace(/\\/g, '/').replace(/\/+$/, '');
+        if (i < index && STEP_START.test(lines[i])) return null;
+    }
+    return null;
+}
+
+/**
  * Every `working-directory` a workflow step runs `test:gjs-on-node` in.
  *
- * @returns {{dirs: Set<string>, unanchored: string[]}} `unanchored` = a run with no
- *   `working-directory` above it in its own step. That is reported rather than ignored:
- *   an unparsed invocation is exactly where this rule's gap would be.
+ * @returns {{dirs: Set<string>, unanchored: string[]}} `unanchored` = a run this function
+ *   could not attribute to a directory. Reported rather than ignored: an unparsed
+ *   invocation is exactly where this rule's gap would be.
  */
 export function collectWiredLegDirs(root) {
     const dir = join(root, '.github', 'workflows');
@@ -103,6 +107,7 @@ export function collectWiredLegDirs(root) {
     try {
         files = readdirSync(dir);
     } catch {
+        // A tree with no `.github/workflows` wires no leg — the answer, not an error.
         return { dirs, unanchored };
     }
     for (const file of files.sort()) {
@@ -110,18 +115,7 @@ export function collectWiredLegDirs(root) {
         const lines = readFileSync(join(dir, file), 'utf8').split('\n');
         for (let i = 0; i < lines.length; i++) {
             if (!RUNS_GJS_ON_NODE.test(lines[i])) continue;
-            let found = null;
-            for (let j = i; j >= 0; j--) {
-                const m = WORKING_DIRECTORY.exec(lines[j]);
-                if (m) {
-                    found = m[1].replace(/\\/g, '/').replace(/\/+$/, '');
-                    break;
-                }
-                // Stop at the step this `run:` belongs to: a `working-directory` from an
-                // EARLIER step would credit the wrong package, which is worse than not
-                // finding one at all.
-                if (j < i && STEP_START.test(lines[j])) break;
-            }
+            const found = stepWorkingDirectory(lines, i);
             if (found === null) unanchored.push(`${file}:${i + 1}`);
             else dirs.add(found);
         }
@@ -154,20 +148,22 @@ export function auditReverseBridgeLeg(ctx) {
         );
     }
 
+    const unwiredLegs = [];
     let inScope = 0;
-    let unwiredLegs = [];
 
     for (const pkg of ctx.packages) {
         const scripts = pkg.manifest.scripts ?? {};
-        if (scripts['test:gjs-on-node'] !== undefined && !wiredDirs.has(pkg.rel)) {
-            unwiredLegs.push(pkg.name);
-        }
+        const wired = wiredDirs.has(pkg.rel);
+        if (scripts['test:gjs-on-node'] !== undefined && !wired) unwiredLegs.push(pkg.name);
 
         if (pkg.gjsify?.runtimes?.node !== 'polyfill') continue;
         if (!isGjsBound(pkg.dir)) continue;
         inScope++;
 
-        if (scripts['test:gjs-on-node'] !== undefined && wiredDirs.has(pkg.rel)) continue;
+        // The two routes to a Node suite the tree genuinely has: the corpus-identical leg
+        // ADR 0030 asks for, or a `test:node` that `gjsify foreach test` reaches in main.yml.
+        // (That `test` invokes it at all is `audit-test-scripts.mjs`'s half, not this one.)
+        if (scripts['test:gjs-on-node'] !== undefined && wired) continue;
         if (scripts['test:node'] !== undefined && runsLeg(scripts.test, 'test:node')) continue;
 
         failures.push(
@@ -180,12 +176,11 @@ export function auditReverseBridgeLeg(ctx) {
         );
     }
 
-    unwiredLegs = unwiredLegs.sort();
     if (unwiredLegs.length > 0) {
         notes.push(
             `${unwiredLegs.length} package(s) ship a \`test:gjs-on-node\` script no workflow runs: ` +
-                `${unwiredLegs.join(', ')}. Not a failure — each declares \`node: "none"\`, so the leg is a local ` +
-                `probe rather than a claim this rule holds. It becomes one the moment the slot moves.`,
+                `${unwiredLegs.sort().join(', ')}. Not a failure — each declares \`node: "none"\`, so the leg is a ` +
+                `local probe rather than a claim this rule holds. It becomes one the moment the slot moves.`,
         );
     }
 

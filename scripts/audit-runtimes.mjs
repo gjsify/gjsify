@@ -1689,8 +1689,6 @@ async function main() {
         // the accountant at the end of this branch.
         const platformPackages = byId.get('platform-packages');
         const prTriggerParity = byId.get('pr-trigger-parity');
-        // Fetched AND given a print block in BOTH branches in the same edit — the comments
-        // around it are what any other order has cost three times now.
         const reverseBridgeLeg = byId.get('reverse-bridge-leg');
         // Fetched in the same breath as the rule was added, because the two omissions
         // recorded on either side of this line are what a selected-but-unfetched rule costs:

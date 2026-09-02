@@ -13,11 +13,11 @@
 // A repository-wide run can be wrong in exactly one direction it cannot reveal — it finds
 // nothing because there is nothing to find, which is what a broken rule does too. So every
 // block below is a synthetic tree with a known answer, and each carries the case that must
-// NOT be flagged beside the cases that must. The one that matters most is the fourth: a
-// GJS-bound package with a WIRED leg and `node: "none"` is CORRECT — `@gjsify/sqlite` is
-// exactly that shape, because on Node you use `node:sqlite` and its leg proves the BRIDGE.
-// The rule was first written in the opposite direction and that package is what disproved
-// it; the case is kept so the inversion cannot come back.
+// NOT be flagged beside the cases that must. The one that matters most is the WIRED leg on
+// a `node: "none"` package: that is CORRECT, and `@gjsify/sqlite` is exactly that shape,
+// because on Node you use `node:sqlite` and its leg proves the BRIDGE. The rule was first
+// written in the opposite direction and that package is what disproved it; the case is kept
+// so the inversion cannot come back.
 //
 // The last block is against the REAL tree, and it is the half a fixture cannot assert: the
 // leg the manifest promises is one a workflow really runs.
@@ -47,16 +47,22 @@ after(() => {
 });
 
 /**
+ * @typedef {object} Step a workflow step, in the two `run:` spellings the rule must read.
+ * @property {string} name
+ * @property {string} [workingDirectory]
+ * @property {string|string[]} run a string is written inline, an array as a `|` block.
+ */
+
+/**
  * A one-package workspace plus an optional workflow.
  *
  * @param {object} spec
  * @param {Record<string,string>} [spec.scripts] the package's `scripts`.
  * @param {string} [spec.node] the `gjsify.runtimes.node` slot.
  * @param {string} [spec.source] `src/index.ts`'s content — what decides GJS-boundness.
- * @param {string} [spec.workflowDir] `working-directory` of a step running the node leg.
- * @param {boolean} [spec.workflowNoDir] run the node leg with NO `working-directory`.
+ * @param {Step[]} [spec.workflow] steps of a single `.github/workflows/ci.yml`.
  */
-function tree({ scripts = {}, node = 'polyfill', source = '', workflowDir, workflowNoDir }) {
+function tree({ scripts = {}, node = 'polyfill', source = '', workflow }) {
     const root = mkdtempSync(join(tmpdir(), 'reverse-bridge-leg-'));
     trees.push(root);
     writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'root', workspaces: ['packages/*'] }));
@@ -71,23 +77,22 @@ function tree({ scripts = {}, node = 'polyfill', source = '', workflowDir, workf
         }),
     );
     writeFileSync(join(pkgDir, 'src', 'index.ts'), source);
-    if (workflowDir !== undefined || workflowNoDir) {
+    if (workflow) {
         mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
-        const step = workflowNoDir
-            ? ['      - name: leg', '        run: gjsify run test:gjs-on-node']
-            : [
-                  '      - name: leg',
-                  `        working-directory: ${workflowDir}`,
-                  '        run: |',
-                  '          gjsify run test:gjs-on-node',
-              ];
-        writeFileSync(
-            join(root, '.github', 'workflows', 'ci.yml'),
-            ['jobs:', '  x:', '    steps:', ...step, ''].join('\n'),
-        );
+        const lines = ['jobs:', '  x:', '    steps:'];
+        for (const step of workflow) {
+            lines.push(`      - name: ${step.name}`);
+            if (step.workingDirectory) lines.push(`        working-directory: ${step.workingDirectory}`);
+            if (Array.isArray(step.run)) lines.push('        run: |', ...step.run.map((l) => `          ${l}`));
+            else lines.push(`        run: ${step.run}`);
+        }
+        writeFileSync(join(root, '.github', 'workflows', 'ci.yml'), [...lines, ''].join('\n'));
     }
     return root;
 }
+
+/** The step every case is about: the node leg, as a `|` block, in `dir`. */
+const legStep = (dir) => ({ name: 'leg', workingDirectory: dir, run: ['gjsify run test:gjs-on-node'] });
 
 const audit = async (root) => auditReverseBridgeLeg(await createContext({ root, discoveryRoots: ['packages'] }));
 
@@ -117,7 +122,7 @@ describe('a GJS-bound package claiming the node slot must have a leg CI reaches'
             tree({
                 source: GI_SOURCE,
                 scripts: { 'test:gjs-on-node': 'node dist/test.node.mjs' },
-                workflowDir: 'packages/thing',
+                workflow: [legStep('packages/thing')],
             }),
         );
         assert.deepEqual(failures, []);
@@ -155,7 +160,7 @@ describe('the cases that must NOT be flagged', () => {
                 source: GI_SOURCE,
                 node: 'none',
                 scripts: { 'test:gjs-on-node': 'node dist/test.node.mjs' },
-                workflowDir: 'packages/thing',
+                workflow: [legStep('packages/thing')],
             }),
         );
         assert.deepEqual(failures, []);
@@ -180,7 +185,11 @@ describe('the cases that must NOT be flagged', () => {
 describe('the workflow read states what it could not answer', () => {
     it('fails on a node-leg step with no `working-directory`', async () => {
         const { failures } = await audit(
-            tree({ source: GI_SOURCE, scripts: { 'test:gjs-on-node': 'node d.mjs' }, workflowNoDir: true }),
+            tree({
+                source: GI_SOURCE,
+                scripts: { 'test:gjs-on-node': 'node d.mjs' },
+                workflow: [{ name: 'leg', run: 'gjsify run test:gjs-on-node' }],
+            }),
         );
         assert.ok(
             failures.some((f) => /no `working-directory`/.test(f)),
@@ -193,7 +202,7 @@ describe('the workflow read states what it could not answer', () => {
             tree({
                 source: GI_SOURCE,
                 scripts: { 'test:gjs-on-node': 'node d.mjs' },
-                workflowDir: 'packages/renamed-away',
+                workflow: [legStep('packages/renamed-away')],
             }),
         );
         assert.ok(
@@ -203,36 +212,16 @@ describe('the workflow read states what it could not answer', () => {
     });
 
     it('does not credit a `working-directory` from an EARLIER step', async () => {
-        const root = mkdtempSync(join(tmpdir(), 'reverse-bridge-leg-'));
-        trees.push(root);
-        writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'root', workspaces: ['packages/*'] }));
-        const pkgDir = join(root, 'packages', 'thing');
-        mkdirSync(join(pkgDir, 'src'), { recursive: true });
-        writeFileSync(
-            join(pkgDir, 'package.json'),
-            JSON.stringify({
-                name: '@acme/thing',
+        const { failures } = await audit(
+            tree({
+                source: GI_SOURCE,
                 scripts: { 'test:gjs-on-node': 'node d.mjs' },
-                gjsify: { runtimes: { gjs: 'polyfill', node: 'polyfill', browser: 'none', nativescript: 'none' } },
+                workflow: [
+                    { name: 'something else entirely', workingDirectory: 'packages/thing', run: 'echo hi' },
+                    { name: 'the leg, in no directory of its own', run: 'gjsify run test:gjs-on-node' },
+                ],
             }),
         );
-        writeFileSync(join(pkgDir, 'src', 'index.ts'), GI_SOURCE);
-        mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
-        writeFileSync(
-            join(root, '.github', 'workflows', 'ci.yml'),
-            [
-                'jobs:',
-                '  x:',
-                '    steps:',
-                '      - name: something else entirely',
-                '        working-directory: packages/thing',
-                '        run: echo hi',
-                '      - name: the leg, in no directory of its own',
-                '        run: gjsify run test:gjs-on-node',
-                '',
-            ].join('\n'),
-        );
-        const { failures } = await audit(root);
         assert.ok(
             failures.some((f) => /no `working-directory`/.test(f)),
             failures.join('\n'),
