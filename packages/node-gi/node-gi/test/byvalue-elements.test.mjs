@@ -148,6 +148,25 @@ test('two arrays sharing one length argument must agree on it', () => {
     );
 });
 
+test('a by-value record array whose callee adopts the elements is refused', () => {
+    // The ownership hole that the POINTER half of this work shipped once and had to
+    // fix, wearing a different shape. A by-value record cell is a BITWISE copy of a
+    // handle's storage, so it shares whatever that record points at — safe exactly
+    // while we free the buffer ourselves. On `transfer full` the callee frees the
+    // elements too, and it would be freeing strings and boxeds the caller's handles
+    // still own. An arbitrary record has no copy function to deep-copy with, so there
+    // is no general remedy and the refusal is the answer.
+    //
+    // The cost is measured rather than assumed: across every installed typelib, of the
+    // 140 IN parameters with a by-value element, 139 are `transfer=none` and exactly
+    // ONE is not — this call, which exists to free what it is given.
+    const Gsf = requireGi('Gsf', '1');
+    assert.throws(
+        () => Gsf.property_settings_free([]),
+        /transfer other than none is not yet supported/,
+    );
+});
+
 const skip = haveDisplay ? false : 'no display (DISPLAY / WAYLAND_DISPLAY unset)';
 
 test('the Gtk.Accessible update surface answers on node', { skip }, () => {

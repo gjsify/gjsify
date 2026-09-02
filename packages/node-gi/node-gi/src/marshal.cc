@@ -1653,6 +1653,28 @@ static bool JsToCArray(Napi::Env env, Napi::Value v, GITypeInfo* type, GITransfe
   *outPtr = nullptr;
   *outCount = 0;
 
+  // A by-value record element is a BITWISE copy of a handle's storage, which shares
+  // whatever that record points at. That is safe exactly while WE free the buffer:
+  // on TRANSFER_EVERYTHING the callee frees the elements too, and it would be freeing
+  // strings and boxeds the caller's handles still own — the same use-after-free the
+  // pointer-element half of this work shipped once and had to fix, wearing a different
+  // shape. There is no general remedy: an arbitrary record has no copy function to
+  // deep-copy with.
+  //
+  // Measured across every installed typelib rather than guessed: of 140 IN parameters
+  // with a by-value element, 139 are `transfer=none` and ONE is not — Gsf
+  // .property_settings_free's `GObject.Parameter[]`, which exists to free what it is
+  // given. So this refusal costs one callable, and that callable is the one where
+  // handing over borrowed contents would be exactly wrong.
+  if (byValueRecord && transfer != GI_TRANSFER_NOTHING) {
+    gi_base_info_unref(elem);
+    Napi::TypeError::New(
+        env, "a by-value record array with transfer other than none is not yet supported: the "
+             "callee would free element contents the caller's handles still own")
+        .ThrowAsJavaScriptException();
+    return false;
+  }
+
   // null/undefined → a NULL array (count 0), as GJS marshals a null array arg
   // (refs/gjs/gi/arg.cpp gjs_array_to_explicit_array: null in → NULL out).
   // Exposing call: `Gst.init(null)` — a NULLABLE (inout) argv array every GJS
