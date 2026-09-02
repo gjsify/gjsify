@@ -45,17 +45,31 @@
 // A LIMIT BOTH RESOLVERS SHARE, measured rather than assumed, because the obvious
 // reading of the paragraph above is wrong. `checkPackage()` requires
 // `gjsify.prebuilds` to be a string before a package is a candidate at all — and the
-// PUBLISHED `@gjsify/webkit-native` does not declare it. It declares `gjsify.platforms`
-// and two `optionalDependencies`, and ships `"files": []`. So when npm nests the
-// companion under that facade (a version conflict, or pnpm with hoisting off), neither
-// this module NOR `detectNativePackages()` finds the typelib: there is no declaring
-// package to start the second pass from. Verified on the darwin VM against a real
-// nested install — `requireGi('WebKit', '6.0')` fails there under both resolvers.
+// FACADE does not declare it. `@gjsify/webkit-native` declares `gjsify.platforms` plus
+// two `optionalDependencies` and ships `"files": []`, and it is not an exception:
+// counted across the tree, 65 packages declare `gjsify.prebuilds` and all but two ship
+// the directory too, so every one of them is a per-target COMPANION that pass one
+// resolves directly. Eleven facades — rolldown-native, lightningcss-native,
+// oxfmt-native, webgl, webrtc-native, tls-native, http2-native, sab-native,
+// terminal-native, http-soup-bridge, webkit-native — declare the split through
+// `optionalDependencies` and none declares the key.
 //
-// That is a gap in the SHARED contract, not something to paper over here with a third
-// mechanism keyed off `optionalDependencies`. The ordinary hoisted layout, which is
-// what npm produces absent a conflict, resolves — and is what the acceptance below
-// measures.
+// Two consequences, and neither is answered here:
+//
+//   * The second pass has NO reachable input today, in this module or in the CLI. It
+//     is kept because it is the CLI's shape and the split rollout is ongoing, not
+//     because anything currently reaches it — do not read its presence as coverage.
+//   * When npm nests a companion under its facade (a version conflict, or pnpm with
+//     hoisting off), neither resolver finds the typelib: there is no declaring package
+//     to start the walk from. Verified on the darwin VM against a real nested install
+//     — `requireGi('WebKit', '6.0')` fails there under both. The caller sees GI's own
+//     "Typelib file … not found", which names the namespace but not this cause.
+//
+// That is a gap in the SHARED contract — a facade that declared `gjsify.prebuilds`
+// would close it for both resolvers at once — and it belongs there, not in a third
+// mechanism keyed off `optionalDependencies` here. The ordinary hoisted layout, which
+// is what npm produces absent a conflict, resolves through pass one, and that is what
+// the acceptance below measures.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -309,7 +323,8 @@ function siblingStagedDir(pkgDir, pkgName, tokens, fs) {
  * companion manifest that is not there. Measured on a 1691-package install
  * (linux-x64, warm page cache): 1691 + 848 = 2539 reads, ~40 ms; ~306 ms cold. It is
  * paid before any namespace is required, on every addon load, and by an application
- * with no native prebuild at all.
+ * with no native prebuild at all. Note what the split says: while no facade declares
+ * `gjsify.prebuilds` (see the header), those 848 probes find nothing by construction.
  *
  * A cheaper pre-filter was tried and is recorded here because it looked right and was
  * not. Skipping a package that has no `prebuilds/` directory (a cheap `stat`) cut the
