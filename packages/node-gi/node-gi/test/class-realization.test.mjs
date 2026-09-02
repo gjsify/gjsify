@@ -20,8 +20,10 @@
 // this process has referenced yet, so each uses a type no other case here touches, and
 // they come first. `node --test` gives every file its own process, so nothing outside
 // this file can realize them either.
-import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { requireGi } from '../gi.js';
 
@@ -49,11 +51,12 @@ test('the same holds for a second, untouched hierarchy (not a Gio.MountOperation
     assert.notEqual(GObject.signal_lookup('notify', Gio.SocketClient.$gtype), 0);
 });
 
-test('an unclassed GType is left alone — no class to realize, no error', () => {
-    // g_type_class_ref on a boxed/enum/interface GType is a programmer error, not a
-    // no-op, so the realization is guarded on G_TYPE_IS_CLASSED. Reading these must
-    // stay a plain, quiet GType read — asserted through type_name, since a `$gtype`
-    // that is merely `undefined` would satisfy a bare not-null.
+test('a GType with no class still reads, and an enum carries one at all', () => {
+    // BOXED and INTERFACE are the unclassed fundamentals — measured on glib 2.88.3,
+    // `G_TYPE_IS_CLASSED` is 0 for GBytes and GFile and `g_type_class_ref` on either
+    // answers nullptr after a CRITICAL. ENUM and FLAGS are NOT in that set: they are
+    // classed (GEnumClass/GFlagsClass), so the guard lets them through and refs them,
+    // which is what g_enum_get_value() needs anyway and what gjs does too.
     assert.equal(GObject.type_name(GLib.Bytes.$gtype), 'GBytes');
     assert.equal(GObject.type_name(Gio.File.$gtype), 'GFile'); // an interface
     // And an enum object carries its GType at all, which it did not: gjs answers
@@ -61,6 +64,27 @@ test('an unclassed GType is left alone — no class to realize, no error', () =>
     assert.equal(GObject.type_name(Gio.BusType.$gtype), 'GBusType');
     // Non-enumerable, so the member list is still just the members.
     assert.equal(Object.keys(Gio.BusType).includes('$gtype'), false);
+});
+
+test('reading an unclassed GType takes no class ref, so GLib stays quiet', () => {
+    // THE GUARD'S ONLY WITNESS, and it has to be a CHILD PROCESS. `g_type_class_ref`
+    // on a boxed or interface GType returns nullptr after a `GLib-GObject-CRITICAL`
+    // rather than throwing, so every in-process assertion above is green with the
+    // `G_TYPE_IS_CLASSED` guard deleted — measured: 9 of 9 pass, two CRITICALs on
+    // stderr, and conformance compares stdout only (`scripts/conformance.mjs`). The
+    // child is what puts that stderr under an assertion.
+    const probe = [
+        `const { requireGi } = await import(${JSON.stringify(fileURLToPath(new URL('../gi.js', import.meta.url)))});`,
+        "const GObject = requireGi('GObject', '2.0');",
+        "const GLib = requireGi('GLib', '2.0');",
+        "const Gio = requireGi('Gio', '2.0');",
+        'process.stdout.write([GLib.Bytes, Gio.File, Gio.BusType].map((t) => GObject.type_name(t.$gtype)).join(" "));',
+    ].join('\n');
+    // The parent's env carries the NODE_GI_NATIVE the test scripts pin, so the child
+    // measures the SAME addon this file is measuring.
+    const res = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { encoding: 'utf8' });
+    assert.equal(res.stdout, 'GBytes GFile GBusType');
+    assert.equal(/CRITICAL|WARNING/.test(res.stderr), false, `GLib complained:\n${res.stderr}`);
 });
 
 // ---- Symptom 2: a class-struct static answers for the class it was CALLED on ----
