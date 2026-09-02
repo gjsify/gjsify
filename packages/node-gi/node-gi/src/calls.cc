@@ -331,9 +331,8 @@ static NodeGiCallback* CreateCallback(Napi::Env env, Napi::Function fn, GICallab
 
 // Whether `type` is a supported OUT/INOUT marshalling type for this milestone:
 // fundamentals (numbers/bool), strings (utf8/filename), GObject/interface +
-// enums/flags, struct/boxed/union (wrapped as boxed handles on return), and the
-// containers (arrays, GList/GSList/GHashTable). GError (its own roadmap PR) is
-// deferred: a clear error rather than silent mis-handling. *why receives a short
+// enums/flags, struct/boxed/union (wrapped as boxed handles on return), GError,
+// and the containers (arrays, GList/GSList/GHashTable). *why receives a short
 // type label on refusal. Declared in common.h — shared with the vfunc chain-up
 // path (class.cc CallParentVfunc), which routes each OUT/INOUT vfunc arg the same
 // way this function-invoke path does.
@@ -365,6 +364,20 @@ bool IsSupportedOutType(GITypeInfo* type, std::string* why) {
       if (iface != nullptr) gi_base_info_unref(iface);
       return ok;
     }
+    case GI_TYPE_TAG_ERROR:
+      // A `GError**` OUT slot — `Gst.Message.parse_error()` and the nine other bus
+      // accessors of the GStreamer message APIs, `GLib.set_error_literal`,
+      // `GLib.propagate_error`. Every one of the 18 in a 264-typelib sweep is
+      // caller_allocates=false + transfer=EVERYTHING, i.e. the ordinary pointer
+      // slot: the callee writes a GError the caller then owns. ReadOutOrReturn
+      // falls through to GIArgumentToJs's GI_TYPE_TAG_ERROR arm (marshal.cc), which
+      // wraps it through GLib.Error's struct info — G_TYPE_ERROR is a boxed type,
+      // so the JS handle adopts the transfer-full pointer and its finalizer
+      // g_boxed_free's it (= g_error_free) exactly like any other EVERYTHING boxed
+      // OUT. A callee that leaves the slot untouched (`parse_info()` on an ERROR
+      // message) reads back the zero-initialised slot as `null`, matching gjs,
+      // because `slots` is value-initialised and that arm null-guards the pointer.
+      return true;
     case GI_TYPE_TAG_ARRAY:
     case GI_TYPE_TAG_GLIST:
     case GI_TYPE_TAG_GSLIST:

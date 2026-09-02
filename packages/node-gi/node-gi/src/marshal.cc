@@ -712,6 +712,41 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
       out->v_size = static_cast<gsize>(gt);
       return true;
     }
+    case GI_TYPE_TAG_ERROR: {
+      // A GError IN/INOUT argument: `Gst.Message.new_error(src, error, debug)` —
+      // how an application POSTS the failure the bus accessors read back —
+      // `GLib.propagate_error`, and the INOUT `err` of `GLib.prefix_error_literal`.
+      // The JS value is the boxed handle a GError-typed return/OUT produced, so
+      // ownership is the ordinary boxed one and TransferBoxedIn supplies it:
+      // transfer-none is a borrow, transfer-full hands the callee an independent
+      // g_error_copy (g_propagate_error ADOPTS and frees its `src`) so the JS
+      // handle's finalizer cannot double-free it. Measured against gjs: after
+      // `GLib.propagate_error(e)` the original `e` is still readable there too.
+      // null/undefined → a NULL GError, the same leniency the object/boxed arms
+      // keep (gjs refuses both for a non-nullable arg — status/open-todos.md).
+      if (v.IsNull() || v.IsUndefined()) {
+        out->v_pointer = nullptr;
+        return true;
+      }
+      // Type-safety is UNCONDITIONAL here, unlike the struct/boxed arm's "compare
+      // only when both sides carry a registered GType": the expected type is known
+      // (G_TYPE_ERROR, always), so a handle without it is a wrong pointer — and a
+      // wrong pointer in a GError slot is a wild dereference inside GLib.
+      BoxedHandle* h = TryGetBoxedHandle(v);
+      if (h == nullptr || h->gtype == G_TYPE_INVALID || !g_type_is_a(h->gtype, G_TYPE_ERROR)) {
+        std::string got = h != nullptr && h->gtype != G_TYPE_INVALID ? g_type_name(h->gtype)
+                                                                    : InformalValueTypeName(v);
+        Napi::TypeError::New(env, std::string("expected a GLib.Error for ") +
+                                      (argName != nullptr
+                                           ? std::string("argument '") + argName + "'"
+                                           : std::string("argument")) +
+                                      ", got " + got)
+            .ThrowAsJavaScriptException();
+        return false;
+      }
+      out->v_pointer = TransferBoxedIn(h, transfer);
+      return true;
+    }
     default:
       Napi::TypeError::New(
           env, "Unsupported IN argument type tag " + std::to_string(static_cast<int>(tag)) +
