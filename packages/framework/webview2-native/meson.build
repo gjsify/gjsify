@@ -16,8 +16,13 @@
 # this repo has already rejected once, in the same place: a description only the
 # platform that uses it exercises drifts from the one CI reads on every PR, and
 # nobody finds out until somebody dispatches the other job.
-project('GjsifyWebView2', ['c'], version: '1.0',
-        default_options: ['c_std=c11'])
+#
+# `c_std` is deliberately NOT preset, and that is a measured decision rather than
+# an omission: `@gjsify/webgl`'s win32 leg found MSVC's default C mode to be its
+# most permissive, and pinning a standard there answers a question this source
+# does not ask. Every other host gets its compiler's default, which is at least
+# C17.
+project('GjsifyWebView2', ['c'], version: '1.0')
 
 gnome = import('gnome')
 fs = import('fs')

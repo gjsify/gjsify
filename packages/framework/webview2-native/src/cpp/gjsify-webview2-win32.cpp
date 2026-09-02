@@ -379,9 +379,6 @@ struct _GjsifyWebView2Backend {
 
     std::vector<std::wstring> script_ids;   // AddScriptToExecuteOnDocumentCreated ids
     std::vector<std::string> handler_names; // registered message-handler channels
-    // Kept out of `script_ids` so `remove_all_scripts()` cannot take the bridge
-    // down with the user's scripts.
-    std::wstring preamble_id;
 
     EventRegistrationToken navigation_starting = {};
     EventRegistrationToken content_loading = {};
@@ -692,14 +689,26 @@ void WireEvents(GjsifyWebView2Backend *backend)
     ICoreWebView2 *webview = backend->webview.Get();
 
     // BEFORE the queue is flushed, which is what puts it ahead of every user
-    // script in `AddScriptToExecuteOnDocumentCreated`'s execution order.
+    // script in `AddScriptToExecuteOnDocumentCreated`'s execution order. Its id
+    // is deliberately NOT recorded in `script_ids`: `remove_all_scripts()` walks
+    // that list, and taking the bridge down with the user's scripts is exactly
+    // the failure this ordering was fixed to prevent.
     std::wstring preamble = ToWide(kMessageHandlersPreamble);
     webview->AddScriptToExecuteOnDocumentCreated(
         preamble.c_str(),
         Callback<ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler>(
-            [backend](HRESULT result, LPCWSTR id) -> HRESULT {
-                if (IsLive(backend) && SUCCEEDED(result) && id != nullptr) {
-                    backend->preamble_id = id;
+            [](HRESULT result, LPCWSTR) -> HRESULT {
+                // Loud, because a silent failure here leaves
+                // `window.webkit.messageHandlers` undefined and every
+                // script-message channel dead with nothing to point at.
+                if (FAILED(result)) {
+                    gchar *message = DescribeHresult(
+                        "AddScriptToExecuteOnDocumentCreated (the messageHandlers bridge)",
+                        result);
+                    g_warning("WebKit(WebView2): %s — script-message-received will never fire "
+                              "on this view.",
+                              message);
+                    g_free(message);
                 }
                 return S_OK;
             })
