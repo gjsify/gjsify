@@ -3,8 +3,9 @@
 - **Status:** Accepted (2026-08-06)
 - **Scope:** `packages/infra/cli/src/utils/gi-search-path.ts` (new), `bundler-pick.ts`
   (`tryLoadNative`, `diagnoseNativeEngine` branch 3), `utils/oxc-resolve.ts`
-  (`tryLoadNativeOxfmt`), `tests/e2e/launcher-free-build/`. **No artifact changes** —
-  see "What is deliberately NOT changed".
+  (`tryLoadNativeOxfmt`), `tests/e2e/launcher-free-build/`. Extended 2026-09-02 to the
+  Node host: `packages/node-gi/node-gi/native-prebuilds.js` — see "The Node host".
+  **No artifact changes** — see "What is deliberately NOT changed".
 
 ## Context
 
@@ -84,9 +85,10 @@ The CLI makes the prebuild directories it can already see resolvable to the **ru
 process, through girepository's own two search paths, at the moment it first wants native
 code.
 
-One helper — `activateNativePrebuilds()` in `packages/infra/cli/src/utils/gi-search-path.ts`
-— memoized per process, feeding on `detectNativePackages()`, the *same* function whose
-output the launcher turns into environment variables. That symmetry is the design:
+One helper per HOST — on GJS, `activateNativePrebuilds()` in
+`packages/infra/cli/src/utils/gi-search-path.ts` — memoized per process, feeding on
+`detectNativePackages()`, the *same* function whose output the launcher turns into
+environment variables. That symmetry is the design:
 
 > **the in-process activation is the launcher's environment, applied to the process that is
 > already running.** Same detection, same set, two mechanisms for two different processes.
@@ -127,6 +129,34 @@ host gets worse.**
 The GJS check is the probe itself (`globalThis.imports?.gi`, the spelling `.oxlintrc.json`
 sanctions), not `isGjs()`: the question is "is there a GIRepository to prepend to", and on
 Node without node-gi the answer is no, which is the required no-op.
+
+### The Node host (added 2026-09-02)
+
+The paragraph above says "on Node without node-gi the answer is no", and that carve-out
+is now filled in. `@gjsify/node-gi` carries the same activation for the runtime ADR 0024
+§ 4 puts macOS and Windows applications on: `native-prebuilds.js`, exporting a function
+of the same name and the same contract — memoized, never fatal, `prependSearchPath` +
+`prependLibraryPath`, no environment variable and no re-exec — called from `index.js`
+once the addon is loaded. It is what makes a staged typelib resolve under a plain
+`node app.mjs`, which passes through no launcher and no CLI at all.
+
+Three differences from the GJS helper, each deliberate:
+
+- **It cannot import `detectNativePackages()`.** node-gi is outside the npm workspace
+  (ADR 0031) and must load with no dependency on the CLI, so the two decisions that
+  matter — `prebuildDirCandidates()`' token order and `resolvePlatformSibling()`'s
+  second pass — are COPIED, named in the module header, and pinned by
+  `test/native-prebuilds.test.mjs` against the CLI's answers. A copy's only failure
+  mode is drifting from what it copied, and it already has once: the declared-spelling
+  probe compared raw strings, which made it dead code, and the host-libc probe kept
+  probe 1 without probe 2, which reads a bun/deno/GJS host as musl.
+- **One anchor, not two.** The GJS helper merges `process.cwd()` with its own
+  directory because a globally installed CLI sits away from the project. node-gi is a
+  library inside the application, so its own directory IS the application's tree, and a
+  cwd anchor would make which typelibs load depend on the shell's working directory.
+- **`gtk-runtime-*` is excluded.** Which GTK a process uses is `gtkSource()`'s decision
+  (ADR 0023) applied in `gtk-runtime.js`; prepending that bundle a second time is the
+  two-copies hazard #920 records.
 
 ### The launcher stays
 

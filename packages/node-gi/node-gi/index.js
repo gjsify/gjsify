@@ -16,6 +16,7 @@ import {
     maybeReexecForGtkRuntime,
     maybeWireGtkWindowingEnv,
 } from './gtk-runtime.js';
+import { activateNativePrebuilds } from './native-prebuilds.js';
 
 // macOS bundled GTK: dyld reads DYLD_FALLBACK_LIBRARY_PATH only at launch, and GI
 // needs it to g_module_open typelib backers (get_type / Pango / Gdk / Graphene) by
@@ -122,6 +123,18 @@ try {
     activateBundledGtkRuntime(native);
 } catch {
     // Never fatal: a missing/partial bundle just leaves the host GTK in charge.
+}
+
+// Every OTHER staged prebuild typelib (@gjsify/webkit-native and its kin): same
+// env-free treatment, so a namespace whose typelib is installed in node_modules
+// resolves under a plain `node app.mjs` and not only under `gjsify run`. Deliberately
+// AFTER the GTK activation — that one owns the bundle-vs-host policy (ADR 0023) and
+// this one skips gtk-runtime-* for exactly that reason.
+try {
+    activateNativePrebuilds(native);
+} catch {
+    // Same contract as the calls around it: a failed discovery leaves the search
+    // path untouched, and the caller gets GI's own "typelib not found".
 }
 
 // And where the LIBRARIES those typelibs name actually live. Separate from the

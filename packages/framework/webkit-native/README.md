@@ -50,6 +50,19 @@ GMainContext, and a GMainContext does not pump a CFRunLoop. Measured: a
 view is alive — [`docs/poc/webkit-runloop-darwin.m`](../../../docs/poc/webkit-runloop-darwin.m)
 is that measurement, and it fails loudly if either half stops being true.
 
+The drain holds under **Node** too, which is worth stating because the host that
+needs it most is not GJS: ADR 0024 § 4 puts macOS applications on Node +
+`@gjsify/node-gi`, and node-gi pumps the GMainContext its own way — it can fall
+back to timed polling rather than watching a GLib poll fd from libuv. Measured on
+the darwin-x64 VM under Node 24: `load_html()` on a `WebKit.WebView` reaches
+`LoadEvent.FINISHED` via `STARTED` and `COMMITTED`, so the CFRunLoop source is
+serviced there as well. Nothing here is GJS-specific — the package ships no
+JavaScript at all, only the dylib and the typelib, and both are runtime-neutral.
+`gjsify.runtimes.node` stays `"none"` for the reason every other JS-free
+`*-native` package declares it so: that axis describes the package's own
+JavaScript, of which there is none. It is not a claim that Node cannot use the
+namespace.
+
 **The widget is built, not embedded.** `WKWebView` is an `NSView` and GTK4 has no
 foreign-window embedding, so the content renders offscreen and is presented as a
 `GdkTexture` in the widget's `snapshot` vfunc. There is no "content changed"
