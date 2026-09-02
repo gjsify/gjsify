@@ -1878,85 +1878,65 @@ Two cases remain, and the second one bites harder.
 
 That is the SAME deferred work `calls.cc` already records at its CALLER_ALLOCATES site — "a struct-by-value element array would need `gi_struct_info_get_size` per element + field-access read-back (a later PR)". One piece of work with two entrances, now both closed to it. Doing it means teaching `CElementSize` the record size for non-pointer interface elements and `ReadCElement` to hand back a borrowing sub-handle at `src` rather than dereferencing it — `refs/gjs/gi/arg.cpp` is the reference. Affected fields include `Pango.GlyphString.glyphs`, `GObject.EnumClass.values`, `Gio.InputMessage.vectors`; `GObject.SignalQuery.param_types` is the adjacent `GI_TYPE_TAG_GTYPE` gap, which `ReadCElement` answers with `undefined`.
 
-### `@gjsify/node-gi` — an IN array of enum or BY-VALUE struct elements is refused, which takes accessibility off every node host
+### `@gjsify/node-gi` — by-value container elements: the WRITE side is closed, the READ side is not
 
-**PARTLY CLOSED.** The POINTER-struct half is done: `IsSupportedElementType` now admits an INTERFACE element that is a struct AND `gi_type_info_is_pointer`, which is one pointer slot and therefore the shape an object element already had — `CElementSize` was already right and the write loop already copies the low 8 bytes. `ElementToGIArgument` learned to take a `kBoxedHandleTag` External beside the GObject one. Measured: `GLib.Variant.new_tuple([…])` builds `(is)` with both children reading back, the empty tuple gives `()`, and `@gjsify/devtools`'s node leg went from **3 of 131 failing to 1 of 136** (the two remaining `new_tuple` failures gone; the last one is an unrelated `Gio.DBusServer` difference).
+**CLOSED for the IN path** (#1473 the pointer half, #1482 the by-value half). An IN C
+array now carries an enum/flags member and a whole record, so `Gtk.Accessible
+.update_property` / `update_state` / `update_relation` answer on a node host — the ARIA
+surface a React-Native-vocabulary application reaches through 46 `accessibilityLabel`
+sites, previously one caught exception at startup and then nothing for the session.
+Measured against every installed typelib, the same refusal had stood in front of **140
+IN parameters**, among them `Gio.ActionMap.add_action_entries`, `GObject.Object.newv`,
+`Gsk.LinearGradientNode.new`, `Gio.OutputStream.writev`, `HarfBuzz.shape` and
+`Graphene.Box.init_from_points`.
 
-**The admission alone was a use-after-free, and "already correct" is how it got there.** The first version of this change reasoned that `FreeInContainer`'s non-string branch already frees the buffer without touching what the pointers point at — true, and beside the point: `FreeInContainer` runs only for `TRANSFER_NOTHING`. On a `(transfer full)` IN container the CALLEE frees the elements, and `ElementToGIArgument` was handing it the very pointers the JS handles still own. Measured the moment the widening admitted them, on the first call of the shape: `Pango.Font.descriptions_free([desc])` read back `typeName<garbage> style=-1657706014 …` and the process died in `free(): invalid size`. Reverted, the same call throws the deferral — so the admission introduced it.
+**One claim in the previous version of this entry was wrong, and the shape of the
+mistake is worth more than the correction.** It read: the enum half "unblocks NO call by
+itself — `update_property` needs both arrays". True of `update_property`, and recorded
+as a general fact. The scan that produced the 140 also splits them: **34 are enum-only
+arrays** (`Gst.Query.set_formatsv`, `GstAudio.audio_channel_positions_to_mask`,
+`Atk.StateSet.add_states`, `Flatpak.Installation.list_remotes_by_type`), each of which
+the enum half alone would have unblocked. A claim measured on the case under
+investigation and written down as the general one — the same failure this file records
+elsewhere under other names.
 
-The fix is not new machinery either: `ElementToGIArgument` takes the ELEMENT transfer (NOTHING for `TRANSFER_NOTHING` **and** `TRANSFER_CONTAINER`, which hands over only the container; EVERYTHING for `TRANSFER_EVERYTHING` — the same rule `GIArrayToJs`/`GListToJs` already use on the read side) and routes a boxed element through `TransferBoxedIn`, the identical adopt-or-borrow helper a scalar boxed IN argument uses. Threaded through `JsToCArray`/`JsToGListLike`/`JsToGHashIn`, all three called only from `JsToInContainer`, which already had the transfer.
+**What still refuses, each measured rather than assumed:**
 
-**The same hole was open for OBJECT elements and is closed in the same line** — a `(transfer full)` container made the callee adopt a ref per element that was never taken, an under-ref rather than an over-free. Scanning every installed typelib for the shape: **7** IN containers with a pointer-struct element and `(transfer full)` (`GstAnalytics.TensorMeta.set`, `Pango.Font.descriptions_free`, `GWeather.Location.free_timezones`, the two OSTree `*_freev` pairs), against **18** with an object element that predate this change (`Gdk.ContentProvider.new_union`, `Gtk.ClosureExpression.new`, `Gst.Plugin.list_free`, …). Stated exactly: only the boxed half has a red/green test. The object half is asserted by construction, because no reachable shape can observe it — measured on `Gst.Plugin.list_free`, where the registry holds its own ref and the under-ref is absorbed, so a test written there passes with the fix removed. `test/boxed-in-transfer.test.mjs` is where both live, beside the scalar case they mirror.
+| shape | why, and what it costs |
+|---|---|
+| a by-value element being READ BACK (OUT, INOUT, return) | `ReadCElement` dereferences an interface element as a pointer; `CElementSize` answers `sizeof(gpointer)` for it. `ContainerUse::kReadBack` keeps the refusal, and the two reachable OUT shapes measured — `Pango.get_log_attrs` (LogAttr, 64) and `GLib.MainContext.query` (PollFD) — still throw the pre-existing `caller-allocates OUT parameter type is not yet supported`. **This is the remaining work**, and it is the same single root cause the inline-record field path above records and `calls.cc:630` records at its CALLER_ALLOCATES site. |
+| a by-value element in a GList/GSList/GHashTable | elements there are POINTER slots filled through `gi_type_info_hash_pointer_from_argument`, which passes a pointer through unchanged — meaningless for a four-byte enum or a twenty-four-byte record. Not measured for those kinds, so not admitted. |
+| a by-value RECORD array with `transfer` other than none | the cell is a bitwise copy of a handle's storage, so the callee freeing the elements would free contents the caller's handles still own. No general remedy: an arbitrary record has no copy function. Cost measured: of the 140, **139 are `transfer=none` and exactly one is not** — `Gsf.property_settings_free`, whose whole job is to free what it is given. |
 
-One shape stays deliberately imperfect: a `TRANSFER_EVERYTHING` **GHashTable** sets a value destroy-notify only for the string/heap kinds, so an object/boxed value leaks the copy instead of double-freeing the original. That is the safe side, and the only reachable one — no installed typelib has an EVERYTHING GHashTable IN with a pointer-struct value.
+**The trap that shaped the fix, kept because "teach the size function the real size" is
+the obvious change and it is the wrong one.** The C-array write loop does
+`memcpy(dst, &a, elemSize)` where `a` is a **GIArgument union** — eight bytes. Answering
+24 for a by-value `GValue` would make that read sixteen bytes past the union, off the
+stack, once per element, while compiling cleanly and printing plausible numbers. So a
+record never enters a GIArgument; each is written straight into its cell, and the size
+is a consequence of that path rather than a substitute for it. For the same reason
+`CElementSize` is untouched: it is also the READ stride, and a right stride in front of
+a wrong read is more plausible output with the same defect.
 
-**The read side was NOT opened by this, and reasoning said otherwise until it was measured.** `IsSupportedElementType` is shared with `IsSupportedOutType`, which makes it look as though every container RETURN of struct pointers stops refusing. It does not: `IsSupportedOutType` has exactly one call site and it is the OUT/INOUT **parameter** branch — a return value goes straight to `ReadOutOrReturn` with no element gate at all. Proof: `Pango.Language.get_preferred()` (`PangoLanguage**`, zero-terminated, transfer none) reads back identically with the widening reverted. What the widening really adds on the read side is **two** shapes across every installed typelib — `Gio.SettingsBackend.flatten_tree`'s OUT `values` (C array of `GVariant*`, transfer container) and `Camel.StoreSearch.add_match_threads_items_sync`'s INOUT GPtrArray — neither callable headless, so neither is claimed. A regression test for the return direction was written (`Pango.Language.get_preferred()`) and then REMOVED: it has to pin `PANGO_LANGUAGE`, whose parsed value pango caches process-wide, and a `process.env` write does not reach the C environ under **Bun** — green on node, red on the bun conformance leg, which runs `arrays`. So that path stays uncovered, and covering it needs a container return of struct pointers that takes its input from arguments rather than the environment. None exists in GLib/Gio.
+**Ownership is measured, not asserted.** A `GValue` cell is initialised in place — from
+a plain JS value (gjs 1.88.1 accepts `update_property([LABEL], ['text'])`) or by
+`g_value_copy` from a handle — so each is unset before the buffer is freed. A/B on one
+workstation, 4000 calls carrying 20 KiB each: with the unset **0.1 MiB** RSS, with it
+compiled out **78.4 MiB**. Every other record is copied from a boxed handle, which is
+what gjs requires, so nothing there is ours to free; the type check guarding that copy
+is a safety property, because reading `elemSize` bytes out of a smaller record reads
+past its end.
 
-Suite numbers: node-gi's own suite is **580 tests, 567 passing, 13 skipped, 0 failing**, and the cross-runtime conformance subset is 38 of 38 on node AND on bun. Read that 0 as "this run", not as a property: across five full runs in one session on one workstation, three display/GPU-dependent tests came and went — `Canvas2DBridge`, `Excalibur.js` (both golden-image) and `Gtk.Application.run() runs a real app`, which passes 3/3 in isolation. Each failed identically with the whole change reverted, which is the only thing that makes them attributable; **a full-suite number from this machine is not evidence about marshalling unless the reverted control is run beside it.** Worth its own look, unrelated to this.
+**One deliberate divergence from gjs.** Two arrays naming ONE length argument are
+refused when they disagree. The autofill wrote it once per array, so the last array
+silently decided the count the callee read both by. gjs does not check it — measured on
+1.88.1, `update_property([LABEL, DESCRIPTION], ['one'])` is accepted and reads out of
+bounds.
 
-**What remains is the BY-VALUE half, and the distinction is the whole reason `is_pointer` is tested rather than the kind.** Measured against the installed typelib rather than a GIR that may not match it:
-
-| call | element | pointer | kind | size |
-|---|---|---|---|---|
-| `GLib.Variant.new_tuple` `children` | `Variant` | **yes** | struct | — |
-| `Gtk.Accessible.update_property` arg 1 | `AccessibleProperty` | no | **enum** | 4 |
-| `Gtk.Accessible.update_property` arg 2 | `Value` | no | **struct** | **24** |
-
-So the accessibility surface is NOT unblocked by this, and admitting it by widening the refusal instead of narrowing it would lay 24-byte `GValue`s out at an 8-byte stride and hand the callee garbage. `test/arrays.test.mjs` holds both halves in one test, with the by-value control taken on `GLib.parse_debug_string` (an IN array of `DebugKey` by value, size 16) because it needs no display.
-
-The two pieces still owed, in the order they are worth doing: **enum elements** (4 bytes by value, so `CElementSize` has to learn a size it currently answers as `sizeof(gpointer)`, and `ElementToGIArgument` has to write `v_int32` — the reviewer's correction to an earlier "near-free" reading, which was wrong), then **by-value records**, which need `gi_struct_info_get_size` per element plus an ownership rule (each in-place `g_value_init` would need unsetting and `FreeInContainer` has no branch for it) and are the same deferred work this file records at the INLINE-record read side and at `calls.cc`'s CALLER_ALLOCATES note.
-
-**The remaining work is now a transcription, not an investigation** — measured against the installed typelib on 2026-09-02, so whoever takes it does not have to rediscover the shape:
-
-```
-Gtk.Accessible.update_property(n_properties, properties[], values[])
-  arg 0  gint32   transfer=none                      <- the length arg for BOTH arrays
-  arg 1  array    transfer=none  ELEM ptr=0  enum    AccessibleProperty
-  arg 2  array    transfer=none  ELEM ptr=0  Value   size=24 align=8 fields=2
-```
-
-`update_state` and `update_relation` carry the identical shape, so all three land together.
-
-**The trap, and it is why "teach `CElementSize` the size" is NOT the change.** The C-array write loop does `memcpy(dst, &a, elemSize)` where `a` is a **GIArgument union** — eight bytes. Answering 24 for a by-value record would make that read 16 bytes PAST the union, off the stack, once per element. A by-value record needs its own write path that copies from the source record's own storage; the size is a consequence of that path, not a substitute for it. Sizing alone would produce a green build, plausible-looking output and an overread.
-
-Three more facts the implementer needs, each measured rather than reasoned:
-
-- **Both arrays share length arg 0.** The IN length autofill writes it once, so the two arrays must be checked to agree in length BEFORE the invoke — a mismatch is a read past the shorter one, in the callee.
-- **`transfer=none` means the GValues are ours.** Each element we initialise needs `g_value_unset` before the buffer is freed, or it leaks whatever it holds (a string, a boxed). `FreeInContainer`'s non-string C-array branch is a bare `g_free(c.ptr)` and has no branch for this.
-- **A JS override is probably needed too.** gjs accepts `update_property([Gtk.AccessibleProperty.LABEL], ['text'])` — a plain string, not a constructed `GObject.Value` — so the conversion lives above the marshaller. node-gi has an `overrides/` mechanism (`byte-array.js`, `gio-dbus.js`, `_signals.js` and two more) and `GObject.Value` is constructible there, so the seam exists; nothing fills it yet.
-
-Worth splitting: the enum half (4 bytes, no ownership question) is landable on its own and is the smaller risk, but it unblocks NO call by itself — `update_property` needs both arrays. So a split buys reviewability, not a working feature, and the second half should not be left standing.
-
-One caution for whoever takes the enum half: `IsSupportedElementType` is shared with GList/GSList/GHashTable, where elements are pointer slots filled through `gi_type_info_hash_pointer_from_argument` rather than sized array cells. For a POINTER-struct element that helper is now measured, not assumed — it passes `v_pointer` through unchanged and `gi_type_info_argument_from_hash_pointer` reads the same address back, so a list node holds a pointer-struct element exactly as it holds an object. What it does with an ENUM element is still NOT claimed. Note it does not refuse a by-value struct either — it passes that pointer through too — so the list path depends entirely on the predicate refusing the by-value kind first.
-
-The original entry follows.
-
-
-`IsSupportedElementType` (`src/marshal.cc:898`) carries the numeric fundamentals, boolean, utf8/filename and GObject/interface instances. Everything else DEFERS, under two DIFFERENT labels: an INTERFACE element that is neither an object nor an interface — enum, flags, struct, union — refuses as `"struct/union/enum element"`; every other tag (nested container, unichar, GType) refuses as `"nested-container element"`. `IsSupportedContainerType` passes the verdict on and the IN path throws BEFORE the invoke, at two sites of different kinds: `src/calls.cc:828` inside `InvokeFunctionInfo`, which serves a plain function AND an instance method alike (the instance is prepended — the `GtkButton.` prefix below comes from its method entry point at `calls.cc:1225`), and `src/class.cc:853` inside `InvokeVFuncPointer`, which is the separate `vfunc_*` call-out, not a method call. The deferral is DECLARED — the `SCOPE` paragraph directly above `IsSupportedElementType` lists these combos and commits to throwing a clear "<type> not yet supported" before the invoke — and it is not a bug. What was not known is which real call it costs.
-
-**It costs the whole `Gtk.Accessible` update surface — every ARIA property, state and relation a node host would set.** The varargs `gtk_accessible_update_property` is `introspectable="0"`; the typelib exposes its `_value` sibling under the SAME name (verified against gjs 1.88.1: `update_property` is a function, `update_property_value` is `undefined`), and that sibling takes two BY-VALUE arrays — `GtkAccessibleProperty[]` (`c:type="GtkAccessibleProperty"`, an enum element, no star) and `GValue[]` (`c:type="GValue"`, a struct element). Both are refused, so one call hits both halves of the deferral; the enum array is the one that throws, on argument order. `update_state` and `update_relation` carry the identical two-array shape, so all three go together:
-
-```
-TypeError: GtkButton.update_property: IN struct/union/enum element parameters are not yet supported
-```
-
-Control measured rather than assumed: the same call succeeds under **gjs 1.88.1 (Fedora 44, x86-64)**, in both `gjs -m` and plain-script form, with a bare string value and with an explicit `GObject.Value` (`b.update_property([Gtk.AccessibleProperty.LABEL], ['…'])` → OK). So this is a node-host-only loss, and it is invisible to a consumer's test suite because a widget that never got a label still renders.
-
-**A SECOND call site, and this one is inside the workspace.** `@gjsify/devtools`'s `test:gjs-on-node` leg reaches the identical refusal through `GLib.Variant.new_tuple`, whose `children` parameter is an IN `<array>` of `<type name="Variant">` — `GVariant` is a `<record>`, so the element takes the struct arm of `IsSupportedElementType` and throws at the same `calls.cc:828` site:
-
-```
-GLib.Variant.new_tuple: IN struct/union/enum element parameters are not yet supported
-```
-
-Two of that leg's three failures are this deferral (gjs 138 of 138; node 3 of 131 — the third, `installDevtools … Expected value to be null`, is separate and unattributed). It widens the cost beyond accessibility: a GVariant tuple is how a DBus reply with more than one member is built at all, so the struct half of the fix now has a test IN this tree that turns green the day it lands. That leg is deliberately `test:gjs-on-node` and not a `test:node` in the tree-wide sweep — a leg that is red for another package's defects teaches people to ignore it, which is why `gtk-host-node` went into `node-gi.yml` only at 0 failures.
-
-**The refusal itself is LOUD and should stay that way** — it names the method and the reason, and it throws before the C call rather than after. The silence is one level up: a consumer that catches and degrades (the reasonable thing for a decorative prop) turns the throw into one startup log line, after which a screen-reader user gets nothing for the rest of the session. Measured on a React-Native-vocabulary GTK4 application: **46 `accessibilityLabel` sites**, one caught exception, no further diagnostic. Improving the message is therefore not the fix; the marshalling is.
-
-Fix shape, cheap half first — but the cheap half is three edits, not one. **Enum and flags elements**: `gi_type_info_get_interface` on the element already runs in `IsSupportedElementType`, so the predicate itself is one added `GI_IS_ENUM_INFO`/`GI_IS_FLAGS_INFO` arm. Two more are not optional. `ElementToGIArgument` (`marshal.cc:1291`) accepts ONLY a tagged GObject handle for a `GI_TYPE_TAG_INTERFACE` element, so it needs the arm that writes the member's integer. And `CElementSize` (`marshal.cc:971`) answers `sizeof(gpointer)` for EVERY interface element, so `JsToCArray` would lay a 4-byte enum array out at an 8-byte stride — measured on this host (gcc, x86-64): a small C enum is 4, `gpointer` 8, `GValue` 24. gjs's `gjs_type_get_element_size` is the reference (`sizeof(unsigned int)` for enum/flags, the record size for a struct), so `sizeof(gint)` is the right answer — but it is one `CElementSize` has to LEARN, not one it already reports. What genuinely is free is ownership: an enum array is plain integers and `FreeInContainer`'s C-array branch already `g_free`s a non-string buffer and nothing else. One consequence of the shared predicate to plan for: `IsSupportedElementType` also gates GList/GSList elements and GHashTable values, where the element is a POINTER slot filled through `gi_type_info_hash_pointer_from_argument` rather than a sized array cell — admitting enums admits those paths too, and they need their own measurement rather than the array's answer.
-
-**Struct-by-value elements** are the real work, and they are the SAME work this file already records twice: the INLINE-record read side (`ElementsAreReadable` exists because `CElementSize` reports `sizeof(gpointer)` for a by-value `GI_TYPE_TAG_INTERFACE` element) and `calls.cc`'s CALLER_ALLOCATES note (`calls.cc:630`-`634`, which defers on `tag != GI_TYPE_TAG_INTERFACE` and so blocks the ENUM half there as well). One root cause — `CElementSize` does not know interface-element storage — with a third entrance now. `GObject.Value` is the element type that matters first and the friendliest case: a fixed introspectable size (24 here) and an existing scalar marshaller (`JsToFreshGValue`, `marshal.cc:215`) to fill each cell. Unlike the enum half it DOES carry an ownership question — each in-place `g_value_init` has to be unset after the invoke, which `FreeInContainer` has no branch for.
-
-Not verifiable on a machine without `cairo-devel`, and there is no opt-out to reach for: `binding.gyp`'s non-Windows arm resolves every flag through `pkg-config --cflags girepository-2.0 cairo` (and `--libs` the same way), `src/cairo.cc` is an unconditional source of the single `node_gi` target, and no flag or alternate target builds without it. Measured here: `pkg-config --cflags girepository-2.0` succeeds, `pkg-config --cflags cairo` exits 1 ("Package 'cairo' not found"), so gyp receives an empty flag list and there is no addon — hence no way to test a change to the marshaller. The remedy is a prerequisite the README already names (Fedora: `glib2-devel gobject-introspection-devel cairo-devel gcc-c++`), not a build option; until it is installed this stays filed rather than fixed.
+**Read the suite number as "this run".** node-gi is 612 tests, 597 passing, 13 skipped,
+2 failing; the two are `Canvas2DBridge` and `Excalibur.js`, both golden-image, and their
+`actual` strings are BYTE-IDENTICAL with the change reverted — same cause, not merely
+the same count, which is the check a bare `2 failed` on both sides does not make.
 
 ### `@gjsify/node-gi` — `GTK_IS_EVENT_CONTROLLER` assertion failures on the reverse bridge
 
