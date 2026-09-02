@@ -78,6 +78,37 @@ type TabDescriptor = Pick<
     'route' | 'options' | 'render'
 >;
 
+/**
+ * Put the stack on the focused page, or leave it alone because that page is not there yet.
+ *
+ * THE PRESENCE CHECK IS THE TERMINATING CONDITION, and the reason it has to be explicit is
+ * that the obvious guard is a bet rather than a test. Writing
+ *
+ *     if (stack.get_visible_child_name() !== focused) stack.set_visible_child_name(focused);
+ *
+ * reads as "set it unless it is already set", and it terminates only when the set TAKES.
+ * Measured on Adw 1.x: `set_visible_child_name` with a name the stack does not hold changes
+ * nothing, emits NO `notify::visible-child-name`, and prints
+ * `Adwaita-WARNING: Child name '…' not found in AdwViewStack`. So `get_visible_child_name()`
+ * still answers the old page, the comparison is still unequal, and the effect — which has no
+ * dependency array on purpose, because a page can materialise on a render where `focused` did
+ * not change — repeats the failing call on every render for as long as the mismatch lasts.
+ *
+ * A focused route whose page React has not committed yet is an ORDINARY intermediate state,
+ * not a fault: the effect runs after the commit that added the OTHER pages, and the missing
+ * one arrives on a later commit. So the answer is to do nothing and let the next render try,
+ * which is what "not there yet" deserves — and one warning per render for a normal state is
+ * how a log stops being read.
+ *
+ * @returns whether the stack now shows `focused`.
+ */
+export function showFocusedPage(stack: Adw.ViewStack, focused: string): boolean {
+    if (stack.get_visible_child_name() === focused) return true;
+    if (stack.get_child_by_name(focused) === null) return false;
+    stack.set_visible_child_name(focused);
+    return true;
+}
+
 function TabsView(props: TabsViewProps): ReactElement {
     const { state, descriptors, navigation, NavigationContent } = useNavigationBuilder<
         TabState,
@@ -111,7 +142,7 @@ function TabsView(props: TabsViewProps): ReactElement {
     useLayoutEffect(() => {
         const stack = stackRef.current;
         if (stack === null || focused === undefined) return;
-        if (stack.get_visible_child_name() !== focused) stack.set_visible_child_name(focused);
+        showFocusedPage(stack, focused);
     });
 
     /**

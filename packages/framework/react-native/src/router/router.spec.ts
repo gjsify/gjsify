@@ -38,7 +38,7 @@ import { RouterRoot } from './root.js';
 import type { RouteManifest } from './routes.js';
 import { Stack } from './stack.js';
 import { advanceTracking, applyStack, coalesce, initialTracking, releaseFrom, type Tracking } from './stack.js';
-import { Tabs } from './tabs.js';
+import { showFocusedPage, Tabs } from './tabs.js';
 
 /** Named identities, not a capability: a probe that answers "no" stands the suite DOWN, and a suite that ran zero tests reports success. */
 const GTK_HOSTS: Runtime[] = ['Gjs', 'Node.js', 'Bun', 'Deno'];
@@ -874,6 +874,38 @@ export default async () => {
                     expect(turns >= 0).toBe(true);
                     expect(stack.get_page(stack.get_visible_child() as Gtk.Widget).get_title()).toBe('Two');
                 });
+            });
+
+            await it('leaves the stack alone when the focused page is not there yet', async () => {
+                // THE CONDITION DIRECTLY, not through a render race. A focused route whose
+                // page React has not committed yet is an ordinary intermediate state, and
+                // the effect that follows React has no dependency array precisely so that a
+                // later commit gets another try. What must not happen is a call into Adw for
+                // a name it does not hold: measured, `set_visible_child_name` then changes
+                // nothing, emits no notify, and prints `Adwaita-WARNING: Child name '…' not
+                // found in AdwViewStack` — so the naive guard never terminates and warns once
+                // per render for a state that is not a fault.
+                //
+                // TWO INDEPENDENT NETS, each proven by breaking the fix on its own. Drop the
+                // presence check in `showFocusedPage` and the return value below fails first
+                // (false becomes true, exit 1). Loosen that assertion as well, so only the
+                // gate can object, and `assertQuiet()` fails on its own with `Child name
+                // 'page-not-committed-yet' not found in AdwViewStack`. The boolean is the
+                // readable half; the gate catches the same defect reached by another route.
+                const Stack = lookupWidget('AdwViewStack').ctor() as unknown as new () => Adw.ViewStack;
+                const stack = new Stack();
+                stack.add_named(new Gtk.Label({ label: 'here' }), 'page-here');
+
+                expect(showFocusedPage(stack, 'page-not-committed-yet')).toBe(false);
+                expect(stack.get_visible_child_name()).toBe('page-here');
+
+                // And the other direction, so the false above is not simply "it never sets".
+                stack.add_named(new Gtk.Label({ label: 'later' }), 'page-later');
+                expect(showFocusedPage(stack, 'page-later')).toBe(true);
+                expect(stack.get_visible_child_name()).toBe('page-later');
+
+                // Already there: no call, still true.
+                expect(showFocusedPage(stack, 'page-later')).toBe(true);
             });
 
             await it('follows the USER when the switcher changes the visible child', async () => {
