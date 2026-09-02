@@ -80,6 +80,35 @@ export function useViewStackPageProperties(stack: Adw.ViewStack | null, pages: r
     });
 }
 
+/**
+ * The `notify::visible-child` handler both stack-owning components install.
+ *
+ * IT REPORTS NOTHING UNTIL THE WIDGET IS READABLE. libadwaita's auto-pick notifies from
+ * inside `adw_view_stack_add_titled` — child insertion is deliberately OUTSIDE gtk-host's
+ * host-write window, so the notify is delivered — and at that moment React has not yet
+ * committed the `ref`, so there is no stack to read the settled name off. Measured, the
+ * inline `stack?.visibleChildName ?? ''` this replaces reported `''` at mount: a name no
+ * page carries, on a callback whose whole contract is to name the page that is showing.
+ * The React Native half reports nothing there, because its subscription is installed in
+ * an effect after the pages are filled in.
+ *
+ * A change the CALLER made does not come back through here either — gtk-host drops the
+ * notify raised inside its own property write, the same rule `AdwExpanderRowProps`
+ * records for `onNotifyExpanded`. That one IS a divergence from the React Native half,
+ * which re-applies `visibleChildName` through `selectName` and reports what it settled
+ * on; the README names it. What both halves report is a change the USER made.
+ */
+export function visibleChildNotifier(
+    stack: Adw.ViewStack | null,
+    notify: ((name: string) => void) | undefined,
+): (() => void) | undefined {
+    if (notify === undefined) return undefined;
+    return () => {
+        if (stack === null) return;
+        notify(stack.visibleChildName ?? '');
+    };
+}
+
 /** {@link import('./view-stack.js').AdwViewStack} on GTK. */
 export function AdwViewStack({
     pages,
@@ -96,11 +125,7 @@ export function AdwViewStack({
         <adw-view-stack
             ref={setStack}
             visible-child-name={visibleChildName}
-            onNotifyVisibleChild={
-                onNotifyVisibleChild === undefined
-                    ? undefined
-                    : () => onNotifyVisibleChild(stack?.visibleChildName ?? '')
-            }
+            onNotifyVisibleChild={visibleChildNotifier(stack, onNotifyVisibleChild)}
         >
             {viewStackChildren(pages ?? [])}
         </adw-view-stack>

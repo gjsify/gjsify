@@ -24,7 +24,7 @@ import type Adw from 'gi://Adw?version=1';
 import { useState, type ReactElement } from 'react';
 
 import type { AdwViewSwitcherProps } from '../props.js';
-import { useViewStackPageProperties, viewStackChildren } from './view-stack.gtk.js';
+import { useViewStackPageProperties, viewStackChildren, visibleChildNotifier } from './view-stack.gtk.js';
 
 /** {@link import('./view-switcher.js').AdwViewSwitcher} on GTK. */
 export function AdwViewSwitcher({
@@ -43,11 +43,7 @@ export function AdwViewSwitcher({
                 ref={setStack}
                 vexpand={true}
                 visible-child-name={visibleChildName}
-                onNotifyVisibleChild={
-                    onNotifyVisibleChild === undefined
-                        ? undefined
-                        : () => onNotifyVisibleChild(stack?.visibleChildName ?? '')
-                }
+                onNotifyVisibleChild={visibleChildNotifier(stack, onNotifyVisibleChild)}
             >
                 {viewStackChildren(pages ?? [])}
             </adw-view-stack>

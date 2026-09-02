@@ -217,6 +217,45 @@ export default async () => {
                 );
             });
 
+            await it('never reports a visible-child name no page carries', async () => {
+                // THE AUTO-PICK NOTIFY ARRIVES BEFORE THE REF DOES. libadwaita selects the
+                // first visible page from inside `adw_view_stack_add_titled`, and child
+                // insertion sits OUTSIDE gtk-host's host-write window, so the handler runs
+                // — while React has not yet committed the `ref` it would read the name
+                // off. Measured before `visibleChildNotifier`: `['']`, a name no page has,
+                // on a callback whose contract is to name the page that is showing.
+                //
+                // AND A CHANGE THE CALLER MADE REPORTS NOTHING HERE, which the second
+                // `rerender` pins: gtk-host drops the notify raised inside its own
+                // property write. That is a real divergence from the React Native half,
+                // which re-applies the prop through `selectName` and reports what it
+                // settled on — the README names it, and this row is what makes it a
+                // measurement rather than a claim. A change the USER made reaches both;
+                // driving a real switcher press is not something this suite can do.
+                const seen: string[] = [];
+                const pages = [
+                    { name: 'home', title: 'Home', child: <gtk-label label="home" /> },
+                    { name: 'detail', title: 'Detail', child: <gtk-label label="detail" /> },
+                ];
+                laidOut(
+                    <AdwViewStack pages={pages} onNotifyVisibleChild={(name) => seen.push(name)} />,
+                    (container, _window, rerender) => {
+                        const stack = find(container, 'AdwViewStack') as Adw.ViewStack;
+                        expect(stack.visibleChildName).toBe('home');
+                        expect(seen).toStrictEqual([]);
+                        rerender(
+                            <AdwViewStack
+                                pages={pages}
+                                visibleChildName="detail"
+                                onNotifyVisibleChild={(name) => seen.push(name)}
+                            />,
+                        );
+                        expect(stack.visibleChildName).toBe('detail');
+                        expect(seen).toStrictEqual([]);
+                    },
+                );
+            });
+
             await it('points a real Adw.ViewSwitcher at the real Adw.ViewStack it built', async () => {
                 laidOut(
                     <AdwViewSwitcher

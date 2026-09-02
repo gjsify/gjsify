@@ -510,6 +510,16 @@ than smoothed over.
   pane, which libadwaita uses for the header of a collapsed view. The React Native half has
   no header bar to put a title in, so it carries them and draws neither — the same shape as
   `iconName`.
+- **`onNotifyVisibleChild` does not carry the same set of changes on both halves.** A
+  press on the switcher reaches both. A change the CALLER made through
+  `visibleChildName` reaches the React Native half only — it re-applies the prop through
+  `selectName` and reports what the stack settled on, while gtk-host drops the notify
+  raised inside its own property write, which is the same rule `onNotifyExpanded` already
+  records. The mount AUTO-PICK reaches neither: libadwaita notifies it from inside
+  `adw_view_stack_add_titled`, before React has committed the `ref` the settled name
+  would be read off (measured — the GTK half used to report `''` there, a name no page
+  carries), and on the other half the core's auto-pick lands before the subscription
+  exists. Both halves are asserted at the two ends of that.
 - **`AdwViewSwitcher` bundles the stack libadwaita keeps separate.** `Adw.ViewSwitcher:stack`
   points at an `Adw.ViewStack` elsewhere in the tree, and a React prop cannot hold a widget
   that does not exist yet on the half where widgets exist at all. Both other renderers made

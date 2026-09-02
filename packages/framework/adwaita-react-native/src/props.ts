@@ -909,7 +909,18 @@ export interface AdwViewStackProps {
     pages?: readonly AdwViewStackPageProps[];
     /** `visible-child-name` — which page to show. */
     visibleChildName?: string;
-    /** `notify::visible-child` — the name the stack settled on, including an auto-pick. */
+    /**
+     * `notify::visible-child` — the name the stack settled on.
+     *
+     * WHAT REACHES IT IS NOT THE SAME SET ON THE TWO HALVES, measured. A press on the
+     * switcher reaches both. A change the CALLER made through {@link visibleChildName}
+     * reaches the React Native half only, because gtk-host drops the notify raised
+     * inside its own property write — the rule {@link AdwExpanderRowProps.onNotifyExpanded}
+     * records. And the mount AUTO-PICK reaches neither: libadwaita notifies it from
+     * inside `adw_view_stack_add_titled`, before React has committed the `ref` the name
+     * would be read off, and the core's own auto-pick lands before the subscription
+     * exists. The README carries the table.
+     */
     onNotifyVisibleChild?: (name: string) => void;
 }
 
