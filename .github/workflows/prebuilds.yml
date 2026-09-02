@@ -2660,7 +2660,20 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $packages = Join-Path $env:RUNNER_TEMP 'webview2-sdk'
-          nuget install Microsoft.Web.WebView2 -Version $env:WEBVIEW2_SDK_VERSION `
+          # `nuget.exe` ships on GitHub's Windows images and is absent on a bare
+          # workstation, so the fallback is the same one
+          # `docs/poc/webview2-win32-probe.ps1` carries — a probe that only works
+          # on one of the two hosts is a probe nobody runs twice.
+          $nuget = (Get-Command nuget.exe -ErrorAction SilentlyContinue)?.Source
+          if (-not $nuget) {
+            $nuget = Join-Path $env:RUNNER_TEMP 'nuget.exe'
+            if (-not (Test-Path $nuget)) {
+              Invoke-WebRequest -UseBasicParsing `
+                -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' `
+                -OutFile $nuget
+            }
+          }
+          & $nuget install Microsoft.Web.WebView2 -Version $env:WEBVIEW2_SDK_VERSION `
             -OutputDirectory $packages -NonInteractive | Out-Host
           if ($LASTEXITCODE -ne 0) { throw "nuget install failed ($LASTEXITCODE)" }
           $native = Join-Path $packages "Microsoft.Web.WebView2.$env:WEBVIEW2_SDK_VERSION\build\native"
