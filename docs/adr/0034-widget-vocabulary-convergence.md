@@ -27,7 +27,7 @@ need, and refuses six things that look like progress towards it and are not.
 and the next one somebody adds. A rule written as "the NativeScript port should…" binds
 nothing that does not exist yet, and the surfaces this repository keeps growing are
 exactly the ones that were not there when the last rule was written. § 1 is therefore
-surface-neutral; § 2 is a table of where each stands against it today.
+surface-neutral; § 2 is a table of where each stood against it when this was decided.
 
 The staging follows the **cost curve**, not the severity of the defect, and the two are
 not the same surface. § Context measures both.
@@ -92,7 +92,7 @@ grep -rhoE '<AdwWidget title="[A-Za-z.]+"' \
 
 | surface | vocabulary | count |
 |---|---|---|
-| `@gjsify/gtk-host` (`src/generated/widgets.ts`) | GIR-derived kebab tags | **168** — 63 `Adw*`, 105 `Gtk*` |
+| `@gjsify/gtk-host` (`src/generated/widgets.ts`) | GIR-derived kebab tags | **169** — 63 `Adw*`, 106 `Gtk*` |
 | `@gjsify/adwaita-web` | `adw-*` custom elements | **65** |
 | `@gjsify/adwaita-nativescript` | `Adw*` view classes in `adw-*.ts` | **46** |
 | `@gjsify/adwaita-react-native` | `Adw*` components | **12** |
@@ -588,14 +588,16 @@ check permanently and silently. That asymmetry is the hole this ADR closes: `web
 without a reason was rejected as *"indistinguishable from an oversight"*, and an alias
 without one is indistinguishable from a decision nobody made.
 
-### 2. Where each surface stands against the rule today
+### 2. Where each surface stood against the rule when this ADR was decided
+
+**A snapshot at decision, 2026-08-29 — not a live view.** What moved since is recorded in the Amendments; the current count is § "What each surface ships — measured".
 
 | surface | clause 1 (GIR naming) | clause 2 (namespace) | clause 3 (declared) | remainder |
 |---|---|---|---|---|
 | `@gjsify/gtk-host` | **holds by construction** — the prefix is derived from the GType | n/a: the tags *are* the vocabulary, and `@girs` supplies `Gtk`/`Adw` | n/a | none |
 | `@gjsify/adwaita-web` | **violated for 10 elements** (`adw-entry` is `GtkEntry`, …) | **absent** — registers tags, exports no namespace | **half-held**: every one of the 21 is declared, but the 10 aliases carry no reason | 11 web-only, each with a reason |
 | `@gjsify/adwaita-nativescript` | **violated for 1** (`AdwIcon` is `GtkImage`); the other four converged — § Amendment 5 | **held** — `src/namespace.ts`, § Amendment 5 | **held since stage 3** for widget names and **since stage 6** for property names | 2 with no counterpart; property names re-measured in § Amendment 2 and again in § Amendment 5 |
-| `@gjsify/adwaita-react-native` | **holds** — `AdwBin`, `AdwClamp` | **absent** | **held since stage 4**: it declares itself a surface and is read | none, today |
+| `@gjsify/adwaita-react-native` | **holds** — `AdwBin`, `AdwClamp` | **absent** | **held since stage 4**: it declares itself a surface and is read | none, then |
 | the docs | `controls.mdx` is 100 % GTK under an `Adwaita` heading; 4 `Gtk.*` blocks in all | there is no `Gtk` section | no | — |
 | the next surface | — | — | — | — |
 
