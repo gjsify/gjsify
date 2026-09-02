@@ -113,6 +113,36 @@ test('leaves gtk-runtime-* to the GTK activation', () => {
     assert.deepEqual(discoverPrebuiltTypelibDirs({ startDir: '/app', platform: 'darwin', arch: 'x64', fs }), []);
 });
 
+test('accepts a typelib the walk reports as a symlink', () => {
+    // The real `readDir` widens "directory" to include symlinks, because that is how
+    // npm and pnpm place a workspace package and the walk has to follow one. An
+    // earlier revision then tested the typelib with `!isDirectory && endsWith(...)`,
+    // which silently dropped a SYMLINKED typelib — the exact layout a linked
+    // workspace install produces. The suffix alone is the honest test.
+    const nm = '/app/node_modules';
+    const pkg = `${nm}/@gjsify/webkit-native-darwin-x64`;
+    const prebuild = `${pkg}/prebuilds/darwin-x64`;
+    const fs = fakeFs({
+        dirs: {
+            [nm]: [dir('@gjsify')],
+            [`${nm}/@gjsify`]: [dir('webkit-native-darwin-x64')],
+            [pkg]: [dir('prebuilds')],
+            [`${pkg}/prebuilds`]: [dir('darwin-x64')],
+            // isDirectory: true is what a symlinked typelib looks like to readDir.
+            [prebuild]: [dir('WebKit-6.0.typelib')],
+        },
+        manifests: {
+            [`${pkg}/package.json`]: {
+                name: '@gjsify/webkit-native-darwin-x64',
+                gjsify: { prebuilds: 'prebuilds' },
+            },
+        },
+    });
+    assert.deepEqual(discoverPrebuiltTypelibDirs({ startDir: '/app', platform: 'darwin', arch: 'x64', fs }), [
+        prebuild,
+    ]);
+});
+
 test('ignores a package that declares no prebuilds', () => {
     const nm = '/app/node_modules';
     const pkg = `${nm}/left-pad`;

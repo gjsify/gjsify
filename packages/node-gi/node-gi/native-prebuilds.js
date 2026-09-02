@@ -31,8 +31,9 @@
 // two-copies hazard #920 records. So `gtk-runtime-*` is skipped by name and stays that
 // module's business.
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** Packages whose activation belongs to gtk-runtime.js, not here. See the header. */
 const GTK_RUNTIME_PREFIX = 'gtk-runtime-';
@@ -43,9 +44,13 @@ const GTK_RUNTIME_PREFIX = 'gtk-runtime-';
  * parameters rather than reading `process.*` inline.
  */
 const REAL_FS = {
-    exists: (p) => existsSync(p),
     readDir: (p) => {
         try {
+            // A symlink counts as a directory here because that is how npm and pnpm
+            // place a workspace or hoisted package, and the walk must follow it.
+            // Nothing else in this module asks `isDirectory` about a FILE — the
+            // typelib test below matches on the name alone, so a symlinked
+            // `*.typelib` is not lost to this widening.
             return readdirSync(p, { withFileTypes: true }).map((e) => ({
                 name: e.name,
                 isDirectory: e.isDirectory() || e.isSymbolicLink(),
@@ -141,7 +146,10 @@ export function discoverPrebuiltTypelibDirs({ startDir, platform, arch, fs = REA
 
             const dir = join(packageDir, prebuilds, target);
             if (seen.has(dir) || !fs.isDirectory(dir)) continue;
-            if (!fs.readDir(dir).some((e) => !e.isDirectory && e.name.endsWith('.typelib'))) continue;
+            // Name only: a staged typelib may be a symlink, which `readDir` reports as
+            // a directory so the package walk can follow one. Nothing is ever a
+            // DIRECTORY named `*.typelib`, so the suffix alone is the honest test.
+            if (!fs.readDir(dir).some((e) => e.name.endsWith('.typelib'))) continue;
 
             seen.add(dir);
             found.push(dir);
@@ -182,7 +190,10 @@ export function activateNativePrebuilds(native, options = {}) {
     if (typeof native?.prependSearchPath !== 'function') return activated;
 
     const {
-        startDir = dirname(new URL(import.meta.url).pathname),
+        // fileURLToPath, NOT `new URL(...).pathname`: on Windows that yields
+        // "/C:/…", which `dirname` happily turns into a path that resolves to
+        // nothing — and win32 is one of the two platforms this discovery exists for.
+        startDir = dirname(fileURLToPath(import.meta.url)),
         platform = process.platform,
         arch = process.arch,
         fs = REAL_FS,
