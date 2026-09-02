@@ -32,217 +32,201 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## What this release is about
 
-**`gjsify ship` now produces a real macOS application bundle AND a real Windows program directory,
-both assembled on Linux, and both carrying their own interpreter and their own GTK.**
+**A React Native application can now grow a desktop target on all three operating systems
+without the Node bridge losing objects between runs, and without an environment variable
+standing between the web view and its own typelib.**
 
 ---
 
-### A `*.app` directory was not an application
+### The bridge stopped dropping objects it still owned
 
-The layout axis that landed last release staged `<App>.app/Contents/{MacOS,Resources,Frameworks}`
-and stopped there. What it did not stage was `Contents/Info.plist`, and that file is the whole
-difference between an application and a folder whose name ends in `.app`: LaunchServices reads it to
-learn which binary under `Contents/MacOS` to exec and what identity to register the bundle under.
-Without it the Finder shows a folder.
+Running a real React Native GTK4 application through `@gjsify/node-gi` gave exit
+139 / 134 / 0 / 139 over four consecutive runs — two distinct signals and one clean
+completion, which is the shape of a lifetime bug rather than a logic one. The core dump
+carried no application frame at all: the thread-safe-function drain handed
+`g_object_get_qdata` a pointer that was no longer a live GObject.
 
-`gjsify ship darwin` now writes it, plus `Contents/PkgInfo`, and packs two artifacts out of the same
-staged payload — the `<App>.app` itself and a deterministic zip around it. Both are assembled by a
-Linux host and both are unsigned; signing is a later milestone and an unsigned artifact is a
-legitimate output as long as it says so.
+The cause is a window nobody owns. V8 nulls a weak persistent during garbage collection,
+in the first-pass weak callback, but Node defers the actual finalizer to a `setImmediate`.
+Code that read an empty `napi_ref` and concluded "already finalized" was wrong for the
+length of that gap — and when the record was freed inside it, the allocator handed the
+*same block* to the next instance. Measured: an identical address on every run. The stale
+finalizer then read a live record, saw no queued teardown, and queued one for a wrapper
+that was still in use. It disappeared under `NODE_GI_TOGGLE_DEBUG=1`, because logging
+allocations recycle the block — the signature of a use-after-free rather than a race in
+the queue.
 
-Eleven plist keys, each read off a file a real macOS toolchain produced or consumes rather than
-recalled: the app id becomes `CFBundleIdentifier`, the display name becomes the bundle directory and
-`CFBundleName`, and `CFBundleVersion` carries the packaging release where `CFBundleShortVersionString`
-does not — the one place macOS has a field for a distinction this command already made. Keys that are
-merely plausible are not emitted, and neither is an icon: nothing that can read an `.icns` back
-exists on Linux or in this project's CI image, and an icon only we could check is not a check.
+Ownership of the free now follows the finalizer instead of the collector (#1475).
 
-### Your GSettings schemas no longer abort the app
+A second crash in the same seam turned out to rest on a GLib behaviour nobody had written
+down: `g_object_run_dispose` notifies every weak reference on an object that goes on
+LIVING. The net read that as "C finalized it", nulled its pointer, and the teardown then
+skipped the qdata detach it does under that pointer — leaving a LIVE GObject holding a
+qdata pointer to a record the teardown went on to free. The detach happens inside the weak
+notify now, the one moment the pointer is guaranteed addressable. Reproduced
+single-threaded and deterministically: SIGSEGV before, never after (#1489).
 
-Every launcher points `XDG_DATA_DIRS` at the staged `share/`, and GSettings aborts on a schema
-directory that holds sources with no `gschemas.compiled` beside them. On Linux the `.deb`/`.rpm`
-install step compiles it; a `.app` has no install step, so the bundle would have died at its first
-`Gio.Settings.new()`. The cache is now compiled while the tree is assembled, with `--strict` —
-without that flag a malformed schema is skipped at exit 0 and a cache is written without it, so the
-stage looks compiled and the app aborts on exactly the schema that was dropped.
+Its residual is open and printed rather than implied: an object that SURVIVES a dispose
+loses its wrapper identity, and JS instance fields go with it. Narrower than it sounds —
+`gtk_window_destroy()` is not a dispose caller on GTK 4.22.4, measured, so the reach is an
+explicit `run_dispose()` and `gtk_native_dialog_destroy()` — but it is silent data loss
+where the old code had none, so it is pinned by an executable case rather than a note.
 
-Linux still gets no prebuilt cache, deliberately: there the install step compiles the system schema
-directory, where your schemas merge with every other package's.
+### An `IN` array of structs or enums marshals now, so accessibility exists on Node
 
-### The readers are not ours, and both were watched fail
+`Gtk.Accessible.update_property()` threw `IN struct/union/enum element parameters are not
+yet supported` on every Node host, which meant **no** ARIA property, state or relation on
+macOS or Windows — the two operating systems where Node is the only host there is. It was
+not one method: measured against every installed typelib, **140 `IN` parameters** hit the
+same gap, `Gio.ActionMap.add_action_entries`, `GObject.Object.newv` and
+`Gsk.LinearGradientNode.new` among them.
 
-`plutil` is macOS-only, and the substitute a reader reaches for first is a trap: `plistutil` accepts
-a `<dict>` whose `<key>` has no value and prints an empty dict at exit 0, while
-`xmllint --noout --valid` exits 4 on a *correct* plist because the DTD is a remote URL. So the plist
-is read back with CPython's `plistlib`, and the zip with `zipinfo -l` rather than `unzip -Z1` —
-which prints names only and is blind to the single failure a distributed bundle has, a launcher that
-extracts `0644` and will not run.
+Two halves, because they fail differently. Pointer elements landed first (#1473). By-value
+elements needed a separate write path (#1482): the eight-byte `GIArgument` union cannot be
+`memcpy`-ed into a 24-byte `GValue` cell, so element size and cell addressing are computed
+from the C array rather than from the union. The regression test writes distinct contents
+into every element and reads them back, because a stride bug produces the right *number*
+of values and the wrong values.
 
-Both readers live in `.github/ship-oracle/`, both are runnable by hand, and both are driven green
-AND red on every pull request: a plist with one wrong character, a plist truncated mid-`<dict>`, a
-bundle with no plist at all, an archive whose launcher was planned `0644`, and an archive that
-carries `0755` under a DOS `version made by` — where the mode is in the file and no extractor will
-ever read it as a mode.
+The read path — dereferencing by-value interface elements *out* of a C array — is still
+gated off rather than wrong, and says so.
 
-### The bundle carries what a stranger's Mac does not have
+### A GStreamer error is readable now
 
-macOS ships no Node and, as far as a downloaded application is concerned, no GTK. So the `.app` now
-carries both: the interpreter at `Contents/MacOS/node` with Node's own LICENSE beside it, and the
-relocated GTK/GObject-Introspection closure under `Contents/Frameworks`, in the sibling layout
-`@gjsify/node-gi` walks — the addon and its `gtk/` directory next to each other, because the addon
-reaches its dylibs as `@loader_path/gtk/lib`. The launcher execs `"$here/node"` instead of a name it
-hopes to find on `PATH`.
+`Gst.Message.parse_error()` threw `OUT type tag 20 parameters are not yet supported`, so an
+application could see that playback stopped and never learn why. Every bus-error accessor
+of all three GStreamer message APIs sat behind that one gate.
 
-**Tree-preserving, and that is the design rather than a detail.** Every relation inside a relocated
-closure is relative: install names are `@loader_path/<leaf>`, the gdk-pixbuf loader cache addresses
-each decoder `@loader_path/../../..` from the bundle's top level, and the addon's search path is
-`@loader_path/gtk/lib`. Staging the closure through the existing `bundledTypelibs` path would have
-flattened all of it to basenames and broken every one of those at once — with a `.app` that ships
-two hundred megabytes and still cannot open a window.
+`GError` marshals in every direction now — the explicit one an API declares, as distinct
+from the implicit `throws=1` error the invoker already turned into a thrown `GLib.Error`.
+The conversion it needed existed all along and was simply unreachable, refused before the
+invoke. An OUT slot the callee left alone reads back as `null` rather than an empty error,
+and an IN argument honours its transfer, borrowed or copied. Reach, measured over 264
+typelibs and 91 444 callables: 18 OUT/INOUT parameters, of which ten are those accessors
+(#1496, closes #1495).
 
-**And a fourth thing, which is easy to miss and fatal to omit.** A `--app node` bundle keeps
-`@gjsify/node-gi/*` external by design, so a `gi://Gtk` import compiles to
-`require('@gjsify/node-gi/gi')` in the shipped file. A `.app` has no `node_modules` to resolve that
-against — measured on a bundle staged the old way and run from an unrelated directory:
-`Error: Cannot find module '@gjsify/node-gi/gi'`, before any GTK question arises. node-gi's
-JavaScript is now staged into one the bundle owns.
+### Classes realize themselves, and a probe retires with this release
 
-**No `DYLD_*` anywhere in the launcher.** Under a hardened runtime a Developer-ID-signed executable
-is restricted and dyld strips those variables, so a launcher depending on one works unsigned and
-breaks the day the bundle is signed. What the launcher exports instead — `GJSIFY_GTK_RUNTIME`,
-`NODE_GI_NATIVE`, `GJSIFY_GI_LIBRARY_PATH` — is read by node-gi in JavaScript and handed to
-GObject-Introspection through the binding. dyld never sees any of them.
+A class the process had never referenced reported none of its `class_init` signals, so
+`GObject.signal_lookup` answered `0` where GJS answers a real id; and a class-struct
+static ran on the type its name was *read* from rather than the one it was *called* on.
+Two causes, and the discriminating experiment is in the test: realizing the class up
+front does not repair the borrowed read (#1488).
 
-**What you add to your own `package.json`** is a real list, not an implicit one:
-`@gjsify/node-runtime-darwin-<arch>` and `@gjsify/gtk-runtime-darwin-<arch>` as `devDependencies`,
-`@gjsify/node-gi` as a `dependency`. None of them is an `optionalDependencies` edge on anything —
-whoever ships an application declares the runtime it ships. `gjsify ship` prints what it staged and,
-for anything missing, the package name to install; a bundle with no runtime still assembles, because
-it is a working intermediate on any machine that already has a Node.
+Worth naming because it decides what a green run means: `gtk-os-suites.yml` pairs the
+checkout's JavaScript with the **published** addon on purpose — it answers "what does a
+stranger's download do". A fix that lives in the addon's C++ is therefore invisible to
+that leg until a release ships it. That is why the darwin and win32 steps stayed probes
+rather than gates, and why their retirement condition was rewritten from an issue number
+to a release: an issue can close without anything measurable changing. **This is that
+release.**
 
-One caveat on that list, and it is measurable rather than a plan: one
-`@gjsify/node-runtime-*` name is **still unpublished**. Measured 2026-08-30, `darwin-arm64` and
-`darwin-x64` resolve at `0.44.0` alongside all three `@gjsify/gtk-runtime-*`, and `win32-x64`
-answers 404 — so `npm install` fails on that line until the first publish,
-which is a manual maintainer action because npm Trusted Publishing needs the package to exist
-before CI can publish to it. `GJSIFY_NODE_RUNTIME` points the shipper at a directory in the
-meantime. `scripts/check-shipped-runtime-packages.mjs` holds the gap and fails once it closes.
+### The web view on macOS was built, and only declared broken
 
-### The same thing one operating system over
+`@gjsify/iframe` declared `runtimes.node: "none"`. On darwin and win32 that is the only
+host an application has (ADR 0024 § 4), so the WebView pillar was marked unusable on
+exactly the platforms `@gjsify/webkit-native` exists to serve. Measured on darwin-x64
+under Node 24 against the published closure: `load_html()` reaches `LoadEvent.FINISHED`,
+and `evaluate_javascript` reads the title, an element's text and a computed value back out
+of the document. The slot is now `polyfill`, with a Node leg in CI behind it (#1487).
 
-`gjsify ship windows` produces a program directory and a zip around it, and the runtime staging is
-the same module: what differs is where each piece lands, which is the layout's answer and not a
-second code path. The interpreter sits beside the launcher as `node.exe` — under the name the Node
-release uses, derived from the same function that found the source file — and the GTK closure under
-`lib\node-gi\prebuilds\win32-x64\`. Windows is the harder of the two cases, not the easier one:
-macOS at least has a GJS you could install, and Windows has no GJS host at all.
+Two things that looked like the honest limits of that change were defects instead.
 
-**The zip carries a top level the directory does not.** A `<App>.app` is dragged to `/Applications`
-as one object, so the bundle directory is part of what is staged. A Windows program directory is
-not: an installer picks `C:\Program Files\<Publisher>\<App>` and lays the contents into it. So the
-archive synthesises the directory — without it, unzipping scatters `app\`, `share\` and a loose
-`.cmd` into whatever folder you were in, with every file individually in the right place.
+The `/register` suite was gated to GJS with a condition written while the slot was `none`;
+under `--app node` the same WebKit chain resolves through `requireGi()`. Both legs now run
+the same 291 tests.
 
-**The launcher sets no `PATH` for the bundled GTK, and that is deliberate.** Windows has no rpath, so
-`PATH` is where a DLL is found — but node-gi already prepends the closure's `bin\` in-process,
-before it loads its addon, because Windows re-reads the DLL search path at every `LoadLibrary`. What
-the launcher owes it is the locator, and a second copy of that directory would be the one that goes
-stale.
+And the build alias that made the Node leg green was covering a broken shipping path, not
+pinning a test corpus. Without it, `--app node` puts **Node's own `MessagePort`** in the
+shipped bundle — and `@gjsify/iframe` needs the seam: the bridge transport hooks onto our
+port, `_registerTransferredPort()` reads a partner Node's port does not have, and port
+substitution identifies ports by `Symbol.toStringTag`, which Node answers `EventTarget`.
+Port transfer across the WebKit bridge was dead on that target and the suite was green over
+it. `@gjsify/message-channel` now exports the seam at `./core`, the specifier the alias
+layer does not rewrite, and the alias is gone.
 
-**`win32-x64` only.** `gvsbuild` publishes no arm64 GTK — it hardcodes the platform — so there is
-nothing to build a Windows/ARM runtime bundle out of, and on Windows that bundle is the only GTK
-there is. `gjsify ship windows --arch arm64` says so and names the upstream issue.
+### The typelib resolves without an environment variable
 
-**One thing to know if you ship this to a user.** `node.exe` is a console-subsystem program and the
-Node release ships no windowed variant, so starting the application from a shortcut leaves a console
-window open behind it. It is recorded rather than hidden: no CI leg can observe the defect (every
-Windows job starts the app from a shell and already has a console), so the assemble job prints the
-subsystem it read off the binary instead of pretending to check it.
+A prebuilt typelib and the library it names sit in the *same* directory. GI's own install
+layout puts the typelib one level below, in `lib/girepository-1.0`, and the library
+directory was derived as the parent of wherever a typelib was found — correct for the
+install layout and wrong for every staged prebuild. The symptom is worth naming because it
+does not look like a path problem: the typelib loads, the namespace resolves, and
+constructing the class fails with `WebKit.WebView is not a constructible GObject type`.
 
-### Signing takes an identity, not a certificate — and it is proven with neither
+The basename is now read as a positive signal. Where it says `girepository-1.0` the parent
+is the answer; where the layout is unknown both readings are offered and only directories
+that exist survive (#1492). Measured on darwin with a guard that runs before the bridge
+loads and prints which loader variables carry the staged directory: none of them do.
 
-`gjsify ship --sign <identity>` signs the payload on the finish phase. What it takes is the STRING
-`codesign` and `signtool` look a private key up by, never a certificate: there is no
-`--certificate`, no `--p12`, no `--password`, and nothing on this surface can leak into a log line.
-Getting a key into a keychain is the signing host's job. The project default is
-`gjsify.ship.sign.<darwin|win32>.identity`, keyed per OS because a Developer ID string and an
-Authenticode subject are different namespaces.
+### Eighteen npm surfaces answer for themselves
 
-**Absent identity skips, loudly, at exit 0.** Unsigned stays the default path and a legitimate
-deliverable. What is refused is the other direction — claiming a signature that was not made — so
-the skip is printed to stderr and names the step it skipped.
+A real React Native application does not import only `react-native`. Sixteen of its other
+imports had no answer at all, and the failure was worse than a refusal: the bundler could
+not resolve the package, so the error named npm rather than this layer, and a porter
+learned nothing about whether a desktop answer existed. Each answered surface is now a
+subpath of `@gjsify/react-native` — `expo-status-bar`, `async-storage`, `vector-icons`,
+`safe-area-context`, `expo-image` among them — behind one registry that the gate, the
+runtime and the generated support table all read (#1458, ADR 0036).
 
-**Signing is a mutation of the payload, not a wrapper around it.** Under a hardened runtime a
-Developer-ID-signed executable will not load ad-hoc-signed dylibs, and all 106 Mach-O images in the
-shipped darwin GTK closure are ad-hoc today — they have to be, because relocating them invalidates
-whatever signature they arrived with. So the darwin leg re-signs every image inside the payload and
-the packers receive new bytes. The order is fixed rather than bet on: the staged tree is validated
-against its manifest FIRST — that check compares file SIZES, and a size is no more re-sign-proof
-than a digest — then the payload is signed, then the container is built. The arriving stage is never
-written to, so a `--from-stage --sign` run can be repeated.
+### Adwaita widgets, and two things a screen written as a column needs
 
-**And the whole thing is proven in CI with no secret in it.** `codesign --sign -` is ad-hoc and
-needs no Apple Developer Program membership, so a macOS leg signs a real Mach-O payload and two
-readers check the result: Apple's own `codesign --verify`, and a new arrival comparator that answers
-the question no verifier does — every non-Mach-O file byte-identical, every Mach-O identical outside
-its signature. A real Developer ID later is a different value for the same flag, not a different
-code path.
+`@gjsify/adwaita-react-native` gained its chrome, content, boxed-list, preferences and
+navigation widgets (#1469, #1470, #1471, #1478, #1479), and two layout answers landed
+beside them: `Animated` over `Adw.TimedAnimation` (#1443), and `flex-wrap` as a
+`Gtk.FlowBox` intent (#1439). Router fixes went with them — `router.push` takes the object
+form (#1457), a label centres where React Native does not (#1456), a view-stack page is
+hidden before it is removed (#1484), and a tab page the stack has not got is no longer
+retried forever (#1485).
 
-`--notarize <keychain-profile>` is there too, and it is honest about itself: notarisation needs an
-Apple account, which is exactly the credential this milestone does without, so the flag, the guard
-and both refusals are covered and the submission has never run. The Windows half is in the same
-position for the same reason — `signtool` has no ad-hoc mode. Both gaps are written down in
-`status/open-todos.md` with what WAS measured for each.
+There is no layout engine here and there is deliberately not going to be one. Yoga is used
+as an *oracle*: every GTK default is recorded against React Native's, with the source
+cited. The loudest disagreement is the one that would have been invisible —
+`Gtk.Box.orientation` is horizontal, Yoga's `flex-direction` is `column`, so without
+normalisation every screen written as a column would have come out as a row.
 
-### What it does not do yet
+### The per-prop answers are published, because a refused prop was only visible at render time
 
-The `.dmg` and the Windows `.msi` are still ahead, and so is notarisation. The asymmetry between the
-two platforms is worth knowing: Gatekeeper BLOCKS an unsigned `.app`,
+`support-table` answered whether an import is answered; the per-prop answers were not an
+entry point at all. Measured on a real application, that gap ends a whole tree: three
+`<Text onPress>` rows, correctly refused because a `Gtk.Label` emits no `clicked`, and
+because the tab stack mounts every tab from the root the uncaught refusal took four
+uninvolved screens with it. The build, the typecheck and the consumer's own import gate
+were all green.
 
-### And a Windows installer around it
+`@gjsify/react-native/prop-table` publishes those answers as data, with a generated
+`PROPS.md` held byte-exact against its generator, so the same question becomes a failing
+assertion in a second and with no GTK. `TextInput` also gained the instance type and ref
+handle React Native code expects, and `accessibilityLiveRegion` is answered on `Text`
+through `Gtk.Accessible.announce()` (#1493, ADR 0039).
 
-`gjsify ship windows --target msi` wraps that same program directory in a Windows Installer
-package. It lands under `C:\Program Files\<App>` — overridable with `msiexec INSTALLDIR=…` — adds
-one Start-Menu entry, and appears in Add/Remove Programs, so a user can take it off again. The
-installed tree is byte-for-byte the tree the zip expands to; there is no publisher level and nothing
-about the payload changes.
+### The widget vocabulary is generated from the GIR
 
-`msi` is the first format `ship` does not write itself. It renders one authored `.wxs` and hands it
-to whichever compiler the host has — `wixl` from `msitools` on Linux, WiX Toolset v3.14 on
-Windows — which is why it is opt-in rather than part of a bare `gjsify ship windows`, and why a
-missing compiler is a message naming the package before your build runs. Building a Windows
-installer from a Linux workstation needs `sudo dnf install msitools` (or `sudo apt install
-msitools`) and nothing else.
+`@gjsify/gtk-host` now takes its widget table from the `@girs` vocabulary rather than a
+hand-kept list (#1449), and the web and NativeScript renderers were named from the same
+source (#1459, #1462). One vocabulary, three renderers, and a check that fails when they
+disagree.
 
-Two compilers over one document is also what buys the artifact an independent reader. CI installs
-the wixl-built package with `msiexec` on a `windows-latest` runner that has no GTK and no Node on
-`PATH`, opens a window with it, uninstalls it and asserts that no file, no Add/Remove Programs entry
-and no Start-Menu shortcut survives; then it compiles the same `.wxs` with WiX and reads THAT file
-back on Linux with `msiinfo`. Neither leg is a package checking its own output.
+### `gjsify ship`
 
-The `ProductCode` and `UpgradeCode` are derived from your app id and version rather than rolled at
-random, so two builds of one release are the same artifact and an upgrade actually replaces the
-version before it. A prerelease version is refused rather than truncated: MSI has no spelling for
-`1.2.0-rc.1`, and dropping the suffix would make the candidate and the release indistinguishable —
-installing one over the other would leave both on the machine.
+**An application can ship its own fonts.** This layer claimed it already could — "ship the
+font with the application, `gjsify ship` installs it where fontconfig looks" — and nothing
+in the command had ever touched a font. On Windows the cost of that is silent: Pango falls
+back to a system face and the application merely looks wrong. One payload path,
+`share/fonts/<app-id>/`, and three different readers, because the backends differ rather
+than the packaging: a fontconfig directory on Linux, `ATSApplicationFontsPath` in the
+`Info.plist` on macOS, and on Windows a handed-over directory, since `pangocairo` selects
+the win32 backend and populates from DirectWrite alone (#1491, ADR 0038).
 
-The Start-Menu shortcut does not fix the console window above: it points at the same `.cmd`.
+### `https:` streams have a source and a TLS backend
 
-### What it does not do yet
-
-The `.dmg` and signing are still ahead — an artifact assembled on Linux is
-unsigned by construction. The asymmetry is worth knowing: Gatekeeper BLOCKS an unsigned `.app`,
-while SmartScreen only warns until a download builds reputation, so the Windows directory is usable
-today in a way the macOS bundle is not. macOS has GJS but no *relocatable* GJS and Windows has no
-GJS at all, which is why all five of these formats accept `gjsify.app: "node"` only; a `gjs` project
-can assemble either layout and is told, by name, why it cannot pack it.
-
-MSIX stays rejected until a signing certificate exists: an unsigned one cannot be installed at all,
-and a self-signed certificate in `TrustedPeople` would buy a green CI leg that proves the leg trusts
-itself.
-
-See [#1354](https://github.com/gjsify/gjsify/issues/1354) and
-`docs/adr/0024-ship-installable-artifacts.md`.
+The runtime bundles shipped `playbin3` and `uridecodebin3` while
+`Gst.ElementFactory.make('souphttpsrc')` returned `null` and
+`Gio.tls_backend_get_default().supports_tls()` returned `false` — so every network stream
+failed, and failed as `Internal data stream error` rather than as a missing element.
+`libgstsoup` and the glib-networking TLS module now travel with the darwin and win32
+closures (#1476, ADR 0037). Both halves are required: without the TLS module the
+element exists and every `https:` URI still fails.
 
 ### One project, GJS on Linux and Node on macOS and Windows
 
@@ -313,3 +297,11 @@ a widget, the pane says so and why, rather than leaving a gap you have to interp
 
 "Vanilla TypeScript" is now "Native TypeScript", because the code in it is the GTK one.
 
+- **`@gjsify/adwaita-web` no longer exports the flat widget classes** (#1467). They are
+  reachable under their `Gtk`/`Adw` namespace, which is what the vocabulary convergence
+  decided (ADR 0034); a flat name that shadowed a namespaced one gave two answers to the
+  same question.
+- **`@gjsify/iframe` now declares `node: "polyfill"`.** Nothing about the package changed
+  for a GJS consumer. A Node consumer reaches it through `gjsify build --app node` as
+  before — a bare `import` from `node_modules` was never supported and still is not, since
+  the source carries literal `gi://` specifiers.
