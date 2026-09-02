@@ -66,28 +66,49 @@ test('a GType with no class still reads, and an enum carries one at all', () => 
     assert.equal(Object.keys(Gio.BusType).includes('$gtype'), false);
 });
 
-test('reading an unclassed GType takes no class ref, so GLib stays quiet', () => {
-    // THE GUARD'S ONLY WITNESS, and it has to be a CHILD PROCESS. `g_type_class_ref`
-    // on a boxed or interface GType returns nullptr after a `GLib-GObject-CRITICAL`
-    // rather than throwing, so every in-process assertion above is green with the
-    // `G_TYPE_IS_CLASSED` guard deleted — measured: 9 of 9 pass, two CRITICALs on
-    // stderr, and conformance compares stdout only (`scripts/conformance.mjs`). The
-    // child is what puts that stderr under an assertion.
-    const probe = [
+// Some of what this file guards fails SILENTLY when it is removed: GLib logs a
+// `GLib-GObject-CRITICAL` and hands back a harmless-looking answer, so an in-process
+// assertion stays green and the golden diff never sees it either
+// (`scripts/conformance.mjs` compares stdout only). A CHILD PROCESS is what puts that
+// stderr under an assertion.
+//
+// The LOG DOMAIN is the subject, not any diagnostic: a host with an unusual GIO
+// module set can log a `GLib-GIO-WARNING` that has nothing to do with these reads.
+function probeStderr(body) {
+    const src = [
         `const { requireGi } = await import(${JSON.stringify(fileURLToPath(new URL('../gi.js', import.meta.url)))});`,
         "const GObject = requireGi('GObject', '2.0');",
         "const GLib = requireGi('GLib', '2.0');",
         "const Gio = requireGi('Gio', '2.0');",
-        'process.stdout.write([GLib.Bytes, Gio.File, Gio.BusType].map((t) => GObject.type_name(t.$gtype)).join(" "));',
+        body,
     ].join('\n');
     // The parent's env carries the NODE_GI_NATIVE the test scripts pin, so the child
     // measures the SAME addon this file is measuring.
-    const res = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { encoding: 'utf8' });
+    const res = spawnSync(process.execPath, ['--input-type=module', '-e', src], { encoding: 'utf8' });
+    return { stdout: res.stdout, complained: /GLib-GObject-CRITICAL/.test(res.stderr), stderr: res.stderr };
+}
+
+test('reading an unclassed GType takes no class ref, so GLib stays quiet', () => {
+    // `g_type_class_ref` on a boxed or interface GType returns nullptr after a
+    // CRITICAL rather than throwing — measured: with the `G_TYPE_IS_CLASSED` guard
+    // deleted, every case in this file still passes and two CRITICALs go to stderr.
+    const res = probeStderr(
+        'process.stdout.write([GLib.Bytes, Gio.File, Gio.BusType].map((t) => GObject.type_name(t.$gtype)).join(" "));',
+    );
     assert.equal(res.stdout, 'GBytes GFile GBusType');
-    // The LOG DOMAIN, not any diagnostic: an unguarded ref logs GLib-GObject-CRITICAL
-    // ("cannot retrieve class for invalid (unclassed) type"), while a host with an odd
-    // GIO module set can log GLib-GIO-WARNING for reasons that are not this test's.
-    assert.equal(/GLib-GObject-CRITICAL/.test(res.stderr), false, `GObject complained:\n${res.stderr}`);
+    assert.equal(res.complained, false, `GObject complained:\n${res.stderr}`);
+});
+
+test('a CLASSED but incompatible receiver is refused, not passed through', () => {
+    // The DANGEROUS half of what `g_type_is_a(receiver, DECLARING type)` refuses. The
+    // boxed case below also goes red when the check is dropped, but LOUDLY: GLib.Bytes
+    // is unclassed, so the retarget finds no class and the call throws. An ENUM is
+    // classed, so dropping the check hands `g_object_class_list_properties` a
+    // GEnumClass — the type confusion the check exists to prevent — and it answers 0
+    // anyway, through a CRITICAL. Measured both ways; nothing else here sees that.
+    const res = probeStderr('process.stdout.write(String(GObject.Object.list_properties.call(Gio.BusType).length));');
+    assert.equal(res.stdout, '0');
+    assert.equal(res.complained, false, `GObject complained:\n${res.stderr}`);
 });
 
 // ---- Symptom 2: a class-struct static answers for the class it was CALLED on ----
