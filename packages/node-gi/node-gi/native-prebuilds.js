@@ -70,6 +70,25 @@
 // mechanism keyed off `optionalDependencies` here. The ordinary hoisted layout, which
 // is what npm produces absent a conflict, resolves through pass one, and that is what
 // the acceptance below measures.
+//
+// A THIRD LAYOUT, and this one is about the ANCHOR rather than about a facade.
+// `startDir` defaults to `packageRoot`, which is `import.meta.url` — and Node's loader
+// RESOLVES SYMLINKS by default. Where the application reaches this package through a
+// link (`npm link`, a pnpm store, a workspace `node_modules` entry), that anchor lands
+// on the link TARGET, outside the application's tree, and the upward walk never sees
+// the application's `node_modules` at all. Measured on linux-x64, three arms of one
+// tree: node-gi copied in resolves; node-gi symlinked in fails with GI's own "Typelib
+// file … not found"; the same symlinked tree under `node --preserve-symlinks`
+// resolves — which is what pins the cause to the anchor and not to the walk.
+//
+// Left as a recorded limit rather than patched here, because the single anchor is a
+// deliberate choice (a `process.cwd()` second anchor would make which typelibs a
+// LIBRARY loads depend on the shell's working directory) and undoing it in passing
+// would trade a narrow gap for a broad one. The shape a fix would take, if it is
+// wanted, is the CLI's own precedent: `runGjsBundle()` anchors at
+// `dirname(bundlePath)`, so the equivalent here is the application ENTRY —
+// `process.argv[1]`'s directory — which is the application's tree by construction and
+// is not the cwd. That is a decision about scope, so it is named rather than taken.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
