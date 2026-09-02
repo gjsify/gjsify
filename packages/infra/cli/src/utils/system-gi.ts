@@ -3,10 +3,12 @@
 // dynamic loader can find the ones a typelib names by BARE LEAF
 // (`libgtk-4.1.dylib`, `libgdk_pixbuf-2.0.0.dylib`, …).
 //
-// A PINNED MIRROR of `packages/node-gi/node-gi/system-gi.js` — the two must agree
-// and `system-gi.spec.ts` asserts it over a table of injected host shapes. Why a
-// mirror and not an import, and what is owed to retire it:
-// `status/open-todos.md` § "systemGiLibraryDirs() lives in two places".
+// A PINNED MIRROR of `packages/node-gi/node-gi/system-gi.js`, and of
+// `@gjsify/utils/core`'s `system-gi-dirs.ts` — all three must agree and
+// `system-gi.spec.ts` asserts it over a table of injected host shapes. Why a mirror
+// and not an import, and what is owed to retire THIS copy (a delegation to
+// `@gjsify/utils`, which the CLI already depends on):
+// `status/open-todos.md` § "systemGiLibraryDirs() lives in three places".
 //
 // WHY THIS EXISTS. A failed `dlopen('libgtk-4.1.dylib')` surfaces one layer up as
 // something that reads like a type-system bug — `TypeError: Gtk.DrawingArea is not
@@ -32,6 +34,8 @@
 // `<libdir>/libgtk-4.1.dylib`. A directory holding `girepository-1.0/` therefore IS
 // a GI library directory, which is what makes this package-manager-agnostic — it
 // lands on Homebrew, MacPorts or a custom prefix without knowing any of them exist.
+// THAT IS ONE LAYOUT, NOT THE LAYOUT — {@link giLibraryDirsForTypelibDir}; a staged
+// pair keeps typelib and backer in ONE directory, and the incident is in the ORIGINAL.
 //
 // PURE FUNCTION of injected host facts (platform / env / fs / pkg-config), like
 // `resolvePrebuildDirName()` and `buildNativeEnv()` beside it, so the darwin branch
@@ -88,11 +92,29 @@ export const PROBED_GI_LIBDIRS: Record<string, readonly string[]> = {
 /**
  * The subdir GI installs typelibs into — historically `1.0` even for the girepository-2.0 API.
  *
- * Exported so `gi-typelib.ts` shares it rather than keeping a third copy of the
- * one string this whole layout rule turns on. Both mirrors export it, so the
- * agreement suite still compares two files that differ only in language.
+ * Exported so `gi-typelib.ts` shares it rather than keeping a fourth copy of the
+ * one string this whole layout rule turns on, and compared across all three copies
+ * by the agreement suite rather than trusting three literals to stay equal.
  */
 export const TYPELIB_SUBDIR = 'girepository-1.0';
+
+/**
+ * The library directories a typelib directory implies, most specific first.
+ *
+ * TWO LAYOUTS, and a path alone cannot always say which: GI's INSTALL layout keeps
+ * the libraries in the PARENT (`<libdir>/girepository-1.0/…`), while a STAGED pair —
+ * an ADR 0017 prebuild directory, `gjsify.ship.bundledTypelibs` — keeps them in the
+ * DIRECTORY ITSELF. {@link TYPELIB_SUBDIR} as the basename is a positive signal for
+ * the first; absent it, both readings are offered and the caller's `existsDir` keeps
+ * whichever is real.
+ *
+ * The measurement, and why the ORDER of the two is the load-bearing half, are in the
+ * ORIGINAL, `packages/node-gi/node-gi/system-gi.js`.
+ */
+export function giLibraryDirsForTypelibDir(typelibDir: string): string[] {
+    const parent = dirname(typelibDir);
+    return basename(typelibDir) === TYPELIB_SUBDIR ? [parent] : [typelibDir, parent];
+}
 
 /** Memoized `pkg-config` answer: the spawn happens at most once per process. */
 let pkgConfigDirsCache: string[] | null = null;
@@ -140,8 +162,9 @@ export function pkgConfigSearchDirs(env: Record<string, string | undefined>): st
  *
  * Three sources, in precedence order:
  *   1. `GI_TYPELIB_PATH` — the host stating outright where typelibs live; the
- *      libraries are the sibling `dirname()`. Accepted on directory existence
- *      alone: an explicit statement is not second-guessed.
+ *      libraries are wherever {@link giLibraryDirsForTypelibDir} says the layout
+ *      puts them. Accepted on directory existence alone: an explicit statement is
+ *      not second-guessed.
  *   2. `pkg-config`'s `.pc` search path → each `<dir>/pkgconfig`'s parent. The
  *      general mechanism (any prefix, including a custom one).
  *   3. {@link PROBED_GI_LIBDIRS} — the standard macOS prefixes, for the common
@@ -176,10 +199,11 @@ export function systemGiLibraryDirs({
         if (dir && dir !== '/' && !out.includes(dir)) out.push(dir);
     };
 
-    // 1. Explicit: the typelib dir's sibling libdir.
+    // 1. Explicit: the libdirs each typelib dir implies, both layouts.
     for (const typelibDir of splitSearchPath(env['GI_TYPELIB_PATH'])) {
-        const libDir = dirname(typelibDir);
-        if (existsDir(libDir)) add(libDir);
+        for (const libDir of giLibraryDirsForTypelibDir(typelibDir)) {
+            if (existsDir(libDir)) add(libDir);
+        }
     }
 
     // 2 + 3. Candidate prefixes, believed only on the girepository-1.0 marker.

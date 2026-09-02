@@ -127,8 +127,11 @@ exactly where it was before this function existed. **The change is strictly addi
 host gets worse.**
 
 The GJS check is the probe itself (`globalThis.imports?.gi`, the spelling `.oxlintrc.json`
-sanctions), not `isGjs()`: the question is "is there a GIRepository to prepend to", and on
-Node without node-gi the answer is no, which is the required no-op.
+sanctions), not `isGjs()`: the question is "is there a GIRepository to prepend to", and a
+plain Node process has none, which is the required no-op. It is NOT that a Node host wants
+no prebuild — on darwin `@gjsify/webkit-native`'s prebuild is the only WebKit there is
+(ADR 0022) — but that the repository this helper writes to lives in the addon, so the Node
+host is answered where that addon is (§ The Node host).
 
 ### The Node host (added 2026-09-02)
 
@@ -157,6 +160,24 @@ Three differences from the GJS helper, each deliberate:
 - **`gtk-runtime-*` is excluded.** Which GTK a process uses is `gtkSource()`'s decision
   (ADR 0023) applied in `gtk-runtime.js`; prepending that bundle a second time is the
   two-copies hazard #920 records.
+
+**Measured on darwin, which is what closes "Nothing about macOS is proven here" below.**
+macOS 15.7.9 x86_64 / Node 24.18.1, a plain `npm i @gjsify/node-gi @gjsify/webkit-native`
+tree, GTK from Homebrew, no gtk-runtime bundle, `node probe.mjs` with `GI_TYPELIB_PATH`
+and every `DYLD_*` unset:
+
+| node-gi | result |
+|---|---|
+| 0.45.0 as published (no `native-prebuilds.js`) | `Typelib file for namespace 'WebKit', version '6.0' not found` |
+| with this module | `LoadEvent.FINISHED`, DOM read back through `evaluate_javascript`, 5/5 runs exit 0 |
+
+**And the discriminator that makes it a proof rather than a coincidence:** the staged
+directory appears on NO loader variable in the running process. node-gi's own darwin
+re-exec does set `DYLD_FALLBACK_LIBRARY_PATH` — for the HOST's GTK libdir, which is a
+separate repair — so a probe that read the environment after the import would have
+credited that variable. It composes to `/usr/local/lib:$HOME/lib:/lib:/usr/lib` and names
+the prebuild directory nowhere; the only thing that put it in front of GI is
+`prependSearchPath` + `prependLibraryPath`.
 
 ### The launcher stays
 
@@ -203,9 +224,10 @@ Stated explicitly, because each is easy to assume from the headline:
 - **Only the CLI's own process is fixed.** `gjsify run <bundle>` still hands prebuilds to a
   child through the environment. A user bundle that imports `gi://Gjsify…` directly under a
   bare `gjs -m` still needs the launcher, or its own `prepend_*` call.
-- **Nothing about macOS or Windows is proven here.** The API is
-  platform-independent and `detectNativePackages()` already resolves per host, but the
-  measurements above are linux-x64. `dyld`'s two-level namespace is not exercised.
+- **Windows is still unproven.** The API is platform-independent and
+  `detectNativePackages()` already resolves per host. macOS/Node is now measured
+  (§ The Node host); the GJS-side helper's measurements remain linux-x64, and nothing
+  here exercises win32.
 - **Not a system-library fix.** A missing `libjson-glib-1.0.so.0` fails exactly as before,
   and the diagnostic branch that measures it (#994, ts-for-gir#437) is untouched.
 - **GLib < 2.86 gains nothing** — `dup_default()` is the process-global accessor and there

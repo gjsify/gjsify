@@ -12,17 +12,25 @@
 // Trace in `system-gi.ts`.
 //
 // The last suite is the AGREEMENT check that keeps this module a mirror rather
-// than a fork — see `system-gi.ts`'s "A DELIBERATE MIRROR" header.
+// than a fork — see `system-gi.ts`'s "A DELIBERATE MIRROR" header. It compares
+// ALL THREE live copies of the rule, and the third is why that is spelled out:
+// while it compared only two, `@gjsify/utils`' copy could be edited freely. Both
+// halves of that were measured — reversing the order it offers its two candidate
+// libdirs (which decides WHICH library a loader finds first) left every suite in
+// this repo green, and its hand-rolled `dirname` had been disagreeing with the
+// two `posix.dirname` mirrors on any typelib dir written with a trailing slash.
 
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
     composeDyldFallback,
     dyldDefaultFallbackDirs,
+    giLibraryDirsForTypelibDir,
     pathCovers,
     splitSearchPath,
     systemGiLibraryDirs,
     type SystemGiOptions,
+    TYPELIB_SUBDIR,
 } from './system-gi.js';
 
 // The ORIGINAL, reached across the repo by relative path. A spec may do this where
@@ -30,6 +38,11 @@ import {
 // `dist/test.node.mjs`, never into the published `lib/`, so this import creates no
 // `dependencies` edge and ADR 0005 Decision 2 is untouched.
 import * as nodeGi from '../../../../node-gi/node-gi/system-gi.js';
+
+// The THIRD copy, and a plain declared dependency rather than a reach: `@gjsify/cli`
+// already lists `@gjsify/utils` (both Tier 1), and `/core` is its PURE subpath. It is
+// reached through the package export, so what is compared is what a consumer gets.
+import * as utils from '@gjsify/utils/core';
 
 /** A `pkg-config` stub: no spawn, so the spec never depends on the host having it. */
 const noPkgConfig = () => [];
@@ -167,6 +180,37 @@ export default async () => {
             expect(dirs).toStrictEqual(['/opt/mystack/lib']);
         });
 
+        await it('reads a STAGED typelib dir as its own libdir', async () => {
+            // The defect: an ADR 0017 prebuild directory holds `WebKit-6.0.typelib`
+            // AND `libgjsifywebkit.dylib`, so GI's install layout — typelibs one level
+            // BELOW the libraries — does not describe it, and `dirname()` alone named
+            // the prebuilds/ parent, a real directory holding nothing. Measured on the
+            // macOS 15.7.9 VM: the typelib resolved and its backer never did.
+            const staged = '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds/darwin-x64';
+            expect(
+                systemGiLibraryDirs({
+                    platform: 'darwin',
+                    env: { GI_TYPELIB_PATH: staged },
+                    existsDir: dirsExist([staged, '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds']),
+                    searchDirs: noPkgConfig,
+                })[0],
+            ).toBe(staged);
+        });
+
+        await it('offers only the parent for GI’s own install layout', async () => {
+            // `<libdir>/girepository-1.0/` holds no library, so it must not reach a
+            // loader search path — which is why the marker DECIDES rather than a probe
+            // offering both everywhere.
+            expect(
+                systemGiLibraryDirs({
+                    platform: 'darwin',
+                    env: { GI_TYPELIB_PATH: '/usr/local/lib/girepository-1.0' },
+                    existsDir: dirsExist(['/usr/local/lib', '/usr/local/lib/girepository-1.0']),
+                    searchDirs: noPkgConfig,
+                }),
+            ).toStrictEqual(['/usr/local/lib']);
+        });
+
         await it('ranks the three sources most-specific-first', async () => {
             // All three sources live at once: GI_TYPELIB_PATH (in its own given
             // order) → pkg-config → probed prefixes.
@@ -221,9 +265,12 @@ export default async () => {
     // edge on `@gjsify/node-gi`. A copy with no check is a fork with a comment
     // claiming otherwise; this suite is what makes it a mirror.
     //
-    // It compares OUTPUTS over a table, not source text: the port is TypeScript with
-    // typed options and an eager `node:child_process` import, so the files cannot be
+    // It compares OUTPUTS over a table, not source text: the ports differ in language,
+    // in options shape and in whose `dirname` they use, so the files cannot be
     // identical — what must hold is that they answer the same question the same way.
+    // `@gjsify/utils/core` answers it through a different `SystemGiLibraryDirsHost`
+    // shape, so its inputs are ADAPTED from the same table rather than duplicated: a
+    // second table is a second thing to keep in step.
     await describe('agreement with @gjsify/node-gi’s system-gi.js', async () => {
         const cases: { why: string; opts: SystemGiOptions }[] = [
             {
@@ -311,13 +358,90 @@ export default async () => {
                 why: 'a Mac with no GI stack at all',
                 opts: { platform: 'darwin', env: {}, existsDir: () => false, searchDirs: noPkgConfig },
             },
+            {
+                why: 'a STAGED prebuild dir, typelib and dylib together',
+                opts: {
+                    platform: 'darwin',
+                    env: { GI_TYPELIB_PATH: '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds/darwin-x64' },
+                    existsDir: dirsExist([
+                        '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds/darwin-x64',
+                        '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds',
+                    ]),
+                    searchDirs: noPkgConfig,
+                },
+            },
+            {
+                why: 'a staged dir whose parent does not exist',
+                opts: {
+                    platform: 'darwin',
+                    env: { GI_TYPELIB_PATH: '/app/staged' },
+                    existsDir: dirsExist(['/app/staged']),
+                    searchDirs: noPkgConfig,
+                },
+            },
+            {
+                why: 'a typelib dir written with a trailing slash',
+                opts: {
+                    platform: 'darwin',
+                    env: { GI_TYPELIB_PATH: '/usr/local/lib/girepository-1.0/' },
+                    existsDir: dirsExist(['/usr/local/lib', '/usr/local/lib/girepository-1.0']),
+                    searchDirs: noPkgConfig,
+                },
+            },
         ];
+
+        /** The same case, in the shape `@gjsify/utils/core` takes its host facts. */
+        const asUtilsHost = (opts: SystemGiOptions) => ({
+            platform: opts.platform as string,
+            typelibPath: opts.env?.['GI_TYPELIB_PATH'],
+            pkgConfigDirs: opts.searchDirs?.(opts.env ?? {}) ?? [],
+            existsDir: opts.existsDir as (dir: string) => boolean,
+        });
 
         for (const { why, opts } of cases) {
             await it(`returns the same dirs as node-gi — ${why}`, async () => {
                 expect(systemGiLibraryDirs(opts)).toStrictEqual(nodeGi.systemGiLibraryDirs(opts));
             });
+            await it(`returns the same dirs as @gjsify/utils — ${why}`, async () => {
+                expect(systemGiLibraryDirs(opts)).toStrictEqual(utils.systemGiLibraryDirs(asUtilsHost(opts)));
+            });
         }
+
+        await it('agrees on which libdirs a typelib dir implies', async () => {
+            // The layout decision itself, not only its effect through
+            // `systemGiLibraryDirs` — a mirror that agreed on the outputs while
+            // disagreeing here would drift the moment either grows a second caller.
+            // ORDER is asserted, not membership: it is what decides which of two
+            // directories a loader searches first, and reversing it in the
+            // `@gjsify/utils` copy used to leave every suite in this repo green.
+            //
+            // Windows-shaped inputs are deliberately absent. `@gjsify/utils` splits on
+            // `\` for a drive-letter path (`path-shape.ts`, #1143) while both mirrors
+            // are POSIX-only by design — a documented divergence, and an unreachable
+            // one: `systemGiLibraryDirs` answers `[]` on win32 before it asks.
+            for (const typelibDir of [
+                '/usr/local/lib/girepository-1.0',
+                '/usr/local/lib/girepository-1.0/',
+                '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds/darwin-x64',
+                '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds/darwin-x64/',
+                '/opt/mystack/lib/typelibs',
+                '/girepository-1.0',
+                '/staged',
+                'relative/dir',
+            ]) {
+                expect(giLibraryDirsForTypelibDir(typelibDir)).toStrictEqual(
+                    nodeGi.giLibraryDirsForTypelibDir(typelibDir),
+                );
+                expect(giLibraryDirsForTypelibDir(typelibDir)).toStrictEqual(
+                    utils.giLibraryDirsForTypelibDir(typelibDir),
+                );
+            }
+        });
+
+        await it('agrees on the marker string all three turn on', async () => {
+            expect(nodeGi.TYPELIB_SUBDIR).toBe(TYPELIB_SUBDIR);
+            expect(utils.TYPELIB_SUBDIR).toBe(TYPELIB_SUBDIR);
+        });
 
         await it('agrees on splitSearchPath and pathCovers too', async () => {
             for (const [value, sep] of [

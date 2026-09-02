@@ -2,19 +2,26 @@
 // names by BARE LEAF (`libgtk-4.1.dylib`, …) — the algorithm alone, with every host
 // fact passed in.
 //
-// Canonical home for a rule that had one implementation and two callers coming:
+// The rule lives in THREE places and this is the one meant to be canonical:
 // `@gjsify/node-gi` computes it to set `DYLD_FALLBACK_LIBRARY_PATH` before a
-// re-exec, and the CLI needs the same answer to hand GI its paths from inside a
-// bundle instead (`giRuntimePathsStub`). node-gi keeps its own copy as a pinned
-// mirror — it declares exactly one dependency on purpose — so this is the
-// reference the mirror is checked against, not a module it imports.
+// re-exec and cannot import a workspace package (it declares exactly one
+// dependency on purpose), while `@gjsify/cli` keeps a pinned TypeScript port
+// beside its own impure half. This copy has NO production caller yet — the lift
+// is `status/open-todos.md` § "`systemGiLibraryDirs()` lives in three places".
+//
+// Until that lands, the only thing holding this copy to the other two is the
+// agreement suite (`packages/infra/cli/src/utils/system-gi.spec.ts`), which now
+// compares all three. It did not always: while it reached only the other two, this
+// file's hand-rolled `dirname` had drifted from their `posix.dirname` on any typelib
+// dir with a trailing slash, and reversing the order it offers its two candidate
+// libdirs left every suite in the repo green.
 //
 // PURE by ADR 0014's membership rule: no imports, no defaults that reach a host.
 // The impure half — `statSync`, and spawning `pkg-config` to learn its `.pc`
 // search path — belongs to the caller, which is also what makes every branch
 // testable from a Linux runner (ADR 0018 § 5).
 
-import { lastPathSeparatorIndex, splitPathComponents } from './path-shape.js';
+import { isWindowsPath, lastPathSeparatorIndex, splitPathComponents } from './path-shape.js';
 
 /** The subdir GI installs typelibs into — historically `1.0` even for the girepository-2.0 API. */
 export const TYPELIB_SUBDIR = 'girepository-1.0';
@@ -40,15 +47,51 @@ export function splitSearchPath(value: string | undefined, separator = ':'): str
     return (value ?? '').split(separator).filter(Boolean);
 }
 
+/**
+ * A trailing separator is not part of the name, and dropping it is what makes
+ * `dirname('/usr/local/lib/girepository-1.0/')` answer `/usr/local/lib` rather than
+ * the input minus its final slash.
+ *
+ * `basename` below already agreed with `node:path` here (it filters empty
+ * components), so the two disagreed with each other and this module answered the
+ * canonical INSTALL layout with the typelib directory — which holds no library. A
+ * `GI_TYPELIB_PATH` written with a trailing slash is an ordinary spelling, and both
+ * pinned mirrors use `posix.dirname` and never had it.
+ *
+ * `(?<=.)` keeps a root its own dirname rather than the empty string.
+ */
+function stripTrailingSeparators(path: string): string {
+    return path.replace(isWindowsPath(path) ? /(?<=.)[\\/]+$/ : /(?<=.)\/+$/, '');
+}
+
 function dirname(path: string): string {
-    const cut = lastPathSeparatorIndex(path);
+    const trimmed = stripTrailingSeparators(path);
+    const cut = lastPathSeparatorIndex(trimmed);
     if (cut < 0) return '.';
-    return cut === 0 ? path.slice(0, 1) : path.slice(0, cut);
+    return cut === 0 ? trimmed.slice(0, 1) : trimmed.slice(0, cut);
 }
 
 function basename(path: string): string {
     const parts = splitPathComponents(path).filter(Boolean);
     return parts.length === 0 ? '' : parts[parts.length - 1];
+}
+
+/**
+ * The library directories a typelib directory implies, most specific first.
+ *
+ * TWO LAYOUTS, and a path alone cannot always say which: GI's INSTALL layout keeps
+ * the libraries in the PARENT (`<libdir>/girepository-1.0/Gtk-4.0.typelib` beside
+ * `<libdir>/libgtk-4.1.dylib`), while a STAGED pair — an ADR 0017 prebuild
+ * directory, `gjsify.ship.bundledTypelibs` — keeps them in the DIRECTORY ITSELF.
+ * {@link TYPELIB_SUBDIR} as the basename is a positive signal for the first; absent
+ * it, both readings are offered and the caller's `existsDir` keeps whichever is real.
+ *
+ * The measurement, and why the ORDER of the two is the load-bearing half, are in
+ * `packages/node-gi/node-gi/system-gi.js`, the copy that ran into it.
+ */
+export function giLibraryDirsForTypelibDir(typelibDir: string): string[] {
+    const parent = dirname(typelibDir);
+    return basename(typelibDir) === TYPELIB_SUBDIR ? [parent] : [typelibDir, parent];
 }
 
 export interface SystemGiLibraryDirsHost {
@@ -69,8 +112,9 @@ export interface SystemGiLibraryDirsHost {
  * Three sources, in precedence order:
  *
  *   1. `GI_TYPELIB_PATH` — the host stating outright where typelibs live; the
- *      libraries are the sibling `dirname()`. Believed on directory existence
- *      alone, because an explicit statement is not second-guessed.
+ *      libraries are wherever {@link giLibraryDirsForTypelibDir} says the layout
+ *      puts them. Believed on directory existence alone, because an explicit
+ *      statement is not second-guessed.
  *   2. `pkg-config`'s `.pc` search path → each `<dir>/pkgconfig`'s parent. The
  *      general mechanism, covering a custom prefix.
  *   3. {@link PROBED_GI_LIBDIRS}.
@@ -88,8 +132,9 @@ export function systemGiLibraryDirs(host: SystemGiLibraryDirsHost): string[] {
     };
 
     for (const typelibDir of splitSearchPath(host.typelibPath)) {
-        const libDir = dirname(typelibDir);
-        if (host.existsDir(libDir)) add(libDir);
+        for (const libDir of giLibraryDirsForTypelibDir(typelibDir)) {
+            if (host.existsDir(libDir)) add(libDir);
+        }
     }
 
     const candidates: string[] = [];

@@ -38,6 +38,9 @@
 // `/opt/homebrew/lib` (Homebrew arm64), `/opt/local/lib` (MacPorts) or a custom
 // prefix without needing to know that any of them exist.
 //
+// THAT IS ONE LAYOUT, NOT THE LAYOUT — {@link giLibraryDirsForTypelibDir} holds the
+// second one and the measurement that found it.
+//
 // PURE FUNCTION of injected host facts (platform / env / fs / pkg-config), like
 // `hostTarget()` beside it and the CLI's `resolvePrebuildDirName()` — so the
 // darwin branch is unit-testable from a Linux host and the host values are read
@@ -50,9 +53,10 @@
 // the child. The CLI cannot IMPORT this module: ADR 0005 Decision 2 forbids a
 // Tier-1 package taking a dependency edge on `@gjsify/node-gi`. So the port is
 // pinned by an agreement test — `packages/infra/cli/src/utils/system-gi.spec.ts`
-// imports THIS file by relative path and asserts both implementations return
-// identical arrays for a table of injected inputs. Change one, change both; the
-// eventual lift to a shared package is tracked in `status/open-todos.md`.
+// imports THIS file by relative path and asserts identical arrays for a table of
+// injected inputs. It pins a THIRD copy the same way, `@gjsify/utils/core`'s
+// `system-gi-dirs.ts`. Change one, change all three; the lift that deletes two of
+// them is tracked in `status/open-todos.md`.
 import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 // POSIX path semantics, not the HOST's. This function answers a question about
@@ -87,11 +91,59 @@ const PROBED_GI_LIBDIRS = {
 /**
  * The subdir GI installs typelibs into — historically `1.0` even for the girepository-2.0 API.
  *
- * Exported so `gi-typelib.ts` shares it rather than keeping a third copy of the
- * one string this whole layout rule turns on. Both mirrors export it, so the
- * agreement suite still compares two files that differ only in language.
+ * Exported because the whole layout rule turns on this one string and all three
+ * copies of the rule must turn on the SAME one; the agreement suite compares it
+ * across them rather than trusting three literals to stay equal.
  */
 export const TYPELIB_SUBDIR = 'girepository-1.0';
+
+/**
+ * The library directories a typelib directory implies, most specific first.
+ *
+ * TWO LAYOUTS put a typelib and the library it names in different places, and a
+ * path on its own cannot always tell which one it is looking at:
+ *
+ *   * GI's INSTALL layout — `<libdir>/girepository-1.0/Gtk-4.0.typelib` beside
+ *     `<libdir>/libgtk-4.1.dylib`. The libdir is the PARENT.
+ *   * A STAGED layout — the pair sits FLAT in one directory. That is what an
+ *     ADR 0017 prebuild is (`<pkg>/prebuilds/darwin-x64/WebKit-6.0.typelib` beside
+ *     `libgjsifywebkit.dylib`) and what `gjsify.ship.bundledTypelibs` stages. The
+ *     libdir is the DIRECTORY ITSELF.
+ *
+ * {@link TYPELIB_SUBDIR} as the basename is a POSITIVE signal for the first: a
+ * directory GI itself named is GI's own layout, and its parent is the answer.
+ * Absent that name the layout is UNKNOWN — a relocated stack's typelib directory
+ * carries no required name — so both readings are offered and `existsDir` keeps
+ * whichever is real.
+ *
+ * OFFERING BOTH IS CHEAP AND ORDER IS NOT. The caller prepends the survivors to a
+ * loader search path, so a directory that names nothing costs one `stat` per miss —
+ * but whichever comes FIRST is where a bare leaf resolves from, and only the staged
+ * reading can hold a library at all. Hence staged-then-parent, and hence the marker
+ * DECIDING for the install layout rather than a probe offering both everywhere:
+ * `<libdir>/girepository-1.0/` is the one directory guaranteed to hold no library,
+ * and the canonical case must gain no noise.
+ *
+ * MEASURED, and the parent-only derivation is what it cost. macOS 15.7.9 / Node
+ * 24.18.1 / `@gjsify/webkit-native` 0.45.0, with
+ * `GI_TYPELIB_PATH=<…>/webkit-native-darwin-x64/prebuilds/darwin-x64` and nothing
+ * else: GI found the typelib and never its backer.
+ *
+ *     GLib-GIRepository-WARNING: Failed to load shared library
+ *       'libgjsifywebkit.dylib' referenced by the typelib
+ *     TypeError: WebKit.WebView is not a constructible GObject type
+ *
+ * dyld's own trace named `…/webkit-native-darwin-x64/prebuilds/libgjsifywebkit.dylib`
+ * — the PARENT of the directory the dylib is in, which is this function's previous
+ * answer written out. On darwin that is not a degraded search but a dead one:
+ * `@gjsify/webkit-native` is the only WebKit any darwin host has (ADR 0022).
+ * @param {string} typelibDir one entry of a `GI_TYPELIB_PATH`
+ * @returns {string[]} candidate library directories, unverified
+ */
+export function giLibraryDirsForTypelibDir(typelibDir) {
+    const parent = dirname(typelibDir);
+    return basename(typelibDir) === TYPELIB_SUBDIR ? [parent] : [typelibDir, parent];
+}
 
 /** Memoized `pkg-config` answer: the spawn happens at most once per process. */
 let pkgConfigDirsCache = null;
@@ -156,8 +208,9 @@ export function pkgConfigSearchDirs(env) {
  *
  * Three sources, in precedence order:
  *   1. `GI_TYPELIB_PATH` — the host stating outright where typelibs live; the
- *      libraries are the sibling `dirname()`. Accepted on directory existence
- *      alone: an explicit statement is not second-guessed.
+ *      libraries are wherever {@link giLibraryDirsForTypelibDir} says the layout
+ *      puts them. Accepted on directory existence alone: an explicit statement is
+ *      not second-guessed.
  *   2. `pkg-config`'s `.pc` search path → each `<dir>/pkgconfig`'s parent. The
  *      general mechanism (any prefix, including a custom one).
  *   3. {@link PROBED_GI_LIBDIRS} — the standard macOS prefixes, for the common
@@ -201,10 +254,11 @@ export function systemGiLibraryDirs({
         if (dir && dir !== '/' && !out.includes(dir)) out.push(dir);
     };
 
-    // 1. Explicit: the typelib dir's sibling libdir.
+    // 1. Explicit: the libdirs each typelib dir implies, both layouts.
     for (const typelibDir of splitSearchPath(env.GI_TYPELIB_PATH)) {
-        const libDir = dirname(typelibDir);
-        if (existsDir(libDir)) add(libDir);
+        for (const libDir of giLibraryDirsForTypelibDir(typelibDir)) {
+            if (existsDir(libDir)) add(libDir);
+        }
     }
 
     // 2 + 3. Candidate prefixes, believed only on the girepository-1.0 marker.

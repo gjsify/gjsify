@@ -64,6 +64,58 @@ export default async () => {
                 }),
             ).toStrictEqual([]);
         });
+
+        await it('reads a STAGED pair’s own directory as the libdir', async () => {
+            // A prebuild directory (ADR 0017) holds `WebKit-6.0.typelib` AND
+            // `libgjsifywebkit.dylib`, so GI's install layout does not describe it and
+            // the parent-only derivation named a real directory holding nothing —
+            // measured on darwin, where that prebuild is the only WebKit there is.
+            const staged = '/app/node_modules/@gjsify/webkit-native-darwin-x64/prebuilds/darwin-x64';
+            expect(
+                systemGiLibraryDirs({ platform: 'darwin', typelibPath: staged, existsDir: dirs(staged) }),
+            ).toStrictEqual([staged]);
+        });
+
+        await it('keeps offering the parent where the layout is unnamed', async () => {
+            // A relocated INSTALL layout carries no required directory name, so the
+            // parent stays reachable — the staged reading is added, not substituted.
+            expect(
+                systemGiLibraryDirs({
+                    platform: 'darwin',
+                    typelibPath: '/opt/mystack/lib/typelibs',
+                    existsDir: dirs('/opt/mystack/lib'),
+                }),
+            ).toStrictEqual(['/opt/mystack/lib']);
+        });
+
+        await it('offers the staged reading FIRST when both exist', async () => {
+            // ORDER, not membership: the result is prepended to a loader search path,
+            // so it decides which of the two directories a bare leaf resolves from.
+            // Every case above lets exactly one of the pair exist, which is why the
+            // order was unpinned here while three copies of the rule had to agree on it.
+            expect(
+                systemGiLibraryDirs({
+                    platform: 'darwin',
+                    typelibPath: '/opt/stack/lib/typelibs',
+                    existsDir: dirs('/opt/stack/lib/typelibs', '/opt/stack/lib'),
+                }),
+            ).toStrictEqual(['/opt/stack/lib/typelibs', '/opt/stack/lib']);
+        });
+
+        await it('reads a trailing slash the way node:path does', async () => {
+            // `GI_TYPELIB_PATH=<…>/girepository-1.0/` is an ordinary spelling, and this
+            // module's hand-rolled `dirname` used to answer it with the input minus its
+            // final slash — the typelib directory, which holds no library — while
+            // `basename` correctly saw the marker. The two pinned mirrors use
+            // `posix.dirname` and never had it, so it was also a live three-way drift.
+            expect(
+                systemGiLibraryDirs({
+                    platform: 'darwin',
+                    typelibPath: '/usr/local/lib/girepository-1.0/',
+                    existsDir: dirs('/usr/local/lib'),
+                }),
+            ).toStrictEqual(['/usr/local/lib']);
+        });
     });
 
     await describe('systemGiLibraryDirs: a guessed prefix must show the marker', async () => {
