@@ -496,6 +496,28 @@ export default async () => {
             expect(seen).toStrictEqual([50]);
         });
 
+        await it('keeps a value the WIDGET moved across an unrelated re-render — the pair', async () => {
+            // The same claim on this half, and it holds for the same mechanical reason the
+            // GTK one does: the value effect keys on the PROP, which did not change, so a
+            // stepped value is not written back to what was authored. `SpinState` is the
+            // buffer here as the `Gtk.Adjustment` is there.
+            const renderer = mount(<AdwSpinRow title="Scale" lower={0} upper={100} stepIncrement={10} value={50} />);
+            const increase = (): ReactTestRendererJSON =>
+                flatten(renderer.toJSON() as ReactTestRendererJSON).filter(
+                    (n) =>
+                        n.type === RCT_VIEW &&
+                        (n.children ?? []).some(
+                            (c) => typeof c !== 'string' && textOf(c as ReactTestRendererJSON) === '+',
+                        ),
+                )[0] as ReactTestRendererJSON;
+            press(increase());
+            expect(valueLabel(renderer.toJSON() as ReactTestRendererJSON)).toStrictEqual(['60', true]);
+            act(() => {
+                renderer.update(<AdwSpinRow title="Zoom" lower={0} upper={100} stepIncrement={10} value={50} />);
+            });
+            expect(valueLabel(renderer.toJSON() as ReactTestRendererJSON)).toStrictEqual(['60', true]);
+        });
+
         await it('formats the value with `digits` — the pair, as a STRING', async () => {
             const tree = mounted(
                 <AdwSpinRow title="Scale" lower={0} upper={10} stepIncrement={1} value={3.14159} digits={2} />,

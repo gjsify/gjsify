@@ -470,6 +470,33 @@ export default async () => {
                 );
             });
 
+            await it('keeps a value the WIDGET moved across an unrelated re-render — the pair', async () => {
+                // WHAT THE MEMO IN `spin-row.gtk.tsx` IS FOR, as an assertion rather than a
+                // paragraph — the same shape `combo-row.gtk.tsx`'s model memo already has
+                // one for. A freshly constructed `Gtk.Adjustment` is a new value on every
+                // render, so without the memo an unrelated prop change re-sets it and takes
+                // the value back to whatever was AUTHORED. Nothing else in either suite
+                // re-renders a spin row after its value moved, so nothing else can see it.
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwSpinRow title="Scale" lower={0} upper={100} stepIncrement={10} value={50} />
+                    </AdwPreferencesGroup>,
+                    (container, _window, rerender) => {
+                        // The stepper's effect without the click: the widget owns its value,
+                        // as `Adw.ComboRow` owns its selection.
+                        (find(container, 'AdwSpinRow') as Adw.SpinRow).value = 60;
+                        rerender(
+                            <AdwPreferencesGroup title="Appearance">
+                                <AdwSpinRow title="Zoom" lower={0} upper={100} stepIncrement={10} value={50} />
+                            </AdwPreferencesGroup>,
+                        );
+                        const row = find(container, 'AdwSpinRow') as Adw.SpinRow;
+                        expect(row.title).toBe('Zoom');
+                        expect(row.value).toBe(60);
+                    },
+                );
+            });
+
             await it('formats the value with `digits` — the pair, as a STRING', async () => {
                 laidOut(
                     <AdwPreferencesGroup title="Appearance">
