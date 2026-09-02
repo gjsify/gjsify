@@ -1666,16 +1666,14 @@ function makeClass(namespace, typeName) {
             const giName = camelToSnake(prop);
             // NOT an arrow: a class-struct method (GObjectClass's `list_properties`,
             // `find_property`, …) runs on the class the call went THROUGH, so `this` is
-            // load-bearing. gjs puts those on the CONSTRUCTOR and marshals the receiver as
-            // the GTypeClass, which makes one function object answer for every class it
-            // reaches — `GObject.Object.list_properties.call(Gtk.ListItem)` reads
-            // GtkListItem's 9 pspecs, and an INHERITED `Subclass.list_properties()` reads
-            // the subclass's. Binding the name to the type it was read from answered the
-            // declarer's instead (GObject's zero), silently (#1438). The engine ignores the
-            // receiver for a plain static and for a type that is not `g_type_is_a` the class
-            // struct's DECLARING type.
+            // load-bearing and an arrow would discard it (#1438). What the engine does
+            // with it — and why a plain static and an incompatible receiver ignore it —
+            // is `CallStaticMethod`'s header in `src/calls.cc`.
             return function (...args) {
-                const receiverGType = this === undefined || this === proxy ? null : gtypeOf(this);
+                // Short-circuit the direct `Ns.Class.method()` call: the engine would
+                // compare the receiver against the same GType and ignore it anyway, and
+                // the read would arm the lazy `$gtype` getter for nothing.
+                const receiverGType = this === proxy ? null : gtypeOf(this);
                 return wrapReturn(
                     native.callStaticMethod(namespace, typeName, giName, unwrapArgs(args), receiverGType),
                 );
