@@ -1413,17 +1413,26 @@ function defineLazyGType(ctor, namespace, typeName) {
     });
 }
 
-// The GType a static call's `this` names, or `null` when the receiver names none:
-// `Ns.Class` and a registerClass'd subclass answer their own `$gtype`, while a
-// primitive, a plain object, a raw subclass and an INSTANCE (which deliberately
-// carries no `$gtype` — it is a constructor-level member) answer nothing. `null`
-// means "no receiver", and the engine then runs the method on the type the name was
-// read from, which is the pre-#1438 behaviour for every non-class-struct call.
+// The GType a static call's `this` names, or `null` when the receiver names none —
+// a primitive, a plain object, a raw (unregistered) subclass. `null` means "no
+// receiver", and the engine then runs the method on the type the name was read from,
+// which is the pre-#1438 behaviour for every non-class-struct call.
+//
+// A class answers its own `$gtype`. An INSTANCE has none — `$gtype` is a
+// constructor-level member here — but gjs answers the instance's RUNTIME class for
+// it, and the difference is observable: measured, `GObject.Object.list_properties`
+// borrowed onto an instance of a registerClass'd subclass reads the SUBCLASS's 6
+// pspecs under gjs and read GObject's 0 here. So resolve it through the type system,
+// the route `Symbol.hasInstance` above already takes.
 function gtypeOf(receiver) {
     if (receiver === null || receiver === undefined) return null;
     if (typeof receiver !== 'function' && typeof receiver !== 'object') return null;
     const gt = receiver.$gtype;
-    return gt === undefined ? null : gt;
+    if (gt !== undefined) return gt;
+    const handle = receiver[HANDLE];
+    if (handle === undefined || !native.isGObjectHandle(handle)) return null;
+    const G = requireGi('GObject', '2.0');
+    return G.type_from_name(native.getTypeName(handle));
 }
 
 // The GObject behind a prototype method's `this`. A prototype function is

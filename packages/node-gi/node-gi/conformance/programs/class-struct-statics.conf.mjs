@@ -88,6 +88,18 @@ const Sub = GObject.registerClass(
 print('inherited static sees own property:', Sub.find_property('extra').get_name());
 print('inherited static count:', Sub.list_properties().length);
 
+// An INSTANCE is a receiver too, and it names its RUNTIME class: gjs answers the
+// subclass's pspecs for an instance of the subclass, not the base's. `$gtype` is a
+// constructor-level member here, so the instance arm resolves through the type
+// system instead — and the two counts differ, which is what makes this able to fail.
+const subInstance = new Sub({ name: 'conf-sub' });
+print('instance receiver count:', GObject.Object.list_properties.call(subInstance).length);
+print('instance receiver find:', GObject.Object.find_property.call(subInstance, 'extra').get_name());
+print(
+    'base instance receiver count:',
+    GObject.Object.list_properties.call(new Gio.SimpleAction({ name: 'conf-base' })).length,
+);
+
 // A PLAIN static ignores `this` in gjs, so it must ignore it here: only class-struct
 // methods take the receiver as their instance.
 print('plain static ignores this:', Gio.File.new_for_path.call(Gio.SimpleAction, '/tmp/conf-class-struct').get_path());

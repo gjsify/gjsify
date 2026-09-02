@@ -128,6 +128,30 @@ test('the receiver need only match the DECLARING class, not the one it was read 
     assert.equal(Gio.Application.list_properties.call(Gio.SimpleAction).length, simpleActionPspecs);
 });
 
+test('an INSTANCE receiver names its runtime class, as in gjs', () => {
+    // `$gtype` is a constructor-level member here, so an instance answers none and the
+    // borrow used to fall back to GObject's zero — silently, the same shape as the
+    // class case. gjs marshals the instance's own GTypeClass: measured, an instance of
+    // a registerClass'd subclass reads the SUBCLASS's pspecs, one more than the base's.
+    const Sub = GObject.registerClass(
+        {
+            GTypeName: 'NodeGiClassRealizationSub',
+            Properties: {
+                extra: GObject.ParamSpec.string('extra', 'Extra', 'E', GObject.ParamFlags.READWRITE, ''),
+            },
+        },
+        class NodeGiClassRealizationSub extends Gio.SimpleAction {},
+    );
+    const base = new Gio.SimpleAction({ name: 'base' });
+    const sub = new Sub({ name: 'sub' });
+    assert.equal(GObject.Object.list_properties.call(base).length, simpleActionPspecs);
+    assert.equal(GObject.Object.list_properties.call(sub).length, simpleActionPspecs + 1);
+    assert.equal(GObject.Object.find_property.call(sub, 'extra').name, 'extra');
+    // A plain object is not a receiver at all: it falls back rather than being trusted,
+    // where gjs reaches the C function and answers 0 through a CRITICAL.
+    assert.equal(GObject.Object.list_properties.call({}).length, 0);
+});
+
 test('a plain static ignores `this`, exactly as in gjs', () => {
     // Only class-struct methods take the receiver. Gio.File.new_for_path is an ordinary
     // constructor function; borrowing it onto a class must not retarget anything.

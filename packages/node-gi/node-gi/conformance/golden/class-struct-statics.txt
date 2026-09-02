@@ -19,4 +19,7 @@ borrowed find_property miss: null
 cross-leaf borrow: 3
 inherited static sees own property: extra
 inherited static count: 6
+instance receiver count: 6
+instance receiver find: extra
+base instance receiver count: 5
 plain static ignores this: /tmp/conf-class-struct
