@@ -192,13 +192,13 @@ so a fontconfig directory is inert here. Measured — the default font map stays
 So register them yourself, once, before the first styled widget:
 
 ```js
-import GLib from 'gi://GLib';
-import Pango from 'gi://Pango';
+import GLib from 'gi://GLib?version=2.0';
+import PangoCairo from 'gi://PangoCairo?version=1.0';
 
 const dir = GLib.getenv('GJSIFY_FONT_DIR');
 if (dir) {
   for (const file of listFontFiles(dir)) {
-    Pango.FontMap.get_default().add_font_file(file);
+    PangoCairo.FontMap.get_default().add_font_file(file);
   }
 }
 ```

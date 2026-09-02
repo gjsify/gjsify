@@ -1469,9 +1469,9 @@ packaging:
   the faces itself**:
 
   ```js
-  import Pango from 'gi://Pango';
+  import PangoCairo from 'gi://PangoCairo?version=1.0';
   const dir = GLib.getenv('GJSIFY_FONT_DIR');
-  if (dir) for (const f of listFontFiles(dir)) Pango.FontMap.get_default().add_font_file(f);
+  if (dir) for (const f of listFontFiles(dir)) PangoCairo.FontMap.get_default().add_font_file(f);
   ```
 
   `add_font_file()` needs Pango 1.56 and works on Linux too, so one call covers both.
