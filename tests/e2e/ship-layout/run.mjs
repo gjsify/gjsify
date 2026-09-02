@@ -133,9 +133,14 @@ const LAYOUT_MAP = {
  * install step — so it goes through the map like everything else and is an
  * addition only relative to Linux.
  *
- * Windows has an empty metadata row on purpose: a program directory has no
- * manifest of its own today, and a row that answers "this layout owns nothing" is
- * a different statement from a row nobody filled in.
+ * Windows owns no MANIFEST — a program directory has no equivalent of an
+ * `Info.plist`, and what a Windows installer says about an application lives in
+ * the `.msi`'s own tables. It does own one PROGRAM, the GUI-subsystem launcher
+ * beside the `.cmd` (ADR 0024 § M3, ADR 0040), and it is deliberately NOT in this
+ * list: that stub is x86-64 machine code and THIS fixture is labelled `arm64`,
+ * because the dylib it borrows is. The row is a function of the arch and the case
+ * below asserts both halves, so "absent here" stays a measurement rather than an
+ * omission.
  */
 const LAYOUT_ADDITIONS = {
     darwin: [
@@ -537,6 +542,43 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         // `tests/e2e/ship-windows` refuses an arm64 closure labelled x64 by name.
         // So the gap this paragraph recorded is somebody else's test now, not an
         // open item — what stays true is that THIS suite does not cover it.
+    });
+
+    it('stages the windows GUI launcher for x64 and not for the arch it is not', () => {
+        // The windows layout owns a PROGRAM, and a program has an architecture —
+        // so its metadata row is a function of `--arch` rather than of the layout
+        // alone. Both directions, because only one of them is a measurement: this
+        // suite's own stages are `arm64` (the borrowed dylib is), so the absence
+        // above would be satisfied by a row that emitted nothing at all.
+        // A BARE scaffold, because `--arch x64` over this fixture's arm64 dylib is
+        // refused at stage time — and it is the honest shape for the question
+        // anyway: with no borrowed dylib, the launcher's own architecture is the
+        // only one there is to read.
+        const bare = join(tmpDir, 'gui-launcher-x64');
+        scaffold(bare);
+        runCliSync(CLI_ENTRY, ['ship', 'windows', '--skip-build', '--stage', '--arch', 'x64', '--out', 'ship-x64'], {
+            cwd: bare,
+        });
+        const stageX64 = join(bare, 'ship-x64', 'stage');
+        const staged = listPayload(stageX64);
+        assert.ok(staged.includes(`${BINARY}.exe`), `the x64 windows stage carries no ${BINARY}.exe`);
+        assert.ok(staged.includes(`${BINARY}.cmd`), 'the GUI launcher REPLACED the batch launcher');
+        assert.ok(!listPayload(stages.windows).includes(`${BINARY}.exe`));
+
+        // A GUI-subsystem image, which is the one field the whole thing exists for
+        // — read here with arithmetic rather than through the CLI's own writer.
+        const image = readFileSync(join(stageX64, `${BINARY}.exe`));
+        const peOffset = image.readUInt32LE(0x3c);
+        assert.equal(image.subarray(peOffset, peOffset + 4).toString('latin1'), 'PE\0\0');
+        assert.equal(
+            image.readUInt16LE(peOffset + 24 + 68),
+            2,
+            'the staged launcher is not IMAGE_SUBSYSTEM_WINDOWS_GUI',
+        );
+        // 0755, because Windows does not care and every other host the stage
+        // travels through does — a CI artifact round trip flattens modes, and the
+        // plan is the only surviving record.
+        assert.equal(statSync(join(stageX64, `${BINARY}.exe`)).mode & 0o777, 0o755);
     });
 
     it('classifies EVERY share/ entry the map carried, one severity apart', () => {

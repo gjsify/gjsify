@@ -23,8 +23,15 @@ export interface StagedMode {
 
 /** One file in the payload, addressed relative to the install prefix. */
 export interface StagedFile extends StagedMode {
-    /** Where the bytes come from. */
-    source: { kind: 'text'; text: string } | { kind: 'file'; path: string };
+    /**
+     * Where the bytes come from.
+     *
+     * `bytes` is the third kind because a layout can now OWN a binary: the
+     * windows row emits a GUI-subsystem launcher (`utils/ship/pe-launcher.ts`)
+     * that exists nowhere on disk and is not text. Spelling it as `text` would
+     * round-trip it through UTF-8 and rewrite every byte above 0x7f.
+     */
+    source: { kind: 'text'; text: string } | { kind: 'file'; path: string } | { kind: 'bytes'; data: Uint8Array };
 }
 
 /**

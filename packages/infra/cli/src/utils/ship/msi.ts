@@ -21,7 +21,8 @@
 //   * lays the program directory `windows-dir` produces under
 //     `%ProgramFiles%\<App>`, overridable with `msiexec INSTALLDIR=…`;
 //   * gives the user something to start — one Start-Menu shortcut at the top
-//     level, aimed at the same `.cmd` launcher the zip's user double-clicks;
+//     level, aimed at the GUI-subsystem `.exe` launcher the zip's user
+//     double-clicks (see the last paragraph of this header);
 //   * comes off again: Add/Remove Programs gets its entry from the MSI's own
 //     `ProductName`/`ProductVersion`/`Manufacturer`, and `msiexec /x` removes
 //     every file the package installed. The `windows-dir-selfcontained` leg's
@@ -57,17 +58,22 @@
 //      bought for nothing. A directory whose id is a public property is settable
 //      from a command line either way.
 //
-// AND ONE THING IT DOES NOT FIX. `node.exe` is a CONSOLE-subsystem image and the
-// Node release ships no `nodew.exe` (`status/open-todos.md` carries the offsets),
-// so the shortcut this installer writes pops a console window behind the GUI
-// exactly as the `.cmd` does. Nothing here changes that, and no leg can observe
-// it — every Windows CI leg starts the app from a shell and already has one.
+// AND ONE THING IT USED NOT TO FIX. `node.exe` is a CONSOLE-subsystem image and
+// the Node release ships no `nodew.exe`, so a Start-Menu shortcut to the `.cmd`
+// popped a console window behind the GUI exactly as a double-click did. The
+// shortcut now points at the GUI-subsystem launcher the windows LAYOUT stages
+// (`utils/ship/pe-launcher.ts`), which runs the same `.cmd` with no window —
+// measured on `win11-gjsify` in session 1, where the `.cmd` produces two new
+// visible console-host windows and the `.exe` produces none. Still no CI leg can
+// observe it: every Windows job starts the app from a shell and already has a
+// console.
 
 import { createHash } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
 import { describeExit, spawnToCompletion } from '../spawn.js';
+import { windowsGuiLauncherPath } from './layout.js';
 import type { HostOs, PackSettings } from './types.js';
 import { xmlEscape } from './xml.js';
 
@@ -287,7 +293,18 @@ export function renderWxs(input: WxsInput): string {
     // `Name <email>` is `PackSettings.maintainer`'s shape; ARP shows `Publisher`
     // to a human, and an address in that field reads as a mistake.
     const manufacturer = settings.maintainer.replace(/\s*<[^>]*>\s*$/, '').trim() || settings.maintainer;
-    const launcher = `${settings.binaryName}.cmd`;
+    // THE SHORTCUT POINTS AT THE `.exe`, NOT THE `.cmd` — this installer's half of
+    // the console-window fix. A Start-Menu shortcut to a batch file starts
+    // `cmd.exe`, a console-subsystem image, so Windows allocates a console for it
+    // and a black window sits behind the app (ADR 0024 § M3). The GUI-subsystem
+    // launcher beside it — `utils/ship/pe-launcher.ts`, staged by the windows
+    // LAYOUT — runs the same `.cmd` and has no window of its own.
+    //
+    // Derived from `windowsGuiLauncherPath` and never spelled again here: the stub
+    // finds its `.cmd` by rewriting the last three characters of its own filename,
+    // so the two names are ONE decision, and a second literal is where they would
+    // come apart.
+    const launcher = windowsGuiLauncherPath(settings);
 
     const identifiers = new Map<string, string>();
     const claim = (id: string, what: string): string => {

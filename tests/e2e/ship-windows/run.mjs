@@ -215,6 +215,24 @@ describe('CLI ship Windows program directory E2E', { timeout: 10 * 60 * 1000 }, 
             /node\.exe is arm64, and the stage is labelled x64/,
         ],
         ['no launcher at all', (at) => rmSync(join(at, `${BINARY}.cmd`)), /nothing in it tells Windows what to start/],
+        [
+            // The console-window fix IS this one field, and it is a claim about a
+            // file this repository writes — so the oracle judges it rather than
+            // printing it, and this is the mutation that makes the judgement real.
+            'a GUI launcher rewritten back to the console subsystem',
+            (at) => {
+                const file = join(at, `${BINARY}.exe`);
+                const image = readFileSync(file);
+                image.writeUInt16LE(3, image.readUInt32LE(0x3c) + 24 + 68);
+                writeFileSync(file, image);
+            },
+            /has Subsystem 3 \(CONSOLE\), and the whole point of the file is that it is 2/,
+        ],
+        [
+            'no GUI launcher at all, which is the artifact before ADR 0040',
+            (at) => rmSync(join(at, `${BINARY}.exe`)),
+            /gives every double-click and every installer shortcut a console window/,
+        ],
     ]) {
         it(`RED: the program-directory oracle refuses ${what}`, () => {
             // A COPY, so the green runs keep their subject.
@@ -478,8 +496,9 @@ describe('CLI ship Windows self-contained runtime E2E', { timeout: 10 * 60 * 100
             const info = readLibrary(join(stageDir, rel));
             if (info !== null) images.push({ rel, info });
         }
-        // The closure's three DLLs plus the addon plus the interpreter.
-        assert.equal(images.length, 5, `expected 5 PE images in the stage, read ${images.length}`);
+        // The closure's three DLLs plus the addon plus the interpreter plus the GUI
+        // launcher — the one of the six this repository writes itself.
+        assert.equal(images.length, 6, `expected 6 PE images in the stage, read ${images.length}`);
         for (const { rel, info } of images) {
             assert.equal(info.format, 'pe', `${rel} is not a PE`);
             assert.equal(info.os, 'win32', `${rel} is not a win32 image`);
