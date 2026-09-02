@@ -1,8 +1,8 @@
 // Adw.ToggleGroup — a linked set of Adw.Toggle buttons with a single active item.
 // original implementation.
 
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { toggleGroupMeta } from './toggle-group.meta.js';
 

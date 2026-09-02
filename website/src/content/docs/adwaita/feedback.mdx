@@ -74,7 +74,7 @@ on the desktop.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     // The overlay wraps the page content and floats toasts above it.
     const overlay = new Adw.ToastOverlay({ child: content });
@@ -159,7 +159,7 @@ ID, and that ID is what reaches your code. Give one response a **destructive** o
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     const dialog = new Adw.AlertDialog({
         heading: 'Delete Project?',
@@ -242,8 +242,8 @@ Legal sub-pages you never lay out yourself.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const dialog = new Adw.AboutDialog({
         applicationName: 'Adwaita Storybook',
@@ -322,8 +322,8 @@ the web port renders them stacked instead.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const dialog = new Adw.PreferencesDialog();
 

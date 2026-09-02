@@ -1,5 +1,5 @@
 import '@girs/gjs';
-import Gio from '@girs/gio-2.0';
+import Gio from 'gi://Gio?version=2.0';
 
 Gio._promisify(Gio.File.prototype, 'load_contents_async', 'load_contents_finish');
 

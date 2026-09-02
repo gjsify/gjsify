@@ -10,10 +10,10 @@
 // core's `emitArgs` override calls back to fire `this.notify('args')`, keeping
 // the live-refresh signal intact.
 
-import Adw from '@girs/adw-1';
-import GLib from '@girs/glib-2.0';
-import GObject from '@girs/gobject-2.0';
-import Gtk from '@girs/gtk-4.0';
+import Adw from 'gi://Adw?version=1';
+import GLib from 'gi://GLib?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import { argsFromControls, type StoryArgs, type StoryArgValue, type StoryMeta } from '@gjsify/stories';
 import { type StoryChrome, StoryViewBase } from '@gjsify/storybook-core';
 

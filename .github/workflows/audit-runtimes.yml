@@ -195,6 +195,19 @@ jobs:
       - name: Check every gi:// import states its version
         run: node scripts/check-gi-import-versions.mjs
 
+      # Two spellings reach the same library and only one of them has a runtime.
+      # `@girs/*` is the ts-for-gir TYPE vocabulary; `gi://` is the loader. An import
+      # line does not say which one a file meant — `import Gtk from '@girs/gtk-4.0'`
+      # typechecks whether the code calls `Gtk.init()` or only writes `Gtk.Widget` in a
+      # type position — so the rule is stated once in the gate: a value import comes
+      # from `gi://`, a type import from `@girs/*`. The tree was 62% converted when this
+      # landed, and a half-migrated tree with no gate converges on whatever the last
+      # author copied. The remaining directories are named in the script and it fails
+      # BOTH ways: an offender outside the list, and a listed directory with nothing left
+      # in it.
+      - name: Check no runtime import of the @girs type vocabulary
+        run: node scripts/check-girs-runtime-imports.mjs
+
       # Comment volume has no natural limit, so nothing failed while `cli-fail.ts` grew
       # a 47-line yargs research diary above a 3-line function (ratio 9.3), while
       # `rolldown-plugin-gjsify` reached one comment line per code line, or while

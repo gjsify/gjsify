@@ -54,8 +54,8 @@ preferences page.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const signOut = new Gtk.Button({ label: 'Sign out', valign: Gtk.Align.CENTER });
     signOut.add_css_class('flat');
@@ -148,8 +148,8 @@ row responds to a click, which is how you open a detail page.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const row = new Adw.ActionRow({
         title: 'Wi-Fi',
@@ -226,7 +226,7 @@ the row you will use most in a preferences page.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     const row = new Adw.SwitchRow({
         title: 'Automatic updates',
@@ -278,7 +278,7 @@ user types.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     const row = new Adw.EntryRow({
         title: 'Display name',
@@ -326,7 +326,7 @@ to reveal it. Use it anywhere a password or key is edited inline.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     const row = new Adw.PasswordEntryRow({
         title: 'Password',
@@ -378,8 +378,8 @@ selection is an index into the model you gave it, not the string itself.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const row = new Adw.ComboRow({
         title: 'Accent colour',
@@ -436,8 +436,8 @@ size or a count.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const row = new Adw.SpinRow({
         title: 'Font size',
@@ -498,7 +498,7 @@ whole section.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     const row = new Adw.ExpanderRow({
         title: 'Proxy settings',
@@ -570,7 +570,7 @@ Adwaita style classes (`.suggested-action`, `.destructive-action`).
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     const row = new Adw.ButtonRow({
         title: 'Add account',

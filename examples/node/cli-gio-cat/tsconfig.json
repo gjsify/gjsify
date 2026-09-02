@@ -7,7 +7,7 @@
     "rootDir": "src",
     "skipLibCheck": true,
     "strict": false,
-    "types": []
+    "types": ["@girs/gjs", "@girs/gio-2.0"]
   },
   "include": ["src/**/*.ts"]
 }

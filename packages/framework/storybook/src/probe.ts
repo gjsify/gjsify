@@ -16,7 +16,7 @@
 // (dumpTree/widgetType); refs/libadwaita. Copyright (c) GNOME contributors, MIT/LGPL.
 
 import type Adw from '@girs/adw-1';
-import GLib from '@girs/glib-2.0';
+import GLib from 'gi://GLib?version=2.0';
 import type Gtk from '@girs/gtk-4.0';
 import { captureWidgetPng, dumpTree, type NodeInfo } from '@gjsify/devtools';
 import type { StorybookWindow } from './window.js';

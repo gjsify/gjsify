@@ -32,7 +32,7 @@ On the desktop the widgets come from the GTK 4 library already installed on the
 machine. `@girs/gtk-4.0` is the type package for it, and nothing else is needed:
 
 ```ts
-import Gtk from '@girs/gtk-4.0';
+import Gtk from 'gi://Gtk?version=4.0';
 
 const entry = new Gtk.Entry({ placeholderText: 'Search files…' });
 ```

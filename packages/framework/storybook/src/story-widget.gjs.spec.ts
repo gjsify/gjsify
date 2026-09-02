@@ -6,9 +6,9 @@
 // GJS-only (extends Adw.Bin → needs the Gtk/Adw typelibs), so direct @gjsify
 // imports are fine here (testing rule 2/2b).
 
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
-import Gtk from '@girs/gtk-4.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import { ControlType, type StoryMeta } from '@gjsify/stories';
 import { describe, expect, it, on } from '@gjsify/unit';
 import { StoryWidget } from './story-widget.js';

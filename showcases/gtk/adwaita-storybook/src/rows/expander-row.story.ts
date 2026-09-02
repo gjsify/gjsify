@@ -1,8 +1,8 @@
 // Adw.ExpanderRow — a boxed-list row that reveals nested rows when expanded, with
 // an optional enable switch. original implementation.
 
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { expanderRowMeta } from './expander-row.meta.js';
 

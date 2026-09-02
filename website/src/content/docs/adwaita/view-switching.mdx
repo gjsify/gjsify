@@ -63,8 +63,8 @@ swaps between the two on a breakpoint.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     // The view stack holds the pages; each is added with a name, title and icon.
     const stack = new Adw.ViewStack({ vexpand: true });
@@ -203,7 +203,7 @@ does not appear.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     const stack = new Adw.ViewStack();
     stack.add_titled_with_icon(
@@ -336,8 +336,8 @@ disappears once a single page is left, so a one-tab document looks chrome-free.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const tabView = new Adw.TabView({ vexpand: true });
     for (const [title, body] of [
@@ -423,8 +423,8 @@ makes it fit a header bar or a tight toolbar.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const stack = new Adw.ViewStack({ vexpand: true });
     stack.add_titled_with_icon(
@@ -585,8 +585,8 @@ does.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const carousel = new Adw.Carousel({ allowScrollWheel: true, allowLongSwipes: false, vexpand: true });
     for (const [title, style] of [

@@ -9,8 +9,8 @@ It implements the toolkit-neutral [`@gjsify/devtools-protocol`](../devtools-prot
 `installDevtools` is a no-op unless `GJSIFY_DEVTOOLS=1` (or `enabled: true`). Call it from `onStartup`/`vfunc_startup`, after the actions and the active window exist.
 
 ```ts
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
 import { installDevtools } from '@gjsify/devtools';
 
 export class MyApplication extends Adw.Application {

@@ -20,7 +20,7 @@
 // shared instance, and that the instance really is reused (construction counter).
 
 import { describe, expect, it, on } from '@gjsify/unit';
-import GLib from '@girs/glib-2.0';
+import GLib from 'gi://GLib?version=2.0';
 import { bundle, getLoadError, hasNativeLightningcss, loadNativeLightningcss, transform } from './index.js';
 
 const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);

@@ -1,9 +1,9 @@
 // Adw.SplitButton — a button with a main action plus an attached dropdown menu.
 // original implementation.
 
-import Adw from '@girs/adw-1';
-import Gio from '@girs/gio-2.0';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import Gio from 'gi://Gio?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { splitButtonFlatMeta, splitButtonMeta } from './split-button.meta.js';
 

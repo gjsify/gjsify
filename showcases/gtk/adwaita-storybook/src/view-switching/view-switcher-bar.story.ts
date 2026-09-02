@@ -1,8 +1,8 @@
 // Adw.ViewSwitcherBar — the narrow-window switcher, pinned to the bottom.
 // original implementation.
 
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { VIEW_SWITCHER_BAR_PAGES, viewSwitcherBarMeta } from './view-switcher-bar.meta.js';
 

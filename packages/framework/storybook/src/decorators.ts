@@ -1,8 +1,8 @@
 // Story decorators — reusable wrappers for common story setup.
 // original implementation using Gio actions.
 
-import Gio from '@girs/gio-2.0';
-import GLib from '@girs/glib-2.0';
+import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 import type Gtk from '@girs/gtk-4.0';
 import type { StoryDecorator, StoryWidget } from './story-widget.js';
 

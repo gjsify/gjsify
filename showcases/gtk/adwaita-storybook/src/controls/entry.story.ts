@@ -1,8 +1,8 @@
 // Gtk.Entry — the single-line text field the Adwaita stylesheet dresses.
 // original implementation.
 
-import Gtk from '@girs/gtk-4.0';
-import GObject from '@girs/gobject-2.0';
+import Gtk from 'gi://Gtk?version=4.0';
+import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { entryMeta } from './entry.meta.js';
 

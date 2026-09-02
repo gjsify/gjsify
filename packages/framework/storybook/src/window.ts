@@ -14,10 +14,10 @@
 // the package is self-contained — a published library cannot rely on the
 // blueprint build plugin (which only runs for `--app` bundles, not `--library`).
 
-import Adw from '@girs/adw-1';
-import Gdk from '@girs/gdk-4.0';
-import GObject from '@girs/gobject-2.0';
-import Gtk from '@girs/gtk-4.0';
+import Adw from 'gi://Adw?version=1';
+import Gdk from 'gi://Gdk?version=4.0';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import type { StoryArgValue, StoryNumberControl, StorySelectControl } from '@gjsify/stories';
 import {
     bindControl,

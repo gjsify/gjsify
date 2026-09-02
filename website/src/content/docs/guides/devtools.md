@@ -25,8 +25,8 @@ object path only exist after the application has registered, which is what `star
 guarantees.
 
 ```ts
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
 import { installDevtools } from '@gjsify/devtools';
 
 export class MyApplication extends Adw.Application {

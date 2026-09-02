@@ -1,9 +1,9 @@
 // HTMLImageElement for GJS — original implementation using GdkPixbuf
 // Reference: refs/happy-dom/packages/happy-dom/src/nodes/html-image-element/HTMLImageElement.ts
 
-import GLib from '@girs/glib-2.0';
-import Gio from '@girs/gio-2.0';
-import GdkPixbuf from '@girs/gdkpixbuf-2.0';
+import GLib from 'gi://GLib?version=2.0';
+import Gio from 'gi://Gio?version=2.0';
+import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import { Event } from '@gjsify/dom-events';
 import { HTMLElement } from './html-element.js';
 import * as PropertySymbol from './property-symbol.js';

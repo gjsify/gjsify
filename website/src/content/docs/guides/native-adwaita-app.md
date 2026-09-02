@@ -51,8 +51,8 @@ Adwaita storybook gallery on Linux and Windows.
 application id and a function that builds your main window.
 
 ```ts
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
 import { runAdwaitaApp } from '@gjsify/adwaita-app';
 
 class MainWindow extends Adw.ApplicationWindow {

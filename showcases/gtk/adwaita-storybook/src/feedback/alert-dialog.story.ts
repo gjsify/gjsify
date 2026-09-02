@@ -1,9 +1,9 @@
 // Adw.AlertDialog — a modal dialog with a heading, body and a row of responses.
 // original implementation.
 
-import Adw from '@girs/adw-1';
-import Gtk from '@girs/gtk-4.0';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import Gtk from 'gi://Gtk?version=4.0';
+import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { alertDialogMeta } from './alert-dialog.meta.js';
 
