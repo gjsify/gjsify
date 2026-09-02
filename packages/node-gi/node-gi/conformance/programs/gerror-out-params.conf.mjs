@@ -35,3 +35,16 @@ const prefixed = GLib.prefix_error_literal(propagated, 'context: ');
 print('prefixed message:', prefixed.message);
 print('prefixed code:', prefixed.code);
 print('inout source untouched:', propagated.message);
+
+// A GError an application BUILT, handed back into an IN arg. On gjs there is one
+// GLib.Error object and this is the same path as above; node-gi has two shapes
+// (the L1 JS class here, a boxed handle above) and this is the one an application
+// actually holds after a `catch`. `instanceof` is deliberately not printed — that
+// IS the divergence still open (status/open-todos.md), and a golden asserting it
+// would freeze the wrong side.
+const built = new GLib.Error(DOMAIN, 9, 'constructed');
+const rebuilt = GLib.propagate_error(built);
+print('constructed message:', rebuilt.message);
+print('constructed code:', rebuilt.code);
+print('constructed matches(domain, 9):', rebuilt.matches(DOMAIN, 9));
+print('constructed matches(other, 9):', rebuilt.matches(OTHER, 9));
