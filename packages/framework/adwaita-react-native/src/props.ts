@@ -539,13 +539,18 @@ export interface AdwPreferencesGroupProps extends AdwWidgetProps {
  * and takes the shared description of a model. The GTK half turns it into the real
  * `Gtk.StringList` it has to be; the React Native half feeds it to `ComboState`.
  *
- * `onNotifySelected` FIRES ON EVERY CHANGE, INCLUDING A PROGRAMMATIC ONE. `ComboState` tags
- * its changes `interactive` and a renderer that re-emits `notify::selected` itself is meant
- * to gate on it — but the GTK half does not re-emit anything, it is a real GObject, and
- * `notify::` fires whenever the property moves. Gating the React Native half on
- * `interactive` would therefore make the two halves disagree about the most ordinary thing a
- * consumer does. A consumer that wants user picks only compares against the value it
- * authored.
+ * `onNotifySelected` REPORTS A USER PICK ON BOTH HALVES AND A PROGRAMMATIC ONE ON ONE, which
+ * is a NAMED DIVERGENCE and not the agreement this paragraph used to claim. `ComboState` tags
+ * its changes `interactive` and the React Native half deliberately does not gate on it, so a
+ * `selected` the consumer authored comes back there. The GTK half cannot: gtk-host suppresses
+ * a `notify::` raised inside its OWN property write (`inHostWrite()` in its `signals.ts`), and
+ * writing the `selected` prop IS that write. MEASURED on libadwaita 1.9.3 — a re-render from
+ * `selected={0}` to `selected={2}` moves the widget and calls NOTHING, while `row.selected = 1`
+ * from outside React calls it. Benign for the ordinary controlled pattern, where the consumer
+ * made the change and already knows; not benign as a claim, because "fires on every change"
+ * sends a reader looking for a callback that never arrives. Same rule, same reason and the
+ * same README entry as `onNotifyVisibleChild`. A consumer that wants user picks only compares
+ * against the value it authored.
  *
  * `expression`, `factory`, `list-factory`, `header-factory`, `enable-search` and
  * `search-match-mode` are all absent, and all for the `model` reason one step further: each
@@ -612,7 +617,13 @@ export interface AdwSpinRowProps extends AdwRowProps {
     stepIncrement?: number;
     /** `digits` — decimal places DISPLAYED. Default 0. */
     digits?: number;
-    /** `notify::value` — the value moved. Same rule as {@link AdwComboRowProps.onNotifySelected}. */
+    /**
+     * `notify::value` — the value moved.
+     *
+     * Same divergence and the same measurement as {@link AdwComboRowProps.onNotifySelected},
+     * reached by a different route: this row writes no `value` property, it re-sets the
+     * memoised `adjustment`, and `notify::value` is raised from inside THAT host write.
+     */
     onNotifyValue?: (value: number) => void;
 }
 
