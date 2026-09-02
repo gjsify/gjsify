@@ -194,6 +194,23 @@ Three changes, in the order a signature is made:
   `codesign(1)` promises that a TSA that cannot be reached **fails the signing
   operation** — not a failure worth inventing for a signature that could not carry
   the result.
+- **and both flags go to EVERY Mach-O in the closure, not only to a main
+  executable.** `refs/node/tools/osx-codesign.sh:21` signs exactly one path,
+  `"$PKGDIR"/bin/node`, so the reference has no per-image decision to make and this
+  one does. It is deliberate: the `.app`'s `CFBundleExecutable` is a SHELL SCRIPT,
+  so the process that actually runs under a hardened runtime is the staged
+  interpreter inside the closure — an entitlement granted only to "the main
+  executable" would land on a file the kernel never consults. Entitlements on a
+  plain dylib are inert rather than wrong (the loader reads the main executable's),
+  and the signer has no rule for telling the interpreter apart from the rest, so the
+  blanket application is the shape that cannot grant them to the wrong file.
+  **Its measured consequence, which is what made this worth writing down:** an image
+  pre-signed WITHOUT these flags cannot re-sign to byte-identical, because both live
+  in the code directory. `tests/e2e/ship-signing` pre-signs one of its two fixtures
+  plainly and expected `1 signature-only`; with the hardened runtime every image
+  differs, the darwin legs reported **2**, and the suite went red on its own
+  arithmetic rather than on a defect. ADR 0024 § A21's `--identifier` marker is
+  therefore no longer the only thing guaranteeing an observable re-sign.
 - **the ticket.** `xcrun stapler staple` after a successful notarisation, on the
   formats whose container can hold one. `stapler(1)`: *"stapler works only with UDIF
   disk images, signed \"flat\" installer packages, and certain code-signed executable
