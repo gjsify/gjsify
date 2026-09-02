@@ -8,15 +8,18 @@
 // for, so the hook reports ready on its first render.
 //
 // "ALREADY FOUND THEM" IS NOT UNIFORM, and the exception is worth knowing before a
-// consumer trusts this row on three operating systems. fontconfig scans the
-// installed directory on Linux and macOS activates a bundle's own faces from
-// `ATSApplicationFontsPath` before the process starts, so on both the discovery has
-// genuinely happened already. GTK4 on Windows is pangowin32/DirectWrite, which
+// consumer trusts this row on three operating systems. On LINUX fontconfig scans the
+// installed directory, measured. On MACOS the bundle declares
+// `ATSApplicationFontsPath` and the OS is documented to activate it before the
+// process starts — Apple's key reference, not a measurement: no leg in this
+// repository runs a `.app`, which is what ADR 0037's `Layout.fontGap` prints rather
+// than letting a green stage imply. On WINDOWS GTK4 is pangowin32/DirectWrite, which
 // reaches no font file by configuration at all — a bundled face there is registered
 // by the APP at startup (`PangoCairo.FontMap.get_default().add_font_file()`, over
 // the directory `gjsify ship` names in `GJSIFY_FONT_DIR`). This hook is still right
 // to answer immediately: it is not what performs that registration, and where the
-// registration belongs to the app it has necessarily already run.
+// registration belongs to the app it has necessarily already run. No `@gjsify/*`
+// package makes that call yet — `status/open-todos.md`.
 //
 // AND THAT IS BETTER THAN A STUB, because the failure it removes is real: a screen
 // written as `if (!loaded) return null` renders immediately instead of flashing, and
