@@ -27,6 +27,7 @@
 
 import system from 'system';
 
+import GLib from 'gi://GLib?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
@@ -39,6 +40,52 @@ function check(label, condition, detail) {
     if (!condition) {
         failures.push(label);
     }
+}
+
+// ADR 0035's rule for every divergence is "each fails loudly rather than
+// silently, because that is the difference between a subset and a lie". A
+// warning nothing reads is the same lie one step along, so the warnings are
+// ASSERTED rather than trusted.
+//
+// TWO GLib constraints shape this, both measured rather than assumed:
+// `g_log_set_writer_func()` may be called ONCE per process — a second call, and
+// `log_set_writer_default()` counts, is a fatal `GLib-ERROR` — so the writer is
+// installed once here and never revoked. And it returns UNHANDLED, not HANDLED,
+// so GLib still writes the message out: `console.log` is itself structured
+// logging, so a writer that swallowed its input would blank this file's own
+// report.
+const decoder = new TextDecoder();
+let capture = null;
+
+GLib.log_set_writer_func((_level, fields) => {
+    if (capture !== null) {
+        const raw = fields?.MESSAGE;
+        capture.push(raw == null ? '' : typeof raw === 'string' ? raw : decoder.decode(raw));
+    }
+    return GLib.LogWriterOutput.UNHANDLED;
+});
+
+// Runs `body` with the log captured and asserts it warned about `needle`. The
+// negative case is what this exists for: three of the four `world_name` entry
+// points used to drop the argument with a bare `(void) world_name;`, so an
+// assertion that only checked the call returns went green on a silent no-op for
+// as long as nobody looked. A/B'd against the unfixed library: `warnings seen: []`.
+function checkWarns(label, needle, body) {
+    capture = [];
+    let thrown = null;
+    try {
+        body();
+    } catch (error) {
+        thrown = error;
+    }
+    const messages = capture;
+    capture = null;
+    if (thrown !== null) {
+        check(label, false, String(thrown));
+        return;
+    }
+    const hit = messages.some((m) => m.includes(needle));
+    check(label, hit, hit ? undefined : `warnings seen: ${JSON.stringify(messages)}`);
 }
 
 // The numeric values are WebKitGTK's on purpose: a consumer that (wrongly)
@@ -134,7 +181,31 @@ try {
     check('Gio._promisify finds both async pairs', false, String(error));
 }
 
-check('Settings carries the properties @gjsify/iframe sets', 'enable_javascript' in new WebKit.Settings());
+// The property SET, not just one member. `allow-file-access-from-file-urls` was
+// installed here for this package's whole life and reached nothing — the value
+// never crossed the seam into the engine, so setting it was a no-op with no
+// diagnostic, which is precisely what the block comment above it forbids. It is
+// gone, and an absent property at least raises a GJS warning at the call.
+const settings = new WebKit.Settings();
+for (const name of ['enable_javascript', 'enable_developer_extras', 'enable_write_console_messages_to_stdout']) {
+    check(`Settings carries ${name}`, name in settings);
+}
+check('Settings does NOT carry allow_file_access_from_file_urls', !('allow_file_access_from_file_urls' in settings));
+
+// The two `world_name` paths reachable with no display. `evaluate_javascript`'s
+// is the third and needs a live widget, so it is asserted by `probe-win32.mjs`;
+// `gtk_widget_init` needs a display and this script deliberately has none.
+const worldManager = new WebKit.UserContentManager();
+checkWarns(
+    'register_script_message_handler warns about an ignored world',
+    'IGNORED by register_script_message_handler',
+    () => worldManager.register_script_message_handler('gjsifyWorldProbe', 'probe-world-a'),
+);
+checkWarns(
+    'unregister_script_message_handler warns about an ignored world',
+    'IGNORED by unregister_script_message_handler',
+    () => worldManager.unregister_script_message_handler('gjsifyWorldProbe', 'probe-world-b'),
+);
 
 console.log(
     failures.length === 0

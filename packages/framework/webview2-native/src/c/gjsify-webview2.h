@@ -304,8 +304,17 @@ void gjsify_webview2_user_content_manager_unregister_script_message_handler(
 
 /* -------------------------------------------------------------------------
  * GjsifyWebView2Settings — mirrors WebKitSettings for the properties this
- * workspace sets. An unknown property is a warning in GJS, which is the point:
- * a silently-ignored setting is worse than an absent one.
+ * workspace sets: `enable-javascript`, `enable-developer-extras` and
+ * `enable-write-console-messages-to-stdout`. An unknown property is a warning in
+ * GJS, which is the point: a silently-ignored setting is worse than an absent
+ * one.
+ *
+ * That rule is why there is no `allow-file-access-from-file-urls` here. It was
+ * installed, readable and writable, and it reached nothing — the value never
+ * crossed the seam, so setting it was a no-op with no diagnostic. WebView2's
+ * equivalent is a browser-command-line switch on the process-wide environment,
+ * not a per-view setting, so honouring it is not a one-line change; an absent
+ * property that raises a GJS warning is the honest state until it is.
  * ------------------------------------------------------------------------- */
 
 #define GJSIFY_WEBVIEW2_TYPE_SETTINGS (gjsify_webview2_settings_get_type())
@@ -453,7 +462,11 @@ GjsifyWebView2MessagePumpState gjsify_webview2_web_view_get_message_pump_state(
  * @script: the source to evaluate.
  * @length: length of @script in bytes, or -1 if nul-terminated.
  * @world_name: (nullable): ignored — see gjsify_webview2_user_script_new_for_world().
- * @source_uri: (nullable): a URI attributed to the script in errors.
+ * @source_uri: (nullable): IGNORED, and the only divergence here that does NOT
+ *   warn. WebView2's `ExecuteScript` has no source-URI parameter, and the
+ *   argument changes nothing observable except the text attributed to a script in
+ *   an error — so warning for it would train readers past the behavioural
+ *   warnings beside it.
  * @cancellable: (nullable): a #GCancellable.
  * @callback: (scope async) (closure user_data) (nullable): called when the
  *   evaluation completes.
@@ -490,7 +503,10 @@ GjsifyWebView2Value *gjsify_webview2_web_view_evaluate_javascript_finish(
  *   viewport only, so %GJSIFY_WEBVIEW2_SNAPSHOT_REGION_FULL_DOCUMENT is a
  *   documented divergence rather than a second code path — it returns the
  *   viewport and warns once.
- * @options: snapshot options.
+ * @options: snapshot options. Anything but
+ *   %GJSIFY_WEBVIEW2_SNAPSHOT_OPTIONS_NONE is IGNORED and warns once:
+ *   `CapturePreview` has no transparent-background and no
+ *   selection-highlighting option, so the capture is of the page as composited.
  * @cancellable: (nullable): a #GCancellable.
  * @callback: (scope async) (closure user_data) (nullable): called when the
  *   snapshot completes.

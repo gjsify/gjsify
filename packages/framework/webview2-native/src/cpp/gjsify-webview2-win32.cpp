@@ -950,17 +950,13 @@ void gjsify_webview2_backend_snapshot(
     GjsifyWebView2SnapshotOptions options,
     GTask *task)
 {
+    // Both arguments are unusable here and BOTH are reported by the portable
+    // layer before the call reaches this function — see
+    // gjsify_webview2_web_view_get_snapshot(). They are contract divergences, so
+    // they belong where the contract is, and reporting them there also covers the
+    // calls that never get this far for want of an engine or a pump.
+    (void) region;
     (void) options;
-
-    if (region == GJSIFY_WEBVIEW2_SNAPSHOT_REGION_FULL_DOCUMENT) {
-        static gsize warned = 0;
-        if (g_once_init_enter(&warned)) {
-            g_warning("WebKit(WebView2): SnapshotRegion.FULL_DOCUMENT is not available — "
-                      "WebView2's CapturePreview captures the viewport only, so this returns "
-                      "the visible region.");
-            g_once_init_leave(&warned, 1);
-        }
-    }
 
     WhenSettled(backend, [backend, task]() {
         if (backend->webview == nullptr) {

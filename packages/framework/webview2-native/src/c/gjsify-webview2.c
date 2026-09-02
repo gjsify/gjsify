@@ -221,6 +221,66 @@ GjsifyWebView2UserScript *gjsify_webview2_user_script_new(
     return self;
 }
 
+/* A divergence warning that fires at most once per TEXT, process-wide. The
+ * once-per-text rule is what lets these sit on a hot path — get_snapshot() is
+ * called per frame by a consumer that polls — without turning the log into the
+ * thing nobody reads. */
+static void gjsify_webview2_warn_once(gboolean condition, const gchar *message)
+{
+    static GHashTable *warned = NULL; /* message -> itself */
+
+    if (!condition) {
+        return;
+    }
+    if (warned == NULL) {
+        warned = g_hash_table_new(g_str_hash, g_str_equal);
+    }
+    if (g_hash_table_contains(warned, message)) {
+        return;
+    }
+    /* The literals passed here are static storage, so the key needs no copy. */
+    g_hash_table_add(warned, (gpointer) message);
+
+    g_warning("WebKit(WebView2): %s", message);
+}
+
+/* ONE text and ONE place for the isolation-world argument WebView2 has no
+ * equivalent for. It is reached from FOUR entry points — UserScript,
+ * evaluate_javascript, and register/unregister_script_message_handler — and
+ * three of them used to drop it with a bare `(void) world_name;` on the reasoning
+ * that the fourth had already warned. That reasoning was wrong: a caller can
+ * reach any of the other three without ever constructing a UserScript, so
+ * nothing warned at all. The divergence is worth a name because darwin HONOURS
+ * this argument (WKContentWorld, ADR 0022), so the same call is isolated there
+ * and not here.
+ *
+ * Once per WORLD NAME rather than once per process: a bridge re-injects its
+ * bootstrap on every navigation and a per-call warning would bury the log it
+ * belongs in, while a per-process flag would let whichever entry point ran first
+ * silence the other three. */
+static void gjsify_webview2_warn_ignored_world(const gchar *world_name, const gchar *where)
+{
+    static GHashTable *warned = NULL; /* world name -> itself */
+
+    if (world_name == NULL || world_name[0] == '\0') {
+        return;
+    }
+    if (warned == NULL) {
+        warned = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    }
+    if (g_hash_table_contains(warned, world_name)) {
+        return;
+    }
+    g_hash_table_add(warned, g_strdup(world_name));
+
+    g_warning("WebKit(WebView2): script world '%s' is IGNORED by %s — WebView2 has no public "
+              "isolated-world API, so this runs in the page's own world and a page script can "
+              "see and replace anything it defines. The darwin backend honours the same "
+              "argument (WKContentWorld), so this is a backend divergence and not a no-op.",
+              world_name,
+              where);
+}
+
 GjsifyWebView2UserScript *gjsify_webview2_user_script_new_for_world(
     const gchar *source,
     GjsifyWebView2UserContentInjectedFrames injected_frames,
@@ -229,18 +289,7 @@ GjsifyWebView2UserScript *gjsify_webview2_user_script_new_for_world(
     const gchar *const *allow_list,
     const gchar *const *block_list)
 {
-    if (world_name != NULL && world_name[0] != '\0') {
-        /* Once per process, not once per script: a bridge injects its bootstrap
-         * on every navigation and a per-call warning would bury the log. */
-        static gsize warned = 0;
-        if (g_once_init_enter(&warned)) {
-            g_warning("WebKit(WebView2): script world '%s' ignored — WebView2 has no public "
-                      "isolated-world API, so this script runs in the page's own world. "
-                      "A page script can see and replace anything it defines.",
-                      world_name);
-            g_once_init_leave(&warned, 1);
-        }
-    }
+    gjsify_webview2_warn_ignored_world(world_name, "UserScript");
     return gjsify_webview2_user_script_new(
         source, injected_frames, injection_time, allow_list, block_list);
 }
@@ -382,7 +431,7 @@ gboolean gjsify_webview2_user_content_manager_register_script_message_handler(
 {
     g_return_val_if_fail(GJSIFY_WEBVIEW2_IS_USER_CONTENT_MANAGER(self), FALSE);
     g_return_val_if_fail(name != NULL, FALSE);
-    (void) world_name; /* warned in user_script_new_for_world; one warning is enough */
+    gjsify_webview2_warn_ignored_world(world_name, "register_script_message_handler");
 
     for (guint i = 0; i < self->handlers->len; i++) {
         if (g_strcmp0(g_ptr_array_index(self->handlers, i), name) == 0) {
@@ -406,7 +455,7 @@ void gjsify_webview2_user_content_manager_unregister_script_message_handler(
 {
     g_return_if_fail(GJSIFY_WEBVIEW2_IS_USER_CONTENT_MANAGER(self));
     g_return_if_fail(name != NULL);
-    (void) world_name;
+    gjsify_webview2_warn_ignored_world(world_name, "unregister_script_message_handler");
 
     for (guint i = 0; i < self->handlers->len; i++) {
         if (g_strcmp0(g_ptr_array_index(self->handlers, i), name) == 0) {
@@ -462,7 +511,6 @@ struct _GjsifyWebView2Settings {
     GObject parent_instance;
     gboolean enable_developer_extras;
     gboolean enable_javascript;
-    gboolean allow_file_access_from_file_urls;
     gboolean enable_write_console_messages_to_stdout;
 };
 
@@ -470,7 +518,6 @@ enum {
     SETTINGS_PROP_0,
     SETTINGS_PROP_ENABLE_DEVELOPER_EXTRAS,
     SETTINGS_PROP_ENABLE_JAVASCRIPT,
-    SETTINGS_PROP_ALLOW_FILE_ACCESS_FROM_FILE_URLS,
     SETTINGS_PROP_ENABLE_WRITE_CONSOLE_MESSAGES_TO_STDOUT,
     SETTINGS_N_PROPS
 };
@@ -489,9 +536,6 @@ static void gjsify_webview2_settings_get_property(
             break;
         case SETTINGS_PROP_ENABLE_JAVASCRIPT:
             g_value_set_boolean(value, self->enable_javascript);
-            break;
-        case SETTINGS_PROP_ALLOW_FILE_ACCESS_FROM_FILE_URLS:
-            g_value_set_boolean(value, self->allow_file_access_from_file_urls);
             break;
         case SETTINGS_PROP_ENABLE_WRITE_CONSOLE_MESSAGES_TO_STDOUT:
             g_value_set_boolean(value, self->enable_write_console_messages_to_stdout);
@@ -512,9 +556,6 @@ static void gjsify_webview2_settings_set_property(
             break;
         case SETTINGS_PROP_ENABLE_JAVASCRIPT:
             self->enable_javascript = g_value_get_boolean(value);
-            break;
-        case SETTINGS_PROP_ALLOW_FILE_ACCESS_FROM_FILE_URLS:
-            self->allow_file_access_from_file_urls = g_value_get_boolean(value);
             break;
         case SETTINGS_PROP_ENABLE_WRITE_CONSOLE_MESSAGES_TO_STDOUT:
             self->enable_write_console_messages_to_stdout = g_value_get_boolean(value);
@@ -538,9 +579,6 @@ static void gjsify_webview2_settings_class_init(GjsifyWebView2SettingsClass *kla
         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
     settings_props[SETTINGS_PROP_ENABLE_JAVASCRIPT] = g_param_spec_boolean(
         "enable-javascript", NULL, NULL, TRUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
-    settings_props[SETTINGS_PROP_ALLOW_FILE_ACCESS_FROM_FILE_URLS] = g_param_spec_boolean(
-        "allow-file-access-from-file-urls", NULL, NULL, FALSE,
-        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
     settings_props[SETTINGS_PROP_ENABLE_WRITE_CONSOLE_MESSAGES_TO_STDOUT] = g_param_spec_boolean(
         "enable-write-console-messages-to-stdout", NULL, NULL, FALSE,
         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
@@ -1236,7 +1274,12 @@ void gjsify_webview2_web_view_evaluate_javascript(
 
     g_return_if_fail(GJSIFY_WEBVIEW2_IS_WEB_VIEW(self));
     g_return_if_fail(script != NULL);
-    (void) world_name;
+    gjsify_webview2_warn_ignored_world(world_name, "evaluate_javascript");
+    /* @source_uri is dropped WITHOUT a warning, and that asymmetry is deliberate:
+     * WebView2's ExecuteScript has no source-URI parameter, and the argument
+     * changes nothing a caller can observe except the text attributed to a script
+     * in an error. A warning for a cosmetic loss would train readers to ignore
+     * the ones above, which are behavioural. Documented in the header instead. */
     (void) source_uri;
 
     task = g_task_new(self, cancellable, callback, user_data);
@@ -1274,6 +1317,27 @@ void gjsify_webview2_web_view_get_snapshot(
     GError *error = NULL;
 
     g_return_if_fail(GJSIFY_WEBVIEW2_IS_WEB_VIEW(self));
+
+    /* BOTH argument divergences are reported HERE, in the portable layer, and not
+     * in the engine: they are properties of the API contract rather than of
+     * WebView2, so they must be reported even when the call goes on to fail for
+     * want of an engine or a pump — a caller whose snapshot never arrives should
+     * still learn that the arguments would not have been honoured either. */
+    gjsify_webview2_warn_once(
+        region == GJSIFY_WEBVIEW2_SNAPSHOT_REGION_FULL_DOCUMENT,
+        "SnapshotRegion.FULL_DOCUMENT is not available — WebView2's CapturePreview captures "
+        "the laid-out viewport only, so this returns the visible region.");
+    /* `options` was dropped by a bare `(void) options;` in the engine, with no
+     * warning and no entry in the ADR's list of what stage 1 does not do — the
+     * one silent drop among the documented divergences. TRANSPARENT_BACKGROUND
+     * and INCLUDE_SELECTION_HIGHLIGHTING have no CapturePreview equivalent.
+     * @gjsify/iframe only ever passes NONE, which is exactly why this stayed
+     * invisible. */
+    gjsify_webview2_warn_once(
+        options != GJSIFY_WEBVIEW2_SNAPSHOT_OPTIONS_NONE,
+        "SnapshotOptions other than NONE are IGNORED — WebView2's CapturePreview has no "
+        "transparent-background and no selection-highlighting option, so the capture is of "
+        "the page as it is composited.");
 
     task = g_task_new(self, cancellable, callback, user_data);
     g_task_set_source_tag(task, gjsify_webview2_web_view_get_snapshot);

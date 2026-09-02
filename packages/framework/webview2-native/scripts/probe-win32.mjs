@@ -73,6 +73,55 @@ function check(label, condition, detail) {
     }
 }
 
+// ADR 0035's rule for every divergence is "each fails loudly rather than
+// silently, because that is the difference between a subset and a lie". A
+// warning nothing reads is the same lie one step along, so the warnings are
+// ASSERTED rather than trusted.
+//
+// TWO GLib constraints shape this, both measured rather than assumed:
+// `g_log_set_writer_func()` may be called ONCE per process — a second call, and
+// `log_set_writer_default()` counts, is a fatal `GLib-ERROR` — so the writer is
+// installed once here and never revoked (node-gi ships the same wrapper gjs does,
+// with the field values as Uint8Arrays). And it returns UNHANDLED, not HANDLED,
+// so GLib still writes the message out rather than this probe having to echo it.
+//
+// Three of the five divergence warnings need a live widget (`gtk_widget_init`
+// needs a display), which is why they are here and the two display-free ones are
+// in `probe-types.js`.
+const decoder = new TextDecoder();
+let capture = null;
+
+GLib.log_set_writer_func((_level, fields) => {
+    if (capture !== null) {
+        const raw = fields?.MESSAGE;
+        capture.push(raw == null ? '' : decoder.decode(raw));
+    }
+    return GLib.LogWriterOutput.UNHANDLED;
+});
+
+// Runs `body` with the log captured and asserts it warned about `needle`. The
+// negative case is what this exists for: three of the four `world_name` entry
+// points used to drop the argument with a bare `(void) world_name;`, so an
+// assertion that only checked the call returns went green on a silent no-op for
+// as long as nobody looked. A/B'd against the unfixed library: `warnings seen: []`.
+function checkWarns(label, needle, body) {
+    capture = [];
+    let thrown = null;
+    try {
+        body();
+    } catch (error) {
+        thrown = error;
+    }
+    const messages = capture;
+    capture = null;
+    if (thrown !== null) {
+        check(label, false, String(thrown));
+        return;
+    }
+    const hit = messages.some((m) => m.includes(needle));
+    check(label, hit, hit ? undefined : `warnings seen: ${JSON.stringify(messages)}`);
+}
+
 const WebKit = requireGi('WebKit', '6.0');
 check('gi://WebKit 6.0 resolves', WebKit != null && WebKit.WebView != null);
 if (failures.length > 0) {
@@ -110,6 +159,22 @@ check('new WebKit.WebView() is a Gtk.Widget', view instanceof Gtk.Widget, `hosti
 check('hosting mode is OVERLAY (ADR 0035 stage 1)', view.get_hosting_mode() === WebKit.HostingMode.OVERLAY);
 check('the Win32 message pump is ATTACHED', view.get_message_pump_state() === WebKit.MessagePumpState.ATTACHED);
 check('an unparented view reports no overlay constraints', view.get_overlay_constraints().length === 0);
+
+// The divergences that need a widget. Each warning is emitted SYNCHRONOUSLY by
+// the portable layer at the call, before the engine is involved at all, so a
+// null callback is enough and the queued operation is dropped. Asserted here,
+// before `load_html`, so a failure cannot be confused with a load failure.
+checkWarns('evaluate_javascript warns about an ignored script world', 'IGNORED by evaluate_javascript', () =>
+    view.evaluate_javascript('1', -1, 'probe-world', null, null, null),
+);
+checkWarns(
+    'get_snapshot warns that FULL_DOCUMENT returns the viewport',
+    'SnapshotRegion.FULL_DOCUMENT is not available',
+    () => view.get_snapshot(WebKit.SnapshotRegion.FULL_DOCUMENT, WebKit.SnapshotOptions.NONE, null, null),
+);
+checkWarns('get_snapshot warns that non-NONE options are ignored', 'SnapshotOptions other than NONE are IGNORED', () =>
+    view.get_snapshot(WebKit.SnapshotRegion.VISIBLE, WebKit.SnapshotOptions.TRANSPARENT_BACKGROUND, null, null),
+);
 
 const loop = GLib.MainLoop.new(null, false);
 const seen = [];
