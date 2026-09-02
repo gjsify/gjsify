@@ -64,13 +64,21 @@ export function descriptorProblems(
 ): DescriptorProblem[] {
     const problems: DescriptorProblem[] = [];
     for (const d of descriptors) {
-        let Klass: { $gtype: GObject.GType; prototype: object };
+        let Klass: { $gtype: GObject.GType; prototype: object } | undefined;
         try {
             Klass = d.ctor() as unknown as { $gtype: GObject.GType; prototype: object };
         } catch (e) {
             problems.push({ gtype: d.gtype, problem: `ctor() threw: ${(e as Error).message}` });
             continue;
         }
+        // `ctor()` does not throw for a class the installed library lacks — it
+        // answers `undefined`, and the next line then dies as `can't access property
+        // "$gtype"`, naming nothing. Nothing true can be said about the policy of a
+        // class that is not here, so it is skipped; whether the absence itself is
+        // acceptable is judged in one place, by `explains every class the installed
+        // library does not have` in generated.spec.ts, which weighs it against the
+        // library version the surface was generated from.
+        if (!Klass) continue;
         const actual = GObject.type_name(Klass.$gtype);
         if (actual !== d.gtype) {
             problems.push({ gtype: d.gtype, problem: `ctor() is ${actual}, not ${d.gtype}` });

@@ -37,6 +37,12 @@
 //     widget under a different spelling, or as deliberately web-only — and either way
 //     WITH A REASON.
 //
+//     AND THE SAME ELEMENTS AGAIN AS A NAMESPACE. ADR 0034 clause 2 wants the vocabulary
+//     reachable as `Adw.ActionRow` / `Gtk.Entry`, not only as `AdwActionRow`; the members
+//     are derived from the registered elements and the table above (an element's own tag
+//     puts it in `Adw`, a declared `gtk-*` alias puts it in `Gtk`, a `webOnly` declaration
+//     gives it no member and says why) and held in both directions.
+//
 //     No count is written in this header any more. The one that used to be here ("65
 //     elements against 164 GTK tags, 43 sharing a spelling exactly") was already wrong
 //     when ADR 0034 cited this line: the generated table grew to 168 the same week and
@@ -91,6 +97,13 @@
 //   half that would have caught the four flattened GTK widgets, and the half that goes
 //   red the first time either surface grows a widget under a name that is not its
 //   GType's.
+//
+//   CAN go red, on the namespace half, for the third time in the same shape. The members
+//   are hand-written in `adwaita-web`'s `namespace.ts`; the element set is the hand-written
+//   `customElements.define(…)` calls, and the tag table that decides which namespace a
+//   member belongs in is emitted from the GIR. A registered element with no member fails, a
+//   member with no element fails, and a member bound to a class that is not that element's
+//   fails. What it does NOT hold is identity — it compares identifiers, not constructors.
 //
 //   CAN go red, on the property half, for the same reason one level down. The setters are
 //   hand-typed accessors in the port; `generated/props.ts` is emitted from the GIR by a
@@ -155,6 +168,7 @@ import {
     elementName,
     settablePropertiesOfClass,
     widgetClass,
+    widgetClassOfTag,
 } from './adwaita-elements.mjs';
 // `stripComments`, so a rule about DECLARATIONS is not answered by prose: these files
 // explain what they deliberately do not contain, and they name those things. A naive match
@@ -187,6 +201,9 @@ const TABLE_SOURCE = 'WEB_ELEMENT_ALIGNMENT in scripts/check-vocabulary-alignmen
 const NS_TABLE_SOURCE = 'NS_WIDGET_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
 const RN_TABLE_SOURCE = 'RN_WIDGET_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
 const NS_PROPERTY_TABLE_SOURCE = 'NS_PROPERTY_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
+
+/** Where the web surface's clause-2 namespace lives. Named in every namespace failure. */
+const NAMESPACE_SOURCE = 'the Adw/Gtk namespace in packages/web/adwaita-web/src/namespace.ts';
 
 /**
  * The floor a declared divergence has to clear, borrowed rather than invented:
@@ -833,7 +850,7 @@ function rendererWidgetProblems(surface) {
         ];
     }
     for (const widget of widgets) {
-        const klass = widgetClass(elementName(widget));
+        const klass = widgetClassOfTag(widget);
         const entry = table[widget];
         if (runtimeTags.has(widget)) {
             if (entry) {
@@ -911,11 +928,140 @@ function rendererWidgetProblems(surface) {
     for (const widget of declared) {
         if (!present.has(widget)) {
             problems.push(
-                `the alignment table declares ${widgetClass(elementName(widget))}, which ` +
+                `the alignment table declares ${widgetClassOfTag(widget)}, which ` +
                     `${surface.package} no longer ships — drop the entry from ${tableSource}`,
             );
         }
     }
+    return problems;
+}
+
+/** The tag prefixes that name a library, and the namespace object each one becomes. */
+const NAMESPACE_PREFIXES = ['adw', 'gtk'];
+
+/**
+ * `gtk-check-button` → `{ namespace: 'Gtk', member: 'CheckButton' }`, or null.
+ *
+ * The prefix of a tag in the generated table IS the library that owns the GType — the
+ * generator derives it from there — so clause 1 is a string split here rather than a
+ * mapping this file would otherwise have to invent and then keep.
+ */
+function namespacePlace(tag) {
+    const [prefix, ...rest] = tag.split('-');
+    if (!NAMESPACE_PREFIXES.includes(prefix) || rest.length === 0) return null;
+    return {
+        namespace: prefix[0].toUpperCase() + prefix.slice(1),
+        member: rest.map((part) => part[0].toUpperCase() + part.slice(1)).join(''),
+    };
+}
+
+/**
+ * The namespace half of the web surface — ADR 0034 clause 2, held in both directions.
+ *
+ * WHAT IS DERIVED AND FROM WHAT. Nothing here is chosen: an element's namespace member is
+ * read off the GIR tag it already answers to. Its own spelling is a tag → libadwaita owns
+ * the GType → `Adw.<Member>`; the alignment table declares it an alias of a `gtk-*` tag →
+ * GTK owns it → `Gtk.<Member>`; it is declared `webOnly` → the reference vocabulary has
+ * nothing behind it, so there is no GIR name and no member. That last line is the whole
+ * answer to "what about the web-only elements": their declaration already says they name
+ * no widget, and a member invented for one could only be held against this file's prose.
+ *
+ * WHY IT LIVES IN THIS GATE AND NOT IN A TEST INSIDE THE PACKAGE. Both sides of the
+ * derivation are here: the GIR-derived tag table this file already reads, and
+ * `WEB_ELEMENT_ALIGNMENT`. A package-owned test would have to reach across into
+ * `gtk-host/src/generated/widgets.ts` — a package `@gjsify/adwaita-web` does not depend on
+ * — and become a second reader of it, which is the copy that drifts
+ * `WIDGET_SURFACE_READERS` refuses for the same file one level up. A test in the package
+ * could assert `Gtk.Entry === customElements.get('adw-entry')`, which is stronger about
+ * IDENTITY and blind about MEMBERSHIP: it cannot enumerate what is missing.
+ *
+ * CAN GO RED. The members are hand-written in `namespace.ts`; the element set is
+ * hand-written in `customElements.define(…)` calls the generator that emits the tag table
+ * never reads. A registered element with no member fails, a member with no element fails,
+ * and a member bound to a class that is not that element's fails.
+ *
+ * WHAT IT DOES NOT HOLD, said rather than assumed: it compares IDENTIFIERS, so a member
+ * bound to a correctly-named import of the wrong module would pass — and it holds ONE
+ * surface. React Native's own namespace is held by rule 8 of
+ * `check-adwaita-rn-platform-split.mjs`, which is where the platform split makes the
+ * question different; NativeScript has not adopted the clause, and the summary line at the
+ * bottom of this file is what keeps that visible rather than a table in an ADR.
+ */
+function namespaceProblems(world) {
+    const { webElements, table, webNamespace, runtimeTags } = world;
+    const problems = [];
+    if (webNamespace === null) {
+        return [
+            `${WEB_SURFACE} exports no \`Adw\`/\`Gtk\` namespace — ADR 0034 clause 2 is unheld on the surface ` +
+                `that adopted it. Restore ${NAMESPACE_SOURCE} and the re-export of it from src/index.ts, or ` +
+                'amend the ADR: an export that quietly disappears is the surface leaving the convergence ' +
+                'without saying so.',
+        ];
+    }
+
+    /** namespace → member → the registered elements that may legitimately be bound to it. */
+    const expected = new Map();
+    for (const element of webElements) {
+        const alias = table[element]?.gtk;
+        const tag = runtimeTags.has(element) ? element : runtimeTags.has(alias) ? alias : undefined;
+        // Declared `webOnly`, or undeclared/aliasing nothing — the web half above already
+        // failed on the second case, and reporting it twice would ask for two fixes.
+        if (tag === undefined) continue;
+        const place = namespacePlace(tag);
+        if (place === null) {
+            problems.push(
+                `'${tag}' has no namespace prefix this rule can place (${NAMESPACE_PREFIXES.join(', ')}), so ` +
+                    `<${element}> cannot be given a namespace member. Teach namespacePlace the new library.`,
+            );
+            continue;
+        }
+        if (!expected.has(place.namespace)) expected.set(place.namespace, new Map());
+        const members = expected.get(place.namespace);
+        if (!members.has(place.member)) members.set(place.member, []);
+        members.get(place.member).push(element);
+    }
+
+    for (const [namespace, members] of expected) {
+        const actual = webNamespace.get(namespace);
+        if (actual === undefined) {
+            problems.push(
+                `${NAMESPACE_SOURCE} exports no \`${namespace}\`, so ${members.size} widget(s) with a ` +
+                    `${namespace} GType are reachable only under their Adw-prefixed class name`,
+            );
+            continue;
+        }
+        for (const [member, elements] of members) {
+            const classes = elements.map((element) => widgetClassOfTag(element));
+            const binding = actual.get(member);
+            if (binding === undefined) {
+                problems.push(
+                    `\`${namespace}.${member}\` is missing from ${NAMESPACE_SOURCE}, so <${elements[0]}> is ` +
+                        'registered and has no name in the shared vocabulary — the namespace is a second list ' +
+                        'the moment one of them is short',
+                );
+            } else if (!classes.includes(binding)) {
+                problems.push(
+                    `\`${namespace}.${member}\` is bound to ${binding}, and the element(s) that name says are ` +
+                        `${classes.join(' or ')} (<${elements.join('>, <')}>). A member pointing at another ` +
+                        'widget is a vocabulary that disagrees with itself',
+                );
+            }
+        }
+    }
+
+    // The other direction, and the one that matters: a member outlives the element it
+    // named, and reads as coverage that is gone.
+    for (const [namespace, actual] of webNamespace) {
+        const members = expected.get(namespace);
+        for (const member of actual.keys()) {
+            if (members?.has(member)) continue;
+            problems.push(
+                `${NAMESPACE_SOURCE} names \`${namespace}.${member}\`, which no registered adw-* element ` +
+                    'corresponds to — drop it, or register the element it promises',
+            );
+        }
+    }
+
     return problems;
 }
 
@@ -1015,7 +1161,7 @@ function propertyProblems(world) {
         for (const gtype of counterparts) {
             for (const key of interfaceKeys(interfaces, byGType.get(gtype) ?? '')) keys.add(key);
         }
-        const klass = widgetClass(elementName(widget));
+        const klass = widgetClassOfTag(widget);
         const against = counterparts.join(' + ');
         for (const property of nsProperties.get(widget)) {
             const key = `${widget}.${property}`;
@@ -1271,6 +1417,12 @@ export function alignmentProblems(world) {
         }
     }
 
+    // The NAMESPACE half of the web surface: the same element set again, this time as the
+    // second spelling clause 2 requires. It runs after the rules above because it reuses
+    // their verdicts — an element the table declares web-only is one this rule expects no
+    // member for.
+    problems.push(...namespaceProblems({ ...world, runtimeTags }));
+
     // The RENDERER halves. The same shape over a second independent source per surface:
     // these names are a widget FILENAME plus the class it exports (NativeScript) or a
     // barrel export line (React Native), all hand-typed, and the generator that emits the
@@ -1341,6 +1493,14 @@ const WORLD = () => ({
         'adw-box': { webOnly: FIXTURE_REASON },
         'adw-button': { gtk: 'gtk-button', why: FIXTURE_REASON },
     },
+    // The clause-2 namespace the fixture surface exports: `adw-bin` shares its spelling, so
+    // it is `Adw.Bin`; `adw-button` is declared an alias of `gtk-button`, so it is
+    // `Gtk.Button`; `adw-box` is web-only and has no member, which is what makes the
+    // no-member case a state the vectors run over rather than one only the real tree has.
+    webNamespace: new Map([
+        ['Adw', new Map([['Bin', 'AdwBin']])],
+        ['Gtk', new Map([['Button', 'AdwButton']])],
+    ]),
     nsWidgets: FIXTURE_NS_WIDGETS,
     nsTable: FIXTURE_NS_TABLE,
     surfaces: {
@@ -1499,6 +1659,46 @@ const VECTORS = [
         'a web-only reason under the floor',
         (w) => ({ ...w, table: { ...w.table, 'adw-box': { webOnly: 'because' } } }),
         '<adw-box> is declared web-only with a 7-character reason',
+    ],
+    // ADR 0034 clause 2. The namespace is a SECOND spelling of the same set, so both
+    // directions have to fail: a member that never arrived, and a member that outlived its
+    // element. The binding vector is the one a member-name-only rule would miss.
+    [
+        'a surface that exports no namespace at all',
+        (w) => ({ ...w, webNamespace: null }),
+        'exports no `Adw`/`Gtk` namespace',
+    ],
+    [
+        'a registered element with no namespace member',
+        (w) => ({ ...w, webNamespace: new Map([...w.webNamespace, ['Adw', new Map()]]) }),
+        '`Adw.Bin` is missing from',
+    ],
+    [
+        'a namespace member no element corresponds to',
+        (w) => ({
+            ...w,
+            webNamespace: new Map([
+                ...w.webNamespace,
+                [
+                    'Adw',
+                    new Map([
+                        ['Bin', 'AdwBin'],
+                        ['Ghost', 'AdwGhost'],
+                    ]),
+                ],
+            ]),
+        }),
+        'names `Adw.Ghost`, which no registered adw-* element',
+    ],
+    [
+        'a namespace member bound to another widget',
+        (w) => ({ ...w, webNamespace: new Map([...w.webNamespace, ['Gtk', new Map([['Button', 'AdwBin']])]]) }),
+        '`Gtk.Button` is bound to AdwBin',
+    ],
+    [
+        'a whole namespace the surface stopped exporting',
+        (w) => ({ ...w, webNamespace: new Map([...w.webNamespace].filter(([ns]) => ns !== 'Gtk')) }),
+        'exports no `Gtk`',
     ],
     // The NativeScript half.
     [
@@ -1896,6 +2096,11 @@ try {
         dialects: DIALECTS.map((dialect) => ({ ...dialect, ...readDialect(read(dialect.file)) })),
         webElements: surfaceWidgets.get(WEB_SURFACE) ?? [],
         table: WEB_ELEMENT_ALIGNMENT,
+        // Clause 2's side of the same surface, read THROUGH the enrolment registry for the
+        // reason the widget sets are: the reader that answers "has this surface adopted the
+        // namespace" for the summary is the one the rule is held against, so the line at the
+        // bottom cannot report an adoption the rule never looked at.
+        webNamespace: WIDGET_SURFACE_READERS[WEB_SURFACE].namespace(ROOT),
         // The reader returns bare names; the tables are keyed in the tag namespace they
         // are held against, so the `adw-` goes back on exactly once, here.
         nsWidgets,
@@ -1966,6 +2171,18 @@ const widgetDistance =
         (total, surface) => total + kindCount(surface.table, 'gir') + kindCount(surface.table, 'composes'),
         0,
     );
+
+// ADR 0034 clause 2, measured rather than asserted. A renderer that has not adopted the
+// namespace export is not a failure — it is the work that is left, and the number is
+// printed so it stops living in that ADR's table, where it drifts while the code moves.
+const namespaced = [];
+for (const [name, reader] of Object.entries(WIDGET_SURFACE_READERS)) {
+    if (reader.role !== 'renderer' || typeof reader.namespace !== 'function') continue;
+    const found = reader.namespace(ROOT);
+    if (found) namespaced.push(`${name} exports ${[...found].map(([ns, m]) => `${ns} with ${m.size}`).join(' and ')}`);
+}
+const renderersDeclared = Object.values(WIDGET_SURFACE_READERS).filter((r) => r.role === 'renderer').length;
+
 const census = propertyCensus(world);
 const propConverge = kindCount(NS_PROPERTY_ALIGNMENT, 'gir');
 console.log(
@@ -1981,6 +2198,8 @@ console.log(
         `counterpart's ConstructorProps, ${census.diverging} do not (${propConverge} should converge, ` +
         `${kindCount(NS_PROPERTY_ALIGNMENT, 'own')} declared own, ` +
         `${kindCount(NS_PROPERTY_ALIGNMENT, 'gap')} undecided). ` +
+        `Namespace exports (ADR 0034 clause 2): ${namespaced.length} of ${renderersDeclared} renderer(s)` +
+        `${namespaced.length > 0 ? ` — ${namespaced.join(', ')}` : ''}. ` +
         `Distance to one vocabulary: ${widgetDistance} widget name(s) and ${propConverge} property name(s), ` +
         'and both can only go down.',
 );

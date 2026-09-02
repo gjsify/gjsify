@@ -24,8 +24,31 @@ import { join, resolve } from 'node:path';
 import { TS_SOURCE_EXTENSIONS, isDeclarationFile, sourceExtensionRe } from './source-extensions.mjs';
 import { stripComments } from './strip-comments.mjs';
 
-/** A VALUE import of a `@girs/*` type package — it resolves to a `gi://` body. */
-export const GIRS_VALUE_RE = /^\s*import\s+(?!type\b)[^;]*from\s+['"]@girs\//m;
+/**
+ * A VALUE import of a `@girs/*` type package — it resolves to a `gi://` body.
+ *
+ * The `/vocabulary` subpath is EXCLUDED, and that is a fact about the subpath rather
+ * than a courtesy: it carries generated DATA (property names, signal names, enum
+ * nicks, versions — ADR 0029) and reaches no library at all. Measured on the published
+ * `@girs/gtk-4.0@4.5.0`: zero `gi://` references in the runtime `.js`, and
+ * `require()`-able under plain Node.
+ *
+ * Counting it as a GJS binding had a consequence, which is why this is not cosmetic:
+ * it is one of the signals that disqualifies `@gjsify/gtk-host` from the
+ * `giUrlReachesNodeBridge` tolerance in `audit-runtimes.mjs`, so a single spec importing
+ * the vocabulary as a value made the package's honest `node: "polyfill"` read as drift —
+ * while the node leg it declares (`test:gjs-on-node`, ADR 0030 § Decision 6) kept passing.
+ *
+ * Checked when the exclusion was added, both directions, because the dangerous edit is
+ * the one that narrows this to nothing and reports every package clean:
+ *
+ *     import { OWN_PROPS } from '@girs/gtk-4.0/vocabulary';   -> no match  (data)
+ *     import Gtk from '@girs/gtk-4.0';                        -> MATCH    (binding)
+ *     import type Gtk from '@girs/gtk-4.0';                   -> no match (type)
+ *     import {\n A,\n} from '@girs/adw-1';                    -> MATCH    (multi-line)
+ *     import {\n X,\n} from '@girs/adw-1/vocabulary';         -> no match
+ */
+export const GIRS_VALUE_RE = /^\s*import\s+(?!type\b)[^;]*from\s+['"]@girs\/(?![^'"]*\/vocabulary['"])/m;
 export const GI_URL_RE = /from\s+['"]gi:\/\//;
 /**
  * Dynamic `await import('gi://X')` / `import('@girs/X')` — the gamepad /

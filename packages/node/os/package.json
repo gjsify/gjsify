@@ -38,8 +38,8 @@
         "os"
     ],
     "dependencies": {
-        "@girs/gio-2.0": "4.4.0",
-        "@girs/glib-2.0": "4.4.0",
+        "@girs/gio-2.0": "4.6.0",
+        "@girs/glib-2.0": "4.6.0",
         "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {

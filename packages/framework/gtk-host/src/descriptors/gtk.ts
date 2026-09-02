@@ -124,9 +124,10 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
     // Gtk.Widget)` is FALSE for all three.
     //
     // They ARE in the generated table, and getting them there is what ADR 0028's
-    // 2026-08-28 amendment decided: `placementCarriers` is a second rule beside
-    // `concreteWidgets`, so the criterion is no longer "concrete GtkWidget
-    // descendant" alone. An earlier draft of this work curated them WITHOUT
+    // 2026-08-28 amendment decided: a child-holder rule beside the concrete-widget
+    // one, so the criterion is no longer "concrete GtkWidget descendant" alone. Both
+    // rules now run in ts-for-gir and arrive as `DECLS` and `CHILD_HOLDERS`; the
+    // functions that used to compute them here are gone with the GIR reader. An earlier draft of this work curated them WITHOUT
     // generating them, on the strength of `gate1`'s "an abstract or non-widget class
     // can still be curated as a MOUNT container" — and `generated.spec.ts`'s
     // `every curated widget is one the generator also found` refused it. The gate

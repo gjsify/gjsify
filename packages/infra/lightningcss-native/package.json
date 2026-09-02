@@ -56,9 +56,9 @@
         "native"
     ],
     "dependencies": {
-        "@girs/gjs": "4.4.0",
-        "@girs/glib-2.0": "4.4.0",
-        "@girs/gobject-2.0": "4.4.0"
+        "@girs/gjs": "4.6.0",
+        "@girs/glib-2.0": "4.6.0",
+        "@girs/gobject-2.0": "4.6.0"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

@@ -713,7 +713,7 @@ Output is a colour-coded table (red major, yellow minor, green patch, cyan prere
 
 `@gjsify/*` packages ship as one release train, so upgrade them together: `gjsify upgrade --latest --filter @gjsify`. See [Versioning & Compatibility](/gjsify/versioning/).
 
-`@girs/*` is pinned **exactly** in this repository, and a CI step holds it that way. Consistency is not the same question: every manifest agreeing on one caret is perfectly consistent and still resolves to whatever is newest, and a published package's declaration is what a consumer installs against with no lockfile of ours. Since `@gjsify/gtk-host` consumes the `@girs/<ns>/surface` subpath, a minor release moving it under such an install is a real hazard — so the pin is the whole version.
+`@girs/*` is pinned **exactly** in this repository, and a CI step holds it that way. Consistency is not the same question: every manifest agreeing on one caret is perfectly consistent and still resolves to whatever is newest, and a published package's declaration is what a consumer installs against with no lockfile of ours. Since `@gjsify/gtk-host` consumes the `@girs/<ns>/vocabulary` subpath, a minor release moving it under such an install is a real hazard — so the pin is the whole version.
 
 ### `gjsify dlx`
 

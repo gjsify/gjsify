@@ -1182,6 +1182,114 @@ it also listed are done.
   nothing asserts it behaves like one. The closing criterion stays ADR 0027 § 9's
   conformance vectors, unchanged.
 
+## Amendment 3, 2026-09-01 — clause 2 holds on React Native, and what it cost to make it not a second list
+
+Stage 1's remaining content was the `Adw` namespace export. It is done for
+`@gjsify/adwaita-react-native`: all three barrels — base, `.gtk`, `.native` — export
+`Adw`, additive, with `AdwBin` and `AdwClamp` unchanged.
+
+**The three-barrel shape is the whole difficulty, and § 3's sketch does not show it.**
+`export const Adw = { Bin, Clamp }` written once in a shared module would bind the BASE
+components, so `Adw.Bin` on the GTK build would hand back the thing that refuses at
+first render. That is the failure rule 3 of `check-adwaita-rn-platform-split.mjs` exists
+to prevent, arriving through a door rule 3 does not watch: it reads `export … from`
+lines, and a namespace member is neither. So each barrel builds `Adw` from its OWN
+platform modules, and a new rule 8 holds every member against the widgets on disk in
+both directions, per barrel, including which module each member is bound from.
+
+**§ 3 says the object is "generated from the table"; on this surface it is checked
+against the table instead, and the difference is worth stating.** The members are
+written out, because the `export { AdwBin } from './widgets/bin.js'` lines above them
+are load-bearing for a second reader — `adwaitaReactNativeWidgets` derives this
+package's widget set from exactly that form and refuses a line whose exported name and
+module name disagree. Collapsing the two into `import` + `export {}` would generate the
+namespace and destroy that coupling. Two mentions of each module, held equal by a rule,
+beats one mention that no longer says which widget it is.
+
+A/B, each branch separately, real exit codes: a missing member, an invented member and
+a member bound from the wrong platform module each take the check to exit 1; restored,
+exit 0. The check's summary line now states the namespace it verified, so a rule that
+stops finding anything cannot look like a rule that found nothing wrong.
+
+**What is left of clause 2.** `@gjsify/adwaita-web` (44 members plus 10 the alignment
+table already knows) and `@gjsify/adwaita-nativescript` (the largest, and the only one
+whose mapping has to be written before it can be generated). The ordering argument in
+§ 3 still holds for both. What has changed is that the pattern now exists in the
+repository rather than only in this document — including the part the document got
+wrong.
+
+## Amendment 4, 2026-09-01 — clause 2 holds on the web surface, and the split is `Gtk` vs `Adw` vs nothing
+
+`@gjsify/adwaita-web` exports `Adw` and `Gtk`. Additive as § 3 promised: every `Adw…`
+class export keeps working, every `<adw-…>` tag keeps working, nothing published moves.
+
+**Which namespace a member lands in is not decided per element.** It is the prefix of
+the GIR tag the element already answers to, which makes clause 1 a string split rather
+than a mapping this repository would have to invent and then keep:
+
+- the element's own spelling is a tag in the generated widget table (`adw-action-row`)
+  → libadwaita owns the GType → `Adw.ActionRow`;
+- the alignment table declares the element an alias of a `gtk-*` tag (`<adw-entry>` is
+  `gtk-entry`) → GTK owns the GType → `Gtk.Entry`.
+
+**The ten aliases therefore go under `Gtk`, not under `Adw`.** That is the table's own
+verdict read out loud: each of the ten `why` fields says libadwaita subclasses nothing
+here and styles the GTK type through a stylesheet partial, so the `adw-` prefix names
+the design system and the widget is GTK's. Exporting them as `Adw.Entry` would have
+carried the flattening this ADR exists to undo one indirection further in — the same
+mistake in a new place, which is what § 1 says about documenting a GTK widget under an
+Adwaita heading.
+
+**§ 3's arithmetic was off by one, and the reason is in the ledger.** "44 members plus
+10" is 53, not 54: `<adw-checkbox>` and `<adw-radio>` both declare `gtk-check-button`,
+because GTK4 has no radio TYPE — a radio is a `GtkCheckButton` with its `group` set,
+which `<adw-radio>`'s own `why` states. One GIR name cannot name two constructors, so
+`Gtk.CheckButton` is `AdwCheckbox`, the plain form, and the grouped one stays reachable
+as `AdwRadio`. A collision between two aliases is a shape § 3 did not anticipate and the
+next surface will meet again.
+
+**The eleven web-only elements get no member, and that absence IS the declaration.** A
+`webOnly` entry says no widget in the reference vocabulary stands behind the element, so
+there is no GIR name to export it under. The tempting exception is the four that DO name
+a real libadwaita GType — `AdwTabPage`, `AdwViewStackPage`, `AdwSidebarItem`,
+`AdwSidebarSection` descend from `GObject.Object` and not `GtkWidget`, so a table of
+concrete widgets has no row for them — and taking it would have put four names in the
+export whose only support is a sentence in this repository's own prose, which § 5 names
+as the half that cannot go red. It is also unnecessary: the derivation reads the tag
+table, so the day that table starts carrying one of them, its member appears by itself.
+`<adw-toggle>` already made exactly that move (§ Amendment, 2026-08-28) and this export
+would have needed no edit.
+
+**Where it lives.** `packages/web/adwaita-web/src/namespace.ts`, re-exported from
+`src/index.ts`, because a member per element plus an import per module is construction
+and the repo rule is that an `index.ts` is re-exports only. `namespaceExport` in
+`scripts/adwaita-elements.mjs` follows exactly one re-export hop for that reason, and now
+reads each member's BINDING as well as its name — `Gtk.Entry: AdwEntry` and
+`Gtk.Entry: AdwButton` are the same member list and different vocabularies.
+
+**The hold is a rule in `check-vocabulary-alignment.mjs`, not a test in the package**, and
+the choice follows from where the two sides live: the GIR-derived tag table and
+`WEB_ELEMENT_ALIGNMENT` are both already read there, while a package-owned test would have
+to reach across into `gtk-host/src/generated/widgets.ts` — a package `@gjsify/adwaita-web`
+does not depend on — and become the second reader of it that `WIDGET_SURFACE_READERS`
+refuses one level up. What a package test would buy is identity (`Gtk.Entry ===
+customElements.get('adw-entry')`) and what it cannot do is enumerate what is MISSING, which
+is the direction that matters. So the rule compares identifiers, and says so.
+
+A/B, each branch separately, real exit codes read without a pipe: a deleted member
+(`Adw.Clamp`), an invented member (`Adw.Ghost`), a member bound to another widget
+(`Gtk.Entry: AdwButton`), an alias placed under the wrong namespace (`Adw.Entry`), the
+whole export removed from the barrel, and — the derivation itself — a `webOnly` entry
+re-declared as a `gtk-box` alias, which made the check demand a `Gtk.Box` that was not
+there: exit 1 each time, exit 0 restored each time. The summary line now reads
+`Namespace exports (ADR 0034 clause 2): 2 of 3 renderer(s)`.
+
+**What is left of clause 2.** `@gjsify/adwaita-nativescript` alone — the largest, and the
+only one whose mapping has to be written before it can be generated. Its widget ledger is
+keyed on GTypes rather than tags, so its derivation is a lookup through
+`NS_WIDGET_ALIGNMENT` rather than a prefix split, and it belongs beside the web rule when
+it lands.
+
 ## Amendment 5, 2026-09-01 — clause 1 holds on the web surface, and the distance was measuring two surfaces out of three
 
 `@gjsify/adwaita-web` names every element it registers after the library that owns the

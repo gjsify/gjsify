@@ -472,3 +472,129 @@ Migration order, each step green before the next:
 4. Retire `gir.mts` from the generation path; keep it as the domparser differential
    test. Needs 3.
 5. Only then consider deriving `omittedProps` from the curated placement rule.
+
+## Amendment — 2026-09-01: the subpath is `vocabulary`, and steps 3 and 4 have landed
+
+**The subpath shipped as `@girs/<ns>/vocabulary`, not `/surface`.** Everything above
+that says `surface` means this. The rename happened before any consumer existed, so
+nothing was carried for compatibility. `surface` was the wrong word twice over: it is
+one of those abstract metaphor nouns that reads technical and says nothing, and this
+repo already spends it on three other things (the type surfaces `check-type-surfaces.mjs`
+gates, the widget surfaces `check-vocabulary-alignment.mjs` reads, an `.d.ts` API
+surface). `vocabulary` says what the export is — the names a namespace registers, and
+what each one is called — and it is already the word ADR 0034 uses for the rule this
+data serves.
+
+**Step 3 landed** as `packages/framework/gtk-host/src/generator/girs-vocabulary.mts`.
+Both halves of a vocabulary are read: the runtime `.js` for the facts and the `.d.ts`
+for the rendered types, the docs and — this one was not foreseen — the namespace
+imports. Which namespaces the rendered types reach into cannot be derived from the
+source list: `Gdk.RGBA` appears in a Gtk property, and emitting it without reading
+`import type Gdk from '@girs/gdk-4.0'` out of the vocabulary's own header produces
+TS2503 in a file nobody hand-edits.
+
+Measured against the artefact the GIR route produced. The first draft of this
+paragraph said `camelCase 2192 → 2187` and `the 14 lost are signal handlers off the four
+dropped bases`; both were counted against the `@girs` 4.4.0 this branch carried for its
+first twelve commits, and neither was recounted after the 4.5.0 upgrade three commits
+later — nor was the attribution right at 4.4.0. A number typed into prose is a copy of a
+measurement, so the command is here and the numbers are its output:
+
+```sh
+BASE=$(git merge-base origin/main HEAD)
+for rev in "$BASE" HEAD; do
+  f=$(mktemp); git show "$rev:packages/framework/gtk-host/src/generated/props.ts" >"$f"
+  printf '%s kebab=%s camel=%s of-which-handlers=%s\n' "$(git rev-parse --short "$rev")" \
+    "$(grep -cE "^ +'[^']+'\?:" "$f")" \
+    "$(grep -cE '^ +[A-Za-z_$][A-Za-z0-9_$]*\?:' "$f")" \
+    "$(grep -cE '^ +on[A-Z][A-Za-z0-9_$]*\?:' "$f")"
+done
+```
+
+kebab 599 → 601, camelCase 2192 → 2200, of which handlers 1227 → 1226. Set-differenced
+rather than netted, because netting is what hid the interesting half:
+
+- **+2 kebab, +9 camelCase properties, every one real:** `AdwAboutDialog.other-apps-title`,
+  `prefix` and `suffix` on `AdwSidebar` and `AdwViewSwitcherSidebar`,
+  `GtkEditable.input-interceptor`, and `GtkSvgWidget`'s `resource`, `state`, `stylesheet`.
+- **+12 handlers:** the six `onNotify…` twins of those properties, `GtkSvgWidget`'s
+  `onActivate` and `onError`, and `GtkWindow.onForceClose`.
+- **−13 handlers, of which FIVE are the dropped bases** — `GObject.Object`'s `notify` and
+  `Gio.ActionGroup`'s four. `PROVENANCE.droppedBases` names all four bases
+  (`GObject.Object`, `GObject.InitiallyUnowned`, `Gio.ActionGroup`, `Gio.ActionMap`), which
+  is what made those five attributable. A sixth, `GtkApplicationWindow::save-state`, is not
+  a loss at all: the installed GTK does not have that signal, and the old artefact carried
+  it because the GIR route read whichever of the machine's four GIRs came first — the
+  provenance problem this migration exists to end, visible in the diff.
+- **The remaining SEVEN are a REGRESSION**, and calling all of them dropped bases is what
+  kept it out of sight: `GtkEditable::changed`, `::insert-text`, `::delete-text`,
+  `GtkCellEditable::editing-done`, `::remove-widget`, `GtkColorChooser::color-activated`,
+  `GtkFontChooser::font-activated`. All seven are registered by the installed GTK —
+  `<gtk-entry onChanged={…}>` stopped type-checking. Upstream cause: ts-for-gir reads
+  `<glib:signal>` only in `IntrospectedClass.fromXML`, so no INTERFACE contributes a
+  signal. It stayed silent because signals had only the forward check (`offers no signal
+  the installed GTK does not emit`) where properties have had both directions all along;
+  the missing half is now `leaves no signal of the installed GTK out of the surface`, an
+  `it.failing` that names all seven and retires itself the day a released `@girs` carries
+  them.
+
+Two vocabularies read in 19 ms here (`npm run generate` prints it), against a 232 ms parse
+of one 6.2 MB GIR.
+
+**The vocabulary also reintroduced a conflict the model was already built for, and the
+surface stopped compiling.** `model.mts`' `omissions` map says in its own doc comment
+that a base losing a member has to be emitted as `Omit<Base, 'name'>`, that "the
+published vocabulary resolves them upstream, so the map now arrives empty", and that it
+stays "because a vocabulary that reintroduces a conflict needs a way to say so — the
+alternative is a surface that does not compile." `@girs` 4.5.0 reintroduced exactly one:
+`AdwPreferencesPage:name` is GIR-nullable and `GtkWidget:name` is not, so `string | null`
+met `string`, TS2430, and `check-type-surfaces` went from exit 0 on the pre-migration
+tree to exit 1 with nine problems — every one of them that single property. The map is
+now COMPUTED from the model rather than hard-coded empty, which is the only form that
+cannot be overtaken by the next release; it emits one `Omit<>` today, and
+`generator.spec.ts` carries the literal (`{ name: null }`) that `gjsify tsc` fails on
+without it.
+
+**One more thing the migration dropped silently, and it is fixed rather than recorded.**
+`Declaration.doc` was hard-coded `undefined`, so `generated/props.ts` went from 197
+interface-level doc comments to 3 while the vocabulary's own `.d.ts` still carried all
+191 — hover text is what a published type surface is FOR (ADR 0028 § 6). The `.d.ts`
+reader also attached a member's JSDoc to whichever member came next when that one had
+none, which shipped `GtkTreeView.model` documented as *“Extra indentation for each
+level.”* Both come from reading TypeScript with regexes, which fails by returning less
+rather than by raising; the reader is now `generator/vocabulary-dts.mts`, it imports no
+`gi://` so `generator.spec.ts` can pin each hazardous shape against a literal fixture,
+and it was differenced against the TypeScript compiler's own parse over both
+vocabularies (191 interfaces, 974 members: no divergence in names, types, `@since` or
+`@deprecated`).
+
+**One consequence the ADR did not anticipate: the vocabulary can describe a NEWER
+library than the one installed.** The GIR route read a local file and could never see
+this. `@girs` is generated on one machine and consumed on another, so `GtkSvgWidget` is
+in the surface and not in the GTK here. Six checks died on it as a bare `can't access
+property "$gtype"`, naming nothing. The provenance line now carries the library version
+(`Gtk-4.0/4.23.3`) and the suite reads it back, so the gap is judged once, by name,
+against the running version — and the two enum nicks in the same position
+(`GtkEditableProperties.prop-complete-text` and `prop-input-interceptor`) are listed on
+every run instead of silenced.
+
+Those checks are SHARP only where the versions match, and MEASURED, that is nowhere this
+project currently runs: CI is `ghcr.io/gjsify/ci-fedora:44`, the same Fedora release as the
+maintainer workstation, which carries GTK 4.22.4 and libadwaita 1.9.3. Worse for the nick
+check — none of the 129 enum types carries a per-type `SINCE`, so its only route is the
+vocabulary-wide comparison, and while the vocabulary is ahead that excuses every
+unresolvable nick at once. So the suite now PRINTS how much each rule excused and by which
+route, and the assertion that still bites is a second one in the opposite direction: every
+enum member the installed host registers must have a nick in the table (739 nicks over 129
+types today). Being ahead cannot explain a MISSING nick, so that direction stays sharp
+exactly while the other goes blunt — and it covers what the forward one never could, since
+a nick lost in extraction is not in `ENUM_NICKS` for any loop over `ENUM_NICKS` to find.
+
+**Step 4 dropped `gir.mts` outright, and the differential test it was to become is not
+being built.** The plan was to keep it as a domparser differential; the input makes that
+impossible in the honest form. A 6.2 MB `Gtk-4.0.gir` is a distro artefact that is not
+in this repository and should not be, so the test would either read whatever GIR the
+machine happens to have — a test that measures the machine — or read nothing. If
+domparser wants the large-document assurance the parse was quietly providing (232 ms,
+53 MB RSS), it needs a GENERATED fixture of its own, in its own package, sized on
+purpose. Named here rather than left to be rediscovered as a gap.

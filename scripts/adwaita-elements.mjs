@@ -194,6 +194,18 @@ const pascalCase = (name) =>
 export const widgetClass = (name) => `Adw${pascalCase(name)}`;
 
 /**
+ * The class name a TAG implies, prefix included: `gtk-entry` → `GtkEntry`,
+ * `adw-bin` → `AdwBin`.
+ *
+ * `widgetClass` above hard-codes `Adw` and is right for the readers that hand it a bare
+ * module name from an Adwaita-only tree. It is wrong for anything keyed on a tag, since
+ * ADR 0034 clause 1 gave nine web elements a `gtk-` spelling: deriving `AdwEntry` from
+ * `<gtk-entry>` made the namespace check report every one of them as a member pointing
+ * at another widget.
+ */
+export const widgetClassOfTag = (tag) => `${pascalCase(tag.slice(0, tag.indexOf('-')))}${pascalCase(elementName(tag))}`;
+
+/**
  * `gtk-entry` → `GtkEntry`, `adw-action-row` → `AdwActionRow`: the class a TAG names.
  *
  * The prefix is read off the tag rather than fixed at `Adw`, which is the whole of
@@ -824,4 +836,94 @@ export function adwaitaReactNativeWidgets(root) {
         );
     }
     return new Map([...widgets].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/** The two GIR namespaces clause 2 is satisfied by. Nothing else is a namespace here. */
+const NAMESPACE_NAMES = ['Adw', 'Gtk'];
+
+/** `export const Adw = { … }` — one flat object literal, which is all the clause needs. */
+const NAMESPACE_DECLARATION = /export const (Adw|Gtk) = \{([^}]*)\}/g;
+
+/** `export { Adw, Gtk } from './namespace.js'` — the one hop {@link namespaceExport} follows. */
+const NAMESPACE_REEXPORT = /export\s*\{([^}]*)\}\s*from\s*'(\.[^']*)'/g;
+
+/**
+ * The `Adw`/`Gtk` object literals in one already-comment-stripped source.
+ *
+ * @param {string} code
+ * @returns {Map<string, Map<string, string>>} namespace → member → bound identifier
+ */
+function namespaceMembers(code) {
+    /** @type {Map<string, Map<string, string>>} */
+    const found = new Map();
+    for (const [, namespace, body] of code.matchAll(NAMESPACE_DECLARATION)) {
+        /** @type {Map<string, string>} */
+        const members = new Map();
+        for (const part of body.split(',')) {
+            const entry = part.trim();
+            if (entry === '') continue;
+            const [member, binding] = entry.split(':').map((half) => half.trim());
+            members.set(member, binding === undefined || binding === '' ? member : binding);
+        }
+        found.set(namespace, new Map([...members].sort(([a], [b]) => a.localeCompare(b))));
+    }
+    return found;
+}
+
+/**
+ * The namespace object a surface exports, or `null` when it exports none.
+ *
+ * ADR 0034 clause 2: a surface's vocabulary is also reachable as `Adw.Bin`, not only as
+ * `AdwBin`. Read generically from the package's own `src/index.ts` rather than listed
+ * per surface, so a renderer that adopts the clause is picked up by having done it —
+ * the alternative is a table saying who has adopted it, which is the thing that goes
+ * stale while the code moves.
+ *
+ * Reports, never throws on absence: a renderer that has not adopted the clause is the
+ * state this reader exists to make visible rather than a fault.
+ *
+ * Only the GIR namespace names count. Clause 2 is satisfied by `Adw`/`Gtk`, not by any
+ * exported object literal that happens to start with a capital — matching those would
+ * report a config bag or a lookup table as an adopted namespace, which is worse than
+ * reporting nothing.
+ *
+ * ONE RE-EXPORT HOP IS FOLLOWED, because the entry point a surface must not grow is the
+ * one this reader looks at first: the repo rule is that an `index.ts` is barrel re-exports
+ * only, and a member per widget plus an import per module would make the barrel mostly
+ * construction. So `export { Adw, Gtk } from './namespace.js'` resolves and the
+ * declaration is read THERE. Exactly one hop: a chain would make "where is this surface's
+ * vocabulary" a search rather than a lookup. A specifier that resolves to nothing THROWS
+ * — the surface names a namespace module it does not have, and reporting that as "no
+ * namespace" would answer a broken file with the word for an honest absence.
+ *
+ * THE BINDING IS READ, not only the member name. `Gtk.Entry` naming `AdwEntry` and
+ * `Gtk.Entry` naming `AdwButton` are the same member list and different vocabularies,
+ * so a consumer that holds the members against the widgets on disk needs the right-hand
+ * side too. Shorthand (`{ Bin, Clamp }`) binds a member to its own name.
+ *
+ * @param {string} root repository root
+ * @param {string} srcDir the package's `src`, repo-relative
+ * @returns {Map<string, Map<string, string>> | null} namespace → member → bound
+ *   identifier, or null if the surface exports no namespace
+ */
+export function namespaceExport(root, srcDir) {
+    const path = join(root, srcDir, 'index.ts');
+    if (!existsSync(path)) return null;
+    const code = stripComments(readFileSync(path, 'utf8'));
+    const found = namespaceMembers(code);
+    for (const [, names, specifier] of code.matchAll(NAMESPACE_REEXPORT)) {
+        const exported = names.split(',').map((name) => name.trim());
+        if (!exported.some((name) => NAMESPACE_NAMES.includes(name))) continue;
+        const source = resolveLocalSource(path, specifier);
+        if (source === null) {
+            throw new Error(
+                `${srcDir}/index.ts re-exports ${exported.filter((name) => NAMESPACE_NAMES.includes(name)).join(', ')} ` +
+                    `from '${specifier}', which resolves to no source file.`,
+            );
+        }
+        for (const [namespace, members] of namespaceMembers(stripComments(readFileSync(source, 'utf8')))) {
+            found.set(namespace, members);
+        }
+    }
+    return found.size === 0 ? null : found;
 }

@@ -65,6 +65,12 @@ const KNOWN_GAPS = {
         'developers',
         'documenters',
         'license-type',
+        // The heading of a section this element does not render. `<adw-about-dialog>`
+        // has no other-apps list — libadwaita builds one from `add_other_app()`, which
+        // has no attribute and no counterpart here — so the title has nothing to title.
+        // Same family as the credits sections above it, and it arrived with @girs
+        // 4.5.0 rather than being overlooked.
+        'other-apps-title',
         'release-notes',
         'release-notes-version',
         'translator-credits',
@@ -211,7 +217,15 @@ export function propsBodies(propsSource) {
     // next line, and a literal space missed 65 of 190 interfaces. Each one then had no
     // body, and `propertyProblems` skipped its element as unmapped: eight `adw-*`
     // elements passed by being invisible. A vector pins it.
-    const head = /export interface (\w+)Props(?:\s+extends\s[^{]*)?\{/g;
+    //
+    // `\s*` before the brace is the SAME defect one clause over, and it was live here
+    // after the first one was fixed: `[^{]*` swallows the space only when `extends` is
+    // present, so an interface declared WITHOUT one — `export interface AdwToggleProps
+    // {` — never matched. 13 interfaces were invisible that way, and the @girs 4.5.0
+    // vocabulary took it to 25 by dropping the empty `GObject` base: `<adw-toggle>`
+    // left this check silently, and surfaced only as five KNOWN_GAPS entries reported
+    // as stale. `girs-vocabulary.mts` carries the identical rule and its own vector.
+    const head = /export interface (\w+)Props(?:\s+extends\s[^{]*)?\s*\{/g;
     let m;
     while ((m = head.exec(propsSource))) {
         let depth = 1;
@@ -309,6 +323,10 @@ export interface DemoWidgetProps extends GtkWidgetProps {
     /** A signal, not a property. */
     'on-clicked'?: () => void;
 }
+export interface RootWidgetProps {
+    /** Reachable ONLY if the head reader tolerates a space before the brace. */
+    rooted?: string;
+}
 export interface EmptyWidgetProps extends GtkWidgetProps {}
 export interface AfterEmptyProps extends GtkWidgetProps {
     trap?: string;
@@ -326,6 +344,7 @@ const FIXTURE_WIDGETS = `
     { gtype: 'DemoWidget', tag: 'adw-demo', ctor: () => Adw.Demo },
     { gtype: 'EmptyWidget', tag: 'adw-empty', ctor: () => Adw.Empty },
     { gtype: 'WrappedWidget', tag: 'adw-wrapped', ctor: () => Adw.Wrapped },
+    { gtype: 'RootWidget', tag: 'adw-root', ctor: () => Adw.Root },
 `;
 
 const world = (attributes, knownGaps = {}, tag = 'adw-demo') => ({
@@ -354,6 +373,12 @@ const VECTORS = [
     // skipped as unmapped and reported ZERO problems — green by being invisible.
     ['a widget whose extends list wraps is still read', () => world([], {}, 'adw-wrapped'), 1],
     ['a wrapped widget with its scalar observed is clean', () => world(['wrapped'], {}, 'adw-wrapped'), 0],
+
+    // The same class one clause over: an interface with NO `extends` at all, which is
+    // what `AdwToggleProps` became. Without `\s*` before the brace it had no body, so
+    // the element reported zero problems — green by being invisible, again.
+    ['a widget declared without `extends` is still read', () => world([], {}, 'adw-root'), 1],
+    ['a root widget with its scalar observed is clean', () => world(['rooted'], {}, 'adw-root'), 0],
 ];
 
 /**
@@ -427,6 +452,9 @@ function selfTest() {
     }
     if (!bodies.has('WrappedWidget')) {
         failures.push('an interface whose `extends` list wraps must be found — the head reader needs `\\s`');
+    }
+    if (!bodies.has('RootWidget')) {
+        failures.push('an interface with no `extends` must be found — the head reader needs `\\s*` before `{`');
     }
     const demo = scalarProps(bodies.get('DemoWidget') ?? '');
     for (const property of DEMO_SCALARS) {

@@ -109,6 +109,20 @@ export default async () => {
                 expect(problems.map((p) => `${p.gtype}: ${p.problem}`)).toStrictEqual([]);
             });
 
+            await it('names a policy method the class does not have', async () => {
+                // This was gate G3 in the generator, where it answered the question by
+                // walking GIR XML. The generator reads a published vocabulary now and
+                // has no method list at all, so the question moved to the only place
+                // that can still answer it: the installed class itself. Checked against
+                // the real GtkBox rather than a fixture, so a rename in GTK shows up as
+                // a failure here instead of a fixture that agrees with itself.
+                const box = lookupWidget('GtkBox');
+                const broken = { ...box, children: { ...box.children, append: 'nope' } } as WidgetDescriptor;
+                expect(descriptorProblems([broken]).map((p) => `${p.gtype}: ${p.problem}`)).toStrictEqual([
+                    'GtkBox: declares children.nope(), which GtkBox does not have',
+                ]);
+            });
+
             await it('every descriptor declares at least one method or an explicit none', async () => {
                 for (const d of BUILTIN_DESCRIPTORS) {
                     const methods = methodsOf(d.children);

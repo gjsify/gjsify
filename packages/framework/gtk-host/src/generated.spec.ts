@@ -22,13 +22,14 @@ import { installDiagnosticsGate } from './conformance/index.js';
 import {
     BUILTIN_DESCRIPTORS,
     CURATED_DESCRIPTORS,
+    GENERATED_PROVENANCE,
     GENERATED_WIDGETS,
     REQUIRED_CONSTRUCT_PROPS,
 } from './descriptors/index.js';
 import { createElement, insert, materialize, setEventHandler, setProp } from './host.js';
 import { DECLS, ENUM_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
-import { camelOf, eventPropOf } from './generator/tsmap.mjs';
-import { isWritable, lookupEnumNick, paramSpecs } from './props.js';
+import { camelOf, eventPropOf } from './generator/names.mjs';
+import { enumMembers, isWritable, lookupEnumNick, paramSpecs } from './props.js';
 import { isEventProp, toSignalName } from './signals.js';
 import { hasWidget, lookupWidget } from './registry.js';
 import { assertInjective, tagOf } from './tags.js';
@@ -63,10 +64,47 @@ export const newerThan = (since: string | undefined, running: string): boolean =
     return false;
 };
 
-const writableSpecs = (gtype: string): string[] => {
-    const descriptor = lookupWidget(gtype);
+/**
+ * The constructor a descriptor names, or `null` when the installed library has no
+ * such class.
+ *
+ * `ctor`'s declared type promises a constructor unconditionally. At runtime it
+ * answers `undefined` for a class the installed library predates — the vocabulary is
+ * generated against one GTK release and checked against whatever is on this machine,
+ * and GtkSvgWidget is newer than the GTK here. Six checks below used to dereference
+ * that and die as `can't access property "$gtype", ctor() is undefined`, naming
+ * nothing: the missing class had to be found by hand. The gap is now a fact one test
+ * reports and the others skip.
+ */
+const installedCtor = (descriptor: {
+    readonly ctor: () => unknown;
+}): (GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object)) | null =>
+    (descriptor.ctor() as
+        | (GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object))
+        | undefined) ?? null;
+
+/**
+ * The GType object for any DECLARATION the surface names, widget or interface.
+ *
+ * `lookupWidget` only knows the rows of the table; a chain link like `GtkEditable` is
+ * an interface with no row and no `ctor`, and it is precisely where the check below
+ * found something. Two namespaces are enough by construction — the vocabulary drops
+ * every base outside Gtk and Adw, which is why `GObject`'s `notify` and
+ * `Gio.ActionGroup`'s four signals cannot appear as omissions here.
+ */
+const declarationGType = (gtype: string): GObject.GType | null => {
+    const adw = gtype.startsWith('Adw');
+    if (!adw && !gtype.startsWith('Gtk')) return null;
+    const ns = (adw ? Adw : Gtk) as unknown as Record<string, unknown>;
+    const klass = ns[gtype.slice(3)] as { $gtype?: GObject.GType } | undefined;
+    return klass?.$gtype ?? null;
+};
+
+const writableSpecs = (gtype: string): string[] | null => {
+    const ctor = installedCtor(lookupWidget(gtype));
+    if (!ctor) return null;
     const names: string[] = [];
-    for (const [name, spec] of paramSpecs(descriptor.ctor(), gtype)) if (isWritable(spec)) names.push(name);
+    for (const [name, spec] of paramSpecs(ctor, gtype)) if (isWritable(spec)) names.push(name);
     return names;
 };
 
@@ -87,6 +125,52 @@ export default async () => {
             Gtk: `${Gtk.get_major_version()}.${Gtk.get_minor_version()}.${Gtk.get_micro_version()}`,
             Adw: `${Adw.get_major_version()}.${Adw.get_minor_version()}.${Adw.get_micro_version()}`,
         };
+        // The provenance line states the library version each vocabulary was generated
+        // from — `Gtk-4.0/4.23.3`. Read back here, it turns "this class is missing"
+        // from a crash into a question with an answer.
+        const generatedAgainst: Readonly<Record<string, string>> = Object.fromEntries(
+            GENERATED_PROVENANCE.split(' ')
+                .map((part) => /^(\w+)-[\d.]+\/([\d.]+)$/.exec(part))
+                .filter((m): m is RegExpExecArray => m !== null)
+                .map((m) => [m[1] as string, m[2] as string]),
+        );
+        const libraryOf = (gtype: string): 'Adw' | 'Gtk' => (gtype.startsWith('Adw') ? 'Adw' : 'Gtk');
+        /**
+         * WHICH rule excuses a type the installed library does not have, not merely
+         * whether one does.
+         *
+         * `stated` is exact: the vocabulary says the type arrived in a release newer
+         * than the one running. `blanket` is not — it only says the vocabulary as a
+         * whole is newer, which excuses EVERY absence at once for as long as that is
+         * true. Both were one boolean, so a run could not report how much it had
+         * stopped checking; measured here, 40 of 169 widgets carry a stated version
+         * and NONE of the 129 enum types do, so on the enum side the blanket is the
+         * only route there is.
+         */
+        const excuseFor = (gtype: string): 'stated' | 'blanket' | null => {
+            const library = libraryOf(gtype);
+            const declared = SINCE[gtype];
+            if (declared !== undefined) return newerThan(declared, running[library] as string) ? 'stated' : null;
+            const against = generatedAgainst[library];
+            return against !== undefined && newerThan(against, running[library] as string) ? 'blanket' : null;
+        };
+        const predatesHost = (gtype: string): boolean => excuseFor(gtype) !== null;
+        /**
+         * Whether the two checks that lean on `excuseFor` are sharp AT ALL on this host.
+         *
+         * They are not, wherever the vocabulary is ahead — and that is the normal state,
+         * CI included: the container is the same Fedora release as the maintainer
+         * workstation, which carries GTK 4.22.4 and libadwaita 1.9.3 against a
+         * vocabulary generated from 4.23.3 and 1.10.0. An earlier revision of this file
+         * claimed the opposite in a comment ("SHARP … in CI"), which is the shape of
+         * claim that survives precisely because nothing prints it. So it is printed.
+         */
+        const blunted = (['Gtk', 'Adw'] as const).filter(
+            (library) =>
+                generatedAgainst[library] !== undefined &&
+                newerThan(generatedAgainst[library] as string, running[library] as string),
+        );
+
         const unreleased = (key: string, declaration: string): boolean => {
             const library = declaration.startsWith('Adw') ? 'Adw' : declaration.startsWith('Gtk') ? 'Gtk' : null;
             if (!library) return false;
@@ -167,6 +251,9 @@ export default async () => {
                 // for everything else it might say.
                 const missingPortal = /^Cannot get portal org\.freedesktop\.portal\./;
                 for (const w of GENERATED_WIDGETS) {
+                    // A class the installed library does not have cannot be built. The
+                    // absence is weighed above, once; here it is simply not a row.
+                    if (!installedCtor(w)) continue;
                     // Through the HOST, not through `new w.ctor()`: `materialize` is
                     // where the refusal lives, so constructing around it would leave
                     // the guard itself unchecked.
@@ -272,10 +359,42 @@ export default async () => {
                 expect(slot instanceof Adw.LayoutSlot).toBe(true);
             });
 
+            await it('explains every class the installed library does not have', async () => {
+                // A class the host lacks is fine when the vocabulary was generated
+                // against a newer release — that is the normal state of this repo, and
+                // the provenance line says so. A class missing WITHOUT that gap means
+                // the surface names something that never existed, which is the failure
+                // this whole suite is for. Reported here so the other cases can skip
+                // silently instead of each rediscovering the same absence.
+                const unexplained: string[] = [];
+                // Excused by the blanket alone. Not a failure — but a number that must
+                // be READABLE, because it is the part of this check that did not run.
+                const blanket: string[] = [];
+                for (const w of GENERATED_WIDGETS) {
+                    if (installedCtor(w)) continue;
+                    const excuse = excuseFor(w.gtype);
+                    if (excuse === 'blanket') blanket.push(w.gtype);
+                    if (excuse !== null) continue;
+                    const library = libraryOf(w.gtype);
+                    unexplained.push(
+                        `${w.gtype} (generated against ${library} ${generatedAgainst[library] ?? '?'}, running ${running[library]})`,
+                    );
+                }
+                if (blanket.length > 0) {
+                    console.error(
+                        `  (${blanket.length} absent class(es) excused by the vocabulary-wide version alone, ` +
+                            `no stated one: ${blanket.join(', ')})`,
+                    );
+                }
+                expect(unexplained).toStrictEqual([]);
+            });
+
             await it('names a real class for every tag', async () => {
                 const wrong: string[] = [];
                 for (const w of GENERATED_WIDGETS) {
-                    const name = GObject.type_name(w.ctor().$gtype);
+                    const ctor = installedCtor(w);
+                    if (!ctor) continue;
+                    const name = GObject.type_name(ctor.$gtype);
                     if (name !== w.gtype) wrong.push(`${w.gtype} -> ${name}`);
                 }
                 expect(wrong).toStrictEqual([]);
@@ -286,7 +405,9 @@ export default async () => {
             await it('offers no property the installed GTK does not have as writable', async () => {
                 const problems: string[] = [];
                 for (const w of GENERATED_WIDGETS) {
-                    const real = new Set(writableSpecs(w.gtype));
+                    const writable = writableSpecs(w.gtype);
+                    if (!writable) continue;
+                    const real = new Set(writable);
                     for (const [name, declaration] of surfaceMembers(w.gtype, OWN_PROPS)) {
                         if (real.has(name)) continue;
                         if (unreleased(`${declaration}.${name}`, declaration)) continue;
@@ -300,7 +421,7 @@ export default async () => {
                 const problems: string[] = [];
                 for (const w of GENERATED_WIDGETS) {
                     const offered = surfaceMembers(w.gtype, OWN_PROPS);
-                    for (const name of writableSpecs(w.gtype))
+                    for (const name of writableSpecs(w.gtype) ?? [])
                         if (!offered.has(name)) problems.push(`${w.gtype}.${name}`);
                 }
                 // A failure here is the OPPOSITE skew and cannot be explained by a
@@ -314,7 +435,9 @@ export default async () => {
             await it('offers no signal the installed GTK does not emit', async () => {
                 const problems: string[] = [];
                 for (const w of GENERATED_WIDGETS) {
-                    const gtype = w.ctor().$gtype;
+                    const ctor = installedCtor(w);
+                    if (!ctor) continue;
+                    const gtype = ctor.$gtype;
                     for (const [signal, declaration] of surfaceMembers(w.gtype, OWN_SIGNALS)) {
                         if (GObject.signal_lookup(signal, gtype) !== 0) continue;
                         if (unreleased(`${declaration}::${signal}`, declaration)) continue;
@@ -322,6 +445,50 @@ export default async () => {
                     }
                 }
                 expect(problems).toStrictEqual([]);
+            });
+
+            await it('leaves no signal of the installed GTK out of the surface', async () => {
+                // THE REVERSE of the check above, and the asymmetry it closes was
+                // paid for: properties have had both directions for as long as this
+                // file has existed, signals only ever had the forward one. So the
+                // vocabulary migration removed SEVEN signals of the installed GTK
+                // from the surface — `<gtk-entry onChanged={…}>` stopped
+                // type-checking — and every check in this file stayed green,
+                // because nothing asks what the surface is MISSING.
+                //
+                // Asked per DECLARATION rather than per widget, against the same
+                // `DECLS` chain `surfaceMembers` walks, so a base the vocabulary
+                // deliberately dropped is never consulted and cannot appear here.
+                //
+                // THIS RAN UNDER `it.failing` FOR ONE RELEASE, and what it caught is
+                // why it exists. `IntrospectedInterface` in ts-for-gir had no
+                // `signals` field — only `IntrospectedClass.fromXML` read
+                // `<glib:signal>` — so every signal a GObject INTERFACE registers
+                // reached no vocabulary. Measured on Gtk-4.0: 8 signals over
+                // GtkEditable, GtkCellEditable, GtkColorChooser and GtkFontChooser,
+                // which through `implements` is 50 handler slots across 17 concrete
+                // widgets. `<gtk-entry onChanged>` was five of them. Fixed upstream
+                // in ts-for-gir #460 and released as @girs 4.6.0; the guard retired
+                // itself by going green, which under `it.failing` is a failure.
+                const missing: string[] = [];
+                const asked = new Set<string>();
+                for (const w of GENERATED_WIDGETS) {
+                    for (const declaration of DECLS[w.gtype] ?? []) {
+                        if (asked.has(declaration)) continue;
+                        const gtype = declarationGType(declaration);
+                        if (!gtype) continue; // not in this library — judged once, above
+                        asked.add(declaration);
+                        const offered = new Set(OWN_SIGNALS[declaration] ?? []);
+                        for (const id of GObject.signal_list_ids(gtype)) {
+                            const signal = GObject.signal_name(id);
+                            if (signal && !offered.has(signal)) missing.push(`${declaration}::${signal}`);
+                        }
+                    }
+                }
+                // Not vacuous: an empty chain would satisfy the assertion with
+                // nothing asked.
+                expect(asked.size > 100).toBe(true);
+                expect(missing).toStrictEqual([]);
             });
 
             await it('compares versions the way the two rules above rely on', async () => {
@@ -344,12 +511,71 @@ export default async () => {
                 // `coerce()` uses, so a nick the surface offers can never be one the
                 // host would refuse.
                 const problems: string[] = [];
+                const ahead: string[] = [];
                 for (const [gtype, nicks] of Object.entries(ENUM_NICKS)) {
                     for (const nick of nicks) {
-                        if (lookupEnumNick(gtype, nick) === undefined) problems.push(`${gtype}.${nick}`);
+                        if (lookupEnumNick(gtype, nick) !== undefined) continue;
+                        // A nick the host cannot resolve is a real defect ONLY when the
+                        // host is as new as the vocabulary. Generated against GTK 4.23
+                        // and run against an older one, `GtkEditableProperties`'
+                        // `prop-complete-text` is simply not here yet, and there is no
+                        // per-member SINCE to be finer than the library version.
+                        //
+                        // MEASURED, and worse than the earlier note here admitted:
+                        // NONE of the 129 enum types carries a stated version, so
+                        // `excuseFor` can only ever answer `blanket` for one of them —
+                        // and while the vocabulary is ahead, that answer is yes for
+                        // every nick at once. `problems` is then structurally empty,
+                        // in CI too (same Fedora release as the workstation, GTK
+                        // 4.22.4). The forward direction is therefore a REPORT while
+                        // that holds, and the assertion that still bites is the
+                        // reverse one below.
+                        (predatesHost(gtype) ? ahead : problems).push(`${gtype}.${nick}`);
                     }
                 }
+                if (ahead.length > 0)
+                    console.error(`  (${ahead.length} nick(s) newer than the installed library: ${ahead.join(', ')})`);
+                if (blunted.length > 0) {
+                    console.error(
+                        `  (this check is BLUNTED: ${blunted
+                            .map((library) => `${library} ${generatedAgainst[library]} > running ${running[library]}`)
+                            .join(', ')} — every unresolvable nick is excused)`,
+                    );
+                }
                 expect(problems).toStrictEqual([]);
+            });
+
+            await it('lists every enum nick the installed host registers', async () => {
+                // THE DIRECTION THE VERSION GAP CANNOT EXCUSE, and the reason it is a
+                // separate case rather than more lines in the one above.
+                //
+                // The forward check asks whether a nick the surface offers resolves,
+                // and a vocabulary generated against a NEWER library legitimately
+                // offers nicks this host has never heard of — so it is excused into
+                // silence. This asks the opposite: every member the installed enum
+                // registers must have a nick in the table. Being ahead cannot explain
+                // a MISSING one, so this stays sharp exactly while the other goes
+                // blunt, and it covers the class the other never could — a nick
+                // dropped in extraction is not in `ENUM_NICKS` at all, so no loop over
+                // `ENUM_NICKS` can see it.
+                //
+                // Through the member spelling `lookupEnumNick` derives, so the two
+                // agree by construction; a `-`-for-`_` misspelling normalises to the
+                // same member and is caught instead by `generator.spec.ts`, which
+                // asserts no emitted nick contains an underscore.
+                const uncovered: string[] = [];
+                let checked = 0;
+                for (const [gtype, nicks] of Object.entries(ENUM_NICKS)) {
+                    const members = enumMembers(gtype);
+                    if (!members) continue; // the host has no such enum — the case above owns it
+                    checked++;
+                    const covered = new Set(nicks.map((nick) => nick.toUpperCase().replace(/-/g, '_')));
+                    for (const member of members) if (!covered.has(member)) uncovered.push(`${gtype}.${member}`);
+                }
+                expect(uncovered).toStrictEqual([]);
+                // Not vacuous: an empty `ENUM_NICKS`, or a lookup that found no enum
+                // object at all, would satisfy the line above with nothing checked.
+                expect(checked > 100).toBe(true);
             });
 
             await it('names every event prop so the host resolves it back to the same signal', async () => {

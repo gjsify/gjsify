@@ -136,3 +136,8 @@ export { AdwAlertDialog, AdwAlertResponse } from './elements/adw-alert-dialog.js
 export { AdwPreferencesDialog, AdwPreferencesPage } from './elements/adw-preferences-dialog.js';
 export { AdwDialog } from './elements/adw-dialog.js';
 export type { AdwDialogPresentationMode } from './elements/adw-dialog.js';
+
+// ADR 0034 clause 2 — the same widgets, reachable as `Adw.ActionRow` / `Gtk.Entry`. LAST,
+// so every element module above is already evaluated and no tag is defined later than it
+// was: this line only adds a second spelling, it must not move a registration.
+export { Adw, Gtk } from './namespace.js';

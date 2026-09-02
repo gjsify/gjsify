@@ -2,10 +2,10 @@
 //
 // WHY EXACTNESS AND NOT CONSISTENCY. `gjsify upgrade --check` already holds that every
 // manifest declares a dependency at the SAME range, and that is a different question: a
-// tree where all 451 declarations agree on `^4.1.0` is perfectly consistent, our lockfile
+// tree where every declaration agrees on `^4.1.0` is perfectly consistent, our lockfile
 // pins it, and none of that reaches a consumer. What a stranger installs against is the
 // DECLARATION in a published package, with no lockfile of ours — and `@gjsify/gtk-host`
-// consumes the `@girs/<ns>/surface` subpath. A minor `@girs` release moving that subpath
+// consumes the `@girs/<ns>/vocabulary` subpath. A minor `@girs` release moving that subpath
 // under such an install is the hazard ADR 0029 § Risks 1 names.
 //
 // WHY A SCRIPT AND NOT `gjsify upgrade --check --exact`. That option exists and answers
@@ -24,7 +24,26 @@ import { join, relative } from 'node:path';
 
 const root = process.cwd();
 const DEP_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
-const SKIP_DIRS = new Set(['node_modules', '.git', 'lib', 'dist', 'refs', 'types-dev', 'types-release']);
+// Generated and vendored trees. `dist-templates` is spelled out because the set is
+// matched by EXACT name: it holds `create-gjsify`'s templates rendered at build time,
+// is gitignored, and its copies of a manifest are therefore whatever the last build
+// left behind. The uniformity rule below tripped over exactly that — CI carried a
+// stale 4.4.0 rendering while every tracked manifest already said 4.5.0, so the gate
+// reported a mixed tree that does not exist in the repository.
+//
+// A name-by-name list is the weak part of this: the next generated directory will need
+// the same edit. Asking git what is ignored would be the honest question, at the cost
+// of a process call per candidate.
+const SKIP_DIRS = new Set([
+    'node_modules',
+    '.git',
+    'lib',
+    'dist',
+    'dist-templates',
+    'refs',
+    'types-dev',
+    'types-release',
+]);
 
 /** Every package.json in the tree, including the ones outside the workspace set. */
 function manifests(dir, out = []) {
@@ -46,6 +65,21 @@ function manifests(dir, out = []) {
 /** A range is exact when it is a bare version — no operator, no range syntax. */
 const isExact = (range) => /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)*$/.test(range);
 
+/**
+ * `@girs/*` packages the current release train does not publish.
+ *
+ * Both still carry the namespace-version-as-release form ADR 0019 Decision 3 removed
+ * (`0.1.0-4.0.0-rc.5` = library version + the ts-for-gir that built it), and
+ * `npm view <pkg> version` confirms nothing newer exists — they stopped being cut long
+ * before 4.x. Holding them to the train's version would demand a version that cannot be
+ * installed, so they are exempt from the uniformity rule and NOT from the exactness one.
+ *
+ * That they are stale is a real finding, not a settled state; it belongs in a release
+ * question, not in this gate.
+ */
+const OFF_THE_RELEASE_TRAIN = new Set(['@girs/gwebgl-0.1', '@girs/gjsifywebrtc-0.1']);
+
+const byVersion = new Map();
 const offenders = [];
 let declarations = 0;
 
@@ -65,8 +99,41 @@ for (const file of manifests(root)) {
             if (typeof range !== 'string' || range.startsWith('workspace:')) continue;
             declarations++;
             if (!isExact(range)) offenders.push({ file: relative(root, file), field, name, range });
+            else if (!OFF_THE_RELEASE_TRAIN.has(name))
+                (byVersion.get(range) ?? byVersion.set(range, []).get(range)).push(`${relative(root, file)}  ${name}`);
         }
     }
+}
+
+// EXACT is not enough — they must all name the SAME version.
+//
+// Every `@girs/*` package requires its siblings at its own exact version, so a tree
+// where one manifest says 4.4.0 and another 4.5.0 cannot be installed from scratch at
+// all. The failure hides on a developer machine, where `node_modules` is already
+// populated and nothing re-resolves, and surfaces only where CI installs cold — which
+// on 2026-09-01 meant three green Linux legs and red darwin-x64, win32-x64 node legs
+// off fourteen declarations left behind by an upgrade.
+//
+// That those fourteen were missed is structural rather than careless: `gjsify upgrade`
+// walks the WORKSPACE, and `packages/napi/*` and `packages/node-gi/*` are not in its
+// globs. This script walks the tree and sees 471 declarations where the CLI sees 451 —
+// so it is the only place that can ask this question.
+if (offenders.length === 0 && byVersion.size > 1) {
+    const versions = [...byVersion.entries()].sort((a, b) => b[1].length - a[1].length);
+    console.error(
+        `check-girs-exact-pins: FAIL. ${declarations} @girs declaration(s) name ${byVersion.size} different versions.\n`,
+    );
+    for (const [version, sites] of versions) {
+        console.error(`  ${version} — ${sites.length} declaration(s)`);
+        for (const site of sites.slice(0, 8)) console.error(`      ${site}`);
+        if (sites.length > 8) console.error(`      … and ${sites.length - 8} more`);
+    }
+    console.error(
+        `\nA @girs package requires its siblings at its own exact version, so a mixed tree\n` +
+            `cannot be installed cold. Raise the minority: \`gjsify upgrade --latest --exact --filter @girs\`\n` +
+            `covers the workspace, and packages/napi + packages/node-gi are edited by hand.`,
+    );
+    process.exit(1);
 }
 
 if (offenders.length > 0) {
@@ -81,4 +148,6 @@ if (offenders.length > 0) {
     process.exit(1);
 }
 
-console.log(`check-girs-exact-pins: OK. ${declarations} @girs declaration(s), every one exact.`);
+console.log(
+    `check-girs-exact-pins: OK. ${declarations} @girs declaration(s), every one exact, all at ${[...byVersion.keys()][0] ?? 'n/a'}.`,
+);

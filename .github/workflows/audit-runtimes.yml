@@ -814,7 +814,13 @@ jobs:
       # `Revert-Of:` trailer marks the intent. Needs history, so it deepens the
       # shallow checkout for this step alone rather than making every other check in
       # the job pay for a full clone.
+      # `always()`: this step is 500-odd lines of YAML after the hard gates in the
+      # same job, so without it ANY earlier failure skips it — and a branch that has
+      # just failed a gate is exactly the branch a bad rebase produces. On #1449 the
+      # job died at the context-size gate and this never ran, while ten resurrected
+      # lines sat in the diff.
       - name: Check for resurrected prose (advisory)
+        if: always()
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref || 'main' }}

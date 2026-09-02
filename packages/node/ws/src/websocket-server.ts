@@ -418,7 +418,12 @@ export class WebSocketServer extends EventEmitter {
                 } else if (host === '::1') {
                     this._server.listen_local(port, Soup.ServerListenOptions.IPV6_ONLY);
                 } else {
-                    this._server.listen_all(port, 0);
+                    // `0` is "no flags", which every GIR flags field accepts and no
+                    // TypeScript enum can express: `Soup.ServerListenOptions` starts at
+                    // `HTTPS = 1` and has no zero member. @girs 4.5.0 narrowed this
+                    // parameter from `number` to the enum, so the cast is what carries
+                    // the C semantics across — not a silenced error.
+                    this._server.listen_all(port, 0 as Soup.ServerListenOptions);
                 }
 
                 // Resolve the actual port (0 → OS-assigned)

@@ -18,10 +18,10 @@
     "build:assets": "gjsify copy src/browser/index.html dist/"
   },
   "devDependencies": {
-    "@girs/adw-1": "4.4.0",
-    "@girs/gjs": "4.4.0",
-    "@girs/glib-2.0": "4.4.0",
-    "@girs/gtk-4.0": "4.4.0",
+    "@girs/adw-1": "4.6.0",
+    "@girs/gjs": "4.6.0",
+    "@girs/glib-2.0": "4.6.0",
+    "@girs/gtk-4.0": "4.6.0",
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
     "@gjsify/devtools": "workspace:^",

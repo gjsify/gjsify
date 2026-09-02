@@ -54,6 +54,21 @@ export function gjsImportsEmptyPlugin(options: GjsImportsEmptyOptions = {}): Plu
     const emptyGirs = options.emptyGirs ?? true;
     // When `@girs/*` is carved out, only `gi://*` reaches the empty redirect.
     const matcher = emptyGirs ? /^(@girs\/|gi:\/\/)/ : /^gi:\/\//;
+    // …with one subpath excluded on EVERY target, carve-out or not.
+    //
+    // `@girs/<ns>/vocabulary` is generated DATA — property names, signal names,
+    // enum nicks, versions (ADR 0029). It imports no `gi://`, binds no library and
+    // loads under plain Node; the reason it sits in `@girs` is that ts-for-gir
+    // generates it, not that it needs GJS. Emptying it produces
+    // `[MISSING_EXPORT] "PROVENANCE" is not exported by "\0gjsify-empty-gjs-import"`
+    // at bundle time, which reads like a missing export rather than a substituted
+    // module.
+    //
+    // The same over-broad assumption lived in `GIRS_VALUE_RE`
+    // (manifest-conformance), where it made gtk-host's honest `node: "polyfill"`
+    // read as runtime drift. Two tools, one rule: the package scope says who
+    // generated a file, the subpath says what it needs.
+    const isVocabulary = (source: string) => /^@girs\/[^/]+\/vocabulary$/.test(source);
     return {
         name: 'gjsify-gjs-imports-empty',
         resolveId: {
@@ -65,7 +80,7 @@ export function gjsImportsEmptyPlugin(options: GjsImportsEmptyOptions = {}): Plu
                 // matched specifiers; let everything else (including `@girs/*`
                 // when `emptyGirs` is false) fall through to the default
                 // resolver chain.
-                if (!matcher.test(source)) return null;
+                if (!matcher.test(source) || isVocabulary(source)) return null;
                 return { id: GJSIMPORTS_VIRTUAL_ID };
             },
         },

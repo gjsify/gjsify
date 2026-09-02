@@ -4,93 +4,6 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
-### Several named themes, one per desktop, selectable from the app's own settings
-
-`ThemeRegistry` (`packages/framework/gtk-host/src/style/theme.ts`) is built and ships
-exactly ONE theme: the neutral default, whose document is empty so an application looks
-like the desktop it is on. The product direction it was shaped to fit is not built:
-**several named themes — one that looks at home on each of the three desktop operating
-systems — with the default chosen by the host OS and the theme selectable at runtime
-from the application's own settings.** The runtime switch doubles as the way all three
-looks get tested on one machine, which is the reason it is a registry rather than a
-document loaded at startup.
-
-What is already in place, so the direction fits without a redesign: named registration,
-`select()` at runtime on one provider whose document is replaced, `selectDefault(platform)`
-choosing by an OS name the CALLER supplies, the containment probe at registration, and the
-measured provider priority (`PRIORITY_SETTINGS`, above libadwaita's own at 200 and below
-the generated sheet at 600, order-independently). What is missing is the two other themes,
-the settings UI that switches them, and a decision about what "at home on macOS" and "at
-home on Windows" actually mean in Adwaita's named colours — which is a design question and
-not a coding one, and should not be answered by guessing three palettes.
-
-The one thing NOT to reach for while doing it: `Adw.StyleManager:accent-color`. It is an
-ENUM (`AdwAccentColor`, nine named accents), so a token colour has no representation in it
-on ANY runtime — an accent is a `--accent-bg-color` redefinition in the theme's document,
-never a property write. It is read-only as well, on every closure measured and in
-libadwaita's own source, but do not build on THAT: the enum is the reason that survives a
-later release, a flag is not.
-
-### A correctly measured host fact, written as a layer invariant
-
-Two instances landed on one day: a POSIX-shaped expectation in an image-path test, and
-GTK's Unix print stack inside a platform-neutrally declared table. Both were measured
-correctly. Both were then written as though they were true of the layer rather than of the
-machine they were measured on, and each surfaced only when a leg ran somewhere else.
-
-**A third case looked like this class and is a DIFFERENT one, which is the more useful
-half.** `Adw.StyleManager:accent-color` was asserted READ-ONLY; the darwin leg went red;
-that was diagnosed as "the property is writable there" and written into a module comment,
-a website page and this file. It is false. libadwaita installs the ParamSpec
-`G_PARAM_READABLE` only, read at 1.10.alpha.1, and the flag now printed by
-`theme.spec.ts` reads read-only on all four measured closures. The leg went red because
-the vector read the spec through `GObject.Object.find_property.call(…)`, which answers null
-over the reverse bridge: the assertion that failed was `spec === null`, two lines above the
-flag, and the flag was never read there at all.
-
-So the shape to add to the ledger is not "a host fact written as a layer invariant" but
-**a red assertion on another OS read as a fact about that OS**. It is the more dangerous of
-the two, because it manufactures a measurement that was never taken: the first shape at
-least starts from something true. It reached a person as a product fact before CI could
-contradict it, and the conclusion it was used to support ("an accent is a CSS redefinition,
-not a property write") happens to be right for an unrelated and stronger reason — the
-property is an enum of nine named accents, so it cannot carry a token colour on any
-runtime, writable or not. A right answer resting on a wrong reason is the shape that breaks
-the moment someone acts on the reason. The cheap guard is procedural: a red assertion on a
-leg you cannot watch names the ASSERTION that failed before it names a cause, and a vector
-whose first assertion is a null check will report the null check.
-
-The mechanism this wants is not more care. A spec asserting a `ParamSpec` flag, a `libc`
-default, a path separator or an installed library's version is asserting a property of the
-CLOSURE it runs in; the portable claim is almost always about the EFFECT one layer up.
-Worth a rule the OS legs can enforce — something that flags an assertion whose subject is a
-runtime-provided flag or version — because every one of these was invisible until a leg
-that nobody watches went red.
-
-One instance of the class DID get its mechanism, and the way it was found is the argument
-for building the rest: `gjsify/no-gobject-method-borrow` now refuses
-`GObject.Object.<method>.call(SomeClass)`. A hand-written `grep` over 3585 tracked files
-reported the tree clean; the rule then found TWO more live sites, because the call was
-split across two lines (`GObject.Object.list_properties` / `.call(Gtk.ListItem)`) and a
-line-based search cannot see through a line break. The false all-clear was reported as a
-measurement before the rule contradicted it — which is the same failure one level up, and
-the reason a defect class invisible on one OS wants an AST rule rather than a sweep.
-
-### `packages/framework/AGENTS.md` is 444 bytes from silent truncation
-
-It is **32324 bytes** against the 32 KiB (32768) ceiling at which Codex truncates a
-project doc's tail *without saying so* — 444 bytes of headroom, and `status/agent-context-budget.json`
-pins the ceiling at the current size, so the next addition of any substance fails
-`check-agent-context-size` (measured: a 294-byte line did). The ratchet is doing its job;
-what it cannot do is shrink the file.
-
-The growth is in one place and the fix is the one the root AGENTS.md already prescribes:
-the `react-native` and `gtk-host` rows carry numbered lists of MEASUREMENTS — the kind of
-detail that belongs in `docs/` or on the website, linked from the rule that needs it. Moving
-those out is what buys room for the next real rule; raising the ceiling instead buys 444
-bytes once and then hits a limit that fails silently rather than loudly. Do NOT delete the
-incidents behind them — a rule without its reason gets "simplified" back into the bug.
-
 ### One package, two module instances — a "singleton" the bundle duplicates
 
 `@gjsify/adwaita-nativescript` is bundled **TWICE** into the NativeScript storybook
@@ -137,6 +50,20 @@ The skew is already known elsewhere: `gjsify system-check` catches `@girs/adw-1`
 libadwaita 1.9.2 (recorded further down this file). What was missing is the consequence — a
 `@girs/*` version is a claim about the GIR the types came from, and a measurement must name the
 library it ran against, which is `Adw.get_*_version()` and nothing else.
+
+**The skew is still live and now has one mechanism, on one surface.** Re-measured 2026-09-01:
+running `Gtk 4.22.4 / Adw 1.9.3` (`rpm -q` and `get_*_version()` agree), generated against
+`Gtk-4.0/4.23.3 Adw-1/1.10.0`. Since the vocabulary migration the generated artefacts carry
+BOTH numbers rather than one: `GENERATED_PROVENANCE` states the library the types came from,
+and `generated.spec.ts` reads it back against `get_*_version()`, so a class the host lacks is
+either explained by the gap or named as a fault. That is what turned six bare
+`can't access property "$gtype"` failures into `GtkSvgWidget (generated against Gtk 4.23.3,
+running 4.22.4)`.
+
+It fixes ONE surface. Every other measurement in this tree still has to name its own running
+library by hand, and the failure this entry recorded — reading the number off a type package —
+is as available as it ever was. The rule is unchanged; what exists now is one worked example of
+carrying both numbers instead of picking one.
 
 
 ### A node:test FILE fails with no named test and no message, on a leg nobody watches
@@ -506,12 +433,20 @@ after it had already drifted.
 
 Where each stands:
 
-| surface | GIR naming | namespace export | declared |
-|---|---|---|---|
-| `gtk-host` | holds by construction (`src/tags.ts:18`) | n/a | declares `role: reference` |
-| `adwaita-web` | **holds** — the 10 that violated it took the GIR name (ADR 0034 § Amendment 5) | absent | **held** — 12 web-only declarations, each with a reason |
-| `adwaita-nativescript` | 4 violate it; 2 more have no counterpart | absent | **held** — 8 widget entries + 52 property entries, `gir`/`composes`/`own`, each with a reason |
-| `adwaita-react-native` | holds (`AdwBin`, `AdwClamp`) | absent | **held** — declared, read from the base barrel, empty ledger |
+| surface | GIR naming | declared |
+|---|---|---|
+| `gtk-host` | holds by construction (`src/tags.ts:18`) | declares `role: reference` |
+| `adwaita-web` | 10 elements violate it (`adw-entry` is `GtkEntry`) | **held** — all 21 declared, all 21 with a reason |
+| `adwaita-nativescript` | 4 violate it; 2 more have no counterpart | **held** — 8 widget entries + 52 property entries, `gir`/`composes`/`own`, each with a reason |
+| `adwaita-react-native` | holds (`AdwBin`, `AdwClamp`) | **held** — declared, read from the base barrel, empty ledger |
+
+**The clause 2 column is gone from this table on purpose.** It said `absent` three times,
+and it was already wrong for React Native, which exports `Adw` on all three of its barrels
+(ADR 0034 § Amendment 3). `check-vocabulary-alignment.mjs` now reads each surface's own
+`src/index.ts` for `export const Adw`/`Gtk` and prints the tally on every run, as its last
+summary line. No figure is repeated here: the sentence above already said the copy is what
+drifts, and the first version of this paragraph quoted `1 of 3` and was overtaken by
+`adwaita-web` two commits later in the same branch.
 
 **Enrolment is a per-package declaration now, not a list in the gate.** `gjsify.widgetVocabulary`
 (`{ "role": "reference" | "renderer" }`) on each of the four, joined to the readers in
@@ -626,89 +561,61 @@ without its surface is a claim wider than its measurement.
 A full `tsc` conformance check remains the right oracle on the wrong instrument —
 `Gtk.Entry` is 509 members, and the gate job runs `checkout` + `setup-node` with no install.
 
-### The `@girs/*` widget surface exists but gtk-host cannot consume it yet
+### The `@girs/*` vocabulary is consumed — what the migration cost, and the one open decision
 
-ADR 0029 moves the GIR-derived widget vocabulary to `@girs/<ns>/surface`. The
-ts-for-gir half is implemented and landed there (generator in
-`packages/generator-typescript/src/surface/`, gate in `tests/widget-surface`). The
-gjsify half — deleting `gtk-host/src/generated/props.ts`, replacing it with the
-consumer dialect, and repointing `generated.spec.ts` at the published runtime data —
-is blocked on a RELEASE, and is not attempted here rather than faked.
+**Done.** `gtk-host` builds `props.ts`, `widgets.ts` and `surface-data.mts` from
+`@girs/<ns>/vocabulary` (ADR 0029 steps 3 and 4; the § Amendment there carries the
+measurements and the rename from `/surface`). `gir.mts`, `tsmap.mts` and the GIR route
+are gone with it, and `@gjsify/domparser` is no longer a `gtk-host` dependency.
 
-**What exactly is missing, and how to tell it has arrived.** `@girs/gtk-4.0@4.1.0`
-(the installed version, and the newest published) has four `exports` keys: `.`,
-`./ambient`, `./import`, `./gtk-4.0`. The subpath is a fifth.
+**The blocker in the old version of this entry was real but overcome-able, and how is
+worth keeping.** It said a consumer-side branch "could only resolve against a local
+ts-for-gir checkout, which is not something CI can reproduce". True of CI, false of the
+work: `@girs` was built locally from the ts-for-gir worktree and grafted into
+`node_modules/@girs` behind a marker file, which unblocked the whole consumer side while
+the release ran in parallel. Three traps in that recipe, all of which fail QUIETLY:
+`--configName` must be repo-relative (an absolute path is ignored and silently falls back
+to `modules: ["*"]`), the generator's interactive prompts exit 0 with no artefact unless
+fed (`yes ''`), and a long GJS run in the foreground is killed by the sandbox CPU governor
+as exit 144. Waiting for a release was never the only option.
 
-Ask the REGISTRY, because that is the question — the local `node_modules` can be stale
-either way:
+**One decision is open, and it is now measured rather than predicted.** This entry used to
+forecast that the vocabulary's GIR-stated nullability would narrow `props.ts`, which
+widened every object-typed property with `| null`. It did, exactly where forecast:
+`'action-target'?: GLib.Variant` where it was `GLib.Variant | null`, same for `cell-area`,
+`pointing-to`, `page-setup`, `print-settings` and the rest of the twelve. Total `| null`
+occurrences went UP (284 → 356) — the vocabulary states nullability in far more places
+than the old blanket rule reached, and takes it away in twelve.
 
-    npm view @girs/gtk-4.0 exports --json
+Nothing fails today: `check`, `test` (2276) and `lint` are all green, so no fixture passes
+`null` to one of the twelve. The decision is therefore not urgent and not closed — is
+GIR's annotation right? GObject accepts `NULL` for most object-typed properties whatever
+GIR says, so a narrowing that follows the annotation can still be wrong about the runtime.
+The honest way to settle it is to ASK the installed library (set `null` through
+`g_object_set` and see whether it is refused), not to pick a side in the types. Until
+someone does, the types say what GIR says, which is at least attributable.
 
-Or the installed copy, read as a FILE. Note what does not work and why: `require(
-'@girs/gtk-4.0/package.json')` throws `ERR_PACKAGE_PATH_NOT_EXPORTED`, because the
-package does not export `./package.json` and asking a package about its own `exports`
-through `exports` is circular — a probe that fails identically before and after the
-release answers nothing:
+**A second thing the release retires.** `checkTypeSkew` in
+`packages/infra/cli/src/utils/check-system-deps.ts` carries `isDegenerate()`, which detects
+`@girs`' namespace-version-as-release fallback — the value ADR 0019 Decision 3 removed in
+ts-for-gir#436. A released `@girs` now omits `libraryVersion` where the library declares
+none, so that detector reads for a shape that can no longer be published. It goes away
+rather than moving anywhere.
 
-    node -e "console.log(Object.keys(JSON.parse(require('node:fs').readFileSync('node_modules/@girs/gtk-4.0/package.json','utf8')).exports).join(' '))"
-
-When either prints `./surface`, and the file it names carries a `Widgets` interface plus
-the runtime constants (`OWN_PROPS`, `OWN_SIGNALS`, `DECLS`, `ENUM_NICKS`,
-`SLOT_CANDIDATES`, `SINCE`), migration steps 3–5 of ADR 0029 § Implementation can
-start. Until then a consumer-side branch could only resolve against a local
-ts-for-gir checkout, which is not something CI can reproduce.
-
-**Who unblocks it, and in what order.** Re-measured 2026-08-26: still four keys, so
-nothing below has happened yet. The whole chain hangs off ONE human action in the
-ts-for-gir repo — everything after it is automatic, and none of it is a gjsify action:
-
-1. **A ts-for-gir maintainer cuts a release** from `main` on a clean tree
-   (`yarn release:stable`; release-it has `requireBranch: main`). ts-for-gir is at
-   4.1.0 and tag `v4.1.0` already exists, so the surface — merged as ts-for-gir#438
-   on 2026-08-26 — is UNRELEASED code. #438 is a `feat`, so the cut is 4.2.0.
-   `.release-it.json` has `npm.publish: false`; the cut only tags and opens a GitHub
-   release.
-2. The `release: published` event fires `release-types.yml`, which runs
-   `build:types:release` and pushes the regenerated `@girs/*` to `gjsify/types@main`.
-   Nothing needs enabling: the config it uses, `.ts-for-gir.packages-all.rc.js`, already
-   sets `widgetSurface: true`, and `packages/templates/templates/package.json` emits the
-   `./surface` key conditionally on `girModule.hasWidgetSurface` — so the key appears for
-   the namespaces that declare a concrete `GtkWidget` descendant and nowhere else.
-3. That push fires `gjsify/types`' own `Release CI` (`on: push: branches: [main]`),
-   which publishes every `@girs/*` to npm. This is the step that makes the subpath
-   installable, and it is triggered by the push rather than by the release — so a cut
-   whose `release-types.yml` leg fails publishes `@ts-for-gir/*` and NO new `@girs/*`,
-   which looks like a successful release from the tag.
-4. Probe again. `npm view @girs/gtk-4.0 version` must read 4.2.0 AND
-   `npm view @girs/gtk-4.0 exports --json` must show the fifth key. Both, because
-   step 3 is where the two can come apart.
-
-Only then do ADR 0029 steps 3–5 become gjsify work. Nothing here is a gjsify PR, and
-there is no partial version of it worth landing first: a consumer-side branch pinned to
-a local ts-for-gir checkout is not something CI can resolve.
-
-**The same release retires a second thing.** `checkTypeSkew` in
-`packages/infra/cli/src/utils/check-system-deps.ts` carries `isDegenerate()`, which
-detects `@girs`' namespace-version-as-release fallback — the value ADR 0019 Decision 3
-removed in ts-for-gir#436, also unreleased. Once a released `@girs` omits
-`libraryVersion` where the library declares none, that detector is reading for a shape
-that can no longer be published, and it goes away rather than moving anywhere.
-
-**Two things to pin when it does arrive.** The `@girs` version must be EXACT, not a
-caret: `@gjsify/gtk-host` declares eight `@girs/*` packages at `^4.1.0`, and a minor
-`@girs` release moving the surface under a lockfile-less install is the hazard ADR
-0029 § Risks 1 names. And `@girs` carries two cadences — package `version` 4.1.0 and
-`libraryVersion` 4.23.0 — so the pin is on the former.
-
-**One measured shape difference to expect in the diff, not a bug.** `props.ts` widens
-every object-typed property with `| null`; the `@girs` surface prints the nullability
-GIR states, because it reads the same model the main emitter does. Measured against the
-generated Gtk-4.0 surface: **12 of its 418 dashed keys** — `action-target`, `cell-area`,
-`cell-area-context`, `pointing-to`, `page-setup`, `print-settings`, `accel-size-group`,
-`title-size-group` and the four `primary-`/`secondary-icon-gicon`/`-paintable` keys. So
-the migration will surface fixtures that pass `null` to a property GIR does not mark
-nullable. That is a real narrowing and wants a decision — widen in the consumer dialect,
-or fix the fixtures — rather than a silent cast.
+**Still open upstream, found while consuming the vocabulary — two, and each has a
+self-retiring guard rather than a note.** First, interface signals: only
+`IntrospectedClass.fromXML` reads `<glib:signal>`; `IntrospectedInterface` has no `signals`
+field at all, so `GtkEditable`, `GtkCellEditable`, `GtkColorChooser` and `GtkFontChooser`
+contribute 8 signals that reach no surface — 7 of which the installed GTK does emit, held
+by `leaves no signal of the installed GTK out of the surface` (an `it.failing` in
+`generated.spec.ts`). Second, `caller-allocates="0"` out parameters: `@girs` 4.5.0 spells
+`GtkSpinButton::input` as `input: (new_value: number) => number`, so reading that slot as a
+value type-checks again — the generator used to give it `OutParam`. Held by
+`type-tests/jsx/known-hole-out-param.tsx`, which must COMPILE and goes red the day it stops. Fixing it touches the emitter for all 705
+packages and is noted in `VocabularyDecl.signals` in ts-for-gir. The sibling defect —
+`OWN_SIGNALS` keyed by creatable widget while `OWN_PROPS` is keyed by declaration, which
+lost every signal of every abstract base including `GtkWidget`'s 13 — is fixed in
+ts-for-gir#456 and needs a release to reach here.
 
 ### What else could move to ts-for-gir, and the line that decides it
 

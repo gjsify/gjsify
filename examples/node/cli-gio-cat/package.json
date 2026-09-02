@@ -12,8 +12,8 @@
     "test": "gjsify run build && gjs -m dist/index.js src/fixture.txt"
   },
   "devDependencies": {
-    "@girs/gio-2.0": "4.4.0",
-    "@girs/gjs": "4.4.0",
+    "@girs/gio-2.0": "4.6.0",
+    "@girs/gjs": "4.6.0",
     "@gjsify/cli": "workspace:^",
     "typescript": "^6.0.3"
   },

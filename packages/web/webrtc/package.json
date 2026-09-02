@@ -67,12 +67,12 @@
         "@gjsify/webrtc-native": "workspace:^"
     },
     "devDependencies": {
-        "@girs/gjs": "4.4.0",
-        "@girs/glib-2.0": "4.4.0",
-        "@girs/gobject-2.0": "4.4.0",
-        "@girs/gst-1.0": "4.4.0",
-        "@girs/gstsdp-1.0": "4.4.0",
-        "@girs/gstwebrtc-1.0": "4.4.0",
+        "@girs/gjs": "4.6.0",
+        "@girs/glib-2.0": "4.6.0",
+        "@girs/gobject-2.0": "4.6.0",
+        "@girs/gst-1.0": "4.6.0",
+        "@girs/gstsdp-1.0": "4.6.0",
+        "@girs/gstwebrtc-1.0": "4.6.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",

@@ -16,6 +16,27 @@ One plain bash hook under `.githooks/`, no husky. `core.hooksPath` wired automat
 |**`post-rewrite` is GONE (ADR 0002).** It warned when a rebase or `--amend` staled a committed bundle behind `pre-commit`'s back — a real hazard for a 6.6 MB minified file git 3-way-text-merges without a conflict, and not proportionate for a 248 KB classifier CI rebuilds on every PR. The accepted regression: a stale classifier now costs a CI round-trip instead of a local fix. If it bites twice, the answer is a ~40-line hook for that one file, not the 1,183-line apparatus back.
 |**A child spawned with a hand-built `env` MUST carry `HOME`, and every `spawnSync` MUST carry a `timeout`.** That suite's sanitized-PATH test spawned `bash` with the environment reduced to `{PATH}` alone, and such a bash does not return: it spawns processes WITHOUT BOUND. Measured on linux-x64 — ONE 3-second call left 12794 `bash` processes; a suite run reached 4329 of them holding 78.7 GB, and the kernel resolved the resulting global OOM by killing unrelated desktop processes. Add `HOME` and the identical call is instant: 60 s hang + 12794 processes → 100 ms + 0. It hid because the PROBE and the invocation it gated were built from DIFFERENT env objects, so the call that hung was never the one under test — a precondition executed under another environment proves nothing about the one it guards. Build the child env ONCE and share it. The missing `timeout` is why it cost a day rather than a minute: an unbounded runaway is a MACHINE failure instead of a test failure, and the runner never returns a result to read — the first three attempts reported only `'test failed'` after 158 s, which is what a hang looks like from outside. `assertSpawnCompleted()` exists so a timeout reports as a timeout instead of arriving at the assertions as `status: null` + empty stdout, i.e. a confident diagnosis of the wrong failure.
 
+### Testing a `packages/infra/*` change — `node_modules/.bin/gjsify` is a BUNDLE too
+
+Preferring the workspace binary over a globally installed `gjsify` is the right instinct
+and it is only half the step: that shim execs `packages/infra/cli/dist/cli.gjs.mjs`, which
+INLINES `rolldown-plugin-gjsify` and `resolve-npm`, so an edit to a plugin's `src/` changes
+nothing a build sees until that bundle is rebuilt —
+
+    gjsify workspace @gjsify/rolldown-plugin-gjsify run build
+    gjsify workspace @gjsify/cli run build
+    gjsify workspace @gjsify/cli run build:gjs-bundle
+
+`gjsify run build` does NOT do the last one; `dist/cli.gjs.mjs` is untracked (ADR 0002), so
+a fresh worktree has none at all and the shim silently falls back to `packages/infra/cli/lib/index.js`.
+
+Measured 2026-09-01 on PR #1449: a carve-out in `plugins/gjs-imports-empty.ts` was recorded
+in a source comment as "does not take effect", on the strength of a probe added to the same
+plugin that also never ran. `grep` for the new code in `dist/cli.gjs.mjs` answers it in one
+line, and rebuilding the bundle both ways settled it — carve-out in, exit 0; carve-out out,
+exit 1 with six `MISSING_EXPORT`s. **Before concluding that a plugin change has no effect,
+grep the bundle for it.**
+
 ### Committed-artifact freshness — verify against the SOURCE, not the version string
 
 Tracked, version-locked build outputs: `packages/infra/cli/dist/affected.gjs.mjs` and `@gjsify/tsc`'s shipped `lib/lib*.d.ts` — ADR 0002 untracked the other two. The guards below each catch a failure the others structurally cannot; do not collapse them. Two changed shape with the untracking: the per-job "runs + reports the right version" steps are GONE (they could never see staleness, and would now be checking bytes the same run produced), and "reproduces from source" holds the two artifacts above while also BUILDING the untracked pair for the CI run artifact.

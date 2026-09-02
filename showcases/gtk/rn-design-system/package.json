@@ -27,12 +27,12 @@
         }
     },
     "devDependencies": {
-        "@girs/adw-1": "4.4.0",
-        "@girs/gjs": "4.4.0",
-        "@girs/glib-2.0": "4.4.0",
-        "@girs/gobject-2.0": "4.4.0",
-        "@girs/gtk-4.0": "4.4.0",
-        "@girs/pango-1.0": "4.4.0",
+        "@girs/adw-1": "4.6.0",
+        "@girs/gjs": "4.6.0",
+        "@girs/glib-2.0": "4.6.0",
+        "@girs/gobject-2.0": "4.6.0",
+        "@girs/gtk-4.0": "4.6.0",
+        "@girs/pango-1.0": "4.6.0",
         "@gjsify/cli": "workspace:^",
         "@gjsify/gtk-host": "workspace:^",
         "@gjsify/react-native": "workspace:^",
