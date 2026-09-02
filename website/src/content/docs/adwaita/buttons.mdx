@@ -55,8 +55,8 @@ short.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const content = new Adw.ButtonContent({
         label: 'Download',
@@ -123,8 +123,8 @@ header bar or toolbar, where a raised button looks too heavy.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gio from '@girs/gio-2.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gio from 'gi://Gio?version=2.0';
 
     const menu = new Gio.Menu();
     menu.append('Save as…', 'app.save-as');
@@ -220,7 +220,7 @@ once set", and the only setter is class-level.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     const group = new Adw.ToggleGroup();
     group.add(new Adw.Toggle({ label: 'List', iconName: 'view-list-symbolic' }));

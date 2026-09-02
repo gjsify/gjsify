@@ -7,7 +7,7 @@ It is the GTK renderer for the runtime-agnostic [`@gjsify/stories`](../stories) 
 ## Author a story
 
 ```ts
-import GObject from '@girs/gobject-2.0';
+import GObject from 'gi://GObject?version=2.0';
 import { ControlType, StoryWidget, type StoryArgs, type StoryMeta, type StoryModule } from '@gjsify/storybook';
 import { MyButton } from './my-button.js';
 

@@ -83,8 +83,8 @@ at a comfortable measure on a large display without wasting room on a small one.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const inner = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, widthRequest: 520 });
     inner.add_css_class('card');
@@ -183,9 +183,9 @@ the trailing one.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
-    import Gio from '@girs/gio-2.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
+    import Gio from 'gi://Gio?version=2.0';
 
     const title = new Adw.WindowTitle({ title: 'Text Editor', subtitle: 'notes.md' });
 
@@ -295,8 +295,8 @@ the view moves.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const view = new Adw.ToolbarView();
 
@@ -477,8 +477,8 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const wrap = new Adw.WrapBox({ childSpacing: 8, lineSpacing: 8 });
 

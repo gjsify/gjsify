@@ -48,8 +48,8 @@ Here is the story that ships with
 dropdown switches between the loading, content and error pages:
 
 ```ts
-import GObject from '@girs/gobject-2.0';
-import Gtk from '@girs/gtk-4.0';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { LoadingStack } from '@gjsify/adwaita-app';
 

@@ -1,11 +1,11 @@
 // StorybookApplication — the parameterized Adw.Application that hosts the
 // storybook window. original implementation.
 
-import Adw from '@girs/adw-1';
-import Gdk from '@girs/gdk-4.0';
-import Gio from '@girs/gio-2.0';
-import GObject from '@girs/gobject-2.0';
-import Gtk from '@girs/gtk-4.0';
+import Adw from 'gi://Adw?version=1';
+import Gdk from 'gi://Gdk?version=4.0';
+import Gio from 'gi://Gio?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import { installDevtools } from '@gjsify/devtools';
 import { storybookDevtoolsExtension } from './devtools-extension.js';
 import { installStorybookProbe, probeEnabled, type StorybookProbeOptions } from './probe.js';

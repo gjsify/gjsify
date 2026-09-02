@@ -1,9 +1,9 @@
 // Gtk.MenuButton — a button whose only job is to open a menu.
 // original implementation.
 
-import Gio from '@girs/gio-2.0';
-import Gtk from '@girs/gtk-4.0';
-import GObject from '@girs/gobject-2.0';
+import Gio from 'gi://Gio?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
+import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { MENU_BUTTON_ITEMS, menuButtonMeta } from './menu-button.meta.js';
 

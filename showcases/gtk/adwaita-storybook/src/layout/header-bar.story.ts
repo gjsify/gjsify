@@ -1,10 +1,10 @@
 // Adw.HeaderBar — a window header bar with a custom title widget and packed buttons.
 // original implementation.
 
-import Adw from '@girs/adw-1';
-import Gtk from '@girs/gtk-4.0';
-import Gio from '@girs/gio-2.0';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import Gtk from 'gi://Gtk?version=4.0';
+import Gio from 'gi://Gio?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { headerBarMeta } from './header-bar.meta.js';
 

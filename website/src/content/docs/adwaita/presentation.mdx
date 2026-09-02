@@ -51,7 +51,7 @@ it from an inline list glyph up to a full profile header.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     const avatar = new Adw.Avatar({
         size: 96,
@@ -102,8 +102,8 @@ space while the message applies.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const banner = new Adw.Banner({
         title: 'Metered connection: updates paused',
@@ -164,7 +164,7 @@ shows the **disabled-text** placeholder instead.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     // Ctrl+C. The keycap order is GTK's, not the string's: `<Shift><Control>a`
     // renders as Ctrl Shift A.
@@ -239,8 +239,8 @@ instead.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const spinner = new Adw.Spinner({
         widthRequest: 48,
@@ -287,8 +287,8 @@ give the user a way out, such as a button that creates their first document.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const button = new Gtk.Button({
         label: 'New Document',
@@ -355,7 +355,7 @@ so a single-line title stays vertically centred.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     const windowTitle = new Adw.WindowTitle({
         title: 'Inbox',

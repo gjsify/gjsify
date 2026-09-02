@@ -20,9 +20,7 @@
 		"skipLibCheck": true,
 		"composite": true,
 		"incremental": true,
-		"types": [
-			"node"
-		],
+		"types": ["node", "@girs/gjs", "@girs/gdkpixbuf-2.0", "@girs/gio-2.0", "@girs/glib-2.0"],
 		"lib": [
 			"es2015",
 			"es2016",

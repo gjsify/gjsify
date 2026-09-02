@@ -1,8 +1,8 @@
 // Adw.Avatar — a circular avatar that renders generated initials, a symbolic
 // icon, or a custom image. original implementation.
 
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { avatarMeta } from './avatar.meta.js';
 

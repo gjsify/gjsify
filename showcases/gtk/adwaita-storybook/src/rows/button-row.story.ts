@@ -1,8 +1,8 @@
 // Adw.ButtonRow — a boxed-list row that behaves like a button, with an optional
 // start icon and an applied style class. original implementation.
 
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
 import { type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 import { buttonRowMeta } from './button-row.meta.js';
 

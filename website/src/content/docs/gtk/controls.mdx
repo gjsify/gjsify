@@ -65,7 +65,7 @@ control in row presentation, and the label doubles as the row title.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Gtk from '@girs/gtk-4.0';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const entry = new Gtk.Entry({
         placeholderText: 'Search files…',
@@ -117,7 +117,7 @@ presented as a boxed-list row, use
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Gtk from '@girs/gtk-4.0';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const dropDown = Gtk.DropDown.new_from_strings(['Automatic', 'Always', 'Never', 'When busy']);
     // Without an expression the search field has nothing to match against.

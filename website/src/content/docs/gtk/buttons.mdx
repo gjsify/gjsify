@@ -63,8 +63,8 @@ each other and mean the same thing everywhere in the toolkit, so a
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const box = new Adw.WrapBox({ childSpacing: 12, lineSpacing: 12, halign: Gtk.Align.CENTER });
 
@@ -181,8 +181,8 @@ in the popover it opens. Libadwaita ships no menu button, so this is
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Gio from '@girs/gio-2.0';
-    import Gtk from '@girs/gtk-4.0';
+    import Gio from 'gi://Gio?version=2.0';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const menu = new Gio.Menu();
     menu.append('Save as…', 'app.save-as');

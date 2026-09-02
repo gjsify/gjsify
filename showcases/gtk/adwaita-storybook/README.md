@@ -166,8 +166,8 @@ exported as a `StoryModule`. See [`src/presentation/avatar.story.ts`](src/presen
 for the canonical pattern:
 
 ```ts
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
 import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 
 export class MyStory extends StoryWidget {

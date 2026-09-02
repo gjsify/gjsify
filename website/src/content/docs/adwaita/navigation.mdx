@@ -72,7 +72,7 @@ the sidebar and the content each their own navigation page and header bar.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     // Sidebar: an Adw.Sidebar, NOT a boxed list. A boxed list is a card of
     // settings and draws itself as one: rounded, bordered, edge to edge in a
@@ -245,7 +245,7 @@ navigation pane that should not push the main content aside on a narrow window.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
+    import Adw from 'gi://Adw?version=1';
 
     // Sidebar: a flat, title-less toolbar view over an Adw.Sidebar. The pane
     // needs no style class of its own: Adw.OverlaySplitView puts `.sidebar-pane`
@@ -413,8 +413,8 @@ the detail page and watch the back button appear.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const page = (title: string, body: Gtk.Widget) => {
         const toolbar = new Adw.ToolbarView();
@@ -553,8 +553,8 @@ already knows how to be one.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const items = [
         { title: 'Inbox', subtitle: '3 unread', icon: 'mail-unread-symbolic' },
@@ -709,8 +709,8 @@ content pane, not to work.
   </Fragment>
   <Fragment slot="gjs">
     ```ts
-    import Adw from '@girs/adw-1';
-    import Gtk from '@girs/gtk-4.0';
+    import Adw from 'gi://Adw?version=1';
+    import Gtk from 'gi://Gtk?version=4.0';
 
     const sheet = new Adw.BottomSheet({ open: true, modal: true, canClose: true });
 

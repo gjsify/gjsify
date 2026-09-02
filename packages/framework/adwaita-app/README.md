@@ -21,7 +21,7 @@ gjsify install @gjsify/adwaita-app
 ## Quick start
 
 ```ts
-import Adw from '@girs/adw-1';
+import Adw from 'gi://Adw?version=1';
 import { runAdwaitaApp, createNavShell, type NavItem } from '@gjsify/adwaita-app';
 
 const NAV: NavItem[] = [
