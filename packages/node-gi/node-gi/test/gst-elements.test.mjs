@@ -35,10 +35,13 @@ const REQUIRED_ELEMENTS = [
     ['audioresample', 'rate conversion to the context sample rate'],
     ['typefind', 'what decodebin autoplugs from — no typefind, no format detection'],
     ['volume', 'GainNode'],
-    // The OTHER source. `playbin3`/`uridecodebin3` above take a URI, and until the
-    // plugin allowlist was widened the only scheme they could open was file:// —
-    // measured on the published darwin-x64 and win32-x64 bundles, where this factory
-    // was the one null in an otherwise complete list.
+    // The URI path, and the source it had no source for. `playbin3` and `uridecodebin3`
+    // exist to take a URI and both resolved on every published bundle, while the only
+    // scheme behind them was file:// — `filesrc` rides in on coreelements and nothing
+    // shipped for http(s). Measured on the published darwin-x64 and win32-x64 bundles:
+    // souphttpsrc was the one null in an otherwise complete list.
+    ['playbin3', 'the URI player an app hands a stream address to'],
+    ['uridecodebin3', 'what playbin3 autoplugs the source and the decoder from'],
     ['souphttpsrc', 'the http(s) source — a URI pipeline has no source element without it'],
 ];
 
@@ -80,6 +83,60 @@ test('a URI pipeline can be built for an https source', { skip }, () => {
     assert.ok(pipeline, 'parse_launch returned nothing for the http source pipeline');
     assert.ok(pipeline.get_by_name('src'), 'souphttpsrc is not addressable in the built pipeline');
     pipeline.set_state(Gst.State.NULL);
+});
+
+// THE EFFECT, NOT THE PAYLOAD — and the questions above cannot reach it. Naming a factory
+// says a plugin loaded; what `playbin3` and every other URI element consult is the
+// registry's URI HANDLER table, and an app never asks for `souphttpsrc` by name. It hands
+// over a URI. Measured on win32-x64 0.45.0, where every element above already resolved:
+// `Gst.uri_protocol_is_supported(SRC, 'https')` was FALSE and `playbin3.set_state(PAUSED)`
+// on an https URI returned FAILURE outright, while a playable `file://` URI went ASYNC.
+//
+// OFFLINE, and it has to be. `set_state(PAUSED)` returns once the state change has
+// STARTED: the source element is looked up and created synchronously, its connection is
+// not. So the assertion is settled before the host would be asked for `example.invalid`,
+// and the pipeline is torn down on the next line either way.
+const NO_SUCH_SCHEME = 'gjsify-no-such-scheme';
+
+test('the registry can actually open an https URI, not merely name the element', { skip }, () => {
+    assert.equal(
+        Gst.uri_protocol_is_supported(Gst.URIType.SRC, 'https'),
+        true,
+        'no registered element handles the https URI scheme. This is the table playbin3 and ' +
+            'uridecodebin3 resolve a URI through — an element that exists but is not registered as a ' +
+            'URI handler is invisible to every one of them.',
+    );
+    assert.equal(Gst.uri_protocol_is_supported(Gst.URIType.SRC, 'file'), true, 'file:// regressed');
+    // The discriminator for the line above: a table that answered `true` to everything
+    // would satisfy it while measuring nothing.
+    assert.equal(Gst.uri_protocol_is_supported(Gst.URIType.SRC, NO_SUCH_SCHEME), false);
+});
+
+test('playbin3 accepts an https URI, and refuses one nothing handles', { skip }, () => {
+    // End to end, in the shape an app writes: hand playbin3 a URI and start it. The second
+    // leg is the control, and it is a scheme rather than a missing file — a `file://` URI
+    // that does not exist ALSO returns FAILURE (measured), so it would prove the assertion
+    // can fail without proving it fails for the reason claimed.
+    const stateChangeFor = (uri) => {
+        const playbin = Gst.ElementFactory.make('playbin3', null);
+        assert.ok(playbin, 'playbin3 did not resolve');
+        playbin.set_property('uri', uri);
+        const change = playbin.set_state(Gst.State.PAUSED);
+        playbin.set_state(Gst.State.NULL);
+        return change;
+    };
+    assert.notEqual(
+        stateChangeFor('https://example.invalid/stream.mp3'),
+        Gst.StateChangeReturn.FAILURE,
+        'playbin3 refused an https URI at READY -> PAUSED, which is what a bundle with no source element ' +
+            'for the scheme does: uridecodebin3 finds no handler and fails the state change synchronously, ' +
+            'with nothing on the bus an app could tell apart from a network fault.',
+    );
+    assert.equal(
+        stateChangeFor(`${NO_SUCH_SCHEME}://host/stream.mp3`),
+        Gst.StateChangeReturn.FAILURE,
+        'playbin3 accepted a URI scheme no element handles, so the assertion above proves nothing',
+    );
 });
 
 // NOT a network test, and deliberately not one: it asks whether the bundle carries a TLS
