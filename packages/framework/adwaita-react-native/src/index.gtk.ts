@@ -8,14 +8,20 @@
 // replacement, `scripts/check-adwaita-rn-platform-split.mjs`.
 
 export type {
+    AdwActionRowProps,
     AdwAvatarProps,
     AdwBannerProps,
     AdwBinProps,
     AdwButtonContentProps,
+    AdwButtonRowProps,
     AdwClampProps,
+    AdwEntryRowProps,
+    AdwExpanderRowProps,
     AdwHeaderBarProps,
+    AdwRowProps,
     AdwSpinnerProps,
     AdwStatusPageProps,
+    AdwSwitchRowProps,
     AdwToastOverlayHandle,
     AdwToastOverlayProps,
     AdwToolbarViewProps,
@@ -24,14 +30,19 @@ export type {
     AdwWrapBoxProps,
 } from './props.js';
 
+export { AdwActionRow } from './widgets/action-row.gtk.js';
 export { AdwAvatar } from './widgets/avatar.gtk.js';
 export { AdwBanner } from './widgets/banner.gtk.js';
 export { AdwBin } from './widgets/bin.gtk.js';
 export { AdwButtonContent } from './widgets/button-content.gtk.js';
+export { AdwButtonRow } from './widgets/button-row.gtk.js';
 export { AdwClamp } from './widgets/clamp.gtk.js';
+export { AdwEntryRow } from './widgets/entry-row.gtk.js';
+export { AdwExpanderRow } from './widgets/expander-row.gtk.js';
 export { AdwHeaderBar } from './widgets/header-bar.gtk.js';
 export { AdwSpinner } from './widgets/spinner.gtk.js';
 export { AdwStatusPage } from './widgets/status-page.gtk.js';
+export { AdwSwitchRow } from './widgets/switch-row.gtk.js';
 export { AdwToastOverlay } from './widgets/toast-overlay.gtk.js';
 export { AdwToolbarView } from './widgets/toolbar-view.gtk.js';
 export { AdwWindowTitle } from './widgets/window-title.gtk.js';
@@ -48,28 +59,38 @@ export { AdwWrapBox } from './widgets/wrap-box.gtk.js';
 // from drifting is rule 8 of `check-adwaita-rn-platform-split.mjs`, which holds the
 // members of `Adw` against the widgets on disk in both directions.
 
+import { AdwActionRow as ActionRow } from './widgets/action-row.gtk.js';
 import { AdwAvatar as Avatar } from './widgets/avatar.gtk.js';
 import { AdwBanner as Banner } from './widgets/banner.gtk.js';
 import { AdwBin as Bin } from './widgets/bin.gtk.js';
 import { AdwButtonContent as ButtonContent } from './widgets/button-content.gtk.js';
+import { AdwButtonRow as ButtonRow } from './widgets/button-row.gtk.js';
 import { AdwClamp as Clamp } from './widgets/clamp.gtk.js';
+import { AdwEntryRow as EntryRow } from './widgets/entry-row.gtk.js';
+import { AdwExpanderRow as ExpanderRow } from './widgets/expander-row.gtk.js';
 import { AdwHeaderBar as HeaderBar } from './widgets/header-bar.gtk.js';
 import { AdwSpinner as Spinner } from './widgets/spinner.gtk.js';
 import { AdwStatusPage as StatusPage } from './widgets/status-page.gtk.js';
+import { AdwSwitchRow as SwitchRow } from './widgets/switch-row.gtk.js';
 import { AdwToastOverlay as ToastOverlay } from './widgets/toast-overlay.gtk.js';
 import { AdwToolbarView as ToolbarView } from './widgets/toolbar-view.gtk.js';
 import { AdwWindowTitle as WindowTitle } from './widgets/window-title.gtk.js';
 import { AdwWrapBox as WrapBox } from './widgets/wrap-box.gtk.js';
 
 export const Adw = {
+    ActionRow,
     Avatar,
     Banner,
     Bin,
     ButtonContent,
+    ButtonRow,
     Clamp,
+    EntryRow,
+    ExpanderRow,
     HeaderBar,
     Spinner,
     StatusPage,
+    SwitchRow,
     ToastOverlay,
     ToolbarView,
     WindowTitle,

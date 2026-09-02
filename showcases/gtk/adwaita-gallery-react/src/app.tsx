@@ -81,6 +81,22 @@ const AdwPasswordEntryRow = () => (
     </adw-preferences-group>
 );
 
+const AdwExpanderRow = () => (
+    <adw-preferences-group>
+        <adw-expander-row
+            title="Proxy settings"
+            subtitle="Route traffic through a custom proxy"
+            expanded
+        >
+            <adw-entry-row
+                title="Host"
+                text="proxy.example.com"
+            />
+            <adw-switch-row title="Use authentication" />
+        </adw-expander-row>
+    </adw-preferences-group>
+);
+
 const AdwButtonRow = () => (
     <adw-preferences-group>
         <adw-button-row
@@ -425,6 +441,7 @@ const Gallery = () => (
         <AdwSwitchRow />
         <AdwEntryRow />
         <AdwPasswordEntryRow />
+        <AdwExpanderRow />
         <AdwButtonRow />
         <AdwButtonContent />
         <GtkButton />
@@ -516,6 +533,14 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Adw.PasswordEntryRow', root:
         { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
                 { tag: 'adw-password-entry-row', gtype: 'AdwPasswordEntryRow', props: {"title":"Password","text":"correct-horse-battery"} }
+            ] }
+    },
+    { widget: 'Adw.ExpanderRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-expander-row', gtype: 'AdwExpanderRow', props: {"title":"Proxy settings","subtitle":"Route traffic through a custom proxy","expanded":true}, children: [
+                        { tag: 'adw-entry-row', gtype: 'AdwEntryRow', props: {"title":"Host","text":"proxy.example.com"} },
+                        { tag: 'adw-switch-row', gtype: 'AdwSwitchRow', props: {"title":"Use authentication"} }
+                    ] }
             ] }
     },
     { widget: 'Adw.ButtonRow', root:

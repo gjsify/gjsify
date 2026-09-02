@@ -219,6 +219,48 @@ export default async () => {
                 expect(said.includes('"content"')).toBe(false);
             });
 
+            await it('reports a wrapSlots key that names no slot', async () => {
+                // `makeWrapper` LOOKS THE SLOT UP, so a typo is not an error there —
+                // a miss reads as "no wrap", the child goes into the inner list bare,
+                // and the leak this declaration exists to close comes straight back,
+                // behind one `Gtk-WARNING` at unmount. Nothing else can see it: the
+                // methods all exist, the slots are all real, and the round-trip
+                // mechanism would fail with a message about a removal rather than
+                // about a misspelt key.
+                const problems = descriptorProblems([
+                    {
+                        gtype: 'AdwExpanderRow',
+                        ctor: () => Adw.ExpanderRow,
+                        children: {
+                            kind: 'slotted',
+                            slots: { prefix: 'add_prefix', suffix: 'add_suffix', row: 'add_row' },
+                            defaultSlot: 'row',
+                            remove: 'remove',
+                            wrapSlots: { rows: 'list-box-row' },
+                        },
+                    },
+                ]);
+                const said = problems.map((p) => p.problem).join('\n');
+                expect(said).toContain('wrapSlots names "rows"');
+                // And the CORRECT spelling is silent — otherwise the assertion above
+                // would pass over a rule that flags every wrapSlots entry there is.
+                expect(
+                    descriptorProblems([
+                        {
+                            gtype: 'AdwExpanderRow',
+                            ctor: () => Adw.ExpanderRow,
+                            children: {
+                                kind: 'slotted',
+                                slots: { prefix: 'add_prefix', suffix: 'add_suffix', row: 'add_row' },
+                                defaultSlot: 'row',
+                                remove: 'remove',
+                                wrapSlots: { row: 'list-box-row' },
+                            },
+                        },
+                    ]),
+                ).toStrictEqual([]);
+            });
+
             await it('an adder-backed slot with no remove refuses BY NAME, not by TypeError', async () => {
                 // The runtime half of the same rule. `policyProblems()` keeps this
                 // shape out of the BUILT-IN table, so this path is unreachable

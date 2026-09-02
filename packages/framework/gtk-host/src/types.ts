@@ -141,7 +141,26 @@ export type ChildPolicy =
      * rather than left to this comment — optional in the type and unchecked would turn
      * `Adw.ToolbarView` losing its `remove` into a `TypeError` deep inside an unmount.
      */
-    | { kind: 'slotted'; slots: Record<string, string>; defaultSlot: string; remove?: string }
+    | {
+          kind: 'slotted';
+          slots: Record<string, string>;
+          defaultSlot: string;
+          remove?: string;
+          /**
+           * Slots whose adder hands the child to an inner `Gtk.ListBox`, and which
+           * therefore need the same wrap `indexed` declares — keyed by slot, because a
+           * widget can have one such slot and two ordinary ones.
+           *
+           * MEASURED on GTK 4.22.4, and it is the wrap or a leak: `gtk_list_box_remove`
+           * does NOT unwrap. A `Gtk.ListBox` given a non-row child puts it inside an
+           * implicit `GtkListBoxRow`, and removing the ORIGINAL child then answers
+           * `Gtk-WARNING **: Tried to remove non-child 0x…` and leaves it parented —
+           * with a plain `Gtk.Label` and with a `Gtk.Button` alike. `Adw.ExpanderRow`'s
+           * `add_row` is that adder, so its disclosure slot declares the wrap and the
+           * host addresses the row it made.
+           */
+          wrapSlots?: Readonly<Record<string, 'list-box-row'>>;
+      }
     /**
      * `Gtk.Stack`, `Adw.NavigationView`: children addressed by name/tag.
      *

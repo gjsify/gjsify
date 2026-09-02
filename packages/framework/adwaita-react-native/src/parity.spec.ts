@@ -36,6 +36,9 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import type * as ActionRowBase from './widgets/action-row.js';
+import type * as ActionRowGtk from './widgets/action-row.gtk.js';
+import type * as ActionRowNative from './widgets/action-row.native.js';
 import type * as AvatarBase from './widgets/avatar.js';
 import type * as AvatarGtk from './widgets/avatar.gtk.js';
 import type * as AvatarNative from './widgets/avatar.native.js';
@@ -48,9 +51,18 @@ import type * as BinNative from './widgets/bin.native.js';
 import type * as ButtonContentBase from './widgets/button-content.js';
 import type * as ButtonContentGtk from './widgets/button-content.gtk.js';
 import type * as ButtonContentNative from './widgets/button-content.native.js';
+import type * as ButtonRowBase from './widgets/button-row.js';
+import type * as ButtonRowGtk from './widgets/button-row.gtk.js';
+import type * as ButtonRowNative from './widgets/button-row.native.js';
 import type * as ClampBase from './widgets/clamp.js';
 import type * as ClampGtk from './widgets/clamp.gtk.js';
 import type * as ClampNative from './widgets/clamp.native.js';
+import type * as EntryRowBase from './widgets/entry-row.js';
+import type * as EntryRowGtk from './widgets/entry-row.gtk.js';
+import type * as EntryRowNative from './widgets/entry-row.native.js';
+import type * as ExpanderRowBase from './widgets/expander-row.js';
+import type * as ExpanderRowGtk from './widgets/expander-row.gtk.js';
+import type * as ExpanderRowNative from './widgets/expander-row.native.js';
 import type * as HeaderBarBase from './widgets/header-bar.js';
 import type * as HeaderBarGtk from './widgets/header-bar.gtk.js';
 import type * as HeaderBarNative from './widgets/header-bar.native.js';
@@ -60,6 +72,9 @@ import type * as SpinnerNative from './widgets/spinner.native.js';
 import type * as StatusPageBase from './widgets/status-page.js';
 import type * as StatusPageGtk from './widgets/status-page.gtk.js';
 import type * as StatusPageNative from './widgets/status-page.native.js';
+import type * as SwitchRowBase from './widgets/switch-row.js';
+import type * as SwitchRowGtk from './widgets/switch-row.gtk.js';
+import type * as SwitchRowNative from './widgets/switch-row.native.js';
 import type * as ToastOverlayBase from './widgets/toast-overlay.js';
 import type * as ToastOverlayGtk from './widgets/toast-overlay.gtk.js';
 import type * as ToastOverlayNative from './widgets/toast-overlay.native.js';
@@ -132,6 +147,12 @@ type SatisfiesBase<Platform, Base, Name extends keyof Base & keyof Platform> = P
     ? SameKeys<PropsOf<Platform[Name]>, PropsOf<Base[Name]>>
     : false;
 
+export type ActionRowGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof ActionRowGtk, typeof ActionRowBase, 'AdwActionRow'>
+>;
+export type ActionRowNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof ActionRowNative, typeof ActionRowBase, 'AdwActionRow'>
+>;
 export type AvatarGtkSatisfiesBase = Assert<SatisfiesBase<typeof AvatarGtk, typeof AvatarBase, 'AdwAvatar'>>;
 export type AvatarNativeSatisfiesBase = Assert<SatisfiesBase<typeof AvatarNative, typeof AvatarBase, 'AdwAvatar'>>;
 export type BannerGtkSatisfiesBase = Assert<SatisfiesBase<typeof BannerGtk, typeof BannerBase, 'AdwBanner'>>;
@@ -144,8 +165,24 @@ export type ButtonContentGtkSatisfiesBase = Assert<
 export type ButtonContentNativeSatisfiesBase = Assert<
     SatisfiesBase<typeof ButtonContentNative, typeof ButtonContentBase, 'AdwButtonContent'>
 >;
+export type ButtonRowGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof ButtonRowGtk, typeof ButtonRowBase, 'AdwButtonRow'>
+>;
+export type ButtonRowNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof ButtonRowNative, typeof ButtonRowBase, 'AdwButtonRow'>
+>;
 export type ClampGtkSatisfiesBase = Assert<SatisfiesBase<typeof ClampGtk, typeof ClampBase, 'AdwClamp'>>;
 export type ClampNativeSatisfiesBase = Assert<SatisfiesBase<typeof ClampNative, typeof ClampBase, 'AdwClamp'>>;
+export type EntryRowGtkSatisfiesBase = Assert<SatisfiesBase<typeof EntryRowGtk, typeof EntryRowBase, 'AdwEntryRow'>>;
+export type EntryRowNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof EntryRowNative, typeof EntryRowBase, 'AdwEntryRow'>
+>;
+export type ExpanderRowGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof ExpanderRowGtk, typeof ExpanderRowBase, 'AdwExpanderRow'>
+>;
+export type ExpanderRowNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof ExpanderRowNative, typeof ExpanderRowBase, 'AdwExpanderRow'>
+>;
 export type HeaderBarGtkSatisfiesBase = Assert<
     SatisfiesBase<typeof HeaderBarGtk, typeof HeaderBarBase, 'AdwHeaderBar'>
 >;
@@ -159,6 +196,12 @@ export type StatusPageGtkSatisfiesBase = Assert<
 >;
 export type StatusPageNativeSatisfiesBase = Assert<
     SatisfiesBase<typeof StatusPageNative, typeof StatusPageBase, 'AdwStatusPage'>
+>;
+export type SwitchRowGtkSatisfiesBase = Assert<
+    SatisfiesBase<typeof SwitchRowGtk, typeof SwitchRowBase, 'AdwSwitchRow'>
+>;
+export type SwitchRowNativeSatisfiesBase = Assert<
+    SatisfiesBase<typeof SwitchRowNative, typeof SwitchRowBase, 'AdwSwitchRow'>
 >;
 export type ToastOverlayGtkSatisfiesBase = Assert<
     SatisfiesBase<typeof ToastOverlayGtk, typeof ToastOverlayBase, 'AdwToastOverlay'>
@@ -190,6 +233,8 @@ export type WrapBoxNativeSatisfiesBase = Assert<SatisfiesBase<typeof WrapBoxNati
  * would otherwise wave a missing widget through.
  */
 export const PARITY_ASSERTIONS = [
+    'ActionRowGtkSatisfiesBase',
+    'ActionRowNativeSatisfiesBase',
     'AvatarGtkSatisfiesBase',
     'AvatarNativeSatisfiesBase',
     'BannerGtkSatisfiesBase',
@@ -198,14 +243,22 @@ export const PARITY_ASSERTIONS = [
     'BinNativeSatisfiesBase',
     'ButtonContentGtkSatisfiesBase',
     'ButtonContentNativeSatisfiesBase',
+    'ButtonRowGtkSatisfiesBase',
+    'ButtonRowNativeSatisfiesBase',
     'ClampGtkSatisfiesBase',
     'ClampNativeSatisfiesBase',
+    'EntryRowGtkSatisfiesBase',
+    'EntryRowNativeSatisfiesBase',
+    'ExpanderRowGtkSatisfiesBase',
+    'ExpanderRowNativeSatisfiesBase',
     'HeaderBarGtkSatisfiesBase',
     'HeaderBarNativeSatisfiesBase',
     'SpinnerGtkSatisfiesBase',
     'SpinnerNativeSatisfiesBase',
     'StatusPageGtkSatisfiesBase',
     'StatusPageNativeSatisfiesBase',
+    'SwitchRowGtkSatisfiesBase',
+    'SwitchRowNativeSatisfiesBase',
     'ToastOverlayGtkSatisfiesBase',
     'ToastOverlayNativeSatisfiesBase',
     'ToolbarViewGtkSatisfiesBase',
@@ -241,6 +294,8 @@ export default async () => {
             // still add is COMPLETENESS: one assertion per widget per platform, which
             // is the half a deleted alias would silently take with it.
             expect([...PARITY_ASSERTIONS].sort()).toStrictEqual([
+                'ActionRowGtkSatisfiesBase',
+                'ActionRowNativeSatisfiesBase',
                 'AvatarGtkSatisfiesBase',
                 'AvatarNativeSatisfiesBase',
                 'BannerGtkSatisfiesBase',
@@ -249,14 +304,22 @@ export default async () => {
                 'BinNativeSatisfiesBase',
                 'ButtonContentGtkSatisfiesBase',
                 'ButtonContentNativeSatisfiesBase',
+                'ButtonRowGtkSatisfiesBase',
+                'ButtonRowNativeSatisfiesBase',
                 'ClampGtkSatisfiesBase',
                 'ClampNativeSatisfiesBase',
+                'EntryRowGtkSatisfiesBase',
+                'EntryRowNativeSatisfiesBase',
+                'ExpanderRowGtkSatisfiesBase',
+                'ExpanderRowNativeSatisfiesBase',
                 'HeaderBarGtkSatisfiesBase',
                 'HeaderBarNativeSatisfiesBase',
                 'SpinnerGtkSatisfiesBase',
                 'SpinnerNativeSatisfiesBase',
                 'StatusPageGtkSatisfiesBase',
                 'StatusPageNativeSatisfiesBase',
+                'SwitchRowGtkSatisfiesBase',
+                'SwitchRowNativeSatisfiesBase',
                 'ToastOverlayGtkSatisfiesBase',
                 'ToastOverlayNativeSatisfiesBase',
                 'ToolbarViewGtkSatisfiesBase',

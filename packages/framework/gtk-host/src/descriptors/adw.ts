@@ -82,6 +82,44 @@ export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
         },
     },
     {
+        gtype: 'AdwExpanderRow',
+        ctor: () => Adw.ExpanderRow,
+        // THREE slots, and the default is the one the action row does not have.
+        // MEASURED on libadwaita 1.9.3: `add_row`, `add_prefix`, `add_suffix` and
+        // `remove` exist; `insert` and `add` do not. `set_child` DOES exist — inherited
+        // from `GtkListBoxRow` — and is the trap this entry closes: writing through it
+        // replaces the widget's own template, taking the header, the disclosure and the
+        // chevron with it, at exit 0. Only a descriptor can say which of the two a child
+        // means here.
+        //
+        // `defaultSlot: 'row'` because an unslotted child of an expander is a DISCLOSED
+        // row — the placement the widget exists for, and the one `AdwActionRow`'s policy
+        // has no counterpart of. Measured, the three land in different trees: `add_row`
+        // puts the child under `GtkListBox < GtkRevealer < AdwExpanderRow`, `add_suffix`
+        // inside the header `AdwActionRow`, so the choice is observable rather than
+        // cosmetic.
+        //
+        // `wrapSlots` ON THE `row` SLOT, AND IT IS THE WRAP OR A LEAK. `add_row` hands
+        // the child to an inner `Gtk.ListBox`, which puts a non-row child inside an
+        // implicit `GtkListBoxRow` — and `gtk_list_box_remove` does NOT unwrap:
+        // MEASURED on GTK 4.22.4, removing the original child answers `Gtk-WARNING **:
+        // Tried to remove non-child 0x…` and leaves it parented, for a `Gtk.Label` and a
+        // `Gtk.Button` alike, while an `Adw.ActionRow` (which IS a `GtkListBoxRow`)
+        // round-trips to a null parent. Unmount is where it surfaces, so untreated it is
+        // a leaked widget behind one warning line at exit 0 — the class
+        // `installDiagnosticsGate` exists for, and the class the host's own
+        // "every slotted descriptor survives a round trip through every slot" mechanism
+        // caught this descriptor with before it shipped. So the host makes the row
+        // itself, exactly as it does for `GtkListBox`, and addresses that.
+        children: {
+            kind: 'slotted',
+            slots: { prefix: 'add_prefix', suffix: 'add_suffix', row: 'add_row' },
+            defaultSlot: 'row',
+            remove: 'remove',
+            wrapSlots: { row: 'list-box-row' },
+        },
+    },
+    {
         gtype: 'AdwStatusPage',
         ctor: () => Adw.StatusPage,
         children: { kind: 'single', set: 'set_child' },
