@@ -168,8 +168,8 @@ import {
     elementName,
     namespaceBarrelMembers,
     settablePropertiesOfClass,
+    tagClass,
     widgetClass,
-    widgetClassOfTag,
 } from './adwaita-elements.mjs';
 // `stripComments`, so a rule about DECLARATIONS is not answered by prose: these files
 // explain what they deliberately do not contain, and they name those things. A naive match
@@ -851,7 +851,7 @@ function rendererWidgetProblems(surface) {
         ];
     }
     for (const widget of widgets) {
-        const klass = widgetClassOfTag(widget);
+        const klass = tagClass(widget);
         const entry = table[widget];
         if (runtimeTags.has(widget)) {
             if (entry) {
@@ -929,7 +929,7 @@ function rendererWidgetProblems(surface) {
     for (const widget of declared) {
         if (!present.has(widget)) {
             problems.push(
-                `the alignment table declares ${widgetClassOfTag(widget)}, which ` +
+                `the alignment table declares ${tagClass(widget)}, which ` +
                     `${surface.package} no longer ships — drop the entry from ${tableSource}`,
             );
         }
@@ -1032,7 +1032,7 @@ function namespaceProblems(world) {
             continue;
         }
         for (const [member, elements] of members) {
-            const classes = elements.map((element) => widgetClassOfTag(element));
+            const classes = elements.map((element) => tagClass(element));
             const binding = actual.get(member);
             if (binding === undefined) {
                 problems.push(
@@ -1162,7 +1162,7 @@ function propertyProblems(world) {
         for (const gtype of counterparts) {
             for (const key of interfaceKeys(interfaces, byGType.get(gtype) ?? '')) keys.add(key);
         }
-        const klass = widgetClassOfTag(widget);
+        const klass = tagClass(widget);
         const against = counterparts.join(' + ');
         for (const property of nsProperties.get(widget)) {
             const key = `${widget}.${property}`;

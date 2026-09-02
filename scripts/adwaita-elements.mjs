@@ -194,18 +194,6 @@ const pascalCase = (name) =>
 export const widgetClass = (name) => `Adw${pascalCase(name)}`;
 
 /**
- * The class name a TAG implies, prefix included: `gtk-entry` → `GtkEntry`,
- * `adw-bin` → `AdwBin`.
- *
- * `widgetClass` above hard-codes `Adw` and is right for the readers that hand it a bare
- * module name from an Adwaita-only tree. It is wrong for anything keyed on a tag, since
- * ADR 0034 clause 1 gave nine web elements a `gtk-` spelling: deriving `AdwEntry` from
- * `<gtk-entry>` made the namespace check report every one of them as a member pointing
- * at another widget.
- */
-export const widgetClassOfTag = (tag) => `${pascalCase(tag.slice(0, tag.indexOf('-')))}${pascalCase(elementName(tag))}`;
-
-/**
  * `gtk-entry` → `GtkEntry`, `adw-action-row` → `AdwActionRow`: the class a TAG names.
  *
  * The prefix is read off the tag rather than fixed at `Adw`, which is the whole of
@@ -213,6 +201,15 @@ export const widgetClassOfTag = (tag) => `${pascalCase(tag.slice(0, tag.indexOf(
  * GType, and `gtk-host/src/tags.ts` derives the tag from the GType by the same rule
  * running the other way. {@link widgetClass} stays `Adw`-only because the two
  * NativeScript-shaped surfaces are keyed on a BARE name with no prefix to read.
+ *
+ * WHY A TAG-AWARE ONE EXISTS AT ALL: hard-coding `Adw` is wrong for anything keyed on a
+ * tag, and silently so. ADR 0034 clause 1 gave nine web elements a `gtk-` spelling, and
+ * deriving `AdwEntry` from `<gtk-entry>` made the namespace check report every one of
+ * them as a member pointing at another widget.
+ *
+ * It was `widgetClassOfTag` under a second name for a while — two PRs added the same
+ * derivation independently and neither could see the other. Two names for one rule read
+ * as two rules the next time somebody changes one of them.
  */
 export const tagClass = (tag) => `${pascalCase(tag.slice(0, tag.indexOf('-')))}${pascalCase(elementName(tag))}`;
 
