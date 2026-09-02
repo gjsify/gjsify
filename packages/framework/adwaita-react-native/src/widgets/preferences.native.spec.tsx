@@ -131,6 +131,11 @@ export default async () => {
                 </AdwPreferencesPage>,
             );
             expect(tree.type).toBe(RCT_VIEW);
+            // The COLUMN is the widget and not the theme — a page whose groups sit side by
+            // side is not a preferences page — so it is asserted here the way every other
+            // container in this package asserts its own (`banner`, `button-content`,
+            // `header-bar`, `toolbar-view`, `wrap-box`).
+            expect(tree.props.style as Style).toStrictEqual({ flexDirection: 'column', alignSelf: 'stretch' });
             // `title`, `iconName` and `name` are identity, not paint — `Adw.PreferencesPage`
             // draws none of them either. Pinned as a NEGATIVE so the day one appears is a
             // decision and not a drift: no text node anywhere carries them.
@@ -174,6 +179,24 @@ export default async () => {
                 ['Appearance', true],
                 ['', false],
             ]);
+        });
+
+        await it('is a column of header over card, which is structure and not theme', async () => {
+            const tree = mounted(
+                <AdwPreferencesGroup title="Appearance" description="How it looks">
+                    <AdwComboRow title="Style" model={['Light', 'Dark']} />
+                </AdwPreferencesGroup>,
+            );
+            expect(tree.props.style as Style).toStrictEqual({ flexDirection: 'column', alignSelf: 'stretch' });
+            // The header stacks its two labels; the card stacks its rows. Both are the
+            // widget's own layout, and without them the group is a row of everything.
+            expect((childrenOf(tree)[0] as ReactTestRendererJSON).props.style as Style).toStrictEqual({
+                flexDirection: 'column',
+            });
+            expect((childrenOf(tree)[1] as ReactTestRendererJSON).props.style as Style).toStrictEqual({
+                flexDirection: 'column',
+                alignSelf: 'stretch',
+            });
         });
 
         await it('shows both header labels when both are set — the pair', async () => {
@@ -385,20 +408,33 @@ export default async () => {
                     onNotifyValue={(v) => seen.push(v)}
                 />,
             );
-            const increase = (): ReactTestRendererJSON =>
+            const stepper = (glyph: string): ReactTestRendererJSON =>
                 flatten(renderer.toJSON() as ReactTestRendererJSON).filter(
                     (n) =>
                         n.type === RCT_VIEW &&
                         (n.children ?? []).some(
-                            (c) => typeof c !== 'string' && textOf(c as ReactTestRendererJSON) === '+',
+                            (c) => typeof c !== 'string' && textOf(c as ReactTestRendererJSON) === glyph,
                         ),
                 )[0] as ReactTestRendererJSON;
+            const increase = (): ReactTestRendererJSON => stepper('+');
+            const decrease = (): ReactTestRendererJSON => stepper('\u2212');
+
+            // AT THE LOWER BOUND ALREADY, which is what the two buttons are FOR being in the
+            // tree rather than absent: an absent button proves nothing about which end was
+            // reached. The file says a suite can read this; without these four lines none
+            // did, and both `disabled` expressions could be replaced by `false` with every
+            // test still green.
+            expect(decrease().props.disabled).toBe(true);
+            expect(increase().props.disabled).toBe(false);
+
             press(increase());
             expect(seen).toStrictEqual([2]);
+            expect(decrease().props.disabled).toBe(false);
             press(increase());
             // 2 + 2 is 4, the bound is 3, so the value CLAMPS rather than overshooting — and
             // the second press is a real change, so it reports.
             expect(seen).toStrictEqual([2, 3]);
+            expect(increase().props.disabled).toBe(true);
             press(increase());
             // Already at the bound: `SpinState.increment` returns false and emits nothing.
             expect(seen).toStrictEqual([2, 3]);
@@ -476,6 +512,59 @@ export default async () => {
             press(applyOf());
             expect(applied).toStrictEqual([1]);
             expect(hidden(applyOf())).toBe(true);
+        });
+
+        await it('refuses edits when `editable` is false — the pair', async () => {
+            const tree = mounted(<AdwPasswordEntryRow title="Password" text="hunter2" editable={false} />);
+            const input = flatten(tree).filter((n) => n.type === RCT_TEXT_INPUT)[0] as ReactTestRendererJSON;
+            expect(input.props.editable).toBe(false);
+            // Omitted is TRUE, as `GtkEditable`'s own default is — not the `false` a missing
+            // boolean prop would be if this half read the prop instead of the core's state.
+            const dflt = mounted(<AdwPasswordEntryRow title="Password" text="hunter2" />);
+            expect(
+                (flatten(dflt).filter((n) => n.type === RCT_TEXT_INPUT)[0] as ReactTestRendererJSON).props.editable,
+            ).toBe(true);
+        });
+
+        await it('fires exactly one of `apply` and `entry-activated` on Enter', async () => {
+            const seen: string[] = [];
+            const renderer = mount(
+                <AdwPasswordEntryRow
+                    title="Password"
+                    showApplyButton={true}
+                    onApply={() => seen.push('apply')}
+                    onEntryActivated={() => seen.push('activated')}
+                />,
+            );
+            const input = (): ReactTestRendererJSON =>
+                flatten(renderer.toJSON() as ReactTestRendererJSON).filter(
+                    (n) => n.type === RCT_TEXT_INPUT,
+                )[0] as ReactTestRendererJSON;
+            const submit = (): void => {
+                act(() => {
+                    (input().props.onSubmitEditing as () => void)();
+                });
+            };
+
+            // Nothing pending: `text_activated_cb` emits `entry-activated`.
+            submit();
+            expect(seen).toStrictEqual(['activated']);
+
+            // An edit while focused raises the apply latch, and Enter then emits `apply`
+            // INSTEAD — which is the whole of `props.ts`' "exactly one of the two fires",
+            // and was carried by neither suite.
+            act(() => {
+                (input().props.onFocus as () => void)();
+            });
+            act(() => {
+                (input().props.onChangeText as (t: string) => void)('hunter2');
+            });
+            submit();
+            expect(seen).toStrictEqual(['activated', 'apply']);
+
+            // …and the latch is down again, so the next Enter is an activation.
+            submit();
+            expect(seen).toStrictEqual(['activated', 'apply', 'activated']);
         });
 
         await it('keeps the caps-lock indicator present and unshowable', async () => {

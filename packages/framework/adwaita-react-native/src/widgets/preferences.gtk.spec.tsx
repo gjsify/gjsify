@@ -91,13 +91,27 @@ export default async () => {
         await gated('the widgets are the real libadwaita ones', async () => {
             await it('renders AdwPreferencesPage as an Adw.PreferencesPage carrying its identity', async () => {
                 laidOut(
-                    <AdwPreferencesPage title="General" iconName="preferences-system-symbolic" name="general">
+                    <AdwPreferencesPage
+                        title="General"
+                        iconName="preferences-system-symbolic"
+                        name="general"
+                        description="Everything else"
+                        descriptionCentered={true}
+                        useUnderline={true}
+                    >
                         <AdwPreferencesGroup title="Appearance" />
                     </AdwPreferencesPage>,
                     (container) => {
                         const page = find(container, 'AdwPreferencesPage') as Adw.PreferencesPage;
                         expect(page.title).toBe('General');
                         expect(page.iconName).toBe('preferences-system-symbolic');
+                        // ALL SIX, because the page is the one widget here whose properties
+                        // are mostly not drawn — so "it rendered" says nothing about whether
+                        // they arrived. Dropping any of the last three from this half left
+                        // every test green before this line existed.
+                        expect(page.description).toBe('Everything else');
+                        expect(page.descriptionCentered).toBe(true);
+                        expect(page.useUnderline).toBe(true);
                         // `name` is the PAGE's property and not `GtkWidget:name` — the two
                         // collide, and gtk-host's generated table omits the widget one from
                         // this tag for exactly that reason. Reading it back is what says the
@@ -433,6 +447,25 @@ export default async () => {
                     const row = find(container, 'AdwPasswordEntryRow') as Adw.PasswordEntryRow;
                     expect(row.maxLength).toBe(4);
                     expect(row.get_text()).toBe('abcd');
+                });
+            });
+
+            await it('carries `editable` and `show-apply-button` — the pair', async () => {
+                // Two properties this half writes and nothing read back. `editable` is
+                // asserted against `GtkEditable`'s TRUE default as well, because an omitted
+                // boolean prop and a written `false` are the same picture in a tree dump.
+                laidOut(
+                    <AdwPasswordEntryRow title="Password" text="hunter2" editable={false} showApplyButton={true} />,
+                    (container) => {
+                        const row = find(container, 'AdwPasswordEntryRow') as Adw.PasswordEntryRow;
+                        expect(row.editable).toBe(false);
+                        expect(row.showApplyButton).toBe(true);
+                    },
+                );
+                laidOut(<AdwPasswordEntryRow title="Password" text="hunter2" />, (container) => {
+                    const row = find(container, 'AdwPasswordEntryRow') as Adw.PasswordEntryRow;
+                    expect(row.editable).toBe(true);
+                    expect(row.showApplyButton).toBe(false);
                 });
             });
         });
