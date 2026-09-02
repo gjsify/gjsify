@@ -273,12 +273,8 @@ async function assemble(args: ShipOptions): Promise<void> {
     // before anything is built while `resolveShipSettings` runs after. Its result
     // is threaded into the settings rather than re-derived there: two defaulting
     // rules for one question is how the format list and the emitted `Depends:`
-    // came to answer for different targets.
-    //
-    // PER LAYOUT, which is the whole of #1486's fix. `gjsify.app` is the project
-    // DEFAULT and `gjsify.ship.app.<os>` overrides it for this run's target, so a
-    // GTK4 app can be GJS on Linux and Node on macOS and Windows — the split ADR
-    // 0024 § 4 argues for — without the macOS answer moving the Linux `Depends:`.
+    // came to answer for different targets (#1486). Why the runtime is per target
+    // at all, and why an absent override means the project field: `resolveShipApp`.
     const resolvedApp = resolveShipApp({ project: configData.app, perTarget: ship.app, layoutOs: layout.os });
     const interpreter = resolvedApp.app;
     // SAID, not swallowed, like every other narrowing in this function. An

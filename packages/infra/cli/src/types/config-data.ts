@@ -428,31 +428,19 @@ export interface ConfigDataShip extends AppMetadata {
      * The runtime a shipped artifact runs, PER TARGET — `gjsify.app` is the
      * default and a key here overrides it for one layout.
      *
-     * WHY THE PROJECT FIELD COULD NOT ANSWER THIS ALONE. `gjsify.app` carried two
-     * questions on one field: which runtime the application needs, and which
-     * package formats a target can build. Same answer for a single-OS project,
-     * different answers for the cross-OS split ADR 0024 § 4 argues for — Linux on
-     * GJS from the distribution, macOS and Windows on Node because there is no
-     * relocatable GJS for either. Measured before this key existed: `gjsify ship
-     * darwin --stage` reported `formats (none — macos-app and macos-app-zip need
-     * gjsify.app: "node")`, and setting that field to satisfy it flipped the LINUX
-     * `.deb` from `Depends: gjs (>= 1.86)` to `Depends: nodejs (>= 24)` — a macOS
-     * decision moving a Linux dependency, because the deb generator read the
-     * project field rather than the resolved runtime of its own target.
-     *
      * KEYED IN THE `process.platform` SPELLING, like {@link ShipSignOptions} and
      * for the same reason: the value that resolves is chosen by the LAYOUT being
      * assembled — `FormatDescriptor.layoutOs` and the stage manifest's `target.os`
      * — never by the host doing the assembling. `macos` and `windows` are the
-     * `gjsify ship <os>` POSITIONAL's spelling and are refused by name
-     * (`manifest-conformance`'s `ship` rule), because a runtime under a key
-     * nothing reads is a target that silently keeps the project-wide answer.
+     * `gjsify ship <os>` POSITIONAL's spelling, and both `gjsify ship` and
+     * `manifest-conformance`'s `ship` rule refuse them BY NAME, because a runtime
+     * under a key nothing reads is a target that silently keeps the project-wide
+     * answer.
      *
-     * There is deliberately NO per-layout default here — an absent key means
-     * `gjsify.app`, and never `Layout.shippedRuntime`. Defaulting darwin to `node`
-     * is the measured defect `Layout.shippedRuntime`'s own doc records: a project
-     * with no `gjsify.app` key staged `exec node …/gjs.js` in front of a bundle
-     * opening with `import Gtk from 'gi://Gtk?version=4.0'`.
+     * `resolveShipApp` (`utils/ship/settings.ts`) is the only reader of this key
+     * or of `gjsify.app`, and holds the rest: what one field could not answer,
+     * the measurement behind it, and why an absent key means `gjsify.app` and
+     * never `Layout.shippedRuntime`.
      */
     app?: ShipAppOptions;
     /**

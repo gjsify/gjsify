@@ -374,13 +374,10 @@ export interface PackSettings {
      * depends on. THIS TARGET's runtime, resolved once by `resolveShipApp` out of
      * `gjsify.ship.app.<os>` falling back to `gjsify.app`; default `'gjs'`.
      *
-     * PER TARGET and never the project field, which is #1486's fix. With one
-     * field, `gjsify ship darwin` refused its formats until `gjsify.app` was
-     * `"node"` — and setting it flipped the LINUX `.deb` from `Depends: gjs
-     * (>= 1.86)` to `Depends: nodejs (>= 24)`, unsatisfiable on trixie, Ubuntu
-     * 24.04 and Ubuntu 26.04, for a macOS decision. That the stage manifest
-     * carries the RESOLVED value is what keeps `--from-stage` honest: the packing
-     * host has no project and needs none.
+     * PER TARGET and never the project field, which is #1486's fix and whose
+     * measurement `resolveShipApp` carries. That the stage manifest records the
+     * RESOLVED value is what keeps `--from-stage` honest: the packing host has no
+     * project and needs none.
      *
      * ON `PackSettings`, not on `ShipSettings` alone, because BOTH halves need it
      * and they must not answer it differently: `renderLauncher` writes
