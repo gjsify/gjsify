@@ -83,14 +83,33 @@ const FIXTURES = 'scripts/girs-runtime-import-fixtures.mjs';
  * subpath somebody adds.
  *
  * COMMENTS. The static form must begin a line, which is what keeps a specifier quoted in
- * prose out — the rule this file's own docblocks depend on. The dynamic form appears
+ * PROSE out — the rule this file's own docblocks depend on. The dynamic form appears
  * mid-expression and cannot use that, so a match is dropped when what precedes it on its
  * line opens a line comment or continues a block one.
+ *
+ * A COMMENTED-OUT import statement is therefore still reported, and that is deliberate:
+ * a commented `@girs` import is the retired spelling asleep, and it wakes up the day
+ * somebody uncomments it. To write about the old spelling, put it inline in backticks
+ * the way these docblocks do, not as a statement inside a block comment.
  */
 function* girsRuntimeImports(source) {
     const lineOf = (index) => source.slice(0, index).split('\n').length;
-    /** Only the bare package: `@girs/<pkg>` and nothing after it. */
-    const isNamespacePackage = (specifier) => /^@girs\/[^/]+$/.test(specifier);
+    /**
+     * A NAMESPACE module, as opposed to a data subpath.
+     *
+     * Two spellings reach the same namespace: the bare package, and the subpath that IS
+     * the package — `@girs/adw-1/adw-1` is literally `import Adw from
+     * 'gi://Adw?version=1'` inside, which the rolldown plugin's own comment records. The
+     * first version of this rule said "bare package only" and therefore exempted the
+     * second, which is the spelling that most needs converting; review caught it while
+     * it was still latent, no such import existing in the tree yet.
+     *
+     * The back-reference is what keeps this a rule instead of a list: it says "the
+     * subpath that repeats the package name", so `vocabulary`, `ambient` and `import`
+     * fall out without being named, and so does the next data subpath ts-for-gir adds.
+     */
+    const isNamespaceModule = (specifier) =>
+        /^@girs\/[^/]+$/.test(specifier) || /^@girs\/([^/]+)\/\1(\.js)?$/.test(specifier);
 
     // A static import statement, starting a line, with a clause that may span lines. The
     // clause cannot contain `;`, which is what stops the match from running past the end
@@ -98,7 +117,7 @@ function* girsRuntimeImports(source) {
     const STATIC = /^[ \t]*import\s+(?!type\s)([^;]*?)\s*from\s*['"](@girs\/[^'"]+)['"]/gm;
     for (const match of source.matchAll(STATIC)) {
         const [, bindings, specifier] = match;
-        if (!isNamespacePackage(specifier)) continue;
+        if (!isNamespaceModule(specifier)) continue;
         // `import { type Widget, type Align }` binds no value; `import { Button }` does.
         const named = /^\{([\s\S]*)\}$/.exec(bindings.trim());
         if (named !== null) {
@@ -118,7 +137,7 @@ function* girsRuntimeImports(source) {
     const DYNAMIC = /\bimport\s*\(\s*['"](@girs\/[^'"]+)['"]\s*\)/g;
     for (const match of source.matchAll(DYNAMIC)) {
         const specifier = match[1];
-        if (!isNamespacePackage(specifier)) continue;
+        if (!isNamespaceModule(specifier)) continue;
         const lineStart = source.lastIndexOf('\n', match.index) + 1;
         const before = source.slice(lineStart, match.index);
         if (before.includes('//') || before.trimStart().startsWith('*')) continue;

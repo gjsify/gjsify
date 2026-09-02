@@ -60,6 +60,21 @@ export const GIRS_RUNTIME_IMPORT_VECTORS = [
     // a boundary so it also covers the next subpath somebody adds.
     ["import { DECLS } from '@girs/gtk-4.0/vocabulary';", []],
     ["import Ambient from '@girs/gjs/ambient';", []],
+    // …but the subpath that IS the package is the namespace, not data — it is literally
+    // `import Adw from 'gi://Adw?version=1'` inside, as the rolldown plugin's own comment
+    // says. Review found the first narrowing exempted exactly the spelling that most
+    // needs converting. The rule is therefore "namespace vs. data", written as a
+    // back-reference so it needs no list of data subpaths and covers the next one
+    // somebody invents. Latent rather than live: no such import exists in the tree today.
+    ["import Adw from '@girs/adw-1/adw-1';", ['@girs/adw-1/adw-1']],
+    ["import Adw from '@girs/adw-1/adw-1.js';", ['@girs/adw-1/adw-1.js']],
+    ["const Gtk = (await import('@girs/gtk-4.0/gtk-4.0')).default;", ['@girs/gtk-4.0/gtk-4.0']],
+    // A COMMENTED-OUT import IS reported, and that is a decision rather than an
+    // oversight: a commented `@girs` import is the retired spelling asleep, and it wakes
+    // up the day someone uncomments it. Prose that MENTIONS the spelling stays out
+    // because it is not line-initial — write it inline in backticks, the way this file's
+    // own docblocks do, rather than as a statement in a block comment.
+    ["/*\nimport Gtk from '@girs/gtk-4.0';\n*/", ['@girs/gtk-4.0']],
     // Prose again, now for the shapes above: a whole-text reader sees a specifier inside
     // a comment unless it is told not to, and the first version was protected only by
     // accident — it required the line to START with `import`.
