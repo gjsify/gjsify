@@ -31,14 +31,15 @@
 //     rather than silent.
 //
 // "OVER-INCLUSIVE RATHER THAN SILENT" WAS HALF TRUE, AND THE SILENT HALF SHIPPED.
-// Measured on this branch's own win32-x64 CI artifact: 65 DLLs in `bin/` against 45
-// documented components — over-inclusive on one side (cairomm, gtkmm, pycairo, protobuf
-// and six more are documented and not bundled) and EMPTY on the other. `glib`,
-// `freetype`, `graphene`, `libtiff`, `libxml2`, `zlib`, `sqlite` and `openssl` back
-// fourteen shipped DLLs — libgio, libgobject and libglib among them — and the prefix
-// documents the terms of none of them. Nothing caught it because the coverage gate ran
-// its per-binary checks ONLY under `per-binary` attribution, so the win32 branch asserted
-// "some texts were recovered" and nothing else: a corpus of one file would have passed.
+// Measured on this branch's own win32-x64 CI artifact: 65 DLLs in `bin/` plus 25 binaries
+// in their own directories, against 45 documented components — over-inclusive on one side
+// (cairomm, gtkmm, pycairo, protobuf and six more are documented and not bundled) and
+// EMPTY on the other. `glib`, `gobject-introspection`, `freetype`, `graphene`, `libtiff`,
+// `libxml2`, `zlib`, `sqlite` and `openssl` back fourteen shipped DLLs — libgio,
+// libgobject and libglib among them — and the prefix documents the terms of none of them.
+// Nothing caught it because the coverage gate ran its per-binary checks ONLY under
+// `per-binary` attribution, so the win32 branch asserted "some texts were recovered" and
+// nothing else: a corpus of one file would have passed.
 //
 // Prefix attribution therefore keeps its honest claim (no per-DLL mapping in the shipped
 // notice) but stops being unfalsifiable: WIN32_LICENSE_FAMILIES declares which project
@@ -95,8 +96,18 @@ export const WIN32_LICENSE_FAMILIES = [
     { components: ['glib'], pattern: /^(glib|gobject|gio|gmodule|gthread)-2\.0-\d+\.dll$/i },
     {
         components: ['glib'],
-        pattern: /^girepository-\d+\.\d+-\d+\.dll$/i,
-        why: 'girepository moved INTO glib at 2.80 (the standalone gobject-introspection library is gone)',
+        pattern: /^girepository-2\.0-\d+\.dll$/i,
+        why: 'girepository-2.0 moved INTO glib at 2.80',
+    },
+    {
+        components: ['gobject-introspection'],
+        pattern: /^girepository-1\.0-\d+\.dll$/i,
+        why:
+            'the TWO girepository DLLs are two projects, and one entry for both named the wrong one. ' +
+            'glib 2.80 took girepository-2.0 in; gobject-introspection did not stop building the 1.0 ' +
+            'library — 1.86.0 girepository/meson.build still declares shared_library(girepository-1.0), ' +
+            'and gvsbuild --enable-gi installs it. Both ship, so matching girepository-* as ONE family ' +
+            'made the notice name glib as the project behind a gobject-introspection binary',
     },
     { components: ['gtk4'], pattern: /^gtk-4-\d+\.dll$/i },
     { components: ['libadwaita'], pattern: /^adwaita-1-\d+\.dll$/i, why: 'libadwaita builds `adwaita-1-0.dll`' },
@@ -159,6 +170,14 @@ export const WIN32_LICENSE_FAMILIES = [
         components: ['gst-plugins-base'],
         pattern: /^gst(app|audio|video|tag|riff|rtp|pbutils|fft|sdp|gl|allocators)-1\.0-\d+\.dll$/i,
         why: 'gst-plugins-base ships these as libraries; gstreamer core ships only the five above',
+    },
+    {
+        components: ['gstreamer'],
+        pattern: /^gst-plugin-scanner\.exe$/i,
+        why:
+            'the ONE binary in the bundle that is not a library, and the one the win32 coverage set ' +
+            'first left out: it lives in libexec/, so neither the flat bin/ walk nor the module lists ' +
+            'reached it. gstreamer core ships the scanner (darwin attributes it through its keg)',
     },
     {
         components: ['gstreamer', 'gst-plugins-base', 'gst-plugins-good'],
@@ -302,6 +321,37 @@ export function describeBrewKegs({ files, fallbackLicense }) {
         })
         .sort((a, b) => a.name.localeCompare(b.name));
     return { components, unattributed };
+}
+
+/**
+ * The components whose terms come from a VENDORED upstream text rather than from the build
+ * prefix — the win32 gap-filler, expressed once so the builder and its test cannot disagree
+ * about the rule. (They did: the rule lived in the builder and the test re-implemented it,
+ * which is a green test over a copy of the code it is meant to hold.)
+ *
+ * TWO NARROWINGS ARE THE RULE, not a detail of the caller. The prefix stays AUTHORITATIVE —
+ * a component it documents is never overridden here — and a vendored text enters only for a
+ * project some binary in THIS bundle needs, so the display-free variant does not carry
+ * OpenSSL's terms for a DLL it never had.
+ * @param {{ root: string, documented: Iterable<string>, binaries: Iterable<string>,
+ *   families: {components: string[], pattern: RegExp}[] }} opts
+ * @returns {{ name: string, texts: object[], upstreamText: true }[]} sorted by name
+ */
+export function upstreamLicenseComponents({ root, documented, binaries, families }) {
+    const byPrefix = new Set(documented);
+    const needed = new Set();
+    for (const leaf of binaries) {
+        for (const name of licenseFamilyFor(leaf, families)?.components ?? []) needed.add(name);
+    }
+    const byComponent = new Map();
+    for (const text of scanLicenseFiles({ root, subdirs: ['.'], maxDepth: 2 })) {
+        if (byPrefix.has(text.component) || !needed.has(text.component)) continue;
+        if (!byComponent.has(text.component)) {
+            byComponent.set(text.component, { name: text.component, texts: [], upstreamText: true });
+        }
+        byComponent.get(text.component).texts.push(text);
+    }
+    return [...byComponent.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**

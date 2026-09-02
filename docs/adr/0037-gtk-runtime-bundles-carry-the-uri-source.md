@@ -125,19 +125,20 @@ including over https.** Concretely:
   to carry forward: the two platforms do not pay the same price for the same decision, so
   a single percentage stated without its platform is wrong on one of them. The allowlist
   entry that costs it points here rather than restating the table.
-- **The win32 licence gate could not fail, and eight projects were behind it — not one.**
+- **The win32 licence gate could not fail, and nine projects were behind it — not one.**
   `libcrypto-3-x64.dll` and `libssl-3-x64.dll` arrive with this decision (gvsbuild's TLS
   backend is `gioopenssl`) and Apache-2.0 § 4 requires the licence to travel with the
   binary. Chasing that one payload found the mechanism instead: the win32 step attributes
   by PREFIX and `assertLicenseCoverage` ran its per-binary rules only under `per-binary`
   attribution, so the win32 call asserted "at least one licence text was recovered" and
   nothing more — a corpus of one file would have passed it. Measured on this branch's own
-  win32 artifact: **89 shipped binaries, 45 documented projects, and 14 binaries whose
-  project the bundle documents nowhere** — `glib` (six DLLs, LGPL-2.1-or-later), `freetype`,
-  `graphene`, `libtiff`, `libxml2`, `zlib`, `sqlite` and `openssl`. GLib has been
-  unlicensed in every published win32 tarball; only OpenSSL is new. Replaying that bundle
-  through the old gate returns **0 problems** and through the new one **14**, each naming
-  its binary.
+  win32 artifact: **90 shipped binaries, 45 documented projects, and 14 binaries whose
+  project the bundle documents nowhere** — `glib` (five DLLs, LGPL-2.1-or-later),
+  `gobject-introspection`, `freetype`, `graphene`, `libtiff`, `libxml2`, `zlib`, `sqlite`
+  and `openssl`. GLib has been unlicensed in every published win32 tarball; only OpenSSL
+  and SQLite are new. Replaying that artifact through the old gate returns **0 problems**
+  and through the new one **14**, each naming its binary — and the published `0.45.0`
+  tarball, which carries neither new payload, returns **0** and **11**.
 
   Fixed in this ADR's own change, and the shape is deliberate. Per-binary attribution
   still is not recoverable from a flat build tree, so the shipped notice keeps saying so;
@@ -147,14 +148,26 @@ including over https.** Concretely:
   does not know fails the build by name. `assertLicenseCoverage` refuses any binary whose
   family the corpus documents no text for, in **either** mode, and refuses prefix
   attribution offered without a family table at all. The binaries checked are now every
-  binary the tarball carries, the GStreamer plugins, pixbuf loaders and GIO modules
-  included, as on darwin. Where gvsbuild documents nothing (it has no install step for
-  some, and installs OpenSSL's as `LICENSE` while OpenSSL 3 ships `LICENSE.txt`), the text
-  comes from the upstream release the prefix pins, vendored under the win32 builder's
-  `licenses-not-in-prefix/` with its provenance — the prefix stays authoritative and is
-  never overridden. `manifest.licenses.binariesCovered` records the count on both
-  platforms, and `verify-bundle-manifest.mjs` refuses a bundle without it, so a tarball
-  built by a pre-gate builder cannot publish either.
+  binary the tarball carries, the GStreamer plugins, pixbuf loaders, GIO modules and the
+  plugin-scanner executable included, as on darwin. Where gvsbuild documents nothing (it
+  has no install step for some, and installs OpenSSL's as `LICENSE` while OpenSSL 3 ships
+  `LICENSE.txt`), the text comes from the upstream release the prefix pins, vendored under
+  the win32 builder's `licenses-not-in-prefix/` with its provenance — the prefix stays
+  authoritative and is never overridden. `manifest.licenses.binariesCovered` records the
+  count on both platforms, and `verify-bundle-manifest.mjs` refuses a bundle without it,
+  so a tarball built by a pre-gate builder cannot publish either.
+
+  **A name map cannot state wrong terms, but it can name the wrong project — and did.**
+  The two failure modes the review found are the two the shape allows, and both are now
+  held by a test rather than by care: a binary in NEITHER of the lists the builder
+  assembled is never asked about at all (`gst-plugin-scanner.exe`, the bundle's one
+  non-library binary, sat in `libexec/` outside both), and two leaves that look like one
+  library can be two projects (`girepository-2.0-0.dll` is glib's since 2.80,
+  `girepository-1.0-1.dll` is still gobject-introspection's own — matched by one pattern,
+  the notice named glib as the project behind a gobject-introspection binary and shipped
+  glib's text for it). Naming the wrong project is the worse half: it produces a positive,
+  complete-looking claim. What bounds it is that the map only ever selects a text the
+  corpus already holds, so the damage is a misattribution and never an invented licence.
 - `Soup-3.0.typelib` now has a backing library in the bundle, so the typelib planner stops
   dropping it. `@gjsify/{tls,http2,ws}` gain a working TLS stack on a bundle-activated
   process as a consequence, not as a separate feature.

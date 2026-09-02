@@ -56,9 +56,9 @@ import {
     WIN32_LICENSE_FAMILIES,
     assertLicenseCoverage,
     formatLicenseProblems,
-    licenseFamilyFor,
     renderThirdPartyNotice,
     scanLicenseFiles,
+    upstreamLicenseComponents,
     writeLicensePayload,
 } from '../../scripts/bundle-licenses.mjs';
 import {
@@ -470,6 +470,13 @@ const windowing = {
 // `otool -L` did on darwin — and the gate is here so it stays a fact rather than a
 // property of which walker each OS happens to use. See duplicatedModuleLeaves.
 const placedModuleLeaves = [];
+// Binaries § 4 places that are NOT loadable modules, so rule 3 does not apply to them and
+// the license coverage set below still must. Today that is the GStreamer plugin scanner,
+// an .exe in libexec/ — and it is exactly what "every binary the tarball carries" missed
+// on the first pass: it is in neither `binDlls` nor a module list, so the win32 coverage
+// gate never saw the one non-library binary in the bundle. darwin attributes it through
+// its keg like any other image; this keeps the two platforms answering the same question.
+const placedExecutables = [];
 if (WINDOWING) {
     // 4a. gdk-pixbuf loaders + a TOPLEVEL-relative loaders.cache. The cache maps each
     // decoder DLL to its mime/extensions, and the query tool emits absolute build paths
@@ -564,6 +571,7 @@ if (WINDOWING) {
             const scannerOut = join(OUT, 'libexec', 'gstreamer-1.0');
             mkdirSync(scannerOut, { recursive: true });
             copyFileSync(scannerSrc, join(scannerOut, 'gst-plugin-scanner.exe'));
+            placedExecutables.push('gst-plugin-scanner.exe');
         } else {
             console.warn(
                 `build-gtk-runtime: WARNING — ${scannerSrc} missing; GStreamer will scan plugins ` +
@@ -906,7 +914,7 @@ if (WINDOWING) {
 // was ever checked. `assertLicenseCoverage` ran its per-binary rules under `per-binary`
 // attribution only, so this call asserted "some text was recovered" — a corpus of one
 // file would have passed it. Measured on the artifact: 65 DLLs, 45 documented projects,
-// and eight projects behind fourteen DLLs (glib among them) with no terms in the bundle.
+// and nine projects behind fourteen DLLs (glib among them) with no terms in the bundle.
 // The corpus is still DERIVED and the notice still refuses to claim a per-DLL mapping;
 // what changed is that WIN32_LICENSE_FAMILIES lets the gate ask, per binary, whether SOME
 // documented project covers it — and the build stops when one does not.
@@ -917,33 +925,30 @@ for (const text of licenseTexts) {
     byComponent.get(text.component).texts.push(text);
 }
 // EVERY binary the tarball carries, not just bin/ — the same correction the darwin
-// builder already carries. The gst plugins, the pixbuf loaders and the GIO modules are
-// third-party libraries too, and a coverage check that never sees them cannot say the
-// terms travel with them.
-const shippedBinaries = [...[...binDlls.values()].map((f) => basename(f)), ...placedModuleLeaves].sort();
+// builder already carries. The gst plugins, the pixbuf loaders, the GIO modules and the
+// plugin scanner are third-party binaries too, and a coverage check that never sees them
+// cannot say the terms travel with them.
+const shippedBinaries = [
+    ...[...binDlls.values()].map((f) => basename(f)),
+    ...placedModuleLeaves,
+    ...placedExecutables,
+].sort();
 // THE VENDORED CORPUS, and the measurement that made it necessary. The corpus above is
 // what the prefix HAPPENS to document, and on the published bundles that was 45 projects
-// against 89 shipped binaries: glib, freetype, graphene, libtiff, libxml2, zlib, sqlite
-// and openssl back fourteen of them and the prefix documents none — gvsbuild has no
-// install step for some, and installs others under a name the scan does not accept
-// (openssl installs `LICENSE` while OpenSSL 3 ships `LICENSE.txt`). So the bundle
-// shipped LGPL-2.1 GLib and Apache-2.0 OpenSSL with no terms at all.
-//
-// TWO NARROWINGS KEEP THIS FROM BECOMING A HAND-MAINTAINED CORPUS. The prefix stays
-// AUTHORITATIVE — a project it documents is never overridden here — and a vendored text
-// enters only for a project some binary in THIS bundle needs, so the display-free variant
-// does not carry OpenSSL's terms for a DLL it never had. Provenance per file:
-// licenses-not-in-prefix/README.md.
-const neededComponents = new Set(
-    shippedBinaries.flatMap((leaf) => licenseFamilyFor(leaf, WIN32_LICENSE_FAMILIES)?.components ?? []),
-);
-const documentedByPrefix = new Set(byComponent.keys());
-for (const text of scanLicenseFiles({ root: join(pkgRoot, 'licenses-not-in-prefix'), subdirs: ['.'], maxDepth: 2 })) {
-    if (documentedByPrefix.has(text.component) || !neededComponents.has(text.component)) continue;
-    if (!byComponent.has(text.component)) {
-        byComponent.set(text.component, { name: text.component, texts: [], upstreamText: true });
-    }
-    byComponent.get(text.component).texts.push(text);
+// against 90 shipped binaries: glib, gobject-introspection, freetype, graphene, libtiff,
+// libxml2, zlib, sqlite and openssl back fourteen of them and the prefix documents none —
+// gvsbuild has no install step for some, and installs others under a name the scan does
+// not accept (openssl installs `LICENSE` while OpenSSL 3 ships `LICENSE.txt`). So the
+// bundle shipped LGPL-2.1 GLib and Apache-2.0 OpenSSL with no terms at all. The rule the
+// merge follows lives in bundle-licenses.mjs so its test drives THIS code and not a copy;
+// provenance per file is licenses-not-in-prefix/README.md.
+for (const component of upstreamLicenseComponents({
+    root: join(pkgRoot, 'licenses-not-in-prefix'),
+    documented: byComponent.keys(),
+    binaries: shippedBinaries,
+    families: WIN32_LICENSE_FAMILIES,
+})) {
+    byComponent.set(component.name, component);
 }
 const licenseComponents = [...byComponent.values()].sort((a, b) => a.name.localeCompare(b.name));
 const licensePayload = writeLicensePayload({ outDir: join(OUT, 'licenses'), components: licenseComponents });

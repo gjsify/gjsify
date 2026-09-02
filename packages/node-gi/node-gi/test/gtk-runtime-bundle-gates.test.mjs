@@ -27,6 +27,7 @@ import {
     lstatSync,
     mkdirSync,
     mkdtempSync,
+    readFileSync,
     readdirSync,
     symlinkSync,
     writeFileSync,
@@ -63,6 +64,7 @@ import {
     parseBrewLicenseStanza,
     renderThirdPartyNotice,
     scanLicenseFiles,
+    upstreamLicenseComponents,
 } from '../../scripts/bundle-licenses.mjs';
 import {
     GL_IMPLEMENTATION_PATTERNS,
@@ -524,12 +526,12 @@ test('a prefix-attributed notice says so instead of implying a per-binary mappin
 //
 // THE DEFECT UNDER TEST, measured on this branch's own `gtk-runtime-win32-x64` and
 // `…-windowing` CI artifacts rather than reasoned about: 65 DLLs in `bin/` plus 24
-// loadable modules, against 45 projects the gvsbuild prefix documents. Eight of the
-// projects behind fourteen of those binaries are documented nowhere — `libglib`,
-// `libgobject` and `libgio` (LGPL-2.1-or-later) and `libcrypto`/`libssl` (Apache-2.0,
-// whose § 4 requires the license to travel with the binary) shipped with no terms at
-// all. Every gate was green, because `assertLicenseCoverage` ran its per-binary rules
-// only under `per-binary` attribution while the win32 call passes `prefix`: what it
+// loadable modules and one executable, against 45 projects the gvsbuild prefix documents.
+// Nine of the projects behind fourteen of those binaries are documented nowhere —
+// `libglib`, `libgobject` and `libgio` (LGPL-2.1-or-later) and `libcrypto`/`libssl`
+// (Apache-2.0, whose § 4 requires the license to travel with the binary) shipped with no
+// terms at all. Every gate was green, because `assertLicenseCoverage` ran its per-binary
+// rules only under `per-binary` attribution while the win32 call passes `prefix`: what it
 // actually asserted was "at least one license text was recovered", which a corpus of one
 // file satisfies.
 //
@@ -634,6 +636,14 @@ const WIN32_MODULE_DLLS = [
     'pixbufloader_svg.dll',
 ];
 
+/**
+ * The bundle's one non-library binary, in `libexec/`. It is its own list because it is the
+ * category the first coverage set MISSED: not a flat `bin/` entry and not a module, so
+ * neither of the two lists the builder assembled reached it, and the 90th binary in the
+ * tarball went unchecked while the notice claimed to cover every one.
+ */
+const WIN32_EXECUTABLES = ['gst-plugin-scanner.exe'];
+
 /** What the gvsbuild prefix documents — the 45 directories under the artifact's `licenses/`. */
 const WIN32_PREFIX_COMPONENTS = [
     'adwaita-icon-theme',
@@ -683,47 +693,74 @@ const WIN32_PREFIX_COMPONENTS = [
     'win-iconv',
 ];
 
-const WIN32_SHIPPED_BINARIES = [...WIN32_BUNDLED_DLLS, ...WIN32_MODULE_DLLS];
-const VENDORED_LICENSE_ROOT = fileURLToPath(
+const WIN32_SHIPPED_BINARIES = [...WIN32_BUNDLED_DLLS, ...WIN32_MODULE_DLLS, ...WIN32_EXECUTABLES];
+const WIN32_VENDORED_ROOT = fileURLToPath(
     new URL('../../gtk-runtime-win32-x64/licenses-not-in-prefix', import.meta.url),
 );
+
+/** The projects the prefix builds binaries from and documents no terms for — the whole gap. */
+const WIN32_UNDOCUMENTED_BY_PREFIX = [
+    'freetype',
+    'glib',
+    'gobject-introspection',
+    'graphene',
+    'libtiff',
+    'libxml2',
+    'openssl',
+    'sqlite',
+    'zlib',
+];
+const WIN32_UNDOCUMENTED_WHY =
+    'the nine projects the gvsbuild prefix builds binaries from and documents no terms for — ' +
+    'exactly the set licenses-not-in-prefix/ vendors, so the two lists are held against each other';
 
 /** The corpus shape the win32 builder derives: one component per documented project. */
 function corpusOf(names) {
     return names.map((name) => ({ name, texts: [{ file: 'COPYING' }] }));
 }
 
-/** The builder's merge rule: the prefix is authoritative, a vendored text fills only gaps. */
+/**
+ * The builder's own merge, called the way the builder calls it. NOT re-implemented here:
+ * a test that reproduces the rule it is checking stays green while the rule changes under
+ * it, which is how the coverage gate itself came to assert nothing.
+ */
 function vendoredComponents(documentedByPrefix, binaries) {
-    const needed = new Set(
-        binaries.flatMap((leaf) => licenseFamilyFor(leaf, WIN32_LICENSE_FAMILIES)?.components ?? []),
-    );
-    const byComponent = new Map();
-    for (const text of scanLicenseFiles({ root: VENDORED_LICENSE_ROOT, subdirs: ['.'], maxDepth: 2 })) {
-        if (documentedByPrefix.has(text.component) || !needed.has(text.component)) continue;
-        if (!byComponent.has(text.component)) byComponent.set(text.component, { name: text.component, texts: [] });
-        byComponent.get(text.component).texts.push(text);
-    }
-    return [...byComponent.values()];
+    return upstreamLicenseComponents({
+        root: WIN32_VENDORED_ROOT,
+        documented: documentedByPrefix,
+        binaries,
+        families: WIN32_LICENSE_FAMILIES,
+    });
 }
 
 test('every binary the win32 bundle ships belongs to a declared license family', () => {
     const orphans = WIN32_SHIPPED_BINARIES.filter((leaf) => !licenseFamilyFor(leaf, WIN32_LICENSE_FAMILIES));
-    assert.deepEqual(orphans, [], 'a bundled DLL whose project nothing names cannot have its terms shipped');
+    assert.deepEqual(orphans, [], 'a bundled binary whose project nothing names cannot have its terms shipped');
     // Not a rubber stamp either: a library the bundle does not carry has no entry, so the
     // next gvsbuild bump that adds one fails by name instead of shipping unlicensed.
     for (const stranger of ['libvpx-1.dll', 'x264-164.dll', 'avcodec-61.dll']) {
         assert.equal(licenseFamilyFor(stranger, WIN32_LICENSE_FAMILIES), null, `${stranger} must not match`);
     }
-    // And it must name the RIGHT project wherever the leaf name does not say it.
+    // And it must name the RIGHT project wherever the leaf name does not say it. A wrong
+    // name is worse than a missing one: it ships another project's terms under a positive
+    // claim, and the notice reads as complete.
     const familyOf = (leaf) => licenseFamilyFor(leaf, WIN32_LICENSE_FAMILIES).components.join('+');
     assert.equal(familyOf('intl.dll'), 'gettext');
     assert.equal(familyOf('iconv.dll'), 'win-iconv');
     assert.equal(familyOf('harfbuzz-icu.dll'), 'harfbuzz', 'the ICU-linked harfbuzz shard is still harfbuzz');
     assert.equal(familyOf('libcrypto-3-x64.dll'), 'openssl');
-    assert.equal(familyOf('girepository-2.0-0.dll'), 'glib', 'girepository moved into glib at 2.80');
     assert.equal(familyOf('pixbufloader_svg.dll'), 'librsvg');
     assert.equal(familyOf('gstsoup.dll'), 'gstreamer+gst-plugins-base+gst-plugins-good');
+    assert.equal(familyOf('gst-plugin-scanner.exe'), 'gstreamer', 'the bundle ships one .exe and it is gstreamer`s');
+    // TWO leaves, TWO projects. glib 2.80 took girepository-2.0 in; gobject-introspection
+    // still builds the 1.0 library and gvsbuild still installs it, so one pattern for both
+    // named glib as the project behind a gobject-introspection binary.
+    assert.equal(familyOf('girepository-2.0-0.dll'), 'glib', 'girepository-2.0 moved into glib at 2.80');
+    assert.equal(
+        familyOf('girepository-1.0-1.dll'),
+        'gobject-introspection',
+        'the 1.0 library is still gobject-introspection`s own, and the bundle ships both',
+    );
 });
 
 test('the win32 gate fails on the state that actually shipped', () => {
@@ -738,14 +775,11 @@ test('the win32 gate fails on the state that actually shipped', () => {
         families: WIN32_LICENSE_FAMILIES,
     });
     const undocumented = new Set(problems.map((p) => /no license text ships for (.+)$/.exec(p)?.[1]));
-    assert.deepEqual(
-        [...undocumented].sort(),
-        ['freetype', 'glib', 'graphene', 'libtiff', 'libxml2', 'openssl', 'sqlite', 'zlib'],
-        'the eight projects the gvsbuild prefix builds binaries from and documents no terms for',
-    );
+    assert.deepEqual([...undocumented].sort(), WIN32_UNDOCUMENTED_BY_PREFIX, WIN32_UNDOCUMENTED_WHY);
+    assert.equal(problems.length, 14, 'fourteen binaries, replayed off the artifact');
     assert.match(problems.join('\n'), /libcrypto-3-x64\.dll is openssl, and no license text ships for openssl/);
     assert.match(problems.join('\n'), /libssl-3-x64\.dll is openssl/);
-    // Not only the payload this branch adds: GLib is six of the bundle's DLLs and has been
+    // Not only the payload this branch adds: GLib is five of the bundle's DLLs and has been
     // unlicensed in every published win32 tarball.
     assert.match(problems.join('\n'), /gio-2\.0-0\.dll is glib, and no license text ships for glib/);
 });
@@ -764,7 +798,7 @@ test('the vendored texts close exactly that gap, and removing one reopens it', (
     );
     assert.deepEqual(
         vendored.map((c) => c.name).sort(),
-        ['freetype', 'glib', 'graphene', 'libtiff', 'libxml2', 'openssl', 'sqlite', 'zlib'],
+        WIN32_UNDOCUMENTED_BY_PREFIX,
         'the vendored corpus covers the prefix gap and nothing else',
     );
     for (const component of vendored) {
@@ -825,6 +859,44 @@ test('a component named in the corpus but shipping no text is not documented', (
         families: WIN32_LICENSE_FAMILIES,
     });
     assert.match(problems.join('\n'), /libcrypto-3-x64\.dll is openssl, and no license text ships for openssl/);
+});
+
+test('the vendored corpus records where each text came from, and to which gvsbuild pin', () => {
+    // The one thing the coverage gate CANNOT see: a vendored text is a copy of an upstream
+    // release, and the release it copies is chosen by the gvsbuild pin the workflows build
+    // with. Move the pin and these texts silently describe a different version — no binary
+    // is missing, no family is unclaimed, and every other check here stays green. So the
+    // pin is recorded next to the texts and held against the workflows that use it.
+    const provenance = JSON.parse(readFileSync(join(WIN32_VENDORED_ROOT, 'provenance.json'), 'utf8'));
+    const directories = readdirSync(WIN32_VENDORED_ROOT, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name)
+        .sort();
+    assert.deepEqual(
+        directories,
+        Object.keys(provenance.components).sort(),
+        'every vendored directory needs a recorded upstream version, and every record a directory',
+    );
+    // And the set is the gap itself, not a list that drifted away from it.
+    assert.deepEqual(directories, WIN32_UNDOCUMENTED_BY_PREFIX, WIN32_UNDOCUMENTED_WHY);
+
+    const workflows = ['release.yml', 'node-gi.yml'].map((name) =>
+        readFileSync(fileURLToPath(new URL(`../../../../.github/workflows/${name}`, import.meta.url)), 'utf8'),
+    );
+    for (const [i, yaml] of workflows.entries()) {
+        const pins = [...yaml.matchAll(/GVSBUILD_VERSION:\s*'([^']+)'/g)].map((m) => m[1]);
+        assert.ok(pins.length > 0, `workflow ${i} declares no GVSBUILD_VERSION — the pattern moved`);
+        for (const pin of new Set(pins)) {
+            assert.equal(
+                pin,
+                provenance.gvsbuild,
+                `gvsbuild is pinned at ${pin} but licenses-not-in-prefix/ was taken from ${provenance.gvsbuild}. ` +
+                    'Re-take the texts from the new pin (their upstream versions are in provenance.json) and ' +
+                    'update both — do NOT just move the pin: the bundle would then ship one release of a ' +
+                    "library under another release's terms.",
+            );
+        }
+    }
 });
 
 // --- runtime data portability -----------------------------------------------
