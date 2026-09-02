@@ -796,11 +796,18 @@ Napi::Value ClassInfoForTypeName(const Napi::CallbackInfo& info) {
 // memoises it, so this costs exactly one `g_type_class_ref` per GType.
 //
 // The ref is KEPT, for the reason calls.cc's ClassStructInstanceForGType keeps its
-// own: it establishes the invariant once, GType classes are never really freed, and
-// since GLib 2.84 `g_type_class_unref` is a documented no-op — so pairing would buy
-// nothing and could only invalidate what a caller is still holding. Guarded on
-// G_TYPE_IS_CLASSED: a struct, enum, flags or interface GType has no class to ref
-// (`g_type_class_ref` on one is a programmer error, not a no-op).
+// own: it establishes the invariant once, a static type's class is never really freed
+// (measured on glib 2.88.3 — `g_type_class_peek` still answers the same pointer after
+// an unref), and pairing could only invalidate what a caller is still holding. The
+// `g_type_class_peek` guard bounds it at ONE ref per GType for the process, whatever
+// order the two ref sites are reached in.
+//
+// Guarded on G_TYPE_IS_CLASSED because the UNCLASSED fundamentals — boxed/struct and
+// interface — have no class: `g_type_class_ref` answers nullptr there after a
+// `GLib-GObject-CRITICAL`, so without the guard every `GLib.Bytes.$gtype` read would
+// print one. ENUM and FLAGS are classed (GEnumClass/GFlagsClass) and deliberately go
+// through, as they do in gjs. Nothing THROWS on the unguarded path, so the witness is
+// `class-realization.test.mjs`'s child-process stderr case, not an in-process read.
 Napi::Value GetGType(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 2 || !info[0].IsString() || !info[1].IsString()) {

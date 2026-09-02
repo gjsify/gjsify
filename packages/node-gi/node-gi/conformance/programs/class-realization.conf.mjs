@@ -33,8 +33,11 @@ print('inherited notify:', has('notify', Gio.SocketClient));
 // Realizing must not turn the lookup into a rubber stamp.
 print('a signal the class has not:', has('no-such-signal', Gio.MountOperation));
 
-// An UNCLASSED GType has no class to realize — g_type_class_ref on one is a
-// programmer error, not a no-op — so these reads stay plain GType reads.
+// A boxed/struct or interface GType has no class to realize, and the enum next to
+// them does (GEnumClass) — every one of these still has to READ as its own GType.
+// This says nothing about the G_TYPE_IS_CLASSED guard itself: an unguarded ref
+// answers nullptr after a CRITICAL on STDERR, which the golden diff never sees
+// (`scripts/conformance.mjs`). That witness is in `test/class-realization.test.mjs`.
 print('boxed $gtype:', GObject.type_name(Gio.FileAttributeMatcher.$gtype) !== null);
 print('enum $gtype:', GObject.type_name(Gio.BusType.$gtype) !== null);
 print('interface $gtype:', GObject.type_name(Gio.File.$gtype) !== null);
