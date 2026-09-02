@@ -161,7 +161,7 @@ function arrayEntry(key: string, values: readonly string[]): string {
  *
  * A TWELFTH KEY, `ATSApplicationFontsPath`, is emitted when the bundle carries
  * faces, and it is the first one here NOT cited to `refs/` — so the exception is
- * stated rather than left to be noticed (ADR 0037). The rule this module opens
+ * stated rather than left to be noticed (ADR 0038). The rule this module opens
  * with exists against DECORATION: the five absent keys are cosmetic, nothing a
  * reader here can open contains them, and emitting one would be a guess with no
  * observable behind it. This key is a MECHANISM, and its citation is Apple's own

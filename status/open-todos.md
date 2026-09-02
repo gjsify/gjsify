@@ -939,7 +939,7 @@ cannot honour would be the same defect one level up.
 
 ### A bundled font on Windows needs one call, and no `@gjsify/*` package makes it
 
-ADR 0037 stages `gjsify.ship.fonts` into `share/fonts/<appId>/` and each OS reaches it
+ADR 0038 stages `gjsify.ship.fonts` into `share/fonts/<appId>/` and each OS reaches it
 declaratively — except Windows, where nothing does. GTK4 there is pangowin32, whose font
 map is populated by `pango_win32_dwrite_font_map_populate()` alone: DirectWrite's system
 font collection plus Pango's own font-set builder, with no filesystem search path. The
@@ -959,7 +959,7 @@ than a fix: every consumer that ships a face writes the same loop.
 
 The home is `@gjsify/adwaita-app` (ADR 0009, under ADR 0027's host layer), beside
 `initLocale` — which is the SAME shape one variable over: `resolveLocaleDir` reads
-`GJSIFY_LOCALE_DIR` off the launcher `gjsify ship` wrote, and ADR 0037 § 4 chose
+`GJSIFY_LOCALE_DIR` off the launcher `gjsify ship` wrote, and ADR 0038 § 4 chose
 `GJSIFY_FONT_DIR` on that precedent. An `initFonts()` there registers every face the
 directory holds, and one call covers Windows AND Linux —
 `pango_fc_font_map_add_font_file` implements the same vfunc, process-locally, with no
@@ -993,7 +993,7 @@ compiled and never selected on Windows, so none of this affects text rendering.
 
 Two things make it worth removing rather than leaving as harmless: the code comment beside
 it says gvsbuild's pango "can be fontconfig-backed … so either path works", which is the
-claim that made ADR 0037's first draft wrong in the same direction; and the builder's
+claim that made ADR 0038's first draft wrong in the same direction; and the builder's
 `else` branch ("no etc/fonts … skipping") is probably unreachable, because fontconfig's own
 meson installs `fonts.conf` to `<prefix>/etc/fonts` and gvsbuild builds fontconfig with the
 default `sysconfdir` — so the "when present" test always passes and the log line implying a

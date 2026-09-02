@@ -600,7 +600,7 @@ const SHARE_VERDICTS: ReadonlyArray<readonly [string, (context: ShareContext) =>
  *    `bindtextdomain`, with no install step anywhere, and the launcher hands the
  *    directory over on all three layouts.
  *  - `share/fonts` is a directory too, and it is here for a NARROWER reason than
- *    the one next to it (ADR 0037). What this list means is "no package install
+ *    the one next to it (ADR 0038). What this list means is "no package install
  *    step makes this correct", and that is true of a face on every layout: nothing
  *    compiles it, nothing reindexes it, and on Linux fontconfig scans the
  *    directory and caches lazily per user. What it deliberately does NOT claim is

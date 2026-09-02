@@ -1,4 +1,4 @@
-# ADR 0037 — A shipped application font: one payload directory, and the declarative mechanism each OS actually has
+# ADR 0038 — A shipped application font: one payload directory, and the declarative mechanism each OS actually has
 
 - **Status:** Accepted (2026-09-02)
 - **Scope:** `gjsify ship`'s payload (`gjsify.ship.fonts`), the `SHARE` directory set, and the per-OS honesty rows in `utils/ship/layout.ts`. Extends [ADR 0024](0024-ship-installable-artifacts.md) § 2 (*one payload, one layout per OS*) the way § A8 extended it for compiled gettext catalogues. It settles nothing about which GTK closure a `.app` or a Windows program directory carries — that is `@gjsify/gtk-runtime-<target>` and [ADR 0023](0023-gtk-source-precedence.md).

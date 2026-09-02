@@ -89,11 +89,11 @@ const DARWIN_PREBUILD = join(MONOREPO_ROOT, 'packages', 'framework', 'webgl-darw
 const DARWIN_PAYLOAD = ['libgwebgl.dylib', 'Gwebgl-0.1.typelib'];
 
 /**
- * A REAL font face, borrowed the same way and for the same reason (ADR 0037).
+ * A REAL font face, borrowed the same way and for the same reason (ADR 0038).
  *
  * `gjsify.ship.fonts` is the third payload kind whose whole point is that it lands
  * where something ELSE goes looking — `bindtextdomain` for the catalogues, the
- * hicolor spec for the icons, and for a face a DIFFERENT looker per OS (ADR 0037:
+ * hicolor spec for the icons, and for a face a DIFFERENT looker per OS (ADR 0038:
  * fontconfig on Linux, `ATSApplicationFontsPath` on macOS, the app's own
  * `add_font_file` on Windows). So the suite that states the layout map has to carry
  * one. A zero-byte placeholder would prove the map and nothing about the file being
@@ -269,7 +269,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
             `share/applications/${APP_ID}.desktop`,
             // Under the app id, because `/usr/share/fonts` is shared with every
             // other package on the system — the same reason the schema and the
-            // mime document carry it (ADR 0037).
+            // mime document carry it (ADR 0038).
             `share/fonts/${APP_ID}/${FONT_LEAF}`,
             `share/glib-2.0/schemas/${APP_ID}.gschema.xml`,
             `share/icons/hicolor/scalable/apps/${APP_ID}.svg`,
@@ -353,7 +353,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         // The carried GI directory reaches the loader through the environment on
         // Linux, which is exactly what macOS cannot do — see the next test.
         assert.match(launcher, /^LD_LIBRARY_PATH="\$prefix"\/lib\/ship-demo\/gi/m);
-        // …and on THIS OS the same variable carries the staged fonts (ADR 0037),
+        // …and on THIS OS the same variable carries the staged fonts (ADR 0038),
         // which is a reader `fonts-conf(5)` does not list: fontconfig expands
         // `<dir prefix="xdg">fonts</dir>` over XDG_DATA_DIRS as well as
         // XDG_DATA_HOME. Pinned here because narrowing the line to its GLib readers
@@ -379,7 +379,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.match(launcher, /contents=\$\(dirname -- "\$here"\)/);
         assert.match(launcher, /GI_TYPELIB_PATH="\$contents\/Frameworks"/);
         assert.match(launcher, /XDG_DATA_DIRS="\$contents\/Resources\/share:/);
-        // The font handover (ADR 0037). Informational on macOS and NOT the
+        // The font handover (ADR 0038). Informational on macOS and NOT the
         // mechanism — `Info.plist`'s `ATSApplicationFontsPath` is, and the OS has
         // already acted on it before this script runs, because Pango here is
         // CoreText-backed and never reads XDG_DATA_DIRS for a face.
@@ -413,7 +413,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.match(text, /set "HERE=%~dp0"/);
         assert.match(text, /if defined PATH \(set "PATH=%HERE%lib;%PATH%"\)/);
         assert.match(text, /if defined XDG_DATA_DIRS \(set "XDG_DATA_DIRS=%HERE%share;%XDG_DATA_DIRS%"\)/);
-        // THE ONLY OS WHERE THIS LINE IS THE WHOLE FONT STORY (ADR 0037). GTK4
+        // THE ONLY OS WHERE THIS LINE IS THE WHOLE FONT STORY (ADR 0038). GTK4
         // here is pangowin32, populated from DirectWrite — no fontconfig, no GDI,
         // no manifest element, and XDG_DATA_DIRS above reaches no face because
         // `FcConfigXdgDataDirs()` splits on a hardcoded colon and `C:\…` is not a
@@ -620,7 +620,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
                     !rel.includes('/share/locale/') &&
                     !rel.startsWith('share/locale/') &&
                     // `share/fonts` is portable for the reason `share/locale` is,
-                    // and the reason is MEASURED (ADR 0037): fontconfig expands
+                    // and the reason is MEASURED (ADR 0038): fontconfig expands
                     // `<dir prefix="xdg">fonts</dir>` over the XDG_DATA_DIRS every
                     // launcher already exports, so there is no install step for a
                     // non-Linux layout to be missing. What IS open on those two
@@ -736,7 +736,7 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
     // ── the font gap, per OS and only where a face is actually carried ────
 
     it('darwin: the Info.plist points macOS at the faces the bundle carries', () => {
-        // The macOS half of ADR 0037, and it is NOT the XDG_DATA_DIRS path: Pango
+        // The macOS half of ADR 0038, and it is NOT the XDG_DATA_DIRS path: Pango
         // there is CoreText-backed and GTK is not built against fontconfig, so the
         // env variable that carries the icons and the schemas carries no face.
         // `ATSApplicationFontsPath` is Apple's own per-app activation, resolved

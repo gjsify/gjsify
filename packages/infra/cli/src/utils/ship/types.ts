@@ -315,7 +315,7 @@ export interface ShipMimeType {
  *    `share/locale/<rel>`, and no packer reads the field. So translations
  *    cross in the payload, where they belong, and the `abs` path does not
  *    cross at all. This list being explicit is what caught that.
- *  - `fontFiles` — the same shape one milestone later (ADR 0037). `planStage`
+ *  - `fontFiles` — the same shape one milestone later (ADR 0038). `planStage`
  *    copies each face into `share/fonts/<appId>/`, no packer reads the field, and
  *    the only pack-time question — "does this payload carry fonts" — is answered
  *    by the payload's own paths. There is no scriptlet to key off it either:
@@ -477,7 +477,7 @@ export interface ShipSettings extends PackSettings {
      *
      * Read by `planStage` alone, which copies each into `share/fonts/<appId>/` — the
      * one directory fontconfig reaches through the launcher's existing
-     * `XDG_DATA_DIRS` (ADR 0037). Nothing in the pack path reads it, which is why it
+     * `XDG_DATA_DIRS` (ADR 0038). Nothing in the pack path reads it, which is why it
      * is not on {@link PackSettings}; the fonts cross in the payload, like the
      * catalogues.
      */

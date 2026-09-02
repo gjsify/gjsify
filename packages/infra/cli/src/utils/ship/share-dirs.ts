@@ -42,7 +42,7 @@ export const SHARE = {
     locale: 'share/locale',
     /**
      * Font faces the application ships — ONE directory, and three different things
-     * reach it (ADR 0037). No install step on any of them.
+     * reach it (ADR 0038). No install step on any of them.
      *
      * On LINUX fontconfig scans it, by two rules that are both the stock
      * `fonts.conf`'s rather than ours: `<dir>/usr/share/fonts</dir>` unconditionally,
@@ -52,7 +52,7 @@ export const SHARE = {
      * prefix. `fonts-conf(5)` documents only `XDG_DATA_HOME` there; the expansion was
      * measured in EIGHT independently built fontconfigs (2.14.1 through 2.18.3), in
      * every list position, recursively, with a cold cache and a negative control.
-     * Behaviour, not documentation — which is why it is written here and in ADR 0037
+     * Behaviour, not documentation — which is why it is written here and in ADR 0038
      * § *What was measured* rather than re-derived from the man page.
      *
      * On MACOS none of that applies and the directory is the same: Pango there is

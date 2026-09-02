@@ -157,7 +157,7 @@ export default async () => {
         await it('stages faces under the app id, basenames untouched', async () => {
             // The app id is what keeps a face called `Regular.ttf` from being one of two files
             // claiming a path on a `/usr` prefix, with install order deciding the winner — the same
-            // argument that already puts it on the schema and the mime document (ADR 0037). Unlike
+            // argument that already puts it on the schema and the mime document (ADR 0038). Unlike
             // those two the basename is the foundry's and is left alone.
             const staged = planStage(
                 settings({ fontFiles: ['/p/data/fonts/Brand-Regular.ttf', '/p/data/fonts/mono/Brand-Mono.otf'] }),

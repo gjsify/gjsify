@@ -141,7 +141,7 @@ export interface Layout {
      * something true about this OS that the staged tree cannot show? Linux answers
      * by having none.
      *
-     * THE GAP IS NOT THE PATH (ADR 0037). `share/fonts` is reached identically on
+     * THE GAP IS NOT THE PATH (ADR 0038). `share/fonts` is reached identically on
      * all three layouts — fontconfig expands `<dir prefix="xdg">fonts</dir>` over
      * the `XDG_DATA_DIRS` every launcher already exports, measured in eight
      * independent fontconfigs. What differs per OS is whether the Pango that
@@ -189,7 +189,7 @@ export interface Layout {
      * `Contents/Info.plist` is refused rather than silently replacing it.
      *
      * IT TAKES THE PAYLOAD, in the prefix-relative shape, because a manifest is a
-     * statement ABOUT a tree and one key already has to be (ADR 0037):
+     * statement ABOUT a tree and one key already has to be (ADR 0038):
      * `ATSApplicationFontsPath` names the directory the bundle's faces are in, and
      * emitting it over a bundle that carries none would point macOS at a path that
      * is not there. That is also the seam `CFBundleDocumentTypes` will need, which
@@ -251,7 +251,7 @@ const BUNDLE_NAME_FORBIDDEN = /[/:\\]/;
 
 /**
  * The value `ATSApplicationFontsPath` takes for this bundle, or nothing when the
- * payload carries no face (ADR 0037).
+ * payload carries no face (ADR 0038).
  *
  * DERIVED THROUGH `place()`, over a file the payload actually holds, rather than
  * written out as `share/fonts/<appId>`. The key is documented as a path relative

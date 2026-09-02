@@ -538,7 +538,7 @@ async function assemble(args: ShipOptions): Promise<void> {
         if (runtime.launcher.interpreter === undefined && layout.runtimeGap !== undefined) {
             console.warn(`${LOG} ${layout.runtimeGap}`);
         }
-        // The same shape one axis over (ADR 0037). `share/fonts` is NOT in the list
+        // The same shape one axis over (ADR 0038). `share/fonts` is NOT in the list
         // above — it needs no install step on any layout, so `linuxInstallDependent`
         // classifies it as portable — but "the directory is reached" and "this OS's
         // Pango reads that directory at all" are different questions, and only the

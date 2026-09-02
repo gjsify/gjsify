@@ -25,14 +25,14 @@
 // the tree was installed. Getting that from the launcher rather than from the app
 // keeps the app free of install-layout knowledge.
 //
-// IT ALSO CARRIES THE FONTS, and that reader is not GLib (ADR 0037). fontconfig
+// IT ALSO CARRIES THE FONTS, and that reader is not GLib (ADR 0038). fontconfig
 // expands the stock `fonts.conf`'s `<dir prefix="xdg">fonts</dir>` over
 // `XDG_DATA_DIRS` as well as `XDG_DATA_HOME`, so this one export is the whole
 // mechanism behind `gjsify.ship.fonts` outside a `/usr` prefix and is what
 // reaches `/app/share/fonts` in a Flatpak. `fonts-conf(5)` documents only
 // `XDG_DATA_HOME`: the behaviour is NOT re-derivable from the manual, so do not
 // narrow this line to the GLib readers on the strength of what the man page
-// says. Measured across fontconfig 2.14.1 → 2.18.3 — ADR 0037 § What was
+// says. Measured across fontconfig 2.14.1 → 2.18.3 — ADR 0038 § What was
 // measured has the versions and the control.
 //
 // THREE FORMS, because neither other OS runs this file. macOS runs a `/bin/sh`
@@ -51,7 +51,7 @@ import { SHARE } from './share-dirs.js';
 import type { ShipSettings } from './types.js';
 
 /**
- * `<the layout's data dir>/fonts/<appId>` — the staged face directory (ADR 0037).
+ * `<the layout's data dir>/fonts/<appId>` — the staged face directory (ADR 0038).
  *
  * ONE spelling, and the leaf comes off `SHARE.fonts` rather than being typed out,
  * because all three forms below want a path `planFonts` decides. A literal in each
@@ -173,7 +173,7 @@ function renderPrefixLauncher(settings: ShipSettings, bundleRelPath: string, lay
     }
 
     // Where the faces landed, handed over for the same reason and in the same
-    // shape as the catalogue directory above (ADR 0037) — and REDUNDANT on this
+    // shape as the catalogue directory above (ADR 0038) — and REDUNDANT on this
     // OS, where fontconfig has already found them through XDG_DATA_DIRS. Exported
     // anyway, because the one thing a consumer must not have to write is an OS
     // branch around a path this command chose; `Layout.fontGap` says where the
@@ -313,7 +313,7 @@ function renderAppBundleLauncher(
     // The face directory, for the same reason as above — and on THIS OS it is
     // informational rather than the mechanism: `Info.plist`'s
     // `ATSApplicationFontsPath` has already had macOS activate the same directory
-    // before this script's interpreter started (ADR 0037). Exported all the same,
+    // before this script's interpreter started (ADR 0038). Exported all the same,
     // so a consumer that wants to name a bundled family has one spelling on three
     // operating systems instead of an OS branch.
     if (settings.fontFiles.length > 0) {
@@ -417,7 +417,7 @@ function renderWindowsLauncher(
     if (settings.localeFiles.length > 0) {
         lines.push(`set "GJSIFY_LOCALE_DIR=${at(dirs.data)}\\locale"`);
     }
-    // THE ONE OS WHERE THIS VARIABLE IS THE WHOLE HANDOVER (ADR 0037), because
+    // THE ONE OS WHERE THIS VARIABLE IS THE WHOLE HANDOVER (ADR 0038), because
     // Windows has no declarative font activation at all and the app must call
     // `PangoCairo.FontMap.get_default().add_font_file()` itself. This line is how
     // it is told where. Do NOT drop it as redundant with XDG_DATA_DIRS above —

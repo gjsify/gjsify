@@ -168,7 +168,7 @@ export default async () => {
         });
 
         await it('declares the font directory only when the bundle carries one', async () => {
-            // ADR 0037, and on this OS the key is not a nicety beside the
+            // ADR 0038, and on this OS the key is not a nicety beside the
             // XDG_DATA_DIRS path — it IS the path. Pango on macOS is CoreText-backed
             // and GTK is not built against fontconfig there, so a `fonts.conf` in the
             // bundle would be inert and this is the only per-app activation there is.

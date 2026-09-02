@@ -534,7 +534,7 @@ export interface ConfigDataShip extends AppMetadata {
      */
     localeDir?: string;
     /**
-     * A font file, or a directory of them, the application SHIPS (ADR 0037).
+     * A font file, or a directory of them, the application SHIPS (ADR 0038).
      * Default: `data/fonts` when it exists.
      *
      * Staged into `share/fonts/<appId>/`, which is where fontconfig looks: under a

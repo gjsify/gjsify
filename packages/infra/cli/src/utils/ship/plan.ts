@@ -130,7 +130,7 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
 }
 
 /**
- * Font faces, under a directory named after the app id (ADR 0037).
+ * Font faces, under a directory named after the app id (ADR 0038).
  *
  * `share/fonts` is shared with every other package on a `/usr` prefix, exactly as
  * `share/glib-2.0/schemas` and `share/mime/packages` are — so the app id is what

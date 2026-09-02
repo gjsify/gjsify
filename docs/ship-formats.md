@@ -577,7 +577,7 @@ codesign/notarization complaint (a bundle's `Frameworks` is expected to hold cod
 file there is what `codesign --deep` and notarization object to), so stage 4 may have to move it.
 `LayoutDirs.other` already cites codesign as the reason nothing lands beside `Contents/`.
 
-### Fonts: one directory, three mechanisms, and only one of them is this file's (ADR 0037)
+### Fonts: one directory, three mechanisms, and only one of them is this file's (ADR 0038)
 
 `gjsify.ship.fonts` is another payload kind whose whole point is that something ELSE goes looking
 for it — `bindtextdomain` for the catalogues, the hicolor spec for the icons, the freedesktop menu

@@ -3,7 +3,7 @@
 // THE HONEST COUNTERPART IS DISCOVERY, NOT LOADING. On a phone `useFonts` registers
 // font files with the runtime and returns `[false, null]` until they are in. On a
 // desktop, fonts are INSTALLED — system-wide, in `~/.local/share/fonts`, or shipped
-// with the application (`gjsify.ship.fonts`, ADR 0037) — and the platform's font map
+// with the application (`gjsify.ship.fonts`, ADR 0038) — and the platform's font map
 // has already found them by the time any JavaScript runs. There is nothing to wait
 // for, so the hook reports ready on its first render.
 //
@@ -12,7 +12,7 @@
 // installed directory, measured. On MACOS the bundle declares
 // `ATSApplicationFontsPath` and the OS is documented to activate it before the
 // process starts — Apple's key reference, not a measurement: no leg in this
-// repository runs a `.app`, which is what ADR 0037's `Layout.fontGap` prints rather
+// repository runs a `.app`, which is what ADR 0038's `Layout.fontGap` prints rather
 // than letting a green stage imply. On WINDOWS GTK4 is pangowin32/DirectWrite, which
 // reaches no font file by configuration at all — a bundled face there is registered
 // by the APP at startup (`PangoCairo.FontMap.get_default().add_font_file()`, over
