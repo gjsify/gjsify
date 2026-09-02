@@ -269,12 +269,39 @@ function recordingNative() {
 }
 
 test('an addon without the binding is left completely alone', () => {
+    // THIS TEST USED TO BE UNFALSIFIABLE, and it is the reason the assertion below is
+    // about the FILESYSTEM rather than about the return value. Asserting only
+    // `activateNativePrebuilds({}) === []` passes with the guard DELETED: the walk
+    // then runs, finds a directory, calls `prependSearchPath` on an object that has
+    // none, and the loop's own try/catch swallows the TypeError — so the result is
+    // `[]` either way and the mutation stays green. Verified by deleting the guard.
+    //
+    // What the guard actually buys is that an addon predating `prependSearchPath`
+    // does not pay for a walk whose every result it must discard, so that is what
+    // gets asserted: the tree is never even read.
+    const { fs: real, options } = twoInstallTree();
+    const counting = (probe) => ({
+        isDirectory: (p) => (probe.reads++, real.isDirectory(p)),
+        readDir: (p) => (probe.reads++, real.readDir(p)),
+        readJson: (p) => (probe.reads++, real.readJson(p)),
+    });
+
+    for (const addon of [{}, undefined, { prependSearchPath: null }]) {
+        resetNativePrebuildsForTests();
+        const probe = { reads: 0 };
+        // The search path must stay exactly as it was — the state before this module
+        // existed — and nothing may be read to arrive at that.
+        assert.deepEqual(activateNativePrebuilds(addon, { ...options, fs: counting(probe) }), []);
+        assert.equal(probe.reads, 0, 'no addon binding, so the tree must not be walked at all');
+    }
+
+    // The control the assertion above needs: the SAME tree does yield reads, and a
+    // directory, for an addon that does carry the binding. Without it, `reads === 0`
+    // would also be satisfied by a fixture that discovers nothing.
     resetNativePrebuildsForTests();
-    // Predates `prependSearchPath`: the search path must stay exactly as it was,
-    // which is the state before this module existed.
-    assert.deepEqual(activateNativePrebuilds({}), []);
-    resetNativePrebuildsForTests();
-    assert.deepEqual(activateNativePrebuilds(undefined), []);
+    const probe = { reads: 0 };
+    assert.equal(activateNativePrebuilds(recordingNative(), { ...options, fs: counting(probe) }).length, 2);
+    assert.ok(probe.reads > 0);
 });
 
 test('it runs at most once', () => {
@@ -330,6 +357,92 @@ test('a directory GI refuses is skipped without losing the rest', () => {
     // must not appear in the returned claim.
     assert.deepEqual(activateNativePrebuilds(guarded, { ...options, fs }), [near]);
     assert.deepEqual(native.search, [near]);
+});
+
+test('a directory the LIBRARY path refuses is still reported for the typelib path', () => {
+    resetNativePrebuildsForTests();
+    const { fs, near, far, options } = twoInstallTree();
+    const search = [];
+    // Two separate bindings, and an addon can carry one without the other. Folding
+    // both into one try/catch dropped a directory GI had ALREADY accepted on the
+    // typelib path because the second call threw, so the return value under-reported
+    // what was on the search path — the drift the test above forbids, arriving
+    // through the other door.
+    const halfBound = {
+        prependSearchPath: (p) => search.push(p),
+        prependLibraryPath: () => {
+            throw new TypeError('prependLibraryPath(path: string)');
+        },
+    };
+    assert.deepEqual(activateNativePrebuilds(halfBound, { ...options, fs }), [near, far]);
+    assert.deepEqual([...search].reverse(), [near, far]);
+});
+
+test('the order does not depend on the order the directory happens to read in', () => {
+    // Between `node_modules` levels the up-walk fixes the order. WITHIN one level it
+    // is a readdir, which has no defined order — ext4 hashes it, and the hash moves
+    // when the directory is rewritten. Two packages both staging a typelib would then
+    // reach a first-match-wins search path in an order that differs between two
+    // machines with identical installs. Same tree, both read orders, one answer.
+    const build = (order) => {
+        const nm = '/app/node_modules';
+        const dirs = { [nm]: [dir('@gjsify')], [`${nm}/@gjsify`]: order.map(dir) };
+        const manifests = {};
+        for (const name of order) {
+            const pkg = `${nm}/@gjsify/${name}`;
+            dirs[pkg] = [dir('prebuilds')];
+            dirs[`${pkg}/prebuilds`] = [dir('linux-x64')];
+            dirs[`${pkg}/prebuilds/linux-x64`] = [file('X-1.0.typelib')];
+            manifests[`${pkg}/package.json`] = { name: `@gjsify/${name}`, gjsify: { prebuilds: 'prebuilds' } };
+        }
+        return fakeFs({ dirs, manifests });
+    };
+    const opts = { startDir: '/app', platform: 'linux', arch: 'x64', musl: false };
+    const names = ['alpha-linux-x64', 'beta-linux-x64'];
+    const forwards = discoverPrebuiltTypelibDirs({ ...opts, fs: build(names) });
+    const backwards = discoverPrebuiltTypelibDirs({ ...opts, fs: build([...names].reverse()) });
+    assert.equal(forwards.length, 2);
+    assert.deepEqual(forwards, backwards);
+    // And the one answer is by package name, so a reader can predict it.
+    assert.ok(forwards[0].includes('alpha-linux-x64'), forwards[0]);
+});
+
+test('the gtk-runtime skip claims the family, not every name containing it', () => {
+    // The skip hands GTK's typelibs to `gtkSource()` (ADR 0023, hazard #920). A
+    // SUBSTRING test reaches past that claim: a third-party package that merely has
+    // the words in its name is not this module's to silence, and dropping its
+    // prebuilds would surface as "the typelib is installed and not found" — the
+    // complaint this module exists to answer.
+    const nm = '/app/node_modules';
+    const stage = (dirs, manifests, scope, name) => {
+        const pkg = scope ? `${nm}/${scope}/${name}` : `${nm}/${name}`;
+        dirs[pkg] = [dir('prebuilds')];
+        dirs[`${pkg}/prebuilds`] = [dir('linux-x64')];
+        dirs[`${pkg}/prebuilds/linux-x64`] = [file('X-1.0.typelib')];
+        manifests[`${pkg}/package.json`] = {
+            name: scope ? `${scope}/${name}` : name,
+            gjsify: { prebuilds: 'prebuilds' },
+        };
+        return `${pkg}/prebuilds/linux-x64`;
+    };
+    const dirs = {
+        [nm]: [dir('@acme'), dir('@gjsify')],
+        [`${nm}/@acme`]: [dir('vendored-gtk-runtime-helper')],
+        [`${nm}/@gjsify`]: [dir('gtk-runtime-linux-x64')],
+    };
+    const manifests = {};
+    const acme = stage(dirs, manifests, '@acme', 'vendored-gtk-runtime-helper');
+    stage(dirs, manifests, '@gjsify', 'gtk-runtime-linux-x64');
+    assert.deepEqual(
+        discoverPrebuiltTypelibDirs({
+            startDir: '/app',
+            platform: 'linux',
+            arch: 'x64',
+            musl: false,
+            fs: fakeFs({ dirs, manifests }),
+        }),
+        [acme],
+    );
 });
 
 // ---------------------------------------------------------------------------

@@ -191,6 +191,22 @@ function platformPackageName(name, token) {
     return `${name}-${token}`;
 }
 
+/**
+ * Whether a package name is a GTK runtime bundle, whose typelibs belong to
+ * `gtkSource()` and to nothing else (see the skip in the walk below).
+ *
+ * The UNSCOPED half, and a prefix rather than a substring: the family this module
+ * hands over is `gtk-runtime` and `gtk-runtime-<target>`, under any scope. A
+ * substring test reaches further than the claim — `@acme/vendored-gtk-runtime-helper`
+ * is somebody else's package, and silently dropping its prebuilds is a defect
+ * reported as "the typelib is installed and not found", the very complaint this
+ * module exists to answer.
+ */
+function isGtkRuntimePackage(name) {
+    const unscoped = name.startsWith('@') ? name.slice(name.indexOf('/') + 1) : name;
+    return unscoped === 'gtk-runtime' || unscoped.startsWith('gtk-runtime-');
+}
+
 const REAL_FS = {
     readDir: (p) => {
         try {
@@ -236,7 +252,20 @@ function nodeModulesChain(startDir, fs) {
     return dirs;
 }
 
-/** Package directories inside one `node_modules`, scopes expanded one level. */
+/**
+ * Package directories inside one `node_modules`, scopes expanded one level, SORTED
+ * by package name.
+ *
+ * The sort is not cosmetic. The up-walk fixes the order BETWEEN `node_modules`
+ * levels, but within one level this is a `readdir`, and a directory read order is
+ * not a defined order — it is the filesystem's (ext4 hashes it, and the hash moves
+ * when the directory is rewritten). Two packages that both stage a typelib would
+ * therefore reach GI's search path in an order that can differ between two machines
+ * with byte-identical installs, and change on one machine after a reinstall. A
+ * search path is first-match-wins, so that is a difference in WHICH typelib loads,
+ * reproducing on one machine and not on the other. Sorting costs one comparison per
+ * package and makes the answer a function of the tree alone.
+ */
 function packageDirsIn(nodeModules, fs) {
     const out = [];
     for (const entry of fs.readDir(nodeModules)) {
@@ -252,7 +281,10 @@ function packageDirsIn(nodeModules, fs) {
             }
         }
     }
-    return out;
+    // Plain code-unit order, not `localeCompare`: package names are ASCII by npm's
+    // own rule, and a locale-sensitive collation would hand the determinism this
+    // sort exists to establish straight back to the environment.
+    return out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
 /** The staged directory of `pkgDir` for this host, or null. */
@@ -328,12 +360,16 @@ function siblingStagedDir(pkgDir, pkgName, tokens, fs) {
  *
  * A cheaper pre-filter was tried and is recorded here because it looked right and was
  * not. Skipping a package that has no `prebuilds/` directory (a cheap `stat`) cut the
- * reads to 109 — and broke the second pass entirely, because the FACADE is exactly the
- * package that declares prebuilds while shipping none: `@gjsify/webkit-native` has
- * `"files": []`. Skipping it skips the sibling walk that is the whole point. Measured
- * on the darwin VM against a real nested install: `requireGi('WebKit', '6.0')` back to
- * "Typelib file … not found". A package is a facade only according to its MANIFEST, so
- * the manifest is what has to be read.
+ * reads to 109 — and broke the second pass entirely, because a FACADE is exactly the
+ * package that declares prebuilds while shipping none, so skipping it skips the
+ * sibling walk that is the whole point. A package is a facade only according to its
+ * MANIFEST, so the manifest is what has to be read.
+ *
+ * NOT `@gjsify/webkit-native`, which an earlier revision of this paragraph named as
+ * that facade while the module header said the opposite about the same package, in
+ * the same file. The manifest settles it — `packages/framework/webkit-native/
+ * package.json` declares `gjsify.platforms` and no `gjsify.prebuilds` — and the
+ * header is the side that was right. Read it for what that costs.
  *
  * Narrowing the scan to `@gjsify/*` would cut it honestly, but it is a different
  * contract — "any package declaring `gjsify.prebuilds`" is what the CLI implements —
@@ -351,9 +387,18 @@ export function discoverPrebuiltTypelibDirs({ startDir, platform, arch, musl, fs
             // declared `gjsify.prebuilds` at all — it lives at `<pkg>/gtk/` — so this
             // walk would not reach it either way. The skip is kept because the two are
             // one decision apart: a gtk-runtime package that ever DID declare prebuilds
-            // would be prepended from here as well, and a second copy of those typelibs
-            // on the path is the hazard #920 records.
-            if (name.includes('gtk-runtime-')) continue;
+            // would be prepended from here as well, and #920 is what that costs — a
+            // bundle's typelibs on the path of a process whose addon is linked against
+            // the host's GTK, surfacing as methods resolving onto the wrong entries.
+            // No ORDERING fixes it: the case that matters is `gtkSource() === 'system'`,
+            // where the GTK activation prepends NOTHING, so there is nothing for a
+            // later or earlier prepend to lose to. Excluding the package is the remedy.
+            //
+            // Matched on the UNSCOPED name's prefix, not `includes`: this claims
+            // authority over `@gjsify/gtk-runtime-<target>` and its unscoped spelling,
+            // and a substring test would also silently swallow an unrelated
+            // `@acme/vendored-gtk-runtime-helper` that this module has no policy about.
+            if (isGtkRuntimePackage(name)) continue;
 
             const manifest = fs.readJson(join(pkgDir, 'package.json'));
             if (manifest?.gjsify?.prebuilds === undefined) continue;
@@ -420,10 +465,24 @@ export function activateNativePrebuilds(native, options = {}) {
     for (const dir of [...dirs].reverse()) {
         try {
             native.prependSearchPath(dir);
-            if (typeof native.prependLibraryPath === 'function') native.prependLibraryPath(dir);
-            activated.unshift(dir);
         } catch {
-            // A stubbed/old addon without one of the bindings — skip this directory.
+            // A stubbed/old addon without the binding — this directory did not reach
+            // GI, so it must not appear in the returned claim either.
+            continue;
+        }
+        // Recorded as soon as the TYPELIB path took it, before the library path is
+        // attempted. The two are separate bindings and an addon can carry one without
+        // the other; folding both into one try/catch made a directory GI had already
+        // accepted vanish from the report because the SECOND call threw. The return
+        // value is what a caller diagnoses from, so "reported == handed" has to hold
+        // per path, not per pair.
+        activated.unshift(dir);
+        try {
+            if (typeof native.prependLibraryPath === 'function') native.prependLibraryPath(dir);
+        } catch {
+            // Typelib found, library path unchanged: GI still resolves the namespace
+            // and only a g_module_open of the backing library can fail — the state
+            // before this module existed, and never a reason to drop the typelib dir.
         }
     }
     return activated;
