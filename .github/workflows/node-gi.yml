@@ -670,8 +670,20 @@ jobs:
   # was left out while 25 of its tests were red for defects outside gtk-host,
   # because a leg that is red for another package's defects teaches people to
   # ignore it. It went in at 0 failures.
+  #
+  # `@gjsify/iframe` joined the same job rather than getting one of its own, and
+  # the reason is the job, not thrift: it already installs the whole workspace,
+  # builds this checkout's cli and node-gi addon, and the image already bakes
+  # webkitgtk6.0 — a second job would be 70 lines of identical bootstrap for one
+  # `run:`. Its slot is the same amendment gtk-host's was (ADR 0022 § Amendment —
+  # the `node` slot): the package binds GJS through nothing but `gi://`, and Node
+  # is the ONLY host macOS and Windows have for the WebView pillar, so this leg is
+  # what stands behind `runtimes.node: "polyfill"` on the two platforms no `gjs`
+  # leg can reach. It needs no display (measured with DISPLAY and WAYLAND_DISPLAY
+  # both unset) and runs under xvfb anyway, because it shares the step recipe with
+  # gtk-host and a second recipe is a second thing to keep true.
   gtk-host-node:
-    name: gtk-host suite over the reverse bridge (Node + Xvfb / Fedora 44)
+    name: framework suites over the reverse bridge (Node + Xvfb / Fedora 44)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
@@ -682,6 +694,9 @@ jobs:
           gjs --version
           echo "gtk4: $(pkg-config --modversion gtk4)"
           echo "libadwaita: $(pkg-config --modversion libadwaita-1)"
+          # @gjsify/iframe loads gi://WebKit 6.0 at module evaluation, so an
+          # image without it fails at the first import rather than in a test.
+          echo "webkitgtk-6.0: $(pkg-config --modversion webkitgtk-6.0)"
 
       # Official nodejs.org build, NOT Fedora's dnf node (which crashes rolldown's
       # prebuilt napi binding — the gjsify bundler engine). Same as the sibling jobs.
@@ -729,23 +744,28 @@ jobs:
           ln -sfn "$PWD/packages/infra/cli/lib/index.js" node_modules/.bin/gjsify
           echo "Node bundler (this checkout): $(node_modules/.bin/gjsify --version)"
 
-      # Build gtk-host's lib + its transitive workspace deps (incl. @gjsify/unit).
+      # Build the two libs + their transitive workspace deps (incl. @gjsify/unit).
       # build:gjsify (the --library step) emits the lib/esm/*.js the --app node
-      # bundle inlines — no .d.ts emit needed here.
-      - name: Build @gjsify/gtk-host lib under Node (+ workspace deps)
+      # bundle inlines — no .d.ts emit needed here. `--with-dependencies` is what
+      # brings @gjsify/message-channel's lib in through iframe's closure, which the
+      # iframe leg reaches by its `/core` subpath.
+      - name: Build the framework libs under Node (+ workspace deps)
         run: |
           export PATH="$PWD/node_modules/.bin:$PATH"
           gjsify workspace @gjsify/unit build:gjsify --with-dependencies
           gjsify workspace @gjsify/gtk-host build:gjsify --with-dependencies
+          gjsify workspace @gjsify/iframe build:gjsify --with-dependencies
 
       # Guarantee the devDependency file: link resolves to the freshly node-gyp-built
       # addon regardless of how the install materialised it (belt-and-suspenders,
       # same as consumer-sqlite).
       - name: Link the node-gi devDependency
         run: |
-          mkdir -p packages/framework/gtk-host/node_modules/@gjsify
-          ln -sfn ../../../../node-gi/node-gi packages/framework/gtk-host/node_modules/@gjsify/node-gi
-          ls -l packages/framework/gtk-host/node_modules/@gjsify/node-gi
+          for pkg in packages/framework/gtk-host packages/framework/iframe; do
+            mkdir -p "$pkg/node_modules/@gjsify"
+            ln -sfn ../../../../node-gi/node-gi "$pkg/node_modules/@gjsify/node-gi"
+            ls -l "$pkg/node_modules/@gjsify/node-gi"
+          done
 
       # Xvfb + a private session bus, software rendering — the gtk-smoke recipe.
       # NODE_GI_NATIVE=build pins the just-built addon over any staged prebuild.
@@ -755,6 +775,26 @@ jobs:
       # so on this leg they RUN, and a missing GTK dies loudly at Gtk.init().
       - name: Run the gtk-host suite on node-gi (xvfb + dbus)
         working-directory: packages/framework/gtk-host
+        run: |
+          export PATH="$PWD/../../../node_modules/.bin:$PATH"
+          xvfb-run -a dbus-run-session -- \
+            env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+            NODE_GI_NATIVE=build gjsify run test:gjs-on-node
+
+      # The WebView pillar's node leg — the SAME suite main.yml runs on gjs, built
+      # `--app node` so `gi://WebKit?version=6.0` goes through requireGi(). It is
+      # what stands behind `@gjsify/iframe`'s `runtimes.node: "polyfill"`
+      # (ADR 0022 § Amendment — the `node` slot), and the only leg that exercises
+      # the pillar on the host macOS and Windows actually have.
+      #
+      # It takes no build flags of its own, and that is the point rather than an
+      # omission: the first version of this leg carried an `--alias` forcing
+      # `@gjsify/message-channel` back onto its polyfill, which made the suite
+      # green over a divergence the SHIPPING node build also had (ADR 0022
+      # § Amendment → "What the leg found"). The alias is gone because the source
+      # is fixed; if a future one seems necessary here, that is the finding.
+      - name: Run the iframe suite on node-gi (xvfb + dbus)
+        working-directory: packages/framework/iframe
         run: |
           export PATH="$PWD/../../../node_modules/.bin:$PATH"
           xvfb-run -a dbus-run-session -- \

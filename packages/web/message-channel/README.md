@@ -33,6 +33,27 @@ port2.start();
 port2.close();
 ```
 
+## `@gjsify/message-channel/core` — the transport seam, on every runtime
+
+The `node`, `browser` and `nativescript` slots are `native`, so a build for those
+targets routes the bare `@gjsify/message-channel` specifier to `./globals` and the
+consumer gets the host's own `MessageChannel`. That is right for code that wants a
+transferable port and wrong for code that needs the **pluggable transport**: a host
+port has no `MessagePortTransport` hook and no `_partner`, and answers
+`Symbol.toStringTag` with `EventTarget` rather than `MessagePort`.
+
+`./core` is the same implementation at a specifier slot routing never rewrites — the
+alias layer matches exact specifiers, so a subpath passes through. Import it when the
+seam is the point, as `@gjsify/iframe` does for its WebKit bridge:
+
+```typescript
+import { MessagePort, type MessagePortTransport } from '@gjsify/message-channel/core';
+```
+
+On GJS both specifiers resolve to the same file, so there is one class and one
+identity. Off GJS they are deliberately two, because the host port cannot keep the
+promise the seam makes.
+
 ## License
 
 MIT

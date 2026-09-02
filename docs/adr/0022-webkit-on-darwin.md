@@ -4,6 +4,7 @@
 - **Scope:** `@gjsify/iframe` (Framework pillar) and its `WebKit.WebView` dependency; `@gjsify/webkit-native` + its `*-darwin-*` per-target set (distribution per ADR 0017, OS axis per ADR 0018).
 - **Amended while implementing.** Two decisions in the Proposed draft were measured wrong and are corrected below, each with the measurement that overturned it: the shim does NOT take its own namespace (§ *One namespace*), and stage 2 does NOT go through `IOSurface`/`CARenderer` (§ *The renderer question*). A third finding the draft had no idea about — the run loop — is what stage 1 actually turned on.
 - **Amended again after the first release.** Input forwarding — deferred as its own track — has landed, and two of the four "not implemented" bullets turned out to be mistakes of fact rather than deferrals: named script worlds and user-script allow/block lists are both implementable and both now ship. See § *Input forwarding* and § *What the first revision got wrong*, each with the measurement behind it.
+- **Amended a third time, on the runtime axis.** `@gjsify/iframe` declared `gjsify.runtimes.node: "none"` while its suite measurably ran on Node over the reverse bridge — and Node is the only host macOS and Windows have for this pillar. See § *Amendment — the `node` slot*.
 
 ## Context
 
@@ -266,6 +267,121 @@ engine; the inconvenient one preserves parity with the Linux backend.
    `new WebKit.UserScript(source, frames, time, allow, block)` while a GObject
    would demand `new UserScript({…})`. Neither is a style question: both change
    the call the consumer has to write.
+
+### Amendment — the `node` slot
+
+`@gjsify/iframe` declares
+`{gjs: polyfill, node: polyfill, browser: none, nativescript: none}`.
+
+**`node` was `none` from the day the package was written, and that is amended
+rather than quietly corrected** — the same error [ADR 0027](0027-gtk-host-layer.md)
+had to amend for `@gjsify/gtk-host`, for the same reason. The package binds GJS
+through nothing but `gi://` — `WebKit`, `JavaScriptCore`, `GLib`, `GObject`,
+`Gio` — and the `--app node` target rewrites every one of those to
+`@gjsify/node-gi`'s `requireGi(…)`. Nothing pinned this package to GJS but the
+declaration and a `test:gjs`-only script.
+
+Amended on measurements this repository already carried while the manifest said
+the opposite:
+
+- `docs/reports/node-gi-consumer-survey.json` — the whole suite built `--app node`
+  and run over the reverse bridge: **275/275 on node, bun AND deno** (Fedora 44,
+  GJS 1.88.0, Node 24.15.0, girepository-2.0 2.88.1). Re-measured while writing
+  this amendment on GJS 1.88.1 / Node 24.19.0, with `DISPLAY` and
+  `WAYLAND_DISPLAY` both unset: **the two legs agree test for test**, the node
+  bundle carrying `requireGi("WebKit","6.0")` beside `GLib`, `Gio`, `GObject` and
+  `GdkPixbuf`.
+- `packages/framework/webkit-native/README.md` — on darwin-x64 under Node 24,
+  `load_html()` on a `WebKit.WebView` reaches `LoadEvent.FINISHED` via `STARTED`
+  and `COMMITTED`, so the CFRunLoop drain decision 2 rests on is serviced on Node
+  as well as on GJS. Re-measured 2026-09-02 on macOS 15.7.9 / Node 24.18.1
+  against the published 0.45.0 packages, with `evaluate_javascript()` reading
+  back the loaded document: 12 runs, natural exit and `process.exit()` alike, no
+  crash on teardown, and a bare `GLib.MainLoop.run()` is enough — no
+  `Adw.Application`. That run is also what settled how far the claim reaches,
+  below.
+
+**What `node: "polyfill"` claims here is the `--app node` BUILD**, not a bare
+`node_modules` import. The published `lib/esm` carries literal
+`gi://WebKit?version=6.0` specifiers, and Node has no loader hook for that scheme
+(`ERR_UNSUPPORTED_ESM_URL_SCHEME`), so a Node consumer reaches this package
+through `gjsify build --app node`, which is what rewrites the specifier to
+`requireGi(…)`. That is the runtime axis as the root `AGENTS.md`
+§ *Runtime & platform model* defines it — the quintuplet is the INPUT to slot
+routing, read at build config time — and it is true of every GJS-bound package in
+the tree, not a caveat of this one.
+
+`register.spec.ts` stood down on the node leg while it was wrapped in
+`on('Gjs', …)`, which read as `/register` being the one part the node leg could
+not cover. The GATE was the reason, not the code: `--app node` resolves the same
+WebKit import chain through `requireGi()`, and widened to
+`on(['Gjs', 'Node.js', 'Bun', 'Deno'], …)` those tests pass on all four at the
+same count as on GJS (measured: node 24.19.0, bun 1.3.14, deno 2.9.4 — ONE
+`--app node` bundle serves the three Node-API hosts, so a gate naming one of
+them stood the other two down for no measured reason either).
+A gate written while the slot said `none` outlives the reason it was written for,
+and the axis ledger reports it as a stand-down either way — which is honest about
+what ran, and says nothing about what could have.
+
+The reason this matters is not portability for its own sake. **There is no GJS
+host for this pillar on macOS or on Windows** — ADR 0024 § 4 puts macOS
+applications on Node + `@gjsify/node-gi`, and [ADR 0035](0035-web-view-on-win32.md)
+does the same for win32. `node: "none"` therefore denied the WebView pillar on the
+only host either platform has, which is precisely the platform this ADR exists to
+serve.
+
+`browser` and `nativescript` stay `none`, and that is not the same kind of claim:
+on those two targets `gi://` is substituted with `{}`, so a wrong declaration
+there fails SILENTLY — which is why the reachability pass treats them as fatal and
+`node` only as a warning.
+
+`@gjsify/webkit-native` keeps `node: "none"` and that is not a contradiction. It
+ships no JavaScript at all — only the dylib and the typelib, both runtime-neutral
+— and the runtime axis describes a package's own JavaScript. Its README says so;
+which host loads the typelib is decided by `GI_TYPELIB_PATH`, i.e. by packaging,
+exactly as decision 3 has it.
+
+The slot flips in the same change that gives it a **test leg**, because a declared
+runtime with no suite behind it is the defect ADR 0030 § Decision 6 names:
+`test:gjs-on-node` builds the same corpus `--app node` and runs it on Node, wired
+into `node-gi.yml` beside `@gjsify/gtk-host`'s. Which packages take that step is a
+JUDGEMENT and not derivable — `@gjsify/sqlite` runs the identical leg and is
+correctly `node: "none"`, because on Node you use `node:sqlite` and its leg proves
+the BRIDGE rather than a node consumer story. What is mechanised is the other
+direction, in the `reverse-bridge-leg` conformance rule: a package that reaches
+Node only through the reverse bridge and declares `node: "polyfill"` must run a
+Node suite CI actually reaches.
+
+#### What the leg found: `@gjsify/message-channel` routed the ports away
+
+The node leg does not merely re-run the gjs corpus; it ran a DIFFERENT program
+until this change, and the difference was a defect in the shipping path rather
+than in the test. `@gjsify/message-channel` declares `node: "native"`, so ADR 0014
+routing sent the bare specifier to `./globals` — Node's own `MessageChannel` — on
+every `--app node` build of this package, not just in the suite. That port is not
+substitutable here: `BridgePortTransport` plugs into the polyfill's transport
+hook, `MessageBridge._registerTransferredPort()` reads `port._partner`, and
+`substitutePorts()` recognises a port by `Symbol.toStringTag === 'MessagePort'`.
+Measured on Node 24.19.0, a host `MessagePort` has none of the three: no hook, no
+`_partner`, and `Symbol.toStringTag` `EventTarget` (its channel: `Object`). The
+suite already said so — `IFrameMessageChannel — Symbol.toStringTag identifies the
+types` is the test that goes red without the substitution — and the same
+substitution takes `_registerTransferredPort()` down its `partner missing` throw
+branch and leaves `substitutePorts()` matching nothing. The port-transfer half of
+the WebKit bridge, gone on the node target.
+
+The fix is at the source, per AGENTS.md § *Don't patch* (pure-JS → native swap:
+keep the pure-JS path at a subpath): `@gjsify/message-channel` now exports
+`./core`, the same implementation at a specifier the alias layer does not rewrite
+(it matches exact specifiers), declared all-`polyfill` in `gjsify.runtimeSubpaths`.
+`@gjsify/iframe` imports the seam from there. `native` stays right for the package
+itself — a consumer who wants a transferable port on Node wants Node's — and the
+slot claim of THIS package now describes the program a consumer actually gets.
+
+A build-level `--alias` on the test leg would have made the suite green without
+any of that, which is what makes this worth writing down: on a leg whose whole
+purpose is corpus identity, an alias that forces the corpus back into agreement
+buys the green and hides the divergence it was built to surface.
 
 ## Consequences
 

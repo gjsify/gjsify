@@ -83,6 +83,7 @@ import './manifest-conformance/rules/status-data.mjs';
 import './manifest-conformance/rules/platform-packages.mjs';
 import './manifest-conformance/rules/release-train.mjs';
 import './manifest-conformance/rules/node-script-globals.mjs';
+import './manifest-conformance/rules/reverse-bridge-leg.mjs';
 import './manifest-conformance/rules/pr-trigger-parity.mjs';
 import './manifest-conformance/rules/workflow-rev-pin.mjs';
 import './manifest-conformance/rules/stylesheet-font-families.mjs';
@@ -1553,6 +1554,12 @@ const CHECK_RULES = [
     // a workflow that does not run on a PR: put it anywhere path-filtered and the check
     // for post-merge-only coverage would itself be post-merge-only.
     'pr-trigger-parity',
+    // Reads `scripts` out of each manifest, the package's own `src/**`, and
+    // `.github/workflows/*.yml` — committed files, no install and no build. It belongs on
+    // every PR for the same reason as `pr-trigger-parity`: what it guards is whether a
+    // node leg RUNS anywhere, and a check for that must not itself be path-filtered off
+    // the PR that moves the slot.
+    'reverse-bridge-leg',
     // Reads one workflow `env:` and this checkout's `.git/index` — two FILES a bare
     // `actions/checkout` already leaves behind, with no `git` binary and no initialised
     // submodules involved. So unlike `refs-pin`, this half of the `refs/` contract can be
@@ -1682,6 +1689,7 @@ async function main() {
         // the accountant at the end of this branch.
         const platformPackages = byId.get('platform-packages');
         const prTriggerParity = byId.get('pr-trigger-parity');
+        const reverseBridgeLeg = byId.get('reverse-bridge-leg');
         // Fetched in the same breath as the rule was added, because the two omissions
         // recorded on either side of this line are what a selected-but-unfetched rule costs:
         // it passes silently and reports only through the accountant, which mislabels it.
@@ -1723,6 +1731,7 @@ async function main() {
             console.log(repositoryDirectory.summary);
             console.log(widgetVocabulary.summary);
             console.log(prTriggerParity.summary);
+            console.log(reverseBridgeLeg.summary);
             console.log(workflowRevPin.summary);
             console.log(coverage.summary);
             console.log(statusData.summary);
@@ -2078,6 +2087,21 @@ async function main() {
                     'without saying so. The principle and the three workflows already split PR-side for it are in ' +
                     'docs/ci-selective.md § PR coverage parity; ADR 0018 records why the OS legs were the last holdouts ' +
                     'and what re-measuring their cost found.',
+            );
+            console.error('');
+        }
+        if ((reverseBridgeLeg.failures ?? []).length > 0) {
+            console.error(`REVERSE-BRIDGE-LEG FAILURES on ${reverseBridgeLeg.failures.length} finding(s):`);
+            for (const line of reverseBridgeLeg.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                'A GJS-bound package reaches Node through ONE mechanism — the `gi://` reverse bridge — so its ' +
+                    '`node: "polyfill"` is a claim about a run, not about its source: `none` and `polyfill` are both ' +
+                    'defensible from the imports alone, which is exactly why `diffDeclared` tolerates either. ADR 0027 ' +
+                    'amended `@gjsify/gtk-host` on that basis and ADR 0022 § Amendment amended `@gjsify/iframe`; both ' +
+                    'flipped the slot in the change that gave it a leg. Add the leg, or move the slot back.',
             );
             console.error('');
         }

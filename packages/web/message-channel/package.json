@@ -10,6 +10,10 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./core": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
         "./register": {
             "types": "./lib/types/register.d.ts",
             "default": "./lib/esm/register.js"
@@ -61,6 +65,14 @@
             "node": "native",
             "browser": "native",
             "nativescript": "native"
+        },
+        "runtimeSubpaths": {
+            "./core": {
+                "gjs": "polyfill",
+                "node": "polyfill",
+                "browser": "polyfill",
+                "nativescript": "polyfill"
+            }
         },
         "tier": 1
     },
