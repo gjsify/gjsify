@@ -30,6 +30,26 @@
 //     says plainly that the mapping is not recoverable, which is over-inclusive
 //     rather than silent.
 //
+// "OVER-INCLUSIVE RATHER THAN SILENT" WAS HALF TRUE, AND THE SILENT HALF SHIPPED.
+// Measured on this branch's own win32-x64 CI artifact: 65 DLLs in `bin/` against 45
+// documented components — over-inclusive on one side (cairomm, gtkmm, pycairo, protobuf
+// and six more are documented and not bundled) and EMPTY on the other. `glib`,
+// `freetype`, `graphene`, `libtiff`, `libxml2`, `zlib`, `sqlite` and `openssl` back
+// fourteen shipped DLLs — libgio, libgobject and libglib among them — and the prefix
+// documents the terms of none of them. Nothing caught it because the coverage gate ran
+// its per-binary checks ONLY under `per-binary` attribution, so the win32 branch asserted
+// "some texts were recovered" and nothing else: a corpus of one file would have passed.
+//
+// Prefix attribution therefore keeps its honest claim (no per-DLL mapping in the shipped
+// notice) but stops being unfalsifiable: WIN32_LICENSE_FAMILIES declares which project
+// each bundled leaf belongs to, and `assertLicenseCoverage` now refuses a bundle holding
+// a binary whose family the corpus documents no text for — in EITHER attribution mode.
+// The table is a name map, never a statement of terms: the terms still come from the
+// build prefix, and where the prefix documents none, from a text vendored beside the
+// builder with its upstream provenance recorded (see § vendored corpus in the win32
+// builder). A family the table does not know fails the build by name, which is the
+// opposite of the silent drift a hand-listed license SET would have.
+//
 // Everything here is pure (no child_process): the darwin `brew info` fallback is
 // injected by the caller, so this module is unit-testable on Linux —
 // packages/node-gi/node-gi/test/gtk-runtime-bundle-gates.test.mjs.
@@ -46,6 +66,119 @@ const LICENSE_FILE_RE = /^(COPYING|COPYRIGHT|LICEN[CS]E|NOTICE|AUTHORS)([-._][\w
 
 /** A single license text is a page or two; 512 KiB rules out a doc tree mistaken for one. */
 const MAX_TEXT_BYTES = 512 * 1024;
+
+/**
+ * WHICH PROJECT EACH BUNDLED win32 BINARY BELONGS TO.
+ *
+ * A NAME MAP, NOT A STATEMENT OF TERMS — that distinction is the whole reason this table
+ * is allowed to exist next to a header that forbids hand-listing. It says only "the leaf
+ * `intl.dll` comes from the project gvsbuild documents as `gettext`"; what gettext's terms
+ * ARE still comes from the build prefix's own `share/doc/gettext/COPYING`. So the table
+ * cannot make a false licence claim: the worst it can do is name the wrong project, and
+ * then the text that ships is the wrong project's — which is why every entry whose leaf
+ * name differs from its project name carries the reason.
+ *
+ * It does not drift silently either, which a hand-listed licence SET would: the gate
+ * walks the binaries the builder ACTUALLY copied, so a DLL this table does not know fails
+ * the build by name. A gvsbuild bump that renames a library is then a one-line addition
+ * caught at build time instead of a bundle shipped without terms.
+ *
+ * Ordered — the first matching entry wins, so `girepository-2.0-0.dll` and the
+ * `gst*-1.0-*.dll` shared libraries are matched before the looser plugin pattern.
+ *
+ * @type {{ components: string[], pattern: RegExp, why?: string }[]}
+ */
+export const WIN32_LICENSE_FAMILIES = [
+    // GLib is the one this gate exists for: six of the bundle's DLLs are GLib, it is the
+    // LGPL library everything else here links, and the published win32 tarballs have
+    // carried it with no terms attached since the first one.
+    { components: ['glib'], pattern: /^(glib|gobject|gio|gmodule|gthread)-2\.0-\d+\.dll$/i },
+    {
+        components: ['glib'],
+        pattern: /^girepository-\d+\.\d+-\d+\.dll$/i,
+        why: 'girepository moved INTO glib at 2.80 (the standalone gobject-introspection library is gone)',
+    },
+    { components: ['gtk4'], pattern: /^gtk-4-\d+\.dll$/i },
+    { components: ['libadwaita'], pattern: /^adwaita-1-\d+\.dll$/i, why: 'libadwaita builds `adwaita-1-0.dll`' },
+    { components: ['gtksourceview5'], pattern: /^gtksourceview-5-\d+\.dll$/i },
+    { components: ['gdk-pixbuf'], pattern: /^gdk_pixbuf-2\.0-\d+\.dll$/i },
+    { components: ['pango'], pattern: /^pango(cairo|ft2|win32)?-1\.0-\d+\.dll$/i },
+    { components: ['cairo'], pattern: /^cairo(-gobject|-script-interpreter)?-\d+\.dll$/i },
+    { components: ['harfbuzz'], pattern: /^harfbuzz(-[a-z]+)?\.dll$/i, why: '`harfbuzz-icu.dll` is harfbuzz, not icu' },
+    { components: ['graphene'], pattern: /^graphene-1\.0-\d+\.dll$/i },
+    { components: ['fontconfig'], pattern: /^fontconfig-\d+\.dll$/i },
+    { components: ['freetype'], pattern: /^freetype-\d+\.dll$/i },
+    { components: ['fribidi'], pattern: /^fribidi-\d+\.dll$/i },
+    { components: ['libepoxy'], pattern: /^epoxy-\d+\.dll$/i, why: 'libepoxy builds `epoxy-0.dll`' },
+    { components: ['libffi'], pattern: /^ffi-\d+\.dll$/i, why: 'libffi builds `ffi-8.dll`' },
+    { components: ['libpng'], pattern: /^libpng\d+\.dll$/i },
+    { components: ['libjpeg-turbo'], pattern: /^jpeg\d+\.dll$/i, why: 'libjpeg-turbo builds `jpeg62.dll`' },
+    { components: ['libtiff'], pattern: /^tiff(-\d+)?\.dll$/i, why: 'libtiff builds `tiff.dll`' },
+    { components: ['librsvg'], pattern: /^(rsvg-2-\d+|pixbufloader_svg)\.dll$/i },
+    {
+        components: ['gdk-pixbuf'],
+        pattern: /^pixbufloader_[a-z0-9]+\.dll$/i,
+        why: 'the other image loaders are gdk-pixbuf`s own',
+    },
+    { components: ['pixman'], pattern: /^pixman-1-\d+\.dll$/i },
+    { components: ['pcre2'], pattern: /^pcre2-\d+-\d+\.dll$/i },
+    { components: ['expat'], pattern: /^libexpat\.dll$/i },
+    { components: ['zlib'], pattern: /^zlib1\.dll$/i },
+    { components: ['gettext'], pattern: /^intl\.dll$/i, why: 'gettext builds libintl as `intl.dll`' },
+    { components: ['win-iconv'], pattern: /^iconv\.dll$/i, why: 'gvsbuild uses win-iconv, not GNU libiconv' },
+    { components: ['libxml2'], pattern: /^xml2-\d+\.dll$/i, why: 'libxml2 builds `xml2-16.dll`' },
+    { components: ['sqlite'], pattern: /^sqlite3\.dll$/i },
+    {
+        components: ['icu'],
+        pattern: /^icu[a-z]{2}\d+\.dll$/i,
+        why: 'icudt/icuuc/icuin carry the ICU major in the leaf',
+    },
+    { components: ['libpsl'], pattern: /^psl-\d+\.dll$/i, why: 'libpsl builds `psl-5.dll`' },
+    { components: ['nghttp2'], pattern: /^nghttp2\.dll$/i },
+    { components: ['libsoup3'], pattern: /^soup-3\.0-\d+\.dll$/i },
+    {
+        components: ['openssl'],
+        pattern: /^lib(crypto|ssl)-\d+(-x64)?\.dll$/i,
+        why: 'the Apache-2.0 payload this branch added; § 4 of that licence requires the text to travel with it',
+    },
+    {
+        components: ['mit-kerberos'],
+        pattern: /^(krb5_64|comerr64|gssapi64|k5sprt64)\.dll$/i,
+        why: 'MIT Kerberos names its DLLs after the modules, not the project — libsoup3 pulls them in for GSSAPI auth',
+    },
+    {
+        components: ['glib-networking'],
+        pattern: /^gio(openssl|gnutls|gnomeproxy|libproxy)\.dll$/i,
+        why: 'the GIO modules in lib/gio/modules — the TLS backend and the proxy resolver',
+    },
+    { components: ['orc'], pattern: /^orc-\d+\.\d+-\d+\.dll$/i },
+    { components: ['opus'], pattern: /^opus-\d+\.dll$/i },
+    { components: ['ogg'], pattern: /^ogg-\d+\.dll$/i },
+    { components: ['gstreamer'], pattern: /^gst(reamer|base|controller|net|check)-1\.0-\d+\.dll$/i },
+    {
+        components: ['gst-plugins-base'],
+        pattern: /^gst(app|audio|video|tag|riff|rtp|pbutils|fft|sdp|gl|allocators)-1\.0-\d+\.dll$/i,
+        why: 'gst-plugins-base ships these as libraries; gstreamer core ships only the five above',
+    },
+    {
+        components: ['gstreamer', 'gst-plugins-base', 'gst-plugins-good'],
+        pattern: /^gst[a-z0-9]+\.dll$/i,
+        why:
+            'the plugin dir mixes all three projects (gstcoreelements is core, gstplayback is -base, ' +
+            'gstsoup is -good) and the flat prefix cannot say which is which — so ALL THREE must be ' +
+            'documented, the same deliberate over-inclusion prefix attribution already declares',
+    },
+];
+
+/**
+ * The declared family a bundled leaf belongs to, or `null` when nothing claims it.
+ * @param {string} leaf bundled file name, e.g. `libcrypto-3-x64.dll`
+ * @param {{ components: string[], pattern: RegExp }[]} families
+ * @returns {{ components: string[], pattern: RegExp, why?: string } | null}
+ */
+export function licenseFamilyFor(leaf, families) {
+    return families.find((family) => family.pattern.test(leaf)) ?? null;
+}
 
 /**
  * Find license texts under `root`, restricted to the given subdirectories and a
@@ -255,6 +388,10 @@ export function renderThirdPartyNotice({
         lines.push('tree, so the license corpus it ships is reproduced in full below and applies to the bundled');
         lines.push('binaries collectively. Listing every project the prefix documents is deliberate over-inclusion.');
         lines.push('');
+        lines.push('What is NOT left to over-inclusion is coverage: the build fails unless every bundled binary');
+        lines.push('belongs to a declared project whose terms are in this payload, so a shipped library with no');
+        lines.push('license text cannot leave the builder.');
+        lines.push('');
     }
     lines.push('| Component | Version | License (as declared by the build prefix) | Texts included |');
     lines.push('|---|---|---|---|');
@@ -265,9 +402,19 @@ export function renderThirdPartyNotice({
         const files = [...new Set((c.texts ?? []).map((t) => t.file))];
         const texts = files.join(', ') || '—';
         const declared = c.license ?? (files.length > 0 ? '(see included text)' : '(not declared)');
-        lines.push(`| ${c.name} | ${c.version ?? '—'} | ${declared} | ${texts} |`);
+        lines.push(`| ${c.name}${c.upstreamText ? ' \\*' : ''} | ${c.version ?? '—'} | ${declared} | ${texts} |`);
     }
     lines.push('');
+    const upstream = components.filter((c) => c.upstreamText);
+    if (upstream.length > 0) {
+        lines.push(
+            `\\* The build prefix documents no terms for ${upstream.length} project(s) it nevertheless builds ` +
+                'binaries from, so their texts are reproduced from the upstream release the prefix pins. ' +
+                'The file and the version it was taken from are recorded next to the builder — ' +
+                `${upstream.map((c) => `\`${c.name}\``).join(', ')}.`,
+        );
+        lines.push('');
+    }
     lines.push(
         `${withText.length} component(s) ship their license text in \`${payloadDir}/\`; ` +
             `${withoutText.length} declare a license without shipping its text in the build prefix — ` +
@@ -288,11 +435,22 @@ export function renderThirdPartyNotice({
 /**
  * The compliance gate. Returns operator-readable problems; empty = the notice makes
  * a complete, positive statement about every binary that ships.
+ *
+ * BOTH attribution modes now answer the same question — "does every binary that ships
+ * have its terms in the payload" — from whichever evidence their prefix can give:
+ * darwin proves it per keg, win32 proves it per declared family. Before, the win32
+ * branch asserted only that SOME text was recovered, and eight projects behind fourteen
+ * shipped DLLs were invisible to it (§ header).
+ *
  * @param {{ components: object[], binaries: string[], unattributed?: object[],
- *   attribution: 'per-binary' | 'prefix', textCount: number }} opts
+ *   attribution: 'per-binary' | 'prefix', textCount: number,
+ *   families?: {components: string[], pattern: RegExp, why?: string}[] }} opts
+ *   `families` is REQUIRED under `prefix` attribution: without it the mode has no way to
+ *   relate a binary to a component, which is exactly the hole this closes — so its
+ *   absence is a problem rather than a skipped check.
  * @returns {string[]}
  */
-export function assertLicenseCoverage({ components, binaries, unattributed = [], attribution, textCount }) {
+export function assertLicenseCoverage({ components, binaries, unattributed = [], attribution, textCount, families }) {
     const problems = [];
     if (components.length === 0) problems.push('no license components were derived from the build prefix at all');
     if (binaries.length === 0) problems.push('no bundled binaries were passed to the license step');
@@ -301,6 +459,35 @@ export function assertLicenseCoverage({ components, binaries, unattributed = [],
             'not one license text was recovered from the build prefix — the bundle would ship third-party ' +
                 'binaries with no terms attached',
         );
+    }
+    if (attribution === 'prefix') {
+        if (!families) {
+            problems.push(
+                'prefix attribution was used with no license family table — the coverage of every bundled ' +
+                    'binary is then uncheckable, which is the state that shipped GLib and OpenSSL with no terms',
+            );
+        } else {
+            // A component COUNTS as documented only when it ships a text. A name in the
+            // corpus with an empty text list is a directory, not a licence.
+            const documented = new Set(components.filter((c) => (c.texts ?? []).length > 0).map((c) => c.name));
+            for (const binary of binaries) {
+                const family = licenseFamilyFor(binary, families);
+                if (!family) {
+                    problems.push(
+                        `${binary} belongs to no declared license family — the bundle cannot say which ` +
+                            "project's terms cover it",
+                    );
+                    continue;
+                }
+                const undocumented = family.components.filter((name) => !documented.has(name));
+                if (undocumented.length > 0) {
+                    problems.push(
+                        `${binary} is ${family.components.join(' + ')}, and no license text ships for ` +
+                            `${undocumented.join(', ')}`,
+                    );
+                }
+            }
+        }
     }
     if (attribution === 'per-binary') {
         for (const u of unattributed) {
@@ -331,7 +518,11 @@ export function formatLicenseProblems(problems, { prefix }) {
         `Every binary this bundle ships must be traceable to a component of the build prefix (${prefix}) whose ` +
         'terms are recorded in THIRD-PARTY-NOTICES.md. Repairs: install the library through the package manager ' +
         'that owns the prefix (so it lands in a keg/documented tree) instead of side-loading it; or add the ' +
-        'directory that holds its license text to the scan roots. Do NOT downgrade this to a warning — shipping ' +
-        'relocated LGPL binaries with no terms attached is the condition this check exists to prevent.'
+        'directory that holds its license text to the scan roots. For a win32 DLL that belongs to no declared ' +
+        'family, add it to WIN32_LICENSE_FAMILIES in bundle-licenses.mjs (a NAME map, one line); for a family ' +
+        "the prefix documents no text for, vendor that project's upstream text under the win32 builder's " +
+        'licenses-not-in-prefix/ with its provenance. Do NOT downgrade this to a warning and do NOT delete the ' +
+        'entry to get a green build — shipping relocated LGPL/Apache binaries with no terms attached is the ' +
+        'condition this check exists to prevent.'
     );
 }

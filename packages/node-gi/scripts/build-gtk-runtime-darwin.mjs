@@ -1247,6 +1247,11 @@ const manifest = {
         attribution: 'per-binary',
         components: licenseComponents.length,
         texts: licensePayload.files.length,
+        // How many binaries the coverage gate actually covered. Recorded on BOTH
+        // platforms so the publish gate can refuse a bundle whose license step ran
+        // without ever looking at a binary — the win32 state that shipped GLib and
+        // OpenSSL with no terms while every check was green.
+        binariesCovered: shippedBinaries.size,
         binariesModified: true,
         modifications: MODIFICATIONS,
     },

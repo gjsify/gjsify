@@ -77,7 +77,10 @@ function goodManifest(overrides = {}) {
         windowing: true,
         dataBytes: 20247017,
         typelibSymmetry: { backed: 25, dropped: 6 },
-        licenses: { texts: 65 },
+        // `binariesCovered` is the count the license gate actually walked. A texts count
+        // alone is what the win32 bundles satisfied while shipping GLib and OpenSSL with
+        // no terms, so the release gate wants both.
+        licenses: { texts: 65, binariesCovered: 121 },
         windowingData: {
             verified: [
                 { id: 'schemas', files: 1 },
@@ -114,7 +117,7 @@ describe('verify-bundle-manifest: the release gate', () => {
         assert.equal(result.status, 0, result.output);
         assert.match(result.stdout, /clean — windowing superset/);
         assert.match(result.stdout, /25 backed typelibs/);
-        assert.match(result.stdout, /65 license texts/);
+        assert.match(result.stdout, /65 license texts covering 121 binaries/);
         assert.match(result.stdout, /decoded .*open-menu-symbolic\.svg 16x16/);
         assert.match(result.stdout, /through the bundle/);
     });
@@ -125,12 +128,27 @@ describe('verify-bundle-manifest: the release gate', () => {
         // no license texts beside 37-45 relocated LGPL/MPL/GPL libraries.
         const result = runVerify({ platform: `${process.platform}-${process.arch}`, windowing: false, dataBytes: 0 });
         assert.equal(result.status, 1);
-        assert.match(result.stderr, /FAILED 5 check\(s\)/);
+        assert.match(result.stderr, /FAILED 6 check\(s\)/);
         assert.match(result.stderr, /windowing=false dataBytes=0/);
         assert.match(result.stderr, /no verified typelib symmetry/);
         assert.match(result.stderr, /no license texts/);
+        assert.match(result.stderr, /no license coverage over the bundled binaries/);
         assert.match(result.stderr, /no verified windowing data sets/);
         assert.match(result.stderr, /no windowingData\.decodeProbe/);
+    });
+
+    it('rejects a bundle whose license step never looked at a binary', () => {
+        // The published win32 shape: a licence corpus was copied and counted, and no
+        // check ever asked whether it covered anything the bundle ships. Measured on the
+        // 0.45.0 win32 artifact — 89 binaries, 45 documented projects, 14 binaries whose
+        // project the tarball documents nowhere, and every gate green. FAIL CLOSED, as
+        // with the decode probe: "the builder is too old to say" is not a pass.
+        const manifest = goodManifest();
+        delete manifest.licenses.binariesCovered;
+        const result = runVerify(manifest);
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /no license coverage over the bundled binaries/);
+        assert.match(result.stderr, /assertLicenseCoverage over every binary it ships/);
     });
 
     it('rejects a declared data set that holds no files', () => {

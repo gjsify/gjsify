@@ -94,8 +94,9 @@ export const GST_AUDIO_PLUGINS = [
     // (libpsl, nghttp2, MIT Kerberos), BSD (p11-kit), Unicode (ICU), public domain (SQLite). What
     // the header excludes is the CODEC question — x264, x265, faac, fdk-aac — and none of that
     // enters here: no codec, no patent claim, nothing whose redistribution is the product author's
-    // call rather than ours. See ADR 0037 § Consequences for the OpenSSL licence text that is
-    // currently NOT shipped on win32.
+    // call rather than ours. Every one of those terms now travels with the binaries: chasing
+    // OpenSSL's found that the win32 licence gate could not fail at all, and that 14 shipped DLLs —
+    // GLib among them — had no text in any published bundle. ADR 0037 § Consequences carries it.
     'soup',
     // Output. `autodetect` is autoaudiosink, which picks the platform sink below.
     'autodetect',

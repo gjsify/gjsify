@@ -53,8 +53,10 @@ import {
     verifyWindowingData,
 } from '../../scripts/bundle-data.mjs';
 import {
+    WIN32_LICENSE_FAMILIES,
     assertLicenseCoverage,
     formatLicenseProblems,
+    licenseFamilyFor,
     renderThirdPartyNotice,
     scanLicenseFiles,
     writeLicensePayload,
@@ -899,15 +901,52 @@ if (WINDOWING) {
 // (36 files in GTK4_Gvsbuild_2026.6.0_x64) — so the whole corpus ships and the notice
 // says plainly that the per-binary mapping is not recoverable. Over-inclusive beats
 // silent.
+//
+// OVER-INCLUSIVE IN ONE DIRECTION IS NOT COVERAGE IN THE OTHER, and only the first half
+// was ever checked. `assertLicenseCoverage` ran its per-binary rules under `per-binary`
+// attribution only, so this call asserted "some text was recovered" — a corpus of one
+// file would have passed it. Measured on the artifact: 65 DLLs, 45 documented projects,
+// and eight projects behind fourteen DLLs (glib among them) with no terms in the bundle.
+// The corpus is still DERIVED and the notice still refuses to claim a per-DLL mapping;
+// what changed is that WIN32_LICENSE_FAMILIES lets the gate ask, per binary, whether SOME
+// documented project covers it — and the build stops when one does not.
 const licenseTexts = scanLicenseFiles({ root: PREFIX, subdirs: ['share/licenses', 'share/doc'], maxDepth: 2 });
 const byComponent = new Map();
 for (const text of licenseTexts) {
     if (!byComponent.has(text.component)) byComponent.set(text.component, { name: text.component, texts: [] });
     byComponent.get(text.component).texts.push(text);
 }
+// EVERY binary the tarball carries, not just bin/ — the same correction the darwin
+// builder already carries. The gst plugins, the pixbuf loaders and the GIO modules are
+// third-party libraries too, and a coverage check that never sees them cannot say the
+// terms travel with them.
+const shippedBinaries = [...[...binDlls.values()].map((f) => basename(f)), ...placedModuleLeaves].sort();
+// THE VENDORED CORPUS, and the measurement that made it necessary. The corpus above is
+// what the prefix HAPPENS to document, and on the published bundles that was 45 projects
+// against 89 shipped binaries: glib, freetype, graphene, libtiff, libxml2, zlib, sqlite
+// and openssl back fourteen of them and the prefix documents none — gvsbuild has no
+// install step for some, and installs others under a name the scan does not accept
+// (openssl installs `LICENSE` while OpenSSL 3 ships `LICENSE.txt`). So the bundle
+// shipped LGPL-2.1 GLib and Apache-2.0 OpenSSL with no terms at all.
+//
+// TWO NARROWINGS KEEP THIS FROM BECOMING A HAND-MAINTAINED CORPUS. The prefix stays
+// AUTHORITATIVE — a project it documents is never overridden here — and a vendored text
+// enters only for a project some binary in THIS bundle needs, so the display-free variant
+// does not carry OpenSSL's terms for a DLL it never had. Provenance per file:
+// licenses-not-in-prefix/README.md.
+const neededComponents = new Set(
+    shippedBinaries.flatMap((leaf) => licenseFamilyFor(leaf, WIN32_LICENSE_FAMILIES)?.components ?? []),
+);
+const documentedByPrefix = new Set(byComponent.keys());
+for (const text of scanLicenseFiles({ root: join(pkgRoot, 'licenses-not-in-prefix'), subdirs: ['.'], maxDepth: 2 })) {
+    if (documentedByPrefix.has(text.component) || !neededComponents.has(text.component)) continue;
+    if (!byComponent.has(text.component)) {
+        byComponent.set(text.component, { name: text.component, texts: [], upstreamText: true });
+    }
+    byComponent.get(text.component).texts.push(text);
+}
 const licenseComponents = [...byComponent.values()].sort((a, b) => a.name.localeCompare(b.name));
 const licensePayload = writeLicensePayload({ outDir: join(OUT, 'licenses'), components: licenseComponents });
-const dllLeaves = [...binDlls.values()].map((f) => basename(f));
 writeFileSync(
     join(OUT, 'THIRD-PARTY-NOTICES.md'),
     renderThirdPartyNotice({
@@ -919,24 +958,28 @@ writeFileSync(
         // bundle is made portable by the loader's PATH prepend alone.
         modifications: [],
         components: licenseComponents,
-        binaries: dllLeaves,
+        binaries: shippedBinaries,
         attribution: 'prefix',
         payloadDir: 'licenses',
     }),
 );
 const licenseProblems = assertLicenseCoverage({
     components: licenseComponents,
-    binaries: dllLeaves,
+    binaries: shippedBinaries,
     attribution: 'prefix',
     textCount: licensePayload.files.length,
+    families: WIN32_LICENSE_FAMILIES,
 });
 if (licenseProblems.length > 0) {
     console.error(`build-gtk-runtime: ${formatLicenseProblems(licenseProblems, { prefix: PREFIX })}`);
     process.exit(1);
 }
+const upstreamComponents = licenseComponents.filter((c) => c.upstreamText).map((c) => c.name);
 console.log(
     `build-gtk-runtime: licenses — ${licensePayload.files.length} text(s) from ${licenseComponents.length} ` +
-        `project(s) (${(licensePayload.bytes / 1024).toFixed(0)} KiB) -> licenses/, notice -> THIRD-PARTY-NOTICES.md`,
+        `project(s) (${(licensePayload.bytes / 1024).toFixed(0)} KiB) covering ${shippedBinaries.length} ` +
+        `binary/ies -> licenses/, notice -> THIRD-PARTY-NOTICES.md` +
+        `${upstreamComponents.length ? ` (${upstreamComponents.join(', ')} from upstream, not from the prefix)` : ''}`,
 );
 
 // --- manifest + size -------------------------------------------------------
@@ -989,6 +1032,11 @@ const manifest = {
         attribution: 'prefix',
         components: licenseComponents.length,
         texts: licensePayload.files.length,
+        // Recorded, not just asserted: a consumer holding only the tarball can see how
+        // many binaries the coverage check actually covered, and which projects' terms
+        // came from upstream because the build prefix documents none.
+        binariesCovered: shippedBinaries.length,
+        upstreamComponents,
         binariesModified: false,
         modifications: [],
     },

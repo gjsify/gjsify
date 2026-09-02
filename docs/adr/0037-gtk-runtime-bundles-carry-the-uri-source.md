@@ -125,18 +125,36 @@ including over https.** Concretely:
   to carry forward: the two platforms do not pay the same price for the same decision, so
   a single percentage stated without its platform is wrong on one of them. The allowlist
   entry that costs it points here rather than restating the table.
-- **`libcrypto-3-x64.dll` and `libssl-3-x64.dll` currently ship with no licence text.**
-  The win32 licence step attributes by PREFIX — it scans `share/licenses` and `share/doc`
-  and copies what it finds — and `assertLicenseCoverage` only runs its per-binary checks
-  when `attribution === 'per-binary'`, which is the darwin mode. So the gvsbuild prefix
-  shipping no OpenSSL licence directory is invisible to every gate: the win32 bundle names
-  45 components and none of them is OpenSSL. Apache-2.0 § 4 requires the licence to travel
-  with the binary, so this is a redistribution defect, not a tidiness one. It is NOT
-  introduced by the decision above — it is exposed by it, because OpenSSL is the first
-  Apache-2.0 payload the prefix scan has had to cover. Repair, in order: make the gvsbuild
-  step install OpenSSL's `LICENSE.txt` into the prefix's licence tree, and then give the
-  win32 builder a named-component assertion so a future unlicensed family fails the build
-  instead of shipping. Until both land, the win32 bundle must not be published.
+- **The win32 licence gate could not fail, and eight projects were behind it — not one.**
+  `libcrypto-3-x64.dll` and `libssl-3-x64.dll` arrive with this decision (gvsbuild's TLS
+  backend is `gioopenssl`) and Apache-2.0 § 4 requires the licence to travel with the
+  binary. Chasing that one payload found the mechanism instead: the win32 step attributes
+  by PREFIX and `assertLicenseCoverage` ran its per-binary rules only under `per-binary`
+  attribution, so the win32 call asserted "at least one licence text was recovered" and
+  nothing more — a corpus of one file would have passed it. Measured on this branch's own
+  win32 artifact: **89 shipped binaries, 45 documented projects, and 14 binaries whose
+  project the bundle documents nowhere** — `glib` (six DLLs, LGPL-2.1-or-later), `freetype`,
+  `graphene`, `libtiff`, `libxml2`, `zlib`, `sqlite` and `openssl`. GLib has been
+  unlicensed in every published win32 tarball; only OpenSSL is new. Replaying that bundle
+  through the old gate returns **0 problems** and through the new one **14**, each naming
+  its binary.
+
+  Fixed in this ADR's own change, and the shape is deliberate. Per-binary attribution
+  still is not recoverable from a flat build tree, so the shipped notice keeps saying so;
+  what changed is that prefix attribution stopped being *unfalsifiable*.
+  `WIN32_LICENSE_FAMILIES` declares which project each bundled leaf belongs to — a NAME
+  map, never a statement of terms, so it cannot make a false licence claim and a leaf it
+  does not know fails the build by name. `assertLicenseCoverage` refuses any binary whose
+  family the corpus documents no text for, in **either** mode, and refuses prefix
+  attribution offered without a family table at all. The binaries checked are now every
+  binary the tarball carries, the GStreamer plugins, pixbuf loaders and GIO modules
+  included, as on darwin. Where gvsbuild documents nothing (it has no install step for
+  some, and installs OpenSSL's as `LICENSE` while OpenSSL 3 ships `LICENSE.txt`), the text
+  comes from the upstream release the prefix pins, vendored under the win32 builder's
+  `licenses-not-in-prefix/` with its provenance — the prefix stays authoritative and is
+  never overridden. `manifest.licenses.binariesCovered` records the count on both
+  platforms, and `verify-bundle-manifest.mjs` refuses a bundle without it, so a tarball
+  built by a pre-gate builder cannot publish either.
 - `Soup-3.0.typelib` now has a backing library in the bundle, so the typelib planner stops
   dropping it. `@gjsify/{tls,http2,ws}` gain a working TLS stack on a bundle-activated
   process as a consequence, not as a separate feature.

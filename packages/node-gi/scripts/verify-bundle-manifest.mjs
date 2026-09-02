@@ -86,6 +86,18 @@ if (!(manifest.licenses?.texts > 0)) {
     problems.push(`manifest records no license texts: ${JSON.stringify(manifest.licenses)}`);
 }
 
+// A COUNT OF TEXTS IS NOT COVERAGE — the win32 bundles satisfied the line above while
+// shipping GLib and OpenSSL with no terms at all, because their license step counted the
+// corpus and never looked at a binary. `binariesCovered` is written only by a builder
+// whose coverage gate walked the binaries it actually copied, so requiring it here
+// refuses an uncovered bundle AND one assembled by a builder from before that gate.
+if (!(manifest.licenses?.binariesCovered > 0)) {
+    problems.push(
+        `manifest records no license coverage over the bundled binaries: ${JSON.stringify(manifest.licenses)} — ` +
+            'rebuild with a builder that runs assertLicenseCoverage over every binary it ships',
+    );
+}
+
 const verified = manifest.windowingData?.verified ?? [];
 if (!verified.length) {
     problems.push(`manifest records no verified windowing data sets: ${JSON.stringify(manifest.windowingData)}`);
@@ -120,7 +132,8 @@ const sets = verified.map((set) => `${set.id}:${set.files}`).join(' ');
 const probe = manifest.windowingData.decodeProbe;
 console.log(
     `verify-bundle-manifest: ${manifest.platform} clean — windowing superset, ` +
-        `${manifest.typelibSymmetry.backed} backed typelibs, ${manifest.licenses.texts} license texts, ` +
+        `${manifest.typelibSymmetry.backed} backed typelibs, ${manifest.licenses.texts} license texts ` +
+        `covering ${manifest.licenses.binariesCovered} binaries, ` +
         `${manifest.dataBytes} data bytes, sets ${sets}, ` +
         `decoded ${probe.svg.file} ${probe.svg.width}x${probe.svg.height} + ` +
         `${probe.png.file} ${probe.png.width}x${probe.png.height} through the ${probe.gtkSource} GTK`,
