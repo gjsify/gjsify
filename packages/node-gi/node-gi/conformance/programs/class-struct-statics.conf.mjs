@@ -54,3 +54,40 @@ print('own instanceof ParamSpec:', own instanceof GObject.ParamSpec);
 
 // A miss is `null`, not a throw — GObject returns NULL and gjs marshals it through.
 print('miss find_property:', Gio.SimpleAction.find_property('no-such-property'));
+
+// ---- the RECEIVER decides which class answers (#1438) ----------------------
+//
+// gjs defines a class-struct method on the CONSTRUCTOR and marshals `this` as the
+// GTypeClass, so ONE function object answers for every class it is applied to.
+// node-gi bound the name to the type it was READ from, so the borrowed form
+// answered GObject.Object's zero for every receiver and an INHERITED static
+// answered the introspected base's — both silently, which a caller reads as "this
+// class has no such property".
+print('borrowed onto SimpleAction:', GObject.Object.list_properties.call(Gio.SimpleAction).length);
+print('borrowed onto BufferedInputStream:', GObject.Object.list_properties.call(Gio.BufferedInputStream).length);
+print('borrowed via .apply:', GObject.Object.list_properties.apply(Gio.SimpleAction).length);
+print('borrowed find_property:', GObject.Object.find_property.call(Gio.SimpleAction, 'enabled').get_name());
+print('borrowed find_property miss:', GObject.Object.find_property.call(Gio.SimpleAction, 'no-such-property'));
+
+// The receiver only has to match the class that DECLARED the method — GObjectClass —
+// not the constructor the name was taken off, so a static borrowed from one leaf
+// answers for an unrelated one.
+print('cross-leaf borrow:', Gio.SimpleAction.list_properties.call(Gio.BufferedInputStream).length);
+
+// An INHERITED static is the same seam without a `.call()`: the subclass IS the
+// receiver, so it must see its own installed property.
+const Sub = GObject.registerClass(
+    {
+        GTypeName: 'NodeGiConfClassStructSub',
+        Properties: {
+            extra: GObject.ParamSpec.string('extra', 'Extra', 'E', GObject.ParamFlags.READWRITE, ''),
+        },
+    },
+    class NodeGiConfClassStructSub extends Gio.SimpleAction {},
+);
+print('inherited static sees own property:', Sub.find_property('extra').get_name());
+print('inherited static count:', Sub.list_properties().length);
+
+// A PLAIN static ignores `this` in gjs, so it must ignore it here: only class-struct
+// methods take the receiver as their instance.
+print('plain static ignores this:', Gio.File.new_for_path.call(Gio.SimpleAction, '/tmp/conf-class-struct').get_path());

@@ -1413,6 +1413,19 @@ function defineLazyGType(ctor, namespace, typeName) {
     });
 }
 
+// The GType a static call's `this` names, or `null` when the receiver names none:
+// `Ns.Class` and a registerClass'd subclass answer their own `$gtype`, while a
+// primitive, a plain object, a raw subclass and an INSTANCE (which deliberately
+// carries no `$gtype` — it is a constructor-level member) answer nothing. `null`
+// means "no receiver", and the engine then runs the method on the type the name was
+// read from, which is the pre-#1438 behaviour for every non-class-struct call.
+function gtypeOf(receiver) {
+    if (receiver === null || receiver === undefined) return null;
+    if (typeof receiver !== 'function' && typeof receiver !== 'object') return null;
+    const gt = receiver.$gtype;
+    return gt === undefined ? null : gt;
+}
+
 // The GObject behind a prototype method's `this`. A prototype function is
 // reachable without an instance (`Cls.prototype.m()`, a detached reference), so
 // the engine must never be handed `undefined` for the instance argument.
@@ -1651,7 +1664,21 @@ function makeClass(namespace, typeName) {
                 return objectStaticConstructor(prop);
             }
             const giName = camelToSnake(prop);
-            return (...args) => wrapReturn(native.callStaticMethod(namespace, typeName, giName, unwrapArgs(args)));
+            // NOT an arrow: a class-struct method (GObjectClass's `list_properties`,
+            // `find_property`, …) runs on the class the call went THROUGH, so `this` is
+            // load-bearing. gjs puts those on the CONSTRUCTOR and marshals the receiver as
+            // the GTypeClass, which makes one function object answer for every class it
+            // reaches — `GObject.Object.list_properties.call(Gtk.ListItem)` reads
+            // GtkListItem's 9 pspecs, and an INHERITED `Subclass.list_properties()` reads
+            // the subclass's. Binding the name to the type it was read from answered the
+            // declarer's instead (GObject's zero), silently (#1438). The engine ignores the
+            // receiver for a plain static and for a type that is not `g_type_is_a` this one.
+            return function (...args) {
+                const receiverGType = this === undefined || this === proxy ? null : gtypeOf(this);
+                return wrapReturn(
+                    native.callStaticMethod(namespace, typeName, giName, unwrapArgs(args), receiverGType),
+                );
+            };
         },
     });
     // Replacing ctor.prototype dropped the automatic back-link; restore it pointing at
@@ -1732,6 +1759,17 @@ function makeEnum(namespace, typeName) {
     const domain = native.getErrorDomain(namespace, typeName);
     if (domain !== null) {
         Object.defineProperty(out, ERROR_DOMAIN, { value: domain, enumerable: false });
+    }
+    // `Ns.Enum.$gtype` — gjs answers a registered G_TYPE_ENUM/G_TYPE_FLAGS here, so
+    // `GObject.type_name(Gio.BusType.$gtype)` is `GBusType` there and was `null` over
+    // the bridge: an enum object carried no `$gtype` at all. EAGER rather than
+    // defineLazyGType, because the object is frozen on the way out and a
+    // self-redefining getter could never install its cache. Non-enumerable, so
+    // `Object.keys` stays the member list; omitted entirely for an UNREGISTERED enum,
+    // which has no GType and where gjs answers `undefined` too.
+    const gtype = native.getGType(namespace, typeName);
+    if (gtype !== null) {
+        Object.defineProperty(out, '$gtype', { value: gtype, enumerable: false });
     }
     return Object.freeze(out);
 }

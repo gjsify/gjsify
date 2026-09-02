@@ -175,14 +175,14 @@ export default async () => {
                 // Which is why the React root goes into the widget the factory PUTS in
                 // the item, not into the item.
                 expect(GObject.type_is_a(Gtk.ListItem.$gtype, Gtk.Widget.$gtype)).toBe(false);
-                // Read through `paramSpecs`, which calls `list_properties()` DIRECTLY
-                // on the class. The borrowed form
-                // (`GObject.Object.list_properties.call(Gtk.ListItem)`) that used to
-                // stand here resolves under gjs and answers array(0) over the reverse
-                // bridge, because node-gi's class proxy takes no `g_type_class_ref` —
-                // so these two vectors would have read "the class has no such
-                // property" on the one leg that could see it, with nothing thrown
-                // (#1438, and `gjsify/no-gobject-method-borrow` now refuses the shape).
+                // Read through `paramSpecs`, the host's own cached reader — one reader for
+                // the package rather than a second spelling. The borrowed form
+                // (`GObject.Object.list_properties.call(Gtk.ListItem)`) that used to stand
+                // here answered array(0) over the reverse bridge, because node-gi bound a
+                // class-struct static to the type it was READ from rather than the one it
+                // was CALLED on: these two vectors read "the class has no such property" on
+                // the one leg that could see it, with nothing thrown. Fixed in the engine
+                // (#1438), so the spelling is no longer what decides the answer.
                 const specs = paramSpecs(Gtk.ListItem, 'GtkListItem');
                 const child = specs.get('child');
                 expect(child !== undefined).toBe(true);

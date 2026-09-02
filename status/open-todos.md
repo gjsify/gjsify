@@ -231,57 +231,6 @@ generator scripts already mark), or the claim could be demanded of any package a
 GTK-bearing OS leg runs. Both are defensible; neither should be guessed at in a CI PR.
 The measurement above is the evidence either would rest on.
 
-### node-gi: a class nothing instantiated has no realised class, so `signal_lookup` finds zero signals
-
-Measured 2026-08-31 while wiring `gtk-os-suites.yml`, differentially against the gjs
-oracle (ADR 0030) on Fedora 44 / gjs 1.88.1 / Node 24.19.0, GTK 4.22 + libadwaita 1.9,
-node-gi's published `linux-x64` prebuild:
-
-| read | gjs | node-gi |
-|---|---|---|
-| `GObject.signal_lookup('popped', Adw.NavigationView.$gtype)` | 84 | **0** |
-| `GObject.signal_lookup('hidden', Adw.NavigationPage.$gtype)` | 90 | **0** |
-| the same reads AFTER any class-struct static (`…list_properties()`) | 84 / 90 | 84 / 90 |
-
-One root cause, and `src/calls.cc` already names it in the header of
-`ClassStructInstance`: gjs keeps the invariant that "the GType class is referenced at
-least once when the JS constructor is initialized", so signals registered in
-`class_init` are findable off `$gtype` with no instance; **node-gi's class proxy takes
-no such ref**, so `g_type_class_peek` is null and the class is unrealised. That comment
-was written about a DIFFERENT call path (which does `g_type_class_ref` and is why the
-third row above passes), so the gap is documented and unclosed rather than unknown.
-
-The fix site is the `$gtype` read, which is JS — `gi.js`'s `defineLazyGType()` resolves
-through `native.getGType()` and caches, so one realisation per GType would match gjs's
-invariant exactly and cost nothing after the first read. It has to be guarded on
-`G_TYPE_IS_CLASSED`, which is why the honest place is `GetGType` in C++ rather than a
-JS `GObject.type_class_ref()` call that would be wrong for every struct and enum.
-Proof that the JS route closes it at all: `GObject.type_class_ref(gt)` from JS turns the
-first row from 0 into 65 in the same process.
-
-Costs one assertion in `@gjsify/react-native`'s suite today
-(`router.spec.ts` → "emits `popped` on the view and `hidden` on the page"), which is one
-of the two things keeping that package's step in `gtk-os-suites.yml` a probe rather than
-a gate.
-
-### `@gjsify/react-native`'s list spec asks for pspecs in a spelling only gjs answers
-
-The sibling of the entry above, and NOT a node-gi defect — recorded together because
-they were found in the same differential run and only one of them is the engine's.
-
-`lists.spec.ts` → "binds rows into a Gtk.ListItem, which is not a Gtk.Widget" reads
-`GObject.Object.list_properties.call(Gtk.ListItem)`. Under gjs that answers `array(9)`,
-because `gjs_define_static_methods` puts GObjectClass's methods on `GObject.Object`'s
-CONSTRUCTOR and `Function.prototype.call` re-targets them down the prototype chain.
-node-gi resolves class-struct methods per type instead, so the same expression answers
-`array(0)` — GObject's own property count — and the spec's `child !== undefined` is
-false. Measured: `Gtk.ListItem.list_properties()` answers `array(9)` on BOTH runtimes,
-and that is the spelling `@gjsify/gtk-host`'s own `paramSpecs()` already uses.
-
-So this is a non-portable spelling in a spec, and the repair is the portable static.
-Left to the owner of `packages/framework/react-native/src/**` rather than fixed here
-because it does not unblock anything on its own — the entry above blocks the same step.
-
 ### 31 package scripts still open a clause with a `VAR=x` prefix, which cmd.exe has no form of
 
 `portable-scripts` catches a POSIX UTILITY in command position and says in its own

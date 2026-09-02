@@ -190,9 +190,11 @@
 #
 # WHAT THE NUMBERS ATTRIBUTE TO, because a count is not a finding
 #
-# win32's react-native probe reads 7 of 848 against 2 of 857 on darwin, which looks
-# like a Windows wall and is not one. Attributed: 2 are the cross-OS #1438 baseline,
-# 1 is a knock-on of one of those (the same `popped` seam), 2 are inherited from the
+# win32's react-native probe read 7 of 848 against 2 of 857 on darwin (measured
+# 2026-08-31), which looks like a Windows wall and is not one. Attributed: 2 were the
+# cross-OS #1438 baseline and 1 a knock-on of one of those (the same `popped` seam) —
+# all three closed in the engine, which is why darwin's step is a gate now and this
+# one's expected count is FOUR. 2 are inherited from the
 # gtk-host table defect above (#1446), and 2 are POSIX-shaped ASSERTIONS — the
 # Image/ImageBackground vectors round-trip `/nonexistent-gjsify-vector.png` through
 # `Gio.File.new_for_path` and assert `get_path()` returns it unchanged, where
@@ -233,12 +235,12 @@
 #     non-interactive session anyway (window stations are per-session, and
 #     `MainWindowTitle` is empty for every GTK4 window — an assertion there needs
 #     `EnumWindows` by PID from inside the interactive session).
-#   · `@gjsify/react-native`'s step is a PROBE and is marked `continue-on-error`,
-#     because its Node-target suite is red on LINUX — see the step comment. A leg
-#     that failed on it would be red for a defect that has nothing to do with
-#     either operating system, which is the reason `node-gi.yml` kept `gtk-host`
-#     out of CI until it went in at 0 failures. The probe still runs, so the log
-#     carries the first darwin/win32 measurement this package has ever had.
+#   · `@gjsify/react-native`'s step GATES on darwin and is still a `continue-on-error`
+#     PROBE on win32 — see the two step comments. It was a probe on both while its
+#     Node-target suite was red on LINUX (#1438): a leg failing on that would have
+#     been red for a defect with nothing to do with either operating system, which is
+#     the reason `node-gi.yml` kept `gtk-host` out of CI until it went in at 0
+#     failures. What still holds win32 back is named there and is win32's own.
 #   · only `win32-x64`. gvsbuild publishes no arm64 GTK, so there is no
 #     `@gjsify/gtk-runtime-win32-arm64` to install and nothing to measure.
 #
@@ -397,17 +399,12 @@ jobs:
           GTK_A11Y: none
         run: node ../../infra/cli/lib/index.js run test:gjs-on-node
 
-      # A PROBE, not a gate, and the reason is measured rather than cautious:
-      # this suite is red on LINUX on the Node target (#1438), so a gating step
-      # here would report a defect this leg did not find and cannot see. It runs
-      # anyway because the log is then the first darwin/win32 datapoint the package
-      # has ever had, and because a probe that never runs teaches nobody anything.
-      #
-      # RETIREMENT CONDITION, so this does not become permanent furniture: when
-      # #1438 closes, delete `continue-on-error` and this comment. The step is then
-      # an ordinary gate and the package's `gjsify.os` can move on evidence.
-      - name: '@gjsify/react-native — probe (gating blocked on #1438)'
-        continue-on-error: true
+      # A GATE since #1438 closed — the retirement condition the probe carried, met.
+      # This suite was red on LINUX on the Node target for two class-realization gaps
+      # in node-gi, and gating on it would have reported a defect this leg did not
+      # find and cannot see; both are fixed in the engine and the Linux node leg is
+      # 1222 of 1222, so a failure here is now darwin's to explain.
+      - name: '@gjsify/react-native — the full suite on the shipped closure'
         working-directory: packages/framework/react-native
         env:
           NODE_GI_NATIVE: prebuild
@@ -533,9 +530,13 @@ jobs:
           GTK_A11Y: none
         run: node ..\..\infra\cli\lib\index.js run test:gjs-on-node
 
-      # See the darwin job's copy of this step for why it is a probe and what
-      # retires it (#1438).
-      - name: '@gjsify/react-native — probe (gating blocked on #1438)'
+      # STILL a probe here, where the darwin copy is now a gate: #1438 closed, but
+      # win32's remaining four are two inherited from the gtk-host table above
+      # (#1446) and two POSIX-shaped assertions in this package's own image vectors
+      # — see the header's attribution. Retirement condition: when #1446 closes and
+      # those two assertions read `get_path()` as the native path it is, delete
+      # `continue-on-error` and this comment.
+      - name: '@gjsify/react-native — probe (gating blocked on #1446 + two POSIX assertions)'
         continue-on-error: true
         working-directory: packages/framework/react-native
         env:

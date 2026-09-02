@@ -33,10 +33,9 @@ const accessor = (name: string): string => name.replace(/-([a-z0-9])/g, (_, c: s
 /**
  * A freshly constructed widget of `gtype`, for reading a default off.
  *
- * CONSTRUCTED, not read off the class: under node-gi a GObject class's properties are
- * not visible until something realizes it (gjsify#1438), so a vector that only touched
- * the constructor would be red on one leg of ADR 0030's one corpus and green on the
- * other for a reason that has nothing to do with this ledger.
+ * CONSTRUCTED, not read off the class: the ledger records the value GTK actually hands
+ * a fresh widget, which is `get_property` on an instance — a ParamSpec's declared
+ * default is a different number whenever a constructor overrides it.
  */
 function freshWidget(gtype: string): Gtk.Widget {
     const ctor = (Gtk as unknown as Record<string, new () => Gtk.Widget>)[gtype.replace(/^Gtk/, '')];

@@ -97,22 +97,6 @@
         // mandatory-reason + self-retirement pattern `it.failing`,
         // `unchecked-fields.mjs` and `platformsUncommitted` all carry.
         "gjsify/todo-needs-anchor": "error",
-        // `GObject.Object.list_properties.call(SomeClass)` reads a class's
-        // ParamSpecs by borrowing the base prototype's instance method. It
-        // resolves under gjs and answers WRONG over the reverse bridge, where
-        // node-gi's class proxy takes no `g_type_class_ref` — MEASURED: array(9)
-        // under gjs, array(0) over node-gi for `Gtk.ListItem`, while the direct
-        // `Gtk.ListItem.list_properties()` is 9 on both (#1438). Nothing throws;
-        // the caller gets an empty array or null and reads it as "no such
-        // property". `error` because the defect is invisible UNDER GJS by
-        // CONSTRUCTION — gjs answers correctly, so no amount of green there says
-        // anything about it. Only a run over the reverse bridge can see it, the
-        // LINUX one included: #1438 measures it as 2 of 857 on the Linux node
-        // leg, which is where it sat as a known baseline. It reached that leg
-        // twice, from two authors who did not know the direct form existed, and
-        // the second time it was masked by another defect in the same three
-        // lines, which is how a one-line read cost two red rounds on three legs.
-        "gjsify/no-gobject-method-borrow": "error",
         // `spawn(process.execPath, …)` means "start the current runtime again" —
         // the right idiom in a Node program and the wrong one in a DUAL-HOST
         // one. Under `dist/cli.gjs.mjs` the current runtime is GJS, so the spawn
