@@ -706,10 +706,12 @@ types.
 **Three of those rows are a real duplicate, and ts-for-gir is not its home.**
 `systemGiLibraryDirs()` exists three times because ADR 0005 Decision 2 forbids a Tier-1
 package a `dependencies` edge on `@gjsify/node-gi` — a tier rule, not a technical
-obstacle. The already-tracked fix (§ "`systemGiLibraryDirs()` lives in two places") is a
-shared `@gjsify/system-gi`, and it stays right: the rule is about loading libraries.
-Answering "can it move to ts-for-gir" with yes would export a runtime concern into a
-generator to dodge a tier rule.
+obstacle. Whatever the shared home is, it is not ts-for-gir: the rule is about loading
+libraries, and answering "can it move there" with yes would export a runtime concern
+into a generator to dodge a tier rule. The tracked fix is § "`systemGiLibraryDirs()`
+lives in three places", where the home turns out to be `@gjsify/utils/core` — which
+already holds the rule — rather than the new `@gjsify/system-gi` package that entry
+used to call for.
 
 **The dependency-direction check, per ADR 0019, and one finding.** ADR 0019 Decision 1
 keeps ts-for-gir build-step-free — `@ts-for-gir/lib`'s `exports` is literally
@@ -1526,18 +1528,30 @@ audit (`scripts/manifest-conformance/rules/tier.mjs`) names it explicitly. So th
 module is a **pinned mirror**: `packages/infra/cli/src/utils/system-gi.spec.ts`
 imports node-gi's `system-gi.js` by relative path (legal in a spec — it is bundled
 only into `dist/test.node.mjs`, never into the published `lib/`, so no dependency
-edge exists) and asserts both implementations return identical arrays over a table
-of ten injected host shapes. That is the repo's own sanctioned shape for a
-deliberate duplicate, the same one `impliedExampleNodeEntry()` uses against the
-CLI's `resolveNodeEntry()`.
+edge exists) and asserts identical arrays over a table of injected host shapes.
+That is the repo's own sanctioned shape for a deliberate duplicate, the same one
+`impliedExampleNodeEntry()` uses against the CLI's `resolveNodeEntry()`. It now
+compares all THREE copies rather than two — see below for what that cost.
 
-What is still owed is the lift to ONE home — a small shared package both may
-depend on (`@gjsify/system-gi`, Tier 1, no GI and no addon, so nothing about ADR
-0005 is weakened by it). Not done here because a NEW npm name is the expensive
-path in this repo: a manual first publish plus the Trusted Publisher bootstrap,
-and the `@gjsify/tls-native` incident showed a half-bootstrapped name stalling
-60+ packages. Do it on the next release cut that already has that ceremony open,
-delete both copies and the agreement suite in the same change.
+**The stated blocker is stale, and it was hiding a live drift.** This entry says
+the lift needs a NEW npm name (`@gjsify/system-gi`), deferred because a first
+publish plus Trusted Publisher bootstrap is expensive and the `@gjsify/tls-native`
+incident showed a half-bootstrapped name stalling 60+ packages. That is no longer
+the choice on the table: `@gjsify/utils` is Tier 1, its `/core` subpath is PURE by
+ADR 0014, it has held `system-gi-dirs.ts` — a third copy of this exact rule — since
+#1160, and `@gjsify/cli` already declares `@gjsify/utils` in `dependencies`. So the
+shared home EXISTS and is already paid for; what is owed is a delegation, not a
+package.
+
+Until that delegation lands, the third copy is the dangerous one, because for its
+whole life nothing compared it to anything: the agreement suite reached node-gi and
+the CLI only. Measured by mutating each copy in turn — reversing the ORDER
+`giLibraryDirsForTypelibDir` offers its two candidate libdirs (the order decides
+which directory a bare leaf resolves from) left every suite in this repo green when
+done in `@gjsify/utils`, and caught it in the other two. Its hand-rolled `dirname`
+had also been disagreeing with both `posix.dirname` mirrors on any typelib dir
+written with a trailing slash. Both are fixed and the suite now covers three;
+whoever does the delegation deletes the CLI copy and shrinks that suite to two.
 
 ### A globally installed GJS launcher still cannot load a system GTK on macOS
 
