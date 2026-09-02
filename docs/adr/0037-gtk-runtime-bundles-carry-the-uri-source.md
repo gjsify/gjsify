@@ -168,6 +168,18 @@ including over https.** Concretely:
   glib's text for it). Naming the wrong project is the worse half: it produces a positive,
   complete-looking claim. What bounds it is that the map only ever selects a text the
   corpus already holds, so the damage is a misattribution and never an invented licence.
+- **What is gated is the EFFECT, not the payload.** A file in the tarball, and even a
+  factory that resolves by name, is one layer above the question an app asks: `playbin3`
+  and `uridecodebin3` reach a source through the registry's URI HANDLER table, and nothing
+  hands them an element name. So `gst-elements.test.mjs` asks
+  `Gst.uri_protocol_is_supported(SRC, 'https')` and starts a `playbin3` on an https URI —
+  the two measurements the first row of the table above was taken with — each against a
+  scheme nothing handles, which must answer false and must fail the state change. The
+  `file://` control the measurement itself used cannot serve as the discriminator here: a
+  `file://` URI that does not exist ALSO fails the state change, so it would prove the
+  assertion can fail without proving it fails for the reason claimed. Offline either way —
+  `set_state(PAUSED)` returns once the change has STARTED, so the source element is created
+  synchronously and its connection is not.
 - `Soup-3.0.typelib` now has a backing library in the bundle, so the typelib planner stops
   dropping it. `@gjsify/{tls,http2,ws}` gain a working TLS stack on a bundle-activated
   process as a consequence, not as a separate feature.
