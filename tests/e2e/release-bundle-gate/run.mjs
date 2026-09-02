@@ -166,11 +166,15 @@ describe('verify-bundle-manifest: the release gate', () => {
     it('lets the PUBLISHED closure through when the record simply predates the field', () => {
         const manifest = goodManifest();
         delete manifest.licenses.binariesCovered;
-        const result = runVerify(manifest, ['--allow-legacy-license-record']);
+        const result = runVerify(manifest, ['--allow-legacy-license-record'], { GITHUB_ACTIONS: 'true' });
         assert.equal(result.status, 0, result.output);
         assert.match(result.stdout, /LEGACY — .*no license coverage/);
         assert.match(result.stdout, /published-closure role/);
         assert.match(result.stdout, /covering an unrecorded number of binaries/);
+        // NOT annotated: this is what every published-closure leg looks like until the next
+        // release, and an annotation on the expected state is what makes the one on the
+        // UNexpected state (the case below) invisible.
+        assert.doesNotMatch(result.stdout, /::warning::/);
     });
 
     it('still rejects a RECORDED zero, allowance or not', () => {

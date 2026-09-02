@@ -159,22 +159,22 @@ if (problems.length) {
 }
 
 // The allowance reports itself in BOTH directions, so it cannot quietly become permanent:
-// used, it names what it let through; unused, it names itself as deletable.
-//
-// AND IT SAYS SO WHERE SOMEBODY LOOKS. A line in the log of a step that PASSED is read by
-// nobody, which is how a temporary allowance becomes the permanent state — the escape hatch
-// outliving its reason is the next blind spot, not a smaller version of the one it patched.
-// So on Actions the retirement notice is an ANNOTATION, surfaced on the run and on the PR
-// beside the job, while the day-to-day green stays green: this is a deletion to schedule,
-// not a build to break.
-const notice = (message) => console.log(process.env.GITHUB_ACTIONS ? `::warning::${message}` : message);
-for (const note of legacyNotes) notice(`verify-bundle-manifest: LEGACY — ${note}`);
+// used, it names what it let through; unused, it names itself as deletable. Only the SECOND
+// is an event — the first is today's expected state on every published-closure run, and
+// annotating it would train the reader to ignore the one line that matters.
+for (const note of legacyNotes) console.log(`verify-bundle-manifest: LEGACY — ${note}`);
+// AND THE EXPIRY SAYS SO WHERE SOMEBODY LOOKS. A line in the log of a step that PASSED is
+// read by nobody, which is how a temporary allowance becomes the permanent state — an
+// escape hatch outliving its reason is the next blind spot, not a smaller version of the
+// one it patched. So on Actions it is an ANNOTATION, on the run summary and on the PR
+// beside the job, while the build stays green: this is a deletion to schedule, not a build
+// to break.
 if (allowLegacyLicenseRecord && legacyNotes.length === 0) {
-    notice(
+    const expired =
         'verify-bundle-manifest: --allow-legacy-license-record was not needed — this bundle records its ' +
-            'license coverage, so the published closure has caught up with the gate. DELETE the flag from ' +
-            'the two call sites in .github/workflows/gtk-os-suites.yml.',
-    );
+        'license coverage, so the published closure has caught up with the gate. DELETE the flag from ' +
+        'the two call sites in .github/workflows/gtk-os-suites.yml.';
+    console.log(process.env.GITHUB_ACTIONS ? `::warning::${expired}` : expired);
 }
 
 const sets = verified.map((set) => `${set.id}:${set.files}`).join(' ');
