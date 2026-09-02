@@ -1468,7 +1468,9 @@ On **Linux** it is depended on, not shipped: `gjs (>= 1.86)`, or `nodejs (>= 24)
 
 On **macOS and Windows** there is no system interpreter to depend on, so the artifact carries its own from `@gjsify/node-runtime-<target>`, with the GTK closure from `@gjsify/gtk-runtime-<target>` and the addon from `@gjsify/node-gi`. You declare all three yourself in the project you package. They are resolved **by name** out of your own `node_modules` at ship time, so they have to be installed there. `GJSIFY_NODE_RUNTIME` and `GJSIFY_GTK_RUNTIME` override the first two with a directory. All six names resolve on npm at `0.44.0`, and `scripts/check-shipped-runtime-packages.mjs` re-measures them on every pull request. [macOS app bundles](/gjsify/ship/macos/) and [Windows artifacts](/gjsify/ship/windows/) carry the copy-pasteable blocks.
 
-That is also why the four macOS and Windows formats accept `gjsify.app: "node"` only. There is no relocatable GJS to put inside a downloadable bundle, and there is no GJS host on Windows at all.
+That is also why the four macOS and Windows formats accept `node` only. There is no relocatable GJS to put inside a downloadable bundle, and there is no GJS host on Windows at all.
+
+Which runtime a target ships is `gjsify.ship.app.<os>` — keyed `linux`, `darwin`, `win32` — falling back to `gjsify.app`. It is per target because the answer is: a project can be GJS on Linux, where the distribution provides one, and Node where nothing does. One field for both questions meant that asking for a `.app` moved the Linux package's `Depends:` with it.
 
 ### `gjsify flatpak`
 

@@ -504,7 +504,15 @@ export function assertLauncherMatchesInterpreter(
             '    An installed package that depends on one interpreter and runs another installs cleanly and ' +
             'fails\n' +
             "    at first launch, on the user's machine.\n" +
-            `    Either set \`gjsify.app\` to "${other}", or fix the launcher — if it comes from ` +
+            // THIS TARGET's key, and not `gjsify.app`. Since #1486 the runtime is
+            // resolved per target, so sending the reader to the project field to
+            // fix ONE layout's launcher moves every other layout's `Depends:` with
+            // it — the defect § A22 exists to close, reintroduced by the message
+            // that reports it. Named as a project edit because `--from-stage`
+            // reaches here too, and that host has no config to change.
+            `    Either set \`gjsify.ship.app.${layout.os}\` to "${other}" in the project this was staged ` +
+            'from — it overrides\n' +
+            '    `gjsify.app` for that target alone — or fix the launcher: if it comes from ' +
             '`gjsify.ship.extraFiles`,\n' +
             '    that override is what decides which interpreter runs and it must match the declaration.',
     );

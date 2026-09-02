@@ -659,8 +659,9 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
     });
 
     it('refuses `--app node` for a runtime that has no node, before anything is staged', () => {
-        // The hole the `--app node` support opened. `assertShippableTarget` used
-        // to refuse `app: node` outright, so no format ever saw one; lifting that
+        // The hole the `--app node` support opened. The shippable-target refusal
+        // (`resolveShipApp`) used to refuse `app: node` outright, so no format ever
+        // saw one; lifting that
         // made deb and rpm correct and left Flatpak silently wrong. Measured at
         // exit 0 before this refusal: a manifest with `runtime: org.gnome.Platform`
         // and no `sdk-extensions`, beside a launcher that execs `node`.
@@ -721,6 +722,94 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
             ['-qp', '--requires', join(dir, 'ship', 'out', 'ship-demo-1.2.3-1.noarch.rpm')],
             { encoding: 'utf-8' },
         );
+        assert.match(requires, /^gjs >= 1\.86$/m);
+        assert.doesNotMatch(requires, /nodejs/);
+    });
+
+    it('resolves the runtime PER TARGET, so a windows override leaves the Linux package on gjs', () => {
+        // THE CLASS THIS GUARDS is not the override — it is a generator reading a
+        // PROJECT-wide field where a per-target one was meant. `gjsify.app`
+        // carried two questions on one field: which runtime the app needs, and
+        // which formats a target can build. Measured before #1486, on exactly this
+        // project shape: `gjsify ship darwin --stage` and `ship windows --stage`
+        // reported `formats (none — … need gjsify.app: "node")`, and setting that
+        // field to get them flipped the LINUX deb from `Depends: gjs (>= 1.86)` to
+        // `Depends: nodejs (>= 24)` — which apt refuses on trixie, Ubuntu 24.04 and
+        // Ubuntu 26.04. A macOS decision made a Linux package uninstallable.
+        //
+        // Both halves in ONE test, because either alone passes for the wrong
+        // reason: the Linux half alone passes on a project that never mentions
+        // windows, and the windows half alone passes under `gjsify.app: "node"`,
+        // which is the state the defect forced.
+        const dir = scaffold(join(tmpDir, 'per-target-runtime'), (pkg, at) => {
+            pkg.gjsify.app = 'gjs';
+            pkg.gjsify.ship.app = { win32: 'node' };
+            // The sibling a cross-OS project really builds. Staged either way —
+            // `discoverPayload` takes the whole directory — and which one the
+            // launcher NAMES is a separate axis (`gjsify.ship.bundle` is still one
+            // path), so this test says nothing about it.
+            writeFileSync(join(at, 'dist', 'app.node.mjs'), NODE_BUNDLE);
+        });
+
+        // ── the target that said NOTHING, and must therefore have changed nothing
+        runCliSync(CLI_ENTRY, ['ship', 'linux', '--skip-build', '--out', 'ship-linux'], { cwd: dir });
+        assert.match(readFileSync(join(dir, 'ship-linux', 'stage', 'bin', 'ship-demo'), 'utf-8'), /exec gjs -m /);
+
+        if (probe('ar') && probe('tar')) {
+            const extracted = join(tmpDir, 'per-target-deb');
+            mkdirSync(extracted, { recursive: true });
+            execFileSync('ar', ['x', join(dir, 'ship-linux', 'out', 'ship-demo_1.2.3-1_all.deb')], { cwd: extracted });
+            execFileSync('tar', ['xzf', 'control.tar.gz'], { cwd: extracted });
+            const control = readFileSync(join(extracted, 'control'), 'utf-8');
+            assert.match(control, /^Depends: .*gjs \(>= 1\.86\)/m);
+            // `nodejs` and not `nodejs \(>= 24\)`: ANY Node dependency here is the
+            // defect, whatever floor it carries.
+            assert.doesNotMatch(control, /nodejs/);
+        }
+        if (probe('rpm')) {
+            const requires = execFileSync(
+                'rpm',
+                ['-qp', '--requires', join(dir, 'ship-linux', 'out', 'ship-demo-1.2.3-1.noarch.rpm')],
+                { encoding: 'utf-8' },
+            );
+            assert.match(requires, /^gjs >= 1\.86$/m);
+            assert.doesNotMatch(requires, /nodejs/);
+        }
+
+        // ── and the target that DID say node, which is why its formats exist
+        const staged = runCliSync(CLI_ENTRY, ['ship', 'windows', '--skip-build', '--stage', '--out', 'ship-windows'], {
+            cwd: dir,
+        });
+        const manifest = JSON.parse(readFileSync(join(dir, 'ship-windows', 'stage', STAGE_MANIFEST_FILE), 'utf-8'));
+        assert.ok(
+            manifest.formats.includes('windows-dir'),
+            `windows-dir must be offered, got: ${manifest.formats.join(', ') || '(none)'}`,
+        );
+        // The RESOLVED value is what crosses to the packing host: `--from-stage`
+        // has no project and must not have to resolve anything again.
+        assert.equal(manifest.settings.app, 'node');
+        // And the override is SAID. One that silently changes the launcher, the
+        // dependency and the format list is one nobody can tell from the default.
+        assert.match(staged, /`gjsify\.ship\.app\.win32` overrides `gjsify\.app: "gjs"`/);
+    });
+
+    it('the Linux package follows its OWN target, and not the project-wide field', () => {
+        // THE DISCRIMINATING DIRECTION, and the test above does not have it. There,
+        // `gjsify.app` is `gjs` and so is the Linux answer, so a generator that
+        // regressed to reading the project field would still emit `Depends: gjs`
+        // and the assertion would pass having distinguished nothing. Here the two
+        // DISAGREE: the project says node, this target says gjs, and only a
+        // generator reading its own target's resolved runtime can get it right.
+        const dir = scaffold(join(tmpDir, 'linux-overrides-project'), (pkg, at) => {
+            pkg.gjsify.app = 'node';
+            pkg.gjsify.ship.app = { linux: 'gjs' };
+            writeFileSync(join(at, 'dist', 'app.node.mjs'), NODE_BUNDLE);
+        });
+        runCliSync(CLI_ENTRY, ['ship', '--skip-build'], { cwd: dir });
+
+        assert.match(readFileSync(join(dir, 'ship', 'stage', 'bin', 'ship-demo'), 'utf-8'), /exec gjs -m /);
+        if (!probe('rpm')) return;
+        const requires = execFileSync('rpm', ['-qp', '--requires', rpmPath(dir)], { encoding: 'utf-8' });
         assert.match(requires, /^gjs >= 1\.86$/m);
         assert.doesNotMatch(requires, /nodejs/);
     });

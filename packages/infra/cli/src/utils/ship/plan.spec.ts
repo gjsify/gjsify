@@ -170,7 +170,7 @@ export default async () => {
         // `LAYOUTS.linux`, because these two cases are about the INTERPRETER, which
         // `settings.app` decides on every layout — the three FORMS have their own
         // suite in `launcher.spec.ts`.
-        await it('execs the interpreter `gjsify.app` names, and only that one', async () => {
+        await it('execs the interpreter this target resolved to, and only that one', async () => {
             // `gjs` needs `-m` for an ES module; `node` decides from the
             // extension and REJECTS the flag, so this is not a name swap.
             expect(renderLauncher(settings(), 'app.gjs.js', LAYOUTS.linux)).toContain(

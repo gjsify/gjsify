@@ -356,10 +356,14 @@ Depends: nodejs (>= 24)          # deb
 Requires: nodejs(engine) >= 24   # rpm
 ```
 
-`gjsify ship` picks the interpreter from `gjsify.app`, the same field your build
-already uses, and the launcher it writes execs that one and no other. A package
-therefore declares exactly one interpreter, and ship refuses to build one whose
-launcher and dependency disagree.
+`gjsify ship` picks the interpreter from `gjsify.ship.app.linux`, falling back to
+`gjsify.app` — the same field your build already uses — and the launcher it writes
+execs that one and no other. A package therefore declares exactly one interpreter,
+and ship refuses to build one whose launcher and dependency disagree.
+
+The per-target key is what keeps this section INDEPENDENT of the other two OSes.
+A macOS or Windows artifact has to run Node, and before that key existed saying so
+moved this dependency too: a working GJS `.deb` became one apt refuses everywhere.
 
 The `>= 24` default excludes every current Debian stable and Ubuntu LTS:
 

@@ -417,6 +417,11 @@ function windowsPath(rel: string): string {
  * interpreter that can read the payload is the one the payload was BUILT for,
  * and that is `settings.app` on all three.
  *
+ * Since #1486 `settings.app` is itself resolved per target (`resolveShipApp`), so
+ * "NOT the layout" keeps meaning exactly what it meant: the layout does not DERIVE
+ * the runtime, an author STATES it per OS. Deriving it here would still stage
+ * `exec node` in front of a GJS bundle for everyone who said nothing.
+ *
  * `Layout.runtimeGap` is where the honest half of that lives: it says, per OS,
  * why the staged launcher does not yet name what § 4 derives, and `gjsify ship`
  * prints it.

@@ -13,7 +13,13 @@
 import { validateMimeTypes } from './mime.js';
 import { basename } from 'node:path';
 
-import type { AppMetadata, ConfigDataFlatpak, ConfigDataShip, DescriptionBlock } from '../../types/config-data.js';
+import type {
+    AppMetadata,
+    ConfigDataFlatpak,
+    ConfigDataShip,
+    DescriptionBlock,
+    ShipAppOptions,
+} from '../../types/config-data.js';
 import { DEFAULT_GJS_FLOOR, DEFAULT_NODE_FLOOR } from './depends.js';
 import { resolveShipFlatpakSettings } from './flatpak-config.js';
 import { assertRelease, normaliseVersion } from './version.js';
@@ -67,12 +73,120 @@ export interface SettingsInput {
     cli: { outDir?: string; arch?: string; layoutOs: HostOs };
     discovered: DiscoveredPayload;
     /**
-     * `gjsify.app` as DECLARED — `undefined` when the project declares nothing.
+     * THIS TARGET's runtime, as {@link resolveShipApp} resolved it — never the
+     * raw `gjsify.app`.
      *
-     * Deliberately the raw config value and not `Config.forBuild`'s resolved one:
-     * see where it is defaulted below.
+     * The TYPE is the enforcement: a caller handing the project field straight
+     * through no longer compiles. That is exactly the regression this field used
+     * to carry in silence, since every generator downstream reads `settings.app`.
      */
-    app?: string;
+    app: 'gjs' | 'node';
+}
+
+/** The runtime one ship target runs, and which key decided it. */
+export interface ResolvedShipApp {
+    /** What the launcher execs, what the package depends on, and which formats can wrap it. */
+    app: 'gjs' | 'node';
+    /** The config key the answer came from — named in the refusal and in the notice. */
+    key: string;
+    /** Whether a per-target key overrode the project default. */
+    overridden: boolean;
+}
+
+/**
+ * The OS keys `gjsify.ship.app` may carry — {@link HostOs}, the
+ * `process.platform` spelling.
+ *
+ * `satisfies Record<HostOs, true>` rather than a bare list: a fourth layout
+ * cannot arrive without this object failing to compile, so the accepted set
+ * stays total without a second place to remember to update.
+ */
+const SHIP_APP_OSES = { linux: true, darwin: true, win32: true } as const satisfies Record<HostOs, true>;
+
+/**
+ * The ONE place a ship target's runtime is decided: `gjsify.app` as the DEFAULT,
+ * `gjsify.ship.app.<os>` as this target's override.
+ *
+ * WHY IT IS PER TARGET, measured on a GTK4 application rather than derived from
+ * the schema: with one field, `gjsify ship darwin` refused its formats until
+ * `gjsify.app` was `"node"` — and setting it turned the LINUX `.deb`'s
+ * `Depends: gjs (>= 1.86)` into `Depends: nodejs (>= 24)`, which apt refuses on
+ * trixie, Ubuntu 24.04 and Ubuntu 26.04. A macOS decision made the Linux package
+ * uninstallable, because every generator read the PROJECT field instead of the
+ * resolved runtime of its OWN target (#1486, ADR 0024 § A22). Nothing downstream
+ * reads either key; they all read `settings.app`, which is this result.
+ *
+ * NOT PER LAYOUT BY DEFAULT, and the first cut of the layout axis got this
+ * exactly backwards. Reading ADR § 4's runtime table as a per-layout
+ * REQUIREMENT refused `gjsify.app: "gjs"` for the macOS layout — the entire
+ * audience of that command — while a project with no `gjsify.app` key sailed
+ * through and staged a launcher naming `node` in front of a GJS bundle. § 4
+ * derives the runtime a shipped artifact CARRIES, which is
+ * `Layout.shippedRuntime`; what an artifact runs is what its author says, which
+ * is this. So an absent override means the project field and never the layout's
+ * derived answer.
+ *
+ * MUST NOT be fed `Config.forBuild`'s resolution, whose fallback is the HOST
+ * runtime. That fallback is right for a build (`gjsify build` under Node should
+ * produce a Node bundle by default) and catastrophic for a package: running this
+ * command under Node would silently turn every undeclared GJS project into one
+ * whose launcher execs `node`. An undeclared target is the common case for a GJS
+ * app, and it means GJS.
+ *
+ * TWO REFUSALS, and each is here because the alternative to refusing is SILENT.
+ * A `browser` or `nativescript` value has no artifact to be — no process to
+ * start, an APK/IPA through another pipeline (§ 4) — and would otherwise leave
+ * here as a `.deb` a stranger installs and cannot run, with no gate between here
+ * and their machine; `Layout.runtimeGap` only WARNS because what it describes is
+ * a staged tree rather than an artifact, and the per-FORMAT half of the question
+ * is `assertFormatCanRunInterpreter`, which asks what a container can EXECUTE.
+ * A key outside {@link SHIP_APP_OSES} — `windows`, the `gjsify ship <os>`
+ * POSITIONAL's spelling — would resolve to nothing and leave that target on the
+ * project-wide answer with every gate green, which is why the author who typed
+ * it reads the result as gjsify not supporting the split at all. Both refusals
+ * name the KEY that carried the value: with two keys, "this project declares" no
+ * longer locates it.
+ *
+ * `gjsify ship --from-stage` reads neither key and needs neither: the stage
+ * manifest records the RESOLVED value, so the packing host reads an answer
+ * rather than a default, and `assertLauncherMatchesInterpreter` still compares
+ * the staged `bin/<name>`'s own `exec` line against the dependency about to be
+ * written.
+ */
+export function resolveShipApp(input: {
+    /** `gjsify.app` as DECLARED — `undefined` when the project declares nothing. */
+    project?: string;
+    /** `gjsify.ship.app`, the per-layout override table. */
+    perTarget?: ShipAppOptions;
+    /** The layout this run assembles. */
+    layoutOs: HostOs;
+}): ResolvedShipApp {
+    const perTarget = input.perTarget ?? {};
+    // The WHOLE table, not only this run's key: a mis-keyed override is silent by
+    // construction, so `gjsify ship linux` is the run that has to say `windows` is
+    // not a key. Checking only the resolving key would leave the typo to be found
+    // by the `gjsify ship windows` that already reads as unsupported.
+    for (const os of Object.keys(perTarget)) {
+        if (Object.hasOwn(SHIP_APP_OSES, os)) continue;
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.app.${os}\` is not an OS this command assembles for. Known: ` +
+                `${Object.keys(SHIP_APP_OSES).join(', ')} — the \`process.platform\` spelling, not the ` +
+                "`gjsify ship <os>` positional's. A runtime under a key nothing reads leaves that target on " +
+                '`gjsify.app` with nothing to say so.',
+        );
+    }
+    const override = perTarget[input.layoutOs];
+    const overridden = override !== undefined;
+    const key = overridden ? `gjsify.ship.app.${input.layoutOs}` : 'gjsify.app';
+    const declared = overridden ? override : input.project;
+    if (declared !== undefined && declared !== 'gjs' && declared !== 'node') {
+        throw new Error(
+            `gjsify ship: \`${key}\` is "${declared}", and only \`gjs\` and \`node\` can be ` +
+                'packaged. A browser bundle has no process to launch, and a NativeScript app ships as an APK/IPA ' +
+                'through a different pipeline. ADR 0024 § 4 has the runtime-per-OS table.',
+        );
+    }
+    return { app: declared === 'node' ? 'node' : 'gjs', key, overridden };
 }
 
 export interface ResolvedSettings {
@@ -121,14 +235,10 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
     const appId = ship.appId ?? flatpak.appId ?? reverseDnsOrThrow(pkg.name, binaryName);
     const name = metadata.name ?? titleCase(binaryName);
     const kind = metadata.kind ?? 'app';
-    // `gjsify.app`, defaulted HERE to `'gjs'` rather than taken from
-    // `Config.forBuild`'s resolution, which falls back to the HOST runtime. That
-    // fallback is right for a build (`gjsify build` under Node should produce a
-    // Node bundle by default) and catastrophic for a package: running this
-    // command under Node would silently turn every undeclared GJS project into
-    // one whose launcher execs `node`. An undeclared target is the common case
-    // for a GJS app, and it means GJS.
-    const app: 'gjs' | 'node' = input.app === 'node' ? 'node' : 'gjs';
+    // NOT resolved here: `resolveShipApp` already did, before the format list was
+    // decided from it. A second defaulting rule in this function would be the
+    // second path those two answers could come apart on.
+    const app = input.app;
 
     const rawVersion = ship.version ?? pkg.version;
     if (!rawVersion) {

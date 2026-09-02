@@ -371,7 +371,13 @@ export interface PackSettings {
     typelibPackages: Record<string, Record<DistroFormatId, string>>;
     /**
      * The interpreter the launcher execs, and therefore the one the package
-     * depends on. From `gjsify.app`; default `'gjs'`.
+     * depends on. THIS TARGET's runtime, resolved once by `resolveShipApp` out of
+     * `gjsify.ship.app.<os>` falling back to `gjsify.app`; default `'gjs'`.
+     *
+     * PER TARGET and never the project field, which is #1486's fix and whose
+     * measurement `resolveShipApp` carries. That the stage manifest records the
+     * RESOLVED value is what keeps `--from-stage` honest: the packing host has no
+     * project and needs none.
      *
      * ON `PackSettings`, not on `ShipSettings` alone, because BOTH halves need it
      * and they must not answer it differently: `renderLauncher` writes

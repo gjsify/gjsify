@@ -25,10 +25,10 @@ run it on. It labels the artifact and picks which runtime packages are staged.
 It does not cross-compile your payload, so pass the architecture your bundle was
 built for.
 
-## Your project has to be a Node project
+## The darwin target has to be a Node target
 
-Set `gjsify.app` to `"node"`. A `--app gjs` project can stage the darwin layout
-and cannot pack it:
+A target whose runtime resolves to `gjs` can stage the darwin layout and cannot
+pack it:
 
 ```text
 gjsify ship: macos-app and macos-app-zip wrap the darwin layout, and neither can
@@ -38,6 +38,23 @@ run this project …
 macOS does ship GJS through Homebrew, and that is a fact about a developer's
 machine rather than about a `.app` a stranger downloads. There is no relocatable
 GJS to put inside a bundle, so a downloadable macOS artifact runs on Node.
+
+Say so for **this target alone**, which leaves a Linux package of the same
+project on GJS:
+
+```jsonc
+{
+  "gjsify": {
+    "app": "gjs",                        // the project default — Linux keeps it
+    "ship": { "app": { "darwin": "node" } }  // and macOS does not
+  }
+}
+```
+
+Setting `gjsify.app` to `"node"` works too and means something bigger: it moves
+every target, including the Linux `.deb`, from `Depends: gjs` to
+`Depends: nodejs`. Use the per-target key unless the whole application is a Node
+application.
 
 ## What your package.json declares
 
@@ -206,7 +223,7 @@ bundle will start on a Mac with neither Node nor Homebrew GTK installed.
 
 | Message says | Fix |
 |---|---|
-| `macos-app and macos-app-zip … neither can run this project` | set `gjsify.app` to `"node"` and rebuild the bundle for Node |
+| `macos-app and macos-app-zip … neither can run this project` | set `gjsify.ship.app.darwin` to `"node"` (or `gjsify.app`, for every target) and rebuild the bundle for Node |
 | `a macos-app-dmg artifact is packed on darwin and this host is …` | `--stage` here, `--from-stage` on a Mac |
 | `packing a macos-app on … needs glib-compile-schemas` | Fedora `sudo dnf install glib2`, Debian or Ubuntu `sudo apt install libglib2.0-bin` |
 | `this stage was assembled for …, and --target names …` | re-run the `--stage` command with every format named |
