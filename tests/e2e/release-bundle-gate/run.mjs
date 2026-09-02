@@ -151,6 +151,41 @@ describe('verify-bundle-manifest: the release gate', () => {
         assert.match(result.stderr, /assertLicenseCoverage over every binary it ships/);
     });
 
+    // THE OTHER ROLE, and the reason the requirement above is not unconditional. The same
+    // script gates the tarball a consumer ALREADY has (gtk-os-suites.yml, after
+    // stage-published-gtk-runtime.mjs), whose manifest was written before this record
+    // existed and can never gain it — only the next release can. Requiring it there turned
+    // all three shipped-closure legs red at once over a property no published artifact can
+    // acquire. The allowance is narrow and self-retiring; these three cases pin both edges.
+    it('lets the PUBLISHED closure through when the record simply predates the field', () => {
+        const manifest = goodManifest();
+        delete manifest.licenses.binariesCovered;
+        const result = runVerify(manifest, ['--allow-legacy-license-record']);
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /LEGACY — .*no license coverage/);
+        assert.match(result.stdout, /published-closure role/);
+        assert.match(result.stdout, /covering an unrecorded number of binaries/);
+    });
+
+    it('still rejects a RECORDED zero, allowance or not', () => {
+        // An absent field is a manifest older than the record; a recorded zero is a
+        // builder saying it covered nothing. Only the first is a legacy artifact.
+        const result = runVerify(goodManifest({ licenses: { texts: 65, binariesCovered: 0 } }), [
+            '--allow-legacy-license-record',
+        ]);
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /license coverage over ZERO bundled binaries/);
+    });
+
+    it('says the allowance was not needed, so it can be deleted', () => {
+        // Self-retiring: the day a published bundle carries the field, the flag reports
+        // itself as droppable instead of sitting in the workflow forever.
+        const result = runVerify(goodManifest(), ['--allow-legacy-license-record']);
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /--allow-legacy-license-record was not needed/);
+        assert.match(result.stdout, /Drop the flag from the call site/);
+    });
+
     it('rejects a declared data set that holds no files', () => {
         // A directory that exists and is empty is the same missing signal as an absent
         // one — and is what 0.27.1's `share/` would have been had it existed at all.
