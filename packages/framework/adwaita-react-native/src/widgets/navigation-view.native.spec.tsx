@@ -26,8 +26,8 @@ import { act } from 'react-test-renderer';
 import { BACK_BUTTON_FALLBACK_TOOLTIP } from '@gjsify/adwaita-core';
 
 import type { AdwNavigationViewHandle } from '../props.js';
-import { RCT_VIEW } from '../testing/react-native.js';
-import { at, childrenOf, mount, type Style } from '../testing/render.spec.js';
+import { RCT_VIEW, Text } from '../testing/react-native.js';
+import { at, childrenOf, mount, onlyChild, textOf, type Style } from '../testing/render.spec.js';
 import { AdwNavigationPage } from './navigation-page.native.js';
 import { AdwNavigationView } from './navigation-view.native.js';
 
@@ -67,6 +67,32 @@ function mountView(options: { detailCanPop?: boolean; untitledRoot?: boolean } =
     );
     if (ref.current === null) throw new Error('the view exposed no handle');
     return { handle: ref.current, renderer };
+}
+
+/** The same three pages, with the ROOT behind a condition and each body named. */
+function conditionalView(showRoot: boolean, ref: { current: AdwNavigationViewHandle | null }) {
+    return (
+        <AdwNavigationView ref={ref}>
+            {showRoot ? (
+                <AdwNavigationPage key="home" title="Home" tag="home">
+                    <Text>home</Text>
+                </AdwNavigationPage>
+            ) : null}
+            <AdwNavigationPage key="detail" title="Detail" tag="detail">
+                <Text>detail</Text>
+            </AdwNavigationPage>
+            <AdwNavigationPage key="settings" title="Settings" tag="settings">
+                <Text>settings</Text>
+            </AdwNavigationPage>
+        </AdwNavigationView>
+    );
+}
+
+/** The name each rendered page is carrying, in tree order. */
+function bodyNames(renderer: ReturnType<typeof mount>): string[] {
+    const tree = renderer.toJSON();
+    if (tree === null || Array.isArray(tree)) throw new Error('the view rendered no single root');
+    return childrenOf(tree).map((wrapper) => textOf(onlyChild(onlyChild(wrapper))));
 }
 
 /** Which declared page the tree is showing, by the style the wrappers carry. */
@@ -155,6 +181,41 @@ export default async () => {
                 popped = handle.pop();
             });
             expect(popped).toBe(true);
+        });
+
+        await it('survives a page disappearing from the middle of the declared list', async () => {
+            // THE TOKEN IS KEYED, NOT INDEXED, and this is the case that proves it.
+            // `Children.toArray` COMPACTS, so a `{cond ? … : null}` root that goes false
+            // moves every page after it down one index. Measured with a position-keyed
+            // token: the sync effect unregistered the LAST page instead of the vanished
+            // one, the survivors inherited their neighbours' tags, and the visible token
+            // resolved to no element at all — every page `display: 'none'`, a blank
+            // screen at exit 0. Each assertion below reads a page's NAME, because a count
+            // of three `View`s is true of the corrupted tree too.
+            const ref: { current: AdwNavigationViewHandle | null } = { current: null };
+            const renderer = mount(conditionalView(true, ref));
+            if (ref.current === null) throw new Error('the view exposed no handle');
+            const handle = ref.current;
+            act(() => handle.push('settings'));
+            expect(displayedIndexes(renderer)).toStrictEqual([2]);
+
+            act(() => {
+                renderer.update(conditionalView(false, ref));
+            });
+            // The root is UNDECLARED and still on the view's stack, which is
+            // `adw_navigation_view_remove`'s own rule: a page on the stack is marked
+            // remove-on-pop and destroyed when it is popped, not before.
+            expect(bodyNames(renderer)).toStrictEqual(['home', 'detail', 'settings']);
+            expect(handle.visiblePageTag()).toBe('settings');
+            // The tooltip still names the page the button would REVEAL. With the tags
+            // shifted it read `Detail`.
+            expect(handle.backButtonTooltip()).toBe('Home');
+
+            act(() => {
+                handle.pop();
+            });
+            expect(handle.visiblePageTag()).toBe('home');
+            expect(displayedIndexes(renderer)).toStrictEqual([0]);
         });
 
         await it('falls back to “Back” when the revealed page has an empty title', async () => {

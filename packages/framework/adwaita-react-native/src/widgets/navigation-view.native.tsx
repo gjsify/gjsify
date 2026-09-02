@@ -21,10 +21,21 @@
 // A PAGE'S IDENTITY IS A TOKEN, NOT ITS ELEMENT. `NavigationViewState<P>` keys its
 // registry on `P` by identity, and React rebuilds every child element on every render —
 // so registering the elements would re-register the whole view each time and lose the
-// stack. The token is the page's position in the declared list, allocated once, and the
-// CURRENT element for that position is looked up at render. `@gjsify/adwaita-web` has
-// the same problem and solves it the other way round, because a DOM node survives a
-// re-render and a React element does not.
+// stack. `@gjsify/adwaita-web` has the same problem and solves it the other way round,
+// because a DOM node survives a re-render and a React element does not.
+//
+// AND THE TOKEN IS KEYED BY THE CHILD'S KEY, NOT BY ITS POSITION IN THE DECLARED LIST.
+// `Children.toArray` COMPACTS: a `{cond && <Page/>}` branch that goes false is dropped
+// from the array, so every page after it moves down one index. Measured with a
+// position-keyed token, on the exact case this widget is for — three declared pages,
+// `push('settings')`, then the root conditionally removed: the sync effect unregistered
+// the LAST token instead of the vanished one, the survivors were retagged with their
+// neighbours' tags, the visible token no longer resolved to an element, and the view
+// rendered with EVERY page `display: 'none'` — a blank screen at exit 0, which is the
+// failure signature this package exists to remove. The key does not move: `toArray`
+// stamps `.$<key>` on an authored one and `.N` on an unkeyed child where N is the index
+// in the ORIGINAL child list, holes included (measured: `[a, false, c]` yields
+// `['.1', '.2']`, not `['.0', '.1']`).
 //
 // DECLARED CHILDREN ARE THE STATICALLY-ADDED PAGES, in order, and page 0 becomes visible
 // with nobody pushing it: `add_page` auto-pushes whenever the stack is EMPTY. Both other
@@ -51,10 +62,33 @@ import { NavigationViewState, type AdwNavigationPageProps as CoreNavigationPageP
 
 import type { AdwNavigationPageProps, AdwNavigationViewProps } from '../props.js';
 
-/** A declared page's identity, allocated once per position and never re-created. */
+/** A declared page's identity, allocated once per key and never re-created. */
 interface PageToken {
-    /** Index into the declared child list — how the element for this page is found again. */
-    readonly index: number;
+    /** The key `Children.toArray` stamped on the child — see the head of this file. */
+    readonly key: string;
+    /**
+     * The element last declared for this page.
+     *
+     * KEPT ON THE TOKEN so a page that stops being declared while it is still on the
+     * stack goes on rendering until it is popped. That is `remove_page`'s own rule —
+     * `NavigationViewState.remove` defers the unregistration for a page on the stack, as
+     * `adw_navigation_view_remove` does — and looking the element up in the current
+     * declared list instead would draw nothing for exactly those pages.
+     */
+    element: ReactElement<AdwNavigationPageProps>;
+}
+
+/**
+ * The key `Children.toArray` gave this child.
+ *
+ * A LOUD FAILURE rather than a fallback: two pages sharing a synthesised key would share
+ * a token, and the view would then lose one of them somewhere far from here. `toArray`
+ * keys every child it returns, so this throw is unreachable — and the type is
+ * `string | null`, so leaving it to `??` would be the silent version.
+ */
+function keyOf(element: ReactElement): string {
+    if (element.key === null) throw new Error('Children.toArray returned a page with no key');
+    return element.key;
 }
 
 /** The three headless page properties, off the element's own props. */
@@ -66,10 +100,10 @@ function corePropsOf(element: ReactElement<AdwNavigationPageProps>): CoreNavigat
     };
 }
 
-/** What survives every render: the stack machine and one token per declared position. */
+/** What survives every render: the stack machine and one token per declared key. */
 interface PageStore {
     state: NavigationViewState<PageToken>;
-    tokens: PageToken[];
+    tokens: Map<string, PageToken>;
 }
 
 /** {@link import('./navigation-view.js').AdwNavigationView} on React Native. */
@@ -79,8 +113,8 @@ export function AdwNavigationView({
     popOnEscape,
     ref,
 }: AdwNavigationViewProps): ReactElement | null {
-    // `Children.toArray` drops `null`/`false` branches and flattens fragments, so a
-    // conditionally-rendered page does not shift the positions of the ones after it.
+    // `Children.toArray` flattens fragments and drops `null`/`false` branches — the
+    // DROP is why a token is keyed rather than indexed; see the head of this file.
     const declared = Children.toArray(children).filter((child) =>
         isValidElement(child),
     ) as ReactElement<AdwNavigationPageProps>[];
@@ -89,10 +123,12 @@ export function AdwNavigationView({
     const store = useRef<PageStore | null>(null);
     if (store.current === null) {
         const state = new NavigationViewState<PageToken>();
-        const tokens = declared.map((_, index) => ({ index }));
-        tokens.forEach((token, index) =>
-            state.add(token, corePropsOf(declared[index] as ReactElement<AdwNavigationPageProps>)),
-        );
+        const tokens = new Map<string, PageToken>();
+        for (const element of declared) {
+            const token: PageToken = { key: keyOf(element), element };
+            tokens.set(token.key, token);
+            state.add(token, corePropsOf(element));
+        }
         store.current = { state, tokens };
     }
     const { state, tokens } = store.current;
@@ -117,22 +153,31 @@ export function AdwNavigationView({
     useEffect(() => {
         state.setAnimateTransitions(animateTransitions ?? true);
         state.setPopOnEscape(popOnEscape ?? true);
-        while (tokens.length < declared.length) {
-            const token: PageToken = { index: tokens.length };
-            tokens.push(token);
-            state.add(token, corePropsOf(declared[token.index] as ReactElement<AdwNavigationPageProps>));
-        }
-        while (tokens.length > declared.length) {
-            state.remove(tokens.pop() as PageToken);
-        }
-        declared.forEach((element, index) => {
-            const token = tokens[index];
-            if (token === undefined) return;
+        const stillDeclared = new Set<string>();
+        for (const element of declared) {
+            const key = keyOf(element);
+            stillDeclared.add(key);
+            const existing = tokens.get(key);
+            if (existing === undefined) {
+                const token: PageToken = { key, element };
+                tokens.set(key, token);
+                state.add(token, corePropsOf(element));
+                continue;
+            }
+            existing.element = element;
             const props = corePropsOf(element);
-            state.setTag(token, props.tag ?? null);
-            state.setTitle(token, props.title ?? '');
-            state.setCanPop(token, props.canPop ?? true);
-        });
+            state.setTag(existing, props.tag ?? null);
+            state.setTitle(existing, props.title ?? '');
+            state.setCanPop(existing, props.canPop ?? true);
+        }
+        // Iterated over a COPY: this loop deletes from the same map it walks, and
+        // `state.remove` can unregister immediately on top of that.
+        // oxlint-disable-next-line unicorn/no-useless-spread -- the copy IS the point: a live Map iterator would skip an entry after the delete below
+        for (const [key, token] of [...tokens]) {
+            if (stillDeclared.has(key)) continue;
+            tokens.delete(key);
+            state.remove(token);
+        }
     });
 
     useImperativeHandle(
@@ -157,15 +202,11 @@ export function AdwNavigationView({
     const visible = state.visiblePage;
     return (
         <View style={{ flex: 1 }}>
-            {state.pages.map((token) => {
-                const element = declared[token.index];
-                if (element === undefined) return null;
-                return (
-                    <View key={token.index} style={token === visible ? { flex: 1 } : { display: 'none' }}>
-                        {element}
-                    </View>
-                );
-            })}
+            {state.pages.map((token) => (
+                <View key={token.key} style={token === visible ? { flex: 1 } : { display: 'none' }}>
+                    {token.element}
+                </View>
+            ))}
         </View>
     );
 }
