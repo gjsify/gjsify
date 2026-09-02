@@ -78,6 +78,48 @@ type TabDescriptor = Pick<
     'route' | 'options' | 'render'
 >;
 
+/**
+ * Put the stack on the focused page, or leave it alone because that page is not there yet.
+ *
+ * THE PRESENCE CHECK IS THE TERMINATING CONDITION, and the reason it has to be explicit is
+ * that the obvious guard is a bet rather than a test. Writing
+ *
+ *     if (stack.get_visible_child_name() !== focused) stack.set_visible_child_name(focused);
+ *
+ * reads as "set it unless it is already set", and it terminates only when the set TAKES.
+ * MEASURED on libadwaita 1.9.3: `set_visible_child_name` with a name the stack does not hold
+ * changes nothing, emits NO `notify::visible-child-name`, and prints
+ * `Adwaita-WARNING: Child name '…' not found in AdwViewStack`. So `get_visible_child_name()`
+ * still answers the old page, the comparison is still unequal, and the effect — which has no
+ * dependency array on purpose, because a page can materialise on a render where `focused` did
+ * not change — repeats the failing call on every render for as long as the mismatch lasts.
+ *
+ * A focused route whose page React has not committed yet is an ORDINARY intermediate state,
+ * not a fault: the effect runs after the commit that added the OTHER pages, and the missing
+ * one arrives on a later commit. So the answer is to do nothing and let the next render try,
+ * which is what "not there yet" deserves — and one warning per render for a normal state is
+ * how a log stops being read.
+ *
+ * AND THE SET HAS A SECOND WAY TO DO NOTHING, which is why presence alone is not the whole
+ * gate. `adw_view_stack_set_visible_child_name` ends on
+ * `if (gtk_widget_get_visible (page->widget)) set_visible_child (...)`, so a page that is
+ * there but HIDDEN changes nothing, emits no notify and — unlike the missing name — prints
+ * NOTHING AT ALL (measured). That is the same non-terminating state by the quieter road: the
+ * caller would be told the stack shows `focused` while it shows the other page, and no log
+ * anywhere would disagree. Both no-op paths are therefore asked about BEFORE the write, which
+ * is also what keeps each one attributable to its own failing assertion.
+ *
+ * @returns whether the stack now shows `focused`.
+ */
+export function showFocusedPage(stack: Adw.ViewStack, focused: string): boolean {
+    if (stack.get_visible_child_name() === focused) return true;
+    const page = stack.get_child_by_name(focused);
+    if (page === null) return false; // not committed yet — the branch that would warn
+    if (!page.get_visible()) return false; // there, but the set would silently skip it
+    stack.set_visible_child_name(focused);
+    return true;
+}
+
 function TabsView(props: TabsViewProps): ReactElement {
     const { state, descriptors, navigation, NavigationContent } = useNavigationBuilder<
         TabState,
@@ -111,7 +153,7 @@ function TabsView(props: TabsViewProps): ReactElement {
     useLayoutEffect(() => {
         const stack = stackRef.current;
         if (stack === null || focused === undefined) return;
-        if (stack.get_visible_child_name() !== focused) stack.set_visible_child_name(focused);
+        showFocusedPage(stack, focused);
     });
 
     /**
@@ -145,7 +187,11 @@ function TabsView(props: TabsViewProps): ReactElement {
         }
         const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
         if (event.defaultPrevented) {
-            stack.set_visible_child_name(current.routes[current.index]?.key ?? name);
+            // Through the same guard, not a raw set: putting the widget BACK is the same
+            // operation with the same two silent no-ops, and this is the one caller React
+            // does not re-run afterwards — a prevented press changes no state, so no render
+            // follows to try again.
+            showFocusedPage(stack, current.routes[current.index]?.key ?? name);
             return;
         }
         navigation.dispatch({ ...TabActions.jumpTo(route.name, route.params), target: current.key });
