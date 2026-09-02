@@ -110,21 +110,31 @@ test('toggle-up: a C-owned object keeps its wrapper + expando across GC', { ...g
     assert.equal(back.__tag, 'survivor', 'JS expando state must survive GC while C owns the object');
 });
 
-// ---- Case 4: resurrection — re-fetch after collecting the wrapper ----
-test('resurrection: re-fetching a collected-wrapper object is safe', { ...gcOpts }, async () => {
+// ---- Case 4: a C-owned wrapper is ROOTED, so it can never be resurrected ----
+// This was called "resurrection: re-fetching a collected-wrapper object is safe"
+// and measured none of that: add_action takes a C ref, the 1→2 refcount crossing
+// toggles the wrapper UP, and a rooted wrapper is never collected — so the
+// re-fetch was a live identity-cache hit, i.e. Case 3 again. The premise is
+// UNREACHABLE, not merely untested: the binding holds exactly ONE toggle ref, so
+// any C owner roots the wrapper, and a wrapper only goes weak when that toggle ref
+// is the last one — at which point the teardown takes the GObject with it.
+// Resurrection is therefore reachable ONLY through the pending-finalizer window,
+// which is Case 4b. (Measured while landing #1475: handing this case a borrowed-
+// pointer vehicle plus a full settle() segfaults in the TEST, because the drained
+// teardown frees the object out from under g_cancellable_get_current.)
+test('C-owned: the re-fetched wrapper is the LIVE one, never a resurrection', { ...gcOpts }, async () => {
     const Gio = requireGi('Gio', '2.0');
     const group = new Gio.SimpleActionGroup();
-    // Add an action, then drop every JS reference to its wrapper. The group holds
-    // the GObject C-side, so the GObject stays alive; its wrapper may go weak and
-    // be collected once nothing JS-side roots it.
+    let weak;
     (() => {
         const a = new Gio.SimpleAction({ name: 'res', enabled: true });
         group.add_action(a);
+        weak = new WeakRef(a);
     })();
     await settle();
-    // Re-fetch: must not crash and must be a valid, usable wrapper.
     const back = group.lookup_action('res');
-    assert.equal(back.name, 'res', 'a resurrected wrapper is valid and usable');
+    assert.equal(back.name, 'res', 'the re-fetched wrapper is valid and usable');
+    assert.strictEqual(back, weak.deref(), 'and is the SAME wrapper — rooted, never collected');
 });
 
 // ---- Case 4b: resurrection RACING the External's pending finalizer (#1475) ----
@@ -139,19 +149,35 @@ test('resurrection: re-fetching a collected-wrapper object is safe', { ...gcOpts
 //
 // Two details make this reach the window Case 4 above cannot:
 //   * NO await between gc() and the re-fetch — any loop turn drains the finalizer
-//     queue first, which is exactly why Case 4's `await settle()` never caught it;
+//     queue first, so no `await settle()`-shaped case can ever reach this window;
 //   * g_cancellable_push_current stores a BORROWED pointer (no ref), so the GObject
 //     stays reachable from C at refcount 1 — the only shape whose wrapper is weak
 //     (collectable) while C can still hand the object back. A container that refs
 //     its member toggles the wrapper UP and pins it, so it can never be collected.
+//
+// The WeakRef is the WITNESS, not decoration: a re-fetch that hits a still-live
+// identity-cache entry is indistinguishable from a resurrection at every assertion
+// below. Measured — with both gc() calls deleted this case still passed, so without
+// the witness any future GC that stops collecting here turns it green-and-blind.
+// Collected-but-not-finalized then follows for free: N-API defers a complex
+// finalizer to a SetImmediate, so no finalizer can have run inside the synchronous
+// stretch between the gc() and the re-fetch.
 test('resurrection: re-fetch while the old finalizer is still pending', { ...gcOpts }, async () => {
     const Gio = requireGi('Gio', '2.0');
+    let weak;
     (() => {
         const c = new Gio.Cancellable();
         c.push_current();
+        weak = new WeakRef(c);
     })();
+    // `new WeakRef(t)` pins t for the rest of the current job (AddToKeptObjects,
+    // released at the microtask checkpoint), so the collection MUST be attempted a
+    // turn later — in-job it is pinned and deref() stays truthy (measured).
+    await new Promise((r) => setImmediate(r));
+
     globalThis.gc();
     globalThis.gc();
+    assert.equal(weak.deref(), undefined, 'the predecessor wrapper must really be collected');
 
     const back = Gio.Cancellable.get_current();
     assert.ok(back, 'the borrowed cancellable is handed back from C');
