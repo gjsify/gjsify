@@ -160,11 +160,20 @@ if (problems.length) {
 
 // The allowance reports itself in BOTH directions, so it cannot quietly become permanent:
 // used, it names what it let through; unused, it names itself as deletable.
-for (const note of legacyNotes) console.log(`verify-bundle-manifest: LEGACY — ${note}`);
+//
+// AND IT SAYS SO WHERE SOMEBODY LOOKS. A line in the log of a step that PASSED is read by
+// nobody, which is how a temporary allowance becomes the permanent state — the escape hatch
+// outliving its reason is the next blind spot, not a smaller version of the one it patched.
+// So on Actions the retirement notice is an ANNOTATION, surfaced on the run and on the PR
+// beside the job, while the day-to-day green stays green: this is a deletion to schedule,
+// not a build to break.
+const notice = (message) => console.log(process.env.GITHUB_ACTIONS ? `::warning::${message}` : message);
+for (const note of legacyNotes) notice(`verify-bundle-manifest: LEGACY — ${note}`);
 if (allowLegacyLicenseRecord && legacyNotes.length === 0) {
-    console.log(
+    notice(
         'verify-bundle-manifest: --allow-legacy-license-record was not needed — this bundle records its ' +
-            'license coverage. Drop the flag from the call site.',
+            'license coverage, so the published closure has caught up with the gate. DELETE the flag from ' +
+            'the two call sites in .github/workflows/gtk-os-suites.yml.',
     );
 }
 

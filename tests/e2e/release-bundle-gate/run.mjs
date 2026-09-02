@@ -93,11 +93,17 @@ function goodManifest(overrides = {}) {
     };
 }
 
-function runVerify(manifest, extraArgs = []) {
+/**
+ * `GITHUB_ACTIONS` is cleared unless a case sets it: the gate turns its retirement notice
+ * into an `::warning::` annotation there, and this suite running under Actions would
+ * otherwise decorate every real run with a warning about a fixture.
+ */
+function runVerify(manifest, extraArgs = [], env = {}) {
     const dir = mkdtempSync(join(tmpdir(), 'gjsify-bundle-gate-'));
     writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest));
     const result = spawnSync(process.execPath, [VERIFY, '--bundle', dir, ...extraArgs], {
         encoding: 'utf8',
+        env: { ...process.env, GITHUB_ACTIONS: '', ...env },
     });
     return { ...result, output: `${result.stdout}${result.stderr}` };
 }
@@ -183,7 +189,19 @@ describe('verify-bundle-manifest: the release gate', () => {
         const result = runVerify(goodManifest(), ['--allow-legacy-license-record']);
         assert.equal(result.status, 0, result.output);
         assert.match(result.stdout, /--allow-legacy-license-record was not needed/);
-        assert.match(result.stdout, /Drop the flag from the call site/);
+        assert.match(result.stdout, /DELETE the flag from the two call sites/);
+        assert.doesNotMatch(result.stdout, /::warning::/, 'no annotation outside Actions');
+    });
+
+    it('surfaces its own expiry as an Actions annotation, not as a line in a green log', () => {
+        // The flag is temporary by construction and the note that retires it is printed by
+        // a step that PASSES — which nobody reads. On Actions it is an annotation instead,
+        // so the day the published closure carries the record, the deletion is on the run
+        // summary and on the PR rather than in scrollback. Still not a failure: this is a
+        // deletion to schedule, not a build to break.
+        const result = runVerify(goodManifest(), ['--allow-legacy-license-record'], { GITHUB_ACTIONS: 'true' });
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /::warning::verify-bundle-manifest: --allow-legacy-license-record was not needed/);
     });
 
     it('rejects a declared data set that holds no files', () => {
