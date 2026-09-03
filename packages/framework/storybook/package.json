@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/storybook",
-    "version": "0.46.0",
+    "version": "0.47.0",
     "description": "Reusable GTK/Adwaita storybook for GJS — author *.story.ts and browse them in a generic component explorer",
     "type": "module",
     "module": "lib/esm/index.js",

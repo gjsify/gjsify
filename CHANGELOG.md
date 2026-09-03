@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.47.0](https://github.com/gjsify/gjsify/compare/v0.46.0...v0.47.0) (2026-09-03)
+
+### Features
+
+* **gtk-host:** register shipped fonts at startup ([#1510](https://github.com/gjsify/gjsify/issues/1510)) ([a01680b](https://github.com/gjsify/gjsify/commit/a01680b6ce102ba4047bac2f1a50cb6582c3b431)), closes [#1446](https://github.com/gjsify/gjsify/issues/1446)
+* **iframe:** depend on the win32 WebKit backend ([#1501](https://github.com/gjsify/gjsify/issues/1501)) ([ac3ffa5](https://github.com/gjsify/gjsify/commit/ac3ffa5305ad5b8704a0eaa687017c8119f6b63d)), closes [#1494](https://github.com/gjsify/gjsify/issues/1494) [#1494](https://github.com/gjsify/gjsify/issues/1494) [#1494](https://github.com/gjsify/gjsify/issues/1494)
+
+### Bug Fixes
+
+* **cli:** read back what publish just PUT ([#1509](https://github.com/gjsify/gjsify/issues/1509)) ([8dd575e](https://github.com/gjsify/gjsify/commit/8dd575ecc09c57985cce66c6759089e467aae4b7)), closes [#1507](https://github.com/gjsify/gjsify/issues/1507)
+* **fs:** defer exists, add promisify.custom ([#1504](https://github.com/gjsify/gjsify/issues/1504)) ([fa31cba](https://github.com/gjsify/gjsify/commit/fa31cba679484c16cdd2517d38a4f08bb189bda1))
+* **webrtc:** land the suite fixes and route it through run() ([#1506](https://github.com/gjsify/gjsify/issues/1506)) ([0733de9](https://github.com/gjsify/gjsify/commit/0733de96ce76600e517e7267b035ddbc826332a0))
+* **xmlhttprequest:** spec the XHR, fix two gaps ([#1505](https://github.com/gjsify/gjsify/issues/1505)) ([f0d5a28](https://github.com/gjsify/gjsify/commit/f0d5a2888b9b02c280c772526fa226e828a42ce6))
+
+### Documentation
+
+* add a guide for embedding web views ([#1514](https://github.com/gjsify/gjsify/issues/1514)) ([ae675b0](https://github.com/gjsify/gjsify/commit/ae675b064daf37d3c91932191b9a92d92f8be264))
+* guide for shipping your own fonts ([#1512](https://github.com/gjsify/gjsify/issues/1512)) ([bd7850c](https://github.com/gjsify/gjsify/commit/bd7850cad4edfee04e1ae65b2e69af9451fb4bdd))
+* guide for WebRTC and media capture ([#1511](https://github.com/gjsify/gjsify/issues/1511)) ([7576851](https://github.com/gjsify/gjsify/commit/75768516db39fdf92935158e5f31d19d92a05305))
+* keepNames bug reproduces, at another layer ([#1502](https://github.com/gjsify/gjsify/issues/1502)) ([ec05c4a](https://github.com/gjsify/gjsify/commit/ec05c4ad119acbfadcfdcb22ab79885cebd23966))
+* repair the entry path a newcomer walks ([#1515](https://github.com/gjsify/gjsify/issues/1515)) ([1d69441](https://github.com/gjsify/gjsify/commit/1d694414046a2dd7adcbd6e942c6b3a9a9433560)), closes [#1512](https://github.com/gjsify/gjsify/issues/1512)
+* retire six false "not on npm" claims ([#1499](https://github.com/gjsify/gjsify/issues/1499)) ([8ced4a5](https://github.com/gjsify/gjsify/commit/8ced4a5a0ff33e31676a6dbfb75f5044f30f8aa0)), closes [#1500](https://github.com/gjsify/gjsify/issues/1500)
+* the prose for 0.47.0 ([#1518](https://github.com/gjsify/gjsify/issues/1518)) ([ff8f888](https://github.com/gjsify/gjsify/commit/ff8f88881e80c2a68921febe6613b1155eab1b91))
+* **web:** name both XHR implementations ([#1517](https://github.com/gjsify/gjsify/issues/1517)) ([5198d3f](https://github.com/gjsify/gjsify/commit/5198d3fb62974d4bee397360c5cef8afb9642bed)), closes [#1505](https://github.com/gjsify/gjsify/issues/1505)
+
+### Continuous Integration
+
+* check npm bootstrap before the release ([#1507](https://github.com/gjsify/gjsify/issues/1507)) ([d13236c](https://github.com/gjsify/gjsify/commit/d13236c4e4206a5d1fd2d73114d59483ae39d76f)), closes [#1494](https://github.com/gjsify/gjsify/issues/1494) [#1500](https://github.com/gjsify/gjsify/issues/1500)
+* survive npm registry propagation lag ([#1508](https://github.com/gjsify/gjsify/issues/1508)) ([64c50d1](https://github.com/gjsify/gjsify/commit/64c50d1de08fb7e6314b12f55b23808ea79f3d48))
+
+### Tests
+
+* gate every test entry on reaching run() ([#1503](https://github.com/gjsify/gjsify/issues/1503)) ([ec4cd9f](https://github.com/gjsify/gjsify/commit/ec4cd9fc5391d8aa248cb32f4ddcdb13bb631af4)), closes [#872](https://github.com/gjsify/gjsify/issues/872)
+
 ## [0.46.0](https://github.com/gjsify/gjsify/compare/v0.45.0...v0.46.0) (2026-09-03)
 
 ### ⚠ BREAKING CHANGES

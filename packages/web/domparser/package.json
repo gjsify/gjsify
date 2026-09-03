@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/domparser",
-    "version": "0.46.0",
+    "version": "0.47.0",
     "description": "DOMParser for GJS — HTML5 parser, XML scanner, CSS Selectors 4 engine and the full entity table, dependency-free",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

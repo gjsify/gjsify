@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-gtk-adw-blueprint-layout",
-    "version": "0.46.0",
+    "version": "0.47.0",
     "description": "Adw.HeaderBar and Adw.ToolbarView declared entirely in Blueprint and loaded from TypeScript, with an in-process probe that asserts the real widget tree on GJS and on Node",
     "type": "module",
     "private": true,

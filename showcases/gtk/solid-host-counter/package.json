@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-gtk-solid-host-counter",
-    "version": "0.46.0",
+    "version": "0.47.0",
     "description": "The gtk-host counter written in SolidJS JSX — compiled by @gjsify/rolldown-plugin-solid, with an in-process probe that asserts the real widget tree",
     "type": "module",
     "private": true,

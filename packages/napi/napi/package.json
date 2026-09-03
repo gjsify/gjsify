@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/napi",
-    "version": "0.46.0",
+    "version": "0.47.0",
     "description": "Node-API (N-API) host for GJS — implements the napi C ABI over SpiderMonkey (mozjs-140) so GJS can load unmodified compiled .node addons. The forward mirror of @gjsify/node-gi (GI in Node); this is N-API in GJS. Vala/C++ shim as .so+.gir+.typelib prebuild, loaded via imports.gi.",
     "type": "module",
     "main": "lib/esm/index.js",
@@ -97,7 +97,7 @@
     },
     "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/napi/napi#readme",
     "optionalDependencies": {
-        "@gjsify/napi-darwin-arm64": "0.46.0",
-        "@gjsify/napi-linux-x64": "0.46.0"
+        "@gjsify/napi-darwin-arm64": "0.47.0",
+        "@gjsify/napi-linux-x64": "0.47.0"
     }
 }

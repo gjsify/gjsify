@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-gtk-node-gi-window",
-  "version": "0.46.0",
+  "version": "0.47.0",
   "description": "A minimal Libadwaita window whose single gi:// source builds and runs on both GJS and Node.js (via @gjsify/node-gi), self-verifiable over DBus with @gjsify/devtools.",
   "type": "module",
   "private": true,

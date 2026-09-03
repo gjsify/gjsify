@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/node-runtime-win32-x64",
-  "version": "0.46.0",
+  "version": "0.47.0",
   "description": "Bundled Node.js interpreter for Windows x64 — just the `node.exe` binary from a pinned Node 24 LTS release plus its LICENSE, for apps that `gjsify ship` packages where no system Node can be assumed. Platform-gated (win32/x64 only). Node.js is a registered trademark of the OpenJS Foundation; this package is not affiliated with, endorsed, or sponsored by the OpenJS Foundation.",
   "type": "module",
   "license": "SEE LICENSE IN bin/LICENSE",
