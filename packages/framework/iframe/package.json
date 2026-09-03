@@ -51,7 +51,8 @@
         "@gjsify/dom-elements": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/message-channel": "workspace:^",
-        "@gjsify/webkit-native": "workspace:^"
+        "@gjsify/webkit-native": "workspace:^",
+        "@gjsify/webview2-native": "workspace:^"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

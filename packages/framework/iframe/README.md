@@ -14,6 +14,33 @@ npm install @gjsify/iframe
 yarn add @gjsify/iframe
 ```
 
+## Where `gi://WebKit` 6.0 comes from
+
+This package imports `gi://WebKit?version=6.0` and never branches on the
+operating system. Which typelib answers to that name is decided by packaging —
+one backend per OS:
+
+| OS | provider | engine |
+|---|---|---|
+| Linux | the system WebKitGTK | WebKit |
+| macOS | [`@gjsify/webkit-native`](../webkit-native/README.md) ([ADR 0022](https://github.com/gjsify/gjsify/blob/main/docs/adr/0022-webkit-on-darwin.md)) | Apple's WebKit |
+| Windows | [`@gjsify/webview2-native`](../webview2-native/README.md) ([ADR 0035](https://github.com/gjsify/gjsify/blob/main/docs/adr/0035-web-view-on-win32.md)) | Chromium, via WebView2 |
+
+Both shims are ordinary dependencies of this package and contain no JavaScript.
+Each one's prebuilt library and typelib arrive through its *own* per-target
+`optionalDependencies`, which a package manager installs only on the matching
+`os`/`cpu` and silently skips everywhere else
+([ADR 0017](https://github.com/gjsify/gjsify/blob/main/docs/adr/0017-native-package-distribution.md)).
+So a Linux install pulls in two empty packages and no binaries at all.
+
+> **Windows is stage 1, and stage 1 is not a widget.** `@gjsify/webview2-native`
+> hosts an OS-composited child window that sits *outside* GSK's scene graph, and
+> the hosted path itself — re-parenting under a real GTK toplevel, bounds
+> tracking, hiding on unmap — is **not yet verified**; everything green so far
+> ran against a hidden parking window. Read that package's README before
+> relying on it: a full-page document in a window works, a web view used as an
+> ordinary widget does not.
+
 ## Usage
 
 ```typescript

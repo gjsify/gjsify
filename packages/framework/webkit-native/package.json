@@ -22,7 +22,7 @@
         },
         "osNotes": {
             "linux": "Binds Apple's WebKit.framework, which exists only on macOS. Linux has the real thing: @gjsify/iframe imports gi://WebKit 6.0 there and never reaches this package.",
-            "win32": "Binds Apple's WebKit.framework, which exists only on macOS. Windows has no GJS host either (see @gjsify/os win32 notes)."
+            "win32": "Binds Apple's WebKit.framework, which exists only on macOS. Windows is served by @gjsify/webview2-native, which claims the same namespace with Microsoft's WebView2 behind it (ADR 0035). Neither OS has a GJS host for this pillar; Node is the host on both (see @gjsify/os win32 notes)."
         },
         "tier": 1
     },
