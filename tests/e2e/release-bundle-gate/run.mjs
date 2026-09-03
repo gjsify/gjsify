@@ -77,7 +77,10 @@ function goodManifest(overrides = {}) {
         windowing: true,
         dataBytes: 20247017,
         typelibSymmetry: { backed: 25, dropped: 6 },
-        licenses: { texts: 65 },
+        // `binariesCovered` is the count the license gate actually walked. A texts count
+        // alone is what the win32 bundles satisfied while shipping GLib and OpenSSL with
+        // no terms, so the release gate wants both.
+        licenses: { texts: 65, binariesCovered: 121 },
         windowingData: {
             verified: [
                 { id: 'schemas', files: 1 },
@@ -90,11 +93,17 @@ function goodManifest(overrides = {}) {
     };
 }
 
-function runVerify(manifest, extraArgs = []) {
+/**
+ * `GITHUB_ACTIONS` is cleared unless a case sets it: the gate turns its retirement notice
+ * into an `::warning::` annotation there, and this suite running under Actions would
+ * otherwise decorate every real run with a warning about a fixture.
+ */
+function runVerify(manifest, extraArgs = [], env = {}) {
     const dir = mkdtempSync(join(tmpdir(), 'gjsify-bundle-gate-'));
     writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest));
     const result = spawnSync(process.execPath, [VERIFY, '--bundle', dir, ...extraArgs], {
         encoding: 'utf8',
+        env: { ...process.env, GITHUB_ACTIONS: '', ...env },
     });
     return { ...result, output: `${result.stdout}${result.stderr}` };
 }
@@ -114,7 +123,7 @@ describe('verify-bundle-manifest: the release gate', () => {
         assert.equal(result.status, 0, result.output);
         assert.match(result.stdout, /clean — windowing superset/);
         assert.match(result.stdout, /25 backed typelibs/);
-        assert.match(result.stdout, /65 license texts/);
+        assert.match(result.stdout, /65 license texts covering 121 binaries/);
         assert.match(result.stdout, /decoded .*open-menu-symbolic\.svg 16x16/);
         assert.match(result.stdout, /through the bundle/);
     });
@@ -125,12 +134,78 @@ describe('verify-bundle-manifest: the release gate', () => {
         // no license texts beside 37-45 relocated LGPL/MPL/GPL libraries.
         const result = runVerify({ platform: `${process.platform}-${process.arch}`, windowing: false, dataBytes: 0 });
         assert.equal(result.status, 1);
-        assert.match(result.stderr, /FAILED 5 check\(s\)/);
+        assert.match(result.stderr, /FAILED 6 check\(s\)/);
         assert.match(result.stderr, /windowing=false dataBytes=0/);
         assert.match(result.stderr, /no verified typelib symmetry/);
         assert.match(result.stderr, /no license texts/);
+        assert.match(result.stderr, /no license coverage over the bundled binaries/);
         assert.match(result.stderr, /no verified windowing data sets/);
         assert.match(result.stderr, /no windowingData\.decodeProbe/);
+    });
+
+    it('rejects a bundle whose license step never looked at a binary', () => {
+        // The published win32 shape: a licence corpus was copied and counted, and no
+        // check ever asked whether it covered anything the bundle ships. Measured on the
+        // 0.45.0 win32 artifact — 89 binaries, 45 documented projects, 14 binaries whose
+        // project the tarball documents nowhere, and every gate green. FAIL CLOSED, as
+        // with the decode probe: "the builder is too old to say" is not a pass.
+        const manifest = goodManifest();
+        delete manifest.licenses.binariesCovered;
+        const result = runVerify(manifest);
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /no license coverage over the bundled binaries/);
+        assert.match(result.stderr, /assertLicenseCoverage over every binary it ships/);
+    });
+
+    // THE OTHER ROLE, and the reason the requirement above is not unconditional. The same
+    // script gates the tarball a consumer ALREADY has (gtk-os-suites.yml, after
+    // stage-published-gtk-runtime.mjs), whose manifest was written before this record
+    // existed and can never gain it — only the next release can. Requiring it there turned
+    // all three shipped-closure legs red at once over a property no published artifact can
+    // acquire. The allowance is narrow and self-retiring; these three cases pin both edges.
+    it('lets the PUBLISHED closure through when the record simply predates the field', () => {
+        const manifest = goodManifest();
+        delete manifest.licenses.binariesCovered;
+        const result = runVerify(manifest, ['--allow-legacy-license-record'], { GITHUB_ACTIONS: 'true' });
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /LEGACY — .*no license coverage/);
+        assert.match(result.stdout, /published-closure role/);
+        assert.match(result.stdout, /covering an unrecorded number of binaries/);
+        // NOT annotated: this is what every published-closure leg looks like until the next
+        // release, and an annotation on the expected state is what makes the one on the
+        // UNexpected state (the case below) invisible.
+        assert.doesNotMatch(result.stdout, /::warning::/);
+    });
+
+    it('still rejects a RECORDED zero, allowance or not', () => {
+        // An absent field is a manifest older than the record; a recorded zero is a
+        // builder saying it covered nothing. Only the first is a legacy artifact.
+        const result = runVerify(goodManifest({ licenses: { texts: 65, binariesCovered: 0 } }), [
+            '--allow-legacy-license-record',
+        ]);
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /license coverage over ZERO bundled binaries/);
+    });
+
+    it('says the allowance was not needed, so it can be deleted', () => {
+        // Self-retiring: the day a published bundle carries the field, the flag reports
+        // itself as droppable instead of sitting in the workflow forever.
+        const result = runVerify(goodManifest(), ['--allow-legacy-license-record']);
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /--allow-legacy-license-record was not needed/);
+        assert.match(result.stdout, /DELETE the flag from the two call sites/);
+        assert.doesNotMatch(result.stdout, /::warning::/, 'no annotation outside Actions');
+    });
+
+    it('surfaces its own expiry as an Actions annotation, not as a line in a green log', () => {
+        // The flag is temporary by construction and the note that retires it is printed by
+        // a step that PASSES — which nobody reads. On Actions it is an annotation instead,
+        // so the day the published closure carries the record, the deletion is on the run
+        // summary and on the PR rather than in scrollback. Still not a failure: this is a
+        // deletion to schedule, not a build to break.
+        const result = runVerify(goodManifest(), ['--allow-legacy-license-record'], { GITHUB_ACTIONS: 'true' });
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /::warning::verify-bundle-manifest: --allow-legacy-license-record was not needed/);
     });
 
     it('rejects a declared data set that holds no files', () => {

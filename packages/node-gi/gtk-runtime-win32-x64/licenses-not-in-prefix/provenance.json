@@ -1,0 +1,15 @@
+{
+    "$comment": "Machine-readable half of README.md: which upstream release each vendored licence text was taken from, and the gvsbuild pin that release belongs to. Held by gtk-runtime-bundle-gates.test.mjs — every directory here needs an entry, every entry needs a directory, and `gvsbuild` must equal the GVSBUILD_VERSION the workflows build with, so a pin bump cannot leave these texts describing a different release.",
+    "gvsbuild": "2026.6.0",
+    "components": {
+        "freetype": "2.14.3",
+        "glib": "2.88.1",
+        "gobject-introspection": "1.86.0",
+        "graphene": "1.10.8",
+        "libtiff": "4.7.1",
+        "libxml2": "2.15.3",
+        "openssl": "3.6.1",
+        "sqlite": "3.53.2",
+        "zlib": "1.3.2"
+    }
+}

@@ -77,7 +77,9 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     copyTreeDereferenced,
+    duplicatedModuleLeaves,
     findSymlinks,
+    formatDuplicatedModuleProblems,
     formatSymlinkProblems,
     formatWindowingDataProblems,
     verifyWindowingData,
@@ -90,7 +92,7 @@ import {
     writeLicensePayload,
 } from './bundle-licenses.mjs';
 import { decodeProbeProblems, spawnDecodeProbe } from './decode-probe.mjs';
-import { isBundledGstPlugin } from './gst-plugins.mjs';
+import { isBundledGstPlugin, missingRequiredGstPlugins } from './gst-plugins.mjs';
 import {
     REQUIRED_NAMESPACES,
     WINDOWING_REQUIRED_NAMESPACES,
@@ -239,14 +241,58 @@ const WINDOWING_SEED_PATTERNS = [
     // build with no audio and no message, the same trace librsvg left above.
     /^libgstreamer-1\.0\..*\.dylib$/,
     /^libgstapp-1\.0\..*\.dylib$/,
+    // libsoup, which `libgstsoup` § 2c ships opens with g_module_open rather than
+    // linking (its loader shim picks libsoup-3 or libsoup-2 at runtime) — so the
+    // plugin's own otool deps are glib + gstreamer and the closure walk finds no soup
+    // at all. Third seed of the librsvg kind, third time the reason is "a module the
+    // walk cannot see"; gst-plugins.mjs § soup carries the measurement. It also backs
+    // `Soup-3.0.typelib`, which § 4's symmetry rule was correctly dropping.
+    /^libsoup-3\.0\..*\.dylib$/,
 ];
 
 function isSystemPath(p) {
     return p.startsWith('/usr/lib/') || p.startsWith('/System/');
 }
 
+/** `realpathSync` that answers null instead of throwing, for refs like `@rpath/x`. */
+function realpathOrNull(p) {
+    try {
+        return realpathSync(p);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Record where a bundled binary really came from, for § 5's per-keg attribution: brew LINKS
+ * a keg's files into its prefix, and only the RESOLVED path runs through
+ * `…/Cellar/<formula>/<version>/`, which is the whole basis of the darwin licence mapping.
+ * A path that is not a link is its own source, so an unresolvable one is recorded as given
+ * rather than dropped. Every module list in § 2b–2d needs this and each used to spell the
+ * same try/catch out again.
+ * @param {Map<string, string>} sources leaf -> the path § 5 attributes through
+ * @param {string} leaf the name the binary ships under
+ * @param {string} src the path it was copied from
+ */
+function recordBinarySource(sources, leaf, src) {
+    sources.set(leaf, realpathOrNull(src) ?? src);
+}
+
 // Parse an `otool -L <lib>` output into the list of dependency install paths
-// (skipping the first line — the library's own id — and system libraries).
+// (skipping the library's own id and system libraries).
+//
+// THE ID IS NOT DROPPED BY POSITION, and the difference is a shipped defect. `otool -L
+// <file>` prints `<file>:` as its first line and then, FOR A DYLIB ONLY, the install
+// name (LC_ID_DYLIB) before the real dependencies — a loadable BUNDLE (a GIO module, a
+// gdk-pixbuf loader) carries no id at all, so `slice(1)` cannot mean "past the id" for
+// both shapes and used to leave every dylib's own id in the list. That was inert only
+// while § 1 resolved a LEAF against `<prefix>/lib`: a plugin's leaf is not there. Once
+// § 1 began resolving whole REFERENCES (resolveBrewDep, for keg-only formulas), the id
+// — an absolute path into the Cellar — resolved to the plugin itself, and all 24
+// GStreamer plugins were copied into flat `lib/` beside the copies § 2c places, +3.4
+// MiB of duplicates. Measured on the darwin-x64 artifact of the run that added `soup`.
+// So the id is removed BY VALUE: nothing links itself, and the check costs one
+// realpath per line.
 function otoolDeps(libPath) {
     let out;
     try {
@@ -254,13 +300,15 @@ function otoolDeps(libPath) {
     } catch {
         return [];
     }
-    const lines = out.split('\n').slice(1); // line 0 is the id, not a dep
+    const self = realpathOrNull(libPath);
+    const lines = out.split('\n').slice(1); // line 0 is the `<file>:` header
     const deps = [];
     for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
         const path = trimmed.split(' (')[0];
         if (!path || isSystemPath(path)) continue;
+        if (self && realpathOrNull(path) === self) continue; // the image's own id
         deps.push(path);
     }
     return deps;
@@ -270,12 +318,30 @@ function otoolDeps(libPath) {
 // or null when it is not a Homebrew library we bundle.
 function resolveInBrew(leaf) {
     const candidate = join(brewLib, leaf);
-    if (!existsSync(candidate)) return null;
-    try {
-        return realpathSync(candidate);
-    } catch {
-        return null;
-    }
+    return existsSync(candidate) ? realpathOrNull(candidate) : null;
+}
+
+/**
+ * Resolve a dependency REFERENCE — the whole string in the Mach-O load command, not just its
+ * leaf — to the real Homebrew file behind it.
+ *
+ * The leaf lookup above is the normal path and stays first: `<prefix>/lib` is where brew links
+ * every non-keg-only formula, and a leaf is all a queued dependency used to carry. It is not
+ * enough for a KEG-ONLY formula, which brew deliberately never links into `lib/` — and the
+ * reference then names the keg directly. Measured while adding libsoup: it links
+ * `/usr/local/opt/sqlite/lib/libsqlite3.dylib`, the leaf lookup found nothing, sqlite never
+ * entered the closure, and § 3 refused the bundle for a reference into the build prefix. That
+ * refusal was correct; resolving the reference where it points is the repair the message asked
+ * for, and it is what makes any future keg-only dependency arrive instead of stopping a build.
+ * Still prefix-scoped: an /opt/X11 or /usr/lib reference stays OS-provided, as § 3 requires.
+ * @param {string} ref a load-command string, or a bare leaf for the seeds
+ * @returns {string|null}
+ */
+function resolveBrewDep(ref) {
+    const linked = resolveInBrew(basename(ref));
+    if (linked) return linked;
+    if (!ref.startsWith(`${brewPrefix}/`) || !existsSync(ref)) return null;
+    return realpathOrNull(ref);
 }
 
 // --- 1. discover the closure ----------------------------------------------
@@ -327,22 +393,46 @@ if (WINDOWING) {
     }
 }
 
+// The GIO modules § 2d ships, seeding the walk for the same reason: nothing LINKS a
+// module, so glib-networking's gnutls closure (gnutls, nettle, hogweed, gmp, p11-kit,
+// libtasn1, libidn2, libunistring — 6.67 MiB measured on darwin-x64) enters only here.
+// No filter: the module dir holds implementations of GIO extension points and the
+// bundle wants whichever the prefix installed. `giomodule.cache` is skipped — it
+// indexes the BUILD host's dir, and GIO rebuilds what it needs by scanning.
+const gioModuleSeedPaths = [];
+if (WINDOWING) {
+    const dir = join(brewLib, 'gio', 'modules');
+    if (existsSync(dir)) {
+        for (const f of readdirSync(dir)) {
+            // `.so` on darwin, not `.dylib`: GIO modules are loadable bundles.
+            if (!f.endsWith('.so') && !f.endsWith('.dylib')) continue;
+            const src = join(dir, f);
+            if (!existsSync(src)) continue; // dangling brew link — the keg is gone
+            gioModuleSeedPaths.push(src);
+        }
+    }
+}
+
 const bundled = new Map(); // leaf -> real source path
 const queue = [...seeds];
-// Walk the plugins' deps into the closure WITHOUT adding the plugins themselves to
-// `bundled` — they are not flat lib/ entries, § 2c places and relocates them.
-for (const pluginPath of gstPluginSeedPaths) {
-    for (const dep of otoolDeps(pluginPath)) queue.push(basename(dep));
+// Walk the plugins' and modules' deps into the closure WITHOUT adding the plugins or
+// modules themselves to `bundled` — they are not flat lib/ entries; § 2c and § 2d
+// place and relocate them.
+// The queue carries whole load-command strings, not leaves: a keg-only formula is
+// reachable only through the path its dependent names (see resolveBrewDep). A seed is a
+// bare leaf, which basename() leaves alone.
+for (const pluginPath of [...gstPluginSeedPaths, ...gioModuleSeedPaths]) {
+    for (const dep of otoolDeps(pluginPath)) queue.push(dep);
 }
 while (queue.length) {
-    const leaf = queue.shift();
+    const ref = queue.shift();
+    const leaf = basename(ref);
     if (bundled.has(leaf)) continue;
-    const real = resolveInBrew(leaf);
+    const real = resolveBrewDep(ref);
     if (!real) continue; // system / non-brew dep — leave as-is
     bundled.set(leaf, real);
     for (const dep of otoolDeps(real)) {
-        const depLeaf = basename(dep);
-        if (!bundled.has(depLeaf)) queue.push(depLeaf);
+        if (!bundled.has(basename(dep))) queue.push(dep);
     }
 }
 console.log(`build-gtk-runtime: closure = ${bundled.size} dylibs`);
@@ -425,11 +515,7 @@ if (WINDOWING) {
             // a tarball. The realpath is also what § 5 attributes the binary through.
             copyFileSync(src, dest);
             pixbufLoaderImages.push(dest);
-            try {
-                pixbufLoaderSources.set(f, realpathSync(src));
-            } catch {
-                pixbufLoaderSources.set(f, src); // not a link — the path IS the source
-            }
+            recordBinarySource(pixbufLoaderSources, f, src);
         }
         for (const image of pixbufLoaderImages) {
             relocate(image, { id: true, depPrefix: '@loader_path/../../..' });
@@ -550,11 +636,7 @@ if (WINDOWING) {
             copyFileSync(src, dest);
             bytes += statSync(dest).size;
             gstPluginImages.push(dest);
-            try {
-                gstPluginSources.set(f, realpathSync(src));
-            } catch {
-                gstPluginSources.set(f, src);
-            }
+            recordBinarySource(gstPluginSources, f, src);
         }
         for (const image of gstPluginImages) {
             relocate(image, { id: true, depPrefix: '@loader_path/..' });
@@ -572,11 +654,7 @@ if (WINDOWING) {
             const dest = join(scannerOut, 'gst-plugin-scanner');
             copyFileSync(scannerSrc, dest);
             gstPluginImages.push(dest);
-            try {
-                gstPluginSources.set('gst-plugin-scanner', realpathSync(scannerSrc));
-            } catch {
-                gstPluginSources.set('gst-plugin-scanner', scannerSrc);
-            }
+            recordBinarySource(gstPluginSources, 'gst-plugin-scanner', scannerSrc);
             relocate(dest, { id: false, depPrefix: '@loader_path/../../lib' });
         } else {
             console.warn(
@@ -596,6 +674,21 @@ if (WINDOWING) {
             );
             process.exit(1);
         }
+        // ZERO IS NEVER RIGHT, one element deeper. The count check above passed on every
+        // published bundle while `souphttpsrc` was absent from all of them, because a
+        // count cannot say WHICH plugin is gone — the same argument gst-elements.test.mjs
+        // names each element for. This asks for the three whose absence is silent.
+        const missingRequired = missingRequiredGstPlugins(gstPluginImages.map((p) => basename(p)));
+        if (missingRequired.length > 0) {
+            console.error(
+                `build-gtk-runtime: ${pluginsSrc} produced no plugin for ${missingRequired.join(', ')} — ` +
+                    'gst-plugins.mjs marks these required because a bundle without them reports a healthy ' +
+                    'Gst.init() and then fails in the application (no appsrc / no decodebin / no source ' +
+                    'element for an http(s) URI). Install the formula that provides it into the build ' +
+                    'prefix; do NOT drop the name from GST_REQUIRED_PLUGINS to get a green build.',
+            );
+            process.exit(1);
+        }
         console.log(
             `build-gtk-runtime: GStreamer — ${gstPluginImages.length} plugin(s) relocated ` +
                 `(@loader_path/..), ${(bytes / 1024 / 1024).toFixed(1)} MiB of plugins` +
@@ -607,6 +700,54 @@ if (WINDOWING) {
             `build-gtk-runtime: WARNING — ${pluginsSrc} missing; no GStreamer plugins bundled ` +
                 '(Gst.init() would succeed and decode nothing)',
         );
+    }
+}
+
+// --- 2d. WINDOWING: the GIO modules (the TLS backend) -----------------------
+// `GTlsConnection` has no implementation in GIO itself: glib-networking ships one as a
+// module and GIO g_module_opens it out of its module dir. The bundle brings its OWN
+// libgio and brought no module, so `g_tls_backend_get_default()` returned the dummy
+// backend and every https request in a bundle-activated process failed — souphttpsrc
+// § 2c reports it as "Internal data stream error", and @gjsify/tls, /http2 and /ws fail
+// the same way one layer up. Measured by emptying the host module dir on darwin-x64.
+//
+// Here rather than in § 4b for § 2b's reason: Mach-O images in a nested dir, so they
+// need the copy → relocate → re-sign pass and § 3 then verifies them. Three levels
+// below the bundle root (lib/gio/modules/), so the deps prefix climbs back to lib/.
+// The dir is a declared `tls-backend` data set (bundle-data.mjs), which is what makes
+// an EMPTY one fail the build in § 4e and the publish in verify-bundle-manifest.mjs.
+const gioModuleImages = []; // absolute paths in the bundle, for § 3
+const gioModuleSources = new Map(); // leaf -> keg realpath, for § 5's attribution
+if (WINDOWING) {
+    const modulesOut = join(OUT, 'lib', 'gio', 'modules');
+    if (gioModuleSeedPaths.length > 0) {
+        mkdirSync(modulesOut, { recursive: true });
+        let bytes = 0;
+        // The SAME list that seeded the closure walk in § 1, for the reason § 2c gives:
+        // the set that was walked and the set that ships cannot disagree.
+        for (const src of gioModuleSeedPaths) {
+            const f = basename(src);
+            const dest = join(modulesOut, f);
+            copyFileSync(src, dest); // dereferencing — a link into the Cellar is worthless in a tarball
+            bytes += statSync(dest).size;
+            gioModuleImages.push(dest);
+            recordBinarySource(gioModuleSources, f, src);
+        }
+        for (const image of gioModuleImages) {
+            relocate(image, { id: true, depPrefix: '@loader_path/../..' });
+        }
+        console.log(
+            `build-gtk-runtime: GIO modules — ${gioModuleImages.length} module(s) relocated ` +
+                `(@loader_path/../..), ${(bytes / 1024).toFixed(0)} KiB`,
+        );
+    } else {
+        console.error(
+            `build-gtk-runtime: ${join(brewLib, 'gio', 'modules')} holds no loadable GIO module — the ` +
+                'bundle would ship its own libgio with no TLS backend behind it, so every https request ' +
+                'gets the dummy backend and fails as a network error rather than as a missing module. ' +
+                'Repair: brew install glib-networking.',
+        );
+        process.exit(1);
     }
 }
 
@@ -654,7 +795,25 @@ function verifyRelocation(paths) {
 // relocation is the harder one (a ../../.. prefix, plus an `@rpath` ref and an absolute
 // LC_ID_DYLIB on librsvg's module), so leaving them out would ship exactly the class of
 // bug this function exists to catch.
-verifyRelocation([...[...bundledLeaves].map((leaf) => join(libOut, leaf)), ...pixbufLoaderImages, ...gstPluginImages]);
+verifyRelocation([
+    ...[...bundledLeaves].map((leaf) => join(libOut, leaf)),
+    ...pixbufLoaderImages,
+    ...gstPluginImages,
+    ...gioModuleImages,
+]);
+
+// And the check verifyRelocation CANNOT make, because a duplicate is correctly
+// relocated: no module § 2b–2d placed may ALSO be a flat lib/ entry. See
+// duplicatedModuleLeaves for the class and the 24-plugin instance it was written on.
+const duplicatedModules = duplicatedModuleLeaves(bundledLeaves, [
+    ...pixbufLoaderImages,
+    ...gstPluginImages,
+    ...gioModuleImages,
+]);
+if (duplicatedModules.length > 0) {
+    console.error(`build-gtk-runtime: ${formatDuplicatedModuleProblems(duplicatedModules, { flatDir: libOut })}`);
+    process.exit(1);
+}
 
 // --- 4. typelibs — only the ones this bundle can actually BACK --------------
 // The brew typelib dir is shared by every installed formula, so copying it wholesale
@@ -717,6 +876,7 @@ if (typelibPlan.dropped.length > 0) {
 const windowing = {
     pixbufLoaders: pixbufLoaderImages.length, // § 2b
     gstPlugins: gstPluginImages.length, // § 2c
+    gioModules: gioModuleImages.length, // § 2d
     schemas: false,
     iconThemes: [],
     iconFiles: 0,
@@ -892,7 +1052,7 @@ const brewInfoLicense = (formula) => {
 // third-party LGPL modules too, so "the terms travel with the binaries" is only true if
 // the per-binary table names them. They attribute through the same derivation as every
 // dylib — their realpath runs through …/Cellar/{gdk-pixbuf,librsvg}/<version>/… .
-const shippedBinaries = new Map([...bundled, ...pixbufLoaderSources, ...gstPluginSources]);
+const shippedBinaries = new Map([...bundled, ...pixbufLoaderSources, ...gstPluginSources, ...gioModuleSources]);
 const { components: licenseComponents, unattributed } = describeBrewKegs({
     files: shippedBinaries,
     fallbackLicense: brewInfoLicense,
@@ -900,9 +1060,9 @@ const { components: licenseComponents, unattributed } = describeBrewKegs({
 const licensePayload = writeLicensePayload({ outDir: join(OUT, 'licenses'), components: licenseComponents });
 const MODIFICATIONS = [
     '`install_name_tool -id` / `-change`: every install name and every reference to another library in this bundle ' +
-        'rewritten to `@loader_path/<leaf>` — `@loader_path/../../../<leaf>` for the gdk-pixbuf loader modules ' +
-        'under `lib/gdk-pixbuf-2.0/`, which sit three levels below `lib/` (references to /usr/lib and /System are ' +
-        'untouched).',
+        'rewritten to `@loader_path/<leaf>`, with the prefix climbing back to `lib/` for the modules that sit ' +
+        'below it — `../` for the GStreamer plugins, `../../` for the GIO modules, `../../../` for the gdk-pixbuf ' +
+        'image loaders (references to /usr/lib and /System are untouched).',
     '`codesign --force --sign -`: ad-hoc re-signature, because `install_name_tool` invalidates the original one ' +
         'and dyld refuses a mis-signed dylib on Apple silicon.',
 ];
@@ -1077,6 +1237,11 @@ const manifest = {
         attribution: 'per-binary',
         components: licenseComponents.length,
         texts: licensePayload.files.length,
+        // How many binaries the coverage gate actually covered. Recorded on BOTH
+        // platforms so the publish gate can refuse a bundle whose license step ran
+        // without ever looking at a binary — the win32 state that shipped GLib and
+        // OpenSSL with no terms while every check was green.
+        binariesCovered: shippedBinaries.size,
         binariesModified: true,
         modifications: MODIFICATIONS,
     },

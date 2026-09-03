@@ -227,6 +227,32 @@
             "rules": {
                 "no-restricted-globals": "off"
             }
+        },
+        {
+            // An identifier a test file NAMES but never IMPORTS is a ReferenceError
+            // that only the leg with the optional dependency installed can see. The
+            // incident: gst-elements.test.mjs asked `requireGi('Gio','2.0')` for the
+            // TLS backend while a rebase took its `import { requireGi }` away — main
+            // had moved the Gst init into `gst-gate.mjs` and dropped the import as
+            // dead, the branch added a test that used it, and git merged both halves
+            // with no conflict to report. Nothing in the tree could see it: the error
+            // lives inside a test callback, so it needs GStreamer PRESENT to run at
+            // all, and the aarch64 leg (no GStreamer, gate self-skips) stayed green
+            // while Windows and Fedora went red on a bundle that was correct.
+            //
+            // `no-undef` off tree-wide is not an oversight — this repo configures no
+            // `env`, so the rule reports `process`, `console`, `document` and
+            // `TextEncoder` across 119 packages. Here the environment IS known:
+            // node-gi's own test suite is `node --test`, nothing else, and the
+            // directory measures CLEAN under the rule with node globals declared. So
+            // this asks the linter the question rather than adding a second matcher
+            // beside it, and it asks STATICALLY — on every leg, including the ones
+            // where the runtime test skips itself.
+            "files": ["packages/node-gi/node-gi/test/**"],
+            "env": { "builtin": true, "node": true, "es2024": true },
+            "rules": {
+                "eslint/no-undef": "error"
+            }
         }
     ],
     "ignorePatterns": [

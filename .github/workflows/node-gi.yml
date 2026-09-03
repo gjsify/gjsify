@@ -1596,8 +1596,13 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: '1'
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
     steps:
+      # `glib-networking` is NAMED although brew's `gstreamer` already depends on it.
+      # It supplies lib/gio/modules/libgiognutls.so — the GIO TLS backend the bundle
+      # ships as its `tls-backend` data set, without which souphttpsrc resolves and then
+      # fails on every https URL. A transitive dep is a fact about today's formula; this
+      # is the one the builder asserts.
       - name: Install GTK4 + Adwaita + GtkSource + icons + GObject-Introspection (build-time closure source)
-        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer
+        run: brew install gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer glib-networking
 
       - name: Use Node.js 24
         uses: actions/setup-node@v4
@@ -2452,7 +2457,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\gtk-build\gtk\x64\release
-          key: gvsbuild-gtk4-gst-gi-${{ env.GVSBUILD_VERSION }}-x64-v2
+          key: gvsbuild-gtk4-gst-soup-gi-${{ env.GVSBUILD_VERSION }}-x64-v3
 
       # Build-time closure SOURCE only. Verbatim from the `windows` job.
       - name: Download + extract gvsbuild GTK4 (build-time closure source)
@@ -2544,6 +2549,19 @@ jobs:
           # caught it, at the prefix, instead of three jobs later as "no element
           # decodebin" — typelibs are the only reason we build this from source
           # rather than lifting a binary.
+          # TWO INVOCATIONS, AND THE ORDER IS THE POINT. gst-plugins-good's `soup`
+          # feature is meson `auto` and its ext/soup/meson.build calls `subdir_done()`
+          # with a MESSAGE, not an error, when neither libsoup2 nor libsoup3 is found —
+          # so building -good against a prefix without libsoup produces a complete,
+          # green build with no gstsoup.dll in it, which is exactly the silent gap
+          # gst-plugins.mjs § soup was measured on. gst-plugins-good does not DECLARE
+          # libsoup3 as a gvsbuild dependency, so nothing orders the two for us.
+          # `glib-networking` is named although libsoup3 already depends on it: it is
+          # the GIO TLS backend the bundle ships as its `tls-backend` data set, and on
+          # Windows the soup plugin LINKS libsoup (ext/soup/meson.build takes the
+          # `host_system == 'windows'` branch instead of the dlopen loader), so an
+          # https URL would still fail on the missing module alone.
+          gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --build-dir C:\gtk-build glib-networking libsoup3
           gvsbuild build --configuration release --vs-ver $vsVer --enable-gi --skip libvpx --build-dir C:\gtk-build gstreamer gst-plugins-base gst-plugins-good
 
       - name: Assert GStreamer landed in the prefix (typelibs + plugins)
@@ -2559,6 +2577,18 @@ jobs:
           $plugins = Get-ChildItem "$env:GTK_PREFIX\lib\gstreamer-1.0" -Filter *.dll -ErrorAction SilentlyContinue
           if (-not $plugins) { Write-Host "no GStreamer plugins in the prefix"; exit 1 }
           Write-Host "GStreamer: $($plugins.Count) plugin DLL(s) in the prefix"
+          # NAMED, not counted. `gstsoup.dll` is the one plugin whose absence the build
+          # above produces SILENTLY (a meson `message()`, then a green -good), and a
+          # count of 80-odd plugins says nothing about which one is missing. Same
+          # reason gst-elements.test.mjs names its elements. The GIO module beside it
+          # is what makes the https half work at all.
+          $soup = Join-Path $env:GTK_PREFIX 'lib\gstreamer-1.0\gstsoup.dll'
+          if (-not (Test-Path $soup)) {
+            Write-Host "MISSING $soup — gst-plugins-good was built without libsoup in the prefix"; exit 1
+          }
+          $gioModules = Get-ChildItem "$env:GTK_PREFIX\lib\gio\modules" -Filter *.dll -ErrorAction SilentlyContinue
+          if (-not $gioModules) { Write-Host "no GIO module in the prefix — glib-networking did not build"; exit 1 }
+          Write-Host "GIO modules: $($gioModules.Count) DLL(s) (the TLS backend)"
 
       - name: Put GTK on PATH (for the bundle-data tools)
         shell: pwsh

@@ -45,16 +45,20 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     copyTreeDereferenced,
+    duplicatedModuleLeaves,
     findSymlinks,
+    formatDuplicatedModuleProblems,
     formatSymlinkProblems,
     formatWindowingDataProblems,
     verifyWindowingData,
 } from '../../scripts/bundle-data.mjs';
 import {
+    WIN32_LICENSE_FAMILIES,
     assertLicenseCoverage,
     formatLicenseProblems,
     renderThirdPartyNotice,
     scanLicenseFiles,
+    upstreamLicenseComponents,
     writeLicensePayload,
 } from '../../scripts/bundle-licenses.mjs';
 import {
@@ -63,7 +67,7 @@ import {
     formatMissingGlImplementation,
 } from '../../scripts/gl-implementation.mjs';
 import { decodeProbeProblems, spawnDecodeProbe } from '../../scripts/decode-probe.mjs';
-import { isBundledGstPlugin } from '../../scripts/gst-plugins.mjs';
+import { isBundledGstPlugin, missingRequiredGstPlugins } from '../../scripts/gst-plugins.mjs';
 import { bundleRelativeLoaderCache, loaderCacheProblems } from '../../scripts/pixbuf-loader-cache.mjs';
 import {
     REQUIRED_NAMESPACES,
@@ -170,6 +174,19 @@ const WINDOWING_SEED_PATTERNS = [
     // build with no audio and no message.
     /^gstreamer-1\.0-.*\.dll$/i,
     /^gstapp-1\.0-.*\.dll$/i,
+    // libsoup, and NOT for the reason its darwin twin exists — the two OSes build the
+    // soup plugin differently and only one of them hides the dependency. gst-plugins-good
+    // takes the `host_system == 'windows'` branch of ext/soup/meson.build, which LINKS
+    // libsoup; measured on the shipped DLL, `gstsoup.dll`'s import table names
+    // `soup-3.0-0.dll` outright, so the dumpbin walk seeded from the plugin does reach it.
+    // (On darwin the same plugin g_module_opens libsoup by leaf through its loader shim
+    // and the otool walk finds nothing — that is where the seed is load-bearing.)
+    //
+    // It is seeded here anyway, for the reason that survives the difference: it backs
+    // `Soup-3.0.typelib`, which § 3's symmetry rule was correctly dropping, and the seed
+    // states that requirement rather than inheriting it from how -good happened to be
+    // configured. gst-plugins.mjs § soup carries the measurement.
+    /^soup-3\.0-.*\.dll$/i,
 ];
 
 // Locate an MSVC/gvsbuild tool: env override, then the gvsbuild <prefix>/bin
@@ -296,9 +313,20 @@ if (WINDOWING && existsSync(gstPluginDir)) {
         }
     }
 }
+// And for the GIO modules (§ 4h) — the TLS backend. Same shape again: outside bin/,
+// nothing links them, so without seeding here their backing DLLs never reach bin/ and
+// the module cannot load on a machine without the build prefix.
+const gioModuleDir = join(PREFIX, 'lib', 'gio', 'modules');
+const gioModuleSeeds = [];
+if (WINDOWING && existsSync(gioModuleDir)) {
+    for (const f of readdirSync(gioModuleDir)) {
+        if (f.toLowerCase().endsWith('.dll')) gioModuleSeeds.push(join(gioModuleDir, f));
+    }
+}
 console.log(
     `build-gtk-runtime: ${seeds.length} seed DLLs${loaderSeeds.length ? ` + ${loaderSeeds.length} pixbuf loaders` : ''}` +
-        `${gstPluginSeeds.length ? ` + ${gstPluginSeeds.length} gst plugins` : ''}`,
+        `${gstPluginSeeds.length ? ` + ${gstPluginSeeds.length} gst plugins` : ''}` +
+        `${gioModuleSeeds.length ? ` + ${gioModuleSeeds.length} gio modules` : ''}`,
 );
 
 const dumpbin = findDumpbin();
@@ -309,7 +337,7 @@ if (dumpbin) {
     console.log(`build-gtk-runtime: walking the DLL closure with ${dumpbin}`);
     // Seed with bin/ seeds (leaf names) + external loader DLLs (full paths) so THEIR
     // deps are walked into bin/ even though the loaders live outside bin/.
-    const queue = [...seeds, ...loaderSeeds, ...gstPluginSeeds];
+    const queue = [...seeds, ...loaderSeeds, ...gstPluginSeeds, ...gioModuleSeeds];
     while (queue.length) {
         const entry = queue.shift();
         const isPath = entry.includes('\\') || entry.includes('/');
@@ -430,11 +458,25 @@ if (typelibPlan.dropped.length > 0) {
 const windowing = {
     pixbufLoaders: 0,
     gstPlugins: 0,
+    gioModules: 0,
     schemas: false,
     iconThemes: [],
     fontconfig: false,
     gtksource: false,
 };
+// Every loadable module § 4a/4g/4h PLACES in its own directory, for the rule-3 gate below
+// them: a module must not ALSO be a flat bin/ entry. This leg is CLEAN today — dumpbin's
+// import table does not name the file it describes, so nothing queues a module the way
+// `otool -L` did on darwin — and the gate is here so it stays a fact rather than a
+// property of which walker each OS happens to use. See duplicatedModuleLeaves.
+const placedModuleLeaves = [];
+// Binaries § 4 places that are NOT loadable modules, so rule 3 does not apply to them and
+// the license coverage set below still must. Today that is the GStreamer plugin scanner,
+// an .exe in libexec/ — and it is exactly what "every binary the tarball carries" missed
+// on the first pass: it is in neither `binDlls` nor a module list, so the win32 coverage
+// gate never saw the one non-library binary in the bundle. darwin attributes it through
+// its keg like any other image; this keeps the two platforms answering the same question.
+const placedExecutables = [];
 if (WINDOWING) {
     // 4a. gdk-pixbuf loaders + a TOPLEVEL-relative loaders.cache. The cache maps each
     // decoder DLL to its mime/extensions, and the query tool emits absolute build paths
@@ -452,6 +494,7 @@ if (WINDOWING) {
         for (const f of readdirSync(gdkPixbufLoaderDir)) {
             if (f.toLowerCase().endsWith('.dll')) {
                 copyFileSync(join(gdkPixbufLoaderDir, f), join(loadersOut, f));
+                placedModuleLeaves.push(f);
                 windowing.pixbufLoaders++;
             }
         }
@@ -507,6 +550,7 @@ if (WINDOWING) {
         const pluginsOut = join(OUT, 'lib', 'gstreamer-1.0');
         mkdirSync(pluginsOut, { recursive: true });
         let bytes = 0;
+        const shippedGstPlugins = [];
         for (const f of readdirSync(gstPluginDir)) {
             if (!f.toLowerCase().endsWith('.dll')) continue;
             // The AUDIO PATH only, same rule and same reasons as darwin.
@@ -514,6 +558,8 @@ if (WINDOWING) {
             const dest = join(pluginsOut, f);
             copyFileSync(join(gstPluginDir, f), dest);
             bytes += statSync(dest).size;
+            shippedGstPlugins.push(f);
+            placedModuleLeaves.push(f);
             windowing.gstPlugins++;
         }
         // The scanner, which GStreamer FORKS so a plugin that crashes on load cannot
@@ -525,6 +571,7 @@ if (WINDOWING) {
             const scannerOut = join(OUT, 'libexec', 'gstreamer-1.0');
             mkdirSync(scannerOut, { recursive: true });
             copyFileSync(scannerSrc, join(scannerOut, 'gst-plugin-scanner.exe'));
+            placedExecutables.push('gst-plugin-scanner.exe');
         } else {
             console.warn(
                 `build-gtk-runtime: WARNING — ${scannerSrc} missing; GStreamer will scan plugins ` +
@@ -547,6 +594,22 @@ if (WINDOWING) {
             );
             process.exit(1);
         }
+        // ZERO IS NEVER RIGHT, one element deeper — the darwin builder carries the twin
+        // of this block. The count above passed on every published bundle while
+        // `souphttpsrc` was absent from all of them, because a count cannot say WHICH
+        // plugin is gone.
+        const missingRequired = missingRequiredGstPlugins(shippedGstPlugins);
+        if (missingRequired.length > 0) {
+            console.error(
+                `build-gtk-runtime: ${gstPluginDir} produced no plugin for ${missingRequired.join(', ')} — ` +
+                    'gst-plugins.mjs marks these required because a bundle without them reports a healthy ' +
+                    'Gst.init() and then fails in the application (no appsrc / no decodebin / no source ' +
+                    'element for an http(s) URI). `soup` comes from gst-plugins-good and needs libsoup3 ' +
+                    'built into the same gvsbuild prefix FIRST, else meson disables the plugin silently. ' +
+                    'Do NOT drop the name from GST_REQUIRED_PLUGINS to get a green build.',
+            );
+            process.exit(1);
+        }
         console.log(
             `build-gtk-runtime: GStreamer — ${windowing.gstPlugins} plugin(s), ` +
                 `${(bytes / 1024 / 1024).toFixed(1)} MiB`,
@@ -556,6 +619,57 @@ if (WINDOWING) {
             `build-gtk-runtime: WARNING — ${gstPluginDir} missing; no GStreamer plugins bundled ` +
                 '(Gst.init() would succeed and decode nothing)',
         );
+    }
+
+    // 4h. GIO modules — the TLS backend. `GTlsConnection` has no implementation in GIO
+    // itself: glib-networking ships one as a module GIO g_module_opens out of its module
+    // dir. The bundle brings its own GIO and brought no module, so every https request in
+    // a bundle-activated process got the DUMMY backend — `souphttpsrc` on an https URL
+    // fails as "Internal data stream error", and @gjsify/tls, /http2 and /ws the same way
+    // one layer up. No relocation (Windows resolves the backing DLLs by search path, and
+    // the closure walk already put them in bin/); node-gi points GIO_MODULE_DIR here.
+    // Declared as the `tls-backend` data set, so § 5b fails an empty one.
+    if (existsSync(gioModuleDir)) {
+        const modulesOut = join(OUT, 'lib', 'gio', 'modules');
+        mkdirSync(modulesOut, { recursive: true });
+        let bytes = 0;
+        for (const src of gioModuleSeeds) {
+            const dest = join(modulesOut, basename(src));
+            copyFileSync(src, dest);
+            bytes += statSync(dest).size;
+            placedModuleLeaves.push(basename(src));
+            windowing.gioModules++;
+        }
+        if (windowing.gioModules === 0) {
+            console.error(
+                `build-gtk-runtime: ${gioModuleDir} holds no GIO module DLL — the bundle would ship its ` +
+                    'own GIO with no TLS backend behind it, so every https request gets the dummy backend ' +
+                    'and fails as a network error. Repair: add glib-networking to the gvsbuild build.',
+            );
+            process.exit(1);
+        }
+        console.log(
+            `build-gtk-runtime: GIO modules — ${windowing.gioModules} module(s), ${(bytes / 1024).toFixed(0)} KiB`,
+        );
+    } else {
+        console.error(
+            `build-gtk-runtime: ${gioModuleDir} missing — no GIO TLS backend to bundle. ` +
+                'Repair: add glib-networking to the gvsbuild build (it is a dependency of the libsoup3 ' +
+                'project, so building libsoup3 brings it).',
+        );
+        process.exit(1);
+    }
+
+    // Rule 3: no module § 4a/4g/4h placed may ALSO be a flat bin/ entry. Case-folded,
+    // because bin/ is a Windows directory. The darwin twin of this gate stands after its
+    // § 3, and duplicatedModuleLeaves carries the class.
+    // `binDlls` is a Map (leaf -> resolved source); its VALUES are what § 2a copied.
+    const duplicatedModules = duplicatedModuleLeaves(binDlls.values(), placedModuleLeaves, {
+        caseInsensitive: true,
+    });
+    if (duplicatedModules.length > 0) {
+        console.error(`build-gtk-runtime: ${formatDuplicatedModuleProblems(duplicatedModules, { flatDir: binOut })}`);
+        process.exit(1);
     }
 
     // 4b. Compiled GSettings schemas (GTK/Adwaita read org.gnome.desktop.interface
@@ -795,15 +909,49 @@ if (WINDOWING) {
 // (36 files in GTK4_Gvsbuild_2026.6.0_x64) — so the whole corpus ships and the notice
 // says plainly that the per-binary mapping is not recoverable. Over-inclusive beats
 // silent.
+//
+// OVER-INCLUSIVE IN ONE DIRECTION IS NOT COVERAGE IN THE OTHER, and only the first half
+// was ever checked. `assertLicenseCoverage` ran its per-binary rules under `per-binary`
+// attribution only, so this call asserted "some text was recovered" — a corpus of one
+// file would have passed it. Measured on the artifact: 65 DLLs, 45 documented projects,
+// and nine projects behind fourteen DLLs (glib among them) with no terms in the bundle.
+// The corpus is still DERIVED and the notice still refuses to claim a per-DLL mapping;
+// what changed is that WIN32_LICENSE_FAMILIES lets the gate ask, per binary, whether SOME
+// documented project covers it — and the build stops when one does not.
 const licenseTexts = scanLicenseFiles({ root: PREFIX, subdirs: ['share/licenses', 'share/doc'], maxDepth: 2 });
 const byComponent = new Map();
 for (const text of licenseTexts) {
     if (!byComponent.has(text.component)) byComponent.set(text.component, { name: text.component, texts: [] });
     byComponent.get(text.component).texts.push(text);
 }
+// EVERY binary the tarball carries, not just bin/ — the same correction the darwin
+// builder already carries. The gst plugins, the pixbuf loaders, the GIO modules and the
+// plugin scanner are third-party binaries too, and a coverage check that never sees them
+// cannot say the terms travel with them.
+const shippedBinaries = [
+    ...[...binDlls.values()].map((f) => basename(f)),
+    ...placedModuleLeaves,
+    ...placedExecutables,
+].sort();
+// THE VENDORED CORPUS, and the measurement that made it necessary. The corpus above is
+// what the prefix HAPPENS to document, and on the published bundles that was 45 projects
+// against 90 shipped binaries: glib, gobject-introspection, freetype, graphene, libtiff,
+// libxml2, zlib, sqlite and openssl back fourteen of them and the prefix documents none —
+// gvsbuild has no install step for some, and installs others under a name the scan does
+// not accept (openssl installs `LICENSE` while OpenSSL 3 ships `LICENSE.txt`). So the
+// bundle shipped LGPL-2.1 GLib and Apache-2.0 OpenSSL with no terms at all. The rule the
+// merge follows lives in bundle-licenses.mjs so its test drives THIS code and not a copy;
+// provenance per file is licenses-not-in-prefix/README.md.
+for (const component of upstreamLicenseComponents({
+    root: join(pkgRoot, 'licenses-not-in-prefix'),
+    documented: byComponent.keys(),
+    binaries: shippedBinaries,
+    families: WIN32_LICENSE_FAMILIES,
+})) {
+    byComponent.set(component.name, component);
+}
 const licenseComponents = [...byComponent.values()].sort((a, b) => a.name.localeCompare(b.name));
 const licensePayload = writeLicensePayload({ outDir: join(OUT, 'licenses'), components: licenseComponents });
-const dllLeaves = [...binDlls.values()].map((f) => basename(f));
 writeFileSync(
     join(OUT, 'THIRD-PARTY-NOTICES.md'),
     renderThirdPartyNotice({
@@ -815,24 +963,28 @@ writeFileSync(
         // bundle is made portable by the loader's PATH prepend alone.
         modifications: [],
         components: licenseComponents,
-        binaries: dllLeaves,
+        binaries: shippedBinaries,
         attribution: 'prefix',
         payloadDir: 'licenses',
     }),
 );
 const licenseProblems = assertLicenseCoverage({
     components: licenseComponents,
-    binaries: dllLeaves,
+    binaries: shippedBinaries,
     attribution: 'prefix',
     textCount: licensePayload.files.length,
+    families: WIN32_LICENSE_FAMILIES,
 });
 if (licenseProblems.length > 0) {
     console.error(`build-gtk-runtime: ${formatLicenseProblems(licenseProblems, { prefix: PREFIX })}`);
     process.exit(1);
 }
+const upstreamComponents = licenseComponents.filter((c) => c.upstreamText).map((c) => c.name);
 console.log(
     `build-gtk-runtime: licenses — ${licensePayload.files.length} text(s) from ${licenseComponents.length} ` +
-        `project(s) (${(licensePayload.bytes / 1024).toFixed(0)} KiB) -> licenses/, notice -> THIRD-PARTY-NOTICES.md`,
+        `project(s) (${(licensePayload.bytes / 1024).toFixed(0)} KiB) covering ${shippedBinaries.length} ` +
+        `binary/ies -> licenses/, notice -> THIRD-PARTY-NOTICES.md` +
+        `${upstreamComponents.length ? ` (${upstreamComponents.join(', ')} from upstream, not from the prefix)` : ''}`,
 );
 
 // --- manifest + size -------------------------------------------------------
@@ -885,6 +1037,11 @@ const manifest = {
         attribution: 'prefix',
         components: licenseComponents.length,
         texts: licensePayload.files.length,
+        // Recorded, not just asserted: a consumer holding only the tarball can see how
+        // many binaries the coverage check actually covered, and which projects' terms
+        // came from upstream because the build prefix documents none.
+        binariesCovered: shippedBinaries.length,
+        upstreamComponents,
         binariesModified: false,
         modifications: [],
     },

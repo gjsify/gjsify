@@ -27,12 +27,14 @@ import {
     lstatSync,
     mkdirSync,
     mkdtempSync,
+    readFileSync,
     readdirSync,
     symlinkSync,
     writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
     REQUIRED_NAMESPACES,
     WINDOWING_REQUIRED_NAMESPACES,
@@ -46,17 +48,23 @@ import {
 import {
     WINDOWING_DATA_SETS,
     copyTreeDereferenced,
+    duplicatedModuleLeaves,
     findSymlinks,
+    formatDuplicatedModuleProblems,
     formatSymlinkProblems,
     formatWindowingDataProblems,
     verifyWindowingData,
 } from '../../scripts/bundle-data.mjs';
 import {
+    WIN32_LICENSE_FAMILIES,
     assertLicenseCoverage,
     describeBrewKegs,
+    formatLicenseProblems,
+    licenseFamilyFor,
     parseBrewLicenseStanza,
     renderThirdPartyNotice,
     scanLicenseFiles,
+    upstreamLicenseComponents,
 } from '../../scripts/bundle-licenses.mjs';
 import {
     GL_IMPLEMENTATION_PATTERNS,
@@ -514,6 +522,383 @@ test('a prefix-attributed notice says so instead of implying a per-binary mappin
     assert.ok(notice.includes('gtk-4-1.dll'));
 });
 
+// --- win32 license COVERAGE, driven from the measured bundle -------------------
+//
+// THE DEFECT UNDER TEST, measured on this branch's own `gtk-runtime-win32-x64` and
+// `…-windowing` CI artifacts rather than reasoned about: 65 DLLs in `bin/` plus 24
+// loadable modules and one executable, against 45 projects the gvsbuild prefix documents.
+// Nine of the projects behind fourteen of those binaries are documented nowhere —
+// `libglib`, `libgobject` and `libgio` (LGPL-2.1-or-later) and `libcrypto`/`libssl`
+// (Apache-2.0, whose § 4 requires the license to travel with the binary) shipped with no
+// terms at all. Every gate was green, because `assertLicenseCoverage` ran its per-binary
+// rules only under `per-binary` attribution while the win32 call passes `prefix`: what it
+// actually asserted was "at least one license text was recovered", which a corpus of one
+// file satisfies.
+//
+// The lists below are the artifacts' own file names. They are fixtures on purpose — the
+// builders run on no machine a developer has, so this is the only place the family table
+// meets a real bundle before a release does.
+
+/** `bin/` of the `--windowing` artifact; the display-free bundle's 37 are a subset. */
+const WIN32_BUNDLED_DLLS = [
+    'adwaita-1-0.dll',
+    'cairo-2.dll',
+    'cairo-gobject-2.dll',
+    'cairo-script-interpreter-2.dll',
+    'comerr64.dll',
+    'epoxy-0.dll',
+    'ffi-8.dll',
+    'fontconfig-1.dll',
+    'freetype-6.dll',
+    'fribidi-0.dll',
+    'gdk_pixbuf-2.0-0.dll',
+    'gio-2.0-0.dll',
+    'girepository-1.0-1.dll',
+    'girepository-2.0-0.dll',
+    'glib-2.0-0.dll',
+    'gmodule-2.0-0.dll',
+    'gobject-2.0-0.dll',
+    'graphene-1.0-0.dll',
+    'gssapi64.dll',
+    'gstapp-1.0-0.dll',
+    'gstaudio-1.0-0.dll',
+    'gstbase-1.0-0.dll',
+    'gstpbutils-1.0-0.dll',
+    'gstreamer-1.0-0.dll',
+    'gstriff-1.0-0.dll',
+    'gstrtp-1.0-0.dll',
+    'gsttag-1.0-0.dll',
+    'gstvideo-1.0-0.dll',
+    'gtk-4-1.dll',
+    'gtksourceview-5-0.dll',
+    'harfbuzz-cairo.dll',
+    'harfbuzz-gobject.dll',
+    'harfbuzz-gpu.dll',
+    'harfbuzz-icu.dll',
+    'harfbuzz-raster.dll',
+    'harfbuzz-subset.dll',
+    'harfbuzz-vector.dll',
+    'harfbuzz.dll',
+    'iconv.dll',
+    'icudt78.dll',
+    'icuuc78.dll',
+    'intl.dll',
+    'jpeg62.dll',
+    'k5sprt64.dll',
+    'krb5_64.dll',
+    'libcrypto-3-x64.dll',
+    'libexpat.dll',
+    'libpng16.dll',
+    'libssl-3-x64.dll',
+    'nghttp2.dll',
+    'opus-0.dll',
+    'orc-0.4-0.dll',
+    'pango-1.0-0.dll',
+    'pangocairo-1.0-0.dll',
+    'pangoft2-1.0-0.dll',
+    'pangowin32-1.0-0.dll',
+    'pcre2-8-0.dll',
+    'pixman-1-0.dll',
+    'psl-5.dll',
+    'rsvg-2-2.dll',
+    'soup-3.0-0.dll',
+    'sqlite3.dll',
+    'tiff.dll',
+    'xml2-16.dll',
+    'zlib1.dll',
+];
+
+/** The loadable modules under `lib/` — GIO modules, GStreamer plugins, pixbuf loaders. */
+const WIN32_MODULE_DLLS = [
+    'giognomeproxy.dll',
+    'gioopenssl.dll',
+    'gstalaw.dll',
+    'gstapp.dll',
+    'gstaudioconvert.dll',
+    'gstaudiomixer.dll',
+    'gstaudioparsers.dll',
+    'gstaudiorate.dll',
+    'gstaudioresample.dll',
+    'gstaudiotestsrc.dll',
+    'gstauparse.dll',
+    'gstautodetect.dll',
+    'gstcoreelements.dll',
+    'gstdirectsound.dll',
+    'gstisomp4.dll',
+    'gstmulaw.dll',
+    'gstogg.dll',
+    'gstopus.dll',
+    'gstplayback.dll',
+    'gstsoup.dll',
+    'gsttypefindfunctions.dll',
+    'gstvolume.dll',
+    'gstwavparse.dll',
+    'pixbufloader_svg.dll',
+];
+
+/**
+ * The bundle's one non-library binary, in `libexec/`. It is its own list because it is the
+ * category the first coverage set MISSED: not a flat `bin/` entry and not a module, so
+ * neither of the two lists the builder assembled reached it, and the 90th binary in the
+ * tarball went unchecked while the notice claimed to cover every one.
+ */
+const WIN32_EXECUTABLES = ['gst-plugin-scanner.exe'];
+
+/** What the gvsbuild prefix documents — the 45 directories under the artifact's `licenses/`. */
+const WIN32_PREFIX_COMPONENTS = [
+    'adwaita-icon-theme',
+    'cairo',
+    'cairomm',
+    'directx-headers',
+    'expat',
+    'fontconfig',
+    'fribidi',
+    'gdk-pixbuf',
+    'gettext',
+    'glib-networking',
+    'glibmm',
+    'gperf',
+    'gsettings-desktop-schemas',
+    'gst-plugins-base',
+    'gst-plugins-good',
+    'gstreamer',
+    'gtk4',
+    'gtkmm',
+    'gtksourceview5',
+    'harfbuzz',
+    'icu',
+    'libadwaita',
+    'libepoxy',
+    'libffi',
+    'libjpeg-turbo',
+    'libpng',
+    'libpsl',
+    'librsvg',
+    'libsigc++',
+    'libsoup3',
+    'libyuv',
+    'mit-kerberos',
+    'nghttp2',
+    'ogg',
+    'opus',
+    'orc',
+    'pango',
+    'pcre2',
+    'pixman',
+    'pkgconf',
+    'protobuf',
+    'protobuf-c',
+    'pycairo',
+    'pygobject',
+    'win-iconv',
+];
+
+const WIN32_SHIPPED_BINARIES = [...WIN32_BUNDLED_DLLS, ...WIN32_MODULE_DLLS, ...WIN32_EXECUTABLES];
+const WIN32_VENDORED_ROOT = fileURLToPath(
+    new URL('../../gtk-runtime-win32-x64/licenses-not-in-prefix', import.meta.url),
+);
+
+/** The projects the prefix builds binaries from and documents no terms for — the whole gap. */
+const WIN32_UNDOCUMENTED_BY_PREFIX = [
+    'freetype',
+    'glib',
+    'gobject-introspection',
+    'graphene',
+    'libtiff',
+    'libxml2',
+    'openssl',
+    'sqlite',
+    'zlib',
+];
+const WIN32_UNDOCUMENTED_WHY =
+    'the nine projects the gvsbuild prefix builds binaries from and documents no terms for — ' +
+    'exactly the set licenses-not-in-prefix/ vendors, so the two lists are held against each other';
+
+/** The corpus shape the win32 builder derives: one component per documented project. */
+function corpusOf(names) {
+    return names.map((name) => ({ name, texts: [{ file: 'COPYING' }] }));
+}
+
+/**
+ * The builder's own merge, called the way the builder calls it. NOT re-implemented here:
+ * a test that reproduces the rule it is checking stays green while the rule changes under
+ * it, which is how the coverage gate itself came to assert nothing.
+ */
+function vendoredComponents(documentedByPrefix, binaries) {
+    return upstreamLicenseComponents({
+        root: WIN32_VENDORED_ROOT,
+        documented: documentedByPrefix,
+        binaries,
+        families: WIN32_LICENSE_FAMILIES,
+    });
+}
+
+test('every binary the win32 bundle ships belongs to a declared license family', () => {
+    const orphans = WIN32_SHIPPED_BINARIES.filter((leaf) => !licenseFamilyFor(leaf, WIN32_LICENSE_FAMILIES));
+    assert.deepEqual(orphans, [], 'a bundled binary whose project nothing names cannot have its terms shipped');
+    // Not a rubber stamp either: a library the bundle does not carry has no entry, so the
+    // next gvsbuild bump that adds one fails by name instead of shipping unlicensed.
+    for (const stranger of ['libvpx-1.dll', 'x264-164.dll', 'avcodec-61.dll']) {
+        assert.equal(licenseFamilyFor(stranger, WIN32_LICENSE_FAMILIES), null, `${stranger} must not match`);
+    }
+    // And it must name the RIGHT project wherever the leaf name does not say it. A wrong
+    // name is worse than a missing one: it ships another project's terms under a positive
+    // claim, and the notice reads as complete.
+    const familyOf = (leaf) => licenseFamilyFor(leaf, WIN32_LICENSE_FAMILIES).components.join('+');
+    assert.equal(familyOf('intl.dll'), 'gettext');
+    assert.equal(familyOf('iconv.dll'), 'win-iconv');
+    assert.equal(familyOf('harfbuzz-icu.dll'), 'harfbuzz', 'the ICU-linked harfbuzz shard is still harfbuzz');
+    assert.equal(familyOf('libcrypto-3-x64.dll'), 'openssl');
+    assert.equal(familyOf('pixbufloader_svg.dll'), 'librsvg');
+    assert.equal(familyOf('gstsoup.dll'), 'gstreamer+gst-plugins-base+gst-plugins-good');
+    assert.equal(familyOf('gst-plugin-scanner.exe'), 'gstreamer', 'the bundle ships one .exe and it is gstreamer`s');
+    // TWO leaves, TWO projects. glib 2.80 took girepository-2.0 in; gobject-introspection
+    // still builds the 1.0 library and gvsbuild still installs it, so one pattern for both
+    // named glib as the project behind a gobject-introspection binary.
+    assert.equal(familyOf('girepository-2.0-0.dll'), 'glib', 'girepository-2.0 moved into glib at 2.80');
+    assert.equal(
+        familyOf('girepository-1.0-1.dll'),
+        'gobject-introspection',
+        'the 1.0 library is still gobject-introspection`s own, and the bundle ships both',
+    );
+});
+
+test('the win32 gate fails on the state that actually shipped', () => {
+    // The published bundle, replayed: its binaries against the corpus its prefix
+    // documents, with nothing filling the gaps. Every problem below was invisible before,
+    // because the prefix branch never looked at a binary at all.
+    const problems = assertLicenseCoverage({
+        components: corpusOf(WIN32_PREFIX_COMPONENTS),
+        binaries: WIN32_SHIPPED_BINARIES,
+        attribution: 'prefix',
+        textCount: WIN32_PREFIX_COMPONENTS.length,
+        families: WIN32_LICENSE_FAMILIES,
+    });
+    const undocumented = new Set(problems.map((p) => /no license text ships for (.+)$/.exec(p)?.[1]));
+    assert.deepEqual([...undocumented].sort(), WIN32_UNDOCUMENTED_BY_PREFIX, WIN32_UNDOCUMENTED_WHY);
+    assert.equal(problems.length, 14, 'fourteen binaries, replayed off the artifact');
+    assert.match(problems.join('\n'), /libcrypto-3-x64\.dll is openssl, and no license text ships for openssl/);
+    assert.match(problems.join('\n'), /libssl-3-x64\.dll is openssl/);
+    // Not only the payload this branch adds: GLib is five of the bundle's DLLs and has been
+    // unlicensed in every published win32 tarball.
+    assert.match(problems.join('\n'), /gio-2\.0-0\.dll is glib, and no license text ships for glib/);
+});
+
+test('the vendored texts close exactly that gap, and removing one reopens it', () => {
+    // Drives the REAL directory beside the win32 builder, not a fixture: a text deleted,
+    // renamed past the scanner or emptied goes red HERE rather than on a Windows runner.
+    const documentedByPrefix = new Set(WIN32_PREFIX_COMPONENTS);
+    const vendored = vendoredComponents(documentedByPrefix, WIN32_SHIPPED_BINARIES);
+    // The narrowing that keeps this from becoming a corpus of its own: a bundle without
+    // the payload does not carry its terms. The display-free variant ships no OpenSSL.
+    const displayFree = WIN32_BUNDLED_DLLS.filter((leaf) => !/^(lib(crypto|ssl)|sqlite3|xml2)/i.test(leaf));
+    assert.ok(
+        !vendoredComponents(documentedByPrefix, displayFree).some((c) => c.name === 'openssl'),
+        'a variant with no libcrypto must not ship OpenSSL terms',
+    );
+    assert.deepEqual(
+        vendored.map((c) => c.name).sort(),
+        WIN32_UNDOCUMENTED_BY_PREFIX,
+        'the vendored corpus covers the prefix gap and nothing else',
+    );
+    for (const component of vendored) {
+        assert.ok(component.texts.length > 0, `${component.name} ships no text`);
+        for (const text of component.texts) assert.ok(text.bytes > 0, `${text.relative} is empty`);
+    }
+
+    const components = [...corpusOf(WIN32_PREFIX_COMPONENTS), ...vendored];
+    assert.deepEqual(
+        assertLicenseCoverage({
+            components,
+            binaries: WIN32_SHIPPED_BINARIES,
+            attribution: 'prefix',
+            textCount: components.length,
+            families: WIN32_LICENSE_FAMILIES,
+        }),
+        [],
+        'with the gap filled, every shipped binary has its terms',
+    );
+
+    // The control that says the check measures something: take OpenSSL back out and the
+    // two DLLs this branch adds are named again — and only those two.
+    const withoutOpenssl = components.filter((c) => c.name !== 'openssl');
+    const problems = assertLicenseCoverage({
+        components: withoutOpenssl,
+        binaries: WIN32_SHIPPED_BINARIES,
+        attribution: 'prefix',
+        textCount: withoutOpenssl.length,
+        families: WIN32_LICENSE_FAMILIES,
+    });
+    assert.deepEqual(
+        problems.map((p) => p.split(' ')[0]).sort(),
+        ['libcrypto-3-x64.dll', 'libssl-3-x64.dll'],
+        'the gate points at the binary, not at the corpus',
+    );
+    assert.match(formatLicenseProblems(problems, { prefix: 'C:\\gtk-build' }), /licenses-not-in-prefix/);
+});
+
+test('prefix attribution with no family table is itself the defect', () => {
+    // The exact shape that shipped: `attribution: 'prefix'` and nothing to relate a binary
+    // to a component with. It must not be able to read as "checked".
+    const problems = assertLicenseCoverage({
+        components: corpusOf(WIN32_PREFIX_COMPONENTS),
+        binaries: WIN32_SHIPPED_BINARIES,
+        attribution: 'prefix',
+        textCount: 45,
+    });
+    assert.match(problems.join('\n'), /no license family table/);
+});
+
+test('a component named in the corpus but shipping no text is not documented', () => {
+    // `share/doc/openssl/` existing and empty is not a license. The gate keys on TEXTS.
+    const problems = assertLicenseCoverage({
+        components: [{ name: 'openssl', texts: [] }],
+        binaries: ['libcrypto-3-x64.dll'],
+        attribution: 'prefix',
+        textCount: 1,
+        families: WIN32_LICENSE_FAMILIES,
+    });
+    assert.match(problems.join('\n'), /libcrypto-3-x64\.dll is openssl, and no license text ships for openssl/);
+});
+
+test('the vendored corpus records where each text came from, and to which gvsbuild pin', () => {
+    // The one thing the coverage gate CANNOT see: a vendored text is a copy of an upstream
+    // release, and the release it copies is chosen by the gvsbuild pin the workflows build
+    // with. Move the pin and these texts silently describe a different version — no binary
+    // is missing, no family is unclaimed, and every other check here stays green. So the
+    // pin is recorded next to the texts and held against the workflows that use it.
+    const provenance = JSON.parse(readFileSync(join(WIN32_VENDORED_ROOT, 'provenance.json'), 'utf8'));
+    const directories = readdirSync(WIN32_VENDORED_ROOT, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name)
+        .sort();
+    assert.deepEqual(
+        directories,
+        Object.keys(provenance.components).sort(),
+        'every vendored directory needs a recorded upstream version, and every record a directory',
+    );
+    // And the set is the gap itself, not a list that drifted away from it.
+    assert.deepEqual(directories, WIN32_UNDOCUMENTED_BY_PREFIX, WIN32_UNDOCUMENTED_WHY);
+
+    const workflows = ['release.yml', 'node-gi.yml'].map((name) =>
+        readFileSync(fileURLToPath(new URL(`../../../../.github/workflows/${name}`, import.meta.url)), 'utf8'),
+    );
+    for (const [i, yaml] of workflows.entries()) {
+        const pins = [...yaml.matchAll(/GVSBUILD_VERSION:\s*'([^']+)'/g)].map((m) => m[1]);
+        assert.ok(pins.length > 0, `workflow ${i} declares no GVSBUILD_VERSION — the pattern moved`);
+        for (const pin of new Set(pins)) {
+            assert.equal(
+                pin,
+                provenance.gvsbuild,
+                `gvsbuild is pinned at ${pin} but licenses-not-in-prefix/ was taken from ${provenance.gvsbuild}. ` +
+                    'Re-take the texts from the new pin (their upstream versions are in provenance.json) and ' +
+                    'update both — do NOT just move the pin: the bundle would then ship one release of a ' +
+                    "library under another release's terms.",
+            );
+        }
+    }
+});
+
 // --- runtime data portability -----------------------------------------------
 
 test('a data tree copied WITHOUT dereference is caught as non-portable', () => {
@@ -594,7 +979,14 @@ test('findSymlinks reports a DANGLING link too, and an absent tree is empty', ()
 // on the bad input — one per declared set, plus the vacuous shapes.
 
 /** A complete windowing data tree, the shape both builders produce. */
-function windowingBundle({ schemas = true, icons = true, gtksource = true, iconIndex = true, loaders = true } = {}) {
+function windowingBundle({
+    schemas = true,
+    icons = true,
+    gtksource = true,
+    iconIndex = true,
+    loaders = true,
+    gioModules = true,
+} = {}) {
     const root = fixtureDir();
     if (schemas) {
         mkdirSync(join(root, 'share/glib-2.0/schemas'), { recursive: true });
@@ -610,7 +1002,18 @@ function windowingBundle({ schemas = true, icons = true, gtksource = true, iconI
         writeFileSync(join(root, 'share/gtksourceview-5/language-specs/language2.rng'), '<grammar/>');
     }
     if (loaders) writePixbufLoaders(root);
+    if (gioModules) writeGioModules(root);
     return root;
+}
+
+/**
+ * The GIO TLS backend module both builders ship. Leaf differs per platform (brew names it
+ * `libgiognutls.so`, gvsbuild `gioopenssl.dll`), so the set requires ONE non-empty file in
+ * the dir and never a name.
+ */
+function writeGioModules(root, { module = 'libgiognutls.so' } = {}) {
+    mkdirSync(join(root, 'lib/gio/modules'), { recursive: true });
+    writeFileSync(join(root, `lib/gio/modules/${module}`), 'module');
 }
 
 /**
@@ -638,7 +1041,7 @@ test('a complete windowing bundle passes, and every set is REPORTED as applied',
     assert.deepEqual(result.problems, []);
     assert.deepEqual(
         result.applied.map((a) => a.id),
-        ['schemas', 'icons', 'pixbuf-loaders', 'gtksource'],
+        ['schemas', 'icons', 'pixbuf-loaders', 'gtksource', 'tls-backend'],
     );
     // Positive counts, not merely "no complaints": every applied set found real files.
     for (const applied of result.applied) assert.ok(applied.files > 0, `${applied.id} counted no file`);
@@ -650,6 +1053,7 @@ test('a missing declared data set FAILS — one case per set', () => {
         ['icons', /icons: nothing matches share\/icons\/\*\/index\.theme/],
         ['gtksource', /gtksource: share\/gtksourceview-5\/ holds no non-empty file/],
         ['loaders', /pixbuf-loaders: lib\/gdk-pixbuf-2\.0\/2\.10\.0\/loaders\.cache is missing or empty/],
+        ['gioModules', /tls-backend: nothing matches lib\/gio\/modules\/\*/],
     ]) {
         const result = verifyWindowingData({
             bundleDir: windowingBundle({ [absent]: false }),
@@ -683,6 +1087,7 @@ test('an icon theme with an index but NO icons fails the second half of the set'
     writeFileSync(join(root, 'share/icons/Adwaita/index.theme'), ''); // empty index — no theme
     writeFileSync(join(root, 'share/gtksourceview-5/language.dtd'), '<!ELEMENT x EMPTY>');
     writePixbufLoaders(root); // present, so the count below is about the ICONS set alone
+    writeGioModules(root); // ditto — the TLS backend set applies to every Gio-shipping bundle
     const result = verifyWindowingData({ bundleDir: root, shippedNamespaces: GTK_NAMESPACES });
     assert.equal(result.problems.length, 2, 'both the index glob and the tree count must complain');
     assert.match(result.problems.join('\n'), /nothing matches share\/icons\/\*\/index\.theme/);
@@ -703,7 +1108,7 @@ test('a set is required by the NAMESPACE the bundle ships, not by a flag', () =>
     assert.deepEqual(result.problems, []);
     assert.deepEqual(
         result.applied.map((a) => a.id),
-        ['schemas', 'icons'],
+        ['schemas', 'icons', 'tls-backend'],
     );
     assert.deepEqual(result.skipped, [
         { id: 'pixbuf-loaders', namespace: 'GdkPixbuf' },
@@ -829,3 +1234,75 @@ function nativeLibraryIndexOf(names, caseInsensitive) {
     for (const name of names) writeFileSync(join(dir, name), '');
     return nativeLibraryIndex(dir, { caseInsensitive });
 }
+
+// --- rule 3: a module must not ALSO be a flat library entry -------------------
+// The gate that would have caught the 24 duplicated GStreamer plugins. Every other gate
+// was green on that bundle: the count checks counted the module dir, `verifyRelocation`
+// verified BOTH copies (each was correctly relocated), and the typelib symmetry check
+// looks at libraries, not plugins. A correct extra copy is invisible to all of them.
+
+test('a module placed in its own dir and NOT in the flat dir is clean', () => {
+    assert.deepEqual(
+        duplicatedModuleLeaves(
+            ['libglib-2.0.0.dylib', 'libgstreamer-1.0.0.dylib'],
+            ['/b/lib/gstreamer-1.0/libgstsoup.dylib', '/b/lib/gio/modules/libgiognutls.so'],
+        ),
+        [],
+    );
+});
+
+test('the SAME leaf in both places is reported — the 24-plugin defect', () => {
+    // Exactly the shape the darwin artifact had: the plugin under lib/gstreamer-1.0/ AND
+    // a second copy in flat lib/, because the walk resolved the plugin's own install name.
+    assert.deepEqual(
+        duplicatedModuleLeaves(
+            ['libglib-2.0.0.dylib', 'libgstsoup.dylib', 'libgstplayback.dylib'],
+            ['/b/lib/gstreamer-1.0/libgstsoup.dylib', '/b/lib/gstreamer-1.0/libgstplayback.dylib'],
+        ),
+        ['libgstplayback.dylib', 'libgstsoup.dylib'],
+    );
+});
+
+test('the flat side may be given as PATHS, not only leaves', () => {
+    // darwin passes a Set of leaves, win32 a Set of bin/ file names; neither should have
+    // to normalise at the call site.
+    assert.deepEqual(duplicatedModuleLeaves(['/b/lib/libgstsoup.dylib'], ['/b/lib/gstreamer-1.0/libgstsoup.dylib']), [
+        'libgstsoup.dylib',
+    ]);
+});
+
+test('win32 folds case, darwin does not — bin/ is a Windows directory', () => {
+    assert.deepEqual(duplicatedModuleLeaves(['GstSoup.dll'], ['C:\\b\\lib\\gstreamer-1.0\\gstsoup.dll']), []);
+    assert.deepEqual(
+        duplicatedModuleLeaves(['GstSoup.dll'], ['C:\\b\\lib\\gstreamer-1.0\\gstsoup.dll'], {
+            caseInsensitive: true,
+        }),
+        ['gstsoup.dll'],
+    );
+});
+
+test("BOTH builders' actual argument shapes work — darwin a Set, win32 a Map iterator", () => {
+    // Not a style point: win32 holds its closure as a Map of leaf -> source path, so the
+    // call site passes `binDlls.values()`. Passing the Map ITSELF yields [k, v] pairs and
+    // throws on .replace — caught in review, and only ever on a Windows runner otherwise.
+    const darwin = new Set(['libglib-2.0.0.dylib', 'libgstsoup.dylib']);
+    assert.deepEqual(duplicatedModuleLeaves(darwin, ['/b/lib/gstreamer-1.0/libgstsoup.dylib']), ['libgstsoup.dylib']);
+    const win32 = new Map([
+        ['glib-2.0-0.dll', 'C:\\gtk\\bin\\glib-2.0-0.dll'],
+        ['gstsoup.dll', 'C:\\gtk\\bin\\gstsoup.dll'],
+    ]);
+    assert.deepEqual(
+        duplicatedModuleLeaves(win32.values(), ['C:\\b\\lib\\gstreamer-1.0\\gstsoup.dll'], {
+            caseInsensitive: true,
+        }),
+        ['gstsoup.dll'],
+    );
+});
+
+test('the operator message names the leaves and refuses the tempting repair', () => {
+    const message = formatDuplicatedModuleProblems(['libgstsoup.dylib'], { flatDir: '/b/lib' });
+    assert.match(message, /MODULES DUPLICATED INTO \/b\/lib — 1 leaf/);
+    assert.match(message, /libgstsoup\.dylib/);
+    // The repair is at the WALK. Deleting the flat copy afterwards hides the reference.
+    assert.match(message, /Do NOT delete the flat copy as a post-step/);
+});

@@ -57,7 +57,8 @@ the TODO records the *what's left*.
 | [0034](0034-widget-vocabulary-convergence.md) | Every widget surface: named from the GIR, exported as a namespace, remainder declared | Proposed |
 | [0035](0035-web-view-on-win32.md) | A web view on Windows: WebView2 behind the same `gi://WebKit` 6.0 namespace | Proposed |
 | [0036](0036-third-party-react-native-surfaces.md) | Third-party React Native surfaces: one registry, one package, one subpath each | Proposed |
-| [0038](0038-shipped-application-fonts.md) | # ADR 0038 — A shipped application font: one payload directory, and the declarative mechanism each OS actually has | Accepted |
+| [0037](0037-gtk-runtime-bundles-carry-the-uri-source.md) | The GTK runtime bundles carry the http(s) source, and the TLS backend behind it | Accepted |
+| [0038](0038-shipped-application-fonts.md) | A shipped application font: one payload directory, and the declarative mechanism each OS actually has | Accepted |
 | [0039](0039-react-native-prop-surface.md) | The React Native PROP surface is published as a subpath; a refused prop keeps throwing | Proposed |
 | [0040](0040-gui-launcher-and-the-macos-seal.md) | # ADR 0040 — A GUI-subsystem launcher `gjsify ship` writes itself, and the three macOS steps that were refused for a wrong reason | Proposed |
 
