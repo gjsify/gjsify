@@ -71,12 +71,20 @@ function runScript(args, { timeoutMs = 30_000, env: extraEnv } = {}) {
  *
  * @param root Directory to write into.
  * @param pkgs `{ name, version?, private?, deps?, optionalDeps? }[]`
+ * @param pending Entries for `status/pending-npm-bootstrap.json`, or `undefined`
+ *   to write no ledger at all. The script reads that file `--root`-relative
+ *   precisely so the declared-gap rules are exercisable here rather than only on a
+ *   real cut, and so a fixture can hold a ledger state the repository never will.
  */
-function writeTree(root, pkgs) {
+function writeTree(root, pkgs, pending) {
     writeFileSync(
         join(root, 'package.json'),
         `${JSON.stringify({ name: 'closure-fixture', version: VERSION, private: true, workspaces: ['packages/*'] }, null, 2)}\n`,
     );
+    if (pending) {
+        mkdirSync(join(root, 'status'), { recursive: true });
+        writeFileSync(join(root, 'status', 'pending-npm-bootstrap.json'), `${JSON.stringify({ pending }, null, 4)}\n`);
+    }
     for (const p of pkgs) {
         const dir = join(root, 'packages', p.name.replace(/^@[^/]+\//, ''));
         mkdirSync(dir, { recursive: true });
@@ -160,10 +168,10 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
         if (tmp) rmSync(tmp, { recursive: true, force: true });
     });
 
-    const fixture = (label, pkgs) => {
+    const fixture = (label, pkgs, pending) => {
         const root = join(tmp, label);
         mkdirSync(root, { recursive: true });
-        writeTree(root, pkgs);
+        writeTree(root, pkgs, pending);
         return root;
     };
 
@@ -546,6 +554,370 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
         const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
         assert.equal(r.status, 0, `a private package is never published, so it has no closure:\n${r.out}`);
         assert.match(r.stdout, /candidate packages \(non-private, on the train\): 2/);
+    });
+
+    // ── `--phase pre-release`: the same enumeration, one round earlier ───────
+    //
+    // The post-release job reports at the END of `release.yml`, after the tag and
+    // the release record, which `status/sections/priorities.md` § 2 calls out as
+    // reading identically to a check that passed. #1494 added two brand-new npm
+    // names and nothing in the tree asked for their manual bootstrap; the only
+    // thing carrying the requirement was a paragraph in a pull-request body.
+    //
+    // Running the post-release ASSERTIONS on a pull request was drafted and refuted
+    // with measurements (#1500), so what these cases pin is that the phase selects
+    // the assertions and not the wording: the registry predicate relaxes from "this
+    // exact version" to "the NAME exists", and the declared-gap ledger keeps
+    // `docs/publishing.md`'s "or queued as the next maintainer action" branch alive.
+    describe('--phase pre-release', () => {
+        // The brand-new pair of the actual incident: a bridge and its platform
+        // target, neither of them ever published.
+        const withNewPair = [
+            ...splitBridge,
+            { name: '@fix/fresh', optionalDeps: { '@fix/fresh-win32-x64': 'workspace:*' } },
+            { name: '@fix/fresh-win32-x64' },
+        ];
+        /** Everything in `splitBridge`, at a version OLDER than the tree's. */
+        const olderThanTree = () =>
+            new Map([
+                ['@fix/util', ['0.0.1']],
+                ['@fix/bridge', ['0.0.1']],
+                ['@fix/bridge-linux-x64', ['0.0.1']],
+                ['@fix/bridge-darwin-arm64', ['0.0.1']],
+            ]);
+
+        it('the PHASE selects the assertions: one tree, two verdicts', async () => {
+            // The discriminator, and #1500's disqualifying consequence proven fixed.
+            // Every name exists but NONE is at the tree's version — which is the
+            // state of `main` for the whole duration of every release cut, since
+            // `.release-it.json` puts the version-bump commit on `main` before the
+            // sweep runs. Asking "live at package.json's version" there red-lines a
+            // REQUIRED check on `main` and on every open PR; asking "does the name
+            // exist" is an answer that does not move when the train moves.
+            const root = fixture('phase-ab', splitBridge);
+            published = olderThanTree();
+            const pre = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.equal(pre.status, 0, `the bootstrap question must not move with the train:\n${pre.out}`);
+            assert.match(pre.stdout, /existing on the registry \(any version\):\s+4/);
+            assert.match(pre.stdout, /Every one of 4 publishable name\(s\) exists on npm/);
+
+            const post = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+            assert.notEqual(post.status, 0, `the release question must still be asked, and answered no:\n${post.out}`);
+            assert.match(post.out, /this release published\s+NOTHING/);
+        });
+
+        it('the #1494 shape — a brand-new PAIR — fires ONCE, from the roster', async () => {
+            // `violations()` requires `isLive(e.from)`, and a bridge that has never
+            // been published is not live, so the edge arm is silent here BY
+            // CONSTRUCTION. A red-proof that does not separate this from the case
+            // below is measuring the wrong shape: it would credit the edge check for
+            // a finding only the roster made.
+            const root = fixture('fresh-pair', withNewPair);
+            published = new Map([
+                ['@fix/util', [VERSION]],
+                ['@fix/bridge', [VERSION]],
+                ['@fix/bridge-linux-x64', [VERSION]],
+                ['@fix/bridge-darwin-arm64', [VERSION]],
+            ]);
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.notEqual(r.status, 0, `an unbootstrapped new name must not pass:\n${r.out}`);
+            assert.match(r.out, /2 of 6 publishable name\(s\) do not exist on .* and nothing declares that/);
+            assert.match(r.out, /@fix\/fresh, @fix\/fresh-win32-x64/);
+            // The remediation a contributor can actually take. Never the other one.
+            assert.match(r.out, /status\/pending-npm-bootstrap\.json/);
+            assert.doesNotMatch(r.out, /--tolerate-republish/);
+            assert.doesNotMatch(r.out, /UNRESOLVABLE/);
+            assert.equal(r.stderr.match(/^ERROR: /gm)?.length, 1, `exactly one problem belongs here:\n${r.out}`);
+        });
+
+        it('a LIVE bridge with a brand-new target fires TWICE', async () => {
+            // The other half of the pair above: here the edge arm does have a live
+            // parent, so the roster names the absent package AND the closure names
+            // the pin that will resolve to nothing.
+            const root = fixture('fresh-target', splitBridge);
+            published = new Map([
+                ['@fix/util', [VERSION]],
+                ['@fix/bridge', [VERSION]],
+                ['@fix/bridge-linux-x64', [VERSION]],
+            ]);
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.notEqual(r.status, 0, `a pin at a name that does not exist must fail:\n${r.out}`);
+            assert.match(
+                r.out,
+                /UNRESOLVABLE: @fix\/bridge → optionalDependencies\.@fix\/bridge-darwin-arm64 does NOT exist/,
+            );
+            assert.match(r.out, /do not exist on .* and nothing declares that/);
+            assert.equal(r.stderr.match(/^ERROR: /gm)?.length, 2, `both arms should report here:\n${r.out}`);
+        });
+
+        it('a DECLARED gap passes, and is stated where it cannot be missed', async () => {
+            // `docs/publishing.md` states the policy as "the bootstrap is done before
+            // merge OR QUEUED as the next maintainer action". A required gate with no
+            // escape hatch deletes the second branch, and the only remedy needs a
+            // publish credential plus an OTP that CI does not have — so the
+            // contributor would get a check they structurally cannot make green.
+            const root = fixture('declared', withNewPair, {
+                '@fix/fresh': 'queued: publish + trust before the next cut',
+                '@fix/fresh-win32-x64': 'queued: publish BEFORE the bridge',
+            });
+            published = new Map([
+                ['@fix/util', [VERSION]],
+                ['@fix/bridge', [VERSION]],
+                ['@fix/bridge-linux-x64', [VERSION]],
+                ['@fix/bridge-darwin-arm64', [VERSION]],
+            ]);
+            const summary = join(root, 'summary.md');
+            const r = await runScript(
+                ['--root', root, '--registry', registryUrl, '--attempts', '1', '--phase', 'pre-release'],
+                { env: { GITHUB_STEP_SUMMARY: summary } },
+            );
+            assert.equal(r.status, 0, `a declared gap is a queued action, not a finding:\n${r.out}`);
+            // Declared is not the same as quiet: the entry costs a WARNING on every
+            // run, and the next release is red on it.
+            assert.match(r.out, /WARNING: 2 name\(s\) are declared pending bootstrap/);
+            assert.match(r.out, /the post-release phase ignores this ledger deliberately/);
+            assert.match(r.stdout, /pending: @fix\/fresh — queued: publish \+ trust before the next cut/);
+            const written = readFileSync(summary, 'utf8');
+            assert.match(written, /## Pre-release npm bootstrap/);
+            assert.match(written, /> \[!WARNING\]/);
+            assert.match(written, /\| Declared pending bootstrap \| 2 \|/);
+            assert.match(written, /\| Verdict \| \*\*OK\*\*/);
+        });
+
+        it('a declared TARGET of a live bridge also names the silent consequence', async () => {
+            const root = fixture('declared-target', splitBridge, {
+                '@fix/bridge-darwin-arm64': 'queued: the darwin leg is bootstrapped next',
+            });
+            published = new Map([
+                ['@fix/util', [VERSION]],
+                ['@fix/bridge', [VERSION]],
+                ['@fix/bridge-linux-x64', [VERSION]],
+            ]);
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.equal(r.status, 0, `a declared gap is not a finding:\n${r.out}`);
+            // The declaration says the absence is known; this says what it COSTS,
+            // which is the part npm never reports.
+            assert.match(r.out, /1 release-pinned edge\(s\) point at a name declared pending bootstrap/);
+            assert.match(r.out, /@fix\/bridge → optionalDependencies\.@fix\/bridge-darwin-arm64/);
+        });
+
+        it('the ledger is BIDIRECTIONAL: a declared name that IS published fails', async () => {
+            // The arm that keeps the ledger from rotting into a permanent exemption,
+            // and the measured hole it closes: an earlier draft looped only over two
+            // package families, so a declared-and-published name outside them was
+            // never re-examined and passed with exit 0 forever (#1500). This reader
+            // enumerates the whole tree, so every entry is held against it.
+            const root = fixture('ledger-stale', splitBridge, {
+                '@fix/bridge-darwin-arm64': 'queued: stale, this one went live already',
+            });
+            published = new Map([
+                ['@fix/util', [VERSION]],
+                ['@fix/bridge', [VERSION]],
+                ['@fix/bridge-linux-x64', [VERSION]],
+                ['@fix/bridge-darwin-arm64', [VERSION]],
+            ]);
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.notEqual(r.status, 0, `a finished bootstrap must not stay declared:\n${r.out}`);
+            assert.match(r.out, /still lists @fix\/bridge-darwin-arm64, which IS on/);
+            assert.match(r.out, /delete the entry/);
+        });
+
+        it('a ledger entry naming a package this repo does not contain fails', async () => {
+            const root = fixture('ledger-foreign', splitBridge, { '@fix/never-existed': 'queued: typo' });
+            published = olderThanTree();
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.notEqual(r.status, 0, `an entry nothing can ever clear must fail:\n${r.out}`);
+            assert.match(r.out, /lists @fix\/never-existed, which this repository does not contain/);
+        });
+
+        it('a ledger entry naming an UNPUBLISHABLE package fails', async () => {
+            // "Not published yet" about a `private` package is a category error, not a
+            // queued action: no release will ever publish it, so the entry would sit
+            // forever — which is the exemption this ledger is shaped to refuse.
+            const root = fixture('ledger-private', [...splitBridge, { name: '@fix/internal', private: true }], {
+                '@fix/internal': 'queued: bootstrap the internal helper',
+            });
+            published = olderThanTree();
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.notEqual(r.status, 0, `a pending entry on a package no release publishes must fail:\n${r.out}`);
+            assert.match(r.out, /which this repository contains but no release publishes/);
+            assert.match(r.out, /category error/);
+        });
+
+        it('a ledger entry with an empty reason fails', async () => {
+            const root = fixture('ledger-reasonless', withNewPair, {
+                '@fix/fresh': '',
+                '@fix/fresh-win32-x64': 'queued: publish BEFORE the bridge',
+            });
+            published = new Map([
+                ['@fix/util', [VERSION]],
+                ['@fix/bridge', [VERSION]],
+                ['@fix/bridge-linux-x64', [VERSION]],
+                ['@fix/bridge-darwin-arm64', [VERSION]],
+            ]);
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.notEqual(r.status, 0, `an entry with no queued action is an exemption:\n${r.out}`);
+            assert.match(r.out, /lists @fix\/fresh with an empty reason/);
+        });
+
+        it('POST-release ignores the ledger — a release declares no gap of its own', async () => {
+            // The escalation that makes the pre-release pass safe: pre-release says
+            // "queued", post-release says "you shipped it". If the ledger silenced
+            // both, a declared entry would turn into an indefinite licence to publish
+            // a bridge with nothing behind it.
+            const root = fixture('ledger-post', splitBridge, {
+                '@fix/bridge-darwin-arm64': 'queued: not bootstrapped yet',
+            });
+            published = new Map([
+                ['@fix/util', [VERSION]],
+                ['@fix/bridge', [VERSION]],
+                ['@fix/bridge-linux-x64', [VERSION]],
+            ]);
+            const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+            assert.notEqual(r.status, 0, `a shipped release does not get to declare its own gap:\n${r.out}`);
+            assert.match(r.out, /UNRESOLVABLE: @fix\/bridge@1\.2\.3 → optionalDependencies\.@fix\/bridge-darwin-arm64/);
+        });
+
+        it('a MANIFEST-decided defect is red in the pre-release phase too', async () => {
+            // The version-skewed literal pin — how `@gjsify/napi` spells its platform
+            // edges, maintained by `@release-it/bumper`. Decided from the manifests
+            // with no probe involved, so it must fail identically in both phases; a
+            // phase that only relaxed the registry predicate must not have relaxed
+            // this by accident.
+            const root = fixture('pre-skew', [
+                { name: '@fix/util' },
+                {
+                    name: '@fix/napi',
+                    deps: { '@fix/util': 'workspace:^' },
+                    optionalDeps: { '@fix/napi-darwin-arm64': VERSION },
+                },
+                { name: '@fix/napi-darwin-arm64', version: '1.2.2' },
+            ]);
+            published = new Map([
+                ['@fix/util', [VERSION]],
+                ['@fix/napi', [VERSION]],
+                ['@fix/napi-darwin-arm64', ['1.2.2']],
+            ]);
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.notEqual(r.status, 0, `a drifted pin resolves to a wrong payload, so it must fail:\n${r.out}`);
+            assert.match(r.out, /UNDECIDABLE EDGE: @fix\/napi@1\.2\.3 → optionalDependencies\.@fix\/napi-darwin-arm64/);
+            assert.match(r.out, /own manifest is at 1\.2\.2/);
+            assert.equal(r.stderr.match(/^ERROR: /gm)?.length, 1, `only the manifest defect belongs here:\n${r.out}`);
+        });
+
+        it('an unknown --phase is REFUSED, never defaulted', async () => {
+            // Defaulting a typo to `post-release` would silently run the assertions
+            // #1500 refuted for a pull request, which is the one outcome a
+            // phase-selected check must not reach by accident.
+            const root = fixture('phase-typo', splitBridge);
+            published = olderThanTree();
+            const r = await runScript(['--root', root, '--registry', registryUrl, '--phase', 'prerelease']);
+            assert.notEqual(r.status, 0, `an unknown phase must not be guessed:\n${r.out}`);
+            assert.match(r.out, /unknown --phase "prerelease"; expected one of post-release, pre-release/);
+        });
+
+        it('the pre-release phase is WIRED to a job that runs on a pull request', () => {
+            // Detection that arrives after the tag reads identically to a check that
+            // passed, so the wiring is the whole point of this phase and is asserted
+            // rather than assumed. `audit-runtimes.yml` is the required
+            // `Detect runtime-triplet drift` job, and it deliberately carries no
+            // `paths:` filter — a path-filtered workflow is advisory here.
+            const wf = readFileSync(
+                fileURLToPath(new URL('../../../.github/workflows/audit-runtimes.yml', import.meta.url)),
+                'utf8',
+            );
+            assert.match(
+                wf,
+                /node scripts\/verify-published-closure\.mjs --phase pre-release/,
+                'audit-runtimes.yml must invoke the pre-release phase; without the wiring this phase is dead code',
+            );
+            assert.doesNotMatch(
+                wf.slice(0, wf.indexOf('jobs:')),
+                /paths:/,
+                'the job must stay eligible to be required',
+            );
+        });
     });
 
     // ── the PREVENTION half, asserted where it can regress ──────────────────
