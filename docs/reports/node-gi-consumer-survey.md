@@ -53,7 +53,7 @@ Legend: ✅ pass · 🟡 partial (some tests fail) · ❌ fail (non-zero exit / 
 | `http` | ok | ❌ fail | 🟡 845/874 | 🟡 845/874 | node: other; bun/deno: mainloop-drain |
 | `http2` | ok | ✅ 102/102 | ✅ 102/102 | ✅ 102/102 | |
 | `iframe` | ok | ✅ 275/275 | ✅ 275/275 | ✅ 275/275 | |
-| `module` | ok | ❌ fail | ❌ fail | ❌ fail | alias leak FIXED (gap 5); now blocked on the rolldown `keepNames` helper-order bug (`__name is not a function`) |
+| `module` | ok | ❌ fail | ❌ fail | ❌ fail | alias leak FIXED (gap 5); now blocked on the `keepNames` helper-order bug (`__name is not a function`) |
 | `net` | ok | ❌ fail | 🟡 241/284 | 🟡 241/284 | node/bun/deno: mainloop-drain |
 | `node-globals` | ok | ✅ 221/221 | 🟡 218/221 | ✅ 221/221 | bun: 3 fidelity gaps in Bun's own native `structuredClone` |
 | `os` | ok | ✅ 276/276 | ✅ 276/276 | ✅ 276/276 | |
@@ -137,7 +137,7 @@ Two distinct problems: a **fidelity bug** (a request header set by the client do
 
 **Fix (landed):** `aliasPlugin` skips the alias tables entirely when the IMPORTER is a gjsify-generated virtual module (`isGjsifyVirtualModuleId`, i.e. any `\0gjsify-*` id — entry wrapper, gi-node, napi-addon, gjs-imports-empty). The importer-scoped guard was chosen over the alternative (`process.getBuiltinModule('node:module')` inside `gjs-gi-node.ts`) because it protects EVERY generated module rather than one specifier in one plugin, and it depends on no runtime API. `process.getBuiltinModule` does exist on all three runtimes as installed here (node 24.15.0, bun 1.3.14, deno 2.9.3 — measured), but it is a Node ≥ 22.3 API and the `--app node` bundle imposes no such floor of its own, so pinning the fix to it would trade a build-layer guarantee for a runtime-version assumption. All four virtual-id prefixes are now derived from one `GJSIFY_VIRTUAL_PREFIX` constant so a future virtual module inherits the protection. Coverage: `packages/infra/cli/src/alias-plugin.spec.ts` (10 specs) + a two-sided e2e in `tests/e2e/node-gi-build` (the generated module keeps `node:module`; the user's own source is still aliased).
 
-**Re-measured** (`node scripts/node-gi-consumer-harness.mjs @gjsify/module --runtimes node`): the bundle now emits `import { createRequire } from "node:module"` and the `filename_from_uri` TypeError is gone. `module` still fails, with a DIFFERENT and pre-existing error — `TypeError: __name is not a function` — which reproduces identically with the guard disabled and disappears under `--minify false`: rolldown 1.1.4 emits the `output.keepNames` helper (`var __name = …`) ~9 kB into the chunk while the gi virtual module calls it at byte ~200. Tracked in `status/open-todos.md` as an upstream rolldown issue; it is not an alias-layer problem.
+**Re-measured** (`node scripts/node-gi-consumer-harness.mjs @gjsify/module --runtimes node`): the bundle now emits `import { createRequire } from "node:module"` and the `filename_from_uri` TypeError is gone. `module` still fails, with a DIFFERENT and pre-existing error — `TypeError: __name is not a function` — which reproduces identically with the guard disabled and disappears under `--minify false`: the `output.keepNames` helper (`var __name = …`) lands ~9 kB into the chunk while the gi virtual module calls it at byte ~200. Tracked in `status/open-todos.md`; it is not an alias-layer problem. **Re-measured 2026-09-03: still reproduces, on both bundler engines** — but the "upstream rolldown" attribution this paragraph originally carried does not survive the re-measurement. Rolldown emits no such helper of its own; `__name` is declared by a module each library build writes (`lib/esm/_virtual/_rolldown/runtime.js`), so what is misordered is the app build's module order. The ledger entry carries the detail.
 
 ### 6. `webrtc` — native abort in the data-channel path (RESOLVED)
 
@@ -237,7 +237,7 @@ Prioritized by the gaps above:
 
 1. **Bun/Deno process lifetime** — the node non-exit half of gap 1 is fixed; the bun/deno early exit needs the auto-armed portable pump, whose keep-alive must count JS-armed GLib work only (a "any scheduled source" rule immortalizes a finished GTK program) and which still trips Deno's #47 teardown race on the GTK smoke files.
 2. **bun/deno main-context pump parity** (gap 2) — unblocks the bun/deno columns of `child_process`, `dns`, `dgram`, `net`, `http` in one change.
-3. ~~**CLI alias-scoping for virtual gi modules** (gap 5)~~ — **done**; `module` now blocks on the rolldown `keepNames` helper-order bug instead (`status/open-todos.md`).
+3. ~~**CLI alias-scoping for virtual gi modules** (gap 5)~~ — **done**; `module` now blocks on the `keepNames` helper-order bug instead (`status/open-todos.md`).
 4. **`@gjsify/http` request-header propagation + throw-in-callback fatality** (gap 4), and **`@gjsify/net`'s close/connect event ordering** (gap 3).
 5. ~~**`webrtc` data-channel double-free** (gap 6)~~ — RESOLVED: node-gi now copies a `(transfer full)` boxed IN arg (gap 6). Residual: give `@gjsify/webrtc`'s `test.mts` a `run()` summary so the harness can score it.
 6. ~~**Harness fix:** stage the suite's on-disk `test/` dir alongside `fixtures/` (gap 7).~~ — **done**; `fs` now passes 657/657 on node. Its bun/deno `ran-no-summary` survived the fix and belongs to gap 1.
