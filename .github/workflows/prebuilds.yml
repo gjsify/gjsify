@@ -2511,6 +2511,17 @@ jobs:
         # after this job had gone green.
         run: node packages/framework/webview2-native/scripts/check-include-paths.mjs
 
+      - name: "Hold every G_*/GTK_*/GDK_* name to the installed headers"
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        # The second defect this file hid behind the first: `G_IO_ERROR_WRONG_TYPE`
+        # does not exist in Gio, and the only job that compiles `src/cpp/` had
+        # never reached the line — it was failing earlier, on the include path. An
+        # invented constant is MSVC's `C2065` one expensive Windows cycle later,
+        # and gcc can answer it here in a second, for the sources this job never
+        # hands to a compiler. The compiler decides, not a grep: a name counts as
+        # real if it is a macro or compiles as a value.
+        run: node packages/framework/webview2-native/scripts/check-glib-constants.mjs
+
       - name: Emit WebKit-6.0.gir with g-ir-scanner
         if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
         working-directory: packages/framework/webview2-native

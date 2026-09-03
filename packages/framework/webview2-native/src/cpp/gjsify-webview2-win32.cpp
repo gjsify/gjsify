@@ -326,10 +326,24 @@ gboolean gjsify_webview2_pump_require(GError **error)
         case GJSIFY_WEBVIEW2_MESSAGE_PUMP_ATTACHED:
             return TRUE;
         case GJSIFY_WEBVIEW2_MESSAGE_PUMP_FOREIGN_THREAD:
+            // G_IO_ERROR_FAILED, and the choice is deliberate rather than the
+            // nearest-looking name. GIO has NO code for thread affinity — the
+            // whole enum is I/O conditions — and `FAILED` is the one GIO
+            // documents as "no more specific value is defined", which is exactly
+            // true here. The tempting alternatives are both actively misleading:
+            // INVALID_ARGUMENT sends a caller hunting through arguments that are
+            // all valid, and NOT_SUPPORTED already means "this view has no engine
+            // behind it" three functions down. What keeps the three conditions
+            // apart is not the code but WebKit.MessagePumpState, which is the
+            // named API that exists for it and which every one of these messages
+            // points at. A dedicated error domain was the other candidate and
+            // buys nothing: @gjsify/iframe reads `error.message` and never
+            // `error.domain` or `error.code`, so a quark and an enum would be
+            // GIR surface with no reader, against decision 4.
             g_set_error_literal(
                 error,
                 G_IO_ERROR,
-                G_IO_ERROR_WRONG_TYPE,
+                G_IO_ERROR_FAILED,
                 "WebKit.WebView: called from a different thread than the one it was created on. "
                 "WebView2 is apartment-threaded and delivers its callbacks to the creating "
                 "thread's Win32 message queue, which is where this view's pump is attached. "
