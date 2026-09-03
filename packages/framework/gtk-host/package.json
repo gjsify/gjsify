@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/gtk-host",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "Framework-agnostic GTK4/Adwaita host: the element model UI-framework renderers bind to",
     "type": "module",
     "module": "lib/esm/index.js",

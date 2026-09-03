@@ -1,5 +1,79 @@
 # Changelog
 
+## [0.46.0](https://github.com/gjsify/gjsify/compare/v0.45.0...v0.46.0) (2026-09-03)
+
+### ⚠ BREAKING CHANGES
+
+* **adwaita-web:** drop the flat widget classes (#1467)
+
+### Features
+
+* **adwaita-nativescript:** the GIR vocabulary on the third renderer ([#1462](https://github.com/gjsify/gjsify/issues/1462)) ([34c5145](https://github.com/gjsify/gjsify/commit/34c5145d9ca293f4ce209a77db79313beb37fbf6))
+* **adwaita-react-native:** add navigation widgets ([#1479](https://github.com/gjsify/gjsify/issues/1479)) ([2bde268](https://github.com/gjsify/gjsify/commit/2bde268829aa553a01d21ab550dad7b0d432fa4a))
+* **adwaita-react-native:** add the content group ([#1470](https://github.com/gjsify/gjsify/issues/1470)) ([48cb141](https://github.com/gjsify/gjsify/commit/48cb1410b7f2bf05d5a900f4e3094b41095e8613))
+* **adwaita-react-native:** five chrome widgets ([#1469](https://github.com/gjsify/gjsify/issues/1469)) ([ad9bcdc](https://github.com/gjsify/gjsify/commit/ad9bcdce1125661e79b9701dd2ff1f85f463a8d7)), closes [#1468](https://github.com/gjsify/gjsify/issues/1468)
+* **adwaita-react-native:** the boxed-list rows ([#1471](https://github.com/gjsify/gjsify/issues/1471)) ([f830061](https://github.com/gjsify/gjsify/commit/f830061313c75efc191fc7c7e96e77a6ea8091c2))
+* **adwaita-react-native:** the preferences group ([#1478](https://github.com/gjsify/gjsify/issues/1478)) ([4c28c96](https://github.com/gjsify/gjsify/commit/4c28c9650065607927075fc9c8e97ee2c398930f)), closes [#1471](https://github.com/gjsify/gjsify/issues/1471)
+* **adwaita-web:** drop the flat widget classes ([#1467](https://github.com/gjsify/gjsify/issues/1467)) ([3baae3f](https://github.com/gjsify/gjsify/commit/3baae3f3f233db71964425295114e5ad1d31e626))
+* **cli:** a Windows launcher with no console, and a sealed .app ([#1497](https://github.com/gjsify/gjsify/issues/1497)) ([2fc0edb](https://github.com/gjsify/gjsify/commit/2fc0edbee636a2fa7daf5e915208e6e355d36a0b))
+* **cli:** pin @girs exactly, with a gate that holds it ([#1436](https://github.com/gjsify/gjsify/issues/1436)) ([543acb0](https://github.com/gjsify/gjsify/commit/543acb01f13020ce8d0dec8be94838d804a9ba62))
+* **cli:** ship an application's own font faces ([#1491](https://github.com/gjsify/gjsify/issues/1491)) ([12b7841](https://github.com/gjsify/gjsify/commit/12b78418295ca770d5b46dbcc0073898a70e9617))
+* **gtk-host:** generate from the @girs vocabulary ([#1449](https://github.com/gjsify/gjsify/issues/1449)) ([07e5f01](https://github.com/gjsify/gjsify/commit/07e5f012eedd0fb088187d5acc8a3fdc19cfde4b)), closes [#1459](https://github.com/gjsify/gjsify/issues/1459) [#1459](https://github.com/gjsify/gjsify/issues/1459) [#460](https://github.com/gjsify/gjsify/issues/460) [#460](https://github.com/gjsify/gjsify/issues/460)
+* **node-gi:** bundle the http(s) source and its TLS ([#1476](https://github.com/gjsify/gjsify/issues/1476)) ([68466f5](https://github.com/gjsify/gjsify/commit/68466f5cbb83dbba0601ffe579e6e80e0e084539))
+* **node-gi:** marshal by-value array elements ([#1482](https://github.com/gjsify/gjsify/issues/1482)) ([b4e136e](https://github.com/gjsify/gjsify/commit/b4e136e707fb302d23894353eb2f014e836c1441))
+* **node-gi:** marshal GError OUT/INOUT/IN args ([#1496](https://github.com/gjsify/gjsify/issues/1496)) ([b213221](https://github.com/gjsify/gjsify/commit/b213221aa7e14f78811180314de548026e51a68c)), closes [#1495](https://github.com/gjsify/gjsify/issues/1495)
+* **react-native:** a measured Animated over Adw.TimedAnimation ([#1443](https://github.com/gjsify/gjsify/issues/1443)) ([eb33d22](https://github.com/gjsify/gjsify/commit/eb33d22ee9e1d0a823fde7ffb525a205802cacde))
+* **react-native:** one registry for eighteen npm surfaces ([#1458](https://github.com/gjsify/gjsify/issues/1458)) ([1da5c6f](https://github.com/gjsify/gjsify/commit/1da5c6f97753d4aef6eadbb4086d4beb6d7d61ed))
+* **react-native:** publish the prop surface ([#1493](https://github.com/gjsify/gjsify/issues/1493)) ([d4f2eca](https://github.com/gjsify/gjsify/commit/d4f2eca974b50b9e0e2e477748e7d860e2f6dca4))
+* resolve the ship runtime per target ([#1490](https://github.com/gjsify/gjsify/issues/1490)) ([b3f2942](https://github.com/gjsify/gjsify/commit/b3f2942f32baa5510260a41c35dbb83bd23ec90d))
+* **style:** a theme registry over the display ([#1442](https://github.com/gjsify/gjsify/issues/1442)) ([3d8078a](https://github.com/gjsify/gjsify/commit/3d8078af6ec20003d3ee700a21f36f7eac03278b)), closes [#1438](https://github.com/gjsify/gjsify/issues/1438) [#1438](https://github.com/gjsify/gjsify/issues/1438) [#1438](https://github.com/gjsify/gjsify/issues/1438)
+* **style:** an opt-in for the Tailwind defaults ([#1440](https://github.com/gjsify/gjsify/issues/1440)) ([254eb9c](https://github.com/gjsify/gjsify/commit/254eb9ce4421ac46fccac678745eee578e88e3aa))
+* **style:** flex-wrap becomes a Gtk.FlowBox intent ([#1439](https://github.com/gjsify/gjsify/issues/1439)) ([3cb2145](https://github.com/gjsify/gjsify/commit/3cb214580f7ec56795b0ccf5f36b28e00e559ed7))
+* **webview2-native:** a WebKit 6.0 for win32 ([#1494](https://github.com/gjsify/gjsify/issues/1494)) ([558361f](https://github.com/gjsify/gjsify/commit/558361f26abf7db97e639a7aceb57608807c5fe1))
+
+### Bug Fixes
+
+* **gtk-host:** hide a view-stack page before removing it ([#1484](https://github.com/gjsify/gjsify/issues/1484)) ([ca4980f](https://github.com/gjsify/gjsify/commit/ca4980ff5b8a505eac675243f4e3b00598dc57f2))
+* **iframe:** the node slot, measured not assumed ([#1487](https://github.com/gjsify/gjsify/issues/1487)) ([dcc651a](https://github.com/gjsify/gjsify/commit/dcc651a8709d5376a75a1223e865b1f3047b537d))
+* **node-gi:** collected is not yet finalized ([#1475](https://github.com/gjsify/gjsify/issues/1475)) ([503ea7c](https://github.com/gjsify/gjsify/commit/503ea7c8e739c0a4ef14f2fa1f827e6de6932e8f))
+* **node-gi:** detach the wrapper in the weak net ([#1489](https://github.com/gjsify/gjsify/issues/1489)) ([09d8f79](https://github.com/gjsify/gjsify/commit/09d8f79d227f43d046f4775b0b82302cca5209e7)), closes [#1475](https://github.com/gjsify/gjsify/issues/1475)
+* **node-gi:** find staged typelibs beyond GTK's ([#1474](https://github.com/gjsify/gjsify/issues/1474)) ([4a78af5](https://github.com/gjsify/gjsify/commit/4a78af5d7255c607811e56996dbb7f72c3bdb921)), closes [#920](https://github.com/gjsify/gjsify/issues/920) [#920](https://github.com/gjsify/gjsify/issues/920)
+* **node-gi:** marshal an IN array of struct pointers ([#1473](https://github.com/gjsify/gjsify/issues/1473)) ([fb214ac](https://github.com/gjsify/gjsify/commit/fb214ac7ecc19c1da4526bf04056eeeca97900b7))
+* **node-gi:** realize classes, honour the receiver ([#1488](https://github.com/gjsify/gjsify/issues/1488)) ([d7da6c3](https://github.com/gjsify/gjsify/commit/d7da6c3b91b6afb20e74bcf11b2124302dc34307)), closes [#1475](https://github.com/gjsify/gjsify/issues/1475) [#1489](https://github.com/gjsify/gjsify/issues/1489)
+* **react-native:** a label centres where React Native does not ([#1456](https://github.com/gjsify/gjsify/issues/1456)) ([420a5d2](https://github.com/gjsify/gjsify/commit/420a5d2e85cb2d8a6af297039b1e80770b3be1aa))
+* **react-native:** router.push takes the object form ([#1457](https://github.com/gjsify/gjsify/issues/1457)) ([f1c1e62](https://github.com/gjsify/gjsify/commit/f1c1e62005ae5585f5085206ac450b5fb2a08f32))
+* **react-native:** stop retrying a tab page the stack has not got ([#1485](https://github.com/gjsify/gjsify/issues/1485)) ([d8483eb](https://github.com/gjsify/gjsify/commit/d8483ebcb08992c7db5d29dd573f0a6aed7b8d4a))
+* read a staged typelib dir as its own libdir ([#1492](https://github.com/gjsify/gjsify/issues/1492)) ([ba56b4c](https://github.com/gjsify/gjsify/commit/ba56b4cea3a4b577cdcf94d3f819f1d48f12a5c4))
+* **scripts:** pin every gi:// import to a version ([#1468](https://github.com/gjsify/gjsify/issues/1468)) ([c0011df](https://github.com/gjsify/gjsify/commit/c0011df365cc57762278bea8a214d054e4c32ab2))
+
+### Documentation
+
+* **adr:** a web view on Windows via WebView2 ([#1437](https://github.com/gjsify/gjsify/issues/1437)) ([5292791](https://github.com/gjsify/gjsify/commit/529279137d0418e08c765aa4a90f5f72498ee7f4))
+* **adr:** the WebView2 probe answers, measured ([#1448](https://github.com/gjsify/gjsify/issues/1448)) ([d2a6c5e](https://github.com/gjsify/gjsify/commit/d2a6c5e1563969af8b96ddf5e7b68ff0b8ee695d))
+* drop the live widget count from AGENTS.md ([#1480](https://github.com/gjsify/gjsify/issues/1480)) ([b35a452](https://github.com/gjsify/gjsify/commit/b35a45280fae90d6d30800725c28afd7487f3813)), closes [#1471](https://github.com/gjsify/gjsify/issues/1471) [#1478](https://github.com/gjsify/gjsify/issues/1478) [#1478](https://github.com/gjsify/gjsify/issues/1478)
+* **poc:** the WebView2 loop probe, written not run ([#1444](https://github.com/gjsify/gjsify/issues/1444)) ([5e228cf](https://github.com/gjsify/gjsify/commit/5e228cf1c6e8c49ca4c18a5e2774b4e12ce31626))
+* refresh stale react-native widget figures ([#1477](https://github.com/gjsify/gjsify/issues/1477)) ([8ad2af4](https://github.com/gjsify/gjsify/commit/8ad2af4c5798cb8dd5f96ba23f3b5b9dbbf42b22)), closes [#1469](https://github.com/gjsify/gjsify/issues/1469) [#1470](https://github.com/gjsify/gjsify/issues/1470) [#1462](https://github.com/gjsify/gjsify/issues/1462)
+* **status:** one field, two questions — the per-OS runtime split ([#1486](https://github.com/gjsify/gjsify/issues/1486)) ([e523066](https://github.com/gjsify/gjsify/commit/e523066c6e6f58edf17e7490551e1ba8ec60c1fd))
+* **status:** the by-value element work, measured ([#1481](https://github.com/gjsify/gjsify/issues/1481)) ([f103442](https://github.com/gjsify/gjsify/commit/f1034428cdfea3c059a356f21ed48cae29c9d474))
+* **status:** two node-host findings, measured ([#1466](https://github.com/gjsify/gjsify/issues/1466)) ([f29c325](https://github.com/gjsify/gjsify/commit/f29c325188a8c97e9f4b6bc6a98dc8fc5785bd0c)), closes [#6](https://github.com/gjsify/gjsify/issues/6) [#33](https://github.com/gjsify/gjsify/issues/33)
+* the prose for 0.46.0 ([#1498](https://github.com/gjsify/gjsify/issues/1498)) ([d07e27b](https://github.com/gjsify/gjsify/commit/d07e27b72b32f0f0d9b6aab399d019afc3799023))
+
+### Code Refactoring
+
+* **adwaita-web:** name nine elements from the GIR ([#1459](https://github.com/gjsify/gjsify/issues/1459)) ([e57801e](https://github.com/gjsify/gjsify/commit/e57801e731ad6e96846007689582c8747fe1aa96))
+* **framework:** spell the GI imports as gi:// in two packages ([#1472](https://github.com/gjsify/gjsify/issues/1472)) ([665b1eb](https://github.com/gjsify/gjsify/commit/665b1eb22749ae484be372c545bb6ce99705ebb7))
+
+### Continuous Integration
+
+* measure the GTK layer on darwin and win32 ([#1441](https://github.com/gjsify/gjsify/issues/1441)) ([6684e33](https://github.com/gjsify/gjsify/commit/6684e33488065a44dbe217267c53990fd0666344)), closes [#1438](https://github.com/gjsify/gjsify/issues/1438) [#1438](https://github.com/gjsify/gjsify/issues/1438) [#1446](https://github.com/gjsify/gjsify/issues/1446)
+
+### Maintenance
+
+* one runtime spelling for a GObject library ([#1483](https://github.com/gjsify/gjsify/issues/1483)) ([3356ac7](https://github.com/gjsify/gjsify/commit/3356ac7c66acb7972ced86e41a4480d3cb80792d))
+* update native prebuilds [skip ci] ([46ba2ce](https://github.com/gjsify/gjsify/commit/46ba2cee5c17b800cfbb46fb5fe82676afc90e8a))
+* update native prebuilds [skip ci] ([9bf4ff8](https://github.com/gjsify/gjsify/commit/9bf4ff8df229d38df69381ae42aa3177d6e75fa3))
+* update native prebuilds [skip ci] ([87c5835](https://github.com/gjsify/gjsify/commit/87c5835f60be4557b9ef5f62e4ade884e6c0aca3))
+
 ## [0.45.0](https://github.com/gjsify/gjsify/compare/v0.44.0...v0.45.0) (2026-08-31)
 
 ### Features

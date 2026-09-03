@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webview2-native-win32-x64",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "win32-x64 prebuilt native library + GObject-Introspection typelib for @gjsify/webview2-native. Installed automatically on win32/x64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
     "license": "MIT",
     "os": [

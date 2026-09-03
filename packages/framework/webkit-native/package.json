@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webkit-native",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "Apple WebKit (WKWebView) behind a GObject API shaped like WebKitGTK 6.0 — the darwin backend for @gjsify/iframe (ADR 0022). Contains no JavaScript; the prebuilt library and typelib arrive through per-target optionalDependencies.",
     "type": "module",
     "files": [],

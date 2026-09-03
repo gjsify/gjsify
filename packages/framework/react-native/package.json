@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/react-native",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "The React Native view vocabulary rendered onto GTK4/Adwaita, over @gjsify/gtk-host",
     "type": "module",
     "module": "lib/esm/index.js",

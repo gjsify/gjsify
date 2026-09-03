@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-gtk-adw-host-counter",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "A Libadwaita window built entirely through @gjsify/gtk-host — the element model UI-framework renderers bind to, with an in-process probe that asserts the real widget tree",
     "type": "module",
     "private": true,

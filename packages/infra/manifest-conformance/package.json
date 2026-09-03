@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/manifest-conformance",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "Check that what a package.json DECLARES matches what the package actually ships",
     "private": true,
     "type": "module",

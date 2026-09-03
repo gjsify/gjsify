@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/native-platform",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "NativeScript platform detection — Android/iOS runtime, OS version, SDK level and device model",
     "type": "module",
     "module": "lib/esm/index.js",

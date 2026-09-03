@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-gtk-react-host-counter",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "The gtk-host counter written in React JSX — transformed by the automatic runtime and rendered by react-reconciler, with an in-process probe that asserts the real widget tree",
     "type": "module",
     "private": true,

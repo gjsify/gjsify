@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/devtools-cdp",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "WebKit Remote Inspector Protocol (CDP-shaped) client for GJS — JSON-RPC over a per-target WebSocket + HTML target discovery, the basis for driving WebKitGTK devtools over MCP",
     "type": "module",
     "module": "lib/esm/index.js",

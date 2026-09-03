@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/sab-native-linux-riscv64",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "linux-riscv64 prebuilt native library + GObject-Introspection typelib for @gjsify/sab-native. Installed automatically on linux/riscv64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
     "license": "MIT",
     "os": [

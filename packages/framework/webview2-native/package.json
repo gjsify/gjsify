@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webview2-native",
-    "version": "0.45.0",
+    "version": "0.46.0",
     "description": "Microsoft's WebView2 (Chromium) behind a GObject API shaped like WebKitGTK 6.0 — the win32 backend for @gjsify/iframe (ADR 0035). Deliberately claims the WebKit-6.0 namespace; the engine is Chromium. Contains no JavaScript; the prebuilt library and typelib arrive through per-target optionalDependencies.",
     "type": "module",
     "files": [],
