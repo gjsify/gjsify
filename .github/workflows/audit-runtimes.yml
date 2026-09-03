@@ -84,6 +84,18 @@ jobs:
       - name: Check test scripts run their declared runtime legs
         run: node scripts/audit-test-scripts.mjs
 
+      # And the leg that IS run must be able to fail. `run()` is the only place
+      # `@gjsify/unit` turns a verdict into an exit code, so an entry that awaits its
+      # spec defaults itself executes every test, prints every red mark and exits 0 —
+      # the suite reports green and the summary line the node-gi harness parses is
+      # never printed. `@gjsify/webaudio` shipped that shape (#872), `@gjsify/gamepad`
+      # was found identical in the same sweep, and `@gjsify/webrtc` — 17 red tests
+      # under it — was missed by that sweep and then fixed on a branch that never
+      # merged. Two hand corrections and one that did not stick; this is the check
+      # that replaces the comments those fixes left behind.
+      - name: Check every test entry reaches the runner
+        run: node scripts/check-test-entry-run.mjs
+
       # Containerised jobs vs the image they run on. Two derived questions: a
       # job ON the baked image must not `dnf install` something the Dockerfile
       # lacks (the "MUST stay in lockstep" comment, made real), and a job still

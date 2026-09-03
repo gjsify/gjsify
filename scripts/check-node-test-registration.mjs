@@ -33,10 +33,13 @@
 // `scripts/suite-registration.mjs`, which is also where the driver gate now gets its
 // answer from. It reports TWO facts about a spec, and this file asks for the weaker
 // one: `reachable`, "some entry imports it". The stronger one, `live` ("an entry hands
-// its suite to `run({…})`"), is deliberately not gated here — `packages/web/webrtc`
-// awaits its four spec defaults instead of registering them, and a package with several
-// entries registers a leg-appropriate subset in each. Gating reachability repo-wide and
-// liveness where a caller can justify it is the split that holds.
+// its suite to `run({…})`"), is deliberately not gated here: a package with several
+// entries registers a leg-appropriate subset in each, so a spec missing from one of them
+// is not evidence of anything. Gating reachability repo-wide and liveness where a caller
+// can justify it is the split that holds.
+//
+// Whether the ENTRY in turn reaches `run()` — without which the suite runs and cannot
+// fail — is a third question, held repo-wide by `check-test-entry-run.mjs`.
 //
 // Usage: node scripts/check-node-test-registration.mjs [--root <dir>]
 
