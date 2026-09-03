@@ -42,7 +42,7 @@ const ALLOWED = [
     {
         suite: 'publish',
         rule: 'registry-server',
-        why: 'the SUBJECT is the publish HTTP layer, not a registry: it captures PUT bodies, the `@scope%2fname` escaping, the auth header and `npm-otp`, and stands up a 409 server. It serves no packument and no tarball.',
+        why: 'the SUBJECT is the publish HTTP layer, not a registry: it captures PUT bodies, the `@scope%2fname` escaping, the auth header and `npm-otp`, and stands up a 409 server in both states (serving the conflicting version and not serving it), a 401+OTP server and one that accepts every write and serves nothing (the v0.46.0 read-back incident). Its packuments are echoes of the payloads it just accepted, so it can answer the post-PUT read-back; it serves no tarball.',
     },
     {
         suite: 'onboard',

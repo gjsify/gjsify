@@ -752,6 +752,19 @@ function describePublishFailure(pub: Awaited<ReturnType<typeof publishWorkspace>
             return 'OIDC/token auth failed';
         case 'diagnostic':
             return `HTTP 404 (${pub.diag.reason})`;
+        case 'publish-unconfirmed':
+            // npm claimed the version and the registry does not serve it. Counted
+            // as a FAILURE here on purpose: onboard's next step is `configureTrust`
+            // on a package it just decided exists. `onboard` passes `tolerate:
+            // true`, so `already-published` is the claim it meets on a RE-RUN —
+            // and #1407 is exactly a re-run that counted a half-stored publish
+            // as done.
+            return (
+                `npm ${pub.claim === 'already-published' ? 'reported it already published' : 'accepted the upload'} ` +
+                `(HTTP ${pub.putStatus}) but ${pub.name}@${pub.version} did not ` +
+                `resolve on ${pub.registry} after ${pub.readback.attempts} probe(s) over ` +
+                `${(pub.readback.elapsedMs / 1000).toFixed(1)}s`
+            );
         case 'error':
             return `HTTP ${pub.status} ${pub.statusText}`;
         default:

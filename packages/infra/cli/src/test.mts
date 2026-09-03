@@ -39,6 +39,7 @@ import processStubBannerSuite from './process-stub-banner.spec.js';
 import barrelsGenerateSuite from './barrels-generate.spec.js';
 import npmOidcSuite from './npm-oidc.spec.js';
 import publishDiagnoseSuite from './publish-diagnose.spec.js';
+import publishReadbackSuite from './publish-readback.spec.js';
 import publishHeadersSuite from './utils/publish-headers.spec.js';
 import cliRuntimeClosureSuite from './utils/cli-runtime-closure.spec.js';
 import whoamiCommandSuite from './whoami-command.spec.js';
@@ -249,6 +250,7 @@ run(
         barrelsGenerateSuite,
         npmOidcSuite,
         publishDiagnoseSuite,
+        publishReadbackSuite,
         publishHeadersSuite,
         cliRuntimeClosureSuite,
         whoamiCommandSuite,
