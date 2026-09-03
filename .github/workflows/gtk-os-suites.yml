@@ -328,7 +328,13 @@ jobs:
       # and `macos-suites.yml` carries the incident — `build:infra` before the
       # install dies on `TS2688: Cannot find type definition file for 'node'`.
       - name: Fetch the published CLI (a cold tree has no other)
-        run: npm install --no-save --prefix "$RUNNER_TEMP/bootstrap-cli" @gjsify/cli@latest
+        # The `npm install` goes through scripts/npm-install-published.mjs so npm's own
+        # registry propagation lag cannot report itself as a toolchain gap: the v0.46.0
+        # incident is in that script's header, and this leg resolves the SAME just-
+        # published @gjsify closure. Every retry knob has a default; the call passes none.
+        run: |
+          node scripts/npm-install-published.mjs -- \
+            --no-save --prefix "$RUNNER_TEMP/bootstrap-cli" @gjsify/cli@latest
 
       - name: Install the workspace
         run: node "$RUNNER_TEMP/bootstrap-cli/node_modules/@gjsify/cli/lib/index.js" install --immutable
@@ -501,7 +507,11 @@ jobs:
           exit /b 0
 
       - name: Fetch the published CLI (a cold tree has no other)
-        run: npm install --no-save --prefix "%RUNNER_TEMP%\bootstrap-cli" @gjsify/cli@latest
+        # The `npm install` goes through scripts/npm-install-published.mjs so npm's own
+        # registry propagation lag cannot report itself as a toolchain gap: the v0.46.0
+        # incident is in that script's header, and this leg resolves the SAME just-
+        # published @gjsify closure. Every retry knob has a default; the call passes none.
+        run: node scripts/npm-install-published.mjs -- --no-save --prefix "%RUNNER_TEMP%\bootstrap-cli" @gjsify/cli@latest
 
       - name: Install the workspace
         run: node "%RUNNER_TEMP%\bootstrap-cli\node_modules\@gjsify\cli\lib\index.js" install --immutable

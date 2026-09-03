@@ -421,19 +421,21 @@ jobs:
           echo "clean — bundle populated, portable, complete + license-covered"
 
       # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
-      # publish. The committed cli.gjs.mjs bundle would need gjs + @gjsify/rolldown-
-      # native (absent here); this package has NO workspace deps, so a standalone
-      # pack needs no `gjsify install`. `needs: publish` guarantees this version is
-      # already on npm. Same pattern as node-gi.yml's consumer jobs.
+      # publish: the committed cli.gjs.mjs bundle would need gjs + @gjsify/rolldown-
+      # native (absent here) and `packages/infra/cli/lib/` is a build output this cold
+      # checkout does not carry, so the published tarball is the only Node-runnable
+      # CLI these legs have. `needs: publish` puts that version on npm.
+      #
+      # A SCRIPT, not shell, for the reason `verify-bundle-manifest.mjs` above is one:
+      # this body was three bash copies plus a PowerShell transliteration of the same
+      # six commands, and inline shell in a workflow that never runs on a pull request
+      # is held by no check and first executes during a release. `needs: publish`
+      # fixes the ORDER; the script also survives the registry lag that outlives a
+      # correct order — incident in scripts/npm-install-published.mjs, assertions in
+      # tests/e2e/npm-install-propagation-retry/.
       - name: Prepare a Node-runnable @gjsify/cli
         id: cli
-        run: |
-          CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
-          mkdir -p /tmp/gjsify-node-cli
-          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
-            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
-          echo "bin=/tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js" >> "$GITHUB_OUTPUT"
-          node /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js --version
+        run: node scripts/bootstrap-published-cli.mjs
 
       # OIDC Trusted Publishing from release.yml — publishes ONLY this package, WITH
       # the populated gtk/ bundle. `gjsify publish` auto-detects the GitHub OIDC env
@@ -710,24 +712,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Write-Host "bundle populated, complete + license-covered"
 
-      # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
-      # publish. This package has NO workspace deps, so a standalone pack needs no
-      # `gjsify install`. `needs: publish` guarantees this version is already on npm.
+      # Same shared bootstrap as publish-gtk-runtime-darwin — see the note there for
+      # why it is a script and what the retry inside it is for.
       - name: Prepare a Node-runnable @gjsify/cli
         id: cli
         shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $cliVersion = node -p "require('./packages/infra/cli/package.json').version"
-          $dir = Join-Path $env:RUNNER_TEMP 'gjsify-node-cli'
-          New-Item -ItemType Directory -Force -Path $dir | Out-Null
-          Push-Location $dir
-          npm init -y | Out-Null
-          npm install "@gjsify/cli@$cliVersion" --no-audit --no-fund --no-save
-          Pop-Location
-          $bin = Join-Path $dir 'node_modules\@gjsify\cli\lib\index.js'
-          "bin=$bin" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          node $bin --version
+        run: node scripts/bootstrap-published-cli.mjs
 
       # OIDC Trusted Publishing from release.yml — publishes ONLY this package, WITH
       # the populated gtk/ bundle. --tolerate-republish makes a manual rerun over an
@@ -1194,19 +1184,11 @@ jobs:
         with:
           node-version: '24'
 
-      # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
-      # publish. node-gi has no WORKSPACE deps, so a standalone pack needs no
-      # `gjsify install`. `needs: publish` guarantees this CLI version is on npm.
+      # Same shared bootstrap as publish-gtk-runtime-darwin — see the note there for
+      # why it is a script and what the retry inside it is for.
       - name: Prepare a Node-runnable @gjsify/cli
         id: cli
-        run: |
-          set -euo pipefail
-          cliVersion=$(node -p "require('./packages/infra/cli/package.json').version")
-          dir="$RUNNER_TEMP/gjsify-node-cli"
-          mkdir -p "$dir"
-          ( cd "$dir" && npm init -y >/dev/null && npm install "@gjsify/cli@$cliVersion" --no-audit --no-fund --no-save )
-          echo "bin=$dir/node_modules/@gjsify/cli/lib/index.js" >> "$GITHUB_OUTPUT"
-          node "$dir/node_modules/@gjsify/cli/lib/index.js" --version
+        run: node scripts/bootstrap-published-cli.mjs
 
       # OIDC Trusted Publishing from release.yml — publishes ONLY node-gi, at whatever
       # version its package.json carries at the released tag (the release-it bumper
@@ -1777,18 +1759,11 @@ jobs:
           ls -la packages/node-runtime/node-runtime-${{ matrix.target }}/bin
           cat packages/node-runtime/node-runtime-${{ matrix.target }}/bin/manifest.json
 
-      # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
-      # publish. These packages have NO workspace deps, so a standalone pack needs
-      # no `gjsify install`. Verbatim shape from publish-gtk-runtime-darwin.
+      # Same shared bootstrap as publish-gtk-runtime-darwin — see the note there for
+      # why it is a script and what the retry inside it is for.
       - name: Prepare a Node-runnable @gjsify/cli
         id: cli
-        run: |
-          CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
-          mkdir -p /tmp/gjsify-node-cli
-          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
-            && npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund --no-save )
-          echo "bin=/tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js" >> "$GITHUB_OUTPUT"
-          node /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js --version
+        run: node scripts/bootstrap-published-cli.mjs
 
       # OIDC Trusted Publishing from release.yml — publishes ONLY this package,
       # WITH the populated bin/. `--tolerate-republish` makes a manual rerun over

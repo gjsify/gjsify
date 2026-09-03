@@ -78,6 +78,29 @@ jobs:
         with:
           node-version: '24'
 
+      # THE ONLY THING THIS JOB TAKES FROM THE REPO, and it is deliberately not a
+      # checkout of the repo: `scripts/` alone, with cone mode OFF so no root-level
+      # file (package.json, gjsify-lock.json, a .npmrc) materialises anywhere the
+      # published CLI could walk up into. The premise of every step below is a runner
+      # with NO gjsify tree on it — that is what makes this a user's experience rather
+      # than ours — and a full checkout would quietly end that premise.
+      #
+      # What it is for: `npm-install-published.mjs`, so npm's registry propagation lag
+      # cannot be reported as an off-Linux toolchain gap. release.yml dispatches this
+      # workflow minutes after the publish sweep with `cli_version: latest`, so the
+      # dist-tag itself always resolves — but the TRANSITIVE @gjsify closure npm then
+      # has to resolve is the same one whose lag the v0.46.0 incident measured (see
+      # that script's header), and one lagging member is an ETARGET for the whole
+      # install. The 0.30.0 note above is the same class from the other side: a probe
+      # that runs before the thing it measures reports its own scheduling. Moving the
+      # dispatch fixed the ORDER; this covers the lag that survives a correct order.
+      - name: Fetch the install helper (scripts/ only — no gjsify tree on this runner)
+        uses: actions/checkout@v6
+        with:
+          path: gjsify-scripts
+          sparse-checkout: scripts
+          sparse-checkout-cone-mode: false
+
       # A fresh project that depends on the PUBLISHED @gjsify/cli — exactly what a
       # user on this OS would have. npm wires the bin (a .cmd shim on Windows).
       - name: Scaffold a minimal gjsify project (npm install @gjsify/cli)
@@ -87,7 +110,8 @@ jobs:
           set -eux
           mkdir gjsify-diag && cd gjsify-diag
           npm init -y >/dev/null
-          npm install "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund
+          node ../gjsify-scripts/scripts/npm-install-published.mjs -- \
+            "@gjsify/cli@${CLI_VERSION}" --no-audit --no-fund
           # a minimal --app node entry that touches a node: builtin (stays external
           # on the node target) so we exercise real bundling, not an empty file.
           printf "import { platform, arch } from 'node:os';\nconsole.log('GJSIFY_DIAG_OK', platform(), arch());\n" > hello.ts
