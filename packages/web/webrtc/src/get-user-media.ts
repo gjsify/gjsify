@@ -118,10 +118,74 @@ function _buildVideoCaps(c: MediaTrackConstraints): string | null {
     return `video/x-raw,${parts.join(',')}`;
 }
 
+/**
+ * How long a candidate source gets before the probe stops waiting. Only a
+ * definitive FAILURE rejects a candidate; a source still ASYNC after this
+ * window is KEPT, because a live capture device that has not prerolled yet is
+ * slow, not broken. So this bounds the cost of a slow camera, never the
+ * verdict: every failure measured so far arrives inside 13 ms.
+ */
+const _SOURCE_PROBE_TIMEOUT_MS = 500;
+
+/**
+ * Make a capture source and return it only if it actually STARTS.
+ *
+ * A factory that exists is not a device that opens. `gstreamer1-plugins-good`
+ * ships `pulsesrc` on every Fedora, container images included, and
+ * `Gst.ElementFactory.make('pulsesrc')` succeeds there whether or not a
+ * PulseAudio/PipeWire daemon is listening. Selecting on factory existence alone
+ * therefore handed back a source that can never produce a buffer, and made the
+ * `audiotestsrc` fallback below — the one source that works on such a host —
+ * unreachable, since a broken `pulsesrc` was always claimed first. Measured in
+ * `ghcr.io/gjsify/ci-fedora:44`: `pulsesrc` errors with "Failed to connect:
+ * Connection refused" after 0.6 ms and `autoaudiosrc` with "Could not open
+ * device" after 9 ms, while `getUserMedia({ audio: true })` kept returning a
+ * pulsesrc-backed track whose pipeline never left NULL. Downstream that is
+ * silent: `addTrack` wires it, webrtcbin sends no RTP, and the remote peer's
+ * `track` event simply never fires.
+ *
+ * The candidate runs in a throwaway `src ! <converter> ! fakesink` pipeline.
+ * The converter is load-bearing, not decoration: `pipewiresrc ! fakesink` fails
+ * caps negotiation with "stream error: target not found" even on a working
+ * PipeWire host, so a probe without it would reject the BEST source on exactly
+ * the developer machine it is meant to serve.
+ */
+function _probeSource(name: string, converter: string): Gst.Element | null {
+    const src = Gst.ElementFactory.make(name, null);
+    if (!src) return null;
+
+    const convert = Gst.ElementFactory.make(converter, null);
+    const sink = Gst.ElementFactory.make('fakesink', null);
+    // No converter or no fakesink means no probe is possible — keep the
+    // historical "factory exists" answer rather than rejecting a source we
+    // were unable to ask about.
+    if (!convert || !sink) return src;
+
+    const pipeline = new Gst.Pipeline();
+    pipeline.add(src);
+    pipeline.add(convert);
+    pipeline.add(sink);
+    src.link(convert);
+    convert.link(sink);
+
+    let ret = pipeline.set_state(Gst.State.PLAYING);
+    if (ret !== Gst.StateChangeReturn.FAILURE) {
+        ret = pipeline.get_state(_SOURCE_PROBE_TIMEOUT_MS * Number(Gst.MSECOND))[0];
+    }
+
+    // Tear the probe down and hand the element back unparented, ready for the
+    // caller's own pipeline.
+    pipeline.set_state(Gst.State.NULL);
+    src.unlink(convert);
+    pipeline.remove(src);
+
+    return ret === Gst.StateChangeReturn.FAILURE ? null : src;
+}
+
 function _createAudioSource(): Gst.Element {
-    // Try real sources in priority order
+    // Try real sources in priority order — each one OPENED, not just made.
     for (const name of ['pipewiresrc', 'pulsesrc', 'autoaudiosrc']) {
-        const el = Gst.ElementFactory.make(name, null);
+        const el = _probeSource(name, 'audioconvert');
         if (el) {
             try {
                 (el as _GstElementProps).is_live = true;
@@ -140,7 +204,7 @@ function _createAudioSource(): Gst.Element {
 
 function _createVideoSource(): Gst.Element {
     for (const name of ['pipewiresrc', 'v4l2src', 'autovideosrc']) {
-        const el = Gst.ElementFactory.make(name, null);
+        const el = _probeSource(name, 'videoconvert');
         if (el) return el;
     }
     // Fallback: test pattern
