@@ -347,6 +347,13 @@ export type PublishOutcome =
     | {
           ok: false;
           action: 'publish-unconfirmed';
+          /**
+           * What npm claimed before the read-back disagreed: a 2xx (`accepted`)
+           * or a tolerated 409 (`already-published`). It selects the remediation
+           * sentence, which is the OPPOSITE one for a conflict — re-running
+           * answers the same 409.
+           */
+          claim: 'accepted' | 'already-published';
           name: string;
           version: string;
           registry: string;
@@ -357,7 +364,15 @@ export type PublishOutcome =
           payloadBytes: number;
           readback: ReadbackResult;
       }
-    | { ok: true; action: 'republish-tolerated'; name: string; version: string; status: number }
+    | {
+          ok: true;
+          action: 'republish-tolerated';
+          name: string;
+          version: string;
+          status: number;
+          /** The read-back that CONFIRMED the conflicting version. */
+          readback?: ReadbackResult;
+      }
     | { ok: true; action: 'skipped-untrusted-new'; name: string; version: string }
     | { ok: false; action: 'otp-required'; name: string; version: string; status: number }
     | { ok: false; action: 'oidc-failed'; name: string; version: string; error: unknown }
@@ -497,6 +512,29 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
         if (peek) console.error(`  body:          ${peek.slice(0, 300)}`);
     }
 
+    /**
+     * Ask the registry for what we just PUT. `undefined` when the read-back is
+     * off (`--verify-timeout 0`).
+     *
+     * The PUT's own `authorization` goes with it: a registry that requires a
+     * credential to READ answers 401/403 to an anonymous packument GET, which is
+     * an `error` probe, so an intact publish to GitHub Packages or an
+     * authenticated Verdaccio would spend the whole budget and then report
+     * `publish-unconfirmed`. Same origin, same credential, one request later.
+     */
+    const readBack = async (): Promise<ReadbackResult | undefined> => {
+        const budgetMs = input.verifyBudgetMs ?? DEFAULT_VERIFY_BUDGET_MS;
+        if (budgetMs <= 0) return undefined;
+        return verifyPublishedVersion({
+            registry: registryClean,
+            name: packed.name,
+            version: packed.version,
+            budgetMs,
+            authorization: headers['authorization'],
+            log: verbose ? (m) => console.error(m) : undefined,
+        });
+    };
+
     // A surviving OTP challenge means the provider gave up (no code entered /
     // non-interactive). Surface it so the caller can point at --otp.
     if (await isOtpChallenge(res)) {
@@ -528,6 +566,16 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
         // `release.yml`, rounds and retries over the whole roster. It is what
         // named the missing package in the incident.
         //
+        // AND A FATAL READ-BACK INSIDE THAT SWEEP WOULD ABORT THE RELEASE, which
+        // is the argument the 2554 s only quantifies. `foreach --exec` THROWS on
+        // a non-zero child (`foreach.ts`: `exited with code ${result.code}`),
+        // and pack time has already rewritten every `workspace:*` to the exact
+        // released version — so one lagging package would stop the sweep
+        // mid-roster and leave a PARTIAL publish, the state
+        // `verify-published-closure.mjs` exists because it is worse than no
+        // publish at all. A deferral here is not leniency; it is the only shape
+        // that does not trade this incident for that one.
+        //
         // Hence BOTH, split along that cost. The read-back runs per package
         // everywhere and is FATAL by default — that is what turns the
         // incident's green single-package job red, for up to 300 s of
@@ -535,22 +583,21 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
         // 199-package sweep passes `--verify-defer --verify-timeout 5`: it
         // still CONFIRMS nine packages in ten and still names the suspect
         // against the package that PUT it, but the minutes-long tail is left to
-        // the closure job that re-asks the same question over the same set.
-        const budgetMs = input.verifyBudgetMs ?? DEFAULT_VERIFY_BUDGET_MS;
-        const readback =
-            budgetMs > 0
-                ? await verifyPublishedVersion({
-                      registry: registryClean,
-                      name: packed.name,
-                      version: packed.version,
-                      budgetMs,
-                      log: verbose ? (m) => console.error(m) : undefined,
-                  })
-                : undefined;
+        // the closure job that re-asks the same question over the same set —
+        // which had to be MADE able to answer it (`dist.tarball`, and a
+        // propagation retry that never fired for a roster-only name).
+        //
+        // What the deferred annotation is NOT is the ledger. At a 5 s budget
+        // every one of a release's ~19 lagging packages emits one, and GitHub
+        // renders only the first few annotations per step (documented as 10 per
+        // level; not verified from a run here). The closure job is the fatal
+        // half; the annotation points a human at the name.
+        const readback = await readBack();
         if (readback && !readback.confirmed) {
             return {
                 ok: false,
                 action: 'publish-unconfirmed',
+                claim: 'accepted',
                 name: packed.name,
                 version: packed.version,
                 registry: registryClean,
@@ -578,21 +625,44 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
     const text = await res.text().catch(() => '<no body>');
     // "version already published" — 409 Conflict, or 403 + "previously published".
     //
-    // Deliberately NOT read back, unlike the 2xx path above. A 2xx is npm
-    // accepting a write it has not necessarily durably applied; a 409 is npm
-    // ASSERTING the version already exists and refusing to overwrite it, which
-    // is a positive statement about the registry's own state rather than a
-    // promise about a queued one. Re-running a `publish-unconfirmed` package
-    // lands here whenever the lagging write did arrive, which is why the
-    // diagnostic points at `--tolerate-republish`.
+    // READ BACK HERE TOO, and the reason it was first written the other way is
+    // worth keeping: a 2xx is npm accepting a write it has not necessarily
+    // durably applied, whereas a 409 is npm ASSERTING the version exists and
+    // refusing to overwrite it — sounding like a positive statement about the
+    // registry's own state rather than a promise about a queued one. The
+    // incident's own recovery says otherwise. Attempt 3 re-PUT
+    // @gjsify/node-runtime-darwin-arm64 and was answered `409 already
+    // published` at 09:48:49.19, while that packument's `time["0.46.0"]` is
+    // 09:49:07.419 — 18 s LATER — and the closure job had found the name absent
+    // at 09:44:28. So the assertion can precede the version being served, and
+    // this is the path a `publish-unconfirmed` re-run always lands on: exempting
+    // it would leave the documented remediation reporting a success nothing
+    // checked. Cost is one GET, on a path that only runs on a re-publish.
     const isRepublishConflict = res.status === 409 || (res.status === 403 && /previously published/i.test(text));
     if (isRepublishConflict && tolerate) {
+        const readback = await readBack();
+        if (readback && !readback.confirmed) {
+            return {
+                ok: false,
+                action: 'publish-unconfirmed',
+                claim: 'already-published',
+                name: packed.name,
+                version: packed.version,
+                registry: registryClean,
+                putStatus: res.status,
+                putStatusText: res.statusText,
+                putUrl: url,
+                payloadBytes: bodyStr.length,
+                readback,
+            };
+        }
         return {
             ok: true,
             action: 'republish-tolerated',
             name: packed.name,
             version: packed.version,
             status: res.status,
+            readback,
         };
     }
     // 404 diagnostic (token-auth): disambiguate dead-token vs missing-package.
@@ -655,6 +725,7 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnc
                             name: outcome.name,
                             version: outcome.version,
                             registry: outcome.registry,
+                            claim: outcome.claim,
                             putStatus: outcome.putStatus,
                             probes: outcome.readback.attempts,
                             elapsedMs: outcome.readback.elapsedMs,
@@ -677,8 +748,10 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnc
             // On STDERR, because `--json` owns stdout.
             if (deferUnconfirmed) {
                 if (process.env.GITHUB_ACTIONS) {
+                    const claimed =
+                        outcome.claim === 'already-published' ? 'was reported already published' : 'was accepted';
                     process.stderr.write(
-                        `::warning title=Publish unconfirmed::${outcome.name}@${outcome.version} was accepted ` +
+                        `::warning title=Publish unconfirmed::${outcome.name}@${outcome.version} ${claimed} ` +
                             `(HTTP ${outcome.putStatus}) but did not resolve on ${outcome.registry} within ` +
                             `${(outcome.readback.elapsedMs / 1000).toFixed(1)}s — the release-closure job must confirm it\n`,
                     );

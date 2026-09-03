@@ -121,6 +121,13 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
      * attempts exhausted).
      */
     let revealAfter = new Map();
+    /**
+     * Names served with a version key whose `dist.tarball` is MISSING — a
+     * version record nothing can install from. `gjsify publish`'s per-package
+     * read-back refuses it; this job is where the release sweep's deferred tail
+     * is re-checked, so it has to refuse it too.
+     */
+    let tarballLess = new Set();
 
     before(async () => {
         tmp = mkdtempSync(join(tmpdir(), 'gjsify-e2e-closure-'));
@@ -148,10 +155,29 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
                         return true;
                     }
                     res.writeHead(200, { 'content-type': 'application/json' });
+                    // `dist.tarball` because that is what npm's abbreviated
+                    // document carries and what the script now reads: a version
+                    // key with no tarball behind it is not installable. Names in
+                    // `tarballLess` get the key WITHOUT the tarball, which is the
+                    // half-applied write #1407 is about.
                     res.end(
                         JSON.stringify({
                             name,
-                            versions: Object.fromEntries(versions.map((v) => [v, { name, version: v }])),
+                            versions: Object.fromEntries(
+                                versions.map((v) => [
+                                    v,
+                                    tarballLess.has(name)
+                                        ? { name, version: v, dist: { shasum: 'deadbeef' } }
+                                        : {
+                                              name,
+                                              version: v,
+                                              dist: {
+                                                  shasum: 'deadbeef',
+                                                  tarball: `https://registry.example/${name}/-/x-${v}.tgz`,
+                                              },
+                                          },
+                                ]),
+                            ),
                         }),
                     );
                     return true;
@@ -538,6 +564,77 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
             assert.equal(hits.get('@fix/bridge-darwin-arm64'), 2, 'the absent name must be re-queried exactly once');
         } finally {
             revealAfter = new Map();
+        }
+    });
+
+    it('a ROSTER-only name that has not propagated yet is retried too', async () => {
+        // The row above retries because the absent name is a pinned-edge TARGET,
+        // so `violations()` is non-empty and the old exit condition happened to
+        // be false. A package with NO incoming manifest edge — @gjsify/napi,
+        // @gjsify/node-gi, the gtk-runtime and node-runtime bundles — produces
+        // zero violations, and the loop used to break on round 1 for exactly the
+        // class the roster assertion was added to catch. Measured on v0.46.0 run
+        // 33735989472: 208 of 209 live, one absent, no `round 2/3` line in
+        // either failing closure job.
+        //
+        // It is also the class the release sweep now DEFERS here: 9.5% of that
+        // release's publishes were recorded 56-252 s after their own 2xx.
+        // `@fix/app` → `@fix/util` keeps a pinned edge in the tree (a tree with
+        // none is its own failure, asserted elsewhere); `@fix/orphan` is the
+        // roster-only name nothing points at.
+        const root = fixture('roster-propagation', [
+            { name: '@fix/util' },
+            { name: '@fix/app', deps: { '@fix/util': 'workspace:^' } },
+            { name: '@fix/orphan' },
+        ]);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/app', [VERSION]],
+            ['@fix/orphan', [VERSION]],
+        ]);
+        hits = new Map();
+        revealAfter = new Map([['@fix/orphan', 2]]);
+        try {
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '4',
+                '--retry-delay-ms',
+                '50',
+            ]);
+            assert.equal(r.status, 0, `a late-propagating roster name must pass on a later round:\n${r.out}`);
+            assert.match(r.stdout, /round 2\/4 — re-querying 1 unresolved name\(s\)/);
+            assert.equal(hits.get('@fix/orphan'), 2, 'the absent roster name must be re-queried exactly once');
+            assert.equal(hits.get('@fix/util'), 1, 'a name already found live must not be re-queried');
+        } finally {
+            revealAfter = new Map();
+        }
+    });
+
+    it('a version record with NO dist.tarball is not "published"', async () => {
+        // #1407's shape, from the registry's side: the version key is there and
+        // there is nothing to install. `gjsify publish` refuses it per package;
+        // this job has to refuse it too, because the 199-package sweep hands its
+        // unconfirmed tail here and a question this job does not ask is a
+        // question nothing asks.
+        const root = fixture('tarball-less', splitBridge);
+        published = new Map([
+            ['@fix/util', [VERSION]],
+            ['@fix/bridge', [VERSION]],
+            ['@fix/bridge-linux-x64', [VERSION]],
+            ['@fix/bridge-darwin-arm64', [VERSION]],
+        ]);
+        hits = new Map();
+        tarballLess = new Set(['@fix/bridge-darwin-arm64']);
+        try {
+            const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
+            assert.notEqual(r.status, 0, `a version with no tarball must not pass:\n${r.out}`);
+            assert.match(r.out, /@fix\/bridge-darwin-arm64/);
+        } finally {
+            tarballLess = new Set();
         }
     });
 

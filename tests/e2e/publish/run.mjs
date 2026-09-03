@@ -451,9 +451,19 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
         assert.match(stdout, /dry-run/i, '--dry-run output should mention dry-run');
     });
 
-    it('--tolerate-republish exits 0 on 409 Conflict', async () => {
-        // Stand up a one-shot 409 server to test tolerate-republish behavior.
-        const conflictServer = createServer((req, res) => {
+    /**
+     * A registry that refuses the write as already present.
+     *
+     * `serves` decides whether it then SERVES that version. Both halves are real
+     * states: npm answered `409 already published` for
+     * @gjsify/node-runtime-darwin-arm64 at 09:48:49.19 in the v0.46.0 recovery
+     * while that packument recorded 0.46.0 at 09:49:07.419, 18 s later — so a
+     * conflict is not by itself a served version, and `--tolerate-republish` is
+     * the path every re-run of an unconfirmed publish takes.
+     */
+    function makeConflictServer({ serves, name, version }) {
+        const gets = [];
+        const server = createServer((req, res) => {
             if (req.method === 'PUT') {
                 // Drain the body so the connection closes cleanly.
                 req.resume();
@@ -464,8 +474,30 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
                 });
                 return;
             }
-            res.statusCode = 404;
-            res.end('{}');
+            gets.push(req.url);
+            res.setHeader('content-type', 'application/json');
+            if (!serves) {
+                res.statusCode = 404;
+                res.end('{}');
+                return;
+            }
+            res.statusCode = 200;
+            res.end(
+                JSON.stringify({
+                    name,
+                    'dist-tags': { latest: version },
+                    versions: { [version]: { name, version, dist: { tarball: `https://x/${version}.tgz` } } },
+                }),
+            );
+        });
+        return { server, gets };
+    }
+
+    it('--tolerate-republish exits 0 on 409 Conflict — once the version is SERVED', async () => {
+        const { server: conflictServer, gets: conflictGets } = makeConflictServer({
+            serves: true,
+            name: '@gjsify/e2e-pub-conflict',
+            version: '0.0.2',
         });
         await new Promise((resolve) => conflictServer.listen(0, '127.0.0.1', resolve));
         const conflictUrl = `http://127.0.0.1:${conflictServer.address().port}`;
@@ -493,8 +525,45 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
                 /already published|tolerated|republish/i,
                 '--tolerate-republish output should mention tolerating the conflict',
             );
+            // Tolerating is not the same as trusting: the conflict is read back
+            // like a 2xx, and this row now proves the confirmation happened
+            // rather than only that the exit code was 0.
+            assert.ok(
+                conflictGets.filter((u) => u === '/@gjsify%2fe2e-pub-conflict').length >= 1,
+                `a tolerated 409 must still be read back; GETs seen: ${JSON.stringify(conflictGets)}`,
+            );
         } finally {
             conflictServer.close();
+        }
+    });
+
+    it('a 409 whose version the registry does NOT serve is not a success either', async () => {
+        // The hole one door over from the incident. `--tolerate-republish` is the
+        // documented remediation for `publish-unconfirmed`, so a conflict that
+        // does not resolve must not hand back the unverified success the whole
+        // read-back exists to remove.
+        const pkgName = '@gjsify/e2e-pub-conflict-unserved';
+        const version = '0.0.3';
+        const { server, gets } = makeConflictServer({ serves: false, name: pkgName, version });
+        await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+        try {
+            const fixtureDir = scaffoldFixture('conflict-unserved', pkgName, version);
+            const res = await runPublishRaw(
+                [fixtureDir, '--tolerate-republish', '--verify-timeout', '4'],
+                `http://127.0.0.1:${server.address().port}`,
+            );
+            assert.notEqual(res.code, 0, `an unserved 409 must exit non-zero; stderr:\n${res.stderr}`);
+            assert.match(res.stderr, /ALREADY PUBLISHED but the registry does not serve it/);
+            assert.match(res.stderr, /409 Conflict/);
+            // Re-running is the remedy for an unconfirmed 2xx and NOT for this.
+            assert.match(res.stderr, /Re-running answers the same 409/);
+            assert.doesNotMatch(res.stdout, /^= /m, 'stdout must NOT carry the tolerated-republish line');
+            assert.ok(
+                gets.filter((u) => u === `/${pkgName.replace('/', '%2f')}`).length >= 2,
+                `the read-back must RETRY before deciding; GETs seen: ${JSON.stringify(gets)}`,
+            );
+        } finally {
+            server.close();
         }
     });
 

@@ -13,6 +13,7 @@ import {
     backoffFor,
     DEFAULT_VERIFY_BUDGET_MS,
     formatUnconfirmedPublish,
+    probeTimeoutFor,
     verifyPublishedVersion,
     type ReadbackResult,
 } from './utils/publish-readback.js';
@@ -128,6 +129,44 @@ export default async () => {
             expect(requests[0]?.headers['cache-control']).toBe('no-cache');
             expect(result.url).toBe('https://registry.npmjs.org/@gjsify%2fcli');
         });
+
+        await it("forwards the PUT's credential, so an auth-gated read is not a false red", async () => {
+            // A registry that requires a token to READ (GitHub Packages, an
+            // authenticated Verdaccio) answers 401 to an anonymous packument GET,
+            // which is an `error` probe — an intact publish would spend the whole
+            // budget and then report `publish-unconfirmed`. Measured on the first
+            // version of this module: 15 read-back GETs, all anonymous, one second
+            // after a PUT that carried a token.
+            const { fetchImpl, requests } = scriptedRegistry([
+                { status: 200, body: packumentWith('@gjsify/cli', '0.46.0') },
+            ]);
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/cli',
+                version: '0.46.0',
+                budgetMs: 1_000,
+                authorization: 'Bearer npm_readback_token',
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(result.confirmed).toBe(true);
+            expect(requests[0]?.headers['authorization']).toBe('Bearer npm_readback_token');
+        });
+
+        await it('sends no authorization when the PUT had none', async () => {
+            const { fetchImpl, requests } = scriptedRegistry([
+                { status: 200, body: packumentWith('@gjsify/cli', '0.46.0') },
+            ]);
+            await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/cli',
+                version: '0.46.0',
+                budgetMs: 1_000,
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(requests[0]?.headers['authorization']).toBe(undefined);
+        });
     });
 
     await describe('verifyPublishedVersion — not there YET', async () => {
@@ -242,6 +281,24 @@ export default async () => {
             expect(result.last.state === 'error' ? result.last.detail : '').toContain('ECONNRESET');
         });
 
+        await it('a 401 is `error` too — a read we are not allowed to make proves nothing', async () => {
+            // The state an auth-gated registry answers with when no credential is
+            // forwarded. `absent` here would report "never published" about a
+            // package the probe was never permitted to look at.
+            const { fetchImpl } = scriptedRegistry([{ status: 401, body: '{"error":"Unauthorized"}' }]);
+            const result = await verifyPublishedVersion({
+                registry: 'https://registry.npmjs.org',
+                name: '@gjsify/cli',
+                version: '0.46.0',
+                budgetMs: 1,
+                fetchImpl,
+                ...fakeClock(),
+            });
+            expect(result.confirmed).toBe(false);
+            expect(result.last.state).toBe('error');
+            expect(result.last.state === 'error' ? result.last.detail : '').toContain('401');
+        });
+
         await it('a 200 that is not a packument is `error`, not `absent`', async () => {
             const { fetchImpl } = scriptedRegistry([{ status: 200, body: '<html>proxy login</html>' }]);
             const result = await verifyPublishedVersion({
@@ -289,6 +346,50 @@ export default async () => {
                 readback: readback({ last: { state: 'error', status: 503, detail: '503 Service Unavailable' } }),
             });
             expect(msg).toContain('answered  error: 503 Service Unavailable');
+        });
+
+        await it('a tolerated 409 gets its OWN headline and the opposite remedy', async () => {
+            // Re-running is the remedy for an unconfirmed 2xx and is NOT the
+            // remedy for a conflict: npm answers the same 409. Measured on the
+            // v0.46.0 recovery — 409 at 09:48:49.19, registry `time[0.46.0]`
+            // 09:49:07.419.
+            const msg = formatUnconfirmedPublish({
+                name: '@gjsify/node-runtime-darwin-arm64',
+                version: '0.46.0',
+                putUrl: 'https://registry.npmjs.org/@gjsify%2fnode-runtime-darwin-arm64',
+                putStatus: 409,
+                putStatusText: 'Conflict',
+                payloadBytes: 53863410,
+                readback: readback(),
+                claim: 'already-published',
+            });
+            expect(msg).toContain('ALREADY PUBLISHED but the registry does not serve it');
+            expect(msg).toContain('409 Conflict');
+            expect(msg).toContain('Re-running answers the same 409');
+            // And the 2xx advice — "re-run this publish" — must be GONE, not
+            // merely joined by a second, contradicting paragraph.
+            expect(msg.includes('Re-run this publish')).toBe(false);
+            expect(msg.includes('A 2xx from npm is an ACCEPTED write')).toBe(false);
+        });
+    });
+
+    await describe('probeTimeoutFor', async () => {
+        await it('never lets one request outlive the budget it was given', async () => {
+            // The sweep passes `--verify-timeout 5`. Unclamped, one unanswered
+            // request blocks for the 30 s default — six times the budget, and 199
+            // of those cost ~100 min against the ~11% the deferral is argued on.
+            expect(probeTimeoutFor(30_000, 5_000)).toBe(5_000);
+            // The fatal default is far above the per-probe timeout, so nothing
+            // changes there.
+            expect(probeTimeoutFor(30_000, 300_000)).toBe(30_000);
+            // ...and it never clamps a probe below what an answer takes: the
+            // LAST probe of a short budget is the one that produces the verdict,
+            // and cutting it to ~0 reported `error` where a 404 was arriving.
+            expect(probeTimeoutFor(30_000, 30)).toBe(2_000);
+            expect(probeTimeoutFor(30_000, -5_000)).toBe(2_000);
+            // A configured timeout below the floor is still honoured — it was
+            // asked for explicitly.
+            expect(probeTimeoutFor(500, 300_000)).toBe(500);
         });
     });
 

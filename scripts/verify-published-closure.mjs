@@ -427,11 +427,25 @@ async function probe(name) {
         if (!res.ok) return new Error(`${res.status} ${res.statusText}`);
         const doc = await res.json();
         if (!doc?.versions) return false;
-        // THE PHASE'S ONE REGISTRY PREDICATE (header). Post-release: this exact
-        // version, because that is what the release claims to have published.
-        // Pre-release: the NAME exists at all, because the train version is
-        // unpublished by construction and asking for it makes every cut red.
-        return preRelease ? Object.keys(doc.versions).length > 0 : Object.hasOwn(doc.versions, version);
+        // THE PHASE'S REGISTRY PREDICATE, and the two phases ask different
+        // questions. Pre-release: does the NAME exist at all — the train version is
+        // unpublished by construction, so asking for it would make every cut red on
+        // `main` and on every open PR (#1500 refutes the version predicate on exactly
+        // that measurement). Post-release: this exact version, because that is what
+        // the release claims to have published.
+        if (preRelease) return Object.keys(doc.versions).length > 0;
+        if (!Object.hasOwn(doc.versions, version)) return false;
+        // THE TARBALL HALF, and it is not decoration. `gjsify publish` reads back
+        // every 2xx per package and asks for BOTH halves (#1407: npm had stored the
+        // tarball without the packument; the inverse — a version key whose
+        // `dist.tarball` is absent — is what a half-applied write leaves). The
+        // 199-package release sweep DEFERS its unconfirmed tail to this job
+        // (`--verify-defer`), so a question this job does not ask is a question
+        // nothing asks. `dist.tarball` is part of the abbreviated document npm
+        // installs from, so it costs no extra request. Pre-release has no version to
+        // ask this of, which is why the check sits below the phase split.
+        const tarball = doc.versions[version]?.dist?.tarball;
+        return typeof tarball === 'string' && tarball.length > 0;
     } catch (err) {
         return err instanceof Error ? err : new Error(String(err));
     }
@@ -478,19 +492,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 await probeAll(candidates.map((p) => p.manifest.name));
 for (let round = 2; round <= attempts; round++) {
-    const liveCount = candidates.filter((p) => isLive(p.manifest.name)).length;
-    // `unexpectedlyAbsent()` is in the condition, not just `violations()`: an absent
-    // package with no incoming edge fails the ROSTER and appears in neither the
-    // violation nor the error set, so without it a CDN answer minted before a
-    // publish became a verdict on the first round. It matters most where a false red
-    // is most expensive — pre-release this is a REQUIRED check on every PR. A
-    // DECLARED absence is excluded, so a queued bootstrap costs no rounds at all.
-    if (violations().length === 0 && probeErrors().length === 0 && unexpectedlyAbsent().length === 0 && liveCount > 0) {
-        break;
-    }
     // Re-query only what came back absent or errored — a present version never
-    // becomes absent, so the rest of the answer is already final.
-    const retry = candidates.map((p) => p.manifest.name).filter((n) => state.get(n) !== true);
+    // becomes absent, so the rest of the answer is already final. Nothing left
+    // to re-ask is the ONLY reason to stop early, and it implies every
+    // liveness-derived conclusion below.
+    //
+    // This used to break on `violations() === 0 && probeErrors() === 0 &&
+    // liveCount > 0`, which is TRUE of the one state the loop exists to wait
+    // out: a package with no incoming pinned edge that is merely not recorded
+    // YET. That is the ROSTER's hazard class, and the roster assertion was added
+    // after this loop without widening its exit. Measured on v0.46.0 run
+    // 33735989472 — @gjsify/node-runtime-darwin-arm64 absent, 208 of 209 live,
+    // no violations, no probe errors: both failing closure jobs broke on round 1
+    // and neither ever printed a `round 2/3 — re-querying` line, so the retry
+    // this comment block promises never once fired for the case it was written
+    // for. Measured too: 9.5% of that release's publishes were recorded 56-252 s
+    // after their own 2xx, which is exactly how long this loop has to be willing
+    // to wait.
+    //
+    // A DECLARED pre-release absence is excluded, because it will NEVER become live:
+    // retrying it would spend every round's `retryDelayMs` on a check that is
+    // REQUIRED on every pull request, for a name whose absence the ledger already
+    // explains. Without that exclusion a non-empty bootstrap ledger costs every PR
+    // the full retry budget and can never change the answer.
+    const retry = candidates
+        .map((p) => p.manifest.name)
+        .filter((n) => state.get(n) !== true && !expectedAbsent(n));
     if (retry.length === 0) break;
     if (!asJson) {
         console.log(

@@ -1817,8 +1817,11 @@ succeeds, `gjsify publish` asks the registry for that exact `name@version` and p
 `publish-unconfirmed`, exit 1 — and the message states what was PUT, what was asked and what came
 back. The retry window exists because npm's write really is eventually consistent: measured over
 the 199 packages of the v0.46.0 release, 90.5% were committed before the response arrived and 9.5%
-between 56 and 252 seconds after it, while one was never committed at all under a green job. Set
-`--verify-timeout 0` for a registry with no packument read path.
+between 56 and 252 seconds after it, while one was never committed at all under a green job. A
+`409 already published` tolerated by `--tolerate-republish` is read back the same way — npm can
+refuse to overwrite a version seconds before it serves it — and the read-back GET carries the same
+credential the upload did, so a registry that requires a token to read packuments does not turn a
+good publish into a red one. Set `--verify-timeout 0` for a registry with no packument read path.
 
 Publish every workspace in one go with [`gjsify foreach`](#gjsify-foreach):
 
