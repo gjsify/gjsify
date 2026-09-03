@@ -39,6 +39,22 @@ xgettextPlugin({
 });
 ```
 
+### A `sources` pattern reaching into a sibling package is a build dependency
+
+`sources` is read at extraction time, so a pattern like `../learn/dist/**/*.ui` requires that the
+sibling package has already been built. Declaring it in `dependencies` is not enough on its own:
+building the one package (`gjsify workspace <name> build`) does not build what it depends on.
+Either run the extracting package with `-t`, which pre-builds its workspace dependencies in
+topological order:
+
+```bash
+gjsify workspace @scope/translations build -t
+```
+
+or make the dependency's build an explicit step of the script that needs it. Without one of the
+two, the artifact is whatever the last run left behind, which is the state the pattern guard above
+exists to catch.
+
 ## Usage
 
 ```typescript
