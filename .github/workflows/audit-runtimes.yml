@@ -292,6 +292,16 @@ jobs:
       - name: Check inline workflow scripts are not self-truncating
         run: node scripts/check-workflow-inline-scripts.mjs
 
+      # A bare `npm install "@gjsify/x@<the version we just published>"` reads an
+      # ETARGET as a verdict, and npm can serve a packument older than a PUT it has
+      # already acknowledged: v0.46.0 lost three publish legs that way, on a version
+      # written 3m56s earlier, while the four legs running the SAME step later passed.
+      # So the defect was a shape four jobs shared, not those three jobs — and it lives
+      # in workflows that never run on a pull request. Incident + the measurement in
+      # the script header.
+      - name: Check workflows do not bootstrap @gjsify from npm unguarded
+        run: node scripts/check-workflow-registry-installs.mjs
+
       # A release asset uploaded by GLOB with no `fail_on_unmatched_files` is the
       # same failure one layer out: the glob matches nothing, the upload is empty,
       # and the job is green. `release-cut.yml` is the only workflow that puts
@@ -966,6 +976,16 @@ jobs:
       # a release. Incident + scope in the script header.
       - name: Check inline workflow scripts are not self-truncating
         run: node scripts/check-workflow-inline-scripts.mjs
+
+      # A bare `npm install "@gjsify/x@<the version we just published>"` reads an
+      # ETARGET as a verdict, and npm can serve a packument older than a PUT it has
+      # already acknowledged: v0.46.0 lost three publish legs that way, on a version
+      # written 3m56s earlier, while the four legs running the SAME step later passed.
+      # So the defect was a shape four jobs shared, not those three jobs — and it lives
+      # in workflows that never run on a pull request. Incident + the measurement in
+      # the script header.
+      - name: Check workflows do not bootstrap @gjsify from npm unguarded
+        run: node scripts/check-workflow-registry-installs.mjs
 
       # A release asset uploaded by GLOB with no `fail_on_unmatched_files` is the
       # same failure one layer out: the glob matches nothing, the upload is empty,
