@@ -237,9 +237,10 @@ function separatorIndex(part) {
 /**
  * The identifiers `source` registers as suites: the values of a `run({…})` property at
  * any depth (`runTests` recurses into a nested object, so a suite grouped inside one is
- * registered just as much as a top-level entry), plus anything the entry CALLS —
- * `packages/web/webrtc/src/test.mts` awaits its four spec defaults directly instead of
- * handing them to `run`, and that runs them.
+ * registered just as much as a top-level entry), plus anything the entry CALLS, because
+ * a suite the entry awaits by hand does run. Note that hand-calling it is all it does:
+ * the failures land outside the counter `run()` turns into an exit code, which is why
+ * `check-test-entry-run.mjs` requires every entry to reach `run()` as well.
  *
  * VALUE position, not key: `run({ Promise: promiseSuite })` registers `promiseSuite`,
  * and it is the local binding a caller compares against. An inline `key: async () => {…}`
