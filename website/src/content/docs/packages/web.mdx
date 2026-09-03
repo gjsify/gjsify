@@ -62,7 +62,7 @@ Groups work too (`--globals auto,dom`). The full identifier and group list is in
 | `@gjsify/webassembly` | pure TS | `WebAssembly.compile`, `instantiate`, `validate` and the streaming variants, wrapping SpiderMonkey's synchronous constructors |
 | `@gjsify/webaudio` | Gst 1.0, GstApp 1.0 | AudioContext over a GStreamer decodebin and playback chain, AudioBufferSourceNode, GainNode, AudioParam |
 | `@gjsify/webcrypto` | GLib, Gio | SubtleCrypto (AES, AES-KW, RSA-OAEP, RSA-PSS, ECDSA, HMAC, PBKDF2, HKDF, ECDH), CryptoKey, getRandomValues, randomUUID. The primitives come from `node:crypto`, entropy from `/dev/urandom` |
-| `@gjsify/webrtc` | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | RTCPeerConnection, RTCDataChannel, RTCRtpSender / Receiver / Transceiver, MediaStream, `getUserMedia`, RTCDTMFSender, RTCCertificate |
+| `@gjsify/webrtc` | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | RTCPeerConnection, RTCDataChannel, RTCRtpSender / Receiver / Transceiver, MediaStream, `getUserMedia`, RTCDTMFSender, RTCCertificate. [WebRTC & Media Capture](/gjsify/guides/webrtc/) walks through a data channel, how a capture device gets picked, and the limits worth knowing |
 | `@gjsify/webrtc-native` | Gst 1.0, GstWebRTC 1.0 | Prebuilt signal bridge that `@gjsify/webrtc` uses. You never import it directly |
 | `@gjsify/websocket` | Soup 3.0 | WebSocket, MessageEvent, CloseEvent, with NUL-safe text frames |
 | `@gjsify/webstorage` | pure TS | Storage, `localStorage`, `sessionStorage`. Import only, they are not injected as globals, and both are in memory, so nothing survives a restart yet |
