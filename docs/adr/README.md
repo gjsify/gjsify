@@ -58,6 +58,7 @@ the TODO records the *what's left*.
 | [0035](0035-web-view-on-win32.md) | A web view on Windows: WebView2 behind the same `gi://WebKit` 6.0 namespace | Proposed |
 | [0036](0036-third-party-react-native-surfaces.md) | Third-party React Native surfaces: one registry, one package, one subpath each | Proposed |
 | [0039](0039-react-native-prop-surface.md) | The React Native PROP surface is published as a subpath; a refused prop keeps throwing | Proposed |
+| [0040](0040-gui-launcher-and-the-macos-seal.md) | # ADR 0040 — A GUI-subsystem launcher `gjsify ship` writes itself, and the three macOS steps that were refused for a wrong reason | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
