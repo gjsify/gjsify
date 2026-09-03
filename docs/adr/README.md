@@ -61,6 +61,7 @@ the TODO records the *what's left*.
 | [0038](0038-shipped-application-fonts.md) | A shipped application font: one payload directory, and the declarative mechanism each OS actually has | Accepted |
 | [0039](0039-react-native-prop-surface.md) | The React Native PROP surface is published as a subpath; a refused prop keeps throwing | Proposed |
 | [0040](0040-gui-launcher-and-the-macos-seal.md) | A GUI-subsystem launcher `gjsify ship` writes itself, and the three macOS steps that were refused for a wrong reason | Proposed |
+| [0041](0041-build-time-serializer-stays-with-the-application.md) | A build-time serializer of a component tree into declarative UI files stays with the application that owns the content | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
