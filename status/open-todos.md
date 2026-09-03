@@ -886,56 +886,29 @@ it. `gjsify.loaders` is a text/dataurl plugin, not a module-type map. Worth addi
 only once the hook half above is honest, since a config key whose value the GJS engine
 cannot honour would be the same defect one level up.
 
-### A bundled font on Windows needs one call, and no `@gjsify/*` package makes it
+### No leg runs a SHIPPED artifact and registers its fonts
 
-ADR 0038 stages `gjsify.ship.fonts` into `share/fonts/<appId>/` and each OS reaches it
-declaratively — except Windows, where nothing does. GTK4 there is pangowin32, whose font
-map is populated by `pango_win32_dwrite_font_map_populate()` alone: DirectWrite's system
-font collection plus Pango's own font-set builder, with no filesystem search path. The
-three mechanisms that look like they would work are each dead. fontconfig IS built and
-linked by gvsbuild, but `pangocairo-fontmap.c` selects the first backend compiled in
-(coretext → win32 → fc) and cairo's meson adds `cairo-win32` unconditionally on a Windows
-host, so the fc font map is never selected. `XDG_DATA_DIRS` does not port either:
-`FcConfigXdgDataDirs()` splits on a hardcoded colon while `FC_SEARCH_PATH_SEPARATOR` is
-`;`, so `C:\App\share` splits into `C` and `\App\share`. And
-`AddFontResourceEx(FR_PRIVATE)` registers with GDI, which that populate call never reads.
+`initFonts()` in `@gjsify/gtk-host/fonts` closes the call ADR 0038 § 4 handed over: it reads
+`GJSIFY_FONT_DIR`, walks the staged directory and registers every face with
+`PangoCairo.FontMap.get_default().add_font_file()`, treating the `G_IO_ERROR_NOT_SUPPORTED` a
+CoreText map answers as "the OS already activated these" rather than as a failure. Both open
+API questions are decided: the app calls it (this package owns no lifecycle to hook, and a
+module-load side effect would pick an application's initialisation order for it), and a face
+that will not open warns and is reported rather than aborting.
 
-So the app must call `PangoCairo.FontMap.get_default().add_font_file(path)` at startup —
-in the typelib since Pango 1.56, and on win32 it clears the map's cache and emits
-`changed`, so it works after the font map exists. `gjsify ship` hands over the directory
-in `GJSIFY_FONT_DIR` and `Layout.fontGap` prints the call, which is a handover rather
-than a fix: every consumer that ships a face writes the same loop.
+What is NOT closed is the end-to-end path, and it is the half ADR 0038's *Do not let a file
+count stand in for a load* names. The CALL is measured on both operating systems it is for —
+Fedora 44 / Pango 1.57.1 here (`list_families()` 100 → 101 with the staged family, and a layout
+that measures 66x50 px against the 87x63 an invented family gets), Windows 11 / GTK 4.22.4 in
+ADR 0038 § W4-W5 (82 → 83). What no leg does is BUILD a program directory or a `.app`, start it
+through the launcher `gjsify ship` wrote, and assert the family resolves in that process.
+`tests/e2e/ship-layout` asserts the staged tree and the launcher's exports; `gtk-os-suites.yml`
+runs `@gjsify/gtk-host` on the shipped GTK closure but from a checkout, not from a shipped
+payload. Nothing joins the two, so `GJSIFY_FONT_DIR` is asserted as a STRING in a launcher and
+consumed as a DIRECTORY in a different run.
 
-The home is `@gjsify/adwaita-app` (ADR 0009, under ADR 0027's host layer), beside
-`initLocale` — which is the SAME shape one variable over: `resolveLocaleDir` reads
-`GJSIFY_LOCALE_DIR` off the launcher `gjsify ship` wrote, and ADR 0038 § 4 chose
-`GJSIFY_FONT_DIR` on that precedent. An `initFonts()` there registers every face the
-directory holds, and one call covers Windows AND Linux —
-`pango_fc_font_map_add_font_file` implements the same vfunc, process-locally, with no
-config file. macOS stays the odd one out: the CoreText font map implements no
-`add_font_file` at all and falls through to the base impl's `G_IO_ERROR_NOT_SUPPORTED`,
-which is why `ATSApplicationFontsPath` is the darwin mechanism and must stay so.
-
-**Neither half is blocked on verifiability, and the Windows one stopped being so on
-2026-09-02.** Measured on this host (GJS, Pango 1.57.1, `PangoCairoFcFontMap`): a family
-absent from `list_families()` is present after `add_font_file()` on the staged face.
-Measured on a Windows 11 VM as well (Node v24.18.1,
-`@gjsify/gtk-runtime-win32-x64@0.45.0`, GTK 4.22.4 — ADR 0038 § W1-W5): the call answers
-`true`, families go 82 → 83, and the map it registers into is the one
-`label.get_pango_context().get_font_map()` returns, with an invented-family
-discriminator so that "resolved" cannot mean "substituted". So `initFonts()` would be
-green on BOTH of the OSes it is for. What is open is the API SHAPE — whether the shell
-registers eagerly on `startup` or exposes a function the app calls, and whether a face
-that fails to open aborts or warns.
-
-`@gjsify/react-native`'s `expo-font` surface is the SECOND caller and it has a stake of
-its own: `useFonts` answers `[true, null]` on its first render because "fonts are
-INSTALLED and the platform's font map discovers them", and on Windows that is true only
-once somebody has registered them. Registering `GJSIFY_FONT_DIR` on that surface's module
-load — it cannot resolve the hook's asset-registry values, but it can register the
-directory `gjsify ship` named — would make the row honest on all three OSes rather than on
-two. Same call, same open API question; decide it once, in the shell, and have the surface
-use it.
+macOS keeps its own half of that gap unchanged: `ATSApplicationFontsPath` is emitted and its
+ACTIVATION is unverified on hardware, which is why `Layout.fontGap` still prints it.
 
 ### The win32 GTK bundle ships fontconfig config that nothing reads
 

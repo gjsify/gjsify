@@ -21,10 +21,11 @@
 // given; `PangoCairo.FontMap.get_default().add_font_file()` does put the family
 // there, on the very map a widget's own `PangoContext` renders through. So a bundled
 // face is registered by the APP at startup, over the directory `gjsify ship` names in
-// `GJSIFY_FONT_DIR`. This hook is still right
-// to answer immediately: it is not what performs that registration, and where the
-// registration belongs to the app it has necessarily already run. No `@gjsify/*`
-// package makes that call yet — `status/open-todos.md`.
+// `GJSIFY_FONT_DIR`. `initFonts()` from `@gjsify/gtk-host/fonts` is that call — one
+// invocation at startup registers every staged face, and it no-ops on the CoreText
+// map rather than branching on the OS. This hook is still right to answer
+// immediately: it is not what performs that registration, and where the
+// registration belongs to the app it has necessarily already run.
 //
 // AND THAT IS BETTER THAN A STUB, because the failure it removes is real: a screen
 // written as `if (!loaded) return null` renders immediately instead of flashing, and

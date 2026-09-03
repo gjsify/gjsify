@@ -7,8 +7,10 @@
 // return type tag 20"; GJS surfaces them as a GLib.Error boxed. Exercised
 // headlessly through `Gio.dbus_error_new_for_dbus_error` (same ERROR type-tag,
 // transfer-full return) because L1 shadows `GLib.Error` with its JS Error
-// subclass, so `GLib.Error.new_literal` is unusable here; the null-GError return
-// is left to the display-gated webgl-glarea e2e.
+// subclass: `GLib.Error.new_literal` exists (gerror-new-literal.test.mjs) but
+// answers that JS subclass, not a BOXED GError, so it cannot stand in for a
+// marshalled ERROR return; the null-GError return is left to the display-gated
+// webgl-glarea e2e.
 //
 // Method resolution converted every accessor camelCase→snake_case before the GI
 // lookup, destroying literal camelCase GIR names (Vala typelibs: Gwebgl's

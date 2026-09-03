@@ -5,6 +5,8 @@ import buildableSuite from './buildable.spec.js';
 import solidSuite from './adapters/solid.spec.js';
 import vueSuite from './adapters/vue.spec.js';
 import conformanceSuite from './conformance.spec.js';
+import fontDirSuite from './font-dir.spec.js';
+import fontsSuite from './fonts.spec.js';
 import generatedSuite from './generated.spec.js';
 import generatorSuite from './generator.spec.js';
 import hostSuite from './host.spec.js';
@@ -30,6 +32,8 @@ run({
     buildableSuite,
     propsSuite,
     probeSuite,
+    fontDirSuite,
+    fontsSuite,
     hostSuite,
     conformanceSuite,
     generatorSuite,
