@@ -86,6 +86,42 @@ function copyFace(source: string, intoDir: string, leaf: string): string {
     return dest;
 }
 
+/**
+ * Does a font map of the backend this process compiled in accept runtime registration?
+ *
+ * MEASURED, and measured the same way `initFonts` decides: by making the call and reading the
+ * ERROR, never by asking `process.platform`. `pangocairo-fontmap.c` picks the first backend
+ * COMPILED IN (coretext → win32 → fc) rather than one per platform, and `PANGOCAIRO_BACKEND`
+ * overrides that on a single host — so the platform name is not the question. A CoreText map
+ * implements no `add_font_file` vfunc and the base implementation answers
+ * `G_IO_ERROR_NOT_SUPPORTED`; an fc or win32 map registers the face.
+ *
+ * On a SCRATCH map, so the probe cannot contaminate the default map the discriminator below reads
+ * (verified: registering into a `PangoCairo.FontMap.new()` leaves the default untouched).
+ */
+function probeRegistrationSupport(face: string | undefined): boolean {
+    if (face === undefined) return false;
+    try {
+        PangoCairo.FontMap.new().add_font_file(face);
+        return true;
+    } catch (error) {
+        if (isUnsupportedByFontMap(error)) return false;
+        // Any other GError is a broken PROBE, not an unsupported map — a face this suite could
+        // not open would silently turn every gated assertion below into a tolerated xfail.
+        throw error;
+    }
+}
+
+/** Why the registration assertions cannot hold where they are marked expected-failing. */
+const NO_REGISTRATION_REASON =
+    'this process resolved a font map that implements no `add_font_file` vfunc — on macOS ' +
+    "PangoCairoCoreTextFontMap, where `pango_font_map_add_font_file()` falls through to Pango's " +
+    'base implementation and answers G_IO_ERROR_NOT_SUPPORTED. Nothing can register a face at ' +
+    'runtime there, and nothing needs to: a shipped `.app` activates its own faces declaratively ' +
+    'through `ATSApplicationFontsPath` before any of its code runs (ADR 0038 § 3), which is why ' +
+    '`initFonts` reports these as DECLINED rather than failed. Retires itself if Pango ever ' +
+    'implements the vfunc on CoreText, or on any host where PANGOCAIRO_BACKEND selects fc.';
+
 /** Remove a flat directory and its entries — these fixtures never nest. */
 function removeTree(dir: string): void {
     const file = Gio.File.new_for_path(dir);
@@ -130,22 +166,25 @@ export default async () => {
             removeTree(dir);
         });
 
-        await it('reports a face that will not open instead of throwing', async () => {
+        await it('never silently drops a face that will not open, and never throws', async () => {
             // Total, like `installDevtools`: an application must not die over a decorative face —
-            // but it must not lose one silently either, which is the whole of ADR 0038.
+            // but it must not lose one silently either, which is the whole of ADR 0038. WHICH
+            // bucket it lands in is the map's answer, and a map that declines every registration
+            // never opens the file at all, so there is no parse failure for it to report.
             const dir = makeTempDir('broken');
-            GLib.file_set_contents(`${dir}/Broken.ttf`, 'not a font at all');
+            const broken = `${dir}/Broken.ttf`;
+            GLib.file_set_contents(broken, 'not a font at all');
             const result = initFonts({ fontDir: dir });
             expect(result.registered.length).toBe(0);
-            expect(result.failed.length).toBe(1);
-            expect(result.failed[0]?.path).toBe(`${dir}/Broken.ttf`);
-            expectCleanGErrorMessage(result.failed[0]?.message);
+            expect([...result.failed.map((f) => f.path), ...result.declined]).toStrictEqual([broken]);
+            for (const failure of result.failed) expectCleanGErrorMessage(failure.message);
             removeTree(dir);
         });
     });
 
     await describe('initFonts — the directory decides, and the family proves it', async () => {
         const source = findFaceSource();
+        const REGISTRATION_SUPPORTED = probeRegistrationSupport(source);
 
         await it('has the showcase face in reach', async () => {
             // Fails rather than skips, exactly as `tests/e2e/ship-layout` does: without the face
@@ -174,27 +213,51 @@ export default async () => {
             expect(families()).not.toContain(FACE_FAMILY);
         });
 
-        await it('registers a face INSIDE the font directory', async () => {
+        // The half of the contract that holds on EVERY font map, and the reason these are plain
+        // `it()`s while the four below are gated: what `initFonts` promises unconditionally is
+        // that it FINDS the staged face and accounts for it — a face is never silently dropped,
+        // and a map declining to register one is not a failure to report.
+        await it('finds the staged face and accounts for it, on any font map', async () => {
             const staged = copyFace(source, inside, 'Round9x13.ttf');
             const result = initFonts({ fontDir: inside });
             expect(result.dir).toBe(inside);
-            expect([...result.registered]).toStrictEqual([staged]);
-            expect(result.declined.length).toBe(0);
+            expect([...result.registered, ...result.declined]).toStrictEqual([staged]);
             expect(result.failed.length).toBe(0);
         });
 
-        await it('puts the family on the map a widget renders through', async () => {
-            expect(families()).toContain(FACE_FAMILY);
-            expect(PangoCairo.FontMap.get_default().get_family(FACE_FAMILY)).not.toBeNull();
+        await it('routes it to `declined` exactly when the map declines, never to `failed`', async () => {
+            // The macOS half stated as an assertion rather than as an excuse: on a CoreText map
+            // every staged face lands in `declined`, and calling that a FAILURE would make a
+            // correct `.app` — whose faces `ATSApplicationFontsPath` already activated — print a
+            // warning per face about a substitution that is not happening.
+            const result = initFonts({ fontDir: inside });
+            expect(result.declined.length).toBe(REGISTRATION_SUPPORTED ? 0 : 1);
+            expect(result.registered.length).toBe(REGISTRATION_SUPPORTED ? 1 : 0);
+            expect(result.failed.length).toBe(0);
         });
 
-        await it('measures the family DIFFERENTLY from an invented one', async () => {
-            // The assertion that makes the one above a finding rather than a call that returned
-            // true: different metrics are a different FACE, not a substitution. This is also the
-            // FIRST time this process asks the default map to resolve `FACE_FAMILY`, and that is
-            // deliberate — see the ordering suite below.
-            expect(layoutSize(FACE_FAMILY)).not.toBe(layoutSize(INVENTED_FAMILY));
-        });
+        await it.failing(
+            'puts the family on the map a widget renders through',
+            async () => {
+                expect(families()).toContain(FACE_FAMILY);
+                expect(PangoCairo.FontMap.get_default().get_family(FACE_FAMILY)).not.toBeNull();
+            },
+            NO_REGISTRATION_REASON,
+            { when: !REGISTRATION_SUPPORTED },
+        );
+
+        await it.failing(
+            'measures the family DIFFERENTLY from an invented one',
+            async () => {
+                // The assertion that makes the one above a finding rather than a call that
+                // returned true: different metrics are a different FACE, not a substitution. This
+                // is also the FIRST time this process asks the default map to resolve
+                // `FACE_FAMILY`, and that is deliberate — see the ordering suite below.
+                expect(layoutSize(FACE_FAMILY)).not.toBe(layoutSize(INVENTED_FAMILY));
+            },
+            NO_REGISTRATION_REASON,
+            { when: !REGISTRATION_SUPPORTED },
+        );
 
         await it('cleans up its fixtures', async () => {
             for (const dir of [outside, inside, empty]) removeTree(dir);
@@ -207,31 +270,41 @@ export default async () => {
     await describe('registration is not retroactive, which is why initFonts belongs at startup', async () => {
         const source = findFaceSource();
         if (source === undefined) return;
+        const REGISTRATION_SUPPORTED = probeRegistrationSupport(source);
 
-        await it('leaves a family that was already resolved on its substitute', async () => {
-            // MEASURED, and it turns "call this at startup" from a style note into a contract.
-            // A `PangoCairoFcFontMap` caches the fontset it resolved for a description, and
-            // `add_font_file` does NOT invalidate that cache: the family joins `list_families()`
-            // while a layout asking for it keeps measuring the FALLBACK. So an application that
-            // lays out text before calling `initFonts` gets the substituted typeface for the life
-            // of the process, with the family visibly present — which reads as "the font is
-            // installed and Pango is ignoring it".
-            //
-            // On a SCRATCH map (`PangoCairo.FontMap.new()`), not the default one: asking the
-            // default map to resolve the family here would populate the very cache the suite above
-            // depends on being cold, and these two facts cannot both be measured on one map in one
-            // process. Verified isolated — registering into this map leaves the default untouched.
-            const scratch = PangoCairo.FontMap.new();
-            const before = layoutSize(FACE_FAMILY, scratch);
-            expect(before).toBe(layoutSize(INVENTED_FAMILY, scratch));
+        await it.failing(
+            'leaves a family that was already resolved on its substitute',
+            async () => {
+                // MEASURED, and it turns "call this at startup" from a style note into a contract.
+                // A `PangoCairoFcFontMap` caches the fontset it resolved for a description, and
+                // `add_font_file` does NOT invalidate that cache: the family joins `list_families()`
+                // while a layout asking for it keeps measuring the FALLBACK. So an application that
+                // lays out text before calling `initFonts` gets the substituted typeface for the life
+                // of the process, with the family visibly present — which reads as "the font is
+                // installed and Pango is ignoring it".
+                //
+                // On a SCRATCH map (`PangoCairo.FontMap.new()`), not the default one: asking the
+                // default map to resolve the family here would populate the very cache the suite above
+                // depends on being cold, and these two facts cannot both be measured on one map in one
+                // process. Verified isolated — registering into this map leaves the default untouched.
+                const scratch = PangoCairo.FontMap.new();
+                const before = layoutSize(FACE_FAMILY, scratch);
+                expect(before).toBe(layoutSize(INVENTED_FAMILY, scratch));
 
-            const dir = makeTempDir('ordering');
-            scratch.add_font_file(copyFace(source, dir, 'Round9x13.ttf'));
+                const dir = makeTempDir('ordering');
+                scratch.add_font_file(copyFace(source, dir, 'Round9x13.ttf'));
 
-            expect(scratch.list_families().map((f) => f.get_name())).toContain(FACE_FAMILY);
-            expect(layoutSize(FACE_FAMILY, scratch)).toBe(before);
-            removeTree(dir);
-        });
+                expect(scratch.list_families().map((f) => f.get_name())).toContain(FACE_FAMILY);
+                expect(layoutSize(FACE_FAMILY, scratch)).toBe(before);
+                removeTree(dir);
+            },
+            // A map that registers NOTHING has no post-registration state that could be stale, so
+            // there is no cache-invalidation question to answer there — `add_font_file` throws
+            // before the first assertion. The ordering rule this documents still binds every
+            // caller; it is only unobservable where registration itself is.
+            NO_REGISTRATION_REASON,
+            { when: !REGISTRATION_SUPPORTED },
+        );
     });
 
     await describe('isUnsupportedByFontMap — the macOS branch, checked from anywhere', async () => {
