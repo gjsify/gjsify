@@ -18,6 +18,7 @@ Linux-only, because the native library underneath it is.
 | **Apps on GJS** (`--app gjs`) | supported | partial, see below | not available (no GJS host) |
 | **Apps on Node/Bun/Deno** (`--app node`, via `@gjsify/node-gi`) | supported | supported | supported |
 | **Browser builds** (`--app browser`) | supported | supported | supported |
+| **Web views** (`@gjsify/iframe`) | supported | supported | supported, with limits |
 | **The CLI on a `gjs` host** (no Node, Bun or Deno on the machine) | supported | engines ship, not exercised in CI | not available (no GJS host) |
 | **The CLI on Node, Bun or Deno** | supported, all three exercised in CI | supported, Node exercised in CI | supported, Node exercised in CI |
 
@@ -30,6 +31,11 @@ Deno. Off Linux, the CI leg that drives the toolchain end to end is the Node one
 Browser builds carry no native code at all, so they are portable by
 construction. The rows that name a `gjs` process are where the operating system
 matters.
+
+The web-view row is a capability rather than a build target, and it reaches all
+three because each operating system supplies a different engine under one
+namespace. What "with limits" means on Windows is spelled out below and in
+[Web Views](/gjsify/guides/web-views/).
 
 ## Windows
 
@@ -66,6 +72,15 @@ GTK 4 / Adwaita closure that `@gjsify/node-gi` loads `gi://` namespaces from, so
 there is no gvsbuild or system GTK to install. CI runs a real GTK window and the
 full Adwaita storybook against that bundle.
 
+Web views reach Windows too. `@gjsify/webview2-native` supplies a `WebKit-6.0`
+namespace backed by Microsoft's WebView2, so the code that embeds a page on Linux
+embeds one here unchanged. What decides whether you can build on it: the view is
+an overlay the OS composites on top of your window, so no ancestor can clip or
+scroll it; the WebView2 Evergreen runtime has to be present on the end user's
+machine, which is your installer's job to declare; and the view has been proven
+headlessly rather than re-parented under a real application window.
+[Web Views](/gjsify/guides/web-views/) has each of those in full.
+
 Two host settings are worth getting right before you start, because both fail in
 ways that do not name themselves:
 
@@ -90,6 +105,13 @@ ships the GTK 4 / Adwaita closure so you do not need a Homebrew GTK. Intel Macs
 get the same treatment against `@gjsify/gtk-runtime-darwin-x64`: the same builds,
 the same display-free conformance and the same windowed GUI proof, each one a
 matrix leg beside its Apple-silicon twin rather than a reduced substitute.
+
+Web views come with the package here. `@gjsify/webkit-native` puts Apple's WebKit
+behind the same `WebKit-6.0` namespace `@gjsify/iframe` uses on Linux, so there is
+no WebKitGTK to hunt for — upstream's GTK port is Linux-only by decision — and
+nothing in your code changes. The minimum deployment target is macOS 11, and a few
+page-level behaviours differ (document focus, the pointer cursor);
+[Web Views](/gjsify/guides/web-views/) names them.
 
 What is not proven is the CLI on a `gjs` host. `gjsify build` under GJS needs a
 bundler, `@gjsify/rolldown-native` is the one that runs there, and it does
@@ -181,5 +203,6 @@ is in [ADR 0013](https://github.com/gjsify/gjsify/blob/main/docs/adr/0013-sab-na
 ## Related
 
 - [Runtimes](/gjsify/runtimes/): GJS, Node.js, Bun, Deno and the browser
+- [Web Views](/gjsify/guides/web-views/): one web-view API, three engines, and the Windows caveats
 - [Install & Update](/gjsify/guides/install/): getting the CLI onto each platform
 - [How It Works](/gjsify/how-it-works/#what-the-platform-marks-prove): what the platform checks actually prove

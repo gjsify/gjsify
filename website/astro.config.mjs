@@ -155,6 +155,7 @@ export default defineConfig({
                         { slug: 'guides/native-adwaita-app' },
                         { slug: 'patterns/gobject-classes' },
                         { slug: 'patterns/bridges', label: 'Bridge Widgets' },
+                        { slug: 'guides/web-views' },
                         { slug: 'guides/storybook' },
                         { slug: 'guides/devtools' },
                         { slug: 'guides/vite-plugin' },
