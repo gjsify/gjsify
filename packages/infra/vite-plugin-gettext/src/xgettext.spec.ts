@@ -104,6 +104,53 @@ export default async () => {
                 await fs.rm(dir, { recursive: true, force: true });
             }
         });
+
+        await it('keeps a negated pattern excluding instead of failing', async () => {
+            // fast-glob reads a leading `!` as an ignore filter over the whole
+            // list and returns NOTHING for a list of only negations — so globbing
+            // patterns one at a time turns an exclusion into a group that matched
+            // no files, and the guard would fail a build that was configured
+            // correctly. Declaring it optional to shut the guard up would be worse
+            // still: the excluded file would then be extracted.
+            const dir = await fixture();
+            try {
+                await write(dir, 'src/window.blp', blueprint('Real'));
+                await write(dir, 'src/generated.blp', blueprint('Generated'));
+                const output = path.join(dir, 'po', 'messages.pot');
+
+                await runBuildStart({
+                    sources: [path.join(dir, 'src', '**', '*.blp'), `!${path.join(dir, 'src', 'generated.blp')}`],
+                    output,
+                    keywords: ['_'],
+                });
+
+                const pot = await fs.readFile(output, 'utf-8');
+                expect(pot.includes('"Real"')).toBe(true);
+                expect(pot.includes('"Generated"')).toBe(false);
+            } finally {
+                await fs.rm(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('fails when nothing is left to extract from at all', async () => {
+            // The hole the per-pattern check leaves open: every pattern declared
+            // optional and every one empty. Extraction would run over no files,
+            // write an empty POT and prune every catalog against it.
+            const dir = await fixture();
+            try {
+                const pattern = path.join(dir, 'src', '**', '*.blp');
+                await expect(
+                    runBuildStart({
+                        sources: [pattern],
+                        optionalSources: [pattern],
+                        output: path.join(dir, 'po', 'messages.pot'),
+                        keywords: ['_'],
+                    }),
+                ).rejects.toThrow(/no source file to extract from/);
+            } finally {
+                await fs.rm(dir, { recursive: true, force: true });
+            }
+        });
     });
 
     await describe('xgettextPlugin — autoUpdatePo', async () => {

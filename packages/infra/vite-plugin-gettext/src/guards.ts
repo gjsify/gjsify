@@ -88,7 +88,7 @@ export const DEFAULT_MAX_CATALOG_ENTRY_LOSS = 1 / 3;
  */
 export function assertEverySourcePatternMatched(
     matches: readonly SourcePatternMatch[],
-    context: { pluginName: string; cwd: string; optionalSources?: readonly string[] },
+    context: { pluginName: string; cwd: string; optionalSources?: readonly string[]; ignore?: readonly string[] },
 ): void {
     const optional = new Set(context.optionalSources ?? []);
     const empty = matches
@@ -100,10 +100,17 @@ export function assertEverySourcePatternMatched(
     }
 
     const list = empty.map((pattern) => `  - ${pattern}`).join('\n');
+    // The negated patterns are named whenever there are any: a pattern whose every
+    // hit was excluded looks exactly like a wrong path, and the two have different
+    // fixes.
+    const excluded = context.ignore?.length
+        ? `After excluding ${context.ignore.map((pattern) => `!${pattern}`).join(', ')}.\n`
+        : '';
     throw new EmptySourcePatternError(
         `[${context.pluginName}] ${empty.length === 1 ? 'a source pattern' : `${empty.length} source patterns`} matched no files:\n` +
             `${list}\n` +
             `Resolved relative to ${context.cwd}.\n` +
+            excluded +
             'Nothing was extracted. Extracting anyway writes a POT without those strings, and with ' +
             'autoUpdatePo that prunes the same strings out of every catalog. Usual cause: the pattern ' +
             'points at a build artifact of another package that has not been built yet.\n' +

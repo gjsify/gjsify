@@ -8,6 +8,7 @@ import {
     assertCatalogsSurviveMerge,
     assertEverySourcePatternMatched,
     countActiveEntries,
+    EmptySourcePatternError,
     GettextGuardError,
 } from './guards.js';
 import type { XGettextPluginOptions } from './types.js';
@@ -122,24 +123,50 @@ export function xgettextPlugin(options: XGettextPluginOptions): Plugin {
 }
 
 /**
- * Resolves `sources` to files, globbing each pattern SEPARATELY.
+ * Resolves `sources` to files, globbing each POSITIVE pattern separately under
+ * the negative ones.
  *
  * The union `glob(options.sources)` used to return cannot say WHICH pattern came
  * up empty, and in the incident `guards.ts` records only one of several did — so
  * the union was non-empty and there was nothing left to notice. Per-pattern is
  * what makes the guard able to name the offender.
+ *
+ * The negative patterns have to stay a property of the WHOLE set, though.
+ * fast-glob reads a leading `!` as an ignore filter over the other patterns, and
+ * returns nothing at all for a list that is only negations — so globbing one on
+ * its own yields zero files, which the guard would report as a missing source
+ * group, and silencing that with `optionalSources` would then extract the very
+ * files the `!` was there to keep out. They are lifted into `ignore` instead,
+ * which is what fast-glob does with them internally.
  */
 async function resolveSources(options: XGettextPluginOptions, pluginName: string): Promise<string[]> {
-    const perPattern = await Promise.all(options.sources.map((pattern) => glob(pattern)));
+    const included = options.sources.filter((pattern) => !pattern.startsWith('!'));
+    const ignore = options.sources.filter((pattern) => pattern.startsWith('!')).map((pattern) => pattern.slice(1));
+    const perPattern = await Promise.all(included.map((pattern) => glob(pattern, { ignore })));
 
     assertEverySourcePatternMatched(
-        options.sources.map((pattern, index) => ({ pattern, fileCount: perPattern[index].length })),
-        { pluginName, cwd: process.cwd(), optionalSources: options.optionalSources },
+        included.map((pattern, index) => ({ pattern, fileCount: perPattern[index].length })),
+        { pluginName, cwd: process.cwd(), optionalSources: options.optionalSources, ignore },
     );
 
     // Two patterns may legitimately reach the same file; xgettext would then scan
     // it twice and msgcat would have to fold the duplicate back out.
-    return [...new Set(perPattern.flat())];
+    const files = [...new Set(perPattern.flat())];
+
+    // The one hole the per-pattern guard leaves: no positive pattern at all, or
+    // every pattern declared optional and every one empty. Extraction would run
+    // over nothing, write an empty POT and prune every catalog against it — the
+    // incident again, reached by a different route.
+    if (files.length === 0) {
+        throw new EmptySourcePatternError(
+            `[${pluginName}] no source file to extract from: ${options.sources.length} pattern(s) resolved to ` +
+                `nothing under ${process.cwd()}.\n` +
+                'Extracting anyway writes an empty POT, and with autoUpdatePo that empties every catalog.',
+            options.sources,
+        );
+    }
+
+    return files;
 }
 
 async function generatePotfiles(files: string[], outputDir: string, pluginName: string, verbose = false) {

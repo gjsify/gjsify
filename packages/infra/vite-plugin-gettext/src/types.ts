@@ -3,7 +3,12 @@
  * Used to extract translatable strings from source files
  */
 export interface XGettextPluginOptions {
-    /** Glob patterns for source files to extract strings from */
+    /**
+     * Glob patterns for source files to extract strings from.
+     *
+     * fast-glob syntax: a leading `!` excludes, and applies to the whole set
+     * rather than standing on its own as a group.
+     */
     sources: string[];
     /**
      * Entries of `sources` that are allowed to match no files.
