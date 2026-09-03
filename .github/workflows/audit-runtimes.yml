@@ -510,10 +510,19 @@ jobs:
       # updated after connect and the fourth could not, silently. The gap was WRITTEN DOWN
       # in two places — the row's own spec reached into the private `_state` to grow the
       # model, and `conformance/rows.ts` recorded that two of its four step ops had no DOM
-      # spelling — and held by nothing. The rule is comparative on purpose: a view
-      # switcher's pages are DERIVED from its stack, so asking each widget in isolation
-      # would report five that are right. Full incident in the script header.
-      - name: Check a shared collection is replaceable on every widget that shares it
+      # spelling — and held by nothing.
+      #
+      # The gate reads a core collection setter as reached when a `set` accessor, a public
+      # method or `attributeChangedCallback` reaches it, ONE hop through a private applier
+      # included. That hop is not a softening: without it both `<adw-view-switcher-bar>`
+      # renderers scored taken-once over a `_rebuild()` their public `setStack()`/`refresh()`
+      # and `attributeChangedCallback` call, and the gate's first version hid those two wrong
+      # verdicts behind a rule that only reported DISAGREEMENT between siblings — the same
+      # silent-wrong-answer shape it exists to catch, inside itself. It also carries a census
+      # of every collection it can see, per widget, because the rules are asked per
+      # collection: one that moves into a base class is asked nothing, answers nothing, and
+      # would otherwise leave only a smaller number in this log. Full incident in the header.
+      - name: Check every collection a widget takes in stays replaceable
         run: node scripts/check-adwaita-collection-reactivity.mjs
 
       # A conformance table with no RENDERER behind it asserts a derivation against
@@ -1117,10 +1126,19 @@ jobs:
       # updated after connect and the fourth could not, silently. The gap was WRITTEN DOWN
       # in two places — the row's own spec reached into the private `_state` to grow the
       # model, and `conformance/rows.ts` recorded that two of its four step ops had no DOM
-      # spelling — and held by nothing. The rule is comparative on purpose: a view
-      # switcher's pages are DERIVED from its stack, so asking each widget in isolation
-      # would report five that are right. Full incident in the script header.
-      - name: Check a shared collection is replaceable on every widget that shares it
+      # spelling — and held by nothing.
+      #
+      # The gate reads a core collection setter as reached when a `set` accessor, a public
+      # method or `attributeChangedCallback` reaches it, ONE hop through a private applier
+      # included. That hop is not a softening: without it both `<adw-view-switcher-bar>`
+      # renderers scored taken-once over a `_rebuild()` their public `setStack()`/`refresh()`
+      # and `attributeChangedCallback` call, and the gate's first version hid those two wrong
+      # verdicts behind a rule that only reported DISAGREEMENT between siblings — the same
+      # silent-wrong-answer shape it exists to catch, inside itself. It also carries a census
+      # of every collection it can see, per widget, because the rules are asked per
+      # collection: one that moves into a base class is asked nothing, answers nothing, and
+      # would otherwise leave only a smaller number in this log. Full incident in the header.
+      - name: Check every collection a widget takes in stays replaceable
         run: node scripts/check-adwaita-collection-reactivity.mjs
 
       # A conformance table with no RENDERER behind it asserts a derivation against

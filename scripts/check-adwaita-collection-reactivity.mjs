@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-// A collection a widget takes IN stays replaceable while the widget is LIVE — and two
-// widgets sharing one core collection agree about it.
+// A collection a widget takes IN stays replaceable while the widget is LIVE.
 //
 // THE INCIDENT
 //
@@ -33,55 +32,63 @@
 // is deliberately out of scope: its widgets take props and Metro re-renders them, so there
 // is no post-mount setter for it to be missing.)
 //
-//   1. SHARED COLLECTIONS AGREE. Every collection setter on a `@gjsify/adwaita-core` state
-//      class — enumerated FROM CORE, so a sixth one is in scope the day it is written —
-//      groups the widgets that call it. Within a group, either every widget reaches it
-//      from a member a CONSUMER can reach (a `set` accessor, a public method, or — on the
-//      web — `attributeChangedCallback`), or none does. A SPLIT is the failure.
+//   1. A CORE COLLECTION IS REPLACEABLE. Every collection setter on a `@gjsify/adwaita-core`
+//      state class — enumerated FROM CORE, so a sixth is in scope the day it is written —
+//      must be reached, in every widget that calls it, from a member a CONSUMER can reach:
+//      a `set` accessor, a public method, or — on the web — `attributeChangedCallback`,
+//      counting ONE hop through a private applier ({@link consumerReachableNames}). A
+//      widget whose only call site is `connectedCallback` has a model a consumer cannot
+//      replace; reaching into `_state` past the widget is not a path a consumer has.
+//   2. PARSED COLLECTION ATTRIBUTES ARE OBSERVED AND ACTED ON (web). An attribute the
+//      element parses as a list must be in `observedAttributes` AND named by
+//      `attributeChangedCallback`. Membership alone is not the question: delete only the
+//      `columns` branch of `<adw-data-grid>`'s callback and `columns` stays observed, its
+//      setter stays, and `<adw-data-grid columns='…'>` is dead after connect.
+//   3. …AND IS SETTABLE AS THE MATCHING PROPERTY (web). Per COLLECTION, not per widget:
+//      `<adw-data-grid>` carries two, and asking only whether the class has SOME list
+//      setter let a surviving `set columns` cover a deleted `set rows`.
 //
-//      Comparative, not absolute, and that is the point: `ViewSwitcherState.setPages` is
-//      fed from a private sync on all five widgets that carry it, because a view
-//      switcher's pages are DERIVED from the stack rather than handed to it. Asking each
-//      widget in isolation "is this replaceable" would report all five, which is how a
-//      check with a high false-positive rate gets disabled and then protects nothing
-//      (`check-adwaita-element-properties.mjs`' header records the same lesson). Asking
-//      whether the widgets over ONE state machine answer alike reports neither those five
-//      nor the derived collections, and does report a fourth widget that cannot be
-//      updated while three siblings can.
+// THIS RULE SET IS THE SECOND ONE. The first made rule 1 COMPARATIVE — widgets over one
+// state class had to AGREE, a split being the failure — and defended that with a claim
+// that an absolute rule would report five view-switcher widgets fed from a private sync.
+// Instrumented, the check never saw that state: `ViewSwitcherState.setPages` is TWO
+// browser widgets and both publish `refreshPages()`. What the comparison actually hid was
+// this reader's own wrong answer. Both `<adw-view-switcher-bar>` renderers were scored
+// taken-once because their `setPages` sits in a private `_rebuild()` — and `_rebuild` is
+// called from `attributeChangedCallback` on the web and from public `setStack()`/`refresh()`
+// on NativeScript, so the model IS replaceable. The two agreed with each other, so the
+// group was internally consistent and the comparison printed OK over two wrong verdicts:
+// the exact failure this file exists to catch, occurring inside it. With the one-hop reach
+// the tree has ONE widget left that cannot take a replaced model, and rule 1 is absolute.
 //
-//   2. PARSED COLLECTION ATTRIBUTES ARE OBSERVED (web). An attribute the element parses as
-//      a list must be in that class's `observedAttributes`, or the markup spelling is the
-//      dead one — `<adw-combo-row items='…'>` exactly. Absolute, because there is nothing
-//      to compare: an unobserved attribute is inert on its own terms.
-//   3. A PARSED COLLECTION IS ALSO A PROPERTY (web). An element that reads a collection out
-//      of an attribute must publish a settable collection property too. Which NAME is not
-//      asked: `<adw-split-button>` takes `menu=` and publishes `menuItems`, and that is a
-//      vocabulary question this check has no business settling. Whether a JS consumer can
-//      hand it a list at all is this one's.
-//
-// A GROUP IS ONE CORE CLASS'S COLLECTION, never one setter NAME, and the difference is
-// load-bearing: `setPages` is declared by BOTH `ViewSwitcherState` and
-// `ViewSwitcherBarState`, whose widgets legitimately answer differently —
-// `<adw-view-switcher>` publishes `refreshPages()` (its MutationObserver drives it), and
-// `<adw-view-switcher-bar>` has no list of its own at all, its pages being the stack's.
-// Merged under the name, that pair reads as a split and reports two widgets that are
-// right. So the receiver is RESOLVED — see {@link stateFields} for the four declarations
-// that do it — and a receiver that resolves to nothing while the name has several owners
-// is a hard failure, because a guess there merges two collections into one comparison in
-// silence.
+// A GROUP IS STILL ONE CORE CLASS'S COLLECTION, never one setter NAME — `setPages` is
+// declared by both `ViewSwitcherState` and `ViewSwitcherBarState`, and merging them would
+// put unrelated widgets in one message. So the receiver is RESOLVED (see
+// {@link stateFields} for the four declarations that do it), and a receiver that resolves
+// to nothing while the name has several owners is a hard failure rather than a guess.
 //
 // THE LEDGER IS BIDIRECTIONAL. {@link CONNECT_TIME_ONLY} carries the widgets that take
-// their collection once on purpose, with the reason and with what its siblings do instead;
-// an entry that becomes replaceable FAILS, so the list empties itself instead of rotting
-// into a permanent exemption.
+// their collection once on purpose, with the reason and with what would retire it; an
+// entry that becomes replaceable FAILS, so the list empties itself instead of rotting into
+// a permanent exemption. {@link COLLECTION_CENSUS} is the other half — see § 4.
 //
-// KNOWN LIMIT, stated rather than papered over: the attribute reader (rules 2 and 3) sees
-// a list parsed by a member of the class — `JSON.parse` inline, or a helper that takes the
-// attribute name — and not one parsed by a MODULE-level function. `adw-split-button.ts`
-// has the only such shape today (`parseMenuEntries(this.getAttribute('menu'))`), and rule 1
-// covers that widget anyway because its collection is `SplitButtonState.setMenuModel`. A
-// non-core collection parsed through a module helper would be invisible here; there is
-// none, and the counts this prints are what would show one arriving.
+// KNOWN LIMITS, stated rather than papered over. Both are about REACH, and the census in
+// § 4 is what keeps either from turning into a silent pass:
+//
+//   · INHERITANCE. Every reader here works on the tag's OWN class, sliced out of its file.
+//     A collection a BASE class owns is invisible: the call site is outside the slice for
+//     rule 1, and the `JSON.parse` with it for rules 2 and 3. This is live today —
+//     `packages/nativescript-bridge/adwaita/src/widgets/view-switcher-base.ts:184` feeds
+//     `ViewSwitcherState.setPages`, and the two NativeScript view-switchers deriving from
+//     it are outside the corpus entirely, which is why the census has no entry for them.
+//     Measured the other way round: move the pre-fix `<adw-combo-row>`'s connect-time
+//     seeding one hop up into a base class and all three rules fall silent on the
+//     unchanged bug.
+//   · MODULE-LEVEL PARSING. The attribute reader sees a list parsed by a MEMBER of the
+//     class — `JSON.parse` inline, or a helper taking the attribute name — not one parsed
+//     by a module function. `adw-split-button.ts` has the only such shape today
+//     (`parseMenuEntries(this.getAttribute('menu'))`), and rule 1 holds that widget anyway
+//     because its collection is `SplitButtonState.setMenuModel`.
 //
 // Plain Node over the repo's own files — no install, no build — so it runs in
 // `audit-runtimes.yml` next to the other repo-scoped Adwaita guards.
@@ -107,11 +114,10 @@ const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..
 const CORE_SRC = 'packages/web/adwaita-core/src';
 
 /**
- * Widgets that take their collection ONCE while a sibling over the same state machine
- * takes it live — `<tag>.<setter>@<renderer>` → why.
+ * Widgets that take their collection ONCE on purpose — `<tag>.<setter>@<renderer>` → why.
  *
  * The bar is a DESIGN the widget's own file already states, plus what would retire it. An
- * entry is a tracked gap, never a verdict that the split is fine.
+ * entry is a tracked gap, never a verdict that the gap is fine.
  */
 const CONNECT_TIME_ONLY = {
     'adw-toggle-group.setLabels@browser': {
@@ -124,6 +130,40 @@ const CONNECT_TIME_ONLY = {
             'and matching them means observing the subtree and rebuilding — which also has to re-run ' +
             'the connect-time accessible-role decision and re-attach the roving tabindex.',
     },
+};
+
+/**
+ * EVERY collection this reader can see, per widget — `<renderer>/<tag>` → the collections,
+ * sorted. A core one is `<StateClass>.<setter>`, a parsed attribute is `attr:<name>`.
+ *
+ * This is the RATCHET, and it exists because the rules are asked per widget per
+ * collection: one this reader stops seeing is asked nothing and answers nothing. It fails
+ * in BOTH directions — an undeclared collection is a new one to hold, and a declared one
+ * that has gone is either a real removal or a collection that merely MOVED out of reach,
+ * which is the same silence wearing a passing exit code.
+ *
+ * Widgets with no collection are deliberately absent: this is the census of what is HELD,
+ * not of what is registered, and `adwaita-elements.mjs` already holds the registered set.
+ */
+const COLLECTION_CENSUS = {
+    'NativeScript/adw-alert-dialog': ['AdwAlertResponses.addResponses'],
+    'NativeScript/adw-combo-row': ['ComboState.setOptions'],
+    'NativeScript/adw-navigation-view': ['NavigationViewState.replaceWithTags'],
+    'NativeScript/adw-sidebar': ['SidebarState.setSections'],
+    'NativeScript/adw-split-button': ['SplitButtonState.setMenuModel'],
+    'NativeScript/adw-toggle-group': ['ToggleGroupState.setLabels'],
+    'NativeScript/adw-view-switcher-bar': ['ViewSwitcherBarState.setPages'],
+    'NativeScript/gtk-drop-down': ['ComboState.setOptions'],
+    'browser/adw-combo-row': ['ComboState.setOptions', 'attr:items', 'attr:options'],
+    'browser/adw-data-grid': ['attr:columns', 'attr:rows'],
+    'browser/adw-inline-view-switcher': ['ViewSwitcherState.setPages'],
+    'browser/adw-navigation-view': ['NavigationViewState.replaceWithTags'],
+    'browser/adw-sidebar': ['SidebarState.setSections'],
+    'browser/adw-split-button': ['SplitButtonState.setMenuModel'],
+    'browser/adw-toggle-group': ['ToggleGroupState.setLabels'],
+    'browser/adw-view-switcher': ['ViewSwitcherState.setPages'],
+    'browser/adw-view-switcher-bar': ['ViewSwitcherBarState.setPages'],
+    'browser/gtk-drop-down': ['ComboState.setOptions', 'attr:items', 'attr:options'],
 };
 
 function fail(lines) {
@@ -205,18 +245,49 @@ function signatureOf(body, members, member) {
 }
 
 /**
- * A member a CONSUMER can reach: a property setter, a public method, or the attribute
- * callback — setting an attribute is a consumer action, and the platform routes it here.
+ * A member a CONSUMER can call directly: a property setter, a public method, or the
+ * attribute callback — setting an attribute is a consumer action, and the platform routes
+ * it here.
  *
  * `connectedCallback`, `constructor` and anything `_`-prefixed are the other side: they
  * run when the widget is BUILT, which is exactly the moment this check is not asking about.
  */
-function isConsumerReachable(member) {
+function isPublicMember(member) {
     if (member === null) return false;
     if (member.kind === 'set') return true;
     if (member.kind === 'get') return false;
     if (member.name.startsWith('_') || member.name.startsWith('#')) return false;
     return !['constructor', 'connectedCallback', 'disconnectedCallback'].includes(member.name);
+}
+
+/**
+ * Member names a consumer's call REACHES: the public ones, plus — ONE hop — the private
+ * ones a public member calls.
+ *
+ * The hop is not a softening, it is the difference between a right and a wrong answer.
+ * Both `<adw-view-switcher-bar>` renderers funnel their `setPages` through a private
+ * `_rebuild()` that `attributeChangedCallback` (web) and `setStack()`/`refresh()`
+ * (NativeScript) call — so the model IS replaceable, and reading only the lexical member
+ * scored the pair as taken-once. Routing a setter through one private applier is a shape
+ * this tree uses everywhere; a reader that fails it would push authors to inline the
+ * applier back into every caller.
+ *
+ * ONE hop, the same bound `check-adwaita-connect-rebind.mjs`'s `reach()` takes and for the
+ * same reason: a transitive walk reports a path because something four methods away
+ * mentions the applier, which is not the same claim.
+ */
+function consumerReachableNames(body, members) {
+    const names = new Set();
+    for (const member of members) {
+        if (!isPublicMember(member)) continue;
+        names.add(member.name);
+        for (const [, called] of memberText(body, members, member).matchAll(
+            /\bthis\.([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g,
+        )) {
+            names.add(called);
+        }
+    }
+    return names;
 }
 
 // ---------------------------------------------------------------------------
@@ -285,13 +356,33 @@ function readWidget(text, className, coreClasses) {
         .map((member) => member.name);
 
     // Members whose body parses JSON — where a collection attribute is read.
+    //
+    // "IN A MEMBER THAT PARSES" IS NOT "PARSED", and the looser reading was measured wrong
+    // on the very element this file was written for: the pre-fix `<adw-combo-row>` reads
+    // `getAttribute('selected')` two statements below its `JSON.parse(getAttribute('items'))`,
+    // and a member-wide scan reported the scalar `selected` as a collection with no list
+    // setter. A check that invents a collection is worse than one that misses it — that
+    // claim is what a reader would go and act on. So the literal has to FEED the parse.
     const parsers = members.filter((member) => memberText(body.text, members, member).includes('JSON.parse('));
     const parsedAttributes = new Map();
     for (const parser of parsers) {
         const source = memberText(body.text, members, parser);
-        // (a) the literal read inside the parsing member itself.
-        for (const [, name] of source.matchAll(/\bgetAttribute\(\s*['"]([^'"]+)['"]/g)) {
-            if (!parsedAttributes.has(name)) parsedAttributes.set(name, lineIn(parser.index));
+        // Locals a `JSON.parse` consumes — the indirect shape both selectors use:
+        // `const raw = this.getAttribute('options') ?? this.getAttribute('items');` and,
+        // below it, `JSON.parse(raw)`.
+        const parsedLocals = [...source.matchAll(/JSON\.parse\(\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\)/g)].map(
+            ([, local]) => local,
+        );
+        // (a) the literal read in a STATEMENT that feeds the parse — directly, or by
+        //     declaring one of those locals.
+        for (const statement of source.split(';')) {
+            const feeds =
+                statement.includes('JSON.parse(') ||
+                parsedLocals.some((local) => new RegExp(`\\b(?:const|let|var)\\s+${local}\\b`).test(statement));
+            if (!feeds) continue;
+            for (const [, name] of statement.matchAll(/\bgetAttribute\(\s*['"]([^'"]+)['"]/g)) {
+                if (!parsedAttributes.has(name)) parsedAttributes.set(name, lineIn(parser.index));
+            }
         }
         // (b) a helper that takes the attribute NAME — its call sites carry the literal.
         if (!source.includes('getAttribute(')) continue;
@@ -345,6 +436,28 @@ function stateFields(body, coreClasses) {
 }
 
 /**
+ * The attribute names `attributeChangedCallback` ACTS on — every string literal it
+ * mentions, plus (one hop) the literals of the private members it calls.
+ *
+ * Deliberately every literal rather than only `name === 'x'`: the callbacks in this tree
+ * spell that test more than one way, and a reader tuned to a single spelling reports the
+ * others as dead. Over-accepting here costs a missed branch; under-accepting costs a false
+ * failure on correct code, which is what gets a check disabled and then protecting nothing.
+ */
+function attributeBranches(widget) {
+    const acted = new Set();
+    const callback = widget.members.find((member) => member.name === 'attributeChangedCallback');
+    if (callback === undefined) return acted;
+    let source = memberText(widget.body.text, widget.members, callback);
+    for (const [, called] of source.matchAll(/\bthis\.([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)) {
+        const hop = widget.members.find((member) => member.name === called && member.kind === 'method');
+        if (hop !== undefined) source += `\n${memberText(widget.body.text, widget.members, hop)}`;
+    }
+    for (const [, literal] of source.matchAll(/['"]([A-Za-z][A-Za-z0-9-]*)['"]/g)) acted.add(literal);
+    return acted;
+}
+
+/**
  * Every call to `.<setter>(` in a widget body, with the member it sits in and the core
  * class the receiver holds (`null` when the receiver names none — a forwarding helper
  * such as NativeScript's `NavigationStack`, which is not itself a core state).
@@ -382,9 +495,11 @@ const RENDERERS = [
 ];
 
 const problems = [];
-/** setter → the widgets feeding it, each with whether a consumer can reach it. */
+/** collection → the widgets feeding it, each with whether a consumer can reach it. */
 const groups = new Map();
 const counts = new Map();
+/** `<renderer>/<tag>` → the collections found on it, for the census below. */
+const found = new Map();
 
 for (const renderer of RENDERERS) {
     if (renderer.tags.size === 0) {
@@ -413,7 +528,10 @@ for (const renderer of RENDERERS) {
             ]);
         }
 
-        // Rule 1 — collect; the agreement is decided per group, below.
+        const census = [];
+        const reachableNames = consumerReachableNames(widget.body.text, widget.members);
+
+        // Rule 1 — collect; the verdict is per widget, with its siblings named, below.
         for (const [setter, owners] of coreSetters) {
             const sites = coreCallSites(widget, setter);
             if (sites.length === 0) continue;
@@ -436,6 +554,7 @@ for (const renderer of RENDERERS) {
                 ]);
             }
             const collection = `${owner}.${setter}`;
+            census.push(collection);
             if (!groups.has(collection)) groups.set(collection, []);
             groups.get(collection).push({
                 key: `${tag}.${setter}@${renderer.label}`,
@@ -446,38 +565,62 @@ for (const renderer of RENDERERS) {
                 file,
                 line: sites[0].line,
                 through: [...new Set(sites.map((site) => site.member?.name ?? '<class body>'))],
-                reachable: sites.some((site) => isConsumerReachable(site.member)),
+                reachable: sites.some((site) => site.member !== null && reachableNames.has(site.member.name)),
             });
         }
 
-        if (!renderer.web) continue;
-        const observed = new Set(observedAttributesByClass(text).byClass.get(className) ?? []);
+        if (renderer.web) {
+            const observed = new Set(observedAttributesByClass(text).byClass.get(className) ?? []);
+            // What `attributeChangedCallback` ACTS on: the attribute names it (or, one hop,
+            // a private member it calls) mentions as a literal.
+            const acted = attributeBranches(widget);
 
-        // Rule 2 — a parsed collection attribute is observed.
-        for (const [attribute, line] of widget.parsedAttributes) {
-            collections += 1;
-            if (observed.has(attribute)) continue;
-            problems.push(
-                `${file}:${line}: <${tag}> parses \`${attribute}\` as a list but does not observe it ` +
-                    `(observedAttributes = [${[...observed].join(', ')}]).`,
-                `    \`<${tag} ${attribute}='…'>\` therefore works once, at connect, and a later ` +
-                    'setAttribute reaches no callback at all.',
-                `    Fix: add '${attribute}' to observedAttributes and act on it in ` +
-                    'attributeChangedCallback (see `<adw-data-grid>` and `<gtk-drop-down>`).',
-            );
+            for (const [attribute, line] of widget.parsedAttributes) {
+                collections += 1;
+                census.push(`attr:${attribute}`);
+
+                // Rule 2 — observed AND acted on. Membership alone is not the question:
+                // deleting only the `columns` branch of `<adw-data-grid>`'s callback leaves
+                // `columns` observed, its setter intact, and the markup spelling dead after
+                // connect. The platform calls the callback; a callback that ignores the name
+                // is the same silence one layer in.
+                if (!observed.has(attribute)) {
+                    problems.push(
+                        `${file}:${line}: <${tag}> parses \`${attribute}\` as a list but does not observe ` +
+                            `it (observedAttributes = [${[...observed].join(', ')}]).`,
+                        `    \`<${tag} ${attribute}='…'>\` therefore works once, at connect, and a later ` +
+                            'setAttribute reaches no callback at all.',
+                        `    Fix: add '${attribute}' to observedAttributes and act on it in ` +
+                            'attributeChangedCallback (see `<adw-data-grid>` and `<gtk-drop-down>`).',
+                    );
+                } else if (!acted.has(attribute)) {
+                    problems.push(
+                        `${file}:${line}: <${tag}> observes \`${attribute}\` but its ` +
+                            'attributeChangedCallback never names it, so the platform delivers the change ' +
+                            'and nothing acts on it — a dead spelling that reads as a live one.',
+                        `    Fix: branch on '${attribute}' in attributeChangedCallback and re-render from ` +
+                            'the parsed model (see `<adw-data-grid>` and `<gtk-drop-down>`).',
+                    );
+                }
+
+                // Rule 3 — …and the same collection is settable as a property. PER
+                // COLLECTION, not per widget: `<adw-data-grid>` carries two, and asking
+                // only whether the class has SOME list setter let `set columns` cover a
+                // deleted `set rows`.
+                const property = attribute.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
+                if (widget.listSetters.includes(property)) continue;
+                problems.push(
+                    `${file}:${line}: <${tag}> takes the \`${attribute}\` collection through the ` +
+                        `attribute and publishes no \`${property}\` list setter ` +
+                        `(list setters: [${widget.listSetters.join(', ') || 'none'}]), so a JS consumer ` +
+                        'has to round-trip that model through JSON.stringify to hand it over.',
+                    `    Fix: publish \`set ${property}(value: T[])\` beside the attribute, the way ` +
+                        '`<adw-data-grid>` and `<gtk-drop-down>` publish theirs.',
+                );
+            }
         }
 
-        // Rule 3 — …and is reachable as a property too.
-        if (widget.parsedAttributes.size > 0 && widget.listSetters.length === 0) {
-            const [attribute, line] = [...widget.parsedAttributes][0];
-            problems.push(
-                `${file}:${line}: <${tag}> takes a collection through the \`${attribute}\` attribute and ` +
-                    'publishes no settable list property, so a JS consumer has to round-trip its model ' +
-                    'through JSON.stringify to hand it over.',
-                '    Fix: publish the list as a property. The NAME is not asked here — `<adw-split-button>` ' +
-                    'takes `menu=` and publishes `menuItems` — only that one exists.',
-            );
-        }
+        found.set(`${renderer.label}/${tag}`, census.sort());
     }
 
     counts.set(renderer.label, collections);
@@ -490,15 +633,13 @@ for (const renderer of RENDERERS) {
     }
 }
 
-// Rule 1 — the agreement, per core collection.
+// Rule 1 — asked of EVERY widget over a core collection, on its own terms.
 const ledgered = new Set();
 for (const [collection, widgets] of [...groups].sort()) {
     const live = widgets.filter((widget) => widget.reachable);
-    const once = widgets.filter((widget) => !widget.reachable);
-    if (live.length === 0 || once.length === 0) continue;
     const owner = coreSetters.get(widgets[0].setter).find((candidate) => candidate.className === widgets[0].owner);
 
-    for (const widget of once) {
+    for (const widget of widgets.filter((candidate) => !candidate.reachable)) {
         if (CONNECT_TIME_ONLY[widget.key] !== undefined) {
             ledgered.add(widget.key);
             continue;
@@ -506,8 +647,10 @@ for (const [collection, widgets] of [...groups].sort()) {
         problems.push(
             `${widget.file}:${widget.line}: <${widget.tag}> (${widget.renderer}) feeds ${collection} only ` +
                 `from ${widget.through.map((name) => `\`${name}\``).join(', ')}, so a model replaced after ` +
-                'the widget is live reaches nothing, silently — while its siblings over that same state ' +
-                'machine take one:',
+                'the widget is live reaches nothing, silently.',
+            ...(live.length === 0
+                ? [`    Nothing over ${collection} publishes a path, so there is no sibling to copy from.`]
+                : ['    Its siblings over that same state machine publish one:']),
             ...live.map(
                 (sibling) =>
                     `      <${sibling.tag}> (${sibling.renderer}) through ` +
@@ -515,9 +658,9 @@ for (const [collection, widgets] of [...groups].sort()) {
             ),
             `    The state is ${widget.owner} (${owner?.file}:${owner?.line}); reaching into it past the ` +
                 'widget is not a path a consumer has.',
-            '    Fix: publish a `set` accessor (or a public method) that forwards to it — and, on the web, ' +
-                'observe the attribute spelling too. Otherwise ledger it in CONNECT_TIME_ONLY with the ' +
-                'design that replaces it.',
+            '    Fix: publish a `set` accessor (or a public method) that forwards to it — one hop through a ' +
+                'private applier counts — and, on the web, observe the attribute spelling too. Otherwise ' +
+                'ledger it in CONNECT_TIME_ONLY with the design that replaces it.',
         );
     }
 }
@@ -536,16 +679,71 @@ for (const [key, entry] of Object.entries(CONNECT_TIME_ONLY)) {
     }
     problems.push(
         `${widget.file}:${widget.line}: ${key} is ledgered as taken once, but it now reaches the ` +
-            `collection from ${widget.through.map((name) => `\`${name}\``).join(', ')}, or no sibling ` +
-            'disagrees with it any more. Either way the exemption is stale — drop it.',
+            `collection from ${widget.through.map((name) => `\`${name}\``).join(', ')}. The exemption is ` +
+            'stale — drop it.',
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 4. THE CENSUS — what makes a corpus that SHRINKS go red instead of quiet.
+//
+// Every rule above is asked PER WIDGET PER COLLECTION, so a collection this reader stops
+// seeing is asked nothing and answers nothing. Measured on the pre-fix `<adw-combo-row>`,
+// where all three rules fire: move the connect-time seeding one hop up into a base class
+// in the same file — behaviour identical, bug still there — and rule 1 loses the call site
+// (`classBody` slices the tag's own class), rules 2 and 3 lose the `JSON.parse`, and the
+// run prints OK with the browser count down 15 → 12.
+//
+// A count in a summary line is a human reading CI, which is the "green CI that checked
+// nothing" shape one level in. So the collections are NAMED, per widget, and the
+// comparison fails in BOTH directions: a new one has to be declared, and one that stops
+// being visible fails whether it left the tree or merely left this reader's reach.
+const census = [...found].filter(([, list]) => list.length > 0).sort();
+const censusSeen = new Set();
+for (const [where, list] of census) {
+    censusSeen.add(where);
+    const declared = COLLECTION_CENSUS[where];
+    if (declared === undefined) {
+        problems.push(
+            `COLLECTION_CENSUS has no entry for ${where}, which carries ${list.join(', ')}. Declare it — ` +
+                'the census is what proves this reader still SEES each collection the rules above hold.',
+        );
+        continue;
+    }
+    const gone = declared.filter((name) => !list.includes(name));
+    const extra = list.filter((name) => !declared.includes(name));
+    if (gone.length === 0 && extra.length === 0) continue;
+    problems.push(
+        `COLLECTION_CENSUS disagrees about ${where}: declared [${declared.join(', ')}], found ` +
+            `[${list.join(', ')}].`,
+        ...(gone.length > 0
+            ? [
+                  `    ${gone.join(', ')} is no longer VISIBLE here. If the collection really went, update ` +
+                      'the census. If it only MOVED — into a base class, into a helper module — the widget ' +
+                      'still has it and every rule above has quietly stopped asking about it.',
+              ]
+            : []),
+        ...(extra.length > 0 ? [`    ${extra.join(', ')} is new — declare it.`] : []),
+    );
+}
+for (const where of Object.keys(COLLECTION_CENSUS)) {
+    if (censusSeen.has(where)) continue;
+    problems.push(
+        `COLLECTION_CENSUS names ${where}, on which this reader now finds no collection at all. The widget ` +
+            'was renamed or removed — or its collections moved out of reach and every rule above went quiet ' +
+            'on it, which is the failure this census exists to make loud.',
     );
 }
 
 if (problems.length > 0) fail(problems);
 
+// The counts are for a reader; the CENSUS is what holds them. Printing both together is
+// deliberate — a number in a log line is what this file's first version mistook for a
+// mechanism.
 console.log(
     `check-adwaita-collection-reactivity: OK — ${coreSetters.size} core collection setter(s) over ` +
-        `${groups.size} widget group(s); ` +
-        `${[...counts].map(([label, n]) => `${n} collection(s) on ${label}`).join(', ')}; ` +
+        `${groups.size} collection(s); ` +
+        `${[...counts].map(([label, n]) => `${n} on ${label}`).join(', ')}, ` +
+        `across ${census.length} widget(s), each matching COLLECTION_CENSUS exactly; ` +
         `${Object.keys(CONNECT_TIME_ONLY).length} ledgered as taken once.`,
 );
