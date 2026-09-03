@@ -385,4 +385,13 @@ them.
 - Tests: `pe-launcher.spec.ts`, `signing.spec.ts`, `msi.spec.ts`;
   `tests/e2e/ship-layout` (the arch-conditional stub, read back as a PE),
   `tests/e2e/ship-windows` (six PE images, and two new oracle discriminators —
-  the subsystem rewritten back to 3, and the launcher deleted).
+  the subsystem rewritten back to 3, and the launcher deleted),
+  `tests/e2e/ship-signing` (the seal's declared directory, and the arrival by
+  name), `tests/e2e/ship-msi` (the shortcut's component, and the negative half
+  that the `.cmd` is still installed and is NOT what the shortcut hangs on).
+- **`tests/e2e/ship-msi` runs in CI ONLY**, and that is where § D4 first went red:
+  it needs `wixl`, the workstation this was written on has none, and the suite
+  FAILS rather than skips there — so the stale `.cmd` expectation was invisible to
+  every local run and visible only on shard 4. Worth knowing before changing
+  anything in `msi.ts`: the unit spec next to it is the only reader of that file
+  a local run exercises.
