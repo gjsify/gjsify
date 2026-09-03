@@ -164,13 +164,13 @@ export default async () => {
                     // value at all.
                     // READ THROUGH THE HOST'S OWN READER, and that is the fix for a
                     // SECOND defect this vector carried — one the first was masking.
-                    // `GObject.Object.find_property.call(SomeClass, …)` returns a spec
-                    // under gjs and NULL over the reverse bridge (issue #1438: the gap is
-                    // specifically the `.call()` form against a class the process has not
-                    // realised, because node-gi's class proxy takes no `g_type_class_ref`;
-                    // the same call as `SomeClass.find_property(…)` answers on both).
-                    // `paramSpecs` is the direct form, already used by `gtk-props.spec.ts`,
-                    // so this is one reader for the package rather than a third spelling.
+                    // `GObject.Object.find_property.call(SomeClass, …)` returned a spec
+                    // under gjs and NULL over the reverse bridge, because node-gi ran a
+                    // class-struct static on the type it was READ from rather than the one
+                    // it was CALLED on — fixed in the engine (#1438), so the spelling no
+                    // longer decides the answer. `paramSpecs` stays because it is the
+                    // reader `gtk-props.spec.ts` already uses: one for the package rather
+                    // than a third spelling.
                     const spec = paramSpecs(Adw.StyleManager, 'AdwStyleManager').get('accent-color');
                     expect(spec === undefined).toBe(false);
 

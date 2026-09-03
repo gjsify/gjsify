@@ -783,6 +783,31 @@ Napi::Value ClassInfoForTypeName(const Napi::CallbackInfo& info) {
 // union/enum/flags), as a node-gi GType handle. The L1 layer surfaces it as a
 // lazy `Ns.Type.$gtype` getter (so `Adw.Clamp.$gtype` / `GObject.type_ensure(...)`
 // work). Returns null for an unknown or unregistered name.
+//
+// It also REALISES a classed type, because gjs's whole type system rests on the
+// invariant its own gi/function.cpp states — "the GType class is referenced at least
+// once when the JS constructor is initialized". Signals and properties are installed
+// in `class_init`, which GLib defers until something takes a `g_type_class_ref`, so a
+// class NOTHING in the process has referenced reports none of its own: measured,
+// `GObject.signal_lookup('popped', Adw.NavigationView.$gtype)` answered 84 under gjs
+// and 0 here, and `signal_lookup('activate', Gio.Application.$gtype)` 28 against 0 —
+// a wrong answer with nothing thrown, which a caller reads as "this class has no such
+// signal" (#1438). `$gtype` is the one read every such lookup goes through and gi.js
+// memoises it, so this costs exactly one `g_type_class_ref` per GType.
+//
+// The ref is KEPT, for the reason calls.cc's ClassStructInstanceForGType keeps its
+// own: it establishes the invariant once, a static type's class is never really freed
+// (measured on glib 2.88.3 — `g_type_class_peek` still answers the same pointer after
+// an unref), and pairing could only invalidate what a caller is still holding. The
+// `g_type_class_peek` guard bounds it at ONE ref per GType for the process, whatever
+// order the two ref sites are reached in.
+//
+// Guarded on G_TYPE_IS_CLASSED because the UNCLASSED fundamentals — boxed/struct and
+// interface — have no class: `g_type_class_ref` answers nullptr there after a
+// `GLib-GObject-CRITICAL`, so without the guard every `GLib.Bytes.$gtype` read would
+// print one. ENUM and FLAGS are classed (GEnumClass/GFlagsClass) and deliberately go
+// through, as they do in gjs. Nothing THROWS on the unguarded path, so the witness is
+// `class-realization.test.mjs`'s child-process stderr case, not an in-process read.
 Napi::Value GetGType(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 2 || !info[0].IsString() || !info[1].IsString()) {
@@ -800,6 +825,7 @@ Napi::Value GetGType(const Napi::CallbackInfo& info) {
   if (base != nullptr) gi_base_info_unref(base);
   g_object_unref(repo);
   if (gt == G_TYPE_INVALID || gt == G_TYPE_NONE) return env.Null();
+  if (G_TYPE_IS_CLASSED(gt) && g_type_class_peek(gt) == nullptr) g_type_class_ref(gt);
   return MakeGTypeHandle(env, gt);
 }
 

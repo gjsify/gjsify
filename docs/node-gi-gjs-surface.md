@@ -398,6 +398,19 @@ are consistent; the unified instance identity arrives with the toggle-ref work);
 a JS↔GObject reference cycle on a custom instance leaks (the same cycle-leak
 caveat the signal/vfunc layer carries).
 
+### `$gtype` on an enum or flags object
+
+`Ns.SomeEnum.$gtype` answers the registered `G_TYPE_ENUM`/`G_TYPE_FLAGS`, as in GJS.
+It is defined **eagerly** and non-enumerable, not behind a lazy getter: `makeEnum`
+freezes its member object, so nothing can be attached after the fact — a lazy getter
+there was tried and is impossible. An enum the typelib does not register carries no
+`$gtype` at all rather than an undefined one.
+
+Two `$gtype` shapes still diverge from GJS and are tracked in `status/open-todos.md`:
+the struct path answers a static-method thunk, and the handle itself has no
+`toString`, so `String(Gio.Application.$gtype)` throws where GJS prints
+`[object GType for 'GApplication']`.
+
 ### `GObject` conveniences (signals, `GObject.Value`, `Object.new`)
 
 `requireGi('GObject')` carries the GJS `GObject.js` convenience surface on top of

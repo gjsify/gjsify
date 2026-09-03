@@ -1,7 +1,6 @@
 // E2E for the internal oxlint JS plugin `@gjsify/oxlint-plugin-gjsify`
 // (`gjsify/register-class-order`, `gjsify/deferred-process-exit`,
-// `gjsify/todo-needs-anchor`, `gjsify/no-css-side-effect-import` and
-// `gjsify/no-gobject-method-borrow` rules).
+// `gjsify/todo-needs-anchor` and `gjsify/no-css-side-effect-import` rules).
 //
 // Runs the real installed `oxlint` (via its Node launcher) against fixtures:
 //
@@ -39,17 +38,6 @@
 // returned nothing the rule would keep passing over the exact shape it exists
 // for. So the fixture project below carries its own `node_modules` package and
 // the counted assertions cover both spellings.
-//
-// `no-gobject-method-borrow`: `GObject.Object.list_properties.call(SomeClass)`
-// borrows an instance method off the base prototype and applies it to a class
-// object. It resolves under gjs and answers WRONG over the reverse bridge —
-// measured array(9) against array(0) for `Gtk.ListItem`, with nothing thrown, so
-// the caller reads an empty array as "the class has no such property" (#1438).
-// The rule is what makes that class visible where the cost is zero, because the
-// defect cannot be seen under gjs at all: a green Linux GJS run proves nothing
-// about it. The fixture carries the NEWLINE-SPLIT spelling on purpose — a
-// hand-written grep over the tree reported it clean while two live sites stood in
-// it, because a line-based search cannot see through a line break.
 //
 // The plugin is loaded from its source path in this repo (oxlint `import()`s
 // the `.ts` file directly via Node type-stripping), so no tarball/install
@@ -582,97 +570,5 @@ describe('oxlint plugin gjsify/no-css-side-effect-import E2E', { timeout: 5 * 60
         // With reportUnusedDisableDirectives=error a directive suppressing
         // nothing fails the run, so this also proves the finding was real.
         assert.equal(res.status, 0, `disabled fixture must pass:\n${out}`);
-    });
-});
-
-// Four borrowed reads, and the SPLIT one is why this rule exists rather than a
-// sweep: `GObject.Object.list_properties` and `.call(Gtk.ListItem)` on two lines
-// is invisible to a line-based grep, which reported the tree clean while two live
-// sites stood in it. The direct form and an unrelated borrow must stay silent — a
-// rule that flagged `Array.prototype.slice.call` would be turned off within a day.
-const BORROW_FIXTURE = `import GObject from 'gi://GObject?version=2.0';
-import Gtk from 'gi://Gtk?version=4.0';
-
-const one = GObject.Object.list_properties.call(Gtk.ListItem);
-const two = GObject.Object.list_properties
-    .call(Gtk.ListItem);
-const three = GObject.Object.find_property.apply(Gtk.ListItem, ['child']);
-const four = GObject.Object.prototype.find_property.call(Gtk.ListItem, 'child');
-
-export const all = [one, two, three, four];
-`;
-
-const DIRECT_FIXTURE = `import GObject from 'gi://GObject?version=2.0';
-import Gtk from 'gi://Gtk?version=4.0';
-
-// The repair the rule's message names, in both spellings.
-const specs = Gtk.ListItem.list_properties();
-const child = Gtk.ListItem.find_property('child');
-// An unrelated instance-method borrow, which is ordinary JavaScript.
-const sliced = Array.prototype.slice.call([1, 2, 3]);
-// A GObject call that is not a borrow at all.
-const id = GObject.signal_lookup('notify', Gtk.ListItem.$gtype);
-
-export const all = [specs, child, sliced, id];
-`;
-
-describe('oxlint plugin gjsify/no-gobject-method-borrow E2E', { timeout: 5 * 60 * 1000 }, () => {
-    let tmpDir;
-    let configPath;
-
-    before(() => {
-        tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-oxc-plugin-borrow-'));
-        configPath = join(tmpDir, '.oxlintrc.json');
-        writeFileSync(
-            configPath,
-            JSON.stringify(
-                {
-                    jsPlugins: [PLUGIN_ENTRY],
-                    rules: { 'gjsify/no-gobject-method-borrow': 'error' },
-                },
-                null,
-                2,
-            ) + '\n',
-        );
-    });
-
-    after(() => {
-        rmSync(tmpDir, { recursive: true, force: true });
-    });
-
-    function runOxlint(file) {
-        return spawnSync(process.execPath, [OXLINT_BIN, '--config', configPath, file], {
-            encoding: 'utf-8',
-            timeout: 60 * 1000,
-        });
-    }
-
-    // The COUNT is what makes this able to fail. The rule walks
-    // `CallExpression` and reports nothing at all if the shape it matches ever
-    // stops occurring — an oxlint AST change, a renamed node field — and a suite
-    // of "stays silent" assertions would then be green over a dead rule, which is
-    // exactly the state this rule was written to end.
-    it('reports all four borrowed spellings, the newline-split one included', () => {
-        const file = join(tmpDir, 'borrow.ts');
-        writeFileSync(file, BORROW_FIXTURE);
-
-        const res = runOxlint(file);
-        const out = (res.stdout ?? '') + (res.stderr ?? '');
-        const matches = out.match(/gjsify\(no-gobject-method-borrow\)/g) ?? [];
-        assert.equal(matches.length, 4, `expected 4 diagnostics, got ${matches.length}:\n${out}`);
-        // The message names the borrowed method, because the repair depends on it.
-        assert.match(out, /list_properties/, `the method must be named:\n${out}`);
-        assert.match(out, /find_property/, `the method must be named:\n${out}`);
-        assert.notEqual(res.status, 0, 'a finding must fail the run');
-    });
-
-    it('stays silent on the direct form, an unrelated borrow and a plain GObject call', () => {
-        const file = join(tmpDir, 'direct.ts');
-        writeFileSync(file, DIRECT_FIXTURE);
-
-        const res = runOxlint(file);
-        const out = (res.stdout ?? '') + (res.stderr ?? '');
-        assert.doesNotMatch(out, /no-gobject-method-borrow/, `unexpected diagnostic:\n${out}`);
-        assert.equal(res.status, 0, `direct fixture must pass:\n${out}`);
     });
 });

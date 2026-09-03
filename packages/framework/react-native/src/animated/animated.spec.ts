@@ -47,18 +47,8 @@ const TOKENS: StyleTokens = {
     spacing: { ...MINIMAL_TOKENS.spacing, '2': '8px' },
 };
 
-/**
- * The two widgets a `View` can become — the overlay switch must not change the answer.
- *
- * AN INSTANCE IS CONSTRUCTED BEFORE `list_properties()`, and that is not decoration.
- * Under node-gi a GObject class's properties are not visible until something realizes
- * the class (gjsify#1438: `list_properties()` answers 0 where gjs answers the real
- * count), so a vector that only read the constructor would be red on the Node leg and
- * green on the GJS one for a reason that has nothing to do with this table.
- */
+/** The two widgets a `View` can become — the overlay switch must not change the answer. */
 const viewWidgets = (): readonly { readonly gtype: string; readonly specs: readonly GObject.ParamSpec[] }[] => {
-    void new Gtk.Box();
-    void new Gtk.Overlay();
     const of = (ctor: { list_properties(): GObject.ParamSpec[] }) => ctor.list_properties();
     return [
         { gtype: 'GtkBox', specs: of(Gtk.Box as never) },
@@ -142,8 +132,8 @@ export default async () => {
                 expect(missing).toStrictEqual([]);
                 // NOT VACUOUS, in both directions: an empty table satisfies an empty
                 // problem list, and so does a `list_properties()` that answered nothing
-                // — which is exactly what gjsify#1438 makes happen on an unrealized
-                // class, so the count is asserted rather than assumed.
+                // — which a runtime whose class-struct statics went wrong really did
+                // produce (#1438), so both counts are asserted rather than assumed.
                 expect(Object.keys(ANIMATED_PROPERTIES).length > 0).toBe(true);
                 for (const widget of viewWidgets()) expect(widget.specs.length > 10).toBe(true);
             });

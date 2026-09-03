@@ -1400,7 +1400,15 @@ Napi::Value ClassMethodArity(const Napi::CallbackInfo& info) {
 // CHAIN, where gjs_define_static_methods put GObjectClass's methods on
 // GObject.Object's constructor and Gtk.Button inherits them. Returns a new ref or
 // nullptr; same shape as ResolveMethodByName's parent walk above.
-static GIFunctionInfo* ResolveClassStructMethod(GIObjectInfo* objInfo, const char* name) {
+//
+// `declaringGType` receives the GType whose class struct DECLARED the method —
+// G_TYPE_OBJECT for `list_properties` — and is left untouched on a miss. That is the
+// type a receiver has to be compatible with, exactly as in gjs, where the method is
+// one function on GObject.Object's constructor and every class inherits the same one:
+// measured, `Gtk.ListItem.list_properties.call(Gtk.Widget)` answers GtkWidget's 36
+// there. Checking against the type the name was READ from would refuse that.
+static GIFunctionInfo* ResolveClassStructMethod(GIObjectInfo* objInfo, const char* name,
+                                                GType* declaringGType) {
   GIObjectInfo* walk =
       reinterpret_cast<GIObjectInfo*>(gi_base_info_ref(reinterpret_cast<GIBaseInfo*>(objInfo)));
   GIFunctionInfo* found = nullptr;
@@ -1410,7 +1418,11 @@ static GIFunctionInfo* ResolveClassStructMethod(GIObjectInfo* objInfo, const cha
       if (gi_struct_info_is_gtype_struct(cs)) found = gi_struct_info_find_method(cs, name);
       gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(cs));
     }
-    if (found != nullptr) break;
+    if (found != nullptr) {
+      *declaringGType =
+          gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(walk));
+      break;
+    }
     GIObjectInfo* parent = gi_object_info_get_parent(walk);
     gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(walk));
     walk = parent;
@@ -1434,23 +1446,39 @@ static GIFunctionInfo* ResolveClassStructMethod(GIObjectInfo* objInfo, const cha
 // call is served by the peek), while unrefing is the one call that could invalidate
 // the GParamSpecs list_properties just handed out, which the class owns. Since GLib
 // 2.84 g_type_class_unref is a documented no-op, so pairing buys nothing anyway.
-static gpointer ClassStructInstance(GIObjectInfo* objInfo) {
-  GType gtype =
-      gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(objInfo));
-  if (gtype == G_TYPE_INVALID) return nullptr;
+//
+// nullptr for an UNCLASSED GType (boxed/struct, interface) as well as for an absent
+// one — `g_type_class_ref` has no class to hand back there and answers nullptr after
+// a CRITICAL. It is what makes the receiver retarget below refuse safely.
+static gpointer ClassStructInstanceForGType(GType gtype) {
+  if (gtype == G_TYPE_INVALID || !G_TYPE_IS_CLASSED(gtype)) return nullptr;
   gpointer klass = g_type_class_peek(gtype);
   return klass != nullptr ? klass : g_type_class_ref(gtype);
 }
 
-// callStaticMethod(namespace, typeName, methodName, args?) -> unknown
+// callStaticMethod(namespace, typeName, methodName, args?, receiverGType?) -> unknown
 // Invoke a type-level constructor/static function (e.g. Gio.File.new_for_path,
 // Gtk.Label.new) — a function found ON a type but taking no instance. The Node
 // twin of `Ns.Class.method(...)`.
+//
+// `receiverGType` is the GType of the object the call went THROUGH (`this`), and it
+// is honoured for CLASS-STRUCT methods only. gjs defines those on the constructor
+// and marshals `this` as the GTypeClass, so the very same function object answers
+// for every class it is applied to: `GObject.Object.list_properties.call(Gtk.ListItem)`
+// reads GtkListItem's 9 pspecs, and an inherited `Subclass.list_properties()` reads the
+// SUBCLASS's. node-gi bound the name to the type it was READ from, so both spellings
+// answered the declarer's pspecs — GObject's zero — with nothing thrown (#1438). A
+// plain static (Gio.File.new_for_path) ignores `this` in gjs too, so it ignores this
+// argument here; and a receiver that is not `g_type_is_a` the DECLARING type (see
+// ResolveClassStructMethod) is ignored rather than trusted, so no C function can be
+// handed the class pointer of an unrelated type.
 Napi::Value CallStaticMethod(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
     Napi::TypeError::New(
-        env, "callStaticMethod(namespace: string, typeName: string, methodName: string, args?: unknown[])")
+        env,
+        "callStaticMethod(namespace: string, typeName: string, methodName: string, args?: unknown[], "
+        "receiverGType?: GType)")
         .ThrowAsJavaScriptException();
     return env.Null();
   }
@@ -1459,6 +1487,10 @@ Napi::Value CallStaticMethod(const Napi::CallbackInfo& info) {
   std::string method = info[2].As<Napi::String>().Utf8Value();
   Napi::Array args = (info.Length() >= 4 && info[3].IsArray()) ? info[3].As<Napi::Array>()
                                                               : Napi::Array::New(env, 0);
+  // 0 for every shape that is not a GType handle (absent, null, an ordinary object),
+  // which is the "no receiver given" case — never an error, since `this` is whatever
+  // the caller's call site happened to be.
+  GType receiverGType = info.Length() >= 5 ? ReadGTypeHandle(info[4]) : G_TYPE_INVALID;
 
   GIRepository* repo = DupDefaultRepository();
   GIBaseInfo* typeInfo = gi_repository_find_by_name(repo, ns.c_str(), tn.c_str());
@@ -1477,13 +1509,19 @@ Napi::Value CallStaticMethod(const Napi::CallbackInfo& info) {
     GIObjectInfo* objInfo = reinterpret_cast<GIObjectInfo*>(typeInfo);
     func = gi_object_info_find_method(objInfo, method.c_str());
     if (func == nullptr) {
-      func = ResolveClassStructMethod(objInfo, method.c_str());
+      GType declaringGType = G_TYPE_INVALID;
+      func = ResolveClassStructMethod(objInfo, method.c_str(), &declaringGType);
       if (func != nullptr) {
-        classInstance = ClassStructInstance(objInfo);
+        GType ownGType =
+            gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(objInfo));
+        const bool retarget = receiverGType != G_TYPE_INVALID && receiverGType != ownGType &&
+                              declaringGType != G_TYPE_INVALID &&
+                              g_type_is_a(receiverGType, declaringGType);
+        classInstance = ClassStructInstanceForGType(retarget ? receiverGType : ownGType);
         if (classInstance == nullptr) {
-          // No GType behind the info, so there is no class to call it on. Drop back
-          // to the plain "no static method" error rather than invoking with a null
-          // instance, which would hand the C function a null GObjectClass*.
+          // No class to call it on — no GType behind the info, or an unclassed one.
+          // Drop back to the plain "no static method" error rather than invoking with
+          // a null instance, which would hand the C function a null GObjectClass*.
           gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(func));
           func = nullptr;
         }

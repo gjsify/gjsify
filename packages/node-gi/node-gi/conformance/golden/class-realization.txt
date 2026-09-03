@@ -1,0 +1,11 @@
+MountOperation ask-password: true
+MountOperation aborted: true
+SocketClient event: true
+Cancellable cancelled: true
+DBusServer new-connection: true
+inherited notify: true
+a signal the class has not: false
+boxed $gtype: true
+enum $gtype: true
+interface $gtype: true
+interface has no class: false

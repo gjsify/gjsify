@@ -32,7 +32,9 @@
 //
 //    What looked like "writable on darwin" was that leg going red for a different
 //    reason. The vector read the spec through `GObject.Object.find_property.call(…)`,
-//    which answers null over the reverse bridge (#1438), so what failed was the
+//    which answered null over the reverse bridge until #1438 was fixed in the engine
+//    (node-gi ran a class-struct static on the type it was READ from, not the one it
+//    was CALLED on), so what failed was the
 //    `spec === null` assertion two lines ABOVE the flag — the flag was never read
 //    there at all. A red assertion on another operating system is not by itself a
 //    fact about that operating system, and reading it as one put a wrong premise
