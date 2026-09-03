@@ -179,6 +179,14 @@ checkWarns('get_snapshot warns that non-NONE options are ignored', 'SnapshotOpti
 const loop = GLib.MainLoop.new(null, false);
 const seen = [];
 let finished = false;
+// Set by the INNERMOST callback of the assertion chain. Without it this probe has
+// a path to exit 0 having run fewer assertions than it contains: if
+// LoadEvent.FINISHED arrives but the `evaluate_javascript` or `get_snapshot`
+// callback never fires, the deadline quits the loop with `finished` already true,
+// so `timedOut` is false, the load assertion PASSES, and the DOM read, the
+// snapshot and the postMessage checks are simply absent — 10 of 13, exit 0. An
+// assertion that never ran must not be indistinguishable from one that passed.
+let chainCompleted = false;
 
 function done() {
     if (loop.is_running()) {
@@ -238,6 +246,7 @@ view.connect('load-changed', (_view, event) => {
                         received === POSTED,
                         `got ${JSON.stringify(received)}`,
                     );
+                    chainCompleted = true;
                     done();
                 },
             );
@@ -255,12 +264,27 @@ view.load_html(PAGE, null);
 
 let timedOut = false;
 GLib.timeout_add(GLib.PRIORITY_DEFAULT, DEADLINE_MS, () => {
-    timedOut = !finished;
+    timedOut = !chainCompleted;
     done();
     return GLib.SOURCE_REMOVE;
 });
 
 loop.run();
+
+// BEFORE the load assertion, because it is the one that says the others are
+// meaningful. Measured on the first green win32 run: 13 assertions in 7.18 s
+// against a 60 s deadline, so this passed on merit rather than by never being
+// reachable.
+check(
+    'every assertion in the chain ran',
+    chainCompleted,
+    chainCompleted
+        ? undefined
+        : 'the async chain stopped early. LoadEvent.FINISHED was ' +
+              (finished ? 'seen' : 'NOT seen') +
+              ', so the DOM read, the snapshot and the postMessage assertions above are ' +
+              'ABSENT rather than failed — do not read their silence as a pass.',
+);
 
 check(
     'load_html reaches LoadEvent.FINISHED',

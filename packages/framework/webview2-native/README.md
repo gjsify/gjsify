@@ -13,16 +13,23 @@ Sibling: [`@gjsify/webkit-native`](../webkit-native/README.md) does the same job
 on macOS with Apple's WebKit behind it (ADR 0022). On Linux there is no shim —
 `gi://WebKit` 6.0 is the real WebKitGTK.
 
-> **State: stage 1 is written, not yet demonstrated.** No `win32-x64` artifact
-> has been built or loaded — the MSVC job failed on its first run — so
-> `scripts/probe-win32.mjs`, the only thing that says a page loads, has not
-> executed. What IS checked on every pull request is the whole portable half and
-> the whole GIR contract: the C compiles on Fedora, `g-ir-scanner` runs its
-> dumper, the GIR carries the signals and properties only that run can produce,
-> and `probe-types.js` passes 24 assertions under gjs. Everything that needs the
-> engine — the message-pump `GSource`, `load_html`, `evaluate_javascript`,
-> `get_snapshot`, the `postMessage` bridge, the child-`HWND` hosting — is
-> unproven. ADR 0035 is `Proposed` for exactly this reason.
+> **State: stage 1 is implemented and demonstrated.** The win32 load test runs
+> on `windows-latest` on every change to this package and passes 13 assertions in
+> 7.18 s: `gi://WebKit` 6.0 resolves, `new WebKit.WebView()` is a `Gtk.Widget`
+> reporting `HostingMode.OVERLAY`, the message pump reports `ATTACHED`,
+> `load_html()` reaches `LoadEvent.FINISHED`, `evaluate_javascript()` reads a
+> marker back **out of the DOM**, `get_snapshot()` returns a 640×480 texture that
+> encodes to 5966 B of PNG, and the page's own `postMessage` arrives as
+> `script-message-received`.
+>
+> **What is not proven is the hosted path itself.** The probe never presents a
+> toplevel — an SSH session on Windows lands in session 0, where `present()` dies
+> with `0xC0000005` — so all of the above ran against the hidden parking window.
+> Re-parenting the child `HWND` under a real GTK toplevel, bounds tracking in
+> device pixels, hiding on unmap, and the claim that input, focus and
+> accessibility come from the OS are **untested**. Stage 2 does not exist. Treat
+> this as "a full-page document in a window works, headlessly, provably" and not
+> yet as "a web view widget on Windows".
 
 ## Why this exists
 

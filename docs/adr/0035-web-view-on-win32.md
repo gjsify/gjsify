@@ -1,9 +1,9 @@
 # ADR 0035 — `@gjsify/iframe` on Windows: WebView2 behind the same `gi://WebKit` 6.0 namespace
 
-- **Status:** Proposed (2026-09-02) — the design is settled and measured; the win32 half is not yet built. In this repository `Accepted` tracks the IMPLEMENTATION, not the draft (ADR 0022 reached it once darwin ran), and this ADR was briefly raised to it before anything had compiled. **What exists and is checked, on every pull request:** the portable C compiles on Fedora, `g-ir-scanner` builds and runs its dumper, the resulting GIR carries `load-changed` / `load-failed` / `script-message-received` plus the four properties and `parent="Gtk.Widget"`, `probe-types.js` passes 24 assertions under gjs (enum numbering, the boxed positional `UserScript`, `WebView` subclassable, `Gio._promisify` on both async pairs, the `Settings` property set, two divergence warnings), and `check-def-exports.mjs` holds the module-definition file to the header at 34/34. **What does not exist:** no `win32-x64` artifact has ever been built or loaded — the MSVC job failed on its first run — so `scripts/probe-win32.mjs`, the one thing that says a page loads, has never executed. Raise this to `Accepted` when it has.
+- **Status:** Accepted (2026-09-03) — stage 1 is built and DEMONSTRATED on `windows-latest`. In this repository `Accepted` tracks the IMPLEMENTATION, not the draft (ADR 0022 reached it once darwin ran), and this ADR spent a day back at `Proposed` because it had been raised before anything compiled. **What the green run proves** (`prebuilds.yml` → `Build prebuilds (win32-x64) [webview2-native via MSVC]`, 13 assertions in 7.18 s against a 60 s deadline, Evergreen 151.0.4129.101): the DLL builds with MSVC and links the REDISTRIBUTABLE CRT with the WebView2 loader static; the typelib records a `.dll` leaf; `gi://WebKit` 6.0 resolves through node-gi built from source against the same gvsbuild bundle; `new WebKit.WebView()` is a `Gtk.Widget` reporting `HostingMode.OVERLAY`; **the message-pump `GSource` reports `ATTACHED`**; `load_html()` reaches `LoadEvent.FINISHED` (events `[0, 2, 3]`); `evaluate_javascript()` reads a marker back **out of the DOM**; `get_snapshot()` returns a 640×480 texture encoding to 5966 B of PNG; `script-message-received` carries the page's own `postMessage`; and all five divergence warnings fire. On Fedora, every PR: the portable C compiles, `g-ir-scanner` runs its dumper, `probe-types.js` passes 24 assertions, `check-def-exports` 34/34, `check-include-paths` and `check-glib-constants` clean. **What is still NOT proven, and no roadmap should imply otherwise:** stage 2 (the content is not in GSK's scene graph); decision 5's `.msi` Evergreen declaration; and — because the probe deliberately never presents a toplevel (§ *What a real Windows desktop added*: an SSH session lands in session 0, where `present()` dies with 0xC0000005) — **the hosted path itself is unexercised**: re-parenting the child `HWND` under a real GTK toplevel, bounds tracking in device pixels, hiding on unmap, and the claim that input, focus and accessibility come from the OS. Everything green above ran against the hidden parking window. The overlay-constraint reporter has been measured firing by hand on Fedora but has no positive CI assertion either; CI asserts only the empty case.
 - **Scope:** `@gjsify/iframe` (Framework pillar) and its `WebKit.WebView` dependency on `win32-x64`; a new per-target package set (distribution per ADR 0017, OS axis per ADR 0018, artifact dependencies per ADR 0024). Sibling of [ADR 0022](0022-webkit-on-darwin.md), which decided the same question for darwin.
 - **The spike has run.** It was written before the code, because ADR 0022's Proposed draft got two of its own decisions wrong and only measurement overturned them; § *What the spike answered* now carries the results, measured on a `windows-latest` runner on 2026-08-31. The staging below survives them, with one refinement it did not anticipate. What remains unmeasured is stage 2's frame transport, and it is marked as such.
-- **Stage 1 is WRITTEN, not yet demonstrated**, as `@gjsify/webview2-native`; stage 2 is unstarted. What landed, what has been verified and where, and what stage 1 deliberately does not do, are in § *Implementation*.
+- **Stage 1 is implemented and demonstrated** as `@gjsify/webview2-native`; stage 2 is unstarted. What landed, what is verified and where, and what stage 1 deliberately does not do, are in § *Implementation*.
 
 ## Context
 
@@ -303,10 +303,11 @@ or be replaced by an assertion that does not need one.
 
 ## Implementation
 
-Steps 1 to 3 are WRITTEN as `@gjsify/webview2-native` +
-`@gjsify/webview2-native-win32-x64` and step 2's half is verified on every pull
-request; step 3's is not verified at all, because no win32 artifact has been
-built. Steps 4 and 5 have not been started.
+Steps 1 to 3 have landed as `@gjsify/webview2-native` +
+`@gjsify/webview2-native-win32-x64`, and both halves are verified: step 2's on
+Fedora on every pull request, step 3's by the win32 load test. What step 3 does
+NOT cover is the hosted path under a real toplevel — see the status line. Steps 4
+and 5 have not been started.
 
 1. **The probe is written and HAS RUN** (§ *What the spike answered*) — `docs/poc/webview2-win32-probe.cpp`,
    built and run by `docs/poc/webview2-win32-probe.ps1`, dispatchable as the
@@ -355,14 +356,16 @@ built. Steps 4 and 5 have not been started.
    loads a document through node-gi, waits for `LoadEvent.FINISHED`, reads a
    marker back out of the DOM with `evaluate_javascript` and captures a PNG — a
    `getGType` probe would have gone green on an artifact that cannot load a page.
-   **It has not run yet.** The MSVC job failed on its first run, before staging,
-   with `C1083` on the seam header: the library target carried no
-   `include_directories`, so a quoted include from `src/cpp/` could not reach
-   `src/c/` — invisible everywhere else, because `src/cpp/` is the one translation
-   unit no other host compiles. `scripts/check-include-paths.mjs` now holds every
-   quoted include to the target's include path on the Fedora job, which is the
-   cheap half of that failure: the symptom needs MSVC, the cause is a path that
-   does not exist.
+   **It has run, green, in 7.18 s.** Getting there cost two defects that only
+   this file could hide, each masking the next one Windows cycle apart: a missing
+   `include_directories` (`C1083` on the seam header) and then an invented
+   `G_IO_ERROR_WRONG_TYPE` (`C2065`). `src/cpp/` is the one translation unit no
+   other host compiles, so neither was visible anywhere else. Both now have a
+   cheap-host guard on the Fedora job — `check-include-paths.mjs` and
+   `check-glib-constants.mjs`, the latter reporting that `WRONG_TYPE` was the only
+   invented name of its class. The probe also asserts that its own async chain
+   ran to completion, because a stalled callback after `LoadEvent.FINISHED` would
+   otherwise have exited 0 with three assertions absent rather than failed.
 4. `gjsify ship windows`: the runtime dependency from decision 5. **NOT DONE.**
    Read § *What a real Windows desktop added* before writing the detection.
 5. Only then stage 2, as its own ADR amendment with its own measurements.
