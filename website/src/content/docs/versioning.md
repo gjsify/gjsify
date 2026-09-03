@@ -5,7 +5,7 @@ description: How to upgrade @gjsify/* safely, which versions work together, and 
 
 **Upgrade all your `@gjsify/*` dependencies together, to the same version.** That is the whole rule.
 
-Every release publishes the entire package set at one version, and the packages are tested against each other at exactly that version. Mixing them (`@gjsify/fetch@0.40.x` with `@gjsify/http@0.39.x`, say) is untested and unsupported.
+Every release publishes the entire package set at one version, and the packages are tested against each other at exactly that version. Mixing them (`@gjsify/fetch@0.46.x` with `@gjsify/http@0.45.x`, say) is untested and unsupported.
 
 ## Upgrade
 
@@ -48,13 +48,13 @@ gjsify upgrade --check
 
 ## How much stability to expect
 
-Every package declares a tier, and CI checks the declaration.
+Every package declares a tier in its own manifest, and the declaration is checked rather than taken on trust.
 
-**Tier 1, core.** Full dual-runtime CI and no known-broken releases. This is the Node.js, Web and DOM pillars, the GTK bridge widgets and the build tooling, which is nearly every package you will ever import.
+**Tier 1, core.** Its whole test suite runs on both GJS and Node before every release, and no release ships with a known break in it. This is the Node.js, Web and DOM pillars, the GTK bridge widgets and the build tooling, which is nearly every package you will ever import.
 
 **Tier 2, product.** Tested and released on the same train, but a breaking change can arrive in a minor version with a changelog note. This covers the Adwaita packages, storybook, devtools, the native app shell, the published showcase apps and [node-gi](/gjsify/projects/node-gi/).
 
-**Tier 3, experimental.** No promise at all. New directions start here: today that is [`@gjsify/napi`](/gjsify/projects/napi/) with its shim prebuilds, the browser and CDP devtools adapters, the prebuilt GTK runtime bundles for macOS and Windows, the [GTK host](/gjsify/frameworks/) and the [React Native layer](/gjsify/frameworks/react-native/) over it. Each package's own `gjsify.tier` field is the authority — this list is what those fields say.
+**Tier 3, experimental.** No promise at all. New directions start here: today that is [`@gjsify/napi`](/gjsify/projects/napi/) with its shim prebuilds, the browser and CDP devtools adapters, the prebuilt GTK and Node runtime bundles that let a macOS or Windows artifact carry its own, the [GTK host](/gjsify/frameworks/) and the [React Native layer](/gjsify/frameworks/react-native/) over it. Each package's own `gjsify.tier` field is the authority — this list is what those fields say.
 
 A package's runtime dependencies may only point at its own tier or a lower one, so nothing experimental can end up underneath something core.
 
