@@ -107,23 +107,19 @@ and an IN argument honours its transfer, borrowed or copied. Reach, measured ove
 typelibs and 91 444 callables: 18 OUT/INOUT parameters, of which ten are those accessors
 (#1496, closes #1495).
 
-### Classes realize themselves, and a probe retires with this release
+### A class answers for its own signals and properties now
 
-A class the process had never referenced reported none of its `class_init` signals, so
-`GObject.signal_lookup` answered `0` where GJS answers a real id; and a class-struct
-static ran on the type its name was *read* from rather than the one it was *called* on.
-Two causes, and the discriminating experiment is in the test: realizing the class up
-front does not repair the borrowed read (#1488).
+A class nothing had referenced reported none of its own signals, because GObject installs
+them in `class_init` and GLib defers that to the first class reference — so
+`GObject.signal_lookup` answered 0 where GJS answers a real id. And a class-struct static
+ran on the type its name was READ from rather than the one it was CALLED on, which made an
+inherited `Subclass.list_properties()` answer the base's. Two causes with one symptom
+shape: a wrong answer and nothing thrown (#1488, closes #1438).
 
-Worth naming because it decides what a green run means: `gtk-os-suites.yml` pairs the
-checkout's JavaScript with the **published** addon on purpose — it answers "what does a
-stranger's download do". A fix that lives in the addon's C++ is therefore invisible to
-that leg until a release ships it. That is why the React Native step stayed a probe on
-both, and why its retirement condition was rewritten from an issue number to a release: an
-issue can close without anything measurable changing. **This is that release** — the
-condition it now names, on the darwin leg, where the probe can be made a gate on the first
-run whose only failures are that operating system's own. Win32 waits on a second one, the
-widget table generated on Linux (#1446).
+The React Native layer's claim for macOS and Windows stays `partial` rather than being
+promoted, and the reason is worth one sentence: the OS suites pair this checkout's
+JavaScript with the PUBLISHED addon on purpose, so a fix living in the addon's C++ is
+invisible there until a release ships it. This is that release.
 
 ### The web view on macOS was built, and only declared broken
 
@@ -217,6 +213,21 @@ disagree.
 
 ### `gjsify ship`
 
+**Windows no longer opens a console window, and the macOS bundle is sealed.** The launcher
+was a `.cmd` executing `node.exe`, a console-subsystem image with no `nodew.exe` beside it,
+so every GUI start showed a black window — and no CI leg can see that. Ship now stages a
+generated GUI-subsystem executable that RUNS the `.cmd` rather than replacing it. The
+reason for that over patching `node.exe`'s subsystem field is measured: started with no
+console, a log still carries `console.log`, `stderr` and the whole uncaught-exception
+report, which the patch would have thrown away.
+
+On macOS `codesign` had stopped at the Mach-O images, so `_CodeSignature` did not exist to
+survive a zip. The seal covers every image and then the bundle root, with hardened runtime
+and entitlements — and two assertions that had sat behind a failing line ran for the first
+time, one of them `codesign --verify --strict` accepting the BUNDLE, which is Apple's own
+reader rather than ours. Notarisation, stapling and `signtool` are wired with correct
+arguments and have run on no machine; that is printed rather than claimed (#1497, ADR 0040).
+
 **An application can ship its own fonts.** This layer claimed it already could — "ship the
 font with the application, `gjsify ship` installs it where fontconfig looks" — and nothing
 in the command had ever touched a font. On Windows the cost of that is silent: Pango falls
@@ -226,6 +237,33 @@ than the packaging: a fontconfig directory on Linux, `ATSApplicationFontsPath` i
 `Info.plist` on macOS, and on Windows a handed-over directory, since `pangocairo` selects
 the win32 backend and populates from DirectWrite alone (#1491, ADR 0038). The Linux and
 Windows halves are measured; the macOS one is NOT, because no leg here starts an `.app`.
+
+### A web view exists on Windows, headlessly and provably
+
+`@gjsify/iframe` needs `gi://WebKit` 6.0. On Linux that is the system WebKitGTK, on macOS
+Apple's WKWebView behind a shim answering to the same namespace — and on Windows there was
+nothing, and not for packaging reasons: WebKit's GTK port targets X11 and Wayland, and
+gvsbuild has no WebKit at all. Measured on a Windows 11 guest, the shipped closure carries
+45 typelibs and none of them is WebKit.
+
+So the engine is WebView2, Chromium, behind a backend that squats the same namespace on
+purpose and says so in its first paragraph. The consumer keeps
+`import WebKit from 'gi://WebKit?version=6.0'` verbatim; which typelib answers is decided
+by packaging, not by a branch in shipping source (#1494, ADR 0035).
+
+Thirteen assertions on a `windows-latest` runner, each returning a value rather than a
+signal: `load_html` reaches `LoadEvent.FINISHED`, `evaluate_javascript` reads a marker back
+out of the DOM, `get_snapshot` returns an encodable 640×480 texture at 5966 bytes of PNG,
+and the page's own `postMessage` arrives through `script-message-received`. The Win32
+message pump reports ATTACHED, which is the loop bridge the whole design turns on.
+
+**What that does not say.** The probe never presents a toplevel — on a service session
+`present()` dies with an access violation — so all of it ran against a hidden parking
+window. Re-parenting the child window under a real GTK toplevel, tracking its bounds,
+hiding it when unmapped, and "input, focus and accessibility come from the OS" are
+untested. Stage 2, which would put the view inside GSK's scene graph, is not begun. The
+honest claim is that a full-page document loads, evaluates and captures on Windows — not
+that a web view is a widget there yet.
 
 ### `https:` streams have a source and a TLS backend
 
@@ -265,52 +303,13 @@ those three is refused by name rather than silently leaving the target on the pr
 
 ---
 
-### Lists no framework owns
-
-A `Gio.ListStore` of carriers, a `Gtk.SignalListItemFactory`, a key diff and a teardown authority
-are GTK and GObject facts, not React ones. They used to live in the React Native renderer, which is
-why Vue and Solid had no lists at all.
-
-`@gjsify/gtk-host/list` is the neutral half, reachable through three callbacks: `mountRow` takes the
-carrier and returns a handle, `showRow` shows a row or empties it, `disposeRow` lets go. It imports
-GTK and GObject and nothing else.
-
-`@gjsify/gtk-host/solid`'s `listRows` is the second consumer, and it is not a demo. It keeps one
-reactive root per row WIDGET rather than per bound row, so a content change behind an unchanged key
-writes one property instead of rebuilding the row. The test asserts that by widget identity across
-an update, which React's equivalent cannot do because its row rebuilds a React tree.
-
-One thing stayed with React, visibly: its rows render on a microtask, because GTK binds from inside
-React's own commit where `render()` refuses re-entry by name. Solid needs no deferral.
-
-### Your `.desktop` entry and AppStream metadata are translated
-
-`gjsify ship` staged your compiled `.mo` catalogues and generated the `.desktop` entry and the
-AppStream component, and the two never met. A fully translated application showed an English name
-in the GNOME app menu and in Software, which nothing reports because nothing is broken.
-
-The catalogues are now folded in: `Name[de]=` in the entry, `<name xml:lang="de">` in the
-component. Each catalogue is merged by name with `msgfmt --locale=`, one call per language, rather
-than the bulk `-d <podir>` form. That form prints `po/LINGUAS does not exist` on stderr, writes an
-untranslated file and exits 0, and `desktop-file-validate` then passes it.
-
-Two `gjsify gettext` defects fell out of the same work. `--format=desktop` and `--format=xml` never
-passed `--template`, which `msgfmt` requires for both, so neither could ever have worked;
-`--format=json` was advertised and is not an option `msgfmt` has.
-
-### The widget gallery shows your framework
-
-Every widget page now carries a tab per framework: Solid, Vue and React beside the native
-TypeScript, and an XML template tab for NativeScript. Where a framework deliberately does not offer
-a widget, the pane says so and why, rather than leaving a gap you have to interpret.
-
-"Vanilla TypeScript" is now "Native TypeScript", because the code in it is the GTK one.
+### Breaking
 
 - **`@gjsify/adwaita-web` no longer exports the flat widget classes** (#1467). They are
   reachable under their `Gtk`/`Adw` namespace, which is what the vocabulary convergence
-  decided (ADR 0034); a flat name that shadowed a namespaced one gave two answers to the
-  same question.
-- **`@gjsify/iframe` now declares `node: "polyfill"`.** Nothing about the package changed
-  for a GJS consumer. A Node consumer reaches it through `gjsify build --app node` as
-  before — a bare `import` from `node_modules` was never supported and still is not, since
-  the source carries literal `gi://` specifiers.
+  decided (ADR 0034); a flat name shadowing a namespaced one gave two answers to one
+  question.
+- **`@gjsify/iframe` now declares `node: "polyfill"`.** Nothing changed for a GJS
+  consumer. A Node consumer reaches it through `gjsify build --app node` as before — a bare
+  `import` from `node_modules` was never supported and still is not, the source carrying
+  literal `gi://` specifiers.
