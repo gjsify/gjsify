@@ -67,10 +67,13 @@
  *
  * THE POSITIVE-FACT RULE — a check that verified nothing must not report success,
  * so this asserts COUNTS rather than the absence of findings:
- *   1. at least one candidate package is LIVE at the release version. POST-RELEASE
- *      ONLY: it says the release published something, which pre-release is not yet
- *      true and never will be — there the roster below carries the same weight,
- *      because 209 undeclared absences is exactly as red as one;
+ *   1. at least one candidate package ANSWERS on the registry, in whichever form
+ *      the phase can ask: post-release, live at the release version, which says the
+ *      release published something; pre-release, the name exists at all. Both forms
+ *      are asserted, and the roster substitutes for neither — the roster fires only
+ *      on an UNDECLARED absence, so declaring every name used to leave it quiet over
+ *      a run that had confirmed nothing and still exited 0 (measured 2026-09-03).
+ *      The ledger buys time for a queued publish; it does not answer the question;
  *   2. the tree DECLARES at least one release-pinned intra-repo edge — a property
  *      of the manifests, and the assertion that outlives a refactor: if the
  *      enumeration stops seeing the platform-sibling edges, every future release
@@ -160,11 +163,48 @@ import { createContext } from '../packages/infra/manifest-conformance/lib/contex
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org/';
 
 const argv = process.argv.slice(2);
-const flag = (name, fallback) => {
-    const i = argv.indexOf(name);
-    return i === -1 || i + 1 >= argv.length ? fallback : argv[i + 1];
-};
-const asJson = argv.includes('--json');
+
+/**
+ * EVERY ARGUMENT IS DECLARED, AND AN UNDECLARED ONE IS FATAL — because `--phase`
+ * selects the ASSERTIONS, so a parser that shrugs at a misspelling hands back the
+ * exact class this script exists to close. The refused-phase guard below only ever
+ * sees a wrong VALUE; three spellings never reached it at all and fell through to
+ * the post-release default. Measured 2026-09-03 on this tree with the previous
+ * `argv.indexOf(name)` helper: `--phase=pre-release`, a bare `--phase`, and
+ * `--phaze pre-release` each ran the POST-release assertions and exited 0 — a
+ * required pull-request check reporting green over the question #1500 refuted for a
+ * pull request, and one that would red-line `main` for the duration of every cut.
+ * A typo has to cost a red, not a phase.
+ *
+ * A value that itself looks like a flag is a MISSING value, not a value:
+ * `--attempts --json` would otherwise set attempts to `Number('--json')` — NaN,
+ * silently the default — and swallow the `--json` with it.
+ */
+const VALUE_ARGS = ['--phase', '--root', '--registry', '--version', '--concurrency', '--attempts', '--retry-delay-ms'];
+const BOOL_ARGS = ['--json'];
+const values = new Map();
+const argvProblems = [];
+for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    const eq = token.indexOf('=');
+    const name = eq === -1 ? token : token.slice(0, eq);
+    if (BOOL_ARGS.includes(name)) {
+        if (eq === -1) values.set(name, 'true');
+        else argvProblems.push(`${name} takes no value, got ${JSON.stringify(token)}.`);
+        continue;
+    }
+    if (!VALUE_ARGS.includes(name)) {
+        argvProblems.push(
+            `unknown argument ${JSON.stringify(token)}; expected one of ${[...VALUE_ARGS, ...BOOL_ARGS].join(', ')}.`,
+        );
+        continue;
+    }
+    const value = eq === -1 ? argv[++i] : token.slice(eq + 1);
+    if (value === undefined || value.startsWith('--')) argvProblems.push(`${name} needs a value.`);
+    else values.set(name, value);
+}
+const flag = (name, fallback) => values.get(name) ?? fallback;
+const asJson = values.has('--json');
 
 // An unrecognised phase is refused rather than defaulted: silently running the
 // post-release assertions on a pull request is the exact failure #1500 measured,
@@ -201,6 +241,13 @@ const warn = (msg) => {
     console.log(inActions ? `::warning title=${title}::${msg}` : `WARNING: ${msg}`);
 };
 
+// Reported here rather than at the parse loop above, which runs before `fail` exists.
+// Every finding, not the first: a reader fixing one typo should not have to re-run to
+// discover the next.
+if (argvProblems.length > 0) {
+    for (const p of argvProblems) fail(p);
+    process.exit(1);
+}
 if (!PHASES.includes(phase)) {
     fail(`unknown --phase ${JSON.stringify(phase)}; expected one of ${PHASES.join(', ')}.`);
     process.exit(1);
@@ -507,6 +554,22 @@ if (!preRelease && errored.length === 0 && live.length === 0) {
             'nothing must not report success.',
     );
 }
+// PRE-RELEASE'S FORM OF THE SAME RULE, and it needs its own: post-release the floor
+// is "the release published something", which pre-release is never. The header leaned
+// on the roster to carry that weight, and the roster only fires on an UNDECLARED
+// absence — so declaring every name went quiet, printed a NOTHING VERIFIED verdict and
+// exited 0 having confirmed no name at all. Measured 2026-09-03 before this assertion.
+// The ledger buys time for a queued publish; it does not get to become the answer to
+// the whole question. Unreachable any other way: an undeclared absence already fails
+// the roster above, and an unanswered probe already fails as no evidence.
+if (preRelease && errored.length === 0 && live.length === 0) {
+    problems.push(
+        `not one of ${candidates.length} publishable name(s) was confirmed on ${registry}, so this run verified ` +
+            `NOTHING — ${absentDeclared.length} are declared pending bootstrap and the rest are absent. A declared ` +
+            'gap is an escape hatch for one queued publish, not for the question this check asks: at least one name ' +
+            'has to answer, or neither the enumeration nor the registry was examined at all.',
+    );
+}
 if (pinnedEdges.length === 0) {
     problems.push(
         `the tree at ${repoRoot} declares NO release-pinned intra-repo dependency at all, so there is nothing for ` +
@@ -711,12 +774,13 @@ const verdict =
           ? // Pre-release the SUBJECT is names, not edges — an examinable edge needs a
             // live parent, and a tree whose new bridge is not published yet legitimately
             // has none. Reusing the edge-based branch here reported NOTHING VERIFIED
-            // over a run that had confirmed every name it was asked about.
-            live.length === 0
-              ? '**NOTHING VERIFIED** — no publishable name was confirmed on the registry'
-              : `**OK** — ${live.length} publishable name(s) exist on npm` +
-                `${absentDeclared.length > 0 ? `, ${absentDeclared.length} declared pending` : ''}` +
-                `; ${examined.length} examined edge(s) resolve`
+            // over a run that had confirmed every name it was asked about. A
+            // `live.length === 0` branch stood here too; the positive-fact assertion
+            // above now FAILS that state, so it cannot be reached without a problem and
+            // its verdict is `FAILED`. Dead reassurance is the thing this file removes.
+            `**OK** — ${live.length} publishable name(s) exist on npm` +
+            `${absentDeclared.length > 0 ? `, ${absentDeclared.length} declared pending` : ''}` +
+            `; ${examined.length} examined edge(s) resolve`
           : examined.length === 0
             ? '**NOTHING VERIFIED** — no edge was examined; see the warning above'
             : `**OK** — all ${examined.length} examined edge(s) resolve`;

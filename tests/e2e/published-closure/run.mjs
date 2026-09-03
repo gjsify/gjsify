@@ -897,6 +897,81 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
             assert.match(r.out, /unknown --phase "prerelease"; expected one of post-release, pre-release/);
         });
 
+        it('an unknown ARGUMENT is refused, not ignored', async () => {
+            // The half the phase guard could not see. It only ever inspects a wrong
+            // VALUE; the previous `argv.indexOf(name)` helper answered only for the
+            // exact spelling `--phase <value>`, so three others never reached it and
+            // fell through to the post-release default. Measured 2026-09-03 on the
+            // real tree: `--phaze pre-release`, `--phase=pre-release` and a bare
+            // `--phase` each ran the POST-release assertions and exited 0 — a required
+            // pull-request check green over the question #1500 refuted for a pull
+            // request, which is the class this phase exists to close, reintroduced by
+            // its own interface. A typo has to cost a red, not a phase.
+            const root = fixture('argv-unknown', splitBridge);
+            published = olderThanTree();
+            const r = await runScript(['--root', root, '--registry', registryUrl, '--phaze', 'pre-release']);
+            assert.notEqual(r.status, 0, `an unknown argument must not be ignored:\n${r.out}`);
+            assert.match(r.out, /unknown argument "--phaze"/);
+        });
+
+        it('a flag with no value is refused, not silently defaulted', async () => {
+            const root = fixture('argv-novalue', splitBridge);
+            published = olderThanTree();
+            const r = await runScript(['--root', root, '--registry', registryUrl, '--phase']);
+            assert.notEqual(r.status, 0, `a missing value must not select the default:\n${r.out}`);
+            assert.match(r.out, /--phase needs a value/);
+        });
+
+        it('--phase=pre-release selects the phase instead of falling through', async () => {
+            // The `=` spelling is the one a workflow author reaches for, and it used to
+            // land on the post-release default with no diagnostic at all. This tree is
+            // the discriminator: every name exists, none at the tree's version, so
+            // pre-release is green here and post-release is red on "published NOTHING".
+            // `--attempts=1` exercises the same spelling on a numeric flag.
+            const root = fixture('argv-equals', splitBridge);
+            published = olderThanTree();
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts=1',
+                '--phase=pre-release',
+            ]);
+            assert.equal(r.status, 0, `the equals spelling must select pre-release:\n${r.out}`);
+            assert.match(r.stdout, /Pre-release npm bootstrap check/);
+        });
+
+        it('the ledger cannot answer the WHOLE question: zero names confirmed fails', async () => {
+            // The pre-release form of the positive-fact rule, which needs its own arm:
+            // post-release asserts "the release published something", pre-release never
+            // can, and the roster does not substitute for it because the roster fires
+            // only on an UNDECLARED absence. Measured 2026-09-03 before this assertion:
+            // a tree with every name declared exited 0 printing "Every one of 0
+            // publishable name(s) exists on npm" — a success claim over an empty set,
+            // which is the one sentence this script's own header forbids.
+            const root = fixture('all-declared', splitBridge, {
+                '@fix/util': 'queued: publish + trust',
+                '@fix/bridge': 'queued: publish after both targets',
+                '@fix/bridge-linux-x64': 'queued: target BEFORE bridge',
+                '@fix/bridge-darwin-arm64': 'queued: target BEFORE bridge',
+            });
+            published = new Map();
+            const r = await runScript([
+                '--root',
+                root,
+                '--registry',
+                registryUrl,
+                '--attempts',
+                '1',
+                '--phase',
+                'pre-release',
+            ]);
+            assert.notEqual(r.status, 0, `a run that confirmed no name at all must not pass:\n${r.out}`);
+            assert.match(r.out, /not one of 4 publishable name\(s\) was confirmed/);
+            assert.doesNotMatch(r.out, /Every one of 0/);
+        });
+
         it('the pre-release phase is WIRED to a job that runs on a pull request', () => {
             // Detection that arrives after the tag reads identically to a check that
             // passed, so the wiring is the whole point of this phase and is asserted

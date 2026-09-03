@@ -41,10 +41,18 @@
 // the root `workspaces`. It is not — it passes `discoveryRoots: ['packages']`, with its
 // own comment saying why (`packages/napi/*` and `packages/node-gi/*` are exactly the
 // packages those globs drop), so all six ARE in its candidate set and its ROSTER arm
-// does ask the registry about them. Measured 2026-09-03: 209 candidates, these six
-// among them, against 319 from the globs with none of them. Corrected here rather than
-// deleted, because the claim is why this file exists and a wrong premise is what gets a
-// duplicate check written next.
+// does ask the registry about them. Measured 2026-09-03: 209 publishable candidates
+// under `discoveryRoots`, these six among them, against 199 from the root `workspaces`
+// globs with none of them. Corrected here rather than deleted, because the claim is why
+// this file exists and a wrong premise is what gets a duplicate check written next.
+//
+// COMPARE THE SAME QUANTITY. The first spelling of that correction put the 209 next to
+// 319, which is the globs' TOTAL package count and not their candidate count (331 under
+// `discoveryRoots`) — two different questions, reading as ~110 packages dropped where 10
+// candidates are. A live count in a comment drifts unseen anyway, which is how the claim
+// this block replaced came to say 317: root AGENTS.md § Code anti-patterns asks for what
+// the number establishes, and what these establish is that the SIX are candidates there
+// and are absent from any workspaces-derived roster.
 //
 // The rule that survives is narrower and still load-bearing: until #1500 the closure
 // script ran ONLY at the end of `release.yml`, so its roster reported at release time,
