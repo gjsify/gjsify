@@ -44,6 +44,10 @@ xgettextPlugin({
 });
 ```
 
+Both guards throw. `xgettext`, `msgcat` and `msgmerge` failures are no longer reported to the
+console beside a zero exit code either — a build that could not write the catalogs it was asked to
+write fails.
+
 ### A `sources` pattern reaching into a sibling package is a build dependency
 
 `sources` is read at extraction time, so a pattern like `../learn/dist/**/*.ui` requires that the

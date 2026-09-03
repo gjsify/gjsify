@@ -197,14 +197,14 @@ async function generatePotfiles(files: string[], outputDir: string, pluginName: 
         const potfilePath = path.join(outputDir, `${group}.POTFILES`);
         const content = groupFiles.join('\n');
 
-        try {
-            await fs.writeFile(potfilePath, content);
-            potFiles.push(potfilePath);
-            if (verbose) {
-                console.log(`[${pluginName}] Generated ${group}.POTFILES with ${groupFiles.length} source files`);
-            }
-        } catch (error) {
-            console.error(`[${pluginName}] Error writing ${group}.POTFILES:`, error);
+        // Deliberately unguarded. A caught write failure used to leave the group
+        // out of `potFiles`, so xgettext never ran for it and the whole group left
+        // the POT — the incident in `guards.ts`, reached without any pattern being
+        // wrong. Nothing here can be recovered from; it has to end the build.
+        await fs.writeFile(potfilePath, content);
+        potFiles.push(potfilePath);
+        if (verbose) {
+            console.log(`[${pluginName}] Generated ${group}.POTFILES with ${groupFiles.length} source files`);
         }
     }
 
@@ -495,39 +495,43 @@ async function assertCatalogsSurviveNextMerge(options: XGettextPluginOptions, pl
     });
 }
 
+/**
+ * Merges the POT into every catalog LINGUAS declares.
+ *
+ * Deliberately unguarded, like `generatePotfiles`. A caught error here used to be
+ * one `console.error` beside exit 0 — and by then `msgmerge --update` may already
+ * have rewritten the catalogs it got to, so "an error was printed" and "the
+ * catalogs are intact" were unrelated facts.
+ */
 async function updatePoFiles(potFile: string, pluginName: string, verbose: boolean, options: XGettextPluginOptions) {
-    try {
-        for (const { file: poFile } of await listCatalogs(potFile)) {
+    for (const { file: poFile } of await listCatalogs(potFile)) {
+        if (verbose) {
+            console.log(`[${pluginName}] Updating ${poFile}`);
+        }
+        const baseMsgmergeArgs = ['--update', '--backup=none', poFile, potFile];
+        const args = buildCommandArgs(baseMsgmergeArgs, {
+            noLocation: options.noLocation,
+            noWrap: options.noWrap,
+        });
+
+        const env = { ...process.env };
+        if (options.deterministic) {
+            const epoch = typeof options.sourceDateEpoch === 'number' ? options.sourceDateEpoch : 0;
+            env.SOURCE_DATE_EPOCH = String(epoch);
+        }
+
+        await execa('msgmerge', args, { env });
+
+        // Post-process with msgcat to unwrap existing wrapped lines
+        if (options.noWrap) {
+            const tempFile = poFile + '.tmp';
+            const msgcatArgs = ['--width=0', '--no-wrap', '-o', tempFile, poFile];
+            await execa('msgcat', msgcatArgs, { env });
+            await fs.rename(tempFile, poFile);
             if (verbose) {
-                console.log(`[${pluginName}] Updating ${poFile}`);
-            }
-            const baseMsgmergeArgs = ['--update', '--backup=none', poFile, potFile];
-            const args = buildCommandArgs(baseMsgmergeArgs, {
-                noLocation: options.noLocation,
-                noWrap: options.noWrap,
-            });
-
-            const env = { ...process.env };
-            if (options.deterministic) {
-                const epoch = typeof options.sourceDateEpoch === 'number' ? options.sourceDateEpoch : 0;
-                env.SOURCE_DATE_EPOCH = String(epoch);
-            }
-
-            await execa('msgmerge', args, { env });
-
-            // Post-process with msgcat to unwrap existing wrapped lines
-            if (options.noWrap) {
-                const tempFile = poFile + '.tmp';
-                const msgcatArgs = ['--width=0', '--no-wrap', '-o', tempFile, poFile];
-                await execa('msgcat', msgcatArgs, { env });
-                await fs.rename(tempFile, poFile);
-                if (verbose) {
-                    console.log(`[${pluginName}] Unwrapped lines in ${poFile}`);
-                }
+                console.log(`[${pluginName}] Unwrapped lines in ${poFile}`);
             }
         }
-    } catch (error) {
-        console.error(`[${pluginName}] Error updating PO files:`, error);
     }
 }
 
