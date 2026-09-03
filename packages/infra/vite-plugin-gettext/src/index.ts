@@ -1,3 +1,4 @@
+export { CatalogShrinkError, EmptySourcePatternError, GettextGuardError } from './guards.js';
 export { gettextPlugin } from './gettext.js';
 export { msgfmtPlugin } from './msgfmt.js';
 export { xgettextPlugin } from './xgettext.js';

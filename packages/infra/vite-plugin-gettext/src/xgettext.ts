@@ -4,6 +4,12 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import glob from 'fast-glob';
+import {
+    assertCatalogsSurviveMerge,
+    assertEverySourcePatternMatched,
+    countActiveEntries,
+    GettextGuardError,
+} from './guards.js';
 import type { XGettextPluginOptions } from './types.js';
 import { checkDependencies, ensureDirectory, processFilename } from './utils.js';
 
@@ -95,7 +101,7 @@ export function xgettextPlugin(options: XGettextPluginOptions): Plugin {
 
         async buildStart() {
             await checkDependencies('xgettext', pluginName, options.verbose ?? false);
-            const files = await glob(options.sources);
+            const files = await resolveSources(options, pluginName);
             await extractStrings(files, options, pluginName);
         },
 
@@ -107,12 +113,33 @@ export function xgettextPlugin(options: XGettextPluginOptions): Plugin {
                     if (options.verbose) {
                         console.log(`[${pluginName}] Source file changed: ${file}, re-running extraction`);
                     }
-                    const files = await glob(options.sources);
+                    const files = await resolveSources(options, pluginName);
                     await extractStrings(files, options, pluginName);
                 }
             });
         },
     };
+}
+
+/**
+ * Resolves `sources` to files, globbing each pattern SEPARATELY.
+ *
+ * The union `glob(options.sources)` used to return cannot say WHICH pattern came
+ * up empty, and in the incident `guards.ts` records only one of several did — so
+ * the union was non-empty and there was nothing left to notice. Per-pattern is
+ * what makes the guard able to name the offender.
+ */
+async function resolveSources(options: XGettextPluginOptions, pluginName: string): Promise<string[]> {
+    const perPattern = await Promise.all(options.sources.map((pattern) => glob(pattern)));
+
+    assertEverySourcePatternMatched(
+        options.sources.map((pattern, index) => ({ pattern, fileCount: perPattern[index].length })),
+        { pluginName, cwd: process.cwd(), optionalSources: options.optionalSources },
+    );
+
+    // Two patterns may legitimately reach the same file; xgettext would then scan
+    // it twice and msgcat would have to fold the duplicate back out.
+    return [...new Set(perPattern.flat())];
 }
 
 async function generatePotfiles(files: string[], outputDir: string, pluginName: string, verbose = false) {
@@ -363,20 +390,79 @@ async function extractStrings(files: string[], options: XGettextPluginOptions, p
         }
 
         if (options.autoUpdatePo) {
+            await assertCatalogsSurviveNextMerge(options, pluginName);
             await updatePoFiles(options.output, pluginName, options.verbose || false, options);
         }
     } catch (error) {
+        // A guard's message IS the guard — wrapping it in "Failed to extract
+        // translations: Error: …" buries the instruction that makes it useful.
+        if (error instanceof GettextGuardError) {
+            throw error;
+        }
         throw new Error(`Failed to extract translations: ${error}`);
     }
 }
 
+/** The catalogs LINGUAS declares beside a POT. */
+async function listCatalogs(potFile: string): Promise<Array<{ language: string; file: string }>> {
+    const directory = path.dirname(potFile);
+    const linguas = await readTextOrEmpty(path.join(directory, 'LINGUAS'));
+
+    return linguas
+        .split('\n')
+        .filter(Boolean)
+        .map((language) => ({ language, file: path.join(directory, `${language}.po`) }));
+}
+
+/**
+ * A file that is not there yet reads as empty rather than as a failure: a project
+ * with no LINGUAS has no translations, and a language named in LINGUAS before its
+ * catalog exists holds no entries. Both are states a first run is legitimately
+ * in, and neither is something a merge can destroy.
+ */
+async function readTextOrEmpty(file: string): Promise<string> {
+    try {
+        return await fs.readFile(file, 'utf-8');
+    } catch (error) {
+        // ONLY "not there yet" reads as empty. A permission or I/O error must not:
+        // an unreadable catalog counted as holding nothing is the guard talking
+        // itself out of firing.
+        if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+            return '';
+        }
+        throw error;
+    }
+}
+
+/**
+ * Reads what `msgmerge` is about to rewrite and hands the counts to the pure
+ * check.
+ *
+ * Called from `extractStrings` BEFORE `updatePoFiles` and outside that function's
+ * catch — a refusal that became one more `console.error` beside a zero exit code
+ * would be the exact silence this guards against.
+ */
+async function assertCatalogsSurviveNextMerge(options: XGettextPluginOptions, pluginName: string): Promise<void> {
+    const catalogs = await listCatalogs(options.output);
+    const sizes = await Promise.all(
+        catalogs.map(async ({ language, file }) => ({
+            language,
+            entries: countActiveEntries(await readTextOrEmpty(file)),
+        })),
+    );
+
+    assertCatalogsSurviveMerge({
+        potEntries: countActiveEntries(await readTextOrEmpty(options.output)),
+        catalogs: sizes,
+        potFile: options.output,
+        pluginName,
+        maxEntryLoss: options.maxCatalogEntryLoss,
+    });
+}
+
 async function updatePoFiles(potFile: string, pluginName: string, verbose: boolean, options: XGettextPluginOptions) {
     try {
-        const linguasPath = path.join(path.dirname(potFile), 'LINGUAS');
-        const languages = (await fs.readFile(linguasPath, 'utf-8')).split('\n').filter(Boolean);
-
-        for (const lang of languages) {
-            const poFile = path.join(path.dirname(potFile), `${lang}.po`);
+        for (const { file: poFile } of await listCatalogs(potFile)) {
             if (verbose) {
                 console.log(`[${pluginName}] Updating ${poFile}`);
             }

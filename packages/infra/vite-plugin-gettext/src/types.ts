@@ -5,6 +5,19 @@
 export interface XGettextPluginOptions {
     /** Glob patterns for source files to extract strings from */
     sources: string[];
+    /**
+     * Entries of `sources` that are allowed to match no files.
+     *
+     * Every other pattern that matches nothing fails the build — see
+     * `assertEverySourcePatternMatched`. Listed per pattern rather than as one
+     * boolean so declaring one group optional does not disarm the rest.
+     */
+    optionalSources?: string[];
+    /**
+     * Fraction of its entries the catalog set may lose in one run before
+     * `autoUpdatePo` refuses to merge. Defaults to 1/3; `1` disables the check.
+     */
+    maxCatalogEntryLoss?: number;
     /** Output path for the POT template file */
     output: string;
     /** The gettext domain name, defaults to 'messages' */

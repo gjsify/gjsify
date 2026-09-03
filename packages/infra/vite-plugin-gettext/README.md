@@ -16,6 +16,29 @@ yarn add @gjsify/vite-plugin-gettext
 
 Requires `gettext` tools (`msgfmt`, `xgettext`) to be installed on the system.
 
+## Extraction refuses to destroy translations
+
+`xgettextPlugin` fails the build instead of writing a POT that would silently gut the catalogs:
+
+- **Every `sources` pattern must match at least one file.** A pattern that matches nothing is
+  almost always a build-order or path mistake — typically it points at a build artifact of another
+  package that has not been built yet — and extracting anyway drops that whole group of strings.
+  A group that really is optional is named in `optionalSources`, one pattern at a time.
+- **`autoUpdatePo` will not prune a catalog set beyond `maxCatalogEntryLoss`** (default `1/3`).
+  `msgmerge` moves every entry the POT lost into `#~` comments, which `msgfmt` ignores, so a POT
+  that came out short costs real translations. A run that really does delete that many strings
+  raises the option.
+
+```typescript
+xgettextPlugin({
+    sources: ['src/**/*.blp', 'data/**/*.desktop.in'],
+    output: 'po/messages.pot',
+    autoUpdatePo: true,
+    // optionalSources: ['plugins/**/*.ui'],
+    // maxCatalogEntryLoss: 0.5,
+});
+```
+
 ## Usage
 
 ```typescript
