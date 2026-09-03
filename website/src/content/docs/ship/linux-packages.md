@@ -183,6 +183,25 @@ them first with [`gjsify gettext`](/gjsify/cli-reference/#gjsify-gettext). The
 catalogues are staged into `share/locale/` and the launcher exports
 `GJSIFY_LOCALE_DIR`.
 
+## Ship a brand typeface
+
+`gjsify.ship.fonts` — a directory of faces, or one face, defaulting to `data/fonts`
+when that exists — stages them at `share/fonts/<appId>/`.
+
+```jsonc
+"gjsify": { "ship": { "fonts": "data/fonts" } }
+```
+
+On Linux the toolkit gets there without you: the stock `fonts.conf` names
+`/usr/share/fonts` unconditionally, which covers the `.deb` and the `.rpm`, and it
+expands `<dir prefix="xdg">fonts</dir>` over `XDG_DATA_DIRS` — which the launcher
+already sets at the staged `share/` on every prefix, including Flatpak's `/app`.
+There is no `fc-cache` step; the cache is built lazily on first use.
+
+Neither macOS nor Windows gets there that way, so if your project also ships those,
+read [Ship your own fonts](/gjsify/guides/bundled-fonts/) — the one call it adds to
+your startup is redundant here and the only mechanism there is on Windows.
+
 ## The Flatpak bundle
 
 The same payload also becomes a single-file Flatpak.
@@ -456,6 +475,8 @@ to set. The ones you are most likely to meet:
   self-executing bundles and dlx.
 - [macOS app bundles](/gjsify/ship/macos/) and [Windows artifacts](/gjsify/ship/windows/)
   cover the other two operating systems.
+- [Ship your own fonts](/gjsify/guides/bundled-fonts/) if your app carries a brand
+  typeface and you want it to render on all three.
 - [CLI Reference → `gjsify ship`](/gjsify/cli-reference/#gjsify-ship) is the
   condensed flag and configuration reference.
 - [Flatpak: GUI app](/gjsify/guides/flatpak-app/) if you also want a Flathub

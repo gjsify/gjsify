@@ -186,27 +186,29 @@ targets for prerelease builds.
 `gjsify.ship.fonts` stages your faces into `share/fonts/<appId>/` and the launcher
 exports `GJSIFY_FONT_DIR` pointing at it. On Windows that is where the command's job
 ends: `pangocairo` selects the win32 backend, which populates from DirectWrite alone,
-so a fontconfig directory is inert here. Measured — the default font map stays at its
-82 system families even when your config is the only one loaded.
+so a fontconfig directory is inert here. Measured — a config naming your staged
+directory moves the default font map by zero families even when it is the only one
+loaded.
 
-So register them yourself, once, before the first styled widget:
+So register them, once, before you build any UI. One call from the GTK host layer
+does it:
 
-```js
-import GLib from 'gi://GLib?version=2.0';
-import PangoCairo from 'gi://PangoCairo?version=1.0';
+```ts
+import { initFonts } from '@gjsify/gtk-host/fonts';
 
-const dir = GLib.getenv('GJSIFY_FONT_DIR');
-if (dir) {
-  for (const file of listFontFiles(dir)) {
-    PangoCairo.FontMap.get_default().add_font_file(file);
-  }
-}
+initFonts();
 ```
 
-`add_font_file()` arrived in Pango 1.56 and works on Linux too, so the same call
-covers both and you do not need an OS branch. Skip it and Pango falls back to a
-system face — silently. The app merely looks wrong, with no error and no exit code,
+It reads `GJSIFY_FONT_DIR` itself, hands every face it finds to
+`PangoCairo.FontMap.get_default().add_font_file()`, never throws, and does nothing
+when the payload carries no font — so the same line goes in your Linux and macOS
+builds with no OS branch around it. Skip it on Windows and Pango falls back to a
+system face, silently: the app merely looks wrong, with no error and no exit code,
 which is why this section exists rather than a warning at build time.
+
+[Ship your own fonts](/gjsify/guides/bundled-fonts/) has the staging key, where in
+`startup` the call belongs, and a check that tells a registered family apart from a
+substituted one.
 
 ## One thing to know before you hand it to a user
 
@@ -277,5 +279,7 @@ process computes about itself. The positional accepts both `windows` and
 - [Sign your artifacts](/gjsify/ship/signing/) covers `--sign` and `--notarize`.
 - [macOS app bundles](/gjsify/ship/macos/) is the same shape one operating
   system over.
+- [Ship your own fonts](/gjsify/guides/bundled-fonts/) is the whole story behind
+  the `initFonts()` call above.
 - [CLI Reference → `gjsify ship`](/gjsify/cli-reference/#gjsify-ship) lists
   every flag and configuration key.

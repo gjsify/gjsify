@@ -201,6 +201,7 @@ export default defineConfig({
                         { slug: 'ship/macos', label: 'macOS' },
                         { slug: 'ship/windows', label: 'Windows' },
                         { slug: 'ship/signing', label: 'Signing' },
+                        { slug: 'guides/bundled-fonts', label: 'Bundled Fonts' },
                         { slug: 'guides/flatpak-app', label: 'Flatpak: GUI App' },
                         { slug: 'guides/flatpak-cli-tool', label: 'Flatpak: CLI Tool' },
                         { slug: 'guides/distributing-gjs-apps', label: 'One-Line Installer' },

@@ -159,6 +159,14 @@ CI leg here starts an `.app`** — so that macOS then resolves the family is not
 something this project has measured, unlike the Linux and Windows halves. And a
 `.app` is the only macOS layout that carries fonts; there is no `.pkg` path.
 
+The `initFonts()` call the [Windows](/gjsify/ship/windows/) row needs is still safe
+to leave in a shared codebase. Pango's CoreText font map implements no runtime
+registration, so the call answers `G_IO_ERROR_NOT_SUPPORTED`, the faces come back
+under `declined` rather than `failed`, and nothing is lost — the `Info.plist` key
+already activated the same directory before your code ran. So you need no
+`process.platform` branch. [Ship your own fonts](/gjsify/guides/bundled-fonts/) has
+the detail, including what to check inside a running bundle.
+
 ## Make a .dmg
 
 A `.dmg` is a UDIF image over a real HFS+ volume, and the only program that
@@ -249,5 +257,7 @@ bundle will start on a Mac with neither Node nor Homebrew GTK installed.
 - [Sign your artifacts](/gjsify/ship/signing/) covers `--sign` and `--notarize`.
 - [Windows artifacts](/gjsify/ship/windows/) is the same shape one operating
   system over.
+- [Ship your own fonts](/gjsify/guides/bundled-fonts/) covers the payload key and
+  what your app does with it on the other two.
 - [CLI Reference → `gjsify ship`](/gjsify/cli-reference/#gjsify-ship) lists
   every flag and configuration key.
