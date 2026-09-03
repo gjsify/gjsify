@@ -321,15 +321,43 @@ export async function writevAsync(fd: number, buffers: NodeJS.ArrayBufferView[],
     return { bytesWritten: writevSync(fd, buffers, position), buffers };
 }
 
+/**
+ * The one entry point in `node:fs` whose callback takes `(exists)` rather than
+ * `(err, value)`. Three consequences, all measured against node v24.19.0.
+ *
+ * The answer is DELIVERED, not handed over in place: Node reads it out of
+ * `fs.access`'s async completion, so `exists(p, cb)` returns before `cb` runs —
+ * the same one-microtask contract `withHandle` documents in `callback.ts`.
+ *
+ * Delivering it also moves the call OUT of the try below, which is the half
+ * that was silently wrong. The call used to sit inside, so a callback that
+ * threw was caught and re-entered with `false`: the caller's own exception came
+ * back to them as a filesystem answer, and an existing file read as missing.
+ * Node lets that throw reach the host. Sibling rule: `fs-semantics.spec.ts`
+ * K-19, the same defect in `mkdtemp`.
+ *
+ * `util.promisify.custom` below is what the `(exists)` shape costs: without it
+ * a promisified `exists` reads the lone `true` as an `err` and rejects.
+ */
 export function exists(path: PathLike, callback: (exists: boolean) => void): void {
     requireCallback(callback);
+    let found: boolean;
     try {
         statSync(normalizePath(path));
-        callback(true);
+        found = true;
     } catch {
-        callback(false);
+        // The stat failure IS the answer — Node reports every `access(F_OK)`
+        // error as "does not exist". This catch converts, it does not swallow.
+        found = false;
     }
+    Promise.resolve().then(() => callback(found));
 }
+
+// `Symbol.for`, not a fresh symbol: the REGISTERED key is what both `node:util`
+// and `@gjsify/util` look up, so one definition serves either runtime.
+Object.defineProperty(exists, Symbol.for('nodejs.util.promisify.custom'), {
+    value: (path: PathLike): Promise<boolean> => new Promise((resolve) => exists(path, resolve)),
+});
 
 export async function openAsBlob(path: PathLike, options?: { type?: string }): Promise<Blob> {
     const data = readFileSync(normalizePath(path)) as unknown as ArrayBuffer;
