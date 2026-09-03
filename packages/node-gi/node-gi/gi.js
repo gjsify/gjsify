@@ -145,6 +145,18 @@ class GLibError extends Error {
         this.code = code;
     }
 
+    // g_error_new_literal, which GJS exposes as a static on GLib.Error because it is in
+    // `GLib-2.0.gir` — and which is the only spelling `@girs/glib-2.0` TYPES, its
+    // `constructor(properties?)` signature rejecting the three positional arguments the
+    // constructor above actually takes. So a cross-runtime source that has to build a GError
+    // (a test asserting on an error a host cannot produce, say a CoreText font map's
+    // G_IO_ERROR_NOT_SUPPORTED) type-checks only against this, and without it the gjs leg
+    // passes and the node leg dies with `Error.new_literal is not a function`. Same arguments,
+    // same result — the constructor is the implementation.
+    static new_literal(domain, code, message) {
+        return new GLibError(domain, code, message);
+    }
+
     // g_error_matches: true when the error's domain AND code both match.
     matches(domain, code) {
         const d = errorDomainOf(domain);

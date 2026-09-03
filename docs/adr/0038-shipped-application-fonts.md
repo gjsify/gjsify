@@ -486,3 +486,50 @@ Landed with this ADR, in `packages/infra/cli`:
   here builds a program directory and runs it, and no `@gjsify/*` package makes
   the call the launcher hands `GJSIFY_FONT_DIR` to. `Layout.fontGap` is what says
   both out loud instead of letting a green stage imply otherwise.
+
+## Amendment (2026-09-03) — the Windows call has a home, and it is keyed on the error
+
+Two statements above were true when this ADR was accepted and are not any more. § *Decision* 6
+says of the windows row *"What the note still cannot claim is that any application makes the
+call — no `@gjsify/*` package does yet"*, and § *What this does NOT decide* opens with *"The
+Windows call has no home in `@gjsify/*` yet."* Both are retired by `initFonts()` in
+**`@gjsify/gtk-host/fonts`**.
+
+`@gjsify/gtk-host` rather than `@gjsify/adwaita-app`, which `status/open-todos.md` had proposed
+on the `initLocale` precedent. The host layer is what § *What this does NOT decide* named (ADR
+0027), and two facts settle it independently of the ancestry: `adwaita-app` declares
+`gjsify.runtimes.node: "none"` while Windows has no GJS host at all, so the call would live on a
+runtime slot its own package disclaims; and `gtk-os-suites.yml` builds `@gjsify/gtk-host` in BOTH
+the darwin and the win32 legs while `adwaita-app` appears in neither, so an `initFonts()` there
+would be gated by nothing on the one platform that needs it. The shape `locale-dir.ts` set is
+kept — a pure `resolveFontDir` beside a GI-bound caller — it is simply mirrored into the other
+package. It is a SUBPATH so that `gi://PangoCairo` stays out of the root import graph every
+renderer binds to.
+
+**The darwin no-op is keyed on `G_IO_ERROR_NOT_SUPPORTED`, not on `process.platform`.** § 3's
+darwin row and `expo-font.ts` both establish that the CoreText map answers that code because it
+implements no `add_font_file` vfunc; treating the answer as "this map does not do runtime
+registration, and on this OS something else already did" needs no OS branch. Three things follow
+that a platform string would not have given: the package still makes no OS decision, so it owes
+no `gjsify.os` declaration under ADR 0018 and the `os-axis` candidate set is unchanged; the
+behaviour stays correct if a fontconfig-backed Pango is ever selected on darwin, which
+`pangocairo-fontmap.c` decides by what is compiled in rather than per platform and which
+`PANGOCAIRO_BACKEND=fc` selects by hand; and the branch becomes checkable from a Linux runner —
+a synthesised `GLib.Error` in the Gio domain exercises it, where a platform read could only ever
+be asserted on macOS.
+
+Registration is EXPLICIT, never eager. This package owns no application lifecycle to hook, and
+the reason § *What this does NOT decide* gives for `gjsify ship` not injecting a startup step
+holds one layer up: a module-load side effect would decide an application's initialisation order
+invisibly, and in this repository it would also be a bare side-effect import — the shape that
+left `@gjsify/adwaita-web` shipping no font for its whole life. A face that fails to open warns
+and is reported in the result; it does not abort, because taking an application down over a
+decorative face is worse than a fallback, and doing so silently is what this ADR exists against.
+
+What this amendment does NOT change: § *Do not let a file count stand in for a load* still
+stands in both directions. The call is now measured on Linux too — Fedora 44 / Pango 1.57.1,
+`list_families()` 100 → 101 with the staged family present, and the ADR's own metric
+discriminator reproduced (a `Round9x13` layout measures 87x63 px before registration, identical
+to an invented family, and 66x50 px after). What no leg here still does is build a program
+directory or a `.app`, start it through the launcher this command wrote, and assert the family
+resolves in THAT process. `status/open-todos.md`.

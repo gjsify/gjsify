@@ -371,16 +371,19 @@ jobs:
       # run the arm64 closure on Intel and surface four steps later as an
       # inscrutable dlopen error.
       #
-      # `--allow-legacy-license-record` is what tells the shared gate this is the
-      # PUBLISHED-closure role and not the pre-publish one. `licenses.binariesCovered`
-      # postdates the 0.45.0 tarballs, so requiring it here turned all three of these
-      # legs red at once over a property no already-published artifact can acquire —
-      # only the next release writes it. The allowance is narrow (an absent record
-      # only; a recorded ZERO still fails here) and self-retiring (the step prints that
-      # the flag is droppable the first time a published bundle carries the field).
-      # release.yml passes NO flag: there the bundle was just built.
+      # `--allow-legacy-license-record` USED to be here, marking this the
+      # PUBLISHED-closure role: `licenses.binariesCovered` postdates the 0.45.0
+      # tarballs, so requiring it turned all three of these legs red at once over a
+      # property no already-published artifact could acquire. The flag was built
+      # self-retiring — it printed that it was droppable the first time a published
+      # bundle carried the field — and it did: `verify-bundle-manifest:
+      # --allow-legacy-license-record was not needed — this bundle records its license
+      # coverage`. So the published closure has caught up with the gate and the
+      # allowance is gone, which is the point of a flag that reports its own
+      # obsolescence. release.yml has always passed none: there the bundle was just
+      # built.
       - name: Verify the published bundle's manifest
-        run: node packages/node-gi/scripts/verify-bundle-manifest.mjs --bundle "packages/node-gi/node-gi/prebuilds/$TARGET/gtk" --expect-host-target darwin --allow-legacy-license-record
+        run: node packages/node-gi/scripts/verify-bundle-manifest.mjs --bundle "packages/node-gi/node-gi/prebuilds/$TARGET/gtk" --expect-host-target darwin
 
       # Which two halves this run paired, in the log rather than in a reader's head.
       - name: Report the pairing this run measured
@@ -528,10 +531,11 @@ jobs:
       - name: Stage the SHIPPED closure (published bundle + published addon)
         run: node packages\node-gi\scripts\stage-published-gtk-runtime.mjs --link-into packages\framework\gtk-host --link-into packages\framework\react-native
 
-      # `--allow-legacy-license-record` for the same reason as the darwin leg above:
-      # the PUBLISHED closure, whose manifest predates `licenses.binariesCovered`.
+      # No `--allow-legacy-license-record`, dropped with the darwin leg's above and for
+      # the same reason: the published bundle now records `licenses.binariesCovered`,
+      # so the allowance the pre-0.46.0 tarballs needed has retired itself.
       - name: Verify the published bundle's manifest
-        run: node packages\node-gi\scripts\verify-bundle-manifest.mjs --bundle "packages\node-gi\node-gi\prebuilds\%TARGET%\gtk" --expect-host-target win32 --allow-legacy-license-record
+        run: node packages\node-gi\scripts\verify-bundle-manifest.mjs --bundle "packages\node-gi\node-gi\prebuilds\%TARGET%\gtk" --expect-host-target win32
 
       - name: Report the pairing this run measured
         run: |

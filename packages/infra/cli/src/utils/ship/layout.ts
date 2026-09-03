@@ -361,7 +361,9 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             'macOS is CoreText-backed and GTK is not built against fontconfig there. That the activation ' +
             "reaches Pango's CoreText font map is UNVERIFIED: no leg in this repository runs a `.app`. " +
             'Confirm with `PangoCairo.FontMap.get_default().list_families()` in the shipped bundle, and ' +
-            '`PANGOCAIRO_BACKEND=bogus` to print which backend it was built with.',
+            '`PANGOCAIRO_BACKEND=bogus` to print which backend it was built with. An app that calls ' +
+            '`initFonts()` from `@gjsify/gtk-host/fonts` for the Windows row needs no branch around it: the ' +
+            'CoreText map answers G_IO_ERROR_NOT_SUPPORTED and that call deliberately does nothing here.',
         launcherExt: '',
         root: appBundleDir,
         // Apple's, all four. `Contents/MacOS` holds executables, `Contents/Resources`
@@ -469,9 +471,11 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             'W1-W5): a FONTCONFIG_FILE naming the staged directory moves the default font map by nothing ' +
             'even when it is the ONLY configuration present — that map does not read fontconfig, and exposes ' +
             'no config_changed or set_config with which to make it — while add_font_file on the same map a ' +
-            'Gtk.Label renders through does register the family. So register them at startup: ' +
-            '`PangoCairo.FontMap.get_default().add_font_file(path)` (Pango 1.56+, in the typelib), or the ' +
-            'app renders in a substituted family with no error.',
+            'Gtk.Label renders through does register the family. So register them at startup, with one call ' +
+            "from the GTK host layer: `import { initFonts } from '@gjsify/gtk-host/fonts'`, then `initFonts()` " +
+            'before the first window — it reads GJSIFY_FONT_DIR itself, registers every face it holds, and ' +
+            'no-ops on the operating systems that already activated them. Without it the app renders in a ' +
+            'substituted family with no error.',
         // `.cmd`, not `.bat`: the two differ in whether a failing built-in (`set`,
         // `path`, `append`) sets ERRORLEVEL, and `.cmd` is the one where it does.
         launcherExt: '.cmd',
