@@ -1,0 +1,1126 @@
+<?xml version="1.0"?>
+<!-- This file was automatically generated from C sources - DO NOT EDIT!
+To affect the contents of this file, edit the original C definitions,
+and/or use gtk-doc annotations.  -->
+<repository version="1.2"
+            xmlns="http://www.gtk.org/introspection/core/1.0"
+            xmlns:c="http://www.gtk.org/introspection/c/1.0"
+            xmlns:doc="http://www.gtk.org/introspection/doc/1.0"
+            xmlns:glib="http://www.gtk.org/introspection/glib/1.0">
+  <include name="GObject" version="2.0"/>
+  <include name="Gdk" version="4.0"/>
+  <include name="Gio" version="2.0"/>
+  <include name="Gtk" version="4.0"/>
+  <c:include name="gjsify-webview2.h"/>
+  <doc:format name="unknown"/>
+  <namespace name="WebKit"
+             version="6.0"
+             shared-library="libgjsifywebview2.so"
+             c:identifier-prefixes="GjsifyWebView2"
+             c:symbol-prefixes="gjsify_webview2">
+    <enumeration name="HostingMode" c:type="GjsifyWebView2HostingMode">
+      <doc xml:space="preserve"
+           filename="src/c/gjsify-webview2.h"
+           line="101">What a #GjsifyWebView2WebView actually is on screen. This exists because GTK's
+failure mode here is exit 0: a rounded clip that does nothing is
+indistinguishable from an application bug forever, so the answer has a name
+and a reader.</doc>
+      <source-position filename="src/c/gjsify-webview2.h" line="119"/>
+      <member name="overlay"
+              value="0"
+              c:identifier="GJSIFY_WEBVIEW2_HOSTING_MODE_OVERLAY">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="103">the web content is a child `HWND` the
+  OS composites ABOVE the GTK surface. It is not in GSK's scene graph: it
+  cannot be clipped by an ancestor, nothing can be drawn over it, and its
+  opacity and transforms are not applied.</doc>
+      </member>
+      <member name="composited"
+              value="1"
+              c:identifier="GJSIFY_WEBVIEW2_HOSTING_MODE_COMPOSITED">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="107">the web content arrives as a
+  #GdkTexture the widget paints in its own `snapshot` vfunc, so it behaves
+  like any other widget. Not produced by this build — ADR 0035 stage 2.</doc>
+      </member>
+    </enumeration>
+    <enumeration name="LoadEvent" c:type="GjsifyWebView2LoadEvent">
+      <doc xml:space="preserve"
+           filename="src/c/gjsify-webview2.h"
+           line="42">Mirrors `WebKitLoadEvent`. The numeric values match WebKitGTK's so a consumer
+that (wrongly) compares integers still agrees across backends.</doc>
+      <source-position filename="src/c/gjsify-webview2.h" line="57"/>
+      <member name="started"
+              value="0"
+              c:identifier="GJSIFY_WEBVIEW2_LOAD_STARTED">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="44">a new load request has started.</doc>
+      </member>
+      <member name="redirected"
+              value="1"
+              c:identifier="GJSIFY_WEBVIEW2_LOAD_REDIRECTED">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="45">a load request has been redirected.</doc>
+      </member>
+      <member name="committed"
+              value="2"
+              c:identifier="GJSIFY_WEBVIEW2_LOAD_COMMITTED">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="46">the content is being loaded.</doc>
+      </member>
+      <member name="finished"
+              value="3"
+              c:identifier="GJSIFY_WEBVIEW2_LOAD_FINISHED">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="47">the load finished.</doc>
+      </member>
+    </enumeration>
+    <enumeration name="MessagePumpState"
+                 c:type="GjsifyWebView2MessagePumpState">
+      <doc xml:space="preserve"
+           filename="src/c/gjsify-webview2.h"
+           line="121">WebView2 delivers content-level callbacks through the thread's Win32 message
+queue, and `g_main_loop_run()` does not dispatch that queue. Measured on
+`windows-latest` / Evergreen 151.0.4129.101: `NavigationCompleted` timed out
+after 8000 ms with no pump and arrived immediately with one, while the
+environment and controller callbacks needed none. That asymmetry is why this
+enum exists — a backend can get all the way through its own setup before the
+gap shows, so the gap is reported where a view becomes live instead of being
+inferred from a stalled page.</doc>
+      <source-position filename="src/c/gjsify-webview2.h" line="145"/>
+      <member name="attached"
+              value="0"
+              c:identifier="GJSIFY_WEBVIEW2_MESSAGE_PUMP_ATTACHED">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="123">a pump source is attached to the
+  #GMainContext this view was created on, and this is that thread.</doc>
+      </member>
+      <member name="detached"
+              value="1"
+              c:identifier="GJSIFY_WEBVIEW2_MESSAGE_PUMP_DETACHED">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="125">no pump source is attached. Every
+  content-level operation on this view will fail with a named error rather
+  than wait for a callback that cannot arrive.</doc>
+      </member>
+      <member name="foreign_thread"
+              value="2"
+              c:identifier="GJSIFY_WEBVIEW2_MESSAGE_PUMP_FOREIGN_THREAD">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="128">a pump source exists, but the
+  caller is on a different thread from the one that owns it. WebView2 is
+  apartment-threaded; a call from here is not merely slow, it is wrong.</doc>
+      </member>
+    </enumeration>
+    <class name="Settings"
+           c:symbol-prefix="settings"
+           c:type="GjsifyWebView2Settings"
+           parent="GObject.Object"
+           final="1"
+           glib:type-name="GjsifyWebView2Settings"
+           glib:get-type="gjsify_webview2_settings_get_type"
+           glib:type-struct="SettingsClass">
+      <source-position filename="src/c/gjsify-webview2.h" line="321"/>
+      <constructor name="new" c:identifier="gjsify_webview2_settings_new">
+        <source-position filename="src/c/gjsify-webview2.h" line="329"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="327">settings with WebKitGTK's defaults.</doc>
+          <type name="Settings" c:type="GjsifyWebView2Settings*"/>
+        </return-value>
+      </constructor>
+      <property name="enable-developer-extras"
+                writable="1"
+                transfer-ownership="none"
+                default-value="FALSE">
+        <type name="gboolean" c:type="gboolean"/>
+      </property>
+      <property name="enable-javascript"
+                writable="1"
+                transfer-ownership="none"
+                default-value="TRUE">
+        <type name="gboolean" c:type="gboolean"/>
+      </property>
+      <property name="enable-write-console-messages-to-stdout"
+                writable="1"
+                transfer-ownership="none"
+                default-value="FALSE">
+        <type name="gboolean" c:type="gboolean"/>
+      </property>
+    </class>
+    <record name="SettingsClass"
+            c:type="GjsifyWebView2SettingsClass"
+            glib:is-gtype-struct-for="Settings">
+      <source-position filename="src/c/gjsify-webview2.h" line="321"/>
+      <field name="parent_class">
+        <type name="GObject.ObjectClass" c:type="GObjectClass"/>
+      </field>
+    </record>
+    <bitfield name="SnapshotOptions" c:type="GjsifyWebView2SnapshotOptions">
+      <source-position filename="src/c/gjsify-webview2.h" line="79"/>
+      <member name="none"
+              value="0"
+              c:identifier="GJSIFY_WEBVIEW2_SNAPSHOT_OPTIONS_NONE">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="71">no special options.</doc>
+      </member>
+      <member name="include_selection_highlighting"
+              value="1"
+              c:identifier="GJSIFY_WEBVIEW2_SNAPSHOT_OPTIONS_INCLUDE_SELECTION_HIGHLIGHTING">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="72">include the selection highlight.</doc>
+      </member>
+      <member name="transparent_background"
+              value="2"
+              c:identifier="GJSIFY_WEBVIEW2_SNAPSHOT_OPTIONS_TRANSPARENT_BACKGROUND">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="73">do not paint the page background.</doc>
+      </member>
+    </bitfield>
+    <enumeration name="SnapshotRegion" c:type="GjsifyWebView2SnapshotRegion">
+      <source-position filename="src/c/gjsify-webview2.h" line="67"/>
+      <member name="visible"
+              value="0"
+              c:identifier="GJSIFY_WEBVIEW2_SNAPSHOT_REGION_VISIBLE">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="61">the visible viewport.</doc>
+      </member>
+      <member name="full_document"
+              value="1"
+              c:identifier="GJSIFY_WEBVIEW2_SNAPSHOT_REGION_FULL_DOCUMENT">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="62">the whole scrollable document.</doc>
+      </member>
+    </enumeration>
+    <enumeration name="UserContentInjectedFrames"
+                 c:type="GjsifyWebView2UserContentInjectedFrames">
+      <source-position filename="src/c/gjsify-webview2.h" line="89"/>
+      <member name="all_frames"
+              value="0"
+              c:identifier="GJSIFY_WEBVIEW2_USER_CONTENT_INJECT_ALL_FRAMES">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="83">inject into every frame.</doc>
+      </member>
+      <member name="top_frame"
+              value="1"
+              c:identifier="GJSIFY_WEBVIEW2_USER_CONTENT_INJECT_TOP_FRAME">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="84">inject into the main frame only.</doc>
+      </member>
+    </enumeration>
+    <class name="UserContentManager"
+           c:symbol-prefix="user_content_manager"
+           c:type="GjsifyWebView2UserContentManager"
+           parent="GObject.Object"
+           final="1"
+           glib:type-name="GjsifyWebView2UserContentManager"
+           glib:get-type="gjsify_webview2_user_content_manager_get_type"
+           glib:type-struct="UserContentManagerClass">
+      <source-position filename="src/c/gjsify-webview2.h" line="265"/>
+      <constructor name="new"
+                   c:identifier="gjsify_webview2_user_content_manager_new">
+        <source-position filename="src/c/gjsify-webview2.h" line="277"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="275">a new user content manager.</doc>
+          <type name="UserContentManager"
+                c:type="GjsifyWebView2UserContentManager*"/>
+        </return-value>
+      </constructor>
+      <method name="add_script"
+              c:identifier="gjsify_webview2_user_content_manager_add_script">
+        <source-position filename="src/c/gjsify-webview2.h" line="279"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="UserContentManager"
+                  c:type="GjsifyWebView2UserContentManager*"/>
+          </instance-parameter>
+          <parameter name="script" transfer-ownership="none">
+            <type name="UserScript" c:type="GjsifyWebView2UserScript*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="register_script_message_handler"
+              c:identifier="gjsify_webview2_user_content_manager_register_script_message_handler">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="285">The page-side spelling is WebKit's because the consumer's is: a document-start
+script defines `window.webkit.messageHandlers.&lt;name&gt;` in terms of
+`window.chrome.webview.postMessage`, and the resulting message is re-emitted
+as #GjsifyWebView2UserContentManager::script-message-received.</doc>
+        <source-position filename="src/c/gjsify-webview2.h" line="299"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="297">%TRUE if the handler was registered.</doc>
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="287">the manager.</doc>
+            <type name="UserContentManager"
+                  c:type="GjsifyWebView2UserContentManager*"/>
+          </instance-parameter>
+          <parameter name="name" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="288">the handler name, reachable from the page as
+  `window.webkit.messageHandlers.&lt;name&gt;.postMessage()`.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="world_name"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="290">ignored — see gjsify_webview2_user_script_new_for_world().</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="remove_all_scripts"
+              c:identifier="gjsify_webview2_user_content_manager_remove_all_scripts">
+        <source-position filename="src/c/gjsify-webview2.h" line="282"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="UserContentManager"
+                  c:type="GjsifyWebView2UserContentManager*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="unregister_script_message_handler"
+              c:identifier="gjsify_webview2_user_content_manager_unregister_script_message_handler">
+        <source-position filename="src/c/gjsify-webview2.h" line="302"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="UserContentManager"
+                  c:type="GjsifyWebView2UserContentManager*"/>
+          </instance-parameter>
+          <parameter name="name" transfer-ownership="none">
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="world_name" transfer-ownership="none">
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <glib:signal name="script-message-received" when="last" detailed="1">
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <parameter name="object" transfer-ownership="none">
+            <type name="Value"/>
+          </parameter>
+        </parameters>
+      </glib:signal>
+    </class>
+    <record name="UserContentManagerClass"
+            c:type="GjsifyWebView2UserContentManagerClass"
+            glib:is-gtype-struct-for="UserContentManager">
+      <source-position filename="src/c/gjsify-webview2.h" line="265"/>
+      <field name="parent_class">
+        <type name="GObject.ObjectClass" c:type="GObjectClass"/>
+      </field>
+    </record>
+    <record name="UserScript"
+            c:type="GjsifyWebView2UserScript"
+            opaque="1"
+            glib:type-name="GjsifyWebView2UserScript"
+            glib:get-type="gjsify_webview2_user_script_get_type"
+            c:symbol-prefix="user_script">
+      <source-position filename="src/c/gjsify-webview2.h" line="187"/>
+      <constructor name="new" c:identifier="gjsify_webview2_user_script_new">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="202">A NON-EMPTY LIST OF EITHER KIND MAKES THE SCRIPT REFUSED, with a warning, by
+gjsify_webview2_user_content_manager_add_script(). WebView2's
+`AddScriptToExecuteOnDocumentCreated` carries no URL filter, and injecting the
+script anyway would run it on origins the caller excluded — the exact failure
+a block list exists to prevent — so refusing narrows in the safe direction for
+both list kinds. Porting darwin's in-script guard (the source wrapped in a
+labelled block that tests the document's URL) is what closes this; it is
+outside ADR 0035 decision 4's counted subset and is not in this build.
+
+The patterns themselves are WebKitGTK's `scheme://host/path` shape and are
+kept unparsed: nothing here reads them, so a spelling this backend would have
+got wrong cannot be mistaken for one it honoured.</doc>
+        <source-position filename="src/c/gjsify-webview2.h" line="225"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="223">a new script.</doc>
+          <type name="UserScript" c:type="GjsifyWebView2UserScript*"/>
+        </return-value>
+        <parameters>
+          <parameter name="source" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="204">the script source.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="injected_frames" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="205">which frames to inject into.</doc>
+            <type name="UserContentInjectedFrames"
+                  c:type="GjsifyWebView2UserContentInjectedFrames"/>
+          </parameter>
+          <parameter name="injection_time" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="206">when to inject.</doc>
+            <type name="UserScriptInjectionTime"
+                  c:type="GjsifyWebView2UserScriptInjectionTime"/>
+          </parameter>
+          <parameter name="allow_list"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="207">URI patterns to allow, or %NULL for all.</doc>
+            <array c:type="const gchar* const*">
+              <type name="utf8" c:type="gchar*"/>
+            </array>
+          </parameter>
+          <parameter name="block_list"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="208">URI patterns to block, or %NULL for none.</doc>
+            <array c:type="const gchar* const*">
+              <type name="utf8" c:type="gchar*"/>
+            </array>
+          </parameter>
+        </parameters>
+      </constructor>
+      <constructor name="new_for_world"
+                   c:identifier="gjsify_webview2_user_script_new_for_world">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="232">Mirrors `webkit_user_script_new_for_world()` so the call site is portable.
+WebView2 has no public isolated-world API — `AddScriptToExecuteOnDocumentCreated`
+runs in the page's own world and `ExecuteScript` evaluates there too — so a
+non-%NULL @world_name is accepted and WARNED about ONCE per name rather than
+silently honoured. Silently running an isolated script in the page's world is
+the failure the argument exists to prevent, and a warning is the only honest
+report this backend can make of it.</doc>
+        <source-position filename="src/c/gjsify-webview2.h" line="251"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="249">a new script.</doc>
+          <type name="UserScript" c:type="GjsifyWebView2UserScript*"/>
+        </return-value>
+        <parameters>
+          <parameter name="source" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="234">the script source.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="injected_frames" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="235">which frames to inject into.</doc>
+            <type name="UserContentInjectedFrames"
+                  c:type="GjsifyWebView2UserContentInjectedFrames"/>
+          </parameter>
+          <parameter name="injection_time" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="236">when to inject.</doc>
+            <type name="UserScriptInjectionTime"
+                  c:type="GjsifyWebView2UserScriptInjectionTime"/>
+          </parameter>
+          <parameter name="world_name"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="237">ignored, and the reason is in the description.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="allow_list"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="238">URI patterns to allow, or %NULL for all.</doc>
+            <array c:type="const gchar* const*">
+              <type name="utf8" c:type="gchar*"/>
+            </array>
+          </parameter>
+          <parameter name="block_list"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="239">URI patterns to block, or %NULL for none.</doc>
+            <array c:type="const gchar* const*">
+              <type name="utf8" c:type="gchar*"/>
+            </array>
+          </parameter>
+        </parameters>
+      </constructor>
+      <method name="ref" c:identifier="gjsify_webview2_user_script_ref">
+        <source-position filename="src/c/gjsify-webview2.h" line="198"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="196">@self with its reference count increased.</doc>
+          <type name="UserScript" c:type="GjsifyWebView2UserScript*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="194">a script.</doc>
+            <type name="UserScript" c:type="GjsifyWebView2UserScript*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="unref" c:identifier="gjsify_webview2_user_script_unref">
+        <source-position filename="src/c/gjsify-webview2.h" line="200"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="UserScript" c:type="GjsifyWebView2UserScript*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+    </record>
+    <enumeration name="UserScriptInjectionTime"
+                 c:type="GjsifyWebView2UserScriptInjectionTime">
+      <source-position filename="src/c/gjsify-webview2.h" line="99"/>
+      <member name="start"
+              value="0"
+              c:identifier="GJSIFY_WEBVIEW2_USER_SCRIPT_INJECT_AT_DOCUMENT_START">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="93">run before the document loads.</doc>
+      </member>
+      <member name="end"
+              value="1"
+              c:identifier="GJSIFY_WEBVIEW2_USER_SCRIPT_INJECT_AT_DOCUMENT_END">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="94">run after the document loads.</doc>
+      </member>
+    </enumeration>
+    <class name="Value"
+           c:symbol-prefix="value"
+           c:type="GjsifyWebView2Value"
+           parent="GObject.Object"
+           final="1"
+           glib:type-name="GjsifyWebView2Value"
+           glib:get-type="gjsify_webview2_value_get_type"
+           glib:type-struct="ValueClass">
+      <source-position filename="src/c/gjsify-webview2.h" line="158"/>
+      <method name="is_null" c:identifier="gjsify_webview2_value_is_null">
+        <source-position filename="src/c/gjsify-webview2.h" line="174"/>
+        <return-value transfer-ownership="none">
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="Value" c:type="GjsifyWebView2Value*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="is_string" c:identifier="gjsify_webview2_value_is_string">
+        <source-position filename="src/c/gjsify-webview2.h" line="173"/>
+        <return-value transfer-ownership="none">
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="Value" c:type="GjsifyWebView2Value*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="is_undefined"
+              c:identifier="gjsify_webview2_value_is_undefined">
+        <source-position filename="src/c/gjsify-webview2.h" line="175"/>
+        <return-value transfer-ownership="none">
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="Value" c:type="GjsifyWebView2Value*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="to_string" c:identifier="gjsify_webview2_value_to_string">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="160">WebView2's `ExecuteScript` returns its result as JSON, where WebKitGTK
+returns a live `JSCValue`. A JSON string is unquoted and unescaped here so a
+string result reads the same on both backends; everything else is returned as
+its JSON text, which is what `JSCValue.to_string()` produces for numbers and
+booleans and is a documented divergence for objects.</doc>
+        <source-position filename="src/c/gjsify-webview2.h" line="172"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="170">the value rendered as a string.</doc>
+          <type name="utf8" c:type="gchar*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="162">a value.</doc>
+            <type name="Value" c:type="GjsifyWebView2Value*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+    </class>
+    <record name="ValueClass"
+            c:type="GjsifyWebView2ValueClass"
+            glib:is-gtype-struct-for="Value">
+      <source-position filename="src/c/gjsify-webview2.h" line="158"/>
+      <field name="parent_class">
+        <type name="GObject.ObjectClass" c:type="GObjectClass"/>
+      </field>
+    </record>
+    <class name="WebView"
+           c:symbol-prefix="web_view"
+           c:type="GjsifyWebView2WebView"
+           parent="Gtk.Widget"
+           glib:type-name="GjsifyWebView2WebView"
+           glib:get-type="gjsify_webview2_web_view_get_type"
+           glib:type-struct="WebViewClass">
+      <source-position filename="src/c/gjsify-webview2.h" line="362"/>
+      <implements name="Gtk.Accessible"/>
+      <implements name="Gtk.Buildable"/>
+      <implements name="Gtk.ConstraintTarget"/>
+      <constructor name="new" c:identifier="gjsify_webview2_web_view_new">
+        <source-position filename="src/c/gjsify-webview2.h" line="369"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="367">a new web view.</doc>
+          <type name="Gtk.Widget" c:type="GtkWidget*"/>
+        </return-value>
+      </constructor>
+      <method name="evaluate_javascript"
+              c:identifier="gjsify_webview2_web_view_evaluate_javascript"
+              glib:finish-func="evaluate_javascript_finish">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="459">The argument list is WebKitGTK's verbatim so `Gio._promisify` produces the
+identical Promise signature on every backend.</doc>
+        <source-position filename="src/c/gjsify-webview2.h" line="478"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="461">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+          <parameter name="script" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="462">the source to evaluate.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="length" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="463">length of @script in bytes, or -1 if nul-terminated.</doc>
+            <type name="gssize" c:type="gssize"/>
+          </parameter>
+          <parameter name="world_name"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="464">ignored — see gjsify_webview2_user_script_new_for_world().</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="source_uri"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="465">IGNORED, and the only divergence here that does NOT
+  warn. WebView2's `ExecuteScript` has no source-URI parameter, and the
+  argument changes nothing observable except the text attributed to a script in
+  an error — so warning for it would train readers past the behavioural
+  warnings beside it.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="cancellable"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="470">a #GCancellable.</doc>
+            <type name="Gio.Cancellable" c:type="GCancellable*"/>
+          </parameter>
+          <parameter name="callback"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1"
+                     scope="async"
+                     closure="6">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="471">called when the
+  evaluation completes.</doc>
+            <type name="Gio.AsyncReadyCallback" c:type="GAsyncReadyCallback"/>
+          </parameter>
+          <parameter name="user_data"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="473">data for @callback.</doc>
+            <type name="gpointer" c:type="gpointer"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="evaluate_javascript_finish"
+              c:identifier="gjsify_webview2_web_view_evaluate_javascript_finish"
+              throws="1"
+              glib:async-func="evaluate_javascript">
+        <source-position filename="src/c/gjsify-webview2.h" line="496"/>
+        <return-value transfer-ownership="full" nullable="1">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="494">the value the script evaluated to.</doc>
+          <type name="Value" c:type="GjsifyWebView2Value*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="490">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+          <parameter name="result" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="491">the #GAsyncResult.</doc>
+            <type name="Gio.AsyncResult" c:type="GAsyncResult*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="get_hosting_mode"
+              c:identifier="gjsify_webview2_web_view_get_hosting_mode">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="408">ADR 0035 stage 1 always answers %GJSIFY_WEBVIEW2_HOSTING_MODE_OVERLAY. It is a
+method rather than a constant because stage 2 changes the answer per view and
+a consumer that branches on it should not have to be rewritten then.</doc>
+        <source-position filename="src/c/gjsify-webview2.h" line="418"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="416">what this view is on screen.</doc>
+          <type name="HostingMode" c:type="GjsifyWebView2HostingMode"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="410">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="get_message_pump_state"
+              c:identifier="gjsify_webview2_web_view_get_message_pump_state">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="445">Whether the Win32 message queue is being dispatched for this view. Every
+content-level operation below checks this first and fails with a named error
+when it is not %GJSIFY_WEBVIEW2_MESSAGE_PUMP_ATTACHED, because the alternative
+is an 8-second timeout a long way from its cause.</doc>
+        <source-position filename="src/c/gjsify-webview2.h" line="456"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="454">the state of this view's pump.</doc>
+          <type name="MessagePumpState"
+                c:type="GjsifyWebView2MessagePumpState"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="447">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="get_overlay_constraints"
+              c:identifier="gjsify_webview2_web_view_get_overlay_constraints">
+        <doc xml:space="preserve"
+             filename="src/c/gjsify-webview2.h"
+             line="420">The arrangements this view is currently in that an OS-composited overlay
+cannot honour. Detected, on allocation and on map: an ancestor that clips
+(a #GtkScrolledWindow, a #GtkViewport), an ancestor #GtkPopover, something
+drawn over it (a #GtkOverlay where this is the main child), and a fractional
+opacity on this widget or any ancestor. Each is also emitted ONCE per view as
+a #GLib warning naming the widget, because a consumer who never calls this is
+exactly the consumer who needs to be told.
+
+TWO ARRANGEMENTS ARE BROKEN AND NOT DETECTED, and an empty list therefore
+does not mean "correct": a CSS `border-radius` reaching this widget is not
+readable from the public API at all, and a render transform on an ancestor is
+not looked for. Detection is by widget type and by two GTK properties, which
+catches every arrangement that has actually been reported against an
+overlay-hosted web view — but a caller must read this list as a lower bound.
+
+Empty otherwise, which is the common case: a full-page document in a window.</doc>
+        <source-position filename="src/c/gjsify-webview2.h" line="443"/>
+        <return-value transfer-ownership="full">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="441">the constraint messages.</doc>
+          <array c:type="gchar**">
+            <type name="utf8"/>
+          </array>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="422">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="get_settings"
+              c:identifier="gjsify_webview2_web_view_get_settings"
+              glib:get-property="settings">
+        <source-position filename="src/c/gjsify-webview2.h" line="406"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="404">the settings this view was constructed with.</doc>
+          <type name="Settings" c:type="GjsifyWebView2Settings*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="402">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="get_snapshot"
+              c:identifier="gjsify_webview2_web_view_get_snapshot"
+              glib:finish-func="get_snapshot_finish">
+        <source-position filename="src/c/gjsify-webview2.h" line="515"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="501">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+          <parameter name="region" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="502">which region to capture. WebView2's `CapturePreview` captures the
+  viewport only, so %GJSIFY_WEBVIEW2_SNAPSHOT_REGION_FULL_DOCUMENT is a
+  documented divergence rather than a second code path — it returns the
+  viewport and warns once.</doc>
+            <type name="SnapshotRegion" c:type="GjsifyWebView2SnapshotRegion"/>
+          </parameter>
+          <parameter name="options" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="506">snapshot options. Anything but
+  %GJSIFY_WEBVIEW2_SNAPSHOT_OPTIONS_NONE is IGNORED and warns once:
+  `CapturePreview` has no transparent-background and no
+  selection-highlighting option, so the capture is of the page as composited.</doc>
+            <type name="SnapshotOptions"
+                  c:type="GjsifyWebView2SnapshotOptions"/>
+          </parameter>
+          <parameter name="cancellable"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="510">a #GCancellable.</doc>
+            <type name="Gio.Cancellable" c:type="GCancellable*"/>
+          </parameter>
+          <parameter name="callback"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1"
+                     scope="async"
+                     closure="4">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="511">called when the
+  snapshot completes.</doc>
+            <type name="Gio.AsyncReadyCallback" c:type="GAsyncReadyCallback"/>
+          </parameter>
+          <parameter name="user_data"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="513">data for @callback.</doc>
+            <type name="gpointer" c:type="gpointer"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="get_snapshot_finish"
+              c:identifier="gjsify_webview2_web_view_get_snapshot_finish"
+              throws="1"
+              glib:async-func="get_snapshot">
+        <source-position filename="src/c/gjsify-webview2.h" line="532"/>
+        <return-value transfer-ownership="full" nullable="1">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="529">the captured content. A real #GdkTexture,
+  so `save_to_png_bytes()` and friends work unchanged.</doc>
+          <type name="Gdk.Texture" c:type="GdkTexture*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="525">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+          <parameter name="result" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="526">the #GAsyncResult.</doc>
+            <type name="Gio.AsyncResult" c:type="GAsyncResult*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="get_uri"
+              c:identifier="gjsify_webview2_web_view_get_uri"
+              glib:get-property="uri">
+        <source-position filename="src/c/gjsify-webview2.h" line="387"/>
+        <return-value transfer-ownership="none">
+          <type name="utf8" c:type="const gchar*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="get_user_content_manager"
+              c:identifier="gjsify_webview2_web_view_get_user_content_manager"
+              glib:get-property="user-content-manager">
+        <source-position filename="src/c/gjsify-webview2.h" line="397"/>
+        <return-value transfer-ownership="none">
+          <doc xml:space="preserve"
+               filename="src/c/gjsify-webview2.h"
+               line="395">the manager this view was constructed with.</doc>
+          <type name="UserContentManager"
+                c:type="GjsifyWebView2UserContentManager*"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="393">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="is_loading"
+              c:identifier="gjsify_webview2_web_view_is_loading"
+              glib:get-property="is-loading">
+        <source-position filename="src/c/gjsify-webview2.h" line="389"/>
+        <return-value transfer-ownership="none">
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <method name="load_html"
+              c:identifier="gjsify_webview2_web_view_load_html">
+        <source-position filename="src/c/gjsify-webview2.h" line="382"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="375">the view.</doc>
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+          <parameter name="content" transfer-ownership="none">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="376">the HTML to load.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+          <parameter name="base_uri"
+                     transfer-ownership="none"
+                     nullable="1"
+                     allow-none="1">
+            <doc xml:space="preserve"
+                 filename="src/c/gjsify-webview2.h"
+                 line="377">the base URI for relative resolution. WebView2's
+  `NavigateToString` has no base-URI argument, so a non-%NULL value is applied
+  by injecting a `&lt;base&gt;` element, and a document that already carries one
+  keeps its own.</doc>
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="load_uri" c:identifier="gjsify_webview2_web_view_load_uri">
+        <source-position filename="src/c/gjsify-webview2.h" line="371"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+          <parameter name="uri" transfer-ownership="none">
+            <type name="utf8" c:type="const gchar*"/>
+          </parameter>
+        </parameters>
+      </method>
+      <method name="reload" c:identifier="gjsify_webview2_web_view_reload">
+        <source-position filename="src/c/gjsify-webview2.h" line="385"/>
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <instance-parameter name="self" transfer-ownership="none">
+            <type name="WebView" c:type="GjsifyWebView2WebView*"/>
+          </instance-parameter>
+        </parameters>
+      </method>
+      <property name="is-loading"
+                transfer-ownership="none"
+                getter="is_loading"
+                default-value="FALSE">
+        <type name="gboolean" c:type="gboolean"/>
+      </property>
+      <property name="settings"
+                writable="1"
+                construct-only="1"
+                transfer-ownership="none"
+                getter="get_settings">
+        <type name="Settings"/>
+      </property>
+      <property name="uri"
+                transfer-ownership="none"
+                getter="get_uri"
+                default-value="NULL">
+        <type name="utf8" c:type="gchar*"/>
+      </property>
+      <property name="user-content-manager"
+                writable="1"
+                construct-only="1"
+                transfer-ownership="none"
+                getter="get_user_content_manager">
+        <type name="UserContentManager"/>
+      </property>
+      <field name="parent_instance">
+        <type name="Gtk.Widget" c:type="GtkWidget"/>
+      </field>
+      <glib:signal name="load-changed" when="last">
+        <return-value transfer-ownership="none">
+          <type name="none" c:type="void"/>
+        </return-value>
+        <parameters>
+          <parameter name="object" transfer-ownership="none">
+            <type name="gint" c:type="gint"/>
+          </parameter>
+        </parameters>
+      </glib:signal>
+      <glib:signal name="load-failed" when="last">
+        <return-value transfer-ownership="none">
+          <type name="gboolean" c:type="gboolean"/>
+        </return-value>
+        <parameters>
+          <parameter name="object" transfer-ownership="none">
+            <type name="gint" c:type="gint"/>
+          </parameter>
+          <parameter name="p0" transfer-ownership="none">
+            <type name="utf8" c:type="gchar*"/>
+          </parameter>
+          <parameter name="p1" transfer-ownership="none">
+            <type name="GLib.Error"/>
+          </parameter>
+        </parameters>
+      </glib:signal>
+    </class>
+    <record name="WebViewClass"
+            c:type="GjsifyWebView2WebViewClass"
+            glib:is-gtype-struct-for="WebView">
+      <source-position filename="src/c/gjsify-webview2.h" line="362"/>
+      <field name="parent_class">
+        <type name="Gtk.WidgetClass" c:type="GtkWidgetClass"/>
+      </field>
+      <field name="padding" readable="0" private="1">
+        <array zero-terminated="0" fixed-size="8">
+          <type name="gpointer" c:type="gpointer"/>
+        </array>
+      </field>
+    </record>
+  </namespace>
+</repository>

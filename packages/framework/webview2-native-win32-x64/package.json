@@ -13,9 +13,6 @@
         "prebuilds"
     ],
     "gjsify": {
-        "platformsUncommitted": {
-            "win32-x64": "prebuilds.yml's `build-prebuilds-win32-webview2` job builds, gates and load-tests it on every run; `commit-prebuilds` lands it here on the first run on `main` and clears this exemption in the same commit"
-        },
         "platforms": [
             "win32-x64"
         ],
