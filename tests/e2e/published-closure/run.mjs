@@ -982,10 +982,23 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
                 fileURLToPath(new URL('../../../.github/workflows/audit-runtimes.yml', import.meta.url)),
                 'utf8',
             );
+            // Presence ANYWHERE in the file is not the claim. The claim is that the
+            // phase runs in the job that BLOCKS a merge — and a step moved into a
+            // second, advisory job of the same workflow would keep a file-wide match
+            // green, which is this PR's own subject one level up: a check that runs
+            // and gates nothing reads identically to one that passed. So bound the
+            // search to the required job's own slice, from its display name to the
+            // next top-level job key (job properties are indented deeper).
+            const jobStart = wf.indexOf('name: Detect runtime-triplet drift');
+            assert.notEqual(jobStart, -1, 'the required job must still carry that display name');
+            const afterJobName = wf.slice(jobStart);
+            const nextJobKey = /\n {2}[A-Za-z0-9_-]+:\r?\n/.exec(afterJobName);
+            const requiredJob = nextJobKey ? afterJobName.slice(0, nextJobKey.index) : afterJobName;
             assert.match(
-                wf,
+                requiredJob,
                 /node scripts\/verify-published-closure\.mjs --phase pre-release/,
-                'audit-runtimes.yml must invoke the pre-release phase; without the wiring this phase is dead code',
+                'the required `Detect runtime-triplet drift` job must invoke the pre-release phase; anywhere else in ' +
+                    'this workflow it is a check that runs and gates nothing',
             );
             assert.doesNotMatch(
                 wf.slice(0, wf.indexOf('jobs:')),
