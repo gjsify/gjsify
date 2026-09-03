@@ -552,7 +552,7 @@
     },
     "@gjsify/xmlhttprequest": {
       "status": "full",
-      "note": "XMLHttpRequest (full `responseType`: arraybuffer / blob + temp-file / json / text / document), UTF-8 BOM stripped from responseText. FakeBlob with `_tmpPath`; owns the blob-file plumbing behind `URL.createObjectURL`. Backs Excalibur's asset loader and axios' XHR adapter. Known deno-under-node-gi stall at readyState 3 — see Open TODOs."
+      "note": "XMLHttpRequest (full `responseType`: arraybuffer / blob + temp-file / json / text / document), UTF-8 BOM stripped from responseText. FakeBlob with `_tmpPath`; owns the blob-file plumbing behind `URL.createObjectURL`. Backs Excalibur's asset loader and axios' XHR adapter. Known deno-under-node-gi stall at readyState 3 \u2014 see Open TODOs. Those behaviours are `@gjsify/fetch`'s XHR, which the alias layer substitutes for this package name on EVERY build target (gjs → `@gjsify/fetch`, node → `@gjsify/empty`, browser → the native global); this package's own `src/index.ts` \u2014 reached by a direct, unbundled `lib/esm` import \u2014 is narrower (no `document` responseType, no BOM strip, header accessors are stubs) and is covered by `src/index.spec.ts`."
     },
     "@gjsify/zlib": {
       "status": "full",
