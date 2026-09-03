@@ -167,8 +167,11 @@ import {
     adwaitaNativeScriptWidgets,
     namespaceBarrelMembers,
     reactNativeBarrelWidgets,
+    rootValueExports,
     settablePropertiesOfClass,
     tagClass,
+    vocabularyCallers,
+    VOCABULARY_CALLER_DIRS,
 } from './adwaita-elements.mjs';
 // `stripComments`, so a rule about DECLARATIONS is not answered by prose: these files
 // explain what they deliberately do not contain, and they name those things. A naive match
@@ -204,7 +207,7 @@ const NS_PROPERTY_TABLE_SOURCE = 'NS_PROPERTY_ALIGNMENT in scripts/check-vocabul
 
 /** Where each surface's clause-2 namespace lives. Named in every namespace failure. */
 const NAMESPACE_SOURCE = 'the Adw/Gtk namespace barrels in packages/web/adwaita-web/src/namespace/';
-const NS_NAMESPACE_SOURCE = 'the Adw/Gtk namespace in packages/nativescript-bridge/adwaita/src/namespace.ts';
+const NS_NAMESPACE_SOURCE = 'the Adw/Gtk namespace barrels in packages/nativescript-bridge/adwaita/src/namespace/';
 
 /**
  * The floor a declared divergence has to clear, borrowed rather than invented:
@@ -617,6 +620,21 @@ const RENDERER_TABLES = {
 /** The surface the web half above holds, named once so the coverage rule can see it. */
 const WEB_SURFACE = '@gjsify/adwaita-web';
 
+/**
+ * Where each clause-2 surface LIVES, so a caller of it can be told from a file inside it.
+ *
+ * Keyed on the published package name because that is what a caller writes. The `src` is
+ * what {@link rootValueExports} reads; the directory is what excludes the package's own
+ * modules, where the classes still exist under the names clause 1 gives them.
+ */
+const NAMESPACE_PACKAGES = {
+    [WEB_SURFACE]: { dir: 'packages/web/adwaita-web', src: 'packages/web/adwaita-web/src' },
+    '@gjsify/adwaita-nativescript': {
+        dir: 'packages/nativescript-bridge/adwaita',
+        src: 'packages/nativescript-bridge/adwaita/src',
+    },
+};
+
 // ------------------------------------------------------------------ readers
 
 /** The body of `export interface <name> { … }`, or null. */
@@ -984,7 +1002,7 @@ function namespacePlace(tag) {
  * @returns {string[]}
  */
 function namespaceProblems(surface) {
-    const { package: pkg, source, widgets, namespace, tagOf, classOf, describe } = surface;
+    const { package: pkg, source, widgets, namespace, tagOf, classOf, describe, flatExports } = surface;
     const problems = [];
     if (namespace === null) {
         return [
@@ -1044,6 +1062,22 @@ function namespaceProblems(surface) {
         }
     }
 
+    // AND NOT BESIDE ITS FLAT NAME. § Amendments 6 and 9 removed the prefixed widget
+    // classes from these two package roots, and until this rule existed the removal was
+    // prose: one `export { AdwStatusPage } from './widgets/index.js'` line puts the second
+    // vocabulary back, with every other rule here still green — the member is present, the
+    // widget is present, and they agree. A widget with a member has ONE name.
+    for (const [name, actual] of namespace) {
+        for (const [member, binding] of actual) {
+            if (!flatExports.has(binding)) continue;
+            problems.push(
+                `${pkg} exports \`${binding}\` flat from src/index.ts AND as \`${name}.${member}\`. Two ` +
+                    'spellings of one widget is what clause 2 removes; drop the flat export (ADR 0034 ' +
+                    '§ Amendment 6 for the web surface, § Amendment 9 for NativeScript).',
+            );
+        }
+    }
+
     // The other direction, and the one that matters: a member outlives the widget it
     // named, and reads as coverage that is gone.
     for (const [name, actual] of namespace) {
@@ -1061,6 +1095,80 @@ function namespaceProblems(surface) {
 }
 
 /**
+ * Clause 2 at the CALLER — nothing else in this repository reads how a consumer spells the
+ * vocabulary, which is why the examples never had to change.
+ *
+ * WHAT IT HOLDS. A file outside a surface's own package may not import a widget class the
+ * surface no longer exports flat. The retired set is DERIVED, not listed: it is exactly
+ * the bindings behind the namespace members, and the rule above guarantees none of them is
+ * also a flat export — so a caller naming one is naming an export that does not exist.
+ *
+ * WHY A GATE AND NOT THE COMPILER. Removing an export is a build error for every consumer
+ * that is BUILT, and the ones that teach the vocabulary are not: `showcases/dom/*` are
+ * excluded from the workspace globs and have no `check` script, the `.mdx` fences are
+ * published prose with no compiler anywhere, and the NativeScript XML dialect has no type
+ * checker at all. Measured on this very migration — the 41 story files and 40 fences would
+ * have gone in wrong at exit 0 (ADR 0034 § Amendment 7 records the same class of miss one
+ * rename earlier, four story files and one fence writing a property name that had moved).
+ *
+ * CAN GO RED. Both sides are hand-written and neither reads the other: the caller's import
+ * clause, and the namespace barrel. It also fails VACUOUSLY-SAFE — a surface whose callers
+ * cannot be found at all is reported, because a reader that finds nothing would clear
+ * every caller in the repository at once.
+ *
+ * @param {{
+ *   callers: {file: string, package: string, names: string[]}[],
+ *   webNamespace: Map<string, Map<string, string>> | null,
+ *   renderers: {package: string, namespace?: Map<string, Map<string, string>> | null}[],
+ * }} world
+ * @returns {string[]}
+ */
+function callerProblems({ callers, webNamespace, renderers }) {
+    const problems = [];
+    // The SAME namespace objects the two halves above were held against, never a second
+    // read of the same files: a caller rule that read its own copy could report a name as
+    // retired while the rule that decides what is retired said it is not.
+    const namespaces = [
+        [WEB_SURFACE, webNamespace],
+        ...renderers.filter((surface) => surface.namespace !== undefined).map((s) => [s.package, s.namespace]),
+    ];
+    /** package -> retired binding -> the one spelling that is left. */
+    const retired = new Map();
+    for (const [pkg, namespace] of namespaces) {
+        const names = new Map();
+        for (const [name, members] of namespace ?? []) {
+            for (const [member, binding] of members) names.set(binding, `${name}.${member}`);
+        }
+        retired.set(pkg, names);
+    }
+
+    for (const [pkg, names] of retired) {
+        if (names.size === 0) continue;
+        if (!callers.some((caller) => caller.package === pkg)) {
+            problems.push(
+                `no file outside ${pkg} imports it, across ${VOCABULARY_CALLER_DIRS.join(', ')}. A caller scan ` +
+                    'that finds nothing passes every caller at once, so this is a failure and not a pass — ' +
+                    'either the reader broke or the corpus list is short.',
+            );
+        }
+    }
+
+    for (const caller of callers) {
+        const names = retired.get(caller.package);
+        if (names === undefined) continue;
+        for (const name of caller.names) {
+            const spelling = names.get(name);
+            if (spelling === undefined) continue;
+            problems.push(
+                `${caller.file} imports \`${name}\` from ${caller.package}, which exports no such name — ` +
+                    `it is \`${spelling}\` (ADR 0034 clause 2). Import the namespace and write that.`,
+            );
+        }
+    }
+    return problems;
+}
+
+/**
  * The web surface's two clause-2 sides, as one descriptor.
  *
  * Its alias target is a TAG, so placing an element needs no lookup — the prefix split in
@@ -1071,6 +1179,7 @@ const webNamespaceSurface = (world, runtimeTags) => ({
     source: NAMESPACE_SOURCE,
     widgets: world.webElements,
     namespace: world.webNamespace,
+    flatExports: world.flatExports.get(WEB_SURFACE) ?? new Set(),
     tagOf: (element) => {
         if (runtimeTags.has(element)) return element;
         const alias = world.table[element]?.gtk;
@@ -1088,11 +1197,12 @@ const webNamespaceSurface = (world, runtimeTags) => ({
  * table does not carry resolves to nothing here: `rendererWidgetProblems` has already
  * failed on it, and a second failure would ask for two fixes for one edit.
  */
-const rendererNamespaceSurface = (surface, runtime, runtimeTags) => ({
+const rendererNamespaceSurface = (surface, runtime, runtimeTags, flatExports) => ({
     package: surface.package,
     source: surface.namespaceSource,
     widgets: surface.widgets,
     namespace: surface.namespace,
+    flatExports: flatExports.get(surface.package) ?? new Set(),
     tagOf: (widget) => {
         if (runtimeTags.has(widget)) return widget;
         const gir = surface.table[widget]?.gir;
@@ -1474,9 +1584,15 @@ export function alignmentProblems(world) {
         // `check-adwaita-rn-platform-split.mjs`, where the three barrels make the question
         // different. Held after the widget names, because it reuses their verdicts.
         if (surface.namespace !== undefined) {
-            problems.push(...namespaceProblems(rendererNamespaceSurface(surface, runtime, runtimeTags)));
+            problems.push(
+                ...namespaceProblems(rendererNamespaceSurface(surface, runtime, runtimeTags, world.flatExports)),
+            );
         }
     }
+
+    // Clause 2 at the CALLER, after both halves above: the retired set is the namespace
+    // members, so a surface whose namespace is wrong is reported there and not twice here.
+    problems.push(...callerProblems(world));
 
     // The PROPERTY half — one level down, on the surface where it was measured.
     problems.push(...propertyProblems(world));
@@ -1547,6 +1663,23 @@ const WORLD = () => ({
         ['Adw', new Map([['Bin', 'AdwBin']])],
         ['Gtk', new Map([['Button', 'AdwButton']])],
     ]),
+    // The three flat exports the fixture surfaces keep: two widgets with no member (a
+    // `composes` and an `own`) and one helper. None of them may be reported, which is what
+    // makes the flat-export rule a rule rather than "every export is a failure".
+    flatExports: new Map([
+        [WEB_SURFACE, new Set(['AdwBox', 'createGtkImage'])],
+        ['@gjsify/adwaita-nativescript', new Set(['AdwIconButton', 'AdwGrid'])],
+    ]),
+    // One caller per surface, so the vacuity arm is satisfied and the naming arm has
+    // something to be right about.
+    callers: [
+        { file: 'showcases/dom/example/app.ts', package: WEB_SURFACE, names: ['Adw'] },
+        {
+            file: 'showcases/dom/example/story.ns.ts',
+            package: '@gjsify/adwaita-nativescript',
+            names: ['Adw', 'Gtk', 'AdwGrid'],
+        },
+    ],
     nsWidgets: FIXTURE_NS_WIDGETS,
     nsTable: FIXTURE_NS_TABLE,
     // The renderer's clause-2 namespace, which is where the two derivations differ: the
@@ -1776,7 +1909,7 @@ const VECTORS = [
     [
         'a NativeScript widget with no namespace member',
         (w) => withNs(w, { nsNamespace: new Map([...w.nsNamespace, ['Adw', new Map()]]) }),
-        '`Adw.Bin` is missing from the Adw/Gtk namespace in packages/nativescript-bridge',
+        '`Adw.Bin` is missing from the Adw/Gtk namespace barrels in packages/nativescript-bridge',
     ],
     [
         'a namespace member no NativeScript widget corresponds to',
@@ -1809,12 +1942,41 @@ const VECTORS = [
                     ['Gtk', new Map()],
                 ]),
             }),
-        '`Gtk.Button` is missing from the Adw/Gtk namespace in packages/nativescript-bridge',
+        '`Gtk.Button` is missing from the Adw/Gtk namespace barrels in packages/nativescript-bridge',
     ],
     [
         'an `own` widget re-declared as a `gir` alias, which must demand a member',
         (w) => withNs(w, { nsTable: { ...w.nsTable, 'adw-grid': { gir: 'GtkBox', why: FIXTURE_REASON } } }),
-        '`Gtk.Box` is missing from the Adw/Gtk namespace in packages/nativescript-bridge',
+        '`Gtk.Box` is missing from the Adw/Gtk namespace barrels in packages/nativescript-bridge',
+    ],
+    // Clause 2's third side: the flat name is GONE, and no caller writes it.
+    [
+        'a widget exported flat beside its namespace member',
+        (w) => ({
+            ...w,
+            flatExports: new Map([...w.flatExports, [WEB_SURFACE, new Set(['AdwBox', 'AdwBin'])]]),
+        }),
+        'exports `AdwBin` flat from src/index.ts AND as `Adw.Bin`',
+    ],
+    [
+        'a caller importing a retired flat spelling',
+        (w) => ({
+            ...w,
+            callers: [
+                ...w.callers,
+                {
+                    file: 'website/src/content/docs/adwaita/layout.mdx',
+                    package: '@gjsify/adwaita-nativescript',
+                    names: ['AdwBin'],
+                },
+            ],
+        }),
+        'imports `AdwBin` from @gjsify/adwaita-nativescript, which exports no such name',
+    ],
+    [
+        'a caller scan that found nothing',
+        (w) => ({ ...w, callers: [] }),
+        'A caller scan that finds nothing passes every caller at once',
     ],
     // The NativeScript half.
     [
@@ -2327,6 +2489,16 @@ try {
         // namespace" for the summary is the one the rule is held against, so the line at the
         // bottom cannot report an adoption the rule never looked at.
         webNamespace: WIDGET_SURFACE_READERS[WEB_SURFACE].namespace(ROOT),
+        // Clause 2's third side: what each surface still exports FLAT, and who names it.
+        // Both are read from the tree rather than declared here — the amendments removed
+        // names, and a removal nothing reads is a sentence in an ADR.
+        flatExports: new Map(
+            Object.entries(NAMESPACE_PACKAGES).map(([pkg, { src }]) => [pkg, rootValueExports(ROOT, src)]),
+        ),
+        callers: vocabularyCallers(
+            ROOT,
+            new Map(Object.entries(NAMESPACE_PACKAGES).map(([pkg, { dir }]) => [pkg, dir])),
+        ),
         nsWidgets,
         nsTable: NS_WIDGET_ALIGNMENT,
         // The declaration half. `declaredWidgetSurfaces` reads the manifests and
@@ -2423,7 +2595,9 @@ console.log(
         `${kindCount(NS_PROPERTY_ALIGNMENT, 'own')} declared own, ` +
         `${kindCount(NS_PROPERTY_ALIGNMENT, 'gap')} undecided). ` +
         `Namespace exports (ADR 0034 clause 2): ${namespaced.length} of ${renderersDeclared} renderer(s)` +
-        `${namespaced.length > 0 ? ` — ${namespaced.join(', ')}` : ''}. ` +
+        `${namespaced.length > 0 ? ` — ${namespaced.join(', ')}` : ''}, ` +
+        `held at ${world.callers.length} caller import(s) in ` +
+        `${new Set(world.callers.map((caller) => caller.file)).size} file(s). ` +
         `Distance to one vocabulary: ${widgetDistance} widget name(s) and ${propConverge} property name(s), ` +
         'and both can only go down.',
 );

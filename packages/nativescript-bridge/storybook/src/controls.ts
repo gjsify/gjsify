@@ -9,13 +9,13 @@
 // ONLY the adwaita-nativescript leaf-widget factory — the single renderer seam.
 //
 // Mapping:
-//   TEXT        -> AdwEntryRow
-//   BOOLEAN     -> AdwSwitchRow
-//   NUMBER      -> AdwSpinRow   (stepper)
+//   TEXT        -> Adw.EntryRow
+//   BOOLEAN     -> Adw.SwitchRow
+//   NUMBER      -> Adw.SpinRow   (stepper)
 //   RANGE       -> AdwSliderRow (real slider — matches the GTK Gtk.Scale / browser
 //                                input[type=range] RANGE card)
-//   SELECT      -> AdwComboRow
-//   COLOR       -> AdwEntryRow (hex fallback — NS has no native color row)
+//   SELECT      -> Adw.ComboRow
+//   COLOR       -> Adw.EntryRow (hex fallback — NS has no native color row)
 
 import type { StoryControl, StoryNumberControl, StorySelectControl } from '@gjsify/stories';
 import {
@@ -25,11 +25,8 @@ import {
     type ControlWidgetFactory,
 } from '@gjsify/storybook-core';
 import {
-    AdwComboRow,
-    AdwEntryRow,
+    Adw,
     AdwSliderRow,
-    AdwSpinRow,
-    AdwSwitchRow,
     NOTIFY_ACTIVE,
     NOTIFY_SELECTED,
     NOTIFY_SLIDER_VALUE,
@@ -60,7 +57,7 @@ export function createControlRow(story: StoryView, control: StoryControl): Contr
  */
 const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
     text(label: string): ControlWidget<View, string> {
-        const row = new AdwEntryRow();
+        const row = new Adw.EntryRow();
         row.title = label;
         let cb: (v: string) => void = () => {};
         row.addEventListener(NOTIFY_TEXT, (e) => cb((e as NotifyTextEventData).text));
@@ -77,10 +74,10 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
     },
 
     // COLOR has no native NativeScript Adwaita row, so we fall back to an
-    // AdwEntryRow holding the `#rrggbb` hex string — the same intent the browser
+    // Adw.EntryRow holding the `#rrggbb` hex string — the same intent the browser
     // renderer's color row exposes, minus the swatch picker.
     color(label: string, desc: string | undefined): ControlWidget<View, string> {
-        const row = new AdwEntryRow();
+        const row = new Adw.EntryRow();
         row.title = `${label} (hex)`;
         if (desc) row.subtitle = desc;
         let cb: (v: string) => void = () => {};
@@ -98,7 +95,7 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
     },
 
     boolean(label: string, desc: string | undefined): ControlWidget<View, boolean> {
-        const row = new AdwSwitchRow();
+        const row = new Adw.SwitchRow();
         row.title = label;
         if (desc) row.subtitle = desc;
         let cb: (v: boolean) => void = () => {};
@@ -127,7 +124,7 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
 
     select(control: StorySelectControl): ControlWidget<View, number> {
         const options = control.options ?? [];
-        const row = new AdwComboRow();
+        const row = new Adw.ComboRow();
         row.title = label(control);
         if (control.description) row.subtitle = control.description;
         row.options = options.map((o) => ({ label: o.label, value: String(o.value) }));
@@ -146,9 +143,9 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
     },
 };
 
-/** Build an AdwSpinRow leaf widget for NUMBER + RANGE controls. */
+/** Build an Adw.SpinRow leaf widget for NUMBER + RANGE controls. */
 function spinRow(control: StoryNumberControl): ControlWidget<View, number> {
-    const row = new AdwSpinRow();
+    const row = new Adw.SpinRow();
     row.title = label(control);
     if (control.description) row.subtitle = control.description;
     row.min = control.min ?? 0;

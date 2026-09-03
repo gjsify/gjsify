@@ -1,5 +1,5 @@
-<adw:GtkEntry
+<gtk:Entry
   xmlns="http://schemas.nativescript.org/tns.xsd"
-  xmlns:adw="~/adwaita"
+  xmlns:gtk="~/gtk"
   placeholderText="Search files…"
 />

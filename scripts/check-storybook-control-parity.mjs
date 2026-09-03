@@ -60,7 +60,15 @@ import {
     storyFilesWith,
     stripComments,
 } from './adwaita-elements.mjs';
-import { membersOf, NS_CORE_TYPES, readCoreProperties, readWidgets, WIDGET_CLASS } from './nativescript-xml-doors.mjs';
+import {
+    membersOf,
+    NS_CORE_TYPES,
+    readCoreProperties,
+    readNamespaceSpellings,
+    readWidgets,
+    widgetClassOf,
+    WIDGET_REFERENCE,
+} from './nativescript-xml-doors.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
@@ -229,13 +237,21 @@ const settersOf = (file) => {
  * package widget a story holds rather than only the one it is named after. `membersOf`
  * covers in-package ancestors; {@link readCoreProperties} covers what a NativeScript view
  * already carries, and nothing else is exempt.
+ *
+ * The annotation is the NAMESPACE member since ADR 0034 § Amendment 9 — `_row:
+ * Adw.SwitchRow` — so the pattern reads both spellings and resolves through the package's
+ * own barrels. Keyed on `WIDGET_CLASS` alone it matched nothing after the migration, and
+ * an unmatched field is `continue`d rather than reported: the arm would have gone from
+ * 117 held writes to 0 with the run still green, one story file at a time.
  */
-const NS_WIDGET_FIELD = new RegExp(`\\b_([A-Za-z0-9_$]+)\\s*:\\s*(${WIDGET_CLASS})\\b`, 'g');
+const NS_WIDGET_FIELD = new RegExp(`\\b_([A-Za-z0-9_$]+)\\s*:\\s*(${WIDGET_REFERENCE})\\b`, 'g');
 let nsWidgetSources = new Map();
 let nsCoreProperties = new Set();
+let nsSpellings = new Map();
 try {
     ({ sources: nsWidgetSources } = readWidgets(ROOT));
     nsCoreProperties = readCoreProperties(ROOT);
+    nsSpellings = readNamespaceSpellings(ROOT);
 } catch (error) {
     console.error(`check-storybook-control-parity: ${error.message}`);
     process.exit(1);
@@ -252,8 +268,9 @@ let deadWriteChecked = 0;
 /** Every `this._field.prop = …` in a NativeScript story whose widget has no such member. */
 function deadWrites(code) {
     const fields = new Map();
-    for (const [, field, klass] of code.matchAll(NS_WIDGET_FIELD)) {
-        if (nsWidgetSources.has(klass)) fields.set(field, klass);
+    for (const [, field, spelling] of code.matchAll(NS_WIDGET_FIELD)) {
+        const klass = widgetClassOf(spelling, nsSpellings);
+        if (klass !== null && nsWidgetSources.has(klass)) fields.set(field, klass);
     }
     const found = [];
     for (const [, field, property] of code.matchAll(/\bthis\._([A-Za-z0-9_$]+)\.([A-Za-z0-9_$]+)\s*=[^=]/g)) {

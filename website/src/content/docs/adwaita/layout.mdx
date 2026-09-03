@@ -23,8 +23,11 @@ way: an XML template holds the tree and the TypeScript beside it is the loader.
 
 A NativeScript template reaches these widgets through its `xmlns`, and the namespace
 is a MODULE: NativeScript loads it and reads the element name off its exports, so
-`xmlns:adw="~/adwaita"` needs an app-local `app/adwaita.ts` that re-exports what the
-markup names. A bare package specifier there does not resolve. Every XML tab in this
+`xmlns:adw="~/adw"` needs an app-local `app/adw.ts` that re-exports what the markup
+names. A bare package specifier there does not resolve. There is **one barrel per
+library** — `~/adw` for `Adw.*`, `~/gtk` for `Gtk.*` — because the prefix is the only
+thing in XML that can say which library a widget belongs to: point both at one module
+and `<adw:Button>` silently builds the GTK button. Every XML tab in this
 gallery was inflated on an Android device before it was written down —
 [`adwaita-gallery-nativescript`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-gallery-nativescript)
 loads each template through NativeScript's own `Builder` and asserts the view tree it
@@ -150,10 +153,10 @@ at a comfortable measure on a large display without wasting room on a small one.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    // app/adwaita.ts — the module the template's `xmlns:adw="~/adwaita"` resolves to.
-    // NativeScript reads `AdwClamp` off THIS module's exports; a bare package
+    // app/adw.ts — the module the template's `xmlns:adw="~/adw"` resolves to.
+    // NativeScript reads `Clamp` off THIS module's exports; a bare package
     // specifier in the xmlns does not resolve.
-    export { AdwClamp } from '@gjsify/adwaita-nativescript';
+    export { Clamp } from '@gjsify/adwaita-nativescript/adw';
 
     // app/views/clamp.ts — the loader. The template holds the tree; this holds the
     // wiring, and here there is none beyond mounting it.
@@ -254,8 +257,10 @@ the trailing one.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    // app/adwaita.ts — the module the template's `xmlns:adw="~/adwaita"` resolves to.
-    export { GtkButton, AdwHeaderBar, AdwWindowTitle } from '@gjsify/adwaita-nativescript';
+    // app/adw.ts and app/gtk.ts — the modules `xmlns:adw="~/adw"` and
+    // `xmlns:gtk="~/gtk"` resolve to. One barrel per library, so the prefix says which.
+    export { HeaderBar, WindowTitle } from '@gjsify/adwaita-nativescript/adw';
+    export { Button } from '@gjsify/adwaita-nativescript/gtk';
 
     // app/views/header-bar.ts — the loader.
     import { Builder } from '@nativescript/core';
@@ -425,18 +430,16 @@ the view moves.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    // app/adwaita.ts — the module the template's `xmlns:adw="~/adwaita"` resolves to.
-    export {
-        AdwHeaderBar,
-        AdwImageButton,
-        AdwStatusPage,
-        AdwToolbarView,
-        AdwWindowTitle,
-    } from '@gjsify/adwaita-nativescript';
+    // app/adw.ts — the module the template's `xmlns:adw="~/adw"` resolves to.
+    export { HeaderBar, StatusPage, ToolbarView, WindowTitle } from '@gjsify/adwaita-nativescript/adw';
+
+    // AdwImageButton composes a button and an image and has no GIR name of its own,
+    // so it has no namespace member and keeps its class name at the package root.
+    export { AdwImageButton } from '@gjsify/adwaita-nativescript';
 
     // app/views/toolbar-view.ts — the loader, and the three things markup cannot say.
     import { Builder } from '@nativescript/core';
-    import type { AdwImageButton, AdwStatusPage } from '@gjsify/adwaita-nativescript';
+    import { Adw, AdwImageButton } from '@gjsify/adwaita-nativescript';
     import { listAddSymbolic, sendToSymbolic } from '@gjsify/adwaita-icons/actions';
     import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 
@@ -446,7 +449,7 @@ the view moves.
     // decodes no SVG, so the widget rasterises the markup itself. An XML attribute
     // is a string, so the template declares the buttons and gives them ids, and the
     // loader hands each one its glyph.
-    view.getViewById<AdwStatusPage>('library').iconName = folderSymbolic;
+    view.getViewById<Adw.StatusPage>('library').iconName = folderSymbolic;
     view.getViewById<AdwImageButton>('add').iconName = listAddSymbolic;
     view.getViewById<AdwImageButton>('share').iconName = sendToSymbolic;
     ```
@@ -551,8 +554,9 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    // app/adwaita.ts — the module the template's `xmlns:adw="~/adwaita"` resolves to.
-    export { GtkButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+    // app/adw.ts and app/gtk.ts — the modules the template's two `xmlns` resolve to.
+    export { WrapBox } from '@gjsify/adwaita-nativescript/adw';
+    export { Button } from '@gjsify/adwaita-nativescript/gtk';
 
     // app/views/wrap-box.ts — the loader. A fixed run of chips is a tree, so it is
     // the template's; build the children here instead when the run comes from data.

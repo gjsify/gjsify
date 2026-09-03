@@ -15,9 +15,14 @@ Both render. Neither is what the template says. So the probe reads every declare
 
 ## Generated, not written
 
-`app/views/*.xml`, `app/adwaita.ts` and `app/expected.ts` are emitted by [`scripts/generate-adwaita-nativescript-templates.mjs`](../../../scripts/generate-adwaita-nativescript-templates.mjs) from [`scripts/adwaita-gallery-ns-templates.mjs`](../../../scripts/adwaita-gallery-ns-templates.mjs) — the same run that writes `website/src/data/adwaita-nativescript-templates.ts`. The bytes a reader copies off the website and the bytes this app inflates are one string, and `scripts/check-generated-website-data.mjs` compares them.
+`app/views/*.xml`, `app/adw.ts`, `app/gtk.ts` and `app/expected.ts` are emitted by [`scripts/generate-adwaita-nativescript-templates.mjs`](../../../scripts/generate-adwaita-nativescript-templates.mjs) from [`scripts/adwaita-gallery-ns-templates.mjs`](../../../scripts/adwaita-gallery-ns-templates.mjs) — the same run that writes `website/src/data/adwaita-nativescript-templates.ts`. The bytes a reader copies off the website and the bytes this app inflates are one string, and `scripts/check-generated-website-data.mjs` compares them.
 
-Do not edit those three by hand; re-run the generator.
+Do not edit those four by hand; re-run the generator.
+
+The two barrels are two because the `xmlns` prefix is the only thing an XML template has to
+say which library a widget belongs to: `~/adw` holds the `Adw` half and `~/gtk` the `Gtk`
+half, so `<adw:Button>` fails to load instead of quietly building the GTK button (ADR 0034
+§ Amendment 9).
 
 ## Run
 
@@ -59,7 +64,7 @@ app/
   app-root.xml        <Frame defaultPage="gallery-page" />
   gallery-page.*      the probe: Builder.load() each view, walk the tree, report
   reporter.ts         the __GJSIFY_NS__ marker grammar
-  adwaita.ts          GENERATED — the module every template's xmlns:adw resolves to
+  adw.ts, gtk.ts      GENERATED — one module per library, what each xmlns resolves to
   expected.ts         GENERATED — the tree each view must have built
   views/*.xml         GENERATED — the templates the website ships
   app.css             @nativescript/theme + adwaita.css

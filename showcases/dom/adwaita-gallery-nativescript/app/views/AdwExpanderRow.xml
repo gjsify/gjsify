@@ -1,19 +1,19 @@
-<adw:AdwPreferencesGroup
+<adw:PreferencesGroup
   xmlns="http://schemas.nativescript.org/tns.xsd"
-  xmlns:adw="~/adwaita"
+  xmlns:adw="~/adw"
 >
-  <adw:AdwExpanderRow
+  <adw:ExpanderRow
     title="Advanced"
     subtitle="Options most people leave alone"
     expanded="true"
   >
-    <adw:AdwSwitchRow
+    <adw:SwitchRow
       title="Developer mode"
       active="false"
     />
-    <adw:AdwEntryRow
+    <adw:EntryRow
       title="Endpoint"
       text="https://example.invalid"
     />
-  </adw:AdwExpanderRow>
-</adw:AdwPreferencesGroup>
+  </adw:ExpanderRow>
+</adw:PreferencesGroup>

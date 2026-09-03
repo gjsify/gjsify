@@ -66,7 +66,7 @@ export const SURFACE_ROLES = ['reference', 'renderer'];
  * the same file would be a copy that can drift.
  *
  * `namespace(root)` answers ADR 0034 clause 2 — the vocabulary reachable as `Adw.Bin`,
- * which on two of these surfaces is now the ONLY spelling (§ Amendments 6 and 8) —
+ * which on all three of these surfaces is now the ONLY spelling (§ Amendments 6, 8 and 9) —
  * mapping each member to the identifier it is bound to,
  * and returning `null` for a surface that exports none. It REPORTS adoption rather than
  * demanding it: a renderer that has not adopted the clause is work that is left, and a

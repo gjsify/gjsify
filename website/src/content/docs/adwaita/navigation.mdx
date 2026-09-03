@@ -174,39 +174,33 @@ the sidebar and the content each their own navigation page and header bar.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import {
-        AdwHeaderBar,
-        AdwNavigationSplitView,
-        AdwSidebar,
-        AdwStatusPage,
-        AdwToolbarView,
-    } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
     import { mailUnreadSymbolic } from '@gjsify/adwaita-icons/status';
 
     // Sidebar: the navigation list, not a boxed list. The NS surface takes a
     // flat label list (no per-item subtitle/icon slot).
-    const sidebarList = new AdwSidebar();
+    const sidebarList = new Adw.Sidebar();
     sidebarList.setItems(['All Mail', 'Starred', 'Drafts', 'Archive']);
     sidebarList.selected = 0;
 
-    const sidebarHeader = new AdwHeaderBar();
+    const sidebarHeader = new Adw.HeaderBar();
     sidebarHeader.title = 'Mailboxes';
-    const sidebar = new AdwToolbarView();
+    const sidebar = new Adw.ToolbarView();
     sidebar.addTopBar(sidebarHeader);
     sidebar.setContent(sidebarList);
 
     // Content: a status page inside a toolbar view.
-    const status = new AdwStatusPage();
+    const status = new Adw.StatusPage();
     status.iconName = mailUnreadSymbolic;
     status.title = 'All Mail';
     status.description = 'Select a conversation from the list to read it here.';
-    const contentHeader = new AdwHeaderBar();
+    const contentHeader = new Adw.HeaderBar();
     contentHeader.title = 'All Mail';
-    const content = new AdwToolbarView();
+    const content = new Adw.ToolbarView();
     content.addTopBar(contentHeader);
     content.setContent(status);
 
-    const view = new AdwNavigationSplitView();
+    const view = new Adw.NavigationSplitView();
     view.setSidebar(sidebar);
     view.setContent(content);
     view.showSidebar = true;
@@ -337,34 +331,28 @@ navigation pane that should not push the main content aside on a narrow window.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import {
-        AdwHeaderBar,
-        AdwOverlaySplitView,
-        AdwSidebar,
-        AdwStatusPage,
-        AdwToolbarView,
-    } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
     import { folderMusicSymbolic } from '@gjsify/adwaita-icons/places';
 
-    const sidebarList = new AdwSidebar();
+    const sidebarList = new Adw.Sidebar();
     sidebarList.setItems(['Home', 'Discover', 'Library', 'Settings']);
     sidebarList.selected = 0;
 
-    const header = new AdwHeaderBar();
+    const header = new Adw.HeaderBar();
     header.flat = true;
-    const sidebar = new AdwToolbarView();
+    const sidebar = new Adw.ToolbarView();
     sidebar.addTopBar(header);
     sidebar.setContent(sidebarList);
 
-    const status = new AdwStatusPage();
+    const status = new Adw.StatusPage();
     status.iconName = folderMusicSymbolic;
     status.title = 'Your Library';
     status.description = 'Toggle the sidebar to browse sections. Collapse it to overlay the content.';
-    const content = new AdwToolbarView();
-    content.addTopBar(new AdwHeaderBar());
+    const content = new Adw.ToolbarView();
+    content.addTopBar(new Adw.HeaderBar());
     content.setContent(status);
 
-    const view = new AdwOverlaySplitView();
+    const view = new Adw.OverlaySplitView();
     view.setSidebar(sidebar);
     view.setContent(content);
     view.showSidebar = true;
@@ -492,30 +480,30 @@ the detail page and watch the back button appear.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { GtkButton, AdwHeaderBar, AdwNavigationView, AdwStatusPage, AdwToolbarView } from '@gjsify/adwaita-nativescript';
+    import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
     import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 
-    const view = new AdwNavigationView();
+    const view = new Adw.NavigationView();
 
     // Detail page.
-    const detailHeader = new AdwHeaderBar();
+    const detailHeader = new Adw.HeaderBar();
     detailHeader.title = 'Ada Lovelace';
-    const detailStatus = new AdwStatusPage();
+    const detailStatus = new Adw.StatusPage();
     detailStatus.iconName = avatarDefaultSymbolic;
     detailStatus.title = 'Ada Lovelace';
     detailStatus.description = 'Mathematician and writer, the first computer programmer.';
-    const detail = new AdwToolbarView();
+    const detail = new Adw.ToolbarView();
     detail.addTopBar(detailHeader);
     detail.setContent(detailStatus);
 
     // Root page: a pill button that pushes the detail page by tag.
-    const rootHeader = new AdwHeaderBar();
+    const rootHeader = new Adw.HeaderBar();
     rootHeader.title = 'Contacts';
-    const open = new GtkButton();
+    const open = new Gtk.Button();
     open.text = 'Open contact';
     open.variant = 'pill';
     open.addEventListener('tap', () => view.push('detail'));
-    const root = new AdwToolbarView();
+    const root = new Adw.ToolbarView();
     root.addTopBar(rootHeader);
     root.setContent(open);
 
@@ -628,7 +616,7 @@ already knows how to be one.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwSidebar, AdwStatusPage, NOTIFY_SIDEBAR_SELECTED } from '@gjsify/adwaita-nativescript';
+    import { Adw, NOTIFY_SIDEBAR_SELECTED } from '@gjsify/adwaita-nativescript';
     import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
     import { mailSendSymbolic } from '@gjsify/adwaita-icons/actions';
     import { folderSymbolic } from '@gjsify/adwaita-icons/places';
@@ -642,12 +630,12 @@ already knows how to be one.
     ];
 
     // The NS surface takes a flat label list (no per-item subtitle/icon slot).
-    const sidebar = new AdwSidebar();
+    const sidebar = new Adw.Sidebar();
     sidebar.setItems(items.map((it) => it.title));
     sidebar.selected = 0;
     sidebar.width = 220;
 
-    const status = new AdwStatusPage();
+    const status = new Adw.StatusPage();
     const syncContent = () => {
         const it = items[sidebar.selected] ?? items[0];
         status.iconName = it.icon;
@@ -822,16 +810,16 @@ content pane, not to work.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwActionRow, AdwBottomSheet, GtkButton, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
+    import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
     import { Label, StackLayout } from '@nativescript/core';
 
-    const sheet = new AdwBottomSheet();
+    const sheet = new Adw.BottomSheet();
 
     // Persistent content: a centered pill button that toggles the sheet.
     const center = new StackLayout();
     center.horizontalAlignment = 'center';
     center.verticalAlignment = 'middle';
-    const toggle = new GtkButton();
+    const toggle = new Gtk.Button();
     toggle.text = 'Toggle sheet';
     toggle.variant = 'pill';
     toggle.addEventListener('tap', () => { sheet.openState = !sheet.openState; });
@@ -846,9 +834,9 @@ content pane, not to work.
     title.className = 'title-2';
     box.addChild(title);
 
-    const group = new AdwPreferencesGroup();
+    const group = new Adw.PreferencesGroup();
     for (const rowTitle of ['Copy link', 'Send to a friend', 'Add to playlist']) {
-        const row = new AdwActionRow();
+        const row = new Adw.ActionRow();
         row.title = rowTitle;
         group.addRow(row);
     }

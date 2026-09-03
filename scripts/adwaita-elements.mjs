@@ -1066,3 +1066,108 @@ export function namespaceExport(root, srcDir) {
 
     return found.size === 0 ? null : found;
 }
+
+/**
+ * The VALUE names a package root exports flat, from its own `src/index.ts`.
+ *
+ * ADR 0034 § Amendments 6 and 9 removed the prefixed widget classes from two package
+ * roots, and nothing held them gone: the amendments are prose, and a re-added
+ * `export { AdwStatusPage }` line would restore the second vocabulary in one commit with
+ * every gate green. This is the reader the namespace half holds that against.
+ *
+ * `export { X } from '…'` and `export { X as Y } from '…'` only — which is the entire
+ * shape of a barrel (root AGENTS.md § Code anti-patterns, monolithic entry points), and
+ * the `export * as Adw from …` lines the namespace itself uses are deliberately NOT
+ * members here: a namespace is one name, not forty.
+ *
+ * @param {string} root repository root
+ * @param {string} srcDir the package's `src`, repo-relative
+ * @returns {Set<string>} the exported names, empty when the file is unreadable
+ */
+export function rootValueExports(root, srcDir) {
+    const path = join(root, srcDir, 'index.ts');
+    if (!existsSync(path)) return new Set();
+    const code = stripComments(readFileSync(path, 'utf8'));
+    const names = new Set();
+    for (const [, clause] of code.matchAll(NAMESPACE_BARREL_MEMBER)) {
+        for (const entry of clause.split(',')) {
+            const name = entry.trim();
+            if (name === '' || name.startsWith('type ')) continue;
+            const [binding, member] = name.split(/\s+as\s+/).map((half) => half.trim());
+            names.add(member === undefined || member === '' ? binding : member);
+        }
+    }
+    return names;
+}
+
+/**
+ * Where a CALLER of a widget surface can live. Declared rather than walked from the root,
+ * because `refs/` alone is 16 GB of read-only submodules and a scan that has to skip its
+ * way past them is a scan nobody will keep correct.
+ */
+export const VOCABULARY_CALLER_DIRS = ['showcases', 'examples', 'packages', 'tests', 'templates', 'website/src'];
+
+/** `import { A, B } from '<pkg>'` — the only shape a caller reaches a widget surface by. */
+const CALLER_IMPORT = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'([^']+)'/g;
+
+/**
+ * Every file OUTSIDE a widget surface that names one of its exports, with the names.
+ *
+ * `.mdx` is in the extension list and is the reason this reader exists at all: the
+ * published fences are the one corpus with no compiler behind it, `showcases/dom/*` are
+ * excluded from the workspace globs and are type-checked by no CI job either, and the
+ * XML dialect has no type-checker anywhere. So "the flat export is gone" is enforced by
+ * the bundler for exactly the callers that are BUILT, which is none of the ones that
+ * teach the vocabulary.
+ *
+ * A file inside the surface's own package is not a caller: the classes still exist there
+ * and are still named after the library that owns their GType (clause 1).
+ *
+ * @param {string} root repository root
+ * @param {Map<string, string>} owners package name -> the repo-relative package dir it lives in
+ * @returns {{file: string, package: string, names: string[]}[]}
+ */
+export function vocabularyCallers(root, owners) {
+    const found = [];
+    const walk = (dir) => {
+        let entries = [];
+        try {
+            entries = readdirSync(dir, { withFileTypes: true });
+        } catch {
+            return;
+        }
+        for (const entry of entries) {
+            const path = join(dir, entry.name);
+            if (entry.isDirectory()) {
+                if (['node_modules', 'lib', 'dist', 'platforms', 'generated'].includes(entry.name)) continue;
+                walk(path);
+                continue;
+            }
+            if (!/\.(ts|tsx|mts|cts|js|mjs|mdx)$/.test(entry.name)) continue;
+            const rel = toPosixPath(relative(root, path));
+            let text;
+            try {
+                text = readFileSync(path, 'utf8');
+            } catch {
+                continue;
+            }
+            for (const [, clause, specifier] of text.matchAll(CALLER_IMPORT)) {
+                const owner = owners.get(specifier);
+                if (owner === undefined || rel.startsWith(`${owner}/`)) continue;
+                const names = clause
+                    .split(',')
+                    .map((entry_) =>
+                        entry_
+                            .trim()
+                            .replace(/^type\s+/, '')
+                            .split(/\s+as\s+/)[0]
+                            .trim(),
+                    )
+                    .filter((name) => name !== '');
+                if (names.length > 0) found.push({ file: rel, package: specifier, names });
+            }
+        }
+    };
+    for (const dir of VOCABULARY_CALLER_DIRS) walk(join(root, dir));
+    return found;
+}

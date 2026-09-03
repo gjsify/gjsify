@@ -3,12 +3,12 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwActionRow, AdwBottomSheet, GtkButton, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
+import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { Label, StackLayout } from '@nativescript/core';
 import { bottomSheetMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class BottomSheetNsStory extends StoryView {
-    private _sheet: AdwBottomSheet | null = null;
+    private _sheet: Adw.BottomSheet | null = null;
 
     constructor() {
         super(BottomSheetNsStory.getMetadata(), 'Default');
@@ -24,7 +24,7 @@ export class BottomSheetNsStory extends StoryView {
         center.horizontalAlignment = 'center';
         center.verticalAlignment = 'middle';
 
-        const toggle = new GtkButton();
+        const toggle = new Gtk.Button();
         toggle.text = 'Toggle sheet';
         toggle.variant = 'pill';
         toggle.addEventListener('tap', () => {
@@ -47,13 +47,13 @@ export class BottomSheetNsStory extends StoryView {
         title.className = 'title-2';
         box.addChild(title);
 
-        const group = new AdwPreferencesGroup();
+        const group = new Adw.PreferencesGroup();
         for (const [rowTitle] of [
             ['Copy link', 'edit-copy-symbolic'],
             ['Send to a friend', 'mail-send-symbolic'],
             ['Add to playlist', 'list-add-symbolic'],
         ] as const) {
-            const row = new AdwActionRow();
+            const row = new Adw.ActionRow();
             row.title = rowTitle;
             group.addRow(row);
         }
@@ -63,7 +63,7 @@ export class BottomSheetNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._sheet = new AdwBottomSheet();
+        this._sheet = new Adw.BottomSheet();
         // Match the native story's fixed 480×340 viewport so the sheet has a
         // bounded content area to sit over.
         this._sheet.width = 480;
@@ -82,7 +82,7 @@ export class BottomSheetNsStory extends StoryView {
 
     private _sync(): void {
         if (!this._sheet) return;
-        // NS AdwBottomSheet models `open` (via `openState`) and `can-close`, both
+        // NS Adw.BottomSheet models `open` (via `openState`) and `can-close`, both
         // out of the shared `@gjsify/adwaita-core` state. `modal` has no NS
         // equivalent: the CSS subset here has no scrim/backdrop.
         //

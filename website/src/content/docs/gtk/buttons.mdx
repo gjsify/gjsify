@@ -31,7 +31,7 @@ GTK 4 is the reference here, typed by
 spells both buttons the way the GIR does — `<gtk-button>` and `<gtk-menu-button>`,
 the same tags `@gjsify/gtk-host` uses — because a widget is named after the library
 that owns it and the Adwaita part of these two is the stylesheet. The NativeScript
-port names them by the same rule, `GtkButton` and `GtkMenuButton`. Where a port
+port names them by the same rule, `Gtk.Button` and `Gtk.MenuButton`. Where a port
 behaves differently, its own window says so.
 
 :::note
@@ -133,28 +133,28 @@ each other and mean the same thing everywhere in the toolkit, so a
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { GtkButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+    import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 
-    const box = new AdwWrapBox();
+    const box = new Adw.WrapBox();
     box.childSpacing = 12;
     box.lineSpacing = 12;
 
-    const pill = new GtkButton();
+    const pill = new Gtk.Button();
     pill.text = 'Pill';
     pill.variant = 'pill';
     box.add(pill);
 
-    const suggested = new GtkButton();
+    const suggested = new Gtk.Button();
     suggested.text = 'Suggested';
     suggested.variant = 'suggested-action';
     box.add(suggested);
 
-    const destructive = new GtkButton();
+    const destructive = new Gtk.Button();
     destructive.text = 'Delete';
     destructive.variant = 'destructive-action';
     box.add(destructive);
 
-    const flat = new GtkButton();
+    const flat = new Gtk.Button();
     flat.text = 'Flat';
     flat.variant = 'flat';
     box.add(flat);
@@ -231,10 +231,10 @@ in the popover it opens. Libadwaita ships no menu button, so this is
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { GtkMenuButton } from '@gjsify/adwaita-nativescript';
+    import { Gtk } from '@gjsify/adwaita-nativescript';
     import { openMenuSymbolic } from '@gjsify/adwaita-icons/actions';
 
-    const button = new GtkMenuButton();
+    const button = new Gtk.MenuButton();
     button.iconName = openMenuSymbolic; // an Adwaita symbolic icon (SVG string)
     button.menuTitle = 'Document';
     button.menuItems = [{ label: 'Save as…' }, { label: 'Export' }, { label: 'Print' }];

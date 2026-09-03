@@ -3,11 +3,11 @@
 // (imported from the GTK showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwClamp, AdwPasswordEntryRow, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { passwordEntryRowMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class PasswordEntryRowNsStory extends StoryView {
-    private _row: AdwPasswordEntryRow | null = null;
+    private _row: Adw.PasswordEntryRow | null = null;
 
     constructor() {
         super(PasswordEntryRowNsStory.getMetadata(), 'Default');
@@ -18,13 +18,13 @@ export class PasswordEntryRowNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._row = new AdwPasswordEntryRow();
+        this._row = new Adw.PasswordEntryRow();
         this._syncRow();
 
-        const group = new AdwPreferencesGroup();
+        const group = new Adw.PreferencesGroup();
         group.addRow(this._row);
 
-        const clamp = new AdwClamp();
+        const clamp = new Adw.Clamp();
         clamp.maximumSize = 400;
         clamp.setChild(group);
 

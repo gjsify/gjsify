@@ -3,7 +3,7 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwActionRow, AdwClamp, AdwIcon, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
+import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { goNextSymbolic } from '@gjsify/adwaita-icons/actions';
 import { networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
 import { folderSymbolic } from '@gjsify/adwaita-icons/places';
@@ -26,8 +26,8 @@ function iconSvg(gtkName: string): string {
 }
 
 export class ActionRowNsStory extends StoryView {
-    private _row: AdwActionRow | null = null;
-    private _icon: AdwIcon | null = null;
+    private _row: Adw.ActionRow | null = null;
+    private _icon: Gtk.Image | null = null;
 
     constructor() {
         super(ActionRowNsStory.getMetadata(), 'Default');
@@ -38,26 +38,26 @@ export class ActionRowNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._row = new AdwActionRow();
+        this._row = new Adw.ActionRow();
 
         // Leading PREFIX: a REAL Adwaita symbolic icon (rasterised natively via
         // PathParser), matching Adw.ActionRow's prefix icon — not an emoji glyph.
-        this._icon = new AdwIcon();
+        this._icon = new Gtk.Image();
         this._icon.iconName = iconSvg(this.args.iconName as string);
         this._row.setPrefix(this._icon);
 
         // Trailing SUFFIX: the go-next chevron as a symbolic icon (the activatable
         // arrow), matching the browser/GTK twin.
-        const chevron = new AdwIcon();
+        const chevron = new Gtk.Image();
         chevron.iconName = goNextSymbolic;
         this._row.setSuffix(chevron);
 
         this._syncRow();
 
-        const group = new AdwPreferencesGroup();
+        const group = new Adw.PreferencesGroup();
         group.addRow(this._row);
 
-        const clamp = new AdwClamp();
+        const clamp = new Adw.Clamp();
         clamp.maximumSize = 400;
         clamp.setChild(group);
 

@@ -3,11 +3,11 @@
 // renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { GtkEntry } from '@gjsify/adwaita-nativescript';
+import { Gtk } from '@gjsify/adwaita-nativescript';
 import { entryMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class EntryNsStory extends StoryView {
-    private _entry: GtkEntry | null = null;
+    private _entry: Gtk.Entry | null = null;
 
     constructor() {
         super(EntryNsStory.getMetadata(), 'Default');
@@ -18,7 +18,7 @@ export class EntryNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._entry = new GtkEntry();
+        this._entry = new Gtk.Entry();
         this._apply();
         this.addContent(this._entry);
     }

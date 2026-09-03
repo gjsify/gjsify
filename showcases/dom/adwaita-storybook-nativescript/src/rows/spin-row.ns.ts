@@ -3,11 +3,11 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwClamp, AdwPreferencesGroup, AdwSpinRow } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { spinRowMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class SpinRowNsStory extends StoryView {
-    private _row: AdwSpinRow | null = null;
+    private _row: Adw.SpinRow | null = null;
 
     constructor() {
         super(SpinRowNsStory.getMetadata(), 'Default');
@@ -18,15 +18,15 @@ export class SpinRowNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._row = new AdwSpinRow();
+        this._row = new Adw.SpinRow();
         this._row.min = 0;
         this._row.max = 100;
         this._syncRow();
 
-        const group = new AdwPreferencesGroup();
+        const group = new Adw.PreferencesGroup();
         group.addRow(this._row);
 
-        const clamp = new AdwClamp();
+        const clamp = new Adw.Clamp();
         clamp.maximumSize = 400;
         clamp.setChild(group);
 

@@ -10,49 +10,28 @@ export { assertNativeScript, isNativeScript, isAndroid, isIOS } from '@gjsify/na
 
 // Widgets
 export {
-    AdwPreferencesPage,
-    AdwPreferencesGroup,
-    AdwActionRow,
-    AdwSwitchRow,
     NOTIFY_ACTIVE,
-    AdwEntryRow,
     NOTIFY_TEXT,
-    AdwPasswordEntryRow,
-    GtkEntry,
     ENTRY_ACTIVATE,
     NOTIFY_ENTRY_TEXT,
-    AdwComboRow,
     ComboState,
     NOTIFY_SELECTED,
-    GtkDropDown,
     NOTIFY_DROP_DOWN_SELECTED,
-    AdwSpinRow,
     SpinState,
     NOTIFY_VALUE,
     AdwSliderRow,
     NOTIFY_SLIDER_VALUE,
-    AdwExpanderRow,
     ExpanderState,
     NOTIFY_EXPANDED,
-    GtkButton,
     AdwImageButton,
     DEFAULT_ICON_BUTTON_ICON_SIZE,
-    GtkMenuButton,
     MENU_ITEM_ACTIVATED,
-    AdwIcon,
     DEFAULT_ADW_ICON_SIZE,
-    AdwBanner,
     BUTTON_CLICKED,
-    AdwAvatar,
     DEFAULT_AVATAR_SIZE,
     avatarInitials,
-    AdwWindowTitle,
-    AdwClamp,
     DEFAULT_CLAMP_MAX_SIZE,
     // Presentation / layout
-    AdwHeaderBar,
-    AdwToolbarView,
-    AdwWrapBox,
     AdwDataGrid,
     ROW_ACTIVATED,
     dataGridCellClass,
@@ -64,16 +43,10 @@ export {
     DATA_GRID_HEADER_CELL_CLASS,
     DATA_GRID_HEADER_ROW_CLASS,
     DATA_GRID_SECTION_CELL_CLASS,
-    AdwSpinner,
     DEFAULT_SPINNER_SIZE,
-    AdwStatusPage,
-    AdwButtonRow,
     ACTIVATED,
-    AdwButtonContent,
-    AdwSplitButton,
     CLICKED,
     MENU_TAPPED,
-    AdwToggleGroup,
     ToggleGroupState,
     NOTIFY_TOGGLE_SELECTED,
     applyAdwaitaNsAccent,
@@ -81,7 +54,6 @@ export {
     ADWAITA_NS_ACCENT_RULES,
     adwaitaNsAccentColor,
     adwaitaNsAccentCss,
-    AdwShortcutLabel,
     SHORTCUT_LABEL_CAP_TEXT_CLASS,
     SHORTCUT_LABEL_CLASS,
     SHORTCUT_LABEL_DIMMED_CLASS,
@@ -94,43 +66,28 @@ export {
     shortcutLabelPlatform,
     shortcutLabelRenderPlan,
     // View switching
-    AdwViewStack,
     NOTIFY_VISIBLE_CHILD,
     AdwViewSwitcherBase,
     NOTIFY_VIEW_SELECTED,
-    AdwViewSwitcher,
-    AdwViewSwitcherBar,
-    AdwInlineViewSwitcher,
-    AdwTabView,
-    AdwCarousel,
     DEFAULT_CAROUSEL_PAGE_WIDTH,
     NOTIFY_POSITION,
     // Navigation
-    AdwNavigationView,
     NOTIFY_VISIBLE_PAGE,
     AdwSplitViewBase,
     NOTIFY_SHOW_SIDEBAR,
-    AdwNavigationSplitView,
-    AdwOverlaySplitView,
     NsNavigationSplitViewState,
     NsOverlaySplitViewState,
     splitViewColumns,
-    AdwSidebar,
     NOTIFY_SIDEBAR_SELECTED,
-    AdwBottomSheet,
     NOTIFY_OPEN,
     // Feedback / dialogs
     AdwToast,
-    AdwToastOverlay,
     AdwToastQueue,
     DEFAULT_TOAST_TIMEOUT,
     TOAST_BUTTON_CLICKED,
-    AdwAlertDialog,
     AdwAlertResponses,
     NOTIFY_RESPONSE,
-    AdwAboutDialog,
     ABOUT_CLOSED,
-    AdwPreferencesDialog,
     PREFERENCES_CLOSED,
     // Interaction + icon helpers
     attachRowPressFeedback,
@@ -223,9 +180,16 @@ export type {
     BreakpointSize,
 } from './widgets/index.js';
 
-// ADR 0034 clause 2 — the same widgets under their GIR names (`Adw.SwitchRow`,
-// `Gtk.Entry`). Beside the barrel, never inside it: see the header of `namespace.ts`.
-export { Adw, Gtk } from './namespace.js';
+// ADR 0034 clause 2 — the widgets under their GIR names (`Adw.SwitchRow`, `Gtk.Entry`),
+// and since § Amendment 9 that is their ONLY name here: the prefixed `AdwSwitchRow` /
+// `GtkEntry` exports above are gone. `export * as`, not an object literal, so a member
+// carries the TYPE meaning too — see the header of `./namespace/adw.ts`.
+//
+// The widgets with NO member keep their flat export a few lines up, and that is not an
+// oversight: `AdwSliderRow` and `AdwDataGrid` have no counterpart type and `AdwImageButton`
+// no single GIR name, so a flat name that is a widget's ONLY name is not a second spelling.
+export * as Adw from './namespace/adw.js';
+export * as Gtk from './namespace/gtk.js';
 
 // Fonts
 export {

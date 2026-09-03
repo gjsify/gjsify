@@ -1,28 +1,28 @@
-<adw:AdwNavigationSplitView
+<adw:NavigationSplitView
   xmlns="http://schemas.nativescript.org/tns.xsd"
-  xmlns:adw="~/adwaita"
+  xmlns:adw="~/adw"
 >
-  <adw:AdwNavigationSplitView.sidebar>
-    <adw:AdwToolbarView>
-      <adw:AdwToolbarView.topBar>
-        <adw:AdwHeaderBar title="Mailboxes" />
-      </adw:AdwToolbarView.topBar>
-      <adw:AdwToolbarView.content>
-        <adw:AdwStatusPage title="Mailboxes" />
-      </adw:AdwToolbarView.content>
-    </adw:AdwToolbarView>
-  </adw:AdwNavigationSplitView.sidebar>
-  <adw:AdwNavigationSplitView.content>
-    <adw:AdwToolbarView>
-      <adw:AdwToolbarView.topBar>
-        <adw:AdwHeaderBar title="All Mail" />
-      </adw:AdwToolbarView.topBar>
-      <adw:AdwToolbarView.content>
-        <adw:AdwStatusPage
+  <adw:NavigationSplitView.sidebar>
+    <adw:ToolbarView>
+      <adw:ToolbarView.topBar>
+        <adw:HeaderBar title="Mailboxes" />
+      </adw:ToolbarView.topBar>
+      <adw:ToolbarView.content>
+        <adw:StatusPage title="Mailboxes" />
+      </adw:ToolbarView.content>
+    </adw:ToolbarView>
+  </adw:NavigationSplitView.sidebar>
+  <adw:NavigationSplitView.content>
+    <adw:ToolbarView>
+      <adw:ToolbarView.topBar>
+        <adw:HeaderBar title="All Mail" />
+      </adw:ToolbarView.topBar>
+      <adw:ToolbarView.content>
+        <adw:StatusPage
           title="All Mail"
           description="Select a conversation from the list to read it here."
         />
-      </adw:AdwToolbarView.content>
-    </adw:AdwToolbarView>
-  </adw:AdwNavigationSplitView.content>
-</adw:AdwNavigationSplitView>
+      </adw:ToolbarView.content>
+    </adw:ToolbarView>
+  </adw:NavigationSplitView.content>
+</adw:NavigationSplitView>

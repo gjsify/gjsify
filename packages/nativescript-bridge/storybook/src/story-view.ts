@@ -17,7 +17,7 @@
 
 import type { StoryArgs, StoryMeta } from '@gjsify/stories';
 import { type StoryChrome, StoryViewBase } from '@gjsify/storybook-core';
-import { AdwClamp } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { Label, StackLayout, type View } from '@nativescript/core';
 
 /** Notified whenever a story's args change (the controls panel re-syncs through this). */
@@ -26,7 +26,7 @@ export type StoryArgsListener = (args: StoryArgs) => void;
 /**
  * Base class for NativeScript story views.
  *
- * Provides default chrome — a clamped boxed group (`AdwClamp` +
+ * Provides default chrome — a clamped boxed group (`Adw.Clamp` +
  * `AdwPreferencesGroup`) with a title + description above a centered, tinted
  * preview "stage" — built programmatically with the
  * `@gjsify/adwaita-nativescript` widgets + the Adwaita CSS classes. Simple
@@ -74,7 +74,7 @@ export class StoryView extends StoryViewBase<View> {
         page.orientation = 'vertical';
         page.className = 'sb-story-page';
 
-        const clamp = new AdwClamp();
+        const clamp = new Adw.Clamp();
         clamp.className = `${clamp.className} sb-story-clamp`.trim();
 
         // A plain transparent container (NOT an AdwPreferencesGroup): the GTK +

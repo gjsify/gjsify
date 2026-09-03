@@ -3,11 +3,11 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwWindowTitle } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { windowTitleMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class WindowTitleNsStory extends StoryView {
-    private _windowTitle: AdwWindowTitle | null = null;
+    private _windowTitle: Adw.WindowTitle | null = null;
 
     constructor() {
         super(WindowTitleNsStory.getMetadata(), 'Default');
@@ -18,7 +18,7 @@ export class WindowTitleNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._windowTitle = new AdwWindowTitle();
+        this._windowTitle = new Adw.WindowTitle();
         this._sync();
         this.addContent(this._windowTitle);
     }

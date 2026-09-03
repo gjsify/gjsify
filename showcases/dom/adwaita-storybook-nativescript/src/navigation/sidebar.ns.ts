@@ -3,7 +3,7 @@
 // renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwSidebar, AdwStatusPage, NOTIFY_SIDEBAR_SELECTED } from '@gjsify/adwaita-nativescript';
+import { Adw, NOTIFY_SIDEBAR_SELECTED } from '@gjsify/adwaita-nativescript';
 import { mailSendSymbolic } from '@gjsify/adwaita-icons/actions';
 import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
@@ -11,8 +11,8 @@ import { GridLayout, ItemSpec } from '@nativescript/core';
 import { sidebarMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class SidebarNsStory extends StoryView {
-    private _sidebar: AdwSidebar | null = null;
-    private _status: AdwStatusPage | null = null;
+    private _sidebar: Adw.Sidebar | null = null;
+    private _status: Adw.StatusPage | null = null;
 
     private readonly items: readonly { title: string; subtitle: string; icon: string }[] = [
         { title: 'Inbox', subtitle: '3 unread', icon: mailUnreadSymbolic },
@@ -30,15 +30,15 @@ export class SidebarNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._sidebar = new AdwSidebar();
-        // NS AdwSidebar takes a flat label list (no per-item subtitle/icon slot in
+        this._sidebar = new Adw.Sidebar();
+        // NS Adw.Sidebar takes a flat label list (no per-item subtitle/icon slot in
         // this surface), so the row labels carry just the item title.
         this._sidebar.setItems(this.items.map((entry) => entry.title));
         this._sidebar.selected = this.args.selected as number;
         this._sidebar.width = 220;
         this._sidebar.addEventListener(NOTIFY_SIDEBAR_SELECTED, () => this._syncContent());
 
-        this._status = new AdwStatusPage();
+        this._status = new Adw.StatusPage();
 
         // The native story frames the sidebar beside the content in a 480×340 box.
         const box = new GridLayout();

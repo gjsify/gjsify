@@ -3,13 +3,13 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { GtkButton, AdwStatusPage } from '@gjsify/adwaita-nativescript';
+import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { systemSearchSymbolic } from '@gjsify/adwaita-icons/actions';
 import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { statusPageMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-// AdwStatusPage (NS) renders a REAL large Adwaita symbolic icon, so the shared
+// Adw.StatusPage (NS) renders a REAL large Adwaita symbolic icon, so the shared
 // metadata's symbolic names map to the actual SVG strings — matching native.
 const ICON_SVGS: Record<string, string> = {
     'folder-symbolic': folderSymbolic,
@@ -19,7 +19,7 @@ const ICON_SVGS: Record<string, string> = {
 };
 
 export class StatusPageNsStory extends StoryView {
-    private _page: AdwStatusPage | null = null;
+    private _page: Adw.StatusPage | null = null;
 
     constructor() {
         super(StatusPageNsStory.getMetadata(), 'Default');
@@ -30,10 +30,10 @@ export class StatusPageNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._page = new AdwStatusPage();
+        this._page = new Adw.StatusPage();
 
         // Suggested-action pill button, matching the native story's child.
-        const button = new GtkButton();
+        const button = new Gtk.Button();
         button.text = 'New Document';
         button.variant = 'suggested-action';
         this._page.setChild(button);

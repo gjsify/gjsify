@@ -3,13 +3,13 @@
 // showcase's renderer-agnostic *.meta.ts barrel). Two story classes (default +
 // flat), mirroring both twins.
 //
-// NS AdwSplitButton has an action part (a symbolic icon OR a text label) + a
+// NS Adw.SplitButton has an action part (a symbolic icon OR a text label) + a
 // `menu` (string[]) opened as a native action() sheet on the arrow tap. The
 // native/browser twins show only the icon when one is set, so here the symbolic
 // name maps to a REAL Adwaita symbolic SVG set as the action icon.
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwSplitButton } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import {
     documentEditSymbolic,
     documentOpenSymbolic,
@@ -21,7 +21,7 @@ import {
 import { splitButtonFlatMeta, splitButtonMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 // The shared dropdown menu — the NS twin of buildMenu() in the GTK story / the
-// MENU model in the browser story. NS AdwSplitButton.menu is a plain label list.
+// MENU model in the browser story. NS Adw.SplitButton.menu is a plain label list.
 const MENU = ['Save as…', 'Export', 'Print'];
 
 // GTK symbolic icon name → a REAL Adwaita symbolic SVG string.
@@ -39,11 +39,11 @@ function iconSvg(symbolic: string): string {
 }
 
 abstract class SplitButtonNsStoryBase extends StoryView {
-    protected _widget: AdwSplitButton | null = null;
+    protected _widget: Adw.SplitButton | null = null;
     protected abstract get flat(): boolean;
 
     initialize(): void {
-        this._widget = new AdwSplitButton();
+        this._widget = new Adw.SplitButton();
         this._widget.menu = MENU;
         if (this.flat) {
             this._widget.className = 'adw-split-button flat';
@@ -66,7 +66,7 @@ abstract class SplitButtonNsStoryBase extends StoryView {
     }
 }
 
-/** Story: AdwSplitButton with a primary action and a dropdown menu. */
+/** Story: Adw.SplitButton with a primary action and a dropdown menu. */
 export class SplitButtonNsStory extends SplitButtonNsStoryBase {
     protected get flat(): boolean {
         return false;
@@ -81,7 +81,7 @@ export class SplitButtonNsStory extends SplitButtonNsStoryBase {
     }
 }
 
-/** Story: a flat-styled AdwSplitButton, suited to header bars and toolbars. */
+/** Story: a flat-styled Adw.SplitButton, suited to header bars and toolbars. */
 export class SplitButtonFlatNsStory extends SplitButtonNsStoryBase {
     protected get flat(): boolean {
         return true;

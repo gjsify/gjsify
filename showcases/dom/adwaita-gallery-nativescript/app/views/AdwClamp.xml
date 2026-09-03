@@ -1,6 +1,6 @@
-<adw:AdwClamp
+<adw:Clamp
   xmlns="http://schemas.nativescript.org/tns.xsd"
-  xmlns:adw="~/adwaita"
+  xmlns:adw="~/adw"
   maximumSize="400"
   tighteningThreshold="300"
 >
@@ -9,4 +9,4 @@
     textWrap="true"
     text="This content is clamped: it stops growing past the maximum size and stays centred."
   />
-</adw:AdwClamp>
+</adw:Clamp>

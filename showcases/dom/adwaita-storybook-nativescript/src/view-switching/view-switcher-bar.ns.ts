@@ -3,7 +3,7 @@
 // the GTK showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwStatusPage, AdwToolbarView, AdwViewStack, AdwViewSwitcherBar } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { VIEW_SWITCHER_BAR_PAGES, viewSwitcherBarMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
@@ -16,7 +16,7 @@ const ICONS: Record<string, string> = {
 };
 
 export class ViewSwitcherBarNsStory extends StoryView {
-    private _bar: AdwViewSwitcherBar | null = null;
+    private _bar: Adw.ViewSwitcherBar | null = null;
 
     constructor() {
         super(ViewSwitcherBarNsStory.getMetadata(), 'Default');
@@ -27,16 +27,16 @@ export class ViewSwitcherBarNsStory extends StoryView {
     }
 
     initialize(): void {
-        const stack = new AdwViewStack();
+        const stack = new Adw.ViewStack();
         for (const page of VIEW_SWITCHER_BAR_PAGES) {
-            const status = new AdwStatusPage();
+            const status = new Adw.StatusPage();
             status.iconName = ICONS[page.icon] ?? '';
             status.title = page.title;
             status.description = `The ${page.title.toLowerCase()} page.`;
             stack.add(status, page.name, page.title, ICONS[page.icon]);
         }
 
-        const bar = new AdwViewSwitcherBar();
+        const bar = new Adw.ViewSwitcherBar();
         bar.stack = stack;
         // The NativeScript stack has no `items-changed`, so a bar bound before the
         // pages exist would render no buttons. `refresh()` is that missing signal,
@@ -48,7 +48,7 @@ export class ViewSwitcherBarNsStory extends StoryView {
         // A toolbar view, so the bar sits at the bottom edge the way libadwaita
         // places it — and because `addContent` REPLACES the stage, so the stack and
         // the bar have to arrive as one view.
-        const view = new AdwToolbarView();
+        const view = new Adw.ToolbarView();
         view.setContent(stack);
         view.addBottomBar(bar);
         this.addContent(view);

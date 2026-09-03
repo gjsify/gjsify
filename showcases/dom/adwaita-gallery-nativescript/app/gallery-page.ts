@@ -30,21 +30,7 @@
 import { Builder, LayoutBase } from '@nativescript/core';
 import type { ContentView, Label, NavigatedData, Page, View } from '@nativescript/core';
 
-import {
-    AdwActionRow,
-    AdwBottomSheet,
-    AdwCarousel,
-    AdwClamp,
-    AdwExpanderRow,
-    AdwHeaderBar,
-    AdwNavigationView,
-    AdwPreferencesDialog,
-    AdwPreferencesGroup,
-    AdwPreferencesPage,
-    AdwSplitViewBase,
-    AdwStatusPage,
-    AdwToolbarView,
-} from '@gjsify/adwaita-nativescript';
+import { Adw, AdwSplitViewBase } from '@gjsify/adwaita-nativescript';
 
 import { begin, describe, it, summary } from './reporter';
 import { ELEMENT_CLASSES, EXPECTED, type ExpectNode } from './expected';
@@ -70,52 +56,52 @@ interface Placement {
 function placementOf(parent: View, slot: string | undefined): Placement | null {
     // Order matters where the classes nest: an expander row IS an action row, and a
     // split view's two concrete subclasses share one base.
-    if (parent instanceof AdwClamp) return slot === undefined ? { exact: parent.child } : null;
-    if (parent instanceof AdwStatusPage) return slot === undefined ? { exact: parent.child } : null;
-    if (parent instanceof AdwPreferencesGroup) {
+    if (parent instanceof Adw.Clamp) return slot === undefined ? { exact: parent.child } : null;
+    if (parent instanceof Adw.StatusPage) return slot === undefined ? { exact: parent.child } : null;
+    if (parent instanceof Adw.PreferencesGroup) {
         if (slot === undefined) return { views: childrenOf(parent.listbox) };
         if (slot === 'headerSuffix') return { exact: parent.headerSuffix };
         return null;
     }
-    if (parent instanceof AdwHeaderBar) {
+    if (parent instanceof Adw.HeaderBar) {
         if (slot === 'titleWidget') return { exact: parent.titleWidget };
         if (slot === 'startBox') return { views: childrenOf(parent.startBox) };
         if (slot === 'endBox') return { views: childrenOf(parent.endBox) };
         return null;
     }
-    if (parent instanceof AdwToolbarView) {
+    if (parent instanceof Adw.ToolbarView) {
         if (slot === 'content') return { exact: parent.content };
         if (slot === 'topBar') return { views: childrenOf(parent.topBar) };
         if (slot === 'bottomBar') return { views: childrenOf(parent.bottomBar) };
         return null;
     }
-    if (parent instanceof AdwExpanderRow) {
+    if (parent instanceof Adw.ExpanderRow) {
         if (slot === undefined) return { views: [...parent.disclosureRows] };
         if (slot === 'prefix') return { exact: parent.prefix };
         if (slot === 'suffix') return { exact: parent.suffix };
         return null;
     }
-    if (parent instanceof AdwActionRow) {
+    if (parent instanceof Adw.ActionRow) {
         if (slot === 'prefix') return { exact: parent.prefix };
         if (slot === undefined || slot === 'suffix') return { exact: parent.suffix };
         return null;
     }
-    if (parent instanceof AdwCarousel) return slot === undefined ? { views: [...parent.pages] } : null;
-    if (parent instanceof AdwNavigationView) return slot === undefined ? { views: [...parent.pages] } : null;
+    if (parent instanceof Adw.Carousel) return slot === undefined ? { views: [...parent.pages] } : null;
+    if (parent instanceof Adw.NavigationView) return slot === undefined ? { views: [...parent.pages] } : null;
     if (parent instanceof AdwSplitViewBase) {
         if (slot === 'sidebar') return { exact: parent.sidebar };
         if (slot === undefined || slot === 'content') return { exact: parent.content };
         return null;
     }
-    if (parent instanceof AdwBottomSheet) {
+    if (parent instanceof Adw.BottomSheet) {
         if (slot === 'sheet') return { exact: parent.sheet };
         if (slot === undefined || slot === 'content') return { exact: parent.content };
         return null;
     }
-    if (parent instanceof AdwPreferencesDialog) {
+    if (parent instanceof Adw.PreferencesDialog) {
         return slot === undefined ? { views: childrenOf(parent.body) } : null;
     }
-    if (parent instanceof AdwPreferencesPage) return slot === undefined ? { views: childrenOf(parent.groups) } : null;
+    if (parent instanceof Adw.PreferencesPage) return slot === undefined ? { views: childrenOf(parent.groups) } : null;
     // A plain NativeScript layout — `StackLayout`, and `AdwWrapBox`, whose
     // `_addChildFromBuilder` deliberately ends at its own `addChild`.
     if (parent instanceof LayoutBase) return slot === undefined ? { views: childrenOf(parent) } : null;

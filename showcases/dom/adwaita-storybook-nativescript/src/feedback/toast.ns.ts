@@ -3,12 +3,12 @@
 // renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { GtkButton, AdwToastOverlay } from '@gjsify/adwaita-nativescript';
+import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { toastMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-/** Story: an AdwToast presented through an AdwToastOverlay on button press. */
+/** Story: an AdwToast presented through an Adw.ToastOverlay on button press. */
 export class ToastNsStory extends StoryView {
-    private _overlay: AdwToastOverlay | null = null;
+    private _overlay: Adw.ToastOverlay | null = null;
 
     constructor() {
         super(ToastNsStory.getMetadata(), 'Default');
@@ -19,14 +19,14 @@ export class ToastNsStory extends StoryView {
     }
 
     initialize(): void {
-        const button = new GtkButton();
+        const button = new Gtk.Button();
         button.text = 'Show toast';
         button.variant = 'pill';
         button.horizontalAlignment = 'center';
         button.verticalAlignment = 'middle';
         button.addEventListener('tap', () => this._showToast());
 
-        this._overlay = new AdwToastOverlay();
+        this._overlay = new Adw.ToastOverlay();
         // Match the native story's fixed 360×220 viewport so the toast has a
         // bounded overlay area to float over.
         this._overlay.width = 360;

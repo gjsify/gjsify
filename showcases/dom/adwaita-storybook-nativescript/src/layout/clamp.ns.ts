@@ -3,11 +3,11 @@
 // renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwButtonContent, AdwClamp } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { clampMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class ClampNsStory extends StoryView {
-    private _clamp: AdwClamp | null = null;
+    private _clamp: Adw.Clamp | null = null;
 
     constructor() {
         super(ClampNsStory.getMetadata(), 'Default');
@@ -20,13 +20,13 @@ export class ClampNsStory extends StoryView {
     initialize(): void {
         // A boxed card fills the clamp, which caps its width at maximum-size and
         // centres it — the NS analogue of the browser twin's <adw-card>. The NS
-        // CSS subset has no real card widget here, so a labelled AdwButtonContent
+        // CSS subset has no real card widget here, so a labelled Adw.ButtonContent
         // carries the clamped text (closest Adwaita primitive for centred text).
-        const inner = new AdwButtonContent();
+        const inner = new Adw.ButtonContent();
         inner.className = `${inner.className} card`.trim();
         inner.label = 'This content is clamped — it stops growing past the maximum size and stays centred.';
 
-        this._clamp = new AdwClamp();
+        this._clamp = new Adw.Clamp();
         this._clamp.setChild(inner);
         this._syncClamp();
 

@@ -96,7 +96,15 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { membersOf, NS_CORE_TYPES, readCoreProperties, readWidgets, WIDGET_CLASS } from './nativescript-xml-doors.mjs';
+import {
+    membersOf,
+    NS_CORE_TYPES,
+    readCoreProperties,
+    readNamespaceSpellings,
+    readWidgets,
+    widgetClassOf,
+    WIDGET_REFERENCE,
+} from './nativescript-xml-doors.mjs';
 
 const rootFlag = process.argv.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : process.argv[rootFlag + 1];
@@ -598,15 +606,22 @@ function checkStyleTokens(text, where, fenceList) {
  * `@nativescript/core` slice, so the pair of them is what a real NativeScript program
  * would resolve against.
  */
+//
+// `WIDGET_REFERENCE` and not `WIDGET_CLASS`: a published fence names a widget the way a
+// reader would write it, which since ADR 0034 § Amendment 9 is `new Adw.StatusPage()`.
+// The class spelling stays in the pattern because the three widgets with no namespace
+// member keep it, and because a fence that has not been migrated has to be SEEN in order
+// to be judged — a reader that simply missed it would report every fence as clean.
 const NS_CONSTRUCTION = new RegExp(
-    `\\b(?:const|let|var)\\s+([A-Za-z0-9_$]+)\\s*=\\s*new\\s+(${WIDGET_CLASS})\\s*\\(`,
+    `\\b(?:const|let|var)\\s+([A-Za-z0-9_$]+)\\s*=\\s*new\\s+(${WIDGET_REFERENCE})\\s*\\(`,
     'g',
 );
 
-function checkNativescriptFence(fence, where, nsWidgets, coreProperties) {
+function checkNativescriptFence(fence, where, nsWidgets, coreProperties, spellings) {
     const held = new Map();
-    for (const [, variable, klass] of fence.body.matchAll(NS_CONSTRUCTION)) {
-        if (nsWidgets.has(klass)) held.set(variable, klass);
+    for (const [, variable, spelling] of fence.body.matchAll(NS_CONSTRUCTION)) {
+        const klass = widgetClassOf(spelling, spellings);
+        if (klass !== null && nsWidgets.has(klass)) held.set(variable, klass);
     }
     let writes = 0;
     for (const [, variable, property] of fence.body.matchAll(/\b([A-Za-z0-9_$]+)\.([A-Za-z0-9_$]+)\s*=[^=]/g)) {
@@ -650,6 +665,7 @@ const roundTripped = assertKebabRoundTrips(icons);
 const webIcons = readWebIconNames();
 const styled = readStyledClasses();
 const { sources: nsWidgets } = readWidgets(ROOT);
+const nsSpellings = readNamespaceSpellings(ROOT);
 const nsCoreProperties = readCoreProperties(ROOT);
 
 const sources = [
@@ -695,7 +711,7 @@ try {
             checkTsFence(fence, rel, icons);
             // The fence opener sits INSIDE the Fragment, so its own line names the slot.
             if (slots[fence.line] === 'nativescript') {
-                nsWrites += checkNativescriptFence(fence, rel, nsWidgets, nsCoreProperties);
+                nsWrites += checkNativescriptFence(fence, rel, nsWidgets, nsCoreProperties, nsSpellings);
             }
         }
         checkIconStrings(text, rel, icons, webIcons, exempt);

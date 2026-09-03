@@ -4,7 +4,7 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
-import { AdwShortcutLabel } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import {
     SHORTCUT_LABEL_LEVELS,
     shortcutLabelLevelsMeta,
@@ -12,7 +12,7 @@ import {
 } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class ShortcutLabelNsStory extends StoryView {
-    private _widget: AdwShortcutLabel | null = null;
+    private _widget: Adw.ShortcutLabel | null = null;
 
     constructor() {
         super(ShortcutLabelNsStory.getMetadata(), 'Default');
@@ -23,7 +23,7 @@ export class ShortcutLabelNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._widget = new AdwShortcutLabel();
+        this._widget = new Adw.ShortcutLabel();
         this._sync();
         this.addContent(this._widget);
     }
@@ -43,7 +43,7 @@ export class ShortcutLabelNsStory extends StoryView {
 
 /** Story: every grammar level stacked, so the rules are legible side by side. */
 export class ShortcutLabelLevelsNsStory extends StoryView {
-    private _widgets: AdwShortcutLabel[] = [];
+    private _widgets: Adw.ShortcutLabel[] = [];
 
     constructor() {
         super(ShortcutLabelLevelsNsStory.getMetadata(), 'Default');
@@ -75,7 +75,7 @@ export class ShortcutLabelLevelsNsStory extends StoryView {
             GridLayout.setColumn(name, 0);
             grid.addChild(name);
 
-            const widget = new AdwShortcutLabel();
+            const widget = new Adw.ShortcutLabel();
             widget.disabledText = this.args.disabledText as string;
             widget.accelerator = level.accelerator;
             widget.horizontalAlignment = 'right';

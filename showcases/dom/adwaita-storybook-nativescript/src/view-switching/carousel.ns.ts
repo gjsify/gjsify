@@ -5,7 +5,7 @@
 // mirroring the native + browser twins.
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwCarousel } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { Label, StackLayout, type View } from '@nativescript/core';
 import { carouselDotsMeta, carouselLinesMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
@@ -39,15 +39,15 @@ function buildPage(title: string, accent: string): View {
 }
 
 /**
- * Shared body for both indicator variants. The NS AdwCarousel renders its own
+ * Shared body for both indicator variants. The NS Adw.Carousel renders its own
  * built-in dot row, so both stories share the identical tree — the line vs dot
  * indicator distinction has no NS equivalent (see fidelity note in report).
  */
 abstract class CarouselNsStoryBase extends StoryView {
-    private _carousel: AdwCarousel | null = null;
+    private _carousel: Adw.Carousel | null = null;
 
     initialize(): void {
-        const carousel = new AdwCarousel();
+        const carousel = new Adw.Carousel();
         carousel.pageWidth = PAGE_WIDTH;
         for (const page of PAGES) {
             carousel.addPage(buildPage(page.title, page.accent));

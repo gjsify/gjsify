@@ -3,13 +3,13 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwViewSwitcher, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+import { Adw, type AdwViewPage } from '@gjsify/adwaita-nativescript';
 import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { viewSwitcherMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 // The three pages, mirroring the native demo (Inbox / Starred / Archive).
-// `icon` is a REAL Adwaita symbolic SVG string (rendered large by AdwStatusPage).
+// `icon` is a REAL Adwaita symbolic SVG string (rendered large by Adw.StatusPage).
 const PAGES: ReadonlyArray<{ title: string; icon: string; description: string }> = [
     { title: 'Inbox', icon: mailUnreadSymbolic, description: 'You have three unread conversations.' },
     { title: 'Starred', icon: starredSymbolic, description: 'Messages you have marked as important.' },
@@ -17,7 +17,7 @@ const PAGES: ReadonlyArray<{ title: string; icon: string; description: string }>
 ];
 
 export class ViewSwitcherNsStory extends StoryView {
-    private _switcher: AdwViewSwitcher | null = null;
+    private _switcher: Adw.ViewSwitcher | null = null;
 
     constructor() {
         super(ViewSwitcherNsStory.getMetadata(), 'Default');
@@ -28,7 +28,7 @@ export class ViewSwitcherNsStory extends StoryView {
     }
 
     initialize(): void {
-        const switcher = new AdwViewSwitcher();
+        const switcher = new Adw.ViewSwitcher();
         // Pass the symbolic icon to the switcher button too (icon + label), matching
         // the native Adw.ViewSwitcher whose buttons show an icon beside the label.
         switcher.setViews(
@@ -46,8 +46,8 @@ export class ViewSwitcherNsStory extends StoryView {
         void (this.args.policy as string);
     }
 
-    private _buildPage(page: { title: string; icon: string; description: string }): AdwStatusPage {
-        const status = new AdwStatusPage();
+    private _buildPage(page: { title: string; icon: string; description: string }): Adw.StatusPage {
+        const status = new Adw.StatusPage();
         status.iconName = page.icon;
         status.title = page.title;
         status.description = page.description;

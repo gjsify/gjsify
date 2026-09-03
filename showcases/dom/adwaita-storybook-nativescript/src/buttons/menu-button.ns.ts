@@ -3,7 +3,7 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { GtkMenuButton } from '@gjsify/adwaita-nativescript';
+import { Gtk } from '@gjsify/adwaita-nativescript';
 import { documentOpenSymbolic, openMenuSymbolic, viewMoreSymbolic } from '@gjsify/adwaita-icons/actions';
 import { MENU_BUTTON_ITEMS, menuButtonMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
@@ -16,7 +16,7 @@ const ICONS: Record<string, string> = {
 };
 
 export class MenuButtonNsStory extends StoryView {
-    private _widget: GtkMenuButton | null = null;
+    private _widget: Gtk.MenuButton | null = null;
 
     constructor() {
         super(MenuButtonNsStory.getMetadata(), 'Default');
@@ -27,7 +27,7 @@ export class MenuButtonNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._widget = new GtkMenuButton();
+        this._widget = new Gtk.MenuButton();
         this._widget.menuItems = MENU_BUTTON_ITEMS.map((label) => ({ label }));
         this._apply();
         this.addContent(this._widget);
