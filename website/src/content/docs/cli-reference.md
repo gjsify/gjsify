@@ -1803,11 +1803,22 @@ gjsify publish --dry-run                        # pack only
 | `--tolerate-untrusted-new` | `false` | Exit 0 when OIDC token exchange says "package not found" and no fallback token is configured, which is a never-published scoped package whose Trusted Publisher is not set up yet. Without it, one un-bootstrapped package breaks a whole serialized `gjsify foreach publish`. |
 | `--trusted` | auto | Authenticate through npm Trusted Publishing, exchanging the GitHub Actions id-token for a short-lived npm token. Auto-detected when `ACTIONS_ID_TOKEN_REQUEST_URL` and `_TOKEN` are set and the resolved npmrc has no `_authToken`. Needs `permissions: id-token: write` in the workflow and a Trusted Publisher on npmjs.com. |
 | `--check-trusted` | `false` | Do the OIDC exchange, report success or failure, and exit without publishing. Useful as a bulk verifier via `gjsify foreach publish --check-trusted`. |
+| `--verify-timeout <s>` | `300` | Seconds to keep asking the registry for the version just published, before giving up. `0` disables the read-back. |
+| `--verify-defer` | `false` | Report an unverified publish and exit 0 instead of 1. Only for a caller that re-checks the same set afterwards. |
 | `--provenance` | `false` | Recorded in the payload. No signing happens yet. |
 | `--dry-run` | `false` | Pack only, do not upload. |
 | `--json` | `false` | Emit publish metadata as JSON. |
 
 Auth reads `process.env.NPM_CONFIG_USERCONFIG` first (where `actions/setup-node` writes the auth-token npmrc), falling back to `~/.npmrc`.
+
+**A 2xx from npm is an accepted write, not a durable one, so the upload is read back.** After the PUT
+succeeds, `gjsify publish` asks the registry for that exact `name@version` and prints
+`+ name@version` only once it is served. A 2xx that never resolves is its own outcome —
+`publish-unconfirmed`, exit 1 — and the message states what was PUT, what was asked and what came
+back. The retry window exists because npm's write really is eventually consistent: measured over
+the 199 packages of the v0.46.0 release, 90.5% were committed before the response arrived and 9.5%
+between 56 and 252 seconds after it, while one was never committed at all under a green job. Set
+`--verify-timeout 0` for a registry with no packument read path.
 
 Publish every workspace in one go with [`gjsify foreach`](#gjsify-foreach):
 

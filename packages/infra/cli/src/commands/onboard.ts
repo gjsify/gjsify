@@ -752,6 +752,15 @@ function describePublishFailure(pub: Awaited<ReturnType<typeof publishWorkspace>
             return 'OIDC/token auth failed';
         case 'diagnostic':
             return `HTTP 404 (${pub.diag.reason})`;
+        case 'publish-unconfirmed':
+            // npm accepted the upload and the registry does not serve it. Counted
+            // as a FAILURE here on purpose: onboard's next step is `configureTrust`
+            // on a package it just decided exists.
+            return (
+                `npm accepted the upload (HTTP ${pub.putStatus}) but ${pub.name}@${pub.version} did not ` +
+                `resolve on ${pub.registry} after ${pub.readback.attempts} probe(s) over ` +
+                `${(pub.readback.elapsedMs / 1000).toFixed(1)}s`
+            );
         case 'error':
             return `HTTP ${pub.status} ${pub.statusText}`;
         default:

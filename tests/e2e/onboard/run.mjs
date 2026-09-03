@@ -57,7 +57,7 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
     let host; // 127.0.0.1:PORT
 
     // Mutable, reset per test.
-    let pkgState; // name -> { published, trusted }
+    let pkgState; // name -> { published, trusted, versions? } — `versions` is what a PUT recorded
     let publishPuts; // [{ name, otp }]
     let packumentGets; // names whose EXISTENCE was read from the packument
     let trustPosts; // [{ name, otp }]
@@ -83,8 +83,12 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
                 res.end(JSON.stringify({ error: 'OTP required' }));
             };
             const drain = (cb) => {
-                req.resume();
-                req.on('end', cb);
+                let body = '';
+                req.setEncoding('utf-8');
+                req.on('data', (chunk) => {
+                    body += chunk;
+                });
+                req.on('end', () => cb(body));
             };
 
             // whoami — dead token yields {}.
@@ -161,19 +165,41 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
                     return;
                 }
                 packumentGets.push(name);
-                sendJson(200, { name, 'dist-tags': { latest: '1.0.0' }, versions: { '1.0.0': { name } } });
+                // `gjsify publish` READS THIS BACK after its own PUT: npm answers
+                // 2xx to a write it has only ACCEPTED, so a version is not
+                // published until the registry serves it (docs/publishing.md).
+                // #1407 is why that matters HERE in particular — onboard counted a
+                // publish as done while npm had stored only the tarball and no
+                // packument. So the document is what was PUT, `dist.tarball` and
+                // all; the 1.0.0 default covers a fixture pre-marked published
+                // with no PUT behind it.
+                const versions = st.versions ?? {
+                    '1.0.0': { name, version: '1.0.0', dist: { tarball: `${registryUrl}/${name}/-/x-1.0.0.tgz` } },
+                };
+                const latest = Object.keys(versions).at(-1);
+                sendJson(200, { name, 'dist-tags': { latest }, versions });
                 return;
             }
             // publish PUT (any /<escaped-name> that is not an /-/ route).
             if (method === 'PUT' && !url.startsWith('/-/')) {
                 const name = decodeName(url.slice(1));
-                drain(() => {
+                drain((body) => {
                     if (otp !== OTP_CODE) {
                         otpChallenge();
                         return;
                     }
                     publishPuts.push({ name, otp });
-                    pkgState[name] = { ...(pkgState[name] ?? { trusted: false }), published: true };
+                    let versions;
+                    try {
+                        versions = JSON.parse(body).versions;
+                    } catch {
+                        /* the row asserts on the tool, not on our parse */
+                    }
+                    pkgState[name] = {
+                        ...(pkgState[name] ?? { trusted: false }),
+                        published: true,
+                        versions: { ...pkgState[name]?.versions, ...versions },
+                    };
                     sendJson(200, { ok: true });
                 });
                 return;

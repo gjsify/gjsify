@@ -19,6 +19,12 @@
 //     a sigstore signer that gjsify doesn't ship; we record the flag in the
 //     publish manifest but don't sign yet. Surface a warning so callers know.
 //   - --dry-run: pack only, no PUT.
+//   - --verify-timeout / --verify-defer: the post-PUT READ-BACK. npm's 2xx is an
+//     accepted write, not a durable one, so a successful PUT is confirmed by
+//     asking the registry for that exact version before `+ name@version` is
+//     printed. The incident, the measured lag distribution and the choice of
+//     window live in `utils/publish-readback.ts`; WHERE the read-back runs and
+//     what it costs is argued at its call site below.
 //
 // The request body matches npm's "publish" payload shape:
 //   {
@@ -43,6 +49,12 @@ import { buildPublishHeaders, escapePackageName } from '../utils/publish-headers
 import { packWorkspace, type PackWorkspaceOptions } from './pack.js';
 import { getNpmTrustedToken, hasGithubOidcEnv, OidcExchangeError, OidcUnavailableError } from '../utils/npm-oidc.js';
 import { diagnose404, is404DiagnosticCandidate, type Diagnose404Result } from '../utils/publish-diagnose.js';
+import {
+    DEFAULT_VERIFY_BUDGET_MS,
+    formatUnconfirmedPublish,
+    verifyPublishedVersion,
+    type ReadbackResult,
+} from '../utils/publish-readback.js';
 import { loadNpmrc } from '../utils/load-npmrc.js';
 import { OtpProvider, withOtpRetry, isOtpChallenge } from '../utils/npm-otp.js';
 import { promptLine } from '../utils/prompt.js';
@@ -54,6 +66,8 @@ interface PublishOptions {
     otp?: string;
     'tolerate-republish'?: boolean;
     'tolerate-untrusted-new'?: boolean;
+    'verify-timeout'?: number;
+    'verify-defer'?: boolean;
     provenance?: boolean;
     'dry-run'?: boolean;
     json?: boolean;
@@ -95,6 +109,18 @@ export const publishCommand: Command<unknown, PublishOptions> = {
                 type: 'boolean',
                 default: false,
             })
+            .option('verify-timeout', {
+                description:
+                    'Seconds to keep asking the registry for the just-published version before giving up. npm answers 2xx to a write it has only ACCEPTED: in the v0.46.0 release 19 of 199 packages were recorded 56-252s after their 2xx and one was never recorded at all, so a shorter window turns normal queueing into a false red. `0` disables the read-back — for a registry with no packument read path.',
+                type: 'number',
+                default: DEFAULT_VERIFY_BUDGET_MS / 1000,
+            })
+            .option('verify-defer', {
+                description:
+                    'Report an unconfirmed read-back and exit 0 instead of 1. ONLY for a caller that re-checks the same set afterwards — `gjsify run npm:publish` passes it because `scripts/verify-published-closure.mjs` sweeps the whole roster at the end of release.yml. Everywhere else an unconfirmed publish must fail the job that made it.',
+                type: 'boolean',
+                default: false,
+            })
             .option('provenance', {
                 description:
                     "Pass-through flag — recorded in the payload but no signing happens (gjsify doesn't ship a sigstore signer yet).",
@@ -133,6 +159,19 @@ export const publishCommand: Command<unknown, PublishOptions> = {
         const otp = args.otp;
         const tolerate = args['tolerate-republish'] === true;
         const tolerateUntrustedNew = args['tolerate-untrusted-new'] === true;
+        const verifySeconds = args['verify-timeout'] ?? DEFAULT_VERIFY_BUDGET_MS / 1000;
+        // A non-number reaches here as NaN (yargs coerces `--verify-timeout abc`
+        // silently), and NaN would fall through every `> 0` test and turn the
+        // read-back OFF without saying so — the failure mode this whole change
+        // exists to remove. Refuse it instead.
+        if (!Number.isFinite(verifySeconds) || verifySeconds < 0) {
+            console.error(
+                `gjsify publish: --verify-timeout must be a non-negative number of seconds, got ${JSON.stringify(args['verify-timeout'])}`,
+            );
+            return process.exit(2);
+        }
+        const verifyBudgetMs = Math.round(verifySeconds * 1000);
+        const deferUnconfirmed = args['verify-defer'] === true;
         const provenance = args.provenance === true;
         const dryRun = args['dry-run'] === true;
         const checkTrustedOnly = args['check-trusted'] === true;
@@ -246,8 +285,9 @@ export const publishCommand: Command<unknown, PublishOptions> = {
             json: args.json === true,
             otpProvider,
             seedOtpFirst: otp !== undefined,
+            verifyBudgetMs,
         });
-        reportPublishOutcome(outcome, args.json === true);
+        reportPublishOutcome(outcome, args.json === true, deferUnconfirmed);
     },
 };
 
@@ -273,6 +313,13 @@ export interface PublishWorkspaceInput {
     otpProvider: OtpProvider;
     /** Send the cached code on the first PUT (publish `--otp`). */
     seedOtpFirst: boolean;
+    /**
+     * Polling budget for the post-PUT read-back, in ms. Default
+     * {@link DEFAULT_VERIFY_BUDGET_MS}; `0` skips the read-back entirely and the
+     * returned `published` outcome then carries no `readback` — an UNVERIFIED
+     * success, which is the pre-v0.46.0 behaviour and why this defaults on.
+     */
+    verifyBudgetMs?: number;
 }
 
 /** Discriminated result of {@link publishWorkspace}; the caller owns presentation. */
@@ -287,6 +334,28 @@ export type PublishOutcome =
           integrity: string;
           tag: string;
           registry: string;
+          /** The read-back that CONFIRMED it. `undefined` only when disabled. */
+          readback?: ReadbackResult;
+      }
+    /**
+     * npm returned 2xx and the registry does not serve the version. Its own
+     * outcome on purpose: not `published` (nothing is installable), not
+     * `republish-tolerated` (npm never claimed it existed), not `error` (the
+     * HTTP exchange succeeded). The v0.46.0 incident had no name at all — it
+     * came out as `+ name@version`, exit 0.
+     */
+    | {
+          ok: false;
+          action: 'publish-unconfirmed';
+          name: string;
+          version: string;
+          registry: string;
+          /** The PUT that was accepted. */
+          putStatus: number;
+          putStatusText: string;
+          putUrl: string;
+          payloadBytes: number;
+          readback: ReadbackResult;
       }
     | { ok: true; action: 'republish-tolerated'; name: string; version: string; status: number }
     | { ok: true; action: 'skipped-untrusted-new'; name: string; version: string }
@@ -414,6 +483,20 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
 
     const res = await withOtpRetry(doPut, otpProvider, { seedFirstAttempt: input.seedOtpFirst });
 
+    if (verbose) {
+        // The debug output used to print the request and then the `+` success
+        // line, so a 200 and a 201 were indistinguishable and no body was ever
+        // recorded — which is why reconstructing the v0.46.0 incident needed the
+        // registry rather than the log it already had. Print what npm answered.
+        // `clone()` because the error path below reads `res.text()` itself.
+        console.error(`  response:      ${res.status} ${res.statusText}`);
+        const peek = await res
+            .clone()
+            .text()
+            .catch(() => '');
+        if (peek) console.error(`  body:          ${peek.slice(0, 300)}`);
+    }
+
     // A surviving OTP challenge means the provider gave up (no code entered /
     // non-interactive). Surface it so the caller can point at --otp.
     if (await isOtpChallenge(res)) {
@@ -421,6 +504,63 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
     }
 
     if (res.ok) {
+        // WHERE THE READ-BACK BELONGS — per package, here, immediately.
+        //
+        // This path runs ~209 times per release (199 in the serial
+        // `foreach --exec` sweep behind `npm:publish`, plus the per-bundle
+        // single-package jobs), so its cost is measured rather than assumed:
+        //
+        //   CONFIRMED ON THE FIRST PROBE — 180 of 199 packages in v0.46.0. One
+        //   abbreviated-packument GET, 0.59 s against registry.npmjs.org, so
+        //   ~2 min across the whole sweep against a publish job that ran 33 min.
+        //
+        //   NOT CONFIRMED YET — the other 19. Here the read-back waits out
+        //   npm's own write queue, and those residual lags SUM TO 2554 s: a
+        //   sweep that waited them all out with the 300 s default would have
+        //   added ~43 min to that 33 min job. That single number decides the
+        //   shape below.
+        //
+        // A BATCHED END-OF-SWEEP CHECK CANNOT LIVE IN THIS FILE. `npm:publish`
+        // is `gjsify foreach --exec -- gjsify publish`, one CHILD PROCESS per
+        // package: there is no in-process hook after the last one to collect a
+        // pending set in. So the batched half already sits where it can —
+        // `scripts/verify-published-closure.mjs`, its own job at the end of
+        // `release.yml`, rounds and retries over the whole roster. It is what
+        // named the missing package in the incident.
+        //
+        // Hence BOTH, split along that cost. The read-back runs per package
+        // everywhere and is FATAL by default — that is what turns the
+        // incident's green single-package job red, for up to 300 s of
+        // patience on a job that otherwise ran 59 s. The
+        // 199-package sweep passes `--verify-defer --verify-timeout 5`: it
+        // still CONFIRMS nine packages in ten and still names the suspect
+        // against the package that PUT it, but the minutes-long tail is left to
+        // the closure job that re-asks the same question over the same set.
+        const budgetMs = input.verifyBudgetMs ?? DEFAULT_VERIFY_BUDGET_MS;
+        const readback =
+            budgetMs > 0
+                ? await verifyPublishedVersion({
+                      registry: registryClean,
+                      name: packed.name,
+                      version: packed.version,
+                      budgetMs,
+                      log: verbose ? (m) => console.error(m) : undefined,
+                  })
+                : undefined;
+        if (readback && !readback.confirmed) {
+            return {
+                ok: false,
+                action: 'publish-unconfirmed',
+                name: packed.name,
+                version: packed.version,
+                registry: registryClean,
+                putStatus: res.status,
+                putStatusText: res.statusText,
+                putUrl: url,
+                payloadBytes: bodyStr.length,
+                readback,
+            };
+        }
         return {
             ok: true,
             action: 'published',
@@ -431,11 +571,20 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
             integrity: packed.integrity,
             tag,
             registry: registryClean,
+            readback,
         };
     }
 
     const text = await res.text().catch(() => '<no body>');
     // "version already published" — 409 Conflict, or 403 + "previously published".
+    //
+    // Deliberately NOT read back, unlike the 2xx path above. A 2xx is npm
+    // accepting a write it has not necessarily durably applied; a 409 is npm
+    // ASSERTING the version already exists and refusing to overwrite it, which
+    // is a positive statement about the registry's own state rather than a
+    // promise about a queued one. Re-running a `publish-unconfirmed` package
+    // lands here whenever the lagging write did arrive, which is why the
+    // diagnostic points at `--tolerate-republish`.
     const isRepublishConflict = res.status === 409 || (res.status === 403 && /previously published/i.test(text));
     if (isRepublishConflict && tolerate) {
         return {
@@ -472,8 +621,13 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
 /**
  * Present a {@link PublishOutcome} on stdout/stderr and exit non-zero on
  * failure — the single-command `gjsify publish` behaviour, reproduced exactly.
+ *
+ * `deferUnconfirmed` (`--verify-defer`) affects exactly one outcome: it downgrades
+ * `publish-unconfirmed` from exit 1 to a printed warning, for a caller that
+ * re-checks the same set afterwards. It is policy, so it lives here and not in
+ * {@link publishWorkspace}, which stays a pure fact-finder.
  */
-function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean): void {
+function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean, deferUnconfirmed = false): void {
     switch (outcome.action) {
         case 'published': {
             const out = {
@@ -489,6 +643,49 @@ function reportPublishOutcome(outcome: PublishOutcome, asJson: boolean): void {
             if (asJson) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
             else process.stdout.write(`+ ${outcome.name}@${outcome.version}\n`);
             return;
+        }
+        case 'publish-unconfirmed': {
+            const message = formatUnconfirmedPublish(outcome);
+            if (asJson) {
+                process.stdout.write(
+                    `${JSON.stringify(
+                        {
+                            ok: false,
+                            action: 'publish-unconfirmed',
+                            name: outcome.name,
+                            version: outcome.version,
+                            registry: outcome.registry,
+                            putStatus: outcome.putStatus,
+                            probes: outcome.readback.attempts,
+                            elapsedMs: outcome.readback.elapsedMs,
+                            readbackUrl: outcome.readback.url,
+                            readbackState: outcome.readback.last.state,
+                            deferred: deferUnconfirmed,
+                        },
+                        null,
+                        2,
+                    )}\n`,
+                );
+            } else {
+                process.stderr.write(`${message}\n`);
+            }
+            // Under `--verify-defer` the multi-line message is one entry in a
+            // serial log carrying a line per package, i.e. exactly the channel
+            // the incident's `+` line hid in. An annotation renders beside the
+            // job's own check and needs no writable file, the same reason
+            // `verify-published-closure.mjs` emits its notes as `::warning::`.
+            // On STDERR, because `--json` owns stdout.
+            if (deferUnconfirmed) {
+                if (process.env.GITHUB_ACTIONS) {
+                    process.stderr.write(
+                        `::warning title=Publish unconfirmed::${outcome.name}@${outcome.version} was accepted ` +
+                            `(HTTP ${outcome.putStatus}) but did not resolve on ${outcome.registry} within ` +
+                            `${(outcome.readback.elapsedMs / 1000).toFixed(1)}s — the release-closure job must confirm it\n`,
+                    );
+                }
+                return;
+            }
+            return process.exit(1);
         }
         case 'republish-tolerated': {
             const out = {
