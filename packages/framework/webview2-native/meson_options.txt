@@ -1,0 +1,12 @@
+# Both options are win32-only inputs, and both are REQUIRED there rather than
+# defaulted: a wrong SDK or a stale GIR produces an artifact that builds, loads
+# and is subtly not what this commit describes.
+option('webview2_sdk',
+       type: 'string',
+       value: '',
+       description: 'The extracted Microsoft.Web.WebView2 NuGet package\'s build/native directory (win32 only)')
+
+option('prebuilt_gir',
+       type: 'string',
+       value: '',
+       description: 'Directory holding WebKit-6.0.gir, emitted by g-ir-scanner on a host that has one (win32 only)')

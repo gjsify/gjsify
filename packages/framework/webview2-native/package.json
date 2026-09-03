@@ -1,0 +1,59 @@
+{
+    "name": "@gjsify/webview2-native",
+    "version": "0.45.0",
+    "description": "Microsoft's WebView2 (Chromium) behind a GObject API shaped like WebKitGTK 6.0 — the win32 backend for @gjsify/iframe (ADR 0035). Deliberately claims the WebKit-6.0 namespace; the engine is Chromium. Contains no JavaScript; the prebuilt library and typelib arrive through per-target optionalDependencies.",
+    "type": "module",
+    "files": [],
+    "gjsify": {
+        "platforms": [
+            "win32-x64"
+        ],
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "none",
+            "darwin": "none",
+            "win32": "supported"
+        },
+        "osNotes": {
+            "linux": "Binds Microsoft's WebView2, which exists only on Windows. Linux has the real thing: @gjsify/iframe imports gi://WebKit 6.0 there and never reaches this package. The Linux build of this library exists only so g-ir-scanner can produce WebKit-6.0.gir, and it is never staged or shipped.",
+            "darwin": "Binds Microsoft's WebView2, which exists only on Windows. macOS is served by @gjsify/webkit-native, which claims the same namespace with Apple's WebKit behind it (ADR 0022)."
+        },
+        "tier": 1
+    },
+    "scripts": {
+        "clear": "gjsify clear build _gir _install",
+        "check": "echo 'no TypeScript in this package'",
+        "init:meson": "meson setup build .",
+        "init:meson:wipe": "gjsify run init:meson --wipe",
+        "build": "echo 'native only — see build:prebuilds'",
+        "build:meson": "gjsify run init:meson && meson compile -C build",
+        "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
+        "test": "echo 'covered by the win32 leg of prebuilds.yml'"
+    },
+    "keywords": [
+        "gjs",
+        "webview2",
+        "chromium",
+        "webkit",
+        "win32",
+        "windows"
+    ],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/webview2-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/webview2-native#readme",
+    "optionalDependencies": {
+        "@gjsify/webview2-native-win32-x64": "workspace:*"
+    }
+}

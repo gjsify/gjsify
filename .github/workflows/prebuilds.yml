@@ -80,6 +80,11 @@ on:
       - 'packages/framework/webgl/src/vala/**'
       - 'packages/framework/webgl/src/vapi/**'
       - 'packages/framework/webgl/meson.build'
+      - 'packages/framework/webview2-native/src/**'
+      - 'packages/framework/webview2-native/scripts/**'
+      - 'packages/framework/webview2-native/meson.build'
+      - 'packages/framework/webview2-native/meson_options.txt'
+      - 'packages/framework/webview2-native/gjsifywebview2.def'
       - 'packages/web/webrtc-native/src/vala/**'
       - 'packages/web/webrtc-native/meson.build'
       - 'packages/node/http-soup-bridge/src/vala/**'
@@ -146,6 +151,11 @@ on:
       - 'packages/framework/webgl/src/vala/**'
       - 'packages/framework/webgl/src/vapi/**'
       - 'packages/framework/webgl/meson.build'
+      - 'packages/framework/webview2-native/src/**'
+      - 'packages/framework/webview2-native/scripts/**'
+      - 'packages/framework/webview2-native/meson.build'
+      - 'packages/framework/webview2-native/meson_options.txt'
+      - 'packages/framework/webview2-native/gjsifywebview2.def'
       - 'packages/web/webrtc-native/src/vala/**'
       - 'packages/web/webrtc-native/meson.build'
       - 'packages/node/http-soup-bridge/src/vala/**'
@@ -2391,6 +2401,551 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # win32-x64 — @gjsify/webview2-native, SPLIT ACROSS TWO JOBS (ADR 0035 stage 1)
+  #
+  # The same shape as the webgl pair above, one tool along. There the host that
+  # HAS valac emits the C and the GIR; here the host that HAS a working
+  # `g-ir-scanner` emits the GIR, and Windows compiles it beside the real DLL.
+  #
+  # ── WHY THE SCAN CANNOT HAPPEN ON WINDOWS ─────────────────────────────────
+  #
+  # `g-ir-scanner` does not merely parse the header: it compiles and RUNS a
+  # dumper program linked against the library, and that run is where the GType
+  # hierarchy, the signals and the installed properties come from. `--header-only`
+  # skips it and loses `load-changed`, `script-message-received` and every
+  # property — i.e. most of what `@gjsify/iframe` uses. gvsbuild's release ZIP is
+  # a RUNTIME + dev-headers prefix; whether it carries a runnable scanner is not
+  # something this pair should depend on, and the diagnostics step below PRINTS
+  # the answer every run so a future simplification has a measurement behind it
+  # rather than a hope.
+  #
+  # The Fedora half links against `src/c/gjsify-webview2-unsupported.c`, which
+  # registers no behaviour and fails every call by one shared route. Nothing it
+  # produces is ever staged: `win32-x64` is this package's ONLY declared target,
+  # so `stage-prebuild.mjs` refuses that host by construction.
+  #
+  # ── WHY THE GIR IS AN ARTIFACT AND NEVER A COMMIT ─────────────────────────
+  #
+  # Generation and consumption are two jobs of ONE RUN: same commit, same
+  # scanner, so drift between them is structurally impossible rather than merely
+  # unlikely. A committed copy would be a build input nothing regenerates and
+  # nothing byte-checks. `_gir/` and `gir-export/` are gitignored; that is the
+  # mechanism, this comment is only the explanation.
+  #
+  # ── WHY THE FEDORA JOB'S STEPS READ THE WAY THEY DO ───────────────────────
+  #
+  # DO NOT "TIDY" THE STEP NAMES OR THE ARTIFACT PATH BELOW. `parseCiPlatforms()`
+  # (scripts/manifest-conformance/rules/platforms-ci.mjs) attributes a target to
+  # a package when ONE step mentions the package by name or path AND matches
+  # /\b(build|collect|stage|prebuild|upload)/i — the runner decides the target,
+  # so an `ubuntu-latest` job would credit `@gjsify/webview2-native` with
+  # `linux-x64`. That is not a parser quirk to work around, it is the audit being
+  # right: this package must NEVER promise a linux artifact, because on Linux the
+  # `WebKit-6.0` namespace belongs to the real WebKitGTK and squatting it there
+  # would shadow a working engine with a subset that cannot load a page.
+  #
+  # So: the meson step keeps `working-directory` and carries no production verb
+  # (`_gir`, not `build`), and the upload step's `path:` is a NEUTRAL top-level
+  # directory so the one step that does say "upload" names no package. The webgl
+  # pair does not need this only because it legitimately declares `linux-x64`
+  # too.
+  # ════════════════════════════════════════════════════════════════════════════
+  webview2-gir-linux:
+    name: Emit WebKit-6.0.gir for the win32 backend (fedora)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    timeout-minutes: 20
+    container:
+      # The baked image, machine-checked by `check-ci-image-packages.mjs`: it
+      # already carries meson, gcc, pkgconf, glib2-devel,
+      # gobject-introspection-devel and gtk4-devel, which is exactly this job's
+      # set, so there is no `dnf install` here at all. Tag 43 for the same reason
+      # the webgl pair pins it — one toolchain emits the intermediate for every
+      # target — though nothing this job emits is a distribution decision: it is
+      # all XML.
+      image: ghcr.io/gjsify/ci-fedora:43
+    steps:
+      # Gated STEP BY STEP, never as a whole job — `commit-prebuilds` lists the
+      # win32 half in `needs`, and a job skipped in its entirety would skip THAT
+      # one too, silently suppressing the commit of everything the other legs
+      # produced.
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # The image bakes no nodejs, and `check-ci-image-packages.mjs` holds every job
+      # on it to providing its own.
+      - name: Use Node.js 24
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Verify the baked toolchain + record the scanner's provenance
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        # The GIR is opaque by the time MSVC sees it, so "the scanner rejected
+        # this" is only actionable next to a version.
+        run: |
+          echo "ci-fedora image major: $(cat /etc/gjsify-ci-fedora-version)"
+          g-ir-scanner --version
+          meson --version
+          gjs --version
+          pkg-config --modversion glib-2.0 gobject-2.0 gio-2.0 gtk4
+
+      - name: Hold the module-definition file to the header
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        # MSVC exports nothing from a DLL on its own, so `gjsifywebview2.def` is a
+        # second copy of the header's function list. This is what makes it a
+        # derivation rather than a promise — and it runs HERE because the failure
+        # is two text files disagreeing, which is readable on any host, while its
+        # symptom is a win32-only `getGType` returning null for one type.
+        run: node packages/framework/webview2-native/scripts/check-def-exports.mjs
+
+      - name: "Hold every quoted #include to the include path"
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        # `src/cpp/` is the ONE translation unit no non-Windows host compiles, so
+        # the step above proves nothing about it and neither does `meson compile`
+        # here. This does, lexically: a quoted include that resolves nowhere is
+        # MSVC C1083, and that is what the first Windows run of this package hit
+        # after this job had gone green.
+        run: node packages/framework/webview2-native/scripts/check-include-paths.mjs
+
+      - name: "Hold every G_*/GTK_*/GDK_* name to the installed headers"
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        # The second defect this file hid behind the first: `G_IO_ERROR_WRONG_TYPE`
+        # does not exist in Gio, and the only job that compiles `src/cpp/` had
+        # never reached the line — it was failing earlier, on the include path. An
+        # invented constant is MSVC's `C2065` one expensive Windows cycle later,
+        # and gcc can answer it here in a second, for the sources this job never
+        # hands to a compiler. The compiler decides, not a grep: a name counts as
+        # real if it is a macro or compiles as a value.
+        run: node packages/framework/webview2-native/scripts/check-glib-constants.mjs
+
+      - name: Emit WebKit-6.0.gir with g-ir-scanner
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        working-directory: packages/framework/webview2-native
+        # The ORDINARY non-win32 configuration — no options, the same two
+        # commands any host runs. Compiling the whole library here also proves on
+        # the cheapest possible host that the portable C compiles at all, so a
+        # Windows failure is unambiguously about MSVC or about the C++ half.
+        run: |
+          meson setup _gir .
+          meson compile -C _gir
+
+      - name: Export the GIR for the Windows half
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        # `gir-export/` is at the repository root rather than under the package —
+        # see this block's header for why the one step that says "upload" must
+        # name no package.
+        run: |
+          set -euo pipefail
+          mkdir -p gir-export
+          cp packages/framework/webview2-native/_gir/WebKit-6.0.gir gir-export/
+          echo "--- exported ---"
+          find gir-export -type f | sort
+          echo "--- what THIS host's GIR recorded (for contrast, not shipped) ---"
+          grep -m1 -o 'shared-library="[^"]*"' gir-export/WebKit-6.0.gir || true
+          echo "--- the signals only a dumper run can see ---"
+          grep -o '<glib:signal name="[^"]*"' gir-export/WebKit-6.0.gir | sort
+
+      - name: Assert the GIR carries what only a dumper run produces
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        # A `--header-only` GIR — or a scan whose dumper silently failed — parses,
+        # compiles to a typelib and resolves the namespace. It just has no
+        # signals and no properties, which surfaces on Windows as
+        # "view.connect('load-changed') does nothing" with nothing to point at.
+        # Assert the shape here, where the scanner that produced it is still in
+        # scope.
+        run: |
+          set -euo pipefail
+          gir=gir-export/WebKit-6.0.gir
+          rc=0
+          for want in 'load-changed' 'load-failed' 'script-message-received'; do
+            grep -q "<glib:signal name=\"$want\"" "$gir" || { echo "::error::$gir has no ::$want signal — the scanner's dumper did not run"; rc=1; }
+          done
+          for want in 'is-loading' 'uri' 'user-content-manager' 'settings'; do
+            grep -q "<property name=\"$want\"" "$gir" || { echo "::error::$gir has no \"$want\" property — the scanner's dumper did not run"; rc=1; }
+          done
+          grep -q 'parent="Gtk.Widget"' "$gir" || { echo "::error::$gir does not make WebView a Gtk.Widget"; rc=1; }
+          exit $rc
+
+      - name: Read the typelib under gjs, the way the consumer does
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        # The GIR assertions above read the XML; this reads what GJS makes of the
+        # COMPILED typelib, which is where ADR 0022's two darwin mistakes lived: a
+        # FINAL type that compiles, installs and then cannot be subclassed, and a
+        # UserScript declared as a GObject, which changes the call the consumer
+        # has to write. Both are properties of the GIR, so both are catchable on
+        # the host that produced it — on every pull request, in under a second,
+        # long before a Windows runner is involved.
+        #
+        # Headless by construction: it registers a subclass (a GType operation)
+        # and never instantiates a widget (which would need a display).
+        run: |
+          set -euo pipefail
+          gir_dir="$PWD/packages/framework/webview2-native/_gir"
+          GI_TYPELIB_PATH="$gir_dir" LD_LIBRARY_PATH="$gir_dir" \
+            gjs -m packages/framework/webview2-native/scripts/probe-types.js
+
+      - name: Upload the GIR
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: webview2-gir
+          path: gir-export/
+          if-no-files-found: error
+          # Short on purpose: this is an intermediate consumed by the next job of
+          # the SAME run. Nothing should ever reach for an old one.
+          retention-days: 1
+
+  build-prebuilds-win32-webview2:
+    name: Build prebuilds (win32-x64) [webview2-native via MSVC]
+    needs: [changes, webview2-gir-linux]
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      PREBUILD: win32-x64
+      # gvsbuild setup is REUSED VERBATIM from node-gi.yml's `windows` job, down
+      # to the cache key, so every Windows job in this repository shares one warm
+      # cache and there is exactly one place that knows how a Windows GTK/GI
+      # toolchain is acquired. Do not hand-roll a second copy.
+      GVSBUILD_VERSION: '2026.6.0'
+      GTK_PREFIX: 'C:\gtk-build\gtk\x64\release'
+      # Pinned like every other version here: an unpinned SDK makes two builds of
+      # one commit two different artifacts. This is the version ADR 0035's spike
+      # measured against.
+      WEBVIEW2_SDK_VERSION: '1.0.2903.40'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Node 24 builds `@gjsify/node-gi` (node-gyp) and runs the load test — the
+      # same version node-gi.yml's Windows jobs pin.
+      #
+      # From here down every step carries the `changes` gate, the SETUP ones
+      # included: acquiring a 400 MB GTK stack for a package this run did not
+      # change is the whole cost the gate exists to avoid.
+      - name: Use Node.js 24
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Cache gvsbuild GTK4 bundle
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        id: cache-gtk
+        uses: actions/cache@v4
+        with:
+          path: C:\gtk-build\gtk\x64\release
+          key: gvsbuild-gtk4-${{ env.GVSBUILD_VERSION }}-x64-v1
+
+      - name: Download + extract gvsbuild GTK4 (MSVC-ABI, girepository-2.0)
+        # A SKIPPED cache step leaves `cache-hit` empty, so `!= 'true'` is true
+        # and this would run on a skipped-package run without the second half.
+        if: ${{ steps.cache-gtk.outputs.cache-hit != 'true' && !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/wingtk/gvsbuild/releases/download/$env:GVSBUILD_VERSION/GTK4_Gvsbuild_${env:GVSBUILD_VERSION}_x64.zip"
+          Write-Host "Downloading $url"
+          curl.exe -L --fail --retry 3 -o gtk4.zip $url
+          New-Item -ItemType Directory -Force -Path $env:GTK_PREFIX | Out-Null
+          tar.exe -xf gtk4.zip -C $env:GTK_PREFIX
+          Remove-Item gtk4.zip
+
+      - name: Put GTK on PATH + set GI/PKG env
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        shell: pwsh
+        run: |
+          "$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          "PKG_CONFIG_PATH=$env:GTK_PREFIX\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          # The typelib DIRECTORY is historically named girepository-1.0 even for
+          # the girepository-2.0 API.
+          "GI_TYPELIB_PATH=$env:GTK_PREFIX\lib\girepository-1.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "GSETTINGS_SCHEMA_DIR=$env:GTK_PREFIX\share\glib-2.0\schemas" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install meson + ninja
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        run: python -m pip install --disable-pip-version-check meson ninja
+
+      - name: Fetch the WebView2 SDK
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        shell: pwsh
+        # The SDK is a NuGet package and nothing else — there is no system
+        # location for it, no pkg-config file and no vcpkg port that carries the
+        # static loader, so the build fetches its own copy exactly as
+        # `docs/poc/webview2-win32-probe.ps1` does. `nuget.exe` ships on GitHub's
+        # Windows images.
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packages = Join-Path $env:RUNNER_TEMP 'webview2-sdk'
+          # `nuget.exe` ships on GitHub's Windows images and is absent on a bare
+          # workstation, so the fallback is the same one
+          # `docs/poc/webview2-win32-probe.ps1` carries — a probe that only works
+          # on one of the two hosts is a probe nobody runs twice.
+          $nuget = (Get-Command nuget.exe -ErrorAction SilentlyContinue)?.Source
+          if (-not $nuget) {
+            $nuget = Join-Path $env:RUNNER_TEMP 'nuget.exe'
+            if (-not (Test-Path $nuget)) {
+              Invoke-WebRequest -UseBasicParsing `
+                -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' `
+                -OutFile $nuget
+            }
+          }
+          & $nuget install Microsoft.Web.WebView2 -Version $env:WEBVIEW2_SDK_VERSION `
+            -OutputDirectory $packages -NonInteractive | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw "nuget install failed ($LASTEXITCODE)" }
+          $native = Join-Path $packages "Microsoft.Web.WebView2.$env:WEBVIEW2_SDK_VERSION\build\native"
+          foreach ($p in @((Join-Path $native 'include\WebView2.h'), (Join-Path $native 'x64\WebView2LoaderStatic.lib'))) {
+            if (-not (Test-Path $p)) { throw "the SDK layout is not what this job expects: $p is absent" }
+          }
+          "WEBVIEW2_SDK=$native" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Report what the Windows toolchain actually resolved
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        shell: pwsh
+        # THE EVIDENCE THIS JOB EXISTS TO PRODUCE, printed before anything can
+        # fail on it. Two of these lines answer standing questions rather than
+        # decorating the log:
+        #   • the Evergreen runtime's version, which is what the load test at the
+        #     end is measured against and what ADR 0035 decision 5 turns into a
+        #     declared dependency of the installer;
+        #   • whether a runnable `g-ir-scanner` is in the gvsbuild prefix. If it
+        #     ever is, this pair can collapse into one job — and that will be a
+        #     measurement rather than a hope. See this block's header.
+        run: |
+          Write-Host "pkg-config: $((Get-Command pkg-config -ErrorAction SilentlyContinue).Source)"
+          foreach ($pc in @('glib-2.0','gobject-2.0','gio-2.0','gtk4','girepository-2.0')) {
+            $v = & pkg-config --define-prefix --modversion $pc 2>$null
+            if ($LASTEXITCODE -ne 0) { $v = 'MISSING' }
+            Write-Host ("{0,-20} {1}" -f $pc, $v)
+          }
+          Write-Host "--- introspection tools in the gvsbuild prefix ---"
+          foreach ($exe in @('g-ir-compiler','gi-compile-repository','g-ir-scanner')) {
+            $c = Get-Command "$exe" -ErrorAction SilentlyContinue
+            Write-Host ("{0,-24} {1}" -f $exe, $(if ($c) { $c.Source } else { 'MISSING' }))
+          }
+          Write-Host "--- the WebView2 Evergreen runtime on this host ---"
+          # BOTH registry views, and that is the finding rather than belt and
+          # braces: measured on a Windows 11 26200 desktop with the runtime
+          # installed (152.0.4191.53), the Evergreen client key exists ONLY under
+          # WOW6432Node — the 64-bit view does not have it. A detector that reads
+          # the 64-bit path alone reports "not installed" on a machine that has
+          # it, which is exactly the check that is green in CI and wrong at the
+          # user. ADR 0035 decision 5's install-time detection inherits this.
+          $guid = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          foreach ($view in @('SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients',
+                              'SOFTWARE\Microsoft\EdgeUpdate\Clients')) {
+            $pv = (Get-ItemProperty -Path "HKLM:\$view\$guid" -Name pv -ErrorAction SilentlyContinue).pv
+            Write-Host ("HKLM\{0} : {1}" -f $view, $(if ($pv) { $pv } else { '(absent)' }))
+          }
+          $apps = 'C:\Program Files (x86)\Microsoft\EdgeWebView\Application'
+          Write-Host "$apps : $(if (Test-Path $apps) { (Get-ChildItem $apps -Directory | ForEach-Object Name) -join ', ' } else { '(absent)' })"
+
+      - name: Download the GIR
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: webview2-gir
+          # The meson option takes a path RELATIVE to the package, because
+          # meson's source sandbox refuses an input outside the tree. Landing the
+          # download here is what makes `-Dprebuilt_gir=gir-export` resolvable,
+          # and `gir-export/` is gitignored so it can never be committed by
+          # accident.
+          path: packages/framework/webview2-native/gir-export
+
+      - name: Show what arrived
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        shell: pwsh
+        run: Get-ChildItem packages/framework/webview2-native/gir-export -Recurse -File | ForEach-Object { $_.FullName }
+
+      # ONE `cmd` step, because vcvars64.bat exports its environment into the
+      # shell it runs in and meson needs `cl.exe` on PATH. Deliberately NOT a
+      # third-party "setup MSVC" action and NOT a vcvars->$GITHUB_ENV dump:
+      # GitHub ignores PATH written through $GITHUB_ENV (it wants $GITHUB_PATH),
+      # so that dump silently loses the one variable that matters.
+      - name: Build @gjsify/webview2-native with MSVC
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        working-directory: packages/framework/webview2-native
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set VSPATH=%%i
+          if not defined VSPATH ( echo ::error::vswhere found no Visual Studio installation & exit /b 1 )
+          call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          cl 2>&1 | findstr /C:"Version"
+          rem Supply the include ROOT of the gvsbuild prefix, which no .pc file
+          rem names. The webgl leg measured why: a .pc installing its headers
+          rem straight into <prefix>/include emits no -I at all, because on a
+          rem POSIX prefix that is already a default search path and MSVC has no
+          rem equivalent default. This is SUPPLYING A PLATFORM DEFAULT, not
+          rem hiding an incompatibility — it is not /w and not /std:cNN.
+          set INCLUDE=%GTK_PREFIX%\include;%INCLUDE%
+          rem --buildtype=release is LOAD-BEARING ON WINDOWS, and on no other
+          rem platform. meson's default buildtype is `debug`, whose MSVC meaning
+          rem is not "keep the symbols" but `b_vscrt=mdd` — link the DEBUG CRT,
+          rem which ships only with Visual Studio and which Microsoft's terms
+          rem forbid redistributing. The load test cannot catch it (this runner
+          rem HAS Visual Studio), which is why the step after the staging reads
+          rem the import table instead of loading anything.
+          meson setup build . --buildtype=release -Dwebview2_sdk=%WEBVIEW2_SDK% -Dprebuilt_gir=gir-export || exit /b 1
+          meson compile -C build || exit /b 1
+
+      - name: Collect @gjsify/webview2-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The GIR comes from the ARTIFACT, not from build/: on win32 meson never
+          # re-emits it (the scanner ran one job ago), so `build/` legitimately has
+          # none and the stager refuses a `.typelib` with no `.gir` beside it. Put
+          # the scanned copy INTO build/ rather than staging it separately — then
+          # the one shared stager sees the whole set in the one directory it reads,
+          # and this leg stages by the same rule as every other (by EXTENSION, with
+          # `checkPrebuildDir()` at the end).
+          Copy-Item packages/framework/webview2-native/gir-export/WebKit-6.0.gir `
+            -Destination packages/framework/webview2-native/build/
+          # `--scratch`: this leg commits nothing (`commit-prebuilds` downloads the
+          # artifact into `@gjsify/webview2-native-win32-x64`), and `win32-x64` IS
+          # declared, so the stager holds the target to the declaration.
+          node scripts/stage-prebuild.mjs packages/framework/webview2-native --scratch
+          Get-ChildItem "packages/framework/webview2-native/prebuilds/$env:PREBUILD" | Select-Object Name, Length
+
+      # A typelib whose recorded leaf is wrong is FOUND via GI_TYPELIB_PATH and
+      # then never loads. Assert it before the load test so a mismatch is named
+      # here rather than diagnosed from a GI error.
+      - name: Verify the typelib records a .dll leaf
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The GIR is the LINUX-scanned one, so its recorded leaf is still
+          # `libgjsifywebview2.so`; what matters is the TYPELIB, which meson
+          # compiled here with `--shared-library` set from the target meson
+          # actually produced. Read the string out of the compiled typelib rather
+          # than trusting the command line that made it.
+          $bytes = [System.IO.File]::ReadAllBytes("packages/framework/webview2-native/prebuilds/$env:PREBUILD/WebKit-6.0.typelib")
+          $text = [System.Text.Encoding]::ASCII.GetString($bytes)
+          if ($text -notmatch 'gjsifywebview2\.dll') {
+            Write-Host "::error::the compiled typelib does not record a .dll leaf. Strings found: $(($text -split "`0" | Where-Object { $_ -match 'gjsifywebview2' }) -join ', ')"
+            exit 1
+          }
+          Write-Host "typelib records a .dll leaf"
+
+      # The CRT a Windows prebuild links is a REDISTRIBUTION question, and it is
+      # the one property this runner cannot answer by loading the artifact:
+      # windows-latest ships Visual Studio, so a debug-CRT DLL loads here and
+      # fails on every machine that does not. Read the import table instead — a
+      # static property of the file, identical on every host. The webgl leg
+      # published exactly that artifact once, and it took a real Windows desktop
+      # to notice.
+      - name: Assert the prebuild links the REDISTRIBUTABLE CRT
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dll = "packages/framework/webview2-native/prebuilds/$env:PREBUILD/gjsifywebview2.dll"
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\Hostx64\\x64\\' } | Select-Object -First 1
+          if (-not $dumpbin) { Write-Host "::error::dumpbin.exe not found under $vs"; exit 1 }
+          $imports = & $dumpbin.FullName /dependents $dll |
+            Select-String -Pattern '^\s{4}(\S+\.dll)$' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+          Write-Host "imports: $($imports -join ', ')"
+          # A parse that matched NOTHING must not read as "clean": this DLL links
+          # glib, gtk and the CRT at minimum, so an empty list means dumpbin's
+          # format moved, not that the DLL is dependency-free.
+          if ($imports.Count -lt 2) {
+            Write-Host "::error::parsed $($imports.Count) imports from dumpbin — expected several. The output format changed and this check is no longer reading anything; fix the parse rather than trusting the pass."
+            exit 1
+          }
+          # By NAME, not by a blanket `*d.dll`: a leaf like `libpng16d.dll` would
+          # trip a loose pattern.
+          $debugCrt = $imports | Where-Object { $_ -match '^(vcruntime\d+d|ucrtbased|msvcp\d+d|concrt\d+d)\.dll$' }
+          if ($debugCrt) {
+            Write-Host "::error::gjsifywebview2.dll links the DEBUG CRT ($($debugCrt -join ', ')). Those ship only with Visual Studio and may not be redistributed, so this artifact cannot load on an end-user machine. Build with --buildtype=release (MSVC: b_vscrt=md)."
+            exit 1
+          }
+          # WebView2LoaderStatic is linked STATICALLY on purpose, so nothing here
+          # should name the loader DLL — if it does, the tarball is one file short
+          # of working and the failure would name the DEPENDENT rather than the
+          # dependency.
+          if ($imports | Where-Object { $_ -match '^WebView2Loader' }) {
+            Write-Host "::error::gjsifywebview2.dll imports WebView2Loader.dll, but meson.build links WebView2LoaderStatic.lib. Either the static loader stopped being linked or the SDK layout changed; a dynamic loader would have to be staged beside the DLL."
+            exit 1
+          }
+          Write-Host "CRT is redistributable, and the WebView2 loader is static"
+
+      # ── THE LOAD TEST ────────────────────────────────────────────────────
+      #
+      # "A prebuild never LOADED in CI is a prebuild nobody tested", and for THIS
+      # package the usual GType probe is too weak to say anything: ADR 0035's
+      # spike measured that the environment and the controller are created with
+      # no message pump at all, and only content-level work needs the queue. A
+      # probe that stopped at `getGType` would go green on precisely the artifact
+      # that cannot load a page.
+      #
+      # `scripts/probe-win32.mjs` therefore loads a document, waits for
+      # LoadEvent.FINISHED, reads a marker back OUT of the DOM and captures a
+      # PNG — and it is a committed file rather than an inline heredoc so the
+      # same probe can be run by hand on the win11-gjsify VM.
+      #
+      # It goes through `@gjsify/node-gi` because there is no libgjs for Windows;
+      # on Windows that IS this project's GObject path. node-gi is built FROM
+      # SOURCE against the same gvsbuild bundle rather than installed from npm, so
+      # the test cannot silently pass against a published binary that has nothing
+      # to do with this run.
+      - name: Supply libffi headers (gvsbuild omits ffi.h)
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        # Verbatim from node-gi.yml's `windows` job, which explains why: gvsbuild
+        # installs ffi.lib but not ffi.h/ffitarget.h, while GLib's girffi.h (which
+        # it DOES install) includes ffi.h — so the addon will not compile (C1083)
+        # without them. libffi's public ABI is frozen across 3.x.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install libffi:x64-windows
+          $inc = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include"
+          Copy-Item "$inc\ffi.h","$inc\ffitarget.h" -Destination "$env:GTK_PREFIX\include" -Force
+
+      - name: Build @gjsify/node-gi (node-gyp / MSVC)
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
+      - name: Load-test the win32-x64 prebuild through node-gi
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        shell: pwsh
+        env:
+          NODE_GI_NATIVE: build
+          # Software rendering: the runner has no GPU, and the probe never needs
+          # one — the page is composited by WebView2 and captured by
+          # CapturePreview, not by GSK.
+          GSK_RENDERER: cairo
+          GTK_A11Y: none
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $abs = (Resolve-Path "packages/framework/webview2-native/prebuilds/$env:PREBUILD").Path
+          # PATH is the DLL search path on Windows — the analogue of
+          # LD_LIBRARY_PATH/DYLD_LIBRARY_PATH in the Linux/darwin load tests, and
+          # what `buildNativeEnv()` exports for win32.
+          $env:PATH = "$abs;$env:PATH"
+          $env:GI_TYPELIB_PATH = "$abs;$env:GI_TYPELIB_PATH"
+          node packages/framework/webview2-native/scripts/probe-win32.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload @gjsify/webview2-native win32-x64 prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: webview2-native-prebuilds-win32-x64
+          path: packages/framework/webview2-native/prebuilds/win32-x64/
+          # `error`, not `warn`: `commit-prebuilds` downloads this by name and
+          # `actions/download-artifact` FAILS on a name that does not exist, so an
+          # empty upload turns into a red job two jobs later, naming the download
+          # instead of the build that produced nothing.
+          if-no-files-found: error
+          retention-days: 30
   # ----------------------------------------------------------------
   # Alpine / musl — prebuilds/linux-{x64,arm64}-musl
   #
@@ -2919,7 +3474,7 @@ jobs:
     # (there is no `always()` here — deliberately; see gate 3 in the comment
     # above), so a leg that skipped itself because it had nothing to build
     # would silently suppress committing everything the OTHER legs produced.
-    needs: [changes, build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos, build-prebuilds-win32]
+    needs: [changes, build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos, build-prebuilds-win32, build-prebuilds-win32-webview2]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
@@ -3010,6 +3565,22 @@ jobs:
         with:
           name: webgl-prebuilds-win32-x64
           path: packages/framework/webgl-win32-x64/prebuilds/win32-x64/
+
+      # -------- @gjsify/webview2-native --------
+      # The other prebuild whose loadable unit is bigger than its artifact:
+      # `gjsifywebview2.dll` imports gvsbuild's GTK, which Windows has no system
+      # copy of, so this is usable next to `@gjsify/gtk-runtime-win32-x64`'s
+      # batteries-included bundle — which every win32 consumer already has,
+      # because it is how node-gi gets GObject at all. A RUNTIME closure fact,
+      # not a packaging one: the tarball's contract (a `.dll` + its typelib) is
+      # identical to every sibling's, and the package's README states the
+      # dependency rather than duplicating a DLL already on the search path.
+      - name: Download webview2-native win32-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"webview2-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: webview2-native-prebuilds-win32-x64
+          path: packages/framework/webview2-native-win32-x64/prebuilds/win32-x64/
 
       # -------- @gjsify/webrtc-native --------
       - name: Download webrtc-native x64 prebuilds
@@ -3804,6 +4375,8 @@ jobs:
       - build-prebuilds-macos-experimental
       - webgl-vala-c-win32
       - build-prebuilds-win32
+      - webview2-gir-linux
+      - build-prebuilds-win32-webview2
       - build-prebuilds-musl
       - check-committed-musl
       - commit-prebuilds

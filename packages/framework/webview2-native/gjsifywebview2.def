@@ -1,0 +1,64 @@
+; SPDX-License-Identifier: MIT
+;
+; The exported symbols of gjsifywebview2.dll.
+;
+; WHY THIS FILE EXISTS. MSVC's linker exports NOTHING from a DLL on its own —
+; unlike ELF, where every non-hidden symbol is visible — so without this list
+; `gjsifywebview2.dll` would load, resolve its namespace, and then answer NULL to
+; every `g_module_symbol()` GI makes for a `…_get_type`. That is the shape of
+; failure this repository has already paid for once in a different disguise (a
+; typelib recording the wrong leaf: found via GI_TYPELIB_PATH, never loaded), and
+; it is invisible on Linux by construction.
+;
+; `@gjsify/webgl` needs no such file because valac's generated header carries its
+; own `#if defined(_MSC_VER)` ladder whose MSVC arm is
+; `#define VALA_EXTERN __declspec(dllexport) extern`. `@gjsify/napi`'s shim does
+; carry one, for exactly this reason.
+;
+; IT IS A SECOND COPY OF THE HEADER, AND IT IS MACHINE-CHECKED RATHER THAN
+; TRUSTED. `scripts/probe-win32.mjs` constructs or calls into every type named
+; here — Value, UserScript, UserContentManager, Settings and WebView — so a
+; symbol dropped from this list fails the win32 leg on the same run that drops
+; it, naming the type. Adding a public function to `gjsify-webview2.h` means
+; adding it here and giving the probe a reason to touch it.
+
+LIBRARY gjsifywebview2
+EXPORTS
+    gjsify_webview2_value_get_type
+    gjsify_webview2_value_to_string
+    gjsify_webview2_value_is_string
+    gjsify_webview2_value_is_null
+    gjsify_webview2_value_is_undefined
+
+    gjsify_webview2_user_script_get_type
+    gjsify_webview2_user_script_ref
+    gjsify_webview2_user_script_unref
+    gjsify_webview2_user_script_new
+    gjsify_webview2_user_script_new_for_world
+
+    gjsify_webview2_user_content_manager_get_type
+    gjsify_webview2_user_content_manager_new
+    gjsify_webview2_user_content_manager_add_script
+    gjsify_webview2_user_content_manager_remove_all_scripts
+    gjsify_webview2_user_content_manager_register_script_message_handler
+    gjsify_webview2_user_content_manager_unregister_script_message_handler
+
+    gjsify_webview2_settings_get_type
+    gjsify_webview2_settings_new
+
+    gjsify_webview2_web_view_get_type
+    gjsify_webview2_web_view_new
+    gjsify_webview2_web_view_load_uri
+    gjsify_webview2_web_view_load_html
+    gjsify_webview2_web_view_reload
+    gjsify_webview2_web_view_get_uri
+    gjsify_webview2_web_view_is_loading
+    gjsify_webview2_web_view_get_user_content_manager
+    gjsify_webview2_web_view_get_settings
+    gjsify_webview2_web_view_get_hosting_mode
+    gjsify_webview2_web_view_get_overlay_constraints
+    gjsify_webview2_web_view_get_message_pump_state
+    gjsify_webview2_web_view_evaluate_javascript
+    gjsify_webview2_web_view_evaluate_javascript_finish
+    gjsify_webview2_web_view_get_snapshot
+    gjsify_webview2_web_view_get_snapshot_finish

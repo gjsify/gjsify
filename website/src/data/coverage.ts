@@ -79,8 +79,8 @@ export const pillarCoverage: readonly PillarCoverage[] = [
     },
     {
         category: 'Framework',
-        total: 19,
-        full: 16,
+        total: 20,
+        full: 17,
         partial: 3,
         stub: 0,
     },
