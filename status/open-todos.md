@@ -886,6 +886,87 @@ it. `gjsify.loaders` is a text/dataurl plugin, not a module-type map. Worth addi
 only once the hook half above is honest, since a config key whose value the GJS engine
 cannot honour would be the same defect one level up.
 
+### A bundled font on Windows needs one call, and no `@gjsify/*` package makes it
+
+ADR 0038 stages `gjsify.ship.fonts` into `share/fonts/<appId>/` and each OS reaches it
+declaratively — except Windows, where nothing does. GTK4 there is pangowin32, whose font
+map is populated by `pango_win32_dwrite_font_map_populate()` alone: DirectWrite's system
+font collection plus Pango's own font-set builder, with no filesystem search path. The
+three mechanisms that look like they would work are each dead. fontconfig IS built and
+linked by gvsbuild, but `pangocairo-fontmap.c` selects the first backend compiled in
+(coretext → win32 → fc) and cairo's meson adds `cairo-win32` unconditionally on a Windows
+host, so the fc font map is never selected. `XDG_DATA_DIRS` does not port either:
+`FcConfigXdgDataDirs()` splits on a hardcoded colon while `FC_SEARCH_PATH_SEPARATOR` is
+`;`, so `C:\App\share` splits into `C` and `\App\share`. And
+`AddFontResourceEx(FR_PRIVATE)` registers with GDI, which that populate call never reads.
+
+So the app must call `PangoCairo.FontMap.get_default().add_font_file(path)` at startup —
+in the typelib since Pango 1.56, and on win32 it clears the map's cache and emits
+`changed`, so it works after the font map exists. `gjsify ship` hands over the directory
+in `GJSIFY_FONT_DIR` and `Layout.fontGap` prints the call, which is a handover rather
+than a fix: every consumer that ships a face writes the same loop.
+
+The home is `@gjsify/adwaita-app` (ADR 0009, under ADR 0027's host layer), beside
+`initLocale` — which is the SAME shape one variable over: `resolveLocaleDir` reads
+`GJSIFY_LOCALE_DIR` off the launcher `gjsify ship` wrote, and ADR 0038 § 4 chose
+`GJSIFY_FONT_DIR` on that precedent. An `initFonts()` there registers every face the
+directory holds, and one call covers Windows AND Linux —
+`pango_fc_font_map_add_font_file` implements the same vfunc, process-locally, with no
+config file. macOS stays the odd one out: the CoreText font map implements no
+`add_font_file` at all and falls through to the base impl's `G_IO_ERROR_NOT_SUPPORTED`,
+which is why `ATSApplicationFontsPath` is the darwin mechanism and must stay so.
+
+**Neither half is blocked on verifiability, and the Windows one stopped being so on
+2026-09-02.** Measured on this host (GJS, Pango 1.57.1, `PangoCairoFcFontMap`): a family
+absent from `list_families()` is present after `add_font_file()` on the staged face.
+Measured on a Windows 11 VM as well (Node v24.18.1,
+`@gjsify/gtk-runtime-win32-x64@0.45.0`, GTK 4.22.4 — ADR 0038 § W1-W5): the call answers
+`true`, families go 82 → 83, and the map it registers into is the one
+`label.get_pango_context().get_font_map()` returns, with an invented-family
+discriminator so that "resolved" cannot mean "substituted". So `initFonts()` would be
+green on BOTH of the OSes it is for. What is open is the API SHAPE — whether the shell
+registers eagerly on `startup` or exposes a function the app calls, and whether a face
+that fails to open aborts or warns.
+
+`@gjsify/react-native`'s `expo-font` surface is the SECOND caller and it has a stake of
+its own: `useFonts` answers `[true, null]` on its first render because "fonts are
+INSTALLED and the platform's font map discovers them", and on Windows that is true only
+once somebody has registered them. Registering `GJSIFY_FONT_DIR` on that surface's module
+load — it cannot resolve the hook's asset-registry values, but it can register the
+directory `gjsify ship` named — would make the row honest on all three OSes rather than on
+two. Same call, same open API question; decide it once, in the shell, and have the surface
+use it.
+
+### The win32 GTK bundle ships fontconfig config that nothing reads
+
+`gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs` copies `<prefix>/etc/fonts` into the
+bundle and runs `fc-cache` over it; `node-gi/gtk-runtime.js` then sets `FONTCONFIG_PATH`
+and `FONTCONFIG_FILE` at it. The sources cited in the entry above say the fc font map is
+compiled and never selected on Windows; that is now MEASURED (ADR 0038 § W1-W2, Windows 11
+/ GTK 4.22.4). A hand-written `FONTCONFIG_FILE` naming a face directory leaves
+`PangoCairo.FontMap.get_default().list_families()` at 82 without the face — and still at 82
+when that directory is the ONLY configured one, which is the row that distinguishes "read
+and ignored" from "not read". A `PangoFT2.FontMap` built from the same config in the same
+process does see the face. So none of this affects text rendering. The bundle also ships no
+`fc-cache.exe`: the cache is baked at build time and there is no supported way to rebuild
+it on the target, which is a second reason the arrangement cannot be made to work rather
+than merely being unused.
+
+Two things make it worth removing rather than leaving as harmless: the code comment beside
+it says gvsbuild's pango "can be fontconfig-backed … so either path works", which is the
+claim that made ADR 0038's first draft wrong in the same direction; and the builder's
+`else` branch ("no etc/fonts … skipping") is probably unreachable, because fontconfig's own
+meson installs `fonts.conf` to `<prefix>/etc/fonts` and gvsbuild builds fontconfig with the
+default `sysconfdir` — so the "when present" test always passes and the log line implying a
+choice was never true. NOT VERIFIED against a gvsbuild release artifact; if that branch has
+ever been taken, fontconfig is being excluded from the closure somewhere and that is a
+different finding.
+
+`packages/node-gi` is outside the npm workspace with its own CI, and this is a REMOVAL of
+shipped bundle content. The Windows run it wanted behind it now exists; what it still wants
+is a PR in that tree, and one re-run there after the deletion — a Linux-green deletion is
+still not evidence for it.
+
 ### `@gjsify/adwaita-fonts` ships desktop TTFs, which is why the web font is opt-in
 
 The package vendors `adwaita-sans-400.ttf` (880 KB) and its italic (910 KB) — the

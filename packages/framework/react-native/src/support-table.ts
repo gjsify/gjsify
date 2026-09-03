@@ -899,11 +899,11 @@ export const EXPO_FONT_TABLE: Readonly<Record<string, SupportEntry>> = {
     useFonts: {
         status: 'partial',
         tier: 'P1',
-        gtk: 'Pango’s font map, through fontconfig',
-        reason: 'A desktop application does not load a font file per screen: fonts are INSTALLED and fontconfig discovers them, so the hook has nothing to wait for and reports ready on its first render.',
+        gtk: 'Pango’s font map',
+        reason: 'A desktop application does not load a font file per screen: fonts are INSTALLED and the platform’s font map discovers them, so the hook has nothing to wait for and reports ready on its first render.',
         limits: [
             'It answers [true, null] immediately and NEVER re-renders. That is the honest shape — there is no asynchronous load to finish — and it means a screen gated on `if (!loaded) return null` renders straight away instead of flashing.',
-            'The map’s VALUES are ignored: a `require("./Inter.ttf")` id is an index into React Native’s asset registry, which ADR 0032 § 12 leaves to the consumer’s build chain, and this layer refuses one for `Image.source` for the same reason. Ship the font with the application (`gjsify ship` installs it where fontconfig looks) and name the FAMILY in your styles.',
+            'The map’s VALUES are ignored: a `require("./Inter.ttf")` id is an index into React Native’s asset registry, which ADR 0032 § 12 leaves to the consumer’s build chain, and this layer refuses one for `Image.source` for the same reason. Ship the face with the application and name the FAMILY in your styles: `gjsify.ship.fonts` stages it into `share/fonts/<appId>/`, and each OS reaches it differently (ADR 0038) — fontconfig scans that directory on Linux (measured), `ATSApplicationFontsPath` in the bundle’s Info.plist is documented to activate it on macOS (Apple’s key reference; unverified on hardware here), and on Windows nothing reaches it declaratively at all (measured on Windows 11: the default font map reads no fontconfig configuration, even an exclusive one), so the launcher exports GJSIFY_FONT_DIR and the app registers the faces itself with `PangoCairo.FontMap.get_default().add_font_file()` — measured to work there, on the same font map a widget renders through.',
             'It does not check that the families exist, deliberately: `isLoaded` does, and a hook that threw here would fail an application whose font is installed under a family name the map’s key does not spell.',
         ],
     },
@@ -924,7 +924,7 @@ export const EXPO_FONT_TABLE: Readonly<Record<string, SupportEntry>> = {
     },
     loadAsync: {
         status: 'refused',
-        reason: 'Registers a font file with the runtime. There is no per-process font registration in this chain — GTK 4 exposes none through GI — so a promise that resolved would be claiming a font was installed when it was not. Install the font, or ship it with the application.',
+        reason: 'Registers a font file with the runtime, and what it is HANDED is not a file: the argument is a `require("./Inter.ttf")` id into React Native’s asset registry, which ADR 0032 § 12 leaves to the consumer’s build chain — the same reason `useFonts` ignores its map’s values. So there is no path to register, and a promise that resolved would be claiming a font was installed when it was not. NOT because the call is missing: `pango_font_map_add_font_file()` is in the typelib since Pango 1.56 and `@gjsify/dom-elements` uses it for Canvas FontFace, but it answers G_IO_ERROR_NOT_SUPPORTED on the CoreText map, so it would work on Linux and Windows and lie on macOS. Install the face, or ship it with the application (`gjsify.ship.fonts`, ADR 0038).',
     },
     unloadAsync: { status: 'refused', reason: 'The inverse of loadAsync, and it has the same answer.' },
     unloadAllAsync: { status: 'refused', reason: 'As unloadAsync.' },

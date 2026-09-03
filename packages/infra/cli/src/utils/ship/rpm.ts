@@ -166,6 +166,13 @@ const SYSTEM_OWNED_DIRECTORIES = new Set([
     // directory the whole system's schemas live in. Verified with `rpm -qf`.
     '/usr/share/glib-2.0',
     `/usr/${SHARE.schemas}`,
+    // Owned by `fonts-filesystem` — measured, `rpm -qf /usr/share/fonts` →
+    // `fonts-filesystem-5.0.0-2.fc44`. DERIVED although it is a PARENT rather than a
+    // directory the planner stages into: `plan.ts` writes `share/fonts/<appId>`,
+    // which this package legitimately owns, and the parent happens to BE
+    // `SHARE.fonts` exactly — so deriving it costs nothing and cannot drift the way
+    // the two literal parents above can.
+    `/usr/${SHARE.fonts}`,
     '/etc',
     '/opt',
     '/var',

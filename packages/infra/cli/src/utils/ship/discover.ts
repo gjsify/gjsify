@@ -13,6 +13,32 @@ import { LICENSE_FILE_NAMES, type DiscoveredPayload, type ShipPackageManifest } 
 
 const ICON_EXTENSIONS = ['.svg', '.png'];
 
+/**
+ * The face formats every FreeType opens, with no build option deciding it.
+ *
+ * TrueType, OpenType and their collections. Deliberately short: the point of the
+ * set is that a file in it resolves inside the app's OWN runtime closure as well
+ * as it does on the machine that packaged it.
+ */
+const FONT_EXTENSIONS = ['.ttf', '.otf', '.ttc', '.otc'];
+
+/**
+ * Web-font wrappers, refused BY NAME rather than filtered away.
+ *
+ * They are the mistake worth a diagnostic. An `OFL.txt` beside the faces is
+ * ignored the way a stray file in an icon directory is; a `.woff2` is a font
+ * somebody put there on purpose, and dropping it silently costs the same as
+ * staging it — the app ships without the family and Pango substitutes, at exit 0.
+ *
+ * Measured in BOTH directions, which is why this is a refusal rather than a
+ * warning: `fc-query` reads a `.woff2`'s family fine on Fedora 44 (fontconfig
+ * 2.17.0, FreeType built with brotli), and that support is
+ * `FT_CONFIG_OPTION_USE_BROTLI` — a property of whichever FreeType the shipped
+ * artifact loads, which for a `.app` or a Windows program directory is the one
+ * inside `@gjsify/gtk-runtime-<target>` and not this host's.
+ */
+const WEB_FONT_EXTENSIONS = ['.woff', '.woff2', '.eot'];
+
 export interface DiscoverInput {
     projectDir: string;
     pkg: ShipPackageManifest;
@@ -46,6 +72,7 @@ export function discoverPayload(input: DiscoverInput): DiscoveredPayload {
         schemaFiles: discoverSchemas(projectDir, ship.schemas),
         typelibFiles: discoverTypelibs(projectDir, ship.bundledTypelibs),
         localeFiles,
+        fontFiles: discoverFonts(projectDir, ship.fonts),
         licenseFile: discoverLicense(projectDir, ship.licenseFile),
     };
 }
@@ -219,6 +246,73 @@ function listIcons(dir: string): string[] {
         .filter((rel) => ICON_EXTENSIONS.some((ext) => rel.toLowerCase().endsWith(ext)))
         .map((rel) => join(dir, rel.split('/').join(sep)))
         .sort();
+}
+
+/**
+ * Font faces the application SHIPS (`gjsify.ship.fonts`), or the GNOME-shaped
+ * default `data/fonts` when it exists.
+ *
+ * A FILE or a DIRECTORY, like `icon`, and a directory is walked rather than
+ * globbed because a family arrives as several faces and often with its licence
+ * beside them.
+ *
+ * The refusals are the interesting half, and both cover the same failure: a font
+ * that installs and is never found. Pango does not report a missing family — it
+ * substitutes, so the app renders in the wrong typeface with no error, no exit
+ * code and nothing for CI to see. That is why a configured path holding no usable
+ * face fails here rather than staging an empty directory, and why a web-font
+ * wrapper is named rather than filtered (see {@link WEB_FONT_EXTENSIONS}).
+ */
+function discoverFonts(projectDir: string, configured: string | undefined): string[] {
+    const declared = configured ?? 'data/fonts';
+    const root = configured === undefined ? join(projectDir, 'data', 'fonts') : resolve(projectDir, configured);
+    if (!existsSync(root)) {
+        if (configured === undefined) return [];
+        throw new Error(`gjsify ship: the configured font path ${configured} does not exist.`);
+    }
+    if (!statSync(root).isDirectory()) {
+        assertNotWebFont(root, declared);
+        if (!FONT_EXTENSIONS.some((ext) => root.toLowerCase().endsWith(ext))) {
+            throw new Error(
+                `gjsify ship: \`gjsify.ship.fonts\` names ${configured}, which is not a font face ` +
+                    `fontconfig will open (${FONT_EXTENSIONS.join(', ')}). ` +
+                    'A file it cannot read installs and is never found, and Pango substitutes a fallback ' +
+                    'family rather than reporting anything.',
+            );
+        }
+        return [root];
+    }
+
+    const out: string[] = [];
+    for (const rel of listFilesRecursive(root)) {
+        assertNotWebFont(rel, declared);
+        if (FONT_EXTENSIONS.some((ext) => rel.toLowerCase().endsWith(ext))) {
+            out.push(join(root, rel.split('/').join(sep)));
+        }
+    }
+    if (out.length === 0 && configured !== undefined) {
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.fonts\` (${configured}) holds no font face ` +
+                `(${FONT_EXTENSIONS.join(', ')}). Declaring fonts that ship nothing is a promise the ` +
+                'package does not keep — and its symptom is a substituted family, not an error.',
+        );
+    }
+    return out.sort();
+}
+
+/** A `.woff`/`.woff2`/`.eot` is named, never dropped — {@link WEB_FONT_EXTENSIONS} carries the reason. */
+function assertNotWebFont(path: string, where: string): void {
+    const lower = path.toLowerCase();
+    const wrapper = WEB_FONT_EXTENSIONS.find((ext) => lower.endsWith(ext));
+    if (wrapper === undefined) return;
+    throw new Error(
+        `gjsify ship: \`gjsify.ship.fonts\` (${where}) carries ${path}, and \`${wrapper}\` is a web-font ` +
+            'wrapper whose support is a FreeType BUILD option — brotli for woff2, zlib for woff. Whether it ' +
+            'opens is therefore a property of the FreeType the SHIPPED artifact loads (inside ' +
+            '`@gjsify/gtk-runtime-<target>` for a `.app` or a Windows program directory), not of the machine ' +
+            `that packaged it. Ship the desktop face instead (${FONT_EXTENSIONS.join(', ')}); a font that ` +
+            'fails to open is not an error, it is Pango quietly substituting a different typeface.',
+    );
 }
 
 function discoverSchemas(projectDir: string, configured: string | undefined): string[] {

@@ -24,6 +24,7 @@
 import { posix } from 'node:path';
 
 import { BUNDLE_INFO_PLIST, BUNDLE_PKGINFO, renderInfoPlist, renderPkgInfo } from './plist.js';
+import { SHARE } from './share-dirs.js';
 import type { HostOs, StagedFile } from './types.js';
 
 /**
@@ -131,6 +132,28 @@ export interface Layout {
      * know, and it is the same fact that retires this field when M0 lands.
      */
     runtimeGap?: string;
+    /**
+     * Why a face in the payload's `share/fonts` may not be REACHED on this OS, or
+     * absent where nothing stands in its way.
+     *
+     * Optional, mirroring {@link runtimeGap} rather than {@link metadata}'s
+     * required-and-empty shape, because it asks the same kind of question: is there
+     * something true about this OS that the staged tree cannot show? Linux answers
+     * by having none.
+     *
+     * THE GAP IS NOT THE PATH (ADR 0038). The faces are STAGED identically on all
+     * three layouts and `planStage` emits one plan for them; what differs is what
+     * READS the directory. On Linux fontconfig does, expanding
+     * `<dir prefix="xdg">fonts</dir>` over the `XDG_DATA_DIRS` every launcher
+     * already exports — measured in eight independent fontconfigs — so that row has
+     * nothing to report. On the other two the reader is a property of
+     * `@gjsify/gtk-runtime-<target>` rather than of this payload, and it is not
+     * fontconfig in either: CoreText on macOS, DirectWrite on Windows, the latter
+     * measured on hardware (`LAYOUTS.windows.fontGap` carries the numbers).
+     * `gjsify ship` prints this only when the payload actually carries a face, so a
+     * project shipping none is told nothing.
+     */
+    fontGap?: string;
     /** Suffix the launcher's filename carries, `''` where the OS needs none. */
     launcherExt: string;
     /**
@@ -167,8 +190,17 @@ export interface Layout {
      * The result is placed by `placeStage`, which applies the SAME uniqueness check
      * it applies to mapped files: an `extraFiles` destination that lands on
      * `Contents/Info.plist` is refused rather than silently replacing it.
+     *
+     * IT TAKES THE PAYLOAD, in the prefix-relative shape, because a manifest is a
+     * statement ABOUT a tree and one key already has to be (ADR 0038):
+     * `ATSApplicationFontsPath` names the directory the bundle's faces are in, and
+     * emitting it over a bundle that carries none would point macOS at a path that
+     * is not there. That is also the seam `CFBundleDocumentTypes` will need, which
+     * is ADR 0024 stages 4 and 5 — so the parameter is the payload rather than a
+     * `hasFonts` flag: the next key to need it will need a different question
+     * answered about the same tree.
      */
-    metadata: (input: LayoutMetadataInput) => StagedFile[];
+    metadata: (input: LayoutMetadataInput, payload: readonly StagedFile[]) => StagedFile[];
     /**
      * The `process.arch` values this layout can be assembled for, or `null` when
      * it imposes no limit of its own.
@@ -219,6 +251,27 @@ export interface LayoutArches {
  * `hdiutil` time, which is three milestones away and on another host.
  */
 const BUNDLE_NAME_FORBIDDEN = /[/:\\]/;
+
+/**
+ * The value `ATSApplicationFontsPath` takes for this bundle, or nothing when the
+ * payload carries no face (ADR 0038).
+ *
+ * DERIVED THROUGH `place()`, over a file the payload actually holds, rather than
+ * written out as `share/fonts/<appId>`. The key is documented as a path relative
+ * to `Contents/Resources`, which is this layout's `dirs.other` — so running the
+ * real map on a real entry and taking the Resources prefix back off is the one
+ * spelling that cannot come apart from where the faces were staged. A literal
+ * would keep pointing at the old directory the day `dirs` changes, and macOS
+ * reports an empty font directory the way it reports everything else here: not at
+ * all.
+ */
+function darwinFontsPath(identity: LayoutMetadataInput, payload: readonly StagedFile[]): string | undefined {
+    const dir = `${SHARE.fonts}/${identity.appId}`;
+    const face = payload.find((file) => file.path.startsWith(`${dir}/`));
+    if (face === undefined) return undefined;
+    const dirs = LAYOUTS.darwin.dirs(identity);
+    return posix.relative(dirs.other, posix.dirname(place(LAYOUTS.darwin, identity, face.path)));
+}
 
 function appBundleDir(identity: LayoutIdentity): string {
     if (BUNDLE_NAME_FORBIDDEN.test(identity.name)) {
@@ -272,6 +325,31 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             'macOS ships no Node, and there is no RELOCATABLE GJS (`build-gtk-runtime-darwin.mjs`: "GJS ' +
             'ships no relocation"), so ADR 0024 § 4 derives Node here. A self-contained bundle needs `@gjsify/node-runtime-darwin-<arch>` and a ' +
             '`--app node` payload (#1354 M0), or `@gjsify/gjs-runtime-darwin-<arch>` (ADR 0024 stage 7).',
+        // THE ONE LAYOUT WHERE THE ENV VARIABLE IS NOT THE MECHANISM, and assuming it
+        // was is the mistake this comment exists to stop being made again. macOS Pango
+        // is CORETEXT, not fontconfig: GTK's own `meson.build` carries
+        // `fontconfig_dep = []  # only used in x11 backend` and Homebrew's gtk4 formula
+        // builds `-Dx11-backend=false -Dmacos-backend=true`, while cairo's `quartz`
+        // option defaults to `auto` and auto-enables on darwin — so a `fonts.conf`
+        // inside a `.app` would be inert twice over, wrong Pango backend AND no
+        // GTK-side fontconfig. `XDG_DATA_DIRS` still carries the icons and the schemas
+        // here; it does not carry the faces.
+        //
+        // What does is `ATSApplicationFontsPath`, emitted into `Info.plist` by
+        // `metadata` above — Apple's own per-app activation, and the ORDERING is why it
+        // beats a runtime call rather than merely being tidier:
+        // `pango_core_text_font_map_changed()` only bumps a serial, there is no
+        // `kCTFontManagerRegisteredFontsChangedNotification` observer and no re-scan
+        // path in `pangocoretext-fontmap.c`, so a face registered after the font map
+        // initialises is not recoverable by poking it. The system activates this key's
+        // directory at LAUNCH, before any of the app's code runs.
+        fontGap:
+            'the faces are staged in `share/fonts/<appId>` and `Info.plist` carries `ATSApplicationFontsPath` ' +
+            "at it, which is macOS's own per-app activation — NOT the XDG_DATA_DIRS path, because Pango on " +
+            'macOS is CoreText-backed and GTK is not built against fontconfig there. That the activation ' +
+            "reaches Pango's CoreText font map is UNVERIFIED: no leg in this repository runs a `.app`. " +
+            'Confirm with `PangoCairo.FontMap.get_default().list_families()` in the shipped bundle, and ' +
+            '`PANGOCAIRO_BACKEND=bogus` to print which backend it was built with.',
         launcherExt: '',
         root: appBundleDir,
         // Apple's, all four. `Contents/MacOS` holds executables, `Contents/Resources`
@@ -292,11 +370,11 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // nothing tells LaunchServices which file under `Contents/MacOS` to exec,
         // and a `*.app` with no `Info.plist` is a folder with a suffix — which is
         // exactly what M1 staged. `plist.ts` carries the per-key citations.
-        metadata: (input) => [
+        metadata: (input, payload) => [
             {
                 path: `${appBundleDir(input)}/${BUNDLE_INFO_PLIST}`,
                 mode: 0o644,
-                source: { kind: 'text', text: renderInfoPlist(input) },
+                source: { kind: 'text', text: renderInfoPlist(input, darwinFontsPath(input, payload)) },
             },
             {
                 path: `${appBundleDir(input)}/${BUNDLE_PKGINFO}`,
@@ -332,6 +410,56 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             'cannot assume — Windows ships neither, and there is NO GJS host on Windows at all ' +
             '(ADR 0024 § 4), so § 4 derives Node here. A self-contained directory needs ' +
             '`@gjsify/node-runtime-win32-x64` and a `--app node` payload (#1354 M3).',
+        // THE ONE LAYOUT WITH NO DECLARATIVE ANSWER AT ALL, and the three obvious
+        // candidates are each dead for a different reason — written down because each
+        // one looks right until it is read. The first is now dead by MEASUREMENT
+        // rather than by reading (ADR 0038 § W1-W3, Windows 11 / GTK 4.22.4).
+        //
+        //  * FONTCONFIG. gvsbuild does build it and pango links it
+        //    (`-Dfontconfig=enabled`), but `pangocairo-fontmap.c` picks the first
+        //    backend COMPILED IN, in the order coretext → win32 → fc, and cairo's
+        //    meson adds `cairo-win32` unconditionally on a Windows host. So the fc
+        //    font map is built and never selected, and the whole `etc/fonts` +
+        //    `FONTCONFIG_PATH` arrangement `@gjsify/gtk-runtime-win32-x64` ships is
+        //    inert. `APPSHAREFONTDIR` even resolves to exactly this layout
+        //    (`<exe dir>\..\share\fonts`) and feeds the map nothing reads. RUN: with
+        //    a `FONTCONFIG_FILE` naming the face's directory beside WINDOWSFONTDIR
+        //    the default map stays at 82 families without it — and stays at 82 when
+        //    that directory is the ONLY one configured, which is the row that shows
+        //    the map is not reading a misconfigured fontconfig but no fontconfig.
+        //    The control that makes that a finding: a `PangoFT2.FontMap` from the
+        //    SAME config in the SAME process goes 76 → 77 WITH the face, and to 5
+        //    families exclusively. The bundle also ships no `fc-cache.exe`.
+        //  * XDG_DATA_DIRS, which carries the faces on Linux. `FcConfigXdgDataDirs()`
+        //    splits on a HARDCODED colon (its own comment says the spec asks for one),
+        //    while `FC_SEARCH_PATH_SEPARATOR` is `;` here — so `C:\App\share` splits
+        //    into `C` and `\App\share`. The Linux measurement does not carry over.
+        //  * `AddFontResourceEx(..., FR_PRIVATE)`. It registers with GDI, and
+        //    `pango_win32_font_map_init()` has exactly one population call —
+        //    `pango_win32_dwrite_font_map_populate()` — with no `EnumFontFamilies` and
+        //    no `AddFontResource` anywhere in the backend. A GDI-private font cannot
+        //    reach GTK4 text.
+        //
+        // What is left is a runtime call, which a packaging command has no business
+        // making inside somebody's application — so the launcher hands over the
+        // directory (`GJSIFY_FONT_DIR`) and this string names the call. That the call
+        // WORKS is measured too, and on GTK's own map rather than a loose Pango
+        // object: `label.get_pango_context().get_font_map()` IS the default map
+        // there, `add_font_file` on it answers true, families go 82 → 83 and the
+        // family then loads. With the discriminator that keeps "resolved" honest — an
+        // invented family renders as Tahoma at different metrics with a Pango
+        // warning, which is exactly what the probe family did BEFORE the call.
+        fontGap:
+            'the faces are staged in `share/fonts/<appId>` and the launcher exports GJSIFY_FONT_DIR at it, ' +
+            'but WINDOWS HAS NO DECLARATIVE FONT ACTIVATION and nothing here reaches a bundled face on its ' +
+            'own: GTK4 uses pangowin32, whose font map is populated from DirectWrite and never from ' +
+            'fontconfig or from GDI. MEASURED on Windows 11 / GTK 4.22.4 rather than inferred (ADR 0038 ' +
+            'W1-W5): a FONTCONFIG_FILE naming the staged directory moves the default font map by nothing ' +
+            'even when it is the ONLY configuration present — that map does not read fontconfig, and exposes ' +
+            'no config_changed or set_config with which to make it — while add_font_file on the same map a ' +
+            'Gtk.Label renders through does register the family. So register them at startup: ' +
+            '`PangoCairo.FontMap.get_default().add_font_file(path)` (Pango 1.56+, in the typelib), or the ' +
+            'app renders in a substituted family with no error.',
         // `.cmd`, not `.bat`: the two differ in whether a failing built-in (`set`,
         // `path`, `append`) sets ERRORLEVEL, and `.cmd` is the one where it does.
         launcherExt: '.cmd',
@@ -551,7 +679,9 @@ export function placeStage(
     // prefix-relative plan, so there is nothing to map. `<layout> metadata` rather
     // than a path as the origin label, because a collision message naming
     // `Contents/Info.plist` as both sides would say nothing.
-    for (const file of layout.metadata(identity)) claim(file.path, `the ${layout.name} layout's own metadata`, file);
+    for (const file of layout.metadata(identity, files)) {
+        claim(file.path, `the ${layout.name} layout's own metadata`, file);
+    }
     // A THIRD source, and stage-relative like the second: the runtime the bundle
     // CARRIES (`utils/ship/app-runtime.ts`). It goes through `claim` for the reason
     // the metadata does — an `extraFiles` destination landing on a staged dylib

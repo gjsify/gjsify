@@ -49,6 +49,7 @@ function settings(execArgs: string[]): ShipSettings {
         schemaFiles: [],
         typelibFiles: [],
         localeFiles: [],
+        fontFiles: [],
         extraFiles: {},
         execArgs,
         outDir: 'ship',

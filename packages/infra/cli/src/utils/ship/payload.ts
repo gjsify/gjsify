@@ -593,19 +593,30 @@ const SHARE_VERDICTS: ReadonlyArray<readonly [string, (context: ShareContext) =>
 /**
  * Paths that survive the trip, so the rule below can be an INVERSE one.
  *
- * Two entries and they are different SHAPES, which is why the check below tests
+ * Three entries and they are different SHAPES, which is why the check below tests
  * both containment and equality:
  *
  *  - `share/locale` is a DIRECTORY. A `.mo` is read straight off disk by
  *    `bindtextdomain`, with no install step anywhere, and the launcher hands the
  *    directory over on all three layouts.
+ *  - `share/fonts` is a directory too, and it is here for a NARROWER reason than
+ *    the one next to it (ADR 0038). What this list means is "no package install
+ *    step makes this correct", and that is true of a face on every layout: nothing
+ *    compiles it, nothing reindexes it, and on Linux fontconfig scans the
+ *    directory and caches lazily per user. What it deliberately does NOT claim is
+ *    that a face is FOUND on the other two — macOS reaches it through
+ *    `Info.plist`'s `ATSApplicationFontsPath` and Windows only through a call the
+ *    app makes itself. Those are `Layout.fontGap`, printed separately, because
+ *    they are facts about an OS rather than about a missing scriptlet, and folding
+ *    them in here would report the answer under a heading that names the wrong
+ *    question.
  *  - `gschemas.compiled` is one FILE, and it is here because it is not a cost —
  *    it is the thing that removes one. Reported under a warning headed "whose
  *    Linux correctness comes from a package install step" it would name the fix
  *    as if it were the problem, and it would be the sixth line of a five-line
  *    list nobody asked to grow.
  */
-const SHARE_PORTABLE: readonly string[] = [SHARE.locale, SCHEMA_CACHE];
+const SHARE_PORTABLE: readonly string[] = [SHARE.locale, SHARE.fonts, SCHEMA_CACHE];
 
 /**
  * Every `share/` entry a non-Linux layout carries, classified — including the

@@ -37,6 +37,7 @@ function input(overrides: Partial<SettingsInput> = {}): SettingsInput {
             schemaFiles: [],
             typelibFiles: [],
             localeFiles: [],
+            fontFiles: [],
         },
         ...overrides,
     };

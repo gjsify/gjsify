@@ -2,10 +2,29 @@
 //
 // THE HONEST COUNTERPART IS DISCOVERY, NOT LOADING. On a phone `useFonts` registers
 // font files with the runtime and returns `[false, null]` until they are in. On a
-// desktop, fonts are INSTALLED — system-wide, or in `~/.local/share/fonts`, or
-// shipped with the application where `gjsify ship` puts them — and fontconfig has
-// already found them by the time any JavaScript runs. There is nothing to wait for,
-// so the hook reports ready on its first render.
+// desktop, fonts are INSTALLED — system-wide, in `~/.local/share/fonts`, or shipped
+// with the application (`gjsify.ship.fonts`, ADR 0038) — and the platform's font map
+// has already found them by the time any JavaScript runs. There is nothing to wait
+// for, so the hook reports ready on its first render.
+//
+// "ALREADY FOUND THEM" IS NOT UNIFORM, and the exception is worth knowing before a
+// consumer trusts this row on three operating systems. On LINUX fontconfig scans the
+// installed directory, measured. On MACOS the bundle declares
+// `ATSApplicationFontsPath` and the OS is documented to activate it before the
+// process starts — Apple's key reference, not a measurement: no leg in this
+// repository runs a `.app`, which is what ADR 0038's `Layout.fontGap` prints rather
+// than letting a green stage imply. On WINDOWS GTK4 is pangowin32/DirectWrite, which
+// reaches no font file by configuration at all — measured there, unlike the row above
+// it: Windows 11 with GTK 4.22.4, ADR 0038 § W1-W5, and in both directions. The
+// default font map does not see a face that a fontconfig configuration in the SAME
+// process demonstrably does, not even when that configuration is the only one it is
+// given; `PangoCairo.FontMap.get_default().add_font_file()` does put the family
+// there, on the very map a widget's own `PangoContext` renders through. So a bundled
+// face is registered by the APP at startup, over the directory `gjsify ship` names in
+// `GJSIFY_FONT_DIR`. This hook is still right
+// to answer immediately: it is not what performs that registration, and where the
+// registration belongs to the app it has necessarily already run. No `@gjsify/*`
+// package makes that call yet — `status/open-todos.md`.
 //
 // AND THAT IS BETTER THAN A STUB, because the failure it removes is real: a screen
 // written as `if (!loaded) return null` renders immediately instead of flashing, and
@@ -17,11 +36,25 @@
 // `Adwaita Sans` among them, and the map is reachable with NO WIDGET — which matters,
 // because a font question is asked from module scope as often as from a component.
 //
-// `loadAsync` REFUSES rather than resolving. GTK 4 exposes no per-process font
-// registration through GI (fontconfig's `FcConfigAppFontAddFile` is not in any
-// typelib here), so a promise that resolved would be claiming a font was installed
-// when it was not — and the symptom would be Pango silently substituting a fallback
-// family, which is the exit-0 failure this layer exists against.
+// `loadAsync` REFUSES rather than resolving, and the reason is what it is HANDED,
+// not what GI exposes. This comment used to say GTK 4 exposes no per-process font
+// registration at all, citing fontconfig's `FcConfigAppFontAddFile` as absent from
+// every typelib — and the second half is true while the conclusion is not:
+// `pango_font_map_add_font_file()` has been in `Pango-1.0.gir` since Pango 1.56 and
+// `@gjsify/dom-elements` already calls it for Canvas `FontFace`. Corrected rather
+// than deleted, because a rule whose stated reason is false is one somebody
+// "un-refuses" the first time they check it.
+//
+// The reason that holds: `loadAsync`'s argument is a `require("./Inter.ttf")` id
+// into React Native's asset registry, which ADR 0032 § 12 leaves to the consumer's
+// build chain — the same reason `useFonts` ignores its map's VALUES and this layer
+// refuses one for `Image.source`. There is no path to register. And the call would
+// not be portable if there were: it answers `G_IO_ERROR_NOT_SUPPORTED` on the
+// CoreText font map, so it would work on Linux and Windows — both measured, the
+// second on the VM above — and lie on macOS, which is the CoreText source. A
+// promise that resolved would be claiming a font was installed when it was not, and
+// the symptom is Pango silently substituting a fallback family — the exit-0 failure
+// this layer exists against.
 
 import PangoCairo from 'gi://PangoCairo?version=1.0';
 

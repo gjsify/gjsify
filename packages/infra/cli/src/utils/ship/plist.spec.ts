@@ -166,5 +166,20 @@ export default async () => {
             expect(renderInfoPlist(IDENTITY)).toContain(`<string>${renderPkgInfo().slice(0, 4)}</string>`);
             expect(renderInfoPlist(IDENTITY)).toContain(`<string>${renderPkgInfo().slice(4)}</string>`);
         });
+
+        await it('declares the font directory only when the bundle carries one', async () => {
+            // ADR 0038, and on this OS the key is not a nicety beside the
+            // XDG_DATA_DIRS path — it IS the path. Pango on macOS is CoreText-backed
+            // and GTK is not built against fontconfig there, so a `fonts.conf` in the
+            // bundle would be inert and this is the only per-app activation there is.
+            const withFonts = renderInfoPlist(IDENTITY, 'share/fonts/org.example.ShipDemo');
+            expect(value(withFonts, 'ATSApplicationFontsPath')).toBe('share/fonts/org.example.ShipDemo');
+
+            // ABSENT, not empty. An empty string is a path too, and macOS would
+            // activate `Contents/Resources` itself — every file in the bundle offered
+            // to the font manager, which is a different bug and a silent one.
+            expect(value(renderInfoPlist(IDENTITY), 'ATSApplicationFontsPath')).toBe(null);
+            expect(renderInfoPlist(IDENTITY).includes('ATSApplicationFontsPath')).toBe(false);
+        });
     });
 };

@@ -51,6 +51,8 @@ export interface DiscoveredPayload {
     typelibFiles: string[];
     /** Compiled gettext catalogues, each with its `<lang>/LC_MESSAGES/<domain>.mo` path. */
     localeFiles: { rel: string; abs: string }[];
+    /** Absolute paths of the font faces the application ships itself. */
+    fontFiles: string[];
     licenseFile?: string;
 }
 
@@ -305,6 +307,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         schemaFiles: discovered.schemaFiles,
         typelibFiles: discovered.typelibFiles,
         localeFiles: discovered.localeFiles,
+        fontFiles: discovered.fontFiles,
         extraFiles: ship.extraFiles ?? {},
         execArgs: ship.execArgs ?? [],
         outDir: input.cli.outDir ?? ship.outDir ?? 'ship',

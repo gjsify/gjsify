@@ -1440,12 +1440,44 @@ Packing the same build twice gives byte-identical files, which is explained in [
 | `typelibPackages` | `{}` | GI namespace to the package shipping its typelib. This is what unblocks an unknown namespace. |
 | `bundledTypelibs` | `[]` | Directories whose `*.typelib` and `*.so` the package carries itself, for GI libraries that arrive as npm prebuilds rather than distro packages. Staged into `lib/<name>/gi/`, with the launcher pointing `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` there. |
 | `localeDir` | none | Directory of COMPILED gettext catalogues in `<lang>/LC_MESSAGES/<domain>.mo` layout. Staged into `share/locale/`; the launcher exports `GJSIFY_LOCALE_DIR`. `.po` sources are refused, because `bindtextdomain` reads `.mo` only. |
+| `fonts` | none | Font files or a directory of them, staged into `share/fonts/<appId>/`. One payload path, three different readers: Linux gets a fontconfig directory, macOS an `ATSApplicationFontsPath` entry in the `Info.plist`, and **Windows only a handed-over directory** — the app must register them itself, see below. |
 | `extraFiles` | `{}` | Extra payload entries: prefix-relative destination to project-relative source. |
 | `execArgs` | `[]` | Arguments the launcher appends before the user's own. |
 | `flatpak` | derived | The Flatpak half: `runtime` (`gnome`/`freedesktop`), `runtimeVersion`, `branch` (`stable`), `sdkExtensions`, `appendPath`, `finishArgs`, `cleanup`. |
 | `sign` | none | Default signing identity per OS: `{ "darwin": { "identity": "…" }, "win32": { "identity": "…" } }`. An IDENTITY only. `linux` is not a valid key and is refused, because a `.deb` or `.rpm` is signed by the repository that serves it. |
 
 Metadata keys (`name`, `summary`, `description`, `developer`, `license`, `categories`, `keywords`, `homepageUrl`, `screenshots`, and the rest) are shared with `gjsify.flatpak` and listed under [`flatpak init`](#gjsify-flatpak-init).
+
+#### Fonts
+
+`gjsify.ship.fonts` stages your faces into `share/fonts/<appId>/` on all three layouts.
+What differs is who reads them, because the font backends differ rather than the
+packaging:
+
+- **Linux** — a fontconfig directory entry. `.deb`/`.rpm` get `<dir>/usr/share/fonts</dir>`;
+  every other prefix gets `<dir prefix="xdg">fonts</dir>`, which fontconfig also expands
+  over `XDG_DATA_DIRS` — the variable the launcher already exports. Nothing to call.
+  (That expansion is not in `fonts-conf(5)`; it is measured across eight independent
+  fontconfig builds, 2.14.1 through 2.18.3.)
+- **macOS** — `ATSApplicationFontsPath` in the `Info.plist`. Declarative, and the
+  ordering is the argument: the CoreText font map has no re-scan path, and the OS
+  activates before any of your code runs. *Not verified — no CI leg starts an `.app`.*
+- **Windows** — nothing declarative exists. `pangocairo` selects the win32 backend and
+  populates from DirectWrite alone, so a fontconfig directory is inert (measured: the
+  default font map stays at its 82 system families even when your config is the *only*
+  one). The launcher therefore exports **`GJSIFY_FONT_DIR`** and **your app registers
+  the faces itself**:
+
+  ```js
+  import PangoCairo from 'gi://PangoCairo?version=1.0';
+  const dir = GLib.getenv('GJSIFY_FONT_DIR');
+  if (dir) for (const f of listFontFiles(dir)) PangoCairo.FontMap.get_default().add_font_file(f);
+  ```
+
+  `add_font_file()` needs Pango 1.56 and works on Linux too, so one call covers both.
+  Measured on Windows 11 against GTK's own default map — the one a `Gtk.Label` renders
+  through: 82 families before, 83 after, and the family then resolves for real rather
+  than substituting.
 
 #### Signing
 

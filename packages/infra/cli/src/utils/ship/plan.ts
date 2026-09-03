@@ -120,11 +120,49 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
         });
     }
 
+    for (const font of planFonts(settings)) files.push(font);
+
     for (const [dest, source] of Object.entries(settings.extraFiles)) {
         files.push({ path: assertInsidePrefix(dest), mode: 0o644, source: { kind: 'file', path: source } });
     }
 
     return normalise(files);
+}
+
+/**
+ * Font faces, under a directory named after the app id (ADR 0038).
+ *
+ * `share/fonts` is shared with every other package on a `/usr` prefix, exactly as
+ * `share/glib-2.0/schemas` and `share/mime/packages` are — so the app id is what
+ * keeps a face called `Regular.ttf` from being one of two files claiming the same
+ * path, with install order deciding the winner. Unlike those two the collision is
+ * not refused by NAME: a font's filename is the foundry's and there is no
+ * convention to hold it to, so the directory carries the id and the basenames are
+ * left alone. fontconfig scans recursively, so nesting them costs nothing —
+ * measured across fontconfig 2.14.1 → 2.18.3.
+ *
+ * A basename appearing twice IS refused, for the reason `planIcons` refuses one:
+ * two source files installing as one path means one of them is silently not
+ * shipped, and a missing face is a substituted typeface rather than an error.
+ */
+function planFonts(settings: ShipSettings): StagedFile[] {
+    const out: StagedFile[] = [];
+    const seen = new Map<string, string>();
+    for (const font of settings.fontFiles) {
+        const path = `${SHARE.fonts}/${settings.appId}/${basename(font)}`;
+        const previous = seen.get(path);
+        if (previous !== undefined) {
+            throw new Error(
+                `gjsify ship: ${font} and ${previous} both install as ${path}. ` +
+                    'Two faces cannot share one filename — one would silently not ship, and a missing face ' +
+                    'is a substituted typeface rather than an error. Rename one, or point ' +
+                    '`gjsify.ship.fonts` at a directory holding only the faces you mean to ship.',
+            );
+        }
+        seen.set(path, font);
+        out.push({ path, mode: 0o644, source: { kind: 'file', path: font } });
+    }
+    return out;
 }
 
 /**

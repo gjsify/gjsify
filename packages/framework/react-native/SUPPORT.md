@@ -205,14 +205,14 @@ Imported from `expo-font`; answered by `@gjsify/react-native/expo-font`.
 
 | export | tier | GTK | why |
 |---|---|---|---|
-| `useFonts` | P1 | Pango’s font map, through fontconfig | A desktop application does not load a font file per screen: fonts are INSTALLED and fontconfig discovers them, so the hook has nothing to wait for and reports ready on its first render. |
+| `useFonts` | P1 | Pango’s font map | A desktop application does not load a font file per screen: fonts are INSTALLED and the platform’s font map discovers them, so the hook has nothing to wait for and reports ready on its first render. |
 | `isLoaded` | P2 | PangoCairo.FontMap.list_families | A real answer rather than a stub: whether Pango knows a family of that name on this machine. |
 
 ### Refused (4)
 
 | export | tier | GTK | why |
 |---|---|---|---|
-| `loadAsync` | — | — | Registers a font file with the runtime. There is no per-process font registration in this chain — GTK 4 exposes none through GI — so a promise that resolved would be claiming a font was installed when it was not. Install the font, or ship it with the application. |
+| `loadAsync` | — | — | Registers a font file with the runtime, and what it is HANDED is not a file: the argument is a `require("./Inter.ttf")` id into React Native’s asset registry, which ADR 0032 § 12 leaves to the consumer’s build chain — the same reason `useFonts` ignores its map’s values. So there is no path to register, and a promise that resolved would be claiming a font was installed when it was not. NOT because the call is missing: `pango_font_map_add_font_file()` is in the typelib since Pango 1.56 and `@gjsify/dom-elements` uses it for Canvas FontFace, but it answers G_IO_ERROR_NOT_SUPPORTED on the CoreText map, so it would work on Linux and Windows and lie on macOS. Install the face, or ship it with the application (`gjsify.ship.fonts`, ADR 0038). |
 | `unloadAsync` | — | — | The inverse of loadAsync, and it has the same answer. |
 | `unloadAllAsync` | — | — | As unloadAsync. |
 | `FontDisplay` | — | — | A web `font-display` strategy for a font that is still downloading. Nothing downloads here. |

@@ -315,6 +315,12 @@ export interface ShipMimeType {
  *    `share/locale/<rel>`, and no packer reads the field. So translations
  *    cross in the payload, where they belong, and the `abs` path does not
  *    cross at all. This list being explicit is what caught that.
+ *  - `fontFiles` — the same shape one milestone later (ADR 0038). `planStage`
+ *    copies each face into `share/fonts/<appId>/`, no packer reads the field, and
+ *    the only pack-time question — "does this payload carry fonts" — is answered
+ *    by the payload's own paths. There is no scriptlet to key off it either:
+ *    fontconfig scans the directory and caches lazily per user, measured rather
+ *    than assumed.
  *  - `kind`, `execArgs` — read by the planner and the metadata renderers, all of
  *    which have run by the time a stage exists. `appId` was on this line and
  *    MOVED: the Flatpak packer needs it at pack time twice over — it is the
@@ -466,6 +472,16 @@ export interface ShipSettings extends PackSettings {
      * a `.mo` staged by basename alone lands where no catalogue lookup will ever look at it.
      */
     localeFiles: { rel: string; abs: string }[];
+    /**
+     * Absolute paths of the font faces the application ships (`gjsify.ship.fonts`).
+     *
+     * Read by `planStage` alone, which copies each into `share/fonts/<appId>/` — the
+     * one directory fontconfig reaches through the launcher's existing
+     * `XDG_DATA_DIRS` (ADR 0038). Nothing in the pack path reads it, which is why it
+     * is not on {@link PackSettings}; the fonts cross in the payload, like the
+     * catalogues.
+     */
+    fontFiles: string[];
     /** `<dest relative to prefix>` → absolute source path. */
     extraFiles: Record<string, string>;
     /** Arguments appended to the launcher's `exec` line. */
