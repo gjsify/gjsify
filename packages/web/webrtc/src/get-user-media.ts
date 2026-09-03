@@ -182,34 +182,64 @@ function _probeSource(name: string, converter: string): Gst.Element | null {
     return ret === Gst.StateChangeReturn.FAILURE ? null : src;
 }
 
-function _createAudioSource(): Gst.Element {
-    // Try real sources in priority order — each one OPENED, not just made.
-    for (const name of ['pipewiresrc', 'pulsesrc', 'autoaudiosrc']) {
-        const el = _probeSource(name, 'audioconvert');
+/**
+ * Winning factory name per kind — the probe runs ONCE PER PROCESS, not once per
+ * `getUserMedia()` call.
+ *
+ * Not an optimisation. Starting a capture pipeline LEAKS on a host whose audio
+ * stack cannot serve it, and the leak is the GStreamer/backend teardown path,
+ * not ours to close. Measured in `ghcr.io/gjsify/ci-fedora:44`, ten probes
+ * each: `pulsesrc` +10 threads / +728 MB VmSize, `autoaudiosrc` (which resolves
+ * to `openalsrc` there) +12 threads / +878 MB. Probing on every call put that
+ * on a multiplier — one webrtc suite makes eleven `getUserMedia({audio:true})`
+ * calls and finished at 38 threads / 4.29 GB, and a 125-iteration loop wedged
+ * the process outright at 409 threads / 15.9 GB, main thread parked in
+ * `futex_do_wait`. That is what took `Test 4/4 Fedora 44` from a 7-second suite
+ * to a 90-minute job timeout with no output after the last passing test — a
+ * hang far worse than the dead-source bug the probe exists to fix.
+ *
+ * Sampling once bounds the whole cost at one probe for the life of the process.
+ * The trade it makes is explicit: the set of capture devices is read at first
+ * use, so a microphone plugged in later is not picked up until restart. Fresh
+ * ELEMENTS are still made per call — only the VERDICT is remembered.
+ */
+const _sourceChoice = new Map<string, string>();
+
+/** Resolve the factory to use for `kind`, probing only on the first call. */
+function _chooseSource(kind: string, candidates: string[], converter: string, fallback: string): Gst.Element {
+    const cached = _sourceChoice.get(kind);
+    if (cached) return Gst.ElementFactory.make(cached, null)!;
+
+    for (const name of candidates) {
+        const el = _probeSource(name, converter);
         if (el) {
-            try {
-                (el as _GstElementProps).is_live = true;
-            } catch {
-                /* not all sources have is-live */
-            }
+            _sourceChoice.set(kind, name);
             return el;
         }
     }
-    // Fallback: test source (sine wave, audible for debugging)
-    const el = Gst.ElementFactory.make('audiotestsrc', null)!;
-    (el as _GstElementProps).is_live = true;
-    (el as _GstElementProps).wave = 0; // sine
+    _sourceChoice.set(kind, fallback);
+    return Gst.ElementFactory.make(fallback, null)!;
+}
+
+function _createAudioSource(): Gst.Element {
+    // Real sources in priority order — each one OPENED, not just made.
+    const el = _chooseSource('audio', ['pipewiresrc', 'pulsesrc', 'autoaudiosrc'], 'audioconvert', 'audiotestsrc');
+    try {
+        (el as _GstElementProps).is_live = true;
+    } catch {
+        /* not all sources have is-live */
+    }
+    if (_sourceChoice.get('audio') === 'audiotestsrc') {
+        (el as _GstElementProps).wave = 0; // sine — audible for debugging
+    }
     return el;
 }
 
 function _createVideoSource(): Gst.Element {
-    for (const name of ['pipewiresrc', 'v4l2src', 'autovideosrc']) {
-        const el = _probeSource(name, 'videoconvert');
-        if (el) return el;
+    const el = _chooseSource('video', ['pipewiresrc', 'v4l2src', 'autovideosrc'], 'videoconvert', 'videotestsrc');
+    if (_sourceChoice.get('video') === 'videotestsrc') {
+        (el as _GstElementProps).is_live = true;
+        (el as _GstElementProps).pattern = 0; // SMPTE bars
     }
-    // Fallback: test pattern
-    const el = Gst.ElementFactory.make('videotestsrc', null)!;
-    (el as _GstElementProps).is_live = true;
-    (el as _GstElementProps).pattern = 0; // SMPTE bars
     return el;
 }
