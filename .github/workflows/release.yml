@@ -1797,9 +1797,16 @@ jobs:
       # ⚠️ FIRST RELEASE ONLY: these three npm names must be bootstrapped by hand
       # before the release that ships them (`gjsify onboard`, then `gjsify trust`
       # targeting release.yml) — OIDC cannot self-bootstrap its own trust, and an
-      # unbootstrapped name 404s on the exchange. As of 0.44.0 that bootstrap is
-      # STILL PENDING for all three, which `scripts/check-shipped-runtime-packages.mjs`
-      # now reports on every push instead of leaving it to this job.
+      # unbootstrapped name 404s on the exchange. That bootstrap is DONE for all three.
+      # `scripts/check-shipped-runtime-packages.mjs` is what holds it — it asks the
+      # registry whether each name resolves, and fails when one does not.
+      #
+      # NOTHING HOLDS THIS COMMENT, and the previous version of it claimed otherwise.
+      # The check reads `release.yml` only to harvest `gjsify publish <dir>` arguments;
+      # its disclosure scan is `DOC_ROOTS` (docs/ + website/), which workflows are not
+      # in. It also asks only whether a packument EXISTS, never which version or when —
+      # so a date or a version written here is exactly the shape it cannot hold. Say
+      # what the check asserts, and keep the unheld half out.
       #
       # ⚠️ `--tolerate-untrusted-new` IS DELIBERATELY ABSENT, and adding it to
       # silence a red leg would be the bug. That flag exists for the SERIALIZED

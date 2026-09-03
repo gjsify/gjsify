@@ -44,10 +44,8 @@ the same numbers.
 
 ## Install
 
-Not on npm yet: this is a new name, and the first publish plus its Trusted Publisher
-bootstrap is a maintainer action deliberately not attempted from CI or a feature branch
-([the procedure](../../../docs/publishing.md)). Until then it is consumable from a
-workspace checkout.
+Published since `0.44.0`, and on the release train from there
+([the first-publish procedure, for the next new name](../../../docs/publishing.md)).
 
 ```sh
 npm install @gjsify/adwaita-react-native

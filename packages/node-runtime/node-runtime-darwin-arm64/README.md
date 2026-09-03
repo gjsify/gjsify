@@ -98,10 +98,10 @@ with npm 11.17.0 on Linux:
 
 ⚠️ Measured against **`@gjsify/gtk-runtime-win32-x64@0.44.0`** — a published
 package with the same `os`/`cpu` gating — because the `@gjsify/node-runtime-*`
-names are not on npm yet. Run verbatim against one of these today and npm answers
-`E404`, not `EBADPLATFORM`; the rows become reproducible for these names after the
-first publish. Until then the same four commands work against a locally packed
-tarball (`gjsify pack`).
+names were not yet on npm when the rows were taken. They are now — all three went
+live at `0.44.0` on 2026-08-30 — so the rows are reproducible against THIS package
+directly. The control is kept because it names what was actually run, not what is
+runnable today.
 
 So a shipper cross-assembling on Linux uses `--force` (or `npm pack` plus an
 extraction, which needs no override at all). This is NOT the "npm silently skips

@@ -283,21 +283,22 @@ on React Native's primitives — has been **started**, as
 [`@gjsify/adwaita-react-native`](https://github.com/gjsify/gjsify/blob/main/packages/framework/adwaita-react-native/README.md),
 and it is a walking skeleton rather than a way to run an Adwaita app on a phone.
 
-**Two widgets**, `AdwBin` and `AdwClamp`, carrying the whole vertical rather than a widget set —
-both platform halves, the resolution mechanism, the manifest declaration, a gate and suites on
-each side. The halves fork at the package's `exports` map on the `react-native` condition, never
-by file name.
+Every widget it ships carries the whole vertical — both platform halves, the resolution
+mechanism, the manifest declaration, a gate and suites on each side. `AdwBin` and `AdwClamp`
+came first and proved that shape; the package's own README table is the live set, and
+`check-vocabulary-alignment.mjs` prints the count on every run. The halves fork at the
+package's `exports` map on the `react-native` condition, never by file name.
 
 What it is honest about is more useful than what it claims. The phone half is not a `maxWidth`
 approximation — it runs `@gjsify/adwaita-core`'s port of `adw_clamp_layout_allocate`, libadwaita's
 own easing curve — but it **has never run on a device**: its numbers are asserted as instructions,
-not measured as pixels, because there is no Yoga and no phone in the loop. And three divergences
+not measured as pixels, because there is no Yoga and no phone in the loop. And its divergences
 are named in its README rather than smoothed over, the first of them on the very widget above:
 React Native has no measure pass, so `AdwClamp` passes the child's intrinsic minimum as `0`, and a
 child wider than the clamp is compressed there where GTK would widen the clamp instead.
 
-It is not on npm yet, and no gallery tab renders it — so nothing you see on this site is that
-package.
+It is on npm (since `0.44.0`), but no gallery tab renders it — so nothing you see on this site
+is that package.
 
 ## Two defaults that are inverted
 
