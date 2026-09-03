@@ -97,7 +97,7 @@ function runScript(args, { timeoutMs = 60_000 } = {}) {
  * control flow (how many attempts, which flags, how long) and a real registry cannot
  * be made to lag on demand. The fidelity case below uses the real npm.
  */
-function writeFakeNpm(dir, { failures, body, exitCode = 1 }) {
+function writeFakeNpm(dir, { failures, body, exitCode = 1, chattyBytes = 0 }) {
     const bin = join(dir, 'fake-npm.mjs');
     const log = join(dir, 'invocations.jsonl');
     const counter = join(dir, 'count');
@@ -111,11 +111,14 @@ function writeFakeNpm(dir, { failures, body, exitCode = 1 }) {
             `const FAILURES = ${failures};`,
             `const BODY = ${JSON.stringify(body)};`,
             `const EXIT = ${exitCode};`,
+            `const CHATTY = ${chattyBytes};`,
             'let n = 0;',
             'try { n = Number(readFileSync(COUNTER, "utf8")) || 0; } catch { n = 0; }',
             'n += 1;',
             'writeFileSync(COUNTER, String(n));',
             'appendFileSync(LOG, JSON.stringify(process.argv.slice(2)) + "\\n");',
+            // A lifecycle script's worth of output, to hold spawnSync's maxBuffer open.
+            'for (let w = 0; w < CHATTY; w += 65536) process.stdout.write("x".repeat(65536) + "\\n");',
             'if (n <= FAILURES) { process.stderr.write(BODY + "\\n"); process.exit(EXIT); }',
             'process.stdout.write("fake npm: installed\\n");',
         ].join('\n'),
@@ -316,6 +319,25 @@ describe('npm-install-published: the retry loop', () => {
             assert.equal(status, 0, out);
             assert.match(out, /install @gjsify\/cli@1\.0\.0/);
             assert.throws(() => npm.invocations(), /ENOENT/, 'nothing may be executed under --dry-run');
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('survives an install that talks more than spawnSync buffers by default', async () => {
+        // REGRESSION. `spawnSync`'s maxBuffer defaults to 1 MiB, and on overflow it
+        // KILLS the child and sets `result.error` — so a SUCCESSFUL install that simply
+        // printed a lot came back as exit 1 with `could not spawn "npm"`, naming the one
+        // cause it was not. Measured at 3 MiB of stdout against a fake npm exiting 0.
+        // This wrapper is now the sanctioned route for every workflow install, node-gyp
+        // lifecycle output included, so the ceiling was a call site away from a release.
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-retry-chatty-'));
+        try {
+            const npm = writeFakeNpm(dir, { failures: 0, body: '', chattyBytes: 3 * 1024 * 1024 });
+            const { status, out } = await runScript(['--npm-bin', npm.bin, '--cwd', dir, '--', '@gjsify/cli@1.0.0']);
+            assert.equal(status, 0, out.slice(-2000));
+            assert.doesNotMatch(out, /ENOBUFS/, 'the output ceiling must not be reported as a failed install');
+            assert.equal(npm.invocations().length, 1);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

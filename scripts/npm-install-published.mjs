@@ -51,6 +51,12 @@
 // it, so the common path stays byte-identical to the command that has shipped every
 // release so far, and the flag appears only where it is load-bearing.
 //
+// ONE BEHAVIOUR DIFFERENCE FROM THE INLINE COMMAND, stated because it is visible in a
+// log: each attempt's npm output is captured and re-emitted when that attempt ENDS, so
+// a single install is quiet while it runs instead of streaming. Between attempts the
+// wrapper prints its own line, so a retrying job still reports progress; the classifier
+// needs the whole output, and `maxBuffer: Infinity` below is the other half of that.
+//
 // WHAT THIS DOES NOT DO. It does not tolerate a missing package. A name that was never
 // published, or never bootstrapped for Trusted Publishing, is still absent after the
 // window and still fails the job — the retry moves the verdict later, it does not
@@ -215,10 +221,20 @@ export async function installWithRetry({
             // See quoteForWin32Shell: the shell is mandatory for npm.cmd, and it is
             // also what makes the quoting our problem.
             shell: onWindows,
+            // NOT the 1 MiB default. spawnSync KILLS the child and reports ENOBUFS the
+            // moment output passes maxBuffer, so a SUCCESSFUL install that simply talks
+            // too much came back from here as exit 1 — measured: a 3 MiB stdout died as
+            // `could not spawn "npm": … ENOBUFS` while the child had exited 0. One
+            // lifecycle script is enough to reach it (node-gyp alone prints megabytes),
+            // and this wrapper is now the sanctioned route for every workflow install,
+            // so the ceiling would have been hit by a call site rather than a release.
+            maxBuffer: Infinity,
         });
 
         if (run.error) {
-            console.error(`${label}: could not spawn "${npmBin}": ${run.error.message}`);
+            // `error` covers a genuinely missing npm AND anything that killed the child
+            // before it could report; naming only the first sends the reader hunting.
+            console.error(`${label}: "${npmBin}" did not complete: ${run.error.message}`);
             return 1;
         }
         process.stdout.write(run.stdout ?? '');
