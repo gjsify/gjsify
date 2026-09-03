@@ -27,9 +27,10 @@ used.
 **What you can build with it:** a desktop app with the full Adwaita widget set, a
 game rendering with WebGL into a real `Gtk.GLArea` or with Canvas 2D into a
 `Gtk.DrawingArea` (three.js and Excalibur.js run unmodified), a command-line tool,
-or an HTTP server on Express or Hono. `gjsify create` has a starter template for
-each of those, and each one builds for all four runtimes. The same source can also
-be built for the browser.
+or an HTTP server on Express or Hono. `gjsify create` scaffolds a starter for each
+of those — a bare `Gtk.Window` if you want to begin from nothing — and every one
+of them builds for all four runtimes. The same source can also be built for the
+browser.
 
 The CLI runs on all four runtimes as well, so you develop with the one you already
 have.
@@ -43,7 +44,7 @@ Where your code runs is a flag on the build, not a decision baked into your app:
 
 | `gjsify build --app` | Runs on | What that gives you |
 |---|---|---|
-| `gjs` | GJS, on Linux; macOS in part | GNOME's own interpreter resolves `gi://` directly, with nothing bridging into GTK. Linux distributions ship the runtime; on macOS it comes from Homebrew and CI covers a curated subset of the suites; there is no `gjs` for Windows. |
+| `gjs` | GJS, on Linux; macOS in part | GNOME's own interpreter resolves `gi://` directly, with nothing bridging into GTK. Linux distributions ship the runtime; on macOS it comes from Homebrew and only part of the surface is verified there; there is no `gjs` for Windows. |
 | `node` | Node.js, Bun and Deno, on Linux, macOS and Windows | One bundle for all three, because Node-API is their common ABI. `gi://` goes through `@gjsify/node-gi`, and `@gjsify/gtk-runtime-darwin-arm64`, `-darwin-x64` and `-win32-x64` carry GTK itself, so those two platforms need no system GTK. |
 | `browser` | any modern browser | No native code at all, so it is portable by construction. Adwaita comes over as Web Components through `@gjsify/adwaita-web`. |
 

@@ -308,7 +308,7 @@ These are deliberately not part of the coarse `dom` group. Injecting one require
 
 Identifiers outside this table are ignored. If you still hit `ReferenceError: X is not defined`, add `X` as an extra: `--globals auto,X`.
 
-The two GTK-backed groups are the ones an `--app node` build can also ask for. A plain `--globals auto` node build injects nothing, because Node, Bun and Deno bring their own `fetch`, streams, crypto and events. Name a group or an identifier explicitly and it injects the same register modules the `--app gjs` target would, reaching GTK through [`@gjsify/node-gi`](/gjsify/projects/node-gi/). That is what the GTK templates' `build:node` script does:
+The two GTK-backed groups are the ones an `--app node` build can also ask for. A plain `--globals auto` node build injects nothing, because Node, Bun and Deno bring their own `fetch`, streams, crypto and events. Name a group or an identifier explicitly and it injects the same register modules the `--app gjs` target would, reaching GTK through [`@gjsify/node-gi`](/gjsify/projects/node-gi/). That is what the Adwaita templates' `build:node` script does — `gtk-minimal` needs none of it, because plain GTK reaches no DOM API:
 
 ```bash
 gjsify build src/index.ts --app node --outfile dist/index.node.mjs --globals auto,dom
@@ -652,7 +652,7 @@ It exits non-zero when nothing matched.
 
 ### `gjsify prune`
 
-Remove installed packages this host cannot use: the ones an *earlier* install put there before the platform filter could skip them. See [ADR 0025](https://github.com/gjsify/gjsify/blob/main/docs/adr/0025-prune-the-install-prefix.md).
+Remove installed packages this host cannot use: the ones an *earlier* install put there before the platform filter could skip them.
 
 ```bash
 gjsify prune -g --dry-run       # what would go, and how much it frees
@@ -1461,23 +1461,35 @@ packaging:
   fontconfig builds, 2.14.1 through 2.18.3.)
 - **macOS** — `ATSApplicationFontsPath` in the `Info.plist`. Declarative, and the
   ordering is the argument: the CoreText font map has no re-scan path, and the OS
-  activates before any of your code runs. *Not verified — no CI leg starts an `.app`.*
+  activates before any of your code runs. *Not verified end to end — nothing here
+  launches a real `.app` yet.*
 - **Windows** — nothing declarative exists. `pangocairo` selects the win32 backend and
-  populates from DirectWrite alone, so a fontconfig directory is inert (measured: the
-  default font map stays at its 82 system families even when your config is the *only*
-  one). The launcher therefore exports **`GJSIFY_FONT_DIR`** and **your app registers
-  the faces itself**:
+  populates from DirectWrite alone, so a fontconfig directory is inert: pointing
+  `FONTCONFIG_FILE` at the staged directory moves the default font map by **zero**
+  families, even when it is the only configuration present. Registering the face at
+  runtime moves it by **one**, and the family then resolves for real rather than
+  substituting.
 
-  ```js
-  import PangoCairo from 'gi://PangoCairo?version=1.0';
-  const dir = GLib.getenv('GJSIFY_FONT_DIR');
-  if (dir) for (const f of listFontFiles(dir)) PangoCairo.FontMap.get_default().add_font_file(f);
-  ```
+The launcher exports **`GJSIFY_FONT_DIR`** at the staged directory on every layout,
+because only it knows whether the payload became `/usr`, a `--prefix` tree, `/app`, a
+bundle's `Contents/Resources` or a Windows program directory. Reading it is your app's
+side of the handover, and `@gjsify/gtk-host` does it for you:
 
-  `add_font_file()` needs Pango 1.56 and works on Linux too, so one call covers both.
-  Measured on Windows 11 against GTK's own default map — the one a `Gtk.Label` renders
-  through: 82 families before, 83 after, and the family then resolves for real rather
-  than substituting.
+```ts
+import { initFonts } from '@gjsify/gtk-host/fonts';
+
+const fonts = initFonts();
+```
+
+Call it once at startup and **before any text is laid out**. That ordering is
+load-bearing rather than tidy: the fontconfig backend caches the fontset it resolved for
+a description and registering afterwards does not invalidate it, so a layout that
+measured the family first goes on measuring the fallback for the life of the process.
+`initFonts()` reads `GJSIFY_FONT_DIR` itself, does nothing when the app ships no faces,
+never throws, and returns which faces were registered, which the font map declined (macOS
+does, correctly — its bundle already activated them before your code ran) and which
+failed. Safe to call on all three operating systems, so there is no platform branch to
+write.
 
 #### Signing
 
@@ -1498,7 +1510,7 @@ With no identity the run skips, prints why on stderr, and exits 0. `--sign` on t
 
 On **Linux** it is depended on, not shipped: `gjs (>= 1.86)`, or `nodejs (>= 24)` on deb and `nodejs(engine) >= 24` on rpm for an `--app node` bundle. Both floors exclude current Debian stable, and `gjsify ship` warns rather than lowering them; set `gjsify.ship.minGjsVersion` or `minNodeVersion` if your bundle genuinely runs on an older one.
 
-On **macOS and Windows** there is no system interpreter to depend on, so the artifact carries its own from `@gjsify/node-runtime-<target>`, with the GTK closure from `@gjsify/gtk-runtime-<target>` and the addon from `@gjsify/node-gi`. You declare all three yourself in the project you package. They are resolved **by name** out of your own `node_modules` at ship time, so they have to be installed there. `GJSIFY_NODE_RUNTIME` and `GJSIFY_GTK_RUNTIME` override the first two with a directory. All six names resolve on npm at `0.44.0`, and `scripts/check-shipped-runtime-packages.mjs` re-measures them on every pull request. [macOS app bundles](/gjsify/ship/macos/) and [Windows artifacts](/gjsify/ship/windows/) carry the copy-pasteable blocks.
+On **macOS and Windows** there is no system interpreter to depend on, so the artifact carries its own from `@gjsify/node-runtime-<target>`, with the GTK closure from `@gjsify/gtk-runtime-<target>` and the addon from `@gjsify/node-gi`. You declare all three yourself in the project you package. They are resolved **by name** out of your own `node_modules` at ship time, so they have to be installed there. `GJSIFY_NODE_RUNTIME` and `GJSIFY_GTK_RUNTIME` override the first two with a directory. All six names are published, at the same version as the rest of the release train, and re-measured against the registry before every release. [macOS app bundles](/gjsify/ship/macos/) and [Windows artifacts](/gjsify/ship/windows/) carry the copy-pasteable blocks.
 
 That is also why the four macOS and Windows formats accept `node` only. There is no relocatable GJS to put inside a downloadable bundle, and there is no GJS host on Windows at all.
 

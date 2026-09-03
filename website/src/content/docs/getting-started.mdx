@@ -20,7 +20,7 @@ One JavaScript runtime, and the GNOME libraries your app itself uses:
 | Runtime | Version | Reaches |
 |---|---|---|
 | GJS | 1.86 or newer | Linux, macOS in part |
-| Node.js | 24 or newer | Linux, macOS, Windows |
+| Node.js | 20 or newer | Linux, macOS, Windows |
 | Bun | current release | Linux, macOS, Windows |
 | Deno | 2 | Linux, macOS, Windows |
 
@@ -30,7 +30,7 @@ Windows the Node, Bun and Deno route brings its own:
 `@gjsify/gtk-runtime-darwin-arm64`, `-darwin-x64` and `-win32-x64` carry GTK, and
 `@gjsify/node-gi` loads `gi://` out of them, so there is nothing to install by
 hand. Windows has no `gjs` binary at all, so take Node, Bun or Deno there; macOS
-has one from Homebrew, but no CI job drives the GJS route there end to end, which
+has one from Homebrew, but nobody verifies the GJS route there end to end, which
 is why [Platform Support](/gjsify/platform-support/) calls that column partial.
 
 ## Install the CLI
@@ -87,7 +87,7 @@ and uninstalling are on the [Install & Update](/gjsify/guides/install/) page.
   </Fragment>
   <Fragment slot="npm">
     ```bash
-    npm create @gjsify/app hello-gjsify -- --template gtk-minimal
+    npm create @gjsify/app@latest hello-gjsify -- --template gtk-minimal
     cd hello-gjsify
     npm install
     npm run build
@@ -96,7 +96,7 @@ and uninstalling are on the [Install & Update](/gjsify/guides/install/) page.
   </Fragment>
   <Fragment slot="bun">
     ```bash
-    bunx @gjsify/cli@latest create hello-gjsify --template gtk-minimal
+    bunx @gjsify/cli@latest create hello-gjsify --template gtk-minimal --runtime bun
     cd hello-gjsify
     bun install
     bun run build
@@ -105,7 +105,8 @@ and uninstalling are on the [Install & Update](/gjsify/guides/install/) page.
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    deno run -A npm:@gjsify/cli@latest create hello-gjsify --template gtk-minimal
+    deno run -A --reload --min-dep-age=0 npm:@gjsify/cli@latest \
+      create hello-gjsify --template gtk-minimal --runtime deno
     cd hello-gjsify
     deno install
     deno task build
@@ -117,12 +118,31 @@ and uninstalling are on the [Install & Update](/gjsify/guides/install/) page.
 A window titled `hello-gjsify` opens with a label in it. That window is your
 `src/index.ts`, bundled into one file and executed by the runtime you picked.
 
+:::caution[Keep the `@latest`]
+`npm create`, `bunx` and `deno run` all reuse a cached copy of an unpinned
+package, so an unpinned `npm create @gjsify/app` can scaffold from a scaffolder
+you last used months ago — one whose templates predate `build:node` and the
+`start:node` script, which is a "missing script" error four commands later and no
+hint at all about where it came from. The tag forces a fresh resolve.
+
+Deno applies a second rule on top: by default it refuses any version published in
+the last 24 hours and quietly takes the previous one, which is why its command
+carries `--reload --min-dep-age=0`. Both rules, and how to see which version you
+actually got, are on
+[Which version do `npx`, `bunx` and `deno run` give you?](/gjsify/guides/install/#which-version-do-npx-bunx-and-deno-run-give-you)
+:::
+
 In a terminal the CLI asks which runtime to set the project up for, opening on the
 one it is running on, and then which package manager to install with. In a script
 it takes the same defaults and prints what it took. That answer changes no
 scaffolded byte: every template ships a bundle for every runtime, so it only
 decides which start script the printed next steps name. Set it outright with
 `--runtime gjs|node|bun|deno`.
+
+That is why the Bun and Deno commands above pass it. `bunx` and `deno run` fetch
+an npm bin and start it on Node, so the CLI's "which runtime am I on?" answers
+`node` and its next steps would name `npm` — correct about itself, and not what
+you asked for.
 
 Leave `--template` off and the CLI asks you which one you want too, but that one
 has no defensible default: in a script `--template` is required.
@@ -178,7 +198,10 @@ build.
 
 `dev` is the loop you will spend the most time in: it watches `src/`, rebuilds on
 every change and relaunches the app, with no separate watcher to install — see
-[`gjsify dev`](/gjsify/cli-reference/#gjsify-dev).
+[`gjsify dev`](/gjsify/cli-reference/#gjsify-dev). Note that the scaffolded script
+names `--runtime gjs` outright, whichever runtime you set the project up for, so
+on Node, Bun or Deno run `gjsify dev --runtime node` (or `bun`, or `deno`)
+yourself, or edit the script once to say so.
 
 Run them with whichever toolchain you picked above:
 

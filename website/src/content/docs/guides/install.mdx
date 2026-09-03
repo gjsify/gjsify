@@ -56,9 +56,9 @@ Deno sections, you can ignore this.
 :::note[macOS and Windows]
 The bootstrap needs a `gjs` binary, so Windows has no GJS route: use Node, Bun or
 Deno there. On macOS the engines the CLI needs are published for both
-architectures, but no CI job drives the GJS path end to end yet, so treat it as
-untested rather than promised. [Platform Support](/gjsify/platform-support/) has
-the per-package picture.
+architectures, but nothing verifies the GJS path there end to end yet, so treat
+it as untested rather than promised.
+[Platform Support](/gjsify/platform-support/) has the per-package picture.
 :::
 
 ## Node.js
@@ -76,8 +76,9 @@ the per-package picture.
   </Fragment>
 </CommandTabs>
 
-Node.js 24 or newer. Pick this route if you already manage your developer tools
-through npm.
+Node.js 20 or newer — the floor [`@gjsify/node-gi`](/gjsify/projects/node-gi/)
+declares, and the one the CLI and its builds hold to. Pick this route if you
+already manage your developer tools through npm.
 
 {/* No Yarn tab: Yarn 2+ dropped `global add` and offers no replacement that
     installs a persistent bin. A tab is a promise the command works. */}
@@ -236,28 +237,28 @@ Deno needs `-f` from the second install onwards: without it, it stops with
 <CommandTabs title="Install an exact version">
   <Fragment slot="gjsify">
     ```bash
-    gjs -m /tmp/g.mjs --tag 0.40.0
+    gjs -m /tmp/g.mjs --tag 0.46.0
     ```
   </Fragment>
   <Fragment slot="npm">
     ```bash
-    npm install -g @gjsify/cli@0.40.0
+    npm install -g @gjsify/cli@0.46.0
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
-    bun add -g @gjsify/cli@0.40.0
+    bun add -g @gjsify/cli@0.46.0
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    deno install -g -A -n gjsify -f npm:@gjsify/cli@0.40.0
+    deno install -g -A -n gjsify -f npm:@gjsify/cli@0.46.0
     ```
   </Fragment>
 </CommandTabs>
 
 On the GJS route `--tag` takes an npm dist-tag (`latest`, `next`) or an exact
-version, and `gjsify self-update --tag 0.40.0` does the same for an install you
+version, and `gjsify self-update --tag 0.46.0` does the same for an install you
 already have.
 
 ## Install somewhere else
@@ -323,12 +324,12 @@ That bites exactly when you have hit a bug, been told to run `@latest`, and got
 the same pre-fix binary back. `--min-dep-age=0` waives it for one run, or set
 `"minimumDependencyAge"` in your `deno.json`.
 
-`gjsify showcase` prints the version it is running as (`[gjsify 0.40.0]`), so
+`gjsify showcase` prints the version it is running as (`[gjsify 0.46.0]`), so
 check that line first when a command misbehaves.
 
 ## What you need
 
-- **A runtime**: `gjs` 1.86+, Node.js 24+, Bun, or Deno 2.
+- **A runtime**: `gjs` 1.86+, Node.js 20+, Bun, or Deno 2.
 - **`gjs` 1.86 or newer** if you took the GJS route. Fedora 43+, Arch and Debian
   forky/sid ship it. Debian 13 (trixie) ships 1.82.3 and is too old: Debian went
   from 1.82 straight to 1.88 in forky, so no Debian *stable* clears the floor
