@@ -47,10 +47,7 @@ export interface SdpMediaSectionSelector {
  * of an SDP document. Returns `null` when no section matches the selector
  * (e.g. before any negotiation completed).
  */
-export function parseMediaSectionParams(
-    sdp: string,
-    selector: SdpMediaSectionSelector,
-): SdpMediaSectionParams | null {
+export function parseMediaSectionParams(sdp: string, selector: SdpMediaSectionSelector): SdpMediaSectionParams | null {
     const sections: string[][] = [];
     let current: string[] | null = null;
     for (const rawLine of sdp.split(/\r\n|\r|\n/)) {
