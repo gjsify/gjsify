@@ -5,11 +5,15 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import {
+    activeMsgids,
     assertCatalogsSurviveMerge,
     assertEverySourcePatternMatched,
     CatalogShrinkError,
     countActiveEntries,
+    DEFAULT_MAX_CATALOG_ENTRY_LOSS,
     EmptySourcePatternError,
+    InvalidEntryLossError,
+    resolveMaxEntryLoss,
 } from './guards.js';
 
 const context = { pluginName: 'vite-plugin-xgettext', cwd: '/workspace' };
@@ -77,9 +81,16 @@ export default async () => {
     });
 
     await describe('assertCatalogsSurviveMerge', async () => {
-        const merge = (potEntries: number, catalogs: Array<{ language: string; entries: number }>, max?: number) =>
+        /** `count` distinct msgids; `prefix` is what makes two sets disjoint. */
+        const ids = (count: number, prefix = 'm') => new Set(Array.from({ length: count }, (_, i) => `${prefix}${i}`));
+
+        const merge = (
+            potMsgids: Set<string>,
+            catalogs: Array<{ language: string; msgids: Set<string> }>,
+            max?: number,
+        ) =>
             assertCatalogsSurviveMerge({
-                potEntries,
+                potMsgids,
                 catalogs,
                 potFile: 'po/messages.pot',
                 pluginName: 'vite-plugin-xgettext',
@@ -87,20 +98,33 @@ export default async () => {
             });
 
         await it('lets a first run through when there is nothing to lose', async () => {
-            merge(120, []);
-            merge(120, [{ language: 'de', entries: 0 }]);
+            merge(ids(120), []);
+            merge(ids(120), [{ language: 'de', msgids: ids(0) }]);
         });
 
         await it('lets growth and ordinary churn through', async () => {
-            merge(140, [{ language: 'de', entries: 120 }]);
-            merge(117, [{ language: 'de', entries: 120 }]);
+            merge(ids(140), [{ language: 'de', msgids: ids(120) }]);
+            merge(ids(117), [{ language: 'de', msgids: ids(120) }]);
         });
 
         await it('refuses the loss the Learn6502 incident produced', async () => {
-            const thrown = thrownBy(() => merge(41, [{ language: 'de', entries: 340 }]));
+            const thrown = thrownBy(() => merge(ids(41), [{ language: 'de', msgids: ids(340) }]));
             expect(thrown instanceof CatalogShrinkError).toBe(true);
             expect((thrown as Error).message).toContain('88%');
             expect((thrown as Error).message).toContain('33%');
+        });
+
+        await it('refuses a run that replaced the msgids without shrinking', async () => {
+            // The case a COUNT cannot see, and the one Learn6502 is closest to: its
+            // msgids are whitespace-normalised renders of markdown, so a change in
+            // the inline-markup step re-msgids every paragraph at a constant total.
+            // msgmerge fuzzy-matches those and msgfmt then leaves every fuzzy entry
+            // out of the .mo, so the translations are just as gone (measured on
+            // gettext 0.26: `0 translated, 1 fuzzy`).
+            const thrown = thrownBy(() => merge(ids(100, 'rendered-'), [{ language: 'de', msgids: ids(100, 'old-') }]));
+            expect(thrown instanceof CatalogShrinkError).toBe(true);
+            expect((thrown as CatalogShrinkError).lostEntries).toBe(100);
+            expect((thrown as CatalogShrinkError).catalogEntries).toBe(100);
         });
 
         await it('measures against the LARGEST catalog', async () => {
@@ -108,28 +132,59 @@ export default async () => {
             // yardstick that excuses gutting the rest.
             expect(
                 thrownBy(() =>
-                    merge(60, [
-                        { language: 'fr', entries: 0 },
-                        { language: 'de', entries: 100 },
+                    merge(ids(60), [
+                        { language: 'fr', msgids: ids(0) },
+                        { language: 'de', msgids: ids(100) },
                     ]),
                 ) instanceof CatalogShrinkError,
             ).toBe(true);
         });
 
         await it('draws the line at the documented default', async () => {
-            merge(2, [{ language: 'de', entries: 3 }]); // exactly one third, allowed
-            expect(thrownBy(() => merge(66, [{ language: 'de', entries: 100 }])) instanceof CatalogShrinkError).toBe(
-                true,
-            );
+            merge(ids(2), [{ language: 'de', msgids: ids(3) }]); // exactly one third, allowed
+            expect(
+                thrownBy(() => merge(ids(66), [{ language: 'de', msgids: ids(100) }])) instanceof CatalogShrinkError,
+            ).toBe(true);
         });
 
         await it('lets a project raise the limit deliberately', async () => {
-            merge(10, [{ language: 'de', entries: 100 }], 0.95);
-            merge(0, [{ language: 'de', entries: 100 }], 1);
+            merge(ids(10), [{ language: 'de', msgids: ids(100) }], 0.95);
+            merge(ids(0), [{ language: 'de', msgids: ids(100) }], 1);
+        });
+
+        await it('refuses a limit that is not a fraction, before reading any catalog', async () => {
+            // No catalogs at all: the option still has to be judged here, or a typo
+            // stays invisible until the run it was supposed to protect.
+            expect(thrownBy(() => merge(ids(1), [], 50)) instanceof InvalidEntryLossError).toBe(true);
         });
     });
 
-    await describe('countActiveEntries', async () => {
+    await describe('resolveMaxEntryLoss', async () => {
+        await it('defaults to a third', async () => {
+            expect(resolveMaxEntryLoss(undefined, 'p')).toBe(DEFAULT_MAX_CATALOG_ENTRY_LOSS);
+        });
+
+        await it('accepts both ends of the fraction', async () => {
+            expect(resolveMaxEntryLoss(0, 'p')).toBe(0);
+            expect(resolveMaxEntryLoss(1, 'p')).toBe(1);
+        });
+
+        await it('refuses a percentage, which would wave everything through', async () => {
+            const thrown = thrownBy(() => resolveMaxEntryLoss(50, 'p'));
+            expect(thrown instanceof InvalidEntryLossError).toBe(true);
+            expect((thrown as Error).message).toContain('not a percentage');
+        });
+
+        await it('refuses the values that would make the guard fire on a clean run', async () => {
+            // NaN loses every comparison, so the guard fails a build that lost
+            // nothing — and gets raised out of the way for the wrong reason.
+            expect(thrownBy(() => resolveMaxEntryLoss(Number.NaN, 'p')) instanceof InvalidEntryLossError).toBe(true);
+            expect(thrownBy(() => resolveMaxEntryLoss(-0.1, 'p')) instanceof InvalidEntryLossError).toBe(true);
+            expect(thrownBy(() => resolveMaxEntryLoss(Infinity, 'p')) instanceof InvalidEntryLossError).toBe(true);
+        });
+    });
+
+    await describe('activeMsgids', async () => {
         await it('does not count the header', async () => {
             expect(countActiveEntries('msgid ""\nmsgstr ""\n"Language: de\\n"\n')).toBe(0);
             expect(countActiveEntries('')).toBe(0);
@@ -149,7 +204,7 @@ export default async () => {
                 '#~ msgstr "Entfernt"',
                 '',
             ].join('\n');
-            expect(countActiveEntries(po)).toBe(1);
+            expect([...activeMsgids(po)]).toStrictEqual(['Kept']);
         });
 
         await it('counts a multi-line, plural, contextual entry exactly once', async () => {
@@ -166,10 +221,38 @@ export default async () => {
                 'msgstr[1] ""',
                 '',
             ].join('\n');
-            // The wrapped halves of the caption are bare string lines, and
-            // `msgid_plural` is a different keyword: neither opens an entry, so
-            // the only two that do are the header and this one.
-            expect(countActiveEntries(po)).toBe(1);
+            // `msgid_plural` is a different keyword and the wrapped halves are bare
+            // string lines: neither opens an entry, so the only two that do are the
+            // header and this one.
+            expect([...activeMsgids(po)]).toStrictEqual([
+                'toolbar\u0004A caption long enough that xgettext wrapped it onto a second line.',
+            ]);
+        });
+
+        await it('reads a wrapped msgid to the same value as an unwrapped one', async () => {
+            // A POT and a catalog wrap at different points — `--no-wrap`, a longer
+            // location comment — so only the JOINED value is comparable, and the
+            // guard compares a POT with a catalog for a living.
+            const wrapped = ['msgid ""', '"Hello, "', '"world."', 'msgstr ""'].join('\n');
+            const flat = 'msgid "Hello, world."\nmsgstr ""';
+            expect([...activeMsgids(wrapped)]).toStrictEqual([...activeMsgids(flat)]);
+        });
+
+        await it('keeps two entries that differ only in context apart', async () => {
+            const po = [
+                'msgctxt "verb"',
+                'msgid "Open"',
+                'msgstr ""',
+                '',
+                'msgctxt "adjective"',
+                'msgid "Open"',
+                'msgstr ""',
+                '',
+                'msgid "Open"',
+                'msgstr ""',
+            ].join('\n');
+            expect(activeMsgids(po).size).toBe(3);
+            expect(activeMsgids(po).has('Open')).toBe(true);
         });
     });
 };

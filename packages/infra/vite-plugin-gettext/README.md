@@ -27,9 +27,12 @@ Requires `gettext` tools (`msgfmt`, `xgettext`) to be installed on the system.
   `optionalSources`, one pattern at a time. Negated patterns (`!plugins/**/*.ui`) are exclusions
   over the whole set, not groups of their own, so they are never required to match.
 - **`autoUpdatePo` will not prune a catalog set beyond `maxCatalogEntryLoss`** (default `1/3`).
-  `msgmerge` moves every entry the POT lost into `#~` comments, which `msgfmt` ignores, so a POT
-  that came out short costs real translations. A run that really does delete that many strings
-  raises the option.
+  What is compared is the *set of msgids* the new POT still carries against the largest catalog's,
+  because that is what `msgmerge` acts on: it moves every entry the POT no longer has into `#~`
+  comments, which `msgfmt` ignores. A POT that came out short costs real translations, and so does
+  one that is the same length but re-worded — `msgmerge` fuzzy-matches those, and `msgfmt` leaves
+  fuzzy entries out of the `.mo`. A run that really does replace that many strings raises the
+  option.
 
 ```typescript
 xgettextPlugin({
@@ -37,7 +40,7 @@ xgettextPlugin({
     output: 'po/messages.pot',
     autoUpdatePo: true,
     // optionalSources: ['plugins/**/*.ui'],
-    // maxCatalogEntryLoss: 0.5,
+    // maxCatalogEntryLoss: 0.5, // a FRACTION, not a percentage; 1 turns the check off
 });
 ```
 

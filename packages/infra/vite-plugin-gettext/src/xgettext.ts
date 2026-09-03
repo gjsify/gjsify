@@ -5,9 +5,9 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import glob from 'fast-glob';
 import {
+    activeMsgids,
     assertCatalogsSurviveMerge,
     assertEverySourcePatternMatched,
-    countActiveEntries,
     EmptySourcePatternError,
     GettextGuardError,
 } from './guards.js';
@@ -482,12 +482,12 @@ async function assertCatalogsSurviveNextMerge(options: XGettextPluginOptions, pl
     const sizes = await Promise.all(
         catalogs.map(async ({ language, file }) => ({
             language,
-            entries: countActiveEntries(await readTextOrEmpty(file)),
+            msgids: activeMsgids(await readTextOrEmpty(file)),
         })),
     );
 
     assertCatalogsSurviveMerge({
-        potEntries: countActiveEntries(await readTextOrEmpty(options.output)),
+        potMsgids: activeMsgids(await readTextOrEmpty(options.output)),
         catalogs: sizes,
         potFile: options.output,
         pluginName,

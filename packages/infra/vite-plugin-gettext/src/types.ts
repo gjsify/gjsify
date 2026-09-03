@@ -21,6 +21,9 @@ export interface XGettextPluginOptions {
     /**
      * Fraction of its entries the catalog set may lose in one run before
      * `autoUpdatePo` refuses to merge. Defaults to 1/3; `1` disables the check.
+     *
+     * A FRACTION, not a percentage — `50` would wave every possible loss through,
+     * so anything outside 0…1 is refused rather than obeyed.
      */
     maxCatalogEntryLoss?: number;
     /** Output path for the POT template file */

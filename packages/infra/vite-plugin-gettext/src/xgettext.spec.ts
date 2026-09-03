@@ -9,16 +9,19 @@
 //
 // These cases drive the REAL `buildStart` against real gettext binaries, because
 // what went wrong was the orchestration — which patterns are globbed, and what
-// is allowed to reach `msgmerge` — not a parser. The entry counting here is
-// deliberately its own three lines rather than the implementation's counter: a
-// test that judged the fix with the fix's own arithmetic could not see it be
-// wrong.
+// is allowed to reach `msgmerge` — not a parser. The entry counting is
+// `gettext-parser`'s, not the implementation's: judging the fix with the fix's
+// own arithmetic could not see it be wrong, and a hand-rolled copy of that
+// arithmetic could not either — it shares every blind spot it was supposed to
+// check. A separate upstream parser is the only one of the three that is
+// actually an independent oracle.
 
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from '@gjsify/unit';
+import { po as poParser } from 'gettext-parser';
 import type { XGettextPluginOptions } from './types.js';
 import { xgettextPlugin } from './xgettext.js';
 
@@ -70,13 +73,21 @@ function catalog(...msgids: string[]): string {
 }
 
 /**
- * Entries a catalog still USES. `msgmerge` does not delete what the POT lost, it
- * comments it out as `#~`, and `msgfmt` ignores those — so a line count would
- * report a gutted catalog as healthy.
+ * Entries a catalog still USES, according to `gettext-parser`.
+ *
+ * `msgmerge` does not delete what the POT lost, it comments it out as `#~`, and
+ * `msgfmt` ignores those — so a line count would report a gutted catalog as
+ * healthy. `gettext-parser` drops obsolete entries for the same reason msgfmt
+ * does (verified against a `#~` fixture), and it is a different parser by a
+ * different author, which is the whole point of using it here.
  */
-function activeEntries(po: string): number {
-    const heads = po.split('\n').filter((line) => /^msgid\s/.test(line));
-    return heads.length - 1; // the header entry is `msgid ""`
+function activeEntries(text: string): number {
+    const parsed = poParser.parse(text);
+    return Object.entries(parsed.translations).reduce(
+        (total, [context, entries]) =>
+            total + Object.keys(entries).filter((msgid) => !(context === '' && msgid === '')).length,
+        0,
+    );
 }
 
 /** The `change` handler `configureServer` registers, with a way to fire it. */

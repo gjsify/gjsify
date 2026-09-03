@@ -35,15 +35,24 @@ export class EmptySourcePatternError extends GettextGuardError {
     }
 }
 
-/** The new POT is too much smaller than the catalogs `msgmerge` would rewrite. */
+/** `msgmerge` would obsolete more of the catalogs than this build allows. */
 export class CatalogShrinkError extends GettextGuardError {
     constructor(
         message: string,
-        readonly potEntries: number,
+        /** Entries the reference catalog holds that the new POT no longer carries. */
+        readonly lostEntries: number,
         readonly catalogEntries: number,
     ) {
         super(message);
         this.name = 'CatalogShrinkError';
+    }
+}
+
+/** A `maxCatalogEntryLoss` that is not a fraction — the guard cannot act on it. */
+export class InvalidEntryLossError extends GettextGuardError {
+    constructor(message: string) {
+        super(message);
+        this.name = 'InvalidEntryLossError';
     }
 }
 
@@ -54,10 +63,10 @@ export interface SourcePatternMatch {
     fileCount: number;
 }
 
-/** A catalog's language and the number of entries it currently still uses. */
-export interface CatalogSize {
+/** A catalog's language and the msgids it currently still uses. */
+export interface CatalogMsgids {
     language: string;
-    entries: number;
+    msgids: ReadonlySet<string>;
 }
 
 /**
@@ -120,68 +129,156 @@ export function assertEverySourcePatternMatched(
 }
 
 /**
- * Fails when the freshly written POT would cost the catalogs more entries than
- * `maxEntryLoss` allows.
+ * Reads `maxCatalogEntryLoss`, which has to be a FRACTION.
  *
- * The reference is the LARGEST catalog rather than each one in turn: after a
- * successful merge every catalog carries the POT's msgid set, so the biggest one
- * is the best evidence of what the project had before this run. Comparing per
- * language would let one catalog that a previous bad run already gutted excuse
- * gutting the rest.
+ * Validated separately, and before the catalogs are looked at, because the two
+ * ways of getting it wrong both end in silence. `50` — the option read as a
+ * percentage — is `<= 50` for every possible ratio, so the guard passes
+ * everything and reports nothing; `NaN` fails every comparison, so the guard
+ * fires on a build that lost nothing and gets raised out of the way. Neither
+ * would ever be traced back to the option.
+ */
+export function resolveMaxEntryLoss(value: number | undefined, pluginName: string): number {
+    if (value === undefined) {
+        return DEFAULT_MAX_CATALOG_ENTRY_LOSS;
+    }
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+        throw new InvalidEntryLossError(
+            `[${pluginName}] maxCatalogEntryLoss must be a fraction between 0 and 1, and is ${String(value)}. ` +
+                'It is a fraction, not a percentage: a third is 0.33, half is 0.5, and 1 turns the check off.',
+        );
+    }
+    return value;
+}
+
+/**
+ * Fails when merging the freshly written POT would obsolete more of the catalogs
+ * than `maxEntryLoss` allows.
+ *
+ * What is measured is the SET of msgids the POT no longer carries, not how much
+ * shorter it got. `msgmerge` matches by msgid, so an equally long POT whose
+ * strings have changed obsoletes just as much as a short one — and measured on
+ * gettext 0.26, a msgid that only gained a space is fuzzy-matched, keeps its
+ * translation, and is then excluded from the `.mo` by `msgfmt` anyway. A count
+ * cannot see that; a set difference is the quantity `msgmerge` acts on.
+ *
+ * The reference is the LARGEST catalog rather than each one in turn: `msgmerge`
+ * gives every catalog the POT's msgid set (measured — a 1-entry and a 2-entry
+ * catalog both came back with the POT's 3), so the biggest one is the best
+ * evidence of what the project had before this run. Comparing per language would
+ * let one catalog that a previous bad run already gutted excuse gutting the rest.
  */
 export function assertCatalogsSurviveMerge(args: {
-    potEntries: number;
-    catalogs: readonly CatalogSize[];
+    potMsgids: ReadonlySet<string>;
+    catalogs: readonly CatalogMsgids[];
     potFile: string;
     pluginName: string;
     maxEntryLoss?: number;
 }): void {
-    const limit = args.maxEntryLoss ?? DEFAULT_MAX_CATALOG_ENTRY_LOSS;
-    const reference = args.catalogs.reduce<CatalogSize | undefined>(
-        (largest, candidate) => (largest && largest.entries >= candidate.entries ? largest : candidate),
+    const limit = resolveMaxEntryLoss(args.maxEntryLoss, args.pluginName);
+    const reference = args.catalogs.reduce<CatalogMsgids | undefined>(
+        (largest, candidate) => (largest && largest.msgids.size >= candidate.msgids.size ? largest : candidate),
         undefined,
     );
 
     // No catalogs yet, or an empty one: there is nothing a merge can destroy, and
     // a ratio against zero is not a number.
-    if (!reference || reference.entries === 0) {
+    if (!reference || reference.msgids.size === 0) {
         return;
     }
 
-    const lost = reference.entries - args.potEntries;
-    if (lost <= 0 || lost / reference.entries <= limit) {
+    const held = reference.msgids.size;
+    let lost = 0;
+    for (const msgid of reference.msgids) {
+        if (!args.potMsgids.has(msgid)) {
+            lost++;
+        }
+    }
+    if (lost === 0 || lost / held <= limit) {
         return;
     }
 
     const percent = (value: number) => `${Math.round(value * 100)}%`;
     throw new CatalogShrinkError(
-        `[${args.pluginName}] refusing to update the catalogs: ${args.potFile} holds ${args.potEntries} ` +
-            `entries, but ${reference.language}.po already holds ${reference.entries}. That is a loss of ` +
-            `${percent(lost / reference.entries)}, over the ${percent(limit)} this build allows, across ` +
-            `${args.catalogs.length} ${args.catalogs.length === 1 ? 'catalog' : 'catalogs'}.\n` +
+        `[${args.pluginName}] refusing to update the catalogs: ${args.potFile} no longer carries ${lost} of the ` +
+            `${held} entries ${reference.language}.po holds. That is a loss of ${percent(lost / held)}, over the ` +
+            `${percent(limit)} this build allows, across ${args.catalogs.length} ` +
+            `${args.catalogs.length === 1 ? 'catalog' : 'catalogs'}.\n` +
             'msgmerge would move every missing entry into `#~` comments, which msgfmt ignores — the ' +
             'translations would be gone. Usual cause: a source group went missing from this run.\n' +
             "If the strings really were deleted, raise the plugin's `maxCatalogEntryLoss` for the run that does it.",
-        args.potEntries,
-        reference.entries,
+        lost,
+        held,
     );
 }
 
 /**
- * Entries a PO/POT file still USES.
+ * The msgids a PO/POT file still USES, keyed the way gettext keys them.
  *
  * Obsolete entries (`#~ msgid`) are excluded because `msgfmt` excludes them: a
  * gutted catalog keeps every line and loses every translation, so a line count
- * would report it as healthy. One `msgid` line per entry holds for multi-line and
- * `msgctxt`-qualified entries alike, and `msgid_plural` does not match — the
- * subtracted one is the header, whose msgid is empty.
+ * would report it as healthy. The header is excluded by being the one entry whose
+ * msgid is empty and uncontextualised.
+ *
+ * Continuation lines are CONCATENATED rather than counted, which is what makes a
+ * POT comparable with a catalog at all: the same string is wrapped differently
+ * depending on `--no-wrap` and on how long the surrounding lines were, and only
+ * the joined value is stable. `msgctxt` joins its msgid through gettext's own
+ * `\u0004` separator, so two entries that differ only in context stay two.
+ */
+export function activeMsgids(text: string): Set<string> {
+    const msgids = new Set<string>();
+    let reading: 'msgctxt' | 'msgid' | undefined;
+    let pieces: string[] = [];
+    let context: string | undefined;
+
+    const finish = () => {
+        if (reading === 'msgctxt') {
+            context = pieces.join('');
+        } else if (reading === 'msgid') {
+            const msgid = pieces.join('');
+            if (msgid !== '' || context !== undefined) {
+                msgids.add(context === undefined ? msgid : `${context}\u0004${msgid}`);
+            }
+            context = undefined;
+        }
+        reading = undefined;
+        pieces = [];
+    };
+
+    for (const line of text.split('\n')) {
+        const opener = /^(msgctxt|msgid)[ \t]/.exec(line);
+        if (opener) {
+            finish();
+            reading = opener[1] as 'msgctxt' | 'msgid';
+            pieces = [literal(line)];
+            continue;
+        }
+        // A bare string literal continues whatever keyword opened the entry. An
+        // obsolete entry's own continuations are prefixed `#~ `, so they never
+        // reach here and never re-open one either.
+        if (reading && /^[ \t]*"/.test(line)) {
+            pieces.push(literal(line));
+            continue;
+        }
+        finish();
+    }
+    finish();
+
+    return msgids;
+}
+
+/** The quoted payload of a PO line, unescaped no further than both files are. */
+function literal(line: string): string {
+    const first = line.indexOf('"');
+    const last = line.lastIndexOf('"');
+    return first < 0 || last <= first ? '' : line.slice(first + 1, last);
+}
+
+/**
+ * Entries a PO/POT file still USES — the size of {@link activeMsgids}, and the
+ * same measurement, so the number and the set can never disagree.
  */
 export function countActiveEntries(text: string): number {
-    let heads = 0;
-    for (const line of text.split('\n')) {
-        if (/^msgid[ \t]/.test(line)) {
-            heads++;
-        }
-    }
-    return Math.max(0, heads - 1);
+    return activeMsgids(text).size;
 }
