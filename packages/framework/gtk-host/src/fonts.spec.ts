@@ -81,7 +81,7 @@ function expectCleanGErrorMessage(message: string | undefined): void {
 }
 
 function copyFace(source: string, intoDir: string, leaf: string): string {
-    const dest = `${intoDir}/${leaf}`;
+    const dest = GLib.build_filenamev([intoDir, leaf]);
     Gio.File.new_for_path(source).copy(Gio.File.new_for_path(dest), Gio.FileCopyFlags.OVERWRITE, null, null);
     return dest;
 }
@@ -147,19 +147,27 @@ export default async () => {
         await it('reports a named directory that cannot be read, rather than swallowing it', async () => {
             // A variable that IS set names a payload promising faces; a directory that is not
             // there means it did not deliver them, which is the silent-substitution case.
-            const missing = `${GLib.get_tmp_dir()}/gjsify-gtk-host-absent-${Date.now()}`;
+            // `GLib.build_filenamev`, never a template literal: `GLib.get_tmp_dir()` answers
+            // `/var/folders/…/T/` WITH a trailing separator on macOS and `/tmp` without one on
+            // Linux, so `${tmp}/name` produces a DOUBLED separator there. `Gio.File` normalises
+            // that away, so the path `initFonts` reports back differed from the string this test
+            // handed it — measured on the darwin leg of `gtk-os-suites.yml`, and structurally
+            // invisible on Linux, where the two spellings coincide.
+            const missing = GLib.build_filenamev([GLib.get_tmp_dir(), `gjsify-gtk-host-absent-${Date.now()}`]);
             const result = initFonts({ fontDir: missing });
             expect(result.dir).toBe(missing);
             expect(result.registered.length).toBe(0);
             expect(result.failed.length).toBe(1);
-            expect(result.failed[0]?.path).toBe(missing);
+            // Against Gio's own spelling of the same path, so this compares what the walk
+            // REPORTS with what the walk was GIVEN, not with a second hand-built string.
+            expect(result.failed[0]?.path).toBe(Gio.File.new_for_path(missing).get_path());
             expectCleanGErrorMessage(result.failed[0]?.message);
         });
 
         await it('ignores the strays a font directory legitimately carries', async () => {
             const dir = makeTempDir('strays');
-            GLib.file_set_contents(`${dir}/OFL.txt`, 'the license, not a face');
-            GLib.file_set_contents(`${dir}/README.md`, 'notes');
+            GLib.file_set_contents(GLib.build_filenamev([dir, 'OFL.txt']), 'the license, not a face');
+            GLib.file_set_contents(GLib.build_filenamev([dir, 'README.md']), 'notes');
             const result = initFonts({ fontDir: dir });
             expect(result.registered.length).toBe(0);
             expect(result.failed.length).toBe(0);
@@ -172,7 +180,7 @@ export default async () => {
             // bucket it lands in is the map's answer, and a map that declines every registration
             // never opens the file at all, so there is no parse failure for it to report.
             const dir = makeTempDir('broken');
-            const broken = `${dir}/Broken.ttf`;
+            const broken = GLib.build_filenamev([dir, 'Broken.ttf']);
             GLib.file_set_contents(broken, 'not a font at all');
             const result = initFonts({ fontDir: dir });
             expect(result.registered.length).toBe(0);
