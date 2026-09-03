@@ -789,8 +789,22 @@ export function adwaitaNativeScriptWidgets(root) {
 /** The React Native surface: one barrel, and the base module each widget lives in. */
 export const ADWAITA_RN_SRC = 'packages/framework/adwaita-react-native/src';
 
-/** `export { AdwClamp } from './widgets/clamp.js';` — the only shape the barrel uses. */
-const RN_BARREL_EXPORT = /export\s*\{\s*(Adw[A-Za-z0-9]*)\s*\}\s*from\s*'\.\/widgets\/([a-z0-9-]+)\.js'/g;
+/**
+ * `import { AdwClamp as Clamp } from './widgets/clamp.js';` — the only shape the barrel
+ * uses, and since ADR 0034 § Amendment 8 the ONLY mention each widget gets there.
+ *
+ * It USED to be `export { AdwClamp } from './widgets/clamp.js'`, read beside an import
+ * line that duplicated it. The flat re-exports are gone with the second spelling, so the
+ * coupling this reader needs moved onto the line that stayed — which carries one more
+ * half than the old one did, the namespace member, and is held on all three.
+ *
+ * THE TRAILING COMMA IS OPTIONAL AND THAT IS NOT COSMETIC. oxfmt writes one as soon as an
+ * import wraps, so a regex without it drops the longest-named widget of the set on the day
+ * the file is reformatted — silently, because a shorter widget set is a set nothing counts.
+ * Found by a vector, not by the tree: nothing in the barrel has wrapped yet.
+ */
+const RN_NAMESPACE_IMPORT =
+    /import\s*\{\s*(Adw[A-Za-z0-9]*)\s+as\s+([A-Za-z0-9]*)\s*,?\s*\}\s*from\s*'\.\/widgets\/([a-z0-9-]+)\.js'/g;
 
 /**
  * Every widget `@gjsify/adwaita-react-native` ships → its repo-relative base module.
@@ -798,51 +812,89 @@ const RN_BARREL_EXPORT = /export\s*\{\s*(Adw[A-Za-z0-9]*)\s*\}\s*from\s*'\.\/wid
  * A THIRD naming convention, because the package has neither of the other two: no
  * `customElements.define`, and its modules are `clamp.ts` rather than `adw-clamp.ts`
  * (the `Adw` lives in the exported component, and the platform split puts
- * `clamp.gtk.tsx` beside it). So the widget set is the BASE BARREL's export list,
- * which is also what `exports['.']` resolves for a condition-blind tool and what
- * `check-adwaita-rn-platform-split.mjs` rule 5 already holds for completeness.
+ * `clamp.gtk.tsx` beside it). So the widget set is the BASE BARREL's namespace import
+ * list, which is what `exports['.']` resolves for a condition-blind tool and what
+ * `check-adwaita-rn-platform-split.mjs` rules 5 and 8 already hold for completeness.
  *
- * The class name is held against the module name the same way the other two readers
- * hold theirs: `export { AdwClamp } from './widgets/bin.js'` is refused rather than
- * recorded, because a widget under a name its module does not promise drops out of
- * every set derived from here with nothing failing.
+ * BOTH HALVES OF THE LINE ARE HELD against the module name, the same way the other two
+ * readers hold theirs: `import { AdwClamp as Clamp } from './widgets/bin.js'` is refused
+ * rather than recorded, and so is `import { AdwBin as Clamp } from './widgets/bin.js'`.
+ * A widget under a name its module does not promise drops out of every set derived from
+ * here with nothing failing, and the alias is now the name the package publishes.
  *
  * @param {string} root repository root
  * @returns {Map<string, string>} bare widget name → repo-relative base module
  */
 export function adwaitaReactNativeWidgets(root) {
     const barrel = join(root, ADWAITA_RN_SRC, 'index.ts');
-    const text = stripComments(readFileSync(barrel, 'utf8'));
+    const modules = reactNativeBarrelWidgets(stripComments(readFileSync(barrel, 'utf8')), `${ADWAITA_RN_SRC}/index.ts`);
     /** @type {Map<string, string>} */
     const widgets = new Map();
-    for (const [, exported, module] of text.matchAll(RN_BARREL_EXPORT)) {
-        const expected = widgetClass(module);
-        if (exported !== expected) {
-            throw new Error(
-                `${ADWAITA_RN_SRC}/index.ts exports ${exported} from ./widgets/${module}.js, not ${expected}. ` +
-                    'A widget and its module are renamed together or not at all: rename one alone and the ' +
-                    'widget leaves the set this reader feeds with no gate failing.',
-            );
-        }
+    for (const module of modules) {
         const source = resolveLocalSource(barrel, `./widgets/${module}.js`);
         if (source === null) {
             throw new Error(
-                `${ADWAITA_RN_SRC}/index.ts exports ${exported} from ./widgets/${module}.js, which resolves ` +
-                    'to no source file. The barrel names the type authority for both platform halves, so a ' +
-                    'specifier with nothing behind it is a widget nothing can read.',
+                `${ADWAITA_RN_SRC}/index.ts binds ${widgetClass(module)} from ./widgets/${module}.js, which ` +
+                    'resolves to no source file. The barrel names the type authority for both platform halves, ' +
+                    'so a specifier with nothing behind it is a widget nothing can read.',
             );
         }
         widgets.set(module, toPosixPath(relative(root, source)));
     }
+    return new Map([...widgets].sort(([a], [b]) => a.localeCompare(b)));
+}
 
-    if (widgets.size === 0) {
+/**
+ * The widget MODULES a React Native barrel names, from source and nothing else.
+ *
+ * Split out of {@link adwaitaReactNativeWidgets} so the parse can be held by vectors
+ * without a tree on disk, which it needs more than it did before ADR 0034 § Amendment 8:
+ * the reader used to have a second mention of every widget to disagree with, and now it
+ * has one. An under-reading regex here does not go loud — it hands every consumer a
+ * SHORTER widget set, and a table compared against a shorter set agrees with it. That is
+ * the "scan that is merely narrower than it reads" § Amendment 6 found in two browser
+ * drivers, arriving where nothing counts what was skipped.
+ *
+ * A FLAT `export { AdwClamp } from './widgets/clamp.js'` IS NOT A MEMBER, deliberately.
+ * It is the spelling § Amendment 8 removed, and a reader that still accepted it would let
+ * the second vocabulary back in without anything going red — which is why the vector for
+ * it wants a throw rather than a widget.
+ *
+ * @param {string} code already-comment-stripped barrel source
+ * @param {string} where the barrel's repo-relative path, for the throws
+ * @returns {string[]} bare widget module names, sorted
+ */
+export function reactNativeBarrelWidgets(code, where) {
+    /** @type {Set<string>} */
+    const modules = new Set();
+    for (const [, bound, member, module] of code.matchAll(RN_NAMESPACE_IMPORT)) {
+        const expected = widgetClass(module);
+        if (bound !== expected) {
+            throw new Error(
+                `${where} binds ${bound} from ./widgets/${module}.js, not ${expected}. ` +
+                    'A widget and its module are renamed together or not at all: rename one alone and the ' +
+                    'widget leaves the set this reader feeds with no gate failing.',
+            );
+        }
+        const expectedMember = pascalCase(module);
+        if (member !== expectedMember) {
+            throw new Error(
+                `${where} names ${expected} \`Adw.${member}\`, not \`Adw.${expectedMember}\`. ` +
+                    'Since the flat exports went, the member IS the name this package publishes the widget ' +
+                    'under, so a member its module name does not promise is a widget nothing here can find.',
+            );
+        }
+        modules.add(module);
+    }
+
+    if (modules.size === 0) {
         throw new Error(
-            `no \`export { Adw… } from './widgets/…'\` line in ${ADWAITA_RN_SRC}/index.ts. ` +
-                'Either the barrel moved or its export shape changed — a scan that finds nothing ' +
+            `no \`import { Adw… as … } from './widgets/…'\` line in ${where}. ` +
+                'Either the barrel moved or its import shape changed — a scan that finds nothing ' +
                 'passes vacuously, so this is a failure, not a pass.',
         );
     }
-    return new Map([...widgets].sort(([a], [b]) => a.localeCompare(b)));
+    return [...modules].sort((a, b) => a.localeCompare(b));
 }
 
 /** The two GIR namespaces clause 2 is satisfied by. Nothing else is a namespace here. */

@@ -2,16 +2,19 @@
 
 - Status: **Proposed** — amended twice on 2026-08-30: § Amendment (the premise under the
   stage order moved; stages 2 and 3 landed first) and § Amendment 2 (stages 6 and 4 landed;
-  the property numbers were re-measured and moved); and four times on 2026-09-01.
-  § Amendments 3 and 4 carry clause 2 onto React Native and the web. § Amendment 5 holds
-  clause 1 on `@gjsify/adwaita-web`: nine elements took their GIR names, `<adw-radio>`
-  became a declared `webOnly`, and the printed distance was widened to the surface it had
-  been leaving out. § Amendment 6 REVERSES part of § 3 for `@gjsify/adwaita-web`: the
-  namespace is no longer additive there, the flat `Adw…`/`Gtk…` widget-class exports are
-  gone from the package root, and the namespace became a MODULE (`export * as Adw`) so it
-  can be annotated with as well as constructed from. § Amendment 7 carries both clauses
-  onto `@gjsify/adwaita-nativescript`, the last surface: four widgets took their GIR names,
-  eleven property names converged, and clause 2 now holds on all three.
+  the property numbers were re-measured and moved); four times on 2026-09-01; and once on
+  2026-09-03. § Amendments 3 and 4 carry clause 2 onto React Native and the web.
+  § Amendment 5 holds clause 1 on `@gjsify/adwaita-web`: nine elements took their GIR
+  names, `<adw-radio>` became a declared `webOnly`, and the printed distance was widened to
+  the surface it had been leaving out. § Amendment 6 REVERSES part of § 3 for
+  `@gjsify/adwaita-web`: the namespace is no longer additive there, the flat
+  `Adw…`/`Gtk…` widget-class exports are gone from the package root, and the namespace
+  became a MODULE (`export * as Adw`) so it can be annotated with as well as constructed
+  from. § Amendment 7 carries both clauses onto `@gjsify/adwaita-nativescript`, the last
+  surface: four widgets took their GIR names, eleven property names converged, and clause 2
+  now holds on all three. § Amendment 8 carries § Amendment 6's REVERSAL onto
+  `@gjsify/adwaita-react-native`: 28 flat widget-class exports gone from each of its three
+  barrels, `Adw.<Name>` the only spelling the package root has.
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -607,10 +610,11 @@ three clauses is nearly free, and it is the row whose cost rises at the next rel
 
 ### 3. The namespace is a RE-EXPORT layer, never a rename
 
-> **Superseded in part by § Amendment 6 (2026-09-01)** for `@gjsify/adwaita-web`: the
-> "all of it is additive" sentence below described the adoption step, and on that surface
-> the flat widget classes have since been removed. The re-export mechanism, and the
-> refusal to rename the CLASSES, are unchanged everywhere.
+> **Superseded in part by § Amendment 6 (2026-09-01)** for `@gjsify/adwaita-web` and by
+> § Amendment 8 (2026-09-03) for `@gjsify/adwaita-react-native`: the "all of it is
+> additive" sentence below described the adoption step, and on both surfaces the flat
+> widget classes have since been removed. The re-export mechanism, and the refusal to
+> rename the CLASSES, are unchanged everywhere.
 
 Clause 2 is satisfied by an export, not by moving anything. Each surface gains
 
@@ -1203,6 +1207,10 @@ it also listed are done.
 
 ## Amendment 3, 2026-09-01 — clause 2 holds on React Native, and what it cost to make it not a second list
 
+> **Superseded in part by § Amendment 8 (2026-09-03).** "Additive" below described the
+> adoption step; the flat widget classes are now gone from all three barrels, and the
+> "two mentions of each module" argument became a one-mention one with vectors under it.
+
 Stage 1's remaining content was the `Adw` namespace export. It is done for
 `@gjsify/adwaita-react-native`: all three barrels — base, `.gtk`, `.native` — export
 `Adw`, additive, with `AdwBin` and `AdwClamp` unchanged.
@@ -1790,3 +1798,148 @@ and on this surface neither question had an oracle. Four A/B pairs, each after t
 formatter ran (a wrapped guard is a defused guard): an unprefixed element, a barrel export
 dropped, a story write renamed back, a fence write renamed back — exit 1 each, exit 0
 restored each.
+## Amendment 8, 2026-09-03 — the flat classes are gone from React Native too, and one line now carries what two did
+
+`@gjsify/adwaita-react-native` exports `Adw` with 28 members on each of its three
+barrels, and nothing else names a widget. The run of `export { AdwActionRow } from
+'./widgets/action-row.js'` lines — 28 per barrel, 84 in the package — is removed from
+`src/index.ts`, `src/index.gtk.ts` and `src/index.native.ts`. `Adw.ActionRow` is the only
+spelling the package root has.
+
+This is § Amendment 6 applied to the second surface, for the reason given there: § 3's
+"**all of it is additive**" bought the ADOPTION and decided nothing about afterwards, and
+a second spelling that is never removed is a permanent second vocabulary — the thing
+clause 1 exists to remove, one level in. § Amendment 3's "Additive: `AdwBin` keeps
+working and nothing published moves" is the sentence being amended here; it was true of
+the export and is not true any more.
+
+**It cost nothing to migrate, and that is a measurement rather than luck.** Outside the
+package, `@gjsify/adwaita-react-native` is named in 20 files and IMPORTED in none
+(`git grep -l`, minus the package's own four): `gtk-host`'s `descriptors/adw.ts`,
+`adwaita-core`'s `wrap-box.ts`, the NativeScript `wrap-box-layout.ts`, a showcase's
+refusals table and the website's React Native page all mention it in prose or provenance;
+the rest are the readers, the workflows, the changelog and this document. Inside the package, no module imports the barrel
+either — the specs import widget modules directly, which `parity.spec.ts` explains is
+forced (`platform-resolve` rewrites `./index.js` to `./index.gtk.js` before the bundler
+sees it, so the obvious version of that suite asserted a refusal against the GTK
+component). So the two things § Amendment 6 had to pay for on the web — six showcase
+files and a browser driver whose element set came out of the barrel — have no counterpart
+here.
+
+### The split, and the one place a flat `AdwClamp` still lives on purpose
+
+|  | count per barrel | what happens |
+|---|---|---|
+| widget components with a namespace member | 28 | flat export **removed**; reachable as `Adw.X` |
+| prop interfaces, handles and shared unions | 34 | flat export **kept** (`export type`) |
+
+There is no third column, because this package root has nothing else in it: no helper, no
+factory, no widget without a GIR name. The 12 `webOnly` element classes that made
+§ Amendment 6's table interesting have no counterpart — every widget here already shares
+a spelling with a GTK tag, which is what `check-vocabulary-alignment.mjs` has printed
+since § Amendment 3 (*"28 share a spelling, 0 should converge, 0 declared own, 0
+undecided"*).
+
+The types stay flat for the reason § Amendment 6 gave: `AdwClampProps` is not a second
+name for a widget, and `Adw.ClampProps` would name something libadwaita does not have.
+
+**What is NOT removed is the components' own `AdwClamp` identifier**, and it is worth
+saying why, because unlike the web surface this package publishes a per-widget entry
+point. `exports['./widgets/clamp']` is how a consumer takes one widget without the barrel,
+and there `AdwClamp` is the widget's ONLY name — § Amendment 6's rule, at a different
+door. Renaming it to a bare `Clamp` would put an unqualified noun in a consumer's import
+list, and it would break the coupling three readers derive through `widgetClass`:
+`adwaitaReactNativeWidgets` holds the class name against the module name,
+`check-adwaita-rn-platform-split.mjs` rule 8 holds the namespace member against the
+module it is bound from, and `refuseBaseModule` prints the component in the message a
+mis-resolved base module throws. Rule 10 (below) says this in its failure text, so the
+distinction does not have to be re-derived from this document.
+
+The residual is therefore real and named: a consumer CAN still write `AdwClamp`, from the
+subpath. What it cannot do any more is write it and mean the barrel.
+
+### An object literal here, a module on the web, and the difference is types
+
+§ Amendment 6 had to make `Adw` a MODULE (`export * as Adw from './namespace/adw.js'`)
+because the web's classes are annotated — `document.createElement(...) as Adw.HeaderBar`
+— and `export const Adw = {…}` gives value position only. This surface keeps the object
+literal, on both halves of the fork, and needs nothing more: the members are function
+components, and the TYPE authority is the `Adw…Props` interfaces that stay exported flat
+beside them. `React.ComponentProps<typeof Adw.Clamp>` works off the literal.
+
+The second reason is the platform split. Each barrel must build `Adw` from its OWN
+platform modules (§ Amendment 3), and rules 3 and 5 of
+`check-adwaita-rn-platform-split.mjs` read module specifiers out of the barrel file
+itself. A namespace module per barrel would put the fork one hop away from the file those
+rules read, and buy nothing this surface uses.
+
+### The reader lost its second mention, and that is the interesting part
+
+§ Amendment 3 explained why the namespace members were IMPORTED a second time instead of
+being built from the re-exports above them: those `export … from` lines were load-bearing
+for `adwaitaReactNativeWidgets`, which derives this package's widget set from them and
+refuses a line whose exported name and module name disagree. "Two mentions of each module,
+held equal by a rule, beats one mention that no longer says which widget it is."
+
+Removing the export leaves ONE mention, so the coupling moves onto the line that stayed —
+which carries one half more than the old one did. `adwaitaReactNativeWidgets` now reads
+`import { AdwClamp as Clamp } from './widgets/clamp.js'` and holds BOTH halves against the
+module name: the binding must be `widgetClass('clamp')`, and the member must be
+`Clamp`, because since this amendment the member IS the name the package publishes.
+
+**And a one-mention reader needs vectors, which the two-mention one did not.** Its
+under-read is the QUIET kind: fewer widgets read means a shorter widget set, and
+`RN_WIDGET_ALIGNMENT` — empty — agrees with a shorter set exactly as well as with the
+right one. That is § Amendment 6's "scan that is merely narrower than it reads", arriving
+where no floor and no assertion count would notice. So `reactNativeBarrelWidgets` is split
+out as a pure function over source, and `check-vocabulary-alignment.mjs` gained eight
+vectors beside the namespace-barrel ones (19 reader vectors → 27).
+
+**The first of them went red on the first run, and the bug was a comma.** The regex
+required `}` directly after the alias, and oxfmt writes a trailing comma as soon as an
+import wraps — so the day the longest-named widget in the barrel wrapped
+(`AdwNavigationSplitView as NavigationSplitView` is 94 characters with its specifier), it
+would have dropped out of every set derived from the barrel with every gate green. The
+vector is what found it; nothing in the real tree does, because the real tree has not
+wrapped yet.
+
+### Rule 10: what stops the flat spelling from growing back
+
+Rule 8 holds what `Adw` CONTAINS. Nothing held what sits beside it, and the removed run
+was one `export … from` line per widget — the cheapest thing in this repository to put
+back, and invisible in a review that is looking at the namespace. Rule 10 of
+`check-adwaita-rn-platform-split.mjs` refuses a widget class in any `export { … }` clause
+of any of the three barrels.
+
+It is derived from the widgets on disk rather than from a `/^Adw[A-Z]/` shape, because
+the barrels legitimately export `AdwClampProps` and `AdwToastOverlayHandle`, and a rule
+that refuses a SHAPE is one prop type away from a false alarm — which is how a gate gets
+loosened. And it reads BOTH halves of a specifier: `export { AdwClamp as Clamp }`
+publishes no `AdwClamp` and is still the barrel re-exporting a widget class, one that
+would put a bare `Clamp` at the root as a THIRD spelling.
+
+A/B with real exit codes, each shape separately, restored between: `export { AdwClamp }`
+→ exit 1; `export { AdwClamp as Clamp }` → exit 1; removed → exit 0. Rule 3 was
+re-falsified in the same way after the comment stripper it shares was factored out, so a
+refactor made for rule 10 could not have quietly stopped rule 3 from reading anything.
+
+### The numbers, and what did not move
+
+Both halves, each rebuilt and run separately, exit codes read without a pipe: **478
+assertions on the Node leg and 350 on the GJS leg, on the commit before this change and
+after it**. Nothing was traded for anything — the specs import widget modules directly, so
+no suite's subject was the barrel's export list. `check-adwaita-rn-platform-split` reports
+28 widgets on all three barrels before and after; `check-vocabulary-alignment` still
+prints `28 @gjsify/adwaita-react-native widgets — 28 share a spelling, 0 should converge,
+0 declared own, 0 undecided` and `@gjsify/adwaita-react-native exports Adw with 28`, with
+its reader-vector count up from 19 to 27.
+
+### What is still not held, and it is not this surface's to hold
+
+Nothing checks how a CONSUMER spells the vocabulary. On this surface that gap is
+currently closed by arithmetic rather than by a gate: the root exports NO flat widget
+class at all, so `import { AdwClamp } from '@gjsify/adwaita-react-native'` is a
+resolution error in every tool that reads the barrel. The web surface is where the gap is
+real — 12 `webOnly` classes keep their flat export there, so a flat import still resolves
+and a consumer can go on spelling the vocabulary the old way with nothing failing. A
+gate over consumer import sites belongs beside that, not here.

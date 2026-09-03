@@ -44,7 +44,7 @@
 // real one. No import error, no type error, no failing test; a window that is subtly
 // wrong. Hence rule 3 below: a base module refuses, and may not re-export a sibling.
 //
-// WHAT IT CHECKS — nine rules, each falsified in both directions before landing:
+// WHAT IT CHECKS — ten rules, each falsified in both directions before landing:
 //
 //   1. Every widget has all three modules (base, `.gtk.tsx`, `.native.tsx`), and no
 //      platform module exists without the other two. Both directions, because a
@@ -103,6 +103,15 @@
 //      the specifier `react-native` is ALIASED onto `@gjsify/react-native` there, so a
 //      `.gtk` module importing it runs — as the working worse copy this whole file is
 //      about. The pragma proves the JSX runtime; only this proves the module graph.
+//  10. No barrel exports a widget CLASS flat. ADR 0034 § Amendment 8 removed the run of
+//      `export { AdwClamp } from './widgets/clamp.js'` lines from all three barrels, so
+//      `Adw.Clamp` is the only name the package root has for the widget. Rule 8 holds
+//      the namespace and would not notice a flat export returning BESIDE it — that is
+//      the shape the removal was reversing, and it is one line to write and invisible in
+//      review. The widget's own `AdwClamp` identifier is untouched: `widgets/clamp.ts`
+//      declares it, `exports['./widgets/clamp']` publishes it, `refuseBaseModule` prints
+//      it, and at that entry point it is the widget's ONLY name. This rule is about the
+//      three barrels and nothing else.
 //
 // A SCOPE THAT FINDS NOTHING IS A FAILURE. Zero widgets means a renamed directory or a
 // reader that stopped matching, and printing OK over a tree nothing looked at is the
@@ -181,6 +190,27 @@ const read = (path) => readFileSync(path, 'utf8');
  * under-detects, which is the same failure pointing the other way.
  */
 function moduleSpecifiers(source) {
+    const code = withoutComments(source);
+    const specifiers = new Set();
+    // The backtick is in the class because `import(`./clamp.native.js`)` is a legal
+    // specifier and was NOT read by the first version — measured: a base module reaching
+    // its sibling that way passed rule 3 at exit 0. A reader that under-detects is worse
+    // than no reader, because the rule it fronts for reads as enforced.
+    for (const match of code.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*(['"`])([^'"`]+)\1/g)) {
+        specifiers.add(match[2]);
+    }
+    return specifiers;
+}
+
+/**
+ * `source` with comments removed and string literals kept, string-aware.
+ *
+ * Its own function because rule 10 needs the same view of a barrel that
+ * {@link moduleSpecifiers} does, and the two must not disagree about what code is: a
+ * second stripper is a second answer to "is this line real", and the rule that got the
+ * looser one stops gating without saying so.
+ */
+function withoutComments(source) {
     let code = '';
     let index = 0;
     while (index < source.length) {
@@ -216,15 +246,7 @@ function moduleSpecifiers(source) {
         code += char;
         index += 1;
     }
-    const specifiers = new Set();
-    // The backtick is in the class because `import(`./clamp.native.js`)` is a legal
-    // specifier and was NOT read by the first version — measured: a base module reaching
-    // its sibling that way passed rule 3 at exit 0. A reader that under-detects is worse
-    // than no reader, because the rule it fronts for reads as enforced.
-    for (const match of code.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*(['"`])([^'"`]+)\1/g)) {
-        specifiers.add(match[2]);
-    }
-    return specifiers;
+    return code;
 }
 
 if (!existsSync(WIDGETS_DIR)) {
@@ -605,6 +627,51 @@ const namespaceCheck = (barrel, suffixOf) => {
 namespaceCheck('index.ts', '.js');
 for (const platform of PLATFORMS) namespaceCheck(platform.barrel, platform.buildSuffix);
 
+// ─── Rule 10 — no barrel exports a widget class flat ────────────────────────
+// ADR 0034 § Amendment 8. Rule 8 above holds what the namespace CONTAINS; nothing held
+// what sits beside it, and the flat run this replaced was one `export … from` line per
+// widget — the cheapest possible thing to put back, and the whole of what was removed.
+//
+// It is derived from the widgets on disk rather than matching `/^Adw[A-Z]/`, because the
+// barrels legitimately export `AdwClampProps` and `AdwToastOverlayHandle` beside the
+// namespace, and a rule that refused a shape instead of a NAME would be one prop type
+// away from a false alarm. A false alarm is how a gate gets loosened.
+/** `clamp` → `AdwClamp`: the identifier a widget module exports, and rule 10's subject. */
+const widgetClassName = (widget) => `Adw${namespaceMember(widget)}`;
+/** `export { A, B as C }` and `export type { … }` — a clause, and both halves of a name. */
+const EXPORT_CLAUSE = /export\s*(?:type\s*)?\{([^}]*)\}/g;
+const flatWidgetCheck = (barrel) => {
+    const path = join(PACKAGE_DIR, 'src', barrel);
+    if (!existsSync(path)) return; // rule 6 already failed for this barrel
+    const classes = new Map([...widgets].map((widget) => [widgetClassName(widget), widget]));
+    for (const [, names] of withoutComments(read(path)).matchAll(EXPORT_CLAUSE)) {
+        for (const entry of names.split(',')) {
+            const name = entry.trim().replace(/^type\s+/, '');
+            if (name === '') continue;
+            // BOTH halves, not only the exported one: `export { AdwClamp as Clamp }`
+            // publishes no `AdwClamp` and is still the barrel re-exporting a widget class
+            // beside the namespace — a bare `Clamp` at the root would be a THIRD spelling
+            // rather than the removed one, which is not an improvement on two.
+            const halves = name.split(/\s+as\s+/).map((half) => half.trim());
+            const exported = halves.find((half) => classes.has(half)) ?? halves[halves.length - 1];
+            const widget = classes.get(exported);
+            if (widget !== undefined) {
+                fail(
+                    'flat',
+                    `\`src/${barrel}\` exports \`${exported}\` flat, beside \`Adw.${namespaceMember(widget)}\`. ` +
+                        'ADR 0034 § Amendment 8 removed that spelling from the package root: two names for one ' +
+                        'widget is the second vocabulary clause 1 exists to remove, and the namespace is where ' +
+                        `this one lives. The component keeps the identifier \`${exported}\` in ` +
+                        `\`src/widgets/${widget}.ts\` and on the \`./widgets/${widget}\` subpath, which is a ` +
+                        "different question — there it is the widget's only name.",
+                );
+            }
+        }
+    }
+};
+flatWidgetCheck('index.ts');
+for (const platform of PLATFORMS) flatWidgetCheck(platform.barrel);
+
 // ─── Vacuity ────────────────────────────────────────────────────────────────
 if (widgets.size === 0) {
     console.error(
@@ -632,5 +699,5 @@ console.log(
         `${PLATFORMS.map((p) => p.name).join(' and a ')} module, an \`exports\` entry naming both ` +
         'in an order that resolves to them, the JSX source its platform needs, no import ' +
         `from the other platform, and a member of \`Adw\` on each of the ${PLATFORMS.length + 1} barrels bound ` +
-        "from that barrel's own module.",
+        "from that barrel's own module — and no flat widget class beside it on any of them.",
 );

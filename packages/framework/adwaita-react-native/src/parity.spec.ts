@@ -473,7 +473,7 @@ export default async () => {
     await describe('the base modules refuse', async () => {
         // THIS TESTS THE REFUSAL, NOT THE REACHING OF IT, and the reason is a
         // measurement that also narrowed the design's claim about who reaches it
-        // (`refuse.ts`). `import { AdwClamp } from './index.js'` inside this package
+        // (`refuse.ts`). `import { Adw } from './index.js'` inside this package
         // does NOT load the base barrel in any gjsify build: `platform-resolve`
         // rewrites the specifier to `./index.gtk.js` before the bundler sees it, for a
         // relative import exactly as for one from `node_modules`. Written the obvious

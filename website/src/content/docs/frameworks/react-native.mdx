@@ -284,17 +284,20 @@ on React Native's primitives — has been **started**, as
 and it is a walking skeleton rather than a way to run an Adwaita app on a phone.
 
 Every widget it ships carries the whole vertical — both platform halves, the resolution
-mechanism, the manifest declaration, a gate and suites on each side. `AdwBin` and `AdwClamp`
+mechanism, the manifest declaration, a gate and suites on each side. `Adw.Bin` and `Adw.Clamp`
 came first and proved that shape; the package's own README table is the live set, and
 `check-vocabulary-alignment.mjs` prints the count on every run. The halves fork at the
-package's `exports` map on the `react-native` condition, never by file name.
+package's `exports` map on the `react-native` condition, never by file name. You write
+`import { Adw } from '@gjsify/adwaita-react-native'` and then `<Adw.Clamp>`: the member is
+libadwaita's own type name with its namespace prefix read back off it, and it is the only
+spelling the package root has.
 
 What it is honest about is more useful than what it claims. The phone half is not a `maxWidth`
 approximation — it runs `@gjsify/adwaita-core`'s port of `adw_clamp_layout_allocate`, libadwaita's
 own easing curve — but it **has never run on a device**: its numbers are asserted as instructions,
 not measured as pixels, because there is no Yoga and no phone in the loop. And its divergences
 are named in its README rather than smoothed over, the first of them on the very widget above:
-React Native has no measure pass, so `AdwClamp` passes the child's intrinsic minimum as `0`, and a
+React Native has no measure pass, so `Adw.Clamp` passes the child's intrinsic minimum as `0`, and a
 child wider than the clamp is compressed there where GTK would widen the clamp instead.
 
 It is on npm (since `0.44.0`), but no gallery tab renders it — so nothing you see on this site

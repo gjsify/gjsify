@@ -488,8 +488,9 @@ sites outside the package.
 risk ADR 0034 § Risks named ("the cheap stage is skipped because it is the least
 urgent-looking"), so it is written down here with its price rather than left to be
 re-derived. Stage 4 took the other two thirds: React Native declares itself a surface, its
-widget set is read from the base barrel's `export { Adw… } from './widgets/…'` lines, and
-its (empty) `RN_WIDGET_ALIGNMENT` is held against the GIR tag table. What is left is clause
+widget set is read from the base barrel's `import { Adw… as … } from './widgets/…'` lines
+(they were `export … from` lines until § Amendment 8 removed the flat spelling), and its
+(empty) `RN_WIDGET_ALIGNMENT` is held against the GIR tag table. What is left is clause
 2, the `Adw` namespace export. What stage 1 no longer buys: the guarantee that the rule
 costs that package nothing it can ever undo. Both its names are already correct, so no
 rename is in it at any price.

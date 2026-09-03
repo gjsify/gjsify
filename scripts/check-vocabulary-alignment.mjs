@@ -166,6 +166,7 @@ import { fileURLToPath } from 'node:url';
 import {
     adwaitaNativeScriptWidgets,
     namespaceBarrelMembers,
+    reactNativeBarrelWidgets,
     settablePropertiesOfClass,
     tagClass,
 } from './adwaita-elements.mjs';
@@ -2164,6 +2165,62 @@ const NAMESPACE_BARREL_VECTORS = [
     ['export const Clamp = 1;', []],
 ];
 
+/**
+ * The React Native barrel reader gets vectors too, and it needs them MORE than the two
+ * above.
+ *
+ * `adwaitaReactNativeWidgets` used to read a flat `export { AdwClamp } from
+ * './widgets/clamp.js'` line that sat beside an import of the same widget; ADR 0034
+ * § Amendment 8 removed the export, so one line now carries the whole coupling. An
+ * under-reading regex here is the QUIET failure, not the loud one: it hands every
+ * consumer a shorter widget set, and `RN_WIDGET_ALIGNMENT` compared against a shorter set
+ * agrees with it. Nothing counts what was skipped, which is § Amendment 6's "scan that is
+ * merely narrower than it reads" arriving on this surface.
+ *
+ * Each vector is a barrel fragment plus the widget modules the reader must find; `[]`
+ * wants the throw, which is what an empty read and a refused line both do.
+ */
+const RN_BARREL_VECTORS = [
+    ["import { AdwClamp as Clamp } from './widgets/clamp.js';", ['clamp']],
+    // The multi-word case, where the class, the member and the module all differ in shape.
+    ["import { AdwSpinRow as SpinRow } from './widgets/spin-row.js';", ['spin-row']],
+    // Wrapped — oxfmt writes this shape once a line passes the width.
+    [
+        "import {\n    AdwNavigationSplitView as NavigationSplitView,\n} from './widgets/navigation-split-view.js';",
+        ['navigation-split-view'],
+    ],
+    // THE FLAT SPELLING IS NOT A MEMBER. This is the vector that pins the removal: a
+    // reader loosened back to the export form would let the second vocabulary return with
+    // nothing going red.
+    ["export { AdwClamp } from './widgets/clamp.js';", []],
+    // A type-only import ships no widget, and `import type {` is not `import {`.
+    ["import type { AdwClamp as Clamp } from './widgets/clamp.js';", []],
+    // The base barrel names BASE modules; a platform specifier is a different file and
+    // rule 3 of `check-adwaita-rn-platform-split.mjs` is what refuses it there.
+    ["import { AdwClamp as Clamp } from './widgets/clamp.gtk.js';", []],
+    // Both halves of the line are held against the module name, each on its own.
+    ["import { AdwClamp as Clamp } from './widgets/bin.js';", []],
+    ["import { AdwBin as Clamp } from './widgets/bin.js';", []],
+];
+
+function reactNativeBarrelSelfTest() {
+    const failures = [];
+    for (const [source, want] of RN_BARREL_VECTORS) {
+        let got;
+        try {
+            got = reactNativeBarrelWidgets(source, 'vector');
+        } catch {
+            // An empty read and a refused line both THROW; a vector that wants nothing
+            // wants that throw, so a silent [] would be a different answer.
+            got = [];
+        }
+        if (got.join(',') !== [...want].join(',')) {
+            failures.push(`reactNativeBarrelWidgets(${JSON.stringify(source)}) found [${got}], wanted [${want}]`);
+        }
+    }
+    return failures;
+}
+
 function namespaceBarrelSelfTest() {
     const failures = [];
     for (const [source, want] of NAMESPACE_BARREL_VECTORS) {
@@ -2182,7 +2239,7 @@ function namespaceBarrelSelfTest() {
 }
 
 function readerSelfTest() {
-    const failures = [...namespaceBarrelSelfTest()];
+    const failures = [...namespaceBarrelSelfTest(), ...reactNativeBarrelSelfTest()];
     for (const [source, wantImports, wantLiterals] of READER_VECTORS) {
         const { imported, literals } = readDialect(source);
         const got = [...imported].sort().join(',');
@@ -2354,7 +2411,7 @@ const census = propertyCensus(world);
 const propConverge = kindCount(NS_PROPERTY_ALIGNMENT, 'gir');
 console.log(
     `check-vocabulary-alignment: self-test green — ${VECTORS.length - 1} failing vector(s), ` +
-        `${READER_VECTORS.length + NAMESPACE_BARREL_VECTORS.length} reader vector(s). ` +
+        `${READER_VECTORS.length + NAMESPACE_BARREL_VECTORS.length + RN_BARREL_VECTORS.length} reader vector(s). ` +
         `${world.surfaces.declared.length} declared widget surface(s), every one of them read. ` +
         `${world.runtime.size} GTK tags across ${DIALECTS.length} dialect surfaces + the runtime table + the ` +
         `surface data; ${world.webElements.length} ${WEB_SURFACE} elements — ${shared} share a spelling, ` +
