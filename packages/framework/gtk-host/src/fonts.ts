@@ -29,14 +29,16 @@
 // and a 40pt "Wg" layout measures 66x50 px against the 87x63 the invented `ZzzNoSuchFamilyQx`
 // gets. Different METRICS, not merely a call that returned true.
 //
-// CALL IT BEFORE ANY TEXT IS LAID OUT — measured, not stylistic. The fc font map caches the
-// FONTSET it resolved for a description, and `add_font_file` does not invalidate that cache: a
-// `Pango.Layout` that measured the family before registration keeps measuring the fallback
-// afterwards (87x63, not 66x50) even though `list_families()` now lists it and a freshly created
-// context's `load_font` returns the real face. So the symptom is not "no font" but a stale
-// MEASUREMENT, which reads as "the font is installed and Pango is ignoring it". That asymmetry is
-// also why the two halves cannot be measured on one map in one process, and why `fonts.spec.ts`
-// puts the ordering half on a scratch `PangoCairo.FontMap.new()`.
+// CALL IT BEFORE ANY TEXT IS LAID OUT — measured, not stylistic, and the hazard is BACKEND-SPECIFIC
+// even though the instruction is not. The fc font map caches the FONTSET it resolved for a
+// description and `add_font_file` does not invalidate it, so a `Pango.Layout` that measured the
+// family before registration keeps measuring the fallback afterwards (87x63, not 66x50) even
+// though `list_families()` now lists it and a freshly created context's `load_font` returns the
+// real face: the symptom is not "no font" but a stale MEASUREMENT, which reads as "the font is
+// installed and Pango is ignoring it". On win32 `add_font_file` clears the map's cache and emits
+// `changed` (ADR 0038), so the same late call is recoverable there. Registering early is therefore
+// free on the backend that recovers and load-bearing on the one that does not — which is why the
+// rule is stated flatly while `fonts.spec.ts` asserts only the portable half.
 
 import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
@@ -95,11 +97,12 @@ export function isUnsupportedByFontMap(error: unknown): boolean {
 /**
  * Register every face in the application's shipped font directory with the default font map.
  *
- * Call it once at startup, and BEFORE any text is laid out — that ordering is load-bearing, not
- * tidiness: a font map caches the FONTSET it resolved for a description and `add_font_file` does
- * not invalidate it, so a `Pango.Layout` that measured the family first keeps measuring the
- * fallback for the life of the process, even though the family is then in `list_families()`
- * (measured; `fonts.spec.ts`).
+ * Call it once at startup, and BEFORE any text is laid out — that ordering is load-bearing on the
+ * fontconfig backend rather than tidiness: it caches the FONTSET resolved for a description and
+ * `add_font_file` does not invalidate it, so a `Pango.Layout` that measured the family first keeps
+ * measuring the fallback for the life of the process even though the family is then in
+ * `list_families()`. win32 clears its cache instead and recovers, so registering early is free
+ * there and unrecoverable-if-missed on Linux (measured both ways; `fonts.spec.ts`).
  *
  * Nothing here is eager: this
  * package is the element model renderers bind to and owns no application lifecycle, and a

@@ -275,41 +275,45 @@ export default async () => {
         });
     });
 
-    await describe('registration is not retroactive, which is why initFonts belongs at startup', async () => {
+    await describe('registering a family that was already resolved', async () => {
         const source = findFaceSource();
         if (source === undefined) return;
         const REGISTRATION_SUPPORTED = probeRegistrationSupport(source);
 
         await it.failing(
-            'leaves a family that was already resolved on its substitute',
+            'still puts it in list_families, whatever the backend does with its cache',
             async () => {
-                // MEASURED, and it turns "call this at startup" from a style note into a contract.
-                // A `PangoCairoFcFontMap` caches the fontset it resolved for a description, and
-                // `add_font_file` does NOT invalidate that cache: the family joins `list_families()`
-                // while a layout asking for it keeps measuring the FALLBACK. So an application that
-                // lays out text before calling `initFonts` gets the substituted typeface for the life
-                // of the process, with the family visibly present — which reads as "the font is
-                // installed and Pango is ignoring it".
+                // WHAT IS PORTABLE is the family arriving; what happens to an ALREADY-RESOLVED
+                // layout is the backend's business, and the two must not be conflated. An earlier
+                // revision of this test asserted the fontconfig behaviour as if it were universal
+                // and failed on the win32 leg, which was right to fail:
+                //   fontconfig — the fontset cached for a description survives `add_font_file`, so
+                //     a layout that measured the family FIRST keeps measuring the fallback for the
+                //     life of the process (measured here: 87x63 before and after, while
+                //     `list_families()` gains the family).
+                //   win32/DirectWrite — `add_font_file` clears the map's cache and emits `changed`
+                //     (ADR 0038), so the same layout picks the real face up.
+                // Hence `initFonts` is documented to run before any text is laid out: on the
+                // backend that does NOT invalidate, calling it late is unrecoverable, and on the
+                // one that does, calling it early costs nothing. The instruction is portable even
+                // though the hazard is not.
                 //
-                // On a SCRATCH map (`PangoCairo.FontMap.new()`), not the default one: asking the
-                // default map to resolve the family here would populate the very cache the suite above
-                // depends on being cold, and these two facts cannot both be measured on one map in one
-                // process. Verified isolated — registering into this map leaves the default untouched.
+                // On a SCRATCH map (`PangoCairo.FontMap.new()`), not the default one: resolving the
+                // family on the default map here would populate the very cache the discriminator
+                // suite above depends on being cold. Verified isolated — registering into this map
+                // leaves the default untouched.
                 const scratch = PangoCairo.FontMap.new();
-                const before = layoutSize(FACE_FAMILY, scratch);
-                expect(before).toBe(layoutSize(INVENTED_FAMILY, scratch));
+                expect(layoutSize(FACE_FAMILY, scratch)).toBe(layoutSize(INVENTED_FAMILY, scratch));
 
                 const dir = makeTempDir('ordering');
                 scratch.add_font_file(copyFace(source, dir, 'Round9x13.ttf'));
 
                 expect(scratch.list_families().map((f) => f.get_name())).toContain(FACE_FAMILY);
-                expect(layoutSize(FACE_FAMILY, scratch)).toBe(before);
                 removeTree(dir);
             },
-            // A map that registers NOTHING has no post-registration state that could be stale, so
-            // there is no cache-invalidation question to answer there — `add_font_file` throws
-            // before the first assertion. The ordering rule this documents still binds every
-            // caller; it is only unobservable where registration itself is.
+            // A map that registers NOTHING never reaches the assertion — `add_font_file` throws
+            // first. The ordering rule still binds every caller; it is only unobservable where
+            // registration itself is.
             NO_REGISTRATION_REASON,
             { when: !REGISTRATION_SUPPORTED },
         );
