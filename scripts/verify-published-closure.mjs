@@ -485,9 +485,6 @@ const probeErrors = () => candidates.filter((p) => state.get(p.manifest.name) in
  */
 const violations = () => pinnedEdges.filter((e) => isLive(e.from) && isAbsent(e.to) && !expectedAbsent(e.to));
 /** Absences nobody declared — the ones a retry round might still turn into a `true`. */
-const unexpectedlyAbsent = () =>
-    candidates.filter((p) => isAbsent(p.manifest.name) && !expectedAbsent(p.manifest.name));
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 await probeAll(candidates.map((p) => p.manifest.name));
@@ -510,14 +507,18 @@ for (let round = 2; round <= attempts; round++) {
     // after their own 2xx, which is exactly how long this loop has to be willing
     // to wait.
     //
+    // This filter SUBSUMES the "unexpectedly absent" set an earlier fix put into the
+    // exit condition instead — a name that is absent and undeclared has
+    // `state !== true`, so it stays in `retry` and the loop keeps waiting for it. It is
+    // strictly wider, because it also re-asks a probe that ERRORED, which an
+    // absence-only condition left final after one round.
+    //
     // A DECLARED pre-release absence is excluded, because it will NEVER become live:
     // retrying it would spend every round's `retryDelayMs` on a check that is
     // REQUIRED on every pull request, for a name whose absence the ledger already
     // explains. Without that exclusion a non-empty bootstrap ledger costs every PR
     // the full retry budget and can never change the answer.
-    const retry = candidates
-        .map((p) => p.manifest.name)
-        .filter((n) => state.get(n) !== true && !expectedAbsent(n));
+    const retry = candidates.map((p) => p.manifest.name).filter((n) => state.get(n) !== true && !expectedAbsent(n));
     if (retry.length === 0) break;
     if (!asJson) {
         console.log(
