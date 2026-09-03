@@ -113,6 +113,18 @@ function writeToTmp(bytes: Uint8Array, ext: string): string {
 type XHREventType = 'loadstart' | 'progress' | 'load' | 'loadend' | 'error' | 'abort' | 'timeout';
 
 export class XMLHttpRequest {
+    // WebIDL exposes an interface's constants on the interface OBJECT as well as on
+    // instances, and `XMLHttpRequest.DONE` is how most consumer code spells the
+    // comparison. Only the instance half shipped, so every such read was `undefined`
+    // — including in this package's own `src/test.browser.mts`, which asserts
+    // `XMLHttpRequest.UNSENT` and passed regardless because in a browser it reads the
+    // native global, never this class.
+    static readonly UNSENT = 0;
+    static readonly OPENED = 1;
+    static readonly HEADERS_RECEIVED = 2;
+    static readonly LOADING = 3;
+    static readonly DONE = 4;
+
     // State
     readonly UNSENT = 0;
     readonly OPENED = 1;
@@ -205,7 +217,7 @@ export class XMLHttpRequest {
 
                 this._emit('progress', { loaded: len, total: len, lengthComputable: true });
 
-                if (responseType === 'blob' || responseType === '') {
+                if (responseType === 'blob') {
                     // Write to temp file so HTMLImageElement.src can load it via file://
                     const ext = guessExt(url);
                     const tmpPath = writeToTmp(bytes, ext);
@@ -217,7 +229,10 @@ export class XMLHttpRequest {
                 } else if (responseType === 'json') {
                     this.response = JSON.parse(new TextDecoder().decode(bytes));
                 } else {
-                    // 'text' or ''
+                    // 'text' or '' — XHR §response makes an empty responseType behave
+                    // as "text". The blob branch above used to claim `''` as well, so
+                    // the DEFAULT spelling of the API returned a FakeBlob and left
+                    // `responseText` at '' with nothing anywhere to say so.
                     this.responseText = new TextDecoder().decode(bytes);
                     this.response = this.responseText;
                 }
