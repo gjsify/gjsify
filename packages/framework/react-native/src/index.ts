@@ -124,6 +124,7 @@ export type { StyleConfig } from './style-config.js';
 // exporting it is what makes "L2 is below the framework" checkable from outside.
 export * as primitives from './primitives/index.js';
 export { PrimitiveError } from './primitives/errors.js';
+export type { TextInputHandle } from './primitives/handles.js';
 
 /**
  * React 19 batches every update on its own, so this is the identity call it already
@@ -153,5 +154,24 @@ export {
     type SupportStatus,
     type SupportTier,
 } from './support-table.js';
+
+// The PROP surface, for the same reason and one level down. `support-table` answers
+// "may this application IMPORT this name"; nothing answered "does this primitive take
+// this prop" without RENDERING — and a refused prop is a render-time throw, which
+// with no error boundary above it ends the whole React tree (the measurement is in
+// `prop-table.ts`). `@gjsify/react-native/prop-table` is its own subpath, exactly as
+// the gate's table is, so a consumer's build-time test imports the answers without
+// pulling GTK; these re-exports keep the root module able to answer for itself.
+export {
+    PRIMITIVE_VARIANTS,
+    acceptsProp,
+    explainProp,
+    propAnswer,
+    propNames,
+    propTable,
+    type PropAnswer,
+    type PropStatus,
+    type PropVariant,
+} from './prop-table.js';
 
 export { UnsupportedError } from './unsupported.js';

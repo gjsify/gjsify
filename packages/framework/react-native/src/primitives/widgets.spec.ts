@@ -34,6 +34,8 @@ import { MINIMAL_TOKENS, StyleSheet as GeneratedStyleSheet, type StyleTokens } f
 import { createRoot, flushSync } from '@gjsify/gtk-host/react';
 import { createElement, type ReactNode } from 'react';
 
+import { PrimitiveError } from './errors.js';
+import { createHandle, type TextInputHandle } from './handles.js';
 import { PRIMITIVES, type PrimitiveSpec } from './table.js';
 import {
     ActivityIndicator,
@@ -55,6 +57,7 @@ import {
 import type { ImageProps, PressableState } from '../components.js';
 import { resetWindowMetricsCache } from '../apis/display.js';
 import { useWindowDimensions } from '../hooks.js';
+import { liveRegionWatchCount } from '../announce.js';
 import { pressWatchCount } from '../press.js';
 import { StyleSheet } from '../stylesheet.js';
 import { configureStyle, resetStyleConfig } from '../style-config.js';
@@ -176,7 +179,10 @@ function signalClaims(): { gtype: string; signal: string; where: string }[] {
     const walk = (name: string, spec: PrimitiveSpec): void => {
         for (const [prop, route] of Object.entries(spec.props)) {
             for (const single of Array.isArray(route) ? route : [route]) {
-                if (single.to !== 'event') continue;
+                // An `announce` route names a signal exactly as an `event` does, so it
+                // gets the same check: `notify::label` misspelt is a live region that
+                // never fires, which looks precisely like a screen reader ignoring it.
+                if (single.to !== 'event' && single.to !== 'announce') continue;
                 out.push({ gtype: spec.tag, signal: single.signal, where: `${name}.${prop}` });
             }
         }
@@ -334,6 +340,105 @@ export default async () => {
                 // enumerated the class's own ids would have reported
                 // `onChangeText` as a broken claim.
                 expect(GObject.signal_lookup('changed', Gtk.Entry.$gtype) !== 0).toBe(true);
+            });
+        });
+
+        // The handle calls METHODS, and a method name is exactly as easy to misspell
+        // as a property name and exactly as invisible: `handles.ts` types the widget
+        // structurally (it may not import `gi://`), so TypeScript checks the shape it
+        // ASSERTS rather than the shape GTK has. This gate is the other half.
+        await gated('the imperative handle a ref receives', async () => {
+            await it('calls only methods the routed classes really install', async () => {
+                const missing: string[] = [];
+                const has = (klass: unknown, method: string, where: string): void => {
+                    if (typeof (klass as Record<string, unknown>)[method] !== 'function') {
+                        missing.push(`${where}: no ${method}()`);
+                    }
+                };
+                for (const [name, spec] of Object.entries(PRIMITIVES)) {
+                    for (const [label, one] of [
+                        [name, spec],
+                        [`${name}[${spec.switchOn?.prop}]`, spec.switchOn?.whenTrue],
+                    ] as const) {
+                        if (one === undefined || one.handle === undefined) continue;
+                        const widget = new (klassOf(one.tag) as unknown as new () => Gtk.Widget)();
+                        for (const method of ['grab_focus', 'is_focus', 'get_root']) has(widget, method, label);
+                        if (one.tag === 'GtkTextView') {
+                            has(widget, 'get_buffer', label);
+                            const buffer = (widget as Gtk.TextView).get_buffer();
+                            for (const method of ['set_text', 'get_iter_at_offset', 'select_range']) {
+                                has(buffer, method, `${label} buffer`);
+                            }
+                        } else {
+                            for (const method of ['set_text', 'select_region']) has(widget, method, label);
+                        }
+                    }
+                }
+                expect(missing).toStrictEqual([]);
+            });
+
+            await it('clears and selects on a Gtk.Entry', async () => {
+                const entry = new Gtk.Entry({ text: 'hello' });
+                const handle = createHandle('text-input', entry, 'GtkEntry') as TextInputHandle;
+                expect(handle.widget).toBe(entry);
+                handle.setSelection(1, 3);
+                expect(entry.get_selection_bounds()).toStrictEqual([true, 1, 3]);
+                handle.clear();
+                expect(entry.text).toBe('');
+            });
+
+            await it('clears and selects through the buffer on a Gtk.TextView', async () => {
+                // The multiline half is a DIFFERENT widget with a different content
+                // model — the reason `value` is refused there — so it is a separate
+                // vector rather than a parameter of the one above.
+                const view = new Gtk.TextView();
+                view.get_buffer().set_text('abcdef', -1);
+                const handle = createHandle('text-input', view, 'GtkTextView') as TextInputHandle;
+                handle.setSelection(1, 3);
+                const bounds = view.get_buffer().get_selection_bounds();
+                expect([bounds[0], bounds[1].get_offset(), bounds[2].get_offset()]).toStrictEqual([true, 1, 3]);
+                handle.clear();
+                const buffer = view.get_buffer();
+                expect(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), false)).toBe('');
+            });
+
+            await it('accepts focus on the widget the table routes it to', async () => {
+                // What a REAL widget can answer here, and no more. Whether the focus
+                // then settles is the compositor's: MEASURED on gtk 4.22.4, a presented
+                // window the compositor never activated reports `Gtk.Root.get_focus()`
+                // null and `is_focus()` false for the widget `grab_focus()` just
+                // returned true for — so `focus()`'s and `blur()`'s BEHAVIOUR is
+                // asserted against a stub root in `primitives.spec.ts`, where it is
+                // observable, and this vector holds the half GTK can report.
+                const entry = new Gtk.Entry();
+                const handle = createHandle('text-input', entry, 'GtkEntry') as TextInputHandle;
+                handle.focus();
+                // `can-focus`, NOT `focusable`. MEASURED on gtk 4.22.4: a fresh
+                // `Gtk.Entry` reports `focusable` FALSE and `can-focus` true, because
+                // the widget that takes the keyboard is the `GtkText` inside it and the
+                // entry delegates. Asserting `focusable` would have failed on a
+                // perfectly focusable widget.
+                expect(entry.canFocus).toBe(true);
+                expect(handle.isFocused()).toBe(entry.is_focus());
+            });
+
+            await it('refuses the four NativeMethods members BY NAME, never as undefined', async () => {
+                // React Native's `NativeMethods` carries nine members; five have an
+                // honest GTK answer above and these four do not. Absent, each one is
+                // `undefined is not a function` — the failure this whole file exists
+                // to convert into a sentence.
+                const handle = createHandle('text-input', new Gtk.Entry(), 'GtkEntry') as TextInputHandle;
+                for (const member of ['measure', 'measureInWindow', 'measureLayout', 'setNativeProps'] as const) {
+                    expect(typeof handle[member]).toBe('function');
+                    let error: unknown = null;
+                    try {
+                        (handle[member] as (...args: unknown[]) => unknown)(() => undefined);
+                    } catch (thrown) {
+                        error = thrown;
+                    }
+                    expect(error instanceof PrimitiveError).toBe(true);
+                    expect((error as PrimitiveError).message).toContain(`ref.${member}()`);
+                }
             });
         });
 
@@ -497,6 +602,130 @@ export default async () => {
                         // the field.
                         entry.text = 'xy';
                         expect(seen).toStrictEqual(['xy']);
+                    },
+                );
+            });
+
+            await it('hands a TextInput ref the imperative handle, not the bare widget', async () => {
+                // The defect, end to end: `useRef<TextInput>(null)` plus
+                // `ref.current?.focus()` is ordinary React Native code, and it was
+                // `undefined is not a function` here because the ref carried the
+                // `Gtk.Entry` itself. The type half is checked by `gjsify tsc`; this is
+                // the value half, through the real reconciler.
+                const ref: { current: TextInputHandle | null } = { current: null };
+                mounted(createElement(TextInput, { value: 'hello', ref }), (container) => {
+                    const entry = gtkChildren(container)[0] as Gtk.Entry;
+                    expect(ref.current === null).toBe(false);
+                    const handle = ref.current as TextInputHandle;
+                    expect(handle.widget).toBe(entry);
+                    for (const member of ['focus', 'blur', 'clear', 'isFocused', 'setSelection'] as const) {
+                        expect(typeof handle[member]).toBe('function');
+                    }
+                    handle.clear();
+                    expect(entry.text).toBe('');
+                });
+                // Detach hands back `null`, which is how a React application asks
+                // whether it is still mounted — a handle wrapping a dropped widget
+                // would answer that question wrongly.
+                expect(ref.current).toBe(null);
+            });
+
+            await it('hands every other primitive’s ref the widget, exactly as before', async () => {
+                const ref: { current: unknown } = { current: null };
+                mounted(createElement(View, { ref }), (container) => {
+                    expect(ref.current).toBe(gtkChildren(container)[0]);
+                });
+            });
+
+            await it('announces a Text live region through Gtk.Accessible, at GTK’s own priority', async () => {
+                // `announce()` is a no-op with no diagnostic when nothing is listening
+                // (measured), so the CALL is what can be observed: the instance method
+                // is shadowed, which GJS allows on a GObject wrapper. Without that the
+                // only assertion available would be "it did not throw", which is the
+                // shape this whole layer refuses.
+                const seen: [string, number][] = [];
+                mounted(createElement(Text, { accessibilityLiveRegion: 'polite' }, 'first'), (container) => {
+                    const label = gtkChildren(container)[0] as Gtk.Label;
+                    (label as unknown as Record<string, unknown>).announce = (message: string, priority: number) =>
+                        seen.push([message, priority]);
+                    // The MOMENT is the content changing, not the mount: React
+                    // Native's live region speaks an update, and a screen reader
+                    // that announced every label on first paint would be unusable.
+                    expect(seen).toStrictEqual([]);
+                    label.label = 'second';
+                    expect(seen).toStrictEqual([['second', Gtk.AccessibleAnnouncementPriority.MEDIUM]]);
+                    // An empty string is a `Gtk.Label` passing between two values.
+                    label.label = '';
+                    expect(seen.length).toBe(1);
+                });
+            });
+
+            await it('announces a change the APPLICATION made, which is the only one that matters', async () => {
+                // THE VECTOR THAT NEARLY WAS NOT WRITTEN. The one above changes the
+                // label from OUTSIDE React, and a live region exists for the opposite
+                // case: the application re-renders `<Text>{status}</Text>` and the user
+                // is told. The host suppresses a `notify::` raised by its OWN property
+                // write (`inHostWrite()` in `signals.ts` — what stops a controlled
+                // `<TextInput>` re-entering `onChangeText`), so "it fires on an external
+                // write" says nothing whatever about the path the prop is for.
+                const seen: string[] = [];
+                const container = new Gtk.Box();
+                const root = createRoot(container);
+                try {
+                    root.render(createElement(Text, { accessibilityLiveRegion: 'polite' }, 'first'));
+                    const label = gtkChildren(container)[0] as Gtk.Label;
+                    (label as unknown as Record<string, unknown>).announce = (message: string) => seen.push(message);
+                    flushSync(() => root.render(createElement(Text, { accessibilityLiveRegion: 'polite' }, 'second')));
+                    expect(seen).toStrictEqual(['second']);
+                } finally {
+                    root.unmount();
+                }
+            });
+
+            await it('subscribes to nothing without the prop, and disconnects on unmount', async () => {
+                // The `pressWatchCount` shape, for the same reason: a `<Text>` with no
+                // live region and one with `"none"` render identically to one that has
+                // it, and only a COUNT tells them apart — so a subscription that leaked
+                // onto every label in an application would be invisible. The unmount
+                // half matters on its own: GJS blocks a JS callback during the sweeping
+                // phase of GC, so a handler left connected is one connected for the
+                // life of the process.
+                const before = liveRegionWatchCount();
+                mounted(createElement(Text, null, 'plain'), () => expect(liveRegionWatchCount()).toBe(before));
+                mounted(createElement(Text, { accessibilityLiveRegion: 'none' }, 'quiet'), () =>
+                    expect(liveRegionWatchCount()).toBe(before),
+                );
+                mounted(createElement(Text, { accessibilityLiveRegion: 'polite' }, 'loud'), () =>
+                    expect(liveRegionWatchCount()).toBe(before + 1),
+                );
+                expect(liveRegionWatchCount()).toBe(before);
+            });
+
+            await it('announces nothing for accessibilityLiveRegion="none"', async () => {
+                const seen: unknown[] = [];
+                mounted(createElement(Text, { accessibilityLiveRegion: 'none' }, 'first'), (container) => {
+                    const label = gtkChildren(container)[0] as Gtk.Label;
+                    (label as unknown as Record<string, unknown>).announce = () => seen.push(1);
+                    label.label = 'second';
+                    expect(seen).toStrictEqual([]);
+                });
+            });
+
+            await it('renders a TextInput carrying the three props a desktop has no service for', async () => {
+                // Before they were table rows these threw "is not a prop this primitive
+                // answers for" — a build error on ordinary React Native code, decided
+                // again in every consumer's own shim.
+                mounted(
+                    createElement(TextInput, {
+                        value: 'a',
+                        autoComplete: 'email',
+                        textContentType: 'emailAddress',
+                        submitBehavior: 'submit',
+                    }),
+                    (container) => {
+                        const entry = gtkChildren(container)[0] as Gtk.Entry;
+                        expect(typeOf(entry)).toBe('GtkEntry');
+                        expect(entry.text).toBe('a');
                     },
                 );
             });

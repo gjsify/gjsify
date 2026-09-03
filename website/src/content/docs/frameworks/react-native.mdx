@@ -402,7 +402,12 @@ as data, and GTK puts it in a second object. Allocation arrives through a size-a
 focus and long press are event controllers on the widget, a multiline `TextInput`'s text lives in
 a `Gtk.TextBuffer`, and press state is a CSS pseudo-class that never reaches React.
 
-So a refusal points at the GTK object to reach through a `ref`, rather than at a to-do item:
+So a refusal points at the GTK object to reach through a `ref`, rather than at a to-do item.
+
+A `<TextInput>` ref is React Native's own imperative handle — `focus()`, `blur()`, `clear()`,
+`isFocused()`, `setSelection()` — plus `widget`, the `Gtk.Entry` or `Gtk.TextView` itself, which
+is where everything the handle does not answer lives. Every other primitive's ref is the
+`Gtk.Widget` directly.
 
 ```tsx
 import { useEffect, useRef } from 'react';
@@ -410,16 +415,36 @@ import { TextInput } from 'react-native';
 import type Gtk from '@girs/gtk-4.0';
 
 function Notes() {
-    const input = useRef<Gtk.TextView>(null);
+    const input = useRef<TextInput>(null);
 
     useEffect(() => {
-        // multiline text lives in the buffer, not in `value`
-        input.current?.get_buffer().set_text('hello', -1);
+        input.current?.focus();
+        // multiline text lives in the buffer, not in `value` — reach the widget for it
+        (input.current?.widget as Gtk.TextView | undefined)?.get_buffer().set_text('hello', -1);
     }, []);
 
     return <TextInput multiline ref={input} />;
 }
 ```
+
+## Ask before you render
+
+A refused prop throws when the element renders, and a render-time throw with no error boundary
+above it takes the whole React tree with it — that is React's behaviour rather than this layer's,
+and it has cost a real application every screen it had. So the prop answers are published too,
+and you can assert them in your own test suite before a window exists:
+
+```ts
+import { acceptsProp, explainProp } from '@gjsify/react-native/prop-table';
+
+acceptsProp('Text', 'onPress'); // false — a Gtk.Label emits no `clicked`
+explainProp('Text', 'onPress'); // the exact sentence a render would have thrown
+acceptsProp('Pressable', 'onPress'); // true
+```
+
+`explainProp` returns the render's own message rather than a paraphrase of it, and
+[`PROPS.md`](https://github.com/gjsify/gjsify/blob/main/packages/framework/react-native/PROPS.md)
+is the same data as a document, one section per primitive.
 
 ## Related
 

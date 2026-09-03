@@ -101,6 +101,45 @@ export interface RefusedRoute {
 }
 
 /**
+ * A prop the LAYER answers by calling a method when a signal fires.
+ *
+ * `accessibilityLiveRegion` is the whole of it, and the shape is forced by the
+ * mismatch between the two platforms' models. React Native's prop is a DECLARATION
+ * — "when this element's content changes, tell the user" — and the platform's
+ * accessibility layer watches for the change. GTK has no such declaration: since
+ * 4.14 it has `gtk_accessible_announce(self, message, priority)` (MEASURED on
+ * gtk 4.22.4 — the method is on the `Gtk.Accessible` interface, so every widget has
+ * it, and it takes a `GtkAccessibleAnnouncementPriority` of LOW/MEDIUM/HIGH), which
+ * is an IMPERATIVE call: the caller supplies both the moment and the message.
+ *
+ * So a live region can only be built where this layer knows both. It knows both on
+ * exactly one primitive — `Text`, whose content IS one widget property, so
+ * `notify::label` is the moment and `label` is the message. Everywhere else the
+ * content is a SUBTREE and GTK emits nothing when one changes, which is why the
+ * common route refuses the prop by name rather than this route answering it.
+ *
+ * Like {@link FileRoute} and {@link GestureRoute}, the table holds the whole of the
+ * DECISION and none of the call: the priority is a `gi://Gtk` enum member and
+ * nothing under `primitives/` imports `gi://`.
+ */
+export interface AnnounceRoute {
+    readonly to: 'announce';
+    /** The signal whose emission means "the content this element shows has changed". */
+    readonly signal: string;
+    /** The widget property holding the message to announce. */
+    readonly read: string;
+    /**
+     * React Native's values → `Gtk.AccessibleAnnouncementPriority` nicks; `null` is
+     * "recognised, announce nothing".
+     *
+     * GTK's `low` is deliberately absent as a TARGET: React Native has three values
+     * and ARIA has two live-region levels, so a third GTK priority would have no
+     * spelling to arrive from.
+     */
+    readonly map: Readonly<Record<string, 'low' | 'medium' | 'high' | null>>;
+}
+
+/**
  * A prop that is a DECLARED no-op.
  *
  * Not the same thing as an unknown prop and not the same thing as a refusal: the
@@ -158,7 +197,22 @@ export type PropRoute =
     | RefusedRoute
     | IgnoredRoute
     | FileRoute
-    | GestureRoute;
+    | GestureRoute
+    | AnnounceRoute;
+
+/**
+ * The imperative handle a `ref` on this primitive receives, instead of the widget.
+ *
+ * DATA and not a per-binding decision, for the reason every other field here is
+ * data: React and Solid both hand a `ref` its value, and a handle built in one L3
+ * would be a second vocabulary the other one does not have. `handles.ts` turns the
+ * kind into the object; the table only says which primitives have one.
+ *
+ * A primitive with NO kind hands back the `Gtk.Widget` itself, which is what every
+ * primitive did before and still does — React Native only gives an imperative
+ * handle to the components that document one.
+ */
+export type HandleKind = 'text-input';
 
 /** A second styleable node inside the element, which the children go into. */
 export interface ContentSpec {
@@ -239,6 +293,17 @@ export interface PrimitiveSpec {
      * a silent drop for the reason every other one in this file is.
      */
     readonly refusesStyle?: string;
+    /**
+     * What a `ref` on this primitive receives, when it is not the widget.
+     *
+     * `TextInput` only, and it is React Native's own rule rather than a convenience:
+     * `TextInput` is a CLASS there, so `useRef<TextInput>(null)` is ordinary code and
+     * `ref.current.focus()` is documented API. Handing back the bare `Gtk.Widget`
+     * type-checked as `unknown` and answered `undefined is not a function` at the
+     * call — the shape this whole layer refuses to ship for props, arriving through
+     * the one channel that had no table.
+     */
+    readonly handle?: HandleKind;
 }
 
 /**
@@ -277,6 +342,25 @@ const NO_ACCESSIBILITY_PROP =
     'GTK carries accessibility through `Gtk.Accessible.update_property()`, an imperative call, not through a widget property — so there is nothing for this layer to set as data. `AccessibilityInfo` (tier P3) is the entry that owns this, and GTK’s model maps onto the props well once it exists';
 const NO_ON_LAYOUT =
     'GTK reports its allocation through `Gtk.Widget.vfunc_size_allocate`, a SUBCLASS override rather than a signal, so there is no handler to bind. `useWindowDimensions` (tier P2) is the window-level answer';
+/**
+ * `accessibilityLiveRegion` — and the reason is NOT "GTK4 has no property".
+ *
+ * GTK has had `Gtk.Accessible.announce(message, priority)` since 4.14 (MEASURED on
+ * gtk 4.22.4: the method is on the `Gtk.Accessible` interface, so it is on every
+ * widget, and it takes LOW/MEDIUM/HIGH). What it does NOT have is the declaration
+ * React Native's prop is — a flag that makes the accessibility layer watch this
+ * element's content and speak the change. `announce` is imperative: the caller
+ * supplies the moment and the message.
+ *
+ * So the prop is answerable exactly where this layer knows both, which is `Text`
+ * and nowhere else: a `Gtk.Label`'s content IS a property, so `notify::label` is the
+ * moment and `label` is the message ({@link AnnounceRoute}). A `View`'s content is a
+ * subtree, and GTK emits nothing when a subtree changes — there is no
+ * `notify::children`, and walking the tree on every frame to diff it is a screen
+ * reader's job, not a view layer's.
+ */
+const NO_LIVE_REGION =
+    'declares that a screen reader should speak this element when its CONTENT changes. GTK has the announcement — `Gtk.Accessible.announce(message, priority)` since 4.14 — but not the watch: it is an imperative call, and this element’s content is a SUBTREE, which GTK emits no signal for. `<Text>` answers this prop, because its content is one property (`Gtk.Label:label`) and so is both the moment and the message. Elsewhere, call `announce()` on the widget through a ref when you change the content';
 const ONE_WIDGET_NAME =
     'would write `Gtk.Widget:name`, and so does `testID`. Two props for one property is the silent-drop shape the host refuses by name (`signalTaken`), so this layer picks one: use `testID`';
 
@@ -300,6 +384,7 @@ const COMMON: Readonly<Record<string, PropRoute | readonly PropRoute[]>> = {
     accessibilityRole: { to: 'refused', why: NO_ACCESSIBILITY_PROP },
     accessibilityHint: { to: 'refused', why: NO_ACCESSIBILITY_PROP },
     accessibilityState: { to: 'refused', why: NO_ACCESSIBILITY_PROP },
+    accessibilityLiveRegion: { to: 'refused', why: NO_LIVE_REGION },
 };
 
 /** `pointerEvents` — `Gtk.Widget:can-target` answers two of its four values exactly. */
@@ -351,6 +436,26 @@ const TEXT_INPUT_COMMON: Readonly<Record<string, PropRoute | readonly PropRoute[
     },
     autoCorrect: { to: 'ignored', why: 'an on-screen keyboard behaviour' },
     keyboardAppearance: { to: 'ignored', why: 'there is no on-screen keyboard to theme' },
+    // THE THREE PROPS WITH NO ADDRESSEE, written down once here rather than decided
+    // again in every application. Each one names a service on the other platform —
+    // an autofill provider, an on-screen keyboard — and a GTK desktop runs neither.
+    // `ignored` and not `refused` for the reason `autoCapitalize` above is: they
+    // arrive on perfectly ordinary React Native code that the author cannot rewrite
+    // into something a desktop would honour, so throwing would refuse a correct
+    // program. The DECLARED no-op is what keeps "GTK has no such service" apart from
+    // "the table forgot this name".
+    autoComplete: {
+        to: 'ignored',
+        why: 'is Android’s autofill hint, and there is no autofill service on a GTK desktop to hint to — a password manager fills a field through the accessibility bus or a paste, neither of which the widget declares anything for. `keyboardType` is the one hint that does land: it writes `Gtk.Entry:input-purpose`, which an input method reads',
+    },
+    textContentType: {
+        to: 'ignored',
+        why: 'is `autoComplete`’s iOS spelling and has the same absent addressee. Note `Gtk.Accessible` does carry an `autocomplete` PROPERTY, and it is a different thing: it describes a widget that completes its own text (a combo box), not a system that fills it in',
+    },
+    submitBehavior: {
+        to: 'ignored',
+        why: 'chooses what the Return key does, and each GTK widget has exactly one answer with nothing to select between: a `Gtk.Entry` always emits `activate` (which is `onSubmitEditing`) and can never insert a newline, and a `Gtk.TextView` always inserts a newline and never submits — which is why `onSubmitEditing` is refused on a multiline input. `multiline` is the prop that picks the behaviour, because it picks the widget',
+    },
 };
 
 /**
@@ -378,6 +483,7 @@ const TEXT_INPUT_MULTILINE: PrimitiveSpec = {
     orientation: 'vertical',
     widget: LEAF,
     textSink: null,
+    handle: 'text-input',
     props: {
         ...TEXT_INPUT_COMMON,
         value: { to: 'refused', why: MULTILINE_BUFFER },
@@ -565,6 +671,19 @@ export const PRIMITIVES: Readonly<Record<string, PrimitiveSpec>> = {
                 map: { head: 'start', middle: 'middle', tail: 'end' },
             },
             selectable: { to: 'property', names: ['selectable'], as: 'boolean' },
+            // THE ONE PRIMITIVE THAT CAN ANSWER IT. `notify::label` is the moment the
+            // content changed and `label` is what changed to — both facts a live
+            // region needs, on one widget property. `polite` → MEDIUM and
+            // `assertive` → HIGH are GTK's own definitions of ARIA's two levels
+            // (medium: "spoken at the next opportunity, such as at the end of the
+            // current sentence"; high: "spoken immediately", with GTK's own
+            // documentation warning against it), not a guess at a scale.
+            accessibilityLiveRegion: {
+                to: 'announce',
+                signal: 'notify::label',
+                read: 'label',
+                map: { none: null, polite: 'medium', assertive: 'high' },
+            },
             onPress: {
                 to: 'refused',
                 why: 'a `Gtk.Label` emits no `clicked` (measured: `activate-current-link`, `activate-link`, `copy-clipboard`, `move-cursor` and nothing else). Wrap it in a `<Pressable>`, which is a real `Gtk.Button`',
@@ -758,6 +877,7 @@ export const PRIMITIVES: Readonly<Record<string, PrimitiveSpec>> = {
         // `<TextInput value="a">b</TextInput>` is two authorities for one string,
         // and the resolver refuses it rather than letting whichever ran last win.
         textSink: 'text',
+        handle: 'text-input',
         switchOn: { prop: 'multiline', whenTrue: TEXT_INPUT_MULTILINE },
         props: {
             ...TEXT_INPUT_COMMON,

@@ -351,6 +351,53 @@ export default async () => {
                 );
             });
 
+            await it('reports a pick the WIDGET made and not one this half wrote — the divergence', async () => {
+                // A HOST-ROUTED `notify::` IS DEAF TO THE LAYER'S OWN WRITE, and this row is
+                // one of the places that costs something. gtk-host suppresses a `notify::`
+                // raised inside its own property write — module-wide, which is what stops a
+                // controlled `Adw.EntryRow` re-entering `onNotifyText` — and writing the
+                // `selected` prop from a re-render IS that write. So the callback the props
+                // file used to promise "fires on every change" fires on every change EXCEPT
+                // the one an application makes, which is the ordinary one.
+                //
+                // Asserted in both directions, because only the pair distinguishes "the
+                // handler is suppressed" from "the handler was never connected".
+                const seen: number[] = [];
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwComboRow
+                            title="Style"
+                            model={['Light', 'Dark', 'System']}
+                            selected={0}
+                            onNotifySelected={(index) => seen.push(index)}
+                        />
+                    </AdwPreferencesGroup>,
+                    (container, _window, rerender) => {
+                        seen.length = 0;
+                        rerender(
+                            <AdwPreferencesGroup title="Appearance">
+                                <AdwComboRow
+                                    title="Style"
+                                    model={['Light', 'Dark', 'System']}
+                                    selected={2}
+                                    onNotifySelected={(index) => seen.push(index)}
+                                />
+                            </AdwPreferencesGroup>,
+                        );
+                        const row = find(container, 'AdwComboRow') as Adw.ComboRow;
+                        // The widget really moved — so this is a dropped notification and
+                        // not a write that failed.
+                        expect(comboSelectedIndex(row.selected)).toBe(2);
+                        expect(seen).toStrictEqual([]);
+
+                        // The same property, moved from outside the host's write bracket:
+                        // the connection is live and the callback carries the new position.
+                        row.selected = 1;
+                        expect(seen).toStrictEqual([1]);
+                    },
+                );
+            });
+
             await it('hides the inline value under useSubtitle — the pair', async () => {
                 // The BINDING, which is the half that is deterministic: `adw-combo-row.ui`
                 // gives the inline `current` view `visible` bound to `use-subtitle` with
@@ -493,6 +540,48 @@ export default async () => {
                         const row = find(container, 'AdwSpinRow') as Adw.SpinRow;
                         expect(row.title).toBe('Zoom');
                         expect(row.value).toBe(60);
+                    },
+                );
+            });
+
+            await it('reports a value the WIDGET moved and not one this half wrote — the divergence', async () => {
+                // The combo row's finding by a DIFFERENT route, which is why it is a second
+                // vector: this row writes no `value` property at all, it re-sets the memoised
+                // `Gtk.Adjustment`, and `notify::value` is raised from inside THAT host write.
+                // So the suppression is reached through an object the props file never names,
+                // and a reader would not predict it from the combo row's paragraph alone.
+                const seen: number[] = [];
+                laidOut(
+                    <AdwPreferencesGroup title="Appearance">
+                        <AdwSpinRow
+                            title="Scale"
+                            lower={0}
+                            upper={200}
+                            stepIncrement={25}
+                            value={50}
+                            onNotifyValue={(value) => seen.push(value)}
+                        />
+                    </AdwPreferencesGroup>,
+                    (container, _window, rerender) => {
+                        seen.length = 0;
+                        rerender(
+                            <AdwPreferencesGroup title="Appearance">
+                                <AdwSpinRow
+                                    title="Scale"
+                                    lower={0}
+                                    upper={200}
+                                    stepIncrement={25}
+                                    value={75}
+                                    onNotifyValue={(value) => seen.push(value)}
+                                />
+                            </AdwPreferencesGroup>,
+                        );
+                        const row = find(container, 'AdwSpinRow') as Adw.SpinRow;
+                        expect(row.value).toBe(75);
+                        expect(seen).toStrictEqual([]);
+
+                        row.value = 25;
+                        expect(seen).toStrictEqual([25]);
                     },
                 );
             });

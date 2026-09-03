@@ -48,9 +48,21 @@
 // VALUES REACH GJS THROUGH `gi://` ONLY, and this file needs neither: every widget
 // name comes out of L2 and every GTK call is a host op. There is no `gi://` import
 // and no `@girs/*` import at all, which is the same shape `components.ts` has and
-// the reason both are `node: "polyfill"` clean.
+// the reason both are `node: "polyfill"` clean. The one GTK call this vocabulary
+// cannot express as a host op — `Gtk.Accessible.announce()` for a live region — is
+// made through `../announce.js`, which BOTH bindings share, so it is still not a
+// widget decision taken in an L3.
 
-import { createContext, createMemo, createSignal, onMount, untrack, useContext, type Accessor } from 'solid-js';
+import {
+    createContext,
+    createMemo,
+    createSignal,
+    onCleanup,
+    onMount,
+    untrack,
+    useContext,
+    type Accessor,
+} from 'solid-js';
 import {
     createComponent,
     createElement,
@@ -62,8 +74,11 @@ import {
     widgetOf,
 } from '@gjsify/gtk-host/solid';
 
+import { accessor as accessorName } from '../accessor.js';
+import { onLiveRegion } from '../announce.js';
 import type { ClassNameInput } from '../primitives/classes.js';
 import { PrimitiveError } from '../primitives/errors.js';
+import { createHandle, type TextInputHandle } from '../primitives/handles.js';
 import {
     resolvePrimitive,
     type ChildContext,
@@ -172,9 +187,6 @@ const OWNED = new WeakMap<object, () => unknown>();
  */
 const ONE_ABSOLUTE_CHILD: ChildFacts = { absolute: 1, count: 1, text: false };
 
-/** `max-length` → `maxLength`: the spelling GJS installs the JS accessor under. */
-const accessorName = (name: string): string => name.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
-
 /** Deep enough for a `ChildContext`, whose values are strings, numbers and booleans. */
 const sameContext = (a: ChildContext, b: ChildContext): boolean => JSON.stringify(a) === JSON.stringify(b);
 
@@ -260,6 +272,23 @@ function element(primitive: string, authored: object): HostNode {
     //    and there is nothing to stabilise.
     for (const [key, handler] of Object.entries(dispatchers(first.events, props, node))) setProp(node, key, handler);
 
+    // 6b. The live regions, through the module BOTH bindings share — and NOT through
+    //     `setProp`, which is the whole of the finding: the host suppresses a
+    //     `notify::` raised inside its own property write, and a `<Text>`'s content is
+    //     exactly that write, so a live region bound as a host handler would announce
+    //     every change except the one the application made (`announce.ts`).
+    //     `onMount`, because the widget does not exist until the node is placed, and
+    //     `onCleanup` because a handler GJS still holds after GC is a blocked callback.
+    if (first.announcements.length > 0) {
+        onMount(() => {
+            const widget = widgetOf(node) as Parameters<typeof onLiveRegion>[0];
+            const disposers = first.announcements.map((one) => onLiveRegion(widget, one));
+            onCleanup(() => {
+                for (const dispose of disposers) dispose();
+            });
+        });
+    }
+
     // 7. Properties, every time the plan changes.
     const writtenOuter: Record<string, unknown> = {};
     const writtenContent: Record<string, unknown> = {};
@@ -283,7 +312,13 @@ function element(primitive: string, authored: object): HostNode {
     });
 
     const ref = (props as { ref?: unknown }).ref;
-    if (typeof ref === 'function') onMount(() => (ref as (widget: unknown) => void)(widgetOf(node)));
+    // `createHandle` and not the widget, for the primitives L2 says carry one — the
+    // SAME call the React binding makes, so a `<TextInput ref>` means the same thing
+    // under both. `plan.handle` is null for every other primitive and the widget
+    // passes straight through.
+    if (typeof ref === 'function') {
+        onMount(() => (ref as (handle: unknown) => void)(createHandle(first.handle, widgetOf(node), first.node.tag)));
+    }
 
     // 8. Placement. The content node first, so an overlay has its main child before
     //    anything is added beside it.
@@ -490,6 +525,11 @@ function assertStableShape(primitive: string, first: PrimitivePlan, next: Primit
             plan.node.tag,
             plan.content?.tag ?? '-',
             plan.events.map((event) => `${event.prop}>${event.signal}`).join(','),
+            // The live regions are part of the shape for the same reason the events
+            // are: they are subscribed once in `onMount` and there is no commit that
+            // could re-subscribe them, so `accessibilityLiveRegion` flipping from
+            // `none` to `polite` on a signal would silently never announce.
+            plan.announcements.map((one) => `${one.signal}>${one.priority}`).join(','),
         ].join('|');
     const was = shape(first);
     const now = shape(next);
@@ -518,6 +558,8 @@ export interface TextProps extends CommonProps {
     numberOfLines?: number;
     ellipsizeMode?: 'head' | 'middle' | 'tail';
     selectable?: boolean;
+    /** Announce this label's text when it changes. `Text` alone — see the React binding's own note. */
+    accessibilityLiveRegion?: 'none' | 'polite' | 'assertive';
 }
 
 export function Text(props: TextProps): HostNode {
@@ -572,7 +614,7 @@ export function ActivityIndicator(props: ActivityIndicatorProps): HostNode {
     return element('ActivityIndicator', props);
 }
 
-export interface TextInputProps extends CommonProps {
+export interface TextInputProps extends Omit<CommonProps, 'ref'> {
     value?: string;
     defaultValue?: string;
     placeholder?: string;
@@ -584,7 +626,18 @@ export interface TextInputProps extends CommonProps {
     maxLength?: number;
     secureTextEntry?: boolean;
     keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'number-pad' | 'numeric' | 'decimal-pad' | 'url';
+    /** A declared no-op: there is no autofill service on a GTK desktop. */
+    autoComplete?: string;
+    /** `autoComplete`'s iOS spelling, and the same absent addressee. */
+    textContentType?: string;
+    /** A declared no-op: each widget has one Return behaviour, and `multiline` picks the widget. */
+    submitBehavior?: 'submit' | 'blurAndSubmit' | 'newline';
+    /** The imperative handle, not the widget — L2 decides that, so both bindings agree. */
+    ref?: (handle: TextInputHandle) => void;
 }
+
+/** The instance type, merged with the component below. React Native's `TextInput` is a class. */
+export interface TextInput extends TextInputHandle {}
 
 export function TextInput(props: TextInputProps): HostNode {
     return element('TextInput', props);

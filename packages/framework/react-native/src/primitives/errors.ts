@@ -13,6 +13,17 @@
 // or the combination has no GTK answer". A `<Text numberOfLines>` refusal and a
 // `bg-nonsuch` refusal are not the same defect and do not have the same fix.
 
+/**
+ * The sentence, without throwing it.
+ *
+ * `@gjsify/react-native/prop-table` has to hand a consumer the message a render WOULD
+ * have thrown, and ADR 0039 § 1 says it is the same string rather than a paraphrase.
+ * Two template literals that happen to agree are not that: the format is here once and
+ * both the throw and the static answer are built from it.
+ */
+export const primitiveErrorMessage = (primitive: string, subject: string, detail: string): string =>
+    `@gjsify/react-native: <${primitive}>${subject === '' ? '' : ` ${subject}`} — ${detail}`;
+
 /** A primitive, prop or combination this layer cannot answer for, and why. */
 export class PrimitiveError extends Error {
     override readonly name = 'PrimitiveError';
@@ -22,7 +33,7 @@ export class PrimitiveError extends Error {
     readonly subject: string;
 
     constructor(primitive: string, subject: string, detail: string) {
-        super(`@gjsify/react-native: <${primitive}>${subject === '' ? '' : ` ${subject}`} — ${detail}`);
+        super(primitiveErrorMessage(primitive, subject, detail));
         this.primitive = primitive;
         this.subject = subject;
     }

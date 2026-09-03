@@ -510,6 +510,15 @@ than smoothed over.
   pane, which libadwaita uses for the header of a collapsed view. The React Native half has
   no header bar to put a title in, so it carries them and draws neither — the same shape as
   `iconName`.
+- **`onNotifySelected` and `onNotifyValue` do not carry a PROGRAMMATIC change on GTK.** A
+  user pick reaches both halves. A change the caller made through `selected` / `value`
+  reaches the React Native half only: gtk-host suppresses a `notify::` raised inside its own
+  property write, and writing the prop IS that write — for the spin row through the
+  `adjustment` object it re-sets rather than through a `value` property. Measured on
+  libadwaita 1.9.3: a re-render from `selected={0}` to `selected={2}` moves the widget and
+  calls nothing, while `row.selected = 1` from outside React calls it. Same rule as
+  `onNotifyVisibleChild` below, and benign for the ordinary controlled pattern — the
+  consumer made the change and already knows — but it is not "every change".
 - **`onNotifyVisibleChild` does not carry the same set of changes on both halves.** A
   press on the switcher reaches both. A change the CALLER made through
   `visibleChildName` reaches the React Native half only — it re-applies the prop through

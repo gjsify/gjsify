@@ -9,6 +9,7 @@ import classesSuite from './primitives/classes.spec.js';
 import defaultsSuite from './primitives/defaults.spec.js';
 import primitivesSuite from './primitives/primitives.spec.js';
 import widgetsSuite from './primitives/widgets.spec.js';
+import propTableSuite from './prop-table.spec.js';
 import hrefSuite from './router/href.spec.js';
 import routerWidgetsSuite from './router/router.spec.js';
 import routesSuite from './router/routes.spec.js';
@@ -20,6 +21,7 @@ import unsupportedSuite from './unsupported.spec.js';
 
 run({
     supportTableSuite,
+    propTableSuite,
     unsupportedSuite,
     eventEmitterSuite,
     classesSuite,

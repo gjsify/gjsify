@@ -4407,3 +4407,41 @@ available — `check-refs-citations` resolves with `statSync` and would extend t
 paths cheaply — and the harder half is the same one it already declines: it asks whether the FILE
 exists, never whether the LINE says what the citation claims. A moved file is caught by the cheap
 half; a moved line is not, and that is the case that bit `stage.ts:35` three times.
+
+### A host-routed `notify::` handler is deaf to the layer's own write, and nothing says which ones may be
+
+`@gjsify/gtk-host`'s echo guard drops any `notify` / `notify::<prop>` handler it installed while
+a host property write is open — module-wide, not just on the object being written
+(`inHostWrite() && isNotify` in `signals.ts`). That leg is deliberate and it has four measured
+cases behind it: it is what stops a controlled `<TextInput>` re-entering `onChangeText`, a
+`Adw.SwitchRow` re-entering `onNotifyActive`, an `Adw.EntryRow` its `onNotifyText`, and it is
+what `policies.ts`' `writeVisible` deliberately buys when it brackets `hideBeforeRemove`.
+
+The consequence is a CLASS: any prop that routes a `notify::` through the host fires on every
+change EXCEPT the one the framework itself made. Three sites, all measured, and the guard is
+right on some of them and wrong on others with nothing to tell them apart:
+
+- **`accessibilityLiveRegion` on `<Text>` (ADR 0039).** The one prop whose whole purpose is to
+  fire on that write — a `<Text>`'s content IS a host write into `Gtk.Label:label`. Bound as an
+  `on:notify::label` prop it announced a change made from outside React and never the one the
+  application made. Fixed in the PR that found it: `announce.ts` connects with
+  `widget.connect()` directly, and the obvious test (`label.label = …` from a spec) was green
+  the whole time it was broken.
+- **`AdwComboRowProps.onNotifySelected` and `AdwSpinRowProps.onNotifyValue`.** Measured on
+  libadwaita 1.9.3: a re-render from `selected={0}` to `selected={2}` moves the widget and calls
+  nothing, while `row.selected = 1` from outside React calls it; the spin row the same, reached
+  through the memoised `Gtk.Adjustment` it re-sets rather than a `value` property. The props file
+  claimed the opposite in capitals ("FIRES ON EVERY CHANGE, INCLUDING A PROGRAMMATIC ONE") for
+  the life of the surface. Now named as a divergence in `@gjsify/adwaita-react-native`'s README
+  and pinned by two vectors in `preferences.gtk.spec.tsx`, in BOTH directions — only the pair
+  distinguishes "suppressed" from "never connected".
+- **`onNotifyActive` / `onNotifyText` / `onNotifyExpanded` / `onNotifyVisibleChild`,
+  `onChangeText`, `onValueChange`.** Suppression is the intended behaviour and each one says so.
+
+What is missing is the DISCRIMINATOR. Which side of the guard a `notify::` binding belongs on is
+a fact about the prop, and today it lives only in prose: nothing in `PRIMITIVES`, in
+`adwaita-react-native`'s props file or in the host declares "this handler must hear the layer's
+own write", so the next such prop is written as an `on:notify::` route, tests green against an
+external write, and ships announcing nothing. A route kind (`announce` is the precedent — it is
+a table field, and it is the reason both L3s subscribe directly) or a per-binding declaration
+checked by the surface gates would make the class visible; naming it here is not that check.
