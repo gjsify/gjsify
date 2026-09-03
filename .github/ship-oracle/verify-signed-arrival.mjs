@@ -32,7 +32,8 @@
 //
 // Usage:
 //   node .github/ship-oracle/verify-signed-arrival.mjs <before-dir> <after-dir> \
-//        [--allow-added <relpath>]... [--min-signed <n>] [--quiet]
+//        [--allow-added <relpath>]... [--allow-added-prefix <reldir>]...
+//        [--min-signed <n>] [--quiet]
 //
 // Exit 0 = every file arrived as it must. Exit 1 = a difference, or too few
 // signatures. Exit 2 = the invocation itself was wrong.
@@ -48,13 +49,23 @@ const { compareMachOAfterResign } = await import(
 
 function usage(message) {
     console.error(`verify-signed-arrival: ${message}`);
-    console.error('usage: verify-signed-arrival.mjs <before-dir> <after-dir> [--allow-added <p>]… [--min-signed <n>]');
+    console.error(
+        'usage: verify-signed-arrival.mjs <before-dir> <after-dir> [--allow-added <p>]… ' +
+            '[--allow-added-prefix <d>]… [--min-signed <n>]',
+    );
     process.exit(2);
 }
 
 const argv = process.argv.slice(2);
 /** @type {string[]} */ const positional = [];
 /** @type {Set<string>} */ const allowAdded = new Set();
+// A DIRECTORY rather than a path, and it exists for exactly one producer: a
+// bundle seal writes `Contents/_CodeSignature/{CodeResources,CodeDirectory,
+// CodeRequirements,CodeRequirements-1,CodeSignature}` and WHICH of those five it
+// writes is `codesign`'s decision, not ours (ADR 0040). Naming the five would be
+// this repository asserting a set it does not control; naming the directory is
+// the claim it can actually make — the seal writes there and nowhere else.
+/** @type {string[]} */ const allowAddedPrefixes = [];
 let minSigned = 0;
 let quiet = false;
 for (let i = 0; i < argv.length; i++) {
@@ -63,6 +74,12 @@ for (let i = 0; i < argv.length; i++) {
         const value = argv[++i];
         if (value === undefined) usage('--allow-added needs a path');
         allowAdded.add(value);
+    } else if (arg === '--allow-added-prefix') {
+        const value = argv[++i];
+        if (value === undefined) usage('--allow-added-prefix needs a directory');
+        // Normalised with the separator, so `Contents/_CodeSignatureX/evil` does
+        // not pass as `Contents/_CodeSignature`.
+        allowAddedPrefixes.push(value.endsWith('/') ? value : `${value}/`);
     } else if (arg === '--min-signed') {
         const value = argv[++i];
         if (value === undefined || !/^\d+$/.test(value)) usage('--min-signed needs a non-negative integer');
@@ -114,7 +131,7 @@ const counts = { identical: 0, signatureOnly: 0, added: 0 };
 
 for (const rel of after) {
     if (!before.has(rel)) {
-        if (allowAdded.has(rel)) {
+        if (allowAdded.has(rel) || allowAddedPrefixes.some((prefix) => rel.startsWith(prefix))) {
             counts.added++;
             if (!quiet) console.log(`  added (declared): ${rel}`);
         } else {

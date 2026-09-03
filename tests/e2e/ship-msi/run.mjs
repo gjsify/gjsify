@@ -213,18 +213,33 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.equal(prop(next, 'ProductVersion'), '1.3.0');
     });
 
-    it('gives the user exactly one Start-Menu entry, on the launcher’s component', () => {
+    it('gives the user exactly one Start-Menu entry, on the GUI launcher’s component', () => {
         const shortcuts = table(msi, 'Shortcut');
         assert.equal(shortcuts.length, 1);
         const [, directory, name, component] = shortcuts[0];
         assert.equal(directory, 'ProgramMenuFolder');
         assert.equal(name, APP_NAME);
-        // The component the shortcut hangs on must be the launcher's, so the two
-        // are installed and removed together. Read through the File table rather
-        // than by naming the id, which is a hash.
-        const launcherRow = table(msi, 'File').find((row) => row[2] === `${BINARY}.cmd`);
-        assert.ok(launcherRow, 'the installer carries no launcher row');
-        assert.equal(component, launcherRow[1]);
+        // ON THE `.exe`, NOT THE `.cmd` (ADR 0040). A Start-Menu shortcut to a
+        // batch file starts `cmd.exe`, which is a console-subsystem image whatever
+        // the interpreter is, so Windows allocates a console and a black window
+        // sits behind the app for its whole life — ADR 0024 § M3's defect, on the
+        // one copy an installer produces. The rule this asserts is unchanged: the
+        // component the shortcut hangs on must be the component of the file it
+        // TARGETS, so the two are installed and removed together. Read through the
+        // File table rather than by naming the id, which is a hash.
+        const files = table(msi, 'File');
+        const guiRow = files.find((row) => row[2] === `${BINARY}.exe`);
+        assert.ok(guiRow, 'the installer carries no GUI launcher row');
+        assert.equal(component, guiRow[1]);
+        // AND THE NEGATIVE HALF, which is what keeps the line above a measurement
+        // rather than a spelling. The `.cmd` is still installed and must be — the
+        // stub runs it, and every environment decision lives there — so "the
+        // shortcut is on the `.exe`" and "the `.cmd` is absent" are different
+        // claims, and only the first one is wanted. Point the shortcut back at the
+        // batch launcher and both this and the equality above go red.
+        const batchRow = files.find((row) => row[2] === `${BINARY}.cmd`);
+        assert.ok(batchRow, 'the installer dropped the batch launcher the stub runs');
+        assert.notEqual(component, batchRow[1]);
     });
 
     it('installs under ProgramFiles64Folder as the directory the zip also expands to', () => {

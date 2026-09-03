@@ -23,7 +23,14 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { NOTARIES, resolveNotaryPlan, resolveSignPlan, SIGNERS, type SignPlan } from './signing.js';
+import {
+    NOTARIES,
+    partitionSignedFileSet,
+    resolveNotaryPlan,
+    resolveSignPlan,
+    SIGNERS,
+    type SignPlan,
+} from './signing.js';
 
 const DEVELOPER_ID = 'Developer ID Application: Example GmbH (ABCDE12345)';
 
@@ -32,25 +39,109 @@ export default async () => {
         await it('hands codesign an identity and a file, and forces over the existing signature', async () => {
             const darwin = SIGNERS.darwin;
             expect(darwin).toBeDefined();
-            expect(darwin?.args('-', '/tmp/x/libfoo.dylib')).toStrictEqual([
+            expect(
+                darwin?.args({ identity: '-', file: '/tmp/x/libfoo.dylib', adhoc: true, entitlements: '/e.plist' }),
+            ).toStrictEqual([
                 '--force',
                 '--sign',
                 '-',
+                // The hardened runtime is a bit in the CODE DIRECTORY, which an
+                // ad-hoc signature has — so this flag is sent for both identities.
+                '--options',
+                'runtime',
+                '--entitlements',
+                '/e.plist',
                 '/tmp/x/libfoo.dylib',
             ]);
+            // …and `--timestamp` is NOT, because a timestamp is a CMS
+            // countersignature over a certificate and an ad-hoc signature has
+            // neither. The pair of assertions is the whole rule: same flag list,
+            // one difference, and it moves with `adhoc`.
+            expect(
+                darwin?.args({ identity: DEVELOPER_ID, file: '/a/b', adhoc: false, entitlements: '/e.plist' }),
+            ).toContain('--timestamp');
+            expect(darwin?.args({ identity: '-', file: '/a/b', adhoc: true, entitlements: '/e.plist' })).not.toContain(
+                '--timestamp',
+            );
+            // No entitlements file, no flag — rather than an `--entitlements`
+            // pointing at a path nothing wrote.
+            expect(darwin?.args({ identity: '-', file: '/a/b', adhoc: true })).not.toContain('--entitlements');
             // `--force` is load-bearing rather than defensive: every image in the
             // shipped darwin closure is ALREADY ad-hoc signed (ADR 0024 § A4
             // measured 106 of 106), because `install_name_tool` invalidates the
             // original during relocation and the relocator re-signs. Without it
             // `codesign` refuses the file it is meant to replace.
-            expect(darwin?.args(DEVELOPER_ID, '/a/b')[0]).toBe('--force');
+            expect(darwin?.args({ identity: DEVELOPER_ID, file: '/a/b', adhoc: false })[0]).toBe('--force');
             expect(darwin?.signs).toBe('macho');
             expect(darwin?.signOn).toStrictEqual(['darwin']);
         });
 
+        await it('grants four entitlements and refuses the two the reference grants', async () => {
+            const darwin = SIGNERS.darwin;
+            expect(darwin?.entitlements).toStrictEqual([
+                'com.apple.security.cs.allow-jit',
+                'com.apple.security.cs.allow-unsigned-executable-memory',
+                'com.apple.security.cs.disable-executable-page-protection',
+                'com.apple.security.cs.allow-dyld-environment-variables',
+            ]);
+            // `get-task-allow` is a DEBUGGING entitlement and Apple's notarisation
+            // rules refuse a Developer-ID artifact carrying it, so granting it
+            // would trade a working local build for one that cannot be shipped.
+            expect(darwin?.entitlements).not.toContain('com.apple.security.cs.get-task-allow');
+            // `disable-library-validation` is ADR 0024 § A16's open question, and
+            // § A4's re-sign of every image is the design of record — granting the
+            // entitlement would make that re-sign look optional.
+            expect(darwin?.entitlements).not.toContain('com.apple.security.cs.disable-library-validation');
+        });
+
+        await it('lets the seal add its own directory and nothing else', async () => {
+            const planned = ['Ship Demo.app/Contents/MacOS/ship-demo', 'Ship Demo.app/Contents/MacOS/node'];
+            const sealPrefix = 'Ship Demo.app/Contents/_CodeSignature/';
+            const seal = [`${sealPrefix}CodeResources`, `${sealPrefix}CodeDirectory`];
+
+            // A bundle seal writes regular files (Apple TN3126: a bundle with no
+            // Mach-O main executable keeps its signature in `_CodeSignature/`), so
+            // they have to reach the payload — a `.zip` and a `.dmg` both carry
+            // them, and dropping them would ship a bundle that verifies as broken.
+            const sealed = partitionSignedFileSet({ arrived: [...planned, ...seal], planned, sealPrefix });
+            expect(sealed.sealed.length).toBe(2);
+            expect(sealed.unexpected).toStrictEqual([]);
+            expect(sealed.removed).toStrictEqual([]);
+
+            // …and ONLY that directory. Anything else appearing means something
+            // other than the seal ran, and it would be packed with no mode from
+            // the plan.
+            const stray = partitionSignedFileSet({
+                arrived: [...planned, ...seal, 'Ship Demo.app/Contents/stray'],
+                planned,
+                sealPrefix,
+            });
+            expect(stray.unexpected).toStrictEqual(['Ship Demo.app/Contents/stray']);
+
+            // A signer that seals nothing keeps the old rule verbatim: every
+            // addition is unexpected. `signtool` rewrites images in place and
+            // writes no sidecar at all.
+            const windows = partitionSignedFileSet({ arrived: [...planned, ...seal], planned });
+            expect(windows.sealed).toStrictEqual([]);
+            expect(windows.unexpected.length).toBe(2);
+
+            // A vanished file is refused whether or not there is a seal — it
+            // would otherwise be packed as absent.
+            expect(partitionSignedFileSet({ arrived: [], planned, sealPrefix }).removed.length).toBe(2);
+        });
+
+        await it('seals the bundle on darwin and nothing on win32', async () => {
+            expect(SIGNERS.darwin?.sealsBundle).toBe(true);
+            expect(SIGNERS.darwin?.sealAddPrefix('Ship Demo.app')).toBe('Ship Demo.app/Contents/_CodeSignature/');
+            // A Windows program directory is a directory and nothing more: no
+            // manifest to seal, and no per-directory signature format.
+            expect(SIGNERS.win32?.sealsBundle).toBe(false);
+            expect(SIGNERS.win32?.entitlements).toStrictEqual([]);
+        });
+
         await it('hands signtool a SUBJECT NAME and names the digest algorithm', async () => {
             const win32 = SIGNERS.win32;
-            expect(win32?.args(DEVELOPER_ID, 'C:\\x\\app.exe')).toStrictEqual([
+            expect(win32?.args({ identity: DEVELOPER_ID, file: 'C:\\x\\app.exe', adhoc: false })).toStrictEqual([
                 'sign',
                 '/n',
                 DEVELOPER_ID,
@@ -60,7 +151,7 @@ export default async () => {
             ]);
             // Authenticode's default file digest is SHA-1, which no current
             // Windows accepts — so the flag is not decoration.
-            expect(win32?.args('x', 'y')).toContain('sha256');
+            expect(win32?.args({ identity: 'x', file: 'y', adhoc: false })).toContain('sha256');
             expect(win32?.signs).toBe('pe');
         });
 

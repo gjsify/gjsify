@@ -23,6 +23,7 @@
 
 import { posix } from 'node:path';
 
+import { buildGuiLauncher } from './pe-launcher.js';
 import { BUNDLE_INFO_PLIST, BUNDLE_PKGINFO, renderInfoPlist, renderPkgInfo } from './plist.js';
 import { SHARE } from './share-dirs.js';
 import type { HostOs, StagedFile } from './types.js';
@@ -68,6 +69,17 @@ export interface LayoutMetadataInput extends LayoutIdentity {
     version: string;
     /** Packaging revision within one upstream version — the second half of `CFBundleVersion`. */
     release: string;
+    /**
+     * `process.arch` the payload is LABELLED for — what `--arch` names.
+     *
+     * Here because a layout can own a PROGRAM and not only a manifest, and a
+     * program has an architecture: the windows row emits an x86-64 GUI launcher,
+     * and staging it into a tree labelled `arm64` would make
+     * `assertPayloadMatchesArch` refuse a stage over a file the author never
+     * named. `Layout.arches` already says the windows layout has no other
+     * architecture; this is the same fact where the file is written.
+     */
+    arch: string;
 }
 
 /** The four places a payload file can belong, as stage-relative directories. */
@@ -469,15 +481,42 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // has no rpath — a DLL is found on `PATH`, in the directory of the image
         // that loaded it, or not at all.
         dirs: () => ({ launcher: '', bundle: 'app', native: 'lib', data: 'share', other: '' }),
-        // Nothing, and this is the row that shows the field is not a macOS detail
-        // wearing a general name: a Windows installer's metadata lives in the
-        // `.msi`'s own tables, not in a file inside the program directory. THREE
-        // format rows wrap this layout now, and the installer — the one that could
-        // have needed a file here — did not: `msi.ts` puts every such fact in the
-        // `Product`/`Package` attributes of the document it renders. So the answer
-        // held rather than the question going unasked, and if a fourth row ever
-        // needs a file, THIS is where it goes — not a branch in the stager.
-        metadata: () => [],
+        // NO METADATA, and one PROGRAM. A Windows installer's metadata lives in the
+        // `.msi`'s own tables, not in a file inside the program directory —
+        // `msi.ts` puts every such fact in the `Product`/`Package` attributes of the
+        // document it renders — so this row still owns no manifest, and the field is
+        // not a macOS detail wearing a general name.
+        //
+        // What it DOES own is the GUI-subsystem launcher beside the `.cmd`, and it
+        // arrives through this seam rather than through a branch in the stager,
+        // which is exactly what the field's contract says a fourth row should do.
+        //
+        // A SECOND LAUNCHER, NOT A REPLACEMENT. The `.cmd` makes every environment
+        // decision, is what `assertLauncherMatchesInterpreter` and
+        // `.github/ship-oracle/verify-program-dir.py` read back, and is the right
+        // entry point in a terminal. The `.exe` is the entry point for a
+        // double-click and for the shortcut an `.msi` writes — the two launches
+        // Windows gives a console window today, because `cmd.exe` is a
+        // console-subsystem image (ADR 0024 § M3). It RUNS the `.cmd`.
+        //
+        // AND ONLY FOR THE ARCHITECTURE IT IS. The stub is x86-64 machine code, so
+        // staging it into a tree labelled `arm64` would have
+        // `assertPayloadMatchesArch` refuse the STAGE over a file the author never
+        // named — turning "this layout has no arm64 runtime" (a warning, with
+        // `Layout.arches.why` to act on) into "your payload is mislabelled" (a
+        // refusal, about our own file). `arches.only` already says there is no
+        // other Windows architecture; a stage for one stays assemblable and stays
+        // unpackable, which is the split `Layout.runtimeGap` draws everywhere else.
+        metadata: (input) =>
+            input.arch === 'x64'
+                ? [
+                      {
+                          path: windowsGuiLauncherPath(input),
+                          mode: 0o755,
+                          source: { kind: 'bytes', data: buildGuiLauncher({ logLeaf: windowsLaunchLogLeaf(input) }) },
+                      },
+                  ]
+                : [],
         // ONE, and the blocker is a project we do not own. `wingtk/gvsbuild`
         // hardcodes `self.platform = "x64"` in `utils/base_project.py` and its last
         // five releases publish exactly two assets each, both x64 — so there is no
@@ -511,6 +550,40 @@ const BY_OS = new Map<HostOs, Layout>(LAYOUT_NAMES.map((name) => [LAYOUTS[name].
 /** Stage-relative path of the launcher this layout puts in front of the app. */
 export function launcherPath(layout: Layout, identity: LayoutIdentity): string {
     return posix.join(layout.dirs(identity).launcher, `${identity.binaryName}${layout.launcherExt}`);
+}
+
+/**
+ * Stage-relative path of the windows layout's GUI launcher.
+ *
+ * IT MUST BE `<launcherPath minus `.cmd`>.exe` AND THE STUB DEPENDS ON IT:
+ * `buildGuiLauncher` finds its `.cmd` by overwriting the last three characters of
+ * its own module filename, which is a three-character store instead of a path
+ * search only because the two names differ in exactly those bytes. Deriving both
+ * from `LAYOUTS.windows.launcherExt` here is what keeps that true — renaming the
+ * batch launcher to `.bat` would otherwise leave a stub looking for a file that
+ * is not there, at exit 0, with a window that never appears.
+ */
+export function windowsGuiLauncherPath(identity: LayoutIdentity): string {
+    const layout = LAYOUTS.windows;
+    if (layout.launcherExt.length !== 4) {
+        throw new Error(
+            `gjsify ship: the windows launcher extension is "${layout.launcherExt}" and the GUI stub can only ` +
+                'reach a four-character one — it rewrites the last three characters of its own filename rather ' +
+                'than searching for a path (`utils/ship/pe-launcher.ts`).',
+        );
+    }
+    return posix.join(layout.dirs(identity).launcher, `${identity.binaryName}.exe`);
+}
+
+/**
+ * What the windows GUI launcher calls the file it writes under `%TEMP%`.
+ *
+ * Named after the binary rather than the display name: `%TEMP%` is shared by
+ * every application on the machine, and `binaryName` is the one identifier this
+ * project already refuses to let collide.
+ */
+export function windowsLaunchLogLeaf(identity: LayoutIdentity): string {
+    return `${identity.binaryName}.launch.log`;
 }
 
 /**

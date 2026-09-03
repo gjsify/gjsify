@@ -14,6 +14,7 @@ import shipPlanSuite from './utils/ship/plan.spec.js';
 import shipLayoutSuite from './utils/ship/layout.spec.js';
 import shipPayloadSuite from './utils/ship/payload.spec.js';
 import shipLauncherSuite from './utils/ship/launcher.spec.js';
+import shipPeLauncherSuite from './utils/ship/pe-launcher.spec.js';
 import shipSettingsSuite from './utils/ship/settings.spec.js';
 import shipLocalesSuite from './utils/ship/discover-locales.spec.js';
 import shipFontsSuite from './utils/ship/discover-fonts.spec.js';
@@ -224,6 +225,7 @@ run(
         shipPayloadSuite,
         shipTypelibsSuite,
         shipLauncherSuite,
+        shipPeLauncherSuite,
         shipSettingsSuite,
         shipLocalesSuite,
         shipFontsSuite,

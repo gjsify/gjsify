@@ -35,12 +35,24 @@ sibling of this suite CAN make that claim from Linux because Mach-O records its
 dependencies as strings; this one cannot, and pretending otherwise would be the
 more expensive mistake.
 
-THE ONE MEASUREMENT NOBODY ELSE CAN MAKE is printed rather than judged: the
-interpreter's PE `Subsystem`. `node.exe` is a CONSOLE-subsystem image and
-`nodew.exe` does not exist in the Node release, so a GUI launch of this artifact
-pops a console window — and no CI leg can observe that, because every Windows leg
-starts the app from a shell and therefore inherits one. Printing the field turns
-an assumption into a number the suite reads back (#1354 M3).
+THE MEASUREMENT NO CI LEG CAN MAKE is now two fields, one judged and one printed.
+
+  * JUDGED: the GUI launcher's `Subsystem` must be 2. `node.exe` is a
+    CONSOLE-subsystem image and the Node release ships no `nodew.exe`, and the
+    `.cmd` is run by `cmd.exe`, which is a console image too — so the program
+    directory carries a third launcher whose only job is to have the other value
+    in that field (`packages/infra/cli/src/utils/ship/pe-launcher.ts`, ADR 0040).
+    That is a claim about a file this repository WRITES, so it is asserted rather
+    than printed, and it is asserted here because the two PE readers that would
+    otherwise see the file only read `Machine`.
+  * PRINTED: the interpreter's own `Subsystem`, still 3, still not a defect —
+    `node.exe` never becomes the thing a user double-clicks.
+
+Neither can be observed by running the app in CI: every Windows leg starts it from
+a shell and therefore already has a console. The window measurement that closed
+this was made by hand on `win11-gjsify`, in session 1, by diffing the visible
+top-level window list around each launch — the `.cmd` adds two console-host
+windows and the `.exe` adds none.
 
 THE EXPECTATIONS ARE DERIVED, never written down here — same rule as
 `verify-app-plist.py`. Every value comes out of the stage's own
@@ -57,9 +69,10 @@ DISCRIMINATOR (run it, do not trust it): delete the `node.exe` the launcher name
 and this must exit 1 saying the launcher runs a file the directory does not carry;
 rewrite the `.cmd` with LF endings and it must exit 1; replace one staged image
 with an arm64 one and the machine check must exit 1 naming the file; make the
-launcher run a bare name off `PATH` — which is what M1 wrote — and it must exit 1.
-All four are driven from `tests/e2e/ship-windows/run.mjs` against copies of the
-artifact, so the failure path of this file runs on every PR.
+launcher run a bare name off `PATH` — which is what M1 wrote — and it must exit 1;
+rewrite the GUI launcher's `Subsystem` back to 3 and it must exit 1. All five are
+driven from `tests/e2e/ship-windows/run.mjs` against copies of the artifact, so the
+failure path of this file runs on every PR.
 """
 
 import json
@@ -196,11 +209,35 @@ def main(argv):
             print(f"  {row}")
         return 1
 
-    # ── 4. the console-window measurement, PRINTED and not judged ────────────
-    # No CI leg can observe the defect this names: every Windows leg starts the
-    # app from a shell and inherits a console, so a GUI launch popping one is
-    # invisible there. Reporting the field is what makes it a number instead of an
-    # assumption — see this file's header and status/open-todos.md.
+    # ── 4. the GUI launcher, JUDGED ──────────────────────────────────────────
+    # The file the console-window fix IS. Its name is the launcher's with `.exe`
+    # for `.cmd` — not a convention this script chose, but the one the stub
+    # depends on: it finds its `.cmd` by rewriting the last three characters of
+    # its own module filename.
+    gui = root / f"{settings['binaryName']}.exe"
+    if not gui.is_file():
+        return fail(
+            f"{gui} does not exist. A program directory whose only entry point is a `.cmd` gives every "
+            "double-click and every installer shortcut a console window, because `cmd.exe` is a "
+            "console-subsystem image (ADR 0024 § M3, ADR 0040)."
+        )
+    read = read_pe(gui)
+    if isinstance(read, str):
+        return fail(read)
+    gui_machine, gui_subsystem = read
+    if gui_subsystem != 2:
+        return fail(
+            f"{gui.name} has Subsystem {gui_subsystem} ({SUBSYSTEM.get(gui_subsystem, '?')}), and the whole "
+            "point of the file is that it is 2 (GUI). At 3 Windows allocates a console for it exactly as it "
+            "does for the `.cmd`, and the artifact is back to a black window behind every launch."
+        )
+    if PE_MACHINE.get(gui_machine) != target["arch"]:
+        return fail(f"{gui.name} is machine 0x{gui_machine:04x}, and the stage is labelled {target['arch']}")
+
+    # ── 5. the interpreter's own subsystem, PRINTED and not judged ───────────
+    # Still 3, still not a defect: `node.exe` is what the `.cmd` execs, never what
+    # a user starts. Reporting the field is what keeps that a number rather than
+    # an assumption — see this file's header.
     read = read_pe(interpreter)
     if isinstance(read, str):
         # Only reachable when the launcher runs something that is not a PE at all
@@ -214,7 +251,8 @@ def main(argv):
 
     print(
         f"verify-program-dir.py: {launcher.name} runs {token} (CRLF, ASCII), "
-        f"{len(images)} PE image(s) all {target['arch']}, interpreter subsystem {subsystem} ({kind})"
+        f"{len(images)} PE image(s) all {target['arch']}, {gui.name} subsystem 2 (GUI), "
+        f"interpreter subsystem {subsystem} ({kind})"
     )
     return 0
 

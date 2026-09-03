@@ -52,8 +52,26 @@ export function writeStage(root: string, files: readonly StagedFile[]): void {
     for (const file of files) {
         const target = join(root, file.path.split('/').join(sep));
         mkdirSync(dirname(target), { recursive: true });
-        const data =
-            file.source.kind === 'text' ? new TextEncoder().encode(file.source.text) : readFileSync(file.source.path);
+        // A `switch` with a `never` guard rather than a ternary chain: the third
+        // source kind arrived because a LAYOUT started owning a binary, and a
+        // fourth would otherwise be written as whatever the last branch happens
+        // to be — the same closed-vocabulary hazard `packOne` uses one for.
+        let data: Uint8Array;
+        switch (file.source.kind) {
+            case 'text':
+                data = new TextEncoder().encode(file.source.text);
+                break;
+            case 'file':
+                data = new Uint8Array(readFileSync(file.source.path));
+                break;
+            case 'bytes':
+                data = file.source.data;
+                break;
+            default: {
+                const unhandled: never = file.source;
+                throw new Error(`gjsify ship: no writer for the "${JSON.stringify(unhandled)}" source kind.`);
+            }
+        }
         writeFileSync(target, data);
         chmodSync(target, file.mode);
     }

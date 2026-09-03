@@ -1008,3 +1008,48 @@ export function configuredFormats(
         dropped: named.filter((name) => FORMATS[name].layoutOs !== layout.os),
     };
 }
+
+/**
+ * Can this format's container hold a notarisation ticket?
+ *
+ * A SWITCH WITH A `never` GUARD and not a field, deliberately — the difference
+ * from `FormatDescriptor.host` is who owns the fact. Where a format can be PACKED
+ * is a property of this project's toolchain and belongs on the descriptor; whether
+ * `stapler` will write a ticket into it is Apple's list, unchanged by anything
+ * here, and six of the nine rows are only "no" because notarisation is a macOS
+ * concept they have nothing to do with. Putting it in a `switch` keeps the answer
+ * beside its citation and still makes a tenth format a compile error.
+ *
+ * `stapler(1)`: *"stapler works only with UDIF disk images, signed \"flat\"
+ * installer packages, and certain code-signed executable bundles such as
+ * \".app\"."* And Apple's notarisation guide for the exception that decides the
+ * zip: *"While you can notarize a ZIP archive, you can't staple to it directly.
+ * Instead, run stapler against each item that you added to the archive. Then
+ * create a new ZIP file containing the stapled items for distribution."*
+ *
+ * `macos-app` is `true` here even though `notarytool` cannot SUBMIT a directory:
+ * the two questions are separate, and a `.app` is precisely the item Apple's
+ * remedy above tells you to staple after submitting the archive around it.
+ */
+export function canCarryTicket(id: FormatId): boolean {
+    switch (id) {
+        case 'macos-app':
+        case 'macos-app-dmg':
+            return true;
+        case 'macos-app-zip':
+        // Nothing outside darwin has a ticket to carry: `stapler` is Apple's tool
+        // and no other OS pre-clears an artifact at all (§ A5 — Windows SmartScreen
+        // accrues reputation per file hash instead).
+        case 'deb':
+        case 'rpm':
+        case 'flatpak':
+        case 'windows-dir':
+        case 'windows-dir-zip':
+        case 'msi':
+            return false;
+        default: {
+            const unhandled: never = id;
+            throw new Error(`gjsify ship: no ticket answer for format "${String(unhandled)}".`);
+        }
+    }
+}

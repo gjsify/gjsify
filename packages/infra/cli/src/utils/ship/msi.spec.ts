@@ -58,6 +58,10 @@ const SETTINGS: PackSettings = {
 
 const FILES = [
     { path: 'ship-demo.cmd', source: 'root/ship-demo.cmd' },
+    // The GUI launcher the windows LAYOUT stages beside the `.cmd`, and what the
+    // Start-Menu shortcut points at: a shortcut to a batch file starts `cmd.exe`,
+    // a console-subsystem image, and Windows gives it a console window.
+    { path: 'ship-demo.exe', source: 'root/ship-demo.exe' },
     { path: 'node.exe', source: 'root/node.exe' },
     { path: 'app/main.node.mjs', source: 'root/app/main.node.mjs' },
     {
@@ -214,7 +218,12 @@ export default async () => {
             // an HKCU key path is what ICE43 asks for and ICE57 then objects to.
             const shortcutIndex = wxs.indexOf('<Shortcut ');
             const openFile = wxs.lastIndexOf('<File ', shortcutIndex);
-            expect(wxs.slice(openFile, shortcutIndex)).toContain('ship-demo.cmd');
+            const component = wxs.slice(openFile, shortcutIndex);
+            // AT THE `.exe`, NOT THE `.cmd`. This is the assertion that reds if
+            // the shortcut is pointed back at the batch launcher — the shape that
+            // gave every installed copy a console window (ADR 0024 § M3).
+            expect(component).toContain('ship-demo.exe');
+            expect(component).not.toContain('ship-demo.cmd');
         });
 
         await it('declares ProgramMenuFolder without asking to delete it', async () => {
@@ -260,10 +269,10 @@ export default async () => {
             const message = refusal(() =>
                 render(
                     SETTINGS,
-                    FILES.filter((f) => f.path !== 'ship-demo.cmd'),
+                    FILES.filter((f) => f.path !== 'ship-demo.exe'),
                 ),
             );
-            expect(message).toContain('ship-demo.cmd');
+            expect(message).toContain('ship-demo.exe');
             expect(message).toContain('Start-Menu');
         });
 
