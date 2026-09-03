@@ -21,13 +21,63 @@
  * hand since ADR 0017). DETECTION is this script. Detection alone only shortens
  * the window, since npm has no transaction to roll back, so the two ship together.
  *
+ * TWO PHASES, AND THE PHASE SELECTS THE ASSERTIONS — not the wording.
+ * `--phase post-release` (the default) is the job described above, at the end of
+ * `release.yml`. `--phase pre-release` runs the same enumeration on every pull
+ * request and every push to `main`, from `audit-runtimes.yml`. It exists because a
+ * report that arrives at the END of `release.yml` arrives after the tag and after
+ * the release record — the second shape `status/sections/priorities.md` § 2 names,
+ * "a job that runs only AFTER the merge … is simply absent from the PR, which reads
+ * identically" to one that passed. Measured on #1494, which added two brand-new npm
+ * names (`@gjsify/webview2-native` and its win32-x64 target): nothing in the tree
+ * asked for their manual bootstrap, and the only thing carrying the requirement was
+ * a paragraph in a pull-request body.
+ *
+ * WHAT THE PHASE CHANGES IS THE REGISTRY PREDICATE, and it has to. Pre-release the
+ * train version is not published yet BY CONSTRUCTION. Asking "is every candidate
+ * live at `package.json`'s version" on a pull request was drafted and refuted with
+ * measurements (#1500): a PR adding ANY new package goes red with no remedy the
+ * contributor can apply — the fix needs a publish credential plus an OTP, which CI
+ * does not have — and every release cut red-lines `main` and every open PR for the
+ * whole ~200-package sweep, because `.release-it.json` puts the version-bump commit
+ * on `main` BEFORE the sweep runs, with a skipped publish job (the recorded v0.31.0
+ * case) able to keep it red for the rest of the cycle. So pre-release asks PRESENCE
+ * OF THE NAME — an answer that does not move when the train moves — and the "this
+ * release published NOTHING" assertion, a statement about a COMPLETED release, is
+ * dropped with it. Everything decided from the MANIFESTS (a `private` target, a
+ * version-skewed literal pin, an unrecognised spec shape) is phase-independent.
+ *
+ * THE DECLARED-GAP LEDGER — `status/pending-npm-bootstrap.json`, read in the
+ * pre-release phase ONLY. `docs/publishing.md` states the policy as "the bootstrap
+ * is done before merge OR QUEUED as the next maintainer action", and a required
+ * gate with no escape hatch deletes the second branch. So an absent name must be
+ * LISTED, and a listed name that IS published fails too: the list empties itself at
+ * bootstrap and cannot rot into a permanent exemption. That rot is measured — an
+ * earlier draft's bidirectional arm looped over two package families only, so a
+ * declared-and-published name outside them was never re-examined and passed with
+ * exit 0 forever (#1500). This is the reader that enumerates the WHOLE tree, so
+ * every entry is held against it, including one naming a package this repository
+ * does not contain and one naming a `private` or off-train package, for which "not
+ * published yet" is a category error rather than a queued action.
+ *
+ * A RELEASE DOES NOT GET TO DECLARE ITS OWN GAP: post-release the ledger is
+ * IGNORED, so a bridge that shipped pinning a name nobody bootstrapped is red on
+ * the release even though the pull request that added it was green. The escalation
+ * is the point — pre-release says "queued", post-release says "you shipped it".
+ *
  * THE POSITIVE-FACT RULE — a check that verified nothing must not report success,
  * so this asserts COUNTS rather than the absence of findings:
- *   1. at least one candidate package is LIVE at the release version;
+ *   1. at least one candidate package ANSWERS on the registry, in whichever form
+ *      the phase can ask: post-release, live at the release version, which says the
+ *      release published something; pre-release, the name exists at all. Both forms
+ *      are asserted, and the roster substitutes for neither — the roster fires only
+ *      on an UNDECLARED absence, so declaring every name used to leave it quiet over
+ *      a run that had confirmed nothing and still exited 0 (measured 2026-09-03).
+ *      The ledger buys time for a queued publish; it does not answer the question;
  *   2. the tree DECLARES at least one release-pinned intra-repo edge — a property
  *      of the manifests, and the assertion that outlives a refactor: if the
  *      enumeration stops seeing the platform-sibling edges, every future release
- *      passes on an empty set;
+ *      passes on an empty set. Phase-independent, for the same reason;
  *   3. on a COMPLETE release, at least one edge was examined. Implied by 1+2 and
  *      asserted anyway, so a change to either derivation cannot quietly produce
  *      an empty examination;
@@ -53,10 +103,14 @@
  * file that cannot be written.
  *
  * IT ALSO CHECKS THE ROSTER, not only the edges: every package whose manifest
- * carries the release version must be live at it. That is a SECOND question, and
- * the edge check answered its own correctly while v0.31.0 left `@gjsify/napi` and
- * its two platform children at 0.30.0 — nothing in this repository declares a
- * manifest edge to `napi`, so there was no pinned edge to examine.
+ * carries the release version must be live at it (pre-release: must EXIST). That is
+ * a SECOND question, and the edge check answered its own correctly while v0.31.0
+ * left `@gjsify/napi` and its two platform children at 0.30.0 — nothing in this
+ * repository declares a manifest edge to `napi`, so there was no pinned edge to
+ * examine. The roster is also the only half that fires on the #1494 shape, where a
+ * brand-new BRIDGE and its brand-new TARGET are both absent: `violations()` needs
+ * `isLive(e.from)`, and a bridge that has never been published is not live. Only
+ * "existing published bridge + brand-new target" reports twice.
  *
  * This block used to say the opposite: that an incomplete release must NOT fail
  * here, because it "can only co-occur with an already-red publish job" and a second
@@ -90,13 +144,14 @@
  *
  * Usage:
  *   node scripts/verify-published-closure.mjs
+ *   node scripts/verify-published-closure.mjs --phase pre-release
  *   node scripts/verify-published-closure.mjs --version 0.27.1
  *   node scripts/verify-published-closure.mjs --registry http://127.0.0.1:5555
  *   node scripts/verify-published-closure.mjs --root <dir>   # a fixture tree
  *   node scripts/verify-published-closure.mjs --json
  */
 
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
@@ -108,11 +163,55 @@ import { createContext } from '../packages/infra/manifest-conformance/lib/contex
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org/';
 
 const argv = process.argv.slice(2);
-const flag = (name, fallback) => {
-    const i = argv.indexOf(name);
-    return i === -1 || i + 1 >= argv.length ? fallback : argv[i + 1];
-};
-const asJson = argv.includes('--json');
+
+/**
+ * EVERY ARGUMENT IS DECLARED, AND AN UNDECLARED ONE IS FATAL — because `--phase`
+ * selects the ASSERTIONS, so a parser that shrugs at a misspelling hands back the
+ * exact class this script exists to close. The refused-phase guard below only ever
+ * sees a wrong VALUE; three spellings never reached it at all and fell through to
+ * the post-release default. Measured 2026-09-03 on this tree with the previous
+ * `argv.indexOf(name)` helper: `--phase=pre-release`, a bare `--phase`, and
+ * `--phaze pre-release` each ran the POST-release assertions and exited 0 — a
+ * required pull-request check reporting green over the question #1500 refuted for a
+ * pull request, and one that would red-line `main` for the duration of every cut.
+ * A typo has to cost a red, not a phase.
+ *
+ * A value that itself looks like a flag is a MISSING value, not a value:
+ * `--attempts --json` would otherwise set attempts to `Number('--json')` — NaN,
+ * silently the default — and swallow the `--json` with it.
+ */
+const VALUE_ARGS = ['--phase', '--root', '--registry', '--version', '--concurrency', '--attempts', '--retry-delay-ms'];
+const BOOL_ARGS = ['--json'];
+const values = new Map();
+const argvProblems = [];
+for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    const eq = token.indexOf('=');
+    const name = eq === -1 ? token : token.slice(0, eq);
+    if (BOOL_ARGS.includes(name)) {
+        if (eq === -1) values.set(name, 'true');
+        else argvProblems.push(`${name} takes no value, got ${JSON.stringify(token)}.`);
+        continue;
+    }
+    if (!VALUE_ARGS.includes(name)) {
+        argvProblems.push(
+            `unknown argument ${JSON.stringify(token)}; expected one of ${[...VALUE_ARGS, ...BOOL_ARGS].join(', ')}.`,
+        );
+        continue;
+    }
+    const value = eq === -1 ? argv[++i] : token.slice(eq + 1);
+    if (value === undefined || value.startsWith('--')) argvProblems.push(`${name} needs a value.`);
+    else values.set(name, value);
+}
+const flag = (name, fallback) => values.get(name) ?? fallback;
+const asJson = values.has('--json');
+
+// An unrecognised phase is refused rather than defaulted: silently running the
+// post-release assertions on a pull request is the exact failure #1500 measured,
+// and a typo must not select it.
+const PHASES = ['post-release', 'pre-release'];
+const phase = String(flag('--phase', 'post-release'));
+const preRelease = phase === 'pre-release';
 
 const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = resolve(flag('--root', scriptRoot));
@@ -138,8 +237,21 @@ const fail = (msg) => {
  * next to the job's green check rather than behind it.
  */
 const warn = (msg) => {
-    console.log(inActions ? `::warning title=Release closure::${msg}` : `WARNING: ${msg}`);
+    const title = preRelease ? 'Pre-release npm bootstrap' : 'Release closure';
+    console.log(inActions ? `::warning title=${title}::${msg}` : `WARNING: ${msg}`);
 };
+
+// Reported here rather than at the parse loop above, which runs before `fail` exists.
+// Every finding, not the first: a reader fixing one typo should not have to re-run to
+// discover the next.
+if (argvProblems.length > 0) {
+    for (const p of argvProblems) fail(p);
+    process.exit(1);
+}
+if (!PHASES.includes(phase)) {
+    fail(`unknown --phase ${JSON.stringify(phase)}; expected one of ${PHASES.join(', ')}.`);
+    process.exit(1);
+}
 
 const rootManifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
 const version = String(flag('--version', rootManifest.version ?? ''));
@@ -170,6 +282,45 @@ const candidates = ctx.allPackages.filter(
 const repoByName = new Map(
     ctx.allPackages.filter((p) => typeof p.manifest.name === 'string').map((p) => [p.manifest.name, p]),
 );
+const candidateNames = new Set(candidates.map((p) => p.manifest.name));
+
+/**
+ * THE DECLARED-GAP LEDGER (header). Read `--root`-relative so a fixture tree
+ * carries its own and the whole composition — enumeration, probe, ledger — is
+ * exercisable without cutting a release. `scripts/check-shipped-runtime-packages.mjs`
+ * reads the SAME file: one ledger, two readers, because two ledgers overlapping on
+ * six names is the second copy that drifts.
+ *
+ * An absent file is an EMPTY ledger, not an error, and cannot produce a false
+ * green: an undeclared absence still fails, and the one rule the file enables —
+ * a listed name that IS published — exists to force the entry's deletion, which is
+ * what deleting the file does. What it must not do is pass QUIETLY, so the entry
+ * count and the path are printed on every run.
+ */
+const LEDGER_REL_PATH = join('status', 'pending-npm-bootstrap.json');
+const ledgerPath = join(repoRoot, LEDGER_REL_PATH);
+/** @type {Map<string, string>} name → the queued maintainer action. */
+const pending = new Map();
+if (existsSync(ledgerPath)) {
+    let ledger;
+    try {
+        ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));
+    } catch (err) {
+        fail(`${LEDGER_REL_PATH} does not parse: ${err instanceof Error ? err.message : String(err)}`);
+        process.exit(1);
+    }
+    if (!ledger.pending || typeof ledger.pending !== 'object') {
+        fail(`${LEDGER_REL_PATH} has no "pending" object — the ledger shape changed and nothing would be declared.`);
+        process.exit(1);
+    }
+    for (const [name, reason] of Object.entries(ledger.pending)) pending.set(name, String(reason ?? ''));
+}
+/**
+ * A declared gap is only honoured PRE-RELEASE (header, A RELEASE DOES NOT GET TO
+ * DECLARE ITS OWN GAP). Post-release this is always false, so the ledger cannot
+ * silence a release that shipped a bridge pinning a name nobody bootstrapped.
+ */
+const expectedAbsent = (name) => preRelease && pending.has(name);
 
 /**
  * What pack time will write into the PUBLISHED manifest for this spec.
@@ -275,7 +426,12 @@ async function probe(name) {
         if (res.status === 404) return false;
         if (!res.ok) return new Error(`${res.status} ${res.statusText}`);
         const doc = await res.json();
-        return Boolean(doc?.versions && Object.hasOwn(doc.versions, version));
+        if (!doc?.versions) return false;
+        // THE PHASE'S ONE REGISTRY PREDICATE (header). Post-release: this exact
+        // version, because that is what the release claims to have published.
+        // Pre-release: the NAME exists at all, because the train version is
+        // unpublished by construction and asking for it makes every cut red.
+        return preRelease ? Object.keys(doc.versions).length > 0 : Object.hasOwn(doc.versions, version);
     } catch (err) {
         return err instanceof Error ? err : new Error(String(err));
     }
@@ -307,15 +463,31 @@ const isLive = (name) => state.get(name) === true;
  */
 const isAbsent = (name) => state.get(name) === false;
 const probeErrors = () => candidates.filter((p) => state.get(p.manifest.name) instanceof Error);
-/** A pinned edge is violated when its parent IS live and its target is CONFIRMED absent. */
-const violations = () => pinnedEdges.filter((e) => isLive(e.from) && isAbsent(e.to));
+/**
+ * A pinned edge is violated when its parent IS live and its target is CONFIRMED
+ * absent — and, pre-release, was not DECLARED absent, because the point of the
+ * ledger is that a queued bootstrap is a known cost rather than a finding. It is
+ * still reported, as a note; see `notes` below.
+ */
+const violations = () => pinnedEdges.filter((e) => isLive(e.from) && isAbsent(e.to) && !expectedAbsent(e.to));
+/** Absences nobody declared — the ones a retry round might still turn into a `true`. */
+const unexpectedlyAbsent = () =>
+    candidates.filter((p) => isAbsent(p.manifest.name) && !expectedAbsent(p.manifest.name));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 await probeAll(candidates.map((p) => p.manifest.name));
 for (let round = 2; round <= attempts; round++) {
     const liveCount = candidates.filter((p) => isLive(p.manifest.name)).length;
-    if (violations().length === 0 && probeErrors().length === 0 && liveCount > 0) break;
+    // `unexpectedlyAbsent()` is in the condition, not just `violations()`: an absent
+    // package with no incoming edge fails the ROSTER and appears in neither the
+    // violation nor the error set, so without it a CDN answer minted before a
+    // publish became a verdict on the first round. It matters most where a false red
+    // is most expensive — pre-release this is a REQUIRED check on every PR. A
+    // DECLARED absence is excluded, so a queued bootstrap costs no rounds at all.
+    if (violations().length === 0 && probeErrors().length === 0 && unexpectedlyAbsent().length === 0 && liveCount > 0) {
+        break;
+    }
     // Re-query only what came back absent or errored — a present version never
     // becomes absent, so the rest of the answer is already final.
     const retry = candidates.map((p) => p.manifest.name).filter((n) => state.get(n) !== true);
@@ -333,6 +505,21 @@ const live = candidates.filter((p) => isLive(p.manifest.name)).map((p) => p.mani
 const notLive = candidates.filter((p) => isAbsent(p.manifest.name)).map((p) => p.manifest.name);
 const errored = probeErrors().map((p) => ({ name: p.manifest.name, error: String(state.get(p.manifest.name)) }));
 const bad = violations();
+/** Pre-release only; post-release `expectedAbsent` is false, so this is `notLive`. */
+const absentUndeclared = notLive.filter((n) => !expectedAbsent(n));
+const absentDeclared = notLive.filter((n) => expectedAbsent(n));
+/**
+ * The ledger's BIDIRECTIONAL arm and its two category errors. Held here rather than
+ * in the ship-runtime reader because this is the enumeration that sees the whole
+ * tree — the earlier draft's arm looped over two families, and a
+ * declared-and-published name outside them passed forever (header).
+ */
+const ledgerStale = preRelease ? [...pending.keys()].filter((n) => isLive(n)) : [];
+const ledgerForeign = preRelease ? [...pending.keys()].filter((n) => !repoByName.has(n)) : [];
+const ledgerUnpublishable = preRelease
+    ? [...pending.keys()].filter((n) => repoByName.has(n) && !candidateNames.has(n))
+    : [];
+const ledgerReasonless = preRelease ? [...pending].filter(([, why]) => why.trim() === '').map(([n]) => n) : [];
 /**
  * EXAMINED means resolved to a definite answer, not merely "looked at": parent
  * confirmed live AND the target's probe came back live or 404. An edge whose target
@@ -355,11 +542,32 @@ if (errored.length > 0) {
 // answered: with an unanswered probe, "nothing is live" and "the release is
 // complete" are both unknowable, and stating either would replace a missing signal
 // with a wrong one. The probe-error problem above already fails the job.
-if (errored.length === 0 && live.length === 0) {
+// PHASE-DEPENDENT (header, THE POSITIVE-FACT RULE § 1). "This release published
+// nothing" is a statement about a COMPLETED release; pre-release it is the normal
+// state of a train that has not been cut, and asserting it there is one of the
+// three consequences #1500 measured. The roster below carries the weight instead,
+// and it has to say something either way: 209 undeclared absences is as red as one.
+if (!preRelease && errored.length === 0 && live.length === 0) {
     problems.push(
         `0 of ${candidates.length} candidate package(s) are on ${registry} at ${version} — this release published ` +
             'NOTHING. Nothing on npm is broken; the closure check simply verified nothing, and a check that verified ' +
             'nothing must not report success.',
+    );
+}
+// PRE-RELEASE'S FORM OF THE SAME RULE, and it needs its own: post-release the floor
+// is "the release published something", which pre-release is never. The header leaned
+// on the roster to carry that weight, and the roster only fires on an UNDECLARED
+// absence — so declaring every name went quiet, printed a NOTHING VERIFIED verdict and
+// exited 0 having confirmed no name at all. Measured 2026-09-03 before this assertion.
+// The ledger buys time for a queued publish; it does not get to become the answer to
+// the whole question. Unreachable any other way: an undeclared absence already fails
+// the roster above, and an unanswered probe already fails as no evidence.
+if (preRelease && errored.length === 0 && live.length === 0) {
+    problems.push(
+        `not one of ${candidates.length} publishable name(s) was confirmed on ${registry}, so this run verified ` +
+            `NOTHING — ${absentDeclared.length} are declared pending bootstrap and the rest are absent. A declared ` +
+            'gap is an escape hatch for one queued publish, not for the question this check asks: at least one name ' +
+            'has to answer, or neither the enumeration nor the registry was examined at all.',
     );
 }
 if (pinnedEdges.length === 0) {
@@ -402,10 +610,19 @@ if (undecidableEdges.length > 0) {
 }
 if (bad.length > 0) {
     problems.push(
-        `${bad.length} pinned dependency/dependencies of PUBLISHED package(s) do not resolve at ${version}. npm ` +
-            'skips an unresolvable optionalDependency in SILENCE, so consumers install the new bridge with no ' +
-            'binary behind it. Re-run the release workflow: `gjsify publish --tolerate-republish` makes a re-run a ' +
-            'no-op for what already landed and publishes the rest.',
+        `${bad.length} pinned dependency/dependencies of PUBLISHED package(s) do not resolve` +
+            `${preRelease ? '' : ` at ${version}`}. npm skips an unresolvable optionalDependency in SILENCE, so ` +
+            'consumers install the new bridge with no binary behind it. ' +
+            // The remediation is the one thing that CANNOT be shared. "Re-run the
+            // release workflow" is not advice a contributor on a pull request can
+            // take, and #1500's second measured consequence was a message that sent
+            // the reader after an edge on the path where there is none.
+            (preRelease
+                ? 'Bootstrap the target BEFORE the bridge — that order is a correctness property, not a style ' +
+                  'preference — or declare it in `status/pending-npm-bootstrap.json` with the queued action. ' +
+                  'Procedure: docs/publishing.md § New `@gjsify/*` package.'
+                : 'Re-run the release workflow: `gjsify publish --tolerate-republish` makes a re-run a no-op for ' +
+                  'what already landed and publishes the rest.'),
     );
 }
 /**
@@ -438,15 +655,72 @@ if (bad.length > 0) {
  * jobs own are exactly the ones that can go missing and exactly the ones those
  * globs cannot see.
  */
-if (errored.length === 0 && live.length > 0 && notLive.length > 0) {
+const nameList = (names) => `${names.slice(0, 20).join(', ')}${names.length > 20 ? `, … (+${names.length - 20})` : ''}`;
+
+if (!preRelease && errored.length === 0 && live.length > 0 && notLive.length > 0) {
     problems.push(
         `${notLive.length} of ${candidates.length} package(s) this train meant to publish are NOT on ${registry} ` +
-            `at ${version}: ${notLive.slice(0, 20).join(', ')}${notLive.length > 20 ? `, … (+${notLive.length - 20})` : ''}` +
+            `at ${version}: ${nameList(notLive)}` +
             `. Each one declares ${version} in its own manifest, so the ` +
             'release intended to publish it. A package with no incoming manifest edge (`@gjsify/napi`, ' +
             '`@gjsify/node-gi`, the `@gjsify/gtk-runtime-*` bundles) has its own publish job as its ONLY guard, ' +
             'and a skipped job is neither red nor examined. Re-run the release workflow: `gjsify publish ' +
             '--tolerate-republish` no-ops for what already landed and publishes the rest.',
+    );
+}
+
+/**
+ * THE PRE-RELEASE ROSTER, and the ledger's four rules. The question is BOOTSTRAP
+ * state, not release completeness: does the npm name exist at all, so that the
+ * release's OIDC exchange has something to publish to? `--tolerate-untrusted-new`
+ * makes the answer invisible at release time — an unbootstrapped name returns
+ * `{ok: true, action: 'skipped-untrusted-new'}` and the sweep stays GREEN with the
+ * name simply absent, announced by one `~` line in a log carrying one line per
+ * published package — and npm then skips the unresolvable edge at install time.
+ * Three silent layers, so the report has to arrive before any of them.
+ */
+if (preRelease && errored.length === 0 && absentUndeclared.length > 0) {
+    problems.push(
+        `${absentUndeclared.length} of ${candidates.length} publishable name(s) do not exist on ${registry} and ` +
+            `nothing declares that: ${nameList(absentUndeclared)}. npm Trusted Publishing cannot CREATE a package ` +
+            '— OIDC requires the name to already exist — so the first publish is a manual maintainer action needing ' +
+            'a publish credential and an OTP, which CI does not have. Until it happens the release publishes GREEN ' +
+            'with the name missing (`--tolerate-untrusted-new`), and npm then skips the unresolvable edge at install ' +
+            'time in silence. Bootstrap it (docs/publishing.md § New `@gjsify/*` package: `gjsify publish <dir> ' +
+            '--access public --otp <code>`, then `gjsify trust <name>`, TARGET before BRIDGE), or declare it in ' +
+            `${LEDGER_REL_PATH} with the queued action — that is the "or queued as the next maintainer action" ` +
+            'branch of the policy, and the entry has to be deleted again the moment the name goes live.',
+    );
+}
+if (ledgerStale.length > 0) {
+    problems.push(
+        `${LEDGER_REL_PATH} still lists ${nameList(ledgerStale)}, which IS on ${registry}. The bootstrap is done — ` +
+            'delete the entry. This arm is what keeps the ledger from rotting into a permanent exemption, and it is ' +
+            'held HERE rather than in `check-shipped-runtime-packages.mjs` because this is the reader that ' +
+            'enumerates the whole tree: an earlier draft looped over two package families, so a ' +
+            'declared-and-published name outside them was never re-examined and passed with exit 0 forever (#1500).',
+    );
+}
+if (ledgerForeign.length > 0) {
+    problems.push(
+        `${LEDGER_REL_PATH} lists ${nameList(ledgerForeign)}, which this repository does not contain. A ledger entry ` +
+            'is a queued publish of OUR package; a name nothing here builds can never be cleared and would sit ' +
+            'forever. Remove it, or fix the spelling.',
+    );
+}
+if (ledgerUnpublishable.length > 0) {
+    problems.push(
+        `${LEDGER_REL_PATH} lists ${nameList(ledgerUnpublishable)}, which this repository contains but no release ` +
+            `publishes — it is \`private\`, or its manifest is not on the train at ${version}. "Not published yet" ` +
+            'is not a queued action there but a category error, and the entry would never clear. Put the package on ' +
+            'the train, or drop the entry.',
+    );
+}
+if (ledgerReasonless.length > 0) {
+    problems.push(
+        `${LEDGER_REL_PATH} lists ${nameList(ledgerReasonless)} with an empty reason. The value is the queued action ` +
+            'and who owns it; an entry without one is an exemption, which is the thing this ledger is shaped to ' +
+            'refuse.',
     );
 }
 
@@ -466,24 +740,64 @@ const notes = [];
 // Removed rather than left as dead reassurance; `verdict` still carries a
 // NOTHING VERIFIED branch for any path that reaches zero examined edges without a
 // problem, which is the honest thing to print if one is ever found.
+//
+// A DECLARED GAP IS NOT A FINDING BUT IT IS NOT NOTHING EITHER: the release that
+// ships while an entry stands publishes a name-shaped hole, and post-release the
+// ledger is ignored, so that release goes red. Every pull request and every push to
+// `main` therefore carries the reminder next to its green check.
+if (absentDeclared.length > 0) {
+    notes.push(
+        `${absentDeclared.length} name(s) are declared pending bootstrap in ${LEDGER_REL_PATH} and are absent from ` +
+            `${registry}, as declared: ${nameList(absentDeclared)}. That is the policy's "queued as the next ` +
+            'maintainer action" branch, not a pass — it needs a publish credential and an OTP, and the NEXT release ' +
+            'is red on it: the post-release phase ignores this ledger deliberately, because a release does not get ' +
+            'to declare its own gap.',
+    );
+}
+const pinnedByDeclared = pinnedEdges.filter((e) => isLive(e.from) && expectedAbsent(e.to));
+if (pinnedByDeclared.length > 0) {
+    notes.push(
+        `${pinnedByDeclared.length} release-pinned edge(s) point at a name declared pending bootstrap, so the cost ` +
+            'of the queued action is a SILENT one: npm skips an unresolvable optionalDependency without an error, ' +
+            `and the consumer installs the bridge with nothing behind it. ${pinnedByDeclared
+                .slice(0, 5)
+                .map((e) => `${e.from} → ${e.block}.${e.to}`)
+                .join('; ')}.`,
+    );
+}
 
 /** One sentence a human can read off the summary table without decoding counts. */
 const verdict =
     problems.length > 0
         ? `**FAILED** — ${problems.length} problem(s); see the caution(s) above`
-        : examined.length === 0
-          ? '**NOTHING VERIFIED** — no edge was examined; see the warning above'
-          : `**OK** — all ${examined.length} examined edge(s) resolve`;
+        : preRelease
+          ? // Pre-release the SUBJECT is names, not edges — an examinable edge needs a
+            // live parent, and a tree whose new bridge is not published yet legitimately
+            // has none. Reusing the edge-based branch here reported NOTHING VERIFIED
+            // over a run that had confirmed every name it was asked about. A
+            // `live.length === 0` branch stood here too; the positive-fact assertion
+            // above now FAILS that state, so it cannot be reached without a problem and
+            // its verdict is `FAILED`. Dead reassurance is the thing this file removes.
+            `**OK** — ${live.length} publishable name(s) exist on npm` +
+            `${absentDeclared.length > 0 ? `, ${absentDeclared.length} declared pending` : ''}` +
+            `; ${examined.length} examined edge(s) resolve`
+          : examined.length === 0
+            ? '**NOTHING VERIFIED** — no edge was examined; see the warning above'
+            : `**OK** — all ${examined.length} examined edge(s) resolve`;
 
 if (asJson) {
     console.log(
         JSON.stringify(
             {
+                phase,
                 version,
                 registry,
                 candidates: candidates.length,
                 live: live.length,
                 notLive,
+                absentUndeclared,
+                absentDeclared,
+                pending: Object.fromEntries(pending),
                 errored,
                 edges: { total: edges.length, pinned: pinnedEdges.length, examined: examined.length },
                 undecidableEdges,
@@ -495,6 +809,50 @@ if (asJson) {
             2,
         ),
     );
+} else if (preRelease) {
+    // A DIFFERENT HEADLINE for a different question, because the counts are only
+    // readable next to the question they answer. "live at 0.46.0: 209" and "the name
+    // exists: 209" are the same integer about two different facts, and the one thing
+    // this file may not do is let a reader mistake one for the other.
+    console.log(`Pre-release npm bootstrap check — ${registry} (root ${repoRoot}, train at ${version})`);
+    console.log(`  publishable names (non-private, on the train): ${candidates.length}`);
+    console.log(`  existing on the registry (any version):        ${live.length}`);
+    console.log(
+        `  release-pinned intra-repo edges examined:      ${examined.length} ` +
+            `(${byBlock(examined, 'optionalDependencies')} optionalDependencies, ${byBlock(examined, 'dependencies')} dependencies)`,
+    );
+    console.log(`  declared pending bootstrap (${LEDGER_REL_PATH}): ${pending.size}`);
+    for (const [name, why] of pending) console.log(`    pending: ${name} — ${why}`);
+    if (absentUndeclared.length > 0) {
+        console.log(
+            `  ABSENT and undeclared (${absentUndeclared.length}): ${absentUndeclared.slice(0, 12).join(', ')}` +
+                `${absentUndeclared.length > 12 ? ', …' : ''}`,
+        );
+    }
+    for (const e of errored) console.error(`  probe failed: ${e.name} — ${e.error}`);
+    for (const e of undecidableEdges) {
+        console.error(
+            `  UNDECIDABLE EDGE: ${e.from}@${version} → ${e.block}.${e.to} = ${JSON.stringify(e.spec)} — ${e.why}.`,
+        );
+    }
+    for (const e of bad) {
+        console.error(`  UNRESOLVABLE: ${e.from} → ${e.block}.${e.to} does NOT exist on the registry`);
+    }
+    for (const p of problems) fail(p);
+    for (const n of notes) warn(n);
+    if (problems.length === 0) {
+        console.log(
+            `Every one of ${live.length} publishable name(s) exists on npm` +
+                `${pending.size > 0 ? ` (${pending.size} declared pending)` : ''}, and ` +
+                // "all 0 edge(s) resolve" is a success claim over an empty set, which is
+                // the one sentence this file may not print. Say which question was
+                // actually answered instead.
+                (examined.length > 0
+                    ? `all ${examined.length} release-pinned dependency edge(s) resolve.`
+                    : 'NO release-pinned edge was examinable — every pinned parent is absent — so this run ' +
+                      'verified names only.'),
+        );
+    }
 } else {
     console.log(`Release closure check — ${registry} at ${version} (root ${repoRoot})`);
     console.log(`  candidate packages (non-private, on the train): ${candidates.length}`);
@@ -533,7 +891,7 @@ if (asJson) {
 
 const summaryPath = process.env.GITHUB_STEP_SUMMARY;
 if (summaryPath) {
-    const lines = ['## Published dependency closure', ''];
+    const lines = [preRelease ? '## Pre-release npm bootstrap' : '## Published dependency closure', ''];
     // ALERTS FIRST, above the table: a count is not a finding, and `Pinned edges
     // examined | 0` with nothing beside it reads as a pass — the rendering the most
     // likely partial release produces. CAUTION for what failed the job, WARNING for
@@ -545,8 +903,14 @@ if (summaryPath) {
         '|---|---|',
         `| Registry | \`${registry}\` |`,
         `| Version | \`${version}\` |`,
-        `| Candidate packages | ${candidates.length} |`,
-        `| Live at this version | ${live.length} |`,
+        preRelease ? `| Publishable names | ${candidates.length} |` : `| Candidate packages | ${candidates.length} |`,
+        preRelease ? `| Existing on npm | ${live.length} |` : `| Live at this version | ${live.length} |`,
+        ...(preRelease
+            ? [
+                  `| Declared pending bootstrap | ${pending.size} |`,
+                  `| Absent and undeclared | ${absentUndeclared.length} |`,
+              ]
+            : []),
         `| Pinned edges examined | ${examined.length} |`,
         `| Unresolvable edges | ${bad.length} |`,
         `| Undecidable edges | ${undecidableEdges.length} |`,
@@ -557,10 +921,18 @@ if (summaryPath) {
     );
     if (bad.length > 0) {
         lines.push('### Unresolvable pinned dependencies', '');
-        for (const e of bad) lines.push(`- \`${e.from}@${version}\` → \`${e.block}.${e.to}@${version}\` (missing)`);
+        for (const e of bad) {
+            lines.push(
+                preRelease
+                    ? `- \`${e.from}\` → \`${e.block}.${e.to}\` (the NAME does not exist on npm)`
+                    : `- \`${e.from}@${version}\` → \`${e.block}.${e.to}@${version}\` (missing)`,
+            );
+        }
         lines.push(
             '',
-            'A re-run of `release.yml` is the recovery path: `gjsify publish --tolerate-republish` no-ops for what already landed.',
+            preRelease
+                ? 'Bootstrap the target before the bridge (`docs/publishing.md` § New `@gjsify/*` package), or declare it in `status/pending-npm-bootstrap.json`.'
+                : 'A re-run of `release.yml` is the recovery path: `gjsify publish --tolerate-republish` no-ops for what already landed.',
             '',
         );
     }

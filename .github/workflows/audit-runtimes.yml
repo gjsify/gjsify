@@ -272,6 +272,28 @@ jobs:
       - name: Check by-name ship runtime packages exist on npm
         run: node scripts/check-shipped-runtime-packages.mjs
 
+      # The step above covers TWO hardcoded families. Every OTHER publishable name —
+      # 209 of them, including the `optionalDependencies` platform targets of 13 split
+      # bridges — had its only pre-release guard in a pull-request body. #1494 added
+      # `@gjsify/webview2-native` plus its win32-x64 target; npm Trusted Publishing
+      # cannot CREATE a name (OIDC requires it to exist), nothing in the tree asked for
+      # the manual first publish, and it happened because a human remembered.
+      #
+      # This is the SAME script and the same enumeration as `verify-release-closure` in
+      # release.yml, one round earlier — not a second checker. Its detection was never
+      # missing, only late: that job sits after the tag and the release record, the
+      # shape `status/sections/priorities.md` § 2 calls out as reading identically to a
+      # check that passed. The phase selects the ASSERTIONS, not the wording — the
+      # registry predicate relaxes to "the NAME exists" and the
+      # `status/pending-npm-bootstrap.json` ledger keeps the policy's "or queued as the
+      # next maintainer action" branch alive. Running the post-release assertions on a
+      # pull request was drafted and refuted with measurements in #1500. Reasoning and
+      # remediation live in the script header and docs/publishing.md, which is where a
+      # check can read them; a load-bearing claim in a workflow comment is held by
+      # nothing.
+      - name: Check every publishable npm name is bootstrapped
+        run: node scripts/verify-published-closure.mjs --phase pre-release
+
       # Starlight lays out `.sl-markdown-content` as prose: every element FOLLOWING a
       # sibling gets `margin-top: 1rem` unless it is under `.not-content`. On a widget
       # that reads as anything but a margin bug: a gallery card's first button 8px

@@ -29,17 +29,38 @@
 // package OF THIS WORKSPACE — these three are, which is why it passes. The registry is
 // a different question and nothing was asking it.
 //
-// `verify-published-closure.mjs` cannot see them either, and says so: these packages
-// carry NO `optionalDependencies` edge (#910, reverted in #920 — whoever SHIPS an app
-// declares the runtime, never the library that uses it), so there is no edge to walk.
-// Its package set comes from manifest-conformance's `createContext`, which enumerates
-// the root `workspaces` — 317 packages, none of them these six, because
-// `packages/node-runtime/**` and `packages/node-gi/gtk-runtime-*` are deliberately NOT
-// workspace members (that is what keeps the ubuntu `npm:publish` sweep from overwriting
-// a real bundle with an empty shell, the 0.19.0 incident). Both exclusions are correct.
-// The consequence is that the ONLY guard on this family was "their own publish jobs" —
-// and a publish job reports at release time, on the release, which is the latest
-// possible moment and the most expensive one.
+// `verify-published-closure.mjs`'s EDGE arm cannot see them, and that half stands:
+// these packages carry NO `optionalDependencies` edge (#910, reverted in #920 — whoever
+// SHIPS an app declares the runtime, never the library that uses it), so there is no
+// edge to walk. `packages/node-runtime/**` and `packages/node-gi/gtk-runtime-*` are
+// also deliberately NOT root workspace members, which is what keeps the ubuntu
+// `npm:publish` sweep from overwriting a real bundle with an empty shell (the 0.19.0
+// incident), and a workspaces-derived roster therefore contains none of these six.
+//
+// WHAT THIS BLOCK USED TO SAY AND GOT WRONG: that the closure script's package set is
+// the root `workspaces`. It is not — it passes `discoveryRoots: ['packages']`, with its
+// own comment saying why (`packages/napi/*` and `packages/node-gi/*` are exactly the
+// packages those globs drop), so all six ARE in its candidate set and its ROSTER arm
+// does ask the registry about them. Measured 2026-09-03: 209 publishable candidates
+// under `discoveryRoots`, these six among them, against 199 from the root `workspaces`
+// globs with none of them. Corrected here rather than deleted, because the claim is why
+// this file exists and a wrong premise is what gets a duplicate check written next.
+//
+// COMPARE THE SAME QUANTITY. The first spelling of that correction put the 209 next to
+// 319, which is the globs' TOTAL package count and not their candidate count (331 under
+// `discoveryRoots`) — two different questions, reading as ~110 packages dropped where 10
+// candidates are. A live count in a comment drifts unseen anyway, which is how the claim
+// this block replaced came to say 317: root AGENTS.md § Code anti-patterns asks for what
+// the number establishes, and what these establish is that the SIX are candidates there
+// and are absent from any workspaces-derived roster.
+//
+// The rule that survives is narrower and still load-bearing: until #1500 the closure
+// script ran ONLY at the end of `release.yml`, so its roster reported at release time,
+// on the release — the latest possible moment and the most expensive one. Its
+// `--phase pre-release` half now runs on every pull request beside this check. What
+// this file still owns alone is the DISCLOSURE obligation: whether the docs an outside
+// author copies from say a name is unpublished. No phase of the closure script reads
+// prose.
 //
 // WHAT IT CHECKS
 //
@@ -57,11 +78,13 @@
 //  4. THE REGISTRY. Each name must have a packument. Absence is re-queried a few times
 //     before it becomes a verdict (npm's CDN can serve a document minted before a
 //     publish), and a probe that ERRORS is a failure naming the target, never a skip.
-//  5. THE DECLARED GAP. A name that is absent must be listed in `PENDING_BOOTSTRAP`
-//     below, and every file that declares a dependency on it must disclose that it is
-//     not published yet. The ledger is bidirectional on purpose: a declared name that
-//     IS published is also a failure, so the list empties itself the moment the owner
-//     bootstraps and cannot rot into a permanent exemption.
+//  5. THE DECLARED GAP. A name that is absent must be listed in the shared ledger
+//     `status/pending-npm-bootstrap.json`, and every file that declares a dependency
+//     on it must disclose that it is not published yet. The ledger is bidirectional on
+//     purpose: a declared name that IS published is also a failure, so the list empties
+//     itself the moment the owner bootstraps and cannot rot into a permanent exemption.
+//     The DISCLOSURE half is this reader's alone; the ledger's whole-tree rules belong
+//     to `verify-published-closure.mjs --phase pre-release`, which sees every package.
 //
 // The disclosure rule is the half that makes the docs true. `docs/ship-formats.md`
 // already carried the warning; `website/src/content/docs/ship/index.mdx`, the page an
@@ -104,13 +127,45 @@ const retryDelayMs = Math.max(0, Number(flag('--retry-delay-ms', '5000')) || 0);
 //
 // REMOVING an entry is the last step of that bootstrap, and rule 5 forces it: once the
 // packument exists, a stale entry here FAILS this check.
+//
+// THE LEDGER IS A FILE, AND THIS IS THE SECOND OF ITS TWO READERS. It used to be an
+// inline Map here, which was fine while these two families were the only names anyone
+// checked. `verify-published-closure.mjs --phase pre-release` now asks the same
+// bootstrap question about all 209 publishable names, and these six are a SUBSET of
+// those — two inline lists overlapping on six names is the second copy that drifts,
+// and the drifted copy is the one an agent reads. So: one file, two readers, and this
+// reader adds the rule the other cannot — the DISCLOSURE obligation in the docs a
+// third-party author copies from.
+//
+// The whole-tree assertions on the ledger (a name this repository does not contain, a
+// name no release publishes, an entry with no reason) belong to that other reader,
+// which enumerates all 331 packages; this one sees two directories and must not
+// pretend otherwise. Which is exactly the hole measured on an earlier draft: a
+// bidirectional arm that loops over two families leaves a declared-and-published name
+// outside them un-re-examined forever (#1500).
 // ---------------------------------------------------------------------------
-const PENDING_BOOTSTRAP = new Map([
-    // Empty, and that is the point rather than an oversight. Every by-name ship
-    // runtime package went live at 0.44.0 on 2026-08-30, and a name published while
-    // still listed here FAILS the check -- so this list empties itself on bootstrap
-    // instead of rotting into a permanent exemption nobody rereads.
-]);
+const LEDGER_REL_PATH = 'status/pending-npm-bootstrap.json';
+
+/** @returns {Map<string, string>} every entry in the shared ledger, name → reason. */
+function readLedger() {
+    const abs = join(ROOT, LEDGER_REL_PATH);
+    if (!existsSync(abs)) {
+        fail(`${LEDGER_REL_PATH} is missing. The declared-gap ledger is tracked; an absent file declares nothing.`);
+        return new Map();
+    }
+    let parsed;
+    try {
+        parsed = JSON.parse(readFileSync(abs, 'utf8'));
+    } catch (err) {
+        fail(`${LEDGER_REL_PATH} does not parse: ${err.message}`);
+        return new Map();
+    }
+    if (!parsed.pending || typeof parsed.pending !== 'object') {
+        fail(`${LEDGER_REL_PATH} has no "pending" object — the ledger shape changed and nothing would be declared.`);
+        return new Map();
+    }
+    return new Map(Object.entries(parsed.pending).map(([name, why]) => [name, String(why ?? '')]));
+}
 
 // A file that declares a dependency on a pending name must contain one of these.
 // Prose, not a machine marker: the sentence a reader needs IS the disclosure, and a
@@ -171,6 +226,13 @@ for (const family of families) {
 }
 
 const all = families.flatMap((f) => f.packages);
+
+// The shared ledger, NARROWED to what this check is responsible for. An entry for
+// any other publishable name is legitimate and is held by
+// `verify-published-closure.mjs --phase pre-release`; treating it as a finding here
+// would make a correct declaration fail the wrong check.
+const PENDING_BOOTSTRAP = new Map([...readLedger()].filter(([name]) => all.some((p) => p.name === name)));
+
 if (problems.length > 0) report();
 
 // ---------------------------------------------------------------------------
@@ -371,7 +433,7 @@ for (const pkg of all) {
         // three `@gjsify/node-runtime-*` names published while still listed.
         dependencySitesSeen += dependencySites(pkg.name).length;
         fail(
-            `${pkg.name} IS published, but PENDING_BOOTSTRAP still lists it. ` +
+            `${pkg.name} IS published, but ${LEDGER_REL_PATH} still lists it. ` +
                 'The bootstrap is done — delete the entry and the disclosure it obliged. ' +
                 'A stale entry turns a finished action into a permanent exemption.',
         );
@@ -382,8 +444,8 @@ for (const pkg of all) {
         fail(
             `${pkg.name} does not exist on npm (${registry} answered 404) and nothing declares that. ` +
                 'The ship pipeline resolves it BY NAME, so an outside author following our docs hits E404. ' +
-                'Either bootstrap it (docs/publishing.md § New @gjsify/* package) or add it to ' +
-                'PENDING_BOOTSTRAP and disclose it wherever the docs recommend depending on it.',
+                `Either bootstrap it (docs/publishing.md § New @gjsify/* package) or add it to ` +
+                `${LEDGER_REL_PATH} and disclose it wherever the docs recommend depending on it.`,
         );
         continue;
     }
@@ -406,18 +468,18 @@ for (const pkg of all) {
 // IS pending: once the list empties, having no sites is the correct state.
 if (PENDING_BOOTSTRAP.size > 0 && dependencySitesSeen === 0) {
     fail(
-        'no documentation file declares a dependency on any PENDING_BOOTSTRAP name. ' +
-            'Either the docs stopped recommending them (then empty PENDING_BOOTSTRAP) or the ' +
+        `no documentation file declares a dependency on any name ${LEDGER_REL_PATH} lists for these two ` +
+            'families. Either the docs stopped recommending them (then clear those entries) or the ' +
             'dependency-line pattern no longer matches — the disclosure rule is checking nothing.',
     );
 }
 
-// Names listed as pending that are not packages of this repo at all.
-for (const name of PENDING_BOOTSTRAP.keys()) {
-    if (!all.some((p) => p.name === name)) {
-        fail(`PENDING_BOOTSTRAP lists ${name}, which this repository does not contain. Remove it.`);
-    }
-}
+// A rule for "listed as pending but not a package of this repository" used to sit
+// here. It became unreachable when the ledger became shared and this reader narrowed
+// its view to its own two families: every surviving entry is one of `all` by
+// construction. Deleted rather than left as dead reassurance — and the assertion
+// itself is not lost, it moved to the reader that can actually make it, which
+// enumerates the whole tree instead of two directories.
 
 report();
 
