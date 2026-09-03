@@ -356,8 +356,8 @@ const NS_WIDGET_ALIGNMENT = {
 /**
  * The React Native surface's divergences — empty, and that is a measurement.
  *
- * Both widgets `@gjsify/adwaita-react-native` ships, `AdwBin` and `AdwClamp`, already
- * share a spelling with a GTK tag, so there is nothing to declare. The table exists
+ * Every widget `@gjsify/adwaita-react-native` ships already
+ * shares a spelling with a GTK tag, so there is nothing to declare. The table exists
  * anyway because the rules below run over it: the first widget added there under a name
  * that is not its GType's fails HERE, on the day it is added, which is the state the
  * NativeScript port never had. Same four kinds as `NS_WIDGET_ALIGNMENT`, same reasons.

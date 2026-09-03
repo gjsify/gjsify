@@ -4438,32 +4438,6 @@ has that floor one block up (`[ "$ROWS" -gt 0 ] || fail …`); `Component` has n
 Deliberately not fixed in the audit that found it — the release was being cut, and a
 shell edit to a gating oracle is exactly the change whose cost cannot be priced in time.
 
-### The registry gate's vacuity control fires on the transition it exists for
-
-`scripts/check-shipped-runtime-packages.mjs` ends with a control asserting that the
-disclosure rule has a subject: if `PENDING_BOOTSTRAP` is non-empty and
-`dependencySitesSeen === 0`, it reports that "the dependency-line pattern no longer
-matches". `dependencySitesSeen` is only incremented on the `live === false && declared`
-branch — the `live === true && declared` branch fails and `continue`s above it. So when a
-pending name is PUBLISHED, which is the one transition the bidirectional ledger exists to
-catch, the control fires as well and blames the regex.
-
-It is a false positive, measured against the tree it accused at the time:
-
-    dependency-line regex matches index.mdx: true
-    DISCLOSURE present in index.mdx: true
-
-Observed live: with all three `@gjsify/node-runtime-*` names published and still listed,
-the gate reported four problems, of which three were real and the fourth was this. The
-cost is not a wrong verdict — the check is correctly red either way — it is a maintainer
-sent to debug a working regex while the actual instruction ("delete the entry") sits three
-lines above.
-
-The repair is one line: count sites on the published-and-declared branch too, before the
-`continue`. Left open rather than applied for the same reason as the entry above, and
-because #1427 emptied the ledger, so the control is dormant until the next bootstrap —
-which is precisely when someone will meet it cold.
-
 ### An in-repo `path:line` citation is checked by nothing
 
 `scripts/check-refs-citations.mjs` holds every `refs/<submodule>/<path>` cited as provenance

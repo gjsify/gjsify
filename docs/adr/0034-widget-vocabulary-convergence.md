@@ -854,6 +854,13 @@ applied to the 45) that a translator would need next.
   naming them from the GIR there is not a rename, it is the first naming. Reading this
   bullet as "gjsify does not rename widgets" would be reading a measurement as a
   principle.
+
+  > **Superseded on 2026-08-30**: the package published that morning, and it has grown
+  > well past two widgets since. The sentence is left as written for the same reason the
+  > table above is — it records the premise this rejection rested on, and deleting the
+  > premise deletes the correction. What does NOT survive the move is the conclusion:
+  > the surface has now paid the cost this bullet says it had not, so "not a rename, the
+  > first naming" no longer licenses one. Its own widget table is the live set.
 - **A `tsc` structural conformance check of the surfaces' classes against `@girs/*`.**
   *An earlier draft rejected this on venue — "the gate job installs nothing" — and that is
   true of `audit-runtimes.yml`'s `check:` job and false as an argument, because the venue
@@ -950,7 +957,7 @@ under which the free adoption stays free.
 
 | # | stage | surface | breaks | what goes red if it is wrong |
 |---|---|---|---|---|
-| 1 | Adopt all three clauses on `@gjsify/adwaita-react-native` **before its first publish**: export `Adw`, add the (empty) ledger, wire the reader. Two widgets, both already correctly named. | RN | nothing — 0 published versions, 0 in-repo consumers outside the package | a third widget whose name is not its GType's; a widget absent from the namespace object; a namespace member with no widget behind it |
+| 1 | **LANDED, and its premise EXPIRED 2026-08-30.** Adopt all three clauses on `@gjsify/adwaita-react-native` **before its first publish**: export `Adw`, add the (empty) ledger, wire the reader. Two widgets, both already correctly named. | RN | ~~nothing — 0 published versions, 0 in-repo consumers outside the package~~ — the package published at 0.44.0 that morning and has grown well past two widgets since, so this row's "free" no longer holds. It is left as written for the reason § Amendment gives: the stage was free WHEN ORDERED, and deleting the premise deletes the ordering argument. | a third widget whose name is not its GType's; a widget absent from the namespace object; a namespace member with no widget behind it |
 | 2 | **LANDED 2026-08-30** (ahead of 1, see § Amendment). Require a `why` on `gtk:` entries in `WEB_ELEMENT_ALIGNMENT` and fill the ten. The clearest instance of the defect, on a table that already exists. | web | nothing | an alias with no reason — the same rule `webOnly` has carried since it was written |
 | 3 | **LANDED 2026-08-30** (ahead of 1, see § Amendment). Widen `check-vocabulary-alignment` with `NS_WIDGET_ALIGNMENT`: the 4 GTK-named widgets get `gir:`, the 4 counterpart-less ones get `composes:`/`own:`, with reasons. Self-test vectors first, as the file already requires. | NS | nothing | an undeclared NativeScript widget; a `gir:` target that is not a tag; a stale entry; a redundant entry — plus the check's own synthetic vectors, which must fail before real data is read |
 | 4 | **LANDED 2026-08-30**, see § Amendment 2. Make enrolment the property rather than the list: `gjsify.widgetVocabulary` per package, joined to the readers in `scripts/widget-surfaces.mjs`, with a `manifest-conformance` rule so `field-coverage` accepts the key. | all | nothing | a package declaring itself a widget surface with no reader; a reader whose package stopped declaring; a declared renderer no half of the check compares; two references, or no renderer at all |

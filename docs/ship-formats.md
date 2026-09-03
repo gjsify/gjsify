@@ -450,9 +450,10 @@ decided the source file's name — so `node.exe` stays `node.exe` across the cop
 renamed it would be a launcher execing a file nothing wrote, and nothing else in the pipeline
 compares the two.
 
-⚠️ **One `@gjsify/node-runtime-*` target is still unpublished.** Measured 2026-08-30 with
-`@gjsify/cli@0.44.0` as the control: `darwin-arm64` and `darwin-x64` resolve at `0.44.0`,
-`win32-x64` answers 404. For every target the payload is gitignored, so an in-repo checkout resolves the package and finds no binary
+**All three `@gjsify/node-runtime-*` targets are published** — `darwin-arm64`, `darwin-x64`
+and `win32-x64` all went live at `0.44.0` on 2026-08-30 and track the train since. (The
+2026-08-30 measurement this paragraph used to report, with `@gjsify/cli@0.44.0` as the
+control, caught `win32-x64` at 404 mid-bootstrap.) For every target the payload is gitignored, so an in-repo checkout resolves the package and finds no binary
 (`resolveNodeRuntime` answers `null` for exactly that, by design). `packages/node-runtime/scripts/fetch-node-runtime.mjs`
 populates one from a pinned Node release, verifying its SHA-256, and that is what
 `node-gi.yml`'s two assemble legs run. `@gjsify/gtk-runtime-win32-x64` IS published (0.44.0,
@@ -477,7 +478,7 @@ fetcher takes on: it copies `LICENSE` and nothing else from the distribution,
 deliberately leaving the 149 further licence files that belong to npm's bundled
 `node_modules`, which this package does not ship.
 
-`scripts/check-shipped-runtime-packages.mjs` keeps this warning honest — while a name
+`scripts/check-shipped-runtime-packages.mjs` keeps that resolvable-by-name claim honest — while a name
 is in its `PENDING_BOOTSTRAP` ledger, every file declaring a dependency on it must say
 it is not published, and the entry itself fails once the package goes live.
 

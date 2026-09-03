@@ -362,6 +362,14 @@ for (const pkg of all) {
     }
 
     if (live === true && declared) {
+        // Count the sites BEFORE returning. The vacuity control below asserts that the
+        // disclosure rule has a subject, and this branch — a pending name that turned out
+        // to be published — is the one transition the bidirectional ledger exists to
+        // catch. Skipping the count here made the control fire alongside it and blame the
+        // regex, sending a maintainer to debug a working pattern while the actual
+        // instruction ("delete the entry") sat three lines above. Observed live when the
+        // three `@gjsify/node-runtime-*` names published while still listed.
+        dependencySitesSeen += dependencySites(pkg.name).length;
         fail(
             `${pkg.name} IS published, but PENDING_BOOTSTRAP still lists it. ` +
                 'The bootstrap is done — delete the entry and the disclosure it obliged. ' +
