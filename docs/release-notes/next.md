@@ -64,10 +64,12 @@ LIVING. The net read that as "C finalized it", nulled its pointer, and the teard
 skipped the qdata detach it does under that pointer — leaving a LIVE GObject holding a
 qdata pointer to a record the teardown went on to free. The detach happens inside the weak
 notify now, the one moment the pointer is guaranteed addressable. Reproduced
-single-threaded and deterministically: SIGSEGV before, never after (#1489).
+single-threaded, with no race window to hit: SIGSEGV before, never after (#1489).
 
 Its residual is open and printed rather than implied: an object that SURVIVES a dispose
-loses its wrapper identity, and JS instance fields go with it. Narrower than it sounds —
+loses its wrapper identity, JS instance fields go with it, and the re-wrap installs a
+second toggle ref glib notifies for neither, so wrapper and GObject both go immortal — the
+old code leaked the same ref and took a use-after-free with it. Narrower than it sounds —
 `gtk_window_destroy()` is not a dispose caller on GTK 4.22.4, measured, so the reach is an
 explicit `run_dispose()` and `gtk_native_dialog_destroy()` — but it is silent data loss
 where the old code had none, so it is pinned by an executable case rather than a note.
@@ -116,16 +118,18 @@ front does not repair the borrowed read (#1488).
 Worth naming because it decides what a green run means: `gtk-os-suites.yml` pairs the
 checkout's JavaScript with the **published** addon on purpose — it answers "what does a
 stranger's download do". A fix that lives in the addon's C++ is therefore invisible to
-that leg until a release ships it. That is why the darwin and win32 steps stayed probes
-rather than gates, and why their retirement condition was rewritten from an issue number
-to a release: an issue can close without anything measurable changing. **This is that
-release.**
+that leg until a release ships it. That is why the React Native step stayed a probe on
+both, and why its retirement condition was rewritten from an issue number to a release: an
+issue can close without anything measurable changing. **This is that release** — the
+condition it now names, on the darwin leg, where the probe can be made a gate on the first
+run whose only failures are that operating system's own. Win32 waits on a second one, the
+widget table generated on Linux (#1446).
 
 ### The web view on macOS was built, and only declared broken
 
 `@gjsify/iframe` declared `runtimes.node: "none"`. On darwin and win32 that is the only
 host an application has (ADR 0024 § 4), so the WebView pillar was marked unusable on
-exactly the platforms `@gjsify/webkit-native` exists to serve. Measured on darwin-x64
+exactly the two darwin arches `@gjsify/webkit-native` exists to serve. Measured on darwin-x64
 under Node 24 against the published closure: `load_html()` reaches `LoadEvent.FINISHED`,
 and `evaluate_javascript` reads the title, an element's text and a computed value back out
 of the document. The slot is now `polyfill`, with a Node leg in CI behind it (#1487).
@@ -166,7 +170,7 @@ imports had no answer at all, and the failure was worse than a refusal: the bund
 not resolve the package, so the error named npm rather than this layer, and a porter
 learned nothing about whether a desktop answer existed. Each answered surface is now a
 subpath of `@gjsify/react-native` — `expo-status-bar`, `async-storage`, `vector-icons`,
-`safe-area-context`, `expo-image` among them — behind one registry that the gate, the
+`safe-area-context`, `expo-linking` among them — behind one registry that the gate, the
 runtime and the generated support table all read (#1458, ADR 0036).
 
 ### Adwaita widgets, and two things a screen written as a column needs
@@ -200,6 +204,10 @@ assertion in a second and with no GTK. `TextInput` also gained the instance type
 handle React Native code expects, and `accessibilityLiveRegion` is answered on `Text`
 through `Gtk.Accessible.announce()` (#1493, ADR 0039).
 
+The throw stays, and what that leaves is stated rather than implied: a refused prop is loud
+on stderr and silent on screen, so until `AppRegistry` carries an error boundary an
+unguarded refusal still ends the tree it is mounted in. That is its own change.
+
 ### The widget vocabulary is generated from the GIR
 
 `@gjsify/gtk-host` now takes its widget table from the `@girs` vocabulary rather than a
@@ -216,7 +224,8 @@ back to a system face and the application merely looks wrong. One payload path,
 `share/fonts/<app-id>/`, and three different readers, because the backends differ rather
 than the packaging: a fontconfig directory on Linux, `ATSApplicationFontsPath` in the
 `Info.plist` on macOS, and on Windows a handed-over directory, since `pangocairo` selects
-the win32 backend and populates from DirectWrite alone (#1491, ADR 0038).
+the win32 backend and populates from DirectWrite alone (#1491, ADR 0038). The Linux and
+Windows halves are measured; the macOS one is NOT, because no leg here starts an `.app`.
 
 ### `https:` streams have a source and a TLS backend
 
