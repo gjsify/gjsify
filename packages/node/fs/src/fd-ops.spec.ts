@@ -27,6 +27,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 
 const TMP = tmpdir();
 
@@ -257,6 +258,110 @@ export default async () => {
             });
             expect(missing).toBe(false);
             unlinkSync(f);
+        });
+
+        // `exists` is the one entry point in `node:fs` whose callback takes
+        // `(exists)` rather than `(err, value)`, and the three rules below were
+        // broken together in nine lines. Oracle for every expectation: node
+        // v24.19.0.
+        await it('exists answers on a later tick, on both branches', async () => {
+            // Node reads the answer out of `fs.access`'s async completion, so
+            // `exists(p, cb)` RETURNS before `cb` runs. Ours answered in place
+            // on both branches: the hit from inside the try, the miss from the
+            // catch, which is why both are asserted rather than just the hit.
+            const f = tmpFile('exists-tick', 'e');
+            try {
+                const hit: string[] = [];
+                await new Promise<void>((resolve) => {
+                    exists(f, (v) => {
+                        hit.push(`cb:${v}`);
+                        resolve();
+                    });
+                    hit.push('returned');
+                });
+                expect(hit).toStrictEqual(['returned', 'cb:true']);
+
+                const miss: string[] = [];
+                await new Promise<void>((resolve) => {
+                    exists(join(TMP, 'gjsify-nonexistent-xyz-123'), (v) => {
+                        miss.push(`cb:${v}`);
+                        resolve();
+                    });
+                    miss.push('returned');
+                });
+                expect(miss).toStrictEqual(['returned', 'cb:false']);
+            } finally {
+                unlinkSync(f);
+            }
+        });
+
+        await it('exists enters a throwing callback once, with the real answer', async () => {
+            // The call used to sit INSIDE the try around `statSync`, so a
+            // callback that threw was caught and re-entered with `false`: the
+            // caller's own exception came back to them as a filesystem answer,
+            // and an existing file read as missing. Node lets the throw reach
+            // the host instead.
+            //
+            // Same rule as `fs-semantics.spec.ts` K-19 for `mkdtemp`, and the
+            // callback has to be allowed to throw for the count to mean
+            // anything — but it cannot be asserted the same way. Measured on
+            // node v24.19.0: a throw out of the callback of `exists`, `stat` or
+            // `access` reaches the host as `uncaughtException`, while `mkdtemp`
+            // is the one entry point whose does NOT escape at all. K-19 needs no
+            // absorber because Node swallows its throw; this one does, or the
+            // runner charges the escape to the test that armed it.
+            //
+            // A listener the spec installs itself is exactly the signal
+            // `@gjsify/unit` reads as "this escape is deliberate" — it
+            // downgrades to a non-gating warning. On GJS nothing emits these
+            // events, so there the throw is invisible and `calls` carries the
+            // whole rule.
+            const f = tmpFile('exists-throw', 'e');
+            const absorbed: string[] = [];
+            const absorb = (err: unknown) => {
+                absorbed.push(String((err as Error)?.message ?? err));
+            };
+            process.on('uncaughtException', absorb);
+            process.on('unhandledRejection', absorb);
+            try {
+                let calls = 0;
+                let answered: boolean | undefined;
+                await new Promise<void>((resolve) => {
+                    exists(f, (v) => {
+                        calls++;
+                        answered = v;
+                        setTimeout(resolve, 20);
+                        throw new Error('from the callback');
+                    });
+                });
+                expect(calls).toBe(1);
+                expect(answered).toBe(true);
+                // The absorber must not be hiding anything else: a listener that
+                // anticipates ONE error is otherwise equally deaf to a real one
+                // escaping beside it.
+                expect(absorbed.every((m) => m === 'from the callback')).toBe(true);
+            } finally {
+                process.removeListener('uncaughtException', absorb);
+                process.removeListener('unhandledRejection', absorb);
+                unlinkSync(f);
+            }
+        });
+
+        await it('promisify(exists) resolves the boolean instead of rejecting it', async () => {
+            // Node defines `util.promisify.custom` on `fs.exists` precisely
+            // because the callback is `(exists)`: without it the promisified
+            // form reads that lone `true` as an `err` and REJECTS where Node
+            // resolves `true` — so `await promisify(fs.exists)(p)` threw for
+            // every path that exists.
+            const f = tmpFile('exists-promisify', 'e');
+            try {
+                expect(typeof (exists as unknown as Record<symbol, unknown>)[promisify.custom]).toBe('function');
+                const existsAsync = promisify(exists);
+                expect(await existsAsync(f)).toBe(true);
+                expect(await existsAsync(join(TMP, 'gjsify-nonexistent-xyz-123'))).toBe(false);
+            } finally {
+                unlinkSync(f);
+            }
         });
 
         await it('openAsBlob returns Blob with correct size', async () => {
