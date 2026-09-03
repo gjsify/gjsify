@@ -593,6 +593,19 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
         // level; not verified from a run here). The closure job is the fatal
         // half; the annotation points a human at the name.
         const readback = await readBack();
+        if (readback?.confirmed && verbose) {
+            // The CONFIRMED half of the read-back is printed too, and it is not
+            // decoration: it is the only client-side measurement of when a
+            // version became RESOLVABLE, as against `time[version]`, which is
+            // when the registry recorded the write. The two are assumed equal by
+            // the 4.2-minute figure and the 300 s window, and nothing had ever
+            // measured the gap. The pre-registered comparison — and what each
+            // outcome would change — is in #1509's description; this line, under
+            // GJSIFY_PUBLISH_DEBUG (which release.yml sets), is its input. Note
+            // the value is quantised by the backoff grid, so it is the UPPER end
+            // of a bracket whose lower end is the previous probe.
+            console.error(`  read-back:     confirmed after ${readback.attempts} probe(s) in ${readback.elapsedMs} ms`);
+        }
         if (readback && !readback.confirmed) {
             return {
                 ok: false,

@@ -879,7 +879,14 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
         const { server, url, gets } = await startAcceptOnlyRegistry({ serveAfter: 2 });
         try {
             const fixtureDir = scaffoldFixture('lagging', '@gjsify/e2e-pub-lagging', '1.2.5');
-            const res = await runPublishRaw([fixtureDir, '--verify-timeout', '30'], url);
+            // `GJSIFY_PUBLISH_DEBUG` because the CONFIRMED read-back's own
+            // timing is the input to the pre-registered `time[version]`
+            // comparison (see the call site in `commands/publish.ts`), and an
+            // instrumentation line no row asserts is one that can vanish in a
+            // refactor without a single test going red.
+            const res = await runPublishRaw([fixtureDir, '--verify-timeout', '30'], url, {
+                GJSIFY_PUBLISH_DEBUG: '1',
+            });
 
             assert.equal(res.code, 0, `a lagging write must still succeed; stderr:\n${res.stderr}`);
             assert.match(res.stdout, /\+ @gjsify\/e2e-pub-lagging@1\.2\.5/);
@@ -887,6 +894,12 @@ describe('gjsify publish E2E — mock npm registry', { timeout: 4 * 60 * 1000 },
                 gets.filter((u) => u === '/@gjsify%2fe2e-pub-lagging').length >= 3,
                 `the read-back must have polled past the 404s; GETs seen: ${JSON.stringify(gets)}`,
             );
+            // A lagging write is exactly the case the comparison needs, so the
+            // measured elapsed must be present and non-zero, not merely printed.
+            const timing = res.stderr.match(/read-back:\s+confirmed after (\d+) probe\(s\) in (\d+) ms/);
+            assert.ok(timing, `the confirmed read-back must report its own timing; stderr:\n${res.stderr}`);
+            assert.ok(Number(timing[1]) >= 3, `probes reported: ${timing[1]}`);
+            assert.ok(Number(timing[2]) >= 2_000, `elapsed reported: ${timing[2]} ms`);
         } finally {
             server.close();
         }
