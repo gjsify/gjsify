@@ -483,6 +483,33 @@ export class RTCPeerConnection extends EventTarget {
         this._sctpTransport = new RTCSctpTransport(dtls);
     }
 
+    /**
+     * @internal — attach the shared DTLS transport to every sender/receiver.
+     * Called when a LOCAL description is applied: per W3C § 4.4.1.5 (set
+     * session description → "create the DTLS transports") and the WPT
+     * canonical refs/wpt/webrtc/RTCRtpSender.https.html, `sender.transport` /
+     * `receiver.transport` is null until setLocalDescription ("null transport
+     * initially", "a transport after sLD(offer)") and stays null on the peer
+     * that only applied a REMOTE offer ("null transport after sRD(offer)").
+     */
+    _assignTransports(): void {
+        const dtls = this._ensureTransports();
+        for (const s of this._senders) s._transport = dtls;
+        for (const r of this._receivers) r._transport = dtls;
+    }
+
+    /**
+     * @internal — detach the transports again when the initial offer is
+     * rolled back (WPT RTCRtpSender.https.html: "null transport after
+     * rollback of sLD(offer)"). The caller only invokes this while no
+     * negotiation has completed — after a completed offer/answer the
+     * transports survive a renegotiation rollback.
+     */
+    _clearTransports(): void {
+        for (const s of this._senders) s._transport = null;
+        for (const r of this._receivers) r._transport = null;
+    }
+
     _createTransceiverWrapper(gstTrans: GstWebRTC.WebRTCRTPTransceiver): RTCRtpTransceiver {
         let kind: 'audio' | 'video' = 'audio';
         try {
@@ -507,10 +534,16 @@ export class RTCPeerConnection extends EventTarget {
         sender._getStatsForTrack = statsDelegate;
         receiver._getStatsForTrack = statsDelegate;
 
-        // Assign shared DTLS transport to sender/receiver
-        const dtls = this._ensureTransports();
-        sender._transport = dtls;
-        receiver._transport = dtls;
+        // sender/receiver.transport stays null until a local description is
+        // applied (W3C § 4.4.1.5; WPT RTCRtpSender.https.html "null transport
+        // initially"). A transceiver created AFTER that point — e.g. by a
+        // remote offer arriving once our own description is in place — picks
+        // the shared transport up immediately.
+        if (this.localDescription) {
+            const dtls = this._ensureTransports();
+            sender._transport = dtls;
+            receiver._transport = dtls;
+        }
 
         // Pass mline index to sender for sink pad naming
         try {
@@ -537,9 +570,42 @@ export class RTCPeerConnection extends EventTarget {
     // synchronously dispatch from here.
 
     _handleNegotiationNeeded(): void {
+        // W3C § 4.7.3 "update the negotiation-needed flag" aborts when
+        // [[IsClosed]] is true — and webrtcbin's own emission reaches us
+        // through the bridge's main-context idle hop, so it can arrive
+        // AFTER close() already ran.
+        if (this._closed) return;
         const ev = new Event('negotiationneeded');
         this._onnegotiationneeded?.call(this, ev);
         this.dispatchEvent(ev);
+    }
+
+    /** @internal — one queued negotiationneeded task per mutation burst. */
+    _negotiationNeededQueued = false;
+
+    /**
+     * @internal — the JS half of W3C § 4.7.3 "update the negotiation-needed
+     * flag", called by the mutating entry points (addTransceiver, addTrack,
+     * createDataChannel, restartIce). webrtcbin emits on-negotiation-needed
+     * for the INITIAL need but — measured on GStreamer 1.28 — does NOT
+     * re-emit when a transceiver or data channel is added after a completed
+     * offer/answer, so once `_hasNegotiated` is set the renegotiation event
+     * is queued here instead. The `_negotiationNeededQueued` dedupe mirrors
+     * the spec's [[NegotiationNeeded]] flag chain (one queued task per
+     * burst); the stable-state re-check on dispatch mirrors § 4.7.3 step
+     * "if connection's signaling state is not 'stable', abort".
+     */
+    _updateNegotiationNeeded(): void {
+        if (this._closed) return;
+        if (!this._hasNegotiated) return; // initial need — webrtcbin emits it
+        if (this.signalingState !== 'stable') return; // re-checked once stable
+        if (this._negotiationNeededQueued) return;
+        this._negotiationNeededQueued = true;
+        Promise.resolve().then(() => {
+            this._negotiationNeededQueued = false;
+            if (this.signalingState !== 'stable') return;
+            this._handleNegotiationNeeded();
+        });
     }
 
     private _handleIceCandidate(sdpMLineIndex: number, candidate: string): void {

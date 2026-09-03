@@ -56,6 +56,18 @@ export class RTCSessionDescription {
 
     /** Build a GstWebRTC.WebRTCSessionDescription for use with webrtcbin signals. */
     toGstDesc(): GstWebRTC.WebRTCSessionDescription {
+        if (this.type === 'rollback') {
+            // A rollback description carries no SDP — W3C § 4.4.1.5 ignores
+            // description.sdp for type 'rollback' (JSEP / RFC 9429 § 5.7:
+            // rollback needs no SDP argument). Hand webrtcbin an EMPTY
+            // SDPMessage: parsing the empty string through new_from_text()
+            // is not a valid SDP document and must not be attempted.
+            const [ret, sdp] = GstSdp.SDPMessage.new();
+            if (ret !== GstSdp.SDPResult.OK) {
+                throw new Error(`Failed to create empty SDP message (GstSDPResult=${ret})`);
+            }
+            return GstWebRTC.WebRTCSessionDescription.new(GstWebRTC.WebRTCSDPType.ROLLBACK, sdp);
+        }
         const [ret, sdp] = GstSdp.SDPMessage.new_from_text(this.sdp);
         if (ret !== GstSdp.SDPResult.OK) {
             throw new Error(`Failed to parse SDP text (GstSDPResult=${ret})`);

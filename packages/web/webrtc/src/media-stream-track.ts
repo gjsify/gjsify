@@ -55,6 +55,14 @@ export class MediaStreamTrack extends EventTarget {
     _gstTee: GstNs.Element | null = null;
     /** @internal TeeMultiplexer for multi-PC fan-out (created on second addTrack) */
     _teeMultiplexer: TeeMultiplexer | null = null;
+    /**
+     * @internal Number of RTCRtpSenders currently consuming `_gstSource`.
+     * The FIRST consumer moves the source out of its holding pipeline (the
+     * one getUserMedia parked it in) into the PC pipeline; only a SECOND
+     * concurrent consumer inserts the TeeMultiplexer fan-out. Maintained by
+     * RTCRtpSender._wirePipeline / _teardownPipeline.
+     */
+    _senderConsumers = 0;
     /** @internal Callback set by RTCRtpSender to control valve drop property */
     private _enableCallback: ((enabled: boolean) => void) | null = null;
 

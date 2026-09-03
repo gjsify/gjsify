@@ -1,11 +1,13 @@
-import webrtcSpec from './webrtc.spec.js';
-import wptSpec from './wpt.spec.js';
-import wptMediaSpec from './wpt-media.spec.js';
-import registerSpec from './register.spec.js';
+// Test entry — routed through `@gjsify/unit`'s `run()` so the suite REPORTS.
+// Awaiting the specs directly prints per-test results but nothing else: `run()`
+// is what emits the summary line AND sets the process exit code, so without it
+// a failing assertion still exited 0 (the defect fixed for `@gjsify/webaudio`
+// in #872 — this entry had the identical shape, and 17 red tests hid under it).
+import { run } from '@gjsify/unit';
 
-const _results = {
-    webrtc: await webrtcSpec(),
-    wpt: await wptSpec(),
-    wptMedia: await wptMediaSpec(),
-    register: await registerSpec(),
-};
+import testSuiteWebrtc from './webrtc.spec.js';
+import testSuiteWpt from './wpt.spec.js';
+import testSuiteWptMedia from './wpt-media.spec.js';
+import testSuiteRegister from './register.spec.js';
+
+run({ testSuiteWebrtc, testSuiteWpt, testSuiteWptMedia, testSuiteRegister });

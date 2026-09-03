@@ -125,6 +125,12 @@ const dataChannelMethods: DataChannelMethods & ThisType<RTCPeerConnection> = {
         js.addEventListener('close', () => {
             this._dataChannels.delete(native);
         });
+
+        // W3C § 6.1 createDataChannel step "update the negotiation-needed
+        // flag" (§ 4.7.3) — covers renegotiation, which webrtcbin does not
+        // re-emit.
+        this._updateNegotiationNeeded();
+
         return js;
     },
 };

@@ -22,6 +22,7 @@ import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 import { DOMException } from '@gjsify/dom-exception';
 import { Gst } from '../gst-init.js';
 import { withGstPromise } from '../gst-utils.js';
+import { rewriteIceCredentials } from '../sdp-params.js';
 import { RTCSessionDescription, type RTCSessionDescriptionInit } from '../rtc-session-description.js';
 import type { RTCIceCandidate } from '../rtc-ice-candidate.js';
 import { type RTCIceCandidateInit } from '../rtc-ice-candidate.js';
@@ -44,7 +45,8 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
         this._rejectIfClosed('createOffer');
         const opts = Gst.Structure.new_empty('offer-options');
         // If restartIce() was called, request fresh ICE credentials
-        if (this._iceRestartNeeded) {
+        const iceRestart = this._iceRestartNeeded;
+        if (iceRestart) {
             this._setStructureField(opts, 'ice-restart', 'boolean', true);
             this._iceRestartNeeded = false;
         }
@@ -54,7 +56,17 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
         // GJS unboxes `get_value` for boxed types directly to the underlying
         // struct; no GObject.Value wrapper involvement.
         const desc = reply!.get_value('offer') as unknown as GstWebRTC.WebRTCSessionDescription;
-        return RTCSessionDescription.fromGstDesc(desc).toJSON();
+        const json = RTCSessionDescription.fromGstDesc(desc).toJSON();
+        if (iceRestart) {
+            // webrtcbin (≤ 1.28) ignores the `ice-restart` offer option
+            // (measured: identical ufrag either way), so the JSEP restart
+            // primitive — fresh ufrag/pwd in the offer (RFC 9429 § 3.5.1) —
+            // is applied here; setLocalDescription pushes the rewritten
+            // credentials into webrtcbin's ICE agent (measured: ICE
+            // connectivity completes with munged credentials).
+            json.sdp = rewriteIceCredentials(json.sdp);
+        }
+        return json;
     },
 
     async createAnswer(this: RTCPeerConnection, _options?: RTCAnswerOptions): Promise<RTCSessionDescriptionInit> {
@@ -70,13 +82,16 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
     async setLocalDescription(this: RTCPeerConnection, description?: RTCSessionDescriptionInit): Promise<void> {
         this._rejectIfClosed('setLocalDescription');
 
-        // W3C § 4.4.1.6 — implicit setLocalDescription (perfect negotiation):
-        // When called without arguments (or with empty type/sdp), auto-create
-        // the appropriate SDP based on the current signaling state.
-        if (!description || !description.type || !description.sdp) {
+        // W3C § 4.4.2 — implicit setLocalDescription (perfect negotiation):
+        // ONLY a missing description/type auto-creates the appropriate SDP
+        // from the current signaling state. A description whose `type` is
+        // present must never be routed here — in particular 'rollback', whose
+        // `sdp` is empty BY DESIGN (§ 4.4.1.5 ignores it), and which a
+        // `!description.sdp` test used to misroute into createOffer().
+        if (!description || !description.type) {
             const state = this.signalingState;
             if (state === 'stable' || state === 'have-local-offer') {
-                // Stable → create offer; have-local-offer → rollback + re-offer
+                // Stable → create offer; have-local-offer → re-offer
                 description = await this.createOffer();
             } else if (state === 'have-remote-offer' || state === 'have-remote-pranswer') {
                 description = await this.createAnswer();
@@ -88,12 +103,44 @@ const sdpNegotiationMethods: SdpNegotiationMethods & ThisType<RTCPeerConnection>
             }
         }
 
+        if (description.type === 'rollback') {
+            // W3C § 4.4.1.5: type 'rollback' is invalid in 'stable',
+            // 'have-local-pranswer' and 'have-remote-pranswer' →
+            // InvalidStateError. The only state with a pending LOCAL
+            // description to roll back is 'have-local-offer'.
+            const state = this.signalingState;
+            if (state !== 'have-local-offer') {
+                throw new DOMException(
+                    `setLocalDescription: cannot rollback in signalingState '${state}'`,
+                    'InvalidStateError',
+                );
+            }
+            const hadCompletedNegotiation = this.currentLocalDescription !== null;
+            // webrtcbin supports ROLLBACK natively (verified on GStreamer
+            // 1.28: HAVE_LOCAL_OFFER → STABLE, pending description cleared,
+            // promise replied) — no pipeline state bump needed.
+            const gstDesc = new RTCSessionDescription(description).toGstDesc();
+            await withGstPromise((p) => {
+                this._webrtcbin.emit('set-local-description', gstDesc, p);
+            });
+            // Rolling back the INITIAL offer detaches the never-connected
+            // transports again (WPT RTCRtpSender.https.html "null transport
+            // after rollback of sLD(offer)"); after a completed offer/answer
+            // the live transports survive a renegotiation rollback.
+            if (!hadCompletedNegotiation) this._clearTransports();
+            return;
+        }
+
         // On first-time setLocalDescription, the pipeline needs to start running.
         this._pipeline.set_state(Gst.State.PLAYING);
         const gstDesc = new RTCSessionDescription(description).toGstDesc();
         await withGstPromise((p) => {
             this._webrtcbin.emit('set-local-description', gstDesc, p);
         });
+
+        // Applying a local description creates the transports — W3C § 4.4.1.5,
+        // WPT RTCRtpSender.https.html "should have a transport after sLD(offer)".
+        this._assignTransports();
     },
 
     async setRemoteDescription(this: RTCPeerConnection, description: RTCSessionDescriptionInit): Promise<void> {

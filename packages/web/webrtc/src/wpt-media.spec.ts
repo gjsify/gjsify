@@ -794,10 +794,16 @@ export default async () => {
             closePeerConnections(pc);
         });
 
-        await it('sender dtmf should be null', async () => {
+        // Per WPT refs/wpt/webrtc/RTCRtpSender.https.html ("Video sender
+        // @dtmf is null"): an AUDIO sender's dtmf is an RTCDTMFSender
+        // (assert_not_equals(t1.sender.dtmf, null)); only a VIDEO sender's
+        // dtmf is null (assert_equals(t2.sender.dtmf, null)).
+        await it('audio sender dtmf is non-null, video sender dtmf is null', async () => {
             const pc = createPeerConnection();
-            const t = pc.addTransceiver('audio');
-            expect(t.sender.dtmf).toBeNull();
+            const audio = pc.addTransceiver('audio');
+            const video = pc.addTransceiver('video');
+            expect(audio.sender.dtmf).not.toBeNull();
+            expect(video.sender.dtmf).toBeNull();
             closePeerConnections(pc);
         });
 
@@ -1058,6 +1064,51 @@ export default async () => {
             const track = stream.getAudioTracks()[0];
             expect((track as any)._gstSource).toBeDefined();
             expect((track as any)._gstSource).not.toBeNull();
+            stream.getTracks().forEach((t) => t.stop());
+        });
+
+        // A source that EXISTS is not a source that OPENS, and the test above
+        // cannot tell the two apart. getUserMedia used to pick the first audio
+        // factory it could make, so on a host carrying the PulseAudio plugin
+        // without a daemon — `ghcr.io/gjsify/ci-fedora:44`, and any headless
+        // container — it returned a `pulsesrc`-backed track whose pipeline
+        // errors "Failed to connect: Connection refused" and never leaves NULL.
+        // Nothing named that. The only symptom was the end-to-end loopback test
+        // further down timing out five seconds later on a `track` event that
+        // could not fire, which reads like a WebRTC defect and is not one.
+        // So ask the source itself, here, in milliseconds.
+        await it('the audio source getUserMedia picked can reach PLAYING', async () => {
+            const { Gst } = await import('./gst-init.js');
+            const stream = await getUserMedia({ audio: true });
+            const track = stream.getAudioTracks()[0];
+            const source = (track as any)._gstSource as any;
+            const pipeline = (track as any)._gstPipeline as any;
+            expect(source).not.toBeNull();
+            expect(pipeline).not.toBeNull();
+
+            // Complete gUM's holding pipeline into something runnable. The
+            // converter is load-bearing: `pipewiresrc ! fakesink` fails caps
+            // negotiation even on a working PipeWire host.
+            const convert = Gst.ElementFactory.make('audioconvert', null)!;
+            const sink = Gst.ElementFactory.make('fakesink', null)!;
+            pipeline.add(convert);
+            pipeline.add(sink);
+            const tail = source.get_static_pad('src')?.get_peer()?.get_parent_element() ?? source;
+            tail.link(convert);
+            convert.link(sink);
+
+            let ret = pipeline.set_state(Gst.State.PLAYING);
+            if (ret !== Gst.StateChangeReturn.FAILURE) {
+                ret = pipeline.get_state(500 * Number(Gst.MSECOND))[0];
+            }
+            pipeline.set_state(Gst.State.NULL);
+
+            // Assert on a string, not on the enum: the failure then NAMES the
+            // element that could not start, which is the whole point of asking
+            // here instead of reading a timeout five seconds later.
+            const verdict = ret === Gst.StateChangeReturn.FAILURE ? `${source.name} cannot start` : 'source starts';
+            expect(verdict).toBe('source starts');
+
             stream.getTracks().forEach((t) => t.stop());
         });
 

@@ -86,6 +86,11 @@ const trackMethods: TrackMethods & ThisType<RTCPeerConnection> = {
             // Tracks with GStreamer sources will be handled by addTransceiver Path A
             // if no reusable transceiver exists, or the pipeline will be wired
             // when webrtcbin creates the sink pad during SDP negotiation.
+            //
+            // W3C § 5.1 addTrack step 12 — "update the negotiation-needed
+            // flag" (§ 4.7.3). The new-transceiver path below inherits the
+            // same call from addTransceiver.
+            this._updateNegotiationNeeded();
             return reusable.sender;
         }
 

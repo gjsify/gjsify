@@ -25,6 +25,7 @@ import type GstWebRTC from 'gi://GstWebRTC?version=1.0';
 
 import { Gst } from '../gst-init.js';
 import { w3cDirectionToGst } from '../gst-enum-maps.js';
+import { defaultRtpCapsString } from '../rtp-capabilities.js';
 import { MediaStreamTrack } from '../media-stream-track.js';
 import { RTCRtpSender } from '../rtc-rtp-sender.js';
 import { RTCRtpReceiver } from '../rtc-rtp-receiver.js';
@@ -127,13 +128,18 @@ const transceiverMethods: TransceiverMethods & ThisType<RTCPeerConnection> = {
             const gstReceiver = gstTrans.receiver ?? null;
             const receiver = new RTCRtpReceiver(kind, gstReceiver, this._pipeline);
 
-            // Wire stats delegation + transport
+            // Wire stats delegation
             const statsDelegate = (t: MediaStreamTrack) => this.getStats(t);
             sender._getStatsForTrack = statsDelegate;
             receiver._getStatsForTrack = statsDelegate;
-            const dtls = this._ensureTransports();
-            sender._transport = dtls;
-            receiver._transport = dtls;
+            // sender/receiver.transport stays null until a local description
+            // is applied (W3C § 4.4.1.5; WPT RTCRtpSender.https.html "null
+            // transport initially") — same rule as _createTransceiverWrapper.
+            if (this.localDescription) {
+                const dtls = this._ensureTransports();
+                sender._transport = dtls;
+                receiver._transport = dtls;
+            }
 
             jsTrans = new RTCRtpTransceiver(gstTrans, sender, receiver);
             sender._transceiver = jsTrans;
@@ -145,8 +151,13 @@ const transceiverMethods: TransceiverMethods & ThisType<RTCPeerConnection> = {
             gstTrans.direction = w3cDirectionToGst(direction);
         } else {
             // Path B: No GStreamer source, or receive-only/inactive.
-            // Use emit('add-transceiver') which creates a transceiver without pads.
-            const caps = Gst.Caps.from_string(`application/x-rtp,media=${kind}`);
+            // Use emit('add-transceiver') which creates a transceiver without
+            // pads. The caps MUST carry encoding-name/clock-rate/payload —
+            // with bare `media=<kind>` caps webrtcbin cannot build an
+            // m-section for the transceiver and createOffer returns an SDP
+            // with NO m-line at all (measured on GStreamer 1.28), so nothing
+            // was ever negotiated for kind-only transceivers.
+            const caps = Gst.Caps.from_string(defaultRtpCapsString(kind));
             // webrtcbin doesn't accept NONE for add-transceiver; use SENDRECV
             // and override to inactive after creation.
             const createDirection =
@@ -175,6 +186,10 @@ const transceiverMethods: TransceiverMethods & ThisType<RTCPeerConnection> = {
                 jsTrans.sender._setTrack(trackOrKind);
             }
         }
+
+        // W3C § 5.3 addTransceiver step "update the negotiation-needed flag"
+        // (§ 4.7.3) — covers renegotiation, which webrtcbin does not re-emit.
+        this._updateNegotiationNeeded();
 
         return jsTrans;
     },
