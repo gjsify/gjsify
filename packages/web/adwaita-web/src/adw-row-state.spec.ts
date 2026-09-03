@@ -210,6 +210,39 @@ export const AdwRowStateTest = async () => {
 
             host.remove();
         });
+
+        // The row publishes the drop-down's property set apart from `enableSearch` and
+        // `active`, which are that element's popover chrome. `selectedItem` is NOT chrome —
+        // it is `Adw.ComboRow:selected-item` — so it is here, read-only as the GObject
+        // property is, and `null` rather than a blank descriptor when nothing is addressed.
+        await it('reads the selected descriptor back, and null when nothing is addressed', async () => {
+            const { el: row, host } = parse<AdwComboRow>(
+                `<adw-combo-row title="Pick"></adw-combo-row>`,
+                'adw-combo-row',
+            );
+
+            expect(row.selectedItem).toBeNull();
+
+            row.options = [
+                { value: 'r', label: 'Red' },
+                { value: 'g', label: 'Green' },
+            ];
+            expect(row.selectedItem?.value).toBe('r');
+            row.selected = 1;
+            expect(row.selectedItem?.label).toBe('Green');
+
+            // The one row of the shared contract the two selectors answer differently: an
+            // index past the end is ACCEPTED here (`ComboState.setSelectedIndex` mirrors a
+            // guint property) where `<gtk-drop-down>` rejects the set. So the index moves,
+            // and everything read out of the model reads empty.
+            row.selected = 9;
+            expect(row.selected).toBe(9);
+            expect(row.selectedItem).toBeNull();
+            expect(row.selectedValue).toBe('');
+            expect((row.querySelector('.adw-row-value') as HTMLSpanElement).textContent).toBe('');
+
+            host.remove();
+        });
     });
 
     // The SAME table `<gtk-drop-down>` and the NativeScript renderer are held to

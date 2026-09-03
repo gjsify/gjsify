@@ -21,10 +21,18 @@
 //   title / subtitle — the text column.
 //   options / items  — JSON array: `["a","b"]` or `[{"value":"a","label":"A"}]`.
 //   selected         — the selected index (number).
-// Properties (the `<gtk-drop-down>` set, minus the two that are drop-down chrome):
+// Properties — the `<gtk-drop-down>` set minus `enableSearch` and `active`, which are that
+// element's own popover chrome and have no counterpart on a row that opens a native
+// <select>:
 //   options / items  — the option list ({ value, label }[]) (get/set).
-//   selected         — the selected index (get/set).
+//   selected         — the selected index (get/set). PERMISSIVE, and this is the one row of
+//     `ComboState`'s contract the two selectors answer differently: an index past the end
+//     is ACCEPTED here and reads back with an empty `selectedValue`/label, where
+//     `<gtk-drop-down>` rejects the set outright (gtk-drop-down.ts:108). Neither is a bug —
+//     `ComboState.hasIndex` (rows.ts:255-267) is where the bounds live and why the policy
+//     is each renderer's. Stated here because a consumer of THIS element reads this file.
 //   selectedValue    — the selected option's value ('' when empty) (get/set-by-value).
+//   selectedItem     — the selected option descriptor, or null (get).
 // Events:
 //   `notify::selected` (CustomEvent, bubbles, detail = { selected }) — a USER pick.
 //     Deliberately NOT every change, unlike `<gtk-drop-down>`: this row's event has
@@ -74,6 +82,13 @@ export class AdwComboRow extends HTMLElement {
         this.options = value;
     }
 
+    /**
+     * The selected index (Adw.ComboRow:selected). PERMISSIVE: an index past the end is
+     * accepted and reads back with an empty {@link selectedValue}, mirroring the `guint`
+     * property that takes any position — where `<gtk-drop-down>` rejects the same set, as
+     * its own docs promise. `ComboState.hasIndex` owns the bounds and records why the
+     * POLICY is each renderer's; `COMBO_SELECTION_VECTORS` drives both answers.
+     */
     get selected(): number {
         return this._initialized ? this._state.selectedIndex : parseInt(this.getAttribute('selected') || '0', 10);
     }
@@ -97,6 +112,17 @@ export class AdwComboRow extends HTMLElement {
     set selectedValue(value: string) {
         const index = this._state.options.findIndex((option) => option.value === value);
         if (index >= 0) this.selected = index;
+    }
+
+    /**
+     * The selected option descriptor, or `null` (Adw.ComboRow:selected-item).
+     *
+     * Read-only, as the GObject property is. `null` and not a blank descriptor: the
+     * sentinel and an index past the end both address no option, and inventing an empty
+     * one would make "nothing is selected" indistinguishable from an option with no text.
+     */
+    get selectedItem(): AdwComboOption | null {
+        return this._state.options[this._state.selectedIndex] ?? null;
     }
 
     connectedCallback() {
