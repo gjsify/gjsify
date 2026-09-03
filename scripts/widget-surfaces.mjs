@@ -65,8 +65,9 @@ export const SURFACE_ROLES = ['reference', 'renderer'];
  * generated table `check-vocabulary-alignment.mjs` reads directly, and a second reader of
  * the same file would be a copy that can drift.
  *
- * `namespace(root)` answers ADR 0034 clause 2 — the same vocabulary reachable as
- * `Adw.Bin`, not only as `AdwBin` — mapping each member to the identifier it is bound to,
+ * `namespace(root)` answers ADR 0034 clause 2 — the vocabulary reachable as `Adw.Bin`,
+ * which on two of these surfaces is now the ONLY spelling (§ Amendments 6 and 8) —
+ * mapping each member to the identifier it is bound to,
  * and returning `null` for a surface that exports none. It REPORTS adoption rather than
  * demanding it: a renderer that has not adopted the clause is work that is left, and a
  * gate failing on that would only be turned off. What a surface HAS adopted is then held
@@ -99,7 +100,7 @@ export const WIDGET_SURFACE_READERS = {
     '@gjsify/adwaita-react-native': {
         role: 'renderer',
         namespace: (root) => namespaceExport(root, 'packages/framework/adwaita-react-native/src'),
-        reads: "the base barrel's `export { Adw… } from './widgets/…'` lines",
+        reads: "the base barrel's `import { Adw… as … } from './widgets/…'` lines",
         widgets: (root) => [...adwaitaReactNativeWidgets(root).keys()].map((name) => `adw-${name}`),
     },
 };

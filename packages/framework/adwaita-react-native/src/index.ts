@@ -1,7 +1,7 @@
 // The BASE barrel — what a tool that ignores `exports` loads through `module`/`main`.
 // Everything it names refuses at first render; who reaches it is in `refuse.ts`.
 //
-// IT RE-EXPORTS THE BASE MODULES, NEVER A PLATFORM SIBLING: a sibling named here would
+// IT NAMES THE BASE MODULES, NEVER A PLATFORM SIBLING: a sibling named here would
 // RUN on the wrong half as a working worse copy of the widget, which is why
 // `scripts/check-adwaita-rn-platform-split.mjs` rule 3 refuses one.
 //
@@ -46,45 +46,31 @@ export type {
     AdwWrapBoxProps,
 } from './props.js';
 
-export { AdwActionRow } from './widgets/action-row.js';
-export { AdwAvatar } from './widgets/avatar.js';
-export { AdwBanner } from './widgets/banner.js';
-export { AdwBin } from './widgets/bin.js';
-export { AdwButtonContent } from './widgets/button-content.js';
-export { AdwButtonRow } from './widgets/button-row.js';
-export { AdwClamp } from './widgets/clamp.js';
-export { AdwComboRow } from './widgets/combo-row.js';
-export { AdwEntryRow } from './widgets/entry-row.js';
-export { AdwExpanderRow } from './widgets/expander-row.js';
-export { AdwHeaderBar } from './widgets/header-bar.js';
-export { AdwNavigationPage } from './widgets/navigation-page.js';
-export { AdwNavigationSplitView } from './widgets/navigation-split-view.js';
-export { AdwNavigationView } from './widgets/navigation-view.js';
-export { AdwOverlaySplitView } from './widgets/overlay-split-view.js';
-export { AdwPasswordEntryRow } from './widgets/password-entry-row.js';
-export { AdwPreferencesGroup } from './widgets/preferences-group.js';
-export { AdwPreferencesPage } from './widgets/preferences-page.js';
-export { AdwSpinRow } from './widgets/spin-row.js';
-export { AdwSpinner } from './widgets/spinner.js';
-export { AdwStatusPage } from './widgets/status-page.js';
-export { AdwSwitchRow } from './widgets/switch-row.js';
-export { AdwToastOverlay } from './widgets/toast-overlay.js';
-export { AdwToolbarView } from './widgets/toolbar-view.js';
-export { AdwViewStack } from './widgets/view-stack.js';
-export { AdwViewSwitcher } from './widgets/view-switcher.js';
-export { AdwWindowTitle } from './widgets/window-title.js';
-export { AdwWrapBox } from './widgets/wrap-box.js';
-
-// ADR 0034 clause 2 — the vocabulary is also reachable as a NAMESPACE, not only as
-// prefixed classes. Additive: `AdwBin` keeps working and nothing published moves.
+// THE WIDGETS ARE REACHABLE ONLY AS `Adw.<Name>` (ADR 0034 clause 2 + § Amendment 8).
+// A run of `export { AdwBin } from './widgets/bin.js'` lines used to sit above this
+// and duplicate every member below one for one. They are gone, and with them the second
+// spelling: `Adw.Bin` is the name this package root has for the widget.
 //
-// The members are imported a second time rather than built from the re-exports above,
-// because those `export … from` lines are load-bearing for two readers:
-// `adwaitaReactNativeWidgets` derives this package's widget set from them, and it
-// refuses a line whose exported name and module name disagree. Collapsing them into
-// `import` + `export {}` would take that coupling away. What keeps the second mention
-// from drifting is rule 8 of `check-adwaita-rn-platform-split.mjs`, which holds the
-// members of `Adw` against the widgets on disk in both directions.
+// THE COMPONENTS KEEP THEIR `AdwBin` IDENTIFIER, and that is not the spelling that was
+// removed. `widgets/bin.ts` declares it, `exports['./widgets/bin']` publishes it, and
+// `refuseBaseModule` prints it — at that entry point it is the widget's ONLY name, the
+// same reason `@gjsify/adwaita-web` kept `class GtkEntry` while dropping the flat export
+// (§ Amendment 6). What a bare `Bin` would gain in a consumer's file is nothing; what it
+// would cost is the module-name coupling three readers derive through `widgetClass`.
+//
+// THE IMPORT LINES BELOW ARE NOW THE SINGLE MENTION of each widget, so they carry the
+// coupling the removed exports used to: `adwaitaReactNativeWidgets` derives this
+// package's widget set from them and refuses a line whose binding, alias and module name
+// disagree, and rule 8 of `check-adwaita-rn-platform-split.mjs` holds the members of
+// `Adw` against the widgets on disk in both directions. Rule 10 is what stops the flat
+// spelling from growing back beside them.
+//
+// AN OBJECT LITERAL, not `export * as Adw from './namespace/adw.js'` — the shape
+// `@gjsify/adwaita-web` had to take. A module namespace buys the TYPE meaning of its
+// members, which that surface needs because its classes are annotated (`as Adw.Window`).
+// These are function components, annotated through the `Adw…Props` types above, so value
+// position is the whole requirement here. And a namespace module per barrel would move
+// the platform fork one hop away from the file that rules 3 and 5 read.
 
 import { AdwActionRow as ActionRow } from './widgets/action-row.js';
 import { AdwAvatar as Avatar } from './widgets/avatar.js';
