@@ -19,15 +19,19 @@
 //      sentinel — `setSelectedIndex` mirrors a guint property that takes any position,
 //      and `ComboState.hasIndex` is where each renderer states its own policy.
 //
-// `<adw-combo-row>` composes the same `ComboState` but CANNOT drive this table: two of the
-// four step ops have no DOM spelling there — its options arrive through the `items`
-// attribute at connect time only (`items` is not in `observedAttributes`) and it publishes
-// no select-by-value setter. The day it grows either, it inherits these rows.
+// `<adw-combo-row>` DRIVES this table too, and the day it started is the day its model
+// became input a consumer can replace: two of the four step ops had no DOM spelling there
+// while its options arrived through the `items` attribute at connect time only (`items`
+// was not in `observedAttributes`) and it published no select-by-value setter. It now
+// publishes `options`/`items` and `selectedValue`, and inherits these rows, as this
+// paragraph said it would.
 //
-// The `an index past the end` row is driven against `<gtk-drop-down>`'s own answer instead
-// of the state's: the element REJECTS an out-of-range set, as its published `selected`
-// docs promise, where `setSelectedIndex` accepts it. The bounds predicate is shared, the
-// policy is each renderer's.
+// The `an index past the end` row is where the two browser renderers part, which is the
+// reason it is worth having both of them on the table. `<gtk-drop-down>` is driven against
+// its OWN answer — the element REJECTS an out-of-range set, as its published `selected`
+// docs promise — while `<adw-combo-row>` runs the row as written, keeping the permissive
+// answer `setSelectedIndex` gives. The bounds predicate is shared, the policy is each
+// renderer's, and neither side can now change in silence.
 //
 // What the C DOES settle, and what the rows are derived from:
 //   - the no-op guard: the setter returns before touching the selection when the position

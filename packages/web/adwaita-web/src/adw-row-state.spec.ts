@@ -9,7 +9,8 @@
 // display silently.
 import { describe, expect, it } from '@gjsify/unit';
 
-import { COMBO_CHOOSER_VECTORS } from '@gjsify/adwaita-core/conformance';
+import { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS } from '@gjsify/adwaita-core/conformance';
+import type { ComboSelectionStep } from '@gjsify/adwaita-core/conformance';
 
 import type { AdwComboRow } from './elements/adw-combo-row.js';
 import type { AdwExpanderRow } from './elements/adw-expander-row.js';
@@ -30,6 +31,40 @@ function record(el: HTMLElement, event: string): { details: unknown[]; stop: () 
     const listener = (e: Event) => details.push((e as CustomEvent).detail);
     el.addEventListener(event, listener);
     return { details, stop: () => el.removeEventListener(event, listener) };
+}
+
+/**
+ * Replay one `COMBO_SELECTION_VECTORS` step against a live `<adw-combo-row>` — the
+ * property sets a consumer has for the programmatic ops, a real `<select>` pick for the
+ * interactive one.
+ *
+ * The row can drive the table at all only because the model and the select-by-value are
+ * now published; the conformance header names that as the condition for it inheriting
+ * these rows. It drives EVERY row, including `an index past the end`, which
+ * `<gtk-drop-down>` carves out: the row keeps `ComboState`'s permissive answer where the
+ * drop-down's published `selected` contract rejects the set, and `ComboState.hasIndex`'s
+ * doc is where that split is stated. So the carve-out is now visible from both sides.
+ */
+function applyComboStep(row: AdwComboRow, step: ComboSelectionStep): void {
+    const select = row.querySelector('select') as HTMLSelectElement;
+    switch (step.op) {
+        case 'setOptions':
+            row.options = step.options;
+            return;
+        case 'setSelectedIndex':
+            row.selected = step.index;
+            return;
+        case 'setSelectedValue':
+            row.selectedValue = step.value;
+            return;
+        case 'select':
+            // A dismissed chooser: the native dropdown closes with nothing picked, which
+            // dispatches no `change` at all — there is no gesture to replay.
+            if (step.index < 0) return;
+            select.selectedIndex = step.index;
+            select.dispatchEvent(new Event('change'));
+            return;
+    }
 }
 
 export const AdwRowStateTest = async () => {
@@ -107,19 +142,110 @@ export const AdwRowStateTest = async () => {
             const select = row.querySelector('select') as HTMLSelectElement;
             expect(select.disabled).toBe(true);
 
-            // `items` is read at connect only, so the model is replaced through the state
-            // the element composes — the same path a consumer has.
-            (
-                row as unknown as { _state: { setOptions(o: { label: string; value: string }[]): void } }
-            )._state.setOptions([
-                { label: 'One', value: 'a' },
-                { label: 'Two', value: 'b' },
-            ]);
+            // Through the PUBLISHED path a consumer has — the same `items` property
+            // `<gtk-drop-down>` publishes, not a reach into the composed state.
+            row.items = ['One', 'Two'];
             expect(select.disabled).toBe(false);
             expect(row.dataset.presentsChooser).toBe('true');
 
             host.remove();
         });
+
+        // The model is INPUT, so replacing it after connect has to reach the DOM — the
+        // half `<gtk-drop-down>` has had all along (`options`/`items` setters + both
+        // attributes observed) and this row did not: it parsed `items` once in
+        // `connectedCallback`, observed `['title','subtitle','selected']`, and published
+        // no accessor, so `row.items = […]` wrote an expando onto the element and
+        // `setAttribute('items', …)` reached no callback. Both spellings are asserted
+        // because a consumer reaches for whichever its framework binds.
+        await it('rebuilds the options when the model is replaced after connect', async () => {
+            const { el: row, host } = parse<AdwComboRow>(
+                `<adw-combo-row title="Colour" items='["Red","Green"]'></adw-combo-row>`,
+                'adw-combo-row',
+            );
+            const select = row.querySelector('select') as HTMLSelectElement;
+            const value = row.querySelector('.adw-row-value') as HTMLSpanElement;
+            expect(select.options.length).toBe(2);
+
+            // The PROPERTY, with the plain-string vocabulary both selectors accept.
+            row.items = ['Cyan', 'Magenta', 'Yellow'];
+            expect([...select.options].map((o) => o.textContent).join('|')).toBe('Cyan|Magenta|Yellow');
+            expect(row.items.map((o) => o.label).join('|')).toBe('Cyan|Magenta|Yellow');
+            // The model was replaced under an index the new one still has, so autoselect
+            // keeps 0 and the inline label has to follow the NEW option at that index.
+            expect(value.textContent).toBe('Cyan');
+
+            // The ATTRIBUTE, the spelling markup and every attribute-binding framework use.
+            row.setAttribute('items', '["Only"]');
+            expect([...select.options].map((o) => o.textContent).join('|')).toBe('Only');
+            expect(value.textContent).toBe('Only');
+            // …and the chooser rule re-runs off the replaced model.
+            expect(select.disabled).toBe(true);
+            expect(row.dataset.presentsChooser).toBe('false');
+
+            host.remove();
+        });
+
+        // `<gtk-drop-down>` publishes `options` as the primary spelling and `items` as its
+        // alias; the row now answers both the same way, so a consumer moving a model
+        // between the two selectors does not have to rename it.
+        await it('accepts the `options` spelling and descriptor objects too', async () => {
+            const { el: row, host } = parse<AdwComboRow>(
+                `<adw-combo-row title="Colour"></adw-combo-row>`,
+                'adw-combo-row',
+            );
+            const select = row.querySelector('select') as HTMLSelectElement;
+
+            row.options = [
+                { value: 'r', label: 'Red' },
+                { value: 'g', label: 'Green' },
+            ];
+            expect([...select.options].map((o) => o.textContent).join('|')).toBe('Red|Green');
+            expect(row.options.map((o) => o.value).join('|')).toBe('r|g');
+
+            // And selection by VALUE, the drop-down's other published setter.
+            row.selectedValue = 'g';
+            expect(row.selected).toBe(1);
+            expect((row.querySelector('.adw-row-value') as HTMLSpanElement).textContent).toBe('Green');
+
+            host.remove();
+        });
+    });
+
+    // The SAME table `<gtk-drop-down>` and the NativeScript renderer are held to
+    // (`COMBO_SELECTION_VECTORS`), replayed through this row's own DOM and read back as
+    // what a user would see: the inline value label, `selected`/`selectedValue`, and the
+    // `notify::selected` stream. Two of the four step ops had no spelling here until the
+    // model and the select-by-value were published, which is what the conformance header
+    // names as the condition for this row inheriting the rows.
+    await describe('adw-combo-row selection (libadwaita conformance vectors)', async () => {
+        for (const vector of COMBO_SELECTION_VECTORS) {
+            await it(`${vector.name} — ${vector.rule}`, async () => {
+                const { el: row, host } = parse<AdwComboRow>(
+                    `<adw-combo-row title="Pick"></adw-combo-row>`,
+                    'adw-combo-row',
+                );
+                const value = row.querySelector('.adw-row-value') as HTMLSpanElement;
+                const events = record(row, 'notify::selected');
+
+                for (const step of vector.steps) applyComboStep(row, step);
+
+                expect(row.selected).toBe(vector.selected);
+                expect(row.selectedValue).toBe(vector.value);
+                expect(value.textContent).toBe(vector.label);
+                // `notify::selected` is this row's DOM spelling of the `interactive`
+                // flag: a user pick emits, a programmatic set repaints silently. So the
+                // interactive frames of the state's stream ARE the events a listener sees.
+                expect(events.details).toStrictEqual(
+                    vector.emitted
+                        .filter((change) => change.interactive)
+                        .map((change) => ({ selected: change.selected })),
+                );
+
+                events.stop();
+                host.remove();
+            });
+        }
     });
 
     await describe('adw-spin-row (SpinState)', async () => {
