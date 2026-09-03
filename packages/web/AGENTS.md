@@ -6,8 +6,8 @@
 
 | Pkg | Libs | Implements |
 |-----|------|------------|
-| fetch | Soup 3.0, Gio | fetch(), Request (raw body via `set_request_body_from_bytes`), Response, Headers. **No XHR** — that lives in `@gjsify/xmlhttprequest` |
-| xmlhttprequest | Soup 3.0, GLib | XMLHttpRequest, full `responseType`. Backs Excalibur's asset loader |
+| fetch | Soup 3.0, Gio | fetch(), Request (raw body via `set_request_body_from_bytes`), Response, Headers — **and an XHR**, `src/xhr.ts`, which is what a BUNDLED consumer of `@gjsify/xmlhttprequest` actually gets (`resolve-npm` routes that name here on gjs) |
+| xmlhttprequest | Soup 3.0, GLib | XMLHttpRequest, full `responseType`. Backs Excalibur's asset loader. Its own class is reached only by an UNBUNDLED `lib/esm` import — the second of two implementations, see open-todos |
 | dom-events | — | Event, CustomEvent, EventTarget, UI/Mouse/Pointer/Keyboard/Wheel/FocusEvent |
 | dom-exception | — | DOMException (WebIDL) |
 | abort-controller | — | AbortController, AbortSignal |
