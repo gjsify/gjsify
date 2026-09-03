@@ -421,10 +421,11 @@ jobs:
           echo "clean — bundle populated, portable, complete + license-covered"
 
       # A Node-runnable @gjsify/cli at the release-train version drives the OIDC
-      # publish: the committed cli.gjs.mjs bundle would need gjs + @gjsify/rolldown-
-      # native (absent here) and `packages/infra/cli/lib/` is a build output this cold
-      # checkout does not carry, so the published tarball is the only Node-runnable
-      # CLI these legs have. `needs: publish` puts that version on npm.
+      # publish: this cold checkout carries neither `packages/infra/cli/lib/` nor any
+      # cli.gjs.mjs — both are gitignored build output, and the one tracked bundle is
+      # the affected-classifier — so the published tarball is the only Node-runnable
+      # CLI these legs have. `needs: publish` puts that version on npm. Full reasoning,
+      # with the .gitignore lines, in scripts/bootstrap-published-cli.mjs.
       #
       # A SCRIPT, not shell, for the reason `verify-bundle-manifest.mjs` above is one:
       # this body was three bash copies plus a PowerShell transliteration of the same

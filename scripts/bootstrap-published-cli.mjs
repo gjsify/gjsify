@@ -4,13 +4,18 @@
 // WHY A NODE-INSTALLED CLI AT ALL. Four `release.yml` jobs — the two GTK-runtime
 // bundle legs, `publish-node-gi` and the three `publish-node-runtime` targets — OIDC-
 // publish ONE package each with a payload their own runner had to build. They need a
-// `gjsify publish`, and they cannot use the tree's: the committed `dist/cli.gjs.mjs`
-// wants gjs plus `@gjsify/rolldown-native`, neither of which exists on a macOS or
-// Windows runner, and `packages/infra/cli/lib/` is a BUILD OUTPUT that the checkout
-// does not carry (`.gitignore` → `lib/`). These jobs deliberately do not build the
-// workspace — that is the ubuntu `publish` job's ~30 minutes — so the published
-// tarball at the release-train version is the only Node-runnable CLI available to
-// them. `needs: publish` puts it on npm first.
+// `gjsify publish`, and a cold checkout carries NO CLI to give them. Measured, because
+// the first draft of this note said "the committed `dist/cli.gjs.mjs`" and no such file
+// is committed anywhere: `packages/infra/cli/lib/` is a build output (`.gitignore:63` →
+// `lib/`), and the GJS bundles are ignored as well — `.gitignore:61` takes `dist/`,
+// then `packages/infra/cli/dist/*` is re-ignored with exactly ONE exception,
+// `dist/affected.gjs.mjs`, which is the affected-classifier and not the CLI. Even a
+// bundle that WAS there would want `gjs` (absent on these runners) and, to build
+// anything, `@gjsify/rolldown-native`, which declares no win32 prebuild. These jobs
+// deliberately do not build the workspace — that is the ubuntu `publish` job's ~30
+// minutes, and the CLI has 15 `workspace:^` deps — so the published tarball at the
+// release-train version is the only Node-runnable CLI available to them.
+// `needs: publish` puts it on npm first.
 //
 // WHY ONE SCRIPT AND NOT FOUR SHELL BODIES. It was four: three bash copies and one
 // PowerShell transliteration, each doing the same six things (read the version, make a

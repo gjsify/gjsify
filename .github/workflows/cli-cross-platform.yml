@@ -79,11 +79,17 @@ jobs:
           node-version: '24'
 
       # THE ONLY THING THIS JOB TAKES FROM THE REPO, and it is deliberately not a
-      # checkout of the repo: `scripts/` alone, with cone mode OFF so no root-level
+      # checkout of the repo: `/scripts` alone, with cone mode OFF so no root-level
       # file (package.json, gjsify-lock.json, a .npmrc) materialises anywhere the
       # published CLI could walk up into. The premise of every step below is a runner
       # with NO gjsify tree on it — that is what makes this a user's experience rather
       # than ours — and a full checkout would quietly end that premise.
+      #
+      # THE LEADING SLASH IS LOAD-BEARING. A no-cone pattern is gitignore syntax, so a
+      # bare `scripts` matches a directory of that name at EVERY depth: measured on this
+      # branch, 33 of them and 198 files, reaching into `packages/`, `tests/` and
+      # `showcases/` — which is the beginning of exactly the tree this job must not have.
+      # `/scripts` anchors it to the root: one directory, 125 files.
       #
       # What it is for: `npm-install-published.mjs`, so npm's registry propagation lag
       # cannot be reported as an off-Linux toolchain gap. release.yml dispatches this
@@ -94,11 +100,11 @@ jobs:
       # install. The 0.30.0 note above is the same class from the other side: a probe
       # that runs before the thing it measures reports its own scheduling. Moving the
       # dispatch fixed the ORDER; this covers the lag that survives a correct order.
-      - name: Fetch the install helper (scripts/ only — no gjsify tree on this runner)
+      - name: Fetch the install helper (/scripts only — no gjsify tree on this runner)
         uses: actions/checkout@v6
         with:
           path: gjsify-scripts
-          sparse-checkout: scripts
+          sparse-checkout: /scripts
           sparse-checkout-cone-mode: false
 
       # A fresh project that depends on the PUBLISHED @gjsify/cli — exactly what a
