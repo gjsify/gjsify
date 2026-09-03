@@ -158,6 +158,7 @@ export default defineConfig({
                         { slug: 'guides/storybook' },
                         { slug: 'guides/devtools' },
                         { slug: 'guides/vite-plugin' },
+                        { slug: 'guides/webrtc' },
                     ],
                 },
                 {
