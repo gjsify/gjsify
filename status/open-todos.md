@@ -1,5 +1,31 @@
 <!-- Authored Open-TODO sections — THIS FILE is the tracked source of truth (the
-     rendered STATUS.md view is generated and gitignored). One `### <title>` per open item.
+     rendered STATUS.md view is generated and gitignored). One `### Two XMLHttpRequest implementations, and the docs name the wrong one as the only one
+
+`@gjsify/xmlhttprequest` ships a class in `src/index.ts`. `@gjsify/fetch` ships another in
+`src/xhr.ts` (11 269 bytes). `packages/infra/resolve-npm/lib/index.mjs` routes the SCOPED
+name to the second one on gjs (`:536`) and to `@gjsify/empty` on node (`:714`), with a
+comment at `:533` that says it outright — *"xmlhttprequest (implemented in @gjsify/fetch)"*.
+So a bundled consumer of `@gjsify/xmlhttprequest` never reaches that package's own class; it
+is reached only by an unbundled `lib/esm` import, which is what the published tarball offers.
+
+Measured with a probe consumer while #1505 was written: the instance carries `upload`, which
+exists only in `fetch/src/xhr.ts`.
+
+`packages/web/AGENTS.md` said the opposite in both directions until this entry was filed —
+*"**No XHR** — that lives in `@gjsify/xmlhttprequest`"* on the fetch row, while an 11 KB
+`xhr.ts` sat in that package and the routing table one directory over named it. Two files in
+one tree contradicting each other, and the reader following the AGENTS.md row lands in the
+implementation no bundle uses. The rows are corrected; the DUPLICATION is not.
+
+What is undecided, and why this is an entry rather than a fix: which class should survive.
+#1505 gave `src/index.ts` its first spec and fixed two defects in it (a `responseType === ''`
+that returned a FakeBlob instead of text, and WebIDL constants missing from the constructor),
+neither of which was ever checked against `fetch/src/xhr.ts` — which declares the same
+constants as module-level `export const`s and may or may not carry the same defect. Deleting
+either class is a published-contract change (`@gjsify/xmlhttprequest` is tier 1), and merging
+them is a decision about which package OWNS the API, not a refactor. Establish that first.
+
+### <title>` per open item.
      A RESOLVED item is DELETED (its record is the commit + CHANGELOG that closed
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
