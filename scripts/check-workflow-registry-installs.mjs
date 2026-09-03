@@ -56,10 +56,30 @@
 // Usage: node scripts/check-workflow-registry-installs.mjs [--root <dir>]
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
+
+/**
+ * `relative()` answers in HOST separators, and every `ALLOWED.file` is written with
+ * `/` because it is an identifier in this source, not a path on the runner. Comparing
+ * them directly made `a.file === file` false for EVERY entry on Windows, so nothing
+ * was ever recorded as hit and all four exemptions reported as stale — while the rows
+ * above still printed as `allowed`, which is how the same log said both at once.
+ * Measured on `Manifest checks (Windows)`: exit 1 on a tree whose Linux run exits 0.
+ * The declared-exceptions ledger this repository keeps for `path.sep` is about exactly
+ * this crossing: a portable identifier is `/`-separated, and the conversion belongs at
+ * the boundary rather than at the comparison.
+ *
+ * Takes the separator so a Linux run can exercise the Windows crossing: with `sep`
+ * alone the helper is a no-op here and the defect is unprovable off Windows. It is NOT
+ * a both-separator helper on purpose — this repository's declared-exceptions ledger
+ * argues that case repeatedly, since splitting on both would corrupt a legitimate
+ * Linux filename containing a backslash.
+ */
+const toPosix = (p, s = sep) => p.split(s).join('/');
+
 const rootIndex = args.indexOf('--root');
 const ROOT = rootIndex === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootIndex + 1];
 const GITHUB_DIR = join(ROOT, '.github');
@@ -234,6 +254,23 @@ function selfTest() {
     for (const shape of MUST_PASS) {
         if (findRegistryInstalls(shape).length !== 0) broken.push(`MUST_PASS flagged: ${JSON.stringify(shape)}`);
     }
+    // The exemption KEY, which the pattern corpus above does not reach. `relative()`
+    // answers in host separators while every `ALLOWED.file` is a `/`-spelled identifier
+    // in this source, so a direct comparison matched nothing on Windows: all four
+    // exemptions reported stale there on a tree whose Linux run exited 0, and the same
+    // log printed them as `allowed` one screen earlier.
+    // LIMIT, stated rather than implied: this holds the HELPER and the ledger's
+    // spelling, not the call site. Deleting `toPosix(...)` from the scan loop is a
+    // no-op on a host whose `sep` is already `/`, so a Linux run still exits 0 —
+    // measured. What holds the call site is the Windows leg, which is what caught
+    // this in the first place. Simulating a foreign host across the whole scan would
+    // be more machinery than the risk warrants while that leg runs on every PR.
+    if (toPosix('workflows\\cli.yml', '\\') !== 'workflows/cli.yml') {
+        broken.push('exemption key derivation is not separator-independent');
+    }
+    for (const a of ALLOWED) {
+        if (a.file.includes('\\')) broken.push(`ALLOWED.file must be /-spelled: ${a.file}`);
+    }
     return broken;
 }
 
@@ -268,7 +305,7 @@ const hits = new Set();
 const files = workflowFiles();
 
 for (const path of files) {
-    const file = relative(GITHUB_DIR, path);
+    const file = toPosix(relative(GITHUB_DIR, path));
     for (const found of findRegistryInstalls(readFileSync(path, 'utf8'))) {
         const exemption = ALLOWED.find((a) => a.file === file && found.text.includes(a.snippet));
         if (exemption) {
@@ -284,7 +321,10 @@ console.log(
         `${MUST_FLAG.length} must-flag + ${MUST_PASS.length} must-pass shapes green`,
 );
 for (const a of ALLOWED) {
-    console.log(`  allowed  ${a.file}: ${a.snippet}`);
+    // `hits` is what decides staleness below, so print the same fact here. Printing
+    // `allowed` unconditionally is what let one run claim `allowed` and `stale` for
+    // all four of the same entries.
+    console.log(`  ${hits.has(a) ? 'allowed' : 'UNMATCHED'}  ${a.file}: ${a.snippet}`);
     console.log(`           ${a.why}`);
 }
 
