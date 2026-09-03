@@ -4,6 +4,13 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import glob from 'fast-glob';
+import {
+    activeMsgids,
+    assertCatalogsSurviveMerge,
+    assertEverySourcePatternMatched,
+    EmptySourcePatternError,
+    GettextGuardError,
+} from './guards.js';
 import type { XGettextPluginOptions } from './types.js';
 import { checkDependencies, ensureDirectory, processFilename } from './utils.js';
 
@@ -95,7 +102,7 @@ export function xgettextPlugin(options: XGettextPluginOptions): Plugin {
 
         async buildStart() {
             await checkDependencies('xgettext', pluginName, options.verbose ?? false);
-            const files = await glob(options.sources);
+            const files = await resolveSources(options, pluginName);
             await extractStrings(files, options, pluginName);
         },
 
@@ -103,16 +110,71 @@ export function xgettextPlugin(options: XGettextPluginOptions): Plugin {
             server.watcher.add(options.sources);
 
             server.watcher.on('change', async (file) => {
-                if (options.sources.some((pattern) => file.match(pattern))) {
-                    if (options.verbose) {
-                        console.log(`[${pluginName}] Source file changed: ${file}, re-running extraction`);
-                    }
-                    const files = await glob(options.sources);
-                    await extractStrings(files, options, pluginName);
+                // Membership in the RESOLVED set, not `file.match(pattern)`: that
+                // compiled the glob as a regular expression, and any `**` in it is
+                // `Nothing to repeat`, so every change event threw a SyntaxError
+                // before it could decide anything. Re-extraction in `vite dev` had
+                // never run, which is also why the guards below had never been
+                // reached from here.
+                const files = await resolveSources(options, pluginName);
+                const changed = path.resolve(file);
+                if (!files.some((candidate) => path.resolve(candidate) === changed)) {
+                    return;
                 }
+                if (options.verbose) {
+                    console.log(`[${pluginName}] Source file changed: ${file}, re-running extraction`);
+                }
+                await extractStrings(files, options, pluginName);
             });
         },
     };
+}
+
+/**
+ * Resolves `sources` to files, globbing each POSITIVE pattern separately under
+ * the negative ones.
+ *
+ * The union `glob(options.sources)` used to return cannot say WHICH pattern came
+ * up empty, and in the incident `guards.ts` records only one of several did — so
+ * the union was non-empty and there was nothing left to notice. Per-pattern is
+ * what makes the guard able to name the offender.
+ *
+ * The negative patterns have to stay a property of the WHOLE set, though.
+ * fast-glob reads a leading `!` as an ignore filter over the other patterns, and
+ * returns nothing at all for a list that is only negations — so globbing one on
+ * its own yields zero files, which the guard would report as a missing source
+ * group, and silencing that with `optionalSources` would then extract the very
+ * files the `!` was there to keep out. They are lifted into `ignore` instead,
+ * which is what fast-glob does with them internally.
+ */
+async function resolveSources(options: XGettextPluginOptions, pluginName: string): Promise<string[]> {
+    const included = options.sources.filter((pattern) => !pattern.startsWith('!'));
+    const ignore = options.sources.filter((pattern) => pattern.startsWith('!')).map((pattern) => pattern.slice(1));
+    const perPattern = await Promise.all(included.map((pattern) => glob(pattern, { ignore })));
+
+    assertEverySourcePatternMatched(
+        included.map((pattern, index) => ({ pattern, fileCount: perPattern[index].length })),
+        { pluginName, cwd: process.cwd(), optionalSources: options.optionalSources, ignore },
+    );
+
+    // Two patterns may legitimately reach the same file; xgettext would then scan
+    // it twice and msgcat would have to fold the duplicate back out.
+    const files = [...new Set(perPattern.flat())];
+
+    // The one hole the per-pattern guard leaves: no positive pattern at all, or
+    // every pattern declared optional and every one empty. Extraction would run
+    // over nothing, write an empty POT and prune every catalog against it — the
+    // incident again, reached by a different route.
+    if (files.length === 0) {
+        throw new EmptySourcePatternError(
+            `[${pluginName}] no source file to extract from: ${options.sources.length} pattern(s) resolved to ` +
+                `nothing under ${process.cwd()}.\n` +
+                'Extracting anyway writes an empty POT, and with autoUpdatePo that empties every catalog.',
+            options.sources,
+        );
+    }
+
+    return files;
 }
 
 async function generatePotfiles(files: string[], outputDir: string, pluginName: string, verbose = false) {
@@ -135,14 +197,14 @@ async function generatePotfiles(files: string[], outputDir: string, pluginName: 
         const potfilePath = path.join(outputDir, `${group}.POTFILES`);
         const content = groupFiles.join('\n');
 
-        try {
-            await fs.writeFile(potfilePath, content);
-            potFiles.push(potfilePath);
-            if (verbose) {
-                console.log(`[${pluginName}] Generated ${group}.POTFILES with ${groupFiles.length} source files`);
-            }
-        } catch (error) {
-            console.error(`[${pluginName}] Error writing ${group}.POTFILES:`, error);
+        // Deliberately unguarded. A caught write failure used to leave the group
+        // out of `potFiles`, so xgettext never ran for it and the whole group left
+        // the POT — the incident in `guards.ts`, reached without any pattern being
+        // wrong. Nothing here can be recovered from; it has to end the build.
+        await fs.writeFile(potfilePath, content);
+        potFiles.push(potfilePath);
+        if (verbose) {
+            console.log(`[${pluginName}] Generated ${group}.POTFILES with ${groupFiles.length} source files`);
         }
     }
 
@@ -363,50 +425,113 @@ async function extractStrings(files: string[], options: XGettextPluginOptions, p
         }
 
         if (options.autoUpdatePo) {
+            await assertCatalogsSurviveNextMerge(options, pluginName);
             await updatePoFiles(options.output, pluginName, options.verbose || false, options);
         }
     } catch (error) {
+        // A guard's message IS the guard — wrapping it in "Failed to extract
+        // translations: Error: …" buries the instruction that makes it useful.
+        if (error instanceof GettextGuardError) {
+            throw error;
+        }
         throw new Error(`Failed to extract translations: ${error}`);
     }
 }
 
-async function updatePoFiles(potFile: string, pluginName: string, verbose: boolean, options: XGettextPluginOptions) {
+/** The catalogs LINGUAS declares beside a POT. */
+async function listCatalogs(potFile: string): Promise<Array<{ language: string; file: string }>> {
+    const directory = path.dirname(potFile);
+    const linguas = await readTextOrEmpty(path.join(directory, 'LINGUAS'));
+
+    return linguas
+        .split('\n')
+        .filter(Boolean)
+        .map((language) => ({ language, file: path.join(directory, `${language}.po`) }));
+}
+
+/**
+ * A file that is not there yet reads as empty rather than as a failure: a project
+ * with no LINGUAS has no translations, and a language named in LINGUAS before its
+ * catalog exists holds no entries. Both are states a first run is legitimately
+ * in, and neither is something a merge can destroy.
+ */
+async function readTextOrEmpty(file: string): Promise<string> {
     try {
-        const linguasPath = path.join(path.dirname(potFile), 'LINGUAS');
-        const languages = (await fs.readFile(linguasPath, 'utf-8')).split('\n').filter(Boolean);
+        return await fs.readFile(file, 'utf-8');
+    } catch (error) {
+        // ONLY "not there yet" reads as empty. A permission or I/O error must not:
+        // an unreadable catalog counted as holding nothing is the guard talking
+        // itself out of firing.
+        if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+            return '';
+        }
+        throw error;
+    }
+}
 
-        for (const lang of languages) {
-            const poFile = path.join(path.dirname(potFile), `${lang}.po`);
+/**
+ * Reads what `msgmerge` is about to rewrite and hands the counts to the pure
+ * check.
+ *
+ * Called from `extractStrings` BEFORE `updatePoFiles` and outside that function's
+ * catch — a refusal that became one more `console.error` beside a zero exit code
+ * would be the exact silence this guards against.
+ */
+async function assertCatalogsSurviveNextMerge(options: XGettextPluginOptions, pluginName: string): Promise<void> {
+    const catalogs = await listCatalogs(options.output);
+    const sizes = await Promise.all(
+        catalogs.map(async ({ language, file }) => ({
+            language,
+            msgids: activeMsgids(await readTextOrEmpty(file)),
+        })),
+    );
+
+    assertCatalogsSurviveMerge({
+        potMsgids: activeMsgids(await readTextOrEmpty(options.output)),
+        catalogs: sizes,
+        potFile: options.output,
+        pluginName,
+        maxEntryLoss: options.maxCatalogEntryLoss,
+    });
+}
+
+/**
+ * Merges the POT into every catalog LINGUAS declares.
+ *
+ * Deliberately unguarded, like `generatePotfiles`. A caught error here used to be
+ * one `console.error` beside exit 0 — and by then `msgmerge --update` may already
+ * have rewritten the catalogs it got to, so "an error was printed" and "the
+ * catalogs are intact" were unrelated facts.
+ */
+async function updatePoFiles(potFile: string, pluginName: string, verbose: boolean, options: XGettextPluginOptions) {
+    for (const { file: poFile } of await listCatalogs(potFile)) {
+        if (verbose) {
+            console.log(`[${pluginName}] Updating ${poFile}`);
+        }
+        const baseMsgmergeArgs = ['--update', '--backup=none', poFile, potFile];
+        const args = buildCommandArgs(baseMsgmergeArgs, {
+            noLocation: options.noLocation,
+            noWrap: options.noWrap,
+        });
+
+        const env = { ...process.env };
+        if (options.deterministic) {
+            const epoch = typeof options.sourceDateEpoch === 'number' ? options.sourceDateEpoch : 0;
+            env.SOURCE_DATE_EPOCH = String(epoch);
+        }
+
+        await execa('msgmerge', args, { env });
+
+        // Post-process with msgcat to unwrap existing wrapped lines
+        if (options.noWrap) {
+            const tempFile = poFile + '.tmp';
+            const msgcatArgs = ['--width=0', '--no-wrap', '-o', tempFile, poFile];
+            await execa('msgcat', msgcatArgs, { env });
+            await fs.rename(tempFile, poFile);
             if (verbose) {
-                console.log(`[${pluginName}] Updating ${poFile}`);
-            }
-            const baseMsgmergeArgs = ['--update', '--backup=none', poFile, potFile];
-            const args = buildCommandArgs(baseMsgmergeArgs, {
-                noLocation: options.noLocation,
-                noWrap: options.noWrap,
-            });
-
-            const env = { ...process.env };
-            if (options.deterministic) {
-                const epoch = typeof options.sourceDateEpoch === 'number' ? options.sourceDateEpoch : 0;
-                env.SOURCE_DATE_EPOCH = String(epoch);
-            }
-
-            await execa('msgmerge', args, { env });
-
-            // Post-process with msgcat to unwrap existing wrapped lines
-            if (options.noWrap) {
-                const tempFile = poFile + '.tmp';
-                const msgcatArgs = ['--width=0', '--no-wrap', '-o', tempFile, poFile];
-                await execa('msgcat', msgcatArgs, { env });
-                await fs.rename(tempFile, poFile);
-                if (verbose) {
-                    console.log(`[${pluginName}] Unwrapped lines in ${poFile}`);
-                }
+                console.log(`[${pluginName}] Unwrapped lines in ${poFile}`);
             }
         }
-    } catch (error) {
-        console.error(`[${pluginName}] Error updating PO files:`, error);
     }
 }
 
