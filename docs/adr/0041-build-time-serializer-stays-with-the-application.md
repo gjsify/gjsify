@@ -21,8 +21,12 @@ conditions under which the answer changes.
 
 ### What the Learn6502 serializer is — measured
 
-All numbers are from the checkout at `gjsify/easy6502` on 2026-09-03; the command that
-produced each is named so the number can be re-derived rather than trusted.
+All numbers are from the checkout at `gjsify/easy6502`; the command that produced each is
+named so the number can be re-derived rather than trusted. Re-derived on 2026-09-04 against
+`fix/translation-structural-validation`: the size, property and version numbers hold; the four
+that did not are corrected in place below, each with what the original command actually
+counted. That checkout is a SHALLOW clone with a graft horizon at 2026-06-05, which is why the
+churn figures below are marked unverifiable rather than restated.
 
 **Size and shape** (`wc -l` over `packages/learn/tsx/**`): 2 147 lines of TSX/TS.
 
@@ -39,13 +43,16 @@ of them imports `@learn6502/examples` and emits the app's own `SourceView` widge
 `line-number-start` …). They are Learn6502, not a general capability. What remains as a
 candidate for sharing is ~1 070 lines of label/box/list/heading mapping plus 232 shared.
 
-**Content** (`grep -c` over `tutorial.mdx`, 825 lines / 34.8 KB): 34 headings, 52 fenced
-code blocks, **0** images, **0** tables, **0** JSX components, **0** imports. The element
-map in `gtk.components.tsx` has 19 keys; the content exercises a subset. The serializer
-has never had to answer a question a plain markdown paragraph does not ask.
+**Content** (`grep -c` over `tutorial.mdx`, 825 lines / 34.8 KB): 34 headings, **26** fenced
+code blocks, **0** images, **0** tables, **0** JSX components, **0** imports. (`grep -c '^```'`
+returns 52; it counts fence DELIMITERS, opener and closer alike. 26 is confirmed independently by
+the 26 `SourceView` in the output, one per block.) The element map in `gtk.components.tsx` has
+**21** keys, 19 of them HTML element names; the content exercises a subset. The serializer has
+never had to answer a question a plain markdown paragraph does not ask.
 
-**Output** (`grep -o` over `dist/tutorial.ui`, 566 lines): 303 `GtkLabel`, 95 `GtkBox`,
-26 `SourceView`. Distinct `<property name>` values: **24**, of which **14** are GTK
+**Output** (`grep -o` over BOTH generated `.ui` files — `dist/tutorial.ui` is 566 lines and
+holds 155 `GtkLabel`, 14 `GtkBox`, 26 `SourceView`; with `dist/quick-help.ui` the totals are)
+303 `GtkLabel`, 95 `GtkBox`, 26 `SourceView`. Distinct `<property name>` values: **24**, of which **14** are GTK
 properties (`label`, `use-markup`, `wrap`, `halign`, `valign`, `xalign`, `hexpand`,
 `hexpand-set`, `vexpand`, `vexpand-set`, `margin-top`, `margin-bottom`, `margin-start`,
 `orientation`) and 10 are the `SourceView`'s own.
@@ -54,8 +61,11 @@ properties (`label`, `use-markup`, `wrap`, `halign`, `valign`, `xalign`, `hexpan
 --app gjs --globals node` and `gjsify run`. The package declares `@gjsify/cli ^0.10.0`;
 the installed CLI in that checkout is **0.16.3**, against gjsify `main` at 0.46.0.
 
-**Churn** (`git log --oneline -- packages/learn`): 12 commits in the package's life, 3
-touching `tsx/` since 2025. It is stable code.
+**Churn** (`git log --oneline -- packages/learn`): 12 commits visible, 3 of them touching
+`tsx/`, all three inside four weeks of 2026-06/07. **Not "the package's life":** the checkout is
+a shallow clone whose graft horizon is 2026-06-05, so it can see three months and the oldest
+`learn` commit it shows IS a graft root. The code may well be stable; this checkout cannot
+establish it, and a full clone is what would.
 
 **Consumers, and the test gap.** `app-gnome` imports `@learn6502/learn/dist/tutorial.ui`
 as a `GObject.registerClass` `Template` (`src/mdx/tutorial-view.ts`; `MdxView extends
@@ -78,23 +88,45 @@ that feeds Android is a `cp` in `package.json`.
 so one markdown paragraph, inline markup included, is **one gettext msgid**. `xgettext`
 scans the generated `.ui`; GtkBuilder does the lookup at load. There is no `_()` for
 tutorial content anywhere in the application. In the committed catalog
-(`eu.jumplink.Learn6502.pot`, 457 msgids) **165 are MDX-derived — 36 %** (`grep -c
-'translatable="yes"'` over both `.ui` files: 141 + 24).
+(`eu.jumplink.Learn6502.pot`, 457 `msgid` lines = 456 entries plus the header) **223 are
+MDX-derived — 49 %**, counted as POT entries carrying the `#. TRANSLATORS: MDX-derived` comment.
+(`grep -c 'translatable="yes"'` over the two `.ui` files returns 141 + 24 = 165, and that is a
+count of LINES: `quick-help.ui` packs 80 matches onto 23 lines. Per occurrence it is 146 + 80 =
+226 emitted, 223 distinct in the POT.)
 
 The measurement that shapes the decision: **the msgid is not a property of the `.ui`
 file.** It is `clearExtraSpaces(renderSSR(children))` — a function of the MDX paragraph
 and the inline element mapping (`em`→`<i>`, `strong`→`<b>`, `code`→`<tt>`,
 `sub`/`sup`→`<small>`), computed in `utils.ts` and identical in `GtkLabel.render()` and
-`NsHtmlView.render()`. Checked by sampling three msgids out of `tutorial.ui` and grepping
-`tutorial.ns.xml`: **3 of 3 byte-identical.** That is why one `.po` set serves GTK (via
-`msgfmt`) and Android (via `po2json` + runtime `localize(html)`) — Android never reads a
-`translatable` attribute; it looks the string up itself. The web target has no
+`NsHtmlView.render()` — *for a paragraph with no inline code.*
+
+An earlier draft of this ADR said "sampled three msgids out of `tutorial.ui`, grepped
+`tutorial.ns.xml`, 3 of 3 byte-identical" and drew the target-neutrality of the msgid from it.
+Run over the whole population on 2026-09-04 — all 146 `<property name="label" translatable="yes">`
+values in `dist/tutorial.ui`, substring-tested against `dist/tutorial.ns.xml`, both HTML-unescaped
+— **61 appear and 85 do not: 58 % diverge.** A three-sample was not a measurement of a
+population; it is corrected rather than deleted because the number it produced is what the
+argument below was built on.
+
+The divergence is structural, not escaping. Inline `code` becomes `<tt>…</tt>` inside the GTK
+label's msgid, and on the NativeScript target becomes a whole
+`<w:SourceView id="nsSourceView16" code="…">` element inside the same `html=` attribute; one
+paragraph measured 480 characters on GTK and 880 on NativeScript, identical up to its first
+inline code span. Since `build.js` extracts the POT from `../learn/dist/**/*.ui` only, those 85
+Android strings have no catalog entry to look up at all. That is a Learn6502 defect this ADR
+found and does not fix; it is in *What Learn6502 does* below.
+
+What survives, and is what the rest of this ADR needs: the msgid is derived **before any target
+is chosen**, by the inline-markup step, and one `.po` set serves GTK (via `msgfmt`) and Android
+(via `po2json` + runtime `localize(html)`) wherever the two agree — Android never reads a
+`translatable` attribute, it looks the string up itself. The web target has no
 internationalisation at all (`grep -rl gettext\|i18n packages/app-web/src`: nothing).
 
-So the serializer's valuable property is **"one msgid per paragraph, shared across
-targets"**, and it is produced by the MDX→inline-markup step. GtkBuilder's
-`translatable="yes"` is the cheapest *consumer* of that property on one target, not its
-source.
+So the serializer's valuable property is **"one msgid per paragraph, derived independently of the
+target"**. It is produced by the MDX→inline-markup step, and 58 % of the time the two targets do
+not currently agree on the result — which makes it a property the emitters would still have to be
+taught, not one that would arrive with them. GtkBuilder's `translatable="yes"` is the cheapest
+*consumer* of it on one target, not its source.
 
 ### What gjsify has — measured
 
@@ -141,12 +173,10 @@ Two things about that trap were asserted and both are wrong when measured:
    be produced by a Learn6502 build step, and `xgettext` would still read a sibling's build
    artifact. The ordering question is identical on either side of the boundary.
 
-The fix that does address it is at the core and in flight: the gjsify checkout is on
-`fix/xgettext-catalog-guards` with an untracked `xgettext.spec.ts` whose cases are *"fails
-on a pattern that matches no files"* and *"refuses to prune catalogs a collapsed POT would
-empty"*. At the time of writing the spec exists and `xgettext.ts` is unchanged, so this is
-work in progress, not a landed fact. Learn6502 PR #176 (the catalog validator) is open,
-not merged.
+The fix that does address it is at the core, and it is in the same PR as this ADR:
+`xgettextPlugin` refuses a `sources` pattern that matched no files, refuses a run that matched
+none at all, and refuses an `autoUpdatePo` merge that would obsolete more of the catalogs than
+`maxCatalogEntryLoss` allows. Learn6502 PR #176 (the catalog validator) is open, not merged.
 
 ### The four arguments, tested
 
@@ -174,7 +204,7 @@ gtk-host's `GtkLabelProps` — which needs Learn6502 on a gjsify that ships gtk-
 **2. "The i18n pipeline is split across repos."** Emitting is in Learn6502, extracting
 and compiling in gjsify, validating (PR #176) in Learn6502. Tested above: the split is
 not what created the trap and moving the emitter would not close it. What closes it is a
-plugin that refuses to run on an empty pattern (gjsify, in flight) and a build invocation
+plugin that refuses to run on an empty pattern (gjsify, in this PR) and a build invocation
 that pre-builds its declared dependency (`-t`, exists). The validator in PR #176 is about
 `.po` **content** (markup parses, `<tt>` survives) and reads only catalogs; it belongs
 with the catalogs.
@@ -182,11 +212,14 @@ with the catalogs.
 **3. "Rendering at runtime would lose one-msgid-per-paragraph."** False, by the
 measurement in § *The internationalisation property*: the msgid is derived before any
 target is chosen, and the Android target already performs a runtime lookup on exactly that
-string. A runtime renderer on gtk-host would keep the property if the build kept
+string for the 42 % of paragraphs where the two targets agree today. A runtime renderer on gtk-host would keep the property if the build kept
 **extracting** — a generated artifact `xgettext` can read (a `.ui`, or a generated `.ts`
 of `_("…")` per paragraph) — and called `Gettext.gettext(msgid)` once per block at render
 time. The msgid derivation would then have to live in one place both the extractor and
-the renderer import, which is a headless function of ~60 lines, not a serializer. What
+the renderer import. That piece is small: `utils.ts` is 59 lines, but only
+`clearExtraSpaces` (3 lines) is on the msgid path, joined by the 4-line inline-element map in
+`gtk.components.tsx` and nano-jsx's `renderSSR`, which is a dependency and not code here at all.
+Call it **under ten lines of first-party code plus an SSR renderer**, not a serializer. What
 gjsify does not have is that renderer: no package renders markdown onto gtk-host today.
 The design space for one was surveyed (label + Pango markup, `GtkTextBuffer` +
 `insert_markup`, or hybrid block-widgets/inline-Pango — the shapes gnome-software,
@@ -199,15 +232,17 @@ MDX UI content and for translatable templates:
 
 | consumer | `.blp` files | `_("…")` in `.blp` | markdown/MDX UI content |
 |---|---|---|---|
-| `pixel-rpg/map-editor` | 0 | 0 | none |
+| `pixel-rpg/map-editor` | not measured | not measured | not measured |
 | `buchhaltung/app` | 15 | 0 | none (the only `markdown` hit is LLM output handling) |
 | `bauplaner` | 0 | 0 | none |
 | `troedler/app` | 0 | 0 | none |
 | `postbote` (`projects/mail/app`) | 0 | 0 | none |
-| `templates/*` in gjsify | — | — | none |
+| `templates/*` in gjsify | 3 | 0 | none |
 
-Nobody else has long-form authored content in a GTK app, and nobody else marks a single
-string translatable in a template. The second consumer ADR 0003 requires for promotion
+`pixel-rpg/map-editor` is an uninitialised submodule in the workspace this was measured from, so
+its row is a gap, not a zero — initialising it is what would close it. Of the five that were
+measured, nobody has long-form authored content in a GTK app, and nobody marks a single string
+translatable in a template. The second consumer ADR 0003 requires for promotion
 out of Tier 3 does not exist, and a package written for one consumer is the shape ADR 0003
 § 3 puts at Tier 3 "no matter how promising" — with nothing to promote it.
 
@@ -247,17 +282,21 @@ Four reasons, each resting on a measurement above rather than on a preference:
 2. The ordering trap that raised the question is not a repository-boundary problem. The
    dependency is declared, the tool that honours it exists, and the guard that makes the
    failure loud is being built at the core, in the plugin that owns `xgettext`.
-3. The duplicated widget knowledge is 53 names of which 14 are used, in code that changed
-   three times since 2025. Its correct removal is a type import, not a package move.
+3. The duplicated widget knowledge is 53 names of which 14 are used, in code with three
+   commits in the three months this checkout can see. Its correct removal is a type import,
+   not a package move.
 4. There is one consumer, 39.5 % of the code is that consumer's `SourceView`, and no
    second consumer exists in the workspace or is in sight.
 
 **What gjsify owns instead**, all of it already the plugin's job:
 
 - `@gjsify/vite-plugin-gettext`'s `xgettextPlugin` **fails on a `sources` pattern that
-  matches no file** and **refuses an `autoUpdatePo` merge that would empty catalogs**. Both
-  are the cases in the in-flight spec; landing them is the whole of gjsify's answer to the
-  incident. A plugin that cannot see its input must say so, not report success.
+  matches no file**, fails when the run as a whole resolved to none, and **refuses an
+  `autoUpdatePo` merge that would obsolete more msgids than `maxCatalogEntryLoss` allows** —
+  measured as a set difference, because `msgmerge` matches by msgid and an equally long POT of
+  re-worded strings costs the same translations. It also stops reporting a failed `msgmerge` to
+  the console beside a zero exit code. Landing those is the whole of gjsify's answer to the
+  incident: a plugin that cannot see its input must say so, not report success.
 - The plugin's README documents that a `sources` entry pointing at a sibling package's
   build artifact is a **declared dependency to be built first**, and names
   `gjsify workspace -t` as the way to do that. That sentence is the one that was missing.
@@ -272,6 +311,10 @@ side of the boundary has obligations too — tracked in Learn6502, not in gjsify
   `dist/tutorial.ns.xml` and `dist/tutorial.html`, plus one assertion that the msgid set of
   the `.ui` equals the `html="…"` set of the `.ns.xml`. That test is what any future move
   of this code would need first, and it protects three consumers today.
+- Close the msgid divergence this ADR measured, or decide it is acceptable: 85 of the 146 GTK
+  label msgids do not appear in `tutorial.ns.xml`, because inline `code` serialises to `<tt>` on
+  one target and to a whole `SourceView` element on the other, and the POT is extracted from the
+  `.ui` files only. Those 85 Android strings have nothing to look up.
 - Optionally, trim the six read-only names out of the property lists or replace the lists
   with a `Pick<>` over gtk-host's generated props when Learn6502 next bumps gjsify. Not
   before: the bump is 0.16 → 0.4x and the serializer is not the reason to make it.
@@ -302,16 +345,18 @@ one user, and ADR 0003 already says where that lands and why it does not leave.
   No MDX, nano-jsx or SSR dependency enters the release train.
 - The Learn6502 serializer stays a private package with a private toolchain, and its
   property lists stay hand-typed. The cost of that is measured at 6 unused read-only
-  names and 3 commits since 2025; it is recorded so it is not rediscovered as "drift".
+  names and 3 commits in the visible history; it is recorded so it is not rediscovered as "drift".
 - The i18n pipeline stays split: emit in Learn6502, extract/compile in gjsify, validate
   `.po` content in Learn6502. The split is by ownership of the data each step reads, and
   after the plugin guard lands an empty input is loud on either side.
 - The three consumers of `dist/*` are untouched; nothing migrates and no migration risk is
   taken. The absence of a test over those outputs is a Learn6502 gap that this decision
   neither creates nor closes, and it is named above so it does not stay invisible.
-- A future markdown-on-gtk-host track inherits a finding it would otherwise have to
-  re-measure: the msgid derivation is target-neutral, and it is the one piece that must be
-  written once. Learn6502's `utils.ts` + the inline mapping is the reference.
+- A future markdown-on-gtk-host track inherits two findings it would otherwise have to
+  re-measure: the msgid derivation is target-neutral *by construction* and is the one piece that
+  must be written once, and the two emitters that exist do not currently agree on its output for
+  58 % of paragraphs. The second is the harder half, and it is a property of the inline mapping,
+  not of the XML emission. Learn6502's `utils.ts` + the inline mapping is the reference.
 - The rejected alternative is recorded: a `@gjsify/ui-serializer` at Tier 3 with
   Learn6502 as sole consumer, carrying nano-jsx and `@mdx-js/rollup`, whose GTK half
   would duplicate the vocabulary gtk-host already generates and whose `SourceView` half
@@ -322,11 +367,12 @@ one user, and ADR 0003 already says where that lands and why it does not leave.
 Since the decision is a refusal, the implementation is the set of things that make the
 refusal safe, in the order they should land.
 
-1. **gjsify — land the `xgettext` guards.** Finish `fix/xgettext-catalog-guards`:
-   `xgettextPlugin.buildStart` throws when any `sources` pattern matches zero files, and
-   `autoUpdatePo` refuses a merge that would drop entries a collapsed POT no longer
-   carries. The spec's own entry counting stays independent of the implementation's
-   counter, as its header requires. This is the only code change in gjsify.
+1. **gjsify — the `xgettext` guards**, in this PR. `xgettextPlugin` throws when a `sources`
+   pattern matches zero files or the run matches none, and `autoUpdatePo` refuses a merge that
+   would obsolete more of the catalogs than allowed. Extraction and merge failures stop being
+   `console.error` beside exit 0. The spec's entry counting is `gettext-parser`'s, so it is an
+   oracle independent of the implementation rather than a copy of it. This is the only code
+   change in gjsify.
 2. **gjsify — one paragraph in `packages/infra/vite-plugin-gettext/README.md`:** a
    `sources` entry into another package's `dist/` is a build-order dependency; declare it
    in `package.json` and run with `gjsify workspace -t`. Cite the 902-line incident in one
@@ -343,12 +389,15 @@ refusal safe, in the order they should land.
 ### What this ADR could not determine from the code
 
 - Whether the empty-glob incident is the only silent-failure path in the catalog
-  pipeline. `po2json` and `gettextPlugin` were not audited for the same class; the spec in
-  flight covers `xgettext` only.
+  pipeline. `po2json` and `gettextPlugin` were not audited for the same class; the spec
+  covers `xgettext` only. Two further paths of the same class WERE found while auditing
+  `xgettext.ts` and are fixed in this PR (a swallowed `POTFILES` write, a swallowed
+  `msgmerge`), which is evidence the class is not exhausted rather than that it is.
 - Whether a runtime markdown renderer on gtk-host is wanted at all. The survey of GTK
   markdown architectures exists as working notes, not as repository status, and no issue
   tracks it (`gh issue list --search markdown` on `gjsify/gjsify`: two unrelated hits).
-- The exact set of MDX elements the content uses. The map has 19 keys; the outputs show
+- The exact set of MDX elements the content uses. The map has 21 keys, 19 of them element
+  names; the outputs show
   headings, paragraphs, ordered/unordered lists, inline `em`/`strong`/`code`/`a`, and
   fenced code; tables and images are 0 (measured). Sub/sup are mapped but their use was
   not counted.
