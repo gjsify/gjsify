@@ -79,6 +79,27 @@ function activeEntries(po: string): number {
     return heads.length - 1; // the header entry is `msgid ""`
 }
 
+/** The `change` handler `configureServer` registers, with a way to fire it. */
+function watchedServer(options: XGettextPluginOptions) {
+    let onChange: ((file: string) => Promise<void>) | undefined;
+    const server = {
+        watcher: {
+            add() {},
+            on(event: string, handler: (file: string) => Promise<void>) {
+                if (event === 'change') {
+                    onChange = handler;
+                }
+            },
+        },
+    };
+    const plugin = xgettextPlugin(options) as unknown as { configureServer: (server: unknown) => void };
+    plugin.configureServer(server);
+    if (!onChange) {
+        throw new Error('configureServer registered no change handler');
+    }
+    return onChange;
+}
+
 export default async () => {
     await describe('xgettextPlugin — source patterns', async () => {
         await it('fails on a pattern that matches no files', async () => {
@@ -147,6 +168,55 @@ export default async () => {
                         keywords: ['_'],
                     }),
                 ).rejects.toThrow(/no source file to extract from/);
+            } finally {
+                await fs.rm(dir, { recursive: true, force: true });
+            }
+        });
+    });
+
+    await describe('xgettextPlugin — the dev-server watch path', async () => {
+        await it('re-extracts on a source change, and only for a source', async () => {
+            // `configureServer` matched with `file.match(pattern)`, which compiles
+            // the glob as a REGEXP — and `**` in one is `Nothing to repeat`, so
+            // every change event threw a SyntaxError before deciding anything.
+            // Re-extraction in `vite dev` had never run, and neither guard had ever
+            // been reached from here.
+            const dir = await fixture();
+            try {
+                const source = await write(dir, 'src/window.blp', blueprint('Hello', 'Second'));
+                const output = path.join(dir, 'po', 'messages.pot');
+                const onChange = watchedServer({
+                    sources: [path.join(dir, 'src', '**', '*.blp')],
+                    output,
+                    keywords: ['_'],
+                });
+
+                await onChange(path.join(dir, 'README.md'));
+                expect(existsSync(output)).toBe(false);
+
+                await onChange(source);
+                expect(activeEntries(await fs.readFile(output, 'utf-8'))).toBe(2);
+            } finally {
+                await fs.rm(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('arms the catalog guard on that path too', async () => {
+            const dir = await fixture();
+            try {
+                const source = await write(dir, 'src/window.blp', blueprint('Hello'));
+                await write(dir, 'po/LINGUAS', 'de\n');
+                const poFile = await write(dir, 'po/de.po', catalog('Hello', 'Second', 'Third', 'Fourth'));
+                const before = await fs.readFile(poFile, 'utf-8');
+                const onChange = watchedServer({
+                    sources: [path.join(dir, 'src', '**', '*.blp')],
+                    output: path.join(dir, 'po', 'messages.pot'),
+                    keywords: ['_'],
+                    autoUpdatePo: true,
+                });
+
+                await expect(onChange(source)).rejects.toThrow(/catalog/i);
+                expect(await fs.readFile(poFile, 'utf-8')).toBe(before);
             } finally {
                 await fs.rm(dir, { recursive: true, force: true });
             }

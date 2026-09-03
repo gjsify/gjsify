@@ -110,13 +110,21 @@ export function xgettextPlugin(options: XGettextPluginOptions): Plugin {
             server.watcher.add(options.sources);
 
             server.watcher.on('change', async (file) => {
-                if (options.sources.some((pattern) => file.match(pattern))) {
-                    if (options.verbose) {
-                        console.log(`[${pluginName}] Source file changed: ${file}, re-running extraction`);
-                    }
-                    const files = await resolveSources(options, pluginName);
-                    await extractStrings(files, options, pluginName);
+                // Membership in the RESOLVED set, not `file.match(pattern)`: that
+                // compiled the glob as a regular expression, and any `**` in it is
+                // `Nothing to repeat`, so every change event threw a SyntaxError
+                // before it could decide anything. Re-extraction in `vite dev` had
+                // never run, which is also why the guards below had never been
+                // reached from here.
+                const files = await resolveSources(options, pluginName);
+                const changed = path.resolve(file);
+                if (!files.some((candidate) => path.resolve(candidate) === changed)) {
+                    return;
                 }
+                if (options.verbose) {
+                    console.log(`[${pluginName}] Source file changed: ${file}, re-running extraction`);
+                }
+                await extractStrings(files, options, pluginName);
             });
         },
     };
