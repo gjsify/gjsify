@@ -22,7 +22,7 @@ import {
     type Placement,
 } from './policies.js';
 import { beginHostWrite, clearHandlers, endHostWrite, isEventProp, setHandler, toSignalName } from './signals.js';
-import { coerce, paramSpecs, removedValue, requireSpec, toPropertyName } from './props.js';
+import { coerce, isConstructOnly, paramSpecs, removedValue, requireSpec, toPropertyName } from './props.js';
 import { lookupWidget, nearestRegistered } from './registry.js';
 import type { HostAnchor, HostElement, HostNode, HostText, WidgetDescriptor } from './types.js';
 
@@ -224,13 +224,27 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
     // boolean types it cannot, and there `null` had no meaning to preserve.
     const removed = next === undefined || next === null;
     const value = removed ? removedValue(el.descriptor, spec) : coerce(spec, next, el.descriptor.gtype);
+    // BEFORE the record, with `requireSpec` above, because this function's own contract
+    // is that nothing is written down until the installed GTK has agreed to it. The
+    // refusal used to live in `writeProperty`, which runs AFTER — so a refused write
+    // left `el.props` holding a value the widget never took, and `materialize` would
+    // replay it.
+    //
+    // SCOPED TO THE BRANCH THAT ASSIGNS, which is narrower than "the accessor route".
+    // A construct-only property returns through `rebuild` below and is never assigned,
+    // and asking about it would have the guard resting on something it does not check:
+    // `accessor in widget` is satisfied for a construct-only property by the plain own
+    // DATA property GJS stamps at construction, not by an accessor. Excluding it here
+    // makes the test mean what its own docblock says.
+    const assigns = el.widget !== null && takesAccessorRoute(value) && !isConstructOnly(spec);
+    if (assigns) requireAccessor(el, el.widget as GObject.Object, name);
 
     const previouslyRecorded = name in el.props ? el.props[name] : undefined;
     if (removed) delete el.props[name];
     else el.props[name] = next;
 
     if (!el.widget) return; // buffered until materialisation
-    if ((spec.flags & GObject.ParamFlags.CONSTRUCT_ONLY) !== 0) return rebuild(el, name, previouslyRecorded);
+    if (isConstructOnly(spec)) return rebuild(el, name, previouslyRecorded);
 
     beginHostWrite(el.widget);
     try {
@@ -264,19 +278,105 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
  * repository rendered once and asserted, so the throw sat behind the first update
  * nobody performed.
  *
- * Restricted to arrays on purpose. `set_property` is the path that refuses what
- * GObject would silently mis-store (`coerce`'s enum branch exists because
+ * `null` TAKES THE SAME ROUTE, and for the same reason one word further: a JS `null`
+ * names no GType either. MEASURED on gjs 1.88.1 / GTK 4.22.4 / libadwaita 1.9.3, on
+ * both an object and a string property:
+ *
+ *     b.set_property('menu-model', null)        CRITICAL: unable to set property
+ *                                               'menu-model' of type 'GMenuModel'
+ *                                               from value of type 'gpointer'
+ *     b.set_property('dropdown-tooltip', null)  the same, 'gchararray' from 'gpointer'
+ *     b.menuModel = null                        works
+ *
+ * Both are a GLib-GObject-CRITICAL at exit 0 WITH THE OLD VALUE STILL IN PLACE — the
+ * silent mis-store this function exists to refuse, on the one path that reaches it. So
+ * REMOVING a nullable property from a MOUNTED widget wrote nothing: `removedValue`
+ * answered `null` correctly and the write threw it away. Found by the portable menu
+ * model's suite, the first test in this package to remove an OBJECT-valued prop after
+ * mount — every earlier one removed a scalar whose construction default is not null.
+ *
+ * WHAT THIS DOES NOT FIX, measured on the same versions over the 42 curated GTypes.
+ * Those have 1543 writable, non-construct-only property/type pairs; `removedValue`
+ * answers `null` for 293 of them, and those 293 are what newly takes this route. TEN
+ * emit a CRITICAL — the eight below, plus the two further down that clear anyway — and
+ * EIGHT still keep the old value, because `removedValue` hands over the NULL the
+ * ParamSpec declares and GTK's own setter refuses it:
+ *
+ *     icon-name       GtkButton, GtkToggleButton
+ *                     gtk_button_set_icon_name: assertion 'icon_name != NULL' failed
+ *     visible-child   GtkStack, AdwViewStack
+ *                     …set_visible_child: assertion 'GTK_IS_WIDGET (child)' failed
+ *     display         GtkWindow, GtkApplicationWindow, AdwWindow, AdwApplicationWindow
+ *                     gtk_window_set_display: assertion 'GDK_IS_DISPLAY (display)' failed
+ *
+ * None of the eight is a REGRESSION — all behaved identically before this change — but
+ * a package whose reason for existing is refusing an exit-0 mis-store must not record
+ * that it fixed a case it did not. The fix for those belongs in `removedValue`, where
+ * the disagreement is (the ParamSpec says NULL, the setter says no), not here.
+ *
+ * TWO MORE clear correctly and are NOISY doing it — `GtkEntry.extra-menu`
+ * (`g_object_ref: assertion 'G_IS_OBJECT (object)' failed`) and `GtkLabel.tabs`
+ * (`pango_tab_array_copy: assertion 'src != NULL' failed`). A future test for those two
+ * cannot live inside `gated(diagnostics, …)`, which fails on anything at or below
+ * `LEVEL_WARNING`.
+ *
+ * `AdwWindow.content` and `AdwApplicationWindow.content` are NOT among them: they clear
+ * silently. The first version of this passage said otherwise, and the reason is worth
+ * keeping — the harness that measured it reused one `Gtk.Label` across two windows, so
+ * the second `set_content` tripped `gtk_widget_get_parent (content) == NULL` and the
+ * diagnostic belonged to the harness. Every line above is one process per case.
+ *
+ * The accessor branch now also carries ARRAYS, which could not throw here before: the
+ * missing-accessor refusal below sits after both. Nothing in the shipped table reaches
+ * it — the sweep below found zero — but it is a behavioural change on a non-null path
+ * and worth saying.
+ *
+ * Restricted to arrays and `null` on purpose. `set_property` is the path that refuses
+ * what GObject would silently mis-store (`coerce`'s enum branch exists because
  * `box.orientation = 'vertical'` keeps HORIZONTAL with no diagnostic at all), so it
  * stays the default for every scalar; the accessor is used only where GJS cannot
  * form the GValue, and by then `coerce` has already normalised the value.
  */
 function writeProperty(widget: GObject.Object, name: string, value: unknown): void {
-    if (!Array.isArray(value)) {
+    if (!takesAccessorRoute(value)) {
         (widget as unknown as { set_property(n: string, v: unknown): void }).set_property(name, value);
         return;
     }
-    const accessor = name.replace(/-([a-z0-9])/g, (_, character: string) => character.toUpperCase());
+    const accessor = accessorName(name);
     (widget as unknown as Record<string, unknown>)[accessor] = value;
+}
+
+/** `background-color` → `backgroundColor`, the spelling GJS installs the accessor under. */
+const accessorName = (name: string) => name.replace(/-([a-z0-9])/g, (_, character: string) => character.toUpperCase());
+
+/** Whether a value can only be written through the JS accessor — see {@link writeProperty}. */
+const takesAccessorRoute = (value: unknown) => value === null || Array.isArray(value);
+
+/**
+ * Refuse an accessor route GJS installed no accessor for.
+ *
+ * The derivation above is a GUESS about a name, and `constructedDefaults` guards the
+ * identical one (`props.ts`: `if (!(accessor in probe)) continue`) while this path did
+ * not: assigning to a name GJS installed nothing for creates a plain JS EXPANDO — no
+ * GObject write, no error, and `notify::` never fires. That is the exit-0 shape this
+ * module exists to refuse.
+ *
+ * ASKED ONLY WHERE A VALUE IS ACTUALLY ASSIGNED — see the call in `setProp`. `accessor
+ * in widget` is a weaker test than "GJS installed an accessor": a plain own data
+ * property satisfies it too, which is what a construct-only property carries after
+ * construction. Scoping the call is what keeps the premise as strong as the sentence.
+ *
+ * NOT REACHED BY THE SHIPPED TABLE — swept over every writable property of the 42
+ * curated GTypes and of the whole installed surface, and the accessor resolved every
+ * time. The one shape that can reach it is a DIGIT segment: this regex turns
+ * `has-2-digits` into `has2Digits` and GJS installs `has_2_digits`. So where it fires,
+ * GJS did install an accessor and the derivation is what is wrong — the message says
+ * the accessor is missing, which is true of the NAME asked for and not of the property.
+ * Fixing the derivation is `constructedDefaults`' problem too, and is not this change.
+ */
+function requireAccessor(el: HostElement, widget: GObject.Object, name: string): void {
+    const accessor = accessorName(name);
+    if (!(accessor in widget)) throw err.noAccessor(el.descriptor.gtype, name, accessor);
 }
 
 export function setEventHandler(el: HostElement, prop: string, next: ((...args: unknown[]) => unknown) | null): void {
