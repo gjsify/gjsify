@@ -200,11 +200,32 @@ Remaining darwin gaps are tracked in [`status/open-todos.md`](../../../status/op
 
 ### The darwin GL 4.1 ceiling
 
-Moved here from [packages/framework/AGENTS.md](../AGENTS.md) when that file reached the
-32 KiB `project_doc_max_bytes` cap. The rule there is one line and links back; this is the
-measurement behind it, which a rule without its reason gets "simplified" back into.
+The one-line rule in [packages/framework/AGENTS.md](../AGENTS.md) links here for the
+measurement behind it, because a rule without its reason gets "simplified" back into the
+bug. Measured on macOS 15.7 / GdkMacosGLContext (`4.1 APPLE-21.1.1`, GLSL 4.10).
 
-**What the darwin GL 4.1 ceiling still costs, measured on macOS 15.7 / GdkMacosGLContext (`4.1 APPLE-21.1.1`, GLSL 4.10):** (1) `glInvalidateFramebuffer`/`glInvalidateSubFramebuffer` are GL 4.3 and absent, hence the `epoxyGlVersion() >= 43` gate in `webgl2-rendering-context.vala` — libepoxy ABORTS on a missing entry point rather than returning null. They are also the ONLY two missing: of the 219 `epoxy_gl*` entry points `libgwebgl.dylib` references, `dlsym` against `OpenGL.framework` resolves 217 (`nm -u <lib> | sed -n 's/^ *_epoxy_//p' | grep -E '^gl[A-Z]'`, then `ctypes.CDLL('/System/Library/Frameworks/OpenGL.framework/OpenGL')`). (2) **GLSL ES 3.00 does not compile, so `shaderSource()` REWRITES the dialect** — `#version 300 es` needs ARB_ES3_compatibility (core in GL 4.3) and the 4.1 compiler refuses it (`version '300' is not supported`), while GLSL ES 1.00 is accepted via ARB_ES2_compatibility, core in 4.1: that ONE version between the two extensions is why WebGL1 worked here first. On a desktop context lacking the extension, `shaderSource()` substitutes `#version <the context's GLSL> core` (4.10 on macOS) and changes nothing else, so **WebGL2 content DOES draw on darwin** — measured end to end on macOS 15.7.9 / GL 4.1 core: an unmodified `#version 300 es` pair compiles, links, draws, and `readPixels` returns the shader's colour. The predicate is the EXTENSION, not the OS: Mesa's `4.6 (Compatibility Profile)` on win32 has it and is NOT rewritten; `#version 100` comes back byte-for-byte unchanged. Construct-by-construct measurement: `packages/framework/webgl/README.md`. (3) The API-level GLES 3.0 spellings desktop 4.1 has no equivalent for stay missing — `GL_PRIMITIVE_RESTART_FIXED_INDEX` (4.3 on desktop) and the mandatory ETC2/EAC formats; both surface as a draw-time error, not a compile failure. Host diagnosis: `gjsify run packages/framework/webgl/scripts/probe-gl-host.js`, which also draws a shader-free pattern so a blank window cannot be mistaken for a failed shader. Remaining darwin gaps: `status/open-todos.md`.
+**The two missing entry points, reproduced.** `glInvalidateFramebuffer` and
+`glInvalidateSubFramebuffer` are GL 4.3 and absent, hence the `epoxyGlVersion() >= 43` gate
+in `webgl2-rendering-context.vala` — libepoxy ABORTS on a missing entry point rather than
+returning null. They are also the only two, and that is a count anyone can re-take: of the
+219 `epoxy_gl*` entry points `libgwebgl.dylib` references, `dlsym` against
+`OpenGL.framework` resolves 217.
+
+```bash
+nm -u libgwebgl.dylib | sed -n 's/^ *_epoxy_//p' | grep -E '^gl[A-Z]'
+# then, per name, ctypes.CDLL('/System/Library/Frameworks/OpenGL.framework/OpenGL')
+```
+
+**The GLES 3.0 spellings with no desktop-4.1 equivalent stay missing**, and this is the part
+the shader rewrite above does not reach: `GL_PRIMITIVE_RESTART_FIXED_INDEX` (4.3 on desktop)
+and the mandatory ETC2/EAC compressed formats. Both surface as a **draw-time** error rather
+than a compile failure, so a shader that compiles is not evidence that a scene using them
+will render.
+
+For the dialect rewrite itself — including why **win32 is rewritten too**, which this file
+predicted wrongly once — see [Platform coverage](#platform-coverage) above. Host diagnosis:
+`gjsify run packages/framework/webgl/scripts/probe-gl-host.js`, which also draws a
+shader-free pattern so a blank window cannot be mistaken for a failed shader.
 
 ## Diagnosing a host
 
