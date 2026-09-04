@@ -49,9 +49,12 @@ Exactly one thing, and it is already mitigated. `tests/e2e/create-app`'s
 `patchPackageJson` remaps every WORKSPACE member to a locally packed tarball, so a
 non-member is the one `@gjsify/*` range it installs from the public registry. That is
 the whole mechanism behind the release-commit race — on a `chore: release` commit the
-version is bumped but not yet published. It is fixed by waiting for the registry
-(`awaitRegistryResolvable`), which is the better fix anyway: installing from npm is
-what that suite exists to prove.
+version is bumped but not yet published. It is fixed by SKIPPING that suite while the
+registry demonstrably lacks the version (`createAppRegistryGapSkipReason`), which is the
+better fix anyway: installing from npm is what that suite exists to prove, so pointing
+the range at a local build would delete its only reason to exist. It was originally a
+30-minute wait; #1523 measured the publish at 43-70 minutes across three releases, so
+the wait never waited long enough and simply failed instead.
 
 **And one thing it would NOT buy, contrary to the first reading.** The templates
 would still need `process-template.mjs`'s `file:` → `^<version>` rewrite: a published

@@ -24,8 +24,12 @@ import {
     npmInstallWithRetry,
     spawnUntilReady,
     hasCommand,
-    awaitRegistryResolvable,
+    createAppRegistryGapSkipReason,
 } from '../helpers.mjs';
+// The one definition of what `pack.mjs` packs — imported from the module that owns it
+// rather than re-derived. See `registryGjsifyRanges` for why this suite needs it before
+// `createTestEnvironment` has packed anything.
+import { packableWorkspaces } from '../workspaces.mjs';
 // Imported, not re-spelled: a second copy of the globals vocabulary is the one that drifts.
 import { GJS_GLOBALS_GROUPS, GJS_GLOBALS_MAP } from '../../../packages/infra/resolve-npm/lib/globals-map.mjs';
 import { ALIASES_WEB_FOR_GJS } from '../../../packages/infra/resolve-npm/lib/index.mjs';
@@ -280,15 +284,28 @@ function declaredArtifacts(projectDir) {
  * not yet resolved into a range.
  *
  * And a range there does NOT mean a registry install. `patchPackageJson` remaps
- * every WORKSPACE member to a locally packed tarball, so `toFileRef` is the
- * discriminator — the same call that does the remapping, asked here rather than a
- * second hand-kept list of which packages are workspace members. MEASURED: reading
- * `dist-templates` alone reports ELEVEN ranges, ten of which are answered by a
- * tarball and would have made this wait on publishes the suite never touches.
- * What is left is the deliberate exception — `@gjsify/node-gi` is not a workspace
- * member (own CI, native addon) and four templates declare it.
+ * every WORKSPACE member to a locally packed tarball, so being packed is the
+ * discriminator. MEASURED: reading `dist-templates` alone reports ELEVEN ranges,
+ * ten of which are answered by a tarball and would have made this wait on publishes
+ * the suite never touches. What is left is the deliberate exception —
+ * `@gjsify/node-gi` is not a workspace member (own CI, native addon, ADR 0031) and
+ * four templates declare it.
+ *
+ * THE ORDERING CONSTRAINT, and why asking `packableWorkspaces()` is not a second
+ * list. This used to read the discriminator off the live tarball map, which forced
+ * the whole question after `createTestEnvironment()` has packed the entire workspace
+ * — fine for a wait inside `before()`, impossible for a `{ skip }` that `describe`
+ * reads at DEFINITION time. The tarball map is not an independent source of truth: it
+ * is a materialization of `packableWorkspaces()`, because `pack.mjs` iterates exactly
+ * that list and `process.exit(1)`s if any entry yields no filename. So its key set is
+ * knowable before a single tarball exists, from the same function pack.mjs itself
+ * calls — which is what `workspaces.mjs`'s header designates this module for. The
+ * suite then CHECKS that equality against the real map once it has one, so a drift
+ * between the two is a named failure rather than a skip on the wrong package.
  */
-function registryGjsifyRanges(tarballsDir, tarballMap) {
+const PACKED_NAMES = new Set(packableWorkspaces().map((w) => w.name));
+
+function registryGjsifyRanges() {
     const seen = new Map();
     for (const template of TEMPLATES) {
         const manifest = join(DIST_TEMPLATES_DIR, template, 'package.json');
@@ -300,7 +317,7 @@ function registryGjsifyRanges(tarballsDir, tarballMap) {
                 // A path, link, tarball or git edge needs no registry at all…
                 if (/^(?:file:|link:|https?:|git|portal:|\.|\/)/.test(spec)) continue;
                 // …and neither does one this suite is about to replace with a tarball.
-                if (toFileRef(name, tarballsDir, tarballMap)) continue;
+                if (PACKED_NAMES.has(name)) continue;
                 seen.set(`${name}@${spec}`, [name, spec]);
             }
         }
@@ -492,7 +509,15 @@ describe('create-app scaffolding options', { timeout: 2 * 60 * 1000 }, () => {
     });
 });
 
-describe('create-app E2E', { timeout: 60 * 60 * 1000 }, () => {
+// Top-level await, like the two PnP suites: the reason has to exist before `describe`
+// is called, because `{ skip }` is read when the suite is DEFINED, not when it runs.
+// Logged as well as returned — a skip reason is easy to miss in a 146-suite
+// concurrent run, and the three states this suite can end in (passed, skipped because
+// the release has not published yet, failed) have to be one glance apart.
+const registryGap = await createAppRegistryGapSkipReason(registryGjsifyRanges());
+if (registryGap) console.log(`  SKIP create-app E2E: ${registryGap}`);
+
+describe('create-app E2E', { timeout: 60 * 60 * 1000, skip: registryGap }, () => {
     let tmpDir;
     let tarballsDir;
     let tarballMap;
@@ -502,16 +527,25 @@ describe('create-app E2E', { timeout: 60 * 60 * 1000 }, () => {
         tmpDir = env.tmpDir;
         tarballsDir = env.tarballsDir;
         tarballMap = env.tarballMap;
-
-        // AFTER the environment, because the tarball map is what decides which ranges
-        // are really registry-bound — and in the OUTER hook, because each template
-        // describe has its own 15-minute budget that a wait inside one would eat,
-        // while this describe has an hour. One wait covers every template.
-        awaitRegistryResolvable(registryGjsifyRanges(tarballsDir, tarballMap), { label: 'create-app' });
     });
 
     after(() => {
         cleanupTestEnvironment(tmpDir);
+    });
+
+    it('packs exactly the set the registry-gap decision assumed', () => {
+        // The skip above ran before anything was packed, off `packableWorkspaces()`.
+        // That is sound only while `pack.mjs` packs exactly that list — and if it ever
+        // stops, the failure mode is the dangerous one: a name wrongly believed
+        // registry-bound turns a green suite into a permanent skip. So the assumption
+        // is checked here against the map that was actually produced, on every run
+        // that is not itself skipped.
+        assert.deepEqual(
+            [...PACKED_NAMES].sort(),
+            Object.keys(tarballMap).sort(),
+            'pack.mjs and packableWorkspaces() disagree about what gets packed, so ' +
+                'registryGjsifyRanges() decided the release-window skip on the wrong set',
+        );
     });
 
     for (const template of TEMPLATES) {

@@ -1,7 +1,7 @@
 // Shared E2E test helpers for @gjsify CLI/plugin workflows.
 
 import { execFileSync, execSync, spawn } from 'node:child_process';
-import { writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -125,88 +125,6 @@ function isTransientInstallError(err) {
 }
 
 /**
- * Block until the registry can resolve every `[name, range]` pair, or fail naming
- * what never arrived.
- *
- * WHY THIS EXISTS, measured on v0.43.0. A release cut pushes `chore: release
- * vX.Y.Z` to `main`, which starts `main.yml`, while the tag's `release: published`
- * event starts `release.yml` — CONCURRENTLY. The bumper has already written the new
- * version into every manifest, and `process-template.mjs` turns a template's
- * `file:` edge on a non-workspace package into `^<that version>`. So this suite
- * scaffolds a project asking the public registry for a version that `release.yml`
- * has not published yet, and `npm install` dies with
- * `ETARGET No matching version found for @gjsify/node-gi@^0.43.0`.
- *
- * The outcome was a coin toss rather than a bug: v0.43.0 red, v0.42.0 cancelled,
- * v0.41.0 cancelled then green, v0.40.0 green. That is the worst shape a gate can
- * have — a red that means nothing teaches everyone to ignore red on release
- * commits.
- *
- * Waiting is the fix rather than pointing the dependency at a local tarball,
- * because installing from the registry is exactly what this suite exists to prove:
- * a user runs `npm create @gjsify/app` against npm, and making the install
- * hermetic would delete the only coverage of the path that actually broke. The
- * wait also turns the race into real coverage of the release — if the publish never
- * lands, the deadline says so by name.
- *
- * On an ordinary commit every range resolves on the first probe, because the
- * checkout's version is the last released one.
- */
-export function awaitRegistryResolvable(
-    pending,
-    { label = 'e2e', deadlineMs = 30 * 60 * 1000, intervalMs = 20 * 1000 } = {},
-) {
-    const outstanding = pending.filter(([name, range]) => !registryResolves(name, range));
-    if (outstanding.length === 0) return;
-
-    const deadline = Date.now() + deadlineMs;
-    const budget =
-        deadlineMs >= 60_000 ? `${Math.round(deadlineMs / 60_000)} min` : `${Math.round(deadlineMs / 1000)} s`;
-    console.log(
-        `  [${label}] waiting for the registry to carry ${outstanding
-            .map(([n, r]) => `${n}@${r}`)
-            .join(', ')} (up to ${budget})…`,
-    );
-    for (let left = outstanding; left.length > 0;) {
-        if (Date.now() >= deadline) {
-            throw new Error(
-                `awaitRegistryResolvable: the registry still cannot resolve ` +
-                    `${left.map(([n, r]) => `${n}@${r}`).join(', ')} after ` +
-                    `${budget}. On a release commit that means the publish ` +
-                    `did not land; otherwise the range is wrong.`,
-            );
-        }
-        sleepSync(intervalMs);
-        left = left.filter(([name, range]) => !registryResolves(name, range));
-        if (left.length > 0)
-            console.log(`  [${label}] still waiting for ${left.map(([n, r]) => `${n}@${r}`).join(', ')}…`);
-    }
-    console.log(`  [${label}] the registry carries every range now.`);
-}
-
-/**
- * Ask NPM ITSELF whether a range resolves — never a hand-rolled semver compare.
- * `npm install` is the consumer, so `npm view` is the one resolver whose answer
- * cannot disagree with it.
- */
-function registryResolves(name, range) {
-    try {
-        const out = execFileSync('npm', ['view', `${name}@${range}`, 'version', '--json'], {
-            stdio: ['ignore', 'pipe', 'pipe'],
-            encoding: 'utf8',
-            timeout: 60 * 1000,
-        });
-        const text = out.trim();
-        return text.length > 0 && text !== '[]';
-    } catch {
-        // `npm view` exits non-zero for "no matching version" (E404/ETARGET) and for a
-        // network hiccup alike, and here both mean the same thing: not resolvable yet,
-        // ask again. A permanent failure is what the deadline above is for.
-        return false;
-    }
-}
-
-/**
  * Run `npm install` in `projectDir`, retrying on transient failures. E2E templates pull
  * heavy `@girs/*` tarballs from the public registry in parallel and the registry
  * intermittently 404s a tarball that genuinely exists (observed: Fedora 43 passes while
@@ -278,13 +196,23 @@ export function buildYarnResolutions(tarballsDir, tarballMap) {
  * window an external consumer cannot install the version either, so the scenario these
  * suites reconstruct is not merely untested, it is not constructible.
  *
- * Fails OPEN: a probe that cannot reach the registry reports nothing missing, so a network
- * problem yields the same honest red as before rather than disarming the suite.
+ * FAILS TOWARDS RUNNING, which is the only safe direction for a decision that ends in a
+ * skip: `missing` is what disarms a suite, so nothing lands there without POSITIVE evidence
+ * — the registry answered, it knows the package, and it does not have this version. Every
+ * other outcome (unreachable, timeout, 5xx, a 404 on the package itself) reports nothing
+ * missing, so the suite runs and a real problem stays red. `registryVersionState` is where
+ * that rule lives.
  *
- * @returns {Promise<string[]>} `name@version` for each package npm 404s on
+ * @param {{wanted?: {name: string, version: string}[], timeoutMs?: number}} [options]
+ *   `wanted` defaults to `registryOnlyDependencies()` — the Yarn-PnP question. `create-app`
+ *   passes the registry-bound ranges its templates carry instead; the probe is the same one.
+ * @returns {Promise<string[]>} `name@version` for each package the registry knows but has
+ *   not published at that version
  */
-export async function unpublishedRegistryDependencies({ timeoutMs = 30_000 } = {}) {
-    const wanted = registryOnlyDependencies();
+export async function unpublishedRegistryDependencies({
+    wanted = registryOnlyDependencies(),
+    timeoutMs = 30_000,
+} = {}) {
     if (wanted.length === 0) return [];
 
     const registry = (process.env.GJSIFY_E2E_REGISTRY ?? 'https://registry.npmjs.org').replace(/\/+$/, '');
@@ -293,23 +221,69 @@ export async function unpublishedRegistryDependencies({ timeoutMs = 30_000 } = {
 
     await Promise.all(
         wanted.map(async ({ name, version }) => {
-            // `<registry>/<name>/<version>` returns that one version's manifest (a few KB)
-            // or 404 — no packument download.
-            const url = `${registry}/${name.replace('/', '%2f')}/${encodeURIComponent(version)}`;
-            let res;
-            try {
-                res = await fetch(url, { signal, headers: { accept: 'application/json' } });
-            } catch {
-                return; // unreachable registry — fail open
-            }
-            // An unconsumed undici body holds its socket open and keeps the test process
-            // alive past the last assertion.
-            await res.body?.cancel().catch(() => {});
-            if (res.status === 404) missing.push(`${name}@${version}`);
+            if ((await registryVersionState(registry, name, version, signal)) === 'missing')
+                missing.push(`${name}@${version}`);
         }),
     );
 
     return missing.sort();
+}
+
+/**
+ * What the registry says about ONE exact `name@version`: `published`, `missing`, or
+ * `unverified` — and the third state is the point.
+ *
+ * A bare 404 does not mean "not published yet". A registry that is down behind a proxy, an
+ * auth failure, a mistyped `GJSIFY_E2E_REGISTRY`, a package renamed out from under the
+ * manifest — all 404 identically, and all of them are RED conditions. Reading any of them as
+ * "release in progress" converts a suite that should fail into a suite that skips, which is
+ * the one outcome worse than the red this whole mechanism exists to remove. MEASURED against
+ * a registry that 404s everything: the previous one-request probe reported every dependency
+ * missing and both PnP suites went green-by-skip; with the confirmation below they run.
+ *
+ * So `missing` requires two answers, not one: the exact-version URL 404s AND the package's
+ * own document is served. Then the registry is demonstrably up, demonstrably knows the name,
+ * and demonstrably lacks this version — which is the release window and nothing else. The
+ * second request only happens on the 404 path, so the common case stays one round trip.
+ *
+ * `<registry>/<name>/<version>` returns that one version's manifest (a few KB) rather than
+ * the packument; the confirmation asks for the abbreviated packument for the same reason.
+ *
+ * @returns {Promise<'published' | 'missing' | 'unverified'>}
+ */
+async function registryVersionState(registry, name, version, signal) {
+    const path = name.replace('/', '%2f');
+    const ask = async (url, accept) => {
+        let res;
+        try {
+            res = await fetch(url, { signal, headers: { accept } });
+        } catch {
+            return undefined;
+        }
+        // An unconsumed undici body holds its socket open and keeps the test process
+        // alive past the last assertion.
+        await res.body?.cancel().catch(() => {});
+        return res.status;
+    };
+
+    const exact = await ask(`${registry}/${path}/${encodeURIComponent(version)}`, 'application/json');
+    if (exact === undefined) return 'unverified';
+    if (exact >= 200 && exact < 300) return 'published';
+    if (exact !== 404) return 'unverified';
+
+    const packument = await ask(`${registry}/${path}`, 'application/vnd.npm.install-v1+json');
+    return packument !== undefined && packument >= 200 && packument < 300 ? 'missing' : 'unverified';
+}
+
+/**
+ * The opening clause every release-window skip shares, so the three suites that can
+ * hit this state read the same in a 146-suite log and one grep finds all of them.
+ * The tail — WHY this particular suite cannot run — belongs to the caller.
+ */
+function registryGapClause(missing, noun) {
+    const sample = missing.slice(0, 3).join(', ');
+    const more = missing.length > 3 ? ` (+${missing.length - 3} more)` : '';
+    return `the workspace version is not on npm yet — ${missing.length} ${noun} 404: ${sample}${more}.`;
 }
 
 /**
@@ -321,15 +295,100 @@ export async function pnpRegistryGapSkipReason() {
     const missing = await unpublishedRegistryDependencies();
     if (missing.length === 0) return false;
 
-    const sample = missing.slice(0, 3).join(', ');
-    const more = missing.length > 3 ? ` (+${missing.length - 3} more)` : '';
     return (
-        `the workspace version is not on npm yet — ${missing.length} unpacked ` +
-        `dependency/-ies 404: ${sample}${more}. Yarn PnP resolves those from the ` +
-        `registry because pack.mjs omits them by design, so this suite cannot build ` +
+        `${registryGapClause(missing, 'unpacked dependency/-ies')} Yarn PnP resolves those ` +
+        `from the registry because pack.mjs omits them by design, so this suite cannot build ` +
         `its external-consumer tree until release.yml has published. Re-runs after ` +
         `the publish exercise it again unchanged.`
     );
+}
+
+/**
+ * `false` when the `create-app` E2E suite can run, otherwise the reason it cannot.
+ *
+ * WHY THIS EXISTS, measured on v0.43.0. A release cut pushes `chore: release vX.Y.Z` to
+ * `main`, which starts `main.yml`, while the tag's `release: published` event starts
+ * `release.yml` — CONCURRENTLY. The bumper has already written the new version into every
+ * manifest, and `process-template.mjs` turns a template's `file:` edge on a non-workspace
+ * package into `^<that version>`. So this suite scaffolds a project asking the public
+ * registry for a version `release.yml` has not published yet, and `npm install` dies with
+ * `ETARGET No matching version found for @gjsify/node-gi@^0.43.0`. The outcome was a coin
+ * toss rather than a bug: v0.43.0 red, v0.42.0 cancelled, v0.41.0 cancelled then green,
+ * v0.40.0 green. That is the worst shape a gate can have — a red that means nothing teaches
+ * everyone to ignore red on release commits.
+ *
+ * WHY IT SKIPS RATHER THAN WAITS (#1523). The first fix was a 30-minute wait. Measured from
+ * the registry's own `.time[version]`, the publish takes 43-70 min (v0.44.0 70, v0.45.0 43,
+ * v0.46.0 46 — three for three over budget), because `@gjsify/node-gi` is one of the
+ * platform packages whose payload job runs AFTER the ~199-package serial sweep, so it sets
+ * the tail and the tail is what this suite waited on. A deadline shorter than the thing it
+ * waits on does not wait, it fails: for an hour after every release every PR reaching this
+ * suite went red with text that read like a publishing incident. Raising the number parks a
+ * runner for an hour and re-breaks as the package count grows; resolving against the local
+ * build would delete the only coverage of the path that broke (a real consumer `npm install`
+ * from npm). Recognising the state is the honest answer, and this repo already had the
+ * vocabulary for it — the same `describe(..., { skip })` the two PnP suites use.
+ *
+ * What the wait ALSO did — "if the publish never lands, the deadline says so by name" — is
+ * not lost, and was never really this suite's job: `scripts/verify-published-closure.mjs
+ * --phase post-release` enumerates `packages/node-gi/*` and `packages/napi/*` explicitly and
+ * reports every `notLive` name at the end of `release.yml`.
+ *
+ * Propagation lag between "the version resolves" and "the tarball is fetchable" is absorbed
+ * where it can actually bite — `npmInstallWithRetry`, at the install, which starts minutes
+ * after any pre-flight probe would have finished.
+ *
+ * FAIL-CLOSED, THREE TIMES OVER, because a detector that leans towards "release in progress"
+ * turns a red hour into a permanently green suite, which is strictly worse than the bug:
+ *
+ * 1. A range is a candidate only if `pinnedFloorVersion` recognises its spelling.
+ * 2. It is `missing` only if `registryVersionState` says so — the registry answered AND
+ *    knows the package. Unreachable, 5xx, or a registry that 404s everything all run.
+ * 3. The version must be THIS RELEASE TRAIN'S. `^0.48.0` unresolvable while the checkout is
+ *    releasing 0.48.0 is the window; `^99.0.0` unresolvable is a wrong range, and it still
+ *    fails the suite the way it always did. Without this the skip would forgive any range
+ *    that happens not to resolve, which is how a mis-set deadline becomes a mis-set gate.
+ *    The train version is the root manifest's, the same anchor
+ *    `scripts/verify-published-closure.mjs` probes every candidate at.
+ *
+ * @param {[string, string][]} pending `[name, range]` pairs the scaffolded project will ask
+ *   the registry for — same shape the wait took, so the call site swapped one for the other.
+ */
+export async function createAppRegistryGapSkipReason(pending, { timeoutMs = 30_000 } = {}) {
+    const trainVersion = JSON.parse(readFileSync(join(MONOREPO_ROOT, 'package.json'), 'utf8')).version;
+    const wanted = [];
+    for (const [name, spec] of pending) {
+        const version = pinnedFloorVersion(spec);
+        if (version && version === trainVersion) wanted.push({ name, version });
+    }
+    const missing = await unpublishedRegistryDependencies({ wanted, timeoutMs });
+    if (missing.length === 0) return false;
+
+    return (
+        `${registryGapClause(missing, 'registry-bound template dependency/-ies')} A scaffolded ` +
+        `project installs those from npm — that IS what this suite proves — and patchPackageJson ` +
+        `does not remap them because they are not workspace members, so it cannot build its ` +
+        `consumer tree until release.yml has published. Re-runs after the publish exercise it ` +
+        `again unchanged.`
+    );
+}
+
+/**
+ * The one exact version a range is MINTED FROM, or `undefined` when the spelling is not one
+ * `process-template.mjs` writes.
+ *
+ * Deliberately NOT a semver range match — the question is not "what could satisfy this", it
+ * is "which version was this range generated for", and the generator answers it: every
+ * registry-bound edge in `dist-templates/` was written by `resolveWorkspaceDeps` as
+ * `^${version}` / `~${version}` / the literal version, read off the target manifest. Reading
+ * that literal back is exact where a semver compare would be a guess.
+ *
+ * Anything else — `>=1 <2`, `*`, a dist-tag, a URL — returns `undefined` and therefore never
+ * reaches the probe and can never produce a skip. That is the fail-closed default: a spelling
+ * this function does not recognise is a spelling it must not disarm a suite over.
+ */
+function pinnedFloorVersion(spec) {
+    return /^[\^~]?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/.exec(spec.trim())?.[1];
 }
 
 /**
