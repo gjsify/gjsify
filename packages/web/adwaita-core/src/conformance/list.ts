@@ -53,8 +53,19 @@ export interface ListNormalizeVector {
 /**
  * Authored input → the normalised model.
  *
- * Every surface that takes a `model` accepts this and must answer these rows: the browser
- * elements through their `model` property, the NativeScript widgets through theirs.
+ * The browser suite drives `LIST_NORMALIZE_VECTORS` through the real `model` property of
+ * `<adw-combo-row>` and of `<gtk-drop-down>`, every row of it, and core drives the
+ * function.
+ *
+ * The NativeScript widgets take the same input and NOTHING there asserts it. That
+ * package's specs reach `ComboState` and never the widget class, for the reason
+ * `drop-down.spec.ts`' own header gives, and the gap is filed in `status/open-todos.md`
+ * under "The NativeScript list-model setter is held by core's vectors, not by a widget
+ * test". This docblock used to say "every surface that takes a `model` … must answer
+ * these rows: … the NativeScript widgets through theirs", which reads as coverage for a
+ * surface that answers none of them — the shape #1072 was about, one file further in
+ * than any arm of `check-adwaita-conformance-drivers.mjs` looks (its claim arms begin at
+ * a citation, and that sentence named no table).
  */
 export const LIST_NORMALIZE_VECTORS: ReadonlyArray<ListNormalizeVector> = [
     {
@@ -111,6 +122,11 @@ export interface ListParseVector {
  * An attribute is markup, parsed while the element upgrades, so a throw is reported as an
  * uncaught page error nobody can handle — the reasoning ADR 0042 § 6 records for the menu
  * attribute on the same elements.
+ *
+ * The browser suite drives `LIST_PARSE_VECTORS` through the live `model` attribute of
+ * `<adw-combo-row>` and of `<gtk-drop-down>`. Two elements for one parser because the
+ * parser is not what breaks: the row's `attributeChangedCallback` branch is, and it was
+ * missing for that element's whole life (#1525).
  */
 export const LIST_PARSE_VECTORS: ReadonlyArray<ListParseVector> = [
     {
@@ -247,7 +263,16 @@ export interface ListSelectionClampVector {
     rule: string;
 }
 
-/** Where a selection lands after the model under it was replaced. */
+/**
+ * Where a selection lands after the model under it was replaced.
+ *
+ * The browser suite drives `LIST_SELECTION_CLAMP_VECTORS` through `<adw-combo-row>` and
+ * through that element only. `<gtk-drop-down>` REFUSES an out-of-range `selected` set
+ * outright — its published contract, with `ComboState.hasIndex` as the shared bounds — so
+ * the starting index these rows replace cannot be put on that element in the first place.
+ * One row is narrower than the vector even on the row, and `adw-row-state.spec.ts` says
+ * so in place.
+ */
 export const LIST_SELECTION_CLAMP_VECTORS: ReadonlyArray<ListSelectionClampVector> = [
     { selected: 1, length: 3, result: 1, rule: 'a position the new model has is kept' },
     {
