@@ -444,8 +444,8 @@ for (const citation of lineCitations) {
 // `refs/libadwaita` and nothing else on purpose (~13 MB against ~150 GB for the pool);
 // the step's own comment says it "holds what that one contains and no more". The first
 // version asserted the second and printed the first's message, so a job that could not
-// READ the tree's one anchor reported that the tree had none, and told the author to
-// add an anchor that was already there.
+// READ the anchors the tree has reported that it had none, and told the author to add
+// an anchor that was already there.
 //
 // So the tree-level claim stays fatal and the host-level one becomes a NAMED line in
 // the summary. That is not "skip when empty": the fatal half no longer depends on the

@@ -759,11 +759,10 @@ for (const rel of frameworkSources) {
 // without measuring its false-positive rate first. MEASURED on this tree, over EVERY
 // js/ts/jsx/tsx fence in the docs: a rule flagging every called-but-unbound identifier
 // reports a large minority of them, and reading every one, essentially none is a
-// defect. They are
-// class methods (`vfunc_startup`, a `constructor`), GJS ambient globals (`print`),
-// deliberately elided namespace imports in the `patterns/` pages (`GObject`,
-// `Gtk`, `Gio`), compiler-output samples (`_$createElement`) and helpers a page
-// says in prose it defines elsewhere. That is the guard-with-more-noise-than-signal
+// defect. They are class methods (`vfunc_startup`, a `constructor`), GJS ambient
+// globals (`print`), deliberately elided namespace imports in the `patterns/` pages
+// (`GObject`, `Gtk`, `Gio`), compiler-output samples (`_$createElement`) and helpers
+// a page says in prose it defines elsewhere. That is the guard-with-more-noise-than-signal
 // this repository has switched off before. TypeScript's own binder makes all six
 // shapes correct for free.
 //
