@@ -326,6 +326,15 @@ jobs:
       - name: Check inline workflow scripts are not self-truncating
         run: node scripts/check-workflow-inline-scripts.mjs
 
+      # A `continue-on-error` step's CONCLUSION is not its RESULT: GitHub forces the
+      # conclusion to `success`, so the PR page, `gh pr checks` and every API reader
+      # see green while the step exited 1. Only `steps.<id>.outcome` records it, and
+      # a step with no `id` has not even got that. #1541 reported green on every gate
+      # with three probes red — and two of those failures were not the PR's, they had
+      # been red with nobody counting them (#1552, #1556).
+      - name: Check every continue-on-error probe is read
+        run: node scripts/check-probe-outcomes-read.mjs
+
       # A bare `npm install "@gjsify/x@<the version we just published>"` reads an
       # ETARGET as a verdict, and npm can serve a packument older than a PUT it has
       # already acknowledged: v0.46.0 lost three publish legs that way, on a version
@@ -901,12 +910,19 @@ jobs:
       # lines sat in the diff.
       - name: Check for resurrected prose (advisory)
         if: always()
+        id: resurrected-prose
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref || 'main' }}
         run: |
           git fetch --no-tags --quiet --deepen=200 origin "$BASE_REF" 2>/dev/null || true
           node scripts/check-doc-revert.mjs --base "origin/$BASE_REF"
+      - name: 'Probe outcome: Check for resurrected prose'
+        if: always()
+        env:
+          PROBE_LABEL: 'Check for resurrected prose (advisory)'
+          PROBE_OUTCOME: ${{ steps.resurrected-prose.outcome }}
+        run: node scripts/report-probe-outcome.mjs
 
   # The same manifest checks, on Windows.
   #
@@ -1033,6 +1049,15 @@ jobs:
       # a release. Incident + scope in the script header.
       - name: Check inline workflow scripts are not self-truncating
         run: node scripts/check-workflow-inline-scripts.mjs
+
+      # A `continue-on-error` step's CONCLUSION is not its RESULT: GitHub forces the
+      # conclusion to `success`, so the PR page, `gh pr checks` and every API reader
+      # see green while the step exited 1. Only `steps.<id>.outcome` records it, and
+      # a step with no `id` has not even got that. #1541 reported green on every gate
+      # with three probes red — and two of those failures were not the PR's, they had
+      # been red with nobody counting them (#1552, #1556).
+      - name: Check every continue-on-error probe is read
+        run: node scripts/check-probe-outcomes-read.mjs
 
       # A bare `npm install "@gjsify/x@<the version we just published>"` reads an
       # ETARGET as a verdict, and npm can serve a packument older than a PUT it has

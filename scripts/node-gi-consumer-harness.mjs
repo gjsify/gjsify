@@ -413,14 +413,21 @@ function parseSummary(out) {
     const clean = stripAnsi(out);
     let m = clean.match(/❌\s*(?:\[[^\]]*\]\s*)?(\d+)\s+of\s+(\d+)\s+tests failed/);
     if (m) {
-        // `failed` can EXCEED `total` when @gjsify/unit also counts assertions that
-        // fired outside any it() (leaked timers, a broken constructor spamming a
-        // loop) — so clamp `passed` at 0 rather than report a negative.
+        // `failed` can EXCEED `total`: three paths raise it without a test having
+        // run — a stray assertion from a leaked timer, an unexercised declared axis,
+        // and an `it.failing` marker that passed. So clamp `passed` at 0 rather than
+        // report a negative.
         const total = +m[2];
         const failed = +m[1];
         return { total, failed, passed: Math.max(0, total - failed) };
     }
-    m = clean.match(/✔\s*(?:\[[^\]]*\]\s*)?(\d+)\s+completed/);
+    // BOTH SPELLINGS. `N tests passed` is what @gjsify/unit prints since #1557;
+    // `N completed` is what a consumer resolving a PUBLISHED @gjsify/unit still
+    // prints, and that number was ASSERTIONS — which is why the wording changed.
+    // Reading it as a test total over-reports there, and refusing to read it at all
+    // would report the run as unparseable, which is worse: the summary is how this
+    // harness knows the suite ran.
+    m = clean.match(/✔\s*(?:\[[^\]]*\]\s*)?(\d+)\s+(?:tests? passed|completed)/);
     if (m) return { total: +m[1], failed: 0, passed: +m[1] };
     return null;
 }

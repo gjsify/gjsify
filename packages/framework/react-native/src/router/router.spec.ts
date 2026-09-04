@@ -20,6 +20,13 @@
 // siblings leave every later one ungated — measured, a GTK critical injected into
 // describe #15 printed to stderr, the case still reported a tick, and the blame
 // surfaced twelve tests later on an innocent neighbour.
+//
+// CORRECTED 2026-09-04 (#1554): the runner no longer works that way. Hooks are
+// SCOPED — one frame per `describe`, popped when it returns — so a nested block
+// inherits its parents' hooks, a second registration in one scope composes with
+// the first rather than replacing it, and a sibling cannot unhook a neighbour.
+// The incident above is kept because it is why the helper exists; what the helper
+// buys now is one DECLARATION of what a gated block means, not a workaround.
 
 import GLib from 'gi://GLib?version=2.0';
 import GObject from 'gi://GObject?version=2.0';

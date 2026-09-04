@@ -23,6 +23,8 @@
 // `@gjsify/unit` keeps ONE `beforeEach`/`afterEach` slot per module and nulls both
 // when a `describe` returns — so hooks registered before the first of several
 // siblings leave every later one ungated.
+// (CORRECTED 2026-09-04, #1554: hooks are scoped now, so that half no longer
+// happens. The helper stays for the declaration it makes, not for the repair.)
 //
 // AND EVERY REACTIVE CASE MUTATES AFTER THE FIRST RENDER. `solid-js`' own export map
 // routes the `node` and `deno` conditions to `dist/server.js` — the SSR build, which

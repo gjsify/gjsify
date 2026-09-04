@@ -8,6 +8,12 @@
 // printed to stderr, the case still reported `✔`, and the blame surfaced twelve
 // tests later on an innocent neighbour; run alone, that suite exited 0.
 //
+// CORRECTED 2026-09-04 (#1554): the runner scopes hooks now — one frame per
+// `describe`, popped when it returns — so registering outside a block covers every
+// sibling and a second registration composes rather than replaces. The incident
+// stays because it is why this wrapper exists; what it buys today is one
+// declaration of what a gated block means, not a repair of the framework.
+//
 // A gate that is easy to omit is not a gate. This wrapper registers the hooks
 // where the framework actually keeps them, so omission stops being possible.
 //

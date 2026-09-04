@@ -5,6 +5,8 @@ import type Gtk from 'gi://Gtk?version=4.0';
 import {
     activateWidget,
     buildWidgetPath,
+    DEFAULT_DUMP_DEPTH,
+    dumpTree,
     findWidgetPath,
     parseWidgetPath,
     parseWidgetSelector,
@@ -286,6 +288,58 @@ export default async () => {
                 throw new Error('a click gesture must never be sent a key');
             });
             expect(sendKeyToWidget(withControllers([gesture]), 0xffff, 0)).toBe(false);
+        });
+    });
+
+    await describe('dumpTree', async () => {
+        /** A chain of `depth` widgets, each the only child of the one above. */
+        const chain = (depth: number): Gtk.Widget => {
+            let node: Gtk.Widget | null = null;
+            for (let i = depth; i > 0; --i) {
+                const child = node;
+                node = asWidget({
+                    constructor: { $gtype: { name: `GtkLevel${i}` } },
+                    get_name: () => '',
+                    get_css_classes: () => [],
+                    get_mapped: () => true,
+                    get_visible: () => true,
+                    get_first_child: () => child,
+                    get_next_sibling: () => null,
+                });
+            }
+            return node as Gtk.Widget;
+        };
+
+        await it('marks a node whose children the bound cut off', async () => {
+            // The pair that made this expensive: the bound is right, and it left no
+            // trace — so a caller reading zero children could not tell "nothing
+            // there" from "I stopped looking" (#1553).
+            const dumped = dumpTree(chain(3), 1, 'toplevel:0');
+            expect(dumped.truncated).toBe(undefined);
+            expect(dumped.children[0]?.truncated).toBe(true);
+            expect(dumped.children[0]?.children).toStrictEqual([]);
+        });
+
+        await it('does NOT mark a leaf that ends exactly at the bound', async () => {
+            // A complete answer must not read as a partial one, or the marker means
+            // "deep" rather than "there is more" and every caller has to guess.
+            const dumped = dumpTree(chain(2), 1, 'toplevel:0');
+            expect(dumped.children[0]?.truncated).toBe(undefined);
+        });
+
+        await it('reaches an ordinary window with the default depth', async () => {
+            // 8 was the old default and an `AdwHeaderBar` under a routed
+            // `AdwToolbarView` sits below it, so the dump answered zero header bars
+            // for a window that drew one.
+            const deep = dumpTree(chain(12), DEFAULT_DUMP_DEPTH, 'toplevel:0');
+            let node = deep;
+            let levels = 1;
+            while (node.children[0]) {
+                node = node.children[0];
+                levels += 1;
+            }
+            expect(levels).toBe(12);
+            expect(node.truncated).toBe(undefined);
         });
     });
 };
