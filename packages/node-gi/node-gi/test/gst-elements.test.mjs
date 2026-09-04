@@ -22,6 +22,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { requireGi } from '../gi.js';
+import { GST_AUDIO_DECODERS, GST_PLUGIN_GAPS } from '../../scripts/gst-plugins.mjs';
 import { Gst, gstSkip as skip } from './gst-gate.mjs';
 
 // The pipeline @gjsify/webaudio is built from, element by element. Named
@@ -59,6 +60,60 @@ test('the GStreamer registry resolves the audio-path elements', { skip }, () => 
             "the bundle's lib/gstreamer-1.0. An EMPTY result here means either the bundle ships " +
             'no plugins or nothing told GStreamer where they are — both look like a healthy ' +
             'Gst.init() and fail in the application instead.',
+    );
+});
+
+/**
+ * The decoder gaps this platform has DECLARED, as element names.
+ *
+ * A gap is a promise not made, and it is written once — in `gst-plugins.mjs`, next to the
+ * plugin it is about. Reading it here rather than restating it is what makes the entry
+ * self-retiring in BOTH places: the builder fails when a declared gap's plugin arrives,
+ * and this test starts asking for the element the moment the same entry is deleted.
+ */
+const declaredGapElements = new Set(
+    (GST_PLUGIN_GAPS[`${process.platform}-${process.arch}`] ?? []).flatMap((gap) =>
+        GST_AUDIO_DECODERS.filter((row) => row.plugin === gap.plugin).map((row) => row.element),
+    ),
+);
+
+test('every format the audio path claims has a decoder in the registry', { skip }, () => {
+    // THE ELEMENTS ABOVE ARE THE SKELETON, and a skeleton decodes nothing. `decodebin`
+    // resolving says only that autoplugging exists — what it autoplugs is a decoder that
+    // has to be in the registry too, and asking for the skeleton alone is why a bundle
+    // advertising MP3 shipped without one. Measured on the published
+    // `@gjsify/gtk-runtime-win32-x64@0.47.0`: `decodebin3`, `playbin3`, `filesrc` and
+    // `souphttpsrc` all resolved, `mpg123audiodec` was null, and both a bundled mp3 and an
+    // mp3 stream failed — the second one as `Internal data stream error`, which reads like
+    // a missing TLS backend and was not (#1544).
+    const missing = [];
+    for (const { format, element, plugin } of GST_AUDIO_DECODERS) {
+        if (declaredGapElements.has(element)) continue;
+        if (Gst.ElementFactory.make(element, null) === null) missing.push(`${format}: ${element} (${plugin})`);
+    }
+    assert.deepEqual(
+        missing,
+        [],
+        `the registry has no decoder for:\n  ${missing.join('\n  ')}\n\n` +
+            'Each is a format gst-plugins.mjs says the audio path takes. A format with no decoder ' +
+            'fails in the application as "missing a plug-in" for a local file, and as "Internal ' +
+            'data stream error" for a stream — the second of which reads like something else ' +
+            'entirely. If the platform genuinely cannot carry it, declare it in GST_PLUGIN_GAPS ' +
+            'with what it costs; the builder and this test both read that list.',
+    );
+});
+
+test('a declared decoder gap is still a gap', { skip }, () => {
+    // The other direction, and the reason a gap list does not rot: if the element a gap
+    // says is absent resolves, the entry is stale and the platform silently regained a
+    // format nobody re-declared. Same shape as `it.failing` retiring itself.
+    const arrived = [...declaredGapElements].filter((element) => Gst.ElementFactory.make(element, null) !== null);
+    assert.deepEqual(
+        arrived,
+        [],
+        `GST_PLUGIN_GAPS declares no decoder for ${arrived.join(', ')} on this platform, and the ` +
+            'registry has one. Delete the entry — the bundle now keeps a promise its own ' +
+            'declaration still refuses.',
     );
 });
 

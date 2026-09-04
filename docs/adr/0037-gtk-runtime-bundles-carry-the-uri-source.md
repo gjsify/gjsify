@@ -212,3 +212,49 @@ including over https.** Concretely:
 - Widening again needs the same evidence this did: a measured user-visible gap, a measured
   closure cost, and a gate that fails when the payload is absent. The list is not a
   starting point that grows by argument.
+
+## Amendment, 2026-09-04 — a seed that matched nothing, and the format claim behind it
+
+The last consequence above asks for "a gate that fails when the payload is absent". There was
+none for the list as a whole, and #1544 is what that cost: `@gjsify/gtk-runtime-win32-x64@0.47.0`
+shipped without `mpg123`, `vorbis`, `flac` and `wasapi2`, with **no line about any of them**, and
+a desktop application played neither its bundled mp3 nor its mp3 stream.
+
+**Why the existing checks could not see it.** Three of them looked, and each answers a different
+question: the count refuses a bundle with zero plugins, `missingRequiredGstPlugins` asks for the
+three whose absence is silent (`app`, `playback`, `soup`), and the builders log every plugin they
+SKIPPED. The last is the one that reads like coverage and is not — **a builder logs what it
+skipped out of what it WALKED**, and a plugin the source archive never contained is never walked.
+A seed that matches nothing is byte-identical to a seed that matched, which is the same shape
+#1097 named for the win32 GL patterns.
+
+The comparison that can see it is the DECLARATION against what was copied, which is a set
+difference: `missingBundledGstPlugins(shipped, target)`. Both builders run it now, and it splits
+the answer three ways rather than two:
+
+- **undeclared** — declared in `GST_AUDIO_PLUGINS`, absent from the payload, nobody said why:
+  the build fails.
+- **declared** — an entry in `GST_PLUGIN_GAPS[target]` with what it costs: printed on every
+  build, `check-committed-musl`'s shape. The four win32 names are seeded there with their
+  measurement, because the payload question is a decision (where the three decoders come from on
+  a gvsbuild prefix) and a silently incomplete bundle is not the way to wait for it.
+- **retired** — a declared gap whose plugin DID arrive: also a failure, so an entry cannot
+  outlive the archive that justified it.
+
+A platform's own sink is not the other's gap — `GST_PLATFORM_SINKS` keeps `osxaudio` out of the
+win32 expectation, because an alarm that is wrong on every run is one nobody reads.
+
+**And the claim underneath.** `decodebin` resolving says nothing about what it can autoplug:
+measured on the same win32 bundle, `decodebin3`, `playbin3`, `filesrc` and `souphttpsrc` all
+resolved while `mpg123audiodec` was null. So the registry is now asked for the DECODER of each
+format the audio path claims — `GST_AUDIO_DECODERS`, one row per format, read by
+`gst-elements.test.mjs` and by the same gap list, so a declared gap is not asked for and a
+retired one is caught from this side too.
+
+Writing that table down settled a claim this file had carried since it was written: the header
+listed AAC-in-M4A among the formats "a browser's decodeAudioData is expected to take", and no AAC
+decoder has ever been in the list. `isomp4` demuxes the container, `aacparse` parses the stream,
+and nothing decodes it. The two elements that would are `faad` (GPL) and `avdec_aac` (the libav
+closure § Decision drivers refuses), so it is a redistribution decision rather than an oversight —
+and it now sits in `GST_FORMAT_GAPS`, where it is a promise not made instead of a sentence that
+claims coverage.

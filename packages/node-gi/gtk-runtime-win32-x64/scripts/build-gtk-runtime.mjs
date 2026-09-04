@@ -67,7 +67,7 @@ import {
     formatMissingGlImplementation,
 } from '../../scripts/gl-implementation.mjs';
 import { decodeProbeProblems, spawnDecodeProbe } from '../../scripts/decode-probe.mjs';
-import { isBundledGstPlugin, missingRequiredGstPlugins } from '../../scripts/gst-plugins.mjs';
+import { isBundledGstPlugin, missingBundledGstPlugins, missingRequiredGstPlugins } from '../../scripts/gst-plugins.mjs';
 import { bundleRelativeLoaderCache, loaderCacheProblems } from '../../scripts/pixbuf-loader-cache.mjs';
 import {
     REQUIRED_NAMESPACES,
@@ -607,6 +607,35 @@ if (WINDOWING) {
                     'element for an http(s) URI). `soup` comes from gst-plugins-good and needs libsoup3 ' +
                     'built into the same gvsbuild prefix FIRST, else meson disables the plugin silently. ' +
                     'Do NOT drop the name from GST_REQUIRED_PLUGINS to get a green build.',
+            );
+            process.exit(1);
+        }
+        // AND THE SEED THAT MATCHED NOTHING. The block above asks for three plugins by
+        // name; this asks the whole DECLARATION against what was actually copied, which
+        // is the only direction that can see a plugin the source archive never
+        // contained. A builder logs what it SKIPPED out of what it WALKED, so four
+        // plugins left the published win32 bundle without a single line about any of
+        // them, and an application played nothing (#1544). A gap that is written down
+        // stays; one nobody has written down fails here.
+        const bundledGaps = missingBundledGstPlugins(shippedGstPlugins, 'win32-x64');
+        for (const gap of bundledGaps.declared) {
+            console.warn(`build-gtk-runtime: DECLARED GAP — no ${gap.plugin} plugin: ${gap.why}`);
+        }
+        if (bundledGaps.retired.length > 0) {
+            console.error(
+                `build-gtk-runtime: ${bundledGaps.retired.join(', ')} IS in this prefix, and ` +
+                    'gst-plugins.mjs still declares it as a gap. Delete the entry from ' +
+                    'GST_PLUGIN_GAPS — a gap that outlives its cause is a promise this bundle now ' +
+                    'keeps and still says it does not.',
+            );
+            process.exit(1);
+        }
+        if (bundledGaps.undeclared.length > 0) {
+            console.error(
+                `build-gtk-runtime: ${bundledGaps.undeclared.join(', ')} declared in GST_AUDIO_PLUGINS ` +
+                    'and absent from the payload, with no entry in GST_PLUGIN_GAPS saying so. Either ' +
+                    'the build prefix lost a formula, or the bundle is about to advertise a format it ' +
+                    'cannot decode — which is what a silent skip looked like before this check existed.',
             );
             process.exit(1);
         }
