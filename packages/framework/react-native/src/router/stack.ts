@@ -507,11 +507,24 @@ function StackView(props: StackViewProps): ReactElement {
     const viewRef = useRef<Adw.NavigationView | null>(null);
     const { pages, release } = useStackPages(state, descriptors);
     const { bindingsFor, widgets } = usePageBindings(release);
-    // `rendersChrome`: a stack whose every screen refuses its header bar renders none,
-    // and must not take the window's — see `useChrome`.
+    // `rendersChrome` is asked of the pages that are ON SCREEN, and the whole page list
+    // is the wrong set: `Adw.NavigationView` maps only the visible page (plus the one
+    // sliding out), so a bar on a page further down the stack draws nothing. MEASURED —
+    // with the whole list, pushing a `headerShown: false` screen onto a bar-ful one
+    // kept the claim alive for the bar UNDER it, and the window was left with 0 mapped
+    // header bars and no window control anywhere: nothing to close or move it with, on
+    // a window that had chrome a moment earlier.
+    //
+    // The CLOSING pages belong in the set for the opposite reason. They are still
+    // mapped while the arriving page slides in, so dropping the claim as soon as focus
+    // moves would put the window's bar back on top of a page bar that is still drawing
+    // its own controls.
+    const live = state.routes.map((route) => route.key);
+    const focused = focusedKeyOf(state);
+    const onScreen = pages.filter((page) => page.route.key === focused || !live.includes(page.route.key));
     const chrome = useChrome(
         'Stack',
-        pages.some((descriptor) => descriptor.options.headerShown !== false),
+        onScreen.some((descriptor) => descriptor.options.headerShown !== false),
     );
     const { titleWidgetFor, slotFor } = useTitleSlots('Stack');
 

@@ -334,6 +334,28 @@ const BARLESS_PLAIN: RouteManifest = [
     { contextKey: 'two.tsx', module: { default: TabTwo } },
 ];
 
+/** A `headerShown: false` screen pushed ON TOP of a bar-ful one — a full-bleed reader. */
+const BARE_ON_TOP: RouteManifest = [
+    {
+        contextKey: '_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Stack,
+                    { screenOptions: { animation: 'none' } },
+                    createElement(Stack.Screen, { key: 'i', name: 'index', options: { title: 'Home' } }),
+                    createElement(Stack.Screen, {
+                        key: 'b',
+                        name: 'bare',
+                        options: { title: 'Bare', headerShown: false },
+                    }),
+                ),
+        },
+    },
+    { contextKey: 'index.tsx', module: { default: Home } },
+    { contextKey: 'bare.tsx', module: { default: TabOne } },
+];
+
 /** The old workaround, kept as a supported shape: no page bar to contribute to. */
 const HEADER_HIDDEN: RouteManifest = [
     {
@@ -1207,12 +1229,57 @@ export default async () => {
 
             await it('falls back to its own bar when the page above has none', async () => {
                 // `headerShown: false` on the group leaves no title slot to contribute
-                // to, so the tab level builds a bar — without window controls, because
-                // it does not own the chrome. The switcher stays reachable either way,
-                // which is what makes the option survivable rather than a trap.
+                // to, so the tab level builds a bar. The switcher stays reachable either
+                // way, which is what makes the option survivable rather than a trap.
+                //
+                // TWO BARS AT REST, and that is the price of the option rather than a
+                // defect: the screen on the owning stack's screen draws no bar, so the
+                // stack holds no claim and the WINDOW's bar carries the controls — the
+                // tab level's own bar sits under it without a second set. One header bar
+                // is what the shape WITHOUT `headerShown: false` gets (the vector above),
+                // which is the shape this package now documents.
                 await windowed(app(HEADER_HIDDEN), async (window, container) => {
                     router.navigate('/one');
                     expect((await settle(() => maybeFind(container, 'AdwViewSwitcher') !== null)) >= 0).toBe(true);
+                    // Settle on the census, assert on the PROBLEMS: a settle that times
+                    // out reports a bare `false`, and the sentence the reader writes is
+                    // the whole reason it exists.
+                    await settle(() => windowChromeCensus(window).headerBars === 2);
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                    const census = windowChromeCensus(window);
+                    expect(census.headerBars).toBe(2);
+                    expect(Math.max(census.start, census.end)).toBe(1);
+                    expect(census.start + census.end >= 1).toBe(true);
+                });
+            });
+
+            await it('keeps the window closable while a headerShown:false screen is on top', async () => {
+                // THE PAGES THAT COUNT ARE THE MAPPED ONES. `Adw.NavigationView` maps
+                // the visible page and the one sliding out, nothing else — so a claim
+                // held because SOME page in the stack has a header bar is a claim
+                // against a bar that draws nothing. Measured before `stack.ts` asked
+                // only the on-screen pages: 0 mapped header bars and no window control
+                // anywhere, on a window that had chrome one push earlier.
+                //
+                // `headerShown: false` on a pushed screen is a documented option and a
+                // full-bleed reader is what it is for, so this is a shape an application
+                // reaches by following the manual.
+                await windowed(app(BARE_ON_TOP), async (window) => {
+                    expect(windowChromeCensus(window).headerBars).toBe(1);
+                    router.push('/bare');
+                    expect((await settle(() => observed.pathname === '/bare')) >= 0).toBe(true);
+                    await settle(() => windowChromeProblems(window).length === 0);
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                    const onTop = windowChromeCensus(window);
+                    expect(onTop.headerBars).toBe(1);
+                    expect(Math.max(onTop.start, onTop.end)).toBe(1);
+                    expect(onTop.start + onTop.end >= 1).toBe(true);
+
+                    // And back: the stack takes the window's bar again, so the pushed
+                    // screen having none is not a one-way door out of the owned chrome.
+                    router.back();
+                    expect((await settle(() => observed.pathname === '/')) >= 0).toBe(true);
+                    await settle(() => windowChromeProblems(window).length === 0);
                     expect(windowChromeProblems(window)).toStrictEqual([]);
                     expect(windowChromeCensus(window).headerBars).toBe(1);
                 });

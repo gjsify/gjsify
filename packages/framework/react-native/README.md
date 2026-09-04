@@ -230,11 +230,13 @@ application entered at its index route, that drew **three** bars with **three cl
 buttons**, only one of which closed the window (#1460). Nothing in a file-system route
 tree says which level owns the chrome, so this package decides it:
 
-- The **outermost navigator owns the window's chrome.** It claims the header bar
-  `AppRegistry` puts in the window — the window gives it up and takes it back if the
-  root unmounts — and renders the chrome itself. For `<Stack>` that means the pages
-  carry it, which is Adwaita's own composition and the only one where the back button
-  and the page title appear at all.
+- The **outermost navigator owns the window's chrome** while it has a header bar on
+  screen. It claims the bar `AppRegistry` puts in the window; the window takes it back
+  when the root unmounts, and when the screen on top asks for none — an `Adw.Window`
+  carries no titlebar of its own, so a `headerShown: false` screen that also took the
+  window's bar away would be a window with nothing to close or move it with. For
+  `<Stack>` ownership means the pages carry the chrome, which is Adwaita's own
+  composition and the only one where the back button and the page title appear at all.
 - An **inner `<Tabs>` contributes its `Adw.ViewSwitcher`** to the enclosing page's
   header bar title, where a hand-written Adwaita application puts it, instead of
   building a second bar. `headerShown: false` on the enclosing screen leaves no bar to

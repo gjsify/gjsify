@@ -296,6 +296,13 @@ their title widget to it rather than growing a second bar.** Three clauses:
    router cannot own it either — measured, an `Adw.HeaderBar` ABOVE an
    `Adw.NavigationView` keeps its `AdwBackButton` hidden and shows the window's title,
    not the page's, so the chrome has to live inside the pages.
+   **The claim follows the pages that are ON SCREEN**, not the navigator's whole page
+   list: only a mapped bar draws, so a claim held for a bar further down the stack is a
+   claim against nothing. Measured — asking the whole list, a `headerShown: false`
+   screen pushed onto a bar-ful one left the window with 0 mapped header bars and no
+   window control anywhere, i.e. nothing to close or move it with, on a window that had
+   chrome one push earlier. The closing page counts as on screen, because
+   `Adw.NavigationView` keeps it mapped while the arriving one slides in.
 2. An inner `<Tabs>` contributes its `Adw.ViewSwitcher` to the enclosing page's header
    bar title. React cannot render into an ancestor's subtree in one pass, so the
    contribution is a state update from the contributor's layout effect — upstream's own

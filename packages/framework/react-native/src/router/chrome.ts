@@ -129,13 +129,17 @@ export const withoutHeaderBar = (decorated: boolean): ChromeLevel => ({
 /**
  * What this navigator finds, and the window claim that goes with being outermost.
  *
- * `rendersChrome` is the navigator's own answer to "will I put a header bar at this
- * level at all", and the claim depends on it. A `<Tabs headerShown={false}>` or a
- * stack whose every screen sets `headerShown: false` renders no bar, and taking the
- * window's away would leave the window with NO chrome — an Adwaita window carries no
- * titlebar of its own, so that is a window that cannot be closed. Which is also why
- * `decorated` is TRUE in that case: the window's own bar is still there, carrying the
- * controls, and a bar further down must not carry a second set.
+ * `rendersChrome` is the navigator's own answer to "am I putting a header bar ON SCREEN
+ * right now", and the claim depends on it. A `<Tabs headerShown={false}>`, or a stack
+ * showing a `headerShown: false` screen, renders none, and taking the window's away
+ * would leave the window with NO chrome — an Adwaita window carries no titlebar of its
+ * own, so that is a window that cannot be closed. Which is also why `decorated` is TRUE
+ * in that case: the window's own bar is still there, carrying the controls, and a bar
+ * further down must not carry a second set.
+ *
+ * ON SCREEN, not "somewhere in this navigator": only mapped bars draw, so a claim held
+ * for a bar on a page further down the stack is a claim against nothing. What that
+ * measured, and which pages count, is in `stack.ts` at the call.
  *
  * The claim is a layout EFFECT with an undo, so a navigator that unmounts gives the
  * window its bar back — which is what makes a re-render, a route change and a
