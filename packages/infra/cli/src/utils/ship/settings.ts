@@ -19,6 +19,7 @@ import type {
     ConfigDataShip,
     DescriptionBlock,
     ShipAppOptions,
+    ShipBundleOptions,
 } from '../../types/config-data.js';
 import { DEFAULT_GJS_FLOOR, DEFAULT_NODE_FLOOR } from './depends.js';
 import { resolveShipFlatpakSettings } from './flatpak-config.js';
@@ -322,9 +323,95 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
     return { settings, metadata, warnings };
 }
 
-/** The bundle path a project declares, in the order the rest of the CLI reads them. */
-export function declaredBundlePath(pkg: ShipPackageManifest, ship: ConfigDataShip): string | undefined {
-    return ship.bundle ?? pkg.gjsify?.main ?? pkg.main;
+/** The entry one ship target installs, which key named it, and what it must NOT carry. */
+export interface ResolvedShipBundle {
+    /** The declared path as written — project-relative or absolute. */
+    declared?: string;
+    /** The config key the answer came from — named in the refusal and in the notice. */
+    key: string;
+    /** Whether a per-target key overrode the project default. */
+    overridden: boolean;
+    /**
+     * The entries OTHER targets declared, as written.
+     *
+     * Not decoration: `discoverPayload` stages the whole directory the entry
+     * lives in, so a project that keeps `dist/app.gjs.mjs` beside
+     * `dist/app.node.mjs` ships both to both targets. One of them is a bundle
+     * that target's interpreter cannot load, in an artifact advertising that it
+     * can — and on macOS it is inside the signed bundle.
+     */
+    foreign: string[];
+}
+
+/**
+ * The ONE place a ship target's ENTRY is decided — {@link resolveShipApp}'s twin.
+ *
+ * The two are twins because they answer one question between them, and #1545 is
+ * what answering only half of it costs: `gjsify.ship.app.darwin: "node"` moved
+ * the launcher to `node` while the payload stayed `gjsify.main`, which for a
+ * project whose primary target is Linux is its `--app gjs` bundle. Both keys
+ * were honoured, they contradicted each other, and the `.app` died on its first
+ * import with the only line of output on the subject reading as confirmation.
+ *
+ * A DECLARATION rather than a derivation, and both alternatives were considered
+ * where the issue raised them. Deriving the entry from the runtime by filename
+ * convention (`app.node.mjs` beside `app.gjs.mjs`) is a heuristic on an output
+ * name the project owns — the same guess `tests/e2e/ship`'s fixture exists to
+ * refuse. Having ship invoke `gjsify build --app <runtime>` itself cannot work
+ * for the phase that needs it most: `--from-stage` packs on a host with no
+ * project, no bundler and no sources (ADR 0024 § A2).
+ *
+ * Fall-through, not requirement: a target with no key keeps `gjsify.main`, so
+ * every single-host project is unaffected and nothing new is mandatory.
+ */
+export function resolveShipBundle(input: {
+    pkg: ShipPackageManifest;
+    ship: ConfigDataShip;
+    layoutOs: HostOs;
+}): ResolvedShipBundle {
+    const declaredTable = input.ship.bundle;
+    const perTarget: ShipBundleOptions =
+        typeof declaredTable === 'object' && declaredTable !== null ? declaredTable : {};
+    // The WHOLE table, for the reason `resolveShipApp` gives: a mis-keyed
+    // override is silent by construction, so the run that must report `windows`
+    // is the one assembling some OTHER layout.
+    for (const os of Object.keys(perTarget)) {
+        if (Object.hasOwn(SHIP_APP_OSES, os)) continue;
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.bundle.${os}\` is not an OS this command assembles for. Known: ` +
+                `${Object.keys(SHIP_APP_OSES).join(', ')} — the \`process.platform\` spelling, not the ` +
+                "`gjsify ship <os>` positional's. An entry under a key nothing reads leaves that target on " +
+                '`gjsify.main` with nothing to say so.',
+        );
+    }
+    const projectWide = typeof declaredTable === 'string' ? declaredTable : undefined;
+    const fallback = input.pkg.gjsify?.main ?? input.pkg.main;
+    const entryFor = (os: HostOs): string | undefined => perTarget[os] ?? projectWide ?? fallback;
+    const override = perTarget[input.layoutOs];
+    const declared = entryFor(input.layoutOs);
+    const key =
+        override !== undefined
+            ? `gjsify.ship.bundle.${input.layoutOs}`
+            : projectWide !== undefined
+              ? 'gjsify.ship.bundle'
+              : input.pkg.gjsify?.main !== undefined
+                ? 'gjsify.main'
+                : 'main';
+    // RESOLVED per OS, not read off the table — because the entry another target
+    // ships is as often the FALL-THROUGH as it is a declared one, and that is
+    // #1545's own project shape: `main` is the GJS bundle, only darwin declares
+    // its own, and reading the table alone leaves the GJS bundle sitting inside
+    // the signed `.app` with nothing to name it. When nothing is keyed per OS
+    // every target resolves the same entry and this set is empty by construction.
+    const foreign = [
+        ...new Set(
+            (Object.keys(SHIP_APP_OSES) as HostOs[])
+                .filter((os) => os !== input.layoutOs)
+                .map(entryFor)
+                .filter((entry): entry is string => entry !== undefined && entry !== declared),
+        ),
+    ];
+    return { declared, key, overridden: override !== undefined, foreign };
 }
 
 /** npm package name → a package/binary name both dpkg and rpm accept. */

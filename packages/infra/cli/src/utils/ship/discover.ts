@@ -45,8 +45,17 @@ export interface DiscoverInput {
     ship: ConfigDataShip;
     /** `gjsify.flatpak.icon`, the pre-existing spelling of the same thing. */
     flatpakIcon?: string;
-    /** The bundle path the project declares. */
+    /** The bundle path the project declares FOR THIS TARGET. */
     declaredBundle?: string;
+    /**
+     * The entries other targets declare, which this one must not carry.
+     *
+     * See {@link withoutForeignEntries} — same class as the locale tree below,
+     * with a sharper edge: a foreign entry is not merely dead weight, it is a
+     * bundle this target's interpreter cannot load, inside an artifact that says
+     * it can.
+     */
+    foreignBundles?: readonly string[];
 }
 
 export function discoverPayload(input: DiscoverInput): DiscoveredPayload {
@@ -67,7 +76,13 @@ export function discoverPayload(input: DiscoverInput): DiscoveredPayload {
         // Measured on a probe package: the same `.mo` appeared at both paths. The `lib/` copy is
         // dead weight — nothing looks there — and it is the same failure that once shipped the test
         // suite: whatever is beside the bundle gets carried whether or not it belongs in a package.
-        bundleFiles: withoutLocaleTree(listFilesRecursive(bundleDir), bundleDir, projectDir, ship.localeDir),
+        bundleFiles: withoutForeignEntries(
+            withoutLocaleTree(listFilesRecursive(bundleDir), bundleDir, projectDir, ship.localeDir),
+            bundleDir,
+            projectDir,
+            input.foreignBundles ?? [],
+            bundlePath,
+        ),
         iconFiles: discoverIcons(projectDir, ship.icon ?? input.flatpakIcon),
         schemaFiles: discoverSchemas(projectDir, ship.schemas),
         typelibFiles: discoverTypelibs(projectDir, ship.bundledTypelibs),
@@ -197,6 +212,49 @@ function discoverLocales(projectDir: string, dir: string | undefined): { rel: st
         );
     }
     return out;
+}
+
+/**
+ * Drop the entries declared for OTHER targets from this target's payload.
+ *
+ * `gjsify.ship.bundle` is per OS (#1545), so a project with two hosts builds
+ * `dist/app.gjs.mjs` and `dist/app.node.mjs` into ONE directory — and staging
+ * that directory wholesale hands each artifact the other's bundle. It is not
+ * dead weight like the locale copy: on macOS it lands inside the signed `.app`,
+ * and it is a file whose only property is that this artifact's interpreter
+ * cannot load it.
+ *
+ * Only the declared entries themselves, never a guess at what else belongs to
+ * them: a bundle's shared chunks are indistinguishable from the application's
+ * own files, and dropping one would break the artifact this list exists to keep
+ * whole.
+ */
+function withoutForeignEntries(
+    bundleFiles: string[],
+    bundleDir: string,
+    projectDir: string,
+    foreign: readonly string[],
+    bundlePath: string,
+): string[] {
+    if (foreign.length === 0) return bundleFiles;
+    const dropped = new Set<string>();
+    for (const entry of foreign) {
+        const abs = isAbsolute(entry) ? entry : resolve(projectDir, entry);
+        // THIS TARGET'S OWN ENTRY, under another spelling. The foreign set is
+        // compared as declared STRINGS, and `./dist/app.mjs`, `dist/../dist/app.mjs`
+        // and an absolute path are three spellings of one file — dropping it would
+        // stage a launcher whose bundle is not in the payload, which is a worse
+        // artifact than the one this exclusion exists to prevent. Paths are the
+        // only comparison that cannot be spelled around.
+        if (abs === bundlePath) continue;
+        const rel = relative(bundleDir, abs);
+        // Outside this payload — another target may build somewhere else entirely,
+        // and then there is nothing here to subtract. Same shape as the locale
+        // tree above, including the POSIX normalisation Windows needs.
+        if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) continue;
+        dropped.add(rel.split(sep).join(posix.sep));
+    }
+    return bundleFiles.filter((file) => !dropped.has(file));
 }
 
 function resolveBundle(input: DiscoverInput): string {

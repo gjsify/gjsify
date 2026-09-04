@@ -458,8 +458,14 @@ export interface ConfigDataShip extends AppMetadata {
     /**
      * The built bundle `bin/<name>` executes. Default: `gjsify.main`, then
      * `package.json#main`. Its whole directory is staged into `lib/<name>/`.
+     *
+     * A STRING is one entry for every target; a TABLE names one per OS, keyed
+     * like {@link ShipAppOptions} and resolved beside it. An application with two
+     * hosts has two bundles built from one source — `gjsify.app` decides which
+     * runtime a target execs, and this decides which of those bundles it hands
+     * that runtime (#1545).
      */
-    bundle?: string;
+    bundle?: string | ShipBundleOptions;
     /** Icon file, or a directory of them. Sizes are read from the path or the filename. */
     icon?: string;
     /** A `*.gschema.xml` file, or a directory of them. */
@@ -599,6 +605,30 @@ export interface ShipAppOptions {
     darwin?: 'gjs' | 'node';
     /** What a Windows program directory carries. `node` is the only value its formats accept. */
     win32?: 'gjs' | 'node';
+}
+
+/**
+ * `gjsify.ship.bundle` — the ENTRY per OS, the twin of {@link ShipAppOptions}.
+ *
+ * The two answer one question between them, and answering only half of it is
+ * what #1545 measured: `gjsify.ship.app.darwin: "node"` pointed the launcher at
+ * `node` while the payload stayed the project's `main` — a `--app gjs` bundle,
+ * because Linux is that project's primary target. Both halves were honoured,
+ * they contradicted each other, and the `.app` died on its first import.
+ *
+ * Same OS spelling as everywhere else in this block (`process.platform`), and
+ * the same fall-through: a target with no key here keeps `gjsify.main`. What it
+ * does NOT keep is another target's entry — a bundle declared for one OS is
+ * dropped from every other OS's payload, since no interpreter but that one can
+ * load it.
+ */
+export interface ShipBundleOptions {
+    /** The entry a `.deb`/`.rpm`/Flatpak installs. */
+    linux?: string;
+    /** The entry `<App>.app/Contents/Resources/lib/` carries. */
+    darwin?: string;
+    /** The entry the Windows program directory carries. */
+    win32?: string;
 }
 
 /**

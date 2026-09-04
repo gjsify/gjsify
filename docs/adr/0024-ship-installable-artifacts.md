@@ -1405,3 +1405,140 @@ project that is GJS on Linux and Node on Windows builds two bundles — `dist/<n
 `dist/<name>.node.mjs` is the layout this tree documents as normal, and `discoverPayload` stages
 both — but every layout's launcher names the same one of them. That is the next axis, and it is a
 separate question with a separate config surface; `status/open-todos.md` carries it.
+
+## Amendment, 2026-09-04 — the runtime and the payload are ONE decision
+
+§ A22 ends by naming what it did not do: the runtime became per target and the bundle stayed one
+path. That sentence describes a gap, and the gap was measured before this amendment was written —
+`gjsify ship` 0.47.0, a React-Native-on-GTK application, `gjsify.ship.app.darwin: "node"`, and a
+`.app` that cannot start (#1545).
+
+### A23. `gjsify.ship.bundle` is per target too, and the pair is CHECKED
+
+**What the run printed, in full, on the subject of the runtime:**
+
+```
+[gjsify ship] runtime for darwin: node — `gjsify.ship.app.darwin` overrides `gjsify.app`.
+```
+
+That line is correct. The launcher it produced ends `exec node "$contents/Resources/lib/app.gjs.mjs"`,
+and `app.gjs.mjs` is a `--app gjs` bundle, because `main` is what the payload comes from and Linux
+is that project's primary target. Measured directly, the artifact dies before a line of application
+code:
+
+```
+Error [ERR_UNSUPPORTED_ESM_URL_SCHEME]: Only URLs with a scheme in: file, data, and node are
+supported by the default ESM loader. Received protocol 'gi:'
+```
+
+So ship honoured both keys, they contradicted each other, and the only output on the subject read
+as confirmation. `--skip-build` changes nothing: the choice is `main`, not a build artifact ship
+selects.
+
+**The decision, in the shape § A22 already established.** `gjsify.ship.bundle` accepts the table
+`{linux,darwin,win32}` beside its existing scalar form, `resolveShipBundle` is `resolveShipApp`'s
+twin — same OS vocabulary, same mis-keyed-key refusal, same "which key answered" in the result —
+and `commands/ship.ts` resolves the pair in one place before anything is staged. Fall-through, not
+requirement: a target with no key keeps `gjsify.main`, so every single-host project is untouched
+and nothing new is mandatory.
+
+Two alternatives were rejected where #1545 raised them. **Deriving the entry from the runtime by
+filename** (`app.node.mjs` beside `app.gjs.mjs`) is a heuristic over an output name the project
+owns, and this tree already refuses that guess elsewhere. **Having ship invoke `gjsify build --app
+<runtime>`** cannot serve the phase that needs it most: `--from-stage` packs on a host with no
+project, no bundler and no sources (§ A2). A declaration works in both phases, and the stage
+manifest already carries the RESOLVED value, so nothing there changes.
+
+**The discriminator exists, which § A22's follow-up said it did not.** It is the module scheme, and
+it is exact in both directions because each host's loader refuses the other's — measured on GJS
+1.86 and Node 24:
+
+| the entry imports | under `node` | under `gjs` |
+|---|---|---|
+| `gi://Gtk?version=4.0` | `ERR_UNSUPPORTED_ESM_URL_SCHEME … Received protocol 'gi:'` | resolves |
+| `node:fs` | resolves | `ImportError: Unsupported URI scheme for importing: node` |
+
+Neither is a claim about how the bundle was built: it is the specifier the running loader rejects,
+read out of the file that will be installed. `assertEntryRunsUnder` refuses on evidence FOR the
+wrong host and never on its absence — a bundle naming neither scheme passes, because nothing was
+observed to contradict. That asymmetry is `assertLauncherMatchesInterpreter`'s, and for its reason:
+a guard that turns working packages into failures buys nothing over the defect it prevents.
+
+**A second defect fell out of writing the discriminator, and it is the more expensive one.**
+`scanGiNamespaces` — the source of every artifact's typelib `Depends:` (§ 6) — read `gi://`
+specifiers only. A `--app node` bundle has none: `gjsGiNodePlugin` rewrites each one into
+`require('@gjsify/node-gi/gi').requireGi("Ns", "Ver")`. So every node-target artifact derived an
+EMPTY typelib dependency set, installed cleanly, and died at its first GI call — the exact failure
+the bare-side-effect-import fix in that module was written to prevent, arriving again through the
+other build target. The scanner now reads both emitted forms in one acorn pass, binding-traced
+rather than name-matched, because over-approximating a namespace fails the build.
+
+**Why nothing caught it.** Every ship fixture's "node bundle" was hand-written with `gi://` imports
+in it — a shape `gjsify build --app node` cannot emit and node cannot run. The fixture now imports
+`giNodeShimSource` from the plugin that writes it, so the text under test is the text that ships,
+and it carries the second real shape too (an application written against `@gjsify/node-gi`
+directly, whose import survives into the output because the addon is external).
+
+**What the e2e suite said before the fix.** `tests/e2e/ship`'s per-target-runtime case scaffolded
+`gjsify.ship.app.win32: "node"` with the payload left on `gjsify.main` — this defect, encoded as a
+passing test, with a comment saying the launcher's choice of file "is a separate axis … so this
+test says nothing about it". It now declares the win32 entry, and asserts the other half of the
+decision: a bundle declared for one OS is dropped from every other OS's payload. That exclusion is
+not tidiness — `discoverPayload` stages the whole directory the entry lives in, so without it each
+artifact carries a bundle its own interpreter cannot load, on macOS inside the signed `.app`.
+
+**What a bundler does to the discriminator, measured after the first cut passed its own tests.**
+The `requireGi` reader keyed on a callee named `require`, which is what the plugin emits and what a
+hand-written fixture keeps — and what a bundle never has. Built through the real plugin:
+
+```
+unminified   const require$1 = createRequire(import.meta.url);
+             … require$1("@gjsify/node-gi/gi").requireGi("Gtk", "4.0")
+minified     const n = e(import.meta.url);
+             … n(`@gjsify/node-gi/gi`).requireGi(`Gtk`, `4.0`)
+```
+
+Two shims in one bundle means two `require` bindings, so the second is renamed even without
+`--minify`, which is the default. The identifier-keyed reader answered `["Adw-1"]` unminified and
+`[]` minified — a legal answer either way, so the artifact would have shipped with no typelib
+`Depends:` and the fix would have reported success. The module STRING is what survives every
+rename, so that is the discriminator: a call taking `'@gjsify/node-gi/gi'` as its first argument is
+a load of that module under any name. The spec now asserts against both real outputs verbatim,
+because a hand-written shim cannot stand in for the file that ships — which is the same sentence
+this amendment already carries about the fixtures, one level in.
+
+**What `--from-stage` needs, which is nothing.** The pair is checked where it is decided, and a
+stage assembled by an older gjsify cannot reach the packer at all: `readStageManifest` refuses any
+schema but the current one, in both directions, and says so ("Re-run the `--stage` phase with this
+gjsify"). A second copy of the check at pack time would be a guard watching another mechanism,
+which § Governance names as the smell.
+
+**Three things the first cut got wrong, each found by running it rather than reading it.** All
+three are the same shape as the defect the amendment is about — an answer that looks like a
+measurement:
+
+1. **The scanner over-approximated on a real minified bundle.** Bindings of `@gjsify/node-gi/gi`
+   were kept in ONE set, and a minifier gives an `import * as gi` and a callback parameter the same
+   short name in different scopes — so `function render(e,t){return e(t)+e(`Zzqfoo`)}` produced the
+   namespace `Zzqfoo` and `deriveDepends` refused to package a correct project. A module namespace
+   object is not callable at all, so the two sets are now split by what a binding can BE: only
+   `requireGi` itself (named or default import) is a callee, everything else is an object of
+   `.requireGi(…)`.
+2. **The foreign-entry exclusion could drop the target's OWN entry.** The set was compared as
+   declared strings, and `dist/app.mjs`, `./dist/app.mjs`, `dist/../dist/app.mjs` and an absolute
+   path are four spellings of one file. Measured: a payload with the launcher in it and no bundle.
+   The comparison is a resolved PATH now, which is the only spelling nothing can work around.
+3. **The pair check accepted #1545's own pair for a legacy GJS bundle.** An application reaching GI
+   through the ambient `imports.gi` object carries no `gi://`, and a `--app gjs` build of one
+   imports `system` — measured on a real build, whose whole evidence is `{"gi":["system"]}`. Node
+   refuses a bare GJS built-in as a missing package (`ERR_MODULE_NOT_FOUND`), so it is the same
+   kind of evidence and is read as such. The ambient `imports` object deliberately is NOT: node
+   fails on it at the first USE rather than at load, so a refusal citing it would claim more than
+   it can keep.
+
+**Correction to § A22, kept as the record per § 7's precedent.** Its closing paragraph is now
+false: the bundle is no longer one path, and the discriminator it called nonexistent is
+`utils/ship/entry-interpreter.ts`. Its diagnosis was right about where the difficulty sits — the
+bundle path is read before the settings are resolved — which is why the resolver runs beside
+`resolveShipApp` and feeds `discoverPayload` rather than being derived from the settings it
+precedes.
