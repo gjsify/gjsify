@@ -548,7 +548,7 @@ export function exportNamesFromIndex(source) {
             if (/^module\.exports = \{\s*$/.test(line)) inLiteral = true;
             continue;
         }
-        if (/^\}/.test(line)) break;
+        if (line.startsWith('}')) break;
         const match = /^ {2}(?:get )?([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:<[^(]*>)?\s*[:(]/.exec(line);
         if (match) names.add(match[1]);
     }
