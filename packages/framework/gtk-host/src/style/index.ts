@@ -32,8 +32,10 @@ export {
 } from './tokens.js';
 export type { Scale, StyleTokens } from './tokens.js';
 export { UnknownUtilityError } from './errors.js';
-export { PAINT_PROPERTIES, partitionPaint, resolvePaintUtility } from './paint.js';
+export { CSS_VALUE, CSS_VALUE_KIND, PAINT_PROPERTIES, partitionPaint, resolvePaintUtility } from './paint.js';
 export type { PaintProps } from './paint.js';
+export { FONT_FAMILY_VECTORS, serialiseFontFamily } from './font-family.js';
+export type { FontFamilyVector } from './font-family.js';
 export { LAYOUT_PROPERTIES, partitionLayout, resolveLayoutUtility } from './layout.js';
 export type {
     AlignValue,

@@ -13,6 +13,7 @@
 import Gtk from 'gi://Gtk?version=4.0';
 import { expect, it, on } from '@gjsify/unit';
 
+import { FONT_FAMILY_VECTORS } from './font-family.js';
 import { GTK_CSS_PROBES, NOT_GTK_CSS } from './gtk-css.js';
 import { GTK_HOSTS, gated } from '../testing/gate.mjs';
 import { installDiagnosticsGate } from '../conformance/index.js';
@@ -27,6 +28,20 @@ function parseError(property: string, value: string): string | null {
     provider.load_from_string(`.probe { ${property}: ${value}; }`);
     provider.disconnect(handler);
     return message;
+}
+
+/**
+ * What GTK computes for one declaration, in GTK's OWN spelling.
+ *
+ * The parsed value read back out, which is what makes an equivalence claim a
+ * measurement rather than a restatement of our expectation: `Fira Code` and
+ * `"Fira Code"` both come back as `font-family: "Fira Code"`, so serialising
+ * provably did not change what the widget will be painted with.
+ */
+function normalised(property: string, value: string): string {
+    const provider = new Gtk.CssProvider();
+    provider.load_from_string(`.probe { ${property}: ${value}; }`);
+    return provider.to_string().replace(/\s+/g, ' ').trim();
 }
 
 export default async () => {
@@ -59,6 +74,60 @@ export default async () => {
                 const error = parseError('text-align', 'center');
                 expect(error === null).toBe(false);
                 expect(String(error)).toContain('text-align');
+            });
+
+            await it('parses every serialised font-family value the table carries', async () => {
+                // The property name was never the problem in #1539: `font-family` is
+                // right and the VALUE took the rule down. So the value gets the same
+                // treatment the names get — measured against the running parser.
+                const rejected = FONT_FAMILY_VECTORS.filter(
+                    (vector) => parseError('font-family', vector.emitted) !== null,
+                ).map((vector) => `${vector.authored} -> ${vector.emitted}`);
+                expect(rejected).toStrictEqual([]);
+            });
+
+            await it('agrees with the table about what it does with each value UNSERIALISED', async () => {
+                // `bare` is a claim about another program, so all three of its states
+                // are re-measured here rather than trusted. It also records a finding
+                // the issue got wrong: a bare SEQUENCE of identifiers is legal CSS
+                // and GTK implements it, so `Fira Code` and `Liberation Serif` parse
+                // unquoted and only a component that is not an identifier — usually
+                // one starting with a digit — is refused.
+                //
+                // `misread` is the state that had to exist. Two vectors the table
+                // first called `refused` are in fact ACCEPTED and resolve a different
+                // family: `Back\slash` is the escape for the ident `Backslash`, and a
+                // raw newline is whitespace, so `Two⏎Lines` is the ident sequence
+                // `Two Lines`. Serialising MUST change what GTK computes for those,
+                // which is the opposite of what it must do for `accepted`.
+                const disagreed = FONT_FAMILY_VECTORS.filter((vector) => {
+                    const parses = parseError('font-family', vector.authored) === null;
+                    if (!parses) return vector.bare !== 'refused';
+                    const same =
+                        normalised('font-family', vector.authored) === normalised('font-family', vector.emitted);
+                    return vector.bare !== (same ? 'accepted' : 'misread');
+                }).map((vector) => `${JSON.stringify(vector.authored)} (table says ${vector.bare})`);
+                expect(disagreed).toStrictEqual([]);
+            });
+
+            await it('still carries a value GTK refuses AND one it misreads, so the set can fail', async () => {
+                // THE DISCRIMINATOR, and the reason this whole table exists. The old
+                // vector was `['font-family', 'Cantarell']` — one word, valid as a
+                // bare identifier, and therefore the single family for which the
+                // missing quoting is invisible. The suite asserted that font-family
+                // is emitted and never that it is emitted correctly, so it would have
+                // gone green against an implementation that quoted nothing.
+                //
+                // A vector whose value cannot exercise the rule reads exactly like a
+                // vector that passed, so the SET is held here instead of trusted. BOTH
+                // bug shapes are required: `refused` is the loud one that took the
+                // screen down, `misread` is the quiet one that renders the wrong font
+                // at exit 0 — and a table reduced to `accepted` rows would look
+                // exactly like a table that is testing something.
+                const byState = (state: string): readonly string[] =>
+                    FONT_FAMILY_VECTORS.filter((vector) => vector.bare === state).map((vector) => vector.authored);
+                expect(byState('refused')).toContain('Source Sans 3');
+                expect(byState('misread').length > 0).toBe(true);
             });
 
             await it('accepts the PHYSICAL spacings and refuses the LOGICAL ones, in one place', async () => {

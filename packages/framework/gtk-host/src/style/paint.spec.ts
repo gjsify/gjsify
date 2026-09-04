@@ -13,9 +13,10 @@ import { describe, expect, it } from '@gjsify/unit';
 // says which half it is.
 import { MINIMAL_TOKENS, type StyleTokens } from './tokens.js';
 import { UnknownUtilityError } from './errors.js';
-import { CSS_NAME, resolvePaintUtility } from './paint.js';
+import { CSS_NAME, CSS_VALUE, CSS_VALUE_KIND, partitionPaint, resolvePaintUtility } from './paint.js';
 import { partition, resolveUtilities } from './resolve.js';
 import { GTK_CSS_PROPERTIES } from './gtk-css.js';
+import { FONT_FAMILY_VECTORS, serialiseFontFamily } from './font-family.js';
 
 const TOKENS: StyleTokens = {
     ...MINIMAL_TOKENS,
@@ -29,7 +30,9 @@ const TOKENS: StyleTokens = {
     fontSize: { ...MINIMAL_TOKENS.fontSize, s: '13px' },
     letterSpacing: { wide: '0.5px' },
     lineHeight: { snug: '1.3' },
-    fontFamily: { serif: 'Merriweather' },
+    // Two entries on purpose: one family that is fine bare and one that is not, so
+    // the UTILITY route is exercised by a value that can actually fail (#1539).
+    fontFamily: { serif: 'Merriweather', display: 'Source Sans 3' },
 };
 
 const threw = (fn: () => unknown): UnknownUtilityError => {
@@ -180,6 +183,74 @@ export default async () => {
             expect(threw(() => partition({ zIndex: '1' } as never)).message).toContain(
                 'not a property the style partition routes',
             );
+        });
+
+        await it('serialises a font family, by both routes into the partition', async () => {
+            // THE REPORTED FAILURE (#1539). `font-family: Source Sans 3` is refused
+            // by GTK in full — `Junk at end of value for font-family` — so the
+            // containment probe refuses the generated rule and a React tree dies
+            // with no boundary between the `<Text>` and the screen.
+            //
+            // Asserted through BOTH front ends because they are two routes to one
+            // emitter and a fix at either front end would leave the other one broken:
+            // a `style={{ fontFamily }}` object, and a `font-*` utility whose token
+            // resolves to the same value.
+            expect(partition({ fontFamily: 'Source Sans 3' }).css).toStrictEqual(['font-family: "Source Sans 3"']);
+            expect(partition(resolveUtilities(['font-display'], TOKENS)).css).toStrictEqual([
+                'font-family: "Source Sans 3"',
+            ]);
+            // THE CONTROL: the other `font-*` half still answers a weight, which is
+            // a number and is not serialised.
+            expect(partition(resolveUtilities(['font-bold'], TOKENS)).css).toStrictEqual(['font-weight: 700']);
+        });
+
+        await it('emits every vector in the conformance set exactly as the set says', async () => {
+            // The pure half of the mechanism. `gtk-css.spec.ts` holds the other half
+            // — that each `emitted` parses, that the `bare` column is what the
+            // running GTK actually does, and that the set still contains a value GTK
+            // refuses and one it misreads.
+            //
+            // THE KEYWORD RULE LIVES HERE AND CANNOT LIVE THERE. GTK has no
+            // generic-family concept — its serialiser answers bare `sans-serif` with
+            // `"sans-serif"` — so an implementation that quoted keywords passes every
+            // GTK-side assertion. The `emitted` column is the only thing that sees
+            // it, and it is kept because what this emits is CSS, where a quoted
+            // keyword is a family name and no longer a keyword.
+            const wrong = FONT_FAMILY_VECTORS.filter(
+                (vector) => serialiseFontFamily(vector.authored) !== vector.emitted,
+            ).map(
+                (vector) =>
+                    `${JSON.stringify(vector.authored)} -> ${JSON.stringify(serialiseFontFamily(vector.authored))}`,
+            );
+            expect(wrong).toStrictEqual([]);
+            // And through the emitter rather than only the function, because the
+            // wiring is the half a consumer meets.
+            const unwired = FONT_FAMILY_VECTORS.filter(
+                (vector) => partitionPaint({ fontFamily: vector.authored })[0] !== `font-family: ${vector.emitted}`,
+            ).map((vector) => vector.authored);
+            expect(unwired).toStrictEqual([]);
+        });
+
+        await it('refuses a font-family list with an empty member instead of emitting one', async () => {
+            // GTK answers a missing family with `Expected a string` and drops the
+            // declaration, so a trailing comma in a token would cost the whole rule.
+            expect(threw(() => serialiseFontFamily('Cantarell,')).message).toContain('empty member');
+            expect(threw(() => serialiseFontFamily('Cantarell, , sans-serif')).message).toContain('empty member');
+        });
+
+        await it('gives every NAME-valued property a serialiser, and only those', async () => {
+            // THE MECHANISM, not the fix. `font-family` was reachable with an
+            // unserialised value because nothing recorded that its value is a NAME
+            // while every other paint value is a colour, a length, a number or a
+            // keyword. Declaring the kind makes the next such property impossible to
+            // add quietly: the key set is `keyof PaintProps`, so it cannot be
+            // skipped, and this holds the two sets against each other.
+            const nameValued = Object.entries(CSS_VALUE_KIND)
+                .filter(([, kind]) => kind === 'name')
+                .map(([property]) => property)
+                .sort();
+            expect(nameValued).toStrictEqual(Object.keys(CSS_VALUE).sort());
+            expect(nameValued).toContain('fontFamily');
         });
 
         await it('maps every property onto a CSS name GTK actually accepts', async () => {
