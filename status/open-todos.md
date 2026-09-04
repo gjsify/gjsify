@@ -4587,33 +4587,25 @@ bar-ful root stack, which is a NAVIGATION and not a launch.
 
 Blocked on nothing but the decision to spend a devtools method on it.
 
-### `Adw.ViewStack` dangles `last_visible_child` when a page is removed mid-transition
+### A `ViewStack` page removed mid-transition can crash, and gtk-host is where it would be avoided
 
-Measured by the reporter of #1453 on gjs 1.88.1 / libadwaita 1.9.3 / GTK 4.22 / Wayland, from a
-core dump: the same application SIGSEGVed once in three runs and printed
-`gtk_widget_set_child_visible: assertion 'GTK_IS_WIDGET (widget)' failed` the other two, with
-this stack — `add_page` → `set_visible_child` → `adw_animation_skip` → `transition_done_cb` →
-`gtk_widget_set_child_visible`.
+The crash itself is upstream libadwaita's, and it is ledgered where this repository puts an
+upstream gap: `status/upstream-patch-candidates.md` carries the source reading, #1453's
+reporter's backtrace, why `AdwViewStack:enable-transitions = false` is not an escape, what a
+consumer can do meanwhile, and the upstream ask. This entry is only the half that is ours, so
+there is one copy of the mechanism rather than two.
 
-Read against `refs/libadwaita/src/adw-view-stack.c`, the mechanism is upstream's:
-`set_visible_child` records the outgoing page in `self->last_visible_child` and starts an
-animation; `stack_remove` clears that page's widget (`g_clear_object (&page->widget)`) and drops
-the page WITHOUT clearing `last_visible_child`; the next `set_visible_child` skips the running
-animation, and `transition_done_cb` then calls `gtk_widget_set_child_visible` on a NULL — or
-freed — widget. `adw_animation_play` only leaves the animation running when the widget is
-MAPPED, which is why an unmapped tree never sees it.
+`@gjsify/gtk-host`'s reconciler is what removes an `AdwViewStack` page one at a time, so it is
+the layer that could keep the dangling pointer from being created at all. The lead is in
+libadwaita's own source: `update_child_visible` clears `last_visible_child` whenever the page it
+names stops being visible (`adw-view-stack.c:1073`), so hiding the child and letting that notify
+land before the remove would take the freed page out of play through public API.
 
-WHAT #1453's FIX DOES AND DOES NOT DO. The React-side driver is closed: `<Tabs>` no longer reads
-its own `set_visible_child_name` as a user action, so a deep link no longer produces the
-navigation churn that fed the removals. The GTK hazard itself is NOT closed and was NOT
-reproduced in-process — `router.spec.ts`' vectors never remove a `ViewStack` page one at a time,
-because React unmounts a deleted subtree from its top and the pages go with the stack. Reaching
-it needs a page list that SHRINKS in a mapped window, which is a route set that changes at
-runtime.
+NOT done in #1567, and the reason is that it would be a guard nothing measures. These vectors
+never remove a `ViewStack` page one at a time — React unmounts a deleted subtree from its top and
+the pages go with the stack — so reaching the crash needs a route set that SHRINKS while the
+window is mapped, and nothing in the tree builds one.
 
-Two things to settle when someone does reach it: whether this layer can avoid leaving a
-transition in flight at all through public API (`Adw.ViewStack:enable-transitions` is NOT it —
-measured in the source, `enable_transitions: false` sets the animation's duration to 0 and
-`adw_animation_play` still schedules a tick, so the in-flight window survives), and whether the
-right home for the repair is an upstream libadwaita issue plus a guard here.
-
+BLOCKED ON THE VECTOR, not on the decision: build the shrinking-route-set case first. If it
+reproduces the assertion, the hide-then-remove belongs in gtk-host's `ViewStack` descriptor with
+that case holding it, and both retire the day the upstream fix ships.
