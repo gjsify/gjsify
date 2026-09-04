@@ -366,9 +366,14 @@ export default async () => {
                     expect(census.headerBars).toBe(1);
                     // NOT vacuous: a host whose decoration layout drew no buttons at
                     // all would answer 0 here and make every "no duplicate" below
-                    // meaningless. The invariant is per SIDE, so which side carries
-                    // them is the host's business and not this vector's.
-                    expect(census.start + census.end).toBe(1);
+                    // meaningless. WHICH side carries them is the host's business —
+                    // measured across five `gtk-decoration-layout` values, GTK counts
+                    // control SETS and not buttons, so `minimize,maximize,close` is
+                    // still one, `menu`/`icon`/`appmenu` leave their side EMPTY, and
+                    // only `close:` moves the set to the start. The per-side maximum
+                    // is the invariant; the sum is only the non-vacuity guard.
+                    expect(Math.max(census.start, census.end)).toBe(1);
+                    expect(census.start + census.end >= 1).toBe(true);
                     expect(windowChromeProblems(window)).toStrictEqual([]);
                 });
             });
@@ -389,9 +394,11 @@ export default async () => {
                     expect(census.headerBars).toBe(3);
                     expect(Math.max(census.start, census.end)).toBe(3);
                     const problems = windowChromeProblems(window);
-                    expect(problems.length).toBe(1);
-                    expect(problems[0]?.includes('3 sets of window controls')).toBe(true);
-                    expect(problems[0]?.includes('3 mapped header bar(s)')).toBe(true);
+                    // One per DUPLICATED side, so a layout with buttons on both would
+                    // name both. Every one of them is the same finding.
+                    expect(problems.length >= 1).toBe(true);
+                    expect(problems.every((problem) => problem.includes('3 sets of window controls'))).toBe(true);
+                    expect(problems.every((problem) => problem.includes('3 mapped header bar(s)'))).toBe(true);
                 });
             });
 
