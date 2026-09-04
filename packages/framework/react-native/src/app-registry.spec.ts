@@ -50,6 +50,7 @@ import {
     mountApplicationRoot,
     ownTheApplication,
     toShellOptions,
+    windowChromeChecks,
     type RunApplicationOptions,
 } from './app-registry.js';
 import { RouterRoot, Stack, type RouteManifest } from './router/index.js';
@@ -214,16 +215,22 @@ export default async () => {
                 // This asserts what the shipping caller FOUND, not that it was called: a
                 // check whose only evidence is having run is the green that measured
                 // nothing.
+                const checked = windowChromeChecks();
                 await mounted('org.gjsify.ReactNativeChromeCheckVector', async (window) => {
                     window.present();
-                    // The check answers on an idle after `map`, so the wait is for the
-                    // WINDOW — waiting for the answer would pass on the value a previous
-                    // vector left behind. MEASURED with `provideWindowChrome` deleted:
-                    // one sentence, "2 sets of window controls draw at the end of their
-                    // header bar … 1 of those close buttons close nothing the user is
-                    // looking at (2 mapped header bar(s))".
-                    expect((await settle(() => window.get_mapped())) >= 0).toBe(true);
-                    await settle(() => false, 20);
+                    // WAIT FOR THE COUNT, not for the window plus a fixed pump. The list
+                    // answers `[]` both for a clean composition and for one nothing
+                    // checked, so a case that only reads the list stays green with the
+                    // shipping call deleted — MEASURED: with `checkWindowChrome(window)`
+                    // removed from `mountApplicationRoot` this very case still passed,
+                    // which is #1546's own defect reintroduced inside #1546's vector. The
+                    // count fails there, and it is also what stops this reading the answer
+                    // a previous case left behind.
+                    expect((await settle(() => windowChromeChecks() > checked)) >= 0).toBe(true);
+                    // MEASURED with `provideWindowChrome` deleted: one sentence, "2 sets of
+                    // window controls draw at the end of their header bar … 1 of those
+                    // close buttons close nothing the user is looking at (2 mapped header
+                    // bar(s))".
                     expect(lastWindowChromeProblems()).toStrictEqual([]);
                 });
             });

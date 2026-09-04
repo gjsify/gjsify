@@ -213,9 +213,13 @@ so the composition they were written for was the one composition they never saw.
   more thing that is off in the configuration where the check was needed.
 - *On the idle after `map`*, because `map` runs while GTK is still bringing the window
   up and the census counts what DRAWS.
-- The result is READABLE (`lastWindowChromeProblems()`) as well as logged, for the
-  reason `announce.ts` keeps a count: a window whose chrome is right and a window nobody
-  checked print the same nothing.
+- The result is READABLE as well as logged, for the reason `announce.ts` keeps a count:
+  a window whose chrome is right and a window nobody checked print the same nothing. It
+  takes BOTH readers to say that, and the first shape of this decision shipped only the
+  first: `lastWindowChromeProblems()` answers `[]` for a clean window and `[]` before
+  anything has run, so the vector written for this clause passed with the call that runs
+  the check deleted — measured. `windowChromeChecks()` is the count that tells those two
+  apart, and it is what a vector waits for before reading the list.
 
 It puts a `/conformance` import on a shipping path. That is accepted here and nowhere
 else by default: this module already pulls the whole descriptor table through

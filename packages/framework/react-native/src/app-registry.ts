@@ -151,12 +151,28 @@ let running: string | null = null;
  *
  * A reader rather than only a log, for the reason `announce.ts` keeps one: a window
  * whose chrome is right and a window nobody checked print the same nothing, and only an
- * answer tells them apart. Empty after a clean check, empty before the first one.
+ * answer tells them apart.
  */
 let chromeProblems: readonly string[] = [];
 
+/**
+ * How many mapped windows the check has answered for. THIS is the half that tells the
+ * two nothings apart, and the list alone does not.
+ *
+ * `[]` is the clean answer AND the never-ran answer, so a vector that asserts the empty
+ * list is green whether or not anything checked — MEASURED on this branch: with
+ * `checkWindowChrome(window)` deleted from `mountApplicationRoot`, the #1546 vector
+ * still passed. `announce.ts` keeps `liveRegionWatchCount` for exactly this reason and
+ * this is the same seam: the count is what a vector waits for, the list is what it then
+ * asserts.
+ */
+let chromeChecks = 0;
+
 /** Every problem the last mapped window's chrome had. Empty is the clean answer. */
 export const lastWindowChromeProblems = (): readonly string[] => chromeProblems;
+
+/** How many windows the chrome check has answered for. `0` means it has not run. */
+export const windowChromeChecks = (): number => chromeChecks;
 
 /**
  * Ask `windowChromeProblems()` about this window once it is on screen, and report.
@@ -176,6 +192,7 @@ function checkWindowChrome(window: Gtk.Window): void {
         GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
             if (!window.get_mapped()) return GLib.SOURCE_REMOVE;
             chromeProblems = windowChromeProblems(window);
+            chromeChecks++;
             for (const problem of chromeProblems) console.warn(`@gjsify/react-native: ${problem}`);
             return GLib.SOURCE_REMOVE;
         });
