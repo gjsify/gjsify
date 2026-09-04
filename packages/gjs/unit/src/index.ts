@@ -128,8 +128,8 @@ let countTestsXfail = 0;
  * which is correct — `on('Deno', …)` is supposed to contribute nothing under Node.
  * The gap is that a gate which SHOULD have fired and did not is indistinguishable
  * from one that correctly stood down: a miss only does `++countTestsIgnored`, the
- * count is printed, and the exit code reads `countTestsFailed` alone. So an axis
- * that stopped running leaves nothing behind — strictly worse than a deleted test
+ * count is printed, and neither failure counter moves. So an axis that stopped
+ * running leaves nothing behind — strictly worse than a deleted test
  * file, which at least shows up as a file that is gone.
  *
  * `tests` is the delta the matched blocks actually executed, not the number of
