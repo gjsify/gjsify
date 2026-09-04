@@ -44,7 +44,9 @@ export type RouterErrorCode =
     /** An `options` key the navigator has no GTK answer for. */
     | 'unknown-screen-option'
     /** A navigator rendered outside the router, so it has no route node to build from. */
-    | 'no-route-node';
+    | 'no-route-node'
+    /** Two navigators inside one screen both contributing to its header bar's title. */
+    | 'chrome-taken';
 
 /** A routing input, file name or call this layer cannot answer for, and why. */
 export class RouterError extends Error {

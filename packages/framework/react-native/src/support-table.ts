@@ -739,6 +739,7 @@ export const ROUTER_SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         limits: [
             'A screen answers title, headerShown and animation. Every other expo-router / React Navigation stack option is refused BY NAME at the point of declaration, because an option that is accepted and ignored is invisible until someone looks at the window.',
             'The header is an Adw.HeaderBar inside an Adw.ToolbarView, which grows its own back button and reads the page’s own title. A custom header component is not supported; headerShown={false} drops the bar, and with it the back affordance.',
+            'One header bar per window, owned by the OUTERMOST navigator (#1460). As the outermost one, a stack’s pages carry the window controls; nested inside another navigator they keep their bars for the back button and drop the controls, because a window has one set of them. headerRight, headerLeft and a per-screen action set are not answered for — they are contributions to the owning bar, and that is the next decision rather than a missing prop.',
             'animation is "default" or "none" — Adw.NavigationView has one transition and a switch for it (animate-transitions), not a set of named ones.',
             'Screen preloading is not implemented. React Navigation’s preloadedRoutes would need pages added to the widget’s pool without entering the stack, which is expressible and untested here.',
         ],
@@ -752,6 +753,7 @@ export const ROUTER_SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
             'A tab answers title only. tabBarIcon is refused: in React Native it is a COMPONENT and Adwaita paints a switcher button from Adw.ViewStackPage:icon-name, an icon NAME on a page object the add returns — reachable through a ref, not through this declaration.',
             'Every tab is mounted. React Native’s tab navigator is lazy because a phone cannot afford five screens; an Adw.ViewStack page that is not the visible child is not realised, and laziness would buy a flash on first switch.',
             'The switcher sits in the header bar with policy WIDE (MEASURED: the default is NARROW, the phone-shaped one). A narrow-window breakpoint is the application’s to declare — Adw.ViewSwitcherBar is not wired here.',
+            'Inside another navigator the switcher is CONTRIBUTED to the enclosing page’s header bar rather than getting one of its own (#1460), which is where a hand-written Adwaita application puts it. With headerShown={false} on the enclosing screen there is no bar to contribute to and the tab level renders its own. Two navigators contributing to one bar is refused by name: a header bar has one title.',
             'tabBarBadge, tabBarPosition and the rest of the tab-bar vocabulary are refused by name for the same reason as tabBarIcon: they describe a bar this layer does not draw.',
         ],
     },

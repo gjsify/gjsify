@@ -222,6 +222,36 @@ The conventions are parsed **in this package, not in the plugin**, so a consumer
 another bundler — or one writing the nine-line manifest by hand — gets the same
 refusals. The plugin walks a directory and emits what it found.
 
+### One header bar per window, owned by the outermost navigator
+
+An `Adw.NavigationPage` carries its own `Adw.HeaderBar`, so a `_layout` inside a
+`_layout` describes a header bar inside a header bar. Measured on a five-tab
+application entered at its index route, that drew **three** bars with **three close
+buttons**, only one of which closed the window (#1460). Nothing in a file-system route
+tree says which level owns the chrome, so this package decides it:
+
+- The **outermost navigator owns the window's chrome.** It claims the header bar
+  `AppRegistry` puts in the window — the window gives it up and takes it back if the
+  root unmounts — and renders the chrome itself. For `<Stack>` that means the pages
+  carry it, which is Adwaita's own composition and the only one where the back button
+  and the page title appear at all.
+- An **inner `<Tabs>` contributes its `Adw.ViewSwitcher`** to the enclosing page's
+  header bar title, where a hand-written Adwaita application puts it, instead of
+  building a second bar. `headerShown: false` on the enclosing screen leaves no bar to
+  contribute to, and the tab level then renders its own.
+- **The window controls go on the outermost bar of each path.** An inner `<Stack>`'s
+  pages still need their own back buttons, so their bars stay — without window
+  controls. `Adw.NavigationSplitView` splits the same decoration across its two
+  visible bars, which is why the rule that holds this is *one set of window controls
+  per side*, not *one header bar*.
+
+That rule is machine-checked from outside, over the widgets that actually DRAW:
+`windowChromeProblems()` in `@gjsify/gtk-host/conformance` counts mapped, non-empty
+`GtkWindowControls` per side of a presented window and names every duplicate — and
+also refuses a window whose chrome draws nothing at all, which is the failure the fix
+above can overshoot into. `headerRight`, `headerLeft` and a custom header component
+are still not answered for; the support table says so by name.
+
 ## Support
 
 See **[SUPPORT.md](SUPPORT.md)** — one section per declared surface, generated from

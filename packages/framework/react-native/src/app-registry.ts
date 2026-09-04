@@ -25,12 +25,13 @@
 // `girs_value`: a value import from `@girs/*` flips the signal and the declared
 // runtime table drifts from the suggested one, which fails `runtimes-drift`.
 import Adw from 'gi://Adw?version=1';
-import Gtk from 'gi://Gtk?version=4.0';
+import type Gtk from '@girs/gtk-4.0';
 import { runAdwaitaApp } from '@gjsify/adwaita-app';
 import { createRoot, type ReactRoot } from '@gjsify/gtk-host/react';
 import { createElement, type ComponentType } from 'react';
 
 import { UnsupportedError } from './unsupported.js';
+import { buildWindowShell, provideWindowChrome, type WindowChrome } from './window-chrome.js';
 
 /** What `registerComponent` is handed: a function returning the root component. */
 export type ComponentProvider = () => ComponentType<Record<string, unknown>>;
@@ -63,29 +64,28 @@ const registry = new Map<string, Registration>();
 /**
  * The window a registered component renders into.
  *
- * An `Adw.ApplicationWindow` with an `Adw.ToolbarView` and a header bar — the
- * ordinary Adwaita shell, not a bare window, because a desktop window without a
- * header bar cannot be moved or closed on every compositor. React renders into the
- * toolbar view's CONTENT, so the application's own chrome survives the first commit
- * (`clearContainer` clears the host's shadow children, never the adopted ones).
+ * An `Adw.ApplicationWindow` around `buildWindowShell()`'s toolbar view and header
+ * bar — the ordinary Adwaita shell, not a bare window, because a desktop window
+ * without a header bar cannot be moved or closed on every compositor.
+ *
+ * That bar is a DEFAULT and not a fixture: a tree that owns the window's chrome
+ * itself — a routed application's outermost navigator does — claims it through the
+ * returned `chrome` and the window lets it go. `window-chrome.ts` carries the reason.
  */
 function buildWindow(
     app: Adw.Application,
     key: string,
     options: RunApplicationOptions,
-): { window: Gtk.Window; content: Gtk.Widget } {
+): { window: Gtk.Window; content: Gtk.Widget; chrome: WindowChrome } {
     const window = new Adw.ApplicationWindow({
         application: app,
         title: options.title ?? key,
         defaultWidth: options.defaultWidth ?? 900,
         defaultHeight: options.defaultHeight ?? 700,
     });
-    const toolbar = new Adw.ToolbarView();
-    toolbar.add_top_bar(new Adw.HeaderBar());
-    const content = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
-    toolbar.set_content(content);
-    window.set_content(toolbar);
-    return { window, content };
+    const shell = buildWindowShell();
+    window.set_content(shell.root);
+    return { window, content: shell.content, chrome: shell.chrome };
 }
 
 export const AppRegistry = {
@@ -132,7 +132,7 @@ export const AppRegistry = {
             applicationId: options.applicationId,
             css: options.css,
             createWindow: (app) => {
-                const { window, content } = buildWindow(app, appKey, options);
+                const { window, content, chrome } = buildWindow(app, appKey, options);
                 const Component = registration.provider();
                 mounted.root = createRoot(content);
                 // `createElement`, not a hand-built element literal and not a JSX
@@ -140,7 +140,7 @@ export const AppRegistry = {
                 // (`react.element` became `react.transitional.element` in 19) and a
                 // JSX runtime would tie this module to a dialect the consumer has not
                 // chosen. `createElement` is neither.
-                mounted.root.render(createElement(Component, options.initialProps ?? {}));
+                mounted.root.render(provideWindowChrome(chrome, createElement(Component, options.initialProps ?? {})));
                 return window;
             },
         });

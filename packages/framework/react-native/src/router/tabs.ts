@@ -18,6 +18,12 @@
 // and a switcher that defaults to the narrow layout on a 900 px window looks like a
 // bug rather than a choice.
 //
+// WHERE THE HEADER BAR COMES FROM is `chrome.ts`' rule. As the outermost navigator
+// this one owns the window's single bar and puts the switcher in its title. INSIDE
+// another navigator it builds no bar at all: the switcher is contributed to the
+// enclosing page's header bar, which is where a hand-written Adwaita application puts
+// it — and it is what stops a nested navigator from drawing a second close button.
+//
 // ONE PAGE IS ONE `Adw.ViewStackPage`, ADDRESSED BY ROUTE KEY — the same join key the
 // stack navigator uses, for the same reason: `set_visible_child_name` is how focus is
 // set, and `notify::visible-child-name` is how the USER'S click comes back. The
@@ -38,6 +44,7 @@ import {
     createElement,
     useCallback,
     useLayoutEffect,
+    useMemo,
     useRef,
     type ComponentType,
     type ReactElement,
@@ -45,6 +52,7 @@ import {
 } from 'react';
 import type Adw from '@girs/adw-1';
 
+import { provideChromeLevel, underHeaderBar, useChrome, withoutHeaderBar } from './chrome.js';
 import { RouterError } from './errors.js';
 import {
     navigationPair,
@@ -132,6 +140,7 @@ function TabsView(props: TabsViewProps): ReactElement {
     const stackRef = useRef<Adw.ViewStack | null>(null);
     const switcherRef = useRef<Adw.ViewSwitcher | null>(null);
     const focused = state.routes[state.index]?.key;
+    const chrome = useChrome('Tabs');
 
     /**
      * The switcher's `stack` is set IMPERATIVELY, from a ref.
@@ -139,14 +148,78 @@ function TabsView(props: TabsViewProps): ReactElement {
      * It is an object-valued GObject property whose value is another widget in the
      * same tree, and a declarative prop would need the host to marshal a widget
      * reference into a `GValue` at a moment when the other widget may not have been
-     * materialised yet. One `set_stack` in a layout effect happens after both exist,
-     * which is exactly the guarantee that is needed and the only one available.
+     * materialised yet. One `set_stack` after both exist is exactly the guarantee
+     * that is needed and the only one available.
      */
-    useLayoutEffect(() => {
+    const wire = useCallback(() => {
         const switcher = switcherRef.current;
         const stack = stackRef.current;
         if (switcher !== null && stack !== null && switcher.get_stack() !== stack) switcher.set_stack(stack);
-    });
+    }, []);
+
+    /**
+     * TWO TRIGGERS, and each covers the other's gap.
+     *
+     * The layout effect is the one that fires when this navigator renders the switcher
+     * itself: the refs are attached during the commit, in tree order, so the switcher's
+     * may run before the stack exists.
+     *
+     * The REF callbacks are the ones that fire when the switcher is CONTRIBUTED to an
+     * enclosing header bar (`chrome.ts`) — that element is rendered by the level above,
+     * so the commit that mounts it need not re-render this component at all, and an
+     * effect here would never run for it. `wire` is idempotent, so both firing is free.
+     *
+     * `useCallback` with stable deps on both: the host disconnects and re-attaches a
+     * ref whose identity changed on every commit, which would leave the widget
+     * unreachable in between.
+     */
+    useLayoutEffect(wire);
+    const attachStack = useCallback(
+        (widget: unknown): void => {
+            stackRef.current = (widget ?? null) as Adw.ViewStack | null;
+            wire();
+        },
+        [wire],
+    );
+    const attachSwitcher = useCallback(
+        (widget: unknown): void => {
+            switcherRef.current = (widget ?? null) as Adw.ViewSwitcher | null;
+            wire();
+        },
+        [wire],
+    );
+
+    /**
+     * The switcher, as ONE element whichever header bar ends up holding it.
+     *
+     * `slot: 'title'` is `Adw.HeaderBar.set_title_widget`, so the switcher sits where
+     * the window title would be — Adwaita's own placement for it, and the reason a
+     * routed application looks like a desktop application rather than a phone with a
+     * tab bar. The element is memoised because it is handed UP into another
+     * component's state when this navigator is not the chrome owner, and a fresh
+     * element per render would re-contribute in a loop.
+     */
+    const switcher = useMemo(
+        () => createElement('AdwViewSwitcher', { slot: 'title', ref: attachSwitcher, policy: 'wide' }),
+        [attachSwitcher],
+    );
+
+    /**
+     * Contribute the switcher upward instead of building a second header bar.
+     *
+     * The condition is the whole chrome rule for this navigator: an inner `<Tabs>` with
+     * a bar above it puts its switcher in that bar. With no bar above — `headerShown:
+     * false` on the enclosing screen — there is nothing to contribute to, so the
+     * fallback below renders a bar, and `chrome.decorated` decides whether it carries
+     * the window controls.
+     */
+    const titleSlot = chrome.titleSlot;
+    const contributes = titleSlot !== null && props.headerShown !== false;
+    useLayoutEffect(() => {
+        if (titleSlot === null || props.headerShown === false) return;
+        titleSlot.setTitleWidget(switcher);
+        return () => titleSlot.setTitleWidget(null);
+    }, [titleSlot, props.headerShown, switcher]);
 
     // React → widget. The name is the route key, which is also what the page was
     // added under, so this is the join and not a lookup.
@@ -197,6 +270,11 @@ function TabsView(props: TabsViewProps): ReactElement {
         navigation.dispatch({ ...TabActions.jumpTo(route.name, route.params), target: current.key });
     }, [navigation]);
 
+    // What the tabs publish downward, and it is decided by whether THIS level ends up
+    // with a bar: contributing or refusing one leaves the question exactly as it was.
+    const level =
+        contributes || props.headerShown === false ? withoutHeaderBar(chrome.decorated) : underHeaderBar(null);
+
     const pages = state.routes.map((route) => {
         const descriptor = descriptors[route.key] as TabDescriptor | undefined;
         if (descriptor === undefined) {
@@ -219,17 +297,24 @@ function TabsView(props: TabsViewProps): ReactElement {
                 // placement): `add_titled(child, name, title)`.
                 layout: { name: route.key, title: descriptor.options.title ?? route.name },
             },
-            descriptor.render(),
+            // No title slot either way: this navigator's bar holds the switcher, so a
+            // navigator inside a tab has nothing to contribute to and renders its own
+            // bar. The level is published all the same — without it that navigator
+            // reads the default, believes it is outermost, and its claim on the
+            // window's header bar is refused as the second one.
+            provideChromeLevel(level, descriptor.render()),
         );
     });
 
     const viewStack = createElement(
         'AdwViewStack',
-        { ref: stackRef, 'on:notify::visible-child-name': onVisibleChildChanged },
+        { ref: attachStack, 'on:notify::visible-child-name': onVisibleChildChanged },
         ...pages,
     );
 
-    if (props.headerShown === false) return createElement(NavigationContent, null, viewStack);
+    // Nothing to wrap: the switcher is either refused (`headerShown: false`) or it is
+    // living in the enclosing level's header bar.
+    if (props.headerShown === false || contributes) return createElement(NavigationContent, null, viewStack);
 
     return createElement(
         NavigationContent,
@@ -239,12 +324,8 @@ function TabsView(props: TabsViewProps): ReactElement {
             null,
             createElement(
                 'AdwHeaderBar',
-                { slot: 'top' },
-                // `slot="title"` is `Adw.HeaderBar.set_title_widget`, so the switcher
-                // sits where the window title would be — Adwaita's own placement for
-                // it, and the reason it looks like a desktop application rather than
-                // a phone with a tab bar.
-                createElement('AdwViewSwitcher', { slot: 'title', ref: switcherRef, policy: 'wide' }),
+                { slot: 'top', showStartTitleButtons: !chrome.decorated, showEndTitleButtons: !chrome.decorated },
+                switcher,
             ),
             viewStack,
         ),
