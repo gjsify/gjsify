@@ -224,6 +224,13 @@ const DENIAL = /^\s*(?:no|not|none|neither|nor)\b/i;
  *
  * A path is therefore a CLAIM like any other citation: the file must exist and must name
  * the table outside a comment. Prose stays prose; a path is checkable, so it is checked.
+ *
+ * WHAT IT DOES NOT CHECK, so nobody reads it for more: that the named spec DRIVES the
+ * table. It is a NAME check. Measured — keep the identifier and neuter the loop
+ * (`for (const row of [] as typeof TABLE)`) and this arm passes. That is the same
+ * definition of "driven" the renderer arm already ledgers ("a spec that imports a table
+ * and filters the interesting rows away still counts"), so it is consistent rather than
+ * a new hole; it closes deletion, not evisceration.
  */
 const OUTSIDE_DRIVER = /\b((?:packages|showcases|tests)\/[\w@./-]+\.spec\.[cm]?ts)\b/g;
 

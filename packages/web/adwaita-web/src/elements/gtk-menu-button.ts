@@ -246,7 +246,7 @@ export class GtkMenuButton extends HTMLElement {
     private _onPopoverToggled(open: boolean): void {
         this.classList.toggle('active', open);
         this._buttonEl.setAttribute('aria-expanded', String(open));
-        if (open) this._menuView.rows.find((row) => !row.hidden && !row.disabled)?.focus();
+        if (open) this._menuView.focusableRows[0]?.focus();
         // A dismissal returns the popup to its top page: a menu that reopens inside a
         // submenu is one the reader cannot get out of.
         else this._menuView.reset();

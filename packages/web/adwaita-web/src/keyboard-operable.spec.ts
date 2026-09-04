@@ -775,6 +775,69 @@ export const AdwKeyboardOperableTest = async () => {
             el.remove();
         });
 
+        await it('a page change never strands focus outside the popup, whatever is disabled', () => {
+            // K1. Both page changes focused a HARD-CODED index of `_rows`, which includes
+            // rows no key can reach — so entering a submenu whose first item is disabled
+            // put `document.activeElement` on <body>, OUTSIDE an open popover: Tab then
+            // walked to the control behind it and every arrow was dead, because both
+            // keydown listeners are element-scoped. The two ELEMENTS already filtered on
+            // their open path; the two page changes did not, which is two of four.
+            const el = document.createElement('gtk-menu-button') as HTMLElement & {
+                menuModel: unknown;
+                actions: unknown;
+            };
+            document.body.appendChild(el);
+            el.actions = { 'app.off': { enabled: false } };
+            el.menuModel = [
+                { label: 'Dim', action: 'app.off' },
+                { label: 'Live' },
+                {
+                    label: 'More',
+                    submenu: [{ label: 'SubDim', action: 'app.off' }, { label: 'SubLive' }],
+                },
+            ];
+            (el.querySelector('.adw-menu-button-button') as HTMLElement).click();
+            const rows = () => [...el.querySelectorAll<HTMLButtonElement>('.adw-popover-item')];
+            const label = () =>
+                document.activeElement?.querySelector('.adw-menu-button-item-label')?.textContent ??
+                document.activeElement?.localName ??
+                'none';
+            const inside = () => el.contains(document.activeElement);
+
+            // ENTERING: past the back row, counted in REACHABLE rows — not index 1.
+            const opener = rows()[2] as HTMLButtonElement;
+            opener.focus();
+            press(opener, 'ArrowRight');
+            expect(inside()).toBe(true);
+            expect(label()).toBe('SubLive');
+
+            // LEAVING: the parent's first row is disabled too, so index 0 would strand.
+            const back = rows()[0] as HTMLButtonElement;
+            back.focus();
+            press(back, 'ArrowLeft');
+            expect(inside()).toBe(true);
+            expect(label()).toBe('Live');
+            el.remove();
+        });
+
+        await it('a submenu with NOTHING reachable focuses its back row, not the page', () => {
+            const el = document.createElement('gtk-menu-button') as HTMLElement & {
+                menuModel: unknown;
+                actions: unknown;
+            };
+            document.body.appendChild(el);
+            el.actions = { 'app.off': { enabled: false } };
+            el.menuModel = [{ label: 'More', submenu: [{ label: 'Only', action: 'app.off' }] }];
+            (el.querySelector('.adw-menu-button-button') as HTMLElement).click();
+            const opener = el.querySelector('.adw-popover-item') as HTMLButtonElement;
+            opener.focus();
+            press(opener, 'ArrowRight');
+            // The back row is always reachable, so the reader can still leave.
+            expect(el.contains(document.activeElement)).toBe(true);
+            expect(document.activeElement?.classList.contains('adw-popover-back')).toBe(true);
+            el.remove();
+        });
+
         await it('Enter activates the focused row, and reports its path', () => {
             const { el, rows } = open();
             const seen: number[][] = [];

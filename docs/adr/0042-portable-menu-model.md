@@ -207,6 +207,13 @@ row the action group DISABLES is skipped: a disabled `<button>` cannot take focu
 including it makes the arrow key a dead press — the same defect a roving tabindex with no
 keys behind it has, one row wide, and GTK skips insensitive widgets for the same reason.
 
+One thing the browser menu does NOT do, found while testing this and recorded rather than
+asserted either way: `<gtk-popover>` does not trap Tab, so a Tab from inside an open menu
+reaches the control behind it. GTK's popover menu binds it
+(`refs/gtk/gtk/gtkpopovermenu.c:660-663` cycles focus within the menu). This port has never
+implemented it for ANY popover, so it is not this ADR's regression and not this ADR's fix —
+it belongs to a change that can carry every popover at once.
+
 **The defect is web-specific, and so is the fix.** Measured: `@gjsify/adwaita-nativescript`
 and `@gjsify/adwaita-react-native` contain no `tabIndex` and no `keydown` at all. The NS
 menu is a platform `Dialogs.action()` sheet, whose traversal belongs to the OS; React

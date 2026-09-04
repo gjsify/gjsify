@@ -445,7 +445,7 @@ export class AdwSplitButton extends HTMLElement {
         this._render();
         // Focus lands in the menu on open, AFTER _render has built the rows —
         // otherwise the popover's arrow keys have nothing to move from.
-        if (opened) this._menuView.rows.find((row) => !row.hidden && !row.disabled)?.focus();
+        if (opened) this._menuView.focusableRows[0]?.focus();
     }
 
     private _render(): void {

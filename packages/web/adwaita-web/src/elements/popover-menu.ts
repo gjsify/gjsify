@@ -118,9 +118,42 @@ export class PopoverMenuView {
         }
     }
 
-    /** The focusable rows, in order — what the element focuses on open. */
+    /** Every row of the open page, in order — including the ones no key can reach. */
     get rows(): readonly HTMLButtonElement[] {
         return this._rows;
+    }
+
+    /**
+     * The rows a key can actually REACH, which is the only list worth focusing into.
+     *
+     * A hidden row is not rendered and a DISABLED one cannot take focus, so
+     * `element.focus()` on either is a silent no-op — and a no-op after `render()` has
+     * replaced the row that had focus leaves `document.activeElement` on `<body>`,
+     * OUTSIDE an open popover. Measured under real keys: Tab then walked to the control
+     * BEHIND the popup and every arrow was dead, because both keydown listeners are
+     * element-scoped and the event no longer fired inside either. Escape was the only
+     * way out.
+     *
+     * The predicate lived in the two ELEMENTS (their open path) and not in the two page
+     * changes here, which is how it came to be applied in two places out of four. One
+     * list, so there is no fourth place to forget.
+     */
+    get focusableRows(): readonly HTMLButtonElement[] {
+        return this._rows.filter((row) => !row.hidden && !row.disabled);
+    }
+
+    /**
+     * Put focus on a page, counting only rows a key can reach.
+     *
+     * `skip` is how many reachable rows to pass — 1 when ENTERING a submenu, because the
+     * back row is reachable and the reader was going to the first item past it. The
+     * fallback to the first reachable row is what covers a submenu whose every item is
+     * disabled: focus lands on the back row, which is always reachable, and the reader
+     * can still leave with Left, Enter or Escape.
+     */
+    private focusPage(skip: number): void {
+        const rows = this.focusableRows;
+        (rows[skip] ?? rows[0])?.focus();
     }
 
     setModel(model: AdwMenuModel): void {
@@ -242,7 +275,7 @@ export class PopoverMenuView {
         button.addEventListener('click', () => {
             this._page = this._page.slice(0, -1);
             this.render();
-            this._rows[0]?.focus();
+            this.focusPage(0);
         });
         this._backRow = button;
         return button;
@@ -264,8 +297,9 @@ export class PopoverMenuView {
         button.addEventListener('click', () => {
             this._page = [...path];
             this.render();
-            // Focus the row AFTER the back row, which is where the reader was going.
-            this._rows[1]?.focus();
+            // Past the back row, which is where the reader was going — counted in
+            // REACHABLE rows, so a disabled first item does not strand focus on <body>.
+            this.focusPage(1);
         });
         this._openers.add(button);
         return button;
