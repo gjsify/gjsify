@@ -874,6 +874,17 @@ export default async () => {
             ]);
             expect(plan('Image', { source: { uri: 'file:///tmp/x.png' } }).plan.files[0]?.kind).toBe('uri');
             expect(plan('Image', { source: { uri: 'resource:///a/b.png' } }).plan.files[0]?.kind).toBe('uri');
+            // A WINDOWS DRIVE LETTER IS A PATH, not a `c:` URI. It matches RFC 3986's
+            // scheme grammar, so the reader used to refuse it as an unsupported scheme
+            // — on the one OS where it is how an absolute path is spelled. Both
+            // separators, because `Gio.File.new_for_path` takes either.
+            expect(plan('Image', { source: { uri: 'C:\\images\\logo.png' } }).plan.files).toStrictEqual([
+                { on: 'outer', property: 'file', kind: 'path', value: 'C:\\images\\logo.png' },
+            ]);
+            expect(plan('Image', { source: { uri: 'd:/images/logo.png' } }).plan.files[0]?.kind).toBe('path');
+            // …and a REAL two-letter-or-longer scheme still reads as a scheme, so the
+            // carve-out is one character wide and not a hole.
+            expect(threw(() => plan('Image', { source: { uri: 'ws://host/a.png' } })).message).toContain('`ws:`');
         });
 
         await it('refuses every source shape that would need a loader, by name', async () => {
