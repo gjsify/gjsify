@@ -39,7 +39,7 @@ export class PreferencesDialogWebStory extends StoryElement {
         // Accent colour — a combo row over the same five options.
         const accent = document.createElement('adw-combo-row');
         accent.setAttribute('title', 'Accent colour');
-        accent.setAttribute('items', JSON.stringify(['Blue', 'Teal', 'Green', 'Orange', 'Purple']));
+        accent.setAttribute('model', JSON.stringify(['Blue', 'Teal', 'Green', 'Orange', 'Purple']));
         accent.setAttribute('selected', '0');
         group.append(accent);
 

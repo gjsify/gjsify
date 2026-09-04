@@ -57,7 +57,7 @@ export class OverviewWidgetsNsStory extends StoryView {
 
         const accent = new Adw.ComboRow();
         accent.title = OVERVIEW_TEXT.accentColor;
-        accent.options = OVERVIEW_ACCENT_OPTIONS.map((label) => ({ label, value: label.toLowerCase() }));
+        accent.model = OVERVIEW_ACCENT_OPTIONS.map((label) => ({ label, value: label.toLowerCase() }));
         accent.selected = 0;
         appearance.addRow(accent);
 

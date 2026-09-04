@@ -35,7 +35,7 @@ export class PreferencesGroupNsStory extends StoryView {
 
         const regionRow = new Adw.ComboRow();
         regionRow.title = 'Region';
-        regionRow.options = REGION_OPTIONS.map((s) => ({ label: s, value: s }));
+        regionRow.model = REGION_OPTIONS;
         regionRow.selected = 0;
         this._group.addRow(regionRow);
 

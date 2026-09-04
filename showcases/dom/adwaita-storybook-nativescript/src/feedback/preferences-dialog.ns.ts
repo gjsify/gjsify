@@ -55,7 +55,7 @@ export class PreferencesDialogNsStory extends StoryView {
         // Accent colour — a combo row over the same five options.
         const accent = new Adw.ComboRow();
         accent.title = 'Accent colour';
-        accent.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((label) => ({ label, value: label }));
+        accent.model = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'];
         accent.selected = 0;
         group.addRow(accent);
 

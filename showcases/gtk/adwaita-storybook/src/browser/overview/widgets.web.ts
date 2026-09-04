@@ -58,8 +58,8 @@ export class OverviewWidgetsWebStory extends StoryElement {
             }),
             el('adw-combo-row', {
                 title: OVERVIEW_TEXT.accentColor,
-                // `items` is JSON, not a comma list — the element parses it.
-                items: JSON.stringify([...OVERVIEW_ACCENT_OPTIONS]),
+                // `model` is JSON, not a comma list — the element parses it.
+                model: JSON.stringify([...OVERVIEW_ACCENT_OPTIONS]),
                 selected: '0',
             }),
         );

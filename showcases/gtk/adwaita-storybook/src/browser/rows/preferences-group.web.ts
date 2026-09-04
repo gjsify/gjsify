@@ -41,7 +41,7 @@ export class PreferencesGroupWebStory extends StoryElement {
 
         const regionRow = document.createElement('adw-combo-row');
         regionRow.setAttribute('title', 'Region');
-        regionRow.setAttribute('items', JSON.stringify(REGION_OPTIONS));
+        regionRow.setAttribute('model', JSON.stringify(REGION_OPTIONS));
         regionRow.setAttribute('selected', '0');
         this._group.append(regionRow);
 
