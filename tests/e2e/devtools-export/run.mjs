@@ -89,6 +89,61 @@ const SKIP = e2eSkipReason('devtools-export', [
     ['a loadable Adw-1 typelib', hasAdw()],
 ]);
 
+// A bash driver run INSIDE a fresh `dbus-run-session` (its own bus → no stale
+// well-known-name owner from a prior run). Launches the built fixture, waits for
+// it on the bus, then emits machine-readable KEY=value lines the test asserts on.
+// $1 = fixture bundle path.
+const DRIVER = String.raw`
+set -u
+BUNDLE="$1"
+log="$(mktemp)"
+env REPRO_CMDLINE=1 REPRO_SIBLING=1 gjs -m "$BUNDLE" >"$log" 2>&1 &
+pid=$!
+on_bus=""
+for i in $(seq 1 80); do
+  if gdbus introspect --session --dest ${DEST} --object-path ${BASE} >/dev/null 2>&1; then on_bus=1; break; fi
+  sleep 0.25
+done
+if [ -z "$on_bus" ]; then
+  echo "APP_ON_BUS=no"
+  echo "APP_LOG_BEGIN"; cat "$log"; echo "APP_LOG_END"
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  exit 0
+fi
+echo "APP_ON_BUS=yes"
+# (a) real exported child object (NOT the phantom-node false positive)
+if gdbus introspect --session --dest ${DEST} --object-path ${BASE} 2>&1 | grep -qE "node devtools"; then
+  echo "CHILD_DEVTOOLS=yes"; else echo "CHILD_DEVTOOLS=no"; fi
+# (b) the interface actually present at <base>/devtools
+if gdbus introspect --session --dest ${DEST} --object-path ${BASE}/devtools 2>&1 | grep -qE "interface org.gjsify.Devtools"; then
+  echo "IFACE=yes"; else echo "IFACE=no"; fi
+# (c) a SYNC method call returns data
+status="$(gdbus call --session --dest ${DEST} --object-path ${BASE}/devtools --method org.gjsify.Devtools.GetStatus 2>&1)"
+echo "GETSTATUS_BEGIN"; echo "$status"; echo "GETSTATUS_END"
+# (d) the ONLY ASYNC method — regression guard for the gjs 1.86.0 broken
+# Promise-return marshaling (see ScreenshotAsync). Returns an (ay) tuple, empty
+# here because the fixture maps no window; a plain async method would instead
+# fail with org.gnome.gjs.JSError.ValueError "incorrect value type".
+shot="$(gdbus call --session --dest ${DEST} --object-path ${BASE}/devtools --method org.gjsify.Devtools.Screenshot "" 2>&1)"
+echo "SCREENSHOT_BEGIN"; echo "$shot"; echo "SCREENSHOT_END"
+# the installDevtools confirmation log (observability)
+if grep -q "gjsify-devtools] exported org.gjsify.Devtools" "$log"; then echo "EXPORT_LOG=yes"; else echo "EXPORT_LOG=no"; fi
+grep -q "\[repro\] installDevtools -> service" "$log" && echo "INSTALL_RETURNED=service" || echo "INSTALL_RETURNED=null"
+kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+exit 0
+`;
+
+function parse(out) {
+    const kv = {};
+    for (const line of out.split('\n')) {
+        const m = line.match(/^([A-Z_]+)=(.*)$/);
+        if (m) kv[m[1]] = m[2];
+    }
+    const status = out.match(/GETSTATUS_BEGIN\n([\s\S]*?)\nGETSTATUS_END/)?.[1] ?? '';
+    const screenshot = out.match(/SCREENSHOT_BEGIN\n([\s\S]*?)\nSCREENSHOT_END/)?.[1] ?? '';
+    return { kv, status, screenshot };
+}
+
 describe('@gjsify/devtools export over DBus', { skip: SKIP, timeout: 5 * 60 * 1000 }, () => {
     let tmpDir;
     let bundle;
