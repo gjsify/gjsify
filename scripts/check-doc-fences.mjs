@@ -956,7 +956,15 @@ function unboundNames(units) {
         if (result.error) {
             throw new Error(`could not run tsc for the SNIPPETS arm: ${result.error.message}`);
         }
-        const found = new Map(units.map((unit) => [unit.file, new Set()]));
+        // A tsc KILLED BY A SIGNAL prints nothing and leaves `error` unset, so its
+        // empty output is indistinguishable from a clean corpus — the same silent
+        // pass as the TS2688 case below, arriving through the process boundary
+        // instead of through the config. The fixture matrix cannot see it either:
+        // it is a separate tsc run, and a crash in the docs run comes after it.
+        if (result.signal !== null) {
+            throw new Error(`tsc was killed by ${result.signal} in the SNIPPETS arm, so no fence was checked`);
+        }
+        const found = new Map(units.map((unit) => [unit.file, new Map()]));
         for (const line of output.split('\n')) {
             // TS2552 IS THE SAME DIAGNOSTIC with a suggestion attached — "Cannot find
             // name 'logError'. Did you mean 'onerror'?" — and reading only TS2304
@@ -967,7 +975,7 @@ function unboundNames(units) {
             const diagnostic =
                 /^(?:.*[/\\])?([^/\\(]+)\((\d+),\d+\): error TS(?:2304|2552): Cannot find name '([^']+)'/.exec(line);
             if (!diagnostic) continue;
-            found.get(diagnostic[1])?.add(diagnostic[3]);
+            found.get(diagnostic[1])?.set(diagnostic[3], Number(diagnostic[2]));
         }
         // tsc reports NOTHING for a program it never built. An exit code with no
         // diagnostics at all and no input files is the silent-pass shape.
@@ -1002,7 +1010,7 @@ if (!existsSync(TSC_ENTRY)) {
     }));
     const fixtureVerdicts = unboundNames(fixtureUnits);
     SNIPPET_FIXTURES.forEach((fixture, index) => {
-        const got = [...(fixtureVerdicts.get(fixtureUnits[index].file) ?? [])].sort();
+        const got = [...(fixtureVerdicts.get(fixtureUnits[index].file)?.keys() ?? [])].sort();
         const want = [...fixture.names].sort();
         if (got.join(',') !== want.join(',')) {
             fail(
@@ -1051,12 +1059,22 @@ if (!existsSync(TSC_ENTRY)) {
     } else {
         const verdicts = unboundNames(snippetUnits);
         for (const unit of snippetUnits) {
-            const unbound = [...(verdicts.get(unit.file) ?? [])].sort();
+            const unbound = [...(verdicts.get(unit.file) ?? new Map())].sort(([a], [b]) => a.localeCompare(b));
             if (unbound.length === 0) continue;
+            // WHICH FENCE, not just which page. A unit is a whole page, so the page
+            // alone leaves the reader diffing the fences by hand — which is what the
+            // nine fixed in #1516 cost. `// --- <page>:<line> ---` opens every fence
+            // in the unit, so the last marker at or above tsc's line IS the fence.
+            const markers = unit.body.split('\n').flatMap((line, index) => {
+                const marker = /^\/\/ --- (\S+?:\d+) ---$/.exec(line);
+                return marker ? [{ at: index + 1, where: marker[1] }] : [];
+            });
+            const fenceOf = (line) => markers.filter((marker) => marker.at <= line).at(-1)?.where ?? unit.where;
             fail(
                 unit.where,
                 `this fence shows its imports, so a reader copies it whole — and it uses ` +
-                    `${unbound.map((name) => `\`${name}\``).join(', ')}, which nothing in it defines or imports. ` +
+                    `${unbound.map(([name, line]) => `\`${name}\` (${fenceOf(line)})`).join(', ')}, ` +
+                    'which nothing in it defines or imports. ' +
                     'That is a `ReferenceError` on the first run. Define it, import it, or drop the import line ' +
                     'so the fence reads as the excerpt it is.',
             );
