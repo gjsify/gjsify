@@ -23,7 +23,7 @@ function iconBaseName(symbolic: string): string {
 /** Build an <adw-split-button> from the current story args. */
 function splitButton(args: StoryArgs, opts: { flat?: boolean } = {}): HTMLElement {
     const el = document.createElement('adw-split-button');
-    el.setAttribute('menu', MENU);
+    el.setAttribute('menu-model', MENU);
     el.setAttribute('label', args.label as string);
     const iconName = args.iconName as string;
     if (iconName) el.setAttribute('icon-name', iconBaseName(iconName));

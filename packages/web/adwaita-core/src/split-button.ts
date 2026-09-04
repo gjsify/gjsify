@@ -37,6 +37,9 @@
 // Reference: refs/libadwaita/tests/test-split-button.c (the upstream suite)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import { menuItemAt, normalizeMenuModel } from './menu.js';
+import type { AdwMenuInput, AdwMenuItem, AdwMenuModel, AdwMenuPath } from './menu.js';
+
 /**
  * The four mutually exclusive content slots of the action half. `'empty'` is the
  * initial state — `label`, `icon-name` and `child` are all `NULL`.
@@ -78,23 +81,6 @@ export type SplitButtonProperty =
     | 'direction'
     | 'dropdown-tooltip';
 
-/**
- * One `GMenuModel` item: a label plus the detailed action it invokes, i.e. what
- * `Gio.Menu.append (label, action)` produces. `id` and `icon` are the renderers'
- * menu-button extras, so every menu call site can converge on ONE type; the name is
- * family-neutral because `Adw.MenuButton` needs exactly this.
- */
-export interface AdwMenuEntry {
-    /** Display label. */
-    label: string;
-    /** Detailed action name, e.g. `app.save-as`. */
-    action?: string;
-    /** Stable identifier, defaulting to {@link label} on activation. */
-    id?: string;
-    /** Symbolic icon name for the item. */
-    icon?: string;
-}
-
 /** Payload of a {@link SplitButtonState} notification. */
 export interface SplitButtonChange {
     /** Which content slot is filled. */
@@ -113,7 +99,7 @@ export interface SplitButtonChange {
     open: boolean;
     /** The `notify::*` properties C emits for this one mutation, in emission order. */
     notified: readonly SplitButtonProperty[];
-    /** True for a user gesture ({@link SplitButtonState.toggleMenu} / {@link SplitButtonState.activateMenuEntry}). */
+    /** True for a user gesture ({@link SplitButtonState.toggleMenu} / {@link SplitButtonState.activateMenuItem}). */
     interactive: boolean;
 }
 
@@ -253,36 +239,15 @@ export function splitButtonRootState(
 }
 
 /**
- * Parse a JSON menu attribute into entries. Total by construction — malformed JSON, a
- * non-array root and entries without a `label` key all yield `[]` / are dropped — because
- * the input is author-written markup and a typo must not take the widget down with it.
+ * A normalised model's canonical text, for the value-equality guard in
+ * {@link SplitButtonState.setMenuModel}.
+ *
+ * `JSON.stringify` is canonical HERE and would not be on arbitrary input:
+ * `normalizeMenuModel` writes every node's keys in one fixed order, so two models that
+ * are equal produce the same bytes. That is a property of the normaliser, which is why
+ * this function takes a normalised model and nothing else.
  */
-export function parseMenuEntries(json: string | null | undefined): AdwMenuEntry[] {
-    if (!json) return [];
-    let parsed: unknown;
-    try {
-        parsed = JSON.parse(json);
-    } catch {
-        // JSON.parse genuinely throws on malformed author input; the widget must
-        // degrade to "no menu" rather than fail to upgrade.
-        return [];
-    }
-    if (!Array.isArray(parsed)) return [];
-
-    const entries: AdwMenuEntry[] = [];
-    for (const raw of parsed) {
-        if (typeof raw !== 'object' || raw === null || !('label' in raw)) continue;
-        const record = raw as Record<string, unknown>;
-        const entry: AdwMenuEntry = { label: String(record.label) };
-        // Only string-typed extras survive: a numeric `action` in the JSON would
-        // otherwise leak a non-string into a field typed as one.
-        if (typeof record.action === 'string') entry.action = record.action;
-        if (typeof record.id === 'string') entry.id = record.id;
-        if (typeof record.icon === 'string') entry.icon = record.icon;
-        entries.push(entry);
-    }
-    return entries;
-}
+const menuKey = (model: AdwMenuModel | null): string => (model === null ? '' : JSON.stringify(model));
 
 /**
  * Stand-in for the content widget `GtkButton` builds for a label or an icon.
@@ -317,7 +282,7 @@ export class SplitButtonState {
     private _iconName: string | null = null;
     private _child: object | null = null;
     private _useUnderline = false;
-    private _menuModel: readonly AdwMenuEntry[] | null = null;
+    private _menuModel: AdwMenuModel | null = null;
     private _popover: object | null = null;
     private _direction: SplitButtonDirection = 'down';
     private _dropdownTooltip = '';
@@ -468,8 +433,8 @@ export class SplitButtonState {
 
     // --- Menu model ⟷ popover (each clears the other) ---
 
-    /** The menu entries, or `null` when no menu model is set. */
-    get menuModel(): readonly AdwMenuEntry[] | null {
+    /** The menu model, or `null` when none is set. Always normalised (ADR 0042). */
+    get menuModel(): AdwMenuModel | null {
         return this._menuModel;
     }
 
@@ -477,16 +442,28 @@ export class SplitButtonState {
      * Set the menu model, dissociating any popover and replacing it with the model-derived
      * one.
      *
+     * NORMALISES AT THE DOOR, so every surface stores the same shape whatever it was
+     * handed — a JSON attribute, a bare `string[]`, a JSX array of descriptors. It is
+     * {@link normalizeMenuModel}'s idempotence that makes `setMenuModel(state.menuModel)`
+     * a no-op rather than a quiet flattening.
+     *
      * DELIBERATE NORMALISATION: an EMPTY list is stored as "no menu model". C can hold a
      * non-`NULL` but empty `GMenu`, which leaves the dropdown live and pops up an empty
-     * popover — but no renderer can construct that state (one parses a JSON array, another
-     * takes a label list), so collapsing the two is what makes "no menu ⇒ insensitive
-     * dropdown" hold from a renderer's point of view.
+     * popover; collapsing the two is what makes "no menu ⇒ insensitive dropdown" hold
+     * from a renderer's point of view. A model that is non-empty but draws nothing — one
+     * empty section — is NOT collapsed: it has a node, so it is a menu, which is the
+     * answer GTK gives for the same `GMenu`.
      */
-    setMenuModel(entries: readonly AdwMenuEntry[] | null | undefined): boolean {
-        const next = entries && entries.length > 0 ? entries : null;
-        // Reference equality, like C's `menu_model == get_menu_model` guard.
-        if (next === this._menuModel) return false;
+    setMenuModel(input: AdwMenuInput | null | undefined): boolean {
+        const normalized = normalizeMenuModel(input);
+        const next = normalized.length > 0 ? normalized : null;
+        // C's guard is `menu_model == get_menu_model` — POINTER equality, which a value
+        // has no analogue for: every call here arrives with a fresh array (a JSON parse,
+        // an array literal in a template, a `.map()`), so a reference guard would never
+        // fire and the widget would notify `menu-model` on every render pass. VALUE
+        // equality is the analogue, and it keeps this class's own invariant that a
+        // mutator notifies only on a real change.
+        if (menuKey(next) === menuKey(this._menuModel)) return false;
 
         const popover = next === null ? null : derivedPopover();
         const notified: SplitButtonProperty[] = [];
@@ -605,20 +582,23 @@ export class SplitButtonState {
     }
 
     /**
-     * Activate a menu entry BY POSITION and dismiss the menu, returning the entry
-     * (or `null` for an out-of-range index).
+     * Activate a menu item BY POSITION and dismiss the menu, returning the item
+     * (or `null` for a path that names no item).
      *
      * Position is the addressing a `GMenuModel` actually uses — each item carries its own
      * detailed action. Resolving a choice by LABEL instead silently dispatches the first of
      * two identically named entries and cannot tell an entry called `Cancel` from a
      * dismissed sheet.
+     *
+     * A PATH rather than a single index (ADR 0042), because a link is a model of its own:
+     * `[1, 0]` is the first item of the submenu at position 1, and a flat index cannot
+     * name it. A top-level choice is `[2]`.
      */
-    activateMenuEntry(index: number): AdwMenuEntry | null {
-        const entries = this._menuModel;
-        if (entries === null) return null;
-        if (!Number.isInteger(index) || index < 0 || index >= entries.length) return null;
-        const entry = entries[index]!;
+    activateMenuItem(path: AdwMenuPath): AdwMenuItem | null {
+        if (this._menuModel === null) return null;
+        const item = menuItemAt(this._menuModel, path);
+        if (item === null) return null;
         this._setOpen(false, true);
-        return entry;
+        return item;
     }
 }

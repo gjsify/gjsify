@@ -10,6 +10,7 @@ import fontsSuite from './fonts.spec.js';
 import generatedSuite from './generated.spec.js';
 import generatorSuite from './generator.spec.js';
 import hostSuite from './host.spec.js';
+import menuSuite from './menu.spec.js';
 import probeSuite from './probe.spec.js';
 import propsSuite from './props.spec.js';
 import gtkCssSuite from './style/gtk-css.spec.js';
@@ -35,6 +36,7 @@ run({
     fontDirSuite,
     fontsSuite,
     hostSuite,
+    menuSuite,
     conformanceSuite,
     generatorSuite,
     generatedSuite,

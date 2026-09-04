@@ -67,7 +67,15 @@ export { GtkButton } from './gtk-button.js';
 export type { AdwButtonVariant } from './gtk-button.js';
 export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
 export { GtkMenuButton, MENU_ITEM_ACTIVATED } from './gtk-menu-button.js';
-export type { AdwMenuItem, MenuItemActivatedEventData } from './gtk-menu-button.js';
+export type { MenuItemActivatedEventData } from './gtk-menu-button.js';
+export {
+    MENU_CANCEL_LABEL,
+    menuSheetActions,
+    menuSheetRows,
+    presentMenuSheet,
+    resolveMenuChoice,
+} from './menu-sheet.js';
+export type { MenuSheetPresenter, MenuSheetRow } from './menu-sheet.js';
 export { AdwIcon, DEFAULT_ADW_ICON_SIZE } from './adw-icon.js';
 export { AdwBanner, BUTTON_CLICKED } from './adw-banner.js';
 export { AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';

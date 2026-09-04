@@ -29,13 +29,13 @@
  * both spellings are generated and camelCase is the one to prefer.
  */
 
-import type { JsxAttributes, WithOnce } from './attrs.js';
+import type { JsxAttributes, WithOnce, WithPortableMenu } from './attrs.js';
 import type { HostNode } from './types.js';
 import type { WidgetClassByTag, WidgetPropsByTag } from './generated/props.js';
 
 /** Every GTK/Adwaita tag, with its properties, its handlers and its `ref`. */
 export type GtkIntrinsicElements = {
-    [K in keyof WidgetPropsByTag]: WithOnce<WidgetPropsByTag[K]> & JsxAttributes<WidgetClassByTag[K]>;
+    [K in keyof WidgetPropsByTag]: WithOnce<WithPortableMenu<WidgetPropsByTag[K]>> & JsxAttributes<WidgetClassByTag[K]>;
 };
 
 export namespace JSX {

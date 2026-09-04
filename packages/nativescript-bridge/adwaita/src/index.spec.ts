@@ -12,7 +12,15 @@ import { describe, it, expect } from '@gjsify/unit';
 // `./index.js`. The package root re-exports the widget classes, whose modules
 // `import { GridLayout } from '@nativescript/core'` at top level — that bare specifier
 // is unresolvable off NativeScript and fails the test bundle before any guard can run.
-import { AVATAR_COLORS, flattenAvatarGradient, normalizeClampSize, resolveSpinnerSize } from '@gjsify/adwaita-core';
+import {
+    AVATAR_COLORS,
+    flattenAvatarGradient,
+    menuItemAt,
+    normalizeClampSize,
+    normalizeMenuModel,
+    resolveSpinnerSize,
+} from '@gjsify/adwaita-core';
+import type { AdwMenuInput } from '@gjsify/adwaita-core';
 import { AVATAR_COLOR_VECTORS, AVATAR_INITIALS_VECTORS, COMBO_CHOOSER_VECTORS } from '@gjsify/adwaita-core/conformance';
 import { assertNativeScript, isNativeScript } from '@gjsify/native-platform';
 import { avatarColor, avatarInitials } from './widgets/avatar-color.js';
@@ -24,6 +32,7 @@ import {
 } from './fonts.js';
 // `row-press.js` and `icon-path.js` are TYPE-only / pure, so the REAL helpers load here.
 import { attachRowPressFeedback } from './widgets/row-press.js';
+import { presentMenuSheet } from './widgets/menu-sheet.js';
 import type { TouchGestureEventData, View } from '@nativescript/core';
 import { extractIconPaths, extractPathData, normalizeArcFlags } from './widgets/icon-path.js';
 // `builder-slots.js` is pure too — no `@nativescript/core` — so the rule every
@@ -226,22 +235,21 @@ class MockViewSwitcherBar {
     }
 }
 
-// Mirrors GtkMenuButton's action()-resolution: a chosen label maps to id/label/
-// index (id falls back to label); a cancel (undefined choice) emits nothing.
-class MockMenuButton {
-    private _items: { id?: string; label: string }[] = [];
-    notified: Array<{ id: string; label: string; index: number }> = [];
-    set menuItems(items: { id?: string; label: string }[]) {
-        this._items = items;
-    }
-    choose(label: string | undefined): void {
-        if (this._items.length === 0) return;
-        const labels = this._items.map((it) => it.label);
-        const index = label === undefined ? -1 : labels.indexOf(label);
-        if (index < 0) return;
-        const item = this._items[index];
-        this.notified.push({ id: item.id ?? item.label, label: item.label, index });
-    }
+// GtkMenuButton's action()-resolution used to be MIRRORED here by a mock, and the
+// mirror is what a mock costs: the widget's own resolution moved into `menu-sheet.ts`
+// (ADR 0042), where it is free of `@nativescript/core` and can be driven directly. The
+// helper below drives the REAL modules — `presentMenuSheet` decides the rows and the
+// round trip, `menuItemAt` resolves the answer — so what is asserted is the shipping
+// code rather than a copy of it that cannot notice a divergence.
+async function chooseMenuItem(
+    input: AdwMenuInput,
+    pick: (actions: string[]) => string | undefined,
+): Promise<{ id: string; label: string; path: readonly number[] } | null> {
+    const model = normalizeMenuModel(input);
+    const path = await presentMenuSheet((options) => Promise.resolve(pick(options.actions)), model);
+    if (path === null) return null;
+    const item = menuItemAt(model, path);
+    return item === null ? null : { id: item.id ?? item.label, label: item.label, path };
 }
 
 // Mirrors AdwCarousel's clamped scrollToPage + dot-active + nPages.
@@ -694,23 +702,33 @@ export default async () => {
         });
     });
 
-    await describe('GtkMenuButton activation (mock)', async () => {
-        await it('emits id/label/index for a chosen item', () => {
-            const mb = new MockMenuButton();
-            mb.menuItems = [
-                { id: 'about', label: 'About' },
-                { id: 'prefs', label: 'Preferences' },
-            ];
-            mb.choose('Preferences');
-            expect(mb.notified).toStrictEqual([{ id: 'prefs', label: 'Preferences', index: 1 }]);
+    await describe('GtkMenuButton activation (the real sheet modules)', async () => {
+        await it('emits id/label/path for a chosen item', async () => {
+            const chosen = await chooseMenuItem(
+                [
+                    { id: 'about', label: 'About' },
+                    { id: 'prefs', label: 'Preferences' },
+                ],
+                (actions) => actions[1],
+            );
+            expect(chosen).toStrictEqual({ id: 'prefs', label: 'Preferences', path: [1] });
         });
 
-        await it('falls back to label as id and ignores cancel', () => {
-            const mb = new MockMenuButton();
-            mb.menuItems = [{ label: 'Quit' }];
-            mb.choose(undefined); // cancel / dismiss
-            mb.choose('Quit');
-            expect(mb.notified).toStrictEqual([{ id: 'Quit', label: 'Quit', index: 0 }]);
+        await it('falls back to label as id, and a cancel emits nothing', async () => {
+            expect(await chooseMenuItem([{ label: 'Quit' }], () => undefined)).toBe(null);
+            expect(await chooseMenuItem([{ label: 'Quit' }], (actions) => actions[0])).toStrictEqual({
+                id: 'Quit',
+                label: 'Quit',
+                path: [0],
+            });
+        });
+
+        await it('reaches an item inside a submenu, which no flat index could name', async () => {
+            const chosen = await chooseMenuItem(
+                [{ label: 'About' }, { label: 'More', submenu: [{ id: 'quit', label: 'Quit' }] }],
+                (actions) => actions[actions.length - 1],
+            );
+            expect(chosen).toStrictEqual({ id: 'quit', label: 'Quit', path: [1, 0] });
         });
     });
 

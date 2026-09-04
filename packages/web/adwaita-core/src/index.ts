@@ -407,7 +407,7 @@ export type {
     SwipeReleasePlan,
 } from './split-view.js';
 
-// --- Split button + menu model (Adw.SplitButton) ---
+// --- Split button (Adw.SplitButton) ---
 export {
     DEFAULT_DROPDOWN_TOOLTIP,
     SPLIT_BUTTON_DISABLED_OPACITY,
@@ -415,7 +415,6 @@ export {
     isSplitButtonDirection,
     menuButtonArrowIcon,
     menuButtonPopupDirection,
-    parseMenuEntries,
     resolveDropdownTooltip,
     splitButtonArrowIcon,
     splitButtonPopupDirection,
@@ -424,7 +423,6 @@ export {
 } from './split-button.js';
 export type {
     AdwArrowIcon,
-    AdwMenuEntry,
     SplitButtonChange,
     SplitButtonContentMode,
     SplitButtonDirection,
@@ -433,6 +431,45 @@ export type {
     SplitButtonProperty,
     SplitButtonStyleClass,
 } from './split-button.js';
+
+// --- The portable menu model (GMenuModel as plain data — ADR 0042) ---
+export {
+    ADW_MENU_SURFACE_NATIVESCRIPT,
+    ADW_MENU_SURFACE_WEB,
+    assertMenuRenderable,
+    flattenMenu,
+    menuItemAt,
+    menuNodeAt,
+    menuRefusals,
+    normalizeMenuModel,
+    parseDetailedAction,
+    parseMenuModel,
+    resolveMenuItemState,
+} from './menu.js';
+export type {
+    AdwDetailedAction,
+    AdwMenuAction,
+    AdwMenuActions,
+    AdwMenuDisplayHint,
+    AdwMenuEntryInput,
+    AdwMenuFlatRow,
+    AdwMenuHiddenWhen,
+    AdwMenuInput,
+    AdwMenuItem,
+    AdwMenuItemInput,
+    AdwMenuItemRole,
+    AdwMenuItemState,
+    AdwMenuModel,
+    AdwMenuNode,
+    AdwMenuPath,
+    AdwMenuRefusal,
+    AdwMenuSection,
+    AdwMenuSectionInput,
+    AdwMenuSubmenu,
+    AdwMenuSubmenuInput,
+    AdwMenuSurface,
+    AdwMenuTextDirection,
+} from './menu.js';
 
 // --- View switcher + bar (Adw.ViewSwitcher / Adw.InlineViewSwitcher) ---
 export {

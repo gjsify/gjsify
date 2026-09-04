@@ -40,3 +40,18 @@ export const unknownNotify = <gtk-box onNotifyNonsuch={() => {}} />;
 /** A DECLARED kebab spelling still checks its VALUE type. */
 // @ts-expect-error TS2322 — 'baseline-child' is a number in both spellings
 export const kebabWrongType = <gtk-box baseline-child="0" />;
+
+/**
+ * A menu model is a LIST, not one item.
+ *
+ * The widening is an added union member, not a replacement: whatever is written
+ * still has to be a menu. A bare descriptor is the mistake an author actually makes
+ * (it reads like `label={…}` one level up), and GObject would take the object as an
+ * unconvertible value at runtime.
+ */
+// @ts-expect-error TS2353 — menuModel takes a list, or a real Gio.MenuModel
+export const menuNotAList = <adw-split-button menuModel={{ label: 'Save as…' }} />;
+
+/** A property that is not a `GMenuModel` is NOT widened — the overlay is a name list. */
+// @ts-expect-error TS2322 — `label` is a string, and no menu model widens it
+export const labelNotAMenu = <adw-split-button label={[{ label: 'Save as…' }]} />;

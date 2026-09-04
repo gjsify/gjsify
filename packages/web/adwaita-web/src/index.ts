@@ -134,6 +134,19 @@ export { AdwAlertResponse } from './elements/adw-alert-dialog.js';
 // return. Not widgets, so clause 2 has nothing to say about them.
 export type { GtkPopoverAlign, GtkPopoverPosition, GtkPopoverRole } from './elements/gtk-popover.js';
 export type { AdwViewStackPageInfo } from './elements/adw-view-stack.js';
-export type { AdwMenuItem } from './elements/gtk-menu-button.js';
+// The portable menu model (ADR 0042) is `@gjsify/adwaita-core`'s, re-exported so a
+// consumer of THIS package reaches the menu types without a second dependency — one
+// definition, two doors, never two declarations.
+export type {
+    AdwMenuActions,
+    AdwMenuEntryInput,
+    AdwMenuInput,
+    AdwMenuItem,
+    AdwMenuModel,
+    AdwMenuNode,
+    AdwMenuPath,
+    AdwMenuSection,
+    AdwMenuSubmenu,
+} from '@gjsify/adwaita-core';
 export type { GtkDropDownOption } from './elements/gtk-drop-down.js';
 export type { AdwDialogPresentationMode } from './elements/adw-dialog.js';

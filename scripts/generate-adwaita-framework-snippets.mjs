@@ -109,22 +109,56 @@ export const gtypeOfTag = (tag) => {
 };
 
 /**
+ * An array value as a JS literal, with SINGLE-quoted strings.
+ *
+ * Single quotes are not a style choice. A Vue attribute is written inside DOUBLE
+ * quotes, so `JSON.stringify` — which double-quotes every string and every key — ends
+ * the attribute at the first entry: `:menu-model="[{"label":…"` is three attributes and
+ * a parse error. Emitting the literal by hand keeps ONE writer for both dialects, which
+ * is the same reason `markup()` is one walk with two attribute functions.
+ *
+ * Object entries are what the portable menu model needs (ADR 0042): `menuModel` takes a
+ * list of `{ label, action }` descriptors, and before it there was no snippet at all —
+ * a `GMenuModel` has no literal spelling, which is exactly what the refusal said.
+ */
+function jsLiteral(value, pad = '') {
+    if (typeof value === 'string') return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+    if (Array.isArray(value)) {
+        // A list of OBJECTS goes one per line. `cssClasses={['flat']}` is short and
+        // stays inline; a three-item menu on one line is 150 columns, and the gallery
+        // renders these in a narrow code block — the same reason `markup()` already
+        // breaks a tag with more than one attribute.
+        if (!value.some((entry) => entry !== null && typeof entry === 'object')) {
+            return `[${value.map((entry) => jsLiteral(entry)).join(', ')}]`;
+        }
+        const rows = value.map((entry) => `${pad}${INDENT}${jsLiteral(entry, pad + INDENT)},`).join('\n');
+        return `[\n${rows}\n${pad}]`;
+    }
+    if (value !== null && typeof value === 'object') {
+        return `{ ${Object.entries(value)
+            .map(([k, v]) => `${k}: ${jsLiteral(v, pad)}`)
+            .join(', ')} }`;
+    }
+    return JSON.stringify(value);
+}
+
+/**
  * One attribute, in JSX. A string is a quoted attribute; everything else is an
  * expression, because `spacing="12"` would hand GObject a string for an int
  * property — the case it drops silently.
  */
-function jsxAttr(name, value) {
+function jsxAttr(name, value, pad = '') {
     if (typeof value === 'string') return `${name}=${JSON.stringify(value)}`;
     if (value === true) return name;
-    if (Array.isArray(value)) return `${name}={[${value.map((v) => `'${v}'`).join(', ')}]}`;
+    if (Array.isArray(value)) return `${name}={${jsLiteral(value, pad)}}`;
     return `${name}={${JSON.stringify(value)}}`;
 }
 
 /** One attribute, in a Vue template: kebab-case, and `:` for anything not a string. */
-function vueAttr(name, value) {
+function vueAttr(name, value, pad = '') {
     const attr = kebab(name);
     if (typeof value === 'string') return `${attr}=${JSON.stringify(value)}`;
-    if (Array.isArray(value)) return `:${attr}="[${value.map((v) => `'${v}'`).join(', ')}]"`;
+    if (Array.isArray(value)) return `:${attr}="${jsLiteral(value, pad)}"`;
     return `:${attr}="${JSON.stringify(value)}"`;
 }
 
@@ -139,7 +173,9 @@ function markup(node, dialect, depth = 0) {
     const attr = dialect === 'vue' ? vueAttr : jsxAttr;
     const parts = [];
     if (node.slot !== undefined) parts.push(`slot=${JSON.stringify(node.slot)}`);
-    for (const [name, value] of Object.entries(node.props ?? {})) parts.push(attr(name, value));
+    // The attribute's own indent, so a multi-line value (a menu model) lines up under
+    // the tag rather than at column 0.
+    for (const [name, value] of Object.entries(node.props ?? {})) parts.push(attr(name, value, pad + INDENT));
 
     const children = node.children ?? [];
     // One attribute stays on the tag line; more than one goes one per line, which
@@ -311,12 +347,40 @@ const NICKS: Record<string, Record<string, number>> = {
     valign: { fill: Gtk.Align.FILL, start: Gtk.Align.START, end: Gtk.Align.END, center: Gtk.Align.CENTER },
 };
 
+/**
+ * A \`GMenuModel\` property against the portable model the tree declares (ADR 0042).
+ *
+ * The declared value is an ARRAY and what the widget holds is a \`Gio.MenuModel\`, so
+ * \`!==\` would fail every time. Compared item by item on the two attributes GIO
+ * actually stores — the label, and the action \`set_detailed_action\` parsed out — which
+ * is what proves the ARRAY became a real menu rather than merely being accepted.
+ */
+function menuMatches(actual: unknown, expected: unknown): boolean {
+    const model = actual as Gio.MenuModel | null;
+    const declared = expected as Array<{ label?: string; action?: string }>;
+    if (model === null || model === undefined) return false;
+    if (model.get_n_items() !== declared.length) return false;
+    for (let i = 0; i < declared.length; i += 1) {
+        const label = model.get_item_attribute_value(i, 'label', null)?.get_string()[0];
+        if (label !== declared[i].label) return false;
+        // \`app.save-as\` is stored under \`action\`; a targeted one would also carry
+        // \`target\`, and no gallery tree writes one.
+        const action = model.get_item_attribute_value(i, 'action', null)?.get_string()[0];
+        if (action !== declared[i].action) return false;
+    }
+    return true;
+}
+
 /** Does the REAL widget carry every property the tree declares? */
 function propsMatch(widget: Gtk.Widget, props: Record<string, unknown> | undefined): boolean {
     for (const [name, expected] of Object.entries(props ?? {})) {
         if (name === 'cssClasses') {
             const have = widget.get_css_classes();
             if (!(expected as string[]).every((c) => have.includes(c))) return false;
+            continue;
+        }
+        if (name === 'menuModel') {
+            if (!menuMatches((widget as unknown as Record<string, unknown>)[name], expected)) return false;
             continue;
         }
         const actual = (widget as unknown as Record<string, unknown>)[name];
@@ -530,6 +594,7 @@ function solidProbe() {
     return `${GENERATED_BANNER('Solid')}
 
 import Adw from 'gi://Adw?version=1';
+import Gio from 'gi://Gio?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { createRoot } from 'solid-js';
@@ -573,6 +638,7 @@ function reactProbe() {
     return `${GENERATED_BANNER('React')}
 
 import Adw from 'gi://Adw?version=1';
+import Gio from 'gi://Gio?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { registerBuiltinWidgets, runHostProbeApp, type ProbeCheck } from '@gjsify/gtk-host';
@@ -630,6 +696,7 @@ function vueEntry() {
     return `${GENERATED_BANNER('Vue')}
 
 import Adw from 'gi://Adw?version=1';
+import Gio from 'gi://Gio?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { registerBuiltinWidgets, runHostProbeApp, type ProbeCheck } from '@gjsify/gtk-host';

@@ -479,10 +479,6 @@ const NS_PROPERTY_ALIGNMENT = {
         gir: 'cssClasses',
         why: 'The port\'s own doc says what this is — "matching `Adw.HeaderBar`\'s `.flat` style. Toggling swaps the `flat` class" (adw-header-bar.ts:106). A style class is `GtkWidget:css-classes` on GTK, the same slot `GtkButton.variant` above reaches.',
     },
-    'gtk-menu-button.menuItems': {
-        gir: 'menuModel',
-        why: '`Gtk.MenuButton:menu-model` is the slot: a `Gio.MenuModel` GTK builds the popover from. NativeScript has no `Gio.MenuModel` and opens a native `action()` sheet, so the port holds the items as a list (gtk-menu-button.ts:66-73). Same slot, a different container.',
-    },
     'adw-spin-row.min': {
         gir: 'adjustment',
         why: 'GTK keeps the whole range in one object: `Adw.SpinRow:adjustment`, a `Gtk.Adjustment` whose `lower` this is. The port carries three scalars instead because NativeScript has no adjustment type (adw-spin-row.ts:114-118). Three names into one key, which is what convergence here would collapse them to.',
@@ -495,9 +491,11 @@ const NS_PROPERTY_ALIGNMENT = {
         gir: 'adjustment',
         why: 'The `step-increment` of the same `Gtk.Adjustment` (adw-spin-row.ts:132-136). Named `step` because the port applies it directly per button press; on GTK the button press reads it off the adjustment.',
     },
-    'adw-split-button.menu': {
-        gir: 'menuModel',
-        why: "`Adw.SplitButton:menu-model` is the dropdown half's model. NativeScript opens a native `action()` sheet and holds the entries as a list (adw-split-button.ts:229-233) — the same slot as `GtkMenuButton.menuItems` above, under a shorter name.",
+    'gtk-menu-button.actions': {
+        own: "`AdwMenuActions` is the portable stand-in for a `GActionGroup` (ADR 0042 § 2): the map a surface with no action group consults for a menu item's enabled and checked state, which `GMenuModel` does not carry — measured in gtkmenutrackeritem.c, where `sensitive` is the action's `enabled` (c:332) and `role`/`toggled` come from its STATE (c:336-346). GTK needs no counterpart property: a `GtkWidget` reaches its action group through the widget hierarchy (`gtk_widget_insert_action_group` on an ancestor, `gtk_widget_get_action_group`), so there is no GIR key to converge on. Declared and left.",
+    },
+    'adw-split-button.actions': {
+        own: 'The same map as `GtkMenuButton.actions` above, on the widget whose dropdown half IS a `GtkMenuButton` — `adw_split_button_set_menu_model` passes straight through to one (adw-split-button.c:376-378). `Adw.SplitButton` declares no action-group property either, for the same reason: on GTK the group is INHERITED through the hierarchy, never assigned per widget (ADR 0042 § 2). Declared and left.',
     },
     'adw-tab-view.selected': {
         gir: 'selectedPage',

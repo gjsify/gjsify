@@ -5,6 +5,7 @@
 // because a measurement said the surface is unusable without it.
 
 import type GObject from '@girs/gobject-2.0';
+import type { AdwMenuInput } from '@gjsify/adwaita-core';
 
 import type { HostNode } from './types.js';
 
@@ -119,3 +120,35 @@ export interface JsxAttributes<T> extends SlotAttribute, RawSignalAttributes {
  * and `children` is a SLOT in Vue, never a prop.
  */
 export interface VueAttributes extends SlotAttribute, RawSignalAttributes {}
+
+/**
+ * The properties whose GObject type is a `GMenuModel`, in both spellings.
+ *
+ * A NAME LIST, not a type test, and the reason is measured rather than stylistic: the
+ * obvious `Gio.MenuModel extends NonNullable<T[K]> ? …` also matches every property
+ * typed as a wider GObject — `Gio.MenuModel extends GObject.Object` is TRUE — so the
+ * widening would leak onto properties that take an entirely different object. The three
+ * names below are the whole set on the shipped table (`menu-model` on the two menu
+ * buttons, the popover menu and the menu bar; `extra-menu` on the text widgets;
+ * `secondary-menu` on `AdwToolbarView`'s header bar), and `type-tests/` holds the
+ * widening against real markup in both dialects.
+ */
+type MenuModelProp = 'menuModel' | 'menu-model' | 'extraMenu' | 'extra-menu' | 'secondaryMenu' | 'secondary-menu';
+
+/**
+ * A props interface with every `GMenuModel` property widened to accept the PORTABLE
+ * menu model as well (ADR 0042).
+ *
+ * `Gio.MenuModel` is a GObject with no literal spelling, so before this a declarative
+ * dialect could not express a menu at all — the website gallery refused a Solid, Vue and
+ * React snippet for `Adw.SplitButton`, `Gtk.MenuButton` and `Gtk.PopoverMenu` for
+ * exactly that reason. The runtime half is `coerce`'s `GMenuModel` branch, which turns
+ * an authored array into a real `Gio.Menu` at the ParamSpec seam; this is the type that
+ * lets the array be written.
+ *
+ * A widget with NO such property is returned unchanged: `Omit` over a key it has not got
+ * is a no-op, and `MenuModelProp & keyof T` is then empty, so nothing is added either.
+ */
+export type WithPortableMenu<T> = Omit<T, MenuModelProp> & {
+    [K in MenuModelProp & keyof T]?: T[K] | AdwMenuInput;
+};

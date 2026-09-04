@@ -124,7 +124,7 @@ export const GtkImageTest = async () => {
 
         await it('<gtk-menu-button> menu entries guard their icons too', () => {
             const { el, host } = mount<GtkMenuButton>('gtk-menu-button');
-            el.menuItems = [
+            el.menuModel = [
                 { label: 'Bad', icon: 'a b' },
                 { label: 'Good', icon: 'view-refresh-symbolic' },
                 { label: 'None' },
@@ -151,7 +151,7 @@ export const GtkImageTest = async () => {
                 <gtk-button icon="go-next" label="Next"></gtk-button>
                 <adw-button-row title="Row" start-icon-name="list-add" end-icon-name="go-next"></adw-button-row>
                 <adw-status-page icon="folder" title="Empty"></adw-status-page>
-                <adw-split-button label="Save" menu='[{"label":"Save As"}]'></adw-split-button>
+                <adw-split-button label="Save" menu-model='[{"label":"Save As"}]'></adw-split-button>
                 <gtk-drop-down options='["a","b"]'></gtk-drop-down>
                 <adw-expander-row title="More" show-enable-switch></adw-expander-row>
                 <adw-avatar text="Ada" icon="avatar-default"></adw-avatar>

@@ -175,7 +175,7 @@ in the popover it opens. Libadwaita ships no menu button, so this is
     <gtk-menu-button
       icon-name="open-menu"
       menu-title="Document"
-      menu='[{"label":"Save as…"},{"label":"Export"},{"label":"Print"}]'
+      menu-model='[{"label":"Save as…"},{"label":"Export"},{"label":"Print"}]'
     ></gtk-menu-button>
     ```
   </Fragment>
@@ -237,7 +237,7 @@ in the popover it opens. Libadwaita ships no menu button, so this is
     const button = new Gtk.MenuButton();
     button.iconName = openMenuSymbolic; // an Adwaita symbolic icon (SVG string)
     button.menuTitle = 'Document';
-    button.menuItems = [{ label: 'Save as…' }, { label: 'Export' }, { label: 'Print' }];
+    button.menuModel = [{ label: 'Save as…' }, { label: 'Export' }, { label: 'Print' }];
     // NativeScript has no popover, so the menu opens as the platform action sheet.
     ```
   </Fragment>

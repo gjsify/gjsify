@@ -9,10 +9,13 @@
 // `normalizeIconName` guard is what keeps a multi-token `icon-name="a b"` from
 // shipping a stray CSS class — for the button icon and for every menu entry's.
 //
-// The `menu` attribute is a JSON array of `{ "id"?, "label", "icon"? }`. Choosing an
-// item closes the popover and fires `menu-item-activated` (CustomEvent, bubbles,
-// detail `{ id, label, index }`) with `id` falling back to `label`, matching the NS
-// twin.
+// The `menu-model` attribute is a JSON array in the portable menu model (ADR 0042) —
+// items, sections and submenus, with the same attributes GTK reads. Choosing an item
+// closes the popover and fires `menu-item-activated` (CustomEvent, bubbles, detail
+// `{ id, label, path }`) with `id` falling back to `label`, matching the NS twin. The
+// rows themselves are `PopoverMenuView`'s, shared with `<adw-split-button>`: the split
+// button's dropdown half IS a GtkMenuButton, so one popup implementation is the whole
+// point.
 //
 // Reference: refs/gtk/gtk/gtkmenubutton.c (GtkMenuButton)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (menubutton)
@@ -22,12 +25,18 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import {
+    ADW_MENU_SURFACE_WEB,
+    assertMenuRenderable,
     isSplitButtonDirection,
+    menuRefusals,
     menuButtonPopupDirection,
-    parseMenuEntries,
-    stringIsNotEmpty,
+    menuItemAt,
+    normalizeMenuModel,
+    parseMenuModel,
 } from '@gjsify/adwaita-core';
-import type { AdwMenuEntry, SplitButtonDirection } from '@gjsify/adwaita-core';
+import type { AdwMenuActions, AdwMenuInput, AdwMenuModel, SplitButtonDirection } from '@gjsify/adwaita-core';
+
+import { PopoverMenuView } from './popover-menu.js';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
 // `gtk-popover` is defined before this module's `customElements.define` can upgrade a
@@ -39,25 +48,6 @@ import './gtk-popover.js';
 import type { GtkPopover } from './gtk-popover.js';
 
 import { createGtkImage } from './gtk-image.js';
-
-/**
- * A menu entry — `@gjsify/adwaita-core`'s {@link AdwMenuEntry} under the name both
- * renderers export it as.
- *
- * IT KEEPS THE `Adw` PREFIX WHILE THE ELEMENT ABOVE IT DOES NOT, and the reason is not
- * "the name it has always used" — ADR 0034 clause 1 just moved every name in this file
- * that had one. It is that this is not a WIDGET name: clause 1 is about the tag, and
- * this is the descriptor a consumer writes menu entries with. `@gjsify/adwaita-
- * nativescript` exports `AdwMenuItem` for the same type, and that port deliberately
- * keeps `Adw` throughout, so renaming this half would give one object two spellings —
- * which is the thing the ADR is removing, not applying. (`GtkDropDownOption` next door
- * DID move: its NativeScript twin exports no such name, so there was nothing to split.)
- *
- * It used to be a SECOND declaration of the same shape, and the NativeScript menu
- * button declared a THIRD that was missing `icon` entirely. One type, so a consumer
- * writing menu entries writes the same object for either renderer.
- */
-export type AdwMenuItem = AdwMenuEntry;
 
 /**
  * Where the popover sits, per `GtkArrowType`. `menuButtonPopupDirection` folds `none`
@@ -77,13 +67,14 @@ const POPOVER_POSITIONS = {
 export class GtkMenuButton extends HTMLElement {
     private _buttonEl!: HTMLButtonElement;
     private _popoverEl!: GtkPopover;
-    private _items: AdwMenuItem[] = [];
+    private _model: AdwMenuModel = [];
+    private _actions: AdwMenuActions | null = null;
     private _menuTitle = '';
     private _initialized = false;
-    private _itemButtons: HTMLButtonElement[] = [];
+    private _menuView!: PopoverMenuView;
 
     static get observedAttributes() {
-        return ['icon-name', 'menu-title', 'menu', 'disabled', 'flat', 'circular', 'direction'];
+        return ['icon-name', 'menu-title', 'menu-model', 'disabled', 'flat', 'circular', 'direction'];
     }
 
     /** Whether the popover menu is currently open. */
@@ -91,13 +82,69 @@ export class GtkMenuButton extends HTMLElement {
         return this._popoverEl?.open ?? false;
     }
 
-    /** The menu entries. Setting rebuilds the popover. */
-    get menuItems(): AdwMenuItem[] {
-        return this._items;
+    /** The menu, normalised (ADR 0042). Setting rebuilds the popover. */
+    get menuModel(): AdwMenuModel {
+        return this._model;
     }
 
-    set menuItems(value: AdwMenuItem[]) {
-        this._items = Array.isArray(value) ? value.map((it) => ({ ...it })) : [];
+    /**
+     * Set the menu from anything the portable model accepts. Refused HERE, at the
+     * assignment, for a `custom` item this surface cannot host — see the split button's
+     * note on the same setter.
+     */
+    set menuModel(value: AdwMenuInput) {
+        this._model = this._acceptMenu(value);
+        if (this._initialized) this._renderMenu();
+    }
+
+    /**
+     * Normalise, REFUSE, store — the one door every menu comes through.
+     *
+     * The property setter is not the only way a menu arrives: an attribute is, and the
+     * first cut refused only the setter, so a `custom` item written in markup drew
+     * exactly the row `assertMenuRenderable` exists to prevent — one that reads like a
+     * command and does nothing.
+     *
+     * THE TWO DOORS REFUSE DIFFERENTLY, and the difference is which side can hear it.
+     * A property assignment is a CALL, so it throws and the caller can catch. An
+     * attribute is MARKUP, parsed by the browser: a throw from `connectedCallback` is
+     * not delivered to whoever appended the element, it is reported as an uncaught
+     * page error — measured, it broke `adwaita-upgrade-order.spec.ts`, which counts
+     * exactly those. Nobody can handle it and everybody else pays for it. So the
+     * attribute path REFUSES THE MENU (no menu, and a menu-less dropdown is
+     * insensitive, which is visible) and says why on `console.error`.
+     *
+     * A REFUSAL AND A TYPO ARE STILL DIFFERENT THINGS. `parseMenuModel` is total
+     * because malformed JSON is an author slip and must not stop the element
+     * upgrading; `custom` is well-formed, deliberate, and unhonourable here.
+     */
+    private _acceptMenu(input: AdwMenuInput, strict = true): AdwMenuModel {
+        const model = normalizeMenuModel(input);
+        if (strict) {
+            assertMenuRenderable(model, ADW_MENU_SURFACE_WEB);
+            return model;
+        }
+        const refusals = menuRefusals(model, ADW_MENU_SURFACE_WEB);
+        if (refusals.length === 0) return model;
+        // `console.error` is the browser's own channel for "this is wrong, the page
+        // continues" — and the alternative here is a row that lies.
+        console.error(`${ADW_MENU_SURFACE_WEB.name} cannot render this menu, so it has none:`);
+        for (const refusal of refusals) console.error(`  [${refusal.path.join('.')}] ${refusal.message}`);
+        return [];
+    }
+
+    /**
+     * What the action group publishes about the actions this menu names — the portable
+     * stand-in for a `GActionGroup`, and the only source of a menu's enabled/checked
+     * state (ADR 0042).
+     */
+    get actions(): AdwMenuActions | null {
+        return this._actions;
+    }
+
+    set actions(value: AdwMenuActions | null) {
+        this._actions = value ?? null;
+        this._menuView?.setActions(this._actions);
         if (this._initialized) this._renderMenu();
     }
 
@@ -145,15 +192,29 @@ export class GtkMenuButton extends HTMLElement {
         this._popoverEl.anchor = this._buttonEl;
         this._popoverEl.subscribe((open) => this._onPopoverToggled(open));
 
+        this._menuView = new PopoverMenuView(this._popoverEl, 'adw-menu-button', (path) => {
+            const item = menuItemAt(this._model, path);
+            if (item === null) return;
+            this._popoverEl.popdown();
+            this._buttonEl.focus();
+            this.dispatchEvent(
+                new CustomEvent('menu-item-activated', {
+                    bubbles: true,
+                    detail: { id: item.id ?? item.label, label: item.label, path: [...path] },
+                }),
+            );
+        });
+        this._menuView.setActions(this._actions);
+
         this._buttonEl.addEventListener('click', () => {
             if (this.hasAttribute('disabled')) return;
             // Nothing to show is not a menu — never open an empty popover.
-            if (!this._popoverEl.open && this._items.length === 0) return;
+            if (!this._popoverEl.open && this._model.length === 0) return;
             this._popoverEl.open = !this._popoverEl.open;
         });
 
-        // Seed items from the `menu` attribute if the property was not set.
-        if (this._items.length === 0) this._items = this._parseMenuAttr();
+        // Seed the menu from the attribute if the property was not set.
+        if (this._model.length === 0) this._model = this._parseMenuAttr();
         // The flat default is set only now the DOM exists, so the observed-attribute
         // callback (which renders) never runs before `_buttonEl` is created.
         if (!this.hasAttribute('flat') && !this.hasAttribute('circular')) this.setAttribute('flat', '');
@@ -162,8 +223,8 @@ export class GtkMenuButton extends HTMLElement {
 
     attributeChangedCallback(name: string) {
         if (!this._initialized || !this._buttonEl) return;
-        if (name === 'menu') {
-            this._items = this._parseMenuAttr();
+        if (name === 'menu-model') {
+            this._model = this._parseMenuAttr();
             this._renderMenu();
             return;
         }
@@ -171,21 +232,24 @@ export class GtkMenuButton extends HTMLElement {
     }
 
     /**
-     * The `menu` attribute, through the core parser the split button already used.
+     * The `menu-model` attribute, through the core parser both elements share.
      *
      * The copy this replaces was weaker in a way markup can reach: it kept `id` and
      * `icon` WHATEVER their runtime type, so `{"label":"Open","id":7}` produced an
      * entry whose `id` is a number in a field typed `string` — and `id` is what the
-     * activation event reports. The core parser keeps only string-typed extras.
+     * activation event reports. The core parser keeps only string-typed attributes.
      */
-    private _parseMenuAttr(): AdwMenuItem[] {
-        return parseMenuEntries(this.getAttribute('menu'));
+    private _parseMenuAttr(): AdwMenuModel {
+        return this._acceptMenu(parseMenuModel(this.getAttribute('menu-model')), false);
     }
 
     private _onPopoverToggled(open: boolean): void {
         this.classList.toggle('active', open);
         this._buttonEl.setAttribute('aria-expanded', String(open));
-        if (open) this._itemButtons[0]?.focus();
+        if (open) this._menuView.focusableRows[0]?.focus();
+        // A dismissal returns the popup to its top page: a menu that reopens inside a
+        // submenu is one the reader cannot get out of.
+        else this._menuView.reset();
     }
 
     private _render(): void {
@@ -207,50 +271,10 @@ export class GtkMenuButton extends HTMLElement {
     }
 
     private _renderMenu(): void {
-        this._popoverEl.replaceChildren();
-        this._itemButtons = [];
-
-        const title = this.getAttribute('menu-title') ?? this._menuTitle;
-        if (title) {
-            const titleEl = document.createElement('div');
-            titleEl.className = 'adw-popover-title adw-menu-button-title';
-            titleEl.textContent = title;
-            this._popoverEl.appendChild(titleEl);
-        }
-
-        for (const [index, entry] of this._items.entries()) {
-            const item = document.createElement('button');
-            item.type = 'button';
-            item.className = 'adw-popover-item adw-menu-button-item';
-            item.setAttribute('role', 'menuitem');
-            item.tabIndex = -1;
-
-            // An entry that asked for NO icon gets no icon node — the emptiness of the
-            // declared name, not whether it resolved. Testing `resolvedIconName` dropped
-            // the node for a name that was given and merely undrawable, which is the one
-            // case a reader needs to SEE; `<gtk-image>` draws `image-missing` there.
-            const entryIcon = createGtkImage(entry.icon ?? null, 'adw-menu-button-item-icon');
-            if (stringIsNotEmpty(entry.icon)) item.appendChild(entryIcon);
-            const labelEl = document.createElement('span');
-            labelEl.className = 'adw-menu-button-item-label';
-            labelEl.textContent = entry.label;
-            item.appendChild(labelEl);
-
-            item.addEventListener('click', () => {
-                this._popoverEl.popdown();
-                this._buttonEl.focus();
-                this.dispatchEvent(
-                    new CustomEvent('menu-item-activated', {
-                        bubbles: true,
-                        detail: { id: entry.id ?? entry.label, label: entry.label, index },
-                    }),
-                );
-            });
-            this._popoverEl.appendChild(item);
-            this._itemButtons.push(item);
-        }
-
-        if (this._items.length === 0) this._popoverEl.popdown();
+        this._menuView.setModel(this._model);
+        this._menuView.setTitle(this.getAttribute('menu-title') ?? this._menuTitle);
+        this._menuView.render();
+        if (this._model.length === 0) this._popoverEl.popdown();
     }
 }
 

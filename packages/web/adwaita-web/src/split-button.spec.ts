@@ -13,10 +13,11 @@ import {
     POPOVER_SURFACE_VECTORS,
     SPLIT_BUTTON_CONTENT_VECTORS,
     SPLIT_BUTTON_DIRECTION_VECTORS,
-    SPLIT_BUTTON_MENU_PARSE_VECTORS,
+    MENU_NORMALIZE_VECTORS,
     SPLIT_BUTTON_STYLE_CLASS_VECTORS,
     SPLIT_BUTTON_TOOLTIP_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
+import { ADW_MENU_SURFACE_WEB, flattenMenu, menuRefusals } from '@gjsify/adwaita-core';
 import type { SplitButtonProperty } from '@gjsify/adwaita-core';
 import type { AdwSplitButton } from './elements/adw-split-button.js';
 import { fallbackMask, maskOf } from './icon-registry.spec.js';
@@ -234,11 +235,24 @@ export const AdwSplitButtonTest = async () => {
     });
 
     await describe('adw-split-button menu', async () => {
-        for (const { json, entries, rule } of SPLIT_BUTTON_MENU_PARSE_VECTORS) {
-            await it(`parses ${JSON.stringify(json)} into ${entries.length} entries — ${rule}`, () => {
-                const { el, host } = mount(json === null ? {} : { menu: json });
-                expect([...el.menuItems]).toStrictEqual([...entries]);
-                expect(el.querySelectorAll('.adw-split-button-menu-item').length).toBe(entries.length);
+        for (const { input, model, rule } of MENU_NORMALIZE_VECTORS) {
+            await it(`normalises an authored menu — ${rule}`, () => {
+                const { el, host } = mount({ label: 'Save' });
+                // What THIS surface refuses is core's answer, not a list restated here:
+                // a `custom` item names an application widget the browser cannot host,
+                // and the setter is where that is said out loud.
+                if (menuRefusals(model, ADW_MENU_SURFACE_WEB).length > 0) {
+                    expect(() => {
+                        el.menuModel = input;
+                    }).toThrow('adwaita-web');
+                    host.remove();
+                    return;
+                }
+                el.menuModel = input;
+                expect([...el.menuModel]).toStrictEqual([...model]);
+                // Every node the model draws is a row: a section is inlined, a submenu
+                // is one row of its own.
+                expect(el.querySelectorAll('.adw-split-button-menu-item').length).toBe(flattenMenu(model).length);
                 host.remove();
             });
         }
@@ -255,7 +269,7 @@ export const AdwSplitButtonTest = async () => {
         });
 
         await it('opens and closes on the dropdown half once there is a menu', () => {
-            const { el, host } = mount({ menu: '[{"label":"Save as…","action":"app.save-as"}]' });
+            const { el, host } = mount({ 'menu-model': '[{"label":"Save as…","action":"app.save-as"}]' });
             expect(el.dropdownEnabled).toBe(true);
             expect(dropdownHalf(el).disabled).toBe(false);
 
@@ -275,25 +289,25 @@ export const AdwSplitButtonTest = async () => {
 
         await it('dispatches a duplicate label BY POSITION, with its own action', () => {
             const { el, host } = mount({
-                menu: '[{"label":"Copy","action":"app.copy"},{"label":"Copy","action":"app.copy-special"}]',
+                'menu-model': '[{"label":"Copy","action":"app.copy"},{"label":"Copy","action":"app.copy-special"}]',
             });
-            const activated: Array<{ label: string; action?: string; index: number }> = [];
+            const activated: Array<{ label: string; action?: string; id: string; path: number[] }> = [];
             el.addEventListener('menu-activated', (event) => activated.push((event as CustomEvent).detail));
 
             dropdownHalf(el).click();
             const items = el.querySelectorAll('.adw-split-button-menu-item');
             (items[1] as HTMLButtonElement).click();
 
-            expect(activated).toStrictEqual([{ label: 'Copy', action: 'app.copy-special', index: 1 }]);
+            expect(activated).toStrictEqual([{ label: 'Copy', action: 'app.copy-special', id: 'Copy', path: [1] }]);
             expect(el.active).toBe(false);
             host.remove();
         });
 
         await it('losing its menu closes an open one', () => {
-            const { el, host } = mount({ menu: '[{"label":"Print"}]' });
+            const { el, host } = mount({ 'menu-model': '[{"label":"Print"}]' });
             dropdownHalf(el).click();
             expect(el.active).toBe(true);
-            el.setAttribute('menu', '[]');
+            el.setAttribute('menu-model', '[]');
             expect(el.active).toBe(false);
             expect(el.dropdownEnabled).toBe(false);
             host.remove();
@@ -316,7 +330,7 @@ export const AdwSplitButtonTest = async () => {
         });
 
         await it('marks the root checked while the menu is open (the update_state fold)', () => {
-            const { el, host } = mount({ menu: '[{"label":"Print"}]' });
+            const { el, host } = mount({ 'menu-model': '[{"label":"Print"}]' });
             expect(el.classList.contains('checked')).toBe(false);
             dropdownHalf(el).click();
             expect(el.classList.contains('checked')).toBe(true);
@@ -331,7 +345,7 @@ export const AdwSplitButtonTest = async () => {
     // from `<gtk-popover>`, and these cases prove the lift was a lift, not a move.
     await describe('adw-split-button menu keyboard (gained with <gtk-popover>)', async () => {
         await it('Escape dismisses the menu and returns focus to the dropdown half', () => {
-            const { el, host } = mount({ menu: '[{"label":"Print"},{"label":"Export"}]' });
+            const { el, host } = mount({ 'menu-model': '[{"label":"Print"},{"label":"Export"}]' });
             dropdownHalf(el).click();
             expect(el.active).toBe(true);
 
@@ -346,7 +360,7 @@ export const AdwSplitButtonTest = async () => {
         });
 
         await it('Escape reaches notify::active, so the dismissal is a real state change', () => {
-            const { el, host } = mount({ menu: '[{"label":"Print"}]' });
+            const { el, host } = mount({ 'menu-model': '[{"label":"Print"}]' });
             const seen: boolean[] = [];
             el.addEventListener('notify::active', (event) => seen.push((event as CustomEvent).detail.active));
 
@@ -358,7 +372,7 @@ export const AdwSplitButtonTest = async () => {
         });
 
         await it('the arrow keys walk the menu items and wrap, from the row focused on open', () => {
-            const { el, host } = mount({ menu: '[{"label":"Print"},{"label":"Export"},{"label":"Share"}]' });
+            const { el, host } = mount({ 'menu-model': '[{"label":"Print"},{"label":"Export"},{"label":"Share"}]' });
             dropdownHalf(el).click();
 
             // Queried AFTER opening on purpose: `_renderMenu` runs on every state change
@@ -391,9 +405,9 @@ export const AdwSplitButtonTest = async () => {
         });
 
         await it('Enter on a focused row activates it BY POSITION, exactly once', () => {
-            const { el, host } = mount({ menu: '[{"label":"Copy"},{"label":"Copy"}]' });
-            const seen: number[] = [];
-            el.addEventListener('menu-activated', (event) => seen.push((event as CustomEvent).detail.index));
+            const { el, host } = mount({ 'menu-model': '[{"label":"Copy"},{"label":"Copy"}]' });
+            const seen: number[][] = [];
+            el.addEventListener('menu-activated', (event) => seen.push((event as CustomEvent).detail.path));
 
             dropdownHalf(el).click();
             const menu = el.querySelector('gtk-popover') as HTMLElement;
@@ -403,7 +417,7 @@ export const AdwSplitButtonTest = async () => {
             // Two entries share a label, so only position tells them apart; and
             // `preventDefault()` before the synthetic click keeps a focused <button> from
             // ALSO activating natively and firing twice.
-            expect(seen).toStrictEqual([1]);
+            expect(seen).toStrictEqual([[1]]);
             host.remove();
         });
     });
@@ -423,7 +437,7 @@ export const AdwSplitButtonTest = async () => {
         });
 
         await it(`draws a ${menuVector?.borderRadius}px surface with ${menuVector?.padding}px padding and a THREE-layer shadow`, () => {
-            const { el, host } = mount({ menu: '[{"label":"Print"}]' });
+            const { el, host } = mount({ 'menu-model': '[{"label":"Print"}]' });
             dropdownHalf(el).click();
             const surface = el.querySelector('gtk-popover') as HTMLElement;
             const style = getComputedStyle(surface);
@@ -445,7 +459,7 @@ export const AdwSplitButtonTest = async () => {
         });
 
         await it(`draws menu rows at the ${itemVector?.borderRadius}px modelbutton radius`, () => {
-            const { el, host } = mount({ menu: '[{"label":"Print"}]' });
+            const { el, host } = mount({ 'menu-model': '[{"label":"Print"}]' });
             dropdownHalf(el).click();
             const row = el.querySelector('.adw-split-button-menu-item') as HTMLElement;
             const style = getComputedStyle(row);

@@ -40,7 +40,18 @@
         // this deliberately does NOT prove is that `package.json#exports` carries
         // `./react/jsx-runtime` at all — that is `verify-package-outputs.mjs`.
         "paths": {
-            "@gjsify/gtk-host/react/jsx-runtime": ["../../src/react-jsx-runtime.ts"]
+            "@gjsify/gtk-host/react/jsx-runtime": ["../../src/react-jsx-runtime.ts"],
+            // `@gjsify/adwaita-core` is a WORKSPACE dependency whose `exports` map
+            // names `lib/types/`, a BUILD OUTPUT — and `attrs.ts` imports one type from
+            // it (the portable menu model, ADR 0042). Measured: with that `lib/` absent,
+            // this gate reports `TS2307: Cannot find module '@gjsify/adwaita-core'` from
+            // `src/attrs.ts` and 13 problems fall out of it. The job that runs this gate
+            // is `checkout` + `setup-node` + install and NOTHING else, so `lib/` is never
+            // there — it passed locally, in a built tree, and failed in CI.
+            //
+            // Same reason and same shape as the entry above: source, so the gate needs
+            // no build in front of it.
+            "@gjsify/adwaita-core": ["../../../../web/adwaita-core/src/index.ts"],
         },
         "lib": ["es2015", "es2016", "es2017", "DOM"],
         "types": []

@@ -8,9 +8,11 @@ import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import Gdk from 'gi://Gdk?version=4.0';
+import Gio from 'gi://Gio?version=2.0';
 import Pango from 'gi://Pango?version=1.0';
 
 import { err } from './errors.js';
+import { buildGioMenu, isPortableMenu } from './menu.js';
 import type { WidgetDescriptor } from './types.js';
 
 /** GType name prefix -> the GI namespace object that carries its enums. */
@@ -149,6 +151,18 @@ export function enumMembers(gtypeName: string): string[] | undefined {
 export function coerce(spec: GObject.ParamSpec, value: unknown, tag: string): unknown {
     if (value === null || value === undefined) return value;
     const valueType = spec.value_type;
+
+    // A `GMenuModel` property authored as an ARRAY is the portable menu model
+    // (ADR 0042), and this is where it becomes a real `Gio.Menu` — the same seam and the
+    // same reason as the enum branch below: GObject cannot store what was written, and
+    // the ParamSpec is what says so. It is the ONLY spelling a declarative dialect has,
+    // since a `GMenuModel` is a GObject with no literal form, and it is why
+    // `Adw.SplitButton`, `Gtk.MenuButton` and `Gtk.PopoverMenu` have framework snippets
+    // at all. A real `Gio.MenuModel` still passes straight through, so the imperative
+    // path every existing application uses is untouched.
+    if (GObject.type_is_a(valueType, Gio.MenuModel.$gtype) && isPortableMenu(value)) {
+        return buildGioMenu(value);
+    }
 
     if (GObject.type_is_a(valueType, GObject.TYPE_ENUM) && typeof value === 'string') {
         const gtypeName = GObject.type_name(valueType);

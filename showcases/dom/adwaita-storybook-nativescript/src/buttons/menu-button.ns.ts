@@ -28,7 +28,7 @@ export class MenuButtonNsStory extends StoryView {
 
     initialize(): void {
         this._widget = new Gtk.MenuButton();
-        this._widget.menuItems = MENU_BUTTON_ITEMS.map((label) => ({ label }));
+        this._widget.menuModel = MENU_BUTTON_ITEMS.map((label) => ({ label }));
         this._apply();
         this.addContent(this._widget);
     }

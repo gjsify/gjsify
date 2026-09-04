@@ -309,4 +309,136 @@ async function driveKeys(page: Page, bundleUrl: string) {
     expect(downMoved).toEqual({ moved: false, prevented: false, count: 3 });
 
     expect(await page.evaluate(() => document.getElementById('toggles')?.getAttribute('role'))).toBe('radiogroup');
+
+    // ---- Shape 6: a portable menu is traversable, page by page (ADR 0042) -----------
+    // The roving tabindex on a menu row moved into `PopoverMenuView` when the two menu
+    // buttons started sharing one popup. `check-adwaita-keyboard-contract.mjs` holds that
+    // a keydown listener EXISTS; only a real press proves the keys move focus — and only
+    // a real press exercises the `preventDefault` that keeps a focused <button> from
+    // ALSO activating natively, which a dispatched event cannot reproduce at all.
+    await page.evaluate(() => {
+        document.body.replaceChildren();
+        const el = document.createElement('gtk-menu-button') as HTMLElement & {
+            menuModel: unknown;
+            actions: unknown;
+        };
+        el.id = 'menu';
+        document.body.append(el);
+        el.actions = { 'app.export': { enabled: false }, 'app.new': {} };
+        el.menuModel = [
+            { label: 'New', action: 'app.new' },
+            { section: [{ label: 'Export', action: 'app.export' }, { label: 'Print' }] },
+            { label: 'More', submenu: [{ label: 'Rename' }, { label: 'Duplicate' }] },
+        ];
+        (el as HTMLElement).addEventListener('menu-item-activated', (event) => {
+            (window as unknown as { chosen: unknown }).chosen = (event as CustomEvent<{ path: number[] }>).detail.path;
+        });
+        (el.querySelector('.adw-menu-button-button') as HTMLElement).click();
+        (el.querySelectorAll<HTMLElement>('.adw-popover-item')[0] as HTMLElement).focus();
+    });
+
+    /** The label of the row that has focus — what a reader would name it. */
+    const focusedRow = () =>
+        page.evaluate(
+            () =>
+                document.activeElement?.querySelector('.adw-menu-button-item-label')?.textContent ??
+                document.activeElement?.localName ??
+                'none',
+        );
+
+    expect(await focusedRow()).toBe('New');
+    // Straight past the row the action group disabled: a disabled <button> cannot take
+    // focus, so an arrow that lands on it is a press that does nothing.
+    await page.keyboard.press('ArrowDown');
+    expect(await focusedRow()).toBe('Print');
+    await page.keyboard.press('ArrowDown');
+    expect(await focusedRow()).toBe('More');
+    // A menu popover WRAPS — `resolvePopoverKey` is modular, unlike the tab lists above.
+    await page.keyboard.press('ArrowDown');
+    expect(await focusedRow()).toBe('New');
+    await page.keyboard.press('End');
+    expect(await focusedRow()).toBe('More');
+
+    // ArrowRight opens the submenu — `gtk_model_button_focus`, gtkmodelbutton.c:1189-1195.
+    await page.keyboard.press('ArrowRight');
+    expect(await focusedRow()).toBe('Rename');
+    expect(
+        await page.evaluate(() =>
+            [...document.querySelectorAll('#menu .adw-popover-item')].map(
+                (row) => row.querySelector('.adw-menu-button-item-label')?.textContent,
+            ),
+        ),
+    ).toEqual(['More', 'Rename', 'Duplicate']);
+
+    // ArrowLeft answers only on the back row (:1182-1188), so from the middle it does not.
+    await page.keyboard.press('ArrowLeft');
+    expect(await focusedRow()).toBe('Rename');
+    await page.keyboard.press('ArrowUp');
+    expect(await focusedRow()).toBe('More');
+    await page.keyboard.press('ArrowLeft');
+    expect(
+        await page.evaluate(() =>
+            [...document.querySelectorAll('#menu .adw-popover-item')].map(
+                (row) => row.querySelector('.adw-menu-button-item-label')?.textContent,
+            ),
+        ),
+    ).toEqual(['New', 'Export', 'Print', 'More']);
+
+    // Leaving a page returns focus to the top of the one it returns TO, which is what
+    // makes the next press countable.
+    expect(await focusedRow()).toBe('New');
+
+    // Enter activates the focused row ONCE — the native activation is prevented — and
+    // reports a PATH, which is the only thing that names a row inside a section.
+    await page.keyboard.press('ArrowDown');
+    expect(await focusedRow()).toBe('Print');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => (window as unknown as { chosen: unknown }).chosen)).toEqual([1, 1]);
+
+    // ---- Shape 6b: a page change may not strand focus OUTSIDE an open popup ---------
+    // K1, and the reason it needs a REAL press: the stranding is only visible in what
+    // Tab does next. Both page changes focused a hard-coded index of every row, so a
+    // submenu whose first item is disabled put focus on <body> — and Tab then walked to
+    // the control BEHIND the open popover, which is the incident the keyboard gate's own
+    // header records for modal surfaces.
+    await page.evaluate(() => {
+        document.body.replaceChildren();
+        const el = document.createElement('gtk-menu-button') as HTMLElement & {
+            menuModel: unknown;
+            actions: unknown;
+        };
+        el.id = 'dimmed';
+        const after = document.createElement('button');
+        after.id = 'behind';
+        after.textContent = 'Behind';
+        document.body.append(el, after);
+        el.actions = { 'app.off': { enabled: false } };
+        el.menuModel = [{ label: 'More', submenu: [{ label: 'SubDim', action: 'app.off' }, { label: 'SubLive' }] }];
+        (el.querySelector('.adw-menu-button-button') as HTMLElement).click();
+        (el.querySelector('.adw-popover-item') as HTMLElement).focus();
+    });
+
+    await page.keyboard.press('ArrowRight');
+    // Inside the popup, on the first row a key can actually reach.
+    expect(
+        await page.evaluate(() => ({
+            inside: document.getElementById('dimmed')?.contains(document.activeElement) ?? false,
+            label: document.activeElement?.querySelector('.adw-menu-button-item-label')?.textContent ?? 'none',
+        })),
+    ).toEqual({ inside: true, label: 'SubLive' });
+
+    // And the arrows are still live, which is what "inside" has to mean.
+    await page.keyboard.press('ArrowUp');
+    expect(await page.evaluate(() => document.activeElement?.classList.contains('adw-popover-back') ?? false)).toBe(
+        true,
+    );
+
+    // WHAT IS NOT ASSERTED HERE, and it is a real difference from GTK rather than an
+    // oversight: `<gtk-popover>` does not trap Tab, so a Tab from inside an open menu
+    // does reach `#behind`. GTK's own popover menu binds it —
+    // `refs/gtk/gtk/gtkpopovermenu.c:660-663` adds tab bindings that cycle focus within
+    // the menu — and this port has never implemented that for ANY popover. Asserting it
+    // here would claim a reach the code does not have; K1 was about focus landing
+    // INSIDE after a page change, which is what the two expectations above hold. The
+    // Tab gap belongs to `<gtk-popover>` and to a change that can carry every popover.
 }

@@ -9,21 +9,20 @@ import {
     isSplitButtonDirection,
     menuButtonArrowIcon,
     menuButtonPopupDirection,
-    parseMenuEntries,
     resolveDropdownTooltip,
     splitButtonArrowIcon,
     splitButtonPopupDirection,
     splitButtonRootState,
     splitButtonStyleClasses,
 } from './split-button.js';
-import type { AdwMenuEntry, SplitButtonProperty } from './split-button.js';
+import type { SplitButtonProperty } from './split-button.js';
+import type { AdwMenuModel } from './menu.js';
 import {
     MENU_BUTTON_DIRECTION_VECTORS,
     SPLIT_BUTTON_CONTENT_VECTORS,
     SPLIT_BUTTON_DIRECTION_VECTORS,
     SPLIT_BUTTON_DROPDOWN_VECTORS,
     SPLIT_BUTTON_MENU_ACTIVATION_VECTORS,
-    SPLIT_BUTTON_MENU_PARSE_VECTORS,
     SPLIT_BUTTON_ROOT_STATE_VECTORS,
     SPLIT_BUTTON_STYLE_CLASS_VECTORS,
     SPLIT_BUTTON_TOOLTIP_VECTORS,
@@ -184,8 +183,8 @@ export default async () => {
     });
 
     await describe('menu-model ⟷ popover exclusivity (tests:172-243)', async () => {
-        const model1: readonly AdwMenuEntry[] = [{ label: 'Save as…', action: 'app.save-as' }];
-        const model2: readonly AdwMenuEntry[] = [{ label: 'Export', action: 'app.export' }];
+        const model1: AdwMenuModel = [{ kind: 'item', label: 'Save as…', action: 'app.save-as' }];
+        const model2: AdwMenuModel = [{ kind: 'item', label: 'Export', action: 'app.export' }];
 
         await it('notifies menu-model 1, 2, 3 times as a popover displaces it (tests:185-199)', () => {
             const state = new SplitButtonState();
@@ -195,11 +194,13 @@ export default async () => {
             });
 
             expect(state.setMenuModel(model1)).toBe(true);
-            expect(state.menuModel).toBe(model1);
+            // The state stores its OWN normalised copy, so this is value equality and
+            // not identity — see `setMenuModel`'s note on C's pointer guard.
+            expect(state.menuModel).toStrictEqual([...model1]);
             expect(notified).toBe(1);
 
             expect(state.setMenuModel(model2)).toBe(true);
-            expect(state.menuModel).toBe(model2);
+            expect(state.menuModel).toStrictEqual([...model2]);
             expect(notified).toBe(2);
 
             const popover = { popover: true };
@@ -270,11 +271,11 @@ export default async () => {
     });
 
     await describe('dropdown sensitivity (libadwaita conformance vectors)', async () => {
-        for (const { entries, popover, enabled, canOpen, rule } of SPLIT_BUTTON_DROPDOWN_VECTORS) {
-            await it(`${entries.length} entries, popover=${popover} → enabled=${enabled} — ${rule}`, () => {
+        for (const { model, popover, enabled, canOpen, rule } of SPLIT_BUTTON_DROPDOWN_VECTORS) {
+            await it(`${model.length} entries, popover=${popover} → enabled=${enabled} — ${rule}`, () => {
                 const state = new SplitButtonState();
                 if (popover) state.setPopover({ popover: true });
-                if (entries.length > 0) state.setMenuModel(entries);
+                if (model.length > 0) state.setMenuModel(model);
                 expect(state.dropdownEnabled).toBe(enabled);
                 expect(state.openMenu()).toBe(canOpen);
                 expect(state.open).toBe(canOpen);
@@ -401,29 +402,25 @@ export default async () => {
         }
     });
 
-    await describe('parseMenuEntries (libadwaita conformance vectors)', async () => {
-        for (const { json, entries, rule } of SPLIT_BUTTON_MENU_PARSE_VECTORS) {
-            await it(`${JSON.stringify(json)} → ${entries.length} entries — ${rule}`, () => {
-                expect(parseMenuEntries(json)).toStrictEqual([...entries]);
-            });
-        }
-    });
-
-    await describe('activateMenuEntry is BY POSITION (libadwaita conformance vectors)', async () => {
-        for (const { entries, index, activated, rule } of SPLIT_BUTTON_MENU_ACTIVATION_VECTORS) {
-            await it(`index ${index} of ${entries.length} → ${JSON.stringify(activated)} — ${rule}`, () => {
+    await describe('activateMenuItem is BY POSITION (libadwaita conformance vectors)', async () => {
+        for (const { model, path, activated, rule } of SPLIT_BUTTON_MENU_ACTIVATION_VECTORS) {
+            await it(`path [${path.join('.')}] → ${JSON.stringify(activated)} — ${rule}`, () => {
                 const state = new SplitButtonState();
-                state.setMenuModel(entries);
-                expect(state.activateMenuEntry(index)).toStrictEqual(activated);
+                state.setMenuModel(model);
+                expect(state.activateMenuItem(path)).toStrictEqual(activated);
             });
         }
 
-        await it('activating an entry dismisses the menu', () => {
+        await it('activating an item dismisses the menu', () => {
             const state = new SplitButtonState();
             state.setMenuModel([{ label: 'Save as…', action: 'app.save-as' }]);
             expect(state.openMenu()).toBe(true);
             expect(state.open).toBe(true);
-            expect(state.activateMenuEntry(0)).toStrictEqual({ label: 'Save as…', action: 'app.save-as' });
+            expect(state.activateMenuItem([0])).toStrictEqual({
+                kind: 'item',
+                label: 'Save as…',
+                action: 'app.save-as',
+            });
             expect(state.open).toBe(false);
         });
 
@@ -431,8 +428,22 @@ export default async () => {
             const state = new SplitButtonState();
             state.setMenuModel([{ label: 'Save as…' }]);
             state.openMenu();
-            expect(state.activateMenuEntry(5)).toBe(null);
+            expect(state.activateMenuItem([5])).toBe(null);
             expect(state.open).toBe(true);
+        });
+
+        await it('setting the same model twice notifies once — value equality replaces C’s pointer guard', () => {
+            const state = new SplitButtonState();
+            let notified = 0;
+            state.subscribe((change) => {
+                if (change.notified.includes('menu-model')) notified++;
+            });
+            expect(state.setMenuModel(['Save as…'])).toBe(true);
+            // A DIFFERENT array with the same content, which is what every renderer
+            // hands over on a re-render.
+            expect(state.setMenuModel(['Save as…'])).toBe(false);
+            expect(state.setMenuModel(state.menuModel)).toBe(false);
+            expect(notified).toBe(1);
         });
     });
 };

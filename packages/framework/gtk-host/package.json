@@ -98,7 +98,8 @@
         "@girs/gobject-2.0": "4.6.0",
         "@girs/gtk-4.0": "4.6.0",
         "@girs/pango-1.0": "4.6.0",
-        "@girs/pangocairo-1.0": "4.6.0"
+        "@girs/pangocairo-1.0": "4.6.0",
+        "@gjsify/adwaita-core": "workspace:^"
     },
     "peerDependencies": {
         "@vue/runtime-core": "^3.5.0",

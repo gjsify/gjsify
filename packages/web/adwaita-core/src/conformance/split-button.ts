@@ -18,9 +18,9 @@
 //            (`menubutton arrow`, overridden by `splitbutton > menubutton > button > arrow`)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import type { AdwMenuItem, AdwMenuModel, AdwMenuPath } from '../menu.js';
 import type {
     AdwArrowIcon,
-    AdwMenuEntry,
     SplitButtonContentMode,
     SplitButtonDirection,
     SplitButtonHalfState,
@@ -567,80 +567,57 @@ export const SPLIT_BUTTON_ROOT_STATE_VECTORS: ReadonlyArray<SplitButtonRootState
     },
 ];
 
-/** One `parseMenuEntries` expectation. */
-export interface SplitButtonMenuParseVector {
-    /** The raw `menu` attribute (or `null` when absent). */
-    json: string | null;
-    entries: readonly AdwMenuEntry[];
-    rule: string;
-}
-
-/**
- * Menu-attribute parsing — the byte-identical helper both browser elements
- * carried. Total: nothing an author can type may prevent the widget upgrading.
- */
-export const SPLIT_BUTTON_MENU_PARSE_VECTORS: ReadonlyArray<SplitButtonMenuParseVector> = [
-    {
-        json: '[{"label":"Save as…","action":"app.save-as"}]',
-        entries: [{ label: 'Save as…', action: 'app.save-as' }],
-        rule: 'the GTK shape: (label, detailed action) pairs (c:385-388)',
-    },
-    {
-        json: '[{"label":"Copy","action":"app.copy"},{"label":"Copy","action":"app.copy-special"}]',
-        entries: [
-            { label: 'Copy', action: 'app.copy' },
-            { label: 'Copy', action: 'app.copy-special' },
-        ],
-        rule: 'duplicate labels are legal and must NOT collapse',
-    },
-    {
-        json: '[{"label":"About","id":"about","icon":"help-about-symbolic"}]',
-        entries: [{ label: 'About', id: 'about', icon: 'help-about-symbolic' }],
-        rule: 'the menu-button extras (id/icon) share the same entry type',
-    },
-    { json: null, entries: [], rule: 'no attribute → no menu' },
-    { json: '', entries: [], rule: 'an empty attribute → no menu' },
-    { json: 'not json at all', entries: [], rule: 'malformed JSON degrades to no menu, it does not throw' },
-    { json: '{"label":"Save"}', entries: [], rule: 'a non-array root is rejected wholesale' },
-    { json: '[]', entries: [], rule: 'an empty array is an empty menu' },
-    { json: '[{"action":"app.x"},null,42,["label"]]', entries: [], rule: 'entries without a `label` key are dropped' },
-    {
-        json: '[{"label":42,"action":7}]',
-        entries: [{ label: '42' }],
-        rule: 'the label is String()-coerced; a non-string action is dropped rather than leaked',
-    },
-];
-
 /** One activate-by-position expectation. */
 export interface SplitButtonMenuActivationVector {
-    entries: readonly AdwMenuEntry[];
-    index: number;
-    /** The entry that must be dispatched, or `null`. */
-    activated: AdwMenuEntry | null;
+    model: AdwMenuModel;
+    path: AdwMenuPath;
+    /** The item that must be dispatched, or `null`. */
+    activated: AdwMenuItem | null;
     rule: string;
 }
 
-const DUPLICATE_MENU: readonly AdwMenuEntry[] = [
-    { label: 'Copy', action: 'app.copy' },
-    { label: 'Copy', action: 'app.copy-special' },
+const DUPLICATE_MENU: AdwMenuModel = [
+    { kind: 'item', label: 'Copy', action: 'app.copy' },
+    { kind: 'item', label: 'Copy', action: 'app.copy-special' },
+    { kind: 'submenu', label: 'More', items: [{ kind: 'item', label: 'Copy', action: 'app.copy-as' }] },
 ];
 
 /**
  * Activation is BY POSITION, never by label lookup: a `GMenuModel` addresses its
- * items by index and each carries its own detailed action.
+ * items by index and each carries its own detailed action. A PATH since ADR 0042,
+ * because a link is a model of its own and a flat index cannot name a nested item.
  */
 export const SPLIT_BUTTON_MENU_ACTIVATION_VECTORS: ReadonlyArray<SplitButtonMenuActivationVector> = [
     {
-        entries: DUPLICATE_MENU,
-        index: 1,
-        activated: { label: 'Copy', action: 'app.copy-special' },
+        model: DUPLICATE_MENU,
+        path: [1],
+        activated: { kind: 'item', label: 'Copy', action: 'app.copy-special' },
         rule: 'the SECOND of two identically labelled entries — the indexOf bug',
     },
-    { entries: DUPLICATE_MENU, index: 0, activated: { label: 'Copy', action: 'app.copy' }, rule: 'position 0' },
-    { entries: DUPLICATE_MENU, index: 2, activated: null, rule: 'a position past n_items has no item' },
-    { entries: DUPLICATE_MENU, index: -1, activated: null, rule: 'a negative position has no item' },
-    { entries: DUPLICATE_MENU, index: 0.5, activated: null, rule: 'a fractional position is not a position' },
-    { entries: [], index: 0, activated: null, rule: 'no menu model → nothing to activate' },
+    {
+        model: DUPLICATE_MENU,
+        path: [0],
+        activated: { kind: 'item', label: 'Copy', action: 'app.copy' },
+        rule: 'position 0',
+    },
+    {
+        model: DUPLICATE_MENU,
+        path: [2, 0],
+        activated: { kind: 'item', label: 'Copy', action: 'app.copy-as' },
+        rule: 'a THIRD entry with the same label, inside a submenu: only a path tells it from the other two',
+    },
+    {
+        model: DUPLICATE_MENU,
+        path: [2],
+        activated: null,
+        rule: 'a submenu is not an item — opening it activates nothing',
+    },
+    { model: DUPLICATE_MENU, path: [3], activated: null, rule: 'a position past n_items has no item' },
+    { model: DUPLICATE_MENU, path: [-1], activated: null, rule: 'a negative position has no item' },
+    { model: DUPLICATE_MENU, path: [0.5], activated: null, rule: 'a fractional position is not a position' },
+    { model: DUPLICATE_MENU, path: [], activated: null, rule: 'the empty path names the model, not an item' },
+    { model: DUPLICATE_MENU, path: [0, 0], activated: null, rule: 'an item has no children to descend into' },
+    { model: [], path: [0], activated: null, rule: 'no menu model → nothing to activate' },
 ];
 
 /**
@@ -650,7 +627,7 @@ export const SPLIT_BUTTON_MENU_ACTIVATION_VECTORS: ReadonlyArray<SplitButtonMenu
  */
 export interface SplitButtonDropdownVector {
     /** The menu model to install (empty = none). */
-    entries: readonly AdwMenuEntry[];
+    model: AdwMenuModel;
     /** Whether a popover is installed before it. */
     popover: boolean;
     /** Whether the dropdown half is live. */
@@ -667,25 +644,32 @@ export interface SplitButtonDropdownVector {
  */
 export const SPLIT_BUTTON_DROPDOWN_VECTORS: ReadonlyArray<SplitButtonDropdownVector> = [
     {
-        entries: [],
+        model: [],
         popover: false,
         enabled: false,
         canOpen: false,
         rule: 'neither → insensitive dropdown; an empty entry list is the renderers’ spelling of "no menu", so a menu-less button must not open an empty popover',
     },
     {
-        entries: [{ label: 'Save as…', action: 'app.save-as' }],
+        model: [{ kind: 'item', label: 'Save as…', action: 'app.save-as' }],
         popover: false,
         enabled: true,
         canOpen: true,
         rule: 'a menu model makes the dropdown live',
     },
-    { entries: [], popover: true, enabled: true, canOpen: true, rule: 'so does a popover on its own' },
+    { model: [], popover: true, enabled: true, canOpen: true, rule: 'so does a popover on its own' },
     {
-        entries: [{ label: 'Save as…' }],
+        model: [{ kind: 'item', label: 'Save as…' }],
         popover: true,
         enabled: true,
         canOpen: true,
         rule: 'setting one dissociates the other, but the dropdown stays live (c:390-403)',
+    },
+    {
+        model: [{ kind: 'section', items: [] }],
+        popover: false,
+        enabled: true,
+        canOpen: true,
+        rule: 'a model with a node but nothing to DRAW is still a menu — the answer GTK gives for the same empty GMenu section',
     },
 ];
