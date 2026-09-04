@@ -728,10 +728,16 @@ if (WINDOWING) {
                 `${gstPluginSkips.dangling ? `, ${gstPluginSkips.dangling} dangling brew link(s)` : ''}`,
         );
     } else {
-        console.warn(
-            `build-gtk-runtime: WARNING — ${pluginsSrc} missing; no GStreamer plugins bundled ` +
-                '(Gst.init() would succeed and decode nothing)',
+        console.error(
+            `build-gtk-runtime: ${pluginsSrc} does not exist — a --windowing bundle with NO GStreamer ` +
+                'plugin directory at all. `Gst.init()` then succeeds against an empty registry and the ' +
+                'failure surfaces in the application as "no element decodebin".\n' +
+                '    This used to be a warning, which is the same defect the per-plugin gap check ' +
+                'below exists for, one level up: four missing files are caught and the whole directory ' +
+                'missing was not (#1544). Install GStreamer into the build prefix; do NOT drop the ' +
+                'windowing claim to get a green build.',
         );
+        process.exit(1);
     }
 }
 

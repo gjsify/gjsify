@@ -23,6 +23,7 @@ import assert from 'node:assert/strict';
 
 import { requireGi } from '../gi.js';
 import { GST_AUDIO_DECODERS, GST_PLUGIN_GAPS } from '../../scripts/gst-plugins.mjs';
+import { resolveGtkRuntimeBundle } from '../gtk-runtime.js';
 import { Gst, gstSkip as skip } from './gst-gate.mjs';
 
 // The pipeline @gjsify/webaudio is built from, element by element. Named
@@ -64,6 +65,25 @@ test('the GStreamer registry resolves the audio-path elements', { skip }, () => 
 });
 
 /**
+ * Is the GStreamer this process talks to the BUNDLE's, or the host's?
+ *
+ * The whole format claim is about the bundle: `GST_AUDIO_PLUGINS` is what the builders
+ * copy, and `GST_PLUGIN_GAPS` says which of those a platform's archive did not have. A
+ * host GStreamer answers a different question, and asking it this one is wrong in both
+ * directions — a Fedora container with thin plugins would fail a claim it never made,
+ * and a Windows box with MSYS2's GStreamer would report a DECLARED gap as retired while
+ * the bundle it is about still has it (measured shape: #1544's own win11 VM has mpg123
+ * through MSYS2 and the published bundle does not).
+ *
+ * `resolveGtkRuntimeBundle()` is the same answer node-gi itself acts on when it points
+ * `GST_PLUGIN_SYSTEM_PATH` at the bundle, so the two cannot disagree about which
+ * registry is loaded.
+ */
+const bundle = resolveGtkRuntimeBundle();
+const bundleSkip =
+    skip || (bundle === null ? 'no @gjsify/gtk-runtime bundle resolves here — this asks about the BUNDLE' : false);
+
+/**
  * The decoder gaps this platform has DECLARED, as element names.
  *
  * A gap is a promise not made, and it is written once — in `gst-plugins.mjs`, next to the
@@ -77,7 +97,7 @@ const declaredGapElements = new Set(
     ),
 );
 
-test('every format the audio path claims has a decoder in the registry', { skip }, () => {
+test('every format the audio path claims has a decoder in the registry', { skip: bundleSkip }, () => {
     // THE ELEMENTS ABOVE ARE THE SKELETON, and a skeleton decodes nothing. `decodebin`
     // resolving says only that autoplugging exists — what it autoplugs is a decoder that
     // has to be in the registry too, and asking for the skeleton alone is why a bundle
@@ -103,7 +123,7 @@ test('every format the audio path claims has a decoder in the registry', { skip 
     );
 });
 
-test('a declared decoder gap is still a gap', { skip }, () => {
+test('a declared decoder gap is still a gap', { skip: bundleSkip }, () => {
     // The other direction, and the reason a gap list does not rot: if the element a gap
     // says is absent resolves, the entry is stale and the platform silently regained a
     // format nobody re-declared. Same shape as `it.failing` retiring itself.

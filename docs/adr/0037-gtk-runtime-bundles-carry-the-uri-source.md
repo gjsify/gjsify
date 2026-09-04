@@ -242,7 +242,20 @@ the answer three ways rather than two:
   outlive the archive that justified it.
 
 A platform's own sink is not the other's gap — `GST_PLATFORM_SINKS` keeps `osxaudio` out of the
-win32 expectation, because an alarm that is wrong on every run is one nobody reads.
+win32 expectation, because an alarm that is wrong on every run is one nobody reads. An os this
+does not bundle for is REFUSED rather than answered: an unrecognised string makes every sink
+foreign, so a typo in a target would have relaxed the expectation instead of failing it.
+
+**And one level up from all of it**, found by review of this change: the whole GStreamer section
+sits behind `existsSync(pluginDir)`, whose `else` was a warning. A `--windowing` bundle with no
+plugin directory at all shipped, advertised windowing and decoded nothing — the same defect as
+#1544 with the directory instead of four files. It is fatal now, in both builders.
+
+The registry questions are asked only where a BUNDLE resolves (`resolveGtkRuntimeBundle()`, the
+same answer node-gi acts on when it points `GST_PLUGIN_SYSTEM_PATH`). A host GStreamer answers a
+different question, and asking it this one is wrong in both directions: a thin container would
+fail a claim the bundle never made, and a Windows box with MSYS2's GStreamer would report a
+declared gap as retired while the bundle it is about still has it.
 
 **And the claim underneath.** `decodebin` resolving says nothing about what it can autoplug:
 measured on the same win32 bundle, `decodebin3`, `playbin3`, `filesrc` and `souphttpsrc` all

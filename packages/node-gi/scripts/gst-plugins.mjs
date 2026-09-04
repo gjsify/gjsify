@@ -124,11 +124,21 @@ export function isBundledGstPlugin(fileName) {
     return GST_AUDIO_PLUGINS.includes(base);
 }
 
-/** The list above's spelling of a plugin file: no `libgst`/`gst` prefix, no extension, lowercase. */
+/**
+ * The list above's spelling of a plugin file: no `libgst`/`gst` prefix, no extension, lowercase.
+ *
+ * CASE-INSENSITIVE THROUGHOUT, and it was not: the extension strip carried `/i` while the prefix
+ * strip did not, so `LIBGSTAPP.DLL` — the archive's spelling, not ours — kept its prefix and read
+ * as an unknown plugin. Same for a versioned `libgstapp.so.0`. No caller reaches either shape
+ * today, and both would now REPORT rather than mis-parse, which is the direction that ends in a
+ * red build instead of a silent one.
+ */
 function gstPluginBaseName(fileName) {
     return fileName
-        .replace(/^(lib)?gst/, '')
-        .replace(/\.(dylib|so|dll)$/i, '')
+        .replace(/^.*[\\/]/, '')
+        .replace(/^(lib)?gst/i, '')
+        .replace(/\.(dylib|dll)$/i, '')
+        .replace(/\.so(\.\d+)*$/i, '')
         .toLowerCase();
 }
 
@@ -238,9 +248,22 @@ export const GST_PLATFORM_SINKS = {
     win32: ['wasapi2', 'directsound'],
 };
 
-/** Every plugin `<os>-<arch>`'s bundle is expected to carry. */
+/**
+ * Every plugin `<os>-<arch>`'s bundle is expected to carry.
+ *
+ * REFUSES AN OS IT DOES NOT KNOW rather than answering. An unrecognised os makes every
+ * platform sink foreign, so the expectation quietly stops requiring an audio sink at all —
+ * a typo in a target string would have relaxed the check instead of failing it, which is
+ * this file's own subject one level up. Every caller passes a literal.
+ */
 export function expectedGstPlugins(target) {
     const os = String(target).split('-')[0];
+    if (!Object.hasOwn(GST_PLATFORM_SINKS, os)) {
+        throw new Error(
+            `gst-plugins: "${target}" names no platform this bundles for. Known: ` +
+                `${Object.keys(GST_PLATFORM_SINKS).join(', ')} — the \`process.platform\` spelling.`,
+        );
+    }
     const foreign = new Set(
         Object.entries(GST_PLATFORM_SINKS)
             .filter(([platform]) => platform !== os)
