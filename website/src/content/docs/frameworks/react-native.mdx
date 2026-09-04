@@ -157,7 +157,13 @@ once the loop has ended, so an accessor never hands you a window that has closed
 
 When the window first appears, the layer checks its own chrome and warns if the composition left
 you no way to close the window, or two close buttons where one is dead. You will see it on
-stderr; `lastWindowChromeProblems()` gives you the same sentences to assert in a test.
+stderr, and you can assert the same sentences in a test:
+
+```ts
+import { lastWindowChromeProblems } from 'react-native';
+
+lastWindowChromeProblems(); // [] once the window has been checked and is well formed
+```
 
 ## Build it
 
