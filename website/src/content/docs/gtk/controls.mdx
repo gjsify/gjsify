@@ -108,10 +108,15 @@ and `enable-search` adds a filter field for a long list. For the same choice
 presented as a boxed-list row, use
 [Combo Row](/gjsify/adwaita/boxed-lists/#combo-row).
 
+The list is the **model** property — an array of plain strings, or of
+`{ value, label }` objects — and it is the same array the combo row takes, so a
+model written for one works on the other unchanged. Assign a new one at any time:
+the popover follows, and the rows that did not change keep their place.
+
 <AdwWidget title="Gtk.DropDown">
   <Fragment slot="preview">
     ```html
-    <!-- `options` is a JSON array of strings, or of { label, value } objects. -->
+    <!-- `model` is a JSON array of strings, or of { label, value } objects. -->
     <gtk-drop-down model='["Automatic","Always","Never","When busy"]' selected="0"></gtk-drop-down>
     ```
   </Fragment>
