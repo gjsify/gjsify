@@ -52,6 +52,14 @@ export const err = {
             `<${tag}>.${prop} is read-only in the installed GTK. Writing it is a silent no-op in GObject, ` +
                 `so this host refuses it instead of dropping the value.`,
         ),
+    noAccessor: (tag: string, prop: string, accessor: string) =>
+        new GtkHostError(
+            'no-accessor',
+            `<${tag}>.${prop} has to be written through its JS accessor — a null or a list cannot be ` +
+                `handed to set_property, which guesses a GType and finds none — and GJS installed no ` +
+                `"${accessor}" on this object. Assigning it anyway would create a plain JS property: no ` +
+                `GObject write, no error, and notify::${prop} never fires.`,
+        ),
     badEnum: (tag: string, prop: string, nick: string, gtypeName: string) =>
         new GtkHostError(
             'bad-enum',

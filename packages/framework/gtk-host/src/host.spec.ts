@@ -8,6 +8,7 @@
 import { expect, it, on } from '@gjsify/unit';
 
 import Adw from 'gi://Adw?version=1';
+import Gio from 'gi://Gio?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
@@ -752,6 +753,47 @@ export default async () => {
                 expect(widget.label).toBe('set');
                 setProp(label, 'label', undefined);
                 expect(widget.label).toBe('');
+            });
+
+            await it('a NULLABLE property actually clears — set_property(name, null) does not', async () => {
+                // The write, not the value, was the defect (see `writeProperty`): a JS
+                // `null` names no GType, so `set_property` guessed `gpointer`, GObject
+                // logged a CRITICAL and KEPT the old value — at exit 0. Every earlier
+                // removal vector here uses a property whose construction default is a
+                // non-null scalar, which is why it went unseen until an object-valued
+                // prop was removed after mount.
+                //
+                // `tooltip-text` is the scalar half of the same defect: its construction
+                // default IS null, so removing it takes the accessor route.
+                //
+                // NOT the only string that could show it, and the first version of this
+                // note had the reason backwards. Measured: `new Gtk.Button().label` is
+                // NULL — `''` is GTK normalising the WRITE, not the constructed default —
+                // so a GtkButton label-removal vector WOULD discriminate too. It is
+                // `GtkLabel:label` whose constructed default really is `''`, which is why
+                // the pre-existing vector above it uses a label and proves nothing here.
+                const button = createElement('GtkButton', { tooltipText: 'Save' });
+                const widget = materialize(button) as unknown as Gtk.Button;
+                expect(widget.tooltipText).toBe('Save');
+                setProp(button, 'tooltipText', undefined);
+                expect(widget.tooltipText).toBe(null);
+            });
+
+            await it('an OBJECT property clears too — the half that has no scalar default', async () => {
+                // `constructedDefaults` records only scalars, so an object property always
+                // falls back to `get_default_value()`; that answers `null` correctly and
+                // the WRITE was what threw it away. A `Gio.Menu` is the cheapest live
+                // object property in the table — and one of the object properties that
+                // actually CLEARS: `visible-child` and `display` take this same route and
+                // are then refused by GTK's own setter, which `writeProperty`'s docblock
+                // records as the measured residual.
+                const menu = new Gio.Menu();
+                menu.append('Print', 'app.print');
+                const el = createElement('GtkMenuButton', { menuModel: menu });
+                const widget = materialize(el) as unknown as Gtk.MenuButton;
+                expect(widget.get_menu_model()).toBe(menu);
+                setProp(el, 'menuModel', undefined);
+                expect(widget.get_menu_model()).toBe(null);
             });
 
             await it('null means removed too — one rule instead of three translations', async () => {
