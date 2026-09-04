@@ -1174,11 +1174,19 @@ export default async () => {
                 // The nesting from the issue: a `(tabs)` group inside the root stack.
                 // Its `_layout` renders `<Tabs>`, and a `_layout` inside a `_layout`
                 // is what used to describe a header bar inside a header bar.
+                //
+                // THIS IS THE SHAPE THE PACKAGE DOCUMENTS, and the one bar is asserted
+                // here rather than assumed: the `headerShown: false` vector below rests
+                // at TWO, and what makes that trade acceptable is precisely that this
+                // shape — the one written without the option — does not pay for it.
+                // Settled to REST first, so it is the resting composition being counted
+                // and not a moment of the transition into the group.
                 await windowed(app(STILL), async (window, container) => {
                     router.navigate('/one');
                     expect((await settle(() => maybeFind(container, 'AdwViewSwitcher') !== null)) >= 0).toBe(true);
                     const switcher = find(container, 'AdwViewSwitcher') as Adw.ViewSwitcher;
                     expect((await settle(() => switcher.get_mapped())) >= 0).toBe(true);
+                    await settle(() => windowChromeCensus(window).headerBars === 1);
 
                     expect(windowChromeProblems(window)).toStrictEqual([]);
                     expect(windowChromeCensus(window).headerBars).toBe(1);
@@ -1232,12 +1240,22 @@ export default async () => {
                 // to, so the tab level builds a bar. The switcher stays reachable either
                 // way, which is what makes the option survivable rather than a trap.
                 //
-                // TWO BARS AT REST, and that is the price of the option rather than a
-                // defect: the screen on the owning stack's screen draws no bar, so the
-                // stack holds no claim and the WINDOW's bar carries the controls — the
-                // tab level's own bar sits under it without a second set. One header bar
-                // is what the shape WITHOUT `headerShown: false` gets (the vector above),
-                // which is the shape this package now documents.
+                // TWO BARS AT REST, and it is a TRADE that was made deliberately, not a
+                // number that happened. The owning stack's screen draws no bar, so the
+                // stack holds no claim and the WINDOW's bar carries the controls; the tab
+                // level's own bar sits under it without a second set.
+                //
+                // WHY IT WAS TRADED THAT WAY: the alternative is to claim the window's
+                // bar whenever ANY page of the stack has one, which is what this package
+                // did until the vector below. That buys one bar here and pays for it with
+                // a window that draws NO window control at all as soon as the page on
+                // screen has no header — measured, on a shape a manual reader reaches.
+                // An unclosable, unmovable window is not a degraded state, it is a broken
+                // one, and one bar too many is the correct price for never producing it.
+                // The bill also falls on the right shape: `headerShown: false` on a route
+                // GROUP is the pre-#1460 workaround, and the arrangement this package now
+                // documents — the same tree WITHOUT the option — still rests at one bar,
+                // asserted in the vector above.
                 await windowed(app(HEADER_HIDDEN), async (window, container) => {
                     router.navigate('/one');
                     expect((await settle(() => maybeFind(container, 'AdwViewSwitcher') !== null)) >= 0).toBe(true);
