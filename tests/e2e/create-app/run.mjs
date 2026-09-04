@@ -504,8 +504,8 @@ describe('create-app scaffolding options', { timeout: 2 * 60 * 1000 }, () => {
 
 // Top-level await, like the two PnP suites: the reason has to exist before `describe`
 // is called, because `{ skip }` is read when the suite is DEFINED, not when it runs.
-// Logged as well as returned — a skip reason is easy to miss in a 146-suite
-// concurrent run, and the three states this suite can end in (passed, skipped because
+// Logged as well as returned — a skip reason is easy to miss in a concurrent run of
+// every suite in the repository, and the three states this suite can end in (passed, skipped because
 // the release has not published yet, failed) have to be one glance apart.
 //
 // ONE DECISION PER TEMPLATE, because that is the granularity of the condition

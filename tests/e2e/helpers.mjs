@@ -403,7 +403,8 @@ function releaseWindowVerdict(missing, noun, oracle) {
 
 /**
  * The opening clause every release-window skip shares, so the three suites that can
- * hit this state read the same in a 146-suite log and one grep finds all of them.
+ * hit this state read the same in a log of every suite in the repository, and one
+ * grep finds all of them.
  * The tail — WHY this particular suite cannot run — belongs to the caller.
  */
 function registryGapClause(missing, noun) {
