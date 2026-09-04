@@ -336,6 +336,32 @@ export default async () => {
             expect(scanGiNamespaces(shim)).toStrictEqual(['Gtk-4.0']);
         });
 
+        await it('finds them in the bundle a real `gjsify build --app node` writes', async () => {
+            // VERBATIM from `gjsify build src/app.ts --app node` on a two-import
+            // app, both spellings, and this is the case a hand-written shim cannot
+            // stand in for. TWO shims in one bundle means two `require` bindings,
+            // so the second is renamed even without `--minify` — which is the
+            // DEFAULT, and there the loader is called `n` and the arguments are
+            // template literals. A reader keyed on the identifier `require` answers
+            // `[]` here, which is a legal answer, so the artifact ships with no
+            // typelib `Depends:` and nothing says a word.
+            const unminified = [
+                `import { createRequire } from "node:module";`,
+                `const require$1 = createRequire(import.meta.url);`,
+                `let cached$1;`,
+                `function load$1() {`,
+                `	if (cached$1 === void 0) cached$1 = require$1("@gjsify/node-gi/gi").requireGi("Gtk", "4.0");`,
+                `	return cached$1;`,
+                `}`,
+            ].join('\n');
+            const minified =
+                'import{createRequire as e}from"node:module";var t=Object.defineProperty,' +
+                '__name=(e,n)=>t(e,`name`,{value:n,configurable:!0});const n=e(import.meta.url);let r;' +
+                'function load$1(){return r===void 0&&(r=n(`@gjsify/node-gi/gi`).requireGi(`Gtk`,`4.0`)),r}';
+            expect(scanGiNamespaces(unminified)).toStrictEqual(['Gtk-4.0']);
+            expect(scanGiNamespaces(minified)).toStrictEqual(['Gtk-4.0']);
+        });
+
         await it('finds requireGi through every binding node-gi exports it under', async () => {
             // A hand-written node-gi application does not go through the shim,
             // and `requireGi` is both the named and the DEFAULT export

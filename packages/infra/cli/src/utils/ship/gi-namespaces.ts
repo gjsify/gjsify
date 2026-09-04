@@ -35,7 +35,13 @@
 // pass the CLI already uses to compute its own runtime closure — so there is one
 // definition of "what does this file import" rather than two.
 
-import { literalSpecifier, walkModuleAst, type AstNode, type SpecifierNode } from '../cli-runtime-closure.js';
+import {
+    importedSpecifier,
+    staticStringValue,
+    walkModuleAst,
+    type AstNode,
+    type SpecifierNode,
+} from '../cli-runtime-closure.js';
 
 /** The module a `--app node` bundle reaches GI through. */
 const NODE_GI_MODULE = '@gjsify/node-gi/gi';
@@ -53,21 +59,16 @@ export function scanGiNamespaces(source: string): string[] {
     const calls: AstNode[] = [];
 
     walkModuleAst(source, (node) => {
-        if (
-            node.type === 'ImportDeclaration' ||
-            node.type === 'ExportNamedDeclaration' ||
-            node.type === 'ExportAllDeclaration' ||
-            node.type === 'ImportExpression'
-        ) {
-            const specifier = literalSpecifier(node.source as SpecifierNode | undefined);
-            const key = specifier === null ? null : parseGiSpecifier(specifier);
+        const specifier = importedSpecifier(node);
+        if (specifier !== null) {
+            const key = parseGiSpecifier(specifier);
             if (key !== null) found.add(key);
             if (node.type === 'ImportDeclaration' && specifier === NODE_GI_MODULE) {
                 collectNodeGiBindings(node, bindings);
             }
             return;
         }
-        if (node.type === 'VariableDeclarator' && isNodeGiRequire(node.init)) {
+        if (node.type === 'VariableDeclarator' && loadsNodeGiModule(node.init)) {
             const id = node.id as AstNode | undefined;
             if (id?.type === 'Identifier' && typeof id.name === 'string') bindings.add(id.name);
             return;
@@ -121,15 +122,35 @@ function collectNodeGiBindings(node: AstNode, out: Set<string>): void {
     }
 }
 
-/** `require('@gjsify/node-gi/gi')` — the form the bundler's own shim emits. */
-function isNodeGiRequire(node: unknown): boolean {
+/**
+ * A call that LOADS `@gjsify/node-gi/gi` — recognised by its argument, never by
+ * the name of the callee.
+ *
+ * THE CALLEE NAME DOES NOT SURVIVE BUNDLING, and reading it is how the first cut
+ * of this function passed its own tests while answering `[]` for every real
+ * artifact. Measured on `gjsify build --app node` output for a two-import app,
+ * which is the exact input this module exists to read:
+ *
+ *     unminified   const require$1 = createRequire(import.meta.url);
+ *                  … require$1("@gjsify/node-gi/gi").requireGi("Gtk", "4.0")
+ *     minified     const n = e(import.meta.url);
+ *                  … n(`@gjsify/node-gi/gi`).requireGi(`Gtk`, `4.0`)
+ *
+ * Two shims in one bundle means two `require` bindings, so the second is renamed
+ * even without `--minify` (which is the DEFAULT). A reader keyed on the
+ * identifier `require` therefore loses one namespace unminified and both
+ * minified — silently, since an empty namespace list is a legal answer.
+ *
+ * The module STRING is what survives every rename, and it is a precise
+ * discriminator: a call taking `'@gjsify/node-gi/gi'` as its first argument is a
+ * load of that module under any name a bundler gives the loader.
+ */
+function loadsNodeGiModule(node: unknown): boolean {
     if (!node || typeof node !== 'object') return false;
     const call = node as AstNode;
     if (call.type !== 'CallExpression') return false;
-    const callee = call.callee as AstNode | undefined;
-    if (callee?.type !== 'Identifier' || callee.name !== 'require') return false;
     const args = (call.arguments as AstNode[] | undefined) ?? [];
-    return literalSpecifier(args[0] as SpecifierNode | undefined) === NODE_GI_MODULE;
+    return staticStringValue(args[0] as SpecifierNode | undefined) === NODE_GI_MODULE;
 }
 
 /**
@@ -158,14 +179,14 @@ function requireGiNamespace(call: AstNode, bindings: ReadonlySet<string>): strin
         if (property?.type !== 'Identifier' || property.name !== 'requireGi') return null;
         const object = callee.object as AstNode | undefined;
         reached =
-            isNodeGiRequire(object) ||
+            loadsNodeGiModule(object) ||
             (object?.type === 'Identifier' && typeof object.name === 'string' && bindings.has(object.name));
     }
     if (!reached) return null;
 
     const args = (call.arguments as AstNode[] | undefined) ?? [];
-    const namespace = literalSpecifier(args[0] as SpecifierNode | undefined);
+    const namespace = staticStringValue(args[0] as SpecifierNode | undefined);
     if (namespace === null || !NAMESPACE.test(namespace)) return null;
-    const version = literalSpecifier(args[1] as SpecifierNode | undefined);
+    const version = staticStringValue(args[1] as SpecifierNode | undefined);
     return version === null ? namespace : `${namespace}-${version}`;
 }

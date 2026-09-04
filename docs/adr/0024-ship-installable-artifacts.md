@@ -1487,6 +1487,32 @@ decision: a bundle declared for one OS is dropped from every other OS's payload.
 not tidiness — `discoverPayload` stages the whole directory the entry lives in, so without it each
 artifact carries a bundle its own interpreter cannot load, on macOS inside the signed `.app`.
 
+**What a bundler does to the discriminator, measured after the first cut passed its own tests.**
+The `requireGi` reader keyed on a callee named `require`, which is what the plugin emits and what a
+hand-written fixture keeps — and what a bundle never has. Built through the real plugin:
+
+```
+unminified   const require$1 = createRequire(import.meta.url);
+             … require$1("@gjsify/node-gi/gi").requireGi("Gtk", "4.0")
+minified     const n = e(import.meta.url);
+             … n(`@gjsify/node-gi/gi`).requireGi(`Gtk`, `4.0`)
+```
+
+Two shims in one bundle means two `require` bindings, so the second is renamed even without
+`--minify`, which is the default. The identifier-keyed reader answered `["Adw-1"]` unminified and
+`[]` minified — a legal answer either way, so the artifact would have shipped with no typelib
+`Depends:` and the fix would have reported success. The module STRING is what survives every
+rename, so that is the discriminator: a call taking `'@gjsify/node-gi/gi'` as its first argument is
+a load of that module under any name. The spec now asserts against both real outputs verbatim,
+because a hand-written shim cannot stand in for the file that ships — which is the same sentence
+this amendment already carries about the fixtures, one level in.
+
+**What `--from-stage` needs, which is nothing.** The pair is checked where it is decided, and a
+stage assembled by an older gjsify cannot reach the packer at all: `readStageManifest` refuses any
+schema but the current one, in both directions, and says so ("Re-run the `--stage` phase with this
+gjsify"). A second copy of the check at pack time would be a guard watching another mechanism,
+which § Governance names as the smell.
+
 **Correction to § A22, kept as the record per § 7's precedent.** Its closing paragraph is now
 false: the bundle is no longer one path, and the discriminator it called nonexistent is
 `utils/ship/entry-interpreter.ts`. Its diagnosis was right about where the difficulty sits — the

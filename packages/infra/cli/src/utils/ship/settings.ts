@@ -384,9 +384,11 @@ export function resolveShipBundle(input: {
                 '`gjsify.main` with nothing to say so.',
         );
     }
-    const override = perTarget[input.layoutOs];
     const projectWide = typeof declaredTable === 'string' ? declaredTable : undefined;
-    const declared = override ?? projectWide ?? input.pkg.gjsify?.main ?? input.pkg.main;
+    const fallback = input.pkg.gjsify?.main ?? input.pkg.main;
+    const entryFor = (os: HostOs): string | undefined => perTarget[os] ?? projectWide ?? fallback;
+    const override = perTarget[input.layoutOs];
+    const declared = entryFor(input.layoutOs);
     const key =
         override !== undefined
             ? `gjsify.ship.bundle.${input.layoutOs}`
@@ -395,9 +397,20 @@ export function resolveShipBundle(input: {
               : input.pkg.gjsify?.main !== undefined
                 ? 'gjsify.main'
                 : 'main';
-    const foreign = Object.entries(perTarget)
-        .filter(([os, entry]) => os !== input.layoutOs && entry !== undefined && entry !== declared)
-        .map(([, entry]) => entry as string);
+    // RESOLVED per OS, not read off the table — because the entry another target
+    // ships is as often the FALL-THROUGH as it is a declared one, and that is
+    // #1545's own project shape: `main` is the GJS bundle, only darwin declares
+    // its own, and reading the table alone leaves the GJS bundle sitting inside
+    // the signed `.app` with nothing to name it. When nothing is keyed per OS
+    // every target resolves the same entry and this set is empty by construction.
+    const foreign = [
+        ...new Set(
+            (Object.keys(SHIP_APP_OSES) as HostOs[])
+                .filter((os) => os !== input.layoutOs)
+                .map(entryFor)
+                .filter((entry): entry is string => entry !== undefined && entry !== declared),
+        ),
+    ];
     return { declared, key, overridden: override !== undefined, foreign };
 }
 

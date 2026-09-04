@@ -278,6 +278,21 @@ export default async () => {
             expect(resolveShipBundle({ pkg: {}, ship: shared, layoutOs: 'darwin' }).foreign).toStrictEqual([]);
         });
 
+        await it("names the FALL-THROUGH entry too, which is #1545's own project shape", async () => {
+            // Only darwin declares an entry; linux and win32 both resolve
+            // `gjsify.main`. Reading the table alone would call darwin's payload
+            // clean and leave the GJS bundle inside the signed `.app` — the exact
+            // artifact the issue was filed about, minus the launcher.
+            const pkg = { gjsify: { main: 'dist/app.gjs.mjs' } };
+            const ship = { bundle: { darwin: 'dist/app.node.mjs' } };
+            expect(resolveShipBundle({ pkg, ship, layoutOs: 'darwin' }).foreign).toStrictEqual(['dist/app.gjs.mjs']);
+            // …and the targets that kept the fall-through have nothing to drop:
+            // darwin's entry is theirs to exclude, once.
+            expect(resolveShipBundle({ pkg, ship, layoutOs: 'linux' }).foreign).toStrictEqual(['dist/app.node.mjs']);
+            // A project with no table at all resolves one entry everywhere.
+            expect(resolveShipBundle({ pkg, ship: {}, layoutOs: 'darwin' }).foreign).toStrictEqual([]);
+        });
+
         await it('refuses a key it does not read, on the run that does not read it either', async () => {
             // Same silence as `gjsify.ship.app.windows`, one key over: the target
             // keeps `gjsify.main` and every gate stays green.

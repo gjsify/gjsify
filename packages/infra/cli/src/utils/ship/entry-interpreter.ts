@@ -36,7 +36,8 @@
 // which it works. A warning at the end of a `ship` run competes with the
 // artifact path printed beside it, and the artifact is what gets uploaded.
 
-import { literalSpecifier, walkModuleAst, type SpecifierNode } from '../cli-runtime-closure.js';
+import { importedSpecifier, walkModuleAst } from '../cli-runtime-closure.js';
+import type { HostOs } from './types.js';
 
 /** What a shipped artifact's `bin/<name>` can exec. */
 export type ShipInterpreter = 'gjs' | 'node';
@@ -54,15 +55,7 @@ export function entryEvidence(source: string): EntryEvidence {
     const gi = new Set<string>();
     const node = new Set<string>();
     walkModuleAst(source, (astNode) => {
-        if (
-            astNode.type !== 'ImportDeclaration' &&
-            astNode.type !== 'ExportNamedDeclaration' &&
-            astNode.type !== 'ExportAllDeclaration' &&
-            astNode.type !== 'ImportExpression'
-        ) {
-            return;
-        }
-        const specifier = literalSpecifier(astNode.source as SpecifierNode | undefined);
+        const specifier = importedSpecifier(astNode);
         if (specifier === null) return;
         if (specifier.startsWith('gi://')) gi.add(specifier);
         else if (specifier.startsWith('node:')) node.add(specifier);
@@ -82,8 +75,15 @@ export interface EntryCheckInput {
     appKey: string;
     /** The config key the entry came from — `gjsify.main`, `gjsify.ship.bundle[.<os>]`, … */
     bundleKey: string;
-    /** The layout being assembled, which is the key a per-target fix goes under. */
-    layoutOs: string;
+    /**
+     * The layout being assembled, which is the key a per-target fix goes under.
+     *
+     * {@link HostOs} and not `string`: an OS spelling this command does not
+     * assemble for is the silent defect the two resolvers refuse by name, and a
+     * message that offers `gjsify.ship.bundle.<whatever-was-passed>` as the fix
+     * would be the one place that hands the reader the typo back.
+     */
+    layoutOs: HostOs;
 }
 
 /**

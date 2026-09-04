@@ -70,9 +70,29 @@ const { giNodeShimSource } = await import(
  * counterpart derives nothing — which is exactly the defect that survived
  * (#1545, `utils/ship/gi-namespaces.ts`).
  */
+/**
+ * The shim, bound to a name instead of exported — and REFUSING to no-op.
+ *
+ * The import above exists so this text cannot drift from the plugin, and a bare
+ * `.replace()` would give that back: if the shim ever stops ending in an
+ * `export default`, the replacement silently matches nothing, the fixture keeps
+ * two default exports, and no assertion in either ship suite reads the bundle
+ * closely enough to notice.
+ */
+const boundShim = (namespace, version) => {
+    const source = giNodeShimSource(namespace, version);
+    if (!source.includes('export default')) {
+        throw new Error(
+            `ship fixture: giNodeShimSource no longer emits \`export default\`, so binding it to a name ` +
+                `is now guesswork. Read the plugin and update this helper.`,
+        );
+    }
+    return source.replace('export default', `const ${namespace} =`);
+};
+
 export const NODE_BUNDLE = [
     // The rewritten `gi://` import, verbatim from the plugin that writes it.
-    giNodeShimSource('Gtk', '4.0').replace('export default', 'const Gtk ='),
+    boundShim('Gtk', '4.0'),
     // And the OTHER shape a shipped node bundle has: an application written
     // against `@gjsify/node-gi` directly. `@gjsify/node-gi/gi` is external in
     // every `--app node` build (a native addon cannot be bundled), so this import

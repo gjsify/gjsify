@@ -1094,6 +1094,31 @@ misled. These are the upstream source of that claim, and a stale comment is how 
 grows back. Left for a commit of its own because both files path-filter CI job
 selection, and editing them from a docs branch is churn where it is riskiest.
 
+### The payload is "the directory the entry lives in", and that ships a scratch tree
+
+`discoverPayload` stages every file beside the resolved entry, minus the locale tree and minus
+the entries other targets declared (#1545). Everything else in that directory is payload by
+definition, and nobody declared it.
+
+**Measured on the application #1545 was filed from**: `Contents/Resources/lib/` was the project's
+`dist/` verbatim — the two bundles plus **20 PNG screenshots, a `sweep/` directory, four
+debug-probe bundles and a `node_modules`**. The `.app` came to 12 007 054 bytes and most of it is
+not the application. `--verbose` lists the files without commenting on them.
+
+**Why this is not simply "add an ignore list".** The obvious exclusions are wrong in both
+directions. `node_modules` beside the entry is REQUIRED for a `--app node` artifact —
+`utils/ship/app-runtime.ts` stages `@gjsify/node-gi`'s JavaScript into exactly such a directory,
+because the bundle keeps that package external and a `.app` has no consumer `node_modules` to
+resolve it against. And a bundle's own shared chunks are indistinguishable from a project's stray
+files by any rule this tree can write, which is why the foreign-entry exclusion is deliberately
+limited to the DECLARED entries and nothing around them.
+
+So the question is what a payload IS, and the honest answers are a declaration
+(`gjsify.ship.include`/`exclude`, keyed like the two per-target tables) or a build that writes its
+artifacts somewhere the project does not also use as scratch. Both are config surface, so both want
+the ADR treatment rather than a filter someone adds in passing. Until then the fat is visible only
+to a reader of `--verbose`, which is how it stayed unnoticed in the first place.
+
 ### `gjsify ship --sign`: three things M6 did not prove, each with what WAS measured
 
 The signing interface landed whole (ADR 0024 § A12-§ A17) and its darwin half is

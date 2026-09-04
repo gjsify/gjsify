@@ -99,14 +99,19 @@ export interface SpecifierNode {
 }
 
 /**
- * The string a module specifier node names, or `null` when it is computed.
+ * The string a node names statically, or `null` when it is computed.
  *
  * A substitution-free TEMPLATE LITERAL is as static as a quoted string, and
  * skipping it is not hypothetical: the minifier rewrites `await
  * import('gi://GLib?version=2.0')` to a backtick form, so a Literal-only reader
  * silently loses every dynamic import in a built bundle.
+ *
+ * Not named for specifiers, because it does not only read them: the same
+ * question is asked of a CALL ARGUMENT by `utils/ship/gi-namespaces.ts`, whose
+ * `requireGi("Gtk", "4.0")` carries a namespace and a version in exactly the two
+ * spellings above.
  */
-export function literalSpecifier(node: SpecifierNode | undefined): string | null {
+export function staticStringValue(node: SpecifierNode | undefined): string | null {
     if (node?.type === 'Literal') return typeof node.value === 'string' ? node.value : null;
     if (node?.type === 'TemplateLiteral' && node.expressions?.length === 0) {
         const cooked = node.quasis?.[0]?.value?.cooked;
@@ -155,18 +160,32 @@ export function walkModuleAst(code: string, visit: (node: AstNode) => void): voi
     descend(ast);
 }
 
+/**
+ * The module `node` imports from, or `null` when `node` is not an import at all.
+ *
+ * FOUR node types, in one place. Every reader of a built bundle in this tree asks
+ * the same question of the same four — a static `import`, both `export … from`
+ * forms and `import()` — and each copy of that list is a chance for one reader to
+ * miss a form the others catch. The bare side-effect `import "gi://Soup"` is what
+ * that costs when it happens (`utils/ship/gi-namespaces.ts`).
+ */
+export function importedSpecifier(node: AstNode): string | null {
+    if (
+        node.type !== 'ImportDeclaration' &&
+        node.type !== 'ExportNamedDeclaration' &&
+        node.type !== 'ExportAllDeclaration' &&
+        node.type !== 'ImportExpression'
+    ) {
+        return null;
+    }
+    return staticStringValue(node.source as SpecifierNode | undefined);
+}
+
 export function moduleSpecifiers(code: string): string[] {
     const out: string[] = [];
     walkModuleAst(code, (node) => {
-        if (
-            node.type === 'ImportDeclaration' ||
-            node.type === 'ExportNamedDeclaration' ||
-            node.type === 'ExportAllDeclaration' ||
-            node.type === 'ImportExpression'
-        ) {
-            const specifier = literalSpecifier(node.source as SpecifierNode | undefined);
-            if (specifier !== null) out.push(specifier);
-        }
+        const specifier = importedSpecifier(node);
+        if (specifier !== null) out.push(specifier);
     });
     return out;
 }
