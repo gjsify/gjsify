@@ -821,6 +821,33 @@ export default async () => {
             // above an assertion rather than a loop over nothing.
             expect(advised).toBeGreaterThan(0);
         });
+
+        await it('declares a per-value refusal only where one is READ', async () => {
+            // `PropertyRoute.refuses` is optional on the whole type, and `resolve.ts`
+            // consults it in `lookup()` — reached for `as: 'map'` and
+            // `'pixels-or-map'` and for nothing else. So a `refuses` on any other
+            // coercion is a reason nobody ever says: the value takes the ordinary
+            // path and the sentence sits in the table looking answered. A silent
+            // no-op in the mechanism whose whole point is not being silent.
+            const stranded: string[] = [];
+            for (const [primitive, spec] of Object.entries(PRIMITIVES)) {
+                const specs = [spec, ...(spec.switchOn === undefined ? [] : [spec.switchOn.whenTrue])];
+                for (const one of specs) {
+                    for (const [prop, route] of Object.entries(one.props)) {
+                        const routes: readonly PropRoute[] = Array.isArray(route)
+                            ? (route as readonly PropRoute[])
+                            : [route as PropRoute];
+                        for (const single of routes) {
+                            if (single.to !== 'property' || single.refuses === undefined) continue;
+                            if (single.as !== 'map' && single.as !== 'pixels-or-map') {
+                                stranded.push(`${primitive}.${prop}: refuses under as="${single.as}", never read`);
+                            }
+                        }
+                    }
+                }
+            }
+            expect(stranded).toStrictEqual([]);
+        });
     });
 
     await describe('the P2 rows, as data', async () => {
