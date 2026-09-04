@@ -3,20 +3,14 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import {
-    AdwHeaderBar,
-    AdwImageButton,
-    AdwStatusPage,
-    AdwToolbarView,
-    AdwWindowTitle,
-} from '@gjsify/adwaita-nativescript';
+import { Adw, AdwImageButton } from '@gjsify/adwaita-nativescript';
 import { listAddSymbolic, listRemoveSymbolic, sendToSymbolic } from '@gjsify/adwaita-icons/actions';
 import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 import { toolbarViewMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class ToolbarViewNsStory extends StoryView {
-    private _topBar: AdwHeaderBar | null = null;
-    private _bottomBar: AdwHeaderBar | null = null;
+    private _topBar: Adw.HeaderBar | null = null;
+    private _bottomBar: Adw.HeaderBar | null = null;
 
     constructor() {
         super(ToolbarViewNsStory.getMetadata(), 'Default');
@@ -27,13 +21,13 @@ export class ToolbarViewNsStory extends StoryView {
     }
 
     initialize(): void {
-        const view = new AdwToolbarView();
+        const view = new Adw.ToolbarView();
         view.width = 460;
         view.height = 320;
 
         // Top header bar with a window title (matches Adw.HeaderBar + WindowTitle).
-        const header = new AdwHeaderBar();
-        const title = new AdwWindowTitle();
+        const header = new Adw.HeaderBar();
+        const title = new Adw.WindowTitle();
         title.title = 'Documents';
         title.subtitle = '12 items';
         header.setTitleWidget(title);
@@ -41,7 +35,7 @@ export class ToolbarViewNsStory extends StoryView {
         this._topBar = header;
 
         // Content — a status page sits between the toolbars.
-        const content = new AdwStatusPage();
+        const content = new Adw.StatusPage();
         content.iconName = folderSymbolic;
         content.title = 'Your library';
         content.description = 'Content sits between the toolbars and scrolls independently of them.';
@@ -49,9 +43,9 @@ export class ToolbarViewNsStory extends StoryView {
 
         // Bottom action bar — flat start buttons, a centered label and an end
         // button (mirrors the native Gtk.ActionBar with pack_start / center /
-        // pack_end). An AdwHeaderBar is the closest Adwaita primitive with the
+        // pack_end). An Adw.HeaderBar is the closest Adwaita primitive with the
         // start / center-title / end packing the bottom action bar needs.
-        const bottomBar = new AdwHeaderBar();
+        const bottomBar = new Adw.HeaderBar();
 
         const addButton = new AdwImageButton();
         addButton.iconName = listAddSymbolic;
@@ -61,7 +55,7 @@ export class ToolbarViewNsStory extends StoryView {
         removeButton.iconName = listRemoveSymbolic;
         bottomBar.packStart(removeButton);
 
-        const selectionLabel = new AdwWindowTitle();
+        const selectionLabel = new Adw.WindowTitle();
         selectionLabel.title = 'Selection: none';
         bottomBar.setTitleWidget(selectionLabel);
 

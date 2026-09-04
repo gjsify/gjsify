@@ -3,14 +3,14 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwAlertDialog, GtkButton } from '@gjsify/adwaita-nativescript';
+import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { alertDialogMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 /**
- * Story: AdwAlertDialog presented from a button, with cancel/destructive
+ * Story: Adw.AlertDialog presented from a button, with cancel/destructive
  * responses — a 1:1 port of the GTK AlertDialogStory.
  *
- * FIDELITY: NS AdwAlertDialog uses the platform's native confirm()/action()
+ * FIDELITY: NS Adw.AlertDialog uses the platform's native confirm()/action()
  * chrome (not an in-app modal) — same honest on-platform substitution as the
  * widget's design. The destructive emphasis the GTK story applies has no
  * confirm()-level equivalent, so the response labels carry the meaning.
@@ -25,7 +25,7 @@ export class AlertDialogNsStory extends StoryView {
     }
 
     initialize(): void {
-        const button = new GtkButton();
+        const button = new Gtk.Button();
         button.text = 'Show dialog';
         button.variant = 'pill';
         button.horizontalAlignment = 'center';
@@ -37,7 +37,7 @@ export class AlertDialogNsStory extends StoryView {
 
     /** Build + present a fresh dialog, reading the latest args (as the GTK story does). */
     private async _present(): Promise<void> {
-        const dialog = new AdwAlertDialog(this.args.heading as string, this.args.body as string);
+        const dialog = new Adw.AlertDialog(this.args.heading as string, this.args.body as string);
         dialog.addResponse('cancel', 'Cancel');
         dialog.addResponse('delete', 'Delete');
         dialog.defaultResponse = 'cancel';

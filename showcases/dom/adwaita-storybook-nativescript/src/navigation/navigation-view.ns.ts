@@ -3,21 +3,15 @@
 // GTK showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import {
-    GtkButton,
-    AdwHeaderBar,
-    AdwNavigationView,
-    AdwStatusPage,
-    AdwToolbarView,
-} from '@gjsify/adwaita-nativescript';
+import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 import { navigationViewMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class NavigationViewNsStory extends StoryView {
-    private _view: AdwNavigationView | null = null;
-    private _rootHeader: AdwHeaderBar | null = null;
-    private _detailHeader: AdwHeaderBar | null = null;
-    private _detailStatus: AdwStatusPage | null = null;
+    private _view: Adw.NavigationView | null = null;
+    private _rootHeader: Adw.HeaderBar | null = null;
+    private _detailHeader: Adw.HeaderBar | null = null;
+    private _detailStatus: Adw.StatusPage | null = null;
 
     constructor() {
         super(NavigationViewNsStory.getMetadata(), 'Default');
@@ -28,29 +22,29 @@ export class NavigationViewNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._view = new AdwNavigationView();
+        this._view = new Adw.NavigationView();
         this._view.width = 480;
         this._view.height = 340;
 
         // --- Detail page: a status page describing the contact. ---
         const detailTitle = this.args.detailTitle as string;
-        this._detailHeader = new AdwHeaderBar();
+        this._detailHeader = new Adw.HeaderBar();
         this._detailHeader.title = detailTitle;
 
-        this._detailStatus = new AdwStatusPage();
+        this._detailStatus = new Adw.StatusPage();
         this._detailStatus.iconName = avatarDefaultSymbolic;
         this._detailStatus.title = detailTitle;
         this._detailStatus.description = 'Mathematician and writer, the first computer programmer.';
 
-        const detailToolbar = new AdwToolbarView();
+        const detailToolbar = new Adw.ToolbarView();
         detailToolbar.addTopBar(this._detailHeader);
         detailToolbar.setContent(this._detailStatus);
 
         // --- Root page: an "Open contact" pill button that pushes the detail. ---
-        this._rootHeader = new AdwHeaderBar();
+        this._rootHeader = new Adw.HeaderBar();
         this._rootHeader.title = this.args.rootTitle as string;
 
-        const openButton = new GtkButton();
+        const openButton = new Gtk.Button();
         openButton.text = 'Open contact';
         openButton.variant = 'pill';
         openButton.horizontalAlignment = 'center';
@@ -59,7 +53,7 @@ export class NavigationViewNsStory extends StoryView {
             this._view?.push('detail');
         });
 
-        const rootToolbar = new AdwToolbarView();
+        const rootToolbar = new Adw.ToolbarView();
         rootToolbar.addTopBar(this._rootHeader);
         rootToolbar.setContent(openButton);
 

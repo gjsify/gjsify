@@ -1,16 +1,16 @@
-<adw:AdwPreferencesGroup
+<adw:PreferencesGroup
   xmlns="http://schemas.nativescript.org/tns.xsd"
-  xmlns:adw="~/adwaita"
+  xmlns:adw="~/adw"
   title="Account"
   description="Manage how this device signs in and syncs."
 >
-  <adw:AdwEntryRow
+  <adw:EntryRow
     title="Display name"
     text="Grace Hopper"
   />
-  <adw:AdwSwitchRow
+  <adw:SwitchRow
     title="Sync over Wi-Fi only"
     subtitle="Avoid using mobile data for backups"
     active="true"
   />
-</adw:AdwPreferencesGroup>
+</adw:PreferencesGroup>

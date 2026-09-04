@@ -8,7 +8,7 @@
 // The app state machine (register/instantiate, category grouping, show + wire controls,
 // the MCP control surface) lives in @gjsify/storybook-core's StorybookController. This
 // class is the NS StorybookView<StoryView> and owns only the chrome (_buildUI): an
-// AdwNavigationSplitView that ADAPTS to width via an AdwBreakpoint, collapsed to
+// Adw.NavigationSplitView that ADAPTS to width via an AdwBreakpoint, collapsed to
 // master→detail on a phone and three side-by-side panes above the breakpoint.
 
 import type { StoryArgValue } from '@gjsify/stories';
@@ -20,15 +20,9 @@ import {
     type StorySummary,
 } from '@gjsify/storybook-core';
 import {
-    type AdwPreferencesDialog,
+    Adw,
     AdwBreakpoint,
-    AdwHeaderBar,
     AdwImageButton,
-    AdwNavigationSplitView,
-    AdwOverlaySplitView,
-    AdwPreferencesGroup,
-    AdwToolbarView,
-    AdwWindowTitle,
     addBreakpoints,
     attachRowPressFeedback,
     setAdwaitaColorScheme,
@@ -77,19 +71,19 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
 
     /** The single root view the host adds to its page — a collapsed navigation
      *  split view (master story list ⇄ detail preview). */
-    readonly root: AdwNavigationSplitView;
+    readonly root: Adw.NavigationSplitView;
 
     private _listColumn!: StackLayout;
     private _previewSlot!: StackLayout;
-    private _previewTitle!: AdwWindowTitle;
-    private _controlsGroup!: AdwPreferencesGroup;
+    private _previewTitle!: Adw.WindowTitle;
+    private _controlsGroup!: Adw.PreferencesGroup;
     /** Right controls overlay (the GTK OverlaySplitView, sidebar_position=END). */
-    private _controlsSplit!: AdwOverlaySplitView;
+    private _controlsSplit!: Adw.OverlaySplitView;
     /** Back button (visible only in collapsed/phone layout). */
     private _backButton!: AdwImageButton;
     /** Accent for the whole storybook, not for one story. */
     private _appearance = new StorybookNsAppearance();
-    private _appearanceDialog: AdwPreferencesDialog | null = null;
+    private _appearanceDialog: Adw.PreferencesDialog | null = null;
 
     private _rowByTitle = new Map<string, StackLayout>();
 
@@ -100,7 +94,7 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
 
     constructor(options: StorybookNativeOptions) {
         this._options = options;
-        this.root = new AdwNavigationSplitView();
+        this.root = new Adw.NavigationSplitView();
         // Seed the layout mode from the screen width so a wide tablet/desktop opens
         // straight into three panes (no phone-layout flash); the AdwBreakpoint then
         // keeps it exact against the live window width.
@@ -276,17 +270,17 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
     }
 
     private _buildUI(): void {
-        // Each pane is an AdwToolbarView with its OWN header bar, and there is NO
+        // Each pane is an Adw.ToolbarView with its OWN header bar, and there is NO
         // page-level ActionBar: the collapsed split shows one pane at a time, so exactly
         // one header is visible — as each Adw.NavigationPage carries its own in GTK.
 
         // --- Sidebar pane (master) ---
-        const sidebar = new AdwToolbarView();
+        const sidebar = new Adw.ToolbarView();
         sidebar.className = `${sidebar.className} sb-sidebar-pane`.trim();
 
-        const sidebarHeader = new AdwHeaderBar();
+        const sidebarHeader = new Adw.HeaderBar();
         sidebarHeader.className = `${sidebarHeader.className} sb-sidebar-header`.trim();
-        const sidebarTitle = new AdwWindowTitle();
+        const sidebarTitle = new Adw.WindowTitle();
         sidebarTitle.title = this._options.title ?? 'Stories';
         sidebarHeader.setTitleWidget(sidebarTitle);
         sidebar.addTopBar(sidebarHeader);
@@ -303,10 +297,10 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         // --- Detail pane: header bar (back + title + controls toggle) over an
         //     OverlaySplitView whose content is the preview and whose END overlay is the
         //     controls, as in the GTK storybook. ---
-        const detail = new AdwToolbarView();
+        const detail = new Adw.ToolbarView();
         detail.className = `${detail.className} sb-content-pane`.trim();
 
-        const header = new AdwHeaderBar();
+        const header = new Adw.HeaderBar();
         header.className = `${header.className} sb-detail-header`.trim();
         const back = new AdwImageButton();
         back.iconName = goPreviousSymbolic;
@@ -318,7 +312,7 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         this._backButton = back;
         header.packStart(back);
 
-        this._previewTitle = new AdwWindowTitle();
+        this._previewTitle = new Adw.WindowTitle();
         this._previewTitle.title = 'Preview';
         header.setTitleWidget(this._previewTitle);
 
@@ -340,7 +334,7 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
 
         // Preview as content, controls as a right overlay when collapsed or a permanent
         // right pane when expanded.
-        this._controlsSplit = new AdwOverlaySplitView();
+        this._controlsSplit = new Adw.OverlaySplitView();
         this._controlsSplit.collapsed = this._collapsed;
         this._controlsSplit.sidebarPosition = 'end';
         this._controlsSplit.sidebarWidth = 320;
@@ -354,7 +348,7 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         previewScroll.content = this._previewSlot;
         this._controlsSplit.setContent(previewScroll);
 
-        this._controlsGroup = new AdwPreferencesGroup();
+        this._controlsGroup = new Adw.PreferencesGroup();
         this._controlsGroup.title = 'Controls';
         this._controlsGroup.className = `${this._controlsGroup.className} sb-controls-group`.trim();
         const controlsScroll = new ScrollView();

@@ -20,9 +20,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
+import { namespaceExport } from './adwaita-elements.mjs';
 
 /** Where the widget classes live, relative to the repo root. */
 export const NS_WIDGETS_DIR = 'packages/nativescript-bridge/adwaita/src/widgets';
+
+/** The package's `src`, where the clause-2 namespace barrels are re-exported from. */
+export const NS_PACKAGE_SRC = 'packages/nativescript-bridge/adwaita/src';
 
 /**
  * Where a setter's type ALIASES are declared.
@@ -150,6 +154,51 @@ export function readCoreProperties(root) {
  * reports a shipped widget as "not a widget class in the package".
  */
 export const WIDGET_CLASS = '(?:Adw|Gtk)\\w+';
+
+/**
+ * How a CALLER names a widget: the namespace member (`Adw.SwitchRow`) or, for the three
+ * widgets that have none, the class (`AdwImageButton`).
+ *
+ * The class spelling stopped being reachable from the package root in ADR 0034
+ * § Amendment 9, so a reader keyed on {@link WIDGET_CLASS} alone finds nothing in a
+ * migrated caller — and finding nothing is not an error in any of them: they skip an
+ * unresolved name and carry on. Both gates that read caller code (`check-doc-fences`,
+ * `check-storybook-control-parity`) went from full coverage to zero without a word the
+ * first time this was tried, which is why the two spellings live in ONE pattern.
+ */
+export const WIDGET_REFERENCE = '(?:Adw|Gtk)\\.?\\w+';
+
+/**
+ * Namespace member -> the class it binds, e.g. `Adw.SwitchRow` -> `AdwSwitchRow`.
+ *
+ * Read off the package's own `src/namespace/` barrels through the shared reader, so the
+ * placement is stated once. `Gtk.Image` -> `AdwIcon` is the member whose two sides do not
+ * read alike, and it is exactly why this is a lookup and not a string transform.
+ */
+export function readNamespaceSpellings(root) {
+    const spellings = new Map();
+    const namespaces = namespaceExport(root, NS_PACKAGE_SRC);
+    for (const [namespace, members] of namespaces ?? []) {
+        for (const [member, binding] of members) spellings.set(`${namespace}.${member}`, binding);
+    }
+    if (spellings.size === 0) {
+        throw new Error(
+            `${NS_PACKAGE_SRC}/index.ts exports no Adw/Gtk namespace member. Every caller of this package ` +
+                'names its widgets through one (ADR 0034 clause 2), so a reader that finds none reports every ' +
+                'caller as naming nothing — the vacuous pass this module refuses everywhere else.',
+        );
+    }
+    return spellings;
+}
+
+/**
+ * The class a caller's spelling names, or `null` when it names none.
+ *
+ * @param {string} spelling as written in the caller — `Adw.SwitchRow` or `AdwImageButton`
+ * @param {Map<string, string>} spellings from {@link readNamespaceSpellings}
+ */
+export const widgetClassOf = (spelling, spellings) =>
+    spelling.includes('.') ? (spellings.get(spelling) ?? null) : spelling;
 
 /** Every widget source, indexed by the class it declares. */
 export function readWidgets(root) {

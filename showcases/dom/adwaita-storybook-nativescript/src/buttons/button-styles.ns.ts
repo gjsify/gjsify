@@ -6,10 +6,10 @@
 // Adwaita style variants, plus a live demo button driven by the `style` control.
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { GtkButton, type AdwButtonVariant, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+import { Adw, Gtk, type AdwButtonVariant } from '@gjsify/adwaita-nativescript';
 import { buttonStylesMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-// The storybook `style` value → GtkButton variant. `circular` is icon-only in
+// The storybook `style` value → Gtk.Button variant. `circular` is icon-only in
 // the twins; the NS subset has no circular variant, so it falls back to `pill`
 // with a glyph label (mirroring the icon-only intent of the native demo).
 const VARIANT_BY_STYLE: Record<string, AdwButtonVariant> = {
@@ -20,15 +20,15 @@ const VARIANT_BY_STYLE: Record<string, AdwButtonVariant> = {
     flat: 'flat',
 };
 
-function button(label: string, variant: AdwButtonVariant): GtkButton {
-    const btn = new GtkButton();
+function button(label: string, variant: AdwButtonVariant): Gtk.Button {
+    const btn = new Gtk.Button();
     btn.text = label;
     btn.variant = variant;
     return btn;
 }
 
 export class ButtonStylesNsStory extends StoryView {
-    private _demo: GtkButton | null = null;
+    private _demo: Gtk.Button | null = null;
 
     constructor() {
         super(ButtonStylesNsStory.getMetadata(), 'Default');
@@ -39,9 +39,9 @@ export class ButtonStylesNsStory extends StoryView {
     }
 
     initialize(): void {
-        // AdwWrapBox mirrors the native Adw.WrapBox / browser flex-wrap row so the
+        // Adw.WrapBox mirrors the native Adw.WrapBox / browser flex-wrap row so the
         // demo reflows instead of overflowing in a narrow preview.
-        const box = new AdwWrapBox();
+        const box = new Adw.WrapBox();
         box.childSpacing = 12;
         box.lineSpacing = 12;
         box.horizontalAlignment = 'center';

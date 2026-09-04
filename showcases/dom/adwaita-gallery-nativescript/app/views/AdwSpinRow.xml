@@ -1,12 +1,12 @@
-<adw:AdwPreferencesGroup
+<adw:PreferencesGroup
   xmlns="http://schemas.nativescript.org/tns.xsd"
-  xmlns:adw="~/adwaita"
+  xmlns:adw="~/adw"
 >
-  <adw:AdwSpinRow
+  <adw:SpinRow
     title="Copies"
     value="3"
     min="1"
     max="20"
     step="1"
   />
-</adw:AdwPreferencesGroup>
+</adw:PreferencesGroup>

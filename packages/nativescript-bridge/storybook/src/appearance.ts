@@ -34,10 +34,7 @@ import {
     type AdwAccentColorName,
 } from '@gjsify/adwaita-core';
 import {
-    AdwPreferencesDialog,
-    AdwPreferencesGroup,
-    AdwPreferencesPage,
-    AdwSwitchRow,
+    Adw,
     applyAdwaitaNsAccent,
     clearAdwaitaNsAccent,
     NOTIFY_ACTIVE,
@@ -100,17 +97,17 @@ function buildSwatch(accent: AdwAccentColorName): GridLayout {
  * Returned unpresented; the caller adds it to a host cell and calls `present()`, the
  * way every NS dialog in this tree is used.
  */
-export function buildAppearanceDialog(appearance: StorybookNsAppearance): AdwPreferencesDialog {
+export function buildAppearanceDialog(appearance: StorybookNsAppearance): Adw.PreferencesDialog {
     const settings = appearance.settings;
 
-    const dialog = new AdwPreferencesDialog();
+    const dialog = new Adw.PreferencesDialog();
     dialog.title = 'Appearance';
-    const page = new AdwPreferencesPage();
+    const page = new Adw.PreferencesPage();
 
-    const group = new AdwPreferencesGroup();
+    const group = new Adw.PreferencesGroup();
     group.title = 'ACCENT COLOUR';
 
-    const accentSwitch = new AdwSwitchRow();
+    const accentSwitch = new Adw.SwitchRow();
     accentSwitch.title = 'Use a custom accent colour';
     accentSwitch.subtitle = 'Off keeps the default Adwaita blue';
     accentSwitch.active = settings.accentMode === 'custom';
@@ -171,7 +168,7 @@ export function buildAppearanceDialog(appearance: StorybookNsAppearance): AdwPre
  * alone. The span is deliberately larger than the declared column count, which NS
  * clamps — the count differs between the collapsed and expanded layouts.
  */
-export function installAppearanceDialog(root: GridLayout, dialog: AdwPreferencesDialog): void {
+export function installAppearanceDialog(root: GridLayout, dialog: Adw.PreferencesDialog): void {
     GridLayout.setColumn(dialog, 0);
     GridLayout.setColumnSpan(dialog, 3);
     GridLayout.setRow(dialog, 0);

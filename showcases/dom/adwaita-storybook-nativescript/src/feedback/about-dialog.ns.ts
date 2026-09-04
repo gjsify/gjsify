@@ -3,21 +3,21 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwAboutDialog, GtkButton } from '@gjsify/adwaita-nativescript';
+import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { aboutDialogMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 import { GridLayout, ItemSpec } from '@nativescript/core';
 
 /**
- * Story: AdwAboutDialog presented from a button, with app metadata + credits.
+ * Story: Adw.AboutDialog presented from a button, with app metadata + credits.
  *
- * FIDELITY: NS AdwAboutDialog is an in-page modal overlay card (not a separate
+ * FIDELITY: NS Adw.AboutDialog is an in-page modal overlay card (not a separate
  * OS window) and exposes only the scalar fields — it has no developers/designers
  * arrays, so those credits are folded into the developer-name line. The dialog
  * overlay is stacked over the trigger button in a single GridLayout cell so its
  * dimmed scrim covers the stage when presented.
  */
 export class AboutDialogNsStory extends StoryView {
-    private _dialog: AdwAboutDialog | null = null;
+    private _dialog: Adw.AboutDialog | null = null;
 
     constructor() {
         super(AboutDialogNsStory.getMetadata(), 'Default');
@@ -35,7 +35,7 @@ export class AboutDialogNsStory extends StoryView {
         stack.addColumn(new ItemSpec(1, 'star'));
         stack.addRow(new ItemSpec(1, 'star'));
 
-        const button = new GtkButton();
+        const button = new Gtk.Button();
         button.text = 'Show dialog';
         button.variant = 'pill';
         button.horizontalAlignment = 'center';
@@ -45,7 +45,7 @@ export class AboutDialogNsStory extends StoryView {
         GridLayout.setRow(button, 0);
         stack.addChild(button);
 
-        this._dialog = new AdwAboutDialog();
+        this._dialog = new Adw.AboutDialog();
         GridLayout.setColumn(this._dialog, 0);
         GridLayout.setRow(this._dialog, 0);
         stack.addChild(this._dialog);

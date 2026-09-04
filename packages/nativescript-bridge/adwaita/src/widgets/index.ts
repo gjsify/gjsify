@@ -3,15 +3,28 @@
 // Re-exports every Adwaita NativeScript widget. The barrel has NO top-level side
 // effects, so importing a widget class does not eagerly touch the runtime.
 //
+// THIS BARREL IS INTERNAL. It carries the CLASS names (`AdwWrapBox`, `GtkEntry`),
+// which clause 1 derives from each widget's file, and it is not a published subpath:
+// the package root offers these widgets under `Adw.*` / `Gtk.*` only (ADR 0034
+// § Amendment 9), and a second published door onto the same set under the retired
+// spelling would make that removal cosmetic.
+//
 // USING THESE FROM XML. A plain NativeScript app resolves `<ns:Widget>` by loading
 // the module its `xmlns` names and reading `Widget` off the exports
-// (`component-builder`'s `createComponentInstance`), so the way in is an
-// app-local barrel and a namespace:
+// (`component-builder`'s `createComponentInstance`), so the way in is one app-local
+// barrel PER NAMESPACE — which is what makes the prefix carry the library:
 //
-//   // app/adwaita.ts
-//   export { AdwClamp, AdwWrapBox } from '@gjsify/adwaita-nativescript';
+//   // app/adw.ts                        // app/gtk.ts
+//   export * from '@gjsify/adwaita-nativescript/adw';
+//                                        export * from '@gjsify/adwaita-nativescript/gtk';
 //
-//   <adw:AdwWrapBox xmlns:adw="~/adwaita" childSpacing="8"> … </adw:AdwWrapBox>
+//   <adw:WrapBox xmlns:adw="~/adw" childSpacing="8"> … </adw:WrapBox>
+//   <gtk:Entry xmlns:gtk="~/gtk" placeholderText="Search" />
+//
+// TWO BARRELS AND NOT ONE, because the prefix names a MODULE and nothing else: point
+// both prefixes at one module and `<adw:Button>` resolves and is wrong, silently. Two
+// disjoint modules make the wrong prefix a load-time `Module '~/adw' not found for
+// element 'adw:Button'` instead of a lint rule nobody runs.
 //
 // `@gjsify/vite-plugin-gjsify` registers exactly those `xmlns="~/MOD"` barrels
 // (see packages/nativescript-bridge/AGENTS.md). A BARE package specifier does not

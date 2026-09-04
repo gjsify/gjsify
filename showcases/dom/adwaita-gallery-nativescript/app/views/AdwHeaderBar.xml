@@ -1,23 +1,24 @@
-<adw:AdwHeaderBar
+<adw:HeaderBar
   xmlns="http://schemas.nativescript.org/tns.xsd"
-  xmlns:adw="~/adwaita"
+  xmlns:adw="~/adw"
+  xmlns:gtk="~/gtk"
 >
-  <adw:AdwHeaderBar.startBox>
-    <adw:GtkButton
+  <adw:HeaderBar.startBox>
+    <gtk:Button
       text="‹"
       variant="flat"
     />
-  </adw:AdwHeaderBar.startBox>
-  <adw:AdwHeaderBar.titleWidget>
-    <adw:AdwWindowTitle
+  </adw:HeaderBar.startBox>
+  <adw:HeaderBar.titleWidget>
+    <adw:WindowTitle
       title="Text Editor"
       subtitle="notes.md"
     />
-  </adw:AdwHeaderBar.titleWidget>
-  <adw:AdwHeaderBar.endBox>
-    <adw:GtkButton
+  </adw:HeaderBar.titleWidget>
+  <adw:HeaderBar.endBox>
+    <gtk:Button
       text="≡"
       variant="flat"
     />
-  </adw:AdwHeaderBar.endBox>
-</adw:AdwHeaderBar>
+  </adw:HeaderBar.endBox>
+</adw:HeaderBar>

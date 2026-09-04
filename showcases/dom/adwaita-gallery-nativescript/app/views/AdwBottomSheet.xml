@@ -1,24 +1,24 @@
-<adw:AdwBottomSheet
+<adw:BottomSheet
   xmlns="http://schemas.nativescript.org/tns.xsd"
-  xmlns:adw="~/adwaita"
+  xmlns:adw="~/adw"
   openState="true"
 >
-  <adw:AdwBottomSheet.content>
-    <adw:AdwStatusPage
+  <adw:BottomSheet.content>
+    <adw:StatusPage
       title="Now Playing"
       description="The sheet slides up over this."
     />
-  </adw:AdwBottomSheet.content>
-  <adw:AdwBottomSheet.sheet>
-    <adw:AdwPreferencesGroup title="Queue">
-      <adw:AdwActionRow
+  </adw:BottomSheet.content>
+  <adw:BottomSheet.sheet>
+    <adw:PreferencesGroup title="Queue">
+      <adw:ActionRow
         title="Blue Monday"
         subtitle="New Order"
       />
-      <adw:AdwActionRow
+      <adw:ActionRow
         title="Just Like Heaven"
         subtitle="The Cure"
       />
-    </adw:AdwPreferencesGroup>
-  </adw:AdwBottomSheet.sheet>
-</adw:AdwBottomSheet>
+    </adw:PreferencesGroup>
+  </adw:BottomSheet.sheet>
+</adw:BottomSheet>

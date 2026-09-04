@@ -76,9 +76,9 @@ it from an inline list glyph up to a full profile header.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwAvatar } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
 
-    const avatar = new AdwAvatar();
+    const avatar = new Adw.Avatar();
     avatar.text = 'Ada Lovelace';
     avatar.size = 96;
     // The NS avatar always shows derived initials. The CSS-subset widget has no
@@ -130,9 +130,9 @@ space while the message applies.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwBanner } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
 
-    const banner = new AdwBanner();
+    const banner = new Adw.Banner();
     banner.title = 'Metered connection: updates paused';
     banner.buttonLabel = 'Resume';
     banner.revealed = true;
@@ -213,9 +213,9 @@ shows the **disabled-text** placeholder instead.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwShortcutLabel } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
 
-    const shortcut = new AdwShortcutLabel();
+    const shortcut = new Adw.ShortcutLabel();
     // `disabledText` first: an empty accelerator renders the placeholder, so the
     // placeholder has to be in place before the accelerator triggers the rebuild.
     shortcut.disabledText = 'Disabled';
@@ -263,9 +263,9 @@ instead.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwSpinner } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
 
-    const spinner = new AdwSpinner();
+    const spinner = new Adw.Spinner();
     spinner.size = 48;
     ```
   </Fragment>
@@ -325,14 +325,14 @@ give the user a way out, such as a button that creates their first document.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { GtkButton, AdwStatusPage } from '@gjsify/adwaita-nativescript';
+    import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
     import { folderSymbolic } from '@gjsify/adwaita-icons/places';
 
-    const button = new GtkButton();
+    const button = new Gtk.Button();
     button.text = 'New Document';
     button.variant = 'suggested-action';
 
-    const page = new AdwStatusPage();
+    const page = new Adw.StatusPage();
     page.iconName = folderSymbolic; // an Adwaita symbolic icon (SVG string)
     page.title = 'No Documents';
     page.description = 'Documents you create or open will appear here.';
@@ -376,9 +376,9 @@ so a single-line title stays vertically centred.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwWindowTitle } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
 
-    const windowTitle = new AdwWindowTitle();
+    const windowTitle = new Adw.WindowTitle();
     windowTitle.title = 'Inbox';
     windowTitle.subtitle = '3 unread messages';
     ```

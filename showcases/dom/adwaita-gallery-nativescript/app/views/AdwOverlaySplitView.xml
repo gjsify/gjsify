@@ -1,28 +1,28 @@
-<adw:AdwOverlaySplitView
+<adw:OverlaySplitView
   xmlns="http://schemas.nativescript.org/tns.xsd"
-  xmlns:adw="~/adwaita"
+  xmlns:adw="~/adw"
 >
-  <adw:AdwOverlaySplitView.sidebar>
-    <adw:AdwToolbarView>
-      <adw:AdwToolbarView.topBar>
-        <adw:AdwHeaderBar title="Library" />
-      </adw:AdwToolbarView.topBar>
-      <adw:AdwToolbarView.content>
-        <adw:AdwStatusPage title="Sections" />
-      </adw:AdwToolbarView.content>
-    </adw:AdwToolbarView>
-  </adw:AdwOverlaySplitView.sidebar>
-  <adw:AdwOverlaySplitView.content>
-    <adw:AdwToolbarView>
-      <adw:AdwToolbarView.topBar>
-        <adw:AdwHeaderBar title="Your Library" />
-      </adw:AdwToolbarView.topBar>
-      <adw:AdwToolbarView.content>
-        <adw:AdwStatusPage
+  <adw:OverlaySplitView.sidebar>
+    <adw:ToolbarView>
+      <adw:ToolbarView.topBar>
+        <adw:HeaderBar title="Library" />
+      </adw:ToolbarView.topBar>
+      <adw:ToolbarView.content>
+        <adw:StatusPage title="Sections" />
+      </adw:ToolbarView.content>
+    </adw:ToolbarView>
+  </adw:OverlaySplitView.sidebar>
+  <adw:OverlaySplitView.content>
+    <adw:ToolbarView>
+      <adw:ToolbarView.topBar>
+        <adw:HeaderBar title="Your Library" />
+      </adw:ToolbarView.topBar>
+      <adw:ToolbarView.content>
+        <adw:StatusPage
           title="Your Library"
           description="Toggle the sidebar to browse sections."
         />
-      </adw:AdwToolbarView.content>
-    </adw:AdwToolbarView>
-  </adw:AdwOverlaySplitView.content>
-</adw:AdwOverlaySplitView>
+      </adw:ToolbarView.content>
+    </adw:ToolbarView>
+  </adw:OverlaySplitView.content>
+</adw:OverlaySplitView>

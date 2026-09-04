@@ -3,11 +3,11 @@
 // renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwBanner } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { bannerMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class BannerNsStory extends StoryView {
-    private _banner: AdwBanner | null = null;
+    private _banner: Adw.Banner | null = null;
 
     constructor() {
         super(BannerNsStory.getMetadata(), 'Default');
@@ -18,7 +18,7 @@ export class BannerNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._banner = new AdwBanner();
+        this._banner = new Adw.Banner();
         this._sync();
         this.addContent(this._banner);
     }

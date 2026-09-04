@@ -297,10 +297,11 @@ const WINDOWS = [
         title: 'NativeScript',
         tabs: [{ slot: 'nativescript', label: 'TypeScript' }],
         // The XML template is a FILE of the same program, exactly as Blueprint is on
-        // the window above: NativeScript resolves `<adw:AdwClamp>` by loading the
-        // module the template's `xmlns` names, and the TypeScript beside it is the
-        // loader that mounts the template and does what markup cannot say. Standing
-        // alone, either half is not a program.
+        // the window above: NativeScript resolves `<adw:Clamp>` by loading the module
+        // the template's `xmlns` names — one per library, `~/adw` and `~/gtk`, so the
+        // prefix says which one a widget belongs to (ADR 0034 clause 2) — and the
+        // TypeScript beside it is the loader that mounts the template and does what
+        // markup cannot say. Standing alone, either half is not a program.
         //
         // DATA and no longer a slot, and the two are not interchangeable here: an XML
         // template is the one dialect where "it renders" cannot be read off the text.

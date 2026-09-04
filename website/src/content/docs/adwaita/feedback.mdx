@@ -122,9 +122,9 @@ on the desktop.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwToastOverlay } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
 
-    const overlay = new AdwToastOverlay();
+    const overlay = new Adw.ToastOverlay();
     overlay.setContent(content);
 
     // The NativeScript overlay timer is in milliseconds.
@@ -196,9 +196,9 @@ ID, and that ID is what reaches your code. Give one response a **destructive** o
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwAlertDialog } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
 
-    const dialog = new AdwAlertDialog(
+    const dialog = new Adw.AlertDialog(
         'Delete Project?',
         'This will permanently remove the project and all of its files. This action cannot be undone.',
     );
@@ -281,9 +281,9 @@ Legal sub-pages you never lay out yourself.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwAboutDialog } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
 
-    const dialog = new AdwAboutDialog();
+    const dialog = new Adw.AboutDialog();
     dialog.applicationName = 'Adwaita Storybook';
     dialog.applicationIcon = '🗔';
     dialog.version = '0.11.0';
@@ -401,35 +401,28 @@ the web port renders them stacked instead.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import {
-        AdwPreferencesDialog,
-        AdwPreferencesPage,
-        AdwPreferencesGroup,
-        AdwSwitchRow,
-        AdwComboRow,
-        AdwSpinRow,
-    } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
 
-    const dialog = new AdwPreferencesDialog();
+    const dialog = new Adw.PreferencesDialog();
     dialog.title = 'Preferences';
 
-    const page = new AdwPreferencesPage();
-    const group = new AdwPreferencesGroup();
+    const page = new Adw.PreferencesPage();
+    const group = new Adw.PreferencesGroup();
     group.title = 'Appearance';
 
-    const darkStyle = new AdwSwitchRow();
+    const darkStyle = new Adw.SwitchRow();
     darkStyle.title = 'Dark style';
     darkStyle.subtitle = 'Use a dark colour scheme';
     darkStyle.active = true;
     group.addRow(darkStyle);
 
-    const accent = new AdwComboRow();
+    const accent = new Adw.ComboRow();
     accent.title = 'Accent colour';
     accent.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((label) => ({ label, value: label }));
     accent.selected = 0;
     group.addRow(accent);
 
-    const fontSize = new AdwSpinRow();
+    const fontSize = new Adw.SpinRow();
     fontSize.title = 'Font size';
     fontSize.min = 8;
     fontSize.max = 24;

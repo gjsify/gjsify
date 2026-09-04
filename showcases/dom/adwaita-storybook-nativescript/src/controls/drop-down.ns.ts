@@ -3,11 +3,11 @@
 // renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { GtkDropDown } from '@gjsify/adwaita-nativescript';
+import { Gtk } from '@gjsify/adwaita-nativescript';
 import { DROP_DOWN_OPTIONS, dropDownMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class DropDownNsStory extends StoryView {
-    private _dropDown: GtkDropDown | null = null;
+    private _dropDown: Gtk.DropDown | null = null;
 
     constructor() {
         super(DropDownNsStory.getMetadata(), 'Default');
@@ -18,7 +18,7 @@ export class DropDownNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._dropDown = new GtkDropDown();
+        this._dropDown = new Gtk.DropDown();
         this._dropDown.options = DROP_DOWN_OPTIONS.map((label) => ({ value: label, label }));
         this._apply();
         this.addContent(this._dropDown);

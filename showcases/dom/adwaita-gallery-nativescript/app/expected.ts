@@ -11,41 +11,11 @@
 
 import { Label, StackLayout, type View } from '@nativescript/core';
 
-import {
-    AdwAboutDialog,
-    AdwActionRow,
-    AdwAvatar,
-    AdwBanner,
-    AdwBottomSheet,
-    AdwButtonContent,
-    AdwButtonRow,
-    AdwCarousel,
-    AdwClamp,
-    AdwEntryRow,
-    AdwExpanderRow,
-    AdwHeaderBar,
-    AdwNavigationSplitView,
-    AdwNavigationView,
-    AdwOverlaySplitView,
-    AdwPasswordEntryRow,
-    AdwPreferencesDialog,
-    AdwPreferencesGroup,
-    AdwPreferencesPage,
-    AdwShortcutLabel,
-    AdwSpinRow,
-    AdwSpinner,
-    AdwStatusPage,
-    AdwSwitchRow,
-    AdwToolbarView,
-    AdwWindowTitle,
-    AdwWrapBox,
-    GtkButton,
-    GtkEntry,
-} from '@gjsify/adwaita-nativescript';
+import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 
 /** One node of a declared template tree. */
 export interface ExpectNode {
-    /** The XML element name, e.g. `AdwClamp` or `Label`. */
+    /** The XML element name as the template writes it, e.g. `adw:Clamp` or `Label`. */
     tag: string;
     /** The parent property this child asked for, when it asked for one. */
     slot?: string;
@@ -63,207 +33,207 @@ export interface ExpectView {
 
 /** Element name -> the class `Builder` must have instantiated for it. */
 export const ELEMENT_CLASSES: Record<string, new () => View> = {
-    AdwAboutDialog,
-    AdwActionRow,
-    AdwAvatar,
-    AdwBanner,
-    AdwBottomSheet,
-    AdwButtonContent,
-    AdwButtonRow,
-    AdwCarousel,
-    AdwClamp,
-    AdwEntryRow,
-    AdwExpanderRow,
-    AdwHeaderBar,
-    AdwNavigationSplitView,
-    AdwNavigationView,
-    AdwOverlaySplitView,
-    AdwPasswordEntryRow,
-    AdwPreferencesDialog,
-    AdwPreferencesGroup,
-    AdwPreferencesPage,
-    AdwShortcutLabel,
-    AdwSpinRow,
-    AdwSpinner,
-    AdwStatusPage,
-    AdwSwitchRow,
-    AdwToolbarView,
-    AdwWindowTitle,
-    AdwWrapBox,
-    GtkButton,
-    GtkEntry,
+    'adw:AboutDialog': Adw.AboutDialog,
+    'adw:ActionRow': Adw.ActionRow,
+    'adw:Avatar': Adw.Avatar,
+    'adw:Banner': Adw.Banner,
+    'adw:BottomSheet': Adw.BottomSheet,
+    'adw:ButtonContent': Adw.ButtonContent,
+    'adw:ButtonRow': Adw.ButtonRow,
+    'adw:Carousel': Adw.Carousel,
+    'adw:Clamp': Adw.Clamp,
+    'adw:EntryRow': Adw.EntryRow,
+    'adw:ExpanderRow': Adw.ExpanderRow,
+    'adw:HeaderBar': Adw.HeaderBar,
+    'adw:NavigationSplitView': Adw.NavigationSplitView,
+    'adw:NavigationView': Adw.NavigationView,
+    'adw:OverlaySplitView': Adw.OverlaySplitView,
+    'adw:PasswordEntryRow': Adw.PasswordEntryRow,
+    'adw:PreferencesDialog': Adw.PreferencesDialog,
+    'adw:PreferencesGroup': Adw.PreferencesGroup,
+    'adw:PreferencesPage': Adw.PreferencesPage,
+    'adw:ShortcutLabel': Adw.ShortcutLabel,
+    'adw:SpinRow': Adw.SpinRow,
+    'adw:Spinner': Adw.Spinner,
+    'adw:StatusPage': Adw.StatusPage,
+    'adw:SwitchRow': Adw.SwitchRow,
+    'adw:ToolbarView': Adw.ToolbarView,
+    'adw:WindowTitle': Adw.WindowTitle,
+    'adw:WrapBox': Adw.WrapBox,
+    'gtk:Button': Gtk.Button,
+    'gtk:Entry': Gtk.Entry,
     Label,
     StackLayout,
 };
 
 export const EXPECTED: readonly ExpectView[] = [
     { widget: 'Adw.PreferencesGroup', view: 'AdwPreferencesGroup', root:
-        { tag: 'AdwPreferencesGroup', props: {"title":"Account","description":"Manage how this device signs in and syncs."}, children: [
-                { tag: 'AdwEntryRow', props: {"title":"Display name","text":"Grace Hopper"} },
-                { tag: 'AdwSwitchRow', props: {"title":"Sync over Wi-Fi only","subtitle":"Avoid using mobile data for backups","active":true} }
+        { tag: 'adw:PreferencesGroup', props: {"title":"Account","description":"Manage how this device signs in and syncs."}, children: [
+                { tag: 'adw:EntryRow', props: {"title":"Display name","text":"Grace Hopper"} },
+                { tag: 'adw:SwitchRow', props: {"title":"Sync over Wi-Fi only","subtitle":"Avoid using mobile data for backups","active":true} }
             ] }
     },
     { widget: 'Adw.ActionRow', view: 'AdwActionRow', root:
-        { tag: 'AdwPreferencesGroup', children: [
-                { tag: 'AdwActionRow', props: {"title":"Wi-Fi","subtitle":"Connected to Highgarden 5GHz","activatable":true} }
+        { tag: 'adw:PreferencesGroup', children: [
+                { tag: 'adw:ActionRow', props: {"title":"Wi-Fi","subtitle":"Connected to Highgarden 5GHz","activatable":true} }
             ] }
     },
     { widget: 'Adw.SwitchRow', view: 'AdwSwitchRow', root:
-        { tag: 'AdwPreferencesGroup', children: [
-                { tag: 'AdwSwitchRow', props: {"title":"Automatic updates","subtitle":"Download and install updates without asking","active":true} }
+        { tag: 'adw:PreferencesGroup', children: [
+                { tag: 'adw:SwitchRow', props: {"title":"Automatic updates","subtitle":"Download and install updates without asking","active":true} }
             ] }
     },
     { widget: 'Adw.EntryRow', view: 'AdwEntryRow', root:
-        { tag: 'AdwPreferencesGroup', children: [
-                { tag: 'AdwEntryRow', props: {"title":"Display name","text":"Ada Lovelace"} }
+        { tag: 'adw:PreferencesGroup', children: [
+                { tag: 'adw:EntryRow', props: {"title":"Display name","text":"Ada Lovelace"} }
             ] }
     },
     { widget: 'Adw.PasswordEntryRow', view: 'AdwPasswordEntryRow', root:
-        { tag: 'AdwPreferencesGroup', children: [
-                { tag: 'AdwPasswordEntryRow', props: {"title":"Password","text":"correct-horse-battery","revealed":false} }
+        { tag: 'adw:PreferencesGroup', children: [
+                { tag: 'adw:PasswordEntryRow', props: {"title":"Password","text":"correct-horse-battery","revealed":false} }
             ] }
     },
     { widget: 'Adw.SpinRow', view: 'AdwSpinRow', root:
-        { tag: 'AdwPreferencesGroup', children: [
-                { tag: 'AdwSpinRow', props: {"title":"Copies","value":3,"min":1,"max":20,"step":1} }
+        { tag: 'adw:PreferencesGroup', children: [
+                { tag: 'adw:SpinRow', props: {"title":"Copies","value":3,"min":1,"max":20,"step":1} }
             ] }
     },
     { widget: 'Adw.ButtonRow', view: 'AdwButtonRow', root:
-        { tag: 'AdwPreferencesGroup', children: [
-                { tag: 'AdwButtonRow', props: {"title":"Add account"} }
+        { tag: 'adw:PreferencesGroup', children: [
+                { tag: 'adw:ButtonRow', props: {"title":"Add account"} }
             ] }
     },
     { widget: 'Adw.ButtonContent', view: 'AdwButtonContent', root:
-        { tag: 'AdwButtonContent', props: {"id":"download","label":"Download"} }
+        { tag: 'adw:ButtonContent', props: {"id":"download","label":"Download"} }
     },
     { widget: 'Gtk.Button', view: 'GtkButton', root:
         { tag: 'StackLayout', props: {"orientation":"horizontal"}, children: [
-                { tag: 'GtkButton', props: {"text":"Pill","variant":"pill"} },
-                { tag: 'GtkButton', props: {"text":"Suggested","variant":"suggested"} },
-                { tag: 'GtkButton', props: {"text":"Delete","variant":"destructive"} },
-                { tag: 'GtkButton', props: {"text":"Flat","variant":"flat"} }
+                { tag: 'gtk:Button', props: {"text":"Pill","variant":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"Suggested","variant":"suggested"} },
+                { tag: 'gtk:Button', props: {"text":"Delete","variant":"destructive"} },
+                { tag: 'gtk:Button', props: {"text":"Flat","variant":"flat"} }
             ] }
     },
     { widget: 'Gtk.Entry', view: 'GtkEntry', root:
-        { tag: 'GtkEntry', props: {"placeholderText":"Search files…"} }
+        { tag: 'gtk:Entry', props: {"placeholderText":"Search files…"} }
     },
     { widget: 'Adw.Clamp', view: 'AdwClamp', root:
-        { tag: 'AdwClamp', props: {"maximumSize":400,"tighteningThreshold":300}, children: [
+        { tag: 'adw:Clamp', props: {"maximumSize":400,"tighteningThreshold":300}, children: [
                 { tag: 'Label', props: {"class":"card","textWrap":true,"text":"This content is clamped: it stops growing past the maximum size and stays centred."} }
             ] }
     },
     { widget: 'Adw.HeaderBar', view: 'AdwHeaderBar', root:
-        { tag: 'AdwHeaderBar', children: [
-                { tag: 'GtkButton', slot: 'startBox', props: {"text":"‹","variant":"flat"} },
-                { tag: 'AdwWindowTitle', slot: 'titleWidget', props: {"title":"Text Editor","subtitle":"notes.md"} },
-                { tag: 'GtkButton', slot: 'endBox', props: {"text":"≡","variant":"flat"} }
+        { tag: 'adw:HeaderBar', children: [
+                { tag: 'gtk:Button', slot: 'startBox', props: {"text":"‹","variant":"flat"} },
+                { tag: 'adw:WindowTitle', slot: 'titleWidget', props: {"title":"Text Editor","subtitle":"notes.md"} },
+                { tag: 'gtk:Button', slot: 'endBox', props: {"text":"≡","variant":"flat"} }
             ] }
     },
     { widget: 'Adw.ToolbarView', view: 'AdwToolbarView', root:
-        { tag: 'AdwToolbarView', children: [
-                { tag: 'AdwHeaderBar', slot: 'topBar', props: {"title":"Documents","subtitle":"12 items"} },
-                { tag: 'AdwStatusPage', slot: 'content', props: {"id":"library","title":"Your library","description":"Content sits between the toolbars and scrolls independently of them."} },
-                { tag: 'AdwHeaderBar', slot: 'bottomBar', children: [
-                        { tag: 'AdwWindowTitle', slot: 'titleWidget', props: {"title":"Selection: none"} }
+        { tag: 'adw:ToolbarView', children: [
+                { tag: 'adw:HeaderBar', slot: 'topBar', props: {"title":"Documents","subtitle":"12 items"} },
+                { tag: 'adw:StatusPage', slot: 'content', props: {"id":"library","title":"Your library","description":"Content sits between the toolbars and scrolls independently of them."} },
+                { tag: 'adw:HeaderBar', slot: 'bottomBar', children: [
+                        { tag: 'adw:WindowTitle', slot: 'titleWidget', props: {"title":"Selection: none"} }
                     ] }
             ] }
     },
     { widget: 'Adw.WrapBox', view: 'AdwWrapBox', root:
-        { tag: 'AdwWrapBox', props: {"childSpacing":8,"lineSpacing":8}, children: [
-                { tag: 'GtkButton', props: {"text":"Design","variant":"pill"} },
-                { tag: 'GtkButton', props: {"text":"Adwaita","variant":"pill"} },
-                { tag: 'GtkButton', props: {"text":"GNOME","variant":"pill"} },
-                { tag: 'GtkButton', props: {"text":"GTK","variant":"pill"} },
-                { tag: 'GtkButton', props: {"text":"TypeScript","variant":"pill"} },
-                { tag: 'GtkButton', props: {"text":"Storybook","variant":"pill"} }
+        { tag: 'adw:WrapBox', props: {"childSpacing":8,"lineSpacing":8}, children: [
+                { tag: 'gtk:Button', props: {"text":"Design","variant":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"Adwaita","variant":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"GNOME","variant":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"GTK","variant":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"TypeScript","variant":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"Storybook","variant":"pill"} }
             ] }
     },
     { widget: 'Adw.Avatar', view: 'AdwAvatar', root:
-        { tag: 'AdwAvatar', props: {"text":"Ada Lovelace","size":96} }
+        { tag: 'adw:Avatar', props: {"text":"Ada Lovelace","size":96} }
     },
     { widget: 'Adw.Banner', view: 'AdwBanner', root:
-        { tag: 'AdwBanner', props: {"title":"Metered connection: updates paused","buttonLabel":"Resume","revealed":true} }
+        { tag: 'adw:Banner', props: {"title":"Metered connection: updates paused","buttonLabel":"Resume","revealed":true} }
     },
     { widget: 'Adw.ShortcutLabel', view: 'AdwShortcutLabel', root:
-        { tag: 'AdwShortcutLabel', props: {"accelerator":"<Control>C"} }
+        { tag: 'adw:ShortcutLabel', props: {"accelerator":"<Control>C"} }
     },
     { widget: 'Adw.Spinner', view: 'AdwSpinner', root:
-        { tag: 'AdwSpinner', props: {"spinning":true,"size":48} }
+        { tag: 'adw:Spinner', props: {"spinning":true,"size":48} }
     },
     { widget: 'Adw.StatusPage', view: 'AdwStatusPage', root:
-        { tag: 'AdwStatusPage', props: {"iconText":"📁","title":"No Documents","description":"Documents you create or open will appear here."} }
+        { tag: 'adw:StatusPage', props: {"iconText":"📁","title":"No Documents","description":"Documents you create or open will appear here."} }
     },
     { widget: 'Adw.WindowTitle', view: 'AdwWindowTitle', root:
-        { tag: 'AdwWindowTitle', props: {"title":"Inbox","subtitle":"3 unread messages"} }
+        { tag: 'adw:WindowTitle', props: {"title":"Inbox","subtitle":"3 unread messages"} }
     },
     { widget: 'Adw.AboutDialog', view: 'AdwAboutDialog', root:
-        { tag: 'AdwAboutDialog', props: {"applicationName":"Adwaita Gallery","version":"1.0.0","developerName":"The GNOME Project","comments":"A tour of the Adwaita widgets on NativeScript.","website":"https://gjsify.org","copyright":"© 2026 The GNOME Project","open":false} }
+        { tag: 'adw:AboutDialog', props: {"applicationName":"Adwaita Gallery","version":"1.0.0","developerName":"The GNOME Project","comments":"A tour of the Adwaita widgets on NativeScript.","website":"https://gjsify.org","copyright":"© 2026 The GNOME Project","open":false} }
     },
     { widget: 'Adw.ExpanderRow', view: 'AdwExpanderRow', root:
-        { tag: 'AdwPreferencesGroup', children: [
-                { tag: 'AdwExpanderRow', props: {"title":"Advanced","subtitle":"Options most people leave alone","expanded":true}, children: [
-                        { tag: 'AdwSwitchRow', props: {"title":"Developer mode","active":false} },
-                        { tag: 'AdwEntryRow', props: {"title":"Endpoint","text":"https://example.invalid"} }
+        { tag: 'adw:PreferencesGroup', children: [
+                { tag: 'adw:ExpanderRow', props: {"title":"Advanced","subtitle":"Options most people leave alone","expanded":true}, children: [
+                        { tag: 'adw:SwitchRow', props: {"title":"Developer mode","active":false} },
+                        { tag: 'adw:EntryRow', props: {"title":"Endpoint","text":"https://example.invalid"} }
                     ] }
             ] }
     },
     { widget: 'Adw.Carousel', view: 'AdwCarousel', root:
-        { tag: 'AdwCarousel', children: [
-                { tag: 'AdwStatusPage', props: {"iconText":"①","title":"Welcome"} },
-                { tag: 'AdwStatusPage', props: {"iconText":"②","title":"Sync"} },
-                { tag: 'AdwStatusPage', props: {"iconText":"③","title":"Done"} }
+        { tag: 'adw:Carousel', children: [
+                { tag: 'adw:StatusPage', props: {"iconText":"①","title":"Welcome"} },
+                { tag: 'adw:StatusPage', props: {"iconText":"②","title":"Sync"} },
+                { tag: 'adw:StatusPage', props: {"iconText":"③","title":"Done"} }
             ] }
     },
     { widget: 'Adw.NavigationSplitView', view: 'AdwNavigationSplitView', root:
-        { tag: 'AdwNavigationSplitView', children: [
-                { tag: 'AdwToolbarView', slot: 'sidebar', children: [
-                        { tag: 'AdwHeaderBar', slot: 'topBar', props: {"title":"Mailboxes"} },
-                        { tag: 'AdwStatusPage', slot: 'content', props: {"title":"Mailboxes"} }
+        { tag: 'adw:NavigationSplitView', children: [
+                { tag: 'adw:ToolbarView', slot: 'sidebar', children: [
+                        { tag: 'adw:HeaderBar', slot: 'topBar', props: {"title":"Mailboxes"} },
+                        { tag: 'adw:StatusPage', slot: 'content', props: {"title":"Mailboxes"} }
                     ] },
-                { tag: 'AdwToolbarView', slot: 'content', children: [
-                        { tag: 'AdwHeaderBar', slot: 'topBar', props: {"title":"All Mail"} },
-                        { tag: 'AdwStatusPage', slot: 'content', props: {"title":"All Mail","description":"Select a conversation from the list to read it here."} }
+                { tag: 'adw:ToolbarView', slot: 'content', children: [
+                        { tag: 'adw:HeaderBar', slot: 'topBar', props: {"title":"All Mail"} },
+                        { tag: 'adw:StatusPage', slot: 'content', props: {"title":"All Mail","description":"Select a conversation from the list to read it here."} }
                     ] }
             ] }
     },
     { widget: 'Adw.OverlaySplitView', view: 'AdwOverlaySplitView', root:
-        { tag: 'AdwOverlaySplitView', children: [
-                { tag: 'AdwToolbarView', slot: 'sidebar', children: [
-                        { tag: 'AdwHeaderBar', slot: 'topBar', props: {"title":"Library"} },
-                        { tag: 'AdwStatusPage', slot: 'content', props: {"title":"Sections"} }
+        { tag: 'adw:OverlaySplitView', children: [
+                { tag: 'adw:ToolbarView', slot: 'sidebar', children: [
+                        { tag: 'adw:HeaderBar', slot: 'topBar', props: {"title":"Library"} },
+                        { tag: 'adw:StatusPage', slot: 'content', props: {"title":"Sections"} }
                     ] },
-                { tag: 'AdwToolbarView', slot: 'content', children: [
-                        { tag: 'AdwHeaderBar', slot: 'topBar', props: {"title":"Your Library"} },
-                        { tag: 'AdwStatusPage', slot: 'content', props: {"title":"Your Library","description":"Toggle the sidebar to browse sections."} }
+                { tag: 'adw:ToolbarView', slot: 'content', children: [
+                        { tag: 'adw:HeaderBar', slot: 'topBar', props: {"title":"Your Library"} },
+                        { tag: 'adw:StatusPage', slot: 'content', props: {"title":"Your Library","description":"Toggle the sidebar to browse sections."} }
                     ] }
             ] }
     },
     { widget: 'Adw.NavigationView', view: 'AdwNavigationView', root:
-        { tag: 'AdwNavigationView', children: [
-                { tag: 'AdwToolbarView', children: [
-                        { tag: 'AdwHeaderBar', slot: 'topBar', props: {"title":"Contacts"} },
-                        { tag: 'AdwStatusPage', slot: 'content', props: {"title":"Contacts","description":"Push a page to see the transition."} }
+        { tag: 'adw:NavigationView', children: [
+                { tag: 'adw:ToolbarView', children: [
+                        { tag: 'adw:HeaderBar', slot: 'topBar', props: {"title":"Contacts"} },
+                        { tag: 'adw:StatusPage', slot: 'content', props: {"title":"Contacts","description":"Push a page to see the transition."} }
                     ] },
-                { tag: 'AdwToolbarView', children: [
-                        { tag: 'AdwHeaderBar', slot: 'topBar', props: {"title":"Ada Lovelace"} },
-                        { tag: 'AdwStatusPage', slot: 'content', props: {"title":"Ada Lovelace","description":"Mathematician and writer, the first computer programmer."} }
+                { tag: 'adw:ToolbarView', children: [
+                        { tag: 'adw:HeaderBar', slot: 'topBar', props: {"title":"Ada Lovelace"} },
+                        { tag: 'adw:StatusPage', slot: 'content', props: {"title":"Ada Lovelace","description":"Mathematician and writer, the first computer programmer."} }
                     ] }
             ] }
     },
     { widget: 'Adw.BottomSheet', view: 'AdwBottomSheet', root:
-        { tag: 'AdwBottomSheet', props: {"openState":true}, children: [
-                { tag: 'AdwStatusPage', slot: 'content', props: {"title":"Now Playing","description":"The sheet slides up over this."} },
-                { tag: 'AdwPreferencesGroup', slot: 'sheet', props: {"title":"Queue"}, children: [
-                        { tag: 'AdwActionRow', props: {"title":"Blue Monday","subtitle":"New Order"} },
-                        { tag: 'AdwActionRow', props: {"title":"Just Like Heaven","subtitle":"The Cure"} }
+        { tag: 'adw:BottomSheet', props: {"openState":true}, children: [
+                { tag: 'adw:StatusPage', slot: 'content', props: {"title":"Now Playing","description":"The sheet slides up over this."} },
+                { tag: 'adw:PreferencesGroup', slot: 'sheet', props: {"title":"Queue"}, children: [
+                        { tag: 'adw:ActionRow', props: {"title":"Blue Monday","subtitle":"New Order"} },
+                        { tag: 'adw:ActionRow', props: {"title":"Just Like Heaven","subtitle":"The Cure"} }
                     ] }
             ] }
     },
     { widget: 'Adw.PreferencesDialog', view: 'AdwPreferencesDialog', root:
-        { tag: 'AdwPreferencesDialog', props: {"title":"Preferences","open":false}, children: [
-                { tag: 'AdwPreferencesPage', props: {"title":"General"}, children: [
-                        { tag: 'AdwPreferencesGroup', props: {"title":"Appearance"}, children: [
-                                { tag: 'AdwSwitchRow', props: {"title":"Dark mode","active":true} }
+        { tag: 'adw:PreferencesDialog', props: {"title":"Preferences","open":false}, children: [
+                { tag: 'adw:PreferencesPage', props: {"title":"General"}, children: [
+                        { tag: 'adw:PreferencesGroup', props: {"title":"Appearance"}, children: [
+                                { tag: 'adw:SwitchRow', props: {"title":"Dark mode","active":true} }
                             ] }
                     ] }
             ] }

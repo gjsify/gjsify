@@ -3,13 +3,13 @@
 // (imported from the GTK showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwInlineViewSwitcher, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+import { Adw, type AdwViewPage } from '@gjsify/adwaita-nativescript';
 import { documentEditSymbolic, viewGridSymbolic } from '@gjsify/adwaita-icons/actions';
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 import { inlineViewSwitcherMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 // The three pages, mirroring the native demo (Overview / Activity / Settings).
-// `icon` is a REAL Adwaita symbolic SVG string (rendered large by AdwStatusPage).
+// `icon` is a REAL Adwaita symbolic SVG string (rendered large by Adw.StatusPage).
 const PAGES: ReadonlyArray<{ title: string; icon: string; body: string }> = [
     { title: 'Overview', icon: viewGridSymbolic, body: 'A quick summary of your project.' },
     { title: 'Activity', icon: documentEditSymbolic, body: 'Recent edits and changes.' },
@@ -17,7 +17,7 @@ const PAGES: ReadonlyArray<{ title: string; icon: string; body: string }> = [
 ];
 
 export class InlineViewSwitcherNsStory extends StoryView {
-    private _switcher: AdwInlineViewSwitcher | null = null;
+    private _switcher: Adw.InlineViewSwitcher | null = null;
 
     constructor() {
         super(InlineViewSwitcherNsStory.getMetadata(), 'Default');
@@ -28,7 +28,7 @@ export class InlineViewSwitcherNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._switcher = new AdwInlineViewSwitcher();
+        this._switcher = new Adw.InlineViewSwitcher();
         this._syncViews();
         this.addContent(this._switcher);
     }
@@ -53,8 +53,8 @@ export class InlineViewSwitcherNsStory extends StoryView {
         );
     }
 
-    private _buildPage(page: { title: string; icon: string; body: string }): AdwStatusPage {
-        const status = new AdwStatusPage();
+    private _buildPage(page: { title: string; icon: string; body: string }): Adw.StatusPage {
+        const status = new Adw.StatusPage();
         status.iconName = page.icon;
         status.title = page.title;
         status.description = page.body;

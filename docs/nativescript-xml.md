@@ -14,6 +14,49 @@ registers every element in the `ELEMENTS` map with the `registerElement` global 
 (`@nativescript/angular`, `nativescript-vue`), so in a plain Vite-built app the call is a
 no-op. A plain XML app uses the `xmlns="~/…"` barrel instead and needs no registration.
 
+**The two routes spell a widget differently, and both spellings are its only one.** The
+`registerElement` dialect has ONE flat global namespace and no prefix, so a widget is
+registered under its class name (`<AdwSwitchRow>`, `<GtkEntry>`) — the library lives in the
+name because nothing else can carry it. The `xmlns` dialect has a prefix, so it carries the
+library there and the element is the namespace MEMBER (`<adw:SwitchRow>`, `<gtk:Entry>`),
+which is what the package root exports since ADR 0034 § Amendment 9.
+
+## One barrel per library, and why not one barrel with both
+
+`xmlns` names a MODULE — `component-builder`'s `createComponentInstance` ends in
+`instanceModule[elementName]` and does nothing else with the prefix. Two prefixes may
+therefore point at one module, and that is the arrangement to refuse: the module would
+export `Clamp` and `Button` together, `<adw:Button>` would resolve, and NativeScript would
+build the GTK button under the Adwaita prefix at exit 0. The prefix is the ONLY thing in
+this dialect that says which library a widget belongs to, so it must be the only thing that
+selects the module.
+
+So an app declares one barrel per library, and the package publishes each namespace as a
+subpath so the barrel is one line:
+
+```ts
+// app/adw.ts                                    // app/gtk.ts
+export * from '@gjsify/adwaita-nativescript/adw';
+                                                 export * from '@gjsify/adwaita-nativescript/gtk';
+```
+
+```xml
+<adw:PreferencesGroup xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:adw="~/adw">
+  <adw:SwitchRow title="Automatic updates" active="true" />
+</adw:PreferencesGroup>
+```
+
+`findMatch` in `module-name-resolver/qualifier-matcher` compares the resolved path for
+EQUALITY, so `~/adw` resolves to that barrel and nothing else, and a member it does not
+export throws out of `createComponentInstance`'s catch:
+`Module '~/adw' not found for element 'adw:Button'`. A wrong prefix is a load failure rather
+than a lint rule nobody runs — measured against upstream's own `getComponentModule`, ADR
+0034 § Amendment 9.
+
+**A widget with no namespace member has no name here.** `AdwImageButton`, `AdwSliderRow` and
+`AdwDataGrid` have no GIR name, so neither barrel exports them; an app's own barrel may
+re-export the class, and the gallery generator THROWS rather than emitting one unprefixed.
+
 Only `View` subclasses are in that map. `AdwAlertDialog` extends `Observable` and
 `AdwToast` is a plain value class, so neither is an element in any dialect — a toast is
 raised by calling `showToast()` on an `AdwToastOverlay`, which IS a `View` and IS in the
@@ -81,7 +124,8 @@ GridLayout's track spelling is the documented trade.
 |---|---|---|
 | both rules, package-wide | all XML-offered classes and their ancestors | `scripts/check-nativescript-xml-doors.mjs` |
 | the shared reader | one parser, so the two gates cannot disagree | `scripts/nativescript-xml-doors.mjs` |
-| the website gallery's templates | the 28 templates the docs ship | `scripts/check-generated-website-data.mjs` |
+| the website gallery's templates | the 28 templates the docs ship, each element under its prefix and in its barrel | `scripts/check-generated-website-data.mjs` |
+| how a CALLER spells a widget | every consumer in the repo, incl. the `.mdx` fences no compiler reads | `scripts/check-vocabulary-alignment.mjs` |
 | the run | every gallery template inflated on a device | [`showcases/dom/adwaita-gallery-nativescript`](../showcases/dom/adwaita-gallery-nativescript) |
 
 The static gates are plain Node and run in `audit-runtimes.yml` on both legs. The device

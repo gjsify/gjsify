@@ -2,11 +2,11 @@
 // toggle-group.story.ts and browser toggle-group.web.ts (imported from the GTK
 // showcase's renderer-agnostic *.meta.ts barrel).
 //
-// NS AdwToggleGroup is an Adwaita LINKED toggle group of icon+label segments with
+// NS Adw.ToggleGroup is an Adwaita LINKED toggle group of icon+label segments with
 // `selected` (index), matching the GTK/browser twins (icon + label per toggle).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwToggleGroup } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { viewGridSymbolic, viewListSymbolic, viewPagedSymbolic } from '@gjsify/adwaita-icons/actions';
 import { toggleGroupMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
@@ -18,7 +18,7 @@ const TOGGLES = [
 ];
 
 export class ToggleGroupNsStory extends StoryView {
-    private _group: AdwToggleGroup | null = null;
+    private _group: Adw.ToggleGroup | null = null;
 
     constructor() {
         super(ToggleGroupNsStory.getMetadata(), 'Default');
@@ -29,7 +29,7 @@ export class ToggleGroupNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._group = new AdwToggleGroup();
+        this._group = new Adw.ToggleGroup();
         this._group.setToggles(TOGGLES);
         this._syncGroup();
         this.addContent(this._group);

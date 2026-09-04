@@ -3,11 +3,11 @@
 // renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwSpinner } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { spinnerMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class SpinnerNsStory extends StoryView {
-    private _spinner: AdwSpinner | null = null;
+    private _spinner: Adw.Spinner | null = null;
 
     constructor() {
         super(SpinnerNsStory.getMetadata(), 'Default');
@@ -18,7 +18,7 @@ export class SpinnerNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._spinner = new AdwSpinner();
+        this._spinner = new Adw.Spinner();
         this._spinner.size = this.args.size as number;
         this.addContent(this._spinner);
     }

@@ -110,6 +110,7 @@ import {
     COERCERS,
     membersOf,
     readElements,
+    readNamespaceSpellings,
     readTypeSources,
     readWidgets,
     setterOf,
@@ -827,7 +828,18 @@ if (nsSources.size === 0) {
     // the emitted text against `nsDeclaredClasses`, which is `export class <anything>`
     // over the widget files and knows no prefix rule, so a generator cannot agree with
     // itself past them.
-    const barrelText = readFileSync(join(ROOT, NS_GENERATED.barrel), 'utf8');
+    const barrelTexts = Object.fromEntries(
+        Object.entries(NS_GENERATED.barrels).map(([prefix, rel]) => [prefix, readFileSync(join(ROOT, rel), 'utf8')]),
+    );
+    // Class -> the XML name of it, off the package's OWN namespace barrels. That is the
+    // independent side: `nsDeclaredClasses` knows every class and no prefix rule, these
+    // know the placement and no template, and the generator is what has to agree with
+    // both. `Gtk.Image` binding `AdwIcon` is why this is a lookup and not a transform.
+    const nsPlacement = new Map();
+    for (const [spelling, klass] of readNamespaceSpellings(ROOT)) {
+        const [namespace, member] = spelling.split('.');
+        nsPlacement.set(klass, { prefix: namespace.toLowerCase(), member });
+    }
     const ownTagsOf = (node, into = new Set()) => {
         if (nsDeclaredClasses.has(node.tag)) into.add(node.tag);
         for (const child of node.children ?? []) ownTagsOf(child, into);
@@ -844,18 +856,35 @@ if (nsSources.size === 0) {
             continue;
         }
         for (const tag of ownTagsOf(template.root)) {
-            if (new RegExp(`</?(?!adw:)${tag}[\\s/>.]`).test(have)) {
+            const place = nsPlacement.get(tag);
+            if (place === undefined) {
                 failures.push(
-                    `${template.widget}: ${rel} names <${tag}> without the \`adw:\` prefix, and ${tag} is a class ` +
-                        'this package declares. NativeScript resolves an unprefixed element against its OWN ' +
-                        'components, so Builder finds nothing and the template renders none of it.',
+                    `${template.widget}: ${rel} names <${tag}>, a class this package declares that has NO member ` +
+                        'in either namespace barrel, so the XML dialect has no name for it (ADR 0034 clause 2). ' +
+                        'Give it a member, or give this block a refusal.',
+                );
+                continue;
+            }
+            if (new RegExp(`</?(?:\\w+:)?${tag}[\\s/>.]`).test(have)) {
+                failures.push(
+                    `${template.widget}: ${rel} names <${tag}> under its CLASS name. That name left the package ` +
+                        `root in ADR 0034 § Amendment 9; the element is <${place.prefix}:${place.member}>, and ` +
+                        'an element neither barrel exports resolves to nothing at load.',
                 );
             }
-            if (!new RegExp(`^\\s+${tag},$`, 'm').test(barrelText)) {
+            if (!new RegExp(`</?${place.prefix}:${place.member}[\\s/>.]`).test(have)) {
                 failures.push(
-                    `${template.widget}: ${rel} names <${tag}>, which ${NS_GENERATED.barrel} does not re-export. ` +
-                        'That barrel IS the module `xmlns:adw` points at, so the load fails with `Module ' +
-                        `'${tag}' not found for element\`.`,
+                    `${template.widget}: ${rel} names ${tag} nowhere as <${place.prefix}:${place.member}>, which ` +
+                        'is the one spelling of it this dialect has. NativeScript resolves an element it cannot ' +
+                        'place against its OWN components, so Builder finds nothing and renders none of it.',
+                );
+            }
+            if (!new RegExp(`^\\s+${place.member},$`, 'm').test(barrelTexts[place.prefix])) {
+                failures.push(
+                    `${template.widget}: ${rel} names <${place.prefix}:${place.member}>, which ` +
+                        `${NS_GENERATED.barrels[place.prefix]} does not re-export. That barrel IS the module ` +
+                        `\`xmlns:${place.prefix}\` points at, so the load fails with \`Module ` +
+                        `'${place.member}' not found for element\`.`,
                 );
             }
         }

@@ -2,7 +2,7 @@
 
 - Status: **Proposed** — amended twice on 2026-08-30: § Amendment (the premise under the
   stage order moved; stages 2 and 3 landed first) and § Amendment 2 (stages 6 and 4 landed;
-  the property numbers were re-measured and moved); four times on 2026-09-01; and once on
+  the property numbers were re-measured and moved); four times on 2026-09-01; and twice on
   2026-09-03. § Amendments 3 and 4 carry clause 2 onto React Native and the web.
   § Amendment 5 holds clause 1 on `@gjsify/adwaita-web`: nine elements took their GIR
   names, `<adw-radio>` became a declared `webOnly`, and the printed distance was widened to
@@ -12,9 +12,14 @@
   became a MODULE (`export * as Adw`) so it can be annotated with as well as constructed
   from. § Amendment 7 carries both clauses onto `@gjsify/adwaita-nativescript`, the last
   surface: four widgets took their GIR names, eleven property names converged, and clause 2
-  now holds on all three. § Amendment 8 carries § Amendment 6's REVERSAL onto
-  `@gjsify/adwaita-react-native`: 28 flat widget-class exports gone from each of its three
-  barrels, `Adw.<Name>` the only spelling the package root has.
+  now holds on all three. § Amendments 8 and 9 then carry § Amendment 6's REVERSAL onto the
+  two remaining surfaces, so that no surface exports a widget class flat beside its namespace
+  member any more: § Amendment 8 on `@gjsify/adwaita-react-native` — 28 flat widget-class
+  exports gone from each of its three barrels, `Adw.<Name>` the only spelling its root has; and
+  § Amendment 9 on `@gjsify/adwaita-nativescript` — the 43 prefixed widget classes gone
+  from the package root, the namespace a MODULE there too, and the XML dialect moved to
+  `<adw:PreferencesGroup>` over one barrel per library, the first time the CALLERS of a
+  surface are held by a gate rather than by a compiler.
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -610,11 +615,12 @@ three clauses is nearly free, and it is the row whose cost rises at the next rel
 
 ### 3. The namespace is a RE-EXPORT layer, never a rename
 
-> **Superseded in part by § Amendment 6 (2026-09-01)** for `@gjsify/adwaita-web` and by
-> § Amendment 8 (2026-09-03) for `@gjsify/adwaita-react-native`: the "all of it is
-> additive" sentence below described the adoption step, and on both surfaces the flat
-> widget classes have since been removed. The re-export mechanism, and the refusal to
-> rename the CLASSES, are unchanged everywhere.
+> **Superseded in part by § Amendment 6 (2026-09-01)** for `@gjsify/adwaita-web`, by
+> § Amendment 8 (2026-09-03) for `@gjsify/adwaita-react-native` and by § Amendment 9
+> (2026-09-03) for `@gjsify/adwaita-nativescript`: the "all of it is additive" sentence
+> below described the adoption step, and on all three surfaces the flat widget classes
+> have since been removed. The re-export mechanism, and the refusal to rename the
+> CLASSES, are unchanged everywhere.
 
 Clause 2 is satisfied by an export, not by moving anything. Each surface gains
 
@@ -1644,6 +1650,11 @@ and a build command whose scope nobody had had a reason to read.
 
 ## Amendment 7, 2026-09-01 — clause 2 holds on all three, and the NativeScript names moved
 
+> **Superseded in part by § Amendment 9 (2026-09-03).** The additive arrangement below was
+> the adoption step; the prefixed widget classes are now gone from the package root. "The
+> shape is the object literal" also moved — `Adw` and `Gtk` became MODULES for the same
+> reason § Amendment 6 gives, one surface later.
+
 `@gjsify/adwaita-nativescript` exports `Adw` (38 members) and `Gtk` (5) from
 `src/namespace.ts`, and the summary line reads **`Namespace exports (ADR 0034 clause 2):
 3 of 3 renderer(s)`**. Clause 2 is done.
@@ -1798,6 +1809,7 @@ and on this surface neither question had an oracle. Four A/B pairs, each after t
 formatter ran (a wrapped guard is a defused guard): an unprefixed element, a barrel export
 dropped, a story write renamed back, a fence write renamed back — exit 1 each, exit 0
 restored each.
+
 ## Amendment 8, 2026-09-03 — the flat classes are gone from React Native too, and one line now carries what two did
 
 `@gjsify/adwaita-react-native` exports `Adw` with 28 members on each of its three
@@ -1936,6 +1948,13 @@ its reader-vector count up from 19 to 27.
 
 ### What is still not held, and it is not this surface's to hold
 
+> **§ Amendment 9 (2026-09-03) built the gate this section asks for**, on
+> `@gjsify/adwaita-web` and `@gjsify/adwaita-nativescript`: a file outside a surface's own
+> package may not import a binding that sits behind a namespace member. It does not reach
+> this surface, which `check-vocabulary-alignment.mjs` is handed no `namespace` for, and it
+> does not reach the 12 `webOnly` classes either — they keep their flat export, so they are
+> not retired and a consumer importing one is still importing a name that exists.
+
 Nothing checks how a CONSUMER spells the vocabulary. On this surface that gap is
 currently closed by arithmetic rather than by a gate: the root exports NO flat widget
 class at all, so `import { AdwClamp } from '@gjsify/adwaita-react-native'` is a
@@ -1943,3 +1962,143 @@ resolution error in every tool that reads the barrel. The web surface is where t
 real — 12 `webOnly` classes keep their flat export there, so a flat import still resolves
 and a consumer can go on spelling the vocabulary the old way with nothing failing. A
 gate over consumer import sites belongs beside that, not here.
+
+## Amendment 9, 2026-09-03 — the flat classes are gone from NativeScript too, and the XML prefix became the library
+
+§ Amendment 7 left `@gjsify/adwaita-nativescript` holding clause 2 ADDITIVELY: `Adw.SwitchRow`
+and `AdwSwitchRow` were both exports of the package root, and every consumer in this
+repository still wrote the second. That is the arrangement § Amendment 6 refused on
+`@gjsify/adwaita-web` and § Amendment 8 refused on `@gjsify/adwaita-react-native` — *"a second
+spelling that is never removed is not a migration path, it is a permanent second vocabulary"* —
+and the same sentence applies here unchanged. The 43 prefixed widget classes with a namespace
+member are gone from `src/index.ts`; `Adw.*` and `Gtk.*` are the only spellings left. This is
+the third of the three surfaces, so with it no widget that HAS a namespace member is reachable
+flat from any package root — the ones that keep a flat name are the ones for which it is their
+only name, on every surface for the reason § Amendment 6 gives.
+
+**What moved with them, and it is the interesting half.** On the other two surfaces the removal
+stayed inside the barrels, because their dialects carry the library somewhere the removal does
+not reach: the web's TAGS do it — `<gtk-entry>` says GTK whether or not any JS identifier does
+— and React Native's JSX names a component with the binding itself, so `Adw.Clamp` says it
+(§ Amendment 8). NativeScript's XML dialect has neither. An element is resolved by reading its
+LOCAL NAME off the module its `xmlns` prefix names — `component-builder`'s
+`createComponentInstance` ends in `instanceModule[elementName]`, nothing else — so before this
+change the library lived in the element name (`<adw:GtkEntry>`, where the `adw:` prefix was
+just the module and the class name carried the meaning). Take the prefix out of the class name
+and the XML prefix is the ONLY thing left that can say which library a widget belongs to.
+
+### Two prefixes, and — the part that is not obvious — two MODULES
+
+`<adw:PreferencesGroup>` and `<gtk:Button>` is the spelling. The decision that took an
+argument is what each prefix points at.
+
+`xmlns` names a module path, so two prefixes may perfectly well name ONE module. That is the
+cheap option and it is wrong: the module would export `PreferencesGroup` and `Button`
+together, `<adw:Button>` would resolve, and NativeScript would build the GTK button under the
+Adwaita prefix at exit 0. It re-creates, in the one dialect where the prefix is the whole
+signal, exactly the flattening § 1 exists to undo. A lint rule could catch it — and would be a
+guard watching a mechanism, which the root AGENTS.md § Governance names as the smell.
+
+So there are two disjoint modules, `~/adw` and `~/gtk`, which § 3 anticipated in one clause
+(*"a second XML barrel so `xmlns:gtk="~/gtk"` resolves `<gtk:Entry/>`"*) without arguing for
+it. The argument is that it turns a silent wrong answer into a load-time failure, with no rule
+to run: `findMatch` in `module-name-resolver/qualifier-matcher` compares the resolved path for
+EQUALITY, so `~/adw` resolves to the `adw` barrel and nothing else, and a member it does not
+export throws out of `createComponentInstance`'s catch. The package publishes the two barrels
+as the subpaths `@gjsify/adwaita-nativescript/adw` and `/gtk`, so an app's barrel is one
+`export { … } from` line rather than a hand-kept list of classes.
+
+**Measured, against upstream's own resolver.** No Android emulator would start on the
+workstation this landed from — `qemu-system-x86` SEGVs about twenty seconds into boot on every
+AVD, with and without KVM, so `showcases/dom/adwaita-gallery-nativescript` could not be run
+and the device leg of this change is UNPROVEN. What was run instead is upstream
+`@nativescript/core@9.1.0-alpha.11`'s real `getComponentModule` under Node, with its CJS
+directory imports and `.android` variants resolved by a loader hook and the screen metrics
+handed to its own `ModuleNameResolver`:
+
+    PASS  <adw:PreferencesGroup>        ->  PreferencesGroup
+    PASS  <adw:SwitchRow title="x">     ->  SwitchRow
+    PASS  <gtk:Button>                  ->  Button
+    PASS  <adw:Button> (must FAIL)      ->  Module 'adw' not found for element 'adw:Button'.
+    PASS  <adw:AdwSwitchRow> (must FAIL)->  Module 'adw' not found for element 'adw:AdwSwitchRow'.
+    PASS  attribute reached the instance ->  Automatic updates
+
+That is the resolution rule and the wrong-prefix failure, both from upstream's code rather
+than from a reading of it. It is not a substitute for the probe: it says nothing about a view
+TREE, which is the half `gallery-page.ts` exists for and the half that stays unmeasured here.
+
+### The other dialect keeps the class names, and that is not an inconsistency
+
+`registerAdwaitaElements()` registers `AdwSwitchRow`, `GtkEntry` and the rest with the
+`registerElement` global that `@nativescript/angular` / `nativescript-vue` provide. Those names
+do NOT move. That dialect has one flat global namespace and no prefix at all, so the class name
+is the widget's ONLY name in it — the same reason § Amendment 6 kept `<adw-action-row>` and the
+eleven `webOnly` classes: a flat name that is a widget's only name is not a second spelling.
+
+### Three widgets have no name in the XML dialect, and the generator says so
+
+`AdwImageButton` (a `composes`), `AdwSliderRow` and `AdwDataGrid` (`own`) have no namespace
+member, so neither barrel exports them and no `prefix:Member` names them. No gallery template
+uses one. `qualify()` in `generate-adwaita-nativescript-templates.mjs` THROWS on such a widget
+rather than emitting it unprefixed, because unprefixed is what NativeScript resolves against
+its own components — the exact failure § Amendment 7 records four clause-1 renames shipping
+through. A consumer app is unaffected: its own barrel may export whatever it likes, including
+the class.
+
+`ADWAITA_GALLERY_NS_REFUSALS` still names classes (`AdwComboRow.options is an array of
+choices`), and that is a DECLARED divergence rather than an oversight: a refusal is a statement
+about the port's implementation, the classes did not move, and
+`check-generated-website-data.mjs` tells a class MENTION from the gallery block's title by
+exactly that spelling (`CLASS_MENTION`, `\b((?:Adw|Gtk)[A-Z]\w*)`). Converging the prose would
+take that discriminator away from the arm that caught `AdwToast` standing in for
+`AdwToastOverlay`.
+
+### The gate: nothing was watching the CALLER, which is why the examples never had to change
+
+`check-vocabulary-alignment.mjs` held the PACKAGES. It could not have failed on a consumer
+writing `AdwStatusPage`, and it still cannot on one writing a property that moved — that is
+`check-doc-fences` and `check-storybook-control-parity`. Two arms close it, both in that file
+because both sides of each already live there:
+
+- **the flat name is gone**: a widget with a namespace member may not ALSO be exported flat
+  from the package root. Until this, § Amendments 6 and 9 were prose — one re-added
+  `export { AdwStatusPage }` line restores the second vocabulary with every other rule green,
+  because the member is present, the widget is present, and they agree.
+- **no caller writes it**: no file outside a surface's own package may import a retired
+  binding. The retired set is DERIVED — it is the bindings behind the namespace members, and
+  the arm above is what makes "has a member" and "has no flat export" the same statement.
+
+**Why a gate and not the compiler.** Removing an export is a build error for every consumer
+that is BUILT, and none of the consumers that TEACH the vocabulary are:
+`showcases/dom/adwaita-storybook-nativescript` and `…-gallery-nativescript` are excluded from
+the workspace globs and have no `check` script, the 40 published `.mdx` fences have no compiler
+anywhere, and the XML dialect has no type-checker at all. Every story file and published fence
+this amendment rewrote could have gone in wrong at exit 0.
+
+**Two readers that decide "is this ours" had to move with it**, which is § Amendment 7's own
+lesson arriving again: `check-doc-fences`'s `NS_CONSTRUCTION` and
+`check-storybook-control-parity`'s `NS_WIDGET_FIELD` both keyed on `(?:Adw|Gtk)\w+`, and `.` is
+not a word character — so `new Adw.StatusPage()` and `_row: Adw.SwitchRow` match neither. Both
+gates SKIP what they cannot resolve, so a half-migrated tree would have quietly shed coverage
+one file at a time (117 held writes → 0, still green). They share one `WIDGET_REFERENCE`
+pattern and one `widgetClassOf` resolver now. The story arm reports 117 held writes after the
+migration, which is what it reported before it — the number is here because it is a BEFORE and
+an AFTER of the same reader, not because 117 is interesting.
+
+A/B, each branch run separately and its exit code read without a pipe: a caller importing a
+retired flat spelling, a flat export re-added beside its member, a caller scan that finds
+nothing, an element written under its class name, an element under the wrong prefix, and a
+barrel export dropped — exit 1 each, exit 0 restored each. Three of those are self-test vectors
+(71 now, was 68); three are A/B against the real tree.
+
+### What is left
+
+`AdwIcon` → `GtkImage` still waits for `@gjsify/adwaita-web` to rename in the same change
+(§ Amendment 7, § Clause 1) — the namespace does not wait, and `Gtk.Image` is its member
+today. `@gjsify/adwaita-react-native` lost its flat widget exports the same day (§ Amendment 8),
+and neither arm above reaches it: this file is handed no `namespace` for that surface, so
+`NAMESPACE_PACKAGES` names two packages rather than three. Its flat half is held one file over,
+by rule 10 of `check-adwaita-rn-platform-split.mjs`; its CALLER half is held by nothing, and
+that is the gap that is left. Adding the third entry today would buy no coverage — with no
+namespace to derive from, the retired set is empty and `callerProblems` skips the surface,
+including the vacuity arm. It closes on the day this file is given that surface's namespace.

@@ -10,9 +10,13 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
-        "./widgets": {
-            "types": "./lib/types/widgets/index.d.ts",
-            "default": "./lib/esm/widgets/index.js"
+        "./adw": {
+            "types": "./lib/types/namespace/adw.d.ts",
+            "default": "./lib/esm/namespace/adw.js"
+        },
+        "./gtk": {
+            "types": "./lib/types/namespace/gtk.d.ts",
+            "default": "./lib/esm/namespace/gtk.js"
         },
         "./theme/adwaita.css": "./src/theme/adwaita.css",
         "./fonts": {

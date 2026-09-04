@@ -1,31 +1,32 @@
-<adw:AdwWrapBox
+<adw:WrapBox
   xmlns="http://schemas.nativescript.org/tns.xsd"
-  xmlns:adw="~/adwaita"
+  xmlns:adw="~/adw"
+  xmlns:gtk="~/gtk"
   childSpacing="8"
   lineSpacing="8"
 >
-  <adw:GtkButton
+  <gtk:Button
     text="Design"
     variant="pill"
   />
-  <adw:GtkButton
+  <gtk:Button
     text="Adwaita"
     variant="pill"
   />
-  <adw:GtkButton
+  <gtk:Button
     text="GNOME"
     variant="pill"
   />
-  <adw:GtkButton
+  <gtk:Button
     text="GTK"
     variant="pill"
   />
-  <adw:GtkButton
+  <gtk:Button
     text="TypeScript"
     variant="pill"
   />
-  <adw:GtkButton
+  <gtk:Button
     text="Storybook"
     variant="pill"
   />
-</adw:AdwWrapBox>
+</adw:WrapBox>

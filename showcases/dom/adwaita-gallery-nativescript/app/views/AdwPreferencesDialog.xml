@@ -1,15 +1,15 @@
-<adw:AdwPreferencesDialog
+<adw:PreferencesDialog
   xmlns="http://schemas.nativescript.org/tns.xsd"
-  xmlns:adw="~/adwaita"
+  xmlns:adw="~/adw"
   title="Preferences"
   open="false"
 >
-  <adw:AdwPreferencesPage title="General">
-    <adw:AdwPreferencesGroup title="Appearance">
-      <adw:AdwSwitchRow
+  <adw:PreferencesPage title="General">
+    <adw:PreferencesGroup title="Appearance">
+      <adw:SwitchRow
         title="Dark mode"
         active="true"
       />
-    </adw:AdwPreferencesGroup>
-  </adw:AdwPreferencesPage>
-</adw:AdwPreferencesDialog>
+    </adw:PreferencesGroup>
+  </adw:PreferencesPage>
+</adw:PreferencesDialog>

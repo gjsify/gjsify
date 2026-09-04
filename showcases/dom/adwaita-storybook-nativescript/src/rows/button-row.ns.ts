@@ -3,14 +3,14 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwButtonRow, AdwClamp, AdwPreferencesGroup } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { documentSaveSymbolic, editDeleteSymbolic, listAddSymbolic } from '@gjsify/adwaita-icons/actions';
 import { buttonRowMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 /** The Adwaita style classes this story can toggle on the row. */
 const STYLE_CLASSES = ['suggested-action', 'destructive-action'];
 
-/** The base class string AdwButtonRow sets on itself in its constructor. */
+/** The base class string Adw.ButtonRow sets on itself in its constructor. */
 const BASE_CLASS = 'adw-row adw-action-row adw-button-row';
 
 /** Adwaita accent + destructive colours (the start icon is pre-coloured, not CSS). */
@@ -33,7 +33,7 @@ function iconSvg(gtkName: string): string {
 }
 
 export class ButtonRowNsStory extends StoryView {
-    private _row: AdwButtonRow | null = null;
+    private _row: Adw.ButtonRow | null = null;
 
     constructor() {
         super(ButtonRowNsStory.getMetadata(), 'Default');
@@ -44,13 +44,13 @@ export class ButtonRowNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._row = new AdwButtonRow();
+        this._row = new Adw.ButtonRow();
         this._syncRow();
 
-        const group = new AdwPreferencesGroup();
+        const group = new Adw.PreferencesGroup();
         group.addRow(this._row);
 
-        const clamp = new AdwClamp();
+        const clamp = new Adw.Clamp();
         clamp.maximumSize = 400;
         clamp.setChild(group);
 

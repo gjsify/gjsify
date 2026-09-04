@@ -149,19 +149,19 @@ swaps between the two on a breakpoint.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwViewSwitcher, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+    import { Adw, type AdwViewPage } from '@gjsify/adwaita-nativescript';
     import { folderSymbolic } from '@gjsify/adwaita-icons/places';
     import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 
-    const page = (icon: string, title: string, description: string): AdwStatusPage => {
-        const status = new AdwStatusPage();
+    const page = (icon: string, title: string, description: string): Adw.StatusPage => {
+        const status = new Adw.StatusPage();
         status.iconName = icon; // a real Adwaita symbolic icon (SVG string)
         status.title = title;
         status.description = description;
         return status;
     };
 
-    const switcher = new AdwViewSwitcher();
+    const switcher = new Adw.ViewSwitcher();
     // Each view carries a title + icon (shown on the switcher button) and its content.
     switcher.setViews([
         { title: 'Inbox', icon: mailUnreadSymbolic, content: page(mailUnreadSymbolic, 'Inbox', 'You have three unread conversations.') },
@@ -280,30 +280,30 @@ does not appear.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwStatusPage, AdwToolbarView, AdwViewStack, AdwViewSwitcherBar } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
     import { folderSymbolic } from '@gjsify/adwaita-icons/places';
     import { mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
 
-    const stack = new AdwViewStack();
+    const stack = new Adw.ViewStack();
     for (const page of [
         { name: 'inbox', title: 'Inbox', icon: mailUnreadSymbolic },
         { name: 'starred', title: 'Starred', icon: starredSymbolic },
         { name: 'archive', title: 'Archive', icon: folderSymbolic },
     ]) {
-        const status = new AdwStatusPage();
+        const status = new Adw.StatusPage();
         status.iconName = page.icon; // an Adwaita symbolic icon (SVG string)
         status.title = page.title;
         stack.add(status, page.name, page.title, page.icon);
     }
 
-    const bar = new AdwViewSwitcherBar();
+    const bar = new Adw.ViewSwitcherBar();
     bar.stack = stack;
     // The NativeScript stack has no `items-changed`, so a bar bound before the pages
     // exist would render no buttons. `refresh()` is that missing signal, by hand.
     bar.refresh();
     bar.reveal = true;
 
-    const view = new AdwToolbarView();
+    const view = new Adw.ToolbarView();
     view.setContent(stack);
     view.addBottomBar(bar);
     ```
@@ -377,18 +377,18 @@ disappears once a single page is left, so a one-tab document looks chrome-free.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwTabView, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+    import { Adw, type AdwViewPage } from '@gjsify/adwaita-nativescript';
     import { viewGridSymbolic } from '@gjsify/adwaita-icons/actions';
 
-    const page = (title: string, body: string): AdwStatusPage => {
-        const status = new AdwStatusPage();
+    const page = (title: string, body: string): Adw.StatusPage => {
+        const status = new Adw.StatusPage();
         status.iconName = viewGridSymbolic; // a real Adwaita symbolic icon (SVG string)
         status.title = title;
         status.description = body;
         return status;
     };
 
-    const tabView = new AdwTabView();
+    const tabView = new Adw.TabView();
     tabView.setViews([
         { title: 'Overview', content: page('Overview', 'A summary of everything at a glance.') },
         { title: 'Details', content: page('Details', 'The specifics, broken down line by line.') },
@@ -508,19 +508,19 @@ makes it fit a header bar or a tight toolbar.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwInlineViewSwitcher, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
+    import { Adw, type AdwViewPage } from '@gjsify/adwaita-nativescript';
     import { documentEditSymbolic, viewGridSymbolic } from '@gjsify/adwaita-icons/actions';
     import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 
-    const page = (icon: string, title: string, body: string): AdwStatusPage => {
-        const status = new AdwStatusPage();
+    const page = (icon: string, title: string, body: string): Adw.StatusPage => {
+        const status = new Adw.StatusPage();
         status.iconName = icon; // a real Adwaita symbolic icon (SVG string)
         status.title = title;
         status.description = body;
         return status;
     };
 
-    const switcher = new AdwInlineViewSwitcher();
+    const switcher = new Adw.InlineViewSwitcher();
     // display mode "both": pass '' as the title for icons-only, omit icon for labels-only.
     switcher.setViews([
         { title: 'Overview', icon: viewGridSymbolic, content: page(viewGridSymbolic, 'Overview', 'A quick summary of your project.') },
@@ -650,7 +650,7 @@ does.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwCarousel } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
     import { Label, StackLayout, type View } from '@nativescript/core';
 
     const page = (title: string, accent: string): View => {
@@ -668,12 +668,12 @@ does.
         return card;
     };
 
-    const carousel = new AdwCarousel();
+    const carousel = new Adw.Carousel();
     carousel.pageWidth = 440;
     carousel.addPage(page('Welcome', 'accent'));
     carousel.addPage(page('Discover', 'success'));
     carousel.addPage(page('Get started', 'warning'));
-    // AdwCarousel renders its own dot row; the line-indicator variant maps to the same dots on NativeScript.
+    // Adw.Carousel renders its own dot row; the line-indicator variant maps to the same dots on NativeScript.
     ```
   </Fragment>
 </AdwWidget>

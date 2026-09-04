@@ -7,8 +7,9 @@ export default {
     // Vite, through @gjsify/nativescript-vite's `defineNativescriptConfig()` — the
     // same composer the storybook showcase beside this one uses. Its
     // xmlns-barrel registration is load-bearing HERE and nowhere else in this repo:
-    // every template names `xmlns:adw="~/adwaita"`, and that barrel has no `.xml`
-    // sibling, so upstream's bundler context would not register it.
+    // every template names `xmlns:adw="~/adw"` or `xmlns:gtk="~/gtk"`, and neither
+    // barrel has an `.xml` sibling, so upstream's bundler context would not register
+    // them.
     bundler: 'vite',
     bundlerConfigPath: 'vite.config.ts',
     android: {

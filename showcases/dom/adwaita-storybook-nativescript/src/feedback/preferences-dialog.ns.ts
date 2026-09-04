@@ -3,22 +3,14 @@
 // (imported from the GTK showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import {
-    GtkButton,
-    AdwComboRow,
-    AdwPreferencesDialog,
-    AdwPreferencesGroup,
-    AdwPreferencesPage,
-    AdwSpinRow,
-    AdwSwitchRow,
-} from '@gjsify/adwaita-nativescript';
+import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { preferencesDialogMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 import { GridLayout, ItemSpec } from '@nativescript/core';
 
 /**
- * Story: AdwPreferencesDialog presented from a button, with one page of rows.
+ * Story: Adw.PreferencesDialog presented from a button, with one page of rows.
  *
- * FIDELITY: NS AdwPreferencesDialog is an in-page modal overlay card (not a
+ * FIDELITY: NS Adw.PreferencesDialog is an in-page modal overlay card (not a
  * separate OS window). The dialog overlay is stacked over the trigger button in
  * a single GridLayout cell so its dimmed scrim covers the stage when presented;
  * the page/group/rows are rebuilt from the latest args on each present, like the
@@ -26,7 +18,7 @@ import { GridLayout, ItemSpec } from '@nativescript/core';
  */
 export class PreferencesDialogNsStory extends StoryView {
     private _stack: GridLayout | null = null;
-    private _dialog: AdwPreferencesDialog | null = null;
+    private _dialog: Adw.PreferencesDialog | null = null;
 
     constructor() {
         super(PreferencesDialogNsStory.getMetadata(), 'Default');
@@ -37,11 +29,11 @@ export class PreferencesDialogNsStory extends StoryView {
     }
 
     /** Build the single page of grouped rows, mirroring the native story. */
-    private _buildDialog(): AdwPreferencesDialog {
-        const dialog = new AdwPreferencesDialog();
+    private _buildDialog(): Adw.PreferencesDialog {
+        const dialog = new Adw.PreferencesDialog();
         dialog.title = 'Preferences';
 
-        const page = new AdwPreferencesPage();
+        const page = new Adw.PreferencesPage();
         // The page title is not painted by the page (GTK shows it in the view
         // switcher, which no port has yet) — it is what a search result's
         // `General → Appearance` subtitle is built from, so the shared
@@ -50,25 +42,25 @@ export class PreferencesDialogNsStory extends StoryView {
         page.name = 'general';
         page.iconName = 'preferences-system-symbolic';
 
-        const group = new AdwPreferencesGroup();
+        const group = new Adw.PreferencesGroup();
         group.title = (this.args.groupTitle as string) ?? 'Appearance';
 
         // Dark style — a switch row, on by default (matches the native SwitchRow).
-        const darkStyle = new AdwSwitchRow();
+        const darkStyle = new Adw.SwitchRow();
         darkStyle.title = 'Dark style';
         darkStyle.subtitle = 'Use a dark colour scheme';
         darkStyle.active = true;
         group.addRow(darkStyle);
 
         // Accent colour — a combo row over the same five options.
-        const accent = new AdwComboRow();
+        const accent = new Adw.ComboRow();
         accent.title = 'Accent colour';
         accent.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((label) => ({ label, value: label }));
         accent.selected = 0;
         group.addRow(accent);
 
         // Font size — a spin row bounded 8–24, defaulting to 12.
-        const fontSize = new AdwSpinRow();
+        const fontSize = new Adw.SpinRow();
         fontSize.title = 'Font size';
         fontSize.min = 8;
         fontSize.max = 24;
@@ -89,7 +81,7 @@ export class PreferencesDialogNsStory extends StoryView {
         stack.addColumn(new ItemSpec(1, 'star'));
         stack.addRow(new ItemSpec(1, 'star'));
 
-        const button = new GtkButton();
+        const button = new Gtk.Button();
         button.text = 'Show dialog';
         button.variant = 'pill';
         button.horizontalAlignment = 'center';

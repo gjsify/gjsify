@@ -25,14 +25,23 @@
 //                                                        the files Builder.load()s
 //   showcases/dom/adwaita-gallery-nativescript/app/expected.ts
 //                                                        the tree the probe asserts
-//   showcases/dom/adwaita-gallery-nativescript/app/adwaita.ts
-//                                                        the `xmlns:adw="~/adwaita"` barrel
+//   showcases/dom/adwaita-gallery-nativescript/app/adw.ts
+//   showcases/dom/adwaita-gallery-nativescript/app/gtk.ts
+//                                                        the two `xmlns` barrels
 //
-// The barrel is generated for the same reason the views are: NativeScript resolves
-// `<adw:AdwClamp>` by reading `AdwClamp` off the module the `xmlns` names, so a
-// template naming an element the barrel does not re-export fails at LOAD time with
-// `Module 'AdwClamp' not found for element` — measured on Android, 2026-08-28. A
+// The barrels are generated for the same reason the views are: NativeScript resolves
+// `<adw:Clamp>` by reading `Clamp` off the module the `xmlns` names, so a template
+// naming an element the barrel does not re-export fails at LOAD time with
+// `Module 'Clamp' not found for element` — measured on Android, 2026-08-28. A
 // hand-kept barrel is one more list that can fall behind the templates.
+//
+// TWO BARRELS, ONE PER NAMESPACE (ADR 0034 § Amendment 9). The prefix names a MODULE
+// and nothing else, so it is the only thing in this dialect that can carry the library
+// once the element name stops doing it: `<adw:Button>` and `<gtk:Button>` are the same
+// element if both prefixes resolve to one module, and NativeScript would build the GTK
+// button under the Adwaita prefix without a word. Two DISJOINT modules turn that into a
+// load-time `Module '~/adw' not found for element 'adw:Button'`, which is a gate no
+// lint rule has to be run for.
 //
 // THE EMITTED BYTES ARE FINAL. Nothing formats them, for the reason
 // `generate-adwaita-framework-snippets.mjs` records at length: the jobs that run
@@ -48,7 +57,8 @@ import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'nod
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { ADWAITA_GALLERY_NS_REFUSALS, ADWAITA_GALLERY_NS_TEMPLATES } from './adwaita-gallery-ns-templates.mjs';
+import { ADWAITA_GALLERY_NS_TEMPLATES, ADWAITA_GALLERY_NS_REFUSALS } from './adwaita-gallery-ns-templates.mjs';
+import { namespaceExport } from './adwaita-elements.mjs';
 import { WIDGET_CLASS } from './nativescript-xml-doors.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -58,21 +68,34 @@ const TS_INDENT = '    ';
 /** The showcase that loads every generated template and asserts the tree it built. */
 export const NS_GALLERY_SHOWCASE = 'showcases/dom/adwaita-gallery-nativescript';
 
+/** Where the package's clause-2 namespace barrels live — the ONE source of the split. */
+export const NS_PACKAGE_SRC = 'packages/nativescript-bridge/adwaita/src';
+
+/** XML prefix -> the app-local barrel module its `xmlns` names, without the `~/`. */
+export const NS_XMLNS_BARRELS = { adw: 'adw', gtk: 'gtk' };
+
 /** Where the generated outputs live, so the gate does not restate them. */
 export const NS_GENERATED = {
     website: 'website/src/data/adwaita-nativescript-templates.ts',
     views: `${NS_GALLERY_SHOWCASE}/app/views`,
     expected: `${NS_GALLERY_SHOWCASE}/app/expected.ts`,
-    barrel: `${NS_GALLERY_SHOWCASE}/app/adwaita.ts`,
+    barrels: {
+        adw: `${NS_GALLERY_SHOWCASE}/app/${NS_XMLNS_BARRELS.adw}.ts`,
+        gtk: `${NS_GALLERY_SHOWCASE}/app/${NS_XMLNS_BARRELS.gtk}.ts`,
+    },
 };
 
 /**
  * The generated outputs `.oxfmtrc.json` must exempt.
  *
- * The `.xml` views are absent because oxfmt formats no XML; the two `.ts` files are
+ * The `.xml` views are absent because oxfmt formats no XML; the `.ts` files are
  * generator output in the sense `generated/props.ts` is.
  */
-export const NS_OXFMT_EXEMPT_OUTPUTS = [NS_GENERATED.website, NS_GENERATED.expected, NS_GENERATED.barrel];
+export const NS_OXFMT_EXEMPT_OUTPUTS = [
+    NS_GENERATED.website,
+    NS_GENERATED.expected,
+    ...Object.values(NS_GENERATED.barrels),
+];
 
 /** `Adw.Clamp` -> `AdwClamp`: the view file's name, and the probe's label. */
 export const viewNameOf = (widget) => widget.replace('.', '');
@@ -91,22 +114,78 @@ export const viewNameOf = (widget) => widget.replace('.', '');
 const OWN_ELEMENT = new RegExp(`^${WIDGET_CLASS}$`);
 
 /**
- * An element from this package carries the `adw:` prefix; NativeScript's own do not.
+ * Class name -> the XML spelling of it: `AdwClamp` -> `{ prefix: 'adw', member: 'Clamp' }`.
  *
- * The prefix names the MODULE `~/adwaita`, never a library, so `<adw:GtkEntry>` is the
- * right spelling for a widget ADR 0034 renamed — the two vocabularies are unrelated.
+ * READ OFF THE PACKAGE'S OWN NAMESPACE BARRELS, never decided here. That is the same
+ * shape ADR 0034 clause 2 puts everywhere: which namespace a widget lands in is a
+ * property of the widget's GType, `packages/nativescript-bridge/adwaita/src/namespace/`
+ * is where it is written down, and `check-vocabulary-alignment.mjs` holds THAT against
+ * the GIR tag table. A second placement rule here would be the prefix-as-membership-test
+ * defect one level up — `startsWith('Adw')` twice cost this file exactly that.
+ *
+ * Memoised rather than computed at import: `check-generated-website-data.mjs` imports
+ * `templateFor` from here, and an import must cost a definition and nothing else.
  */
-const qualify = (tag) => (OWN_ELEMENT.test(tag) ? `adw:${tag}` : tag);
+let placement = null;
+function widgetPlacement() {
+    if (placement !== null) return placement;
+    placement = new Map();
+    const namespaces = namespaceExport(ROOT, NS_PACKAGE_SRC);
+    if (namespaces === null) {
+        throw new Error(
+            `${NS_PACKAGE_SRC}/index.ts exports no Adw/Gtk namespace, so no element in this dialect has a ` +
+                'name. ADR 0034 clause 2 is what the XML prefix reads; without it the templates cannot be emitted.',
+        );
+    }
+    for (const [namespace, members] of namespaces) {
+        const prefix = namespace.toLowerCase();
+        if (!Object.hasOwn(NS_XMLNS_BARRELS, prefix)) {
+            throw new Error(
+                `no xmlns barrel is declared for the \`${namespace}\` namespace — add one to NS_XMLNS_BARRELS.`,
+            );
+        }
+        for (const [member, binding] of members) placement.set(binding, { prefix, member });
+    }
+    return placement;
+}
 
-/** Every element of this package the templates name — exactly what the barrel must re-export. */
+/**
+ * One element's XML name: `<adw:Clamp>`, `<gtk:Entry>`, `<Label>`.
+ *
+ * A widget of this package with NO namespace member THROWS rather than falling through
+ * to the unprefixed branch. Three have none (`AdwImageButton`, `AdwSliderRow`,
+ * `AdwDataGrid`) and no gallery template names one; the day one does, the person adding
+ * it has to decide which prefix it takes, because an unprefixed `<AdwDataGrid>` resolves
+ * against NativeScript's OWN components and Builder finds nothing — silently, which is
+ * how the four clause-1 renames shipped broken.
+ */
+const qualify = (tag) => {
+    const place = widgetPlacement().get(tag);
+    if (place !== undefined) return `${place.prefix}:${place.member}`;
+    if (OWN_ELEMENT.test(tag)) {
+        throw new Error(
+            `<${tag}> is a widget of @gjsify/adwaita-nativescript with no member in either namespace barrel, ` +
+                'so this dialect has no name for it (ADR 0034 clause 2). Give it a member, or give this ' +
+                'gallery block a refusal in ADWAITA_GALLERY_NS_REFUSALS.',
+        );
+    }
+    return tag;
+};
+
+/**
+ * Every element of this package the templates name, per XML prefix — exactly what each
+ * barrel must re-export, as the MEMBER name the template writes.
+ */
 export function elementsUsed() {
-    const used = new Set();
+    /** @type {Record<string, Set<string>>} */
+    const used = Object.fromEntries(Object.keys(NS_XMLNS_BARRELS).map((prefix) => [prefix, new Set()]));
     const walk = (node) => {
-        if (OWN_ELEMENT.test(node.tag)) used.add(node.tag);
+        const place = widgetPlacement().get(node.tag);
+        if (place !== undefined) used[place.prefix].add(place.member);
         for (const child of node.children ?? []) walk(child);
     };
     for (const template of ADWAITA_GALLERY_NS_TEMPLATES) walk(template.root);
-    return [...used].sort();
+    return Object.fromEntries(Object.entries(used).map(([prefix, names]) => [prefix, [...names].sort()]));
 }
 
 /**
@@ -153,16 +232,32 @@ function xml(node, depth, rootAttrs = []) {
     return `${head}${inline ? '>' : `\n${pad}>`}\n${body}\n${pad}</${qualify(node.tag)}>`;
 }
 
+/** The XML prefixes one tree actually uses, in `NS_XMLNS_BARRELS` order. */
+function prefixesUsed(node, into = new Set()) {
+    const place = widgetPlacement().get(node.tag);
+    if (place !== undefined) into.add(place.prefix);
+    for (const child of node.children ?? []) prefixesUsed(child, into);
+    return Object.keys(NS_XMLNS_BARRELS).filter((prefix) => into.has(prefix));
+}
+
 /**
- * The template as it ships: the root carries both namespaces.
+ * The template as it ships: the root carries the default namespace and the prefixes
+ * this tree uses — no more.
  *
- * `xmlns:adw="~/adwaita"` is a MODULE path, not a package name — NativeScript loads
- * it and reads the element name off its exports, and a bare package specifier does
- * not resolve. The default `xmlns` is NativeScript's own, so `<Label>` and
- * `<StackLayout>` beside the Adwaita elements need no prefix.
+ * `xmlns:adw="~/adw"` is a MODULE path, not a package name — NativeScript loads it and
+ * reads the element name off its exports, and a bare package specifier does not
+ * resolve. The default `xmlns` is NativeScript's own, so `<Label>` and `<StackLayout>`
+ * beside the Adwaita elements need no prefix.
+ *
+ * ONLY THE PREFIXES USED, because a reader copies these bytes: an `xmlns:gtk` over a
+ * template with no GTK element is a declaration of a module the app then has to have,
+ * and the barrel it names is generated from what the templates use.
  */
 export function templateFor(node, note) {
-    const head = ['xmlns="http://schemas.nativescript.org/tns.xsd"', 'xmlns:adw="~/adwaita"'];
+    const head = [
+        'xmlns="http://schemas.nativescript.org/tns.xsd"',
+        ...prefixesUsed(node).map((prefix) => `xmlns:${prefix}="~/${NS_XMLNS_BARRELS[prefix]}"`),
+    ];
     const body = xml(node, 0, head);
     return note === undefined ? `${body}\n` : `<!-- ${note} -->\n${body}\n`;
 }
@@ -213,21 +308,28 @@ ${refusals}
 
 // -------------------------------------------------------------- probe: the barrel
 
-function barrel() {
-    const names = elementsUsed();
+function barrel(prefix) {
+    const names = elementsUsed()[prefix];
+    const namespace = prefix === 'adw' ? 'Adw' : 'Gtk';
     return `// GENERATED by scripts/generate-adwaita-nativescript-templates.mjs — do not edit.
 //
-// The module every generated template's \`xmlns:adw="~/adwaita"\` resolves to.
+// The module every generated template's \`xmlns:${prefix}="~/${NS_XMLNS_BARRELS[prefix]}"\` resolves to,
+// and it holds the \`${namespace}\` half of the vocabulary and nothing else.
 //
 // NativeScript reads the element name off THIS module's exports
 // (\`component-builder\`'s \`createComponentInstance\`), so a template naming an
 // element absent here fails at load with \`Module '<name>' not found for element\` —
 // measured on Android, 2026-08-28. Generated from the templates themselves so the
 // two cannot fall out of step.
+//
+// ONE BARREL PER NAMESPACE is what makes the prefix mean something (ADR 0034
+// § Amendment 9): the two modules are disjoint, so \`<${prefix}:${prefix === 'adw' ? 'Button' : 'Clamp'}>\` — the wrong
+// library under this prefix — fails to load instead of quietly building the right
+// widget under the wrong name.
 
 export {
 ${names.map((name) => `${TS_INDENT}${name},`).join('\n')}
-} from '@gjsify/adwaita-nativescript';
+} from '@gjsify/adwaita-nativescript/${prefix}';
 `;
 }
 
@@ -237,7 +339,9 @@ ${names.map((name) => `${TS_INDENT}${name},`).join('\n')}
 function expectedLiteral() {
     const node = (n, depth) => {
         const pad = TS_INDENT.repeat(depth);
-        const parts = [`tag: '${n.tag}'`];
+        // The QUALIFIED name, so the probe's label and the template a reader copies are
+        // the same string: a failure reading `<adw:Clamp>` names what the XML says.
+        const parts = [`tag: '${qualify(n.tag)}'`];
         if (n.slot !== undefined) parts.push(`slot: '${n.slot}'`);
         if (n.props !== undefined) parts.push(`props: ${JSON.stringify(n.props)}`);
         if (n.children !== undefined)
@@ -252,6 +356,12 @@ function expectedLiteral() {
 
 function expectedModule() {
     const names = elementsUsed();
+    const namespaces = Object.entries(names)
+        .filter(([, members]) => members.length > 0)
+        .map(([prefix]) => (prefix === 'adw' ? 'Adw' : 'Gtk'));
+    const classes = Object.entries(names).flatMap(([prefix, members]) =>
+        members.map((member) => `${TS_INDENT}'${prefix}:${member}': ${prefix === 'adw' ? 'Adw' : 'Gtk'}.${member},`),
+    );
     return `// GENERATED by scripts/generate-adwaita-nativescript-templates.mjs — do not edit.
 //
 // What each generated view under \`app/views/\` must have BUILT, as the literal
@@ -265,13 +375,11 @@ function expectedModule() {
 
 import { Label, StackLayout, type View } from '@nativescript/core';
 
-import {
-${names.map((name) => `${TS_INDENT}${name},`).join('\n')}
-} from '@gjsify/adwaita-nativescript';
+import { ${namespaces.join(', ')} } from '@gjsify/adwaita-nativescript';
 
 /** One node of a declared template tree. */
 export interface ExpectNode {
-    /** The XML element name, e.g. \`AdwClamp\` or \`Label\`. */
+    /** The XML element name as the template writes it, e.g. \`adw:Clamp\` or \`Label\`. */
     tag: string;
     /** The parent property this child asked for, when it asked for one. */
     slot?: string;
@@ -289,7 +397,7 @@ export interface ExpectView {
 
 /** Element name -> the class \`Builder\` must have instantiated for it. */
 export const ELEMENT_CLASSES: Record<string, new () => View> = {
-${[...names.map((name) => `${TS_INDENT}${name},`), `${TS_INDENT}Label,`, `${TS_INDENT}StackLayout,`].join('\n')}
+${[...classes, `${TS_INDENT}Label,`, `${TS_INDENT}StackLayout,`].join('\n')}
 };
 
 export const EXPECTED: readonly ExpectView[] = [
@@ -330,7 +438,7 @@ const CHECK = process.argv.includes('--check');
 function buildOutputs() {
     const outputs = [
         [NS_GENERATED.website, websiteData()],
-        [NS_GENERATED.barrel, barrel()],
+        ...Object.entries(NS_GENERATED.barrels).map(([prefix, rel]) => [rel, barrel(prefix)]),
         [NS_GENERATED.expected, expectedModule()],
     ];
     for (const template of ADWAITA_GALLERY_NS_TEMPLATES) {
@@ -393,7 +501,9 @@ if (RUN_AS_PROGRAM) {
         console.log(
             `generate-adwaita-nativescript-templates: ${ADWAITA_GALLERY_NS_TEMPLATES.length} template(s), ` +
                 `${Object.keys(ADWAITA_GALLERY_NS_REFUSALS).length} refusal(s), ` +
-                `${elementsUsed().length} element(s) in the barrel` +
+                `${Object.entries(elementsUsed())
+                    .map(([prefix, members]) => `${members.length} in ~/${NS_XMLNS_BARRELS[prefix]}`)
+                    .join(', ')}` +
                 (stale.length > 0 ? `, removed ${stale.length} stale view(s)` : ''),
         );
     }

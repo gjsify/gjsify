@@ -32,7 +32,7 @@ GTK 4 is the reference here, typed by
 spells both controls the way the GIR does — `<gtk-entry>` and `<gtk-drop-down>`,
 the same tags `@gjsify/gtk-host` uses — because a widget is named after the library
 that owns it and the Adwaita part of these two is the stylesheet. The NativeScript
-port names them by the same rule, `GtkEntry` and `GtkDropDown`. Where a port behaves
+port names them by the same rule, `Gtk.Entry` and `Gtk.DropDown`. Where a port behaves
 differently, its own window says so.
 
 :::note
@@ -90,9 +90,9 @@ control in row presentation, and the label doubles as the row title.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { GtkEntry } from '@gjsify/adwaita-nativescript';
+    import { Gtk } from '@gjsify/adwaita-nativescript';
 
-    const entry = new GtkEntry();
+    const entry = new Gtk.Entry();
     entry.placeholderText = 'Search files…';
     entry.text = 'notes.md';
     entry.editable = false;
@@ -143,9 +143,9 @@ presented as a boxed-list row, use
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { GtkDropDown } from '@gjsify/adwaita-nativescript';
+    import { Gtk } from '@gjsify/adwaita-nativescript';
 
-    const dropDown = new GtkDropDown();
+    const dropDown = new Gtk.DropDown();
     dropDown.options = ['Automatic', 'Always', 'Never', 'When busy'].map((label) => ({ value: label, label }));
     dropDown.selected = 0;
     // The list opens as the platform action sheet, which has no search field —

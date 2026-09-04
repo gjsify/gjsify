@@ -86,16 +86,16 @@ short.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwButtonContent } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
     import { folderDownloadSymbolic } from '@gjsify/adwaita-icons/places';
     import { StackLayout } from '@nativescript/core';
 
-    const content = new AdwButtonContent();
+    const content = new Adw.ButtonContent();
     content.iconColor = '#ffffff';
     content.label = 'Download';
     content.iconName = folderDownloadSymbolic; // an Adwaita symbolic icon (SVG string)
 
-    // GtkButton is text-only, so a styled layout wraps the content.
+    // Gtk.Button is text-only, so a styled layout wraps the content.
     const button = new StackLayout();
     button.orientation = 'horizontal';
     button.className = 'adw-button suggested-action pill';
@@ -170,10 +170,10 @@ header bar or toolbar, where a raised button looks too heavy.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwSplitButton } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
     import { documentSaveSymbolic } from '@gjsify/adwaita-icons/actions';
 
-    const button = new AdwSplitButton();
+    const button = new Adw.SplitButton();
     button.menu = ['Save as…', 'Export', 'Print'];
     button.iconName = documentSaveSymbolic; // an Adwaita symbolic icon (SVG string)
     // With no icon set, the label drives the action half: button.label = 'Save';
@@ -256,10 +256,10 @@ once set", and the only setter is class-level.
   </Fragment>
   <Fragment slot="nativescript">
     ```ts
-    import { AdwToggleGroup } from '@gjsify/adwaita-nativescript';
+    import { Adw } from '@gjsify/adwaita-nativescript';
     import { viewGridSymbolic, viewListSymbolic, viewPagedSymbolic } from '@gjsify/adwaita-icons/actions';
 
-    const group = new AdwToggleGroup();
+    const group = new Adw.ToggleGroup();
     group.setToggles([
         { label: 'List', icon: viewListSymbolic },     // Adwaita symbolic icons (SVG strings)
         { label: 'Grid', icon: viewGridSymbolic },

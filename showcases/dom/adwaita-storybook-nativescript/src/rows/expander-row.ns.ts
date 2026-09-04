@@ -3,11 +3,11 @@
 // showcase's renderer-agnostic *.meta.ts barrel).
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { AdwClamp, AdwEntryRow, AdwExpanderRow, AdwPreferencesGroup, AdwSwitchRow } from '@gjsify/adwaita-nativescript';
+import { Adw } from '@gjsify/adwaita-nativescript';
 import { expanderRowMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class ExpanderRowNsStory extends StoryView {
-    private _row: AdwExpanderRow | null = null;
+    private _row: Adw.ExpanderRow | null = null;
 
     constructor() {
         super(ExpanderRowNsStory.getMetadata(), 'Default');
@@ -18,23 +18,23 @@ export class ExpanderRowNsStory extends StoryView {
     }
 
     initialize(): void {
-        this._row = new AdwExpanderRow();
+        this._row = new Adw.ExpanderRow();
 
-        const hostRow = new AdwEntryRow();
+        const hostRow = new Adw.EntryRow();
         hostRow.title = 'Host';
         hostRow.text = 'proxy.example.com';
 
-        const authRow = new AdwSwitchRow();
+        const authRow = new Adw.SwitchRow();
         authRow.title = 'Use authentication';
 
         this._row.addRow(hostRow);
         this._row.addRow(authRow);
         this._syncRow();
 
-        const group = new AdwPreferencesGroup();
+        const group = new Adw.PreferencesGroup();
         group.addRow(this._row);
 
-        const clamp = new AdwClamp();
+        const clamp = new Adw.Clamp();
         clamp.maximumSize = 400;
         clamp.setChild(group);
 
@@ -50,7 +50,7 @@ export class ExpanderRowNsStory extends StoryView {
         this._row.title = this.args.title as string;
         this._row.subtitle = this.args.subtitle as string;
         this._row.expanded = this.args.expanded as boolean;
-        // `showEnableSwitch` has no NS equivalent on AdwExpanderRow (no header
+        // `showEnableSwitch` has no NS equivalent on Adw.ExpanderRow (no header
         // enable-switch in the widget set); the arg stays bound but is inert.
         void (this.args.showEnableSwitch as boolean);
     }
