@@ -169,10 +169,11 @@ export default async () => {
     });
 
     await describe('the values an answered prop still refuses (#1555)', async () => {
-        await it('names the seven role spellings GTK has no member for', async () => {
-            // SEVEN of React Native's forty, and the row above them says `property`. A
-            // reader of PROPS.md could not tell which until the refusals were on the
-            // answer; this is the assertion that they are.
+        await it('names the role spellings GTK has no member for', async () => {
+            // A literal list, because this is the vector: the row above them says
+            // `property`, and a reader of PROPS.md could not tell WHICH values that
+            // covered until the refusals were on the answer. Adding an eighth spelling
+            // to the table has to touch this line.
             expect(propRefusedValues('View', 'accessibilityRole')).toStrictEqual([
                 'drawerlayout',
                 'horizontalscrollview',
@@ -190,9 +191,21 @@ export default async () => {
             expect(message).toContain('prop "accessibilityRole" = "keyboardkey"');
         });
 
-        await it('accepts the 33 role names that DO map, value by value', async () => {
-            expect(acceptsPropValue('View', 'accessibilityRole', 'button')).toBe(true);
-            expect(explainPropValue('View', 'accessibilityRole', 'button')).toBe(null);
+        await it('accepts every role name that DOES map, value by value', async () => {
+            // The whole mapped set and not one sample of it: "the values that map are
+            // accepted" is the claim, and a single `button` would be a measurement
+            // narrower than it — green while any other row silently answered `false`.
+            const route = PRIMITIVES.View.props.accessibilityRole as {
+                readonly map?: Readonly<Record<string, unknown>>;
+            };
+            const mapped = Object.keys(route.map ?? {});
+            // Non-vacuous: an empty map would make the loop below assert nothing, and
+            // the mapped names outnumber the refused ones by construction.
+            expect(mapped.length > propRefusedValues('View', 'accessibilityRole').length).toBe(true);
+            for (const value of mapped) {
+                expect(acceptsPropValue('View', 'accessibilityRole', value)).toBe(true);
+                expect(explainPropValue('View', 'accessibilityRole', value)).toBe(null);
+            }
         });
 
         await it('answers a value of a REFUSED prop with the prop’s own refusal', async () => {
