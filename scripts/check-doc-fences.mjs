@@ -756,9 +756,10 @@ for (const rel of frameworkSources) {
 //
 // WHY tsc AND NOT AN IDENTIFIER SCAN. #1516 offers a cheaper option — resolve
 // identifiers against the packages a fence imports — and warns not to build it
-// without measuring its false-positive rate first. MEASURED on this tree, over all
-// 203 js/ts/jsx/tsx fences: a rule flagging every called-but-unbound identifier
-// reports 26 fences, and reading them, essentially none is a defect. They are
+// without measuring its false-positive rate first. MEASURED on this tree, over EVERY
+// js/ts/jsx/tsx fence in the docs: a rule flagging every called-but-unbound identifier
+// reports a large minority of them, and reading every one, essentially none is a
+// defect. They are
 // class methods (`vfunc_startup`, a `constructor`), GJS ambient globals (`print`),
 // deliberately elided namespace imports in the `patterns/` pages (`GObject`,
 // `Gtk`, `Gio`), compiler-output samples (`_$createElement`) and helpers a page
@@ -769,9 +770,11 @@ for (const rel of frameworkSources) {
 // WHAT SELECTS THE CORPUS: the fence carries at least one `import … from '…'`. A
 // snippet that shows its imports is claiming to be a program a reader can run; one
 // that elides them is an excerpt, and holding an excerpt to a program's standard is
-// exactly where the false positives come from. MEASURED: 167 of the 203 fences
-// qualify, and TS2304 over all of them is **zero** — so this arm starts from a
-// clean, non-empty corpus rather than from an exemption list.
+// exactly where the false positives come from. MEASURED: most fences qualify and
+// TS2304 over all of them is **zero** — so this arm starts from a clean, non-empty
+// corpus rather than from an exemption list. The two counts are DERIVED and printed
+// on every run (`N of M js/ts fence(s) … show their imports`); restating either here
+// is a live count in a comment, which drifts unseen.
 //
 // ONLY TS2304 ("Cannot find name") IS READ, and that is what lets this arm run in
 // `tree-checks`, which does no build. An `import { X } from '@gjsify/gtk-host'`
@@ -784,9 +787,12 @@ for (const rel of frameworkSources) {
 // IT ASSERTS POSITIVE FACTS BEFORE BELIEVING A CLEAN TREE, the shape
 // `scripts/check-changelog-references.mjs` uses: a fixture matrix of the measured
 // shapes runs FIRST and any wrong verdict is fatal, so a detector that has quietly
-// stopped detecting cannot pass here. The `print` fixture is the load-bearing
-// control — without `@girs/gjs`'s ambient declarations every GJS fence would flag
-// `print`, and the matrix says so loudly instead of the arm dying silently.
+// stopped detecting cannot pass here. The load-bearing control is the GJS ambient
+// one: with the `@girs/gjs` reference below removed, `printerr` and `logError` are
+// unbound and the matrix says so loudly instead of the arm dying silently. NOT
+// `print` — MEASURED, that one is bound by `lib.dom`'s `Window.print()` whatever
+// `@girs/gjs` does, which is the DOM blind spot `status/open-todos.md` carries and
+// exactly why the control cannot be built on it.
 
 /** Every `.md`/`.mdx` under the docs tree — the reference pages included. */
 function docPages(dir) {
@@ -842,12 +848,17 @@ const SNIPPET_FIXTURES = [
         ].join('\n'),
     },
     {
-        why: "CONTROL: GJS's ambient globals must resolve, or every GJS fence would flag `print`",
+        // `printerr` and `logError` come from `@girs/gjs` and from nowhere else, so
+        // this fence flags both the moment the ambient reference stops resolving.
+        // `print` is deliberately NOT in here: `lib.dom` declares `Window.print()`,
+        // so it stays bound with no GJS types at all and would vouch for a reference
+        // that had silently gone away.
+        why: "CONTROL: GJS's ambient globals must resolve, or every GJS fence would flag `printerr`",
         lang: 'ts',
         names: [],
         body: [
             "import GLib from 'gi://GLib?version=2.0';",
-            'print(GLib.get_home_dir());',
+            'printerr(GLib.get_home_dir());',
             'logError(new Error());',
         ].join('\n'),
     },
