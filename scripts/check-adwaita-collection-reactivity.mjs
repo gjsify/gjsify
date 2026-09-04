@@ -86,9 +86,15 @@
 //     unchanged bug.
 //   · MODULE-LEVEL PARSING. The attribute reader sees a list parsed by a MEMBER of the
 //     class — `JSON.parse` inline, or a helper taking the attribute name — not one parsed
-//     by a module function. `adw-split-button.ts` has the only such shape today
-//     (`parseMenuEntries(this.getAttribute('menu'))`), and rule 1 holds that widget anyway
-//     because its collection is `SplitButtonState.setMenuModel`.
+//     by a module function. TWO widgets have that shape since ADR 0042 gave both menu
+//     buttons one `menu-model` attribute read through core's `parseMenuModel(…)`:
+//     `adw-split-button.ts`, which rule 1 holds anyway because its collection is
+//     `SplitButtonState.setMenuModel`, and `gtk-menu-button.ts`, which rule 1 does NOT
+//     hold — it keeps its model in its own field rather than in a core state class, so
+//     every rule here is silent on it and the census has no entry to break. Its
+//     `set menuModel` and its `menu-model` branch of `attributeChangedCallback` are both
+//     asserted by `packages/web/adwaita-web/src/gtk-menu-button.spec.ts`; that is a spec
+//     standing where this reader cannot.
 //
 // Plain Node over the repo's own files — no install, no build — so it runs in
 // `audit-runtimes.yml` next to the other repo-scoped Adwaita guards.
@@ -173,6 +179,77 @@ function fail(lines) {
 
 /** A type annotation that names a LIST — `T[]`, `readonly T[]`, `ReadonlyArray<T>`, `Array<T>`. */
 const LIST_TYPE = /\[\s*\]|\bReadonlyArray\s*<|\bArray\s*</;
+
+/**
+ * Core's exported type aliases whose right-hand side is a list, so a parameter that names
+ * one is recognised as a collection.
+ *
+ * MEASURED, and it is why this exists: `SplitButtonState.setMenuModel` was
+ * `(entries: readonly AdwMenuEntry[] …)` and became `(input: AdwMenuInput …)` when the
+ * portable menu model gave the authored form a name (ADR 0042). Nothing about the widget
+ * changed — the collection is the same, the setter is the same, `set menuModel` still
+ * reaches it — but {@link LIST_TYPE} sees no bracket in `AdwMenuInput`, so BOTH split
+ * buttons went from "has a collection" to "has none" and the census failed in the
+ * direction that says a widget was renamed or removed. Ledgering that as "no collection"
+ * would have recorded this reader's blind spot as a fact about the widget.
+ *
+ * ONE HOP, deliberately: an alias OF an alias is not followed, because the resolution
+ * this file can afford is textual and a chain is where that stops being honest. Nothing
+ * in core needs a second hop today, and a setter that does will fail this check by going
+ * invisible — loudly, in the census, which is the arrangement that caught this one.
+ */
+function coreListAliases() {
+    const aliases = new Set();
+    for (const file of sourcesUnder(CORE_SRC)) {
+        const code = stripComments(readFileSync(join(ROOT, file), 'utf8'));
+        for (const [, name, rhs] of code.matchAll(/\bexport\s+type\s+([A-Za-z0-9_$]+)\s*=\s*([^;]+);/g)) {
+            if (LIST_TYPE.test(rhs)) aliases.add(name);
+        }
+    }
+    return aliases;
+}
+
+/** Whether a signature names a list, directly or through one of core's list aliases. */
+const namesAList = (signature, aliases) =>
+    LIST_TYPE.test(signature) || [...aliases].some((alias) => new RegExp(`\\b${alias}\\b`).test(signature));
+
+/**
+ * A method that TAKES a collection in, as opposed to one that hands an element back.
+ *
+ * This file's first sentence is "a collection a widget takes IN stays replaceable", and
+ * a method returning an element of the collection is a LOOKUP — nothing was stored, so
+ * there is nothing for a consumer to replace. Without this, a list-shaped parameter is
+ * enough: `SplitButtonState.activateMenuItem(path: AdwMenuPath): AdwMenuItem | null`
+ * takes an ADDRESS and was reported as a collection the split buttons feed "only from
+ * connectedCallback", with a fix that would have had them publish a setter for an
+ * argument nobody stores. The same false positive was always available to a parameter
+ * spelled `readonly number[]`; the alias above is what made one reachable.
+ *
+ * MEASURED over the corpus rather than fitted to it: all six pre-existing collection
+ * setters (`setOptions`, `setLabels`, `setSections`, `setPages`, `addResponses`,
+ * `replaceWithTags`) return `void`, `setMenuModel` returns `boolean` — the "did it
+ * change" convention `SplitButtonState` documents for every mutator — and the one method
+ * this excludes is the one that returns an item. An UNANNOTATED return is not counted:
+ * every method in core annotates, so treating a missing annotation as an intake would
+ * add a blind spot to close one.
+ *
+ * Read from the text BETWEEN the parameter list and the body, because `signatureOf`
+ * deliberately stops at the first `)` and the return type is past it.
+ */
+const INTAKE_RETURN = /^\)\s*:\s*(?:void|boolean)\s*\{$/;
+
+/** The `): void {` between a method's parameter list and its body, or `''`. */
+function returnClause(text) {
+    const paren = text.indexOf(')');
+    if (paren === -1) return '';
+    const brace = text.indexOf('{', paren);
+    return brace === -1
+        ? ''
+        : text
+              .slice(paren, brace + 1)
+              .replace(/\s+/g, ' ')
+              .trim();
+}
 
 /** Keywords that can open a `name(` at member indentation without being a member. */
 const NOT_A_MEMBER = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'do', 'else']);
@@ -317,6 +394,7 @@ function sourcesUnder(dir) {
  * called by name.
  */
 function coreCollectionSetters() {
+    const aliases = coreListAliases();
     const byName = new Map();
     for (const file of sourcesUnder(CORE_SRC)) {
         const code = stripComments(readFileSync(join(ROOT, file), 'utf8'));
@@ -327,7 +405,8 @@ function coreCollectionSetters() {
             const members = membersOfClass(body.text);
             for (const member of members) {
                 if (member.kind !== 'method' || member.name.startsWith('_') || member.name.startsWith('#')) continue;
-                if (!LIST_TYPE.test(signatureOf(body.text, members, member))) continue;
+                if (!namesAList(signatureOf(body.text, members, member), aliases)) continue;
+                if (!INTAKE_RETURN.test(returnClause(memberText(body.text, members, member)))) continue;
                 if (!byName.has(member.name)) byName.set(member.name, []);
                 byName.get(member.name).push({ className, file, line: lineOf(code, body.offset + member.index) });
             }

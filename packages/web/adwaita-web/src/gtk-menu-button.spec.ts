@@ -61,6 +61,41 @@ export const GtkMenuButtonTest = async () => {
         });
     });
 
+    await describe('<gtk-menu-button> keeps its menu replaceable while live', async () => {
+        // The property `check-adwaita-collection-reactivity.mjs` exists to protect, and
+        // the one it cannot see here: this widget keeps its model in its own field rather
+        // than in a core state class, and parses its attribute through a MODULE function,
+        // so every rule in that reader is silent on it. A spec stands where the reader
+        // cannot.
+        await it('a menuModel assigned AFTER connect reaches the rows', () => {
+            const el = document.createElement('gtk-menu-button') as MenuButtonElement;
+            document.body.appendChild(el);
+            expect(el.querySelectorAll('.adw-popover-item').length).toBe(0);
+            el.menuModel = ['New', 'Open'];
+            expect([...el.querySelectorAll('.adw-menu-button-item-label')].map((n) => n.textContent)).toStrictEqual([
+                'New',
+                'Open',
+            ]);
+            // REPLACED, not merely seeded — the failure mode is a second assignment
+            // writing an expando while the first happened to work at connect.
+            el.menuModel = [{ label: 'Only', action: 'app.only' }];
+            expect([...el.querySelectorAll('.adw-menu-button-item-label')].map((n) => n.textContent)).toStrictEqual([
+                'Only',
+            ]);
+            unmountAll();
+        });
+
+        await it('a menu-model ATTRIBUTE set after connect reaches them too', () => {
+            const el = document.createElement('gtk-menu-button') as MenuButtonElement;
+            document.body.appendChild(el);
+            el.setAttribute('menu-model', '[{"label":"Later"}]');
+            expect([...el.querySelectorAll('.adw-menu-button-item-label')].map((n) => n.textContent)).toStrictEqual([
+                'Later',
+            ]);
+            unmountAll();
+        });
+    });
+
     await describe('<gtk-menu-button> renders the whole model (ADR 0042)', async () => {
         await it('draws a section heading, a separator and a submenu page', () => {
             const el = document.createElement('gtk-menu-button') as MenuButtonElement;
