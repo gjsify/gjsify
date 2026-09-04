@@ -19,7 +19,7 @@ import { PrimitiveError } from './errors.js';
 import { createHandle, type TextInputHandle } from './handles.js';
 import { declaresAbsolute, resolvePrimitive, type ChildContext, type PrimitivePlan } from './resolve.js';
 import type { ClassNameSink } from './style.js';
-import { PRIMITIVES, PRIMITIVE_NAMES } from './table.js';
+import { PRIMITIVES, PRIMITIVE_NAMES, type PropRoute } from './table.js';
 import { SUPPORT_TABLE } from '../support-table.js';
 
 const TOKENS: StyleTokens = {
@@ -754,6 +754,72 @@ export default async () => {
                 }
             }
             expect(bad).toStrictEqual([]);
+        });
+
+        await it('advises only props and values it would then accept', async () => {
+            // THE SAME MECHANISM ONE STEP FURTHER, and it found three. The vector
+            // above holds a ``see `onFoo``` cross-reference to the prop list; this one
+            // holds ``prop="value"`` — the shape a refusal uses to say what to do
+            // INSTEAD — against what the table would actually do with it. Three
+            // `accessibilityRole` refusals pointed at `status`, `navigation` and
+            // `group`: real ARIA roles GTK carries, and not React Native
+            // `accessibilityRole` spellings, so a caller who followed the advice got a
+            // SECOND refusal. That is worse than the generic "Known: …" message the
+            // per-value reason exists to replace, and nothing else can see it — a
+            // reason is prose to every other reader in this repo.
+            const bad: string[] = [];
+            let advised = 0;
+            for (const [primitive, spec] of Object.entries(PRIMITIVES)) {
+                const specs = [spec, ...(spec.switchOn === undefined ? [] : [spec.switchOn.whenTrue])];
+                for (const one of specs) {
+                    // `Array.isArray` does not narrow a `readonly T[]` out of a
+                    // union — it is typed as a guard for the MUTABLE array — so the
+                    // else branch keeps both members and the annotation rejects it.
+                    // The cast is on the branch the guard already decided.
+                    const routesOf = (prop: string): readonly PropRoute[] => {
+                        const route = one.props[prop];
+                        if (route === undefined) return [];
+                        return Array.isArray(route) ? (route as readonly PropRoute[]) : [route as PropRoute];
+                    };
+                    const reasons: string[] = [];
+                    for (const prop of Object.keys(one.props)) {
+                        for (const route of routesOf(prop)) {
+                            if (route.to === 'refused' || route.to === 'ignored') reasons.push(route.why);
+                            if (route.to === 'property') reasons.push(...Object.values(route.refuses ?? {}));
+                            if (route.to === 'accessible' && route.from === 'members') {
+                                reasons.push(...Object.values(route.refuses));
+                            }
+                        }
+                    }
+                    for (const why of reasons) {
+                        for (const [, prop, value] of why.matchAll(/`([A-Za-z_$][\w$]*)="([^"`]+)"`/g)) {
+                            advised += 1;
+                            const routes = routesOf(prop);
+                            if (routes.length === 0) {
+                                bad.push(
+                                    `${primitive}: advises ${prop}="${value}", which <${primitive}> does not take`,
+                                );
+                                continue;
+                            }
+                            for (const route of routes) {
+                                if (route.to === 'refused') {
+                                    bad.push(`${primitive}: advises ${prop}, which <${primitive}> refuses`);
+                                } else if (
+                                    route.to === 'property' &&
+                                    route.as === 'map' &&
+                                    route.map?.[value] === undefined
+                                ) {
+                                    bad.push(`${primitive}: advises ${prop}="${value}", which ${prop} does not map`);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            expect(bad).toStrictEqual([]);
+            // …and the scan found something to check, which is what keeps the line
+            // above an assertion rather than a loop over nothing.
+            expect(advised).toBeGreaterThan(0);
         });
     });
 

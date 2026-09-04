@@ -468,17 +468,28 @@ const ACCESSIBLE_ROLES: Readonly<Record<string, string>> = {
     webview: 'document',
 };
 
-/** Real React Native role spellings with no GTK member, each answered by name. */
+/**
+ * Real React Native role spellings with no GTK member, each answered by name.
+ *
+ * EVERY ROLE A REASON NAMES IS ONE {@link ACCESSIBLE_ROLES} MAPS, and that is a
+ * vector rather than a convention (`primitives.spec.ts`, "advises only values it
+ * would accept"). Three of these used to point at ARIA spellings GTK does have —
+ * `group`, `status`, `navigation` — which this layer nonetheless refuses, because
+ * the KEYS here are React Native's 40 `accessibilityRole` names and those three are
+ * not among them: they live on RN's separate ARIA-shaped `role` prop, which is not
+ * a table key at all. A refusal whose advice is refused in turn is worse than the
+ * generic "Known: …" it was written to replace.
+ */
 const ACCESSIBLE_ROLES_REFUSED: Readonly<Record<string, string>> = {
     keyboardkey:
-        'describes a key of an on-screen keyboard, and neither GTK nor ARIA has a role for one — a desktop keyboard is the input method, not a widget in your tree. If you are building a keypad, the keys are `accessibilityRole="button"` and the container is `"group"`, which is what a screen reader can navigate',
+        'describes a key of an on-screen keyboard, and neither GTK nor ARIA has a role for one — a desktop keyboard is the input method, not a widget in your tree. If you are building a keypad, the keys are `accessibilityRole="button"`; the container needs no role, because React Native has no spelling for ARIA’s `group` and a plain `<View>` is already the `generic` a screen reader walks through',
     summary:
-        'is an iOS trait for the one element VoiceOver reads first when an app launches, and GTK has no counterpart because a desktop screen reader announces the focused widget instead. Put the text in the window title or give the element `accessibilityRole="status"`’s GTK sibling — role `status` is not in React Native’s list, so reach it with `accessibilityLabel` on the element that should carry the summary',
+        'is an iOS trait for the one element VoiceOver reads first when an app launches, and GTK has no counterpart because a desktop screen reader announces the focused widget instead. Put the text in the window title, or carry it as `accessibilityLabel` on the element it summarises — React Native’s role list has no `status`, so there is no role to give it here',
     scrollview:
         'names Android’s ScrollView class rather than a role, and this layer already answers the idea: `<ScrollView>` becomes a `Gtk.ScrolledWindow`, whose accessibility a screen reader reads from the widget itself. Drop the prop',
     horizontalscrollview: 'names an Android class, like `scrollview` — use `<ScrollView horizontal>` and drop the prop',
     drawerlayout:
-        'names Android’s DrawerLayout. The desktop pattern survives the component (`Adw.OverlaySplitView`), but it is a widget rather than a role — give the drawer `accessibilityRole="navigation"`’s GTK sibling by labelling it, and leave the role to the widget',
+        'names Android’s DrawerLayout. The desktop pattern survives the component (`Adw.OverlaySplitView`), but it is a widget rather than a role — drop the prop and give the drawer an `accessibilityLabel`; React Native’s role list has no `navigation`, and the widget carries the rest',
     slidingdrawer: 'names a deprecated Android class — see `drawerlayout`',
     pager: 'names Android’s ViewPager. GTK’s counterpart is a `Gtk.Stack`, and the role a screen reader wants on it is `tablist` when it has visible switchers and nothing at all when it does not',
 };
