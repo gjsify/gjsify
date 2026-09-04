@@ -121,9 +121,9 @@ export function explainProp(primitive: string, prop: string, variant?: PropVaria
  * The values (or record keys) this prop refuses by name, each with its reason.
  *
  * Empty for most props. `accessibilityRole` is the one that made this necessary: it is
- * an ACCEPTED property route and seven of React Native's forty role names have no GTK
- * member, each answered with its own sentence — and until #1555 none of those seven was
- * reachable except by rendering one and catching the throw.
+ * an ACCEPTED property route and a handful of React Native's role names have no GTK
+ * member, each answered with its own sentence — and until #1555 not one of them was
+ * reachable except by rendering it and catching the throw.
  */
 export function propRefusedValues(primitive: string, prop: string, variant?: PropVariant): readonly string[] {
     return Object.keys(propAnswer(primitive, prop, variant).refuses).sort();

@@ -1,11 +1,11 @@
 // One prop of one primitive → what this layer does about it, and the sentence it says.
 //
 // TWO GRAINS, BECAUSE THE TABLE HAS TWO. A prop can be refused outright, and a prop
-// that is ACCEPTED can refuse some of its values by name — `accessibilityRole` answers
-// 33 of React Native's 40 role names and refuses 7 with a sentence apiece. Both belong
-// here: a per-value refusal that only existed inside the resolver was reachable only by
-// rendering one and catching the throw, which is the state § 1 of ADR 0039 exists to
-// end (#1555).
+// that is ACCEPTED can refuse some of its values by name — `accessibilityRole` maps most
+// of React Native's role names onto a GTK member and refuses the rest, each with its own
+// sentence. Both belong here: a per-value refusal that only existed inside the resolver
+// was reachable only by rendering one and catching the throw, which is the state § 1 of
+// ADR 0039 exists to end (#1555).
 //
 // THE POINT IS THAT THERE IS ONE OF THESE. `resolve.ts` used to build the "unknown
 // prop" and "refused" sentences inline, which made the answer reachable only by
@@ -83,11 +83,12 @@ export interface PropAnswer {
      * The VALUES this prop refuses by name, each with its own reason (#1555).
      *
      * A field rather than a fold into {@link why}, because the prop is ACCEPTED and
-     * only some of its values are not: `accessibilityRole` answers 33 of React
-     * Native's 40 role names and refuses 7, and a row that said `property | — ` could
-     * not tell a reader which. Keyed by the VALUE for a mapped property route and by
-     * the KEY for an accessible record (`accessibilityState`), which is the same
-     * question at the two grains the table has.
+     * only some of its values are not: `accessibilityRole` answers most role names and
+     * refuses a handful, and a row that said `property | — ` could not tell a reader
+     * which — `propRefusedValues` is the reader that can. Keyed by the VALUE for a
+     * mapped property route and by the KEY for an accessible record
+     * (`accessibilityState`), which is the same question at the two grains the table
+     * has.
      *
      * The reason is the table's own string, not a sentence built here: `prop-table.ts`
      * wraps it in the subject the resolver throws, so the static answer and the render
