@@ -14,27 +14,27 @@
 //
 // FIDELITY: approximated for the menu. `Adw.SplitButton` shows an in-app popover; the
 // NS subset has none, so the dropdown opens the platform `action()` sheet (the same
-// substitution `AdwComboRow` makes). The label→position round trip that substitution
-// forces is handled in `split-button.ts`. The two-part linked shape and the symbolic
-// icons are faithful.
+// substitution `AdwComboRow` makes). What that costs — and what it does with a section,
+// a submenu, a disabled item and a check — is decided once in `menu-sheet.ts` for this
+// widget and `GtkMenuButton` together (ADR 0042). The two-part linked shape and the
+// symbolic icons are faithful.
 //
 // Reference: refs/libadwaita/src/adw-split-button.c (AdwSplitButton)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (.split-button)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { action, GridLayout, ItemSpec, Label, StackLayout, type EventData } from '@nativescript/core';
-import { SPLIT_BUTTON_DISABLED_OPACITY, SplitButtonState } from '@gjsify/adwaita-core';
-import type { AdwMenuEntry, SplitButtonDirection } from '@gjsify/adwaita-core';
+import {
+    ADW_MENU_SURFACE_NATIVESCRIPT,
+    SPLIT_BUTTON_DISABLED_OPACITY,
+    SplitButtonState,
+    assertMenuRenderable,
+} from '@gjsify/adwaita-core';
+import type { AdwMenuActions, AdwMenuInput, AdwMenuModel, SplitButtonDirection } from '@gjsify/adwaita-core';
 import { AdwIcon } from './adw-icon.js';
 import { attachRowPressFeedback } from './row-press.js';
-import {
-    MENU_CANCEL_LABEL,
-    menuSheetActions,
-    resolveMenuChoice,
-    setActionIcon,
-    splitButtonArrowSvg,
-    toMenuEntries,
-} from './split-button.js';
+import { MENU_CANCEL_LABEL, presentMenuSheet, refuseMenuString } from './menu-sheet.js';
+import { setActionIcon, splitButtonArrowSvg } from './split-button.js';
 import { xmlBoolean } from './xml-values.js';
 
 /** Event name emitted when the main action part is tapped. Mirrors `Adw.SplitButton::clicked`. */
@@ -47,9 +47,15 @@ export const MENU_TAPPED = 'menuTapped';
 export interface MenuTappedEventData extends EventData {
     /** The chosen menu item label. */
     item: string;
-    /** The chosen item's index in {@link AdwSplitButton.menu} — its GMenuModel POSITION. */
-    index: number;
-    /** The chosen item's detailed action name, when the entry carried one. */
+    /** The chosen item's id, falling back to its label. */
+    id: string;
+    /**
+     * Where the item sits in {@link AdwSplitButton.menuModel} — its `GMenuModel`
+     * POSITION, as a PATH since ADR 0042: a submenu is a model of its own, so `[2, 0]`
+     * is the first item of the third entry and a flat index cannot name it.
+     */
+    path: readonly number[];
+    /** The chosen item's detailed action name, when the item carried one. */
     action?: string;
 }
 
@@ -65,6 +71,7 @@ export class AdwSplitButton extends GridLayout {
     /** The direction arrow. */
     protected readonly _chevron: AdwIcon;
     private readonly _state = new SplitButtonState();
+    private _actions: AdwMenuActions | null = null;
     /** Which of the two action views is currently parented. */
     private _showingIcon = false;
     /**
@@ -152,21 +159,18 @@ export class AdwSplitButton extends GridLayout {
         // A sheet is already up — the platform owns the interaction until it
         // resolves, so a second tap must not present a second one.
         if (!this._sensitive || this._state.open || !this._state.dropdownEnabled) return;
-        const entries = this._state.menuModel ?? [];
-        const actions = menuSheetActions(entries, MENU_CANCEL_LABEL);
 
         this._state.toggleMenu();
-        const chosen = await action({
+        const path = await presentMenuSheet(action, this._state.menuModel ?? [], {
             // The label of the CURRENT content only — an icon-mode button has
             // none, where the old code handed over the hidden stale label.
-            title: this._state.label || undefined,
-            cancelButtonText: MENU_CANCEL_LABEL,
-            actions,
+            title: this._state.label ?? undefined,
+            actions: this._actions ?? undefined,
+            cancelLabel: MENU_CANCEL_LABEL,
         });
 
-        const index = resolveMenuChoice(actions, chosen);
-        const entry = this._state.activateMenuEntry(index);
-        if (entry === null) {
+        const item = path === null ? null : this._state.activateMenuItem(path);
+        if (item === null || path === null) {
             // Dismissed, or a choice that maps to no position.
             this._state.closeMenu();
             return;
@@ -174,9 +178,10 @@ export class AdwSplitButton extends GridLayout {
         const data: MenuTappedEventData = {
             eventName: MENU_TAPPED,
             object: this,
-            item: entry.label,
-            index,
-            action: entry.action,
+            item: item.label,
+            id: item.id ?? item.label,
+            path,
+            action: item.action,
         };
         this.notify(data);
     }
@@ -234,13 +239,51 @@ export class AdwSplitButton extends GridLayout {
         setActionIcon(this._state, svg);
     }
 
-    /** The dropdown menu entries (opened as a native `action()` sheet on arrow tap). */
-    get menu(): readonly AdwMenuEntry[] {
+    /**
+     * The dropdown menu, normalised (ADR 0042) — opened as a native `action()` sheet on
+     * an arrow tap.
+     *
+     * Accepts everything the portable model does, INCLUDING the bare `string[]` this
+     * widget used to be alone in taking: that shorthand is now one of the model's own
+     * input forms rather than a NativeScript-only shape, so the same value works on
+     * every surface.
+     *
+     * IT DOES NOT TAKE A JSON STRING, which the browser element's `menu-model`
+     * ATTRIBUTE does. Not an oversight: NativeScript's Builder writes an XML attribute
+     * straight onto the property, so accepting one here would open the XML door — and
+     * the gallery probe that would have to prove it compares a read-back by IDENTITY
+     * (`gallery-page.ts`), which no structured value can satisfy. An input form nothing
+     * can run is a claim, not a feature.
+     *
+     * AND IT SAYS SO. Left to `normalizeMenuModel`, a string is "not an array" and
+     * becomes an EMPTY menu — so an XML author writing `menuModel="[…]"` would get a
+     * button whose dropdown is dead, with nothing anywhere saying why. A shut door that
+     * is silent is worse than one that is open.
+     */
+    get menuModel(): AdwMenuModel {
         return this._state.menuModel ?? [];
     }
 
-    set menu(value: readonly (string | AdwMenuEntry)[]) {
-        this._state.setMenuModel(toMenuEntries(value));
+    set menuModel(value: AdwMenuInput) {
+        refuseMenuString(value, 'AdwSplitButton');
+        this._state.setMenuModel(value);
+        // LOUD, at the assignment: a `custom` item names an application widget, and a
+        // sheet row is a string — a surface that ignored it would offer a blank row.
+        assertMenuRenderable(this._state.menuModel ?? [], ADW_MENU_SURFACE_NATIVESCRIPT);
+    }
+
+    /**
+     * What the action group publishes about the actions this menu names — the portable
+     * stand-in for a `GActionGroup`, and the only source of a menu's enabled/checked
+     * state (ADR 0042). A sheet has no disabled row, so an insensitive item is not
+     * offered; a checked one wears a tick.
+     */
+    get actions(): AdwMenuActions | null {
+        return this._actions;
+    }
+
+    set actions(value: AdwMenuActions | null) {
+        this._actions = value ?? null;
     }
 
     /** The direction the arrow points (and, on GTK, the popup opens). */

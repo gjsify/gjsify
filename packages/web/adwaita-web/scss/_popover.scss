@@ -188,3 +188,102 @@ gtk-popover {
   font-weight: 700;
   opacity: var(--dim-opacity);
 }
+
+// --- The menu INSIDE the popover (ADR 0042) -----------------------------------
+//
+// One rule set for both menu-bearing elements, because the split button's dropdown
+// half IS a GtkMenuButton and its popup is the same `popover.menu`. SIX nodes, none of
+// which has a counterpart in the port's previous menus — they drew a flat list of labels
+// and nothing else: the separator, the section title, the accelerator, the check/radio
+// mark (plus the two nested `[aria-checked='true']` rules that draw it), the submenu
+// chevron and the back row.
+
+// `popover.menu separator { margin: 6px 0 }` (_menus.scss:68-70). GTK's separator is
+// a real widget with its own background; in the DOM the hairline is the border, so
+// the 6px is split above and below it rather than being a margin on a 1px box.
+.adw-popover-separator {
+  height: 1px;
+  margin: 6px 0;
+  background-color: var(--separator-color, rgba(0, 0, 0, 0.15));
+}
+
+// A section's heading. `.adw-popover-title` already carries the weight and the dim;
+// this is the tighter top inset a heading needs when it follows a separator rather
+// than opening the menu.
+.adw-popover-section-title {
+  padding-top: 2px;
+}
+
+// `popover.menu accelerator { color: dim; margin-left: $menu_padding }`
+// (_menus.scss:78-82). `margin-inline-start` rather than `margin-left`, so it follows
+// the writing direction the way GTK's `:dir(ltr)`/`:dir(rtl)` pair does — the two
+// rules are one logical property here.
+.adw-popover-item-accel {
+  margin-inline-start: auto;
+  padding-inline-start: 12px;
+  opacity: var(--dim-opacity);
+  font-size: 0.9em;
+}
+
+// `popover.menu check, radio { min-width: 14px; min-height: 14px; padding: 2px }`
+// (_menus.scss:85-90). The slot is reserved whether or not the row is checked, so the
+// labels of a group line up — the reason it is a node and not a `::before`.
+//
+// A DELIBERATE SUBSTITUTION, the same kind `<adw-split-button>`'s pan-up arrow already
+// documents: GTK draws the tick with `object-select-symbolic`, and this port's icon set
+// ships no checkmark (`_icons.generated.scss` has 42 glyphs and none of them is one). A
+// two-sided rotated border is the tick, so nothing here depends on an asset that would
+// silently render as `image-missing`.
+.adw-popover-item-check {
+  position: relative;
+  box-sizing: border-box;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  padding: 2px;
+
+  // Drawn off `aria-checked`, never off a class of its own: the accessible state and
+  // the visible state are then the same fact rather than two that can disagree.
+  [aria-checked='true'] > &::after {
+    content: '';
+    position: absolute;
+    inset-inline-start: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid currentcolor;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  // A radio's mark is a filled dot, so the tick becomes a disc.
+  &.radio {
+    border-radius: 9999px;
+  }
+
+  [aria-checked='true'] > &.radio::after {
+    inset-inline-start: 4px;
+    top: 4px;
+    width: 6px;
+    height: 6px;
+    border: none;
+    border-radius: 9999px;
+    background-color: currentcolor;
+    transform: none;
+  }
+}
+
+// The chevron on a row that opens a submenu.
+.adw-popover-item-arrow {
+  margin-inline-start: auto;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  opacity: var(--dim-opacity);
+}
+
+// The row that leaves a submenu. It carries the parent's own label, so it reads as
+// the heading of the page it returns to rather than as a bare "Back".
+.adw-popover-back {
+  font-weight: 700;
+}

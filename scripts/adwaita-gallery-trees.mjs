@@ -207,6 +207,41 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
+    {
+        widget: 'Adw.SplitButton',
+        page: 'buttons',
+        // The menu is a PORTABLE MENU MODEL (ADR 0042) — the same value the browser and
+        // NativeScript renderers take. It is why this block has a snippet at all: the
+        // property's GObject type is `GMenuModel`, which has no literal spelling, and
+        // the refusal that stood here said so.
+        root: {
+            tag: 'adw-split-button',
+            props: {
+                label: 'Save',
+                menuModel: [
+                    { label: 'Save as…', action: 'app.save-as' },
+                    { label: 'Export', action: 'app.export' },
+                    { label: 'Print', action: 'app.print' },
+                ],
+            },
+        },
+    },
+    {
+        widget: 'Gtk.MenuButton',
+        page: 'buttons',
+        root: {
+            tag: 'gtk-menu-button',
+            props: {
+                iconName: 'open-menu-symbolic',
+                cssClasses: ['flat'],
+                menuModel: [
+                    { label: 'Preferences', action: 'app.preferences' },
+                    { label: 'Keyboard Shortcuts', action: 'win.show-help-overlay' },
+                    { label: 'About', action: 'app.about' },
+                ],
+            },
+        },
+    },
     // ---------------------------------------------------------------- controls
     {
         widget: 'Gtk.Entry',
@@ -602,7 +637,10 @@ export const ADWAITA_GALLERY_REFUSALS = {
         'its `stack` is a widget reference, and a ref is spelled differently in all three dialects.',
     'Adw.ComboRow': 'its items are a Gio.ListModel; a row without them teaches the wrong thing.',
     'Adw.SpinRow': 'its range is a Gtk.Adjustment, a GObject that is not a widget.',
-    'Adw.SplitButton': 'its menu is a Gio.MenuModel, built imperatively.',
-    'Gtk.MenuButton': 'its menu is a Gio.MenuModel, built imperatively.',
+    // `Adw.SplitButton` and `Gtk.MenuButton` USED TO BE HERE — "its menu is a
+    // Gio.MenuModel, built imperatively". ADR 0042 gave that model a portable value
+    // form and `coerce` turns one into a real `Gio.Menu` at the ParamSpec seam, so both
+    // blocks are trees above. `Gtk.DropDown` stays: a `Gtk.StringList` has had no such
+    // form built for it, which is a different decision and not this one.
     'Gtk.DropDown': 'its options are a Gtk.StringList model, built imperatively.',
 };

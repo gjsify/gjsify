@@ -35,13 +35,13 @@
 
 import type { DefineComponent } from '@vue/runtime-core';
 
-import type { VueAttributes, WithOnce } from './attrs.js';
+import type { VueAttributes, WithOnce, WithPortableMenu } from './attrs.js';
 import type { WidgetPropsByGType, WidgetPropsVueAliases } from './generated/props.js';
 
 type VueWidgetProps = WidgetPropsByGType & WidgetPropsVueAliases;
 
 export type GtkGlobalComponents = {
-    [K in keyof VueWidgetProps]: DefineComponent<WithOnce<VueWidgetProps[K]> & VueAttributes>;
+    [K in keyof VueWidgetProps]: DefineComponent<WithOnce<WithPortableMenu<VueWidgetProps[K]>> & VueAttributes>;
 };
 
 declare module '@vue/runtime-core' {

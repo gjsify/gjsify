@@ -127,8 +127,9 @@ export type {
     NotifyExpandedEventData,
     ExpanderStateListener,
     AdwButtonVariant,
-    AdwMenuItem,
     MenuItemActivatedEventData,
+    MenuSheetPresenter,
+    MenuSheetRow,
     // Presentation / layout
     MenuTappedEventData,
     RowActivatedEventData,

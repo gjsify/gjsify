@@ -108,6 +108,23 @@
                 :css-classes="['flat']"
             />
         </gtk-box>
+        <adw-split-button
+            label="Save"
+            :menu-model="[
+                { label: 'Save as…', action: 'app.save-as' },
+                { label: 'Export', action: 'app.export' },
+                { label: 'Print', action: 'app.print' },
+            ]"
+        />
+        <gtk-menu-button
+            icon-name="open-menu-symbolic"
+            :css-classes="['flat']"
+            :menu-model="[
+                { label: 'Preferences', action: 'app.preferences' },
+                { label: 'Keyboard Shortcuts', action: 'win.show-help-overlay' },
+                { label: 'About', action: 'app.about' },
+            ]"
+        />
         <gtk-entry
             placeholder-text="Search files…"
             :width-request="280"

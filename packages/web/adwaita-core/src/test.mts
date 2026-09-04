@@ -6,6 +6,7 @@ import sidebarTestSuite from './sidebar.spec.js';
 import entryRowTestSuite from './entry-row.spec.js';
 import splitViewTestSuite from './split-view.spec.js';
 import splitButtonTestSuite from './split-button.spec.js';
+import menuTestSuite from './menu.spec.js';
 import viewSwitcherTestSuite from './view-switcher.spec.js';
 import tabViewTestSuite from './tab-view.spec.js';
 import carouselTestSuite from './carousel.spec.js';
@@ -56,6 +57,7 @@ run({
     entryRowTestSuite,
     splitViewTestSuite,
     splitButtonTestSuite,
+    menuTestSuite,
     viewSwitcherTestSuite,
     tabViewTestSuite,
     carouselTestSuite,

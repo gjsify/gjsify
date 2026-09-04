@@ -37,7 +37,7 @@ import { jsxDEV as reactJsxDEV } from 'react/jsx-dev-runtime';
 import type { Key, ReactElement, ReactNode, Ref } from 'react';
 
 import type { WidgetClassByTag, WidgetPropsByTag } from './generated/props.js';
-import type { RawSignalAttributes, SlotAttribute, WithOnce } from './attrs.js';
+import type { RawSignalAttributes, SlotAttribute, WithOnce, WithPortableMenu } from './attrs.js';
 
 export { Fragment } from 'react/jsx-runtime';
 
@@ -91,7 +91,8 @@ export interface ReactWidgetAttributes<T> extends SlotAttribute, RawSignalAttrib
 
 /** Every GTK/Adwaita tag, with its properties, its handlers, its `ref` and its `key`. */
 export type GtkReactIntrinsicElements = {
-    [K in keyof WidgetPropsByTag]: WithOnce<WidgetPropsByTag[K]> & ReactWidgetAttributes<WidgetClassByTag[K]>;
+    [K in keyof WidgetPropsByTag]: WithOnce<WithPortableMenu<WidgetPropsByTag[K]>> &
+        ReactWidgetAttributes<WidgetClassByTag[K]>;
 };
 
 export namespace JSX {

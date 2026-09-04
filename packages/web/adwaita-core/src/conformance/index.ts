@@ -256,14 +256,13 @@ export type {
     TagsConflictVector,
 } from './split-view.js';
 
-// --- Split button + menu model (Adw.SplitButton) vectors ---
+// --- Split button (Adw.SplitButton) vectors ---
 export {
     MENU_BUTTON_DIRECTION_VECTORS,
     SPLIT_BUTTON_CONTENT_VECTORS,
     SPLIT_BUTTON_DIRECTION_VECTORS,
     SPLIT_BUTTON_DROPDOWN_VECTORS,
     SPLIT_BUTTON_MENU_ACTIVATION_VECTORS,
-    SPLIT_BUTTON_MENU_PARSE_VECTORS,
     SPLIT_BUTTON_ROOT_STATE_VECTORS,
     SPLIT_BUTTON_STYLE_CLASS_VECTORS,
     SPLIT_BUTTON_TOOLTIP_VECTORS,
@@ -274,11 +273,29 @@ export type {
     SplitButtonDirectionVector,
     SplitButtonDropdownVector,
     SplitButtonMenuActivationVector,
-    SplitButtonMenuParseVector,
     SplitButtonRootStateVector,
     SplitButtonStyleClassVector,
     SplitButtonTooltipVector,
 } from './split-button.js';
+
+// --- The portable menu model (ADR 0042) vectors ---
+export {
+    MENU_DETAILED_ACTION_VECTORS,
+    MENU_FLATTEN_VECTORS,
+    MENU_ITEM_STATE_VECTORS,
+    MENU_NORMALIZE_VECTORS,
+    MENU_PARSE_VECTORS,
+    MENU_REFUSAL_VECTORS,
+} from './menu.js';
+export type {
+    MenuDetailedActionVector,
+    MenuFlatRowVector,
+    MenuFlattenVector,
+    MenuItemStateVector,
+    MenuNormalizeVector,
+    MenuParseVector,
+    MenuRefusalVector,
+} from './menu.js';
 
 // --- View switcher + bar (Adw.ViewSwitcher / Adw.InlineViewSwitcher) vectors ---
 export {

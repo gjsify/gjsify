@@ -8,6 +8,7 @@
 // is a claim, and this file is what turns it into a measurement.
 
 import Adw from 'gi://Adw?version=1';
+import Gio from 'gi://Gio?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { createRoot } from 'solid-js';
@@ -146,6 +147,29 @@ const GtkButton = () => (
             cssClasses={['flat']}
         />
     </gtk-box>
+);
+
+const AdwSplitButton = () => (
+    <adw-split-button
+        label="Save"
+        menuModel={[
+            { label: 'Save as…', action: 'app.save-as' },
+            { label: 'Export', action: 'app.export' },
+            { label: 'Print', action: 'app.print' },
+        ]}
+    />
+);
+
+const GtkMenuButton = () => (
+    <gtk-menu-button
+        iconName="open-menu-symbolic"
+        cssClasses={['flat']}
+        menuModel={[
+            { label: 'Preferences', action: 'app.preferences' },
+            { label: 'Keyboard Shortcuts', action: 'win.show-help-overlay' },
+            { label: 'About', action: 'app.about' },
+        ]}
+    />
 );
 
 const GtkEntry = () => (
@@ -448,6 +472,8 @@ const Gallery = () => (
         <AdwButtonRow />
         <AdwButtonContent />
         <GtkButton />
+        <AdwSplitButton />
+        <GtkMenuButton />
         <GtkEntry />
         <AdwClamp />
         <AdwHeaderBar />
@@ -564,6 +590,12 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Delete","cssClasses":["destructive-action"]} },
                 { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Flat","cssClasses":["flat"]} }
             ] }
+    },
+    { widget: 'Adw.SplitButton', root:
+        { tag: 'adw-split-button', gtype: 'AdwSplitButton', props: {"label":"Save","menuModel":[{"label":"Save as…","action":"app.save-as"},{"label":"Export","action":"app.export"},{"label":"Print","action":"app.print"}]} }
+    },
+    { widget: 'Gtk.MenuButton', root:
+        { tag: 'gtk-menu-button', gtype: 'GtkMenuButton', props: {"iconName":"open-menu-symbolic","cssClasses":["flat"],"menuModel":[{"label":"Preferences","action":"app.preferences"},{"label":"Keyboard Shortcuts","action":"win.show-help-overlay"},{"label":"About","action":"app.about"}]} }
     },
     { widget: 'Gtk.Entry', root:
         { tag: 'gtk-entry', gtype: 'GtkEntry', props: {"placeholderText":"Search files…","widthRequest":280} }
@@ -695,12 +727,40 @@ const NICKS: Record<string, Record<string, number>> = {
     valign: { fill: Gtk.Align.FILL, start: Gtk.Align.START, end: Gtk.Align.END, center: Gtk.Align.CENTER },
 };
 
+/**
+ * A `GMenuModel` property against the portable model the tree declares (ADR 0042).
+ *
+ * The declared value is an ARRAY and what the widget holds is a `Gio.MenuModel`, so
+ * `!==` would fail every time. Compared item by item on the two attributes GIO
+ * actually stores — the label, and the action `set_detailed_action` parsed out — which
+ * is what proves the ARRAY became a real menu rather than merely being accepted.
+ */
+function menuMatches(actual: unknown, expected: unknown): boolean {
+    const model = actual as Gio.MenuModel | null;
+    const declared = expected as Array<{ label?: string; action?: string }>;
+    if (model === null || model === undefined) return false;
+    if (model.get_n_items() !== declared.length) return false;
+    for (let i = 0; i < declared.length; i += 1) {
+        const label = model.get_item_attribute_value(i, 'label', null)?.get_string()[0];
+        if (label !== declared[i].label) return false;
+        // `app.save-as` is stored under `action`; a targeted one would also carry
+        // `target`, and no gallery tree writes one.
+        const action = model.get_item_attribute_value(i, 'action', null)?.get_string()[0];
+        if (action !== declared[i].action) return false;
+    }
+    return true;
+}
+
 /** Does the REAL widget carry every property the tree declares? */
 function propsMatch(widget: Gtk.Widget, props: Record<string, unknown> | undefined): boolean {
     for (const [name, expected] of Object.entries(props ?? {})) {
         if (name === 'cssClasses') {
             const have = widget.get_css_classes();
             if (!(expected as string[]).every((c) => have.includes(c))) return false;
+            continue;
+        }
+        if (name === 'menuModel') {
+            if (!menuMatches((widget as unknown as Record<string, unknown>)[name], expected)) return false;
             continue;
         }
         const actual = (widget as unknown as Record<string, unknown>)[name];

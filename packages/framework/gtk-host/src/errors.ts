@@ -60,6 +60,15 @@ export const err = {
                 `"${accessor}" on this object. Assigning it anyway would create a plain JS property: no ` +
                 `GObject write, no error, and notify::${prop} never fires.`,
         ),
+    badDetailedAction: (label: string, detailed: string, why: string) =>
+        new GtkHostError(
+            'bad-detailed-action',
+            `The menu item "${label}" names the action ${JSON.stringify(detailed)}, which GIO cannot ` +
+                `parse: ${why}. In the installed GIO this is not an exception but a g_error() inside ` +
+                `g_menu_item_set_detailed_action: the process ABORTS (SIGABRT, exit 134) with no catch ` +
+                `and no diagnostic, so the host refuses here while a refusal is still reportable. ` +
+                `A detailed action name is "app.act", "app.act::target" or "app.act(variant)".`,
+        ),
     badEnum: (tag: string, prop: string, nick: string, gtypeName: string) =>
         new GtkHostError(
             'bad-enum',

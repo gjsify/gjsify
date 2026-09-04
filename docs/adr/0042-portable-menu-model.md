@@ -41,25 +41,42 @@ type AdwMenuModel = readonly AdwMenuNode[];
 type AdwMenuNode = AdwMenuItem | AdwMenuSection | AdwMenuSubmenu;
 ```
 
-Every item attribute is one `GtkPopoverMenu` documents itself as reading — `label`,
-`action`, `icon`, `verb-icon`, `accel`, `hidden-when`, `custom`, `use-markup` — plus
-`id`, which is ours. A section carries `label`, `display-hint`, `text-direction`; a
-submenu carries `label` and `icon`. Nothing was invented and nothing was left out.
+The attribute set is `refs/gtk/gtk/gtkpopovermenu.c:99-131` — its own `## Menu models`
+list — enumerated so the claim is checkable:
 
-The shape was **not** designed from taste. It is `refs/gtk/gtk/gtkpopovermenu.c`'s own
-`## Menu models` attribute list, and the vectors cite it line by line.
+| node | attributes |
+|---|---|
+| item | `label`, `use-markup`, `action`, `icon`, `verb-icon`, `hidden-when`, `custom`, plus `accel` and `id` |
+| section | `label`, `display-hint`, `text-direction` |
+| submenu | `label`, `icon`, `submenu-action`, `gtk-macos-special` |
+
+Two of those are not in the popovermenu list and are here anyway. `accel` is read at
+`gtkmenutrackeritem.c:731`, so the list is the incomplete one. `id` is **ours**, and it
+survives because a `GMenuModel`'s attribute space is open — an attribute GTK does not
+read, exactly like an application's own.
+
+`target` has no field: it travels inside the detailed action name (§ 3), and GIO writes
+it back out.
+
+**The first cut of this ADR claimed "nothing was invented and nothing was left out" and
+was wrong twice**: `submenu-action` (`gtkpopovermenu.c:106-107`, read at
+`gtkmenutrackeritem.c:822` and `:1049`) and `gtk-macos-special` (`:130-131`, read at
+`:761`) had no field, and both came back `null` through a measured GIO round trip. Both
+are fields now. A completeness claim nothing enumerates is one nobody can check, which is
+why the table is above and the round trip in `@gjsify/gtk-host`'s `menu.spec.ts` is what
+holds it.
 
 ### 2. `enabled` and `checked` are NOT item fields — they come from the ACTION
 
 This is the decision most likely to be "simplified" back into a bug, so it is stated
 first among the divergences. Measured in `refs/gtk/gtk/gtkmenutrackeritem.c`:
 
-- `sensitive` is the action's `enabled` flag (`self->sensitive = enabled`, c:333);
+- `sensitive` is the action's `enabled` flag (`self->sensitive = enabled`, c:332);
 - `role` is RADIO when the item has a `target` and the action has a STATE, CHECK when
   the state is a boolean and there is no target (c:551-562);
 - `toggled` compares the two;
 - an item with no `action` attribute at all is SENSITIVE — C sets it explicitly in the
-  else branch (c:588-591) rather than leaving the field false.
+  else branch (c:591-595, the assignment at c:594) rather than leaving the field false.
 
 So an item field `enabled: false` would be a field no `Gio.Menu` can hold: converting
 such a model to GTK would DROP it, silently, which is the exact failure this design
@@ -83,9 +100,18 @@ JSON encoding for a `GVariant` — the place it would otherwise have to guess `i
 a JS number.
 
 The cost is stated where it lives: `parseDetailedAction` does NOT parse the `GVariant`,
-so comparing a target against an action's state is a STRING comparison. Exact for the
-string and boolean targets a menu actually uses; not canonicalising, so `app.zoom(2)`
-and `app.zoom( 2 )` name the same action to GLib and different targets to us.
+so comparing a target against an action's state is a STRING comparison. It compares the
+target's CONTENT, not its `GVariant` text — `app.v::list` and `app.v('list')` are the
+same detailed action to GLib and must yield the same target here, so a quoted `(…)`
+target is unquoted. For the same reason `AdwMenuAction.state` is the state's content
+(`list`, `true`), NOT `variant.print(false)`, which would quote a string and leave every
+radio row reading OFF.
+
+What it does not close: WHITESPACE. `win.zoom(2)` and `win.zoom( 2 )` name the same
+action to GLib and different targets to us, and a portable model with no `GVariant`
+implementation cannot fix that. The GIO round trip NORMALISES both cases — a quoted
+target comes back in the `::` form, and inner whitespace is gone — which is a
+normalisation and not a loss, and `menu.spec.ts` pins both.
 
 ### 4. Input widens, the stored value is normalised
 
@@ -117,25 +143,51 @@ type (`AdwMenuEntry`) and its `parseMenuEntries`. One type, one parser.
 
 ### 6. What a surface cannot draw is declared; `custom` is refused by name
 
-Three tiers, and the split is what keeps the refusal usable:
+Four tiers, and the split is what keeps the refusal usable:
 
-- **STRUCTURE** — items, sections, submenus, labels, actions — is portable and never
-  lost. A flat surface INLINES a section (a section is a visual grouping GTK itself
+- **STRUCTURE** — items, sections, submenus, labels, actions — survives every LAYOUT
+  limitation. A flat surface INLINES a section (a section is a visual grouping GTK itself
   draws inline, so a flat list loses a rule and no item) and OPENS a submenu as a second
   list (inlining one would offer items nobody asked for).
 - **DECORATION** — `icon`, `verb-icon`, `accel`, `use-markup`, `display-hint` — is
   best-effort per surface. NativeScript's `action()` sheet renders text and draws none of
   it; refusing per decoration would fire on every well-formed menu and be switched off
   within a day.
+- **AVAILABILITY** is the one place structure yields, and it yields to STATE rather than
+  to layout. GTK and the browser DIM an insensitive item; a `Dialogs.action()` sheet has
+  no disabled row at all, so NativeScript does not OFFER one — a row that can be tapped
+  and does nothing is the one shape a reader cannot diagnose, and it is worse than a row
+  that is absent. Stated here rather than left as a contradiction of the first bullet:
+  the item is still in the model, and the same menu on the same device becomes visible
+  again the moment its action is enabled.
 - **`custom`** is refused. It names an application WIDGET (`gtk_popover_menu_add_child`),
   so a surface that ignored it would draw a BLANK ROW where a control belongs — the one
-  drop a reader cannot diagnose. `assertMenuRenderable(model, surface)` throws at the
-  ASSIGNMENT, naming every refusal rather than the first.
+  drop a reader cannot diagnose. Refusing only the property setter left a `custom` item
+  written in MARKUP drawing exactly that row, so both doors refuse.
+
+**The two doors refuse differently, and the difference is which side can hear it.** A
+property assignment is a CALL: `assertMenuRenderable(model, surface)` throws and the
+caller can catch. An attribute is MARKUP, parsed by the browser — a throw from
+`connectedCallback` is not delivered to whoever appended the element, it is reported as an
+uncaught PAGE error, which nobody can handle and every other page-level assertion pays
+for (measured: it broke `adwaita-upgrade-order.spec.ts`). So the attribute path refuses
+the MENU — the element keeps none, and a menu-less dropdown is insensitive, which is
+visible — and writes the reason to `console.error`.
+
+A REFUSAL AND A TYPO ARE DIFFERENT THINGS, and only the second may be swallowed.
+`parseMenuModel` stays total because malformed JSON is an author slip that must not stop
+an element upgrading; `custom` is well-formed, deliberate, and unhonourable on that
+surface.
 
 `AdwMenuSurface` has exactly ONE capability field today, and that is deliberate: all
 three surfaces nest and all three draw what they have a place for, so a second field
 would be `true` everywhere and its refusal arm unreachable — the shape this repository
 pays most for. A second field lands with the first surface that needs it.
+
+For the same reason there is **no `ADW_MENU_SURFACE_GTK`**: GTK refuses nothing, so a
+published constant for it would be a record whose only arm no caller can reach. The core
+suite builds `{ name: 'gtk', custom: true }` inline to assert that a surface which CAN
+host a custom child refuses nothing — that is the assertion's own input, not an API.
 
 ### 7. `@gjsify/adwaita-core` is the home, and `@gjsify/gtk-host` now depends on it
 
@@ -150,6 +202,24 @@ The SHAPE is shared; the CONSTRUCTION cannot be, because ADR 0015 forbids the he
 core a `gi://` import. So `gtk-host/src/menu.ts` owns `buildGioMenu` — and its inverse
 `fromGioMenu`, which exists so that "the model maps onto `Gio.Menu` losslessly" is a
 measurement (every vector round-trips) instead of a sentence in this file.
+
+### 7a. GIO is the authority on an action name, and it must be ASKED
+
+`g_menu_item_set_detailed_action` does not report a malformed name — it calls
+`g_error()`, a SIGABRT no `catch` can see. Measured: `'app.x('`, `'win.zoom(qqq)'`,
+`'app.a b'`, `''`, `'app.x)'`, `'app.x()'` and `'a.b(1,2)'` each end the process at exit
+134, and every door into the model is documented as TOTAL — so a one-character slip in a
+JSX attribute killed the process instead of drawing a menu.
+
+`buildGioMenu` therefore validates with `g_action_parse_detailed_name`, which is the SAME
+parser with an error return, and refuses with a `GtkHostError` naming the item and the
+string. No second grammar is written: the `(…)` form's content is arbitrary `GVariant`
+text, so a hand-rolled validator is exactly the trap. It is the shape
+`err.missingConstructProp` already documents for `Adw.LayoutSlot` — refuse while a
+refusal is still reportable.
+
+`normalizeMenuModel` additionally drops `action: ''`, which is one abort the GTK path then
+never has to refuse.
 
 ### 8. `coerce` is the seam, so a JSX attribute can be a menu
 
@@ -174,11 +244,27 @@ split button) and the `menu` attribute.
 
 ## Consequences
 
-- **Breaking, and small.** `AdwMenuEntry`, `parseMenuEntries` and
-  `SplitButtonState.activateMenuEntry(index)` are gone; the renderers' `menuItems` /
-  `menu` properties and the `menu` attribute are `menuModel` / `menu-model`. Activation
-  reports a `path` (`[1, 0]`) instead of an `index`, because a link is a model of its own
-  and a flat index cannot name an item inside a submenu. The release train carries it.
+- **BREAKING.** Verified against the published 0.46.0 tarballs, so the migration list is
+  what a consumer actually loses:
+
+  | published as | in | becomes |
+  |---|---|---|
+  | `AdwMenuEntry` (type) | `@gjsify/adwaita-core` | `AdwMenuItem` — but see the row below |
+  | `parseMenuEntries` | `@gjsify/adwaita-core` | `parseMenuModel` |
+  | `SplitButtonState.activateMenuEntry(index)` | `@gjsify/adwaita-core` | `activateMenuItem(path)` |
+  | **`AdwMenuItem` (type)** | `@gjsify/adwaita-web`, `@gjsify/adwaita-nativescript` | **the same NAME, an incompatible SHAPE** |
+  | `menuItems`, `menu` (properties) | both renderers | `menuModel` |
+  | `menu` (attribute) | `@gjsify/adwaita-web` | `menu-model` |
+
+  The fourth row is the one that bites quietly: `AdwMenuItem` was an alias of the old
+  four-field entry and is now the normalised item, which carries a required `kind`. A
+  consumer's `const item: AdwMenuItem = { label: 'Save' }` stops compiling rather than
+  going missing. **The migration is to stop annotating**: `menuModel` takes
+  `AdwMenuInput`, where `{ label: 'Save' }` and `'Save'` are both legal, so the annotation
+  that broke is one the new API does not need.
+
+  Activation reports a `path` (`[1, 0]`) instead of an `index`, because a link is a model
+  of its own and a flat index cannot name an item inside a submenu.
 - **Two gallery refusals become snippets.** `Adw.SplitButton` and `Gtk.MenuButton` have
   Solid, Vue and React snippets, compiled and asserted against the real GTK tree by
   `showcases/gtk/adwaita-gallery-{solid,vue,react}` like every other block.
@@ -186,12 +272,17 @@ split button) and the `menu` attribute.
   which is a different decision and this ADR does not make it.
 - **The browser menu grew what it never had**: sections with a heading and a separator,
   submenus as popover pages with a back row, accelerators, and check/radio rows whose
-  `role`/`aria-checked` come from the action state rather than from a field.
-- **A defect in `writeProperty` came out with it.** Removing ANY nullable property from a
-  mounted widget did nothing: `set_property(name, null)` guesses `gpointer`, GObject logs
-  a CRITICAL and keeps the old value, at exit 0. Measured on both an object and a string
-  property. `null` now takes the accessor route arrays already took, for the same reason.
-  It was invisible because no earlier test removed an object-valued prop after mount.
+  `role`/`aria-checked` come from the action state rather than from a field. Six new
+  rules in `_popover.scss`, and the check mark among them is a DELIBERATE substitution:
+  GTK draws `object-select-symbolic` and this port's icon set ships 42 glyphs, none of
+  them a checkmark, so the tick is a rotated border and depends on no asset.
+- **A defect in `writeProperty` came out with it, and shipped separately.** Removing ANY
+  nullable property from a mounted widget did nothing: `set_property(name, null)` guesses
+  `gpointer`, GObject logs a CRITICAL and keeps the old value, at exit 0. Measured on both
+  an object and a string property. Its blast radius is every nullable property on every
+  mounted widget across all four dialect adapters, which is wider than this ADR and
+  bisectable on its own, so it is its own commit on its own branch rather than a passenger
+  here.
 - **Cost.** One more module in `adwaita-core` (39 → 40) with its conformance table, one
   in `gtk-host`, one dependency edge, and a `PopoverMenuView` shared by the two browser
   elements that previously built their own rows.
@@ -210,7 +301,9 @@ split button) and the `menu` attribute.
   it would therefore work. The gallery probe that would have to prove it compares a
   read-back by IDENTITY (`showcases/dom/adwaita-gallery-nativescript/app/gallery-page.ts`),
   which no structured value can satisfy — so the two NativeScript refusals stand, and
-  opening the door needs that probe first.
+  opening the door needs that probe first. It is shut LOUDLY: a string throws by name,
+  because left to `normalizeMenuModel` it is merely "not an array" and the author gets an
+  empty menu with no diagnostic at all.
 - **Pango markup on the web.** `use-markup` round-trips and the browser renderer shows
   the label verbatim. Handing author markup to `innerHTML` would be an injection door in
   a renderer that has no other one.
@@ -224,10 +317,13 @@ split button) and the `menu` attribute.
    the action-state fold, the refusal; `conformance/menu.ts` — six vector tables.
 2. `SplitButtonState` stores an `AdwMenuModel` and activates by path.
 3. `@gjsify/adwaita-web` — `PopoverMenuView`, shared by `<adw-split-button>` and
-   `<gtk-menu-button>`; the four new popover-menu rules in `scss/_popover.scss`.
+   `<gtk-menu-button>`; six new popover-menu rules in `scss/_popover.scss` (separator,
+   section title, accelerator, check/radio mark, submenu chevron, back row) plus the two
+   nested `[aria-checked='true']` rules that draw the mark.
 4. `@gjsify/adwaita-nativescript` — `widgets/menu-sheet.ts`, shared by `AdwSplitButton`
    and `GtkMenuButton`; a submenu opens a second sheet.
-5. `@gjsify/gtk-host` — `src/menu.ts` (`buildGioMenu` / `fromGioMenu`), the `coerce`
-   branch, `WithPortableMenu<T>` on all three dialect surfaces.
+5. `@gjsify/gtk-host` — `src/menu.ts` (`buildGioMenu` / `fromGioMenu` /
+   `requireDetailedAction`), the `coerce` branch, `WithPortableMenu<T>` on all three
+   dialect surfaces.
 6. `scripts/adwaita-gallery-trees.mjs` — two trees replace two refusals; the snippet
    generator emits object arrays and the probe driver reads the real `Gio.MenuModel`.

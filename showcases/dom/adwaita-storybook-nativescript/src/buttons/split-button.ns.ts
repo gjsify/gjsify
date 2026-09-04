@@ -44,7 +44,7 @@ abstract class SplitButtonNsStoryBase extends StoryView {
 
     initialize(): void {
         this._widget = new Adw.SplitButton();
-        this._widget.menu = MENU;
+        this._widget.menuModel = MENU;
         if (this.flat) {
             this._widget.className = 'adw-split-button flat';
         }

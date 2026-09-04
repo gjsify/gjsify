@@ -57,8 +57,8 @@ export const ADWAITA_NATIVESCRIPT_TEMPLATES: Readonly<Record<string, string>> = 
 export const ADWAITA_NATIVESCRIPT_REFUSALS: Readonly<Record<string, string>> = {
     'Gtk.DropDown': "GtkDropDown.options is an array of choices; an XML attribute is a string.",
     'Adw.ComboRow': "AdwComboRow.options is an array of choices; an XML attribute is a string.",
-    'Gtk.MenuButton': "GtkMenuButton.menuItems is an array of menu items; an XML attribute is a string.",
-    'Adw.SplitButton': "AdwSplitButton.menu is an array of menu items; an XML attribute is a string.",
+    'Gtk.MenuButton': "GtkMenuButton.menuModel is a portable menu model; an XML attribute is a string.",
+    'Adw.SplitButton': "AdwSplitButton.menuModel is a portable menu model; an XML attribute is a string.",
     'Adw.ToggleGroup': "AdwToggleGroup.options is an array of toggles; an XML attribute is a string.",
     'Adw.Sidebar': "AdwSidebar.items and .sections are arrays of item descriptors; an XML attribute is a string.",
     'Adw.TabView': "AdwTabView.views and .tabs are arrays; an XML attribute is a string.",

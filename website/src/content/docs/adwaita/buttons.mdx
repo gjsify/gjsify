@@ -117,7 +117,7 @@ header bar or toolbar, where a raised button looks too heavy.
     <adw-split-button
       label="Save"
       icon-name="document-save"
-      menu='[{"label":"Save as…","action":"app.save-as"},{"label":"Export","action":"app.export"},{"label":"Print","action":"app.print"}]'
+      menu-model='[{"label":"Save as…","action":"app.save-as"},{"label":"Export","action":"app.export"},{"label":"Print","action":"app.print"}]'
     ></adw-split-button>
     ```
   </Fragment>
@@ -174,7 +174,7 @@ header bar or toolbar, where a raised button looks too heavy.
     import { documentSaveSymbolic } from '@gjsify/adwaita-icons/actions';
 
     const button = new Adw.SplitButton();
-    button.menu = ['Save as…', 'Export', 'Print'];
+    button.menuModel = ['Save as…', 'Export', 'Print']; // or items, sections, submenus — ADR 0042
     button.iconName = documentSaveSymbolic; // an Adwaita symbolic icon (SVG string)
     // With no icon set, the label drives the action half: button.label = 'Save';
     // button.className = 'adw-split-button flat'; // the header-bar / toolbar variant

@@ -11,14 +11,15 @@
 //   tooltip          — tooltip/accessible name of the action half.
 //   dropdown-tooltip — tooltip of the dropdown half; empty restores "More Options".
 //   direction        — none | up | down | left | right (default down).
-//   menu             — JSON array of entries, each `{ "label", "action"? }`.
+//   menu-model       — JSON array in the portable menu model (ADR 0042): items,
+//                      sections (`{"section":[…]}`) and submenus (`{"submenu":[…]}`).
 //   disabled, flat, suggested, destructive — boolean flags.
 // Events (all CustomEvent, bubbles — mirror the Adw.SplitButton GObject signals):
 //   `clicked`         — the primary action half was activated.
 //   `notify::active`  — the dropdown menu was opened/closed (detail.active).
 //   `notify::<prop>`  — one per GObject property the state machine notified,
 //                       in libadwaita's emission order.
-//   `menu-activated`  — a menu entry was chosen (detail.label / .action / .index).
+//   `menu-activated`  — a menu item was chosen (detail.label / .action / .id / .path).
 //
 // All of the behaviour above lives in `@gjsify/adwaita-core` (ADR 0004) as
 // {@link SplitButtonState}; this element only paints it and translates DOM events
@@ -36,15 +37,28 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import {
+    ADW_MENU_SURFACE_WEB,
     SplitButtonState,
+    assertMenuRenderable,
     isSplitButtonDirection,
-    parseMenuEntries,
+    menuRefusals,
+    normalizeMenuModel,
+    parseMenuModel,
     resolveDropdownTooltip,
     splitButtonArrowIcon,
     splitButtonPopupDirection,
     splitButtonRootState,
 } from '@gjsify/adwaita-core';
-import type { AdwArrowIcon, AdwMenuEntry, SplitButtonChange, SplitButtonDirection } from '@gjsify/adwaita-core';
+import type {
+    AdwArrowIcon,
+    AdwMenuActions,
+    AdwMenuInput,
+    AdwMenuModel,
+    SplitButtonChange,
+    SplitButtonDirection,
+} from '@gjsify/adwaita-core';
+
+import { PopoverMenuView } from './popover-menu.js';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it is
 // what guarantees `gtk-popover` is defined before this module's own
@@ -109,6 +123,8 @@ export class AdwSplitButton extends HTMLElement {
     private _dropdownEl!: HTMLButtonElement;
     private _arrowEl!: GtkImage;
     private _menuEl!: GtkPopover;
+    private _menuView!: PopoverMenuView;
+    private _actions: AdwMenuActions | null = null;
     /** Inline text content, captured before we take over the subtree. */
     private _inlineLabel = '';
     /** Last `open` value reflected as `notify::active`, so the event fires once per flip. */
@@ -123,7 +139,7 @@ export class AdwSplitButton extends HTMLElement {
             'tooltip',
             'dropdown-tooltip',
             'direction',
-            'menu',
+            'menu-model',
             'disabled',
             'flat',
             'suggested',
@@ -162,12 +178,74 @@ export class AdwSplitButton extends HTMLElement {
         this.removeAttribute('label');
     }
 
-    get menuItems(): readonly AdwMenuEntry[] {
+    /** The menu, normalised (ADR 0042). Empty when the dropdown has none. */
+    get menuModel(): AdwMenuModel {
         return this._state.menuModel ?? [];
     }
 
-    set menuItems(value: readonly AdwMenuEntry[]) {
-        this._state.setMenuModel(Array.isArray(value) ? value.map((entry) => ({ ...entry })) : null);
+    /**
+     * Set the menu from anything the portable model accepts — a bare `string[]`, item
+     * descriptors, sections, submenus.
+     *
+     * The REFUSAL is here rather than at render time: a `custom` item names an
+     * application widget this surface cannot host, and discovering that as a blank row
+     * three interactions later is what {@link assertMenuRenderable} exists to prevent.
+     */
+    set menuModel(value: AdwMenuInput) {
+        // Refused BEFORE it is stored, so a throw leaves the widget showing the menu it
+        // had rather than one it cannot draw.
+        this._state.setMenuModel(this._acceptMenu(value));
+        if (this._initialized) this._render();
+    }
+
+    /**
+     * Normalise, REFUSE, store — the one door every menu comes through.
+     *
+     * The property setter is not the only way a menu arrives: an attribute is, and the
+     * first cut refused only the setter, so a `custom` item written in markup drew
+     * exactly the row `assertMenuRenderable` exists to prevent — one that reads like a
+     * command and does nothing.
+     *
+     * THE TWO DOORS REFUSE DIFFERENTLY, and the difference is which side can hear it.
+     * A property assignment is a CALL, so it throws and the caller can catch. An
+     * attribute is MARKUP, parsed by the browser: a throw from `connectedCallback` is
+     * not delivered to whoever appended the element, it is reported as an uncaught
+     * page error — measured, it broke `adwaita-upgrade-order.spec.ts`, which counts
+     * exactly those. Nobody can handle it and everybody else pays for it. So the
+     * attribute path REFUSES THE MENU (no menu, and a menu-less dropdown is
+     * insensitive, which is visible) and says why on `console.error`.
+     *
+     * A REFUSAL AND A TYPO ARE STILL DIFFERENT THINGS. `parseMenuModel` is total
+     * because malformed JSON is an author slip and must not stop the element
+     * upgrading; `custom` is well-formed, deliberate, and unhonourable here.
+     */
+    private _acceptMenu(input: AdwMenuInput, strict = true): AdwMenuModel {
+        const model = normalizeMenuModel(input);
+        if (strict) {
+            assertMenuRenderable(model, ADW_MENU_SURFACE_WEB);
+            return model;
+        }
+        const refusals = menuRefusals(model, ADW_MENU_SURFACE_WEB);
+        if (refusals.length === 0) return model;
+        // `console.error` is the browser's own channel for "this is wrong, the page
+        // continues" — and the alternative here is a row that lies.
+        console.error(`${ADW_MENU_SURFACE_WEB.name} cannot render this menu, so it has none:`);
+        for (const refusal of refusals) console.error(`  [${refusal.path.join('.')}] ${refusal.message}`);
+        return [];
+    }
+
+    /**
+     * What the action group publishes about the actions this menu names — the portable
+     * stand-in for a `GActionGroup`, and the ONLY place a menu's enabled/checked state
+     * can come from (ADR 0042). Setting it re-renders the rows.
+     */
+    get actions(): AdwMenuActions | null {
+        return this._actions;
+    }
+
+    set actions(value: AdwMenuActions | null) {
+        this._actions = value ?? null;
+        this._menuView?.setActions(this._actions);
         if (this._initialized) this._render();
     }
 
@@ -248,8 +326,29 @@ export class AdwSplitButton extends HTMLElement {
         // `notify::active` all read it). A dismissal the popover owns — outside
         // click, Escape — is fed back in here rather than diverging.
         this._menuEl.subscribe((open) => {
-            if (!open) this._state.closeMenu();
+            if (!open) {
+                this._state.closeMenu();
+                // A menu that reopens three pages deep is a menu the reader cannot get
+                // out of, so a dismissal returns it to the top.
+                this._menuView.reset();
+            }
         });
+        this._menuView = new PopoverMenuView(this._menuEl, 'adw-split-button-menu', (path) => {
+            const activated = this._state.activateMenuItem(path);
+            if (activated === null) return;
+            this.dispatchEvent(
+                new CustomEvent('menu-activated', {
+                    bubbles: true,
+                    detail: {
+                        label: activated.label,
+                        action: activated.action,
+                        id: activated.id ?? activated.label,
+                        path: [...path],
+                    },
+                }),
+            );
+        });
+        this._menuView.setActions(this._actions);
 
         this._actionEl.addEventListener('click', () => {
             if (this.hasAttribute('disabled')) return;
@@ -284,8 +383,8 @@ export class AdwSplitButton extends HTMLElement {
             case 'dropdown-tooltip':
                 this._state.setDropdownTooltip(value ?? '');
                 break;
-            case 'menu':
-                this._state.setMenuModel(parseMenuEntries(value));
+            case 'menu-model':
+                this._state.setMenuModel(this._acceptMenu(parseMenuModel(value), false));
                 break;
             default:
                 break;
@@ -307,9 +406,11 @@ export class AdwSplitButton extends HTMLElement {
         const direction = this.getAttribute('direction');
         if (isSplitButtonDirection(direction)) this._state.setDirection(direction);
         this._state.setDropdownTooltip(this.getAttribute('dropdown-tooltip') ?? '');
-        // The `menuItems` property may have been set before the element upgraded;
+        // The `menuModel` property may have been set before the element upgraded;
         // the attribute only seeds an otherwise empty menu.
-        if (this._state.menuModel === null) this._state.setMenuModel(parseMenuEntries(this.getAttribute('menu')));
+        if (this._state.menuModel === null) {
+            this._state.setMenuModel(this._acceptMenu(parseMenuModel(this.getAttribute('menu-model')), false));
+        }
     }
 
     /**
@@ -344,7 +445,7 @@ export class AdwSplitButton extends HTMLElement {
         this._render();
         // Focus lands in the menu on open, AFTER _render has built the rows —
         // otherwise the popover's arrow keys have nothing to move from.
-        if (opened) this._menuEl.items[0]?.focus();
+        if (opened) this._menuView.rows.find((row) => !row.hidden && !row.disabled)?.focus();
     }
 
     private _render(): void {
@@ -423,32 +524,9 @@ export class AdwSplitButton extends HTMLElement {
     }
 
     private _renderMenu(): void {
-        this._menuEl.replaceChildren();
         this._menuEl.open = this._state.open;
-
-        for (const [index, entry] of (this._state.menuModel ?? []).entries()) {
-            const item = document.createElement('button');
-            item.type = 'button';
-            // `.adw-popover-item` is what makes the row navigable: it is the selector
-            // `<gtk-popover>` walks for arrow/Home/End/Enter.
-            item.className = 'adw-popover-item adw-split-button-menu-item';
-            item.setAttribute('role', 'menuitem');
-            item.tabIndex = -1;
-            item.textContent = entry.label;
-            item.addEventListener('click', () => {
-                // By position, never by label: two entries called "Copy" are legal
-                // and must each dispatch their own action.
-                const activated = this._state.activateMenuEntry(index);
-                if (activated === null) return;
-                this.dispatchEvent(
-                    new CustomEvent('menu-activated', {
-                        bubbles: true,
-                        detail: { label: activated.label, action: activated.action, index },
-                    }),
-                );
-            });
-            this._menuEl.appendChild(item);
-        }
+        this._menuView.setModel(this._state.menuModel ?? []);
+        this._menuView.render();
     }
 }
 

@@ -70,3 +70,32 @@ export const childrenAsProp = <gtk-box children={<gtk-label label="x" />} />;
 
 /** A widget whose GType carries adjacent capitals, in its JSX (kebab) spelling. */
 export const glArea = <gtk-gl-area hasStencilBuffer={true} />;
+
+/**
+ * A MENU written as a value (ADR 0042).
+ *
+ * The thing that was untypeable before: `menuModel`'s GObject type is a
+ * `GMenuModel`, a GObject with no literal spelling, so a JSX tree could not carry a
+ * menu at all — and the website gallery refused a Solid, Vue and React snippet for
+ * both menu buttons for exactly that reason. `WithPortableMenu<T>` widens the six
+ * `GMenuModel`-typed prop spellings to accept the portable model; `coerce` builds
+ * the real `Gio.Menu` from it at the ParamSpec seam.
+ *
+ * All three input forms are legal here on purpose: the bare-string shorthand, item
+ * descriptors with a detailed action, and the two links.
+ */
+export const menus = (
+    <gtk-box orientation="vertical">
+        <adw-split-button label="Save" menuModel={['Save as…', 'Export']} />
+        <gtk-menu-button
+            iconName="open-menu-symbolic"
+            menuModel={[
+                { label: 'Preferences', action: 'app.preferences' },
+                { section: [{ label: 'About', action: 'app.about' }] },
+                { label: 'More', submenu: [{ label: 'Quit', action: 'app.quit' }] },
+            ]}
+        />
+        {/* The kebab spelling is widened too, and so is a text widget's `extra-menu`. */}
+        <gtk-entry extra-menu={[{ label: 'Paste', action: 'app.paste' }]} />
+    </gtk-box>
+);
