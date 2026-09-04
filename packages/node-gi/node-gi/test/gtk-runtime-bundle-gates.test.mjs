@@ -46,6 +46,12 @@ import {
     verifyBundleTypelibs,
 } from '../../scripts/typelib-backers.mjs';
 import {
+    GST_AUDIO_DECODERS,
+    GST_PLUGIN_GAPS,
+    expectedGstPlugins,
+    missingBundledGstPlugins,
+} from '../../scripts/gst-plugins.mjs';
+import {
     WINDOWING_DATA_SETS,
     copyTreeDereferenced,
     duplicatedModuleLeaves,
@@ -1305,4 +1311,125 @@ test('the operator message names the leaves and refuses the tempting repair', ()
     assert.match(message, /libgstsoup\.dylib/);
     // The repair is at the WALK. Deleting the flat copy afterwards hides the reference.
     assert.match(message, /Do NOT delete the flat copy as a post-step/);
+});
+
+// --- the seed that matched nothing -------------------------------------------
+//
+// A builder logs what it SKIPPED out of what it WALKED, so a plugin the source archive
+// never contained produces no line at all. That is how `mpg123`, `vorbis`, `flac` and
+// `wasapi2` left the published win32 bundle in silence, and why an application played
+// neither its bundled mp3 nor its mp3 stream (#1544). The comparison that CAN see it is
+// the declaration against what was copied, which is a set difference — and it is
+// unit-tested here for the reason every gate in this file is: it runs on a macOS or
+// Windows runner and on no machine a developer has.
+
+const winPlugins = (names) => names.map((n) => `libgst${n}.dll`);
+
+test('a plugin the archive never contained is a finding, not a silence', () => {
+    const complete = winPlugins([
+        'coreelements',
+        'app',
+        'typefindfunctions',
+        'playback',
+        'audioparsers',
+        'wavparse',
+        'isomp4',
+        'ogg',
+        'vorbis',
+        'opus',
+        'flac',
+        'mpg123',
+        'alaw',
+        'mulaw',
+        'auparse',
+        'audioconvert',
+        'audioresample',
+        'audiorate',
+        'audiomixer',
+        'volume',
+        'audiotestsrc',
+        'soup',
+        'autodetect',
+        'wasapi2',
+        'directsound',
+    ]);
+    // The payload as it actually shipped: the four that were never in the prefix.
+    const asShipped = complete.filter((f) => !/mpg123|vorbis|flac|wasapi2/.test(f));
+    const gaps = missingBundledGstPlugins(asShipped, 'win32-x64');
+    assert.deepEqual(gaps.undeclared, [], 'every absence on win32 is declared today');
+    assert.deepEqual(
+        gaps.declared.map((gap) => gap.plugin),
+        ['mpg123', 'vorbis', 'flac', 'wasapi2'],
+        'the four #1544 measured are reported, with their reason',
+    );
+    for (const gap of gaps.declared) assert.ok(gap.why.length > 20, `${gap.plugin} carries no reason`);
+});
+
+test('an UNdeclared absence fails, which is the whole point', () => {
+    const withoutOpus = winPlugins(['coreelements', 'app', 'playback', 'soup']);
+    const gaps = missingBundledGstPlugins(withoutOpus, 'win32-x64');
+    assert.ok(gaps.undeclared.includes('opus'), 'opus is declared in the list and absent from the payload');
+    assert.ok(!gaps.undeclared.includes('mpg123'), 'a DECLARED gap must not read as an undeclared one');
+});
+
+test('a declared gap whose plugin arrived is reported, so the entry cannot outlive its cause', () => {
+    const complete = winPlugins(['mpg123', 'vorbis', 'flac', 'wasapi2', 'app', 'playback', 'soup']);
+    const gaps = missingBundledGstPlugins(complete, 'win32-x64');
+    assert.deepEqual(gaps.retired.sort(), ['flac', 'mpg123', 'vorbis', 'wasapi2']);
+});
+
+test("the other platform's sink is not this platform's gap", () => {
+    // One list serves both bundles because every other plugin in it is portable. An
+    // alarm that fires on every Windows run for a missing `osxaudio` is one nobody reads.
+    assert.ok(!expectedGstPlugins('win32-x64').includes('osxaudio'));
+    assert.ok(expectedGstPlugins('win32-x64').includes('directsound'));
+    assert.ok(expectedGstPlugins('darwin-arm64').includes('osxaudio'));
+    assert.ok(!expectedGstPlugins('darwin-arm64').includes('wasapi2'));
+});
+
+test('every claimed format names a decoder, and every declared gap names a real plugin', () => {
+    // The two halves of the claim, held against each other: a format the audio path says
+    // it takes must name the element that decodes it — `decodebin` resolving is not that —
+    // and a gap must be about a plugin the list actually declares, or it silences nothing.
+    for (const row of GST_AUDIO_DECODERS) {
+        assert.match(row.element, /^[a-z0-9]+$/, `${row.format} names no decoder element`);
+        // The plugin behind a claimed format must be one the bundle actually carries.
+        // Written with an `|| row.plugin === 'mpg123'` escape at first, which decided
+        // nothing — `mpg123` IS in the list — so deleting it from GST_AUDIO_PLUGINS
+        // would have left this assertion green: the exact regression it guards.
+        assert.ok(
+            expectedGstPlugins('darwin-arm64').includes(row.plugin),
+            `${row.format} names the plugin ${row.plugin}, which GST_AUDIO_PLUGINS does not carry`,
+        );
+    }
+    for (const [target, gaps] of Object.entries(GST_PLUGIN_GAPS)) {
+        for (const gap of gaps) {
+            assert.ok(
+                expectedGstPlugins(target).includes(gap.plugin),
+                `${target} declares a gap for ${gap.plugin}, which this platform never expected`,
+            );
+        }
+    }
+});
+
+test('a file name the archive spells differently is still read as its plugin', () => {
+    // Every spelling the two archives produce, plus the two that used to mis-parse: the
+    // extension strip carried `/i` and the prefix strip did not, so `LIBGSTAPP.DLL` kept
+    // its prefix, and a versioned `.so.0` kept its suffix. Both then read as an unknown
+    // plugin — which lands in `undeclared` and fails the build, so the direction was safe
+    // and the answer was still wrong.
+    const three = ['libgstplayback.dll', 'libgstsoup.dll'];
+    for (const spelling of ['libgstapp.dylib', 'gstapp.dll', 'libgstapp.so', 'LIBGSTAPP.DLL', 'libgstapp.so.0']) {
+        const gaps = missingBundledGstPlugins([spelling, ...three], 'win32-x64');
+        assert.ok(!gaps.undeclared.includes('app'), `${spelling} did not read as the app plugin`);
+    }
+});
+
+test('a target this does not bundle for is refused, not answered', () => {
+    // An unrecognised os makes every platform sink foreign, so the expectation quietly
+    // stops requiring an audio sink at all — a typo would RELAX the check instead of
+    // failing it.
+    for (const target of ['WIN32-X64', 'linux-x64', '', undefined]) {
+        assert.throws(() => expectedGstPlugins(target), /names no platform this bundles for/);
+    }
 });

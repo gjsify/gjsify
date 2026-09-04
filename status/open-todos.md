@@ -1142,6 +1142,30 @@ trades a leak for a silently dropped hook — the same class, in the other direc
 The run is red and names the timed-out suite either way, so the cost is a confusing extra
 failure rather than a silent one.
 
+### `canPlayType` answers from a hardcoded list, and one of its answers is now known wrong
+
+`@gjsify/webaudio`'s `HTMLAudioElement` carries `SUPPORTED_TYPES`, a hardcoded set of MIME types
+commented as "GStreamer-supported (common on GNOME systems)". It includes `audio/aac` and
+`audio/mp4`.
+
+On a GNOME host that is usually true — `gst-libav` is installed and `avdec_aac` resolves. **In a
+`@gjsify/gtk-runtime-*` bundle it is false**, and now measurably so: the audio payload carries no
+AAC decoder at all, which #1544's amendment to ADR 0037 states as a declared gap
+(`GST_FORMAT_GAPS`). So a shipped application asks `canPlayType('audio/aac')`, is told the format
+is playable, and then fails at decode — the exact distance between a claim and a registry that the
+plugin-gap work closed one layer down.
+
+**Why it is not a one-line deletion.** Removing `audio/aac` makes the answer wrong in the other
+direction on every ordinary GNOME desktop, which is the platform that file was written for. The
+honest answer is to ask the registry — the same question `gst-elements.test.mjs` puts — rather than
+to guess in either direction.
+
+**What makes it awkward** is the direction of the dependency: the format table lives in
+`packages/node-gi/scripts/gst-plugins.mjs`, and `@gjsify/webaudio` is Tier 1 while `@gjsify/node-gi`
+is Tier 2, so it cannot import it. Either the table moves somewhere both may read, or webaudio asks
+GStreamer directly (`Gst.ElementFactory` is already in reach through `gst-init.ts`) and the table
+stays the BUILDER's declaration. The second is smaller and does not move a published contract.
+
 ### `gjsify ship --sign`: three things M6 did not prove, each with what WAS measured
 
 The signing interface landed whole (ADR 0024 § A12-§ A17) and its darwin half is
