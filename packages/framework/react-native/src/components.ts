@@ -45,6 +45,8 @@ import {
 } from 'react';
 
 import { accessor } from './accessor.js';
+import { applyAccessibility } from './accessibility.js';
+import type { AccessibilityProps } from './primitives/accessibility.js';
 import { onLiveRegion } from './announce.js';
 import { ParentContext, ParentProvider } from './parent-context.js';
 import { onGesture, onPressStateChange } from './press.js';
@@ -58,6 +60,7 @@ import {
     type ChildFacts,
     type PrimitivePlan,
     type PrimitiveProps,
+    type ResolvedAccessible,
     type ResolvedAnnouncement,
     type ResolvedEvent,
     type ResolvedFile,
@@ -72,7 +75,7 @@ import { styleConfig } from './style-config.js';
 import type { StyleTokens } from '@gjsify/gtk-host/style';
 
 /** What every primitive accepts on top of its own props. */
-export interface CommonProps {
+export interface CommonProps extends AccessibilityProps {
     className?: ClassNameInput;
     style?: StyleInput;
     children?: ReactNode;
@@ -286,6 +289,7 @@ export function usePlan(primitive: string, authored: object): Rendered {
 
     useGestures(plan.gestures, props, signals.widgetRef);
     useLiveRegions(plan.announcements, signals.widgetRef);
+    useAccessibility(plan.accessibility, signals.widgetRef);
     const files = useFiles(plan.files);
 
     const extra: Record<string, unknown> = { ...signals.props, ref: mergedRef, ...files.outer };
@@ -420,6 +424,30 @@ function useLiveRegions(announcements: readonly ResolvedAnnouncement[], widgetRe
         return () => {
             for (const dispose of disposers) dispose();
         };
+    }, [signature, widgetRef]);
+}
+
+/**
+ * L2's `accessibility` → `Gtk.Accessible.update_property()`/`update_state()`.
+ *
+ * AN EFFECT, so the write lands on a widget that exists, and so the CLEANUP can
+ * reset what it set: a prop going from a value to absent has to clear the
+ * attribute, and re-running the effect on a changed set is what does it.
+ *
+ * The SIGNATURE, exactly as `useSignals`, `useGestures` and `useLiveRegions` do it:
+ * `plan.accessibility` is freshly allocated by every `resolvePrimitive` call, so
+ * depending on the array itself would reset and rewrite every attribute on every
+ * commit — which is an AT-SPI notification storm rather than a no-op.
+ */
+function useAccessibility(entries: readonly ResolvedAccessible[], widgetRef: { current: unknown }): void {
+    const signature = entries.length === 0 ? '' : JSON.stringify(entries);
+    useEffect(() => {
+        const widget = widgetRef.current;
+        if (signature === '' || widget === null || widget === undefined) return;
+        return applyAccessibility(
+            widget as Parameters<typeof applyAccessibility>[0],
+            JSON.parse(signature) as ResolvedAccessible[],
+        );
     }, [signature, widgetRef]);
 }
 

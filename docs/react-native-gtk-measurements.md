@@ -1,6 +1,6 @@
 # `@gjsify/react-native` — the GTK measurements behind the layer's shape
 
-Five facts about GTK 4 that a re-read of `packages/framework/react-native` would
+The facts about GTK 4 that a re-read of `packages/framework/react-native` would
 otherwise re-learn the hard way. Measured on **gjs 1.88.1 / GTK 4.22.4 /
 libadwaita 1.9.3**. Moved out of [packages/framework/AGENTS.md](../packages/framework/AGENTS.md)
 when that file reached its size cap; the rule there links here rather than restating
@@ -36,3 +36,36 @@ Design decisions: [ADR 0032](adr/0032-react-native-on-the-gtk-host.md),
    policy: its three slots are setters, and `slotted.remove` is optional for those.
    `GtkOverlay` IS curated (slotted `set_child` plus `add_overlay`/`remove_overlay`) —
    a `View` becomes one when a CHILD is absolute.
+
+6. **`Gtk.Accessible:accessible-role` is NOT construct-only** — the received wisdom,
+   and the reason an application that reaches a finished widget through a ref has to
+   drop `accessibilityRole` entirely. Measured on all eight widget classes this layer
+   builds: the ParamSpec is `READABLE|WRITABLE` with no `CONSTRUCT_ONLY`, and a
+   post-construction write STICKS (`new Gtk.Box()` reads GENERIC, an assignment of
+   BUTTON reads back BUTTON). The GIR agrees — `construct-only="1"` appears 69 times
+   in `Gtk-4.0.gir` and not on this property — and so does gtk-host's own
+   `props.spec.ts`, which asserts `GtkButton`'s construct-only set is exactly
+   `['css-name']`. GTK's own docs say "cannot be changed once set"; the flags are what
+   GObject enforces. So the role is an ordinary property route, not an imperative call.
+
+7. **Every accessible attribute is read out of ONE GValue type, and the wrong type is
+   a critical at exit 0.** `Gtk.Accessible.update_property()`/`update_state()` read
+   each attribute with a specific `g_value_get_*`; handed another type GTK emits a
+   `GLib-GObject-CRITICAL`, RECORDS THE ATTRIBUTE ANYWAY, and carries on. Measured by
+   writing every state through all three candidate types: `checked`/`pressed`/
+   `selected`/`expanded` are `G_TYPE_INT` holding a tri-state, `busy`/`disabled`/
+   `hidden` are `G_TYPE_BOOLEAN`, `visited` is an int, `invalid` is an int holding a
+   `GtkAccessibleInvalidState`, and the string properties are `G_TYPE_STRING`. Two
+   contradict the type the documentation reads like: a tri-state written through a
+   `GtkAccessibleTristate` GValue raises `g_value_get_int: assertion
+   'G_VALUE_HOLDS_INT (value)' failed`, and `visited` is an int among booleans.
+
+8. **There is no way to read an accessible property's VALUE back in-process, so
+   presence and quiet are asserted as a PAIR.** `Gtk.test_accessible_has_property()`
+   / `has_state()` really do read the widget's `GtkATContext` — not a setter echo —
+   but they answer set/not-set, and they answer `true` for a write that raised the
+   critical in 7. The value-returning `gtk_test_accessible_check_property` is
+   `introspectable="0"` (varargs), `Gtk.ATContext` exposes no reader, and there is no
+   public getter. `has_role()` is the exception: it takes the role, so the ROLE is a
+   real value check. Everything else is AT-SPI's to report, and every GTK CI leg runs
+   with `GTK_A11Y=none`.

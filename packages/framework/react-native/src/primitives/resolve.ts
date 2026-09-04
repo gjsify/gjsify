@@ -32,6 +32,7 @@
 
 import type { LayoutIntent, StyleProps, StyleTokens } from '@gjsify/gtk-host/style';
 
+import { resolveAccessible, type ResolvedAccessible } from './accessibility.js';
 import { unknownPrimitiveDetail, unknownPropDetail } from './answers.js';
 import type { ClassNameInput } from './classes.js';
 import { PrimitiveError } from './errors.js';
@@ -198,6 +199,8 @@ export interface ResolvedAnnouncement {
     readonly priority: 'low' | 'medium' | 'high';
 }
 
+export type { ResolvedAccessible } from './accessibility.js';
+
 export interface PrimitivePlan {
     readonly primitive: string;
     /** The node the PARENT adopts. */
@@ -221,6 +224,14 @@ export interface PrimitivePlan {
     readonly gestures: readonly ResolvedGesture[];
     /** Live regions this element declares. At most one, and empty for every primitive but `Text`. */
     readonly announcements: readonly ResolvedAnnouncement[];
+    /**
+     * Accessible attributes to write through `Gtk.Accessible.update_property()` and
+     * `update_state()`, decided here and CALLED one layer up — the same split
+     * {@link ResolvedFile} and {@link ResolvedAnnouncement} have, and for the same
+     * reason: the call needs `gi://Gtk` enum members and a `GObject.Value`, and
+     * nothing under `primitives/` imports `gi://`.
+     */
+    readonly accessibility: readonly ResolvedAccessible[];
     /** What a `ref` on this element receives, or null for the widget itself. */
     readonly handle: HandleKind | null;
     /** Where a text child goes, or null when text under this primitive is refused. */
@@ -275,6 +286,7 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
     const files: ResolvedFile[] = [];
     const gestures: ResolvedGesture[] = [];
     const announcements: ResolvedAnnouncement[] = [];
+    const accessibility: ResolvedAccessible[] = [];
     const contentStyleProps: ReadonlySet<string> = new Set(
         [content?.styleProp, content?.classNameProp, spec.backdrop?.styleProp, spec.backdrop?.classNameProp].filter(
             (name): name is string => typeof name === 'string',
@@ -331,6 +343,7 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
                 files,
                 gestures,
                 announcements,
+                accessibility,
             });
         }
     }
@@ -398,6 +411,7 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
             files,
             gestures,
             announcements,
+            accessibility,
             handle: spec.handle ?? null,
             textSink: spec.textSink,
             childContext: { ...resolved.childContext, orientation: childOrientation, overlay: true },
@@ -433,6 +447,7 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
         files,
         gestures,
         announcements,
+        accessibility,
         handle: spec.handle ?? null,
         textSink: spec.textSink,
         childContext:
@@ -529,6 +544,7 @@ interface RouteSink {
     readonly files: ResolvedFile[];
     readonly gestures: ResolvedGesture[];
     readonly announcements: ResolvedAnnouncement[];
+    readonly accessibility: ResolvedAccessible[];
 }
 
 function applyRoute(route: PropRoute, prop: string, value: unknown, sink: RouteSink): void {
@@ -590,6 +606,18 @@ function applyRoute(route: PropRoute, prop: string, value: unknown, sink: RouteS
             // `announce()`. So there is nothing to record.
             if (priority === null) return;
             sink.announcements.push({ prop, signal: route.signal, read: route.read, priority });
+            return;
+        }
+        case 'accessible': {
+            // L2 decides the whole mapping — which attribute set, which member,
+            // which GValue GTK reads it out of, and what a tri-state value is as a
+            // number — and reports a bad value as a sentence rather than throwing,
+            // so the one error this layer raises carries the PRIMITIVE's name.
+            const { entries, problem } = resolveAccessible(route, prop, value);
+            if (problem !== null) {
+                throw new PrimitiveError(sink.primitive, `prop "${prop}"`, `${problem}; got ${describe(value)}`);
+            }
+            sink.accessibility.push(...entries);
             return;
         }
         case 'property': {
@@ -732,6 +760,13 @@ function lookup(route: PropertyRoute, prop: string, value: unknown, primitive: s
     // and an object literal cannot be keyed by `true`.
     const mapped = map[String(value)];
     if (mapped !== undefined) return mapped;
+    // A value the table refuses BY NAME answers with its own reason. Checked after
+    // the map so a key can never be both, and before the generic message so a real
+    // React Native spelling is never reported as if it were a typo.
+    const refusal = route.refuses?.[String(value)];
+    if (refusal !== undefined) {
+        throw new PrimitiveError(primitive, `prop "${prop}" = ${describe(value)}`, refusal);
+    }
     throw new PrimitiveError(
         primitive,
         `prop "${prop}"`,

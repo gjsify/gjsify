@@ -909,6 +909,52 @@ export default async () => {
                     },
                 );
             });
+
+            await it('writes the accessibility props into the AT context, as the React binding does', async () => {
+                // The parity claim that matters for this feature: the CALL lives in
+                // one shared module, so what a vector here proves is that this
+                // binding reaches it at all — Solid has no commit phase, so the
+                // effect is wired differently and could be wired to nothing.
+                mounted(
+                    () =>
+                        solid.View({
+                            accessibilityLabel: 'Save document',
+                            accessibilityRole: 'button',
+                            accessibilityState: { checked: 'mixed' },
+                        }),
+                    (container) => {
+                        const box = gtkChildren(container)[0] as Gtk.Widget;
+                        expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
+                        expect(Gtk.test_accessible_has_state(box, Gtk.AccessibleState.CHECKED)).toBe(true);
+                        expect(Gtk.test_accessible_has_role(box, Gtk.AccessibleRole.BUTTON)).toBe(true);
+                    },
+                );
+            });
+
+            await it('re-applies an accessible property when a signal changes it', async () => {
+                // Solid's element is created ONCE, so a changed label has nowhere to
+                // arrive except this effect — and a label that stopped updating would
+                // leave a screen reader reading the first value forever.
+                const [label, setLabel] = createSignal('first');
+                mounted(
+                    () =>
+                        solid.View({
+                            get accessibilityLabel() {
+                                return label();
+                            },
+                        }),
+                    (container) => {
+                        const box = gtkChildren(container)[0] as Gtk.Widget;
+                        expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
+                        setLabel('second');
+                        // The value is not readable in-process (no public getter, and
+                        // `check_property` is not introspectable), so what is asserted
+                        // is that the re-application left the attribute SET rather
+                        // than reset by its own cleanup — the defect this shape has.
+                        expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
+                    },
+                );
+            });
         });
 
         await gated('what it refuses, by name', async () => {

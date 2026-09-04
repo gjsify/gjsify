@@ -21,6 +21,7 @@
 // so a parser would report the spread instead of the row's real answer — a second
 // truth about the one question this whole layer exists to answer.
 
+import type { AccessibleRoute } from './accessibility.js';
 import type { PrimitiveSpec, PropRoute } from './table.js';
 
 /**
@@ -45,6 +46,8 @@ export type PropStatus =
     | 'gesture'
     /** Calls `Gtk.Accessible.announce()` when a signal reports the content changed. */
     | 'announcement'
+    /** Writes a `Gtk.Accessible` property or state through `update_property()`/`update_state()`. */
+    | 'accessible'
     /** Recognised and deliberately without effect on a desktop window. */
     | 'ignored'
     /** Refused by name, with a reason. Throws a `PrimitiveError` when rendered. */
@@ -70,6 +73,28 @@ export interface PropAnswer {
     /** What it reaches on the GTK side: property names, a signal, or nothing. */
     readonly gtk: readonly string[];
 }
+
+/**
+ * What an accessible route reaches, in GTK's spelling.
+ *
+ * Here rather than beside the route's own types because THIS is the module that
+ * may hold no relative value import — see the header — and every other route's
+ * reach string is built inline below for the same reason.
+ */
+function accessibleReach(route: AccessibleRoute): readonly string[] {
+    const call = (set: 'property' | 'state'): string =>
+        set === 'property' ? 'Gtk.Accessible.update_property()' : 'Gtk.Accessible.update_state()';
+    if (route.from === 'value') return [`${call(route.attribute.set)}: ${route.attribute.name}`];
+    return Object.keys(route.members)
+        .sort()
+        .map((key) => {
+            const attribute = route.members[key] as AccessibleAttributeOf<typeof route>;
+            return `${key} → ${call(attribute.set)}: ${attribute.name}`;
+        });
+}
+
+/** The member type of an accessible members route, without importing it as a value. */
+type AccessibleAttributeOf<R> = R extends { readonly members: Readonly<Record<string, infer A>> } ? A : never;
 
 /** Does this status let a render proceed? `ignored` counts — it is a declared no-op, not a refusal. */
 export const isAccepted = (status: PropStatus): boolean => status !== 'refused' && status !== 'unknown';
@@ -104,6 +129,8 @@ function answerForRoute(route: PropRoute): { status: PropStatus; why: string; gt
             return { status: 'gesture', why: '', gtk: [`Gtk.GestureClick::${route.signal}`] };
         case 'announce':
             return { status: 'announcement', why: '', gtk: [route.signal, 'Gtk.Accessible.announce()'] };
+        case 'accessible':
+            return { status: 'accessible', why: '', gtk: accessibleReach(route) };
         case 'ignored':
             return { status: 'ignored', why: route.why, gtk: [] };
         case 'refused':

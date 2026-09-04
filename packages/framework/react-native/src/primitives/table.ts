@@ -33,6 +33,7 @@
 // generated refusing export is the honest answer — strictly better than a `partial`
 // that aborts the process the first time somebody renders one.
 
+import type { AccessibleAttribute, AccessibleRoute } from './accessibility.js';
 import type { Orientation, WidgetFacts, WrapsInto } from './intents.js';
 
 /** How a prop's value becomes a GTK value. */
@@ -67,6 +68,17 @@ export interface PropertyRoute {
     readonly names: readonly string[];
     readonly as: Coercion;
     readonly map?: Readonly<Record<string, string | number | boolean>>;
+    /**
+     * Values this layer recognises and refuses, each with what to do instead.
+     *
+     * A value simply ABSENT from {@link map} already gets a named refusal listing
+     * the known ones, and that is the right answer for a typo. It is the wrong
+     * answer for a real React Native spelling with no GTK member:
+     * `accessibilityRole="keyboardkey"` is not a typo, and "Known: adjustable,
+     * alert, …" tells its author nothing they can act on. A key here answers by
+     * name instead, in the voice every {@link RefusedRoute} uses.
+     */
+    readonly refuses?: Readonly<Record<string, string>>;
     /** Properties that come with this prop being SET at all, whatever its value. */
     readonly also?: Readonly<Record<string, unknown>>;
 }
@@ -198,7 +210,8 @@ export type PropRoute =
     | IgnoredRoute
     | FileRoute
     | GestureRoute
-    | AnnounceRoute;
+    | AnnounceRoute
+    | AccessibleRoute;
 
 /**
  * The imperative handle a `ref` on this primitive receives, instead of the widget.
@@ -331,15 +344,145 @@ export interface PrimitiveSpec {
  */
 const WRAPS_INTO_FLOW_BOX: WrapsInto = {
     tag: 'GtkFlowBox',
-    widgetProps: { 'max-children-per-line': 65535, 'selection-mode': 'none' },
+    // `accessible-role` joins the two corrections above for the same reason they
+    // are here, and it is MEASURED: a `Gtk.FlowBox` reports role GRID and a
+    // `Gtk.Box` reports GENERIC (gtk 4.22.4). So `flex-wrap` on a plain `<View>`
+    // announced a LAYOUT container to a screen reader as a data grid — a widget
+    // swap made for a styling reason, changing what the element IS to assistive
+    // technology, silently. GENERIC is what the unwrapped element already was.
+    widgetProps: { 'max-children-per-line': 65535, 'selection-mode': 'none', 'accessible-role': 'generic' },
 };
 
 const BOX: WidgetFacts = { box: true, alignsText: false, wrapsInto: WRAPS_INTO_FLOW_BOX };
 const LEAF: WidgetFacts = { box: false, alignsText: false, wrapsInto: null };
 const TEXT: WidgetFacts = { box: false, alignsText: true, wrapsInto: null };
 
-const NO_ACCESSIBILITY_PROP =
-    'GTK carries accessibility through `Gtk.Accessible.update_property()`, an imperative call, not through a widget property — so there is nothing for this layer to set as data. `AccessibilityInfo` (tier P3) is the entry that owns this, and GTK’s model maps onto the props well once it exists';
+/**
+ * The two accessible PROPERTIES this layer writes, and the GValue GTK reads each
+ * out of. Every `as` in this file is measured — `primitives/accessibility.ts`
+ * carries the matrix and the two members whose type is not the one GTK's own
+ * documentation reads like.
+ */
+const LABEL_ATTRIBUTE: AccessibleAttribute = { set: 'property', name: 'label', as: 'string' };
+const HELP_TEXT_ATTRIBUTE: AccessibleAttribute = { set: 'property', name: 'help-text', as: 'string' };
+
+/**
+ * `accessibilityState`'s five keys → `Gtk.AccessibleState`, and all five land.
+ *
+ * This is the one place React Native's accessibility surface is genuinely
+ * three-valued, and GTK is too: `checked` accepts `'mixed'` and GTK has
+ * `Gtk.AccessibleTristate.MIXED`, so the half-checked checkbox has an exact member
+ * rather than a rounded-off boolean. `selected` and `expanded` are booleans in
+ * React Native and tristates in GTK, which is a widening and loses nothing.
+ *
+ * `disabled` is worth one caution, because GTK writes this attribute too: MEASURED
+ * (gtk 4.22.4) `widget.sensitive = false` puts DISABLED into the set on a widget
+ * that never had it, and an explicit write leaves `sensitive` alone. So the prop
+ * DESCRIBES the element to a screen reader and does not disable it — which is
+ * exactly what it does in React Native, where `disabled` and
+ * `accessibilityState.disabled` are also two separate things an application sets
+ * together.
+ */
+const ACCESSIBLE_STATES: Readonly<Record<string, AccessibleAttribute>> = {
+    disabled: { set: 'state', name: 'disabled', as: 'boolean' },
+    busy: { set: 'state', name: 'busy', as: 'boolean' },
+    checked: { set: 'state', name: 'checked', as: 'tristate' },
+    selected: { set: 'state', name: 'selected', as: 'tristate' },
+    expanded: { set: 'state', name: 'expanded', as: 'tristate' },
+};
+
+/** `accessible` — recognised, without effect, and the prop that does what it asks. */
+const ACCESSIBLE_IS_THE_DESKTOP_DEFAULT =
+    'asks for two things, and GTK already answers one: every GTK widget is in the accessibility tree, so “this element is an accessibility element” is the desktop default rather than an opt-in. The other thing it asks — merge my whole subtree into ONE accessible node, which is what `accessible={true}` does on iOS — GTK has no mechanism for, and a desktop screen reader navigates the widget tree it is given. To take an element OUT of that tree, set `accessibilityRole="none"`: it is the one prop that writes `Gtk.Accessible:accessible-role`, and two props writing one property is the silent-drop shape this table refuses by name';
+
+/**
+ * React Native's `accessibilityRole` → `Gtk.AccessibleRole`, and why it is a
+ * PROPERTY route while its four siblings are not.
+ *
+ * The whole accessibility set used to be refused with one sentence: GTK carries
+ * accessibility through `Gtk.Accessible.update_property()`, an imperative call
+ * rather than a widget property. That is true of `label`, `help-text` and the
+ * states — see `primitives/accessibility.ts`, which expresses them as a route
+ * anyway, the way `accessibilityLiveRegion` already expressed `announce()`. It is
+ * NOT true of the role, and the received wisdom that it is has a specific shape
+ * worth naming: `Gtk.Accessible:accessible-role` is widely described as
+ * construct-only, which is why an application holding a finished widget through a
+ * ref cannot set it and has to drop the prop.
+ *
+ * MEASURED on gtk 4.22.4 / gjs 1.88.1, on all eight widget classes this table
+ * builds: the ParamSpec is `READABLE|WRITABLE` with no `CONSTRUCT_ONLY`, and a
+ * post-construction write STICKS — `new Gtk.Box()` reads GENERIC, an assignment
+ * of BUTTON reads back BUTTON, and `Gtk.test_accessible_has_role` agrees. This
+ * repo already measures the same fact from the other side: `gtk-host`'s
+ * `props.spec.ts` asserts `GtkButton`'s construct-only set is exactly
+ * `['css-name']`. So the role is an ordinary property, and being one is strictly
+ * better than an imperative call — the host coerces the nick, replays it through
+ * `materialize`, and would rebuild the widget on a change if a future GTK made it
+ * construct-only after all.
+ *
+ * The MAPPING is not one-to-one and is not derived from the spelling. React
+ * Native's list is Android's and iOS's traits merged; GTK's 85 roles are ARIA's.
+ * Where a React Native name is one platform's spelling of a portable idea it is
+ * mapped to that idea (`tabbar` → `tab-list`, `dropdownlist` → `combo-box`,
+ * `viewgroup` → the `generic` a `Gtk.Box` already reports); where it names a
+ * platform mechanism rather than a role it is refused BY NAME below.
+ */
+const ACCESSIBLE_ROLES: Readonly<Record<string, string>> = {
+    none: 'none',
+    button: 'button',
+    togglebutton: 'toggle-button',
+    link: 'link',
+    // React Native documents this as "treated as a search FIELD", which is ARIA's
+    // `searchbox`. GTK also has `search`, and that is ARIA's search LANDMARK — a
+    // region of the page, not the entry in it.
+    search: 'search-box',
+    image: 'img',
+    // An image that is also a button. GTK has no combined role and the button half
+    // is the one a screen reader has to announce; the image half is decoration.
+    imagebutton: 'button',
+    text: 'label',
+    adjustable: 'slider',
+    header: 'heading',
+    alert: 'alert',
+    checkbox: 'checkbox',
+    combobox: 'combo-box',
+    dropdownlist: 'combo-box',
+    menu: 'menu',
+    menubar: 'menu-bar',
+    menuitem: 'menu-item',
+    iconmenu: 'menu',
+    progressbar: 'progress-bar',
+    radio: 'radio',
+    radiogroup: 'radio-group',
+    scrollbar: 'scrollbar',
+    spinbutton: 'spin-button',
+    switch: 'switch',
+    tab: 'tab',
+    tablist: 'tab-list',
+    tabbar: 'tab-list',
+    timer: 'timer',
+    list: 'list',
+    toolbar: 'toolbar',
+    grid: 'grid',
+    viewgroup: 'generic',
+    webview: 'document',
+};
+
+/** Real React Native role spellings with no GTK member, each answered by name. */
+const ACCESSIBLE_ROLES_REFUSED: Readonly<Record<string, string>> = {
+    keyboardkey:
+        'describes a key of an on-screen keyboard, and neither GTK nor ARIA has a role for one — a desktop keyboard is the input method, not a widget in your tree. If you are building a keypad, the keys are `accessibilityRole="button"` and the container is `"group"`, which is what a screen reader can navigate',
+    summary:
+        'is an iOS trait for the one element VoiceOver reads first when an app launches, and GTK has no counterpart because a desktop screen reader announces the focused widget instead. Put the text in the window title or give the element `accessibilityRole="status"`’s GTK sibling — role `status` is not in React Native’s list, so reach it with `accessibilityLabel` on the element that should carry the summary',
+    scrollview:
+        'names Android’s ScrollView class rather than a role, and this layer already answers the idea: `<ScrollView>` becomes a `Gtk.ScrolledWindow`, whose accessibility a screen reader reads from the widget itself. Drop the prop',
+    horizontalscrollview: 'names an Android class, like `scrollview` — use `<ScrollView horizontal>` and drop the prop',
+    drawerlayout:
+        'names Android’s DrawerLayout. The desktop pattern survives the component (`Adw.OverlaySplitView`), but it is a widget rather than a role — give the drawer `accessibilityRole="navigation"`’s GTK sibling by labelling it, and leave the role to the widget',
+    slidingdrawer: 'names a deprecated Android class — see `drawerlayout`',
+    pager: 'names Android’s ViewPager. GTK’s counterpart is a `Gtk.Stack`, and the role a screen reader wants on it is `tablist` when it has visible switchers and nothing at all when it does not',
+};
+
 const NO_ON_LAYOUT =
     'GTK reports its allocation through `Gtk.Widget.vfunc_size_allocate`, a SUBCLASS override rather than a signal, so there is no handler to bind. `useWindowDimensions` (tier P2) is the window-level answer';
 /**
@@ -379,11 +522,26 @@ const COMMON: Readonly<Record<string, PropRoute | readonly PropRoute[]>> = {
     id: { to: 'refused', why: ONE_WIDGET_NAME },
     nativeID: { to: 'refused', why: ONE_WIDGET_NAME },
     onLayout: { to: 'refused', why: NO_ON_LAYOUT },
-    accessible: { to: 'refused', why: NO_ACCESSIBILITY_PROP },
-    accessibilityLabel: { to: 'refused', why: NO_ACCESSIBILITY_PROP },
-    accessibilityRole: { to: 'refused', why: NO_ACCESSIBILITY_PROP },
-    accessibilityHint: { to: 'refused', why: NO_ACCESSIBILITY_PROP },
-    accessibilityState: { to: 'refused', why: NO_ACCESSIBILITY_PROP },
+    accessible: { to: 'ignored', why: ACCESSIBLE_IS_THE_DESKTOP_DEFAULT },
+    // The accessible NAME. `Gtk.AccessibleProperty.LABEL` is what AT-SPI reports as
+    // a widget's name, which is what a screen reader says when the widget takes
+    // focus — the same job React Native's prop has.
+    accessibilityLabel: { to: 'accessible', from: 'value', attribute: LABEL_ATTRIBUTE },
+    accessibilityRole: {
+        to: 'property',
+        names: ['accessible-role'],
+        as: 'map',
+        map: ACCESSIBLE_ROLES,
+        refuses: ACCESSIBLE_ROLES_REFUSED,
+    },
+    // HELP_TEXT and not DESCRIPTION, for two reasons that point the same way.
+    // React Native's hint says what HAPPENS when you act on the element, which is
+    // help text rather than a description of it; and `Gtk.Picture:alternative-text`
+    // — the `alt` prop on `<Image>` — writes DESCRIPTION (measured), so routing the
+    // hint there would put two props on one attribute, the silent-drop shape this
+    // table refuses by name elsewhere. HELP_TEXT needs GTK 4.16.
+    accessibilityHint: { to: 'accessible', from: 'value', attribute: HELP_TEXT_ATTRIBUTE },
+    accessibilityState: { to: 'accessible', from: 'members', members: ACCESSIBLE_STATES, refuses: {} },
     accessibilityLiveRegion: { to: 'refused', why: NO_LIVE_REGION },
 };
 
@@ -960,9 +1118,10 @@ export const PRIMITIVES: Readonly<Record<string, PrimitiveSpec>> = {
             resizeMode: { to: 'property', names: ['content-fit'], as: 'map', map: CONTENT_FIT },
             // React Native 0.71's own name for the accessible description, and
             // `Gtk.Picture` is the one widget in this table that installs a property
-            // for it — which is why `alt` is answered here while `accessibilityLabel`
-            // is refused everywhere (GTK carries that through an imperative
-            // `Gtk.Accessible.update_property()` call).
+            // for it. MEASURED (gtk 4.22.4): `alternative-text` writes
+            // `Gtk.AccessibleProperty.DESCRIPTION`, not LABEL — so it and
+            // `accessibilityLabel` fill DIFFERENT attributes and both can be
+            // authored. The name is the label; the description is the alt text.
             alt: { to: 'property', names: ['alternative-text'], as: 'string' },
             onLoad: { to: 'refused', why: NO_IMAGE_LOAD_EVENTS },
             onLoadStart: { to: 'refused', why: NO_IMAGE_LOAD_EVENTS },

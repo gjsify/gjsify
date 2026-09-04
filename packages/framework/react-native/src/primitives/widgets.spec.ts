@@ -711,6 +711,135 @@ export default async () => {
                 });
             });
 
+            await it('puts accessibilityLabel and accessibilityHint into the widget’s AT context', async () => {
+                // NOT a setter echo, and that is the whole point of using these
+                // functions. `Gtk.test_accessible_has_property` reads the widget's
+                // `GtkATContext` — the thing an AT-SPI client would read — so it
+                // answers "GTK recorded this", where shadowing `update_property`
+                // would only answer "our code called it".
+                //
+                // WHAT IT DOES NOT PROVE IS THE VALUE, and no in-process call does:
+                // `gtk_test_accessible_check_property` is `introspectable="0"` in
+                // the GIR (varargs), `Gtk.ATContext` exposes no reader, and there is
+                // no public getter. The gate is what makes presence meaningful —
+                // MEASURED: a write with the WRONG GValue type still makes
+                // `has_property` answer true, and only the GLib critical it raises
+                // tells the two apart. Presence plus zero diagnostics is the pair;
+                // the value itself is AT-SPI's to report, and CI runs with
+                // `GTK_A11Y=none`.
+                mounted(
+                    createElement(View, { accessibilityLabel: 'Save document', accessibilityHint: 'Opens the editor' }),
+                    (container) => {
+                        const box = gtkChildren(container)[0] as Gtk.Widget;
+                        expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
+                        expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.HELP_TEXT)).toBe(true);
+                        // DESCRIPTION is `<Image alt>`'s attribute and nothing here
+                        // authored it — the two props stay apart on the real widget.
+                        expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.DESCRIPTION)).toBe(false);
+                    },
+                );
+            });
+
+            await it('sets no accessible property when no accessibility prop was authored', async () => {
+                // The red half: without it, a vector that asserted `true` above
+                // would pass against a GTK that sets LABEL on every widget itself.
+                mounted(createElement(View, {}), (container) => {
+                    const box = gtkChildren(container)[0] as Gtk.Widget;
+                    expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(false);
+                    expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.HELP_TEXT)).toBe(false);
+                });
+            });
+
+            await it('writes accessibilityRole onto the real widget, which read-write proves', async () => {
+                // `accessible-role` is the prop the received wisdom says cannot be
+                // set after construction. `has_role` is a VALUE check rather than a
+                // presence check, so this vector reads the role back.
+                mounted(createElement(View, { accessibilityRole: 'button' }), (container) => {
+                    const box = gtkChildren(container)[0] as Gtk.Widget;
+                    expect(Gtk.test_accessible_has_role(box, Gtk.AccessibleRole.BUTTON)).toBe(true);
+                    expect(box.get_accessible_role()).toBe(Gtk.AccessibleRole.BUTTON);
+                });
+                // …and a plain `<View>` is the GENERIC a `Gtk.Box` reports, so the
+                // vector above is measuring the prop and not GTK's default.
+                mounted(createElement(View, {}), (container) => {
+                    expect((gtkChildren(container)[0] as Gtk.Widget).get_accessible_role()).toBe(
+                        Gtk.AccessibleRole.GENERIC,
+                    );
+                });
+            });
+
+            await it('keeps a wrapping View out of GTK’s grid role', async () => {
+                // `flex-wrap` swaps the `Gtk.Box` for a `Gtk.FlowBox`, whose own
+                // default role is GRID (measured) — so a swap made for a STYLING
+                // reason changed what the element is to a screen reader. The table
+                // corrects it beside the other two FlowBox corrections.
+                mounted(createElement(View, { className: 'flex-wrap' }), (container) => {
+                    const wrapper = gtkChildren(container)[0] as Gtk.Widget;
+                    expect(typeOf(wrapper)).toBe('GtkFlowBox');
+                    expect(wrapper.get_accessible_role()).toBe(Gtk.AccessibleRole.GENERIC);
+                });
+            });
+
+            await it('puts each accessibilityState key into the AT context, with no diagnostic', async () => {
+                // The GValue type per state is measured, and a wrong one is a GLib
+                // critical that leaves the attribute set anyway — so `gated`'s
+                // `assertQuiet` is doing half the work of this vector. `checked:
+                // "mixed"` is the tri-state, which is the case a boolean GValue
+                // would have raised on.
+                mounted(
+                    createElement(View, {
+                        accessibilityState: { disabled: true, busy: false, checked: 'mixed', selected: true },
+                    }),
+                    (container) => {
+                        const box = gtkChildren(container)[0] as Gtk.Widget;
+                        for (const state of [
+                            Gtk.AccessibleState.DISABLED,
+                            Gtk.AccessibleState.BUSY,
+                            Gtk.AccessibleState.CHECKED,
+                            Gtk.AccessibleState.SELECTED,
+                        ]) {
+                            expect(Gtk.test_accessible_has_state(box, state)).toBe(true);
+                        }
+                        expect(Gtk.test_accessible_has_state(box, Gtk.AccessibleState.EXPANDED)).toBe(false);
+                    },
+                );
+            });
+
+            await it('carries the accessibility props on a Pressable and a Text too', async () => {
+                // They are in the COMMON set, so the interesting claim is that the
+                // widget under each primitive really implements `Gtk.Accessible` —
+                // a `Gtk.Button` and a `Gtk.Label` are different GTypes.
+                mounted(
+                    createElement(Pressable, { accessibilityLabel: 'Play', accessibilityRole: 'button' }),
+                    (container) => {
+                        const button = gtkChildren(container)[0] as Gtk.Widget;
+                        expect(Gtk.test_accessible_has_property(button, Gtk.AccessibleProperty.LABEL)).toBe(true);
+                        expect(Gtk.test_accessible_has_role(button, Gtk.AccessibleRole.BUTTON)).toBe(true);
+                    },
+                );
+                mounted(createElement(Text, { accessibilityLabel: 'Heading' }, 'Title'), (container) => {
+                    const label = gtkChildren(container)[0] as Gtk.Widget;
+                    expect(Gtk.test_accessible_has_property(label, Gtk.AccessibleProperty.LABEL)).toBe(true);
+                });
+            });
+
+            await it('clears an accessible property when the prop goes away', async () => {
+                // GTK has no "unset" other than `reset_property`, so a label removed
+                // between two renders would otherwise be spoken forever. The effect's
+                // cleanup is what resets it, which only a re-render can exercise.
+                const container = new Gtk.Box();
+                const root = createRoot(container);
+                try {
+                    root.render(createElement(View, { accessibilityLabel: 'first' }));
+                    const box = gtkChildren(container)[0] as Gtk.Widget;
+                    expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
+                    flushSync(() => root.render(createElement(View, {})));
+                    expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(false);
+                } finally {
+                    root.unmount();
+                }
+            });
+
             await it('renders a TextInput carrying the three props a desktop has no service for', async () => {
                 // Before they were table rows these threw "is not a prop this primitive
                 // answers for" — a build error on ordinary React Native code, decided

@@ -1037,6 +1037,125 @@ export default async () => {
         });
     });
 
+    await describe('the accessibility props (ADR 0039)', async () => {
+        await it('routes accessibilityLabel to the accessible NAME', async () => {
+            expect(plan('View', { accessibilityLabel: 'Save document' }).plan.accessibility).toStrictEqual([
+                { prop: 'accessibilityLabel', set: 'property', name: 'label', value: 'Save document' },
+            ]);
+        });
+
+        await it('routes accessibilityHint to HELP_TEXT, not DESCRIPTION', async () => {
+            // DESCRIPTION is taken: `<Image alt>` writes it through
+            // `Gtk.Picture:alternative-text` (measured), and two props on one
+            // attribute is the silent-drop shape this table refuses by name.
+            expect(plan('View', { accessibilityHint: 'Opens the editor' }).plan.accessibility).toStrictEqual([
+                { prop: 'accessibilityHint', set: 'property', name: 'help-text', value: 'Opens the editor' },
+            ]);
+        });
+
+        await it('carries accessibilityRole as a GObject property, not an imperative call', async () => {
+            // The measurement this whole entry turns on: `accessible-role` is
+            // READ-WRITE on gtk 4.22.4, so the 41 call sites an application had to
+            // drop are an ordinary property write here.
+            const { plan: resolved } = plan('View', { accessibilityRole: 'button' });
+            expect(resolved.node.props['accessible-role']).toBe('button');
+            expect(resolved.accessibility).toStrictEqual([]);
+        });
+
+        await it('maps a platform spelling onto the portable idea behind it', async () => {
+            // React Native's list is Android's and iOS's traits merged; GTK's is
+            // ARIA's. These four are one platform's NAME for a role GTK has.
+            expect(plan('View', { accessibilityRole: 'tabbar' }).plan.node.props['accessible-role']).toBe('tab-list');
+            expect(plan('View', { accessibilityRole: 'dropdownlist' }).plan.node.props['accessible-role']).toBe(
+                'combo-box',
+            );
+            expect(plan('View', { accessibilityRole: 'viewgroup' }).plan.node.props['accessible-role']).toBe('generic');
+            // `search` is ARIA's search LANDMARK; React Native means the FIELD.
+            expect(plan('View', { accessibilityRole: 'search' }).plan.node.props['accessible-role']).toBe('search-box');
+        });
+
+        await it('refuses a role GTK has no member for BY NAME, with what to do instead', async () => {
+            // The generic "Known: …" message is right for a typo and wrong here:
+            // `keyboardkey` is a real React Native spelling, so the refusal has to
+            // answer it rather than list the alternatives.
+            const message = threw(() => plan('View', { accessibilityRole: 'keyboardkey' })).message;
+            expect(message).toContain('neither GTK nor ARIA has a role for one');
+            expect(message).toContain('accessibilityRole="button"');
+            expect(message).not.toContain('Known:');
+            expect(threw(() => plan('View', { accessibilityRole: 'drawerlayout' })).message).toContain(
+                'Adw.OverlaySplitView',
+            );
+        });
+
+        await it('still reports an unknown role as the typo it is', async () => {
+            const message = threw(() => plan('View', { accessibilityRole: 'buton' })).message;
+            expect(message).toContain('Known:');
+            expect(message).toContain('has no GTK equivalent');
+        });
+
+        await it('splits accessibilityState into one GTK state per key', async () => {
+            const { plan: resolved } = plan('View', { accessibilityState: { disabled: true, busy: false } });
+            expect(resolved.accessibility).toStrictEqual([
+                { prop: 'accessibilityState', set: 'state', name: 'disabled', value: true },
+                { prop: 'accessibilityState', set: 'state', name: 'busy', value: false },
+            ]);
+        });
+
+        await it('gives checked GTK’s real tri-state, rather than rounding it to a boolean', async () => {
+            // The one genuinely three-valued thing in React Native's accessibility
+            // surface, and `Gtk.AccessibleTristate` has an exact member for it.
+            // The numbers are the enum: FALSE 0, TRUE 1, MIXED 2.
+            const value = (checked: unknown): unknown =>
+                plan('View', { accessibilityState: { checked } }).plan.accessibility[0]?.value;
+            expect(value('mixed')).toBe(2);
+            expect(value(true)).toBe(1);
+            expect(value(false)).toBe(0);
+        });
+
+        await it('skips an undefined state key, because every spread carries them', async () => {
+            expect(plan('View', { accessibilityState: { checked: undefined } }).plan.accessibility).toStrictEqual([]);
+            expect(plan('View', {}).plan.accessibility).toStrictEqual([]);
+        });
+
+        await it('refuses a state key this layer does not answer for, listing the five it does', async () => {
+            const message = threw(() => plan('View', { accessibilityState: { pressed: true } })).message;
+            expect(message).toContain('"pressed"');
+            expect(message).toContain('busy, checked, disabled, expanded, selected');
+        });
+
+        await it('refuses a bad value naming the GValue GTK reads the attribute out of', async () => {
+            expect(threw(() => plan('View', { accessibilityLabel: 7 })).message).toContain('needs a string');
+            expect(threw(() => plan('View', { accessibilityState: { checked: 'half' } })).message).toContain(
+                'Gtk.AccessibleTristate',
+            );
+            expect(threw(() => plan('View', { accessibilityState: 'checked' })).message).toContain('needs an object');
+        });
+
+        await it('answers `accessible` as a declared no-op, naming the prop that does the job', async () => {
+            const { plan: resolved } = plan('View', { accessible: true });
+            expect(resolved.accessibility).toStrictEqual([]);
+            expect(resolved.node.props['accessible-role']).toBe(undefined);
+        });
+
+        await it('answers every accessibility prop on every primitive that takes props', async () => {
+            // The set is COMMON, so a primitive that overrode one by accident would
+            // be the only place the answer differed — which is exactly the drift the
+            // shared record exists to prevent.
+            const props = [
+                'accessible',
+                'accessibilityLabel',
+                'accessibilityRole',
+                'accessibilityHint',
+                'accessibilityState',
+            ];
+            const missing: string[] = [];
+            for (const [name, spec] of Object.entries(PRIMITIVES)) {
+                for (const prop of props) if (spec.props[prop] === undefined) missing.push(`${name}.${prop}`);
+            }
+            expect(missing).toStrictEqual([]);
+        });
+    });
+
     await describe('the three props with no addressee on a desktop (ADR 0039)', async () => {
         await it('accepts autoComplete, textContentType and submitBehavior as declared no-ops', async () => {
             // Ordinary React Native code that a porter cannot rewrite into something a
