@@ -226,8 +226,11 @@ export class AdwComboRow extends HTMLElement {
         if (!this._initialized) return;
         for (let i = 0; i < change.removed; i++) this._select.remove(change.position);
         const before = this._select.options[change.position] ?? null;
+        // Read ONCE: `model` hands back a copy (ADR 0046), so reading it per item would make
+        // a splice of n items O(n²) instead of the O(n) the splice is.
+        const model = this._state.model;
         for (let i = 0; i < change.added; i++) {
-            const option = this._state.model[change.position + i];
+            const option = model[change.position + i];
             if (option) this._select.insertBefore(this._createOption(option), before);
         }
     }

@@ -291,8 +291,11 @@ export class GtkDropDown extends HTMLElement {
 
     private _filter(query: string): void {
         const q = query.trim().toLowerCase();
+        // Hoisted for the reason `_applyItemsChanged` gives: this runs on every keystroke of
+        // the search field, over every row.
+        const model = this._state.model;
         this._itemButtons.forEach((button, index) => {
-            const match = q.length === 0 || (this._state.model[index]?.label.toLowerCase().includes(q) ?? false);
+            const match = q.length === 0 || (model[index]?.label.toLowerCase().includes(q) ?? false);
             button.hidden = !match;
         });
     }
@@ -400,8 +403,11 @@ export class GtkDropDown extends HTMLElement {
         }
         const before = this._itemButtons[change.position] ?? null;
         const inserted: HTMLButtonElement[] = [];
+        // Read ONCE: `model` hands back a copy (ADR 0046), so reading it per item would make
+        // a splice of n items O(n²) instead of the O(n) the splice is.
+        const model = this._state.model;
         for (let i = 0; i < change.added; i++) {
-            const option = this._state.model[change.position + i];
+            const option = model[change.position + i];
             if (!option) continue;
             const item = this._createItem(option);
             this._listEl.insertBefore(item, before);

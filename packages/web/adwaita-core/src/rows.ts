@@ -174,9 +174,38 @@ export class ComboState {
         return true;
     }
 
-    /** The list model — `Adw.ComboRow:model` / `Gtk.DropDown:model`, in portable form. */
+    /**
+     * The list model — `Adw.ComboRow:model` / `Gtk.DropDown:model`, in portable form.
+     *
+     * A COPY, items included, and that is load-bearing rather than defensive. The splice
+     * (ADR 0046) decides what changed by COMPARING the assigned model against the stored
+     * one, so anything that leaks a reference into `_options` makes the comparison read the
+     * new value on both sides and answer "nothing changed". Handing back `_options` itself
+     * did exactly that, and it turned a pattern that WORKED under the old full rebuild into
+     * a silent no-op:
+     *
+     * ```ts
+     * const m = row.model; m.push(item); row.model = m;   // → no splice, DOM unchanged
+     * ```
+     *
+     * Fresh items and not just a fresh array, because the same failure sits one level down:
+     * `m[0].label = 'x'` through a shared descriptor mutates the stored one too, and the
+     * comparison is by BOTH halves. A frozen item would have made the mutation loud; a copy
+     * makes the round trip CORRECT, which is the difference between documenting the hazard
+     * and removing it.
+     *
+     * Cost, MEASURED rather than assumed (Node 24.19, `{value,label}` records): linear, about
+     * four nanoseconds per item — so a read is well under a microsecond at every size a combo
+     * row actually holds, and the assignment beside it already costs more. What the shape
+     * rules out is a per-item read: the three call sites that had one — `_applyItemsChanged`
+     * in each browser selector and `_filter` in `<gtk-drop-down>`, which runs per row per
+     * keystroke — hoist it out of their loop, so a read is O(n) once per operation instead of
+     * O(n²). Nothing reads it per frame. A model large enough for the linear term to matter is
+     * a `Gtk.ListView` and belongs to `ListController`'s virtualisation, which ADR 0046 § 7
+     * keeps out of this class on purpose.
+     */
     get model(): AdwComboOption[] {
-        return this._options;
+        return this._options.map((option) => ({ value: option.value, label: option.label }));
     }
 
     /**
@@ -199,7 +228,12 @@ export class ComboState {
         const previous = this._options;
         const next = Array.isArray(model) ? model : [];
         const change = listItemsChanged(previous, next);
-        this._options = next;
+        // Copied AFTER the comparison, and for the reason {@link model} gives from the other
+        // side: the stored model shares nothing with a caller, so a retained input array —
+        // or a retained item — cannot mutate what the next assignment is compared against.
+        // Closing one door and not the other would leave the same silent no-op reachable by
+        // the other route.
+        this._options = next.map((option) => ({ value: option.value, label: option.label }));
         this._selected = clampListSelection(this._selected, next.length);
         if (change) {
             // Snapshot, for the reason `_emit` states.

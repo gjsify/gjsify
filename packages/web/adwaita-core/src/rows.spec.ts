@@ -18,6 +18,8 @@ import {
 import type { ComboStateChange, SpinStateChange, ToggleGroupStateChange } from './rows.js';
 import { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS } from './conformance/rows.js';
 import type { ComboSelectionStep } from './conformance/rows.js';
+import { LIST_MODEL_OWNERSHIP_VECTORS, applyListReadback } from './conformance/list.js';
+import type { AdwComboOption, AdwListItemsChanged } from './list.js';
 
 /** Replay one combo vector step against a headless combo state. */
 function applyComboStep(state: ComboState, step: ComboSelectionStep): void {
@@ -102,6 +104,31 @@ export default async () => {
                 // change, so a swallowed or duplicated one is a bug even when the end
                 // state is right.
                 expect(changes).toStrictEqual([...vector.emitted]);
+            });
+        }
+    });
+
+    // WHO OWNS THE ARRAY — driven here rather than only at the renderers because this is
+    // the surface where both doors are open: an element setter runs `normalizeComboOptions`
+    // and closes the input one on its own, `ComboState.setModel` takes a normalised model
+    // straight from a caller and closes nothing for free.
+    await describe('ComboState model ownership (portable list-model vectors)', async () => {
+        for (const vector of LIST_MODEL_OWNERSHIP_VECTORS) {
+            await it(vector.rule, () => {
+                const state = new ComboState();
+                // A caller's own array of a caller's own items, which is what makes the row
+                // about ownership rather than about the table's constants.
+                const input: AdwComboOption[] = vector.initial.map((item) => ({ ...item }));
+                state.setModel(input);
+
+                const splices: AdwListItemsChanged[] = [];
+                state.subscribeItems((change) => splices.push(change));
+
+                const mutated = applyListReadback(vector.source === 'input' ? input : state.model, vector.op);
+                if (vector.assign) state.setModel(mutated);
+
+                expect(state.model).toStrictEqual([...vector.model]);
+                expect(splices).toStrictEqual(vector.itemsChanged === null ? [] : [vector.itemsChanged]);
             });
         }
     });

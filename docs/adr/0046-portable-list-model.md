@@ -89,6 +89,21 @@ WHAT arrived is deliberately absent from the signal, as it is in GLib: a consume
 the model over `[position, position + added)`. Carrying the items would make the signal a
 second copy of the model that can disagree with it.
 
+**Deciding by comparison forces an ownership rule, and it is the one thing here that
+changes a published accessor.** A splice is computed by comparing the assigned model
+against the stored one, so any array or item shared between a caller and `ComboState`
+makes both sides read the new value and answer "nothing changed" — silently, because there
+is nothing to throw. `ComboState.model` therefore hands back a COPY, items included, and
+`setModel` stores one: the class shares nothing across its boundary in either direction.
+The read-back door is what regressed a pattern that WORKED under the full rebuild
+(`const m = row.model; m.push(item); row.model = m;`); the input door is its twin, for an
+array a caller assigned and kept. Freezing the items would have made the mutation LOUD,
+which is the lesser answer — a copy makes the round trip correct instead. Both doors are
+held row by row by `LIST_MODEL_OWNERSHIP_VECTORS`, driven at `ComboState` and at both
+browser elements: removing the getter copy reddens four rows on all three surfaces,
+removing the setter copy reddens the fifth at core alone, because the element setters run
+`normalizeComboOptions` and close that door on their own.
+
 Two items compare by BOTH halves. A descriptor whose label changed at an unchanged value is
 a different thing to draw, so it falls inside the range; comparing by `value` alone would
 leave a renamed row showing its old text, which is what `selection_item_changed` exists for
@@ -175,6 +190,7 @@ reaches every renderer except GTK", with what closes it.
   | `options` / `items` (property + attribute) | `@gjsify/adwaita-web` `<adw-combo-row>`, `<gtk-drop-down>` | `model` / `model` |
   | `options` (property) | `@gjsify/adwaita-nativescript` `AdwComboRow`, `GtkDropDown` | `model` |
   | `AdwComboRowProps.model?: readonly AdwComboOptionInput[]` | `@gjsify/adwaita-react-native` | `AdwListModelInput` — assignment-compatible, so no consumer edit |
+  | `ComboState.model`, and every `model` getter forwarding to it, returned the STORED array | `@gjsify/adwaita-core`, `@gjsify/adwaita-web`, `@gjsify/adwaita-nativescript` | returns a COPY, items included. Same type, same contents; what changes is IDENTITY — a consumer that mutated the read-back array in place to reach the state no longer can, and the read-mutate-assign round trip the splice had silently broken works again |
 
   `AdwComboOption` and `AdwComboOptionInput` keep their names and their shape; only the
   module they are declared in moved, and `rows.ts` re-exports both.
@@ -185,6 +201,14 @@ reaches every renderer except GTK", with what closes it.
   vectors and NOT by a NativeScript widget test: `drop-down.spec.ts` drives `ComboState`
   rather than the widget, for the reason its own header gives (importing the widget
   evaluates a bare `@nativescript/core` specifier, unresolvable on GJS/Node).
+
+- **The model a surface hands back is the CALLER's**, which is a published-accessor change
+  and belongs here rather than in a follow-up because the splice is what made it necessary:
+  a release carrying the splice without it is one where
+  `const m = row.model; m.push(item); row.model = m;` compiles, runs and does nothing. § 3
+  has the rule and the A/B that holds each half of it. Cost, measured: linear at about four
+  nanoseconds per item, so under a microsecond at any size a combo row holds — and the three
+  call sites that read the model per ITEM hoist the read out of their loop.
 
 - **Both browser selectors splice instead of rebuilding**, and one latent defect came out
   with it: each drop-down row's click handler closed over the index it was BUILT at, which
@@ -233,9 +257,10 @@ reaches every renderer except GTK", with what closes it.
 
 1. `packages/web/adwaita-core/src/list.ts` — the item vocabulary (moved), the model type
    names, the total attribute parser, the selection clamp, `AdwListItemsChanged` and
-   `listItemsChanged`; `conformance/list.ts` — five vector tables plus
-   `replayTabPagesAsSplices`.
-2. `ComboState` — `setModel`/`model`, `subscribeItems`, the clamp delegated.
+   `listItemsChanged`; `conformance/list.ts` — six vector tables plus
+   `replayTabPagesAsSplices` and `applyListReadback`.
+2. `ComboState` — `setModel`/`model` (both copying, § 3), `subscribeItems`, the clamp
+   delegated.
 3. `tab-view.ts` — `tabViewItemsChanged`, driven from both renderer tab-view suites.
 4. `@gjsify/adwaita-web` — `model` on both selectors, `parseListModel` for the attribute,
    a splice path in each, `PopoverMenuView.setMenuModel`.

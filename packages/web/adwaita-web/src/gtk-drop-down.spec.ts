@@ -14,8 +14,10 @@ import { describe, it, expect } from '@gjsify/unit';
 import {
     COMBO_SELECTION_VECTORS,
     LIST_ITEMS_CHANGED_VECTORS,
+    LIST_MODEL_OWNERSHIP_VECTORS,
     LIST_NORMALIZE_VECTORS,
     LIST_PARSE_VECTORS,
+    applyListReadback,
 } from '@gjsify/adwaita-core/conformance';
 import type { ComboSelectionStep, ComboSelectionVector } from '@gjsify/adwaita-core/conformance';
 
@@ -215,6 +217,28 @@ export const GtkDropDownTest = async () => {
                 const after = [...dd.querySelectorAll('.adw-drop-down-item')];
                 expect(after.map((item) => item.querySelector('.adw-drop-down-item-label')?.textContent)).toStrictEqual(
                     vector.next.map((item) => item.label),
+                );
+                expect(before.filter((item) => after.includes(item)).length).toBe(vector.survivors);
+                dd.remove();
+            });
+        }
+
+        // WHO OWNS the array `model` hands back — the row buttons are what shows it, for
+        // the reason `adw-row-state.spec.ts` gives on the same table.
+        for (const vector of LIST_MODEL_OWNERSHIP_VECTORS) {
+            await it(`ownership — ${vector.rule}`, async () => {
+                const dd = makeDropDown();
+                const input = vector.initial.map((item) => ({ ...item }));
+                dd.model = input;
+                const before = [...dd.querySelectorAll('.adw-drop-down-item')];
+
+                const mutated = applyListReadback(vector.source === 'input' ? input : dd.model, vector.op);
+                if (vector.assign) dd.model = mutated;
+
+                expect(dd.model).toStrictEqual([...vector.model]);
+                const after = [...dd.querySelectorAll('.adw-drop-down-item')];
+                expect(after.map((item) => item.querySelector('.adw-drop-down-item-label')?.textContent)).toStrictEqual(
+                    vector.model.map((item) => item.label),
                 );
                 expect(before.filter((item) => after.includes(item)).length).toBe(vector.survivors);
                 dd.remove();

@@ -39,7 +39,7 @@
 //
 // Copyright (c) GNOME contributors (GLib/GTK). LGPLv2.1+.
 
-import type { AdwListItemsChanged, AdwListModel, AdwListModelInput } from '../list.js';
+import type { AdwComboOption, AdwListItemsChanged, AdwListModel, AdwListModelInput } from '../list.js';
 import { tabViewItemsChanged } from '../tab-view.js';
 import type { TabViewPagesChange } from '../tab-view.js';
 
@@ -254,6 +254,116 @@ export const LIST_ITEMS_CHANGED_VECTORS: ReadonlyArray<ListItemsChangedVector> =
         rule: 'a REVERSAL is the whole span: `items-changed` has no vocabulary for a move, and neither does `g_list_store_move`, which reports one the same way',
     },
 ];
+
+/** What a caller does to the array it read back out of a `model` accessor. */
+export type ListReadbackOp = 'append' | 'relabel-first' | 'remove-first';
+
+/** One read-mutate-assign expectation — see {@link LIST_MODEL_OWNERSHIP_VECTORS}. */
+export interface ListModelOwnershipVector {
+    initial: AdwListModel;
+    /**
+     * Which array the caller mutates: the one `model` handed BACK, or the one they
+     * assigned and kept. Two doors into the same failure, and closing one leaves the other.
+     */
+    source: 'readback' | 'input';
+    op: ListReadbackOp;
+    /** Whether the mutated array is assigned back to `model` afterwards. */
+    assign: boolean;
+    /** The model the surface holds when the row is done. */
+    model: AdwListModel;
+    /** The splice the surface emits, or `null` where it emits none. */
+    itemsChanged: AdwListItemsChanged | null;
+    /** Item views carried over untouched — `initial.length` when nothing happened. */
+    survivors: number;
+    rule: string;
+}
+
+/**
+ * WHO OWNS THE ARRAY a `model` accessor hands back — read, mutate, assign.
+ *
+ * The browser suite drives `LIST_MODEL_OWNERSHIP_VECTORS` through `<adw-combo-row>` and
+ * `<gtk-drop-down>`, and core drives it through `ComboState` itself, which is the surface
+ * where BOTH doors are reachable: the element setters run `normalizeComboOptions` and so
+ * close the input door on their own, while `ComboState.setModel` takes a normalised model
+ * straight from a caller.
+ *
+ * THE ROWS EXIST BECAUSE THE SPLICE MADE THIS A SILENT FAILURE. Under the full rebuild
+ * every assignment redrew the list, so an aliased array was invisible; the splice decides
+ * what to redraw by COMPARING the assignment against the stored model, and an alias makes
+ * both sides read the new value — "nothing changed", nothing drawn, no error. `append`
+ * with `assign` is the pattern that regressed, `relabel-first` is the same failure one
+ * level down through a shared descriptor (which is why the copy is per ITEM and not just
+ * per array), and the `assign: false` row is the invariant the other two rest on: what a
+ * caller holds is THEIRS, so touching it moves nothing until they hand it back.
+ */
+export const LIST_MODEL_OWNERSHIP_VECTORS: ReadonlyArray<ListModelOwnershipVector> = [
+    {
+        initial: [A, B],
+        source: 'readback',
+        op: 'append',
+        assign: false,
+        model: [A, B],
+        itemsChanged: null,
+        survivors: 2,
+        rule: "a model read back is the CALLER's array — pushing onto it moves nothing, because nothing was assigned",
+    },
+    {
+        initial: [A, B],
+        source: 'readback',
+        op: 'append',
+        assign: true,
+        model: [A, B, { value: 'z', label: 'Z' }],
+        itemsChanged: { position: 2, removed: 0, added: 1 },
+        survivors: 2,
+        rule: 'read, push, assign is one insertion at the end — the pattern a full rebuild used to serve and a splice over a shared array answers with nothing at all',
+    },
+    {
+        initial: [A, B],
+        source: 'readback',
+        op: 'relabel-first',
+        assign: true,
+        model: [{ value: 'a', label: 'Renamed' }, B],
+        itemsChanged: { position: 0, removed: 1, added: 1 },
+        survivors: 1,
+        rule: 'relabelling an item THROUGH the array read back is the same failure one level down: a shared descriptor changes the stored model too, so the comparison sees no change',
+    },
+    {
+        initial: [A, B, C],
+        source: 'readback',
+        op: 'remove-first',
+        assign: true,
+        model: [B, C],
+        itemsChanged: { position: 0, removed: 1, added: 0 },
+        survivors: 2,
+        rule: 'the shrink direction, which a shared array reports as a model that got shorter on BOTH sides and therefore did not change',
+    },
+    {
+        initial: [A, B],
+        source: 'input',
+        op: 'append',
+        assign: true,
+        model: [A, B, { value: 'z', label: 'Z' }],
+        itemsChanged: { position: 2, removed: 0, added: 1 },
+        survivors: 2,
+        rule: 'the OTHER door — an array the caller ASSIGNED and kept a reference to. Closing only the read-back one leaves the same comparison reading the new value on both sides, by the other route',
+    },
+];
+
+/**
+ * The caller-side half of one {@link LIST_MODEL_OWNERSHIP_VECTORS} row: mutate the array a
+ * `model` accessor handed back, IN PLACE, and hand the same array back.
+ *
+ * In place and returning its argument is the whole point — a helper that built a new array
+ * would test the pattern that never broke.
+ */
+export function applyListReadback(model: AdwComboOption[], op: ListReadbackOp): AdwComboOption[] {
+    if (op === 'append') model.push({ value: 'z', label: 'Z' });
+    else if (op === 'relabel-first') {
+        const first = model[0];
+        if (first) first.label = 'Renamed';
+    } else model.shift();
+    return model;
+}
 
 /** One {@link clampListSelection} expectation. */
 export interface ListSelectionClampVector {

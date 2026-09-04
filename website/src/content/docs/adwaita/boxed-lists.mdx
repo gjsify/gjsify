@@ -442,6 +442,10 @@ row.model = [...row.model, { value: 'g', label: 'Green' }];
 That last line adds one option and leaves the two already on screen alone, so a
 list that grows does not flicker or lose the reader's place.
 
+Reading `row.model` hands you a copy of the list, so you can build the next one
+out of it — push, filter, rename an item — and nothing on screen moves until you
+assign it back.
+
 The same array is what [`<gtk-drop-down>`](/gjsify/gtk/controls/#drop-down) takes,
 under the same `model` name — and so do `Adw.ComboRow` on NativeScript and the
 `<AdwComboRow model={…}>` prop in React Native, so one model moves between the

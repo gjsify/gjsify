@@ -13,9 +13,11 @@ import {
     COMBO_CHOOSER_VECTORS,
     COMBO_SELECTION_VECTORS,
     LIST_ITEMS_CHANGED_VECTORS,
+    LIST_MODEL_OWNERSHIP_VECTORS,
     LIST_NORMALIZE_VECTORS,
     LIST_PARSE_VECTORS,
     LIST_SELECTION_CLAMP_VECTORS,
+    applyListReadback,
 } from '@gjsify/adwaita-core/conformance';
 import type { ComboSelectionStep } from '@gjsify/adwaita-core/conformance';
 
@@ -302,6 +304,32 @@ export const AdwRowStateTest = async () => {
 
                 const after = [...select.options];
                 expect(after.map((option) => option.textContent)).toStrictEqual(vector.next.map((item) => item.label));
+                expect(before.filter((option) => after.includes(option)).length).toBe(vector.survivors);
+                host.remove();
+            });
+        }
+
+        // WHO OWNS the array `model` hands back. The DOM is what makes these rows worth
+        // driving at the element: without the copy the MODEL still reads correctly on the
+        // mutate-then-assign rows — it is `_options` itself that was mutated — and only the
+        // `<option>` list shows that no splice was ever emitted.
+        for (const vector of LIST_MODEL_OWNERSHIP_VECTORS) {
+            await it(`ownership — ${vector.rule}`, async () => {
+                const { el: row, host } = parse<AdwComboRow>(
+                    `<adw-combo-row title="Pick"></adw-combo-row>`,
+                    'adw-combo-row',
+                );
+                const select = row.querySelector('select') as HTMLSelectElement;
+                const input = vector.initial.map((item) => ({ ...item }));
+                row.model = input;
+                const before = [...select.options];
+
+                const mutated = applyListReadback(vector.source === 'input' ? input : row.model, vector.op);
+                if (vector.assign) row.model = mutated;
+
+                expect(row.model).toStrictEqual([...vector.model]);
+                const after = [...select.options];
+                expect(after.map((option) => option.textContent)).toStrictEqual(vector.model.map((item) => item.label));
                 expect(before.filter((option) => after.includes(option)).length).toBe(vector.survivors);
                 host.remove();
             });
