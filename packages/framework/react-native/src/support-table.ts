@@ -367,7 +367,7 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         status: 'partial',
         tier: 'P2',
         gtk: 'Adw.AlertDialog',
-        reason: 'Direct counterpart, and buildable where Modal is not: Alert is a FUNCTION CALL, so no element is ever inserted into a widget. Measured on libadwaita 1.9.3 — present(null) from a plain function, with no parent and no window, returned with no diagnostic.',
+        reason: 'Direct counterpart, and it needed no placement seam to be one: Alert is a FUNCTION CALL, so no element is ever inserted into a widget (Modal is the same widget family as an ELEMENT, and reaches the same call through the host portal placement of ADR 0045). Measured on libadwaita 1.9.3 — present(null) from a plain function, with no parent and no window, returned with no diagnostic.',
         limits: [
             'destructive maps to Adw.ResponseAppearance.DESTRUCTIVE and cancel becomes the dialog’s CLOSE RESPONSE, which is stronger than an appearance: it is what Escape and the compositor’s close both produce. The first non-cancel button becomes the default response, which is Adwaita’s convention and has no React Native counterpart.',
             'Response IDs are positional (response-0, …) rather than derived from the label, so two buttons with the same text do not collide into one response.',
@@ -1579,9 +1579,8 @@ export { OWN_EXPORT_NAMES };
  * falls through to the layer's own exports — and only on the ROOT surface, because
  * `configureStyle` is exported from `@gjsify/react-native` and from nowhere else.
  * That order is the safety property: the derived list can add names, never promote a
- * `planned` one, so a mistake upstream of it cannot turn a planned name into a green
- * build. (`Modal` was this comment's example until ADR 0045 made it `partial`; the
- * spec that pins the property takes its name FROM the table for that reason.)
+ * `planned` one, so a mistake upstream of it cannot turn an import of one into a
+ * green build.
  *
  * A name in NEITHER population is still refused — which is the whole difference
  * between this and "anything the table does not know is fine", the shape that would

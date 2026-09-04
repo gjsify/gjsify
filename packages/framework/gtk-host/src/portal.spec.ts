@@ -24,6 +24,14 @@ import { GtkHostError } from './errors.js';
 import { adopt, createElement, destroy, insert, materialize, remove, setProp } from './host.js';
 import { isPortal, placementOf, portalOf } from './policies.js';
 import { lookupWidget, registerWidget, registerWidgets } from './registry.js';
+import { createRoot as createReactRoot } from './adapters/react.js';
+import {
+    createElement as solidCreateElement,
+    insertNode as solidInsertNode,
+    mount as solidMount,
+    setProp as solidSetProp,
+} from './adapters/solid.js';
+import { createElement as reactCreateElement } from 'react';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import type { HostElement, WidgetDescriptor } from './types.js';
 
@@ -323,6 +331,55 @@ export default async () => {
                 insert(label, bin);
                 expect((widgetOf(bin) as unknown as Adw.Bin).get_child() === widgetOf(label)).toBe(true);
                 destroy(dialog);
+            });
+        });
+
+        await gated(diagnostics, 'portal placement — through the adapters, not only through the host', async () => {
+            // THE FRAMEWORK-AGNOSTIC CLAIM, MEASURED. The seam is three functions in
+            // `policies.ts`, below every adapter, and no adapter file mentions a
+            // dialog — but "below" is a claim about a call graph, and a call graph is
+            // exactly the kind of thing that reads true and is not. Two renderers with
+            // nothing in common (a reconciler and a compile-time renderer with no
+            // VDOM) mount the same tag here and get the same widget in the same
+            // window; a third adapter that broke would break this suite rather than a
+            // consumer's window.
+            await it('presents from a React tree mounted into a rooted container', async () => {
+                const window = new Adw.Window();
+                const box = new Gtk.Box();
+                window.set_content(box);
+                const root = createReactRoot(box);
+                try {
+                    root.render(
+                        reactCreateElement('adw-dialog', {}, reactCreateElement('gtk-label', { label: 'react' })),
+                    );
+                    expect(gtkChildTypes(box)).toStrictEqual([]);
+                    expect(window.visibleDialog !== null).toBe(true);
+                    const child = (window.visibleDialog as Adw.Dialog).get_child() as Gtk.Label;
+                    expect(child.label).toBe('react');
+                } finally {
+                    root.unmount();
+                }
+                // Unmounting the tree takes the sheet with it — the same forced close,
+                // reached from a renderer rather than from `destroy` by hand.
+                expect(window.visibleDialog).toBe(null);
+            });
+
+            await it('presents from a Solid tree mounted into a rooted container', async () => {
+                const window = new Adw.Window();
+                const box = new Gtk.Box();
+                window.set_content(box);
+                const dispose = solidMount(() => {
+                    const dialog = solidCreateElement('adw-dialog');
+                    const label = solidCreateElement('gtk-label');
+                    solidSetProp(label, 'label', 'solid');
+                    solidInsertNode(dialog, label);
+                    return dialog;
+                }, box);
+                expect(gtkChildTypes(box)).toStrictEqual([]);
+                expect(window.visibleDialog !== null).toBe(true);
+                expect(((window.visibleDialog as Adw.Dialog).get_child() as Gtk.Label).label).toBe('solid');
+                dispose();
+                expect(window.visibleDialog).toBe(null);
             });
         });
 
