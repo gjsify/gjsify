@@ -1334,6 +1334,33 @@ jobs:
       - name: E2E tests (shard ${{ matrix.shard }}/4)
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/e2e-shard.mjs ${{ matrix.shard }} 4'
 
+      # THE TWO SUITES `test:e2e` CANNOT CARRY, run where their environment exists.
+      #
+      # `react-native-devtools` and `devtools-export` are ledgered out of the shared
+      # batch (`scripts/e2e-unlisted-suites.mjs`) because they need a display and a
+      # session bus, which `e2e-shard.mjs` does not provide. That kept them out of the
+      # ONE job whose trigger is right — this one — and the first of them is the only
+      # external observer of `AppRegistry.runApplication`'s body: three lines that no
+      # unit vector can reach, one of which was deleted in a measurement and left every
+      # in-process gate green while the application drew two header bars (#1549, #1550).
+      #
+      # `GJSIFY_E2E_REQUIRE=1` is what makes the step worth having. Both suites guard
+      # themselves with a dozen preconditions, and a runner missing ONE goes quiet
+      # rather than red — a silent suite inside a workflow step reads exactly like
+      # coverage. With the variable set, a missing precondition FAILS and names itself.
+      #
+      # Shard 1 only: it is one step, not a quarter of one, and the environment costs a
+      # process per vector.
+      - name: Devtools E2E on a display + session bus (shard 1)
+        if: ${{ matrix.shard == 1 }}
+        env:
+          GJSIFY_E2E_REQUIRE: '1'
+        run: |
+          su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" GJSIFY_E2E_REQUIRE=1 \
+            GTK_A11Y=none GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 \
+            xvfb-run -a --server-args="-screen 0 1280x720x24" \
+            node --test tests/e2e/react-native-devtools/run.mjs tests/e2e/devtools-export/run.mjs'
+
   # ── build:infra on a cold tree with NO node ──────────────────────────
   #
   # WHAT IS ALREADY COVERED, so this job says only what that one cannot. The

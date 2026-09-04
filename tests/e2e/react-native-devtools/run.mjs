@@ -62,7 +62,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { prebuildDir } from '../helpers.mjs';
+import { prebuildDir, requireEnvironment } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
@@ -94,26 +94,36 @@ function hasAdw() {
 const arch = archDir();
 const PREBUILD = arch ? prebuildDir('infra', 'rolldown-native', arch) : null;
 
-const SKIP =
-    process.platform !== 'linux' ||
-    !arch ||
+// NAMED, not chained: a boolean says only that something is missing, and the whole
+// point of `GJSIFY_E2E_REQUIRE=1` is that a host which promised these must say WHICH
+// one it does not have. See `requireEnvironment`.
+const SKIP = requireEnvironment('a display, a session bus and a built workspace', [
+    { need: 'linux', ok: process.platform === 'linux' },
+    { need: 'a known arch (x64/arm64)', ok: arch !== null },
     // A GTK window cannot MAP without a display, and `mapped` is the assertion that
     // separates this suite from one proving only that a service object exists. So a
     // display is a precondition — and its absence is why the suite is ledgered in
     // `scripts/e2e-unlisted-suites.mjs` rather than listed in `test:e2e`, where it
     // would be satisfied by going quiet.
-    !(process.env.DISPLAY || process.env.WAYLAND_DISPLAY) ||
-    !hasCmd('gjs') ||
-    !hasCmd('dbus-run-session', ['--help']) ||
-    !hasCmd('gdbus', ['--help']) ||
-    !existsSync(CLI_BUNDLE) ||
-    !PREBUILD ||
-    !existsSync(join(PREBUILD, 'GjsifyRolldown-1.0.typelib')) ||
-    !existsSync(join(REPO_ROOT, 'node_modules', '@gjsify')) ||
-    !existsSync(join(REPO_ROOT, 'node_modules', 'react')) ||
-    !existsSync(join(REPO_ROOT, 'node_modules', 'rolldown')) ||
-    !BUILT.every((dir) => existsSync(dir)) ||
-    !hasAdw();
+    { need: 'DISPLAY or WAYLAND_DISPLAY', ok: Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY) },
+    { need: 'gjs', ok: () => hasCmd('gjs') },
+    { need: 'dbus-run-session', ok: () => hasCmd('dbus-run-session', ['--help']) },
+    { need: 'gdbus', ok: () => hasCmd('gdbus', ['--help']) },
+    { need: `the committed CLI bundle (${CLI_BUNDLE})`, ok: () => existsSync(CLI_BUNDLE) },
+    { need: '@gjsify/rolldown-native for this arch', ok: () => PREBUILD !== null },
+    {
+        need: 'the GjsifyRolldown typelib',
+        ok: () => PREBUILD !== null && existsSync(join(PREBUILD, 'GjsifyRolldown-1.0.typelib')),
+    },
+    { need: 'node_modules/@gjsify', ok: () => existsSync(join(REPO_ROOT, 'node_modules', '@gjsify')) },
+    { need: 'node_modules/react', ok: () => existsSync(join(REPO_ROOT, 'node_modules', 'react')) },
+    { need: 'node_modules/rolldown', ok: () => existsSync(join(REPO_ROOT, 'node_modules', 'rolldown')) },
+    {
+        need: `built lib/ for ${BUILT.length} framework packages`,
+        ok: () => BUILT.every((dir) => existsSync(dir)),
+    },
+    { need: 'a loadable Adw-1 typelib', ok: () => hasAdw() },
+]);
 
 /** One `dbus-run-session` per vector: the app claims a well-known name. */
 function measure(bundle, mode) {

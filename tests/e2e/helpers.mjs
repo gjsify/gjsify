@@ -599,3 +599,45 @@ export function hasCommand(cmd) {
     }
     return false;
 }
+
+/**
+ * The preconditions a suite needs, as a SKIP reason — or a failure, on a host that
+ * promised to have them.
+ *
+ * THE PROBLEM THIS SOLVES (#1550). Three suites are ledgered out of `test:e2e`
+ * because they need a display or a session bus, and each guards itself with a
+ * boolean chain of a dozen `&&`s. That is right off a capable host and wrong on
+ * the one CI job that was set up to be capable: a runner missing ONE precondition
+ * goes quiet instead of red, and a quiet suite in a workflow step reads exactly
+ * like coverage. It is the green-that-checked-nothing class, relocated.
+ *
+ * So the switch is the point, and the named preconditions are what make it usable:
+ * with `GJSIFY_E2E_REQUIRE=1` a missing precondition THROWS, and the message says
+ * which one. A boolean would say only that something was missing, on a host nobody
+ * can log into.
+ *
+ * THROWN AT MODULE SCOPE on purpose, rather than registered as a failing test: the
+ * suite has not run, and a file that fails to load is what `node --test` reports as
+ * a failure with the message attached. A failing test would suggest the suite ran
+ * and disagreed.
+ *
+ * @param {string} label what the suite needs, in a sentence ("a display and a session bus")
+ * @param {Array<{ need: string, ok: boolean | (() => boolean) }>} preconditions
+ * @returns {string | false} a node:test `skip` reason, or `false` when everything is present
+ */
+export function requireEnvironment(label, preconditions) {
+    const missing = preconditions.filter((p) => !(typeof p.ok === 'function' ? p.ok() : p.ok)).map((p) => p.need);
+    if (missing.length === 0) return false;
+    const reason = `${label} — missing: ${missing.join(', ')}`;
+    if (process.env.GJSIFY_E2E_REQUIRE === '1') {
+        throw new Error(
+            `${reason}\n\n` +
+                '    GJSIFY_E2E_REQUIRE=1 says this host was set up to run the suite, so a skip is a ' +
+                'defect in the job\n' +
+                '    rather than an honest stand-down. Fix the environment, or drop the variable and ' +
+                'accept that this\n' +
+                '    step proves nothing.',
+        );
+    }
+    return reason;
+}

@@ -27,7 +27,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { prebuildDir } from '../helpers.mjs';
+import { prebuildDir, requireEnvironment } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
@@ -58,25 +58,34 @@ function hasAdw() {
 const arch = archDir();
 const PREBUILD = arch ? prebuildDir('infra', 'rolldown-native', arch) : null;
 
-const SKIP =
-    process.platform !== 'linux' ||
-    !arch ||
-    !hasCmd('gjs') ||
-    !hasCmd('dbus-run-session', ['--help']) ||
-    !hasCmd('gdbus', ['--help']) ||
-    !existsSync(CLI_BUNDLE) ||
-    !PREBUILD ||
-    !existsSync(join(PREBUILD, 'GjsifyRolldown-1.0.typelib')) ||
-    !existsSync(join(WS_MODULES, '@gjsify')) ||
-    !existsSync(join(WS_MODULES, 'rolldown')) ||
-    // The package the fixture BUNDLES, not merely one it resolves. Every gate above
-    // asks whether the toolchain is present; none asked whether the thing under test is
-    // BUILT, so on a tree with `node_modules` but no `packages/framework/devtools/lib`
-    // the suite ran and died inside rolldown with
-    // `gjsify-unresolved-workspace-import: NotFound("@gjsify/devtools")` — an
-    // environment fact reported as a failed assertion about DBus.
-    !existsSync(join(REPO_ROOT, 'packages', 'framework', 'devtools', 'lib')) ||
-    !hasAdw();
+// NAMED, not chained, for `requireEnvironment`'s reason: under `GJSIFY_E2E_REQUIRE=1`
+// a host that promised these must say WHICH one it does not have.
+const SKIP = requireEnvironment('a session bus and a built workspace', [
+    { need: 'linux', ok: process.platform === 'linux' },
+    { need: 'a known arch (x64/arm64)', ok: arch !== null },
+    { need: 'gjs', ok: () => hasCmd('gjs') },
+    { need: 'dbus-run-session', ok: () => hasCmd('dbus-run-session', ['--help']) },
+    { need: 'gdbus', ok: () => hasCmd('gdbus', ['--help']) },
+    { need: `the committed CLI bundle (${CLI_BUNDLE})`, ok: () => existsSync(CLI_BUNDLE) },
+    { need: '@gjsify/rolldown-native for this arch', ok: () => PREBUILD !== null },
+    {
+        need: 'the GjsifyRolldown typelib',
+        ok: () => PREBUILD !== null && existsSync(join(PREBUILD, 'GjsifyRolldown-1.0.typelib')),
+    },
+    { need: 'node_modules/@gjsify', ok: () => existsSync(join(WS_MODULES, '@gjsify')) },
+    { need: 'node_modules/rolldown', ok: () => existsSync(join(WS_MODULES, 'rolldown')) },
+    {
+        // The package the fixture BUNDLES, not merely one it resolves. Every gate above
+        // asks whether the toolchain is present; none asked whether the thing under test
+        // is BUILT, so on a tree with `node_modules` but no
+        // `packages/framework/devtools/lib` the suite ran and died inside rolldown with
+        // `gjsify-unresolved-workspace-import: NotFound("@gjsify/devtools")` — an
+        // environment fact reported as a failed assertion about DBus.
+        need: 'a built packages/framework/devtools/lib',
+        ok: () => existsSync(join(REPO_ROOT, 'packages', 'framework', 'devtools', 'lib')),
+    },
+    { need: 'a loadable Adw-1 typelib', ok: () => hasAdw() },
+]);
 
 // A bash driver run INSIDE a fresh `dbus-run-session` (its own bus → no stale
 // well-known-name owner from a prior run). Launches the built fixture, waits for
