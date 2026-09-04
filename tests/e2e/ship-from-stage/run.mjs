@@ -178,6 +178,17 @@ describe('CLI ship --from-stage E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.equal(manifest.overlay.deb[0].path, 'share/doc/ship-demo/copyright');
         assert.equal(manifest.overlay.rpm[0].path, 'share/licenses/ship-demo/LICENSE');
 
+        // The § 4.4 changelog crosses as BASE64 and not as text, and that is the one
+        // entry where the distinction is load-bearing: the file that ships is gzip, so
+        // a stage carrying its prose would leave the packing host to compress it — a
+        // second compressor's output in an artifact whose every other byte came from
+        // the first, and byte-identity with the single-process run (the assertion two
+        // tests up) is exactly what that loses.
+        const changelog = manifest.overlay.deb[1];
+        assert.equal(changelog.path, 'share/doc/ship-demo/changelog.Debian.gz');
+        assert.equal(changelog.text, undefined, 'gzip is not text');
+        assert.equal(typeof changelog.base64, 'string');
+
         // Not one absolute path from the machine that assembled it — the project directory does
         // not exist any more, so a manifest naming it would name nothing.
         for (const field of BUILD_HOST_FIELDS) {

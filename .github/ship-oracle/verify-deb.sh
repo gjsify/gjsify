@@ -55,7 +55,7 @@ require() {
     done
 }
 
-require dpkg dpkg-deb dpkg-query apt-cache apt-get lintian cmp find sort awk sed
+require dpkg dpkg-deb dpkg-query apt-cache apt-get lintian cmp find sort awk sed gzip python3
 
 # ── 1. dpkg's OWN control parser accepts the control member ──────────────────
 # `tests/e2e/ship` asserts these fields with regexes over a tar-extracted file.
@@ -95,6 +95,14 @@ grep -qE "^-rwxr-xr-x .* \./usr/bin/$PKG\$" <<<"$CONTENTS" ||
 grep -q "\./usr/share/doc/$PKG/copyright\$" <<<"$CONTENTS" ||
     fail "no /usr/share/doc/$PKG/copyright (Debian Policy § 12.5). The licence overlay did not travel."
 
+# Debian Policy § 4.4, and `.Debian.gz` rather than `.gz` because this writer
+# stamps `Version: <version>-<release>` — a Debian revision, i.e. a non-native
+# package, which is the half of lintian's `no-changelog … (non-native package)`
+# that names the file. It travels as base64 in the sidecar (schema 6), because
+# the bytes that ship have to be the ones the assembling host compressed.
+grep -q "\./usr/share/doc/$PKG/changelog\.Debian\.gz\$" <<<"$CONTENTS" ||
+    fail "no /usr/share/doc/$PKG/changelog.Debian.gz (Debian Policy § 4.4). The changelog overlay did not travel."
+
 # The sidecar is METADATA about the payload, not payload. Inside the package it
 # would mean `readStage()` treated it as an ordinary staged file.
 if grep -q 'gjsify-ship-stage\.json' <<<"$CONTENTS"; then
@@ -123,13 +131,17 @@ if awk '$2 != "root/root" && $2 != "0/0" { print; bad = 1 } END { exit bad ? 0 :
     fail "the data member carries entries owned by neither root/root nor 0/0 — see the uid/gid and uname/gname fields in @gjsify/tar's buildHeader()"
 fi
 
-# The count is DERIVED from the stage job's own output — no file count is
-# written down anywhere in this pipeline. Expected = the staged payload plus
-# exactly one overlay file (the copyright).
+# The count is DERIVED at both ends — no file count is written down anywhere in
+# this pipeline. The staged half comes from the stage job's own output; the
+# overlay half is read out of the SIDECAR rather than being a literal `+ 1`,
+# which is what it was until a second overlay file (the § 4.4 changelog) landed
+# and turned a correct package into a failed assertion about a number.
+OVERLAY_FILES=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["overlay"].get("deb", [])))' \
+    "$STAGE/.gjsify-ship-stage.json")
 ACTUAL_FILES=$(awk '/^-/ { n++ } END { print n + 0 }' <<<"$CONTENTS")
-EXPECTED_FILES=$((EXPECT_FILES + 1))
+EXPECTED_FILES=$((EXPECT_FILES + OVERLAY_FILES))
 [ "$ACTUAL_FILES" = "$EXPECTED_FILES" ] ||
-    fail "the .deb carries $ACTUAL_FILES regular file(s); the stage held $EXPECT_FILES plus one copyright overlay = $EXPECTED_FILES"
+    fail "the .deb carries $ACTUAL_FILES regular file(s); the stage held $EXPECT_FILES plus $OVERLAY_FILES overlay file(s) = $EXPECTED_FILES"
 
 # ── 3. every dependency NAME exists in a real archive ────────────────────────
 # `utils/ship/depends.ts` says this out loud about its own table: the Debian
@@ -199,7 +211,10 @@ TAG_LIST=$(lintian-explain-tags --list-tags 2>/dev/null || lintian --list-tags 2
 # Each entry is a defect THIS writer can produce, not a wishlist. `deb.ts`
 # generates the whole md5sums member by hand — the file list and every digest —
 # so the four tags that read it back are all reachable from one loop there.
-#   no-copyright-file                Policy § 12.5 — the overlay
+#   no-copyright-file                Policy § 12.5 — the licence overlay
+#   no-changelog                     Policy § 4.4 — the changelog overlay
+#   changelog-file-not-compressed    it ships gzipped, or not at all
+#   syntax-error-in-debian-changelog the header/trailer this writer renders
 #   no-md5sums-control-file          the control member's md5sums
 #   md5sum-mismatch                  a digest in it (NOT `md5sums-mismatch`:
 #                                    that name is in no lintian this ran on, and
@@ -211,7 +226,8 @@ TAG_LIST=$(lintian-explain-tags --list-tags 2>/dev/null || lintian --list-tags 2
 #   control-file-has-bad-owner       control.tar owner ids
 #   malformed-deb-archive            the ar container and its member order
 #   control-file-has-bad-permissions the control member's modes
-for tag in no-copyright-file no-md5sums-control-file md5sum-mismatch \
+for tag in no-copyright-file no-changelog changelog-file-not-compressed \
+    syntax-error-in-debian-changelog no-md5sums-control-file md5sum-mismatch \
     file-missing-in-md5sums md5sums-lists-nonexistent-file malformed-md5sums-control-file \
     wrong-file-owner-uid-or-gid control-file-has-bad-owner malformed-deb-archive \
     control-file-has-bad-permissions; do
@@ -263,6 +279,14 @@ echo "  clean"
 # the mode plan in the sidecar.
 [ -x "/usr/bin/$PKG" ] || fail "/usr/bin/$PKG is not executable after install"
 [ -f "/usr/share/doc/$PKG/copyright" ] || fail "/usr/share/doc/$PKG/copyright is missing after install"
+# Read back THROUGH gzip, not merely stat'ed: a file with the right name and the
+# wrong bytes is what an overlay entry serialised as text instead of base64 would
+# produce, and dpkg installs it without a word.
+CHANGELOG=$(gzip -dc "/usr/share/doc/$PKG/changelog.Debian.gz") ||
+    fail "/usr/share/doc/$PKG/changelog.Debian.gz is missing or is not gzip after install"
+head -1 <<<"$CHANGELOG"
+grep -qE "^$PKG \\($VERSION\\) [a-z]+; urgency=[a-z]+\$" <<<"$CHANGELOG" ||
+    fail "the changelog's first line does not name \`$PKG ($VERSION)\` — the entry and the control file disagree about what this package is"
 
 # Every staged byte, where the package said it would put it. The stage is the
 # only place these bytes exist on this machine, so this is also the proof that

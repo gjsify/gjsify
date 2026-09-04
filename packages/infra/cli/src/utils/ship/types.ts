@@ -249,6 +249,17 @@ export interface FormatDescriptor {
     /** Where the project's licence text goes in this format's overlay. */
     licenseDest: (binaryName: string) => string;
     /**
+     * Where this format wants a packaging changelog, when it wants one at all.
+     *
+     * OPTIONAL, unlike {@link licenseDest}, and the asymmetry is a policy
+     * difference rather than an oversight: Debian Policy § 4.4 makes
+     * `share/doc/<package>/changelog.Debian.gz` mandatory and lintian errors
+     * without it, while rpm's `%doc` changelog is a convention and `rpm` says
+     * nothing when it is absent. A format that leaves this undefined has
+     * answered "this format does not require one".
+     */
+    changelogDest?: (binaryName: string) => string;
+    /**
      * `debian-copyright` renders the machine-readable copyright 1.0 format
      * Debian policy asks for; `plain` copies the licence file verbatim.
      */
@@ -448,6 +459,8 @@ export interface ShipSettings extends PackSettings {
     projectDir: string;
     /** Absolute path to the licence file, when one was found. */
     licenseFile?: string;
+    /** Absolute path to the project's own changelog, when one was found. */
+    changelogFile?: string;
     /** `'app'` stages a desktop entry and an icon; `'cli'` stages neither. */
     kind: 'app' | 'cli';
     /** Absolute path to the built bundle that `bin/<binaryName>` executes. */

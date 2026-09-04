@@ -486,6 +486,8 @@ async function assemble(args: ShipOptions): Promise<void> {
         metainfo: translated.metainfo,
         desktopEntry: translated.desktopEntry,
         licenseText: settings.licenseFile === undefined ? undefined : readFileSync(settings.licenseFile, 'utf-8'),
+        changelogText: settings.changelogFile === undefined ? undefined : readFileSync(settings.changelogFile, 'utf-8'),
+        mtime,
     };
 
     const outRoot = resolve(projectDir, settings.outDir);
@@ -619,7 +621,7 @@ async function assemble(args: ShipOptions): Promise<void> {
     for (const format of formats) {
         overlay.set(
             format.id,
-            planOverlay(settings, format, stageInputs).map((file) => ({
+            (await planOverlay(settings, format, stageInputs)).map((file) => ({
                 ...file,
                 path: place(layout, settings, file.path),
             })),

@@ -44,6 +44,7 @@ import type { Command } from '../types/index.js';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { base64Encode } from '@gjsify/buffer';
 import { DEFAULT_REGISTRY, registryFor } from '@gjsify/npm-registry';
 import { buildPublishHeaders, escapePackageName } from '../utils/publish-headers.js';
 import { packWorkspace, type PackWorkspaceOptions } from './pack.js';
@@ -971,15 +972,6 @@ function buildPublishPayload(opts: BuildPayloadOptions): Record<string, unknown>
     };
     if (access) payload.access = access;
     return payload;
-}
-
-function base64Encode(bytes: Uint8Array): string {
-    let str = '';
-    const chunk = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunk) {
-        str += String.fromCharCode(...bytes.subarray(i, i + chunk));
-    }
-    return btoa(str);
 }
 
 function handleOidcFailure(err: unknown, packageName: string, asJson: boolean): void {

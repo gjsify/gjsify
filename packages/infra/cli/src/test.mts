@@ -11,6 +11,7 @@ import bundlerPickSuite from './bundler-pick.spec.js';
 import reflectionTransformOrderSuite from './reflection-transform-order.spec.js';
 import cliFailSuite from './cli-fail.spec.js';
 import shipPlanSuite from './utils/ship/plan.spec.js';
+import shipChangelogSuite from './utils/ship/changelog.spec.js';
 import shipLayoutSuite from './utils/ship/layout.spec.js';
 import shipPayloadSuite from './utils/ship/payload.spec.js';
 import shipLauncherSuite from './utils/ship/launcher.spec.js';
@@ -225,6 +226,7 @@ run(
         reflectionTransformOrderSuite,
         cliFailSuite,
         shipPlanSuite,
+        shipChangelogSuite,
         shipLayoutSuite,
         shipPayloadSuite,
         shipTypelibsSuite,
