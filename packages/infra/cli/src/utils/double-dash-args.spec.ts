@@ -82,11 +82,17 @@ export default () => {
         });
 
         it('keeps the spelling, not just the value', () => {
-            // `007` and `1.0` are the reason this is a parser setting and not a
-            // `String(v)` in the reader: yargs would hand back 7 and 1, which
-            // are the same numbers and different arguments.
-            const args = parseWith(foreachCommand, ['foreach', '--exec', '--', 'cmd', '--pad', '007', '--v', '1.0']);
-            expect(doubleDashArgs(args)).toStrictEqual(['cmd', '--pad', '007', '--v', '1.0']);
+            // WHY THIS IS A PARSER SETTING AND NOT A `String(v)` IN THE READER.
+            // Each of these is a different argument from the number yargs makes
+            // of it, measured against yargs 18.0.0: `1.0` → 1, `0.10` → 0.1,
+            // `0x10` → 16, `1e3` → 1000. A coercion recovers a value and prints
+            // `1`, `0.1`, `16`, `1000` — same numbers, different argv.
+            // `007` is here as the CONTROL: it looks like the obvious case and
+            // yargs leaves it alone, so a suite carrying only it would pass over
+            // the coercion this test exists to reject.
+            const typed = ['cmd', '--pad', '007', '--v', '1.0', '--r', '0.10', '--m', '0x10', '--n', '1e3'];
+            const args = parseWith(foreachCommand, ['foreach', '--exec', '--', ...typed]);
+            expect(doubleDashArgs(args)).toStrictEqual(typed);
         });
 
         it('still parses the command`s own numeric options', () => {

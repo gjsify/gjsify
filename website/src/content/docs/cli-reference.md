@@ -354,7 +354,7 @@ gjsify run ./server.mjs -- --port 8080
 | Argument / Option | Description |
 |---|---|
 | `<target>` | A script name from the current `package.json`, or a path to a built bundle. |
-| `[args..]` | Extra arguments forwarded to the script or to the runtime. Use `--` before flags you do not want gjsify to parse. Everything after `--` reaches the target as you typed it, numbers included — `-- --port 8080` arrives as `--port 8080`, and `-- --pad 007` keeps its leading zeroes. |
+| `[args..]` | Extra arguments forwarded to the script or to the runtime. Use `--` before flags you do not want gjsify to parse. Everything after `--` reaches the target as you typed it, numbers included — `-- --port 8080` arrives as `--port 8080`, and `-- --scale 1.0` arrives as `1.0` rather than `1`. |
 | `-w`, `--workspace <name>` | Run `<target>` as a script in the named workspace, like `npm run <script> -w <name>`. Matches the package name, the workspace-relative path, or the directory basename. |
 | `--runtime <gjs\|node\|bun\|deno>` | Launch a bundle **file** on this runtime. Forces file mode. |
 | `--node-script` | Treat `<target>` as an unbundled Node-style script that imports `node:` builtins, and run it on the host runtime. Under GJS the file is bundled `--app gjs` on the fly first, which is what lets a repo script run on a machine with no Node. Cannot be combined with `--runtime` or `--workspace`. |

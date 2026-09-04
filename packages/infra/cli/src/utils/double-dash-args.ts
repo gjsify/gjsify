@@ -18,8 +18,11 @@
 // dist-tag IS `latest`, which is luck rather than design.
 //
 // TWO HALVES, AND THE FIRST ONE IS THE FIX. A coercion here (`String(v)`) would
-// recover the value and still lose its SPELLING — yargs parses `007` to 7 and
-// `1.0` to 1, and an argv is text, not arithmetic. So the parse is corrected at
+// recover the value and still lose its SPELLING — measured against yargs 18.0.0,
+// `1.0` comes back as 1, `0.10` as 0.1, `0x10` as 16 and `1e3` as 1000, and an
+// argv is text, not arithmetic. (A leading zero is NOT in that set: `007` stays
+// the string yargs was given. It reads like the obvious example and is the one
+// shape here that never broke.) So the parse is corrected at
 // the source: every command that sets `populate--` also sets
 // `parse-positional-numbers: false`, which leaves `_`, the variadic positionals
 // and the `--` tail as the strings the user typed while option values declared
