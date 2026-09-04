@@ -48,6 +48,14 @@
 //      called `var(--font-sans)` — a silent wrong font rather than a refusal. Its
 //      fallback form `var(--f, sans-serif)` also carries a COMMA, which is why the
 //      split below tracks parenthesis depth instead of calling `split(',')`.
+//
+// BOTH PASSTHROUGHS ARE NARROW, because a member that goes out verbatim is
+// declaration text this module did not write. `QUOTED` refuses a member carrying any
+// of CSS's three newlines rather than only `\n`, since a raw carriage return in a
+// defensively quoted token took the whole document. And a function is passed through
+// only when the call it opens CLOSES on the last character: `var(--x); color: red`
+// otherwise emits a second declaration, with no parse error and a surviving
+// containment sentinel, so nothing downstream ever sees it.
 
 import { UnknownUtilityError } from './errors.js';
 
@@ -85,11 +93,26 @@ const GENERIC_FAMILIES: ReadonlySet<string> = new Set([
  */
 const CSS_WIDE_KEYWORDS: ReadonlySet<string> = new Set(['inherit', 'initial', 'unset', 'revert', 'revert-layer']);
 
-/** A member that is ALREADY a CSS string, escapes included. A raw newline disqualifies it — CSS strings cannot hold one. */
-const QUOTED = /^"(?:[^"\\\n]|\\[\s\S])*"$|^'(?:[^'\\\n]|\\[\s\S])*'$/;
+/**
+ * A member that is ALREADY a CSS string, escapes included.
+ *
+ * A raw newline disqualifies it, because a CSS string cannot hold one — and CSS's
+ * newline is THREE characters, not one: line feed, CARRIAGE RETURN and form feed
+ * (Syntax 3 § 4.2). Measured, and the difference is the whole document: a raw CR
+ * inside an already-quoted member, passed through here, is `Expected a string`
+ * followed by `Unterminated block at end of document`, and the containment sentinel
+ * is GONE — every rule after it with it. Excluded, the member falls to
+ * {@link quote}, which escapes the character, and the sentinel survives. Matching
+ * only `\n` left the passthrough branch walking into the exact failure the escaping
+ * branch exists to prevent.
+ */
+const QUOTED = /^"(?:[^"\\\n\r\f]|\\[\s\S])*"$|^'(?:[^'\\\n\r\f]|\\[\s\S])*'$/;
 
-/** A member that is a function call, `var(--x)` above all. A bare family name cannot contain a parenthesis. */
+/** A member that OPENS like a function call, `var(--x)` above all. A bare family name cannot contain a parenthesis. */
 const FUNCTION = /^[a-zA-Z-][\w-]*\(/;
+
+/** CSS's whitespace (Syntax 3 § 4.2). What "nothing but space so far in this member" is measured against. */
+const WHITESPACE: ReadonlySet<string> = new Set([' ', '\t', '\n', '\r', '\f']);
 
 /**
  * One family name → a CSS string.
@@ -122,12 +145,25 @@ function quote(name: string): string {
  * (`var(--f, sans-serif)`) does not separate anything. Splitting on it would hand
  * `var(--f` to the quoter and emit a rule GTK refuses — the same bug being fixed
  * here, one layer along.
+ *
+ * A QUOTE ONLY OPENS A STRING WHERE A STRING CAN BEGIN: at the start of a member, or
+ * inside a function, where CSS tokenisation applies. Everywhere else it is a
+ * character of a bare name, because a bare member is a NAME supplied verbatim and
+ * not CSS text — that is the same reading `QUOTED` uses by anchoring at `^`, and the
+ * two disagreeing is a bug with no diagnostic anywhere. Measured: with a quote
+ * opening a string wherever it appears, `Marion's Hand, sans-serif` never splits,
+ * the whole value is quoted as one name, GTK accepts
+ * `font-family: "Marion's Hand, sans-serif"` without complaint, and the fallback
+ * stack is silently gone. Any name carrying an odd number of `'` or `"` — including
+ * `Say "Ah` next to a fallback — swallowed the rest of the list the same way.
  */
 function members(value: string): string[] {
     const out: string[] = [];
     let start = 0;
     let depth = 0;
     let quoteChar: string | null = null;
+    // Nothing but whitespace seen since this member began, so a quote here opens it.
+    let opening = true;
     for (let index = 0; index < value.length; index++) {
         const char = value[index];
         if (quoteChar !== null) {
@@ -135,16 +171,53 @@ function members(value: string): string[] {
             else if (char === quoteChar) quoteChar = null;
             continue;
         }
-        if (char === '"' || char === "'") quoteChar = char;
+        if ((opening || depth > 0) && (char === '"' || char === "'")) quoteChar = char;
         else if (char === '(') depth++;
         else if (char === ')' && depth > 0) depth--;
         else if (char === ',' && depth === 0) {
             out.push(value.slice(start, index));
             start = index + 1;
+            opening = true;
+            continue;
         }
+        if (!WHITESPACE.has(char)) opening = false;
     }
     out.push(value.slice(start));
     return out;
+}
+
+/**
+ * Is this member a SINGLE, COMPLETE function call — `var(--x)` and not `var(--x`?
+ *
+ * The passthrough branch hands a function to GTK verbatim, so what it accepts is
+ * declaration text this module did not write. Measured: `var(--x); color: red`
+ * passed through emits two declarations where one was asked for, with no parse error
+ * and a surviving containment sentinel — nothing downstream sees it. `var(--x) } .x
+ * {` opens a second RULE, and `var(--x` takes the whole document. Requiring the
+ * opening call to close on the last character keeps the branch to the shape it was
+ * added for; anything else is refused by name rather than quoted, because quoting it
+ * would mint a family nobody has and render the wrong font in silence.
+ */
+function isCompleteCall(member: string): boolean {
+    if (!FUNCTION.test(member)) return false;
+    let depth = 0;
+    let quoteChar: string | null = null;
+    for (let index = 0; index < member.length; index++) {
+        const char = member[index];
+        if (quoteChar !== null) {
+            if (char === '\\') index++;
+            else if (char === quoteChar) quoteChar = null;
+            continue;
+        }
+        if (char === '"' || char === "'") quoteChar = char;
+        else if (char === '(') depth++;
+        else if (char === ')') {
+            depth--;
+            if (depth === 0) return index === member.length - 1;
+            if (depth < 0) return false;
+        }
+    }
+    return false;
 }
 
 /**
@@ -168,7 +241,16 @@ export function serialiseFontFamily(value: string): string {
                         'and drops the whole declaration, so the list is refused here instead',
                 );
             }
-            if (QUOTED.test(name) || FUNCTION.test(name)) return name;
+            if (QUOTED.test(name)) return name;
+            if (FUNCTION.test(name)) {
+                if (isCompleteCall(name)) return name;
+                throw new UnknownUtilityError(
+                    value,
+                    'opens a function the member never closes. A function is the one member handed to GTK verbatim, ' +
+                        'so an unclosed one emits declaration text this module did not write — measured, ' +
+                        '"var(--x); color: red" emits a second declaration with no parse error at all',
+                );
+            }
             const keyword = name.toLowerCase();
             if (GENERIC_FAMILIES.has(keyword)) return name;
             if (whole && CSS_WIDE_KEYWORDS.has(keyword)) return name;
@@ -224,6 +306,14 @@ export interface FontFamilyVector {
  * bare keyword, a value already quoted, a `var()` reference, and a value GTK MISREADS
  * rather than refuses. `bare` is re-measured by `gtk-css.spec.ts`, which also refuses
  * a table that has lost its refused or its misread vectors.
+ *
+ * The three added after the first review are the shapes the SPLIT and the two
+ * PASSTHROUGHS have to survive rather than the quoter: a bare name carrying an odd
+ * quote character in front of a fallback, a nested `var()`, and an already-quoted
+ * member holding a carriage return. Each was emitted as something GTK accepted and
+ * was wrong about — so `gtk-css.spec.ts` also holds the three CLASSES directly, by
+ * asking GTK where the fallback member ended up, whether the document survived, and
+ * whether a declaration appeared that nothing here wrote.
  */
 export const FONT_FAMILY_VECTORS: readonly FontFamilyVector[] = [
     // THE REPORTED FAILURE. `3` is not an identifier, so the sequence ends there and
@@ -263,10 +353,22 @@ export const FONT_FAMILY_VECTORS: readonly FontFamilyVector[] = [
     // A quoted family whose NAME contains a comma. Splitting on every comma would
     // tear this in half.
     { authored: '"Foo, Bar", sans-serif', emitted: '"Foo, Bar", sans-serif', bare: 'accepted' },
+    // AN ODD QUOTE CHARACTER IN A BARE NAME, in front of a fallback. A bare member is
+    // a name supplied verbatim, so the `'` is a character of it and the comma after
+    // it still separates — but a split that opened a string at every quote never
+    // reached that comma, emitted `"Marion's Hand, sans-serif"` as ONE family, and
+    // GTK accepted it without a word. The fallback was gone with no diagnostic.
+    { authored: "Marion's Hand, sans-serif", emitted: '"Marion\'s Hand", sans-serif', bare: 'refused' },
     // A `var()` reference, including the fallback form whose comma is INSIDE the
-    // parentheses. Quoting either would emit a family nobody has, silently.
+    // parentheses, and the nested form that needs the depth counter rather than a
+    // flag. Quoting any of them would emit a family nobody has, silently.
     { authored: 'var(--font-sans)', emitted: 'var(--font-sans)', bare: 'accepted' },
     { authored: 'var(--font-sans, sans-serif)', emitted: 'var(--font-sans, sans-serif)', bare: 'accepted' },
+    {
+        authored: 'var(--a, var(--b, sans-serif))',
+        emitted: 'var(--a, var(--b, sans-serif))',
+        bare: 'accepted',
+    },
     // A name that has to be ESCAPED rather than merely wrapped. An ident sequence
     // cannot also contain a string, so GTK refuses this one.
     { authored: 'Say "Ah"', emitted: '"Say \\"Ah\\""', bare: 'refused' },
@@ -285,4 +387,11 @@ export const FONT_FAMILY_VECTORS: readonly FontFamilyVector[] = [
     // partition exists against: green run, wrong window.
     { authored: 'Back\\slash', emitted: '"Back\\\\slash"', bare: 'misread' },
     { authored: 'Two\nLines', emitted: '"Two\\a Lines"', bare: 'misread' },
+    // THE SAME BYTE, ALREADY QUOTED — and CSS's newline is three characters, not one.
+    // A carriage return inside a quoted member matched the passthrough while only
+    // `\n` was excluded, so it went out verbatim and GTK answered `Expected a string`
+    // plus `Unterminated block at end of document`: the containment sentinel gone and
+    // every rule after it with it. It is a vector because the passthrough branch had
+    // none carrying a character that ends a string.
+    { authored: '"Two\rLines"', emitted: '"\\"Two\\d Lines\\""', bare: 'refused' },
 ];

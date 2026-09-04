@@ -238,6 +238,27 @@ export default async () => {
             expect(threw(() => serialiseFontFamily('Cantarell, , sans-serif')).message).toContain('empty member');
         });
 
+        await it('refuses a function the member never closes, rather than passing it through', async () => {
+            // A function is the ONE member handed to GTK verbatim, so it is the one
+            // member that can carry declaration text this module did not write.
+            // Measured: `var(--x); color: red` emits a SECOND declaration, with no
+            // parse error and a surviving containment sentinel — the whole guard
+            // chain sees a valid sheet. `var(--x) } .x {` opens another RULE, and the
+            // unterminated `var(--x` ends the document.
+            //
+            // Refused rather than quoted, because quoting it would mint a family
+            // nobody has and render the wrong font in silence — the loud half of the
+            // same choice `bare: 'misread'` exists to record.
+            expect(threw(() => serialiseFontFamily('var(--x); color: red')).message).toContain('never closes');
+            expect(threw(() => serialiseFontFamily('var(--x) } .injected { color: red')).message).toContain(
+                'never closes',
+            );
+            expect(threw(() => serialiseFontFamily('var(--x')).message).toContain('never closes');
+            // THE CONTROL: a call that does close is passed through untouched,
+            // nesting included.
+            expect(serialiseFontFamily('var(--a, var(--b, sans-serif))')).toBe('var(--a, var(--b, sans-serif))');
+        });
+
         await it('gives every NAME-valued property a serialiser, and only those', async () => {
             // THE MECHANISM, not the fix. `font-family` was reachable with an
             // unserialised value because nothing recorded that its value is a NAME
