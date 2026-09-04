@@ -32,6 +32,8 @@ import {
     setProp as solidSetProp,
 } from './adapters/solid.js';
 import { createElement as reactCreateElement } from 'react';
+import { defineComponent, h } from '@vue/runtime-core';
+import { mount as vueMount } from './adapters/vue.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import type { HostElement, WidgetDescriptor } from './types.js';
 
@@ -372,11 +374,13 @@ export default async () => {
             // THE FRAMEWORK-AGNOSTIC CLAIM, MEASURED. The seam is three functions in
             // `policies.ts`, below every adapter, and no adapter file mentions a
             // dialog — but "below" is a claim about a call graph, and a call graph is
-            // exactly the kind of thing that reads true and is not. Two renderers with
-            // nothing in common (a reconciler and a compile-time renderer with no
-            // VDOM) mount the same tag here and get the same widget in the same
-            // window; a third adapter that broke would break this suite rather than a
-            // consumer's window.
+            // exactly the kind of thing that reads true and is not. All THREE
+            // adapters mount the same tag here and get the same widget in the same
+            // window, and they have nothing in common with each other: a reconciler,
+            // a compile-time renderer with no VDOM, and `RendererOptions` over a
+            // VDOM. Two measured and one assumed is the asymmetry that later reads
+            // as coverage, so the adapter that breaks breaks this suite rather than
+            // a consumer's window.
             await it('presents from a React tree mounted into a rooted container', async () => {
                 const window = new Adw.Window();
                 const box = new Gtk.Box();
@@ -413,6 +417,33 @@ export default async () => {
                 expect(window.visibleDialog !== null).toBe(true);
                 expect(((window.visibleDialog as Adw.Dialog).get_child() as Gtk.Label).label).toBe('solid');
                 dispose();
+                expect(window.visibleDialog).toBe(null);
+            });
+
+            await it('presents from a Vue tree mounted into a rooted container', async () => {
+                // THE THIRD ADAPTER, and it is not a formality. Two proving a claim
+                // about a call graph and one assumed is the asymmetry that later
+                // reads as coverage — the same reason `check-vocabulary-alignment`
+                // holds every surface that declares itself one rather than a
+                // representative pair. Vue reaches the host through
+                // `createRenderer`'s `RendererOptions`, which is a third shape again:
+                // neither React's reconciler nor Solid's compile-time renderer.
+                //
+                // The KEBAB spelling on purpose, matching the two vectors above: the
+                // registry round-trips camel <-> kebab, and a vector that quietly
+                // used `AdwDialog` here would measure a different lookup from the one
+                // React and Solid measure and still look like the same claim.
+                const window = new Adw.Window();
+                const box = new Gtk.Box();
+                window.set_content(box);
+                const app = vueMount(
+                    defineComponent({ render: () => h('adw-dialog', null, [h('gtk-label', { label: 'vue' })]) }),
+                    box,
+                );
+                expect(gtkChildTypes(box)).toStrictEqual([]);
+                expect(window.visibleDialog !== null).toBe(true);
+                expect(((window.visibleDialog as Adw.Dialog).get_child() as Gtk.Label).label).toBe('vue');
+                app.unmount();
                 expect(window.visibleDialog).toBe(null);
             });
         });
