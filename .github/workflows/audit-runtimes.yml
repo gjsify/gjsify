@@ -502,6 +502,29 @@ jobs:
       - name: Check every adwaita-web teardown has a rebind behind it
         run: node scripts/check-adwaita-connect-rebind.mjs
 
+      # `<adw-combo-row>` and `<gtk-drop-down>` are one list widget on GTK and share one
+      # `ComboState` here — and the drop-down observed `items`/`options` with full setters
+      # while the row observed neither and parsed `items` once in `connectedCallback`. So
+      # `row.items = […]` wrote an expando onto the element and `setAttribute('items', …)`
+      # reached no callback: three of the four widgets over that state machine could be
+      # updated after connect and the fourth could not, silently. The gap was WRITTEN DOWN
+      # in two places — the row's own spec reached into the private `_state` to grow the
+      # model, and `conformance/rows.ts` recorded that two of its four step ops had no DOM
+      # spelling — and held by nothing.
+      #
+      # The gate reads a core collection setter as reached when a `set` accessor, a public
+      # method or `attributeChangedCallback` reaches it, ONE hop through a private applier
+      # included. That hop is not a softening: without it both `<adw-view-switcher-bar>`
+      # renderers scored taken-once over a `_rebuild()` their public `setStack()`/`refresh()`
+      # and `attributeChangedCallback` call, and the gate's first version hid those two wrong
+      # verdicts behind a rule that only reported DISAGREEMENT between siblings — the same
+      # silent-wrong-answer shape it exists to catch, inside itself. It also carries a census
+      # of every collection it can see, per widget, because the rules are asked per
+      # collection: one that moves into a base class is asked nothing, answers nothing, and
+      # would otherwise leave only a smaller number in this log. Full incident in the header.
+      - name: Check every collection a widget takes in stays replaceable
+        run: node scripts/check-adwaita-collection-reactivity.mjs
+
       # A conformance table with no RENDERER behind it asserts a derivation against
       # itself. A census (#1072) found 43 such tables, 16 of them silent gaps rather
       # than deliberate — and two headers in the same area were asserting coverage
@@ -1094,6 +1117,29 @@ jobs:
       # so no spec could have gone red. Full incident in the script header.
       - name: Check every adwaita-web teardown has a rebind behind it
         run: node scripts/check-adwaita-connect-rebind.mjs
+
+      # `<adw-combo-row>` and `<gtk-drop-down>` are one list widget on GTK and share one
+      # `ComboState` here — and the drop-down observed `items`/`options` with full setters
+      # while the row observed neither and parsed `items` once in `connectedCallback`. So
+      # `row.items = […]` wrote an expando onto the element and `setAttribute('items', …)`
+      # reached no callback: three of the four widgets over that state machine could be
+      # updated after connect and the fourth could not, silently. The gap was WRITTEN DOWN
+      # in two places — the row's own spec reached into the private `_state` to grow the
+      # model, and `conformance/rows.ts` recorded that two of its four step ops had no DOM
+      # spelling — and held by nothing.
+      #
+      # The gate reads a core collection setter as reached when a `set` accessor, a public
+      # method or `attributeChangedCallback` reaches it, ONE hop through a private applier
+      # included. That hop is not a softening: without it both `<adw-view-switcher-bar>`
+      # renderers scored taken-once over a `_rebuild()` their public `setStack()`/`refresh()`
+      # and `attributeChangedCallback` call, and the gate's first version hid those two wrong
+      # verdicts behind a rule that only reported DISAGREEMENT between siblings — the same
+      # silent-wrong-answer shape it exists to catch, inside itself. It also carries a census
+      # of every collection it can see, per widget, because the rules are asked per
+      # collection: one that moves into a base class is asked nothing, answers nothing, and
+      # would otherwise leave only a smaller number in this log. Full incident in the header.
+      - name: Check every collection a widget takes in stays replaceable
+        run: node scripts/check-adwaita-collection-reactivity.mjs
 
       # A conformance table with no RENDERER behind it asserts a derivation against
       # itself. A census (#1072) found 43 such tables, 16 of them silent gaps rather

@@ -5,10 +5,10 @@
 // against (`COMBO_SELECTION_VECTORS`, `@gjsify/adwaita-core/conformance`), replayed
 // through the API a consumer would use and read back as what a user would see: the
 // button label, `selected`/`selectedValue` and the `change` stream. `<adw-combo-row>`
-// composes the same `ComboState` but cannot drive the table — two of its four step ops
-// have no DOM spelling, since its options come from the `items` attribute at connect
-// time only (`items` is not observed) and it publishes no select-by-value setter. So
-// this element is the browser's driver for both.
+// composes the same `ComboState` and drives the same table from its own DOM
+// (`adw-row-state.spec.ts`) — it could not while two of its four step ops had no DOM
+// spelling there, its options arriving through the `items` attribute at connect time only.
+// The two are worth driving separately because they part on ONE row, below.
 import { describe, it, expect } from '@gjsify/unit';
 
 import { COMBO_SELECTION_VECTORS } from '@gjsify/adwaita-core/conformance';
