@@ -153,3 +153,78 @@ entry point was the seam that kept an application from reaching it.
 - The e2e suite is Linux-only in practice (it needs `dbus-run-session` and a GJS host).
   The peer transport it makes configurable is what a darwin/win32 leg would use, and
   that leg is not part of this decision.
+
+## Amendment (2026-09-04) — the bootstrap is entered one call in, and it checks its own window
+
+Three things `runApplication` owns were reachable only by launching an application,
+and so were guarded by nothing this repository runs (#1549). Two of them are now, and
+the change is where the seam is rather than what the bootstrap does.
+
+**A spec cannot run `runApplication`.** Measured: a nested `g_application_run` inside
+`@gjsify/unit`'s own main loop never returns — `g_application_run: assertion
+'!application->priv->must_quit_now' failed`, and the case timed out at 5 s. So the
+bootstrap is split at the seam a vector can reach, and both halves are exported:
+
+- `mountApplicationRoot(app, appKey, options, provider)` — build the window, mount the
+  registered component, publish the chrome, return the window. It is what
+  `runApplication`'s `createWindow` closure was, and it is the composition
+  `provideWindowChrome` lives in.
+- `ownTheApplication(appKey, launch)` — hold the process's one application handle for
+  the duration of one launch. **The launcher is a PARAMETER**, which is what makes the
+  vector the shipping code rather than a copy of it: `runApplication` hands it
+  `runAdwaitaApp`, a vector hands it a promise it resolves on cue.
+
+Both were named rather than left inline for the reason `window-chrome.ts` gives one
+function earlier: a spec that rebuilds the composition passes while the shipping shell
+drifts. That is not hypothetical here — deleting `provideWindowChrome(chrome, …)` left
+every gate green and drew two close buttons.
+
+### One application per process, refused by name (#1551)
+
+`runApplication` used to be re-entrant by accident. Two concurrent calls both wrote the
+module-scoped handle; whichever resolved first read it — by then the *other* call's —
+and unmounted a React root belonging to an application still running, leaving its window
+up and empty. A rejected launch left the handle set, so `getApplication()` kept
+answering with a dead application.
+
+The answer is a refusal and not a smarter clear: this layer CREATES the application, so
+two React Native applications in one GJS process have no defined meaning, and a named
+error beats a clear that only looks correct. `ownTheApplication` claims the slot before
+the await and releases everything in a `finally`, so a launch that throws is cleaned up
+by the same path as one that returns.
+
+### The window-chrome check has a shipping caller (#1546)
+
+`windowChromeProblems()` / `windowChromeCensus()` in `@gjsify/gtk-host/conformance` are
+correct, have a measured discriminator and name the failure in the right words, and for
+their whole life the only thing that pointed them anywhere was a hand-written vector —
+so the composition they were written for was the one composition they never saw.
+
+**Decision: option A, in `AppRegistry`, ungated, once per window at `map`.**
+
+- *Once, not per commit*, because the invariant is about the RESTING composition:
+  `Adw.NavigationView` keeps a departing page mapped while the arriving one slides in,
+  so a window mid-push legitimately draws two header bars and a per-commit check would
+  report a defect for every animation. At map time no transition is in flight — the
+  router's first stack sync is explicitly unanimated — which makes that moment both
+  cheap and free of false positives. It is also when the defect it was built for
+  surfaces: #1460 was an application that OPENED with two close buttons.
+- *Ungated*, because one tree walk per window is not worth a switch, and a switch is one
+  more thing that is off in the configuration where the check was needed.
+- *On the idle after `map`*, because `map` runs while GTK is still bringing the window
+  up and the census counts what DRAWS.
+- The result is READABLE as well as logged, for the reason `announce.ts` keeps a count:
+  a window whose chrome is right and a window nobody checked print the same nothing. It
+  takes BOTH readers to say that, and the first shape of this decision shipped only the
+  first: `lastWindowChromeProblems()` answers `[]` for a clean window and `[]` before
+  anything has run, so the vector written for this clause passed with the call that runs
+  the check deleted — measured. `windowChromeChecks()` is the count that tells those two
+  apart, and it is what a vector waits for before reading the list.
+
+It puts a `/conformance` import on a shipping path. That is accepted here and nowhere
+else by default: this module already pulls the whole descriptor table through
+`registerBuiltinWidgets()`, so the reader costs a tree walk and no new closure.
+
+**Option B is not taken and is not dead** — a `@gjsify/devtools` D-Bus method is what
+answers a composition that goes wrong after startup, which this does not. It is in
+`status/open-todos.md` with what A leaves open.

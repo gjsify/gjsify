@@ -24,6 +24,21 @@
 export const primitiveErrorMessage = (primitive: string, subject: string, detail: string): string =>
     `@gjsify/react-native: <${primitive}>${subject === '' ? '' : ` ${subject}`} — ${detail}`;
 
+/**
+ * How a VALUE reads inside a subject — `prop "accessibilityRole" = "keyboardkey"`.
+ *
+ * Here rather than in `resolve.ts`, where it started, because the per-value refusals
+ * are answerable statically now (ADR 0039 § Amendment, #1555) and `prop-table.ts` has
+ * to build the same subject the throw does. Two formatters that happen to agree are
+ * not one string.
+ */
+export const describeValue = (value: unknown): string =>
+    typeof value === 'string'
+        ? `"${value}"`
+        : value !== null && typeof value === 'object'
+          ? Object.prototype.toString.call(value)
+          : String(value);
+
 /** A primitive, prop or combination this layer cannot answer for, and why. */
 export class PrimitiveError extends Error {
     override readonly name = 'PrimitiveError';
