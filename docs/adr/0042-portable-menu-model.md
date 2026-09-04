@@ -7,9 +7,12 @@
 
 ## Context
 
-ADR 0034 unified the widget VOCABULARY: `Adw.SplitButton` is the same name on every
-surface. The DATA those widgets consume was not unified, and the menu was the worst of
-it — three surfaces, three shapes, one of them absent:
+ADR 0034 unified the widget VOCABULARY, and as of its Amendments 8 and 9 that work is
+finished on all three renderers: `Adw.SplitButton` is the same name everywhere, reached
+through a namespace, with the flat classes gone from every package root.
+
+The DATA those widgets consume was not unified, and the menu was the worst of it — three
+surfaces, three shapes, one of them absent:
 
 - **GJS/GTK**: `new Gio.Menu()` plus `menu.append(label, action)`, handed over as
   `menuModel`. Imperative, and the only complete one.

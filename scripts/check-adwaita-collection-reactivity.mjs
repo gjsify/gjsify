@@ -195,8 +195,16 @@ const LIST_TYPE = /\[\s*\]|\bReadonlyArray\s*<|\bArray\s*</;
  *
  * ONE HOP, deliberately: an alias OF an alias is not followed, because the resolution
  * this file can afford is textual and a chain is where that stops being honest. Nothing
- * in core needs a second hop today, and a setter that does will fail this check by going
- * invisible — loudly, in the census, which is the arrangement that caught this one.
+ * in core needs a second hop today.
+ *
+ * WHEN THAT GOES WRONG IT IS NOT ALWAYS LOUD, and the earlier draft of this sentence
+ * claimed it was. Invisibility is loud only for a collection the census ALREADY names:
+ * `setMenuModel` had an entry and lost it, which is how this blind spot surfaced at all.
+ * A collection written NEW behind a two-hop alias — or behind a generic or non-exported
+ * one — is never found, so it is never declared, and nothing compares it against
+ * anything. Measured: two hops, alias-of-alias unioned with null, a generic alias and a
+ * non-exported alias are all missed at exit 0. The census catches a collection that
+ * DISAPPEARS, not one that never appeared.
  */
 function coreListAliases() {
     const aliases = new Set();
@@ -225,13 +233,24 @@ const namesAList = (signature, aliases) =>
  * argument nobody stores. The same false positive was always available to a parameter
  * spelled `readonly number[]`; the alias above is what made one reachable.
  *
- * MEASURED over the corpus rather than fitted to it: all six pre-existing collection
- * setters (`setOptions`, `setLabels`, `setSections`, `setPages`, `addResponses`,
- * `replaceWithTags`) return `void`, `setMenuModel` returns `boolean` — the "did it
- * change" convention `SplitButtonState` documents for every mutator — and the one method
- * this excludes is the one that returns an item. An UNANNOTATED return is not counted:
- * every method in core annotates, so treating a missing annotation as an intake would
- * add a blind spot to close one.
+ * WHAT IT DOES, which is narrower than what it currently catches: it admits ONLY a
+ * `void` or `boolean` return, so every other convention is excluded — the item-returning
+ * lookup above, and three ordinary intake shapes with it. MEASURED, one probe setter at
+ * a time on the core tree, count unchanged at 7 and exit 0 each time:
+ *
+ *     probeSetter(xs: readonly string[]): this                 missed, silently
+ *     probeSetter(xs: readonly string[]): number               missed, silently
+ *     probeSetter(xs: readonly string[]): readonly string[]    missed, silently
+ *
+ * A builder returning `this`, a setter reporting how many it stored, and one handing back
+ * what it replaced are all collection intakes this filter does not see. It fits today's
+ * corpus — all six pre-existing setters return `void`, and `setMenuModel` returns
+ * `boolean`, the "did it change" convention `SplitButtonState` documents for every
+ * mutator — and the day a widget uses one of the three above, the fix is to widen this
+ * list rather than to conclude the widget has no collection.
+ *
+ * An UNANNOTATED return is not counted either: every method in core annotates, so
+ * treating a missing annotation as an intake would add a blind spot to close one.
  *
  * Read from the text BETWEEN the parameter list and the body, because `signatureOf`
  * deliberately stops at the first `)` and the return type is past it.
