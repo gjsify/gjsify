@@ -93,7 +93,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -690,6 +690,8 @@ if (sources.length === 0) {
 
 const dir = mkdtempSync(join(tmpdir(), 'gjsify-doc-fences-'));
 const blueprint = blueprintAvailable(dir);
+let snippetFences = 0;
+let checkedSnippets = 0;
 let tsFences = 0;
 let blueprintFences = 0;
 let styledFences = 0;
@@ -737,6 +739,320 @@ for (const rel of frameworkSources) {
     styledFences += checkStyleTokens(text, rel, fences(text));
 }
 
+// ---------------------------------------------------------------------------
+// SNIPPETS — a prose code fence that shows its imports must have no name that
+// nothing defines.
+//
+// THE INCIDENT (#1516). `website/src/content/docs/ship/windows.md` and
+// `website/src/content/docs/cli-reference.md` shipped the SAME font-registration
+// loop, for an unknown length of time, calling `listFontFiles(dir)` — a function
+// defined nowhere on either page — with `GLib` unimported in one of them. Copy
+// either one, get a `ReferenceError`. Both were fixed by hand (#1512, #1515);
+// nothing could have found them. The four arms above read the ADWAITA gallery's
+// `blueprint`/`ts`/`tsx`/`nativescript` fences and cannot SEE a `js` or `ts` fence
+// in the reference docs at all, and `cli-reference.md` is hand-written — verified:
+// no generator, no AUTO-GENERATED banner — which is exactly how two hand-kept
+// copies of one snippet drifted apart and then both went stale.
+//
+// WHY tsc AND NOT AN IDENTIFIER SCAN. #1516 offers a cheaper option — resolve
+// identifiers against the packages a fence imports — and warns not to build it
+// without measuring its false-positive rate first. MEASURED on this tree, over all
+// 203 js/ts/jsx/tsx fences: a rule flagging every called-but-unbound identifier
+// reports 26 fences, and reading them, essentially none is a defect. They are
+// class methods (`vfunc_startup`, a `constructor`), GJS ambient globals (`print`),
+// deliberately elided namespace imports in the `patterns/` pages (`GObject`,
+// `Gtk`, `Gio`), compiler-output samples (`_$createElement`) and helpers a page
+// says in prose it defines elsewhere. That is the guard-with-more-noise-than-signal
+// this repository has switched off before. TypeScript's own binder makes all six
+// shapes correct for free.
+//
+// WHAT SELECTS THE CORPUS: the fence carries at least one `import … from '…'`. A
+// snippet that shows its imports is claiming to be a program a reader can run; one
+// that elides them is an excerpt, and holding an excerpt to a program's standard is
+// exactly where the false positives come from. MEASURED: 167 of the 203 fences
+// qualify, and TS2304 over all of them is **zero** — so this arm starts from a
+// clean, non-empty corpus rather than from an exemption list.
+//
+// ONLY TS2304 ("Cannot find name") IS READ, and that is what lets this arm run in
+// `tree-checks`, which does no build. An `import { X } from '@gjsify/gtk-host'`
+// BINDS `X` whether or not the module resolves; the unresolved module is a separate
+// TS2307, and reading it here would turn every fence red on a tree whose `lib/types`
+// have not been built yet. Type ERRORS are not read either: a doc snippet elides
+// arguments and narrows nothing, and this arm is about the identifier that does not
+// exist, not about whether the sample would typecheck in a real project.
+//
+// IT ASSERTS POSITIVE FACTS BEFORE BELIEVING A CLEAN TREE, the shape
+// `scripts/check-changelog-references.mjs` uses: a fixture matrix of the measured
+// shapes runs FIRST and any wrong verdict is fatal, so a detector that has quietly
+// stopped detecting cannot pass here. The `print` fixture is the load-bearing
+// control — without `@girs/gjs`'s ambient declarations every GJS fence would flag
+// `print`, and the matrix says so loudly instead of the arm dying silently.
+
+/** Every `.md`/`.mdx` under the docs tree — the reference pages included. */
+function docPages(dir) {
+    const out = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+        const abs = join(dir, entry.name);
+        if (entry.isDirectory()) out.push(...docPages(abs));
+        else if (entry.name.endsWith('.md') || entry.name.endsWith('.mdx')) out.push(abs);
+    }
+    return out;
+}
+
+const SNIPPET_LANGS = new Set(['js', 'javascript', 'mjs', 'ts', 'typescript', 'jsx', 'tsx']);
+
+/** A fence that shows its imports is claiming to be a program. See the header. */
+const SHOWS_IMPORTS = /^\s*import\s[\s\S]*?\sfrom\s+['"]/m;
+
+/**
+ * The measured shapes, with the verdict each one must get.
+ *
+ * `names` is what TS2304 must report, exactly — an empty array means the fence must
+ * come back clean. Fixture 1 is the #1516 incident; fixture 3 is the control that
+ * proves the GJS ambient declarations loaded; fixture 4 proves an UNRESOLVED module
+ * still binds its imports, which is the property that lets this run before a build.
+ */
+const SNIPPET_FIXTURES = [
+    {
+        why: 'the #1516 incident: a helper defined nowhere and an unimported namespace',
+        lang: 'ts',
+        names: ['GLib', 'listFontFiles'],
+        body: [
+            "import Gtk from 'gi://Gtk?version=4.0';",
+            "const dir = '/usr/share/fonts';",
+            'for (const file of listFontFiles(dir)) {',
+            '    GLib.build_filenamev([dir, file]);',
+            '}',
+            'export const w = Gtk;',
+        ].join('\n'),
+    },
+    {
+        why: 'the same snippet once it defines what it calls and imports what it uses',
+        lang: 'ts',
+        names: [],
+        body: [
+            "import GLib from 'gi://GLib?version=2.0';",
+            'function listFontFiles(dir: string): string[] {',
+            '    return [dir];',
+            '}',
+            "const dir = '/usr/share/fonts';",
+            'for (const file of listFontFiles(dir)) {',
+            '    GLib.build_filenamev([dir, file]);',
+            '}',
+        ].join('\n'),
+    },
+    {
+        why: "CONTROL: GJS's ambient globals must resolve, or every GJS fence would flag `print`",
+        lang: 'ts',
+        names: [],
+        body: [
+            "import GLib from 'gi://GLib?version=2.0';",
+            'print(GLib.get_home_dir());',
+            'logError(new Error());',
+        ].join('\n'),
+    },
+    {
+        why: 'an UNRESOLVED module still binds its imports — why TS2307 is not read',
+        lang: 'ts',
+        names: [],
+        body: [
+            "import { thereIsNoSuchPackage } from '@gjsify/definitely-not-published';",
+            'thereIsNoSuchPackage();',
+        ].join('\n'),
+    },
+    {
+        // The near-miss shape. `logError` is one edit from the DOM's `onerror`, so
+        // TypeScript reports it as TS2552 rather than TS2304; a reader of TS2304
+        // alone calls this fence clean. Held here in its UNIMPORTED spelling on
+        // purpose — the fixture above proves the ambient reference works, this one
+        // proves the diagnostic code is read.
+        why: 'a name one edit from a DOM global is reported as TS2552, not TS2304',
+        lang: 'ts',
+        names: ['notWindowOnerror'],
+        body: ["import GLib from 'gi://GLib?version=2.0';", 'notWindowOnerror(GLib);'].join('\n'),
+    },
+    {
+        why: 'class members, `this` and `super` — three of the shapes an identifier scan got wrong',
+        lang: 'ts',
+        names: [],
+        body: [
+            "import Gtk from 'gi://Gtk?version=4.0';",
+            'export class Win extends Gtk.ApplicationWindow {',
+            '    vfunc_realize(): void {',
+            '        super.vfunc_realize();',
+            '        this.wire();',
+            '    }',
+            '    wire(): void {}',
+            '}',
+        ].join('\n'),
+    },
+];
+
+/** `node node_modules/typescript/bin/tsc` — see {@link unboundNames}. */
+const TSC_ENTRY = join(ROOT, 'node_modules/typescript/bin/tsc');
+
+/**
+ * Typecheck a batch of fences and report, per fence, the names nothing defines.
+ *
+ * ONE tsc process for the whole batch: 167 fences one at a time is 167 program
+ * constructions of the same `lib` files.
+ */
+function unboundNames(units) {
+    const work = mkdtempSync(join(tmpdir(), 'gjsify-doc-snippets-'));
+    try {
+        for (const unit of units) writeFileSync(join(work, unit.file), `${unit.body}\n`);
+        // The GJS ambient globals (`print`, `printerr`, `log`, `logError`, `ARGV`),
+        // by FILE PATH. A `types: ['@girs/gjs/gjs']` entry cannot reach them — a
+        // `types` name resolves as `<typeRoot>/<name>/index.d.ts`, so the subpath
+        // came back TS2688 "Cannot find type definition file", tsc stopped before
+        // checking a single fence, and this arm reported a clean corpus it had
+        // never read. The fixture matrix is what caught that; the throw below is
+        // what stops it recurring.
+        writeFileSync(
+            join(work, 'gjs-globals.d.ts'),
+            `/// <reference path="${join(ROOT, 'node_modules/@girs/gjs/gjs.d.ts').split(sep).join('/')}" />\n`,
+        );
+        writeFileSync(
+            join(work, 'tsconfig.json'),
+            JSON.stringify({
+                compilerOptions: {
+                    noEmit: true,
+                    target: 'ES2024',
+                    module: 'ESNext',
+                    moduleResolution: 'Bundler',
+                    // A doc snippet narrows nothing and elides arguments; this arm reads
+                    // TS2304 only, and strictness would just slow the program down.
+                    strict: false,
+                    skipLibCheck: true,
+                    lib: ['ES2024', 'DOM'],
+                    jsx: 'react-jsx',
+                    allowJs: true,
+                    checkJs: true,
+                    // NOTHING auto-included: `@types/*` in this repo's root would
+                    // put Node's globals into a GJS snippet's scope and quietly
+                    // vouch for names that are not there at runtime.
+                    types: [],
+                },
+            }),
+        );
+        // `node node_modules/typescript/bin/tsc`, not the `.bin` shim: the shim is a
+        // `.cmd` on Windows and this script is spawned the same way everywhere.
+        const result = spawnSync(process.execPath, [TSC_ENTRY, '-p', join(work, 'tsconfig.json')], {
+            encoding: 'utf8',
+            maxBuffer: 64 * 1024 * 1024,
+        });
+        const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+        if (result.error) {
+            throw new Error(`could not run tsc for the SNIPPETS arm: ${result.error.message}`);
+        }
+        const found = new Map(units.map((unit) => [unit.file, new Set()]));
+        for (const line of output.split('\n')) {
+            // TS2552 IS THE SAME DIAGNOSTIC with a suggestion attached — "Cannot find
+            // name 'logError'. Did you mean 'onerror'?" — and reading only TS2304
+            // would have missed every unbound name that happens to be one edit away
+            // from a DOM global. Measured: with the ambient reference above removed,
+            // `logError` reports TS2552 and `printerr` reports TS2304, from the same
+            // three-line fence.
+            const diagnostic =
+                /^(?:.*[/\\])?([^/\\(]+)\((\d+),\d+\): error TS(?:2304|2552): Cannot find name '([^']+)'/.exec(line);
+            if (!diagnostic) continue;
+            found.get(diagnostic[1])?.add(diagnostic[3]);
+        }
+        // tsc reports NOTHING for a program it never built. An exit code with no
+        // diagnostics at all and no input files is the silent-pass shape.
+        // A tsc diagnostic with NO file in front of it is a configuration failure —
+        // it stops the program before any fence is checked and leaves stdout with no
+        // per-file lines at all, which is indistinguishable from a clean corpus.
+        // MEASURED: `error TS2688: Cannot find type definition file` did exactly
+        // that here. So it is fatal rather than filtered.
+        const configErrors = output.split('\n').filter((line) => /^error TS\d+:/.test(line));
+        if (configErrors.length > 0) {
+            throw new Error(
+                `tsc could not build the SNIPPETS program, so no fence was checked:\n  ${configErrors.join('\n  ')}`,
+            );
+        }
+        return found;
+    } finally {
+        rmSync(work, { recursive: true, force: true });
+    }
+}
+
+if (!existsSync(TSC_ENTRY)) {
+    // Unlike `blueprint-compiler` (a system package the blueprint arm degrades
+    // around), TypeScript is a declared dependency of this repo at a version root
+    // AND every workspace pins. Absent means the tree is not installed, and a
+    // silent skip would be this arm reporting a clean corpus it never read.
+    fail('scan', `TypeScript is not installed at ${TSC_ENTRY.replace(`${ROOT}/`, '')} — the SNIPPETS arm cannot run`);
+} else {
+    // The matrix FIRST: a detector that has stopped detecting must not reach the docs.
+    const fixtureUnits = SNIPPET_FIXTURES.map((fixture, index) => ({
+        file: `fixture-${index}.${fixture.lang === 'jsx' || fixture.lang === 'tsx' ? 'tsx' : 'ts'}`,
+        body: fixture.body,
+    }));
+    const fixtureVerdicts = unboundNames(fixtureUnits);
+    SNIPPET_FIXTURES.forEach((fixture, index) => {
+        const got = [...(fixtureVerdicts.get(fixtureUnits[index].file) ?? [])].sort();
+        const want = [...fixture.names].sort();
+        if (got.join(',') !== want.join(',')) {
+            fail(
+                'snippets/self-test',
+                `the fixture for "${fixture.why}" must report [${want.join(', ')}] and reported ` +
+                    `[${got.join(', ')}]. The SNIPPETS detector is wrong, so nothing it says about the ` +
+                    'docs can be believed.',
+            );
+        }
+    });
+
+    // ONE UNIT PER PAGE, not per fence: a guide legitimately builds one program up
+    // across several fences, and `patterns/bridges.mdx` is the measured instance —
+    // it opens an `app` in its first fence and uses it in five more. Per-fence, that
+    // page alone reported five names a reader has in scope by the time they get
+    // there. The same rule the TOKENS arm already reads ("in the same fence, or
+    // earlier on the same page"), and it does not weaken the incident this arm was
+    // written for: `listFontFiles` was defined by no fence on either page.
+    const snippetUnits = [];
+    for (const abs of docPages(join(ROOT, 'website/src/content/docs'))) {
+        const rel = abs
+            .slice(ROOT.length + 1)
+            .split(sep)
+            .join('/');
+        const text = readFileSync(abs, 'utf8');
+        const page = [];
+        let anyTsx = false;
+        for (const fence of fences(text)) {
+            const lang = fence.lang.toLowerCase();
+            if (!SNIPPET_LANGS.has(lang)) continue;
+            snippetFences += 1;
+            if (!SHOWS_IMPORTS.test(fence.body)) continue;
+            if (lang === 'tsx' || lang === 'jsx') anyTsx = true;
+            page.push(`// --- ${rel}:${fence.line} ---\n${fence.body}`);
+            checkedSnippets += 1;
+        }
+        if (page.length === 0) continue;
+        snippetUnits.push({
+            file: `snippet-${snippetUnits.length}.${anyTsx ? 'tsx' : 'ts'}`,
+            body: page.join('\n'),
+            where: rel,
+        });
+    }
+    if (snippetUnits.length === 0) {
+        fail('scan', 'no import-bearing js/ts fence was found across the docs — the SNIPPETS extractor is broken');
+    } else {
+        const verdicts = unboundNames(snippetUnits);
+        for (const unit of snippetUnits) {
+            const unbound = [...(verdicts.get(unit.file) ?? [])].sort();
+            if (unbound.length === 0) continue;
+            fail(
+                unit.where,
+                `this fence shows its imports, so a reader copies it whole — and it uses ` +
+                    `${unbound.map((name) => `\`${name}\``).join(', ')}, which nothing in it defines or imports. ` +
+                    'That is a `ReferenceError` on the first run. Define it, import it, or drop the import line ' +
+                    'so the fence reads as the excerpt it is.',
+            );
+        }
+    }
+}
+
 // A scan whose corpus is empty reports green while proving nothing — the failure
 // class this repository pays most for. Every arm states what it saw.
 if (tsFences === 0) fail('scan', 'no `ts` fence was found across every source — the extractor is broken');
@@ -775,6 +1091,10 @@ notes.push(
 notes.push(
     `${nsWrites} property write(s) in nativescript fences held against ${nsWidgets.size} widget class(es) ` +
         `and ${nsCoreProperties.size} ambient core name(s)`,
+);
+notes.push(
+    `${checkedSnippets} of ${snippetFences} js/ts fence(s) across the whole docs tree show their imports and ` +
+        `were typechecked for unbound names, page by page, after ${SNIPPET_FIXTURES.length} detector fixtures`,
 );
 if (exempt.size > 0) notes.push(`${exempt.size} exemption(s) from ${LEDGER.replace(`${ROOT}/`, '')}`);
 

@@ -236,7 +236,11 @@ runtime TypeScript expects. Point `jsxImportSource` at the subpath, not at `reac
 ```
 
 ```tsx
+import Adw from 'gi://Adw?version=1';
+
 import { createRoot } from '@gjsify/gtk-host/react';
+
+const myWindow = new Adw.ApplicationWindow({ title: 'Counter', default_width: 480 });
 
 const root = createRoot(myWindow);
 root.render(
@@ -371,7 +375,13 @@ it. `mount()` in the Solid and Vue adapters and `createRoot()` in the React one 
 it; call it yourself when you need the explicit spelling, such as a Vue `<Teleport>` target:
 
 ```ts
+import Adw from 'gi://Adw?version=1';
+import Gtk from 'gi://Gtk?version=4.0';
+
 import { adopt, mount } from '@gjsify/gtk-host/vue';
+
+const myWindow = new Adw.ApplicationWindow({ title: 'Counter', default_width: 480 });
+const mySidebar = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
 
 mount(App, myWindow);           // adopts for you
 const target = adopt(mySidebar); // then `:to="target"`

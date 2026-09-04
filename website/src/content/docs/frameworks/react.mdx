@@ -77,7 +77,11 @@ checked against the real `GtkLabel` properties.
 ## Render a tree
 
 ```tsx
+import Adw from 'gi://Adw?version=1';
+
 import { createRoot } from '@gjsify/gtk-host/react';
+
+const myWindow = new Adw.ApplicationWindow({ title: 'Counter', defaultWidth: 480 });
 
 const root = createRoot(myWindow);
 root.render(
@@ -123,10 +127,20 @@ want in a running application. When you need the change on screen immediately, u
 with no main loop, flush it:
 
 ```tsx
+import { useState } from 'react';
+
 import { flushSync } from '@gjsify/gtk-host/react';
 
-flushSync(() => setCount(1));
-// the label's text has already changed here
+function Counter() {
+    const [count, setCount] = useState(0);
+
+    const bump = () => {
+        flushSync(() => setCount(1));
+        // the label's text has already changed here
+    };
+
+    return <gtk-button label={`clicked ${count}x`} onClicked={bump} />;
+}
 ```
 
 ## What the adapter exports

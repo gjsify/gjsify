@@ -86,6 +86,8 @@ current scheme:
 ```ts
 import { applyAdwaitaAccent, clearAdwaitaAccent } from '@gjsify/adwaita-web';
 
+const panel = document.getElementById('panel')!; // the element you want scoped
+
 applyAdwaitaAccent('purple');                    // on <html>
 applyAdwaitaAccent('teal', { target: panel });   // on one element
 applyAdwaitaAccent('teal', { target: panel, dark: true });

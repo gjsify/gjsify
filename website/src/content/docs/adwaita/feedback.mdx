@@ -76,6 +76,11 @@ on the desktop.
     ```ts
     import Adw from 'gi://Adw?version=1';
 
+    const content = new Adw.StatusPage({
+        title: 'Documents',
+        description: 'Drag files here to organise them.',
+    });
+
     // The overlay wraps the page content and floats toasts above it.
     const overlay = new Adw.ToastOverlay({ child: content });
 
@@ -123,6 +128,10 @@ on the desktop.
   <Fragment slot="nativescript">
     ```ts
     import { Adw } from '@gjsify/adwaita-nativescript';
+
+    const content = new Adw.StatusPage();
+    content.title = 'Documents';
+    content.description = 'Drag files here to organise them.';
 
     const overlay = new Adw.ToastOverlay();
     overlay.setContent(content);
