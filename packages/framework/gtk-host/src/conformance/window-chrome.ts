@@ -28,6 +28,13 @@
 //   - An unmapped tree answers 0 to every count. A detached tree and an unpresented
 //     window both read "no problem", which is the green-that-checked-nothing shape —
 //     so `windowChromeProblems` REFUSES an unmapped root instead of clearing it.
+//
+// THE INVARIANT IS ABOUT THE RESTING COMPOSITION, which is the one false positive a
+// caller will hit. `Adw.NavigationView` keeps the DEPARTING page mapped while the
+// arriving one slides in, so a window mid-push legitimately draws two header bars and
+// two sets of controls — measured, four of each at the moment a nested tab group is
+// entered. Ask after the transition, or turn transitions off for the measurement;
+// iterating the main context does not advance the clock enough to wait one out.
 
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
