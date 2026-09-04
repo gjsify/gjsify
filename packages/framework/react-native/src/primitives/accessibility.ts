@@ -156,27 +156,33 @@ export interface AccessibilityProps {
 }
 
 /** `Gtk.AccessibleTristate`, by number. Declared, because nothing here may import `gi://`. */
-const TRISTATE: Readonly<Record<string, number>> = { false: 0, true: 1, mixed: 2 };
+const TRISTATE = { false: 0, true: 1, mixed: 2 } as const;
 
 /**
- * `value` → the number, string or boolean the call layer hands GTK.
+ * `value` → the string, boolean or number the call layer hands GTK, or `null` for
+ * "this attribute cannot hold that", which the caller turns into a refusal.
  *
- * Returns `null` for "recognised, write nothing" — React Native's own way of
- * clearing an accessibility prop is to stop passing it, and `undefined` is already
- * skipped before a route is consulted. `false` is NOT that: a screen reader has to
- * be told "not checked" as much as "checked".
+ * `false` IS a value and never `null`: a screen reader has to be told "not checked"
+ * as much as "checked", and GTK's own way of saying nothing is for no attribute to
+ * be set at all — which is what an ABSENT prop already produces, since `undefined`
+ * is skipped before a route is consulted.
+ *
+ * An explicit `null` is a refusal rather than a clear, which is this layer's
+ * existing convention: `coerce()` answers `testID={null}` the same way. Removing
+ * the prop is how React Native clears it.
  */
 function coerceAttribute(attribute: AccessibleAttribute, value: unknown): string | boolean | number | null {
-    if (value === null) return null;
     switch (attribute.as) {
         case 'string':
             return typeof value === 'string' ? value : null;
         case 'boolean':
             return typeof value === 'boolean' ? value : null;
-        case 'tristate': {
+        case 'tristate':
             if (typeof value === 'boolean') return value ? TRISTATE.true : TRISTATE.false;
-            return typeof value === 'string' ? (TRISTATE[value] ?? null) : null;
-        }
+            // ONLY `mixed` arrives as a string. React Native's type is
+            // `boolean | 'mixed'`, so `checked: 'true'` is a mistake worth naming —
+            // a lookup keyed by the value would have accepted it as TRUE.
+            return value === 'mixed' ? TRISTATE.mixed : null;
     }
 }
 

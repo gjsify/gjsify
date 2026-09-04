@@ -1129,6 +1129,15 @@ export default async () => {
                 'Gtk.AccessibleTristate',
             );
             expect(threw(() => plan('View', { accessibilityState: 'checked' })).message).toContain('needs an object');
+            // `'true'` is the one a value-keyed lookup would have taken for TRUE.
+            // React Native's type is `boolean | 'mixed'`, so the string is a mistake.
+            expect(threw(() => plan('View', { accessibilityState: { checked: 'true' } })).message).toContain(
+                'Gtk.AccessibleTristate',
+            );
+            // An explicit `null` is a refusal, not a clear — this layer's existing
+            // convention, the same answer `testID={null}` gets. Removing the prop is
+            // how React Native clears one.
+            expect(threw(() => plan('View', { accessibilityLabel: null })).message).toContain('needs a string');
         });
 
         await it('answers `accessible` as a declared no-op, naming the prop that does the job', async () => {
