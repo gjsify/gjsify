@@ -146,10 +146,23 @@ export default async () => {
         Gtk.init();
         registerBuiltinWidgets();
         const diagnostics = installDiagnosticsGate();
+        // BOTH CONCERNS IN ONE PAIR, because `@gjsify/unit` keeps ONE
+        // `beforeEach`/`afterEach` slot: a second registration inside a gated block
+        // REPLACES this one rather than adding to it, and the block then runs with no
+        // diagnostics assertion at all. Three blocks here used to register their own
+        // style pair and silenced the gate for every case in them — the same defect
+        // `widgets.spec.ts` records with the measurement that found it. Nothing else
+        // in this file may call `beforeEach` or `afterEach`.
         const gated = (name: string, run: () => Promise<void>): Promise<void> =>
             describe(name, async () => {
-                beforeEach(() => diagnostics.reset());
-                afterEach(() => diagnostics.assertQuiet());
+                beforeEach(() => {
+                    diagnostics.reset();
+                    configureStyle({ tokens: TOKENS });
+                });
+                afterEach(() => {
+                    resetStyleConfig();
+                    diagnostics.assertQuiet();
+                });
                 await run();
             }) as Promise<void>;
 
@@ -197,9 +210,6 @@ export default async () => {
         });
 
         await gated('a FlatList in a window', async () => {
-            beforeEach(() => configureStyle({ tokens: TOKENS }));
-            afterEach(() => resetStyleConfig());
-
             await it('builds the frame and puts the list inside the scroller itself', async () => {
                 await mounted(async (mount) => {
                     await mount.render(
@@ -385,9 +395,6 @@ export default async () => {
         });
 
         await gated('the sections, flattened into one model', async () => {
-            beforeEach(() => configureStyle({ tokens: TOKENS }));
-            afterEach(() => resetStyleConfig());
-
             await it('emits a header ROW per section, in order', async () => {
                 await mounted(async (mount) => {
                     await mount.render(
@@ -424,9 +431,6 @@ export default async () => {
         });
 
         await gated('VirtualizedList’s accessor form', async () => {
-            beforeEach(() => configureStyle({ tokens: TOKENS }));
-            afterEach(() => resetStyleConfig());
-
             await it('reads the rows through getItem and getItemCount', async () => {
                 await mounted(async (mount) => {
                     await mount.render(

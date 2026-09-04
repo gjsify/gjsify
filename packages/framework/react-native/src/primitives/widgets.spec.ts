@@ -23,6 +23,15 @@
 // siblings leave every later one ungated. Measured in `host.spec.ts`: a GTK critical
 // injected into describe #15 printed to stderr, the case still reported a tick, and
 // the blame surfaced twelve tests later on an innocent neighbour.
+//
+// ONE SLOT ALSO MEANS ONE REGISTRATION PER MODULE, which is the same trap from the
+// inside and cost this file 37 of its 49 cases: three gated blocks registered their
+// own `configureStyle`/`resetStyleConfig` pair, which REPLACED the gate's hooks
+// rather than adding to them, so `assertQuiet` never ran for any case in them.
+// MEASURED by writing an accessible state through the wrong GValue type — two
+// `GLib-GObject-CRITICAL`s on stderr, and the case named "…with no diagnostic"
+// green at exit 0. Both concerns now live in `gated` itself, and nothing else in
+// this file may call `beforeEach` or `afterEach`.
 
 import Gdk from 'gi://Gdk?version=4.0';
 import GObject from 'gi://GObject?version=2.0';
@@ -266,8 +275,14 @@ export default async () => {
         const diagnostics = installDiagnosticsGate();
         const gated = (name: string, run: () => Promise<void>): Promise<void> =>
             describe(name, async () => {
-                beforeEach(() => diagnostics.reset());
-                afterEach(() => diagnostics.assertQuiet());
+                beforeEach(() => {
+                    diagnostics.reset();
+                    configureStyle({ tokens: TOKENS });
+                });
+                afterEach(() => {
+                    resetStyleConfig();
+                    diagnostics.assertQuiet();
+                });
                 await run();
             }) as Promise<void>;
 
@@ -467,9 +482,6 @@ export default async () => {
         });
 
         await gated('a real tree, through a real reconciler', async () => {
-            beforeEach(() => configureStyle({ tokens: TOKENS }));
-            afterEach(() => resetStyleConfig());
-
             await it('renders a View as a VERTICAL box holding a label', async () => {
                 mounted(createElement(View, { className: 'p-2' }, createElement(Text, null, 'hello')), (container) => {
                     const box = gtkChildren(container)[0] as Gtk.Box;
@@ -934,9 +946,6 @@ export default async () => {
         });
 
         await gated('the P2 widgets, in a real tree', async () => {
-            beforeEach(() => configureStyle({ tokens: TOKENS }));
-            afterEach(() => resetStyleConfig());
-
             await it('renders an Image as a Gtk.Picture that FILLS, with the file GTK will open', async () => {
                 // A path that does not exist is deliberate and safe: MEASURED, setting
                 // `Gtk.Picture:file` to a missing file stores the file, leaves
@@ -1090,8 +1099,6 @@ export default async () => {
         });
 
         await gated('the press state, and the cheap path it must not cost', async () => {
-            afterEach(() => resetStyleConfig());
-
             await it('resolves active:* to CSS and subscribes to NOTHING', async () => {
                 // ADR 0032 § 7's whole claim, as a measurement rather than a comment.
                 // Both spellings render a flat button that dims when pressed; only the
