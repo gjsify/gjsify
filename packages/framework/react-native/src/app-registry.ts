@@ -99,10 +99,25 @@ const registry = new Map<string, Registration>();
  * host, so a React Native application on this layer has one and every other GTK
  * application in this repo can use it.
  */
-let live: RootHandle | null = null;
+let live: LiveRoot | null = null;
 
-/** What {@link AppRegistry.getApplication} and its siblings hand back. */
-export interface RootHandle {
+/**
+ * What `runApplication` owns while the loop runs. NOT exported, and the two
+ * members past the first are why.
+ *
+ * `getApplication()` and `getWindow()` hand out the two objects #1455 asks for,
+ * both of which a consumer can only observe and configure. `content` and `root`
+ * are the bootstrap's OWN working state: `root.render()` replaces the tree this
+ * layer mounted, and `root.unmount()` tears it down while `live` still points at
+ * it — after which `getWindow()` answers with a window whose content is gone,
+ * which is the lying accessor `runApplication`'s cleanup exists to prevent. A
+ * consumer reaching the container legitimately does it through the host element
+ * gtk-host gives React (`adopt`), not through a raw widget handed out here.
+ *
+ * Un-exported because the asymmetry runs one way: adding an accessor later is
+ * additive, removing one from a published API is not.
+ */
+interface LiveRoot {
     /** The application `runApplication` created. */
     readonly app: Adw.Application;
     /** Its window — an `Adw.ApplicationWindow`, typed as what every caller needs. */
@@ -200,11 +215,6 @@ export const AppRegistry = {
      */
     getWindow(): Gtk.Window | null {
         return live?.window ?? null;
-    },
-
-    /** The whole live handle: application, window, content widget, React root. */
-    getRootHandle(): RootHandle | null {
-        return live;
     },
 
     /**

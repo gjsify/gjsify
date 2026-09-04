@@ -87,12 +87,23 @@ entry point was the seam that kept an application from reaching it.
    the bootstrap, because the consumer this layer serves has no place to call it from.
 
 3. **The application is reached through a live accessor, not a return value.**
-   `AppRegistry.getApplication()`, `getWindow()` and `getRootHandle()` answer while the
-   loop runs and `null` outside it. `runApplication` is their only writer and clears
-   them on the way out — an accessor answering with a closed application's window is
-   worse than answering `null`. Non-null from the first render onwards and *before* the
-   window maps, which is what makes a default size, a controller or a `close-request`
-   handler possible from inside the tree.
+   `AppRegistry.getApplication()` and `getWindow()` answer while the loop runs and
+   `null` outside it. `runApplication` is their only writer and clears them on the way
+   out — an accessor answering with a closed application's window is worse than
+   answering `null`. Non-null from the first render onwards and *before* the window
+   maps, which is what makes a default size, a controller or a `close-request` handler
+   possible from inside the tree.
+
+   **Those two, and not the React root or its container widget.** `runApplication`
+   holds both internally, and handing them out would be exposing working state because
+   it happened to be in the same object: `root.render()` from outside replaces the tree
+   this layer mounted, and `root.unmount()` leaves `getWindow()` answering with a window
+   whose content is gone — the same lying accessor the paragraph above rejects, reached
+   through the front door instead. A consumer that legitimately needs to place a
+   non-React widget in the container does it through the host element gtk-host gives
+   React (`adopt`), which is the operation that keeps the reconciler's bookkeeping
+   correct. The asymmetry settles it: adding an accessor later is additive, removing one
+   from a published API is not.
 
 4. **Two shapes, and the split is by question.** Anything that must happen at a
    lifecycle moment travels as an option (`devtools`, `onStartup`); "which application
@@ -127,7 +138,7 @@ entry point was the seam that kept an application from reaching it.
 - A consumer who builds their own `Adw.Application` and calls `createRoot` directly
   still calls `registerBuiltinWidgets()` themselves, exactly as the showcases do. Only
   the `AppRegistry` bootstrap answers it for them.
-- `AppRegistry` grows three members React Native does not have. It is already declared
+- `AppRegistry` grows two members React Native does not have. It is already declared
   `partial` in the ADR 0032 § 8 support table, which judges module export NAMES; object
   members on a `partial` entry are where this layer's declared divergence lives.
 - The e2e suite is Linux-only in practice (it needs `dbus-run-session` and a GJS host).

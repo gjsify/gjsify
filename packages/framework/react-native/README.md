@@ -104,8 +104,14 @@ await registerRootComponent(App, {
 //    outside the loop.
 AppRegistry.getApplication(); // Adw.Application | null
 AppRegistry.getWindow(); // Gtk.Window | null
-AppRegistry.getRootHandle(); // { app, window, content, root } | null
 ```
+
+Those two, and deliberately not the React root or the container widget it renders
+into. Both of those are the bootstrap's own working state — a `render()` from
+outside replaces the tree this layer mounted, an `unmount()` leaves `getWindow()`
+answering with a window whose content is gone — and an accessor that can be put
+into a lying state is worse than one that does not exist. Adding one later is
+additive; removing one from a published API is not.
 
 `devtools` is the one worth knowing about: with it (or `GJSIFY_DEVTOOLS=1`) the running
 application answers `DumpTree`, `GetProperty`, `FindWidget`, `ActivateWidget`, `SendKey`
