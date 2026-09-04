@@ -24,13 +24,15 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
     MONOREPO_ROOT,
     createAppRegistryGapSkipReason,
     expiredReleaseWindow,
+    registryGjsifyRanges,
     releaseCutDate,
     unpublishedRegistryDependencies,
 } from '../helpers.mjs';
@@ -41,6 +43,22 @@ const TRAIN = JSON.parse(readFileSync(join(MONOREPO_ROOT, 'package.json'), 'utf8
 const NAME = '@gjsify/node-gi';
 /** A version that IS published, so the default packument route proves the package exists. */
 const PREVIOUS = '0.0.1';
+
+/**
+ * The real cut, read once — the expiry oracle every case below pins its clock to.
+ *
+ * NOTHING HERE MAY BE DECIDED BY `new Date()`. The expiry this suite exists to hold
+ * is a function of the wall clock, so a case that omits the oracle is not testing the
+ * mechanism, it is testing what day it is: `createAppRegistryGapSkipReason` with no
+ * `window` answered a skip on 2026-09-04 and `false` from 2026-09-05T00:00Z onward,
+ * with no code change, and this suite is in `test:e2e`. Measured against this
+ * checkout: cut 2026-09-03, so `days` goes 1 → 2 at that midnight and the grace
+ * stops covering it.
+ */
+const CHANGELOG = readFileSync(join(MONOREPO_ROOT, 'CHANGELOG.md'), 'utf8');
+const CUT = releaseCutDate(TRAIN, CHANGELOG);
+/** An oracle whose clock is `days` days past the cut, with this repo's real inputs. */
+const at = (days) => ({ version: TRAIN, changelog: CHANGELOG, now: new Date(CUT.getTime() + days * 86_400_000) });
 
 /**
  * Which answer the registry is giving this case. `window` is the state the whole
@@ -108,7 +126,10 @@ describe('release-window skip detection', { timeout: 2 * 60 * 1000 }, () => {
 
     it('skips, naming the package and version, while the train version is unpublished', async () => {
         withRegistry('window');
-        const reason = await createAppRegistryGapSkipReason([[NAME, `^${TRAIN}`]]);
+        // The clock is pinned to the day of the cut — see {@link CUT}. Without it this
+        // case asserts a skip against `new Date()`, which stops being true the moment
+        // the grace runs out and reds the e2e job on a repository nobody touched.
+        const reason = await createAppRegistryGapSkipReason([[NAME, `^${TRAIN}`]], { window: at(0) });
         assert.equal(typeof reason, 'string', 'the release window must produce a skip reason, not `false`');
         assert.match(reason, new RegExp(`${NAME}@${TRAIN.replace(/\./g, '\\.')}`));
         // The shared opening clause — one grep finds every suite in this state.
@@ -196,13 +217,20 @@ describe('release-window skip detection', { timeout: 2 * 60 * 1000 }, () => {
     // suite that keeps skipping over that is green forever — the state the deleted
     // 30-minute wait was red on. See `expiredReleaseWindow` for why CHANGELOG.md is the
     // clock and why an undatable version expires nothing.
+    it('never touches the network for a template with no registry-bound edge', async () => {
+        // THE CONSEQUENCE of asking per template (#1533), not the rule — the rule and
+        // its cases are the last describe in this file. An empty `wanted` has to be
+        // answered without asking the registry anything, or "decided per template"
+        // would still cost every template a round trip in the window it is not in.
+        const log = withRegistry('window');
+        assert.equal(await createAppRegistryGapSkipReason([]), false);
+        assert.deepEqual(asked(log), [], 'it asked the registry about a template it had nothing to ask');
+    });
+
     it('runs, rather than skipping, once the window has outlasted a release', async () => {
         withRegistry('window');
-        const cut = releaseCutDate(TRAIN, readFileSync(join(MONOREPO_ROOT, 'CHANGELOG.md'), 'utf8'));
         assert.equal(
-            await createAppRegistryGapSkipReason([[NAME, `^${TRAIN}`]], {
-                window: { now: new Date(cut.getTime() + 5 * 86_400_000) },
-            }),
+            await createAppRegistryGapSkipReason([[NAME, `^${TRAIN}`]], { window: at(5) }),
             false,
             'a version missing five days after its own cut is a failed publish, and this suite has to say so',
         );
@@ -229,34 +257,40 @@ describe('release-window skip detection', { timeout: 2 * 60 * 1000 }, () => {
 // under a depth-1 checkout with no git history and no tags to read.
 describe('a release window that has stopped being one', () => {
     /** The dates below are the real v0.47.0 cut, which is what makes the midnight case a measurement. */
-    const CHANGELOG = readFileSync(join(MONOREPO_ROOT, 'CHANGELOG.md'), 'utf8');
-    const at = (iso) => ({ version: TRAIN, changelog: CHANGELOG, now: new Date(iso) });
     const MISSING = [`${NAME}@${TRAIN}`];
+    /** `at()` moves in whole days from the cut's midnight; these cases need an hour inside one. */
+    const atHour = (days, hms) => ({
+        version: TRAIN,
+        changelog: CHANGELOG,
+        now: new Date(`${new Date(CUT.getTime() + days * 86_400_000).toISOString().slice(0, 10)}T${hms}Z`),
+    });
 
     it('reads the cut date out of the changelog the release wrote', () => {
-        const cut = releaseCutDate(TRAIN, CHANGELOG);
-        assert.ok(cut instanceof Date, `CHANGELOG.md carries no dated heading for ${TRAIN}`);
+        assert.ok(CUT instanceof Date, `CHANGELOG.md carries no dated heading for ${TRAIN}`);
     });
 
     it('is still a window on the day of the cut', () => {
-        const cut = releaseCutDate(TRAIN, CHANGELOG);
-        assert.equal(expiredReleaseWindow(MISSING, at(`${cut.toISOString().slice(0, 10)}T23:59:59Z`)), false);
+        assert.equal(expiredReleaseWindow(MISSING, atHour(0, '23:59:59')), false);
     });
 
     it('is still a window when the publish lands after midnight', () => {
-        // MEASURED, and the reason the grace is a whole day rather than "yesterday is
-        // too old": v0.47.0's changelog entry is dated 2026-09-03 and
+        // MEASURED, and the reason the grace is counted in days rather than "yesterday
+        // is too old": v0.47.0's changelog entry is dated 2026-09-03 and
         // `@gjsify/node-gi@0.47.0` reached npm at 2026-09-04T00:49:56Z. A tighter rule
         // would have called that healthy release a failed one for 49 minutes.
-        const cut = releaseCutDate(TRAIN, CHANGELOG);
-        const nextDay = new Date(cut.getTime() + 86_400_000).toISOString().slice(0, 10);
-        assert.equal(expiredReleaseWindow(MISSING, at(`${nextDay}T00:49:56Z`)), false);
+        assert.equal(expiredReleaseWindow(MISSING, atHour(1, '00:49:56')), false);
+    });
+
+    it('stops being a window two days after the cut, and not later', () => {
+        // THE GRACE IS PINNED FROM ABOVE, not only from below. `RELEASE_WINDOW_GRACE_DAYS`
+        // decides how long a FAILED publish stays invisible, and every other case here
+        // is satisfied by a wider one — so widening it silently was the one change to
+        // this constant that nothing objected to.
+        assert.equal(typeof expiredReleaseWindow(MISSING, atHour(2, '00:00:00')), 'string');
     });
 
     it('names the failed publish once the window has outlasted a release', () => {
-        const cut = releaseCutDate(TRAIN, CHANGELOG);
-        const later = new Date(cut.getTime() + 3 * 86_400_000).toISOString().slice(0, 10);
-        const verdict = expiredReleaseWindow(MISSING, at(`${later}T09:00:00Z`));
+        const verdict = expiredReleaseWindow(MISSING, atHour(3, '09:00:00'));
         assert.equal(typeof verdict, 'string');
         assert.match(verdict, new RegExp(`${NAME}@${TRAIN.replace(/\./g, '\\.')}`));
         assert.match(verdict, /3 day\(s\) after CHANGELOG\.md dates/);
@@ -272,5 +306,55 @@ describe('a release window that has stopped being one', () => {
             false,
         );
         assert.equal(expiredReleaseWindow(MISSING, { version: TRAIN, changelog: '', now: new Date() }), false);
+    });
+});
+
+// WHICH SUITES THE WINDOW MAY SILENCE, which is the half of #1533 the decision above
+// says nothing about. `create-app` asks per template now instead of once for the union
+// — but that narrowing lived in a module whose own scope packs the whole workspace, so
+// nothing could drive it and reverting it was caught by nothing. `registryGjsifyRanges`
+// is the rule; these are its cases.
+describe('a template the window has no business silencing', () => {
+    let dir;
+
+    before(() => {
+        dir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-tmpl-'));
+    });
+
+    after(() => {
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    /** Write one scaffolded manifest and ask what the release window would look up for it. */
+    const ranges = (pkg, packed = ['@gjsify/cli', '@gjsify/runtime', '@gjsify/node-globals']) => {
+        const manifest = join(dir, 'package.json');
+        writeFileSync(manifest, JSON.stringify(pkg));
+        return registryGjsifyRanges(manifest, new Set(packed));
+    };
+
+    it('asks for nothing when every @gjsify edge is one this suite packs', () => {
+        // `cli`, `web-server-hono` and `web-server-express` — 21 tests that a union
+        // decision suppressed for a release they do not depend on.
+        assert.deepEqual(ranges({ dependencies: { '@gjsify/cli': '^0.47.0', '@gjsify/runtime': '^0.47.0' } }), []);
+    });
+
+    it('asks for the one edge that really is registry-bound', () => {
+        // `gtk-minimal` and the three adw templates: `@gjsify/node-gi` is a `file:`
+        // edge in `templates/`, which `process-template.mjs` rewrites to a range.
+        assert.deepEqual(ranges({ dependencies: { '@gjsify/node-gi': '^0.47.0' } }), [['@gjsify/node-gi', '^0.47.0']]);
+    });
+
+    it('reads devDependencies too, and never a path, git or tarball edge', () => {
+        assert.deepEqual(
+            ranges({
+                dependencies: { '@gjsify/node-gi': 'file:../../packages/node-gi/node-gi', react: '^19.0.0' },
+                devDependencies: { '@gjsify/unit': '^0.47.0' },
+            }),
+            [['@gjsify/unit', '^0.47.0']],
+        );
+    });
+
+    it('answers for a template that was never scaffolded, rather than throwing', () => {
+        assert.deepEqual(registryGjsifyRanges(join(dir, 'no-such-template', 'package.json'), new Set()), []);
     });
 });

@@ -279,14 +279,30 @@ async function registryVersionState(registry, name, version, signal) {
  * How long after its own release cut a version may still be missing from npm and
  * count as "not published YET".
  *
- * ONE FULL DAY, and the number is measured rather than chosen for roundness. The
- * publish takes 43-70 min end to end (v0.44.0 70, v0.45.0 43, v0.46.0 46), so any
- * bound above an hour would do for the mechanism — what forces it to a whole day
- * is that the only clock available here has a DAY's resolution, and that a cut can
- * straddle midnight: v0.47.0's CHANGELOG.md entry is dated 2026-09-03 and
- * `@gjsify/node-gi@0.47.0` reached the registry at 2026-09-04T00:49:56Z. A
- * "yesterday is too old" rule would have reported that healthy release as a failed
- * one for 49 minutes.
+ * THE UNIT IS A CALENDAR DAY, because the only clock available here (below) reads
+ * in days — so a grace of 1 means the window closes at the cut date + 2 days,
+ * 00:00 UTC, i.e. somewhere between 24 and 48 hours after the cut depending on the
+ * hour it landed. Not "one full day": that phrasing was here first and it is not
+ * what the arithmetic does.
+ *
+ * WHY IT IS A DAY AND NOT AN HOUR, measured from the release runs' own start times
+ * against `npm view @gjsify/node-gi time` — the last package the release publishes:
+ *
+ *   v0.44.0   14:40:48Z → 15:51:06Z     70 min
+ *   v0.45.0   03:47:53Z → 04:31:07Z     43 min
+ *   v0.46.0   08:55:22Z → 09:41:37Z     46 min
+ *   v0.47.0   20:54:08Z → 00:49:56Z    236 min
+ *
+ * A healthy release therefore takes anywhere from 43 min to nearly four hours, so
+ * an hour-scale bound is not merely coarse — it would have called v0.47.0, the
+ * release this checkout IS, a failed publish for almost three hours. The same
+ * v0.47.0 is why the grace cannot be "yesterday is too old" either: its CHANGELOG
+ * entry is dated 2026-09-03 and `@gjsify/node-gi@0.47.0` reached the registry at
+ * 2026-09-04T00:49:56Z, 49 minutes into the next day.
+ *
+ * Held from BOTH sides in `tests/e2e/release-window-skip`: 0 reds the midnight
+ * case, 2 reds the expiry itself. A grace nobody can widen unnoticed is the point
+ * — this number is what decides whether a failed publish stays invisible.
  */
 const RELEASE_WINDOW_GRACE_DAYS = 1;
 
@@ -358,11 +374,12 @@ export function expiredReleaseWindow(missing, oracle = {}) {
     if (days <= RELEASE_WINDOW_GRACE_DAYS) return false;
 
     return (
-        `${missing.length} package(s) are still missing from npm (${missing.slice(0, 3).join(', ')}) ` +
+        `${missing.length} package(s) are still missing from npm (${missing.slice(0, 3).join(', ')}` +
+        `${missing.length > 3 ? `, +${missing.length - 3} more` : ''}) ` +
         `${days} day(s) after CHANGELOG.md dates ${version} at ${cut.toISOString().slice(0, 10)}. ` +
-        'A release publishes in 43-70 min (measured over v0.44.0-v0.46.0), so this is a publish that ' +
-        'FAILED rather than one still running: the suite runs instead of skipping, and stays red until ' +
-        'the missing packages are published or the workspace version moves on.'
+        'The slowest release measured over v0.44.0-v0.47.0 took under four hours, so this is a publish ' +
+        'that FAILED rather than one still running: the suite runs instead of skipping, and stays red ' +
+        'until the missing packages are published or the workspace version moves on.'
     );
 }
 
@@ -411,6 +428,44 @@ export async function pnpRegistryGapSkipReason({ window } = {}) {
         `its external-consumer tree until release.yml has published. Re-runs after ` +
         `the publish exercise it again unchanged.`
     );
+}
+
+/**
+ * ONE TEMPLATE's registry-bound `@gjsify/*` ranges — the input the per-template
+ * release-window decision is made on.
+ *
+ * ASKING PER TEMPLATE IS THE POINT (#1533). Only 4 of create-app's 7 templates carry
+ * a registry-bound edge at all: `gtk-minimal`, `adw-canvas2d`, `adw-webgl` and
+ * `adw-game` declare `@gjsify/node-gi`, while `cli`, `web-server-hono` and
+ * `web-server-express` name nothing but workspace members the suite is about to
+ * replace with tarballs. The union used to be asked once and hung on the outer
+ * describe, so a release window suppressed those three — 21 tests that would have
+ * passed — along with the four it applies to.
+ *
+ * It lives HERE rather than in `create-app/run.mjs` because it is half of the
+ * decision the rest of this file makes, and because that suite's module scope packs
+ * the whole workspace before a test can look at anything: a narrowing nothing could
+ * import was a narrowing nothing could prove, which is the shape #1533 is about.
+ *
+ * @param {string} manifestPath a scaffolded template's `package.json`
+ * @param {Set<string>} packedNames names this suite replaces with a local tarball
+ * @returns {[string, string][]} `[name, range]`, deduplicated, empty when nothing is registry-bound
+ */
+export function registryGjsifyRanges(manifestPath, packedNames) {
+    const seen = new Map();
+    if (!existsSync(manifestPath)) return [];
+    const pkg = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    for (const field of ['dependencies', 'devDependencies']) {
+        for (const [name, spec] of Object.entries(pkg[field] ?? {})) {
+            if (!name.startsWith('@gjsify/') || typeof spec !== 'string') continue;
+            // A path, link, tarball or git edge needs no registry at all…
+            if (/^(?:file:|link:|https?:|git|portal:|\.|\/)/.test(spec)) continue;
+            // …and neither does one this suite is about to replace with a tarball.
+            if (packedNames.has(name)) continue;
+            seen.set(`${name}@${spec}`, [name, spec]);
+        }
+    }
+    return [...seen.values()];
 }
 
 /**

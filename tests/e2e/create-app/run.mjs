@@ -25,6 +25,7 @@ import {
     spawnUntilReady,
     hasCommand,
     createAppRegistryGapSkipReason,
+    registryGjsifyRanges,
 } from '../helpers.mjs';
 // The one definition of what `pack.mjs` packs — imported from the module that owns it
 // rather than re-derived. See `registryGjsifyRangesFor` for why this suite needs it before
@@ -308,30 +309,13 @@ const PACKED_NAMES = new Set(packableWorkspaces().map((w) => w.name));
 /**
  * ONE TEMPLATE's registry-bound ranges — and asking per template is the point.
  *
- * Only 4 of the 7 templates carry a registry-bound edge at all: `gtk-minimal`,
- * `adw-canvas2d`, `adw-webgl` and `adw-game` declare `@gjsify/node-gi`, while
- * `cli`, `web-server-hono` and `web-server-express` name nothing but
- * `workspace:^` members, every one of them in `PACKED_NAMES`. The union used to
- * be asked once and hung on the OUTER describe, so a release window suppressed
- * those three — 21 tests that would have passed — along with the four it
- * actually applies to (#1533).
+ * The rule and the reason it is per template live with the rest of the release-window
+ * decision, in `helpers.mjs`, where `tests/e2e/release-window-skip` can drive it: this
+ * suite's module scope packs the whole workspace, so nothing here is reachable from a
+ * test that could prove the narrowing.
  */
 function registryGjsifyRangesFor(template) {
-    const seen = new Map();
-    const manifest = join(DIST_TEMPLATES_DIR, template, 'package.json');
-    if (!existsSync(manifest)) return [];
-    const pkg = JSON.parse(readFileSync(manifest, 'utf8'));
-    for (const field of ['dependencies', 'devDependencies']) {
-        for (const [name, spec] of Object.entries(pkg[field] ?? {})) {
-            if (!name.startsWith('@gjsify/') || typeof spec !== 'string') continue;
-            // A path, link, tarball or git edge needs no registry at all…
-            if (/^(?:file:|link:|https?:|git|portal:|\.|\/)/.test(spec)) continue;
-            // …and neither does one this suite is about to replace with a tarball.
-            if (PACKED_NAMES.has(name)) continue;
-            seen.set(`${name}@${spec}`, [name, spec]);
-        }
-    }
-    return [...seen.values()];
+    return registryGjsifyRanges(join(DIST_TEMPLATES_DIR, template, 'package.json'), PACKED_NAMES);
 }
 
 /**
