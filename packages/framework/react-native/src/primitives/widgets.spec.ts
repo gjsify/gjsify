@@ -32,13 +32,14 @@ import { lookupWidget, paramSpecs, registerBuiltinWidgets } from '@gjsify/gtk-ho
 import { descriptorProblems, dumpTree, gtkChildren, installDiagnosticsGate } from '@gjsify/gtk-host/conformance';
 import { MINIMAL_TOKENS, StyleSheet as GeneratedStyleSheet, type StyleTokens } from '@gjsify/gtk-host/style';
 import { createRoot, flushSync } from '@gjsify/gtk-host/react';
-import { createElement, type ReactNode } from 'react';
+import { createElement, Fragment, type ReactNode } from 'react';
 
 import { PrimitiveError } from './errors.js';
 import { createHandle, type TextInputHandle } from './handles.js';
 import { PRIMITIVES, type PrimitiveSpec } from './table.js';
 import {
     ActivityIndicator,
+    AnimatedView,
     Button,
     Image,
     ImageBackground,
@@ -55,6 +56,7 @@ import {
     View,
 } from '../components.js';
 import type { ImageProps, PressableState } from '../components.js';
+import { AnimatedValue } from '../animated/value.js';
 import { resetWindowMetricsCache } from '../apis/display.js';
 import { useWindowDimensions } from '../hooks.js';
 import { liveRegionWatchCount } from '../announce.js';
@@ -509,6 +511,124 @@ export default async () => {
                         expect(generatedClasses(box)).toStrictEqual([]);
                     },
                 );
+            });
+
+            await it('sees an absolute child through a Fragment, and still becomes an Overlay', async () => {
+                // #1451, read off the REAL tree. A Fragment answers for itself, so the
+                // parent used to count zero absolutely positioned children, stay a
+                // `Gtk.Box`, and hand the child L2's refusal that names the PARENT —
+                // for something the child's wrapper did. `card.overlay={<>…</>}` is
+                // ordinary React and there is no prop on a Fragment to fix.
+                mounted(
+                    createElement(
+                        View,
+                        { className: 'p-2' },
+                        createElement(Text, { key: 'body' }, 'body'),
+                        createElement(
+                            Fragment,
+                            { key: 'group' },
+                            createElement(Text, { key: 'badge', className: 'absolute inset-0' }, 'badge'),
+                        ),
+                    ),
+                    (container) => {
+                        const overlay = gtkChildren(container)[0] as Gtk.Overlay;
+                        expect(typeOf(overlay)).toBe('GtkOverlay');
+                        const box = overlay.get_child() as Gtk.Box;
+                        expect(gtkChildren(box).map((c) => (c as Gtk.Label).label)).toStrictEqual(['body']);
+                        // The badge is in the `add_overlay` slot beside the box, not
+                        // inside it — which is the half a plan comparison cannot see.
+                        const badge = gtkChildren(overlay).find((c) => c !== box) as Gtk.Label;
+                        expect(badge.label).toBe('badge');
+                        expect(badge.halign).toBe(Gtk.Align.FILL);
+                    },
+                );
+            });
+
+            await it('sees an absolute Animated.View, whose first frame is already written', async () => {
+                // The second half of #1451, and an independent door into it: an
+                // `Animated.Value` in a style is what L2 refuses on a plain element, so
+                // a parent reading the raw props got a throw where it wanted an answer
+                // and answered "not absolute". MEASURED in a consumer as the only
+                // difference between a working absolute header and a refused one.
+                const opacity = new AnimatedValue(0.25);
+                mounted(
+                    createElement(
+                        View,
+                        { className: 'p-2' },
+                        createElement(Text, { key: 'body' }, 'body'),
+                        createElement(AnimatedView, {
+                            key: 'fade',
+                            className: 'absolute inset-0',
+                            style: { opacity },
+                        }),
+                    ),
+                    (container) => {
+                        const overlay = gtkChildren(container)[0] as Gtk.Overlay;
+                        expect(typeOf(overlay)).toBe('GtkOverlay');
+                        const box = overlay.get_child() as Gtk.Box;
+                        const fade = gtkChildren(overlay).find((child) => child !== box) as Gtk.Box;
+                        expect(typeOf(fade)).toBe('GtkBox');
+                        expect(fade.halign).toBe(Gtk.Align.FILL);
+                        // The two features composing is the point: the element is in
+                        // the overlay slot AND carries the value's current number as a
+                        // widget property, from the render rather than from the effect.
+                        //
+                        // 64/255 AND NOT 0.25, and the quantisation is the discriminator
+                        // rather than an annoyance. MEASURED on gtk 4.22.4:
+                        // `Gtk.Widget:opacity` is a `gdouble` in the ParamSpec and 8-bit
+                        // internally, so a number that really went through GObject comes
+                        // back rounded. A plain JS expando — which is what a misspelled
+                        // property name produces, silently (`animated/properties.ts`) —
+                        // would read back exactly 0.25.
+                        expect(fade.opacity).toBe(64 / 255);
+                    },
+                );
+            });
+
+            await it('re-renders through a Fragment without rebuilding a single widget', async () => {
+                // WHAT THE KEY SPELLING IS A PROXY FOR. `child-facts.spec.ts` asserts
+                // that an expanded child keeps its own key composed behind its
+                // Fragment's rather than reassigned; this is the effect that assertion
+                // exists for, and the only half an application feels. React answers a
+                // key that changed between renders by unmounting the subtree and
+                // building it again — new GObjects, and with them everything the widget
+                // holds that the descriptor does not: a cursor, a scroll position, an
+                // animation binding. The tree LOOKS identical either way, which is why
+                // the vector reads identities and not shape.
+                const tree = (n: number): ReactNode =>
+                    createElement(
+                        View,
+                        { className: 'p-2' },
+                        createElement(Text, { key: 'body' }, `body ${n}`),
+                        createElement(
+                            Fragment,
+                            { key: 'group' },
+                            createElement(Text, { key: 'badge', className: 'absolute inset-0' }, `badge ${n}`),
+                        ),
+                    );
+                const container = new Gtk.Box();
+                const root = createRoot(container);
+                try {
+                    root.render(tree(0));
+                    const overlay = gtkChildren(container)[0] as Gtk.Overlay;
+                    const box = overlay.get_child() as Gtk.Box;
+                    const body = gtkChildren(box)[0] as Gtk.Label;
+                    const badge = gtkChildren(overlay).find((child) => child !== box) as Gtk.Label;
+                    expect([body.label, badge.label]).toStrictEqual(['body 0', 'badge 0']);
+
+                    flushSync(() => root.render(tree(1)));
+
+                    // Read off the SAME references: a rebuild leaves these two holding
+                    // the old widgets, still labelled 0, so this line is the assertion
+                    // and the discriminator at once.
+                    expect([body.label, badge.label]).toStrictEqual(['body 1', 'badge 1']);
+                    const after = gtkChildren(container)[0] as Gtk.Overlay;
+                    expect(after === overlay).toBe(true);
+                    expect(after.get_child() === box).toBe(true);
+                    expect(gtkChildren(after).find((child) => child !== box) === badge).toBe(true);
+                } finally {
+                    root.unmount();
+                }
             });
 
             await it('becomes a Gtk.FlowBox for a wrap, and puts its children INSIDE it', async () => {

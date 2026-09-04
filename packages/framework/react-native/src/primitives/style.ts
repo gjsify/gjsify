@@ -26,7 +26,7 @@
 import { partition, resolveUtilities, type Partitioned, type StyleProps } from '@gjsify/gtk-host/style';
 import type { StyleTokens } from '@gjsify/gtk-host/style';
 
-import { isAnimatedValue } from '../animated/brand.js';
+import { isAnimatedValue, type AnimatedValueLike } from '../animated/brand.js';
 import { splitVariants, type ClassGroups, type ClassNameInput } from './classes.js';
 import { PrimitiveError } from './errors.js';
 
@@ -55,6 +55,37 @@ export function flattenStyle(style: StyleInput): StyleObject {
     const out: Record<string, unknown> = {};
     for (const entry of style as StyleInputArray) Object.assign(out, flattenStyle(entry));
     return out;
+}
+
+/**
+ * A style → its plain entries and its `Animated.Value`s, split before the partition.
+ *
+ * L2's and not `components.ts`', because TWO readers need this split and one of them
+ * is a PARENT. `Animated.View` needs the animated half to bind; a parent counting its
+ * absolutely positioned children needs to be able to READ an
+ * `<Animated.View className="absolute" style={{ opacity: value }}>` at all, and
+ * `normalise` refuses a non-scalar style value by design (`scalarOnly`). So the raw
+ * style handed to `declaresAbsolute` threw where the parent wanted an answer, the
+ * throw was swallowed as "not absolute", and the child then got the refusal that names
+ * the PARENT for something the parent could not see — #1451, and the reason two
+ * finished features (a 160 ms fade and `absolute`) did not compose.
+ *
+ * Dropping the animated half hides nothing. An `Animated.Value` under a plain `<View>`
+ * is still refused BY NAME when that element resolves its own style, which is the
+ * element that authored it — the parent's read is a question about somebody else's
+ * props and never the place that judges them.
+ */
+export function splitAnimatedStyle(style: StyleInput): {
+    readonly plain: StyleObject;
+    readonly animated: Readonly<Record<string, AnimatedValueLike>>;
+} {
+    const plain: Record<string, unknown> = {};
+    const animated: Record<string, AnimatedValueLike> = {};
+    for (const [key, value] of Object.entries(flattenStyle(style))) {
+        if (isAnimatedValue(value)) animated[key] = value;
+        else plain[key] = value;
+    }
+    return { plain, animated };
 }
 
 /**

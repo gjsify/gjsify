@@ -97,6 +97,34 @@ the table rather than only here.
 L2 is exported (`import { primitives } from '@gjsify/react-native'`) so any binding
 can render the same vocabulary without going through the React components.
 
+### What a parent asks about its children, and what stays transparent
+
+A few decisions cannot be taken by the element that authored them. `position: absolute`
+is the clearest: it positions the element on top of its parent, so the **parent** has
+to be a `Gtk.Overlay` — and a `View` becomes one as soon as one of its children asks.
+The same shape decides whether a text child competes with a prop for a widget's text
+sink, and `justify-between` is refused on a child count.
+
+React's parent renders before its children exist, so it reads their **descriptors**.
+Three things are therefore transparent to that read, and each is transparent because
+an application writes it without meaning to change anything:
+
+- **a Fragment.** `<>…</>` is transparent to layout in React, so it is transparent
+  here: it is expanded away before anything is counted, its children keeping their own
+  keys composed behind its own. A card whose `overlay={<>…</>}` holds the absolutely
+  positioned child gets the overlay it asked for.
+- **an array**, which is the same statement in a different spelling.
+- **an `<Animated.View>`.** Its style carries `Animated.Value`s, which is exactly what
+  the style partition refuses on a plain element — so a parent reads it through the
+  same split the component itself uses. An animated fade and an `absolute` compose.
+
+What is NOT transparent is a foreign composite component: `<MyCard className="…">` may
+carry any vocabulary at all, and a parent must not throw for one it cannot route, so it
+answers "no" and the child — if it ever reaches L2 — is refused by name. That boundary
+is enumerated in `src/child-facts.spec.ts` as every fact a parent reads × every wrapper
+it can arrive in, with the fact list derived from the record itself: a new fact has no
+row until someone adds one, and the suite says so.
+
 ### The split is measured, not asserted
 
 `@gjsify/react-native/solid` exports the same seven primitives as SolidJS components
