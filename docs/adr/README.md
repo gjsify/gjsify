@@ -64,6 +64,7 @@ the TODO records the *what's left*.
 | [0041](0041-build-time-serializer-stays-with-the-application.md) | A build-time serializer of a component tree into declarative UI files stays with the application that owns the content | Proposed |
 | [0042](0042-portable-menu-model.md) | A menu is a value: `GMenuModel`'s own shape, portable across every surface | Proposed |
 | [0043](0043-react-native-entry-point-hands-back-the-application.md) | The React Native entry point runs on the app shell, and hands the application back | Proposed |
+| [0046](0046-portable-list-model.md) | A list is a value — but only for the widgets GTK gives a `model` | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
