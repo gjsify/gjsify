@@ -4374,6 +4374,37 @@ same work as the entry below, which holds the count and the reason guessing an
 adder is refused — this entry exists so the LIST half of #1524 is not read as
 undone by oversight.
 
+### A renamed element attribute is read for by nothing outside the website gallery
+
+`check-website-attr-samples.mjs` arm 3 fails when a gallery PREVIEW writes an attribute
+its element does not observe — the direction arm 2 is structurally blind to, and the one a
+rename breaks. It reads the 39 preview fences and nothing else.
+
+The consumers that actually broke when ADR 0046 renamed `options`/`items` to `model` were
+not fences. Four were imperative and silent: `setAttribute('items', …)` on an
+`<adw-combo-row>` in `packages/web/adwaita-storybook/src/controls.ts` and in three
+`showcases/gtk/adwaita-storybook/src/browser/**` stories, each leaving an EMPTY combo row,
+because an attribute is a string and no type reads it. Three more were property writes in
+`showcases/dom/adwaita-storybook-nativescript/**`, which is excluded from the npm
+workspaces on purpose — it carries NativeScript's own `typescript ~5.4` against the
+repo-wide `^6.0.3` invariant — and is therefore type-checked by nothing at all. The eighth,
+`packages/nativescript-bridge/storybook/src/controls.ts`, IS in a workspace, and types DID
+catch it: `TS2339` on the win32 leg, which is what turned #1566 red.
+
+A reader for the imperative shape is measurable. Over
+`showcases/gtk/adwaita-storybook/src/browser` and `packages/web/adwaita-storybook/src`,
+matching `<var>.setAttribute('<name>')` back to the nearest preceding
+`const <var> = document.createElement('<tag>')`, plus `el('<tag>', { … })` keys, finds all
+four with zero false positives once the platform-global names and the six elements that
+observe NOTHING are excepted. It is NOT built here because the same scan over the whole
+tree is 384 findings of which about ten are real: `packages/framework/gtk-host` JSX and the
+`*.gtk.tsx` React Native widgets spell the same tags with a different vocabulary. So the
+useful version is scoped by a hand-kept list of two directories, and a gate whose scope is
+a hand-kept list goes blind the first time a fifth showcase is added — the failure mode
+`coreListParsers` was just rewritten to avoid one file away. What closes it properly is a
+tag → attribute type surface the imperative call sites can be checked against, which is the
+same derivation `website/scripts/generate-adwaita-attributes.mjs` already runs for the docs.
+
 ### The NativeScript list-model setter is held by core's vectors, not by a widget test
 
 `AdwComboRow.model` and `GtkDropDown.model` on `@gjsify/adwaita-nativescript` run
