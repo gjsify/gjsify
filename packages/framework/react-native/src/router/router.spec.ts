@@ -1295,17 +1295,32 @@ export default async () => {
                 window.set_default_size(900, 700);
                 window.set_content(shell.root);
                 const root = createRoot(shell.content);
+                // The unmount is the vector's SUBJECT and also its cleanup, and it still
+                // belongs in a `finally`: `router` is module-level, so a vector that
+                // fails before unmounting leaves the next one to fail with "RouterRoot is
+                // already mounted" — a red reported against innocent code, which is the
+                // misattribution `gated` exists for one level up.
+                let unmounted = false;
+                const unmount = (): void => {
+                    if (unmounted) return;
+                    unmounted = true;
+                    root.unmount();
+                    uninstallRouter();
+                };
                 try {
                     root.render(provideWindowChrome(shell.chrome, app()));
                     window.present();
                     expect((await settle(() => maybeFind(shell.content, 'AdwHeaderBar') !== null)) >= 0).toBe(true);
                     expect(windowChromeCensus(window).headerBars).toBe(1);
-                    root.unmount();
-                    uninstallRouter();
+                    unmount();
                     expect((await settle(() => windowChromeCensus(window).headerBars === 1)) >= 0).toBe(true);
                     expect(windowChromeProblems(window)).toStrictEqual([]);
                 } finally {
-                    window.destroy();
+                    try {
+                        unmount();
+                    } finally {
+                        window.destroy();
+                    }
                 }
             });
 
