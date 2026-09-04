@@ -1579,8 +1579,9 @@ export { OWN_EXPORT_NAMES };
  * falls through to the layer's own exports — and only on the ROOT surface, because
  * `configureStyle` is exported from `@gjsify/react-native` and from nowhere else.
  * That order is the safety property: the derived list can add names, never promote a
- * `planned` one, so a mistake upstream of it cannot turn `import { Modal }` into a
- * green build.
+ * `planned` one, so a mistake upstream of it cannot turn a planned name into a green
+ * build. (`Modal` was this comment's example until ADR 0045 made it `partial`; the
+ * spec that pins the property takes its name FROM the table for that reason.)
  *
  * A name in NEITHER population is still refused — which is the whole difference
  * between this and "anything the table does not know is fine", the shape that would
