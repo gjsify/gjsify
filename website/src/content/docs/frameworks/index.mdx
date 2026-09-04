@@ -336,9 +336,10 @@ Three things follow, and they are the same in all three adapters because the rul
 
 `AdwDialog`, `AdwAlertDialog`, `AdwAboutDialog`, `AdwPreferencesDialog` and `AdwShortcutsDialog`
 are placed this way. The four subclasses build their own contents from their own API
-(`add_response`, `add`), so a child inside one of them is refused by name rather than silently
-replacing the widget's template — put your content in an `<adw-dialog>` and use the subclasses
-through a `ref`.
+(`add_response`, `add`) and inherit a `set_child` that would replace that, so each is a tag you
+can create, give properties and handlers, and present — while a child written **inside** one is
+refused by name rather than silently wiping the widget's own template. Put your own layout in an
+`<adw-dialog>`; fill a subclass through its API, off a `ref`.
 
 ## Long lists
 
