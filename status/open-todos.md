@@ -3408,7 +3408,7 @@ app log itself is the next thing to read.
 
 THE FIX IS NOT A LEDGER ENTRY. It is currently in `scripts/e2e-unlisted-suites.mjs` so #984
 could land honestly, but the entry says so: the right repair is a precondition in the suite's
-own SKIP gate — it already carries nine of them — so it skips where an Adwaita GApplication
+own SKIP gate — it already carries a list of them — so it skips where an Adwaita GApplication
 cannot complete startup and keeps running where it can. Removing the ledger entry in the same
 change is what `check-e2e-suite-coverage.mjs` will then require.
 

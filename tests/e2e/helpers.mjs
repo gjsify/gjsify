@@ -604,7 +604,8 @@ export function hasCommand(cmd) {
  * Why a suite will not run — or, when `GJSIFY_E2E_REQUIRE` names it, a THROW.
  *
  * THE CLASS (#1550). A suite behind a SKIP gate reports the same thing whether it
- * passed or never ran: nothing. `react-native-devtools` has nine preconditions and
+ * passed or never ran: nothing. `react-native-devtools` names a long list of
+ * preconditions and
  * is the only external observer of `AppRegistry.runApplication`'s body (ADR 0043);
  * `devtools-export` and `terminal-native` are ledgered beside it in
  * `scripts/e2e-unlisted-suites.mjs` for the same reason. Put any of them on a CI

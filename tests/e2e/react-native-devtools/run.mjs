@@ -99,7 +99,7 @@ const PREBUILD = arch ? prebuildDir('infra', 'rolldown-native', arch) : null;
 // suite could sit in `test:e2e` shape for months reporting the same silence as a pass
 // (#1550). `GJSIFY_E2E_REQUIRE=react-native-devtools` turns any of these into a
 // failure that names it — main.yml's `e2e` job sets exactly that, because the
-// ci-fedora container carries all nine.
+// ci-fedora container carries every one of them.
 const SKIP = e2eSkipReason('react-native-devtools', [
     ['a Linux host', process.platform === 'linux'],
     ['an x64 or arm64 arch', arch !== null],
