@@ -1,5 +1,12 @@
 // One prop of one primitive → what this layer does about it, and the sentence it says.
 //
+// TWO GRAINS, BECAUSE THE TABLE HAS TWO. A prop can be refused outright, and a prop
+// that is ACCEPTED can refuse some of its values by name — `accessibilityRole` answers
+// 33 of React Native's 40 role names and refuses 7 with a sentence apiece. Both belong
+// here: a per-value refusal that only existed inside the resolver was reachable only by
+// rendering one and catching the throw, which is the state § 1 of ADR 0039 exists to
+// end (#1555).
+//
 // THE POINT IS THAT THERE IS ONE OF THESE. `resolve.ts` used to build the "unknown
 // prop" and "refused" sentences inline, which made the answer reachable only by
 // RENDERING — a consumer could not ask "does this layer take `onPress` on `Text`?"
@@ -72,6 +79,21 @@ export interface PropAnswer {
     readonly why: string;
     /** What it reaches on the GTK side: property names, a signal, or nothing. */
     readonly gtk: readonly string[];
+    /**
+     * The VALUES this prop refuses by name, each with its own reason (#1555).
+     *
+     * A field rather than a fold into {@link why}, because the prop is ACCEPTED and
+     * only some of its values are not: `accessibilityRole` answers 33 of React
+     * Native's 40 role names and refuses 7, and a row that said `property | — ` could
+     * not tell a reader which. Keyed by the VALUE for a mapped property route and by
+     * the KEY for an accessible record (`accessibilityState`), which is the same
+     * question at the two grains the table has.
+     *
+     * The reason is the table's own string, not a sentence built here: `prop-table.ts`
+     * wraps it in the subject the resolver throws, so the static answer and the render
+     * stay one string (ADR 0039 § 2).
+     */
+    readonly refuses: Readonly<Record<string, string>>;
 }
 
 /**
@@ -115,26 +137,47 @@ export const unknownPrimitiveDetail = (names: readonly string[]): string =>
  * properties across two nodes); they are the same status by construction, so the
  * merge below unions the GTK reach and keeps the first reason.
  */
-function answerForRoute(route: PropRoute): { status: PropStatus; why: string; gtk: readonly string[] } {
+type RouteAnswer = {
+    status: PropStatus;
+    why: string;
+    gtk: readonly string[];
+    refuses: Readonly<Record<string, string>>;
+};
+
+const NO_REFUSALS: Readonly<Record<string, string>> = {};
+
+function answerForRoute(route: PropRoute): RouteAnswer {
     switch (route.to) {
         case 'property':
-            return { status: 'property', why: '', gtk: route.names };
+            return { status: 'property', why: '', gtk: route.names, refuses: route.refuses ?? NO_REFUSALS };
         case 'style-property':
-            return { status: 'style', why: '', gtk: [`style: ${route.name}`] };
+            return { status: 'style', why: '', gtk: [`style: ${route.name}`], refuses: NO_REFUSALS };
         case 'event':
-            return { status: 'event', why: '', gtk: [route.signal] };
+            return { status: 'event', why: '', gtk: [route.signal], refuses: NO_REFUSALS };
         case 'file':
-            return { status: 'file', why: '', gtk: [route.property] };
+            return { status: 'file', why: '', gtk: [route.property], refuses: NO_REFUSALS };
         case 'gesture':
-            return { status: 'gesture', why: '', gtk: [`Gtk.GestureClick::${route.signal}`] };
+            return { status: 'gesture', why: '', gtk: [`Gtk.GestureClick::${route.signal}`], refuses: NO_REFUSALS };
         case 'announce':
-            return { status: 'announcement', why: '', gtk: [route.signal, 'Gtk.Accessible.announce()'] };
+            return {
+                status: 'announcement',
+                why: '',
+                gtk: [route.signal, 'Gtk.Accessible.announce()'],
+                refuses: NO_REFUSALS,
+            };
         case 'accessible':
-            return { status: 'accessible', why: '', gtk: accessibleReach(route) };
+            return {
+                status: 'accessible',
+                why: '',
+                gtk: accessibleReach(route),
+                // `from: 'value'` has no per-key grain to refuse at; `from: 'members'`
+                // carries the record's own refusals, empty today and not for long.
+                refuses: route.from === 'members' ? route.refuses : NO_REFUSALS,
+            };
         case 'ignored':
-            return { status: 'ignored', why: route.why, gtk: [] };
+            return { status: 'ignored', why: route.why, gtk: [], refuses: NO_REFUSALS };
         case 'refused':
-            return { status: 'refused', why: route.why, gtk: [] };
+            return { status: 'refused', why: route.why, gtk: [], refuses: NO_REFUSALS };
     }
 }
 
@@ -156,24 +199,28 @@ export function answerFor(
     // loop for the same reason, so that the refusal names the primitive rather than
     // whichever prop the loop reached first.
     if (spec.refusesStyle !== undefined && (prop === 'style' || prop === 'className')) {
-        return { primitive, prop, status: 'refused', why: spec.refusesStyle, gtk: [] };
+        return { primitive, prop, status: 'refused', why: spec.refusesStyle, gtk: [], refuses: NO_REFUSALS };
     }
     if (frameworkProps.has(prop)) {
-        return { primitive, prop, status: 'framework', why: '', gtk: [] };
+        return { primitive, prop, status: 'framework', why: '', gtk: [], refuses: NO_REFUSALS };
     }
     const route = spec.props[prop];
     if (route === undefined) {
-        return { primitive, prop, status: 'unknown', why: unknownPropDetail(spec), gtk: [] };
+        return { primitive, prop, status: 'unknown', why: unknownPropDetail(spec), gtk: [], refuses: NO_REFUSALS };
     }
     const routes = Array.isArray(route) ? (route as readonly PropRoute[]) : [route as PropRoute];
     const answers = routes.map(answerForRoute);
-    const first = answers[0] as { status: PropStatus; why: string; gtk: readonly string[] };
+    const first = answers[0] as RouteAnswer;
     return {
         primitive,
         prop,
         status: first.status,
         why: first.why,
         gtk: answers.flatMap((answer) => answer.gtk),
+        // Unioned across the routes for the same reason the reach is: `ScrollView`'s
+        // `horizontal` is three widget properties over two nodes and one question, so a
+        // value one of them refuses is refused by the prop.
+        refuses: Object.assign({}, ...answers.map((answer) => answer.refuses)) as Readonly<Record<string, string>>,
     };
 }
 

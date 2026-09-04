@@ -35,7 +35,7 @@ import {
     type PropAnswer,
     type PropStatus,
 } from './primitives/answers.js';
-import { PrimitiveError, primitiveErrorMessage } from './primitives/errors.js';
+import { describeValue, PrimitiveError, primitiveErrorMessage } from './primitives/errors.js';
 import { FRAMEWORK_PROPS, PRIMITIVE_NAMES, PRIMITIVES, type PrimitiveSpec } from './primitives/table.js';
 
 export type { PropAnswer, PropStatus };
@@ -115,6 +115,58 @@ export function explainProp(primitive: string, prop: string, variant?: PropVaria
     // agreeing is the claim, and a claim held by two copies of a template is the shape
     // that drifts.
     return primitiveErrorMessage(primitive, `prop "${prop}"`, answer.why);
+}
+
+/**
+ * The values (or record keys) this prop refuses by name, each with its reason.
+ *
+ * Empty for most props. `accessibilityRole` is the one that made this necessary: it is
+ * an ACCEPTED property route and seven of React Native's forty role names have no GTK
+ * member, each answered with its own sentence — and until #1555 none of those seven was
+ * reachable except by rendering one and catching the throw.
+ */
+export function propRefusedValues(primitive: string, prop: string, variant?: PropVariant): readonly string[] {
+    return Object.keys(propAnswer(primitive, prop, variant).refuses).sort();
+}
+
+/**
+ * Would `<Primitive prop={value}>` render?
+ *
+ * `false` when the PROP is refused and when this particular VALUE is, which are two
+ * different fixes and therefore two different sentences — see {@link explainPropValue}.
+ */
+export function acceptsPropValue(primitive: string, prop: string, value: unknown, variant?: PropVariant): boolean {
+    return explainPropValue(primitive, prop, value, variant) === null;
+}
+
+/**
+ * The sentence a render would print for this prop with THIS value.
+ *
+ * `null` when it renders. The subject is built here rather than in `answers.ts`, which
+ * may hold no relative value import (ADR 0039 § 2, and the generator that imports it
+ * under Node type stripping is why) — so the formatter the throw uses lives in
+ * `errors.ts` and both call it.
+ *
+ * A value merely ABSENT from a mapped prop's table is NOT answered here: that is the
+ * "Known: …" a typo gets, it is built from the map at the moment of the throw, and this
+ * surface is about the values the table refuses ON PURPOSE.
+ */
+export function explainPropValue(
+    primitive: string,
+    prop: string,
+    value: unknown,
+    variant?: PropVariant,
+): string | null {
+    const answer = propAnswer(primitive, prop, variant);
+    if (!isAccepted(answer.status)) return explainProp(primitive, prop, variant);
+    const reason = answer.refuses[String(value)];
+    if (reason === undefined) return null;
+    // Two subjects, because the two grains throw differently and this has to be the
+    // same string as the throw: a mapped property names the value, an accessible record
+    // names the KEY it carries. `resolve.ts` and `accessibility.ts` are the two throws.
+    return answer.status === 'accessible'
+        ? primitiveErrorMessage(primitive, `prop "${prop}"`, `carries "${String(value)}", which ${reason}`)
+        : primitiveErrorMessage(primitive, `prop "${prop}" = ${describeValue(value)}`, reason);
 }
 
 /** Every prop name this primitive's table row carries, sorted. Framework props are not among them. */
