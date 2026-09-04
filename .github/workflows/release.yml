@@ -168,9 +168,24 @@ jobs:
       # repo + workflow on npmjs.com (verified via the `verify_only`
       # audit before this cutover). Long-lived `NPM_TOKEN` secret can
       # be removed once a real OIDC release completes successfully.
+      #
+      # `npm:publish:prebuilt`, NOT `npm:publish` — the second half of that
+      # script, publishing what the two `Build …` steps above already produced.
+      # `npm:publish` still begins with `gjsify run build && gjsify run
+      # build:examples`, which is right for a human publishing from a checkout
+      # and was a REBUILD here, on the critical path of every release (#1522).
+      # Measured on run 33735989472 (v0.46.0), from the API's own step
+      # timestamps: `Build packages` 08:59:09→09:04:25, `Build examples`
+      # 09:04:25→09:07:29, and the publish step then spent 09:07:29→09:16:10
+      # before its first `PUT` — 8m41s of a 21m02s step, in a 33m02s job, doing
+      # the same two builds again over the tree they had just written.
+      #
+      # It is not free minutes: the sibling of the window the asset-upload
+      # comment below records — release tag exists, packages do not — is exactly
+      # this long, on every release, for no output.
       - name: Publish packages to npm
         if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
-        run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run npm:publish
+        run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run npm:publish:prebuilt
         env:
           GJSIFY_PUBLISH_DEBUG: "1"
 
