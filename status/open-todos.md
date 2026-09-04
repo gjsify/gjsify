@@ -3462,6 +3462,32 @@ them would ship. Closing that needs the fences to declare their own completeness
 meta on the fence, per #1516's option 1 — which is an authoring convention to agree
 before it is a checker to write.
 
+**The bigger unread class is the API-SHAPE one, and the per-page unit is what blocks it.**
+A fence that writes `import { foo } from '@gjsify/x'` where the package exports no `foo`
+is a worse user-facing bug than an unbound local — the reader is told to call something
+that is not there — and it surfaces as TS2305/TS2339, neither of which this arm reads.
+Attempted and NOT landed, with what was measured:
+
+- The arm compiles one unit PER PAGE, which is what makes the TS2304 half correct (a guide
+  legitimately builds one program across several fences). That same concatenation makes an
+  exports check WRONG: two fences on one page importing `Adw` from `gi://Adw` and from
+  `@gjsify/adwaita-nativescript` collide as `TS2300 Duplicate identifier`, and the cascade
+  then reports `TS2305: Module '@gjsify/adwaita-nativescript' has no exported member 'Adw'`
+  — which is FALSE, `src/index.ts:192` is `export * as Adw`. Every apparent finding in a
+  first pass was that artifact. Per-fence isolation is the precondition, and it is exactly
+  what the TS2304 half must not have.
+- It also needs `lib/types` BUILT, which `tree-checks` does not do — the whole reason this
+  arm reads TS2304 only and treats an unresolved module as none of its business.
+
+So it wants a different job and a different unit, not a wider regex on this one.
+
+One measurement discipline note, because the probe repeated the defect this PR is about:
+the throwaway script written to measure the class reported `0 diagnostics` twice while tsc
+had never run — first on `TS2688`, then on `TS5101 baseUrl is deprecated`. Only an
+injected control (an import of a deliberately non-existent export) exposed it. The shipped
+arm treats a file-less `error TS…` as fatal for this reason; anything written to measure it
+next must do the same, and must carry a control.
+
 ### The doc-fence typecheck lends every GJS fence the DOM's globals
 
 `check-doc-fences.mjs`'s SNIPPETS arm compiles each page with

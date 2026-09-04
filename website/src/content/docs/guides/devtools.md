@@ -62,6 +62,25 @@ four; [step 7](#7-gjs-nodejs-bun-and-deno) has the detail.
 If you use [`@gjsify/adwaita-app`](/gjsify/guides/native-adwaita-app/), this is already wired: pass
 `devtools: true` to force it on, or leave the option out and keep the env gate.
 
+The same is true of [`@gjsify/react-native`](/gjsify/frameworks/react-native/), where there is no
+`startup` handler to call anything from: `registerRootComponent(App)` is the whole bootstrap, and
+it brings devtools with it. Set `GJSIFY_DEVTOOLS=1`, or force it on where you register:
+
+```tsx
+import { registerRootComponent, Text } from '@gjsify/react-native';
+
+const App = () => <Text>Hello</Text>;
+
+await registerRootComponent(App, {
+    applicationId: 'org.example.MyApp',
+    title: 'My App',
+    devtools: true,
+});
+```
+
+Everything in the rest of this page — `DumpTree`, `Screenshot`, `ActivateWidget` — then works
+against the rendered widget tree, not just against the application object.
+
 ### Options
 
 | Option | What it does |
