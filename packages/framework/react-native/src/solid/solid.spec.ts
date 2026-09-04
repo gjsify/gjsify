@@ -303,6 +303,30 @@ const mounted = (code: () => unknown, body: (container: Gtk.Box) => void): void 
 const labelsOf = (widget: Gtk.Widget): (string | undefined)[] =>
     gtkChildren(widget).map((child) => (child as Gtk.Label).label);
 
+/**
+ * The widget, having asserted it HAS an accessibility context to record into.
+ *
+ * Without this the accessibility vectors fail as "expected true, got false" and say
+ * nothing about the cause, which is what happened: `GTK_A11Y=none` gives a NULL AT
+ * context, so `update_property()` records nothing and every
+ * `Gtk.test_accessible_has_*` answers false. `test.mts` installs the backend; this
+ * names it the day something unsets it again.
+ */
+const withAtContext = (widget: Gtk.Widget): Gtk.Widget => {
+    // A THROW rather than an `expect`, because the sentence is the whole value: the
+    // generic "expected values to match using ===" is what sent three OS legs
+    // looking for a marshalling bug that was never there.
+    if (widget.get_at_context() === null) {
+        throw new Error(
+            'this widget has no GtkATContext, so update_property()/update_state() record nothing and every ' +
+                'Gtk.test_accessible_has_* answers false — these vectors would be measuring an absent ' +
+                'accessibility layer, not this package. GTK_A11Y=none does exactly that; src/test.mts installs ' +
+                'GTK’s in-process `test` backend to prevent it, so something has unset it again.',
+        );
+    }
+    return widget;
+};
+
 /** First strict descendant of a GType, breadth-first over the REAL tree. */
 function find(root: Gtk.Widget, gtype: string): Gtk.Widget {
     const queue: Gtk.Widget[] = [...gtkChildren(root)];
@@ -949,6 +973,65 @@ export default async () => {
                             seen.push([message, priority]);
                         setText('second');
                         expect(seen).toStrictEqual([['second', Gtk.AccessibleAnnouncementPriority.HIGH]]);
+                    },
+                );
+            });
+
+            await it('writes the accessibility props into the AT context, as the React binding does', async () => {
+                // The parity claim that matters for this feature: the CALL lives in
+                // one shared module, so what a vector here proves is that this
+                // binding reaches it at all — Solid has no commit phase, so the
+                // effect is wired differently and could be wired to nothing.
+                mounted(
+                    () =>
+                        solid.View({
+                            accessibilityLabel: 'Save document',
+                            accessibilityRole: 'button',
+                            accessibilityState: { checked: 'mixed' },
+                        }),
+                    (container) => {
+                        const box = withAtContext(gtkChildren(container)[0] as Gtk.Widget);
+                        expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
+                        expect(Gtk.test_accessible_has_state(box, Gtk.AccessibleState.CHECKED)).toBe(true);
+                        expect(Gtk.test_accessible_has_role(box, Gtk.AccessibleRole.BUTTON)).toBe(true);
+                    },
+                );
+            });
+
+            await it('re-applies an accessible property when a signal changes it', async () => {
+                // Solid's element is created ONCE, so a changed label has nowhere to
+                // arrive except this effect — and a label that stopped updating would
+                // leave a screen reader reading the first value forever.
+                const [label, setLabel] = createSignal('first');
+                mounted(
+                    () =>
+                        solid.View({
+                            get accessibilityLabel() {
+                                return label();
+                            },
+                        }),
+                    (container) => {
+                        const box = withAtContext(gtkChildren(container)[0] as Gtk.Widget);
+                        expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
+                        // PRESENCE ALONE CANNOT TELL "re-applied" FROM "never re-ran":
+                        // the first write already set the attribute, so it stays set
+                        // either way. So the CALL is counted as well — the instance
+                        // method is shadowed and calls through, which is the technique
+                        // the live-region vectors use for the same reason.
+                        const original = box.update_property.bind(box);
+                        let calls = 0;
+                        (box as unknown as Record<string, unknown>).update_property = (
+                            properties: Gtk.AccessibleProperty[],
+                            values: unknown[],
+                        ) => {
+                            calls += 1;
+                            original(properties, values as never);
+                        };
+                        setLabel('second');
+                        expect(calls).toBe(1);
+                        // …and the re-application did not leave the attribute reset by
+                        // its own cleanup, which is the ordering defect this shape has.
+                        expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
                     },
                 );
             });

@@ -75,6 +75,8 @@ import {
 } from '@gjsify/gtk-host/solid';
 
 import { accessor as accessorName } from '../accessor.js';
+import { applyAccessibility } from '../accessibility.js';
+import type { AccessibilityProps } from '../primitives/accessibility.js';
 import { onLiveRegion } from '../announce.js';
 import type { ClassNameInput } from '../primitives/classes.js';
 import { PrimitiveError } from '../primitives/errors.js';
@@ -105,7 +107,7 @@ export type PrimitiveChild = HostNode | string | number | boolean | null | undef
 export type PrimitiveChildren = PrimitiveChild | readonly PrimitiveChildren[];
 
 /** What every primitive accepts on top of its own props. */
-export interface CommonProps {
+export interface CommonProps extends AccessibilityProps {
     className?: ClassNameInput;
     style?: StyleInput;
     children?: PrimitiveChildren;
@@ -288,6 +290,25 @@ function element(primitive: string, authored: object): HostNode {
             });
         });
     }
+
+    // 6c. The accessible attributes, through the module BOTH bindings share.
+    //     REACTIVE, unlike the live region above, and the difference is what the two
+    //     things are: a live region is a SUBSCRIPTION made once, while
+    //     `accessibilityLabel` is a value that can change on every render. So this is
+    //     an `effect` and not an `onMount` body, and `onCleanup` inside it resets the
+    //     attributes before the next write — which is also what clears one when the
+    //     prop goes away, since GTK has no "unset" other than `reset_property`.
+    //
+    //     `accessibilityRole` is absent here on purpose: it is a GObject property, so
+    //     step 7 writes it like any other and step 6b's reasoning does not apply.
+    onMount(() => {
+        const widget = widgetOf(node) as Parameters<typeof applyAccessibility>[0];
+        effect(() => {
+            const entries = planAt().accessibility;
+            if (entries.length === 0) return;
+            onCleanup(applyAccessibility(widget, entries));
+        });
+    });
 
     // 7. Properties, every time the plan changes.
     const writtenOuter: Record<string, unknown> = {};
@@ -530,6 +551,9 @@ function assertStableShape(primitive: string, first: PrimitivePlan, next: Primit
             // could re-subscribe them, so `accessibilityLiveRegion` flipping from
             // `none` to `polite` on a signal would silently never announce.
             plan.announcements.map((one) => `${one.signal}>${one.priority}`).join(','),
+            // `plan.accessibility` is deliberately NOT part of the shape: those
+            // attributes are re-applied by a reactive effect, so a changed set is a
+            // supported update rather than a swap this binding cannot make.
         ].join('|');
     const was = shape(first);
     const now = shape(next);

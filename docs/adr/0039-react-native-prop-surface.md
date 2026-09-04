@@ -209,3 +209,31 @@ widget that completes its own text, not a system that fills it in.
 - **Handles for the other primitives.** React Native gives `NativeMethods` to every
   host component; this layer gives one to `TextInput`, which is where the measurement
   is. The table field is what makes the next one a row rather than a design.
+
+## Amendment (2026-09-04) — § 5's shape is a route FAMILY, not one prop
+
+§ 5 built `accessibilityLiveRegion` as a route that holds the whole decision and none
+of the call, and read as if that were a concession made for one prop. It is the
+general shape, and the accessibility props are the second family to use it: a
+`to: 'accessible'` route carries the attribute set, the member and the GValue type as
+DATA in `primitives/table.ts`, and `src/accessibility.ts` makes the
+`Gtk.Accessible.update_property()`/`update_state()` call for both bindings. An
+imperative GTK call is a route like any other.
+
+Two things it added that outlive it:
+
+- **`PropertyRoute.refuses` gives a mapped prop a per-value reason.** A value absent
+  from `map` gets "Known: …", which is right for a typo and wrong for a real React
+  Native spelling with no GTK member — `accessibilityRole="keyboardkey"` is not a
+  typo. Seven role names are answered by name instead. The refusal's advice is held
+  against the table by a vector, because three of those sentences first pointed at
+  ARIA roles GTK has and this layer's `accessibilityRole` map does not.
+- **`Gtk.Accessible:accessible-role` is NOT construct-only**, so the role is an
+  ordinary property route rather than an imperative call. The received wisdom is why
+  an application holding a finished widget through a ref drops the prop; measured on
+  every widget class this table builds, the ParamSpec is `READABLE|WRITABLE` and a
+  post-construction write sticks (`docs/react-native-gtk-measurements.md`, fact 6).
+
+What is still refused is stated where it is decided, not here: the VALUE of an
+accessible property or state cannot be read back in-process, so the vectors assert
+presence and zero GTK diagnostics as a pair.

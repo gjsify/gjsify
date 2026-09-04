@@ -19,7 +19,7 @@ import { PrimitiveError } from './errors.js';
 import { createHandle, type TextInputHandle } from './handles.js';
 import { declaresAbsolute, resolvePrimitive, type ChildContext, type PrimitivePlan } from './resolve.js';
 import type { ClassNameSink } from './style.js';
-import { PRIMITIVES, PRIMITIVE_NAMES } from './table.js';
+import { PRIMITIVES, PRIMITIVE_NAMES, type PropRoute } from './table.js';
 import { SUPPORT_TABLE } from '../support-table.js';
 
 const TOKENS: StyleTokens = {
@@ -755,6 +755,99 @@ export default async () => {
             }
             expect(bad).toStrictEqual([]);
         });
+
+        await it('advises only props and values it would then accept', async () => {
+            // THE SAME MECHANISM ONE STEP FURTHER, and it found three. The vector
+            // above holds a ``see `onFoo``` cross-reference to the prop list; this one
+            // holds ``prop="value"`` — the shape a refusal uses to say what to do
+            // INSTEAD — against what the table would actually do with it. Three
+            // `accessibilityRole` refusals pointed at `status`, `navigation` and
+            // `group`: real ARIA roles GTK carries, and not React Native
+            // `accessibilityRole` spellings, so a caller who followed the advice got a
+            // SECOND refusal. That is worse than the generic "Known: …" message the
+            // per-value reason exists to replace, and nothing else can see it — a
+            // reason is prose to every other reader in this repo.
+            const bad: string[] = [];
+            let advised = 0;
+            for (const [primitive, spec] of Object.entries(PRIMITIVES)) {
+                const specs = [spec, ...(spec.switchOn === undefined ? [] : [spec.switchOn.whenTrue])];
+                for (const one of specs) {
+                    // `Array.isArray` does not narrow a `readonly T[]` out of a
+                    // union — it is typed as a guard for the MUTABLE array — so the
+                    // else branch keeps both members and the annotation rejects it.
+                    // The cast is on the branch the guard already decided.
+                    const routesOf = (prop: string): readonly PropRoute[] => {
+                        const route = one.props[prop];
+                        if (route === undefined) return [];
+                        return Array.isArray(route) ? (route as readonly PropRoute[]) : [route as PropRoute];
+                    };
+                    const reasons: string[] = [];
+                    for (const prop of Object.keys(one.props)) {
+                        for (const route of routesOf(prop)) {
+                            if (route.to === 'refused' || route.to === 'ignored') reasons.push(route.why);
+                            if (route.to === 'property') reasons.push(...Object.values(route.refuses ?? {}));
+                            if (route.to === 'accessible' && route.from === 'members') {
+                                reasons.push(...Object.values(route.refuses));
+                            }
+                        }
+                    }
+                    for (const why of reasons) {
+                        for (const [, prop, value] of why.matchAll(/`([A-Za-z_$][\w$]*)="([^"`]+)"`/g)) {
+                            advised += 1;
+                            const routes = routesOf(prop);
+                            if (routes.length === 0) {
+                                bad.push(
+                                    `${primitive}: advises ${prop}="${value}", which <${primitive}> does not take`,
+                                );
+                                continue;
+                            }
+                            for (const route of routes) {
+                                if (route.to === 'refused') {
+                                    bad.push(`${primitive}: advises ${prop}, which <${primitive}> refuses`);
+                                } else if (
+                                    route.to === 'property' &&
+                                    route.as === 'map' &&
+                                    route.map?.[value] === undefined
+                                ) {
+                                    bad.push(`${primitive}: advises ${prop}="${value}", which ${prop} does not map`);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            expect(bad).toStrictEqual([]);
+            // …and the scan found something to check, which is what keeps the line
+            // above an assertion rather than a loop over nothing.
+            expect(advised).toBeGreaterThan(0);
+        });
+
+        await it('declares a per-value refusal only where one is READ', async () => {
+            // `PropertyRoute.refuses` is optional on the whole type, and `resolve.ts`
+            // consults it in `lookup()` — reached for `as: 'map'` and
+            // `'pixels-or-map'` and for nothing else. So a `refuses` on any other
+            // coercion is a reason nobody ever says: the value takes the ordinary
+            // path and the sentence sits in the table looking answered. A silent
+            // no-op in the mechanism whose whole point is not being silent.
+            const stranded: string[] = [];
+            for (const [primitive, spec] of Object.entries(PRIMITIVES)) {
+                const specs = [spec, ...(spec.switchOn === undefined ? [] : [spec.switchOn.whenTrue])];
+                for (const one of specs) {
+                    for (const [prop, route] of Object.entries(one.props)) {
+                        const routes: readonly PropRoute[] = Array.isArray(route)
+                            ? (route as readonly PropRoute[])
+                            : [route as PropRoute];
+                        for (const single of routes) {
+                            if (single.to !== 'property' || single.refuses === undefined) continue;
+                            if (single.as !== 'map' && single.as !== 'pixels-or-map') {
+                                stranded.push(`${primitive}.${prop}: refuses under as="${single.as}", never read`);
+                            }
+                        }
+                    }
+                }
+            }
+            expect(stranded).toStrictEqual([]);
+        });
     });
 
     await describe('the P2 rows, as data', async () => {
@@ -1034,6 +1127,134 @@ export default async () => {
             const message = threw(() => plan('View', { accessibilityLiveRegion: 'polite' })).message;
             expect(message).toContain('`Gtk.Accessible.announce(message, priority)` since 4.14');
             expect(message).toContain('content is a SUBTREE');
+        });
+    });
+
+    await describe('the accessibility props (ADR 0039)', async () => {
+        await it('routes accessibilityLabel to the accessible NAME', async () => {
+            expect(plan('View', { accessibilityLabel: 'Save document' }).plan.accessibility).toStrictEqual([
+                { prop: 'accessibilityLabel', set: 'property', name: 'label', value: 'Save document' },
+            ]);
+        });
+
+        await it('routes accessibilityHint to HELP_TEXT, not DESCRIPTION', async () => {
+            // DESCRIPTION is taken: `<Image alt>` writes it through
+            // `Gtk.Picture:alternative-text` (measured), and two props on one
+            // attribute is the silent-drop shape this table refuses by name.
+            expect(plan('View', { accessibilityHint: 'Opens the editor' }).plan.accessibility).toStrictEqual([
+                { prop: 'accessibilityHint', set: 'property', name: 'help-text', value: 'Opens the editor' },
+            ]);
+        });
+
+        await it('carries accessibilityRole as a GObject property, not an imperative call', async () => {
+            // The measurement this whole entry turns on: `accessible-role` is
+            // READ-WRITE on gtk 4.22.4, so the 41 call sites an application had to
+            // drop are an ordinary property write here.
+            const { plan: resolved } = plan('View', { accessibilityRole: 'button' });
+            expect(resolved.node.props['accessible-role']).toBe('button');
+            expect(resolved.accessibility).toStrictEqual([]);
+        });
+
+        await it('maps a platform spelling onto the portable idea behind it', async () => {
+            // React Native's list is Android's and iOS's traits merged; GTK's is
+            // ARIA's. These four are one platform's NAME for a role GTK has.
+            expect(plan('View', { accessibilityRole: 'tabbar' }).plan.node.props['accessible-role']).toBe('tab-list');
+            expect(plan('View', { accessibilityRole: 'dropdownlist' }).plan.node.props['accessible-role']).toBe(
+                'combo-box',
+            );
+            expect(plan('View', { accessibilityRole: 'viewgroup' }).plan.node.props['accessible-role']).toBe('generic');
+            // `search` is ARIA's search LANDMARK; React Native means the FIELD.
+            expect(plan('View', { accessibilityRole: 'search' }).plan.node.props['accessible-role']).toBe('search-box');
+        });
+
+        await it('refuses a role GTK has no member for BY NAME, with what to do instead', async () => {
+            // The generic "Known: …" message is right for a typo and wrong here:
+            // `keyboardkey` is a real React Native spelling, so the refusal has to
+            // answer it rather than list the alternatives.
+            const message = threw(() => plan('View', { accessibilityRole: 'keyboardkey' })).message;
+            expect(message).toContain('neither GTK nor ARIA has a role for one');
+            expect(message).toContain('accessibilityRole="button"');
+            expect(message).not.toContain('Known:');
+            expect(threw(() => plan('View', { accessibilityRole: 'drawerlayout' })).message).toContain(
+                'Adw.OverlaySplitView',
+            );
+        });
+
+        await it('still reports an unknown role as the typo it is', async () => {
+            const message = threw(() => plan('View', { accessibilityRole: 'buton' })).message;
+            expect(message).toContain('Known:');
+            expect(message).toContain('has no GTK equivalent');
+        });
+
+        await it('splits accessibilityState into one GTK state per key', async () => {
+            const { plan: resolved } = plan('View', { accessibilityState: { disabled: true, busy: false } });
+            expect(resolved.accessibility).toStrictEqual([
+                { prop: 'accessibilityState', set: 'state', name: 'disabled', value: true },
+                { prop: 'accessibilityState', set: 'state', name: 'busy', value: false },
+            ]);
+        });
+
+        await it('gives checked GTK’s real tri-state, rather than rounding it to a boolean', async () => {
+            // The one genuinely three-valued thing in React Native's accessibility
+            // surface, and `Gtk.AccessibleTristate` has an exact member for it.
+            // The numbers are the enum: FALSE 0, TRUE 1, MIXED 2.
+            const value = (checked: unknown): unknown =>
+                plan('View', { accessibilityState: { checked } }).plan.accessibility[0]?.value;
+            expect(value('mixed')).toBe(2);
+            expect(value(true)).toBe(1);
+            expect(value(false)).toBe(0);
+        });
+
+        await it('skips an undefined state key, because every spread carries them', async () => {
+            expect(plan('View', { accessibilityState: { checked: undefined } }).plan.accessibility).toStrictEqual([]);
+            expect(plan('View', {}).plan.accessibility).toStrictEqual([]);
+        });
+
+        await it('refuses a state key this layer does not answer for, listing the five it does', async () => {
+            const message = threw(() => plan('View', { accessibilityState: { pressed: true } })).message;
+            expect(message).toContain('"pressed"');
+            expect(message).toContain('busy, checked, disabled, expanded, selected');
+        });
+
+        await it('refuses a bad value naming the GValue GTK reads the attribute out of', async () => {
+            expect(threw(() => plan('View', { accessibilityLabel: 7 })).message).toContain('needs a string');
+            expect(threw(() => plan('View', { accessibilityState: { checked: 'half' } })).message).toContain(
+                'Gtk.AccessibleTristate',
+            );
+            expect(threw(() => plan('View', { accessibilityState: 'checked' })).message).toContain('needs an object');
+            // `'true'` is the one a value-keyed lookup would have taken for TRUE.
+            // React Native's type is `boolean | 'mixed'`, so the string is a mistake.
+            expect(threw(() => plan('View', { accessibilityState: { checked: 'true' } })).message).toContain(
+                'Gtk.AccessibleTristate',
+            );
+            // An explicit `null` is a refusal, not a clear — this layer's existing
+            // convention, the same answer `testID={null}` gets. Removing the prop is
+            // how React Native clears one.
+            expect(threw(() => plan('View', { accessibilityLabel: null })).message).toContain('needs a string');
+        });
+
+        await it('answers `accessible` as a declared no-op, naming the prop that does the job', async () => {
+            const { plan: resolved } = plan('View', { accessible: true });
+            expect(resolved.accessibility).toStrictEqual([]);
+            expect(resolved.node.props['accessible-role']).toBe(undefined);
+        });
+
+        await it('answers every accessibility prop on every primitive that takes props', async () => {
+            // The set is COMMON, so a primitive that overrode one by accident would
+            // be the only place the answer differed — which is exactly the drift the
+            // shared record exists to prevent.
+            const props = [
+                'accessible',
+                'accessibilityLabel',
+                'accessibilityRole',
+                'accessibilityHint',
+                'accessibilityState',
+            ];
+            const missing: string[] = [];
+            for (const [name, spec] of Object.entries(PRIMITIVES)) {
+                for (const prop of props) if (spec.props[prop] === undefined) missing.push(`${name}.${prop}`);
+            }
+            expect(missing).toStrictEqual([]);
         });
     });
 
