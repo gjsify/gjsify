@@ -480,11 +480,6 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         tier: 'P3',
         reason: 'Needs an animated layout pass, which is the same subsystem as Animated.',
     },
-    InteractionManager: {
-        status: 'planned',
-        tier: 'P3',
-        reason: 'Deferring work until interactions settle; a main-loop idle source is the counterpart.',
-    },
     useAnimatedValue: { status: 'planned', tier: 'P3', reason: 'Part of the Animated subsystem.' },
     useAnimatedValueXY: { status: 'planned', tier: 'P3', reason: 'Part of the Animated subsystem.' },
     useAnimatedColor: { status: 'planned', tier: 'P3', reason: 'Part of the Animated subsystem.' },
@@ -629,17 +624,12 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         reason: 'Registers a module callable from the native side. There is no native side.',
     },
     Networking: { status: 'refused', reason: 'React Native’s XHR internals. Use fetch, which gjsify provides.' },
-    NativeDialogManagerAndroid: {
-        status: 'refused',
-        reason: 'An Android dialog native module. Alert is the portable spelling.',
-    },
     ProgressBarAndroid: {
         status: 'planned',
         tier: 'P3',
         gtk: 'Gtk.ProgressBar',
         reason: 'Android-only by name; GTK has the widget.',
     },
-    Touchable: { status: 'refused', reason: 'The legacy mixin behind the Touchable family, not a public component.' },
 
     // --- event emitters -------------------------------------------------------
     //
@@ -663,6 +653,13 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         status: 'refused',
         reason: 'A React Native surface identifier. This layer has one root per Adw window.',
     },
+    AssetRegistry: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'the bundler’s own asset map',
+        reason: "New in 0.87: `registerAsset(asset) -> id` and `getAssetByID(id)`, the table Metro’s `require('./x.png')` compiles into. This layer resolves an image source through its own build rather than through Metro, so the counterpart is a map of the same shape and not a native module.",
+    },
+
     unstable_batchedUpdates: {
         status: 'supported',
         reason: 'React 19 batches automatically; this is the identity call it already is upstream — literally so since 0.86, where the getter became a method whose body is `fn(bookkeeping)`.',

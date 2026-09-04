@@ -347,68 +347,65 @@ bars; the router's own vectors turn transitions off rather than pretend otherwis
 rule above is what they need settled first — they are contributions to the owner's bar,
 the same way the switcher is — and the support table still refuses them by name.
 
-## Amendment, 2026-09-04 — the surface tracks React Native 0.86
+## Amendment, 2026-09-04 — the surface tracks the version the tree resolves
 
 § The measurement names React Native 0.85, and the snapshot the support table is held
-against was read from 0.85.3. The consumer this layer is measured by moved to 0.86, so
-the snapshot did too: `react-native-surface.json` now records **0.86.3**, read
-2026-09-04.
+against was read from 0.85.3. The tree had moved on without it: `node_modules` resolves
+**0.87.1**, because `@gjsify/adwaita-react-native` declares `react-native: ">=0.87 <1"`
+and means it — its "a stock React Native application needs no configuration" claim rests
+on `metro-resolver@0.87`. So the snapshot records 0.87.1, read 2026-09-04, and there is
+ONE react-native version in the tree rather than a tracked one and an installed one.
 
-**What the bump actually changed, measured by installing both versions side by side and
+**What moved, measured by installing 0.85.3 and 0.86.3 beside the resolved 0.87.1 and
 reading each `index.js`:**
 
-| | 0.85.3 | 0.86.3 |
-|---|---:|---:|
-| public export names | 92 | 99 |
+| | 0.85.3 | 0.86.3 | 0.87.1 |
+|---|---:|---:|---:|
+| public export names | 92 | 99 | 97 |
 
-Seven names arrived, and they are one API — `src/private/components/virtualcollection/`:
-`unstable_VirtualArray`, `unstable_createVirtualCollectionView`, `unstable_VirtualColumn`,
-`unstable_VirtualColumnGenerator`, `unstable_VirtualRow`, `unstable_getScrollParent` and
-`unstable_DEFAULT_INITIAL_NUM_TO_RENDER`. A collection interface that does not allocate
-its items, a view factory over it, the two axis layouts, and two helpers. They are
-`planned` rather than `refused` because GTK virtualises natively and this layer already
-answers the older half of the same idea: `FlatList` and `VirtualizedList` are `partial`
-over `Gtk.ListView` + `Gio.ListStore`, so the work is a mapping and not an engine.
+0.86 added seven names, and they are one API —
+`src/private/components/virtualcollection/`: a collection interface, a view factory over
+it, the two axis layouts, and two helpers. They are `planned` rather than `refused`
+because GTK virtualises natively and this layer already answers the older half of the
+same idea (`FlatList` and `VirtualizedList` are `partial` over `Gtk.ListView` +
+`Gio.ListStore`), so the work is a mapping and not an engine. What each entry may NOT
+claim is worth recording, because the first draft claimed it: `VirtualArray` COPIES its
+input and its own doc warns against large arrays — the lazy half is the interface, not
+the class; `VirtualColumnGenerator` is `{initial:{itemCount,spacerStyle}, next(event)}`
+and never sees an item, so it is not `Gtk.SignalListItemFactory`'s counterpart, the
+view's `children` render prop is; and the two axis layouts are identical fragments, with
+the axis living in the generator's spacer style.
 
-**Nothing was removed, and the reader said otherwise.** `unstable_batchedUpdates` stopped
-being a getter and became `unstable_batchedUpdates<T>(fn, bookkeeping) { fn(bookkeeping); }`
-— the same export, one line rewritten, and its body now literally the identity call the
-support table has always described. `readInstalledExports` in `check-rn-surface.mjs`
-expected `(` or `:` immediately after the member name, so it skipped a member with type
-parameters and reported the export as dropped. Updating the snapshot on that reading would
-have deleted a supported name from the file whose whole job is to be the comparison.
-The reader now allows a type-parameter list (which may not contain a `(`, so it cannot
-swallow the parameter list itself), it is pure and exported, and three vectors — getter,
-plain method, generic method — hold it.
+0.87 then added `AssetRegistry` — Metro's asset table, `registerAsset`/`getAssetByID` —
+and removed three: `Touchable`, `InteractionManager` and `NativeDialogManagerAndroid`.
+Removed rather than renamed: upstream turned them into
+`Object.defineProperty(module.exports, …)` stubs whose getter throws with an explanation
+("InteractionManager has been removed from react-native core … use `requestIdleCallback`
+instead"). Two of the three were `refused` here anyway, and the third was `planned`, so
+the table follows upstream and drops all three.
 
-§ 8's TextInput handle claim was re-measured on 0.86 rather than assumed: `focus` and
-`blur` come from `HostInstance` and `isFocused`, `clear` and `setSelection` are declared
-on `TextInput`, which is the same five `handles.ts` implements.
+**The drift half of this gate had never run once.** `readInstalledExports` resolved
+`react-native/index.js`, a subpath no version puts in its `exports` map, so
+`require.resolve` threw `ERR_PACKAGE_PATH_NOT_EXPORTED`, a bare `catch` read that as "not
+installed", and the script printed *"upstream drift is NOT checked here"* while the
+package sat in `node_modules`. The bare specifier resolves to the same file. Until now,
+the comparison this section is about had only ever run against a file this repository
+writes itself.
 
-**The drift half of that gate had never run once.** `readInstalledExports` resolved
-`react-native/index.js`, a subpath no version of the package puts in its `exports` map,
-so `require.resolve` threw `ERR_PACKAGE_PATH_NOT_EXPORTED`, a bare `catch` read that as
-"not installed", and the script printed *"upstream drift is NOT checked here"* while the
-package sat in `node_modules`. The bare specifier resolves to the same file. So the
-comparison this section is about had, until now, only ever run against a file this
-repository writes itself.
+Turning it on required scoping the reader to the `module.exports` literal, for the reason
+above: those deprecation stubs sit BELOW it, so counting them reports removed names as
+exports, and their `configurable:` / `get()` lines were being read as exports of their
+own. And a member may carry TYPE PARAMETERS — across 0.85 → 0.86 `unstable_batchedUpdates`
+stopped being a getter and became `unstable_batchedUpdates<T>(fn, bookkeeping)`, the same
+export with one line rewritten, invisible to a pattern expecting `(` straight after the
+name. With both corrections the reader reproduces the committed 0.85.3 snapshot exactly,
+which is what says the scoping changed nothing it should not.
 
-Two things followed from turning it on, and both are recorded because neither was
-visible before. **The reader had to be scoped to the object literal**: below it,
-react-native writes `Object.defineProperty(module.exports, 'AsyncStorage', …)` blocks
-whose getter throws "has been removed from react-native core", so counting them reports
-removed names as exports — and their `configurable:` / `get()` lines were being read as
-exports of their own. Measured across three releases with the scoped reader: 0.85.3 → 92
-names, 0.86.3 → 99, 0.87.1 → 97 (`AssetRegistry` added; `Touchable`,
-`InteractionManager` and `NativeDialogManagerAndroid` moved into exactly those throwing
-stubs). The 0.85.3 figure reproduces the committed snapshot exactly, which is what says
-the scoping changed nothing it should not.
+The check still prints both versions and the difference between them, rather than
+failing, when the recorded and resolved versions disagree — a set difference between two
+RELEASES is not drift. It fails, as it always claimed to, when the versions agree and the
+sets do not.
 
-**And this tree resolves 0.87.1, not 0.86.3.** `@gjsify/adwaita-react-native` declares
-`react-native: ">=0.87 <1"`, deliberately — its "a stock React Native application needs
-no configuration" claim rests on `metro-resolver@0.87.0`. That is a different package
-answering a different question, so the two are not reconciled into one number: the
-snapshot records the release THIS layer tracks, the check reports the resolved version
-beside it, and a set difference between two releases is printed as the difference
-between them rather than failed as drift. It fails, as before, when the two versions are
-the same and the sets are not.
+§ 8's TextInput handle claim was re-measured rather than assumed: `focus` and `blur` come
+from `HostInstance`, `isFocused`, `clear` and `setSelection` are declared on `TextInput`,
+which is the same five `handles.ts` implements.

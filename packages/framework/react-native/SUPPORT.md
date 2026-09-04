@@ -68,7 +68,6 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `PlatformColor` | P3 | Adwaita named colours | Maps unusually well — GTK’s palette is exactly this idea. |
 | `AccessibilityInfo` | P3 | Gtk.Accessible / AT-SPI | The highest-value P3 entry: GTK’s accessibility model is strong and the props map onto it well. |
 | `LayoutAnimation` | P3 | — | Needs an animated layout pass, which is the same subsystem as Animated. |
-| `InteractionManager` | P3 | — | Deferring work until interactions settle; a main-loop idle source is the counterpart. |
 | `useAnimatedValue` | P3 | — | Part of the Animated subsystem. |
 | `useAnimatedValueXY` | P3 | — | Part of the Animated subsystem. |
 | `useAnimatedColor` | P3 | — | Part of the Animated subsystem. |
@@ -88,6 +87,7 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `ProgressBarAndroid` | P3 | Gtk.ProgressBar | Android-only by name; GTK has the widget. |
 | `NativeEventEmitter` | P3 | — | It would construct and subscribe, but nothing native would ever emit into it — shipping that needs a decision, not a class. |
 | `DeviceEventEmitter` | P3 | — | The global emitter. Lands with NativeEventEmitter, and for the same reason. |
+| `AssetRegistry` | P3 | the bundler’s own asset map | undefined |
 | `unstable_VirtualArray` | P3 | Gio.ListStore | The array-backed implementation of the `VirtualCollection` interface — `size` plus `at(index)`. Its own doc warns it is not for large arrays, because the constructor copies the input; the LAZY case is the interface, not this class. `Gio.ListStore` is the same array-backed shape, and a Gio.ListModel of one\u2019s own is the lazy one. |
 | `unstable_createVirtualCollectionView` | P3 | Gtk.ListView / Gtk.GridView | Builds a view component from a layout component and a generator. The per-item render is the returned component\u2019s `children` render prop — which is what `Gtk.SignalListItemFactory` answers; the generator is a different thing (see below). |
 | `unstable_VirtualColumn` | P3 | Gtk.ListView (vertical) | The collection view built over the column generator. Its layout component renders children plus a spacer and nothing else — the AXIS is in the generator\u2019s spacer style, not in the layout. |
@@ -107,7 +107,7 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `DevMenu` | — | — | The shake-to-open developer menu. |
 | `DevSettings` | — | — | Development-client settings for a phone runtime. |
 
-### Refused (25)
+### Refused (23)
 
 | export | tier | GTK | why |
 |---|---|---|---|
@@ -132,8 +132,6 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `findNodeHandle` | — | — | Returns a native view tag. A ref here is the Gtk.Widget itself, which is more useful. |
 | `registerCallableModule` | — | — | Registers a module callable from the native side. There is no native side. |
 | `Networking` | — | — | React Native’s XHR internals. Use fetch, which gjsify provides. |
-| `NativeDialogManagerAndroid` | — | — | An Android dialog native module. Alert is the portable spelling. |
-| `Touchable` | — | — | The legacy mixin behind the Touchable family, not a public component. |
 | `NativeAppEventEmitter` | — | — | The legacy iOS app-event emitter. |
 | `RootTagContext` | — | — | A React Native surface identifier. This layer has one root per Adw window. |
 
