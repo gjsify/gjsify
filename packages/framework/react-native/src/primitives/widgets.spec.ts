@@ -224,6 +224,30 @@ const typeOf = (widget: Gtk.Widget): string =>
 const generatedClasses = (widget: Gtk.Widget): string[] =>
     [...widget.cssClasses].filter((name) => name.startsWith('gjsify-'));
 
+/**
+ * The widget, having asserted it HAS an accessibility context to record into.
+ *
+ * Without this the accessibility vectors fail as "expected true, got false" and say
+ * nothing about the cause, which is what happened: `GTK_A11Y=none` gives a NULL AT
+ * context, so `update_property()` records nothing and every
+ * `Gtk.test_accessible_has_*` answers false. `test.mts` installs the backend; this
+ * names it the day something unsets it again.
+ */
+const withAtContext = (widget: Gtk.Widget): Gtk.Widget => {
+    // A THROW rather than an `expect`, because the sentence is the whole value: the
+    // generic "expected values to match using ===" is what sent three OS legs
+    // looking for a marshalling bug that was never there.
+    if (widget.get_at_context() === null) {
+        throw new Error(
+            'this widget has no GtkATContext, so update_property()/update_state() record nothing and every ' +
+                'Gtk.test_accessible_has_* answers false — these vectors would be measuring an absent ' +
+                'accessibility layer, not this package. GTK_A11Y=none does exactly that; src/test.mts installs ' +
+                'GTK’s in-process `test` backend to prevent it, so something has unset it again.',
+        );
+    }
+    return widget;
+};
+
 /** First strict descendant of a GType, breadth-first over the REAL tree. */
 function find(root: Gtk.Widget, gtype: string): Gtk.Widget {
     const queue: Gtk.Widget[] = [...gtkChildren(root)];
@@ -748,7 +772,7 @@ export default async () => {
                 mounted(
                     createElement(View, { accessibilityLabel: 'Save document', accessibilityHint: 'Opens the editor' }),
                     (container) => {
-                        const box = gtkChildren(container)[0] as Gtk.Widget;
+                        const box = withAtContext(gtkChildren(container)[0] as Gtk.Widget);
                         expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
                         expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.HELP_TEXT)).toBe(true);
                         // DESCRIPTION is `<Image alt>`'s attribute and nothing here
@@ -809,7 +833,7 @@ export default async () => {
                         accessibilityState: { disabled: true, busy: false, checked: 'mixed', selected: true },
                     }),
                     (container) => {
-                        const box = gtkChildren(container)[0] as Gtk.Widget;
+                        const box = withAtContext(gtkChildren(container)[0] as Gtk.Widget);
                         for (const state of [
                             Gtk.AccessibleState.DISABLED,
                             Gtk.AccessibleState.BUSY,
@@ -830,7 +854,7 @@ export default async () => {
                 mounted(
                     createElement(Pressable, { accessibilityLabel: 'Play', accessibilityRole: 'button' }),
                     (container) => {
-                        const button = gtkChildren(container)[0] as Gtk.Widget;
+                        const button = withAtContext(gtkChildren(container)[0] as Gtk.Widget);
                         expect(Gtk.test_accessible_has_property(button, Gtk.AccessibleProperty.LABEL)).toBe(true);
                         expect(Gtk.test_accessible_has_role(button, Gtk.AccessibleRole.BUTTON)).toBe(true);
                     },
@@ -849,7 +873,7 @@ export default async () => {
                 const root = createRoot(container);
                 try {
                     root.render(createElement(View, { accessibilityLabel: 'first' }));
-                    const box = gtkChildren(container)[0] as Gtk.Widget;
+                    const box = withAtContext(gtkChildren(container)[0] as Gtk.Widget);
                     expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
                     flushSync(() => root.render(createElement(View, {})));
                     expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(false);
