@@ -20,6 +20,13 @@
 // siblings leave every later one ungated — measured, a GTK critical injected into
 // describe #15 printed to stderr, the case still reported a tick, and the blame
 // surfaced twelve tests later on an innocent neighbour.
+//
+// CORRECTED 2026-09-04 (#1554): the runner no longer works that way. Hooks are
+// SCOPED — one frame per `describe`, popped when it returns — so a nested block
+// inherits its parents' hooks, a second registration in one scope composes with
+// the first rather than replacing it, and a sibling cannot unhook a neighbour.
+// The incident above is kept because it is why the helper exists; what the helper
+// buys now is one DECLARATION of what a gated block means, not a workaround.
 
 import GLib from 'gi://GLib?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
@@ -43,6 +50,7 @@ import { RouterError } from './errors.js';
 import { navigationRef, router, uninstallRouter, useLocalSearchParams, usePathname } from './navigation.js';
 import { RouterRoot } from './root.js';
 import type { RouteManifest } from './routes.js';
+import { perRouteCacheEntries } from './per-route-cache.js';
 import { Stack } from './stack.js';
 import { advanceTracking, applyStack, coalesce, initialTracking, releaseFrom, type Tracking } from './stack.js';
 import { showFocusedPage, Tabs } from './tabs.js';
@@ -174,6 +182,37 @@ function TabOne(): ReactElement {
 function TabTwo(): ReactElement {
     observed.pathname = usePathname();
     return label('two');
+}
+
+const TAB_NAMES = ['t0', 't1', 't2', 't3', 't4'] as const;
+
+function PlainTab(): ReactElement {
+    observed.pathname = usePathname();
+    return label('tab');
+}
+
+/**
+ * Every action the container is asked to perform, while `run` runs.
+ *
+ * `__unsafe_action__` is React Navigation's own devtools channel and the only seam
+ * that sees a dispatch made from a GTK signal handler DURING a commit. A listener a
+ * screen registers cannot: `tabPress` is emitted before the tree's passive effects
+ * have run, so a counter inside a tab reports 0 for a press it was never subscribed
+ * in time to hear — measured, and it is why this vector watches the container.
+ */
+async function actionsDuring(run: () => Promise<void>): Promise<string[]> {
+    const seen: string[] = [];
+    const stop = (
+        navigationRef as unknown as {
+            addListener(type: string, listener: (event: { data: { action: { type: string } } }) => void): () => void;
+        }
+    ).addListener('__unsafe_action__', (event) => seen.push(event.data.action.type));
+    try {
+        await run();
+    } finally {
+        stop();
+    }
+    return seen;
 }
 
 /** The root stack's screens, so the two root layouts below cannot drift apart. */
@@ -354,6 +393,43 @@ const BARE_ON_TOP: RouteManifest = [
     },
     { contextKey: 'index.tsx', module: { default: Home } },
     { contextKey: 'bare.tsx', module: { default: TabOne } },
+];
+
+/**
+ * Five tabs in a `(tabs)` group under the root stack — the shape #1453 was reported on.
+ *
+ * FIVE and not two, because the count is what makes the entry route differ from the
+ * page libadwaita picks by itself: with two tabs the lagging container state named the
+ * tab the URL asked for anyway, and the spurious dispatch was invisible.
+ */
+const FIVE_TABS: RouteManifest = [
+    {
+        contextKey: '_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Stack,
+                    { screenOptions: { animation: 'none' } },
+                    createElement(Stack.Screen, { key: 'i', name: 'index', options: { title: 'Home' } }),
+                    createElement(Stack.Screen, { key: 't', name: '(tabs)', options: { title: 'Tabs' } }),
+                ),
+        },
+    },
+    { contextKey: 'index.tsx', module: { default: Home } },
+    {
+        contextKey: '(tabs)/_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Tabs,
+                    null,
+                    ...TAB_NAMES.map((name) =>
+                        createElement(Tabs.Screen, { key: name, name, options: { title: name.toUpperCase() } }),
+                    ),
+                ),
+        },
+    },
+    ...TAB_NAMES.map((name) => ({ contextKey: `(tabs)/${name}.tsx`, module: { default: PlainTab } })),
 ];
 
 /** The old workaround, kept as a supported shape: no page bar to contribute to. */
@@ -928,6 +1004,44 @@ export default async () => {
                 });
             });
 
+            await it('lets go of every per-route cache entry a page owned (#1547)', async () => {
+                // THE COUNT IS THE ONLY INSTRUMENT. A navigator that prunes its per-route
+                // caches and one that never does render the same widgets and answer the
+                // same hooks; the difference is entries keyed on route keys, which React
+                // Navigation mints fresh per PUSH — so the leak is proportional to the
+                // navigation history and invisible on screen. Measured with the three
+                // `retain` calls removed: 27 entries held after popping back to a
+                // one-page stack, against 3 with them.
+                await mounted(app(STILL), async (container) => {
+                    const view = find(container, 'AdwNavigationView') as Adw.NavigationView;
+                    const rested = perRouteCacheEntries();
+
+                    for (let index = 0; index < 8; index++) router.push(`/detail/${index}`);
+                    expect((await settle(() => stackTitles(view).length === 9)) >= 0).toBe(true);
+                    const pushed = perRouteCacheEntries();
+                    // One slot, one binding pair and one options record per page — the
+                    // three maps #1547 names, all keyed the same way.
+                    expect(pushed - rested).toBe(24);
+
+                    for (let index = 0; index < 8; index++) router.back();
+                    expect((await settle(() => stackTitles(view).length === 1)) >= 0).toBe(true);
+                    expect((await settle(() => perRouteCacheEntries() === rested)) >= 0).toBe(true);
+                });
+            });
+
+            await it('holds NOTHING once the navigator itself is gone (#1547)', async () => {
+                // The other end of the same lifecycle, and it is not the sweep's: a
+                // navigator that unmounts renders no pages at all, so no commit is left
+                // to sweep and the whole map has to go with the component.
+                const before = perRouteCacheEntries();
+                await mounted(app(STILL), async () => {
+                    router.push('/detail/1');
+                    expect((await settle(() => observed.pathname === '/detail/1')) >= 0).toBe(true);
+                    expect(perRouteCacheEntries() > before).toBe(true);
+                });
+                expect((await settle(() => perRouteCacheEntries() === before)) >= 0).toBe(true);
+            });
+
             await it('lands on +not-found for a URL nothing else matches', async () => {
                 await mounted(app(), async (container) => {
                     const view = find(container, 'AdwNavigationView') as Adw.NavigationView;
@@ -1124,6 +1238,55 @@ export default async () => {
                 stack.add_named(unmapped, 'page-hidden');
                 expect(showFocusedPage(stack, 'page-hidden')).toBe(false);
                 expect(stack.get_visible_child_name()).toBe('page-later');
+            });
+
+            for (const entry of TAB_NAMES) {
+                await it(`enters at /${entry} without inventing a navigation (#1453)`, async () => {
+                    await mounted(createElement(RouterRoot, { manifest: FIVE_TABS }), async (container) => {
+                        const actions = await actionsDuring(async () => {
+                            router.navigate(`/${entry}`);
+                            expect((await settle(() => observed.pathname === `/${entry}`)) >= 0).toBe(true);
+                            // Let every scheduled lane and every notify land before
+                            // counting: the defect dispatches DURING the entry, so a
+                            // count taken at the first agreeing render would miss the
+                            // dispatch that follows it.
+                            await settle(() => false, 30);
+                        });
+
+                        const stack = find(container, 'AdwViewStack') as Adw.ViewStack;
+                        expect(stack.get_page(stack.get_visible_child() as Gtk.Widget).get_title()).toBe(
+                            entry.toUpperCase(),
+                        );
+                        expect(observed.pathname).toBe(`/${entry}`);
+                        // MEASURED on this vector before the fix: one `JUMP_TO` for every
+                        // non-index entry (`t1`…`t4`) and none for `t0`. The layer's own
+                        // `set_visible_child_name` raised a notify whose echo the
+                        // container-state guard could not see, so the bridge navigated for
+                        // a tab nobody pressed — and would have named the FIRST page
+                        // instead whenever the lag fell the other way, which is the deep
+                        // link that does not survive.
+                        expect(actions.filter((type) => type === 'JUMP_TO')).toStrictEqual([]);
+                    });
+                });
+            }
+
+            await it('still follows a REAL press, so the guard did not close the bridge', async () => {
+                await mounted(createElement(RouterRoot, { manifest: FIVE_TABS }), async (container) => {
+                    router.navigate('/t0');
+                    expect((await settle(() => observed.pathname === '/t0')) >= 0).toBe(true);
+                    await settle(() => false, 30);
+
+                    const stack = find(container, 'AdwViewStack') as Adw.ViewStack;
+                    const tabs = rootState().routes.find((route) => route.name === '(tabs)')?.state?.routes;
+                    const other = tabs?.find((route) => route.name === 't3')?.key as string;
+                    const actions = await actionsDuring(async () => {
+                        // What a click on the switcher does — the one emitter of the three
+                        // that IS a press.
+                        stack.set_visible_child_name(other);
+                        expect((await settle(() => observed.pathname === '/t3')) >= 0).toBe(true);
+                    });
+                    expect(actions.filter((type) => type === 'JUMP_TO')).toStrictEqual(['JUMP_TO']);
+                });
             });
 
             await it('follows the USER when the switcher changes the visible child', async () => {

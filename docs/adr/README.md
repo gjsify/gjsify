@@ -64,6 +64,7 @@ the TODO records the *what's left*.
 | [0041](0041-build-time-serializer-stays-with-the-application.md) | A build-time serializer of a component tree into declarative UI files stays with the application that owns the content | Proposed |
 | [0042](0042-portable-menu-model.md) | A menu is a value: `GMenuModel`'s own shape, portable across every surface | Proposed |
 | [0043](0043-react-native-entry-point-hands-back-the-application.md) | The React Native entry point runs on the app shell, and hands the application back | Proposed |
+| [0044](0044-an-instrument-states-what-it-measured.md) | An instrument states what it measured — counters, hooks, a depth bound and a discarded step outcome | Proposed |
 | [0045](0045-portal-placement-in-the-gtk-host.md) | A node whose host node is not its parent node: a placement axis beside the child policy, so an `Adw.Dialog` is presented rather than appended | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)

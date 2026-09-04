@@ -23,9 +23,12 @@ import {
     PRIMITIVE_NAMES,
     PRIMITIVE_VARIANTS,
     acceptsProp,
+    acceptsPropValue,
     explainProp,
+    explainPropValue,
     propAnswer,
     propNames,
+    propRefusedValues,
     propTable,
     type PropVariant,
 } from './prop-table.js';
@@ -140,8 +143,86 @@ export default async () => {
                     const message = rendered(primitive, { ...props, notAPropAnywhere: MARKER });
                     expect(message).toBe(explainProp(primitive, 'notAPropAnywhere', variant));
                 });
+
+                await it(`<${label}> refuses exactly the VALUES prop-table says it refuses`, async () => {
+                    // The same equality one grain finer (#1555). A prop can be answered
+                    // and still refuse some of its values, and until this existed those
+                    // sentences were reachable only by rendering one and catching the
+                    // throw — the state ADR 0039 § 1 was written to end, reintroduced for
+                    // the newest refusals in the table. Generated from the table, so the
+                    // eighth role name is covered by writing the row.
+                    const props = variant ?? {};
+                    for (const prop of propNames(primitive, variant)) {
+                        for (const value of propRefusedValues(primitive, prop, variant)) {
+                            const answer = propAnswer(primitive, prop, variant);
+                            // An accessible record refuses a KEY, so the value that
+                            // reaches the route is `{ [key]: … }` rather than the key.
+                            const authored = answer.status === 'accessible' ? { [value]: MARKER } : value;
+                            const message = rendered(primitive, { ...props, [prop]: authored });
+                            expect(message).toBe(explainPropValue(primitive, prop, value, variant));
+                            expect(acceptsPropValue(primitive, prop, value, variant)).toBe(false);
+                        }
+                    }
+                });
             }
         }
+    });
+
+    await describe('the values an answered prop still refuses (#1555)', async () => {
+        await it('names the role spellings GTK has no member for', async () => {
+            // A literal list, because this is the vector: the row above them says
+            // `property`, and a reader of PROPS.md could not tell WHICH values that
+            // covered until the refusals were on the answer. Adding an eighth spelling
+            // to the table has to touch this line.
+            expect(propRefusedValues('View', 'accessibilityRole')).toStrictEqual([
+                'drawerlayout',
+                'horizontalscrollview',
+                'keyboardkey',
+                'pager',
+                'scrollview',
+                'slidingdrawer',
+                'summary',
+            ]);
+        });
+
+        await it('answers a refused value with the sentence, not with “Known: …”', async () => {
+            const message = explainPropValue('View', 'accessibilityRole', 'keyboardkey');
+            expect(message).toContain('describes a key of an on-screen keyboard');
+            expect(message).toContain('prop "accessibilityRole" = "keyboardkey"');
+        });
+
+        await it('accepts every role name that DOES map, value by value', async () => {
+            // The whole mapped set and not one sample of it: "the values that map are
+            // accepted" is the claim, and a single `button` would be a measurement
+            // narrower than it — green while any other row silently answered `false`.
+            const route = PRIMITIVES.View.props.accessibilityRole as {
+                readonly map?: Readonly<Record<string, unknown>>;
+            };
+            const mapped = Object.keys(route.map ?? {});
+            // Non-vacuous: an empty map would make the loop below assert nothing, and
+            // the mapped names outnumber the refused ones by construction.
+            expect(mapped.length > propRefusedValues('View', 'accessibilityRole').length).toBe(true);
+            for (const value of mapped) {
+                expect(acceptsPropValue('View', 'accessibilityRole', value)).toBe(true);
+                expect(explainPropValue('View', 'accessibilityRole', value)).toBe(null);
+            }
+        });
+
+        await it('answers a value of a REFUSED prop with the prop’s own refusal', async () => {
+            // The prop-level answer wins: `<Text onPress>` is refused whatever the
+            // callback is, and reporting "this value is fine" would be worse than
+            // useless.
+            expect(explainPropValue('Text', 'onPress', () => {})).toBe(explainProp('Text', 'onPress'));
+            expect(acceptsPropValue('Text', 'onPress', () => {})).toBe(false);
+        });
+
+        await it('says nothing about a value that is merely absent from the map', async () => {
+            // A typo is not a declared refusal, and this surface is about the values the
+            // table refuses ON PURPOSE. The render still throws — with the "Known: …"
+            // message it builds from the map at the throw.
+            expect(explainPropValue('View', 'accessibilityRole', 'notarole')).toBe(null);
+            expect(rendered('View', { accessibilityRole: 'notarole' })).toContain('Known:');
+        });
     });
 
     await describe('the surface as data', async () => {

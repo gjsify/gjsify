@@ -65,6 +65,7 @@ import type {
 import {
     createElement,
     useCallback,
+    useEffect,
     useLayoutEffect,
     useMemo,
     useRef,
@@ -84,6 +85,7 @@ import {
     type ChromeSlot,
 } from './chrome.js';
 import { RouterError } from './errors.js';
+import { PerRouteCache } from './per-route-cache.js';
 import {
     navigationPair,
     screenOptionsFrom,
@@ -405,30 +407,35 @@ function useStackPages(
  * ref on every commit, leaving the widget unreachable in between, and the host
  * disconnects and re-connects a changed signal handler on every commit — one
  * `g_signal_connect` per page per render, for nothing.
+ *
+ * `widgets` prunes itself — a `null` ref is the page going away — and the binding pair
+ * did not, which is #1547's third map: it is `PerRouteCache` now and the navigator
+ * calls `retain` with the pages it still renders.
  */
+type PageBindings = { readonly ref: (widget: unknown) => void; readonly onHidden: () => void };
+
 function usePageBindings(release: (key: string) => void): {
-    readonly bindingsFor: (key: string) => { readonly ref: (widget: unknown) => void; readonly onHidden: () => void };
+    readonly bindingsFor: (key: string) => PageBindings;
     readonly widgets: Map<string, Adw.NavigationPage>;
+    readonly retain: (keys: ReadonlySet<string>) => void;
 } {
     const widgets = useRef(new Map<string, Adw.NavigationPage>());
-    const cache = useRef(new Map<string, { ref: (widget: unknown) => void; onHidden: () => void }>());
+    const cache = useRef(new PerRouteCache<PageBindings>());
     const bindingsFor = useCallback(
-        (key: string) => {
-            const existing = cache.current.get(key);
-            if (existing !== undefined) return existing;
-            const made = {
+        (key: string) =>
+            cache.current.getOrCreate(key, () => ({
                 ref: (widget: unknown): void => {
                     if (widget === null || widget === undefined) widgets.current.delete(key);
                     else widgets.current.set(key, widget as Adw.NavigationPage);
                 },
                 onHidden: (): void => release(key),
-            };
-            cache.current.set(key, made);
-            return made;
-        },
+            })),
         [release],
     );
-    return { bindingsFor, widgets: widgets.current };
+    const pages = cache.current;
+    useEffect(() => () => pages.clear(), [pages]);
+    const retain = useCallback((keys: ReadonlySet<string>): void => cache.current.retain(keys), []);
+    return { bindingsFor, widgets: widgets.current, retain };
 }
 
 // ---------------------------------------------------------------------------
@@ -506,7 +513,7 @@ function StackView(props: StackViewProps): ReactElement {
 
     const viewRef = useRef<Adw.NavigationView | null>(null);
     const { pages, release } = useStackPages(state, descriptors);
-    const { bindingsFor, widgets } = usePageBindings(release);
+    const { bindingsFor, widgets, retain: retainBindings } = usePageBindings(release);
     // `rendersChrome` is asked of the pages that are ON SCREEN, and the whole page list
     // is the wrong set: `Adw.NavigationView` maps only the visible page (plus the one
     // sliding out), so a bar on a page further down the stack draws nothing. MEASURED —
@@ -526,13 +533,34 @@ function StackView(props: StackViewProps): ReactElement {
         'Stack',
         onScreen.some((descriptor) => descriptor.options.headerShown !== false),
     );
-    const { titleWidgetFor, slotFor } = useTitleSlots('Stack');
+    const { titleWidgetFor, slotFor, retain: retainSlots } = useTitleSlots('Stack');
 
     // Options by route key, kept ACROSS renders: `reconcilePopped` runs from a signal
     // handler, outside any render, and needs the options of a page that may already
     // have left `descriptors`.
-    const optionsRef = useRef(new Map<string, StackScreenOptions>());
+    const optionsRef = useRef(new PerRouteCache<StackScreenOptions>());
     for (const descriptor of pages) optionsRef.current.set(descriptor.route.key, descriptor.options);
+    const options = optionsRef.current;
+    useEffect(() => () => options.clear(), [options]);
+
+    /**
+     * The one prune for every per-key cache this navigator owns (#1547).
+     *
+     * DRIVEN BY THE PAGE LIST, which is the lifecycle the closing-page bookkeeping
+     * already maintains: a page held for its exit animation is still in `pages`, so its
+     * entries survive until the release that drops it, and nothing needs a second
+     * lifecycle to say when a key is dead. It is also wider than a delete hung off
+     * `release` alone would be, and deliberately: a route removed from the MIDDLE of the
+     * stack was never on screen, so nothing animates it out and no `hidden` ever comes —
+     * `advanceTracking` simply stops listing it, and only a sweep over the page list
+     * sees that.
+     */
+    useLayoutEffect(() => {
+        const kept = new Set(pages.map((descriptor) => descriptor.route.key));
+        optionsRef.current.retain(kept);
+        retainSlots(kept);
+        retainBindings(kept);
+    });
 
     const animate = useCallback(
         (key: string | undefined): boolean =>

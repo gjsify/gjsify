@@ -438,6 +438,7 @@ jobs:
       # `continue-on-error` and this comment on the first run where the only failures
       # left are this operating system's own.
       - name: '@gjsify/react-native — probe (gating blocked until the engine fix ships)'
+        id: rn-probe
         continue-on-error: true
         working-directory: packages/framework/react-native
         env:
@@ -445,6 +446,12 @@ jobs:
           GSK_RENDERER: cairo
           GTK_A11Y: none
         run: node ../../infra/cli/lib/index.js run test:gjs-on-node
+      - name: 'Probe outcome: @gjsify/react-native'
+        if: always()
+        env:
+          PROBE_LABEL: '@gjsify/react-native — probe (gating blocked until the engine fix ships)'
+          PROBE_OUTCOME: ${{ steps.rn-probe.outcome }}
+        run: node scripts/report-probe-outcome.mjs
 
       # Manifest conformance including `os-axis`, which prints every claim below
       # `supported` with its mandatory reason — so the log carries the current
@@ -563,6 +570,7 @@ jobs:
       # stops carrying a loadable Gtk + Adw — which is the claim ADR 0024 § 4 rests
       # on and the reason this leg exists.
       - name: '@gjsify/gtk-host — probe (gating blocked on the Unix-only table rows)'
+        id: gtk-host-probe
         continue-on-error: true
         working-directory: packages/framework/gtk-host
         env:
@@ -570,12 +578,19 @@ jobs:
           GSK_RENDERER: cairo
           GTK_A11Y: none
         run: node ..\..\infra\cli\lib\index.js run test:gjs-on-node
+      - name: 'Probe outcome: @gjsify/gtk-host'
+        if: always()
+        env:
+          PROBE_LABEL: '@gjsify/gtk-host — probe (gating blocked on the Unix-only table rows)'
+          PROBE_OUTCOME: ${{ steps.gtk-host-probe.outcome }}
+        run: node scripts/report-probe-outcome.mjs
 
       # See the darwin job's copy of this step for why the published addon means an
       # unreleased engine fix is invisible here. On top of that, win32 has its own
       # two: the gtk-host table's Unix-only rows (#1446) and the POSIX-shaped image
       # assertions in the header's attribution.
       - name: '@gjsify/react-native — probe (gating blocked on the engine release + #1446)'
+        id: rn-probe-win32
         continue-on-error: true
         working-directory: packages/framework/react-native
         env:
@@ -583,6 +598,12 @@ jobs:
           GSK_RENDERER: cairo
           GTK_A11Y: none
         run: node ..\..\infra\cli\lib\index.js run test:gjs-on-node
+      - name: 'Probe outcome: @gjsify/react-native'
+        if: always()
+        env:
+          PROBE_LABEL: '@gjsify/react-native — probe (gating blocked on the engine release + #1446)'
+          PROBE_OUTCOME: ${{ steps.rn-probe-win32.outcome }}
+        run: node scripts/report-probe-outcome.mjs
 
       - name: Conformance audit (os-axis included)
         run: node scripts\audit-runtimes.mjs --check

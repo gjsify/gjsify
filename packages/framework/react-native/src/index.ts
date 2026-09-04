@@ -10,7 +10,10 @@
 // the line and refuses before anything runs. This module is the runtime backstop for
 // what a gate cannot see.
 
-export { AppRegistry, registerRootComponent } from './app-registry.js';
+// `lastWindowChromeProblems` is on the ROOT surface and not only inside the module,
+// because ADR 0043's amendment publishes it and the frameworks page tells a consumer to
+// assert it — a reader nothing can import answers nobody.
+export { AppRegistry, lastWindowChromeProblems, registerRootComponent } from './app-registry.js';
 export type { ComponentProvider, RunApplicationOptions } from './app-registry.js';
 
 export { EventEmitter } from './event-emitter.js';

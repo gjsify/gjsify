@@ -141,6 +141,37 @@ AppRegistry.runApplication('Counter', { applicationId: 'com.example.Counter' });
 
 Expo's `registerRootComponent` works too and takes the same options.
 
+**One application per process.** `runApplication` builds the `GApplication`, and a process has
+one, so a second call while the first is still running is refused by name rather than quietly
+taking the first one's window. Await the call, or render both trees under one root component:
+
+```tsx
+async function main(): Promise<void> {
+    const code = await AppRegistry.runApplication('Counter', { applicationId: 'com.example.Counter' });
+    return process.exit(code);
+}
+
+main();
+```
+
+`return process.exit(code)`, not a bare `process.exit()`: a bare call leaves the GTK main loop
+mid-teardown, and you get a core dump where you wanted an exit code.
+
+While it runs, `AppRegistry.getApplication()` and `AppRegistry.getWindow()` answer with the
+`Adw.Application` and its window — that is how you add an action, set a default size or connect
+`close-request` from inside a component. Both answer `null` before the first render and again
+once the loop has ended, so an accessor never hands you a window that has closed.
+
+When the window first appears, the layer checks its own chrome and warns if the composition left
+you no way to close the window, or two close buttons where one is dead. You will see it on
+stderr, and you can assert the same sentences in a test:
+
+```ts
+import { lastWindowChromeProblems } from 'react-native';
+
+lastWindowChromeProblems(); // [] once the window has been checked and is well formed
+```
+
 ## Build it
 
 One flag turns an ordinary build into a React Native port:
@@ -420,6 +451,21 @@ and a screen reader announces the same text a user sees.
 Screen options are `title`, `headerShown` and `animation` on `<Stack.Screen>`, and `title` on
 `<Tabs.Screen>`. Anything else is refused by name.
 
+**Deep links land where you send them, including a tab that is not the first one.** A desktop
+application gets them the way a phone does — a URI handler, a notification, a restored session —
+so entering at `/settings` rather than at the index route is the ordinary path, not an edge case:
+
+```tsx
+import { router } from '@gjsify/react-native/router';
+
+// From a URI handler, a `Gio.SimpleAction`, or your own restore logic.
+router.navigate(entryHref);
+```
+
+The tab the URL names is the tab that is focused and the tab the switcher highlights. A
+`tabPress` event is emitted only for a real press, so a handler hung off it — "scroll to top on
+the second press" is the usual one — does not fire while the application is being entered.
+
 Router errors carry a stable `code`, so a test can assert one instead of matching a message:
 `duplicate-route`, `param-without-name`, `unresolved-href`, `not-a-screen-child`,
 `unknown-screen-option`, `no-router-mounted`.
@@ -499,9 +545,23 @@ explainProp('Text', 'onPress'); // the exact sentence a render would have thrown
 acceptsProp('Pressable', 'onPress'); // true
 ```
 
-`explainProp` returns the render's own message rather than a paraphrase of it, and
-[`PROPS.md`](https://github.com/gjsify/gjsify/blob/main/packages/framework/react-native/PROPS.md)
-is the same data as a document, one section per primitive.
+A prop can be answered and still refuse some of its VALUES. `accessibilityRole` is the one that
+does: most of React Native's role names map onto a GTK accessible role, and a handful name an
+Android class or an iOS trait that has no counterpart at all. Ask about the value:
+
+```ts
+import { acceptsPropValue, explainPropValue, propRefusedValues } from '@gjsify/react-native/prop-table';
+
+acceptsPropValue('View', 'accessibilityRole', 'button'); // true
+acceptsPropValue('View', 'accessibilityRole', 'keyboardkey'); // false
+explainPropValue('View', 'accessibilityRole', 'keyboardkey'); // what to write instead
+propRefusedValues('View', 'accessibilityRole'); // every value refused by name
+```
+
+`explainProp` and `explainPropValue` return the render's own message rather than a paraphrase of
+it, and [`PROPS.md`](https://github.com/gjsify/gjsify/blob/main/packages/framework/react-native/PROPS.md)
+is the same data as a document: one section per primitive, with the refused values and their
+reasons under the row they belong to.
 
 ## Related
 
