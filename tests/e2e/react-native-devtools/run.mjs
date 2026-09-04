@@ -62,7 +62,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { prebuildDir } from '../helpers.mjs';
+import { e2eSkipReason, prebuildDir } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
@@ -94,26 +94,38 @@ function hasAdw() {
 const arch = archDir();
 const PREBUILD = arch ? prebuildDir('infra', 'rolldown-native', arch) : null;
 
-const SKIP =
-    process.platform !== 'linux' ||
-    !arch ||
+// EVERY precondition CARRIES ITS NAME, so a host that is missing one says which.
+// The boolean chain this replaces answered `true` and nothing else, which is why the
+// suite could sit in `test:e2e` shape for months reporting the same silence as a pass
+// (#1550). `GJSIFY_E2E_REQUIRE=react-native-devtools` turns any of these into a
+// failure that names it — main.yml's `e2e` job sets exactly that, because the
+// ci-fedora container carries all nine.
+const SKIP = e2eSkipReason('react-native-devtools', [
+    ['a Linux host', process.platform === 'linux'],
+    ['an x64 or arm64 arch', arch !== null],
     // A GTK window cannot MAP without a display, and `mapped` is the assertion that
     // separates this suite from one proving only that a service object exists. So a
     // display is a precondition — and its absence is why the suite is ledgered in
     // `scripts/e2e-unlisted-suites.mjs` rather than listed in `test:e2e`, where it
     // would be satisfied by going quiet.
-    !(process.env.DISPLAY || process.env.WAYLAND_DISPLAY) ||
-    !hasCmd('gjs') ||
-    !hasCmd('dbus-run-session', ['--help']) ||
-    !hasCmd('gdbus', ['--help']) ||
-    !existsSync(CLI_BUNDLE) ||
-    !PREBUILD ||
-    !existsSync(join(PREBUILD, 'GjsifyRolldown-1.0.typelib')) ||
-    !existsSync(join(REPO_ROOT, 'node_modules', '@gjsify')) ||
-    !existsSync(join(REPO_ROOT, 'node_modules', 'react')) ||
-    !existsSync(join(REPO_ROOT, 'node_modules', 'rolldown')) ||
-    !BUILT.every((dir) => existsSync(dir)) ||
-    !hasAdw();
+    ['a display (DISPLAY or WAYLAND_DISPLAY)', Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY)],
+    ['gjs on PATH', hasCmd('gjs')],
+    ['dbus-run-session on PATH', hasCmd('dbus-run-session', ['--help'])],
+    ['gdbus on PATH', hasCmd('gdbus', ['--help'])],
+    ['the committed CLI bundle (packages/infra/cli/dist/cli.gjs.mjs)', existsSync(CLI_BUNDLE)],
+    [
+        'the @gjsify/rolldown-native typelib for this arch',
+        PREBUILD !== null && existsSync(join(PREBUILD, 'GjsifyRolldown-1.0.typelib')),
+    ],
+    [
+        'an installed workspace node_modules (@gjsify, react, rolldown)',
+        existsSync(join(REPO_ROOT, 'node_modules', '@gjsify')) &&
+            existsSync(join(REPO_ROOT, 'node_modules', 'react')) &&
+            existsSync(join(REPO_ROOT, 'node_modules', 'rolldown')),
+    ],
+    [`BUILT lib/ for ${BUILT.length} bundled packages`, BUILT.every((dir) => existsSync(dir))],
+    ['a loadable Adw-1 typelib', hasAdw()],
+]);
 
 /** One `dbus-run-session` per vector: the app claims a well-known name. */
 function measure(bundle, mode) {
