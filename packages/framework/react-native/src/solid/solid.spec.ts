@@ -946,11 +946,24 @@ export default async () => {
                     (container) => {
                         const box = gtkChildren(container)[0] as Gtk.Widget;
                         expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
+                        // PRESENCE ALONE CANNOT TELL "re-applied" FROM "never re-ran":
+                        // the first write already set the attribute, so it stays set
+                        // either way. So the CALL is counted as well — the instance
+                        // method is shadowed and calls through, which is the technique
+                        // the live-region vectors use for the same reason.
+                        const original = box.update_property.bind(box);
+                        let calls = 0;
+                        (box as unknown as Record<string, unknown>).update_property = (
+                            properties: Gtk.AccessibleProperty[],
+                            values: unknown[],
+                        ) => {
+                            calls += 1;
+                            original(properties, values as never);
+                        };
                         setLabel('second');
-                        // The value is not readable in-process (no public getter, and
-                        // `check_property` is not introspectable), so what is asserted
-                        // is that the re-application left the attribute SET rather
-                        // than reset by its own cleanup — the defect this shape has.
+                        expect(calls).toBe(1);
+                        // …and the re-application did not leave the attribute reset by
+                        // its own cleanup, which is the ordering defect this shape has.
                         expect(Gtk.test_accessible_has_property(box, Gtk.AccessibleProperty.LABEL)).toBe(true);
                     },
                 );
