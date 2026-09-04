@@ -138,8 +138,26 @@ jobs:
 
                   ids=$(node scripts/select-superseded-runs.mjs < "${RUNNER_TEMP}/runs.json")
 
-                  # A HERE-STRING, not a pipe: the right-hand side of a pipeline runs
-                  # in a subshell, so a non-zero exit there would not fail this step
-                  # under `set -e` — the shape `.github/ship-oracle/verify-deb.sh`'s
-                  # header spells out. The empty case is the script's own.
+                  # THE SCRIPTS COME FROM `base.sha`, THE YAML FROM THE MERGE REF.
+                  # That asymmetry is what #1340 paid for once, and this change would
+                  # have reopened it from the other side: a PR whose base predates the
+                  # merge of this file checks out a `scripts/` without
+                  # `cancel-superseded-runs.mjs`, and an unguarded `node` on it exits 1
+                  # under `set -e` — a red X on every open PR, and a permanent one on
+                  # any PR stacked on a feature branch, whose `base.sha` does not
+                  # advance with `main`. Measured: `git ls-tree 0498711fe -- scripts/`
+                  # holds `select-superseded-runs.mjs` alone.
+                  if [ ! -f scripts/cancel-superseded-runs.mjs ]; then
+                      echo "::notice::this PR's base predates scripts/cancel-superseded-runs.mjs; nothing cancelled. Rebase on main to re-enable superseded-run cancellation."
+                      exit 0
+                  fi
+
+                  # A HERE-STRING, not a pipe. Both spellings fail the step on a
+                  # non-zero exit — measured, `set -e` alone is enough, a pipeline's
+                  # status IS its right-hand side's. What the here-string buys is that
+                  # the script reads a COMPLETE stdin from a file rather than from a
+                  # producer this step could outlive, so an empty `ids` is an empty
+                  # read and never a SIGPIPE — the second half of what
+                  # `.github/ship-oracle/verify-deb.sh`'s header spells out. The empty
+                  # case is the script's own.
                   node scripts/cancel-superseded-runs.mjs <<<"${ids}"

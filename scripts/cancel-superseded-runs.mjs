@@ -31,12 +31,22 @@
 // workflow exists to break, and the only case it is for. So:
 //
 //   completed after the settle  → the ordinary cancel worked; nothing more to do
-//   queued after the settle     → no job ever started, so nothing can acknowledge and
+//   no runner yet after settle  → no job ever started, so nothing can acknowledge and
 //                                 nothing is unwinding: force-cancel it
 //   in_progress after settle    → it HAS a runner, so it received the cancel and is
 //                                 running its `always()` cleanup. Force-cancel bypasses
 //                                 conditions and that cleanup, so this reports it and
 //                                 leaves it alone
+//
+// `queued` IS NOT THE WHOLE OF THE FIRST ARM. `select-superseded-runs.mjs` selects on
+// `status !== 'completed'`, and the API's non-terminal vocabulary is wider than one
+// word: sampling this repository's last 300 runs on 2026-09-04 returned 263
+// `completed`, 25 `queued`, 9 `in_progress` and 3 `pending`. A `pending` run has no
+// runner by the same argument a `queued` one has none, so keying on the literal
+// `queued` would have reported three live runs and force-cancelled none of them.
+// {@link NO_RUNNER} is that arm, ENUMERATED rather than derived by negation: a status
+// this file has never seen is reported and left alone, because "not in_progress" is
+// not the same claim as "nothing is executing".
 //
 // Not claimed as GitHub's documented contract — only as what was measured twice here,
 // and as the reading that keeps the ordinary cancel's promise for every run that can
@@ -67,6 +77,16 @@ const POLL_MS = 4_000;
 const COMPLETED = 'completed';
 
 /**
+ * Statuses that mean NO JOB IS EXECUTING, so nothing can acknowledge a cancellation.
+ *
+ * Enumerated, not `!== 'in_progress'`. A status nobody here has seen gets reported
+ * rather than force-cancelled — see the header. `action_required` is deliberately
+ * absent: nothing is executing there either, but it is a run parked on a human
+ * decision, and discarding one silently is a different act from freeing a runner.
+ */
+const NO_RUNNER = new Set(['queued', 'pending', 'waiting', 'requested']);
+
+/**
  * Post the cancels, wait a bounded moment, force-cancel whatever never started, and
  * report what actually STOPPED.
  *
@@ -91,13 +111,31 @@ export async function cancelSupersededRuns({
     const selected = ids.map((id) => String(id));
     let posted = 0;
     let refused = 0;
+    /** id → whether THIS run's cancel POST was accepted, so the report can say which. */
+    const accepted = new Map();
+
+    // A THROW IS NOT A VERDICT. The `run:` block this replaced was
+    // `gh api … || true` per run, so a DNS blip could not fail the step; a bare
+    // `await fetch()` can, and would put a red X on a cost-control job for a
+    // transient. Status 0 is "no answer", which every branch below already treats as
+    // "not a cancellation" and "not a status anybody read".
+    const call = async (method, path) => {
+        try {
+            return await api(method, path);
+        } catch (error) {
+            log(`${method} ${path}: ${error instanceof Error ? error.message : String(error)}`);
+            return { status: 0, body: undefined };
+        }
+    };
 
     for (const id of selected) {
         // A run that finished between the listing and this POST answers 409, and a
         // read-only token on a fork PR answers 403. Neither is a reason to fail the
         // job — but neither is a cancellation, so they are counted apart.
-        const { status } = await api('POST', `actions/runs/${id}/cancel`);
-        if (status >= 200 && status < 300) {
+        const { status } = await call('POST', `actions/runs/${id}/cancel`);
+        const ok = status >= 200 && status < 300;
+        accepted.set(id, ok);
+        if (ok) {
             posted += 1;
             log(`run ${id}: cancel posted`);
         } else {
@@ -112,7 +150,7 @@ export async function cancelSupersededRuns({
     const readAll = async () => {
         for (const id of selected) {
             if (state.get(id) === COMPLETED) continue;
-            const { status, body } = await api('GET', `actions/runs/${id}`);
+            const { status, body } = await call('GET', `actions/runs/${id}`);
             // An unreadable run is not a stopped run. Leaving it `unknown` keeps it out
             // of the stopped count and out of the force-cancel set, which is the safe
             // direction in both: the notice under-claims rather than inventing a
@@ -135,23 +173,38 @@ export async function cancelSupersededRuns({
     // different promise than the one this workflow makes.
     let forced = 0;
     for (const id of selected) {
-        if (state.get(id) !== 'queued') continue;
-        const { status } = await api('POST', `actions/runs/${id}/force-cancel`);
-        if (status >= 200 && status < 300) {
+        const status = state.get(id);
+        if (status === undefined || !NO_RUNNER.has(status)) continue;
+        const { status: code } = await call('POST', `actions/runs/${id}/force-cancel`);
+        if (code >= 200 && code < 300) {
             forced += 1;
             log(
-                `run ${id}: still queued ${settleMs / 1000}s after the cancel — force-cancelled. No job was ever ` +
+                `run ${id}: still ${status} ${settleMs / 1000}s after the cancel — force-cancelled. No job was ever ` +
                     'assigned a runner, so there was nothing to deliver the cancellation to.',
             );
         } else {
-            log(`run ${id}: force-cancel refused with ${status}`);
+            log(`run ${id}: force-cancel refused with ${code}`);
         }
     }
     if (forced > 0) await readAll();
 
     const stopped = selected.filter((id) => state.get(id) === COMPLETED);
     const running = selected.filter((id) => state.get(id) !== COMPLETED);
-    for (const id of running) log(`run ${id}: still ${state.get(id)} — the cancel was accepted and has not taken yet`);
+    // WHAT WAS OBSERVED, not what was hoped. This line used to say "the cancel was
+    // accepted and has not taken yet" for every survivor, including the ones whose
+    // POST had just been logged as refused and the ones whose status nobody could
+    // read — a sentence about the world in a file that exists because one of those
+    // was written down once already.
+    for (const id of running) {
+        const status = state.get(id);
+        const where =
+            status === 'unknown'
+                ? 'its status could not be read, so nothing here knows whether it stopped'
+                : NO_RUNNER.has(status ?? '')
+                  ? 'still holding its concurrency group with no runner assigned'
+                  : `still ${status}`;
+        log(`run ${id}: ${accepted.get(id) === true ? 'cancel accepted' : 'cancel refused'} — ${where}`);
+    }
 
     return { selected: selected.length, posted, refused, stopped: stopped.length, forced, running };
 }
@@ -204,13 +257,22 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     });
 
     // THE COUNT IS OF RUNS THAT STOPPED, not of requests that were accepted. The old
-    // notice said `cancelled 4 run(s)` about four POSTs while four runs kept their
-    // concurrency groups — accurate about the requests and wrong about the world, and
-    // counting the right thing is what would have surfaced #1548 the first time.
+    // notice said `cancelled 4 run(s)` about four POSTs while TWO of those runs kept
+    // their concurrency groups for another 9 and 16 minutes — accurate about the
+    // requests and wrong about the world, and counting the right thing is what would
+    // have surfaced #1548 the first time.
+    //
+    // AND A SURVIVOR IS A WARNING, not a notice. The incident's whole shape was that
+    // nothing in the log looked wrong, so a run that outlived a cancel this job
+    // POSTED and ACCEPTED has to reach the checks list, where a human sees it without
+    // opening the log. Gated on `posted`: a fork PR's read-only token refuses every
+    // POST, and annotating that on every fork contribution would train the annotation
+    // out of meaning anything.
     const forced = result.forced > 0 ? `, ${result.forced} of them by force-cancel` : '';
     const left =
         result.running.length > 0 ? `; ${result.running.length} did not stop: ${result.running.join(', ')}` : '';
+    const level = result.running.length > 0 && result.posted > 0 ? 'warning' : 'notice';
     console.log(
-        `::notice::${result.stopped} of ${result.selected} run(s) superseded by ${where} stopped${forced}${left}.`,
+        `::${level}::${result.stopped} of ${result.selected} run(s) superseded by ${where} stopped${forced}${left}.`,
     );
 }
