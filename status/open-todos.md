@@ -3398,6 +3398,59 @@ own SKIP gate — it already carries nine of them — so it skips where an Adwai
 cannot complete startup and keeps running where it can. Removing the ledger entry in the same
 change is what `check-e2e-suite-coverage.mjs` will then require.
 
+### `react-native-devtools` needs a display, and one already exists in CI
+
+`tests/e2e/react-native-devtools/` (ADR 0043) proves that a React Native application whose
+whole bootstrap is `registerRootComponent` is reachable over `org.gjsify.Devtools`: the export
+line, a **mapped** window, both rendered widgets in `DumpTree`, a `Screenshot` carrying PNG
+bytes, and `ActivateWidget` → `GetProperty` showing the label React changed. A third vector
+renders `<RouterRoot>` through the same bootstrap and counts mapped `AdwHeaderBar`s. Measured
+green on a desktop session, all three.
+
+It is ledgered rather than listed for a different reason than `devtools-export`'s: a GTK window
+cannot MAP without a display, `test:e2e` has none, and the suite's SKIP gate checks for one — so
+listing it would buy a silent suite, which is the state this ledger exists to prevent.
+
+Which means three lines in `runApplication` are guarded by NOTHING that CI runs:
+`registerBuiltinWidgets()`, the option passthrough, and `provideWindowChrome()`. No unit vector
+can hold any of them — each is observable only by running the loop, and `app-registry.spec.ts`
+covers `toShellOptions` precisely because that one IS a pure value.
+
+The third is measured rather than argued. Deleting `provideWindowChrome(chrome, …)` from the
+render call, dropping `chrome` from the destructuring and deleting the now-dead import — the
+whole shape a careless rebase produces — leaves `oxfmt` clean, `oxlint` at 0, `tsc` at 0 and
+`@gjsify/react-native` at 2345 completed / 0 failed, **#1540's ten window-chrome vectors
+included**: `router/router.spec.ts` composes `buildWindowShell()` + `provideWindowChrome()`
+itself and never runs the bootstrap, which is the drift `window-chrome.ts`' own header warns
+about one function earlier. From outside, the same build draws TWO mapped header bars — #1460,
+two sets of window controls, one dead close button.
+
+WHAT IS LEFT: main.yml's `examples` job already runs `xvfb-run … dbus-run-session` around
+`scripts/showcase-smoke.mjs`, which is precisely the environment this suite asks for. Of the two
+facts that had to be confirmed in that job, one is now measured and one is the real blocker:
+
+- **The built libs are there.** `gjsify-setup` restores the build-output cache, whose path list
+  is `packages/*/*/lib` (minus three infra opt-outs), and the job `needs: build`, which saves it.
+  `packages/infra/cli/dist/cli.gjs.mjs` arrives via `bootstrap-bundles: 'true'`, and the
+  `@gjsify/rolldown-native-linux-x64` typelib the fixture build needs is COMMITTED, not built —
+  so none of the three preconditions the SKIP gate checks is missing there.
+- **The trigger is not.** The job is gated on `@gjsify/example-*` being in the closure (or a
+  global run), so a change confined to `packages/framework/react-native/**` skips it entirely —
+  the suite would then be silent for exactly the PRs it exists to catch. Widening that condition,
+  or giving the suite its own `xvfb-run … dbus-run-session` step in the `e2e` job (the shape the
+  `test` job already uses for `Test WebGL conformance`), is the decision left to make.
+
+Either way the step needs a SKIP-is-fatal switch: the suite's gate has nine preconditions and
+going quiet on any of them in CI is the same green-that-checked-nothing this ledger exists to
+prevent. If `devtools-export`'s open question turns out to be the same environmental fact, both
+suites land in the same place together.
+
+One measurement for whoever writes that step: `GTK_A11Y` is unset on a desktop session and the
+fixture logs `Unable to acquire the address of the accessibility bus … Permission denied` — a
+warning, not a failure, but the `examples` job already sets `GTK_A11Y=none` alongside
+`GSK_RENDERER=cairo`/`GDK_BACKEND=x11`/`LIBGL_ALWAYS_SOFTWARE=1`, and the same set belongs on
+this suite's step.
+
 ### `logSignals` has no test
 
 The one survivor of the twelve parked test sites `gjsify/todo-needs-anchor`

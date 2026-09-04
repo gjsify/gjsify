@@ -4,6 +4,7 @@ import { run } from '@gjsify/unit';
 import animatedSuite from './animated/animated.spec.js';
 import easingSuite from './animated/easing.spec.js';
 import apisSuite from './apis/apis.spec.js';
+import appRegistrySuite from './app-registry.spec.js';
 import childFactsSuite from './child-facts.spec.js';
 import eventEmitterSuite from './event-emitter.spec.js';
 import listsSuite from './lists/lists.spec.js';
@@ -59,6 +60,7 @@ GLib.setenv('GTK_A11Y', 'test', true);
 run({
     supportTableSuite,
     propTableSuite,
+    appRegistrySuite,
     unsupportedSuite,
     eventEmitterSuite,
     classesSuite,
