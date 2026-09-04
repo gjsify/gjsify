@@ -10,8 +10,9 @@
 // fixtures set `transform.jsx: false`: the dialect is a build-configuration
 // question this suite is not about, and `createElement` is what JSX compiles to.
 
-import { createElement, useState } from 'react';
+import { createElement, useState, type ReactElement } from 'react';
 import { AppRegistry, Pressable, registerRootComponent, Text, View } from '@gjsify/react-native';
+import { RouterRoot, Stack, type RouteManifest } from '@gjsify/react-native/router';
 
 /**
  * Which half of the devtools contract this run exercises.
@@ -21,6 +22,19 @@ import { AppRegistry, Pressable, registerRootComponent, Text, View } from '@gjsi
  * option; the default reads the env gate and passes no devtools option at all.
  */
 const BY_OPTION = process.env.PROBE_DEVTOOLS_OPTION === '1';
+
+/**
+ * Render the router instead of a plain view, for the window-chrome vector.
+ *
+ * A routed tree is the only shape that can SEE `runApplication`'s chrome hand-over:
+ * the outermost navigator takes the window's header bar only if `provideWindowChrome`
+ * published one, and a plain `<View>` never asks. `useWindowChrome()` answering
+ * `null` is an ordinary answer for a consumer who built their own window, so nothing
+ * throws when the publish is missing — the window simply keeps its bar while the
+ * navigator grows a second one, which is #1460 all over again and invisible from
+ * inside the process.
+ */
+const ROUTED = process.env.PROBE_ROUTED === '1';
 
 function App() {
     const [pressed, setPressed] = useState(false);
@@ -41,7 +55,26 @@ function App() {
     );
 }
 
-const code = await registerRootComponent(App as never, {
+/** The routes directory a real application has as files, written out as an array. */
+function RootLayout(): ReactElement {
+    return createElement(
+        Stack,
+        null,
+        createElement(Stack.Screen, { key: 'index', name: 'index', options: { title: 'Probe' } }),
+    );
+}
+function IndexScreen(): ReactElement {
+    return createElement(View, null, createElement(Text, { testID: 'probe-label' }, 'ROUTED'));
+}
+const MANIFEST: RouteManifest = [
+    { contextKey: '_layout.tsx', module: { default: RootLayout } },
+    { contextKey: 'index.tsx', module: { default: IndexScreen } },
+];
+function RoutedApp(): ReactElement {
+    return createElement(RouterRoot, { manifest: MANIFEST });
+}
+
+const code = await registerRootComponent((ROUTED ? RoutedApp : App) as never, {
     applicationId: 'org.gjsify.RnDevtoolsProbe',
     title: 'RN Devtools Probe',
     ...(BY_OPTION ? { devtools: true } : {}),

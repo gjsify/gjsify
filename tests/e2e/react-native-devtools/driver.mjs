@@ -69,11 +69,29 @@ function findByName(node, name) {
     return null;
 }
 
+/**
+ * How many widgets of a GType the dumped tree holds, MAPPED ones only.
+ *
+ * Mapped rather than merely present, because that is the count a user sees. The
+ * chrome hand-over REMOVES the window's bar from its toolbar view, so a lost
+ * hand-over shows up as a second bar that is present AND drawing; counting nodes
+ * alone would also count a bar some other mechanism had hidden, and answer the
+ * wrong question in both directions.
+ */
+function countMapped(node, type) {
+    if (node === null || node === undefined) return 0;
+    let n = node.type === type && node.mapped === true ? 1 : 0;
+    for (const child of node.children ?? []) n += countMapped(child, type);
+    return n;
+}
+
 const env = { ...process.env };
 delete env.GJSIFY_DEVTOOLS;
 delete env.PROBE_DEVTOOLS_OPTION;
+delete env.PROBE_ROUTED;
 if (mode === 'option') env.PROBE_DEVTOOLS_OPTION = '1';
 else env.GJSIFY_DEVTOOLS = '1';
+if (mode === 'routed') env.PROBE_ROUTED = '1';
 
 const child = spawn('gjs', ['-m', bundle], { env, stdio: ['ignore', 'pipe', 'pipe'] });
 let log = '';
@@ -105,7 +123,13 @@ if (result.onBus) {
         'interface org.gjsify.Devtools',
     );
     result.status = unwrapJson(call('GetStatus'));
-    result.tree = unwrapJson(call('DumpTree', '', '0'));
+    // Depth 40, not the default. `DumpTree(root, 0)` means EIGHT levels, and eight
+    // does not reach the bottom of an Adwaita window: measured on the routed vector,
+    // `AdwNavigationPage`'s own `AdwToolbarView` sits at level 7 and its header bar
+    // below that, so the default answered "0 header bars" for a window that drew one.
+    // A truncated tree is a wrong answer that looks like a finding.
+    result.tree = unwrapJson(call('DumpTree', '', '40'));
+    result.headerBars = countMapped(result.tree, 'AdwHeaderBar');
     const shot = call('Screenshot', '');
     // The PNG signature and the DECODED byte count, not the printed length: an
     // unmapped window answers `(@ay [],)`, a successful call returning no picture,

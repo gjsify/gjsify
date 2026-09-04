@@ -28,6 +28,23 @@
 //          vector could not export at all. It is also the only vector a bus-less
 //          host (macOS, Windows) can be pointed at, since `devtools.address` rides
 //          the same passthrough.
+//   routed the SAME bootstrap rendering `<RouterRoot>` instead of a `<View>`, for
+//          the one line the other two are structurally blind to:
+//          `provideWindowChrome(chrome, …)` in `runApplication`'s render call
+//          (#1460, #1540). The outermost navigator takes the window's header bar
+//          only if that publish happened, and `useWindowChrome()` answering `null`
+//          is an ORDINARY answer — a consumer with their own window publishes
+//          nothing — so a lost publish throws nothing and logs nothing. It just
+//          draws a second bar with a second set of window controls, of which one
+//          close button does nothing.
+//
+//          MEASURED, by deleting that call and its now-dead import and rebuilding:
+//          `oxfmt` clean, `oxlint` 0, `tsc` 0, and `@gjsify/react-native` 2345
+//          completed / 0 failed — INCLUDING all ten of #1540's window-chrome
+//          vectors, because `router.spec.ts` composes `buildWindowShell()` +
+//          `provideWindowChrome()` itself and never runs the bootstrap. `env` and
+//          `option` also stayed green: a non-routed tree never asks for the chrome,
+//          so it counts one bar either way. Only this vector moved, 1 -> 2.
 //
 // The click-drive leg is the honest version of "did the screen change": find the
 // button in `DumpTree`, `ActivateWidget` it, read the label back. Sequencing from
@@ -221,6 +238,35 @@ describe('a React Native root component is reachable over devtools', { skip: SKI
             // so this is what `runApplication` owes it.
             assert.doesNotMatch(m.log, /GtkHostError/, `no GtkHostError may be logged.${ctx}`);
             assert.doesNotMatch(m.log, /JS ERROR/, `no swallowed exception may be logged.${ctx}`);
+
+            // One bar for a NON-routed tree too, and it is the window's own. Stated
+            // here so the routed vector's `1` is read as "the navigator took it over"
+            // and not as "one is simply what this window has".
+            assert.equal(m.headerBars, 1, `a plain root must draw exactly one header bar.${ctx}`);
         });
     }
+
+    it('hands the window chrome to a routed navigator (routed)', () => {
+        const m = measure(bundle, 'routed');
+        const ctx = `\n--- app output (routed) ---\n${m.log}`;
+
+        assert.equal(m.status?.activeWindow?.mapped, true, `the application window must be mapped.${ctx}`);
+        assert.ok(m.labelPath, `the routed screen must render.\n${JSON.stringify(m.tree)}${ctx}`);
+
+        // THE ASSERTION THIS VECTOR EXISTS FOR. Two mapped bars is #1460: the
+        // window's own plus the navigation page's, two sets of window controls, and
+        // only one of the two close buttons closes the window. Measured 2 with
+        // `provideWindowChrome(chrome, …)` deleted from `runApplication`, while
+        // format, lint, tsc and all 2345 unit assertions stayed green.
+        assert.equal(
+            m.headerBars,
+            1,
+            `a routed application must draw exactly ONE header bar; got ${m.headerBars}. ` +
+                `Two means runApplication did not publish the window's chrome to the tree, so the ` +
+                `outermost navigator never claimed it.\n${JSON.stringify(m.tree)}${ctx}`,
+        );
+
+        assert.equal(m.screenshot?.png, true, `Screenshot must return PNG bytes.${ctx}`);
+        assert.doesNotMatch(m.log, /JS ERROR/, `no swallowed exception may be logged.${ctx}`);
+    });
 });

@@ -123,6 +123,15 @@ entry point was the seam that kept an application from reaching it.
    the `GJSIFY_DEVTOOLS` env gate, and `devtools: true` passed through the options with
    the env var unset — the second can only pass if the passthrough exists.
 
+   A third vector renders `<RouterRoot>` through the same bootstrap and counts mapped
+   `AdwHeaderBar`s, which is the only way to observe the chrome hand-over
+   `runApplication` performs for a routed application (#1460). A non-routed tree never
+   asks the window for its chrome, so the two vectors above count one bar whether the
+   publish happened or not. Deleting `provideWindowChrome(chrome, …)` from the render
+   call measures `oxfmt` clean, `oxlint` 0, `tsc` 0 and 2345 unit assertions green — the
+   ten window-chrome vectors included, because those compose the shell themselves —
+   against TWO mapped header bars in the running application.
+
    Nothing in that fixture asserts anything about itself. An in-process assertion is the
    evidence this ADR exists to replace.
 

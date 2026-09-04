@@ -3403,17 +3403,27 @@ change is what `check-e2e-suite-coverage.mjs` will then require.
 `tests/e2e/react-native-devtools/` (ADR 0043) proves that a React Native application whose
 whole bootstrap is `registerRootComponent` is reachable over `org.gjsify.Devtools`: the export
 line, a **mapped** window, both rendered widgets in `DumpTree`, a `Screenshot` carrying PNG
-bytes, and `ActivateWidget` → `GetProperty` showing the label React changed. Measured green on
-a desktop session, both vectors.
+bytes, and `ActivateWidget` → `GetProperty` showing the label React changed. A third vector
+renders `<RouterRoot>` through the same bootstrap and counts mapped `AdwHeaderBar`s. Measured
+green on a desktop session, all three.
 
 It is ledgered rather than listed for a different reason than `devtools-export`'s: a GTK window
 cannot MAP without a display, `test:e2e` has none, and the suite's SKIP gate checks for one — so
 listing it would buy a silent suite, which is the state this ledger exists to prevent.
 
-Which means the change this PR makes to `runApplication` — `registerBuiltinWidgets()` above all,
-whose only vector is this suite — is guarded by NOTHING that CI runs. `app-registry.spec.ts`
-covers `toShellOptions` and nothing else, because no unit vector can hold "`runApplication` calls
-it": the call is only observable by running the loop.
+Which means three lines in `runApplication` are guarded by NOTHING that CI runs:
+`registerBuiltinWidgets()`, the option passthrough, and `provideWindowChrome()`. No unit vector
+can hold any of them — each is observable only by running the loop, and `app-registry.spec.ts`
+covers `toShellOptions` precisely because that one IS a pure value.
+
+The third is measured rather than argued. Deleting `provideWindowChrome(chrome, …)` from the
+render call, dropping `chrome` from the destructuring and deleting the now-dead import — the
+whole shape a careless rebase produces — leaves `oxfmt` clean, `oxlint` at 0, `tsc` at 0 and
+`@gjsify/react-native` at 2345 completed / 0 failed, **#1540's ten window-chrome vectors
+included**: `router/router.spec.ts` composes `buildWindowShell()` + `provideWindowChrome()`
+itself and never runs the bootstrap, which is the drift `window-chrome.ts`' own header warns
+about one function earlier. From outside, the same build draws TWO mapped header bars — #1460,
+two sets of window controls, one dead close button.
 
 WHAT IS LEFT: main.yml's `examples` job already runs `xvfb-run … dbus-run-session` around
 `scripts/showcase-smoke.mjs`, which is precisely the environment this suite asks for. Of the two
@@ -3434,6 +3444,12 @@ Either way the step needs a SKIP-is-fatal switch: the suite's gate has nine prec
 going quiet on any of them in CI is the same green-that-checked-nothing this ledger exists to
 prevent. If `devtools-export`'s open question turns out to be the same environmental fact, both
 suites land in the same place together.
+
+One measurement for whoever writes that step: `GTK_A11Y` is unset on a desktop session and the
+fixture logs `Unable to acquire the address of the accessibility bus … Permission denied` — a
+warning, not a failure, but the `examples` job already sets `GTK_A11Y=none` alongside
+`GSK_RENDERER=cairo`/`GDK_BACKEND=x11`/`LIBGL_ALWAYS_SOFTWARE=1`, and the same set belongs on
+this suite's step.
 
 ### `logSignals` has no test
 
