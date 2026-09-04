@@ -384,3 +384,31 @@ plain method, generic method — hold it.
 § 8's TextInput handle claim was re-measured on 0.86 rather than assumed: `focus` and
 `blur` come from `HostInstance` and `isFocused`, `clear` and `setSelection` are declared
 on `TextInput`, which is the same five `handles.ts` implements.
+
+**The drift half of that gate had never run once.** `readInstalledExports` resolved
+`react-native/index.js`, a subpath no version of the package puts in its `exports` map,
+so `require.resolve` threw `ERR_PACKAGE_PATH_NOT_EXPORTED`, a bare `catch` read that as
+"not installed", and the script printed *"upstream drift is NOT checked here"* while the
+package sat in `node_modules`. The bare specifier resolves to the same file. So the
+comparison this section is about had, until now, only ever run against a file this
+repository writes itself.
+
+Two things followed from turning it on, and both are recorded because neither was
+visible before. **The reader had to be scoped to the object literal**: below it,
+react-native writes `Object.defineProperty(module.exports, 'AsyncStorage', …)` blocks
+whose getter throws "has been removed from react-native core", so counting them reports
+removed names as exports — and their `configurable:` / `get()` lines were being read as
+exports of their own. Measured across three releases with the scoped reader: 0.85.3 → 92
+names, 0.86.3 → 99, 0.87.1 → 97 (`AssetRegistry` added; `Touchable`,
+`InteractionManager` and `NativeDialogManagerAndroid` moved into exactly those throwing
+stubs). The 0.85.3 figure reproduces the committed snapshot exactly, which is what says
+the scoping changed nothing it should not.
+
+**And this tree resolves 0.87.1, not 0.86.3.** `@gjsify/adwaita-react-native` declares
+`react-native: ">=0.87 <1"`, deliberately — its "a stock React Native application needs
+no configuration" claim rests on `metro-resolver@0.87.0`. That is a different package
+answering a different question, so the two are not reconciled into one number: the
+snapshot records the release THIS layer tracks, the check reports the resolved version
+beside it, and a set difference between two releases is printed as the difference
+between them rather than failed as drift. It fails, as before, when the two versions are
+the same and the sets are not.

@@ -88,11 +88,11 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `ProgressBarAndroid` | P3 | Gtk.ProgressBar | Android-only by name; GTK has the widget. |
 | `NativeEventEmitter` | P3 | — | It would construct and subscribe, but nothing native would ever emit into it — shipping that needs a decision, not a class. |
 | `DeviceEventEmitter` | P3 | — | The global emitter. Lands with NativeEventEmitter, and for the same reason. |
-| `unstable_VirtualArray` | P3 | Gio.ListModel | A collection with a `size` and item access that need not be eagerly allocated — which is what a `Gio.ListModel` is, one interface over. |
-| `unstable_createVirtualCollectionView` | P3 | Gtk.ListView / Gtk.GridView + Gtk.SignalListItemFactory | Builds a view component from a layout component and a generator; GTK spells the same split as a view plus an item factory. |
-| `unstable_VirtualColumn` | P3 | Gtk.ListView (vertical) | The vertical axis layout of the collection view. |
-| `unstable_VirtualColumnGenerator` | P3 | Gtk.SignalListItemFactory | The per-item generator the column layout is driven by. |
-| `unstable_VirtualRow` | P3 | Gtk.ListView (horizontal) | The horizontal axis layout, which on GTK is the same view with its orientation set. |
+| `unstable_VirtualArray` | P3 | Gio.ListStore | The array-backed implementation of the `VirtualCollection` interface — `size` plus `at(index)`. Its own doc warns it is not for large arrays, because the constructor copies the input; the LAZY case is the interface, not this class. `Gio.ListStore` is the same array-backed shape, and a Gio.ListModel of one\u2019s own is the lazy one. |
+| `unstable_createVirtualCollectionView` | P3 | Gtk.ListView / Gtk.GridView | Builds a view component from a layout component and a generator. The per-item render is the returned component\u2019s `children` render prop — which is what `Gtk.SignalListItemFactory` answers; the generator is a different thing (see below). |
+| `unstable_VirtualColumn` | P3 | Gtk.ListView (vertical) | The collection view built over the column generator. Its layout component renders children plus a spacer and nothing else — the AXIS is in the generator\u2019s spacer style, not in the layout. |
+| `unstable_VirtualColumnGenerator` | P3 | Gtk.ListView\u2019s own recycling window | NOT per item: `{ initial: { itemCount, spacerStyle }, next(event) }` \u2014 how many items to render and how tall the spacer is, recomputed on a mode change. It never sees an item. GTK computes the same thing itself from the viewport. |
+| `unstable_VirtualRow` | P3 | Gtk.ListView (horizontal) | The row twin of the column view. Its layout component is identical to the column\u2019s; on GTK the pair is one view with its orientation set. Upstream exports no row GENERATOR, so only one half of the pair is configurable from outside. |
 | `unstable_getScrollParent` | P3 | the enclosing Gtk.ScrolledWindow | The nearest scrollable ancestor of a node. GTK answers it by walking parents to a Gtk.ScrolledWindow, and returns nothing at the root for the same reason React Native does. |
 | `unstable_DEFAULT_INITIAL_NUM_TO_RENDER` | P3 | — | The constant 7, upstream’s initial window size. GTK sizes its own recycling window from the viewport, so this is a number to expose rather than to obey. |
 

@@ -185,14 +185,20 @@ function selfTest() {
     const wrap = (inner) =>
         `export const SUPPORT_TABLE: Readonly<Record<string, E>> = {\n${inner}\n};\nexport const X = 1;\n`;
 
-    // The three shapes react-native's own index.js writes a member in, and the
-    // third is why this vector set exists: across 0.85 → 0.86 the SAME export
-    // stopped being a getter and grew a type parameter, and the reader that
-    // expected `(` right after the name reported it as removed.
+    // Every shape react-native's own index.js writes, and the two it writes that
+    // must NOT be read. The generic method is why this vector set exists: across
+    // 0.85 → 0.86 the SAME export stopped being a getter and grew a type parameter,
+    // and a reader expecting `(` right after the name reported it as removed. The
+    // `defineProperty` block is the mirror image: in 0.87 the same rewrite moved
+    // `Touchable` into a stub whose getter THROWS, so counting it would report a
+    // removed name as an export — and its `configurable`/`get()` lines would be read
+    // as exports of their own by anything that did not stop at the literal.
     ok(
-        'index members: getter, method, generic method',
+        'index members: getter, method, generic method — and nothing after the literal',
         exportNamesFromIndex(
             [
+                "const invariant = require('invariant');",
+                'module.exports = {',
                 '  get Alert() {',
                 "    return require('./Libraries/Alert/Alert').default;",
                 '  },',
@@ -202,6 +208,13 @@ function selfTest() {
                 '  Systrace: {',
                 '    beginEvent() {},',
                 '  },',
+                '};',
+                "Object.defineProperty(module.exports, 'Touchable', {",
+                '  configurable: true,',
+                '  get() {',
+                '    invariant(false, "Touchable has been removed from react-native core.");',
+                '  },',
+                '});',
             ].join('\n'),
         ),
         ['Alert', 'unstable_batchedUpdates', 'Systrace'],
@@ -492,18 +505,50 @@ function readInstalledExports() {
     const require = createRequire(join(ROOT, 'package.json'));
     let indexPath;
     try {
-        indexPath = require.resolve('react-native/index.js');
+        // THE BARE SPECIFIER, and the subpath is what made this whole branch dead
+        // code. `react-native/index.js` is not in the package's `exports` map — not
+        // in 0.85, 0.86 or 0.87 — so `require.resolve` threw
+        // ERR_PACKAGE_PATH_NOT_EXPORTED, the `catch` read it as "not installed", and
+        // the script SAID upstream drift was not checked while the package sat in
+        // `node_modules`. The bare specifier resolves to exactly the same file
+        // through the map's `.` entry. Measured on this tree, which installs 0.87.1.
+        indexPath = require.resolve('react-native');
     } catch {
         return null;
     }
     if (!existsSync(indexPath)) return null;
-    return exportNamesFromIndex(readFileSync(indexPath, 'utf8'));
+    const manifest = join(dirname(indexPath), 'package.json');
+    const version = existsSync(manifest) ? JSON.parse(readFileSync(manifest, 'utf8')).version : null;
+    return { version, exports: exportNamesFromIndex(readFileSync(indexPath, 'utf8')) };
 }
 
-/** The member names of the one object literal `index.js` assigns to `module.exports`. */
+/**
+ * The member names of the one object literal `index.js` assigns to `module.exports`.
+ *
+ * SCOPED TO THE LITERAL, which is both halves of being right here. Below it,
+ * react-native writes `Object.defineProperty(module.exports, 'AsyncStorage', …)`
+ * blocks whose getter THROWS — "has been removed from react-native core" — so a
+ * reader that counted them would report removed names as exports. And those blocks
+ * are `{ configurable: true, get() {…} }` at two-space indent, so a reader that did
+ * not stop at the literal's `};` invented the exports `configurable` and `get`.
+ * Measured on 0.87.1, where the same rewrite moved `Touchable` and
+ * `InteractionManager` from real getters into exactly those stubs.
+ *
+ * A member may carry TYPE PARAMETERS: across 0.85 → 0.86 `unstable_batchedUpdates`
+ * stopped being a getter and became `unstable_batchedUpdates<T>(fn, bookkeeping)`,
+ * the same export with one line rewritten, and a pattern expecting `(` or `:`
+ * straight after the name reported it as dropped. The generic list may not contain
+ * a `(`, so it cannot swallow the parameter list itself.
+ */
 export function exportNamesFromIndex(source) {
     const names = new Set();
+    let inLiteral = false;
     for (const line of source.split('\n')) {
+        if (!inLiteral) {
+            if (/^module\.exports = \{\s*$/.test(line)) inLiteral = true;
+            continue;
+        }
+        if (/^\}/.test(line)) break;
         const match = /^ {2}(?:get )?([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:<[^(]*>)?\s*[:(]/.exec(line);
         if (match) names.add(match[1]);
     }
@@ -707,17 +752,35 @@ const installed = readInstalledExports();
 let mode;
 if (installed === null) {
     mode = `snapshot only (react-native ${snapshot.reactNativeVersion}, read ${snapshot.readOn}) — react-native is not installed, so upstream drift is NOT checked here`;
+} else if (installed.version !== snapshot.reactNativeVersion) {
+    // TWO VERSIONS ARE TWO QUESTIONS, and comparing them as one would fail this
+    // check for doing its job. The snapshot records the release this LAYER tracks —
+    // the one its consumer ships on — and `node_modules` holds whatever the
+    // workspace resolves, which is `@gjsify/adwaita-react-native`'s `>=0.87 <1`
+    // (its "a stock app needs no configuration" claim rests on `metro-resolver`
+    // 0.87). A set difference between two releases is not drift, it is the
+    // difference between them; what would be a defect is not KNOWING, which is the
+    // state this branch was in for its whole life.
+    const ahead = diff(installed.exports, snapshotNames);
+    const behind = diff(snapshotNames, installed.exports);
+    const parts = [];
+    if (ahead.length > 0) parts.push(`${installed.version} adds ${ahead.join(', ')}`);
+    if (behind.length > 0) parts.push(`${installed.version} no longer exports ${behind.join(', ')}`);
+    mode =
+        `snapshot is react-native ${snapshot.reactNativeVersion} (read ${snapshot.readOn}); this tree resolves ` +
+        `${installed.version}` +
+        (parts.length > 0 ? ` — ${parts.join('; ')}` : ' — identical export sets');
 } else {
     const agreed = compare(
         'snapshot vs installed react-native',
-        installed,
+        installed.exports,
         snapshotNames,
         'regenerate react-native-surface.json and give each new name a table entry',
         'regenerate react-native-surface.json — react-native no longer exports these',
     );
     mode = agreed
-        ? `snapshot verified against the installed react-native (${snapshotNames.length} names)`
-        : 'snapshot DISAGREES with the installed react-native';
+        ? `snapshot verified against the installed react-native ${installed.version} (${snapshotNames.length} names)`
+        : `snapshot DISAGREES with the installed react-native ${installed.version}`;
 }
 
 if (problems.length > 0) {
