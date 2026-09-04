@@ -436,20 +436,37 @@ for (const citation of lineCitations) {
     }
 }
 
-// A corpus of zero is this gate reporting a clean tree it never read.
+// TWO DIFFERENT FACTS, and conflating them is what turned this gate red on its own
+// first CI run. "The tree carries no anchored citation" is a property of the
+// CHECKOUT — `git ls-files` reaches it in every job — and means nobody has opted in,
+// so the arm can fire nowhere: FATAL. "This host verified no anchor" is a property of
+// which `refs/` submodules are on DISK, and `audit-runtimes.yml` checks out
+// `refs/libadwaita` and nothing else on purpose (~13 MB against ~150 GB for the pool);
+// the step's own comment says it "holds what that one contains and no more". The first
+// version asserted the second and printed the first's message, so a job that could not
+// READ the tree's one anchor reported that the tree had none, and told the author to
+// add an anchor that was already there.
+//
+// So the tree-level claim stays fatal and the host-level one becomes a NAMED line in
+// the summary. That is not "skip when empty": the fatal half no longer depends on the
+// host at all, and the readable half is kept non-zero by construction — the anchored
+// `refs/libadwaita` citation in `packages/web/adwaita-core/src/accent.ts` is inside the
+// one submodule this workflow does check out, so the arm verifies real text on every
+// run of the required check.
+const anchoredInTree = lineCitations.filter((citation) => citation.anchor !== undefined).length;
 if (lineCitations.length === 0) {
     failures.push(
         'the line reader found no `refs/<sub>/<path>:<line>` coordinate anywhere in the tree. That is a broken ' +
             'scan, not a tree without line citations.',
     );
-} else if (anchored === 0) {
+} else if (anchoredInTree === 0) {
     // The ANCHOR arm is the only one that catches a citation wrong at birth, and an
     // opt-in arm with nothing opted in is an arm that cannot fail. One real anchored
-    // citation keeps it exercised on every run; retrofitting the rest is ledgered in
+    // citation keeps it exercised; retrofitting the rest is ledgered in
     // `status/open-todos.md`.
     failures.push(
-        'no line citation in the tree carries an `#anchor`, so the arm that verifies WHAT is at a cited line ran ' +
-            'over nothing. Anchor at least one — `refs/<sub>/<path>:<line>#<token at that line>`.',
+        'no line citation in the tracked tree carries an `#anchor`, so the arm that verifies WHAT is at a cited ' +
+            'line can fire nowhere. Anchor at least one — `refs/<sub>/<path>:<line>#<token at that line>`.',
     );
 }
 
@@ -475,6 +492,15 @@ console.log(
         `${skippedTotal} skipped (${[...skipped.keys()].sort().join(', ') || 'none'}), ` +
         `${ledgered} undeclared submodule(s) ledgered, ${placeholders} family patterns not addressable. ` +
         `Of ${lineCitations.length} coordinate(s) naming a LINE, ${linesChecked} were read against the file ` +
-        `(${anchored} with an #anchor verified at the cited text), ${linesSkipped} skipped as not checked out, ` +
-        `after ${LINE_FIXTURES.length} self-test shapes.`,
+        `(${anchored} of the tree's ${anchoredInTree} #anchor(s) verified at the cited text), ` +
+        `${linesSkipped} skipped as not checked out, after ${LINE_FIXTURES.length} self-test shapes.`,
 );
+// Loud rather than fatal — see the two-facts note above. A host that reads none of the
+// tree's anchors has not exercised the arm, and says so instead of claiming coverage.
+if (anchored === 0) {
+    console.log(
+        `check-refs-citations: NOTE — none of the ${anchoredInTree} anchored citation(s) was readable here; they ` +
+            `live in ${[...new Set(lineCitations.filter((c) => c.anchor !== undefined).map((c) => c.coordinate.split('/')[1]))].sort().join(', ')}, ` +
+            'which this host has not checked out. The ANCHOR arm verified nothing on this run.',
+    );
+}
