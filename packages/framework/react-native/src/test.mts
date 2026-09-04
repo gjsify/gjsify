@@ -40,10 +40,19 @@ import unsupportedSuite from './unsupported.spec.js';
 // through a real context too.
 //
 // OVERWRITE is deliberate (`g_setenv(..., true)`): CI sets `none` explicitly, so
-// honouring it would keep the suite measuring nothing. And it is set HERE rather
-// than beside `Gtk.init()` because GTK reads the variable LAZILY, at the first
-// `get_at_context()` — measured both ways — so the entry point is early enough and
-// there is no import-order fragility to get wrong.
+// honouring it would keep the suite measuring nothing.
+//
+// AND THE ORDER IS LOAD-BEARING, which is why this sits at the entry point rather
+// than beside `Gtk.init()`. GTK reads the variable lazily — but exactly ONCE, at the
+// first `get_at_context()`, and caches the answer. MEASURED both ways on gtk 4.22.4,
+// starting from `GTK_A11Y=none`: setting `test` after `Gtk.init()` but before any
+// widget is asked for its context yields a `GtkTestATContext`; setting it after ONE
+// widget has been asked yields `null` forever. A module body runs after every
+// `import` above it, so this is early enough only for as long as nothing those
+// modules import touches an AT context at import time. The `withAtContext` guards in
+// `primitives/widgets.spec.ts` and `solid/solid.spec.ts` are what NAME it the day
+// that stops being true — without them the symptom is six vectors reading
+// "expected values to match using ===".
 GLib.setenv('GTK_A11Y', 'test', true);
 
 run({
