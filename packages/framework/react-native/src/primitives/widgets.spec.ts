@@ -41,6 +41,7 @@
 // earns its place by being the one declaration of what a gated block means.
 
 import Gdk from 'gi://Gdk?version=4.0';
+import Gio from 'gi://Gio?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
@@ -230,6 +231,41 @@ const typeOf = (widget: Gtk.Widget): string =>
     // narrowing with a sentinel, not a fallback anyone should ever see.
     GObject.type_name((widget as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype) ??
     '(unregistered GType)';
+
+/**
+ * The path the two `<Image>` vectors hand to `source.uri`, and the ONE way to assert
+ * that it arrived.
+ *
+ * WHY NOT `expect(picture.file?.get_path()).toBe(IMAGE_SOURCE)`, which is what these
+ * two vectors used to write. `Gio.File.new_for_path` does not store the string it was
+ * given: it CANONICALISES, and it joins the result with `G_DIR_SEPARATOR`. MEASURED
+ * here on linux-x64 with gjs, where that separator is `/`: `/a//b/./c.png` comes back
+ * `/a/b/c.png` and `/a/b/../c.png` comes back `/a/c.png`, so `get_path()` is the
+ * canonicaliser's output rather than the input echoed. On Windows the separator is
+ * `\`, so the same call answers `\nonexistent-gjsify-vector.png`.
+ *
+ * That is not a defect in this layer and it was still red for two months, on one OS,
+ * with nobody counting it (#1556): both vectors failed on the win32-x64 leg of
+ * `gtk-os-suites.yml` and nowhere else, behind a `continue-on-error` probe whose step
+ * CONCLUSION is `success` whatever it did (#1552). Read out of run 33864086251, job
+ * `GTK suites on the shipped closure (win32-x64 / node)`, at 48d751f125:
+ *
+ *     ❌ 2 of 2211 tests failed
+ *       Expected: /nonexistent-gjsify-vector.png (string)
+ *       Actual:   \nonexistent-gjsify-vector.png (string)
+ *
+ * So the assertion is made in GIO's own vocabulary instead of in POSIX's. `equal()`
+ * compares canonical paths, which is exactly the claim — the picture holds the file
+ * the source named — in every spelling; the basename is asserted beside it so a file
+ * that is merely SOME file cannot pass. Neither is weaker than the literal it
+ * replaces: the literal was only ever true where the separator happened to match.
+ */
+const IMAGE_SOURCE = '/nonexistent-gjsify-vector.png';
+
+function expectFileIsSource(file: Gio.File | null): void {
+    expect(file?.equal(Gio.File.new_for_path(IMAGE_SOURCE))).toBe(true);
+    expect(file?.get_basename()).toBe('nonexistent-gjsify-vector.png');
+}
 
 /**
  * The classes THIS layer put on a widget, separated from the ones GTK did.
@@ -1080,16 +1116,13 @@ export default async () => {
                 // the plumbing without asserting that any image exists on the machine
                 // running the suite, which would be a claim about the host and not the
                 // code.
-                mounted(
-                    createElement(Image, { source: { uri: '/nonexistent-gjsify-vector.png' }, alt: 'a picture' }),
-                    (container) => {
-                        const picture = gtkChildren(container)[0] as Gtk.Picture;
-                        expect(typeOf(picture)).toBe('GtkPicture');
-                        expect(picture.contentFit).toBe(Gtk.ContentFit.COVER);
-                        expect(picture.file?.get_path()).toBe('/nonexistent-gjsify-vector.png');
-                        expect(picture.alternativeText).toBe('a picture');
-                    },
-                );
+                mounted(createElement(Image, { source: { uri: IMAGE_SOURCE }, alt: 'a picture' }), (container) => {
+                    const picture = gtkChildren(container)[0] as Gtk.Picture;
+                    expect(typeOf(picture)).toBe('GtkPicture');
+                    expect(picture.contentFit).toBe(Gtk.ContentFit.COVER);
+                    expectFileIsSource(picture.file);
+                    expect(picture.alternativeText).toBe('a picture');
+                });
             });
 
             await it('maps every resizeMode this GTK has a member for', async () => {
@@ -1110,7 +1143,7 @@ export default async () => {
                 mounted(
                     createElement(
                         ImageBackground,
-                        { source: { uri: '/nonexistent-gjsify-vector.png' }, className: 'p-2' },
+                        { source: { uri: IMAGE_SOURCE }, className: 'p-2' },
                         createElement(Text, null, 'over the picture'),
                     ),
                     (container) => {
@@ -1121,7 +1154,7 @@ export default async () => {
                         // whole of "behind".
                         const picture = overlay.get_child() as Gtk.Picture;
                         expect(typeOf(picture)).toBe('GtkPicture');
-                        expect(picture.file?.get_path()).toBe('/nonexistent-gjsify-vector.png');
+                        expectFileIsSource(picture.file);
                         const box = gtkChildren(overlay).find((child) => child !== picture) as Gtk.Box;
                         expect(typeOf(box)).toBe('GtkBox');
                         expect(gtkChildren(box).map((child) => (child as Gtk.Label).label)).toStrictEqual([
