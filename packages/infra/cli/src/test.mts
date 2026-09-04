@@ -121,6 +121,7 @@ import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.j
 import platformResolveSuite from './platform-resolve.spec.js';
 import reactNativeAliasSuite from './react-native-alias.spec.js';
 import reactNativeGateSuite from './react-native-gate.spec.js';
+import doubleDashArgsSuite from './utils/double-dash-args.spec.js';
 
 // ---------------------------------------------------------------------------
 // Capability-gated skips
@@ -327,6 +328,7 @@ run(
         prunePrefixSuite,
         unresolvedWorkspaceImportSuite,
         platformResolveSuite,
+        doubleDashArgsSuite,
         reactNativeAliasSuite,
         reactNativeGateSuite,
     },

@@ -25,6 +25,7 @@ import {
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { cliRuntimeClosure } from '../utils/cli-runtime-closure.js';
 import { prefixLines } from '../utils/prefixed-output.js';
+import { doubleDashArgs } from '../utils/double-dash-args.js';
 import { BuildCacheRunner, buildCacheEnabledByEnv } from '../utils/build-cache.js';
 // The ONE runner-selection rule, shared rather than re-derived. This file used to
 // carry its own copy; `workspace.ts` grew the bootstrap-CLI branch and the copy
@@ -298,6 +299,12 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                 //   gjsify foreach --exec -- npm publish --tag latest
                 // without yargs grabbing --tag/--access/etc.
                 'populate--': true,
+                // …and keep that tail as the TEXT the caller typed. Without
+                // this yargs types a bare number in the array as a `number`,
+                // which is how `--verify-timeout 5 --tag latest` reached 209
+                // npm publishes as `--verify-timeout --tag latest` (#1531).
+                // Declared `type: 'number'` options (`--jobs`) are unaffected.
+                'parse-positional-numbers': false,
             }),
     handler: async (args) => {
         // Walk up to the monorepo root — foreach is sometimes invoked
@@ -319,18 +326,14 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
             // Script mode silently DROPPED everything after `--` (only --exec
             // consumed args['--']). Forward them to each child invocation,
             // matching `yarn workspaces foreach run <script> -- <flags>`.
-            const fromDoubleDash = (((args as Record<string, unknown>)['--'] as unknown[]) ?? []).filter(
-                (v): v is string => typeof v === 'string',
-            );
+            const fromDoubleDash = doubleDashArgs(args);
             if (fromDoubleDash.length > 0) cmdArgs = [...cmdArgs, ...fromDoubleDash];
         }
         if (exec) {
             // With populate--:true, anything after the literal `--`
             // separator lands in top-level args['--']. yargs DOES NOT
             // attach it to args._ — it's a sibling array.
-            const fromDoubleDash = (((args as Record<string, unknown>)['--'] as unknown[]) ?? []).filter(
-                (v): v is string => typeof v === 'string',
-            );
+            const fromDoubleDash = doubleDashArgs(args);
             if (fromDoubleDash.length > 0) {
                 if (!cmd) {
                     cmd = fromDoubleDash[0]!;
