@@ -269,3 +269,80 @@ toolchain is.
 - **A `.web` export over `@gjsify/adwaita-web`.** ADR 0027 § 9 already records "one
   vocabulary across every surface" as a goal whose alignment check does not exist yet,
   and names the criterion that would close it. This ADR does not move that line.
+
+## Amendment, 2026-09-04 — the window's chrome is owned, and window controls are unique
+
+§ 10 settled how a route tree becomes two navigators and left one question unasked:
+**which level owns the window's chrome.** A hand-written Adwaita application answers it
+by placing the header bars; a tree generated from the file system has nobody to ask, and
+the answer that fell out was "every level owns it". Measured on a five-tab application
+entered at its index route: **three `Adw.HeaderBar`s, three close buttons**, only one of
+which closed the window, and nothing distinguishing them (#1460).
+
+It is a decision rather than a bug fix, because it decides where the back button, the
+title and the header slots live.
+
+### The rule
+
+**One header bar per window, owned by the OUTERMOST navigator; inner levels contribute
+their title widget to it rather than growing a second bar.** Three clauses:
+
+1. The outermost navigator **claims** the header bar `AppRegistry` puts in the window
+   and renders the chrome itself; the window takes its bar back if the root unmounts. A
+   second claim is refused by name — two levels each believing they are outermost is a
+   composition defect, and letting the second win would hide it behind a window with no
+   chrome at all. `AppRegistry` cannot simply omit the bar: an `Adw.ApplicationWindow`
+   carries no titlebar of its own, so a plain React Native root needs one, and the
+   router cannot own it either — measured, an `Adw.HeaderBar` ABOVE an
+   `Adw.NavigationView` keeps its `AdwBackButton` hidden and shows the window's title,
+   not the page's, so the chrome has to live inside the pages.
+   **The claim follows the pages that are ON SCREEN**, not the navigator's whole page
+   list: only a mapped bar draws, so a claim held for a bar further down the stack is a
+   claim against nothing. Measured — asking the whole list, a `headerShown: false`
+   screen pushed onto a bar-ful one left the window with 0 mapped header bars and no
+   window control anywhere, i.e. nothing to close or move it with, on a window that had
+   chrome one push earlier. The closing page counts as on screen, because
+   `Adw.NavigationView` keeps it mapped while the arriving one slides in.
+2. An inner `<Tabs>` contributes its `Adw.ViewSwitcher` to the enclosing page's header
+   bar title. React cannot render into an ancestor's subtree in one pass, so the
+   contribution is a state update from the contributor's layout effect — upstream's own
+   shape for this (`navigation.setOptions` from a screen) — and the switcher lands on
+   the next commit. That commit need not re-render `<Tabs>` at all, which is why the
+   `Adw.ViewSwitcher.stack` wiring hangs off the switcher's REF as well as an effect.
+3. **The window controls go on the outermost bar of each path**, not on the owner's.
+   An inner `<Stack>`'s pages need their own back buttons, so their bars stay — without
+   window controls. Ownership and decoration are separate facts and conflating them was
+   measurably wrong: a screen with `headerShown: false` has no bar, so a navigator
+   inside it is neither the owner nor decorated from above, and with one bit for both
+   its fallback bar dropped the controls and the window's only header bar offered no way
+   to close it.
+
+### The invariant, and why it is not "one header bar"
+
+Adwaita composes several bars deliberately: every `Adw.NavigationPage` carries one, and
+`Adw.NavigationSplitView` shows the sidebar's and the content's at the same time. What a
+window has exactly one of is its **window controls** — `GtkWindowControls`, once per side
+of the decoration layout. So the machine-checked rule is *at most one mapped, non-empty
+`GtkWindowControls` per side*, and it is checked over the widgets that DRAW rather than
+over the widget tree's shape: `windowChromeProblems()` in
+`@gjsify/gtk-host/conformance`. Measured on gjs 1.88.1 / GTK 4.22.4 / libadwaita 1.9.3:
+
+- libadwaita hides nothing by itself — three stacked bars produced three mapped,
+  non-empty controls, at exit 0;
+- the split view produced two mapped bars and ONE non-empty control per side, so a
+  bar-counting check would refuse Adwaita's own composition;
+- **mapping is the only honest reading**: a walk over `get_visible()` answered four on
+  the three-bar tree, because a pooled `Adw.NavigationPage` is visible without being on
+  screen. An unmapped root answers 0 to everything, so the reader refuses one rather
+  than reporting it clean — and it also refuses a window whose chrome draws nothing,
+  which is the failure this rule can overshoot into.
+
+The invariant is about the RESTING composition. `Adw.NavigationView` keeps the departing
+page mapped while the arriving one slides in, so a window mid-push legitimately draws two
+bars; the router's own vectors turn transitions off rather than pretend otherwise.
+
+### What this does not decide
+
+`headerRight`, `headerLeft`, a custom header component and a per-screen action set. The
+rule above is what they need settled first — they are contributions to the owner's bar,
+the same way the switcher is — and the support table still refuses them by name.

@@ -42,6 +42,11 @@
 //          holding, and `hidden` never fires again. Without the sweep that descriptor
 //          is held for the life of the process.
 //
+// WHERE THE HEADER BAR COMES FROM is `chrome.ts`' rule, not this file's: a page's bar
+// carries the window controls when no bar above it already does, and drops them when
+// one does. The page also publishes its bar's title slot, which is where a `<Tabs>`
+// inside one of its screens puts its switcher instead of growing a second bar.
+//
 // THE PAGE LIST IS APPEND-ONLY, and that is a requirement rather than a convenience.
 // `AdwNavigationView` declares `reorder: 'remove-all'` in the host's table (there is
 // no `insert`, measured), and its `remove()` also takes the page OUT OF THE
@@ -70,6 +75,14 @@ import {
 } from 'react';
 import type Adw from '@girs/adw-1';
 
+import {
+    provideChromeLevel,
+    underHeaderBar,
+    useChrome,
+    useTitleSlots,
+    withoutHeaderBar,
+    type ChromeSlot,
+} from './chrome.js';
 import { RouterError } from './errors.js';
 import {
     navigationPair,
@@ -86,7 +99,12 @@ const STACK_OPTIONS: readonly string[] = ['title', 'headerShown', 'animation'];
 export interface StackScreenOptions {
     /** The page title, shown by the page's own header bar. Defaults to the route name. */
     title?: string;
-    /** `false` renders the screen with no `Adw.HeaderBar`, and so with no back button. */
+    /**
+     * `false` renders the screen with no `Adw.HeaderBar`, and so with no back button.
+     *
+     * It also leaves the level below with no title slot to contribute to, so a
+     * navigator inside this screen renders its own bar — see `chrome.ts`.
+     */
     headerShown?: boolean;
     /** `none` turns the transition off for this screen only. */
     animation?: 'default' | 'none';
@@ -417,15 +435,26 @@ function usePageBindings(release: (key: string) => void): {
 // The view
 // ---------------------------------------------------------------------------
 
+/** What one page knows about the window's chrome. See `chrome.ts` for the rule. */
+interface PageChrome {
+    /** A header bar above already carries the window controls, so this page's must not. */
+    readonly decorated: boolean;
+    /** What the level below contributed to this page's header bar title, if anything. */
+    readonly titleWidget: ReactElement | null;
+    /** This page's title slot, published to the screen it renders. */
+    readonly titleSlot: ChromeSlot;
+}
+
 /** One page: the Adwaita page, its optional header bar, and the screen inside it. */
 function pageElement(
     descriptor: StackDescriptor,
     bindings: { readonly ref: (widget: unknown) => void; readonly onHidden: () => void },
+    chrome: PageChrome,
 ): ReactElement {
     const { route, options } = descriptor;
     const body =
         options.headerShown === false
-            ? descriptor.render()
+            ? provideChromeLevel(withoutHeaderBar(chrome.decorated), descriptor.render())
             : createElement(
                   'AdwToolbarView',
                   null,
@@ -433,8 +462,23 @@ function pageElement(
                   // back button and shows the page's own title — there is nothing to
                   // wire. Without one a page has no back affordance at all, which is
                   // why the default is ON and turning it off is per-screen.
-                  createElement('AdwHeaderBar', { slot: 'top' }),
-                  descriptor.render(),
+                  //
+                  // THE WINDOW CONTROLS ARE CONDITIONAL, and that is the invariant
+                  // rather than a nicety: an inner stack's pages still need their back
+                  // buttons, so their bars stay — and a second close button in one
+                  // window is indistinguishable from the one that closes it (#1460).
+                  // `Adw.NavigationSplitView` splits the same decoration across its
+                  // two visible bars for the same reason.
+                  createElement(
+                      'AdwHeaderBar',
+                      {
+                          slot: 'top',
+                          showStartTitleButtons: !chrome.decorated,
+                          showEndTitleButtons: !chrome.decorated,
+                      },
+                      chrome.titleWidget,
+                  ),
+                  provideChromeLevel(underHeaderBar(chrome.titleSlot), descriptor.render()),
               );
     return createElement(
         'AdwNavigationPage',
@@ -463,6 +507,26 @@ function StackView(props: StackViewProps): ReactElement {
     const viewRef = useRef<Adw.NavigationView | null>(null);
     const { pages, release } = useStackPages(state, descriptors);
     const { bindingsFor, widgets } = usePageBindings(release);
+    // `rendersChrome` is asked of the pages that are ON SCREEN, and the whole page list
+    // is the wrong set: `Adw.NavigationView` maps only the visible page (plus the one
+    // sliding out), so a bar on a page further down the stack draws nothing. MEASURED —
+    // with the whole list, pushing a `headerShown: false` screen onto a bar-ful one
+    // kept the claim alive for the bar UNDER it, and the window was left with 0 mapped
+    // header bars and no window control anywhere: nothing to close or move it with, on
+    // a window that had chrome a moment earlier.
+    //
+    // The CLOSING pages belong in the set for the opposite reason. They are still
+    // mapped while the arriving page slides in, so dropping the claim as soon as focus
+    // moves would put the window's bar back on top of a page bar that is still drawing
+    // its own controls.
+    const live = state.routes.map((route) => route.key);
+    const focused = focusedKeyOf(state);
+    const onScreen = pages.filter((page) => page.route.key === focused || !live.includes(page.route.key));
+    const chrome = useChrome(
+        'Stack',
+        onScreen.some((descriptor) => descriptor.options.headerShown !== false),
+    );
+    const { titleWidgetFor, slotFor } = useTitleSlots('Stack');
 
     // Options by route key, kept ACROSS renders: `reconcilePopped` runs from a signal
     // handler, outside any render, and needs the options of a page that may already
@@ -558,7 +622,13 @@ function StackView(props: StackViewProps): ReactElement {
                 popOnEscape: true,
                 'on:popped': onPopped,
             },
-            ...pages.map((descriptor) => pageElement(descriptor, bindingsFor(descriptor.route.key))),
+            ...pages.map((descriptor) =>
+                pageElement(descriptor, bindingsFor(descriptor.route.key), {
+                    decorated: chrome.decorated,
+                    titleWidget: titleWidgetFor(descriptor.route.key),
+                    titleSlot: slotFor(descriptor.route.key),
+                }),
+            ),
         ),
     );
 }

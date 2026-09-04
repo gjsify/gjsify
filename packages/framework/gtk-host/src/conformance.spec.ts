@@ -11,6 +11,8 @@ import {
     installDiagnosticsGate,
     isEnvironmentDiagnostic,
     methodsOf,
+    windowChromeCensus,
+    windowChromeProblems,
 } from './conformance/index.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import { lookupWidget, registeredTags, registerWidget } from './registry.js';
@@ -326,6 +328,134 @@ export default async () => {
                     },
                 ]);
                 expect(problems.map((p) => `${p.gtype}: ${p.problem}`)).toStrictEqual([]);
+            });
+        });
+
+        await gated(diagnostics, 'window chrome — the decoration a window has exactly ONE of', async () => {
+            /** A toolbar view with its own header bar around `child`. */
+            const chromed = (child: Gtk.Widget): Adw.ToolbarView => {
+                const view = new Adw.ToolbarView();
+                view.add_top_bar(new Adw.HeaderBar());
+                view.set_content(child);
+                return view;
+            };
+            /** A navigation page whose own header bar sits above `child`. */
+            const page = (title: string, child: Gtk.Widget): Adw.NavigationPage =>
+                new Adw.NavigationPage({ title, tag: title, child: chromed(child) });
+
+            /**
+             * Present `content` in a window, ask `body`, and take the window away again.
+             *
+             * PRESENTED, because mapping is the only honest reading — see
+             * `conformance/window-chrome.ts`. Measured: nothing needs a main-loop turn
+             * after `present()`; the counts are already final.
+             */
+            const shown = (content: Gtk.Widget, body: (window: Adw.Window) => void): void => {
+                const window = new Adw.Window({ content, defaultWidth: 900, defaultHeight: 700 });
+                try {
+                    window.present();
+                    body(window);
+                } finally {
+                    window.destroy();
+                }
+            };
+
+            await it('finds no problem in the one-bar window every Adwaita application is', async () => {
+                shown(chromed(new Gtk.Label({ label: 'content' })), (window) => {
+                    const census = windowChromeCensus(window);
+                    expect(census.headerBars).toBe(1);
+                    // NOT vacuous: a host whose decoration layout drew no buttons at
+                    // all would answer 0 here and make every "no duplicate" below
+                    // meaningless. WHICH side carries them is the host's business —
+                    // measured across five `gtk-decoration-layout` values, GTK counts
+                    // control SETS and not buttons, so `minimize,maximize,close` is
+                    // still one, `menu`/`icon`/`appmenu` leave their side EMPTY, and
+                    // only `close:` moves the set to the start. The per-side maximum
+                    // is the invariant; the sum is only the non-vacuity guard.
+                    expect(Math.max(census.start, census.end)).toBe(1);
+                    expect(census.start + census.end >= 1).toBe(true);
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                });
+            });
+
+            await it('refuses three stacked header bars, and says how many close buttons draw', async () => {
+                // The shape a routed application produced before #1460: the window's
+                // own bar, the navigation page's, and a nested tab level's. MEASURED
+                // on libadwaita 1.9.3 — libadwaita hides none of them, so all three
+                // close buttons are drawn and reachable, at exit 0.
+                const tabs = new Adw.ViewStack();
+                tabs.add_titled(new Gtk.Label({ label: 'one' }), 'one', 'One');
+                const view = new Adw.NavigationView();
+                view.add(page('tabs', chromed(tabs)));
+                view.replace_with_tags(['tabs']);
+
+                shown(chromed(view), (window) => {
+                    const census = windowChromeCensus(window);
+                    expect(census.headerBars).toBe(3);
+                    expect(Math.max(census.start, census.end)).toBe(3);
+                    const problems = windowChromeProblems(window);
+                    // One per DUPLICATED side, so a layout with buttons on both would
+                    // name both. Every one of them is the same finding.
+                    expect(problems.length >= 1).toBe(true);
+                    expect(problems.every((problem) => problem.includes('3 sets of window controls'))).toBe(true);
+                    expect(problems.every((problem) => problem.includes('3 mapped header bar(s)'))).toBe(true);
+                });
+            });
+
+            await it('accepts AdwNavigationSplitView, which shows TWO bars on purpose', async () => {
+                // THE DISCRIMINATOR, and the reason the invariant is not "one header
+                // bar": libadwaita splits the decoration layout across the sidebar's
+                // bar and the content's, so two bars draw ONE set of controls per side.
+                // A check that counted bars would refuse Adwaita's own composition.
+                const split = new Adw.NavigationSplitView({
+                    sidebar: page('sidebar', new Gtk.Label({ label: 'sidebar' })),
+                    content: page('content', new Gtk.Label({ label: 'content' })),
+                });
+                shown(split, (window) => {
+                    expect(windowChromeCensus(window).headerBars).toBe(2);
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                });
+            });
+
+            await it('counts what is MAPPED, so a pooled navigation page does not', async () => {
+                // MEASURED, and it is why this reader does not walk `get_visible()`:
+                // a page that is in the view's pool but not on screen is `visible` and
+                // NOT mapped, so a visibility-based count answered 4 on the three-bar
+                // tree above and 2 here — both wrong, both silently.
+                const view = new Adw.NavigationView();
+                view.add(page('first', new Gtk.Label({ label: 'first' })));
+                view.add(page('second', new Gtk.Label({ label: 'second' })));
+                view.replace_with_tags(['first']);
+                shown(view, (window) => {
+                    expect(windowChromeCensus(window).headerBars).toBe(1);
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                });
+            });
+
+            await it('refuses an UNMAPPED root instead of reporting it clean', async () => {
+                // The green-that-checked-nothing shape this guard exists for: an
+                // unpresented window answers 0 to every count, so a vector that forgot
+                // `present()` would read as "no duplicates" having measured nothing.
+                const window = new Adw.Window({ content: chromed(new Gtk.Label({ label: 'x' })) });
+                try {
+                    expect(windowChromeCensus(window).mapped).toBe(false);
+                    const problems = windowChromeProblems(window);
+                    expect(problems.length).toBe(1);
+                    expect(problems[0]?.includes('is not mapped')).toBe(true);
+                } finally {
+                    window.destroy();
+                }
+            });
+
+            await it('refuses a window whose chrome draws nothing at all', async () => {
+                // The other direction, and the one this fix could have overshot into:
+                // an `Adw.Window` carries no titlebar of its own, so a content tree
+                // with no header bar leaves the window with no way to be closed.
+                shown(new Gtk.Label({ label: 'no chrome' }), (window) => {
+                    const problems = windowChromeProblems(window);
+                    expect(problems.length).toBe(1);
+                    expect(problems[0]?.includes('no window control draws anywhere')).toBe(true);
+                });
             });
         });
     });

@@ -26,7 +26,14 @@ import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
 import { lookupWidget, registerBuiltinWidgets } from '@gjsify/gtk-host';
-import { descriptorProblems, dumpTree, gtkChildren, installDiagnosticsGate } from '@gjsify/gtk-host/conformance';
+import {
+    descriptorProblems,
+    dumpTree,
+    gtkChildren,
+    installDiagnosticsGate,
+    windowChromeCensus,
+    windowChromeProblems,
+} from '@gjsify/gtk-host/conformance';
 import { createRoot } from '@gjsify/gtk-host/react';
 import { createElement, type ReactElement, type ReactNode } from 'react';
 import type { NavigationState } from '@react-navigation/core';
@@ -39,6 +46,7 @@ import type { RouteManifest } from './routes.js';
 import { Stack } from './stack.js';
 import { advanceTracking, applyStack, coalesce, initialTracking, releaseFrom, type Tracking } from './stack.js';
 import { showFocusedPage, Tabs } from './tabs.js';
+import { buildWindowShell, provideWindowChrome } from '../window-chrome.js';
 
 /** Named identities, not a capability: a probe that answers "no" stands the suite DOWN, and a suite that ran zero tests reports success. */
 const GTK_HOSTS: Runtime[] = ['Gjs', 'Node.js', 'Bun', 'Deno'];
@@ -168,15 +176,33 @@ function TabTwo(): ReactElement {
     return label('two');
 }
 
+/** The root stack's screens, so the two root layouts below cannot drift apart. */
+const rootScreens = (): ReactElement[] => [
+    createElement(Stack.Screen, { key: 'i', name: 'index', options: { title: 'Home' } }),
+    createElement(Stack.Screen, { key: 'd', name: 'detail/[id]', options: { title: 'Detail' } }),
+    // NO `headerShown: false` on the group, which is what it took before #1460: the tab
+    // level built its own header bar, so the page's had to be suppressed by hand or the
+    // window drew two. The switcher now goes into THIS page's bar.
+    createElement(Stack.Screen, { key: 't', name: '(tabs)', options: { title: 'Tabs' } }),
+    createElement(Stack.Screen, { key: 'n', name: '+not-found', options: { title: 'Missing' } }),
+];
+
 function RootLayout(): ReactElement {
-    return createElement(
-        Stack,
-        null,
-        createElement(Stack.Screen, { key: 'i', name: 'index', options: { title: 'Home' } }),
-        createElement(Stack.Screen, { key: 'd', name: 'detail/[id]', options: { title: 'Detail' } }),
-        createElement(Stack.Screen, { key: 't', name: '(tabs)', options: { title: 'Tabs', headerShown: false } }),
-        createElement(Stack.Screen, { key: 'n', name: '+not-found', options: { title: 'Missing' } }),
-    );
+    return createElement(Stack, null, ...rootScreens());
+}
+
+/**
+ * The same application with transitions OFF, for the chrome vectors.
+ *
+ * NOT for speed, and the reason is the invariant's own shape: `Adw.NavigationView`
+ * deliberately keeps the DEPARTING page mapped while the arriving one slides in, so a
+ * window mid-push legitimately draws two header bars — measured, 4 mapped bars and 4
+ * close buttons at the moment a tab group is entered. The rule is about the RESTING
+ * composition, and `settle()` iterates the main context without advancing the clock,
+ * so it cannot wait an animation out.
+ */
+function StillRootLayout(): ReactElement {
+    return createElement(Stack, { screenOptions: { animation: 'none' } }, ...rootScreens());
 }
 function TabsLayout(): ReactElement {
     return createElement(
@@ -221,7 +247,183 @@ async function mounted(element: ReactNode, body: (container: Gtk.Box) => void | 
     }
 }
 
+/** `APP` with `StillRootLayout` in place of the root layout. */
+const STILL: RouteManifest = APP.map((entry) =>
+    entry.contextKey === '_layout.tsx' ? { contextKey: '_layout.tsx', module: { default: StillRootLayout } } : entry,
+);
+
 const app = (manifest: RouteManifest = APP): ReactElement => createElement(RouterRoot, { manifest });
+
+/** Root layout for an application whose TOP level is the tab navigator. */
+function TabsRootLayout(): ReactElement {
+    return createElement(
+        Tabs,
+        null,
+        createElement(Tabs.Screen, { key: '1', name: 'one', options: { title: 'One' } }),
+        createElement(Tabs.Screen, { key: '2', name: 'two', options: { title: 'Two' } }),
+    );
+}
+/** A `_layout` inside a tab: the nesting where the inner level needs its own bars. */
+function InnerStackLayout(): ReactElement {
+    return createElement(
+        Stack,
+        null,
+        createElement(Stack.Screen, { key: 'd', name: 'detail', options: { title: 'Inner' } }),
+    );
+}
+
+const TABS_ROOT: RouteManifest = [
+    { contextKey: '_layout.tsx', module: { default: TabsRootLayout } },
+    { contextKey: 'one.tsx', module: { default: TabOne } },
+    { contextKey: 'two.tsx', module: { default: TabTwo } },
+];
+
+/** Tabs at the top, a stack inside the second tab — the other nesting order. */
+const STACK_IN_TABS: RouteManifest = [
+    {
+        contextKey: '_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Tabs,
+                    null,
+                    createElement(Tabs.Screen, { key: '1', name: 'one', options: { title: 'One' } }),
+                    createElement(Tabs.Screen, { key: 'd', name: '(deep)', options: { title: 'Deep' } }),
+                ),
+        },
+    },
+    { contextKey: 'one.tsx', module: { default: TabOne } },
+    { contextKey: '(deep)/_layout.tsx', module: { default: InnerStackLayout } },
+    { contextKey: '(deep)/detail.tsx', module: { default: Home } },
+];
+
+/** A root navigator that renders NO bar: the window must keep its own. */
+const BARLESS_ROOT: RouteManifest = [
+    {
+        contextKey: '_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Tabs,
+                    { headerShown: false },
+                    createElement(Tabs.Screen, { key: '1', name: 'one', options: { title: 'One' } }),
+                    createElement(Tabs.Screen, { key: 'd', name: '(deep)', options: { title: 'Deep' } }),
+                ),
+        },
+    },
+    { contextKey: 'one.tsx', module: { default: TabOne } },
+    { contextKey: '(deep)/_layout.tsx', module: { default: InnerStackLayout } },
+    { contextKey: '(deep)/detail.tsx', module: { default: Home } },
+];
+
+/** The same, with nothing below that could accidentally supply the chrome. */
+const BARLESS_PLAIN: RouteManifest = [
+    {
+        contextKey: '_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Tabs,
+                    { headerShown: false },
+                    createElement(Tabs.Screen, { key: '1', name: 'one', options: { title: 'One' } }),
+                    createElement(Tabs.Screen, { key: '2', name: 'two', options: { title: 'Two' } }),
+                ),
+        },
+    },
+    { contextKey: 'one.tsx', module: { default: TabOne } },
+    { contextKey: 'two.tsx', module: { default: TabTwo } },
+];
+
+/** A `headerShown: false` screen pushed ON TOP of a bar-ful one — a full-bleed reader. */
+const BARE_ON_TOP: RouteManifest = [
+    {
+        contextKey: '_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Stack,
+                    { screenOptions: { animation: 'none' } },
+                    createElement(Stack.Screen, { key: 'i', name: 'index', options: { title: 'Home' } }),
+                    createElement(Stack.Screen, {
+                        key: 'b',
+                        name: 'bare',
+                        options: { title: 'Bare', headerShown: false },
+                    }),
+                ),
+        },
+    },
+    { contextKey: 'index.tsx', module: { default: Home } },
+    { contextKey: 'bare.tsx', module: { default: TabOne } },
+];
+
+/** The old workaround, kept as a supported shape: no page bar to contribute to. */
+const HEADER_HIDDEN: RouteManifest = [
+    {
+        contextKey: '_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Stack,
+                    { screenOptions: { animation: 'none' } },
+                    createElement(Stack.Screen, { key: 'i', name: 'index', options: { title: 'Home' } }),
+                    createElement(Stack.Screen, {
+                        key: 't',
+                        name: '(tabs)',
+                        options: { title: 'Tabs', headerShown: false },
+                    }),
+                ),
+        },
+    },
+    { contextKey: 'index.tsx', module: { default: Home } },
+    { contextKey: '(tabs)/_layout.tsx', module: { default: TabsLayout } },
+    { contextKey: '(tabs)/one.tsx', module: { default: TabOne } },
+    { contextKey: '(tabs)/two.tsx', module: { default: TabTwo } },
+];
+
+/**
+ * Mount in a PRESENTED window built the way `AppRegistry` builds one.
+ *
+ * PRESENTED, because the only honest reading of "how many close buttons does the user
+ * see" is over MAPPED widgets: an unmapped tree answers 0 to every count, and a pooled
+ * `Adw.NavigationPage` is `visible` without being on screen. `windowChromeProblems`
+ * refuses an unmapped root for exactly that reason.
+ *
+ * THE SHELL COMES FROM THE SHIPPING CODE (`buildWindowShell`), not from four lines
+ * here: a vector that rebuilt the window by hand would stay green while the window an
+ * application actually gets drifted away from it.
+ *
+ * The readiness predicate is React's OWN header bar under the content, never the
+ * census: before the chrome rule existed the window's bar alone made every count
+ * non-zero, so a census-based wait would have measured the shell and not the router.
+ */
+async function windowed(
+    element: ReactNode,
+    body: (window: Adw.Window, container: Gtk.Widget) => void | Promise<void>,
+    manifestReady: (container: Gtk.Widget) => boolean = (container) => maybeFind(container, 'AdwHeaderBar') !== null,
+): Promise<void> {
+    const shell = buildWindowShell();
+    const AdwWindow = lookupWidget('AdwWindow').ctor() as unknown as new () => Adw.Window;
+    const window = new AdwWindow();
+    window.set_default_size(900, 700);
+    window.set_content(shell.root);
+    const root = createRoot(shell.content);
+    try {
+        root.render(provideWindowChrome(shell.chrome, element));
+        window.present();
+        expect((await settle(() => manifestReady(shell.content))) >= 0).toBe(true);
+        await body(window, shell.content);
+    } finally {
+        try {
+            root.unmount();
+        } finally {
+            try {
+                uninstallRouter();
+            } finally {
+                window.destroy();
+            }
+        }
+    }
+}
 
 /** The code a call refuses with, or `null` when it did not refuse. */
 function refusal(run: () => unknown): string | null {
@@ -937,6 +1139,271 @@ export default async () => {
                     const turns = await settle(() => observed.pathname === '/two');
                     expect(turns >= 0).toBe(true);
                 });
+            });
+        });
+
+        await gated('the window’s chrome — one header bar, one close button (#1460)', async () => {
+            /** Is `widget` inside a header bar? The switcher's contribution, checked. */
+            const withinHeaderBar = (widget: Gtk.Widget): boolean => {
+                for (let node = widget.get_parent(); node !== null; node = node.get_parent()) {
+                    if (typeOf(node) === 'AdwHeaderBar') return true;
+                }
+                return false;
+            };
+
+            await it('enters at the index route with ONE header bar and ONE close button', async () => {
+                // WHAT THIS MEASURES IS THE PIXEL, not the widget count: three
+                // `Adw.HeaderBar`s in the tree is a different sentence from three close
+                // buttons drawn, and only the second is what the user sees. Before the
+                // chrome rule this window carried the window's own bar plus the page's
+                // — two mapped, non-empty `GtkWindowControls`, two close buttons.
+                await windowed(app(), (window) => {
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                    const census = windowChromeCensus(window);
+                    expect(census.headerBars).toBe(1);
+                    // Non-vacuous: a host drawing no buttons at all would answer 0 and
+                    // make the empty problem list meaningless. WHICH side carries them
+                    // is the host's `gtk-decoration-layout` and not this vector's
+                    // business, so only the per-side maximum is asserted.
+                    expect(Math.max(census.start, census.end)).toBe(1);
+                    expect(census.start + census.end >= 1).toBe(true);
+                });
+            });
+
+            await it('puts the tab switcher in the page’s OWN bar rather than a second one', async () => {
+                // The nesting from the issue: a `(tabs)` group inside the root stack.
+                // Its `_layout` renders `<Tabs>`, and a `_layout` inside a `_layout`
+                // is what used to describe a header bar inside a header bar.
+                //
+                // THIS IS THE SHAPE THE PACKAGE DOCUMENTS, and the one bar is asserted
+                // here rather than assumed: the `headerShown: false` vector below rests
+                // at TWO, and what makes that trade acceptable is precisely that this
+                // shape — the one written without the option — does not pay for it.
+                // Settled to REST first, so it is the resting composition being counted
+                // and not a moment of the transition into the group.
+                await windowed(app(STILL), async (window, container) => {
+                    router.navigate('/one');
+                    expect((await settle(() => maybeFind(container, 'AdwViewSwitcher') !== null)) >= 0).toBe(true);
+                    const switcher = find(container, 'AdwViewSwitcher') as Adw.ViewSwitcher;
+                    expect((await settle(() => switcher.get_mapped())) >= 0).toBe(true);
+                    await settle(() => windowChromeCensus(window).headerBars === 1);
+
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                    expect(windowChromeCensus(window).headerBars).toBe(1);
+                    // The contribution landed in a header bar, and it is WIRED: the
+                    // element is rendered by the level above, so the commit that mounts
+                    // it need not re-render `<Tabs>` at all — an unwired switcher would
+                    // be an empty box in the title, which no census can see.
+                    expect(withinHeaderBar(switcher)).toBe(true);
+                    expect(switcher.get_stack()).toBe(find(container, 'AdwViewStack') as Adw.ViewStack);
+                });
+            });
+
+            await it('keeps it at one when a screen is pushed on top', async () => {
+                await windowed(app(STILL), async (window, container) => {
+                    router.push('/detail/7');
+                    expect((await settle(() => observed.pathname === '/detail/7')) >= 0).toBe(true);
+                    expect((await settle(() => windowChromeCensus(window).headerBars === 1)) >= 0).toBe(true);
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                    expect(maybeFind(container, 'AdwNavigationView') !== null).toBe(true);
+                });
+            });
+
+            await it('a Tabs at the TOP level owns the window’s chrome itself', async () => {
+                await windowed(app(TABS_ROOT), (window, container) => {
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                    expect(windowChromeCensus(window).headerBars).toBe(1);
+                    const switcher = find(container, 'AdwViewSwitcher') as Adw.ViewSwitcher;
+                    expect(withinHeaderBar(switcher)).toBe(true);
+                });
+            });
+
+            await it('an inner Stack keeps its bars and draws no SECOND close button', async () => {
+                // The other nesting order, and the one the contribution cannot answer:
+                // an inner stack's pages each need their own back button, so the bars
+                // stay. `Adw.NavigationSplitView` shows two bars for the same reason —
+                // which is why the invariant is one set of window controls per side and
+                // not one header bar.
+                await windowed(app(STACK_IN_TABS), async (window, container) => {
+                    router.navigate('/detail');
+                    expect((await settle(() => maybeFind(container, 'AdwNavigationView') !== null)) >= 0).toBe(true);
+                    expect((await settle(() => windowChromeCensus(window).headerBars === 2)) >= 0).toBe(true);
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                    const census = windowChromeCensus(window);
+                    expect(Math.max(census.start, census.end)).toBe(1);
+                    expect(census.start + census.end >= 1).toBe(true);
+                });
+            });
+
+            await it('falls back to its own bar when the page above has none', async () => {
+                // `headerShown: false` on the group leaves no title slot to contribute
+                // to, so the tab level builds a bar. The switcher stays reachable either
+                // way, which is what makes the option survivable rather than a trap.
+                //
+                // TWO BARS AT REST, and it is a TRADE that was made deliberately, not a
+                // number that happened. The owning stack's screen draws no bar, so the
+                // stack holds no claim and the WINDOW's bar carries the controls; the tab
+                // level's own bar sits under it without a second set.
+                //
+                // WHY IT WAS TRADED THAT WAY: the alternative is to claim the window's
+                // bar whenever ANY page of the stack has one, which is what this package
+                // did until the vector below. That buys one bar here and pays for it with
+                // a window that draws NO window control at all as soon as the page on
+                // screen has no header — measured, on a shape a manual reader reaches.
+                // An unclosable, unmovable window is not a degraded state, it is a broken
+                // one, and one bar too many is the correct price for never producing it.
+                // The bill also falls on the right shape: `headerShown: false` on a route
+                // GROUP is the pre-#1460 workaround, and the arrangement this package now
+                // documents — the same tree WITHOUT the option — still rests at one bar,
+                // asserted in the vector above.
+                await windowed(app(HEADER_HIDDEN), async (window, container) => {
+                    router.navigate('/one');
+                    expect((await settle(() => maybeFind(container, 'AdwViewSwitcher') !== null)) >= 0).toBe(true);
+                    // Settle on the census, assert on the PROBLEMS: a settle that times
+                    // out reports a bare `false`, and the sentence the reader writes is
+                    // the whole reason it exists.
+                    await settle(() => windowChromeCensus(window).headerBars === 2);
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                    const census = windowChromeCensus(window);
+                    expect(census.headerBars).toBe(2);
+                    expect(Math.max(census.start, census.end)).toBe(1);
+                    expect(census.start + census.end >= 1).toBe(true);
+                });
+            });
+
+            await it('keeps the window closable while a headerShown:false screen is on top', async () => {
+                // THE PAGES THAT COUNT ARE THE MAPPED ONES. `Adw.NavigationView` maps
+                // the visible page and the one sliding out, nothing else — so a claim
+                // held because SOME page in the stack has a header bar is a claim
+                // against a bar that draws nothing. Measured before `stack.ts` asked
+                // only the on-screen pages: 0 mapped header bars and no window control
+                // anywhere, on a window that had chrome one push earlier.
+                //
+                // `headerShown: false` on a pushed screen is a documented option and a
+                // full-bleed reader is what it is for, so this is a shape an application
+                // reaches by following the manual.
+                await windowed(app(BARE_ON_TOP), async (window) => {
+                    expect(windowChromeCensus(window).headerBars).toBe(1);
+                    router.push('/bare');
+                    expect((await settle(() => observed.pathname === '/bare')) >= 0).toBe(true);
+                    await settle(() => windowChromeProblems(window).length === 0);
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                    const onTop = windowChromeCensus(window);
+                    expect(onTop.headerBars).toBe(1);
+                    expect(Math.max(onTop.start, onTop.end)).toBe(1);
+                    expect(onTop.start + onTop.end >= 1).toBe(true);
+
+                    // And back: the stack takes the window's bar again, so the pushed
+                    // screen having none is not a one-way door out of the owned chrome.
+                    router.back();
+                    expect((await settle(() => observed.pathname === '/')) >= 0).toBe(true);
+                    await settle(() => windowChromeProblems(window).length === 0);
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                    expect(windowChromeCensus(window).headerBars).toBe(1);
+                });
+            });
+
+            await it('gives the window its own header bar BACK when the router unmounts', async () => {
+                // The claim is an effect with an undo, not a one-shot: without the undo
+                // a window that outlived its React root would have no chrome at all, and
+                // an `Adw.Window` carries no titlebar of its own.
+                const shell = buildWindowShell();
+                const AdwWindow = lookupWidget('AdwWindow').ctor() as unknown as new () => Adw.Window;
+                const window = new AdwWindow();
+                window.set_default_size(900, 700);
+                window.set_content(shell.root);
+                const root = createRoot(shell.content);
+                // The unmount is the vector's SUBJECT and also its cleanup, and it still
+                // belongs in a `finally`: `router` is module-level, so a vector that
+                // fails before unmounting leaves the next one to fail with "RouterRoot is
+                // already mounted" — a red reported against innocent code, which is the
+                // misattribution `gated` exists for one level up.
+                let unmounted = false;
+                const unmount = (): void => {
+                    if (unmounted) return;
+                    unmounted = true;
+                    root.unmount();
+                    uninstallRouter();
+                };
+                try {
+                    root.render(provideWindowChrome(shell.chrome, app()));
+                    window.present();
+                    expect((await settle(() => maybeFind(shell.content, 'AdwHeaderBar') !== null)) >= 0).toBe(true);
+                    expect(windowChromeCensus(window).headerBars).toBe(1);
+                    unmount();
+                    expect((await settle(() => windowChromeCensus(window).headerBars === 1)) >= 0).toBe(true);
+                    expect(windowChromeProblems(window)).toStrictEqual([]);
+                } finally {
+                    try {
+                        unmount();
+                    } finally {
+                        window.destroy();
+                    }
+                }
+            });
+
+            await it('leaves the window its own bar when the root navigator renders none', async () => {
+                // The regression the "chrome draws nothing" half also guards: taking the
+                // window's bar away is only right when this level puts one back.
+                // `<Tabs headerShown={false}>` puts none, so the window keeps its own —
+                // otherwise an application that had a closable window before would stop
+                // having one, and no widget-tree assertion would notice.
+                //
+                // AND THE LEVEL BELOW STAYS UNDECORATED: the window's bar is carrying
+                // the controls, so the inner stack's page bars must not carry a second
+                // set. Asserted by counting the controls the ROUTER drew, which is a
+                // different question from how many the window has.
+                await windowed(
+                    app(BARLESS_ROOT),
+                    async (window, container) => {
+                        router.navigate('/detail');
+                        expect((await settle(() => maybeFind(container, 'AdwNavigationView') !== null)) >= 0).toBe(
+                            true,
+                        );
+                        expect(windowChromeProblems(window)).toStrictEqual([]);
+                        const inWindow = windowChromeCensus(window);
+                        expect(Math.max(inWindow.start, inWindow.end)).toBe(1);
+                        expect(inWindow.start + inWindow.end >= 1).toBe(true);
+                        const byTheRouter = windowChromeCensus(container);
+                        expect(byTheRouter.start + byTheRouter.end).toBe(0);
+                        // The inner stack DID render bars — this is not vacuous.
+                        expect(byTheRouter.headerBars >= 1).toBe(true);
+                    },
+                    (container) => maybeFind(container, 'AdwViewStack') !== null,
+                );
+
+                // And with NOTHING below that could supply the chrome by accident,
+                // which is the regression in its bare form: an unconditional claim
+                // leaves this window with no header bar at all, and `Adw.Window` has
+                // no titlebar of its own to fall back on.
+                await windowed(
+                    app(BARLESS_PLAIN),
+                    (window, container) => {
+                        expect(windowChromeProblems(window)).toStrictEqual([]);
+                        expect(windowChromeCensus(container).headerBars).toBe(0);
+                        expect(windowChromeCensus(window).headerBars).toBe(1);
+                    },
+                    (container) => maybeFind(container, 'AdwViewStack') !== null,
+                );
+            });
+
+            await it('REFUSES a second claim on the window’s header bar, and names both', async () => {
+                // Two levels each believing they are outermost is a composition defect,
+                // and letting the second win would hide it behind a window that simply
+                // has no chrome.
+                const shell = buildWindowShell();
+                const release = shell.chrome.claim('<Stack>');
+                let message = '';
+                try {
+                    shell.chrome.claim('<Tabs>');
+                } catch (error) {
+                    message = (error as Error).message;
+                }
+                expect(message.includes('<Tabs> claimed')).toBe(true);
+                expect(message.includes('<Stack> already')).toBe(true);
+                // And the hand-back re-arms it, which is what makes a remount safe.
+                release();
+                shell.chrome.claim('<Tabs>')();
             });
         });
 
