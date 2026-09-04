@@ -32,108 +32,86 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## What this release is about
 
-**Six things in this release reported success while doing nothing, and each was found the
-same way: by running it instead of reading it.** A test suite that executed seventeen failing
-tests and exited 0. A `getUserMedia` that handed back a track carrying no data. Fonts staged
-beside an application that nothing registered. A getting-started page that was correct about
-the package and wrong about what you type.
+**A real application was ported onto the React Native layer, on macOS and Windows, and it
+found in a fortnight what the suites had not found in months.** Five of the twelve changes
+here come straight out of that port; three more finish a unification the widget vocabulary
+started; and the rest are the same shape the last release was about — something that
+reported success while doing nothing.
 
 ---
 
-### Your test suite reports its own failures now
+### The React Native layer now carries a real screen
 
-`@gjsify/unit`'s `run()` owns the process exit code. An entry that awaits its specs directly
-runs all of them and then exits 0 — so a failing suite is green, forever, and nobody looks
-again. `@gjsify/webrtc` had that shape and had been hiding **seventeen real failures**.
+Four defects, each of which made a screen unusable rather than imperfect, and none of which
+any suite reported.
 
-A gate now refuses any test entry that does not reach `run()`. It reads the entry set from the
-`gjsify build … --app <target>` calls in each package's own scripts, so it sees what actually
-builds, including entries a directory below the conventional place. Delegation is not a
-blanket pass: an entry that re-exports another module counts only if that module reaches
-`run()` itself.
+A parent decides whether it becomes a `Gtk.Overlay` from its children's descriptors, and two
+independent things hid an absolutely positioned child from it: a Fragment, which
+`Children.toArray` does not descend into, and an `Animated.View`, whose animated style made
+the read THROW into a `catch` that answered "not positioned". Both then blamed the parent for
+something the parent could not see.
 
-If you have written your own suites against `@gjsify/unit`, this is worth checking in your
-project too — the failure mode leaves no trace.
+A routed window drew one set of window controls per navigator level — three stacked title
+bars with three close buttons on a tab route. The invariant is one control SET per side, not
+one header bar, because a split view legitimately shows two.
 
-### `getUserMedia` now picks a source that opens
+`registerRootComponent` built an `Adw.Application` and kept it, so an application could not
+reach its own — which is also what made `@gjsify/devtools` unreachable, and with it the only
+way to drive a running window from outside the process.
 
-gjsify chose the first GStreamer source element it could **construct**. A constructible
-element is not an openable device, and the two come apart on any machine without a running
-audio daemon — a container, a headless server, a sandboxed application without audio access.
-There, `pulsesrc` exists because the plugin package ships it, gjsify took it, and the working
-fallback below it was never reached. The track you got produced nothing, silently, and the
-error surfaced seconds later somewhere else entirely.
+And every accessibility prop was refused, on the grounds that GTK carries accessibility
+through an imperative call. The fact is right; the conclusion was not. It is a route family
+now: 40 React Native role names, 33 mapped, 7 refused BY NAME with advice.
 
-Candidates are opened for real before one is chosen, and the verdict is cached per process, so
-the cost is paid once rather than per call. On a desktop you still get your microphone; in a
-container you now get a working synthetic source instead of a dead track.
+### Three of those were introduced by the fix, and found by reviewing it
 
-**Known limitation, unchanged and now written down:** sending an *empty string* over a data
-channel kills the channel on GStreamer 1.28.5 — upstream builds a zero-length buffer where
-SCTP requires one zero byte. It does not fail at the call site. `send('')` returns normally,
-`readyState` is still `open` on the next line, the message you sent before it still arrives,
-and the channel dies about a second later. That is why the symptom never points at the cause.
+Worth saying plainly, because it is the useful part. The header-bar change left a window with
+**no way to close, move or maximise it** when a headerless screen sat on top — named by its own
+new guard, reached by no vector. The Fragment fix composed child keys without a separator, so
+two ordinary authored trees could collide on one key and React would then swap their widgets
+on a reorder, with the duplicate-key warning going to a console a GJS process does not have.
+The font-family serialiser opened a string at every quote, so `Marion's Hand, sans-serif`
+went out as one quoted family and the fallback vanished — GTK accepts that.
 
-### Fonts you ship are registered, if you ask
+Each was found by running the composition, not by reading the diff.
 
-`gjsify.ship.fonts` staged your typeface and the launcher exported `GJSIFY_FONT_DIR` — and
-nothing read it. `initFonts()` in `@gjsify/gtk-host` does.
+### A font family GTK refuses, and it is not the one you would guess
 
-Call it before you build any UI, and treat that as a contract rather than advice: the font map
-caches its fontset per description, and registration does not invalidate the cache. A layout
-that already measured your family keeps measuring the substitute even though the family is now
-listed. Measured, one layout either side of the call:
+`font-family: Source Sans 3` makes GTK reject the whole rule. A bare sequence of identifiers
+is legal CSS and GTK implements it, so `Noto Sans` and `Fira Code` were never the problem —
+what fails is a component that is not a valid identifier, overwhelmingly one starting with a
+digit. `Source Sans 3` fails on the `3`.
 
-    before: listed=false measured=87x63
-    initFonts: registered=1 declined=0 failed=0
-    after:  listed=true  measured=87x63
+The serialiser follows CSSOM instead of guessing: quote every family NAME, leave every KEYWORD
+bare, and it never consults the identifier grammar at all. A function call passes through
+verbatim, because quoting `var(--font-sans)` would emit a family literally called that — a
+silent wrong font rather than a loud one.
 
-Registration succeeded, the family is present, and the text is still the fallback.
+### One portable menu model, and two surfaces lose their flat classes
 
-macOS declines the call rather than failing it — CoreText does not support it, and a bundled
-directory is already activated through `ATSApplicationFontsPath`, so nothing is lost. Windows
-registers and additionally clears the map's cache. The guide states what to expect per
-platform and gives you a check to run.
+The widget vocabulary was unified a release ago; the DATA was not. A menu was a `Gio.Menu` on
+GJS, a string array on NativeScript that could carry no action, section or submenu, and
+nothing at all in the declarative dialects. ADR 0042 mirrors `GMenuModel` across all of them.
 
-### One web-view API, three engines
+ADR 0034 clause 2 reaches its last two surfaces: 28 flat widget classes gone from
+`@gjsify/adwaita-react-native`'s three barrels and 43 from `@gjsify/adwaita-nativescript`,
+reachable through the `Adw` and `Gtk` namespaces only. Both removals were verified in both
+directions against the published 0.47.0 tarball — the removed names and the namespace members
+are the same set, member for member.
 
-`@gjsify/iframe` now has a backend on all three desktop systems: the distribution's WebKitGTK
-on Linux, Apple's WebKit on macOS, and Microsoft's WebView2 on Windows — the last presented
-under the same `WebKit-6.0` namespace, so your code carries no operating-system branch.
+**These three are breaking.** Import through the namespace, and build menus from the portable
+model.
 
-The Windows caveats are real and documented where you will meet them. The view is an overlay
-child window and cannot be clipped, so a scrolling ancestor, an overlay's main child, a
-popover or fractional opacity will not behave as you expect; gjsify warns rather than failing
-quietly. User-script URL allow/block lists are refused, named script worlds ignored, and a
-full-document snapshot returns the viewport. The WebView2 runtime is your installer's
-obligation — and note that its registry key lives under `WOW6432Node`, so a 64-bit-only check
-reports "not installed" on a machine that has it.
+### And three more that were green while doing nothing
 
-**Not yet proven:** the Windows view is demonstrated headlessly — it loads a page, runs
-JavaScript against the DOM and takes a snapshot. Re-parented under a real application window
-it has not been verified.
+`set_property(name, null)` guesses `gpointer`: GObject logs a CRITICAL, keeps the OLD value,
+and exits 0 — so removing a nullable property from a mounted widget did nothing at all.
 
-### Node-API corrections you may have been working around
+`xgettextPlugin` could destroy every catalog in a project and exit 0, because a sources
+pattern that matched nothing left its whole string group out of the POT and the update then
+pruned every language against it. Two guards now: every pattern must match, and a merge that
+would lose more than a configured share of the largest catalog is refused.
 
-`fs.exists` called its callback synchronously where Node defers it; a `catch` around that call
-turned a throwing callback into a filesystem answer, entering the callback twice so an
-existing file read as missing; and `util.promisify(fs.exists)` rejected where Node resolves,
-because the custom symbol was absent.
-
-`XMLHttpRequest` returned a blob for the *default* `responseType` — the empty string — so
-`responseText` was empty unless you asked for text explicitly. Its WebIDL constants existed
-only on instances, so `XMLHttpRequest.DONE` was `undefined`.
-
-### The getting-started path works when you type it
-
-It did not. `npm create @gjsify/app` without a version is served from npm's runner cache, and
-that cached scaffold declares neither `build:node` nor `start:node` — which is the command the
-page tells you to run next. The Deno path hit the same class through a dependency age floor.
-The documentation was correct against the published package and wrong against what a person
-types, which is a distinction only walking it can find.
-
-Both paths are pinned now, and the walkthroughs were executed on GJS, on npm with Node 24 and
-Node 20, on Bun and on Deno. The stated Node floor of 24 was also wrong: Node 20 works, and
-nothing in the tree declared otherwise.
-
-New guides cover shipping your own fonts, embedding web views, and WebRTC with media capture.
+`<adw-combo-row>` parsed its items once and published no accessor, so setting `.items` after
+connect did nothing — while the three other widgets over the same state could all be updated.
+It comes with a check for the class rather than for the case.
