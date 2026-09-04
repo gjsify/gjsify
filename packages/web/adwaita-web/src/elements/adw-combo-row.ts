@@ -1,36 +1,46 @@
 // <adw-combo-row> — row with a title/subtitle and a dropdown select. The model is a JSON
-// array in `options` / `items` (`["a","b"]` or `[{"value":"a","label":"A"}]`), `selected`
+// array in the `model` attribute (`["a","b"]` or `[{"value":"a","label":"A"}]`), `selected`
 // an index, and the native <select> is stretched invisibly over the row so clicking
 // anywhere opens it.
 //
-// The SELECTION state machine (the options list, the two-way index↔value mapping, the
+// The SELECTION state machine (the model, the two-way index↔value mapping, the
 // empty/out-of-range guards and the programmatic-vs-interactive notify split) is HEADLESS
 // and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link ComboState}; this element keeps
 // only the DOM half — the <select>, the inline value label and `notify::selected`.
 //
 // THE MODEL IS INPUT, AND INPUT STAYS LIVE. This row and `<gtk-drop-down>` are the same
-// list widget on GTK and share that one `ComboState` here — but the row used to parse
-// `items` once in `connectedCallback`, observe only `['title','subtitle','selected']` and
-// publish no accessor at all. So `row.items = […]` wrote an expando onto the element and
-// `setAttribute('items', …)` reached no callback: a model replaced after connect changed
-// nothing, silently, while the identical assignment on `<gtk-drop-down>` worked. Both
-// spellings now reach the same rebuild, and `scripts/check-adwaita-collection-reactivity.mjs`
-// holds the rule for every collection either renderer takes in.
+// list widget on GTK and share that one `ComboState` here — but the row used to parse its
+// items once in `connectedCallback`, observe only `['title','subtitle','selected']` and
+// publish no accessor at all, so a model replaced after connect changed nothing, silently
+// (#1525). Both spellings now reach the same rebuild, and
+// `scripts/check-adwaita-collection-reactivity.mjs` holds the rule for every collection
+// either renderer takes in.
+//
+// THE MODEL IS SPLICED, NOT REBUILT (ADR 0046). `ComboState` reports WHERE the model
+// changed — `Gio.ListModel::items-changed`, one splice per assignment — and this element
+// applies exactly that range. Appending one item to a hundred-item model adds ONE
+// `<option>` and leaves the other hundred nodes standing; the previous code dropped every
+// node on every assignment, which is also what threw away the browser's own state for the
+// rows that did not change. It is what removes the ordering hazard this file used to
+// carry as a comment: the splice arrives BEFORE the selection change, so the subscriber's
+// index write already lands on the new list.
 //
 // Attributes:
 //   title / subtitle — the text column.
-//   options / items  — JSON array: `["a","b"]` or `[{"value":"a","label":"A"}]`.
+//   model            — JSON array: `["a","b"]` or `[{"value":"a","label":"A"}]`.
 //   selected         — the selected index (number).
 // Properties — the `<gtk-drop-down>` set minus `enableSearch` and `active`, which are that
 // element's own popover chrome and have no counterpart on a row that opens a native
 // <select>:
-//   options / items  — the option list ({ value, label }[]) (get/set).
+//   model            — the list model ({ value, label }[]) (get/set). `Adw.ComboRow:model`'s
+//     own name, per ADR 0034 clause 1; it replaced `options`/`items`, which were two
+//     further spellings of one GTK property.
 //   selected         — the selected index (get/set). PERMISSIVE, and this is the one row of
 //     `ComboState`'s contract the two selectors answer differently: an index past the end
 //     is ACCEPTED here and reads back with an empty `selectedValue`/label, where
-//     `<gtk-drop-down>` rejects the set outright (gtk-drop-down.ts:108). Neither is a bug —
-//     `ComboState.hasIndex` (rows.ts:255-267) is where the bounds live and why the policy
-//     is each renderer's. Stated here because a consumer of THIS element reads this file.
+//     `<gtk-drop-down>` rejects the set outright (gtk-drop-down.ts). Neither is a bug —
+//     `ComboState.hasIndex` is where the bounds live and why the policy is each
+//     renderer's. Stated here because a consumer of THIS element reads this file.
 //   selectedValue    — the selected option's value ('' when empty) (get/set-by-value).
 //   selectedItem     — the selected option descriptor, or null (get).
 // Events:
@@ -45,8 +55,8 @@
 //   title/subtitle text column added to match Adw.ComboRow; the selection state
 //   machine composed from @gjsify/adwaita-core.
 
-import { ComboState, deriveRowLabels, normalizeComboOptions } from '@gjsify/adwaita-core';
-import type { AdwComboOption, AdwComboOptionInput } from '@gjsify/adwaita-core';
+import { ComboState, deriveRowLabels, normalizeComboOptions, parseListModel } from '@gjsify/adwaita-core';
+import type { AdwComboOption, AdwListItemsChanged, AdwListModelInput } from '@gjsify/adwaita-core';
 
 export class AdwComboRow extends HTMLElement {
     private _select!: HTMLSelectElement;
@@ -58,28 +68,18 @@ export class AdwComboRow extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'options', 'items', 'selected'];
+        return ['title', 'subtitle', 'model', 'selected'];
     }
 
-    /** The selectable options. Setting them rebuilds the <select> and clamps the selection. */
-    get options(): AdwComboOption[] {
-        return this._state.options;
+    /** The list model (`Adw.ComboRow:model`). Setting it splices the <select> and clamps the selection. */
+    get model(): AdwComboOption[] {
+        return this._state.model;
     }
 
-    set options(value: ReadonlyArray<AdwComboOptionInput>) {
-        // `setOptions` re-runs autoselect, so an index the new model does not have falls
+    set model(value: AdwListModelInput) {
+        // `setModel` re-runs autoselect, so an index the new model does not have falls
         // back to 0 — the clamp is core's, exactly as `<gtk-drop-down>` gets it.
-        this._state.setOptions(normalizeComboOptions(value));
-        this._renderOptions();
-    }
-
-    /** `items` is the spelling this row shipped with; it is the `options` alias, as on `<gtk-drop-down>`. */
-    get items(): AdwComboOption[] {
-        return this._state.options;
-    }
-
-    set items(value: ReadonlyArray<AdwComboOptionInput>) {
-        this.options = value;
+        this._state.setModel(normalizeComboOptions(value));
     }
 
     /**
@@ -110,7 +110,7 @@ export class AdwComboRow extends HTMLElement {
     }
 
     set selectedValue(value: string) {
-        const index = this._state.options.findIndex((option) => option.value === value);
+        const index = this._state.model.findIndex((option) => option.value === value);
         if (index >= 0) this.selected = index;
     }
 
@@ -122,7 +122,7 @@ export class AdwComboRow extends HTMLElement {
      * one would make "nothing is selected" indistinguishable from an option with no text.
      */
     get selectedItem(): AdwComboOption | null {
-        return this._state.options[this._state.selectedIndex] ?? null;
+        return this._state.model[this._state.selectedIndex] ?? null;
     }
 
     connectedCallback() {
@@ -136,7 +136,7 @@ export class AdwComboRow extends HTMLElement {
         // Only when the PROPERTY was not already set, the rule `<adw-data-grid>` and
         // `<gtk-drop-down>` both follow: a model assigned to a detached element must
         // survive being attached, and an absent attribute must not blank it.
-        if (this._state.count === 0) this._state.setOptions(this._parseOptionsAttr());
+        if (this._state.count === 0) this._state.setModel(parseListModel(this.getAttribute('model')));
         this._state.setSelectedIndex(parseInt(this.getAttribute('selected') || '0', 10));
 
         const text = document.createElement('div');
@@ -153,6 +153,10 @@ export class AdwComboRow extends HTMLElement {
         this._select = document.createElement('select');
 
         this.replaceChildren(text, this._valueEl, this._select);
+
+        // WHERE the model changed — applied before the selection change below, which is
+        // the ordering that lets that subscriber's index write land on the new list.
+        this._state.subscribeItems((change) => this._applyItemsChanged(change));
 
         // The core state drives the inline label + the <select> on every change,
         // and the notify::selected event only on an interactive pick.
@@ -182,9 +186,8 @@ export class AdwComboRow extends HTMLElement {
 
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
         if (!this._initialized) return;
-        if (name === 'options' || name === 'items') {
-            this._state.setOptions(this._parseOptionsAttr());
-            this._renderOptions();
+        if (name === 'model') {
+            this._state.setModel(parseListModel(value));
         } else if (name === 'selected') {
             // A programmatic set — the core state notifies `interactive: false`,
             // so the subscriber re-syncs the display without emitting an event.
@@ -195,43 +198,49 @@ export class AdwComboRow extends HTMLElement {
     }
 
     /**
-     * The model as authored in markup — `options` first, `items` as the alias, the same
-     * order and the same tolerance `<gtk-drop-down>` reads them in.
+     * Build one `<option>` for a model item.
      *
-     * `normalizeComboOptions` already guards a non-array, so a JSON object or scalar
-     * yields the empty model rather than a throw; unparseable JSON does the same. A
-     * malformed attribute must not take the row's DOM down with it.
+     * ITS `value` IS THE MODEL'S value, not the position. The position used to be written
+     * there with a comment defending it, and nothing in this package or its consumers ever
+     * read it back — while it made every insertion renumber the whole tail, which is the
+     * one thing a splice exists to avoid. The element still addresses its model by
+     * POSITION (`selectedIndex`); what the attribute now carries is the descriptor's own
+     * value, which is also what a form submission would have wanted.
      */
-    private _parseOptionsAttr(): AdwComboOption[] {
-        const raw = this.getAttribute('options') ?? this.getAttribute('items');
-        if (!raw) return [];
-        try {
-            return normalizeComboOptions(JSON.parse(raw) as AdwComboOptionInput[]);
-        } catch {
-            return [];
+    private _createOption(option: AdwComboOption): HTMLOptionElement {
+        const el = document.createElement('option');
+        el.value = option.value;
+        el.textContent = option.label;
+        return el;
+    }
+
+    /**
+     * Apply one `items-changed` to the `<option>` list — remove `removed` nodes at
+     * `position`, insert `added` fresh ones there, touch nothing else.
+     *
+     * A no-op before `connectedCallback` has built the DOM, which is what lets `model` be
+     * assigned to a detached element: the state keeps the model and the connect path
+     * renders it whole.
+     */
+    private _applyItemsChanged(change: AdwListItemsChanged): void {
+        if (!this._initialized) return;
+        for (let i = 0; i < change.removed; i++) this._select.remove(change.position);
+        const before = this._select.options[change.position] ?? null;
+        for (let i = 0; i < change.added; i++) {
+            const option = this._state.model[change.position + i];
+            if (option) this._select.insertBefore(this._createOption(option), before);
         }
     }
 
     /**
-     * Rebuild the `<option>` list from the model, then re-apply everything derived from it.
+     * Build the whole `<option>` list — the CONNECT path only, where there is no previous
+     * list to splice against.
      *
-     * A no-op before `connectedCallback` has built the DOM, which is what lets `options` be
-     * assigned to a detached element: the state keeps the model and the connect path renders
-     * it. The `<option>` values stay the INDEX — this element addresses its model by
-     * position, and the descriptor's own `value` is reached through `selectedValue`.
+     * Every later assignment goes through {@link _applyItemsChanged}.
      */
     private _renderOptions(): void {
         if (!this._initialized) return;
-        this._select.replaceChildren();
-        for (const [index, option] of this._state.options.entries()) {
-            const el = document.createElement('option');
-            el.value = String(index);
-            el.textContent = option.label;
-            this._select.appendChild(el);
-        }
-        // AFTER the rebuild, never during it: `setOptions` notifies while the old
-        // `<option>` nodes are still in place, so the subscriber's own index write lands on
-        // the outgoing list. This is the write that counts.
+        this._select.replaceChildren(...this._state.model.map((option) => this._createOption(option)));
         this._select.selectedIndex = this._state.selectedIndex;
         this._valueEl.textContent = this._state.selectedLabel;
         this._syncChooser();

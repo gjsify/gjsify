@@ -162,7 +162,7 @@ export const ADWAITA_FRAMEWORK_REFUSALS: Readonly<Record<string, string>> = {
     'Adw.AboutDialog': "a dialog is opened with present(), so a static tree renders nothing a reader would see.",
     'Adw.ViewSwitcherBar': "its `stack` is a widget reference, and a ref is spelled differently in all three dialects.",
     'Adw.InlineViewSwitcher': "its `stack` is a widget reference, and a ref is spelled differently in all three dialects.",
-    'Adw.ComboRow': "its items are a Gio.ListModel; a row without them teaches the wrong thing.",
+    'Adw.ComboRow': "its model is a Gio.ListModel, and nothing turns the portable list form into one at the ParamSpec seam.",
     'Adw.SpinRow': "its range is a Gtk.Adjustment, a GObject that is not a widget.",
-    'Gtk.DropDown': "its options are a Gtk.StringList model, built imperatively.",
+    'Gtk.DropDown': "its model is a Gtk.StringList, and nothing turns the portable list form into one at the ParamSpec seam.",
 };

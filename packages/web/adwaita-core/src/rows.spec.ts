@@ -22,8 +22,8 @@ import type { ComboSelectionStep } from './conformance/rows.js';
 /** Replay one combo vector step against a headless combo state. */
 function applyComboStep(state: ComboState, step: ComboSelectionStep): void {
     switch (step.op) {
-        case 'setOptions':
-            state.setOptions([...step.options]);
+        case 'setModel':
+            state.setModel([...step.model]);
             return;
         case 'setSelectedIndex':
             state.setSelectedIndex(step.index);
@@ -112,7 +112,7 @@ export default async () => {
     await describe('ComboState selection contract (Adw.ComboRow)', async () => {
         const twoOptions = (): ComboState => {
             const state = new ComboState();
-            state.setOptions([
+            state.setModel([
                 { label: 'One', value: 'a' },
                 { label: 'Two', value: 'b' },
             ]);
@@ -130,7 +130,7 @@ export default async () => {
 
         await it('guards an empty options list', () => {
             const state = new ComboState();
-            state.setOptions([]);
+            state.setModel([]);
             expect(state.count).toBe(0);
             expect(state.selectedValue).toBe('');
             expect(state.select(0)).toBe(false); // nothing to interactively pick
@@ -142,7 +142,7 @@ export default async () => {
         await it('presentsChooser follows model_changed — one option is not a choice', () => {
             const state = new ComboState();
             for (const { count, presentsChooser, rule } of COMBO_CHOOSER_VECTORS) {
-                state.setOptions(Array.from({ length: count }, (_, i) => ({ label: `L${i}`, value: `v${i}` })));
+                state.setModel(Array.from({ length: count }, (_, i) => ({ label: `L${i}`, value: `v${i}` })));
                 expect(state.presentsChooser, rule).toBe(presentsChooser);
             }
         });

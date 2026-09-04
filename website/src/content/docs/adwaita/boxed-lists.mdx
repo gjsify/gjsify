@@ -48,7 +48,7 @@ preferences page.
       <button slot="header-suffix" class="adw-button flat">Sign out</button>
       <adw-entry-row title="Display name" text="Grace Hopper"></adw-entry-row>
       <adw-switch-row title="Sync over Wi-Fi only" subtitle="Avoid using mobile data for backups" active></adw-switch-row>
-      <adw-combo-row title="Region" items='["Europe","Americas","Asia","Oceania"]' selected="0"></adw-combo-row>
+      <adw-combo-row title="Region" model='["Europe","Americas","Asia","Oceania"]' selected="0"></adw-combo-row>
     </adw-preferences-group>
     ```
   </Fragment>
@@ -370,7 +370,7 @@ selection is an index into the model you gave it, not the string itself.
       <adw-combo-row
         title="Accent colour"
         subtitle="Used to highlight selected items"
-        items='["Blue","Teal","Green","Orange","Purple"]'
+        model='["Blue","Teal","Green","Orange","Purple"]'
         selected="1"
       ></adw-combo-row>
     </adw-preferences-group>
@@ -414,7 +414,7 @@ selection is an index into the model you gave it, not the string itself.
     const row = new Adw.ComboRow();
     row.title = 'Accent colour';
     row.subtitle = 'Used to highlight selected items';
-    row.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((s) => ({ label: s, value: s }));
+    row.model = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'];
     row.selected = 1;
     ```
   </Fragment>

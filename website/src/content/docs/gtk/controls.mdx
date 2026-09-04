@@ -112,7 +112,7 @@ presented as a boxed-list row, use
   <Fragment slot="preview">
     ```html
     <!-- `options` is a JSON array of strings, or of { label, value } objects. -->
-    <gtk-drop-down options='["Automatic","Always","Never","When busy"]' selected="0"></gtk-drop-down>
+    <gtk-drop-down model='["Automatic","Always","Never","When busy"]' selected="0"></gtk-drop-down>
     ```
   </Fragment>
   <Fragment slot="gjs">
@@ -146,7 +146,7 @@ presented as a boxed-list row, use
     import { Gtk } from '@gjsify/adwaita-nativescript';
 
     const dropDown = new Gtk.DropDown();
-    dropDown.options = ['Automatic', 'Always', 'Never', 'When busy'].map((label) => ({ value: label, label }));
+    dropDown.model = ['Automatic', 'Always', 'Never', 'When busy'];
     dropDown.selected = 0;
     // The list opens as the platform action sheet, which has no search field —
     // so `enableSearch` has no NativeScript equivalent.

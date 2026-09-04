@@ -545,8 +545,8 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
  */
 export const ADWAITA_GALLERY_NS_REFUSALS = {
     // --- a property XML cannot carry ---
-    'Gtk.DropDown': 'GtkDropDown.options is an array of choices; an XML attribute is a string.',
-    'Adw.ComboRow': 'AdwComboRow.options is an array of choices; an XML attribute is a string.',
+    'Gtk.DropDown': 'GtkDropDown.model is a list of items; an XML attribute is a string.',
+    'Adw.ComboRow': 'AdwComboRow.model is a list of items; an XML attribute is a string.',
     'Gtk.MenuButton': 'GtkMenuButton.menuModel is a portable menu model; an XML attribute is a string.',
     'Adw.SplitButton': 'AdwSplitButton.menuModel is a portable menu model; an XML attribute is a string.',
     'Adw.ToggleGroup': 'AdwToggleGroup.options is an array of toggles; an XML attribute is a string.',

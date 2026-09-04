@@ -55,8 +55,8 @@ export const ADWAITA_NATIVESCRIPT_TEMPLATES: Readonly<Record<string, string>> = 
  * below names which of those two doors is shut.
  */
 export const ADWAITA_NATIVESCRIPT_REFUSALS: Readonly<Record<string, string>> = {
-    'Gtk.DropDown': "GtkDropDown.options is an array of choices; an XML attribute is a string.",
-    'Adw.ComboRow': "AdwComboRow.options is an array of choices; an XML attribute is a string.",
+    'Gtk.DropDown': "GtkDropDown.model is a list of items; an XML attribute is a string.",
+    'Adw.ComboRow': "AdwComboRow.model is a list of items; an XML attribute is a string.",
     'Gtk.MenuButton': "GtkMenuButton.menuModel is a portable menu model; an XML attribute is a string.",
     'Adw.SplitButton': "AdwSplitButton.menuModel is a portable menu model; an XML attribute is a string.",
     'Adw.ToggleGroup': "AdwToggleGroup.options is an array of toggles; an XML attribute is a string.",

@@ -4312,6 +4312,90 @@ probes — at minimum "drop `jsxImportSource` and every negative evaporates" and
 its probes is the checked-nothing shape that whole script exists to refuse, which
 is why it is tracked here instead of half-added.
 
+### A portable list model reaches every renderer except GTK
+
+ADR 0046 gave the list the portable value form ADR 0042 gave the menu —
+`AdwListModelInput`, accepted by `@gjsify/adwaita-web`,
+`@gjsify/adwaita-nativescript` and `@gjsify/adwaita-react-native` under one name,
+`model`. What it did NOT build is the seam ADR 0042 § 8 built for the menu:
+`packages/framework/gtk-host/src/props.ts`' `coerce` has a `GMenuModel` branch
+turning an authored array into a real `Gio.Menu`, and no branch turning one into
+a `Gtk.StringList` for a `Gio.ListModel`-typed property.
+
+Left out on purpose and not for lack of a design: `packages/framework/gtk-host/**`
+was being reworked concurrently by two other changes, so a speculative edit there
+would have landed as a merge conflict rather than as a feature. Nothing measured
+says the branch is hard — it is the same ParamSpec test beside the enum one, and
+`packages/framework/adwaita-react-native/src/widgets/combo-row.gtk.tsx` already
+builds the `Gtk.StringList` by hand for exactly this property, so the conversion
+exists and is simply not at the seam.
+
+What it costs while it is open, measured by `scripts/check-generated-website-data.mjs`:
+`Adw.ComboRow` and `Gtk.DropDown` stay refused in the website gallery, so the two
+list widgets carry no Solid/Vue/React snippet. Their refusal reasons now name the
+seam rather than the value — "nothing turns the portable list form into one at the
+ParamSpec seam" — which is the half that is still true.
+
+Closing it is three things: the `coerce` branch, the `dependencies` edge from
+`@gjsify/gtk-host` (tier 3) onto `@gjsify/adwaita-core` (tier 2) that ADR 0042
+already established, and the two gallery trees with their probes. Whether
+`ListController.setRows` should widen to take an `AdwListModel` at the same time is
+part of the same decision — `@gjsify/gtk-host/list` is a published subpath and
+`@gjsify/react-native` consumes it.
+
+### The list widgets GTK builds with a METHOD have no portable collection, and a model type is the wrong fix
+
+The other half of #1524, and it is deliberately NOT what ADR 0046 built.
+
+A list `model` property exists on five GTK widget interfaces
+(`AdwComboRow`, `GtkDropDown`, `GtkColumnView`, `GtkGridView`, `GtkListView` —
+read from `packages/framework/gtk-host/src/generated/props.ts`). For the widgets
+that carry most of the divergence the property does not exist at all:
+`AdwSidebarProps` has `dropPreload`/`filter`/`menuModel`/`mode`/`placeholder`/
+`prefix`/`selected`/`suffix` and no item list; `AdwTabViewProps` has
+`defaultIcon`/`menuModel`/`selectedPage`/`shortcuts` and no page list;
+`AdwToggleGroupProps` has `active`/`activeName`/`canShrink`/`homogeneous` and no
+toggle list. Items are ADDED — `adw_sidebar_append()`, `adw_tab_view_append()`,
+`adw_toggle_group_add()` — which is why every one of those ports invented its own
+container and why `scripts/check-vocabulary-alignment.mjs` records each as `own`
+rather than as a name to converge.
+
+So a portable model type for them would be a GTK word on a value GTK does not
+have, and it would not unblock the thing that looks like it should: those widgets'
+gallery blocks are refused for `uncurated-placement`, which is gtk-host's
+descriptor refusal — `scripts/adwaita-gallery-trees.mjs` says so in place, "a
+property of the descriptor table on `main`, not of the widget".
+
+The fix is therefore a curated descriptor in
+`packages/framework/gtk-host/src/descriptors/` using the `ChildPolicy` kinds that
+already exist (`single`/`ordered`/`indexed`/`keyed`/`slotted`), one widget at a
+time, each with the vector that proves the adder is the right one. That is the
+same work as the entry below, which holds the count and the reason guessing an
+adder is refused — this entry exists so the LIST half of #1524 is not read as
+undone by oversight.
+
+### The NativeScript list-model setter is held by core's vectors, not by a widget test
+
+`AdwComboRow.model` and `GtkDropDown.model` on `@gjsify/adwaita-nativescript` run
+`normalizeComboOptions`, so one authored model — bare strings included — moves
+between the surfaces unchanged (ADR 0046 § 5). It fixed a real defect: the setter
+took descriptors only, so `model = ['a', 'b']` stored strings and every label read
+back `undefined`.
+
+Nothing in that package asserts it. `drop-down.spec.ts` and `index.spec.ts` drive
+`ComboState` directly, for the reason `drop-down.spec.ts`' own header gives: the
+widget module cannot be imported there, because `GtkDropDown extends StackLayout`
+evaluates the bare `@nativescript/core` specifier at module-eval, which is
+unresolvable on GJS and on Node. `LIST_NORMALIZE_VECTORS` is driven through the
+browser elements' real `model` property and through core, so the RULE is measured
+twice — but the NativeScript widget's own door is measured by nothing, and this is
+what a reader should know before treating that surface's normalisation as covered.
+
+The same gap covers every other pure-delegation line in those two widget classes.
+What closes it is whatever eventually lets a NativeScript widget module be
+evaluated in the suite — the `ns-core.d.ts` ambient slice is the type-level half of
+that problem and does not run anything.
+
 ### 138 of 164 generated widgets have no measured placement rule
 
 The generated table names every concrete GtkWidget descendant; the curated table

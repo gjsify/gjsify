@@ -459,14 +459,6 @@ const NS_PROPERTY_ALIGNMENT = {
         gir: 'cssClasses',
         why: 'On GTK the Adwaita button variants are STYLE CLASSES over GtkButton — `.suggested-action` / `.destructive-action` / `.flat` / `.pill` in refs/libadwaita/src/stylesheet/widgets/_buttons.scss — which is what `GtkWidget:css-classes` carries. The setter swaps exactly one such class (gtk-button.ts:59), so the control is the class list under an enum-shaped name.',
     },
-    'adw-combo-row.options': {
-        gir: 'model',
-        why: '`Adw.ComboRow:model` is where the selectable items live on GTK: a `Gio.ListModel` walked by a factory. The port takes a plain array because NativeScript has no list model and its `action()` sheet takes strings (adw-combo-row.ts:137-141). Same slot, a different container.',
-    },
-    'gtk-drop-down.options': {
-        gir: 'model',
-        why: '`Gtk.DropDown:model` holds the items on GTK, and `model` is the key in GtkDropDownProps. The port keeps a plain array for the same reason `AdwComboRow` does: no list model on NativeScript, and the native chooser takes strings (gtk-drop-down.ts:130-134).',
-    },
     'adw-header-bar.title': {
         gir: 'titleWidget',
         why: 'GTK puts no string on the header bar: `Adw.HeaderBar:title-widget` holds a widget, conventionally an `Adw.WindowTitle`, whose own `title` carries the text. The port forwards to exactly that default (adw-header-bar.ts:81-85), so the slot is `title-widget` and the string is the shortcut into it.',

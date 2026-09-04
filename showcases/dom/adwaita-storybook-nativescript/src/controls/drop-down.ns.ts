@@ -19,7 +19,7 @@ export class DropDownNsStory extends StoryView {
 
     initialize(): void {
         this._dropDown = new Gtk.DropDown();
-        this._dropDown.options = DROP_DOWN_OPTIONS.map((label) => ({ value: label, label }));
+        this._dropDown.model = [...DROP_DOWN_OPTIONS];
         this._apply();
         this.addContent(this._dropDown);
     }

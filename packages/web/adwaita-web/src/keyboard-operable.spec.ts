@@ -897,7 +897,7 @@ export const AdwKeyboardOperableTest = async () => {
         await it('activates on Enter and Space, and lets a child keep its own keys', () => {
             const host = mount(
                 '<adw-action-row id="k-keys" title="Keys" activatable></adw-action-row>' +
-                    '<adw-combo-row id="k-combo" title="Combo" items=\'["a","b"]\'></adw-combo-row>',
+                    '<adw-combo-row id="k-combo" title="Combo" model=\'["a","b"]\'></adw-combo-row>',
             );
             const row = document.getElementById('k-keys') as HTMLElement;
             let activated = 0;

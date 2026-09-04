@@ -152,7 +152,7 @@ export const GtkImageTest = async () => {
                 <adw-button-row title="Row" start-icon-name="list-add" end-icon-name="go-next"></adw-button-row>
                 <adw-status-page icon="folder" title="Empty"></adw-status-page>
                 <adw-split-button label="Save" menu-model='[{"label":"Save As"}]'></adw-split-button>
-                <gtk-drop-down options='["a","b"]'></gtk-drop-down>
+                <gtk-drop-down model='["a","b"]'></gtk-drop-down>
                 <adw-expander-row title="More" show-enable-switch></adw-expander-row>
                 <adw-avatar text="Ada" icon="avatar-default"></adw-avatar>
                 <adw-toggle-group><adw-toggle icon-name="view-list"></adw-toggle></adw-toggle-group>

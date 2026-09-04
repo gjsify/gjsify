@@ -5,9 +5,10 @@
 // <adw-combo-row> (which embeds the same idea inside a boxed-list row) — reach
 // for this one when you need a bare dropdown, not a row.
 //
-// Options are `{ value, label }` pairs (or plain strings, where the string is
-// both value and label), supplied via the `options` / `items` property or a
-// JSON `options` attribute. Optional `enable-search` puts a search entry atop
+// The model is `{ value, label }` pairs (or plain strings, where the string is
+// both value and label), supplied via the `model` property or a JSON `model`
+// attribute — `Gtk.DropDown:model`'s own name (ADR 0034 clause 1, ADR 0046), which
+// replaced the two spellings `options`/`items`. Optional `enable-search` puts a search entry atop
 // the popover for long lists. The popover is dismissed on an outside click or
 // Escape and supports arrow-key navigation, Home/End, Enter to pick, and
 // type-ahead (typing jumps to the next matching option).
@@ -23,13 +24,21 @@
 // copy is how ArrowUp from an unfocused list lands on the SECOND-TO-LAST option, which
 // `enable-search` hits on every open because it focuses the entry.
 //
+// THE MODEL IS SPLICED, NOT REBUILT (ADR 0046). `ComboState` reports WHERE the model
+// changed — `Gio.ListModel::items-changed`, one splice per assignment — so replacing a
+// model that gained one item inserts ONE row button and leaves the rest, with their focus
+// and their scroll position, alone. It also closed a latent defect the rebuild hid: each
+// row's click handler used to close over the index it was built at, so any splice that
+// shifted a row would have selected the wrong item. The handler now asks the list where
+// the row IS.
+//
 // Attributes:
-//   options / items — JSON array: `["a","b"]` or `[{"value":"a","label":"A"}]`.
+//   model           — JSON array: `["a","b"]` or `[{"value":"a","label":"A"}]`.
 //   selected        — the selected index (number).
 //   enable-search   — boolean; show a filtering search entry in the popover.
 //   disabled        — boolean; a disabled dropdown does not open.
 // Properties (mirroring Gtk.DropDown):
-//   options / items — the option list ({ value, label }[]) (get/set).
+//   model           — the list model ({ value, label }[]) (get/set).
 //   selected        — the selected index (get/set; bounds-guarded).
 //   selectedValue   — the selected option's value ('' when empty) (get/set-by-value).
 //   selectedItem    — the selected option descriptor (or null).
@@ -56,8 +65,8 @@
 import './gtk-popover.js';
 import type { GtkPopover } from './gtk-popover.js';
 
-import { ComboState, normalizeComboOptions } from '@gjsify/adwaita-core';
-import type { AdwComboOption, AdwComboOptionInput } from '@gjsify/adwaita-core';
+import { ComboState, normalizeComboOptions, parseListModel } from '@gjsify/adwaita-core';
+import type { AdwComboOption, AdwListItemsChanged, AdwListModelInput } from '@gjsify/adwaita-core';
 
 import { createGtkImage } from './gtk-image.js';
 
@@ -82,27 +91,18 @@ export class GtkDropDown extends HTMLElement {
     private _typeAheadTimer: ReturnType<typeof setTimeout> | null = null;
 
     static get observedAttributes() {
-        return ['options', 'items', 'selected', 'enable-search', 'disabled'];
+        return ['model', 'selected', 'enable-search', 'disabled'];
     }
 
-    /** The options list. Setting it rebuilds the popover and clamps the selection. */
-    get options(): GtkDropDownOption[] {
-        return this._state.options;
+    /** The list model (`Gtk.DropDown:model`). Setting it splices the popover and clamps the selection. */
+    get model(): GtkDropDownOption[] {
+        return this._state.model;
     }
 
-    set options(value: ReadonlyArray<AdwComboOptionInput>) {
-        // `setOptions` resets the index to 0 when it no longer fits — the same
+    set model(value: AdwListModelInput) {
+        // `setModel` resets the index to 0 when it no longer fits — the same
         // clamp this element used to spell out.
-        this._state.setOptions(normalizeComboOptions(value));
-        if (this._initialized) this._renderAll();
-    }
-
-    get items(): GtkDropDownOption[] {
-        return this._state.options;
-    }
-
-    set items(value: ReadonlyArray<AdwComboOptionInput>) {
-        this.options = value;
+        this._state.setModel(normalizeComboOptions(value));
     }
 
     /** The selected index. Out-of-range values are ignored (Gtk.DropDown:selected). */
@@ -120,12 +120,12 @@ export class GtkDropDown extends HTMLElement {
     }
 
     set selectedValue(value: string) {
-        const index = this._state.options.findIndex((o) => o.value === value);
+        const index = this._state.model.findIndex((o) => o.value === value);
         if (index >= 0) this._selectIndex(index);
     }
 
     get selectedItem(): GtkDropDownOption | null {
-        return this._state.options[this._state.selectedIndex] ?? null;
+        return this._state.model[this._state.selectedIndex] ?? null;
     }
 
     get enableSearch(): boolean {
@@ -178,9 +178,13 @@ export class GtkDropDown extends HTMLElement {
 
         // Seed options BEFORE anything subscribes, so building the initial DOM below is
         // not driven by a change notification.
-        if (this._state.count === 0) this._state.setOptions(this._parseOptionsAttr());
+        if (this._state.count === 0) this._state.setModel(parseListModel(this.getAttribute('model')));
         const attrSelected = Number.parseInt(this.getAttribute('selected') ?? '', 10);
         if (this._state.hasIndex(attrSelected)) this._state.setSelectedIndex(attrSelected);
+
+        // WHERE the model changed. Subscribed before the first render so every later
+        // assignment reaches the splice rather than a rebuild.
+        this._state.subscribeItems((change) => this._applyItemsChanged(change));
 
         this.replaceChildren(this._buttonEl, this._popoverEl);
         this._popoverEl.anchor = this._buttonEl;
@@ -194,9 +198,10 @@ export class GtkDropDown extends HTMLElement {
 
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
         if (!this._initialized || !this._buttonEl) return;
-        if (name === 'options' || name === 'items') {
-            this._state.setOptions(this._parseOptionsAttr());
-            this._renderAll();
+        if (name === 'model') {
+            // No render call: the splice subscription does the DOM half, so the markup door
+            // and the property door cannot drift into two update paths.
+            this._state.setModel(parseListModel(value));
         } else if (name === 'selected') {
             const index = Number.parseInt(value ?? '', 10);
             if (!Number.isNaN(index)) this._selectIndex(index, { fromAttr: true });
@@ -205,18 +210,6 @@ export class GtkDropDown extends HTMLElement {
         } else if (name === 'disabled') {
             this._buttonEl.disabled = this.hasAttribute('disabled');
             if (this.hasAttribute('disabled')) this._popoverEl.popdown();
-        }
-    }
-
-    private _parseOptionsAttr(): GtkDropDownOption[] {
-        const raw = this.getAttribute('options') ?? this.getAttribute('items');
-        if (!raw) return [];
-        try {
-            // `normalizeComboOptions` already guards a non-array, so a JSON object or
-            // scalar yields the empty model rather than a throw.
-            return normalizeComboOptions(JSON.parse(raw) as AdwComboOptionInput[]);
-        } catch {
-            return [];
         }
     }
 
@@ -236,7 +229,7 @@ export class GtkDropDown extends HTMLElement {
             this.setAttribute('selected', String(index));
         }
         if (changed) {
-            const option = this._state.options[index];
+            const option = this._state.model[index];
             // `notify::selected` mirrors GObject property-notify: EVERY change,
             // programmatic included.
             this.dispatchEvent(new CustomEvent('notify::selected', { bubbles: true, detail: { selected: index } }));
@@ -290,7 +283,7 @@ export class GtkDropDown extends HTMLElement {
         this._typeAheadBuffer += char.toLowerCase();
         if (this._typeAheadTimer) clearTimeout(this._typeAheadTimer);
         this._typeAheadTimer = setTimeout(() => (this._typeAheadBuffer = ''), 800);
-        const match = this._state.options.findIndex((o) => o.label.toLowerCase().startsWith(this._typeAheadBuffer));
+        const match = this._state.model.findIndex((o) => o.label.toLowerCase().startsWith(this._typeAheadBuffer));
         if (match < 0) return;
         if (this._popoverEl.open) this._itemButtons[match]?.focus();
         else this._selectIndex(match, { fromUser: true });
@@ -299,7 +292,7 @@ export class GtkDropDown extends HTMLElement {
     private _filter(query: string): void {
         const q = query.trim().toLowerCase();
         this._itemButtons.forEach((button, index) => {
-            const match = q.length === 0 || (this._state.options[index]?.label.toLowerCase().includes(q) ?? false);
+            const match = q.length === 0 || (this._state.model[index]?.label.toLowerCase().includes(q) ?? false);
             button.hidden = !match;
         });
     }
@@ -348,32 +341,76 @@ export class GtkDropDown extends HTMLElement {
             if (existing) existing.remove();
         }
 
-        for (const [index, option] of this._state.options.entries()) {
-            const item = document.createElement('button');
-            item.type = 'button';
-            item.className = 'adw-popover-item adw-drop-down-item';
-            item.setAttribute('role', 'option');
-            item.tabIndex = -1;
-
-            const label = document.createElement('span');
-            label.className = 'adw-drop-down-item-label';
-            label.textContent = option.label;
-
-            const check = document.createElement('span');
-            check.className = 'adw-drop-down-item-check';
-            check.setAttribute('aria-hidden', 'true');
-
-            item.append(label, check);
-            item.addEventListener('click', () => {
-                this._selectIndex(index, { fromUser: true });
-                this._popoverEl.popdown();
-                this._buttonEl.focus();
-            });
+        for (const option of this._state.model) {
+            const item = this._createItem(option);
             this._listEl.appendChild(item);
             this._itemButtons.push(item);
         }
 
         this._updateSelectedStates();
+        if (this._state.count === 0) this._popoverEl.popdown();
+    }
+
+    /**
+     * One row button.
+     *
+     * The click handler reads the row's CURRENT position out of `_itemButtons` instead of
+     * closing over the index it was built at. Under a full rebuild the two were always
+     * equal, which is why the closure survived; under a splice they are not, and a row
+     * that shifted by one would have selected its neighbour.
+     */
+    private _createItem(option: GtkDropDownOption): HTMLButtonElement {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'adw-popover-item adw-drop-down-item';
+        item.setAttribute('role', 'option');
+        item.tabIndex = -1;
+
+        const label = document.createElement('span');
+        label.className = 'adw-drop-down-item-label';
+        label.textContent = option.label;
+
+        const check = document.createElement('span');
+        check.className = 'adw-drop-down-item-check';
+        check.setAttribute('aria-hidden', 'true');
+
+        item.append(label, check);
+        item.addEventListener('click', () => {
+            const index = this._itemButtons.indexOf(item);
+            if (index < 0) return;
+            this._selectIndex(index, { fromUser: true });
+            this._popoverEl.popdown();
+            this._buttonEl.focus();
+        });
+        return item;
+    }
+
+    /**
+     * Apply one `items-changed` to the row list — remove `removed` buttons at `position`,
+     * insert `added` fresh ones there, leave every other row (and its focus) standing.
+     *
+     * It owns everything a model replacement has to refresh, so the property door and the
+     * attribute door share one update path: the button label, the per-row selected state,
+     * and popping the popover down when the model empties under it.
+     */
+    private _applyItemsChanged(change: AdwListItemsChanged): void {
+        if (!this._initialized) return;
+        for (const removedButton of this._itemButtons.splice(change.position, change.removed)) {
+            removedButton.remove();
+        }
+        const before = this._itemButtons[change.position] ?? null;
+        const inserted: HTMLButtonElement[] = [];
+        for (let i = 0; i < change.added; i++) {
+            const option = this._state.model[change.position + i];
+            if (!option) continue;
+            const item = this._createItem(option);
+            this._listEl.insertBefore(item, before);
+            inserted.push(item);
+        }
+        this._itemButtons.splice(change.position, 0, ...inserted);
+
+        this._updateSelectedStates();
+        this._updateLabel();
         if (this._state.count === 0) this._popoverEl.popdown();
     }
 }

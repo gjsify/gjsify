@@ -278,6 +278,23 @@ export type {
     SplitButtonTooltipVector,
 } from './split-button.js';
 
+// --- The portable list model (item vocabulary + items-changed — ADR 0046) vectors ---
+export {
+    LIST_ITEMS_CHANGED_VECTORS,
+    LIST_NORMALIZE_VECTORS,
+    LIST_PARSE_VECTORS,
+    LIST_SELECTION_CLAMP_VECTORS,
+    TAB_PAGES_ITEMS_CHANGED_VECTORS,
+    replayTabPagesAsSplices,
+} from './list.js';
+export type {
+    ListItemsChangedVector,
+    ListNormalizeVector,
+    ListParseVector,
+    ListSelectionClampVector,
+    TabPagesItemsChangedVector,
+} from './list.js';
+
 // --- The portable menu model (ADR 0042) vectors ---
 export {
     MENU_DETAILED_ACTION_VECTORS,

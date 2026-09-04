@@ -376,7 +376,7 @@ export default async () => {
 
         await it('does not re-apply an equal model handed to it as a fresh array', async () => {
             // `model={['Light', 'Dark']}` written inline is a NEW array every render, and
-            // `setOptions` is the one core setter with no unchanged-value guard: keyed on
+            // `setModel` is the one core setter with no unchanged-value guard: keyed on
             // the array's identity the mount effect would re-apply and re-emit on every
             // parent render, reporting a selection change nobody made. Keyed on the
             // CONTENT it is silent, which is what the GTK half does by not writing an
