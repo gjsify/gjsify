@@ -15,6 +15,18 @@
         "moduleResolution": "NodeNext",
         "skipLibCheck": true,
         "strict": true,
+        // `@gjsify/adwaita-core` is a WORKSPACE dependency whose `exports` map names
+        // `lib/types/`, a BUILD OUTPUT — and `src/attrs.ts`, which this program reaches
+        // through `vue-components.ts`, imports one type from it (the portable menu
+        // model, ADR 0042). Measured: with that `lib/` absent, this half reports
+        // `TS2307: Cannot find module '@gjsify/adwaita-core'` and both positives stop
+        // compiling clean. The job that runs this gate is `checkout` + `setup-node` +
+        // install and NOTHING else, so `lib/` is never there — it passed locally, in a
+        // built tree, and failed in CI. Source, so the gate needs no build in front of
+        // it; the same reason the JSX and React halves map their own subpath.
+        "paths": {
+            "@gjsify/adwaita-core": ["../../../../web/adwaita-core/src/index.ts"]
+        },
         "lib": ["es2015", "es2016", "es2017", "DOM"],
         "types": []
     },

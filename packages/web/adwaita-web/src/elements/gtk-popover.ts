@@ -139,9 +139,24 @@ export class GtkPopover extends HTMLElement {
         return ROLES.includes(value as GtkPopoverRole) ? (value as GtkPopoverRole) : 'menu';
     }
 
-    /** The navigable rows, in DOM order. Hidden rows are skipped — a filtered list navigates what it shows. */
+    /**
+     * The navigable rows, in DOM order.
+     *
+     * HIDDEN rows are skipped — a filtered list navigates what it shows. DISABLED rows
+     * are skipped for a harder reason: a disabled `<button>` cannot take focus at all, so
+     * `items[index].focus()` is a NO-OP and the arrow key reads as dead. Keeping one in
+     * the walk is the same defect a roving tabindex with no keys behind it has, one row
+     * wide — measured on a menu whose action group reported an action disabled
+     * (ADR 0042): ArrowDown onto it left `document.activeElement` where it was.
+     *
+     * GTK skips them for the same reason and says so in the general rule rather than in
+     * the menu: `gtk_widget_focus_move` walks only widgets `gtk_widget_get_can_focus`
+     * accepts, and an insensitive widget is not one.
+     */
     get items(): HTMLElement[] {
-        return [...this.querySelectorAll<HTMLElement>(ITEM_SELECTOR)].filter((item) => !item.hidden);
+        return [...this.querySelectorAll<HTMLElement>(ITEM_SELECTOR)].filter(
+            (item) => !item.hidden && !(item as HTMLButtonElement).disabled,
+        );
     }
 
     /** Show the popover — `gtk_popover_popup()`. */

@@ -211,6 +211,22 @@ const RENDERER_WORD = /\b(?:renderers?|ports?|browser|adwaita-web|NativeScript)\
  */
 const DENIAL = /^\s*(?:no|not|none|neither|nor)\b/i;
 /** An exemption that offers no coverage is a GAP, and a GAP with no anchor has no retirement. */
+/**
+ * A repo-relative spec path inside a `CORE-ONLY:` reason — the OUTSIDE driver arm.
+ *
+ * THE HOLE THIS CLOSES. A table can be driven against a real implementation by a suite
+ * this script does not count as a renderer, and `MENU_DETAILED_ACTION_VECTORS` is the
+ * first: its `gioValid` half is asserted by `@gjsify/gtk-host`'s menu suite, which is the
+ * GTK host rather than an Adwaita port. Before this arm the reason SAID so in prose and
+ * nothing read it — so deleting that loop returned the repo to the exact state the table
+ * was written to prevent (a row declaring `'app.x('` legal with nothing handing it to
+ * GIO), with this gate and every other one still green.
+ *
+ * A path is therefore a CLAIM like any other citation: the file must exist and must name
+ * the table outside a comment. Prose stays prose; a path is checkable, so it is checked.
+ */
+const OUTSIDE_DRIVER = /\b((?:packages|showcases|tests)\/[\w@./-]+\.spec\.[cm]?ts)\b/g;
+
 const GAP_REASON = /\bGAP\b/;
 const GAP_ANCHOR = /#\d+/;
 const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -460,7 +476,17 @@ function reachesADriver(name, seen = new Set()) {
 
 const failures = [];
 /** What each arm actually resolved. A gate that reports only "green" cannot show it ran. */
-const resolved = { chains: 0, citations: 0, both: 0, suite: 0, counted: 0, exempted: 0, specs: 0, promises: 0 };
+const resolved = {
+    chains: 0,
+    citations: 0,
+    both: 0,
+    suite: 0,
+    counted: 0,
+    exempted: 0,
+    specs: 0,
+    promises: 0,
+    outside: 0,
+};
 
 // SUITE arm. The arms below key off which tables are driven, so a spec that names a table
 // while running nowhere would otherwise surface one step downstream, as "driven only by the
@@ -525,6 +551,30 @@ for (const table of tables) {
                 `Name the table whose coverage makes this one redundant, or spell it ` +
                 `"${CORE_ONLY_MARKER} GAP — <why no renderer can drive it>. Tracked in #<issue>".`,
         );
+    }
+    // A reason naming a spec OUTSIDE this script's renderer set is held against that
+    // spec: the file exists, and it names the table where the code can see it.
+    for (const [, spec] of reason.matchAll(OUTSIDE_DRIVER)) {
+        const absolute = join(ROOT, spec);
+        let driver;
+        try {
+            driver = readFileSync(absolute, 'utf8');
+        } catch {
+            failures.push(
+                `${where}: its ${CORE_ONLY_MARKER} reason names ${spec} as the suite that drives it, ` +
+                    'and that file does not exist. A reason that points at nothing is prose wearing a path.',
+            );
+            continue;
+        }
+        resolved.outside += 1;
+        if (!new RegExp(`\\b${table.name}\\b`).test(stripComments(driver))) {
+            failures.push(
+                `${where}: its ${CORE_ONLY_MARKER} reason names ${spec} as the suite that drives it, ` +
+                    `but that file does not name ${table.name} outside a comment. Either it stopped ` +
+                    'driving the table — which is the deletion this arm exists to catch — or the reason ' +
+                    'names the wrong file.',
+            );
+        }
     }
     // Regardless of what a GAP cites — several name the table they USED to be exempted by.
     if (GAP_REASON.test(reason) && !GAP_ANCHOR.test(reason)) {

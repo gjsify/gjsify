@@ -82,9 +82,13 @@ const CONTRACT_SPECS = [`${ADWAITA_WEB_SRC}/keyboard-operable.spec.ts`, 'tests/b
 const ROVING_LEDGER = {
     'packages/web/adwaita-web/src/elements/gtk-drop-down.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-inline-view-switcher.ts': 'via ./roving-focus.js',
-    'packages/web/adwaita-web/src/elements/gtk-menu-button.ts': 'via <gtk-popover>',
     'packages/web/adwaita-web/src/elements/adw-sidebar.ts': 'via ./roving-focus.js',
-    'packages/web/adwaita-web/src/elements/adw-split-button.ts': 'via <gtk-popover>',
+    // `<gtk-menu-button>` and `<adw-split-button>` were both here, each `via
+    // <gtk-popover>`, and both LEFT scope when ADR 0042 moved their row building into
+    // the popup they share. The roving tabindex moved with it, so the obligation moved
+    // with it — which is the ledger working, not drifting: the two elements now hand
+    // their surface to `PopoverMenuView` and hand out no tabindex of their own.
+    'packages/web/adwaita-web/src/elements/popover-menu.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-tab-view.ts': 'own keydown listener',
     'packages/web/adwaita-web/src/elements/adw-toggle-group.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-view-switcher-bar.ts': 'via ./roving-focus.js',

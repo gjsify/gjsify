@@ -334,9 +334,9 @@ export interface MenuDetailedActionVector {
  * CORE-ONLY: the SPLITTER's answers are never read by a renderer — they exist for
  * MENU_ITEM_STATE_VECTORS, which both renderer suites drive through the widget's action
  * state, and a target that does not come off leaves every radio item reading `normal`.
- * The `gioValid` half IS driven against a real implementation, by `@gjsify/gtk-host`'s
- * menu suite; that package is the GTK host rather than an Adwaita port, so this gate does
- * not count it as a renderer.
+ * The `gioValid` half IS driven against a real implementation, by
+ * packages/framework/gtk-host/src/menu.spec.ts — the GTK host rather than an Adwaita
+ * port, so this gate does not count it as a renderer, and holds the PATH instead.
  *
  * `g_action_parse_detailed_name`'s two forms, the strings that are neither, and what the
  * display-side splitter answers for each.
@@ -370,6 +370,20 @@ export const MENU_DETAILED_ACTION_VECTORS: ReadonlyArray<MenuDetailedActionVecto
         target: 'list',
         gioValid: true,
         rule: 'the QUOTED `(…)` form is the same target as the `::` form — unquoted, or a radio written this way reads OFF',
+    },
+    {
+        detailed: "app.view('a\\'b')",
+        name: 'app.view',
+        target: "a'b",
+        gioValid: true,
+        rule: 'GVariant text ESCAPES the quote inside a quoted string; leaving the escape on is wrong CONTENT, not a second spelling',
+    },
+    {
+        detailed: "app.view('a\\\\b')",
+        name: 'app.view',
+        target: 'a\\b',
+        gioValid: true,
+        rule: 'and the backslash — the only other character GVariant escapes there',
     },
     {
         detailed: 'app.view::a::b',

@@ -309,4 +309,89 @@ async function driveKeys(page: Page, bundleUrl: string) {
     expect(downMoved).toEqual({ moved: false, prevented: false, count: 3 });
 
     expect(await page.evaluate(() => document.getElementById('toggles')?.getAttribute('role'))).toBe('radiogroup');
+
+    // ---- Shape 6: a portable menu is traversable, page by page (ADR 0042) -----------
+    // The roving tabindex on a menu row moved into `PopoverMenuView` when the two menu
+    // buttons started sharing one popup. `check-adwaita-keyboard-contract.mjs` holds that
+    // a keydown listener EXISTS; only a real press proves the keys move focus — and only
+    // a real press exercises the `preventDefault` that keeps a focused <button> from
+    // ALSO activating natively, which a dispatched event cannot reproduce at all.
+    await page.evaluate(() => {
+        document.body.replaceChildren();
+        const el = document.createElement('gtk-menu-button') as HTMLElement & {
+            menuModel: unknown;
+            actions: unknown;
+        };
+        el.id = 'menu';
+        document.body.append(el);
+        el.actions = { 'app.export': { enabled: false }, 'app.new': {} };
+        el.menuModel = [
+            { label: 'New', action: 'app.new' },
+            { section: [{ label: 'Export', action: 'app.export' }, { label: 'Print' }] },
+            { label: 'More', submenu: [{ label: 'Rename' }, { label: 'Duplicate' }] },
+        ];
+        (el as HTMLElement).addEventListener('menu-item-activated', (event) => {
+            (window as unknown as { chosen: unknown }).chosen = (event as CustomEvent<{ path: number[] }>).detail.path;
+        });
+        (el.querySelector('.adw-menu-button-button') as HTMLElement).click();
+        (el.querySelectorAll<HTMLElement>('.adw-popover-item')[0] as HTMLElement).focus();
+    });
+
+    /** The label of the row that has focus — what a reader would name it. */
+    const focusedRow = () =>
+        page.evaluate(
+            () =>
+                document.activeElement?.querySelector('.adw-menu-button-item-label')?.textContent ??
+                document.activeElement?.localName ??
+                'none',
+        );
+
+    expect(await focusedRow()).toBe('New');
+    // Straight past the row the action group disabled: a disabled <button> cannot take
+    // focus, so an arrow that lands on it is a press that does nothing.
+    await page.keyboard.press('ArrowDown');
+    expect(await focusedRow()).toBe('Print');
+    await page.keyboard.press('ArrowDown');
+    expect(await focusedRow()).toBe('More');
+    // A menu popover WRAPS — `resolvePopoverKey` is modular, unlike the tab lists above.
+    await page.keyboard.press('ArrowDown');
+    expect(await focusedRow()).toBe('New');
+    await page.keyboard.press('End');
+    expect(await focusedRow()).toBe('More');
+
+    // ArrowRight opens the submenu — `gtk_model_button_focus`, gtkmodelbutton.c:1189-1195.
+    await page.keyboard.press('ArrowRight');
+    expect(await focusedRow()).toBe('Rename');
+    expect(
+        await page.evaluate(() =>
+            [...document.querySelectorAll('#menu .adw-popover-item')].map(
+                (row) => row.querySelector('.adw-menu-button-item-label')?.textContent,
+            ),
+        ),
+    ).toEqual(['More', 'Rename', 'Duplicate']);
+
+    // ArrowLeft answers only on the back row (:1182-1188), so from the middle it does not.
+    await page.keyboard.press('ArrowLeft');
+    expect(await focusedRow()).toBe('Rename');
+    await page.keyboard.press('ArrowUp');
+    expect(await focusedRow()).toBe('More');
+    await page.keyboard.press('ArrowLeft');
+    expect(
+        await page.evaluate(() =>
+            [...document.querySelectorAll('#menu .adw-popover-item')].map(
+                (row) => row.querySelector('.adw-menu-button-item-label')?.textContent,
+            ),
+        ),
+    ).toEqual(['New', 'Export', 'Print', 'More']);
+
+    // Leaving a page returns focus to the top of the one it returns TO, which is what
+    // makes the next press countable.
+    expect(await focusedRow()).toBe('New');
+
+    // Enter activates the focused row ONCE — the native activation is prevented — and
+    // reports a PATH, which is the only thing that names a row inside a section.
+    await page.keyboard.press('ArrowDown');
+    expect(await focusedRow()).toBe('Print');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => (window as unknown as { chosen: unknown }).chosen)).toEqual([1, 1]);
 }

@@ -519,8 +519,24 @@ export function parseDetailedAction(detailed: string | undefined): AdwDetailedAc
 }
 
 /**
- * `'list'` → `list`. `GVariant` text quotes a string and the `::` form does not, so the
- * two spellings of one target are only equal after this.
+ * `'list'` → `list`, and `'a\'b'` → `a'b`. `GVariant` text quotes a string and the `::`
+ * form does not, so the two spellings of one target are only equal after this.
+ *
+ * THE ESCAPES COME OFF TOO, and that half was missing first. `GVariant` text escapes the
+ * quote character and the backslash inside a quoted string — measured against GIO, which
+ * is the authority on both directions:
+ *
+ *     app.v('a\'b')   → target content  a'b
+ *     app.v('a\\b')   → target content  a\b
+ *     app.v("a\"b")   → target content  a"b
+ *
+ * Stripping only the outer pair answered `a\'b`, so a radio whose target contains a
+ * quote or a backslash compared UNEQUAL against an action state of `a'b` and rendered OFF
+ * where GTK renders ON. Unlike the whitespace gap this function still has, that is wrong
+ * CONTENT rather than a second spelling of the right content.
+ *
+ * Only the two characters `GVariant` escapes inside a quoted string are unescaped: this
+ * is still not a `GVariant` parser, and `\n` stays the two characters it was written as.
  */
 function unquote(text: string): string {
     // `text[text.length - 1]`, not `text.at(-1)`: this package's `lib` target predates
@@ -528,7 +544,20 @@ function unquote(text: string): string {
     // convenience method is not free.
     const first = text[0];
     const quoted = text.length >= 2 && (first === "'" || first === '"') && text[text.length - 1] === first;
-    return quoted ? text.slice(1, -1) : text;
+    if (!quoted) return text;
+    const inner = text.slice(1, -1);
+    let out = '';
+    for (let i = 0; i < inner.length; i += 1) {
+        const char = inner[i] as string;
+        const next = inner[i + 1];
+        if (char === '\\' && (next === first || next === '\\')) {
+            out += next;
+            i += 1;
+            continue;
+        }
+        out += char;
+    }
+    return out;
 }
 
 /**

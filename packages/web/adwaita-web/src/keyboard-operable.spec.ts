@@ -685,6 +685,112 @@ export const AdwKeyboardOperableTest = async () => {
         });
     });
 
+    await describe('a portable menu is traversable, page by page (ADR 0042)', async () => {
+        // The roving tabindex on a menu row moved into `PopoverMenuView` when the two
+        // menu buttons started sharing one popup, and it took its keyboard obligation
+        // with it. `check-adwaita-keyboard-contract.mjs` holds that a listener EXISTS;
+        // this holds that the keys move focus — the half a static reader cannot have.
+        const open = (): { el: HTMLElement; rows: () => HTMLButtonElement[] } => {
+            const el = document.createElement('gtk-menu-button') as HTMLElement & {
+                menuModel: unknown;
+                actions: unknown;
+            };
+            document.body.appendChild(el);
+            el.actions = { 'app.export': { enabled: false }, 'app.new': {} };
+            el.menuModel = [
+                { label: 'New', action: 'app.new' },
+                { section: [{ label: 'Export', action: 'app.export' }, { label: 'Print' }] },
+                { label: 'More', submenu: [{ label: 'Rename' }, { label: 'Duplicate' }] },
+            ];
+            (el.querySelector('.adw-menu-button-button') as HTMLElement).click();
+            return {
+                el,
+                rows: () => [...el.querySelectorAll<HTMLButtonElement>('.adw-popover-item')],
+            };
+        };
+        const labelOf = (el: Element | null) =>
+            el?.querySelector('.adw-menu-button-item-label')?.textContent ?? el?.localName ?? 'none';
+
+        await it('the arrow keys walk the rows and wrap, and Home/End jump', () => {
+            const { el, rows } = open();
+            const items = rows();
+            // Four ROWS, but only three are navigable: `app.export` is disabled by the
+            // action group, and a disabled button cannot take focus.
+            expect(items.length).toBe(4);
+            expect(items[1].disabled).toBe(true);
+
+            items[0].focus();
+            press(items[0], 'ArrowDown');
+            // Straight past the disabled row — an arrow that lands on it is a dead press.
+            expect(labelOf(document.activeElement)).toBe('Print');
+            press(document.activeElement as HTMLElement, 'ArrowDown');
+            expect(labelOf(document.activeElement)).toBe('More');
+            // A menu popover WRAPS, unlike the tab lists: `resolvePopoverKey` is modular.
+            press(document.activeElement as HTMLElement, 'ArrowDown');
+            expect(labelOf(document.activeElement)).toBe('New');
+
+            press(document.activeElement as HTMLElement, 'End');
+            expect(labelOf(document.activeElement)).toBe('More');
+            press(document.activeElement as HTMLElement, 'Home');
+            expect(labelOf(document.activeElement)).toBe('New');
+            el.remove();
+        });
+
+        await it('neither a section heading nor a separator is a row', () => {
+            const { el } = open();
+            // Both are `<div>`s without `.adw-popover-item`, so the walk cannot land on
+            // them — asserted rather than assumed, because the class is what decides it.
+            expect(el.querySelectorAll('.adw-popover-separator').length).toBe(2);
+            for (const node of el.querySelectorAll('.adw-popover-separator, .adw-popover-title')) {
+                expect(node.classList.contains('adw-popover-item')).toBe(false);
+            }
+            el.remove();
+        });
+
+        await it('ArrowRight opens a submenu and ArrowLeft leaves it — the row answers, not the surface', () => {
+            const { el, rows } = open();
+            const opener = rows()[3];
+            expect(labelOf(opener)).toBe('More');
+
+            opener.focus();
+            // `gtk_model_button_focus`: GTK_DIR_RIGHT on a row with a `menu-name`
+            // (gtkmodelbutton.c:1189-1195).
+            const right = press(opener, 'ArrowRight');
+            expect(right.defaultPrevented).toBe(true);
+            expect(rows().map(labelOf)).toStrictEqual(['More', 'Rename', 'Duplicate']);
+            // Focus lands on the first ITEM of the page, past the back row.
+            expect(labelOf(document.activeElement)).toBe('Rename');
+
+            // GTK_DIR_LEFT answers only on the TITLE row (:1182-1188), so from the
+            // middle of the page it does nothing — deliberately the same here.
+            const inert = press(document.activeElement as HTMLElement, 'ArrowLeft');
+            expect(inert.defaultPrevented).toBe(false);
+            expect(labelOf(document.activeElement)).toBe('Rename');
+
+            const back = rows()[0];
+            back.focus();
+            const left = press(back, 'ArrowLeft');
+            expect(left.defaultPrevented).toBe(true);
+            expect(rows().map(labelOf)).toStrictEqual(['New', 'Export', 'Print', 'More']);
+            el.remove();
+        });
+
+        await it('Enter activates the focused row, and reports its path', () => {
+            const { el, rows } = open();
+            const seen: number[][] = [];
+            el.addEventListener('menu-item-activated', (event) => {
+                seen.push((event as CustomEvent<{ path: number[] }>).detail.path);
+            });
+            const print = rows()[2];
+            print.focus();
+            press(print, 'Enter');
+            // Inside a section, so only a PATH names it — the flat index would be 2 here
+            // and 1 in the model.
+            expect(seen).toStrictEqual([[1, 1]]);
+            el.remove();
+        });
+    });
+
     await describe('the row family is a tab stop where libadwaita makes one', async () => {
         const mount = (markup: string) => {
             const host = document.createElement('div');

@@ -22,6 +22,20 @@
 //     DISPLAY ONLY: nothing here binds a key, exactly as in GTK, where the binding
 //     comes from `gtk_application_set_accels_for_action`.
 //
+// THE KEYS ARE SPLIT, and the split is the reason this file registers a listener at all.
+// `<gtk-popover>` owns the LIST keys for every surface that has rows — Arrow up/down with
+// wrap, Home/End, Enter/Space to activate, Escape to dismiss — walking `.adw-popover-item`
+// and skipping what cannot take focus. Re-implementing those here would be a second copy
+// of one arithmetic on the same rows, and both copies would move the focus.
+//
+// What a popover cannot own is what makes a MENU a menu: LEFT and RIGHT change the PAGE.
+// GTK puts that rule on the row rather than on the surface too —
+// `gtk_model_button_focus` (`refs/gtk/gtk/gtkmodelbutton.c:1174-1210`): a focused NORMAL
+// row with a `menu-name` takes GTK_DIR_RIGHT into that submenu (`:1189-1195`), and a
+// focused TITLE row — the back row at the top of an open page — takes GTK_DIR_LEFT out of
+// it (`:1182-1188`). Both are the row's own answer to a direction, which is why Left from
+// the middle of a submenu does nothing in GTK and does nothing here.
+//
 // ARIA IS DERIVED, NOT DECLARED. `role` follows the item's menu role
 // (`menuitem`/`menuitemcheckbox`/`menuitemradio`) and `aria-checked` follows `toggled`,
 // so a screen reader hears the same three-way distinction a sighted reader sees. A row
@@ -62,6 +76,10 @@ export class PopoverMenuView {
     private _title = '';
     /** The submenu whose items are showing; `[]` is the root page. */
     private _page: AdwMenuPath = [];
+    /** The rows that OPEN a page — what ArrowRight acts on. Rebuilt by every render. */
+    private _openers = new Set<HTMLElement>();
+    /** The row that LEAVES a page — what ArrowLeft acts on. */
+    private _backRow: HTMLElement | null = null;
     /** The canonical text of the model showing, so an unchanged re-render keeps the page. */
     private _key = '[]';
     private _rows: HTMLButtonElement[] = [];
@@ -71,7 +89,34 @@ export class PopoverMenuView {
         /** Class prefix for the element's own hooks — `adw-menu-button`, `adw-split-button-menu`. */
         private readonly prefix: string,
         private readonly onActivate: PopoverMenuActivate,
-    ) {}
+    ) {
+        // On the SURFACE, not on each row: rows are replaced by every render and a
+        // per-row listener would have to be rebound with them, which is how one gets
+        // forgotten. The surface outlives every page.
+        this.surface.addEventListener('keydown', (event) => this._onKeyDown(event));
+    }
+
+    /**
+     * LEFT and RIGHT, which change the page. Every other key belongs to `<gtk-popover>`.
+     *
+     * The act is the row's own CLICK, not a second copy of what opening a page means:
+     * `switch_menu` is one behaviour in GTK too, reached by a pointer and by a direction
+     * alike. `preventDefault` before it, for the reason the popover's own Enter handler
+     * gives — a focused `<button>` would otherwise also activate natively.
+     */
+    private _onKeyDown(event: KeyboardEvent): void {
+        const active = document.activeElement as HTMLElement | null;
+        if (active === null || !this.surface.contains(active)) return;
+        if (event.key === 'ArrowRight' && this._openers.has(active)) {
+            event.preventDefault();
+            active.click();
+            return;
+        }
+        if (event.key === 'ArrowLeft' && active === this._backRow) {
+            event.preventDefault();
+            active.click();
+        }
+    }
 
     /** The focusable rows, in order — what the element focuses on open. */
     get rows(): readonly HTMLButtonElement[] {
@@ -116,6 +161,8 @@ export class PopoverMenuView {
     render(): void {
         this.surface.replaceChildren();
         this._rows = [];
+        this._openers = new Set();
+        this._backRow = null;
 
         const open = menuNodeAt(this._model, this._page);
         if (this._page.length > 0 && open !== null && open.kind === 'submenu') {
@@ -197,6 +244,7 @@ export class PopoverMenuView {
             this.render();
             this._rows[0]?.focus();
         });
+        this._backRow = button;
         return button;
     }
 
@@ -219,6 +267,7 @@ export class PopoverMenuView {
             // Focus the row AFTER the back row, which is where the reader was going.
             this._rows[1]?.focus();
         });
+        this._openers.add(button);
         return button;
     }
 

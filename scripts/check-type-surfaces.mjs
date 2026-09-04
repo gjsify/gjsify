@@ -815,17 +815,20 @@ const VUE_PROBES = [
     },
 ];
 
-/** compilerOptions keys whose values are PATHS, and which a copied config would therefore break. */
-const PATH_VALUED = [
-    'paths',
-    'baseUrl',
-    'rootDir',
-    'rootDirs',
-    'outDir',
-    'declarationDir',
-    'typeRoots',
-    'tsBuildInfoFile',
-];
+/**
+ * compilerOptions keys whose values are PATHS, and which a copied config would break.
+ *
+ * `paths` IS NOT ONE ANY MORE — {@link writeVueProbeConfig} rebases it to absolute, the
+ * same treatment `include` has always had two lines below. It was refused because the
+ * copy could not carry it, not because a Vue program may not have one; the committed
+ * config now needs one (`@gjsify/adwaita-core` is a workspace dependency whose `exports`
+ * name a build output, and this gate runs in a job with no build), and refusing the only
+ * mechanism that resolves it would have forced a second declaration of a published type.
+ *
+ * The rest stay: nothing rebases them, so a copied config would still read them against
+ * the work directory. They join `paths` the day something does.
+ */
+const PATH_VALUED = ['baseUrl', 'rootDir', 'rootDirs', 'outDir', 'declarationDir', 'typeRoots', 'tsBuildInfoFile'];
 
 /**
  * Read the committed Vue config with TypeScript's own JSONC parser.
@@ -878,9 +881,37 @@ function readVueConfig() {
     return config;
 }
 
+/**
+ * `paths`, resolved against the directory the COMMITTED config sits in.
+ *
+ * A probe config is written into the work directory, so every relative entry in a copied
+ * `paths` would resolve there and silently find nothing — which is why `paths` was
+ * refused outright before this existed. Absolute entries survive the move, exactly as
+ * the absolute `include` below does.
+ *
+ * MEASURED, AND SAID PLAINLY: today's two probes do NOT discriminate. With the rebase
+ * removed and the committed `paths` copied verbatim, both still report what they expect,
+ * because neither scores a diagnostic in a file that is not a fixture. So this function
+ * is not what makes the gate pass — the committed config's own `paths` is. It is what
+ * makes DROPPING `paths` from {@link PATH_VALUED} safe: the refusal is replaced by
+ * handling rather than by removal, so the next `paths` entry, in a probe that does score
+ * it, resolves instead of silently finding nothing.
+ */
+function absolutePaths(paths) {
+    if (paths === undefined) return undefined;
+    const from = dirname(VUE_CONFIG);
+    return Object.fromEntries(
+        Object.entries(paths).map(([pattern, targets]) => [pattern, targets.map((target) => resolve(from, target))]),
+    );
+}
+
 function writeVueProbeConfig(name, base, vueOptions, includes) {
+    const options = { ...base.compilerOptions };
+    const paths = absolutePaths(options.paths);
+    if (paths === undefined) delete options.paths;
+    else options.paths = paths;
     const config = {
-        compilerOptions: base.compilerOptions ?? {},
+        compilerOptions: options,
         vueCompilerOptions: { ...base.vueCompilerOptions, ...vueOptions },
         include: includes.map((file) => resolve(file)),
     };

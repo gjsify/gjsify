@@ -72,8 +72,8 @@ This is the decision most likely to be "simplified" back into a bug, so it is st
 first among the divergences. Measured in `refs/gtk/gtk/gtkmenutrackeritem.c`:
 
 - `sensitive` is the action's `enabled` flag (`self->sensitive = enabled`, c:332);
-- `role` is RADIO when the item has a `target` and the action has a STATE, CHECK when
-  the state is a boolean and there is no target (c:551-562);
+- `role` is RADIO when the item has a `target` and the action has a STATE (c:336-340),
+  CHECK when the state is a boolean and there is no target (c:342-346);
 - `toggled` compares the two;
 - an item with no `action` attribute at all is SENSITIVE — C sets it explicitly in the
   else branch (c:591-595, the assignment at c:594) rather than leaving the field false.
@@ -178,6 +178,39 @@ A REFUSAL AND A TYPO ARE DIFFERENT THINGS, and only the second may be swallowed.
 `parseMenuModel` stays total because malformed JSON is an author slip that must not stop
 an element upgrading; `custom` is well-formed, deliberate, and unhonourable on that
 surface.
+
+**NativeScript's shut door throws, and that asymmetry is REASONED rather than measured.**
+`refuseMenuString` raises from the `menuModel` setter, and NS's XML `Builder` writes an
+attribute straight onto that setter — the same authoring shape the web door was moved
+*away* from throwing on, because a markup-driven throw there was measured undeliverable.
+`Builder.parse` is plain JavaScript and should propagate to its caller, unlike a custom
+element's reaction callback, which the browser reports instead. Nobody has run it. If it
+turns out to swallow, this door takes the web door's answer — refuse the menu, say why on
+the console — and the reasoning above is where to start.
+
+### 6a. The keyboard is part of the shape, and it is split
+
+A menu that opens and cannot be traversed is a menu the people who most need a keyboard
+cannot use, so the keys are decided here rather than left to each renderer.
+
+`<gtk-popover>` owns the LIST keys for every surface with rows — Arrow up/down with wrap,
+Home/End, Enter/Space, Escape — walking `.adw-popover-item`. `PopoverMenuView` owns only
+what makes a menu a menu: **Left and Right change the PAGE**. GTK puts that rule on the
+row too (`gtk_model_button_focus`, `gtkmodelbutton.c:1174-1210`): a focused normal row
+with a `menu-name` takes `GTK_DIR_RIGHT` into that submenu (`:1189-1195`), and a focused
+TITLE row — the back row of an open page — takes `GTK_DIR_LEFT` out of it (`:1182-1188`).
+Left from the middle of a page does nothing in GTK, and does nothing here.
+
+Two boundaries follow from the model rather than from the keys. A section HEADING and a
+separator are `<div>`s without `.adw-popover-item`, so the walk cannot land on one. And a
+row the action group DISABLES is skipped: a disabled `<button>` cannot take focus, so
+including it makes the arrow key a dead press — the same defect a roving tabindex with no
+keys behind it has, one row wide, and GTK skips insensitive widgets for the same reason.
+
+**The defect is web-specific, and so is the fix.** Measured: `@gjsify/adwaita-nativescript`
+and `@gjsify/adwaita-react-native` contain no `tabIndex` and no `keydown` at all. The NS
+menu is a platform `Dialogs.action()` sheet, whose traversal belongs to the OS; React
+Native ships no menu widget. Neither has a roving tabindex to leave unreachable.
 
 `AdwMenuSurface` has exactly ONE capability field today, and that is deliberate: all
 three surfaces nest and all three draw what they have a place for, so a second field
