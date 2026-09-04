@@ -585,6 +585,52 @@ export default async () => {
                 );
             });
 
+            await it('re-renders through a Fragment without rebuilding a single widget', async () => {
+                // WHAT THE KEY SPELLING IS A PROXY FOR. `child-facts.spec.ts` asserts
+                // that an expanded child keeps its own key composed behind its
+                // Fragment's rather than reassigned; this is the effect that assertion
+                // exists for, and the only half an application feels. React answers a
+                // key that changed between renders by unmounting the subtree and
+                // building it again — new GObjects, and with them everything the widget
+                // holds that the descriptor does not: a cursor, a scroll position, an
+                // animation binding. The tree LOOKS identical either way, which is why
+                // the vector reads identities and not shape.
+                const tree = (n: number): ReactNode =>
+                    createElement(
+                        View,
+                        { className: 'p-2' },
+                        createElement(Text, { key: 'body' }, `body ${n}`),
+                        createElement(
+                            Fragment,
+                            { key: 'group' },
+                            createElement(Text, { key: 'badge', className: 'absolute inset-0' }, `badge ${n}`),
+                        ),
+                    );
+                const container = new Gtk.Box();
+                const root = createRoot(container);
+                try {
+                    root.render(tree(0));
+                    const overlay = gtkChildren(container)[0] as Gtk.Overlay;
+                    const box = overlay.get_child() as Gtk.Box;
+                    const body = gtkChildren(box)[0] as Gtk.Label;
+                    const badge = gtkChildren(overlay).find((child) => child !== box) as Gtk.Label;
+                    expect([body.label, badge.label]).toStrictEqual(['body 0', 'badge 0']);
+
+                    flushSync(() => root.render(tree(1)));
+
+                    // Read off the SAME references: a rebuild leaves these two holding
+                    // the old widgets, still labelled 0, so this line is the assertion
+                    // and the discriminator at once.
+                    expect([body.label, badge.label]).toStrictEqual(['body 1', 'badge 1']);
+                    const after = gtkChildren(container)[0] as Gtk.Overlay;
+                    expect(after === overlay).toBe(true);
+                    expect(after.get_child() === box).toBe(true);
+                    expect(gtkChildren(after).find((child) => child !== box) === badge).toBe(true);
+                } finally {
+                    root.unmount();
+                }
+            });
+
             await it('becomes a Gtk.FlowBox for a wrap, and puts its children INSIDE it', async () => {
                 // The tag is half the claim. The other half is that the host can
                 // actually place children in the swapped-in class — a `Gtk.FlowBox`
