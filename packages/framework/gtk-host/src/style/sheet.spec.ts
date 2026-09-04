@@ -10,6 +10,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import { expect, it, on } from '@gjsify/unit';
 
 import { StyleSheetError } from './document.js';
+import { partition } from './resolve.js';
 import { StyleSheet } from './sheet.js';
 import { GTK_HOSTS, gated } from '../testing/gate.mjs';
 import { installDiagnosticsGate } from '../conformance/index.js';
@@ -81,6 +82,23 @@ export default async () => {
                 const sheet = new StyleSheet();
                 const error = threw(() => sheet.classFor(['font-family: "unterminated']));
                 expect(error.message).toContain('disable every rule after it');
+            });
+
+            await it('takes a multi-word font family end to end, which is what #1539 lost', async () => {
+                // THE WHOLE REPORTED SYMPTOM, in the layer where it was observed.
+                // `font-family: Source Sans 3` is refused by GTK, so the containment
+                // probe refused the generated rule and the `StyleSheetError` came out
+                // of `classFor` — inside a React render, with no boundary between the
+                // `<Text>` and the screen. The vectors in `paint.spec.ts` and
+                // `gtk-css.spec.ts` hold the serialiser and the parser separately;
+                // this holds the two of them joined, which is the only place the
+                // failure was ever visible.
+                const sheet = new StyleSheet();
+                const { css } = partition({ fontFamily: 'Source Sans 3', fontWeight: '700' });
+                const name = sheet.classFor(css);
+                expect(sheet.toString()).toContain('font-family: "Source Sans 3"');
+                expect(sheet.toString()).toContain(`.${name} {`);
+                sheet.flush();
             });
 
             await it('keeps the document loadable after a refusal', async () => {

@@ -23,6 +23,7 @@
 // part of its input is invisible in CI and obvious on screen.
 
 import { UnknownUtilityError } from './errors.js';
+import { serialiseFontFamily } from './font-family.js';
 import { GTK_CSS_PROPERTIES } from './gtk-css.js';
 import { lookupToken, requireToken, tailwindDefaultHint, type StyleTokens } from './tokens.js';
 
@@ -82,6 +83,65 @@ export const CSS_NAME: Readonly<Record<keyof PaintProps, string>> = {
     lineHeight: 'line-height',
     textDecorationLine: 'text-decoration-line',
     textTransform: 'text-transform',
+};
+
+/**
+ * What KIND of value each property carries — and therefore whether that value can
+ * end the declaration early.
+ *
+ * DECLARED, not derived, because it is a judgement about a vocabulary rather than
+ * something the code can compute. It is here so the judgement is machine-held: the
+ * key set is `keyof PaintProps`, so a new property cannot skip it, and
+ * `paint.spec.ts` asserts that the `name`-valued properties are EXACTLY the ones
+ * {@link CSS_VALUE} serialises. A colour, a length, a number and a keyword are all
+ * self-delimiting; a `name` is supplied verbatim by the project and is the only kind
+ * that can carry a space, a comma or a quote.
+ *
+ * The measured answer today is that `font-family` is the only one — checked against
+ * the layout half too, which emits margins and paddings and nothing else. The next
+ * candidate is not hypothetical: `background-image: url(…)` would be the second.
+ */
+export const CSS_VALUE_KIND: Readonly<Record<keyof PaintProps, 'colour' | 'length' | 'number' | 'keyword' | 'name'>> = {
+    backgroundColor: 'colour',
+    color: 'colour',
+    opacity: 'number',
+    borderRadius: 'length',
+    borderTopLeftRadius: 'length',
+    borderTopRightRadius: 'length',
+    borderBottomLeftRadius: 'length',
+    borderBottomRightRadius: 'length',
+    borderWidth: 'length',
+    borderTopWidth: 'length',
+    borderRightWidth: 'length',
+    borderBottomWidth: 'length',
+    borderLeftWidth: 'length',
+    borderColor: 'colour',
+    fontSize: 'length',
+    fontWeight: 'number',
+    fontFamily: 'name',
+    fontStyle: 'keyword',
+    letterSpacing: 'length',
+    lineHeight: 'number',
+    textDecorationLine: 'keyword',
+    textTransform: 'keyword',
+};
+
+/**
+ * The properties whose value is SERIALISED rather than interpolated.
+ *
+ * PER PROPERTY, and that is the design rather than an accident of there being one
+ * entry: a global rule would have to decide what a comma or a space means without
+ * knowing which property it is in, and it means something different in every one.
+ * The table is the seam a second such property joins at, and
+ * {@link CSS_VALUE_KIND} is what makes joining it compulsory.
+ *
+ * Both routes to a `font-family` — a `style={{ fontFamily }}` object and a `font-*`
+ * utility resolving against `tokens.fontFamily` — arrive at `partitionPaint`, so
+ * one entry here covers both. That is why the serialisation lives at the emitter
+ * and not at either front end.
+ */
+export const CSS_VALUE: Readonly<Partial<Record<keyof PaintProps, (value: string) => string>>> = {
+    fontFamily: serialiseFontFamily,
 };
 
 /**
@@ -298,6 +358,11 @@ export const PAINT_PROPERTIES: ReadonlySet<string> = new Set(Object.keys(CSS_NAM
  * GTK's parser with no diagnostic, which is the exact silence the whole partition
  * exists to avoid. The check is cheap and it has caught the one property that looks
  * like paint and is not.
+ *
+ * The VALUE gets the same treatment, per property, through {@link CSS_VALUE}. A
+ * checked name with an unserialised value is only half the guard: GTK refused the
+ * whole rule for `font-family: Source Sans 3` while the property name was right
+ * (#1539), and the value is the half a project supplies verbatim.
  */
 export function partitionPaint(props: PaintProps): readonly string[] {
     const css: string[] = [];
@@ -310,7 +375,8 @@ export function partitionPaint(props: PaintProps): readonly string[] {
         if (!GTK_CSS_PROPERTIES.has(name)) {
             throw new UnknownUtilityError(key, `maps to "${name}", which GTK does not accept — see gtk-css.ts`);
         }
-        css.push(`${name}: ${value}`);
+        const serialise = CSS_VALUE[key as keyof PaintProps];
+        css.push(`${name}: ${serialise === undefined ? value : serialise(value)}`);
     }
 
     // A WIDTH WITHOUT A STYLE PAINTS NOTHING, and it occupies nothing either. CSS's
