@@ -276,6 +276,115 @@ async function registryVersionState(registry, name, version, signal) {
 }
 
 /**
+ * How long after its own release cut a version may still be missing from npm and
+ * count as "not published YET".
+ *
+ * ONE FULL DAY, and the number is measured rather than chosen for roundness. The
+ * publish takes 43-70 min end to end (v0.44.0 70, v0.45.0 43, v0.46.0 46), so any
+ * bound above an hour would do for the mechanism — what forces it to a whole day
+ * is that the only clock available here has a DAY's resolution, and that a cut can
+ * straddle midnight: v0.47.0's CHANGELOG.md entry is dated 2026-09-03 and
+ * `@gjsify/node-gi@0.47.0` reached the registry at 2026-09-04T00:49:56Z. A
+ * "yesterday is too old" rule would have reported that healthy release as a failed
+ * one for 49 minutes.
+ */
+const RELEASE_WINDOW_GRACE_DAYS = 1;
+
+/**
+ * The day the release train cut `version`, as the repository's own CHANGELOG.md
+ * records it — or `undefined` when nothing there dates it.
+ *
+ * WHY THE CHANGELOG IS THE CLOCK. The question is "how long has this version been
+ * unpublished", and the three obvious sources cannot answer it here. The registry
+ * knows when the PREVIOUS version landed, which is a different release. git knows
+ * when the `chore: release vX.Y.Z` commit landed, but the suites run under a
+ * `actions/checkout@v6` with the default `fetch-depth: 1` — no history, no tags.
+ * The GitHub release record knows, and reaching for it puts an authenticated,
+ * rate-limited API call inside a test helper. CHANGELOG.md is written by the same
+ * `release-it` run that bumps every manifest, in the same commit, and it is in the
+ * checkout.
+ *
+ * @param {string} version e.g. `0.47.0`
+ * @param {string} changelog the contents of CHANGELOG.md
+ * @returns {Date | undefined}
+ */
+export function releaseCutDate(version, changelog) {
+    // release-it's conventional-changelog preset writes one `## [x.y.z](compare-url)
+    // (yyyy-mm-dd)` heading per release; a first release has no link and is bare
+    // `## x.y.z (yyyy-mm-dd)`. Both spellings, one pattern, and the version is
+    // escaped because a version is dots.
+    const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const heading = new RegExp(`^##+\\s+\\[?${escaped}\\]?[^\\n]*?\\((\\d{4}-\\d{2}-\\d{2})\\)`, 'm');
+    const stamp = heading.exec(changelog)?.[1];
+    if (stamp === undefined) return undefined;
+    const cut = new Date(`${stamp}T00:00:00Z`);
+    return Number.isNaN(cut.getTime()) ? undefined : cut;
+}
+
+/**
+ * Why the missing set is NOT a release window any more, or `false` while it still
+ * may be.
+ *
+ * THE HOLE THIS CLOSES (#1533). `registryVersionState` is stateless: version 404 +
+ * packument 2xx is `missing`, whatever the cause. So a release whose
+ * `publish-node-gi` job fails permanently leaves `main` at a version npm does not
+ * have, and every subsequent PR reports `create-app E2E` green-by-skip until the
+ * next version bump. Under the 30-minute wait #1523 deleted, that state was red on
+ * every run. `verify-published-closure.mjs --phase post-release` does name the
+ * missing packages, but it fires once, inside the release run; nothing re-asserts
+ * it afterwards.
+ *
+ * BOTH DIRECTIONS NEED POSITIVE EVIDENCE, which is why an undatable version does
+ * not expire. The skip disarms a suite and therefore demands proof (the registry
+ * answered, it knows the name, it lacks the version). This re-arms one, so it
+ * demands proof too — a dated entry, old enough that no release is still running.
+ * With no evidence either way the behaviour is unchanged, so a project whose
+ * CHANGELOG.md says nothing about this version cannot be turned red by a clock it
+ * has no reading for.
+ *
+ * @param {string[]} missing `name@version` entries `unpublishedRegistryDependencies` returned
+ * @param {{now?: Date, changelog?: string, version?: string}} [oracle] injectable for the tests
+ * @returns {string | false}
+ */
+export function expiredReleaseWindow(missing, oracle = {}) {
+    const version = oracle.version ?? JSON.parse(readFileSync(join(MONOREPO_ROOT, 'package.json'), 'utf8')).version;
+    const changelogPath = join(MONOREPO_ROOT, 'CHANGELOG.md');
+    const changelog = oracle.changelog ?? (existsSync(changelogPath) ? readFileSync(changelogPath, 'utf8') : '');
+    const cut = releaseCutDate(version, changelog);
+    if (cut === undefined) return false;
+
+    const now = oracle.now ?? new Date();
+    const days = Math.floor((now.getTime() - cut.getTime()) / 86_400_000);
+    if (days <= RELEASE_WINDOW_GRACE_DAYS) return false;
+
+    return (
+        `${missing.length} package(s) are still missing from npm (${missing.slice(0, 3).join(', ')}) ` +
+        `${days} day(s) after CHANGELOG.md dates ${version} at ${cut.toISOString().slice(0, 10)}. ` +
+        'A release publishes in 43-70 min (measured over v0.44.0-v0.46.0), so this is a publish that ' +
+        'FAILED rather than one still running: the suite runs instead of skipping, and stays red until ' +
+        'the missing packages are published or the workspace version moves on.'
+    );
+}
+
+/**
+ * The skip decision both entry points share once the probe has answered: `false`
+ * to run, otherwise the shared opening clause for the reason.
+ *
+ * Printed, not just returned, when the window has EXPIRED — a suite that stops
+ * skipping simply starts failing, and the reason it stopped is the one thing the
+ * failure will not say.
+ */
+function releaseWindowVerdict(missing, noun, oracle) {
+    if (missing.length === 0) return false;
+    const expired = expiredReleaseWindow(missing, oracle);
+    if (expired) {
+        console.log(`  release-window skip EXPIRED: ${expired}`);
+        return false;
+    }
+    return registryGapClause(missing, noun);
+}
+
+/**
  * The opening clause every release-window skip shares, so the three suites that can
  * hit this state read the same in a 146-suite log and one grep finds all of them.
  * The tail — WHY this particular suite cannot run — belongs to the caller.
@@ -291,12 +400,13 @@ function registryGapClause(missing, noun) {
  * Shaped for `describe(name, { skip }, fn)`; both PnP suites share the wording
  * so the skip reads the same wherever it shows up in the log.
  */
-export async function pnpRegistryGapSkipReason() {
+export async function pnpRegistryGapSkipReason({ window } = {}) {
     const missing = await unpublishedRegistryDependencies();
-    if (missing.length === 0) return false;
+    const clause = releaseWindowVerdict(missing, 'unpacked dependency/-ies', window);
+    if (clause === false) return false;
 
     return (
-        `${registryGapClause(missing, 'unpacked dependency/-ies')} Yarn PnP resolves those ` +
+        `${clause} Yarn PnP resolves those ` +
         `from the registry because pack.mjs omits them by design, so this suite cannot build ` +
         `its external-consumer tree until release.yml has published. Re-runs after ` +
         `the publish exercise it again unchanged.`
@@ -351,10 +461,15 @@ export async function pnpRegistryGapSkipReason() {
  *    The train version is the root manifest's, the same anchor
  *    `scripts/verify-published-closure.mjs` probes every candidate at.
  *
+ * FOURTH, IN THE OTHER DIRECTION: a window that has lasted longer than a release
+ * takes is not a window (see {@link expiredReleaseWindow}).
+ *
  * @param {[string, string][]} pending `[name, range]` pairs the scaffolded project will ask
  *   the registry for — same shape the wait took, so the call site swapped one for the other.
+ * @param {{timeoutMs?: number, window?: {now?: Date, changelog?: string, version?: string}}} [options]
+ *   `window` overrides the expiry oracle's clock and inputs; only the tests pass it.
  */
-export async function createAppRegistryGapSkipReason(pending, { timeoutMs = 30_000 } = {}) {
+export async function createAppRegistryGapSkipReason(pending, { timeoutMs = 30_000, window } = {}) {
     const trainVersion = JSON.parse(readFileSync(join(MONOREPO_ROOT, 'package.json'), 'utf8')).version;
     const wanted = [];
     for (const [name, spec] of pending) {
@@ -362,10 +477,11 @@ export async function createAppRegistryGapSkipReason(pending, { timeoutMs = 30_0
         if (version && version === trainVersion) wanted.push({ name, version });
     }
     const missing = await unpublishedRegistryDependencies({ wanted, timeoutMs });
-    if (missing.length === 0) return false;
+    const clause = releaseWindowVerdict(missing, 'registry-bound template dependency/-ies', window);
+    if (clause === false) return false;
 
     return (
-        `${registryGapClause(missing, 'registry-bound template dependency/-ies')} A scaffolded ` +
+        `${clause} A scaffolded ` +
         `project installs those from npm — that IS what this suite proves — and patchPackageJson ` +
         `does not remap them because they are not workspace members, so it cannot build its ` +
         `consumer tree until release.yml has published. Re-runs after the publish exercise it ` +
