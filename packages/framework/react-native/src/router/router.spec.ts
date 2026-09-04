@@ -297,6 +297,43 @@ const STACK_IN_TABS: RouteManifest = [
     { contextKey: '(deep)/detail.tsx', module: { default: Home } },
 ];
 
+/** A root navigator that renders NO bar: the window must keep its own. */
+const BARLESS_ROOT: RouteManifest = [
+    {
+        contextKey: '_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Tabs,
+                    { headerShown: false },
+                    createElement(Tabs.Screen, { key: '1', name: 'one', options: { title: 'One' } }),
+                    createElement(Tabs.Screen, { key: 'd', name: '(deep)', options: { title: 'Deep' } }),
+                ),
+        },
+    },
+    { contextKey: 'one.tsx', module: { default: TabOne } },
+    { contextKey: '(deep)/_layout.tsx', module: { default: InnerStackLayout } },
+    { contextKey: '(deep)/detail.tsx', module: { default: Home } },
+];
+
+/** The same, with nothing below that could accidentally supply the chrome. */
+const BARLESS_PLAIN: RouteManifest = [
+    {
+        contextKey: '_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Tabs,
+                    { headerShown: false },
+                    createElement(Tabs.Screen, { key: '1', name: 'one', options: { title: 'One' } }),
+                    createElement(Tabs.Screen, { key: '2', name: 'two', options: { title: 'Two' } }),
+                ),
+        },
+    },
+    { contextKey: 'one.tsx', module: { default: TabOne } },
+    { contextKey: 'two.tsx', module: { default: TabTwo } },
+];
+
 /** The old workaround, kept as a supported shape: no page bar to contribute to. */
 const HEADER_HIDDEN: RouteManifest = [
     {
@@ -1203,6 +1240,51 @@ export default async () => {
                 } finally {
                     window.destroy();
                 }
+            });
+
+            await it('leaves the window its own bar when the root navigator renders none', async () => {
+                // The regression the "chrome draws nothing" half also guards: taking the
+                // window's bar away is only right when this level puts one back.
+                // `<Tabs headerShown={false}>` puts none, so the window keeps its own —
+                // otherwise an application that had a closable window before would stop
+                // having one, and no widget-tree assertion would notice.
+                //
+                // AND THE LEVEL BELOW STAYS UNDECORATED: the window's bar is carrying
+                // the controls, so the inner stack's page bars must not carry a second
+                // set. Asserted by counting the controls the ROUTER drew, which is a
+                // different question from how many the window has.
+                await windowed(
+                    app(BARLESS_ROOT),
+                    async (window, container) => {
+                        router.navigate('/detail');
+                        expect((await settle(() => maybeFind(container, 'AdwNavigationView') !== null)) >= 0).toBe(
+                            true,
+                        );
+                        expect(windowChromeProblems(window)).toStrictEqual([]);
+                        const inWindow = windowChromeCensus(window);
+                        expect(Math.max(inWindow.start, inWindow.end)).toBe(1);
+                        expect(inWindow.start + inWindow.end >= 1).toBe(true);
+                        const byTheRouter = windowChromeCensus(container);
+                        expect(byTheRouter.start + byTheRouter.end).toBe(0);
+                        // The inner stack DID render bars — this is not vacuous.
+                        expect(byTheRouter.headerBars >= 1).toBe(true);
+                    },
+                    (container) => maybeFind(container, 'AdwViewStack') !== null,
+                );
+
+                // And with NOTHING below that could supply the chrome by accident,
+                // which is the regression in its bare form: an unconditional claim
+                // leaves this window with no header bar at all, and `Adw.Window` has
+                // no titlebar of its own to fall back on.
+                await windowed(
+                    app(BARLESS_PLAIN),
+                    (window, container) => {
+                        expect(windowChromeProblems(window)).toStrictEqual([]);
+                        expect(windowChromeCensus(container).headerBars).toBe(0);
+                        expect(windowChromeCensus(window).headerBars).toBe(1);
+                    },
+                    (container) => maybeFind(container, 'AdwViewStack') !== null,
+                );
             });
 
             await it('REFUSES a second claim on the window’s header bar, and names both', async () => {

@@ -14,9 +14,10 @@
 // load-bearing:
 //
 //   1. The outermost navigator claims the window's own header bar (`window-chrome.ts`)
-//      and renders the chrome itself. For a `<Stack>` that means the PAGES carry it,
-//      which is Adwaita's own composition and the only one where the back button and
-//      the page title appear at all.
+//      and renders the chrome itself — but only if it will render a bar AT ALL, see
+//      `useChrome`. For a `<Stack>` that means the PAGES carry it, which is Adwaita's
+//      own composition and the only one where the back button and the page title
+//      appear at all.
 //   2. An inner `<Tabs>` puts its `Adw.ViewSwitcher` into the enclosing bar's title
 //      slot — where a hand-written application puts it — instead of building a bar
 //      around it. That is the contribution `titleSlot` carries.
@@ -28,13 +29,17 @@
 //      bar".
 //
 // SO THE WINDOW CONTROLS GO ON THE OUTERMOST BAR OF EACH PATH, and `decorated` is
-// that one bit. It is not the same question as ownership, which is what the first
-// version of this got wrong: a screen with `headerShown: false` has no bar, so a
-// navigator inside it is not the owner AND has nothing above it carrying the
-// controls — with the two facts conflated its fallback bar dropped them and the
-// window's ONLY header bar offered no way to close it. Caught by
-// `windowChromeProblems`' other half, which refuses a window whose chrome draws
-// nothing at all.
+// that one bit. It is NOT the same question as ownership, and conflating them was
+// wrong twice — both caught by `windowChromeProblems`' other half, which refuses a
+// window whose chrome draws nothing at all:
+//
+//   - a screen with `headerShown: false` has no bar, so a navigator inside it is
+//     neither the owner nor decorated from above; with one bit for both, its fallback
+//     bar dropped the controls and the window's ONLY header bar offered no way to
+//     close it;
+//   - a claim made unconditionally takes the window's bar from a root navigator that
+//     renders none (`<Tabs headerShown={false}>`), which measured 0 mapped header bars
+//     and no window control anywhere — on a window that was closable before.
 //
 // The contribution travels through a STATE UPDATE from the contributor's layout
 // effect, which is upstream's own shape for the same problem (`navigation.setOptions`
@@ -122,21 +127,31 @@ export const withoutHeaderBar = (decorated: boolean): ChromeLevel => ({
 });
 
 /**
- * What this navigator owns, and the window claim that goes with owning it.
+ * What this navigator finds, and the window claim that goes with being outermost.
+ *
+ * `rendersChrome` is the navigator's own answer to "will I put a header bar at this
+ * level at all", and the claim depends on it. A `<Tabs headerShown={false}>` or a
+ * stack whose every screen sets `headerShown: false` renders no bar, and taking the
+ * window's away would leave the window with NO chrome — an Adwaita window carries no
+ * titlebar of its own, so that is a window that cannot be closed. Which is also why
+ * `decorated` is TRUE in that case: the window's own bar is still there, carrying the
+ * controls, and a bar further down must not carry a second set.
  *
  * The claim is a layout EFFECT with an undo, so a navigator that unmounts gives the
  * window its bar back — which is what makes a re-render, a route change and a
  * hot-reloaded root layout safe rather than one-shot.
  */
-export function useChrome(navigator: string): Chrome {
+export function useChrome(navigator: string, rendersChrome: boolean): Chrome {
     const level = useContext(ChromeContext);
     const windowChrome = useWindowChrome();
-    const owns = !level.taken;
+    const outermost = !level.taken;
+    const claims = outermost && rendersChrome;
     useLayoutEffect(() => {
-        if (!owns || windowChrome === null) return;
+        if (!claims || windowChrome === null) return;
         return windowChrome.claim(`<${navigator}>`);
-    }, [owns, windowChrome, navigator]);
-    return { decorated: level.decorated, titleSlot: level.titleSlot };
+    }, [claims, windowChrome, navigator]);
+    const windowKeepsItsBar = outermost && !claims && windowChrome !== null;
+    return { decorated: level.decorated || windowKeepsItsBar, titleSlot: level.titleSlot };
 }
 
 /** One title slot per header bar, plus whatever has been contributed to each. */

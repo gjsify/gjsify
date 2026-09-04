@@ -140,7 +140,7 @@ function TabsView(props: TabsViewProps): ReactElement {
     const stackRef = useRef<Adw.ViewStack | null>(null);
     const switcherRef = useRef<Adw.ViewSwitcher | null>(null);
     const focused = state.routes[state.index]?.key;
-    const chrome = useChrome('Tabs');
+    const chrome = useChrome('Tabs', props.headerShown !== false);
 
     /**
      * The switcher's `stack` is set IMPERATIVELY, from a ref.

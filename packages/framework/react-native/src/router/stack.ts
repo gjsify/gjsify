@@ -507,7 +507,12 @@ function StackView(props: StackViewProps): ReactElement {
     const viewRef = useRef<Adw.NavigationView | null>(null);
     const { pages, release } = useStackPages(state, descriptors);
     const { bindingsFor, widgets } = usePageBindings(release);
-    const chrome = useChrome('Stack');
+    // `rendersChrome`: a stack whose every screen refuses its header bar renders none,
+    // and must not take the window's — see `useChrome`.
+    const chrome = useChrome(
+        'Stack',
+        pages.some((descriptor) => descriptor.options.headerShown !== false),
+    );
     const { titleWidgetFor, slotFor } = useTitleSlots('Stack');
 
     // Options by route key, kept ACROSS renders: `reconcilePopped` runs from a signal
