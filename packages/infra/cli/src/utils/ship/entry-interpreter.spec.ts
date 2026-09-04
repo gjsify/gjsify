@@ -57,6 +57,19 @@ export default async () => {
             expect(check('node', 'import { readFileSync } from "node:fs";\n')).not.toThrow();
         });
 
+        await it('refuses a legacy-`imports.gi` GJS bundle, which names no scheme at all', async () => {
+            // The case that walked through the first cut of this guard: a GJS
+            // application reaching GI through the ambient `imports` object carries
+            // no `gi://`, and a `--app gjs` build of it imports `system` and
+            // nothing else. Node refuses that bare specifier as a missing package —
+            // so it is evidence of the same kind, and #1545's exact pair was
+            // passing until it was read.
+            const legacy = "import system from 'system';\nconst { Gtk } = imports.gi;\nexport default Gtk;\n";
+            expect(check('node', legacy)).toThrow('imports system');
+            expect(check('node', legacy)).toThrow('ERR_MODULE_NOT_FOUND');
+            expect(check('gjs', legacy)).not.toThrow();
+        });
+
         await it('passes a bundle that names neither scheme', async () => {
             // Absence of evidence is not evidence: a pure-JS CLI, or one whose GI
             // reach is all dynamic, has nothing here to contradict. Refusing it

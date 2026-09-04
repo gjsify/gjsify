@@ -16,21 +16,31 @@
 // class this repository pays most for: a step that reports success while having
 // measured nothing.
 //
-// THE DISCRIMINATOR IS THE MODULE SCHEME, and it is exact in both directions
-// because each host's loader refuses the other's — measured on this machine,
-// GJS 1.86 / Node 24:
+// THE DISCRIMINATOR IS THE SPECIFIER THE OTHER HOST'S LOADER REFUSES, and it is
+// exact in both directions — measured on this machine, GJS 1.86 / Node 24:
 //
 //     node   ← `import … from 'gi://Gtk?version=4.0'`
 //              ERR_UNSUPPORTED_ESM_URL_SCHEME … Received protocol 'gi:'
+//     node   ← `import system from 'system'`
+//              ERR_MODULE_NOT_FOUND — a GJS built-in is not a package
 //     gjs    ← `import … from 'node:fs'`
 //              ImportError: Unsupported URI scheme for importing: node
 //
-// Neither is a heuristic about how the bundle was built: it is the specifier the
-// running loader rejects, read out of the file that will be installed. And
-// neither can appear in a bundle the OTHER target built for itself — `--app node`
-// rewrites every `gi://` into `requireGi()` (`gjs-gi-node.ts`), `--app gjs`
-// resolves every `node:` builtin to its `@gjsify/*` implementation — so the
-// evidence is present exactly when the pair is wrong.
+// None is a heuristic about how the bundle was built: it is the specifier the
+// running loader rejects, read out of the file that will be installed. And none
+// can appear in a bundle the OTHER target built for itself — `--app node`
+// rewrites every `gi://` into `requireGi()` and every bare GJS built-in into an
+// `@gjsify/node-gi` shim (`gjs-gi-node.ts`), `--app gjs` resolves every `node:`
+// builtin to its `@gjsify/*` implementation — so the evidence is present exactly
+// when the pair is wrong.
+//
+// THE BARE BUILT-INS ARE NOT DECORATION. A GJS bundle that reaches GI through the
+// legacy `imports.gi` object carries no `gi://` at all, and a `--app gjs` build of
+// one imports `system` and nothing else this reader would have seen — so #1545's
+// own pair (a GJS payload under a node launcher) passed the guard written for it
+// until they were added. What is deliberately NOT read is the ambient `imports`
+// object itself: node fails on it at the first USE, not at load, so a refusal
+// citing it would be making a claim this file cannot keep.
 //
 // WHY A REFUSAL AND NOT A WARNING. There is no reading of this artifact under
 // which it works. A warning at the end of a `ship` run competes with the
@@ -42,9 +52,19 @@ import type { HostOs } from './types.js';
 /** What a shipped artifact's `bin/<name>` can exec. */
 export type ShipInterpreter = 'gjs' | 'node';
 
+/**
+ * The GJS built-in modules, which are bare specifiers rather than a scheme.
+ *
+ * `cairo` is deliberately absent: it is also an ordinary npm package name, so a
+ * node bundle can legitimately import it and refusing that would fail a working
+ * artifact. `system` and `gettext` have no npm counterpart a real project
+ * imports, which is what makes them evidence rather than a guess.
+ */
+const GJS_BUILTINS = new Set(['system', 'gettext']);
+
 /** The specifiers in an entry that only ONE of the two hosts can resolve. */
 export interface EntryEvidence {
-    /** `gi://…` specifiers — resolvable under GJS, refused by node's ESM loader. */
+    /** `gi://…` and the bare GJS built-ins — resolvable under GJS, refused by node. */
     gi: string[];
     /** `node:…` specifiers — resolvable under Node, refused by GJS's loader. */
     node: string[];
@@ -57,7 +77,7 @@ export function entryEvidence(source: string): EntryEvidence {
     walkModuleAst(source, (astNode) => {
         const specifier = importedSpecifier(astNode);
         if (specifier === null) return;
-        if (specifier.startsWith('gi://')) gi.add(specifier);
+        if (specifier.startsWith('gi://') || GJS_BUILTINS.has(specifier)) gi.add(specifier);
         else if (specifier.startsWith('node:')) node.add(specifier);
     });
     return { gi: [...gi].sort(), node: [...node].sort() };
@@ -101,11 +121,17 @@ export function assertEntryRunsUnder(input: EntryCheckInput): void {
     if (refused.length === 0) return;
 
     const other: ShipInterpreter = input.interpreter === 'node' ? 'gjs' : 'node';
+    // The error the reader will actually see, which differs WITHIN the node case:
+    // a `gi:` specifier is refused as an unknown URL scheme, a bare GJS built-in
+    // as a package that does not exist. Naming the wrong one sends them looking
+    // for the wrong thing in a log they have not opened yet.
     const loader =
-        input.interpreter === 'node'
-            ? 'node\'s ESM loader refuses it: ERR_UNSUPPORTED_ESM_URL_SCHEME, "Only URLs with a scheme in: ' +
-              'file, data, and node are supported by the default ESM loader"'
-            : 'GJS\'s loader refuses it: ImportError, "Unsupported URI scheme for importing: node"';
+        input.interpreter === 'gjs'
+            ? 'GJS\'s loader refuses it: ImportError, "Unsupported URI scheme for importing: node"'
+            : refused.some((specifier) => specifier.startsWith('gi://'))
+              ? 'node\'s ESM loader refuses it: ERR_UNSUPPORTED_ESM_URL_SCHEME, "Only URLs with a scheme in: ' +
+                'file, data, and node are supported by the default ESM loader"'
+              : "node's ESM loader refuses it: ERR_MODULE_NOT_FOUND — a GJS built-in is not a package";
     const shown = refused.slice(0, 3).join(', ');
     const more = refused.length > 3 ? `, and ${refused.length - 3} more` : '';
 

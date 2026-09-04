@@ -55,7 +55,22 @@ const NAMESPACE = /^[A-Za-z][A-Za-z\d_]*$/;
  */
 export function scanGiNamespaces(source: string): string[] {
     const found = new Set<string>();
-    const bindings = new Set<string>();
+    // TWO SETS, because the two kinds of binding are not interchangeable and
+    // treating them as one over-approximated on a real minified bundle. A
+    // namespace object (`import * as gi`) and a required module object are only
+    // ever the OBJECT of `.requireGi(…)`: calling a module namespace is a
+    // TypeError, so a bare `gi(…)` is never one of ours. Only `requireGi` itself
+    // — the named import, or the default export, which IS `requireGi` — is
+    // callable on its own.
+    //
+    // Measured on `gjsify build --app node` (minify is the DEFAULT): a file with
+    // `import * as gi from '@gjsify/node-gi/gi'` and a callback parameter emitted
+    // as `function render(e,t){return e(t)+e(\`Zzqfoo\`)}` — where the minifier
+    // gave the import and the parameter the SAME short name in different scopes.
+    // Read as one set, `e(\`Zzqfoo\`)` became the namespace `Zzqfoo`, and
+    // `deriveDepends` then refused to package a correct project.
+    const callable = new Set<string>();
+    const objects = new Set<string>();
     const calls: AstNode[] = [];
 
     walkModuleAst(source, (node) => {
@@ -64,13 +79,15 @@ export function scanGiNamespaces(source: string): string[] {
             const key = parseGiSpecifier(specifier);
             if (key !== null) found.add(key);
             if (node.type === 'ImportDeclaration' && specifier === NODE_GI_MODULE) {
-                collectNodeGiBindings(node, bindings);
+                collectNodeGiBindings(node, callable, objects);
             }
             return;
         }
         if (node.type === 'VariableDeclarator' && loadsNodeGiModule(node.init)) {
             const id = node.id as AstNode | undefined;
-            if (id?.type === 'Identifier' && typeof id.name === 'string') bindings.add(id.name);
+            // An OBJECT: `const gi = require('@gjsify/node-gi/gi')` is the module,
+            // reached as `gi.requireGi(…)` and never called directly.
+            if (id?.type === 'Identifier' && typeof id.name === 'string') objects.add(id.name);
             return;
         }
         // Collected rather than resolved in place: a call can precede the
@@ -81,7 +98,7 @@ export function scanGiNamespaces(source: string): string[] {
     });
 
     for (const call of calls) {
-        const key = requireGiNamespace(call, bindings);
+        const key = requireGiNamespace(call, callable, objects);
         if (key !== null) found.add(key);
     }
     return [...found].sort();
@@ -99,26 +116,25 @@ export function parseGiSpecifier(specifier: string): string | null {
 }
 
 /**
- * The local names an `import … from '@gjsify/node-gi/gi'` binds to `requireGi`.
+ * What an `import … from '@gjsify/node-gi/gi'` binds, split by what it can BE.
  *
- * All three spellings, because all three appear in real code and the default
- * export IS `requireGi` (`packages/node-gi/node-gi/gi.d.ts`): the named import
- * (under any local name, since `import { requireGi as gi }` renames it), the
- * default import, and the namespace object — whose member access
- * {@link requireGiNamespace} handles, which is why the namespace binding is
- * collected here too.
+ * All three spellings appear in real code and the default export IS `requireGi`
+ * (`packages/node-gi/node-gi/gi.d.ts`), so the named import (under any local
+ * name — `import { requireGi as gi }` renames it) and the default import are
+ * CALLABLE. A namespace import is not: calling a module namespace object throws,
+ * so it can only ever be the object of `.requireGi(…)`, and putting it in the
+ * callable set is what let a minified callback parameter of the same name be
+ * read as a `requireGi` call.
  */
-function collectNodeGiBindings(node: AstNode, out: Set<string>): void {
+function collectNodeGiBindings(node: AstNode, callable: Set<string>, objects: Set<string>): void {
     const specifiers = (node.specifiers as AstNode[] | undefined) ?? [];
     for (const specifier of specifiers) {
         const local = specifier.local as AstNode | undefined;
         if (local?.type !== 'Identifier' || typeof local.name !== 'string') continue;
         const imported = specifier.imported as AstNode | undefined;
-        if (specifier.type === 'ImportDefaultSpecifier' || specifier.type === 'ImportNamespaceSpecifier') {
-            out.add(local.name);
-        } else if (imported?.type === 'Identifier' && imported.name === 'requireGi') {
-            out.add(local.name);
-        }
+        if (specifier.type === 'ImportNamespaceSpecifier') objects.add(local.name);
+        else if (specifier.type === 'ImportDefaultSpecifier') callable.add(local.name);
+        else if (imported?.type === 'Identifier' && imported.name === 'requireGi') callable.add(local.name);
     }
 }
 
@@ -165,22 +181,26 @@ function loadsNodeGiModule(node: unknown): boolean {
  * always has: the shim carries its own `require`, and a hand-written node-gi app
  * carries its own import.
  *
- * Shadowing is the one gap left, and it is bounded rather than open: a local
- * function named after the imported one would have to be called with a
- * GI-shaped string literal to be misread at all.
+ * Shadowing is the one gap left, and the split above is what makes it small.
+ * This reader has no scope analysis, so a local binding that reuses the name of
+ * the CALLABLE import — `requireGi` itself, or the default import — and is called
+ * with a GI-shaped string literal would still be read as one. A minifier can
+ * manufacture exactly that collision, which is why the two shapes it produces
+ * most (the namespace object and the required module object) are the two that no
+ * longer count as callees.
  */
-function requireGiNamespace(call: AstNode, bindings: ReadonlySet<string>): string | null {
+function requireGiNamespace(call: AstNode, callable: ReadonlySet<string>, objects: ReadonlySet<string>): string | null {
     const callee = call.callee as AstNode | undefined;
     let reached = false;
     if (callee?.type === 'Identifier') {
-        reached = typeof callee.name === 'string' && bindings.has(callee.name);
+        reached = typeof callee.name === 'string' && callable.has(callee.name);
     } else if (callee?.type === 'MemberExpression' && callee.computed !== true) {
         const property = callee.property as AstNode | undefined;
         if (property?.type !== 'Identifier' || property.name !== 'requireGi') return null;
         const object = callee.object as AstNode | undefined;
         reached =
             loadsNodeGiModule(object) ||
-            (object?.type === 'Identifier' && typeof object.name === 'string' && bindings.has(object.name));
+            (object?.type === 'Identifier' && typeof object.name === 'string' && objects.has(object.name));
     }
     if (!reached) return null;
 

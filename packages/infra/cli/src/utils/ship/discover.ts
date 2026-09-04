@@ -81,6 +81,7 @@ export function discoverPayload(input: DiscoverInput): DiscoveredPayload {
             bundleDir,
             projectDir,
             input.foreignBundles ?? [],
+            bundlePath,
         ),
         iconFiles: discoverIcons(projectDir, ship.icon ?? input.flatpakIcon),
         schemaFiles: discoverSchemas(projectDir, ship.schemas),
@@ -233,11 +234,20 @@ function withoutForeignEntries(
     bundleDir: string,
     projectDir: string,
     foreign: readonly string[],
+    bundlePath: string,
 ): string[] {
     if (foreign.length === 0) return bundleFiles;
     const dropped = new Set<string>();
     for (const entry of foreign) {
-        const rel = relative(bundleDir, isAbsolute(entry) ? entry : resolve(projectDir, entry));
+        const abs = isAbsolute(entry) ? entry : resolve(projectDir, entry);
+        // THIS TARGET'S OWN ENTRY, under another spelling. The foreign set is
+        // compared as declared STRINGS, and `./dist/app.mjs`, `dist/../dist/app.mjs`
+        // and an absolute path are three spellings of one file — dropping it would
+        // stage a launcher whose bundle is not in the payload, which is a worse
+        // artifact than the one this exclusion exists to prevent. Paths are the
+        // only comparison that cannot be spelled around.
+        if (abs === bundlePath) continue;
+        const rel = relative(bundleDir, abs);
         // Outside this payload — another target may build somewhere else entirely,
         // and then there is nothing here to subtract. Same shape as the locale
         // tree above, including the POSIX normalisation Windows needs.

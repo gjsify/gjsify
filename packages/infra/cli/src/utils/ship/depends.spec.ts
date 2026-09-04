@@ -377,6 +377,20 @@ export default async () => {
             expect(scanGiNamespaces(namespace)).toStrictEqual(['GLib']);
         });
 
+        await it("does not read a minified callback that borrowed the namespace import's name", async () => {
+            // MEASURED on `gjsify build --app node` output. The minifier gives an
+            // `import * as gi` and a callback PARAMETER the same short name in
+            // different scopes, and this reader has no scope analysis — so a flat
+            // set of bindings read `e(`Zzqfoo`)` as a namespace, and `deriveDepends`
+            // then refused to package a correct project. A module namespace object
+            // is not callable at all, which is what makes the split exact rather
+            // than a heuristic.
+            const minified =
+                'import*as e from"@gjsify/node-gi/gi";const t=e.requireGi(`Gtk`,`4.0`);' +
+                'function render(e,n){return e(n)+e(`Zzqfoo`)}';
+            expect(scanGiNamespaces(minified)).toStrictEqual(['Gtk-4.0']);
+        });
+
         await it('does not read a foreign requireGi, because over-approximating fails the build', async () => {
             // BINDING-TRACED, not name-matched. An unmapped namespace is a build
             // failure, so a method that merely shares the name would make a

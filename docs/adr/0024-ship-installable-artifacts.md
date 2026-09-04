@@ -1513,6 +1513,29 @@ schema but the current one, in both directions, and says so ("Re-run the `--stag
 gjsify"). A second copy of the check at pack time would be a guard watching another mechanism,
 which § Governance names as the smell.
 
+**Three things the first cut got wrong, each found by running it rather than reading it.** All
+three are the same shape as the defect the amendment is about — an answer that looks like a
+measurement:
+
+1. **The scanner over-approximated on a real minified bundle.** Bindings of `@gjsify/node-gi/gi`
+   were kept in ONE set, and a minifier gives an `import * as gi` and a callback parameter the same
+   short name in different scopes — so `function render(e,t){return e(t)+e(`Zzqfoo`)}` produced the
+   namespace `Zzqfoo` and `deriveDepends` refused to package a correct project. A module namespace
+   object is not callable at all, so the two sets are now split by what a binding can BE: only
+   `requireGi` itself (named or default import) is a callee, everything else is an object of
+   `.requireGi(…)`.
+2. **The foreign-entry exclusion could drop the target's OWN entry.** The set was compared as
+   declared strings, and `dist/app.mjs`, `./dist/app.mjs`, `dist/../dist/app.mjs` and an absolute
+   path are four spellings of one file. Measured: a payload with the launcher in it and no bundle.
+   The comparison is a resolved PATH now, which is the only spelling nothing can work around.
+3. **The pair check accepted #1545's own pair for a legacy GJS bundle.** An application reaching GI
+   through the ambient `imports.gi` object carries no `gi://`, and a `--app gjs` build of one
+   imports `system` — measured on a real build, whose whole evidence is `{"gi":["system"]}`. Node
+   refuses a bare GJS built-in as a missing package (`ERR_MODULE_NOT_FOUND`), so it is the same
+   kind of evidence and is read as such. The ambient `imports` object deliberately is NOT: node
+   fails on it at the first USE rather than at load, so a refusal citing it would claim more than
+   it can keep.
+
 **Correction to § A22, kept as the record per § 7's precedent.** Its closing paragraph is now
 false: the bundle is no longer one path, and the discriminator it called nonexistent is
 `utils/ship/entry-interpreter.ts`. Its diagnosis was right about where the difficulty sits — the

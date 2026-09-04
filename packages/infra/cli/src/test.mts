@@ -21,6 +21,7 @@ import shipLocalesSuite from './utils/ship/discover-locales.spec.js';
 import shipFontsSuite from './utils/ship/discover-fonts.spec.js';
 import msgfmtMergeSuite from './utils/msgfmt-merge.spec.js';
 import shipTypelibsSuite from './utils/ship/discover-typelibs.spec.js';
+import shipBundleDiscoverySuite from './utils/ship/discover-bundle.spec.js';
 import shipMimeSuite from './utils/ship/mime.spec.js';
 import shipLicenseSuite from './utils/ship/discover-license.spec.js';
 import shipDependsSuite from './utils/ship/depends.spec.js';
@@ -226,6 +227,7 @@ run(
         shipLayoutSuite,
         shipPayloadSuite,
         shipTypelibsSuite,
+        shipBundleDiscoverySuite,
         shipLauncherSuite,
         shipPeLauncherSuite,
         shipSettingsSuite,
