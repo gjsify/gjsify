@@ -39,6 +39,15 @@ name: Cancel superseded PR runs
 # per event and why its time bound is load-bearing on BOTH; the decision itself is
 # under fixtures in `tests/e2e/ci-cancel-superseded-runs`.
 #
+# THE CANCEL ITSELF IS A SECOND SCRIPT, for the second half of that same sentence.
+# `scripts/cancel-superseded-runs.mjs` posts the cancels, re-reads the runs, and
+# force-cancels the ones that never got a runner — because on 2026-09-04 this
+# workflow selected two runs correctly, posted both cancels, reported
+# `cancelled 4 run(s)`, and both runs sat `queued` holding the `main-pr` group for
+# another 9 and 16 minutes (#1548). The `run:` block used to COUNT ITS OWN POSTS and
+# call them cancellations; that is the one assertion that was true here while the
+# outcome was false, so it moved to where fixtures can tell the two apart.
+#
 # DELIBERATELY `pull_request`, NOT `pull_request_target`. Cancelling needs
 # `actions: write`, and AGENTS.md forbids pairing a write token with head code. The
 # price is that a FORK PR gets a read-only token and the cancel no-ops for it; that is
@@ -89,7 +98,9 @@ jobs:
               with:
                   ref: ${{ github.event.pull_request.base.sha }}
                   fetch-depth: 1
-                  sparse-checkout: scripts/select-superseded-runs.mjs
+                  sparse-checkout: |
+                      scripts/select-superseded-runs.mjs
+                      scripts/cancel-superseded-runs.mjs
                   sparse-checkout-cone-mode: false
 
             - name: Cancel the runs this event superseded
@@ -127,21 +138,8 @@ jobs:
 
                   ids=$(node scripts/select-superseded-runs.mjs < "${RUNNER_TEMP}/runs.json")
 
-                  if [ -z "${ids}" ]; then
-                      echo "No superseded runs for this event — nothing to cancel."
-                      exit 0
-                  fi
-
-                  # `|| true` per run: a run that finished between the list and the
-                  # cancel returns 409, and that is the success case arriving a second
-                  # early — not a reason to fail the job.
-                  n=0
-                  for id in ${ids}; do
-                      if gh api -X POST "repos/${REPO}/actions/runs/${id}/cancel" >/dev/null 2>&1; then
-                          echo "cancelled run ${id}"
-                          n=$((n + 1))
-                      else
-                          echo "run ${id} could not be cancelled (already finishing, or read-only token on a fork PR)"
-                      fi
-                  done
-                  echo "::notice::cancelled ${n} run(s) superseded by ${{ github.event.action }} on PR #${{ github.event.pull_request.number }}."
+                  # A HERE-STRING, not a pipe: the right-hand side of a pipeline runs
+                  # in a subshell, so a non-zero exit there would not fail this step
+                  # under `set -e` — the shape `.github/ship-oracle/verify-deb.sh`'s
+                  # header spells out. The empty case is the script's own.
+                  node scripts/cancel-superseded-runs.mjs <<<"${ids}"

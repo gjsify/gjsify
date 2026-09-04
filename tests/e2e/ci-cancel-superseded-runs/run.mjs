@@ -26,9 +26,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // tests/e2e/ci-cancel-superseded-runs/ → monorepo root is 3 levels up.
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const SCRIPT = join(MONOREPO_ROOT, 'scripts', 'select-superseded-runs.mjs');
+const CANCEL_SCRIPT = join(MONOREPO_ROOT, 'scripts', 'cancel-superseded-runs.mjs');
 const WORKFLOW = join(MONOREPO_ROOT, '.github', 'workflows', 'cancel-pr-runs.yml');
 
 const { cancellationWindow, supersededRunIds } = await import(`file://${SCRIPT}`);
+const { cancelSupersededRuns } = await import(`file://${CANCEL_SCRIPT}`);
 
 const REPO = 'gjsify/gjsify';
 /** A fork. Its branch NAMESPACE is its own, so a name here says nothing about this repo. */
@@ -271,5 +273,170 @@ describe('the workflow that runs it', () => {
         assert.ok(ref, 'the checkout must pin an explicit ref, not fall back to the merge ref');
         assert.match(ref[1], /pull_request\.base\.sha/);
         assert.doesNotMatch(ref[1], /head\.sha/);
+    });
+});
+
+// ── the second half: what the cancel actually DID ────────────────────────────
+//
+// The selection above answers "which runs". This answers "did they stop", which is
+// the question the `run:` block never asked: it counted its own POSTs. On 2026-09-04
+// that count said `cancelled 4 run(s)` while four runs kept their concurrency groups
+// for another nine and sixteen minutes (#1548). Every fixture below is one way that
+// gap can open.
+
+/**
+ * A GitHub Actions API that answers about a fixed set of runs.
+ *
+ * @param {Record<string, {state: string, stopsOnCancel?: boolean, cancel?: number,
+ *   forceCancel?: number, completesAfterReads?: number}>} spec
+ */
+function fakeApi(spec) {
+    const calls = [];
+    const state = new Map(Object.entries(spec).map(([id, run]) => [id, run.state]));
+    const reads = new Map(Object.keys(spec).map((id) => [id, 0]));
+    const api = async (method, path) => {
+        calls.push(`${method} ${path}`);
+        const match = /^actions\/runs\/(\d+)(?:\/(cancel|force-cancel))?$/.exec(path);
+        if (!match) throw new Error(`unexpected path ${path}`);
+        const [, id, action] = match;
+        const run = spec[id];
+        if (action === 'cancel') {
+            const status = run.cancel ?? 202;
+            if (status < 300 && run.stopsOnCancel) state.set(id, 'completed');
+            return { status };
+        }
+        if (action === 'force-cancel') {
+            const status = run.forceCancel ?? 202;
+            if (status < 300) state.set(id, 'completed');
+            return { status };
+        }
+        reads.set(id, reads.get(id) + 1);
+        if (run.completesAfterReads !== undefined && reads.get(id) >= run.completesAfterReads) {
+            state.set(id, 'completed');
+        }
+        return { status: 200, body: { status: state.get(id) } };
+    };
+    return { api, calls };
+}
+
+/** One settle round, no real waiting — the timing is not what these fixtures are about. */
+const cancel = (ids, spec, options = {}) => {
+    const { api, calls } = fakeApi(spec);
+    return cancelSupersededRuns({
+        ids,
+        api,
+        log: () => {},
+        settleMs: 0,
+        pollMs: 1,
+        sleep: async () => {},
+        ...options,
+    }).then((result) => ({ result, calls }));
+};
+
+describe('what the cancel did, not what it posted', () => {
+    it('leaves a run that stopped on the ordinary cancel alone', async () => {
+        // Force-cancel bypasses conditions and `always()` cleanup, so a run that
+        // responds must never meet it — the two endpoints promise different things and
+        // this is where the difference is kept.
+        const { result, calls } = await cancel(['1'], { 1: { state: 'queued', stopsOnCancel: true } });
+        assert.equal(result.stopped, 1);
+        assert.equal(result.forced, 0);
+        assert.ok(!calls.some((call) => call.includes('force-cancel')));
+    });
+
+    it('force-cancels the run that has nobody to acknowledge it', async () => {
+        // THE MEASURED CASE. `status=queued` means no job was ever assigned a runner,
+        // so the graceful cancel has nothing to deliver its intent to — and the run
+        // keeps the concurrency group that is holding its successor out of the queue.
+        const { result, calls } = await cancel(['33857738939'], { 33857738939: { state: 'queued' } });
+        assert.deepEqual(calls, [
+            'POST actions/runs/33857738939/cancel',
+            'GET actions/runs/33857738939',
+            'POST actions/runs/33857738939/force-cancel',
+            'GET actions/runs/33857738939',
+        ]);
+        assert.equal(result.forced, 1);
+        assert.equal(result.stopped, 1);
+    });
+
+    it('lets an unwinding run unwind', async () => {
+        // `in_progress` means it HAS a runner, so it received the cancel and is running
+        // its `always()` steps. Force-cancelling here would discard exactly the cleanup
+        // the graceful cancel exists to preserve, so it is reported instead.
+        const { result, calls } = await cancel(['2'], { 2: { state: 'in_progress' } });
+        assert.ok(!calls.some((call) => call.includes('force-cancel')));
+        assert.deepEqual(result.running, ['2']);
+        assert.equal(result.stopped, 0);
+    });
+
+    it('gives the ordinary cancel the settle before deciding', async () => {
+        // A queued run that DOES answer, one poll later. Without the settle every such
+        // run would be force-cancelled, which is the unconditional shape #1548 argues
+        // against.
+        const { result, calls } = await cancel(
+            ['3'],
+            { 3: { state: 'queued', completesAfterReads: 2 } },
+            { settleMs: 10, pollMs: 5 },
+        );
+        assert.ok(!calls.some((call) => call.includes('force-cancel')));
+        assert.equal(result.stopped, 1);
+    });
+
+    it('counts the runs that stopped, not the requests that were accepted', async () => {
+        // The assertion that was TRUE on 2026-09-04 while the outcome was false: two
+        // cancels accepted, two runs still holding their concurrency groups. The old
+        // notice read `cancelled 2 run(s)`.
+        const { result } = await cancel(['1', '2'], {
+            1: { state: 'queued', forceCancel: 409 },
+            2: { state: 'queued', forceCancel: 409 },
+        });
+        assert.equal(result.posted, 2);
+        assert.equal(result.stopped, 0);
+        assert.deepEqual(result.running, ['1', '2']);
+    });
+
+    it('reports rather than fails when the token cannot cancel', async () => {
+        // A fork PR gets a read-only token by design (see the workflow header), so every
+        // cancel POST comes back 403. That is a documented no-op, not a broken job.
+        const { result } = await cancel(['1'], { 1: { state: 'queued', cancel: 403, forceCancel: 403 } });
+        assert.equal(result.posted, 0);
+        assert.equal(result.refused, 1);
+        assert.equal(result.stopped, 0);
+    });
+
+    it('never force-cancels on a status it could not read', async () => {
+        // An unreadable run is not a stopped run and not a queued one. Both counts have
+        // to under-claim rather than guess: inventing `queued` would force-cancel a run
+        // on no evidence at all.
+        const { api, calls } = fakeApi({ 9: { state: 'queued' } });
+        const result = await cancelSupersededRuns({
+            ids: ['9'],
+            api: async (method, path) => (method === 'GET' ? { status: 404, body: undefined } : api(method, path)),
+            log: () => {},
+            settleMs: 0,
+            pollMs: 1,
+            sleep: async () => {},
+        });
+        assert.equal(result.stopped, 0);
+        assert.deepEqual(result.running, ['9']);
+        assert.ok(!calls.some((call) => call.includes('force-cancel')));
+    });
+});
+
+describe('the workflow that runs the cancel', () => {
+    it('invokes the cancel script and checks it out', () => {
+        // A cancel that no workflow calls leaves the deadlock exactly where it was, and
+        // a script the sparse checkout omits fails the job on `Cannot find module` —
+        // the shape #1340 already paid for once.
+        const yaml = readFileSync(WORKFLOW, 'utf8');
+        assert.match(yaml, /node scripts\/cancel-superseded-runs\.mjs/);
+        assert.match(yaml, /sparse-checkout:[\s\S]*?scripts\/cancel-superseded-runs\.mjs/);
+    });
+
+    it('no longer counts its own POSTs as cancellations', () => {
+        // The literal string the incident's notice came from. Its return would mean the
+        // shell had taken the decision back.
+        const yaml = readFileSync(WORKFLOW, 'utf8');
+        assert.doesNotMatch(yaml, /::notice::cancelled/);
     });
 });
