@@ -205,6 +205,8 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         limits: [
             'runApplication takes gjsify options (applicationId is required) rather than React Native’s { rootTag, initialProps } — a phone host supplies the application identity, a desktop one IS the application.',
             'unmountApplicationComponentAtRootTag throws: there is no root tag to address.',
+            'runApplication also accepts every @gjsify/adwaita-app shell option (devtools, about, onStartup, quitAction, flags, css), because installDevtools and the startup hooks run at lifecycle moments an entry file cannot reach (ADR 0043).',
+            'AppRegistry adds getApplication/getWindow/getRootHandle, which React Native has no equivalent for: on a phone the host owns the application, here this layer creates it, so it has to hand it back.',
         ],
     },
     StyleSheet: {

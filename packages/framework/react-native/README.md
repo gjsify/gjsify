@@ -86,6 +86,34 @@ Native: `AppRegistry.runApplication` there is handed a root tag by a host that
 already exists, while on a desktop **the application is the host**. That limit is in
 the table rather than only here.
 
+Because the application is the host, this layer hands it back (ADR 0043). Two shapes,
+split by question:
+
+```ts
+// 1. Anything that has to happen at a lifecycle moment travels as an option — the
+//    whole option set of `@gjsify/adwaita-app` is available here, `createWindow`
+//    excepted, because that is what renders your component.
+await registerRootComponent(App, {
+    applicationId: 'org.example.App',
+    devtools: true, // or { extend, address, instance } — see @gjsify/devtools
+    onStartup: (app) => app.set_accels_for_action('app.quit', ['<primary>q']),
+});
+
+// 2. "Which application am I in" is an accessor, readable from anywhere in the tree.
+//    Both answer from the first render onwards — before the window maps — and `null`
+//    outside the loop.
+AppRegistry.getApplication(); // Adw.Application | null
+AppRegistry.getWindow(); // Gtk.Window | null
+AppRegistry.getRootHandle(); // { app, window, content, root } | null
+```
+
+`devtools` is the one worth knowing about: with it (or `GJSIFY_DEVTOOLS=1`) the running
+application answers `DumpTree`, `GetProperty`, `FindWidget`, `ActivateWidget`, `SendKey`
+and `Screenshot` over DBus, so its screens can be driven and photographed by something
+other than itself. On macOS and Windows there is no session bus, and `devtools.address`
+is how the bus-less peer transport gets pinned — which is the reason the option set is
+forwarded whole rather than field by field.
+
 ## Three layers, and where each one lives
 
 | layer | where | knows about |

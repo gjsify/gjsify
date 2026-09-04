@@ -3398,6 +3398,26 @@ own SKIP gate — it already carries nine of them — so it skips where an Adwai
 cannot complete startup and keeps running where it can. Removing the ledger entry in the same
 change is what `check-e2e-suite-coverage.mjs` will then require.
 
+### `react-native-devtools` needs a display, and one already exists in CI
+
+`tests/e2e/react-native-devtools/` (ADR 0043) proves that a React Native application whose
+whole bootstrap is `registerRootComponent` is reachable over `org.gjsify.Devtools`: the export
+line, a **mapped** window, both rendered widgets in `DumpTree`, a `Screenshot` carrying PNG
+bytes, and `ActivateWidget` → `GetProperty` showing the label React changed. Measured green on
+a desktop session, both vectors.
+
+It is ledgered rather than listed for a different reason than `devtools-export`'s: a GTK window
+cannot MAP without a display, `test:e2e` has none, and the suite's SKIP gate checks for one — so
+listing it would buy a silent suite, which is the state this ledger exists to prevent.
+
+WHAT IS LEFT: main.yml's `examples` job already runs `xvfb-run … dbus-run-session` around
+`scripts/showcase-smoke.mjs`, which is precisely the environment this suite asks for. Moving it
+there needs two facts confirmed in that job, both of which the SKIP gate would otherwise absorb
+without a word: that `packages/framework/{react-native,adwaita-app,devtools,gtk-host}/lib` are
+built there, and that its trigger condition fires for a change to those packages (it is gated on
+`@gjsify/example-*` being in the closure). If `devtools-export`'s open question turns out to be
+the same environmental fact, both suites land in that job together.
+
 ### `logSignals` has no test
 
 The one survivor of the twelve parked test sites `gjsify/todo-needs-anchor`

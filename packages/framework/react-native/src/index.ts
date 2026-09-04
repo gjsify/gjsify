@@ -11,7 +11,7 @@
 // what a gate cannot see.
 
 export { AppRegistry, registerRootComponent } from './app-registry.js';
-export type { ComponentProvider, RunApplicationOptions } from './app-registry.js';
+export type { ComponentProvider, RootHandle, RunApplicationOptions } from './app-registry.js';
 
 export { EventEmitter } from './event-emitter.js';
 export type { EventSubscription } from './event-emitter.js';
