@@ -15,6 +15,7 @@ import {
     COMBO_SELECTION_VECTORS,
     LIST_ITEMS_CHANGED_VECTORS,
     LIST_NORMALIZE_VECTORS,
+    LIST_PARSE_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
 import type { ComboSelectionStep, ComboSelectionVector } from '@gjsify/adwaita-core/conformance';
 
@@ -181,6 +182,21 @@ export const GtkDropDownTest = async () => {
                 expect(
                     [...dd.querySelectorAll('.adw-drop-down-item-label')].map((label) => label.textContent),
                 ).toStrictEqual(vector.model.map((item) => item.label));
+                dd.remove();
+            });
+        }
+
+        // The `model` ATTRIBUTE door, driven here as well as on `<adw-combo-row>`: both
+        // selectors read it through the SAME `parseListModel`, so a table asserted on one
+        // of them says nothing about the other's `attributeChangedCallback` branch — which
+        // is the half that was write-once on the row for its whole life (#1525).
+        for (const vector of LIST_PARSE_VECTORS) {
+            await it(`attribute — ${vector.rule}`, async () => {
+                const dd = makeDropDown();
+                // Set AFTER connect, so the attribute reaches the callback rather than the
+                // seeding path: a total parser has to be total on the live door too.
+                dd.setAttribute('model', vector.attribute);
+                expect(dd.model).toStrictEqual([...vector.model]);
                 dd.remove();
             });
         }
