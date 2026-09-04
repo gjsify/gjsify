@@ -32,11 +32,11 @@ import { describe, expect, it } from '@gjsify/unit';
 import { MINIMAL_TOKENS, type StyleTokens } from '@gjsify/gtk-host/style';
 import { createElement, Fragment, type ReactNode } from 'react';
 
-import { childFacts, childNodes } from './child-facts.js';
+import { childFacts, childNodes, readableProps } from './child-facts.js';
 import { AnimatedValue } from './animated/value.js';
 // `AnimatedView` is the exported name; `Animated.View` is what an application writes.
 import { AnimatedView, Text, View } from './components.js';
-import type { ChildFacts } from './primitives/resolve.js';
+import { declaresAbsolute, type ChildFacts } from './primitives/resolve.js';
 
 const TOKENS: StyleTokens = { ...MINIMAL_TOKENS, spacing: { ...MINIMAL_TOKENS.spacing, '2': '8px' } };
 
@@ -243,7 +243,32 @@ export default async () => {
                 createElement(Fragment, { key: 'group' }, createElement(View, { key: 'inner' })),
             ]);
             expect((nodes[0] as { key: string | null }).key).toBe('.$sibling');
-            expect((nodes[1] as { key: string | null }).key).toBe('.$group.$inner');
+            expect((nodes[1] as { key: string | null }).key).toBe('.$group:.$inner');
+        });
+
+        await it('cannot compose a key a SIBLING can also be authored to have', async () => {
+            // The separator, and the case that says why it is not the empty string.
+            // MEASURED with the halves concatenated: `<Fragment key="row">` around an
+            // unkeyed child produced `.$row.0` and a sibling authored `key="row.0"`
+            // produced `.$row.0` too — the composite key a `.map()` over grouped data
+            // writes, not an adversarial spelling. React answers a duplicate key by
+            // matching the two POSITIONALLY (measured: on a reorder they swap their
+            // content and keep each other's widgets), so anything the widget holds and
+            // the descriptor does not — a cursor, a scroll position, an
+            // `Animated.Value` binding — follows the wrong element. Nothing reports it:
+            // React's duplicate-key warning goes to a console GJS does not have.
+            const collide = (fragmentKey: string, innerKey: string | undefined, siblingKey: string): string[] => {
+                const inner =
+                    innerKey === undefined ? createElement(View, null) : createElement(View, { key: innerKey });
+                const nodes = childNodes([
+                    createElement(Fragment, { key: fragmentKey }, inner),
+                    createElement(View, { key: siblingKey }),
+                ]);
+                return nodes.map((node) => String((node as { key: string | null }).key));
+            };
+            for (const keys of [collide('row', undefined, 'row.0'), collide('a', 'b', 'a.$b')]) {
+                expect(`${keys.join(' ')} → ${new Set(keys).size}`).toBe(`${keys.join(' ')} → 2`);
+            }
         });
     });
 
@@ -251,10 +276,32 @@ export default async () => {
         await it('answers “not absolute” for a FOREIGN child whose vocabulary is not this layer’s', async () => {
             // The `catch` in `isAbsoluteChild` earns its keep here and nowhere else: a
             // composite that never reaches L2 may carry any class list at all, and a
-            // parent must not throw for it. The child itself is refused by name if it
-            // ever does reach L2.
+            // parent must not throw for it.
+            //
+            // THE FIRST ASSERTION IS THE DISCRIMINATOR AND NOT A SECOND OPINION. On its
+            // own, "the parent answers 0" is green whether the read threw or simply
+            // said no — so it would still pass for a `catch` with no throw path left,
+            // which is the state this repo does not allow one to sit in.
             const Card = (): null => null;
-            expect(factsOf(createElement(Card, { className: 'card-lg-not-a-utility' })).absolute).toBe(0);
+            const card = createElement(Card, { className: 'card-lg-not-a-utility' });
+            expect(() => declaresAbsolute(readableProps(card), TOKENS)).toThrow(/card-lg-not-a-utility/);
+            expect(factsOf(card).absolute).toBe(0);
+        });
+
+        await it('loses nothing by swallowing: the same read names the child’s own token', async () => {
+            // Why the swallow is safe, rather than a claim that it never happens. The
+            // parent's read is a SUBSET of the child's own resolution — the same
+            // `normalise` over the same `className`/`style`, with the child's prop
+            // routes on top — so every throw this `catch` eats is raised again, by
+            // name, when the child resolves itself. These two are shapes THIS package
+            // renders, which is the half the foreign-composite case cannot cover.
+            for (const [token, child] of [
+                ['totally-not-a-utility', createElement(View, { className: 'absolute totally-not-a-utility' })],
+                ['shadowColor', createElement(View, { className: 'absolute', style: { shadowColor: '#000' } })],
+            ] as const) {
+                expect(() => declaresAbsolute(readableProps(child), TOKENS)).toThrow(new RegExp(token));
+                expect(`${token}: ${factsOf(child).absolute}`).toBe(`${token}: 0`);
+            }
         });
     });
 };

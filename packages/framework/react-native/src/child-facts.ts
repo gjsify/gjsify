@@ -46,6 +46,14 @@
 // never reaches L2 — must not throw for a vocabulary that is not this layer's. What is
 // no longer allowed is a shape THIS package can render coming back unreadable, and that
 // is the boundary the spec enumerates.
+//
+// AND IT CANNOT HIDE A DEFECT, which is a property of the read rather than a promise:
+// the parent's read is a SUBSET of the child's own resolution — the same `normalise`
+// over the same `className`/`style`, with the child's prop routes added on top — so
+// every throw swallowed here is raised again, naming the child's own token, when that
+// child resolves itself. The spec holds both halves against two shapes this package
+// renders; without that pair, "the parent answered no" stays green whether the `catch`
+// has a throw path or none at all.
 
 import { Children, cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 import type { StyleTokens } from '@gjsify/gtk-host/style';
@@ -67,9 +75,9 @@ const isFragment = (node: ReactNode): node is ReactElement<{ readonly children?:
  * survivor a key. What it does not do is descend into a Fragment, so that half is here.
  *
  * KEYS ARE COMPOSED, NEVER REASSIGNED. An expanded child keeps its own key behind its
- * Fragment's — `.1` + `.$badge` — so two Fragments cannot collide and a re-render
- * derives the same key from the same tree. Dropping the keys instead would make every
- * update look like a reorder to React, and remount the subtree.
+ * Fragment's — `.$group` + `:` + `.$badge` — so a re-render derives the same key from
+ * the same tree. Dropping the keys instead would make every update look like a reorder
+ * to React, and remount the subtree.
  *
  * The array is rebuilt only when there IS a Fragment to expand: this runs for every
  * element in the tree on every render, and the common case has to cost a scan.
@@ -77,6 +85,26 @@ const isFragment = (node: ReactNode): node is ReactElement<{ readonly children?:
 export function childNodes(children: ReactNode): readonly ReactNode[] {
     return expand(Children.toArray(children));
 }
+
+/**
+ * What separates a Fragment's key from its child's, and why composing needs one.
+ *
+ * MEASURED, react 19: `Children.toArray` ESCAPES a colon in an authored key (`a:b`
+ * becomes `.$a=2b`, and `=` becomes `=0`), gives an unkeyed child `.<index base 36>`,
+ * and touches neither `.` nor `/`. So a colon cannot occur inside any key it produces,
+ * and the one below is the only one in a composed key — which is what makes the
+ * composition INJECTIVE and two different authored trees unable to land on one key.
+ *
+ * Concatenating the halves directly is not injective, and the collision is ordinary
+ * authoring rather than an adversarial spelling: `<Fragment key="row">` around an
+ * unkeyed child produced `.$row.0`, and so did a plain sibling authored `key="row.0"` —
+ * the composite key a `.map()` over grouped data writes. React answers a duplicate key
+ * by matching those two children POSITIONALLY (measured: they swap content and keep
+ * each other's widgets on a reorder), so a `TextInput`'s cursor, a scroll position or
+ * an `Animated.Value` binding follows the wrong element — and React's own
+ * duplicate-key warning goes to a console a GJS process does not have.
+ */
+const KEY_SEPARATOR = ':';
 
 function expand(nodes: readonly ReactNode[]): readonly ReactNode[] {
     if (!nodes.some(isFragment)) return nodes;
@@ -88,7 +116,13 @@ function expand(nodes: readonly ReactNode[]): readonly ReactNode[] {
         }
         const prefix = node.key ?? '';
         for (const inner of expand(Children.toArray(node.props.children))) {
-            out.push(isValidElement(inner) ? cloneElement(inner, { key: `${prefix}${inner.key ?? ''}` }) : inner);
+            // A text run has no key to compose and needs none: `Children.toArray` keeps
+            // its position, and only elements carry an identity React reconciles by.
+            if (!isValidElement(inner)) {
+                out.push(inner);
+                continue;
+            }
+            out.push(cloneElement(inner, { key: `${prefix}${KEY_SEPARATOR}${inner.key ?? ''}` }));
         }
     }
     return out;
