@@ -346,3 +346,41 @@ bars; the router's own vectors turn transitions off rather than pretend otherwis
 `headerRight`, `headerLeft`, a custom header component and a per-screen action set. The
 rule above is what they need settled first — they are contributions to the owner's bar,
 the same way the switcher is — and the support table still refuses them by name.
+
+## Amendment, 2026-09-04 — the surface tracks React Native 0.86
+
+§ The measurement names React Native 0.85, and the snapshot the support table is held
+against was read from 0.85.3. The consumer this layer is measured by moved to 0.86, so
+the snapshot did too: `react-native-surface.json` now records **0.86.3**, read
+2026-09-04.
+
+**What the bump actually changed, measured by installing both versions side by side and
+reading each `index.js`:**
+
+| | 0.85.3 | 0.86.3 |
+|---|---:|---:|
+| public export names | 92 | 99 |
+
+Seven names arrived, and they are one API — `src/private/components/virtualcollection/`:
+`unstable_VirtualArray`, `unstable_createVirtualCollectionView`, `unstable_VirtualColumn`,
+`unstable_VirtualColumnGenerator`, `unstable_VirtualRow`, `unstable_getScrollParent` and
+`unstable_DEFAULT_INITIAL_NUM_TO_RENDER`. A collection interface that does not allocate
+its items, a view factory over it, the two axis layouts, and two helpers. They are
+`planned` rather than `refused` because GTK virtualises natively and this layer already
+answers the older half of the same idea: `FlatList` and `VirtualizedList` are `partial`
+over `Gtk.ListView` + `Gio.ListStore`, so the work is a mapping and not an engine.
+
+**Nothing was removed, and the reader said otherwise.** `unstable_batchedUpdates` stopped
+being a getter and became `unstable_batchedUpdates<T>(fn, bookkeeping) { fn(bookkeeping); }`
+— the same export, one line rewritten, and its body now literally the identity call the
+support table has always described. `readInstalledExports` in `check-rn-surface.mjs`
+expected `(` or `:` immediately after the member name, so it skipped a member with type
+parameters and reported the export as dropped. Updating the snapshot on that reading would
+have deleted a supported name from the file whose whole job is to be the comparison.
+The reader now allows a type-parameter list (which may not contain a `(`, so it cannot
+swallow the parameter list itself), it is pure and exported, and three vectors — getter,
+plain method, generic method — hold it.
+
+§ 8's TextInput handle claim was re-measured on 0.86 rather than assumed: `focus` and
+`blur` come from `HostInstance` and `isFocused`, `clear` and `setSelection` are declared
+on `TextInput`, which is the same five `handles.ts` implements.

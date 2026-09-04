@@ -69,3 +69,13 @@ export const NativeEventEmitter = unsupported('NativeEventEmitter', 'react-nativ
 export const DeviceEventEmitter = unsupported('DeviceEventEmitter', 'react-native');
 export const NativeAppEventEmitter = unsupported('NativeAppEventEmitter', 'react-native');
 export const RootTagContext = unsupported('RootTagContext', 'react-native');
+export const unstable_VirtualArray = unsupported('unstable_VirtualArray', 'react-native');
+export const unstable_createVirtualCollectionView = unsupported('unstable_createVirtualCollectionView', 'react-native');
+export const unstable_VirtualColumn = unsupported('unstable_VirtualColumn', 'react-native');
+export const unstable_VirtualColumnGenerator = unsupported('unstable_VirtualColumnGenerator', 'react-native');
+export const unstable_VirtualRow = unsupported('unstable_VirtualRow', 'react-native');
+export const unstable_getScrollParent = unsupported('unstable_getScrollParent', 'react-native');
+export const unstable_DEFAULT_INITIAL_NUM_TO_RENDER = unsupported(
+    'unstable_DEFAULT_INITIAL_NUM_TO_RENDER',
+    'react-native',
+);

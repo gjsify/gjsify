@@ -665,7 +665,63 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
     },
     unstable_batchedUpdates: {
         status: 'supported',
-        reason: 'React 19 batches automatically; this is the identity call it already is upstream.',
+        reason: 'React 19 batches automatically; this is the identity call it already is upstream — literally so since 0.86, where the getter became a method whose body is `fn(bookkeeping)`.',
+    },
+
+    // --- P3: React Native 0.86's virtual collection, which GTK already has -----
+    //
+    // Seven names arrived together in 0.86 (`src/private/components/virtualcollection/`)
+    // and they are one API: a collection interface that does not allocate its items,
+    // a view factory over it, the two axis layouts, and two helpers. They are
+    // `unstable_` upstream and private by path, so the shape is expected to move.
+    //
+    // The reason they are `planned` rather than `refused` is that this layer already
+    // answers the older half of the same idea: `FlatList` and `VirtualizedList` are
+    // `partial` over `Gtk.ListView` + `Gio.ListStore`, which virtualises natively —
+    // GTK asks the model for the items it is about to show and recycles the rest.
+    // So the work is a mapping, not a virtualisation engine.
+
+    unstable_VirtualArray: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gio.ListModel',
+        reason: 'A collection with a `size` and item access that need not be eagerly allocated — which is what a `Gio.ListModel` is, one interface over.',
+    },
+    unstable_createVirtualCollectionView: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.ListView / Gtk.GridView + Gtk.SignalListItemFactory',
+        reason: 'Builds a view component from a layout component and a generator; GTK spells the same split as a view plus an item factory.',
+    },
+    unstable_VirtualColumn: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.ListView (vertical)',
+        reason: 'The vertical axis layout of the collection view.',
+    },
+    unstable_VirtualColumnGenerator: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.SignalListItemFactory',
+        reason: 'The per-item generator the column layout is driven by.',
+    },
+    unstable_VirtualRow: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.ListView (horizontal)',
+        reason: 'The horizontal axis layout, which on GTK is the same view with its orientation set.',
+    },
+    unstable_getScrollParent: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'the enclosing Gtk.ScrolledWindow',
+        reason: 'The nearest scrollable ancestor of a node. GTK answers it by walking parents to a Gtk.ScrolledWindow, and returns nothing at the root for the same reason React Native does.',
+    },
+    unstable_DEFAULT_INITIAL_NUM_TO_RENDER: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: '—',
+        reason: 'The constant 7, upstream’s initial window size. GTK sizes its own recycling window from the viewport, so this is a number to expose rather than to obey.',
     },
 
     // --- not reachable in this toolchain -------------------------------------

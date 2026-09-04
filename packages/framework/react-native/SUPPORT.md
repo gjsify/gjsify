@@ -20,7 +20,7 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `useColorScheme` | P1 | Adw.StyleManager.dark | Follows the Adwaita colour scheme — the dark property, which is what the user is looking at, not color-scheme, which is what the application asked for. |
 | `Appearance` | P2 | Adw.StyleManager | The imperative sibling of useColorScheme, over the SAME reader — getColorScheme reads Adw.StyleManager:dark (what the user is looking at) and setColorScheme writes :color-scheme (what the application asked for), which is exactly the split React Native’s getter and setter have. |
 | `EventEmitter` | — | — | Pure JavaScript; nothing in it touches a platform. |
-| `unstable_batchedUpdates` | — | — | React 19 batches automatically; this is the identity call it already is upstream. |
+| `unstable_batchedUpdates` | — | — | React 19 batches automatically; this is the identity call it already is upstream — literally so since 0.86, where the getter became a method whose body is `fn(bookkeeping)`. |
 
 ### Supported, with named limits (31)
 
@@ -58,7 +58,7 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `Animated` | P3 | Adw.TimedAnimation, over Adw.CallbackAnimationTarget | Value, timing and View — the three names a measured application uses, in one file of 28 routes. The rest of the subsystem is a graph evaluated per frame, and every other member refuses BY NAME. |
 | `Easing` | P3 | AdwEasing, through Adw.TimedAnimation:easing | Not arithmetic, which the planning entry called it: React Native’s easings are FUNCTIONS and AdwEasing is an ENUM with no callback form, so this is a name-to-enum mapping and every pair in it is measured. |
 
-### Planned (26)
+### Planned (33)
 
 | export | tier | GTK | why |
 |---|---|---|---|
@@ -88,6 +88,13 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `ProgressBarAndroid` | P3 | Gtk.ProgressBar | Android-only by name; GTK has the widget. |
 | `NativeEventEmitter` | P3 | — | It would construct and subscribe, but nothing native would ever emit into it — shipping that needs a decision, not a class. |
 | `DeviceEventEmitter` | P3 | — | The global emitter. Lands with NativeEventEmitter, and for the same reason. |
+| `unstable_VirtualArray` | P3 | Gio.ListModel | A collection with a `size` and item access that need not be eagerly allocated — which is what a `Gio.ListModel` is, one interface over. |
+| `unstable_createVirtualCollectionView` | P3 | Gtk.ListView / Gtk.GridView + Gtk.SignalListItemFactory | Builds a view component from a layout component and a generator; GTK spells the same split as a view plus an item factory. |
+| `unstable_VirtualColumn` | P3 | Gtk.ListView (vertical) | The vertical axis layout of the collection view. |
+| `unstable_VirtualColumnGenerator` | P3 | Gtk.SignalListItemFactory | The per-item generator the column layout is driven by. |
+| `unstable_VirtualRow` | P3 | Gtk.ListView (horizontal) | The horizontal axis layout, which on GTK is the same view with its orientation set. |
+| `unstable_getScrollParent` | P3 | the enclosing Gtk.ScrolledWindow | The nearest scrollable ancestor of a node. GTK answers it by walking parents to a Gtk.ScrolledWindow, and returns nothing at the root for the same reason React Native does. |
+| `unstable_DEFAULT_INITIAL_NUM_TO_RENDER` | P3 | — | The constant 7, upstream’s initial window size. GTK sizes its own recycling window from the viewport, so this is a number to expose rather than to obey. |
 
 ### No meaning on a desktop window (6)
 

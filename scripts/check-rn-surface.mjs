@@ -185,6 +185,28 @@ function selfTest() {
     const wrap = (inner) =>
         `export const SUPPORT_TABLE: Readonly<Record<string, E>> = {\n${inner}\n};\nexport const X = 1;\n`;
 
+    // The three shapes react-native's own index.js writes a member in, and the
+    // third is why this vector set exists: across 0.85 → 0.86 the SAME export
+    // stopped being a getter and grew a type parameter, and the reader that
+    // expected `(` right after the name reported it as removed.
+    ok(
+        'index members: getter, method, generic method',
+        exportNamesFromIndex(
+            [
+                '  get Alert() {',
+                "    return require('./Libraries/Alert/Alert').default;",
+                '  },',
+                '  unstable_batchedUpdates<T>(fn: (bookkeeping: T) => void, bookkeeping: T) {',
+                '    fn(bookkeeping);',
+                '  },',
+                '  Systrace: {',
+                '    beginEvent() {},',
+                '  },',
+            ].join('\n'),
+        ),
+        ['Alert', 'unstable_batchedUpdates', 'Systrace'],
+    );
+
     ok('flat keys', readTableKeys(wrap(`    View: { status: 'planned' },\n    Text: { status: 'planned' },`)), [
         'View',
         'Text',
@@ -456,6 +478,15 @@ function compare(label, expected, actual, hintMissing, hintExtra) {
  * The getters on `module.exports` in its `index.js`, read as TEXT rather than by
  * importing it: `require('react-native')` under Node evaluates a module written for
  * a React Native runtime and throws long before it has an export list.
+ *
+ * A MEMBER CAN CARRY TYPE PARAMETERS, and missing that reported a real export as
+ * removed. Measured across the 0.85 → 0.86 bump: `unstable_batchedUpdates` stopped
+ * being a getter and became `unstable_batchedUpdates<T>(fn, bookkeeping)` — the same
+ * export, one line rewritten — and a reader that expected `(` or `:` immediately
+ * after the name skipped it. The snapshot update would then have said upstream
+ * dropped a name it still exports, in the file whose whole job is to be the
+ * comparison. The generic list may not contain a `(`, which is what keeps this from
+ * swallowing the parameter list itself.
  */
 function readInstalledExports() {
     const require = createRequire(join(ROOT, 'package.json'));
@@ -466,10 +497,14 @@ function readInstalledExports() {
         return null;
     }
     if (!existsSync(indexPath)) return null;
-    const source = readFileSync(indexPath, 'utf8');
+    return exportNamesFromIndex(readFileSync(indexPath, 'utf8'));
+}
+
+/** The member names of the one object literal `index.js` assigns to `module.exports`. */
+export function exportNamesFromIndex(source) {
     const names = new Set();
     for (const line of source.split('\n')) {
-        const match = /^ {2}(?:get )?([A-Za-z_$][A-Za-z0-9_$]*)\s*[:(]/.exec(line);
+        const match = /^ {2}(?:get )?([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:<[^(]*>)?\s*[:(]/.exec(line);
         if (match) names.add(match[1]);
     }
     return [...names];
