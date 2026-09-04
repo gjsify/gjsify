@@ -3,6 +3,7 @@ import { run } from '@gjsify/unit';
 import animatedSuite from './animated/animated.spec.js';
 import easingSuite from './animated/easing.spec.js';
 import apisSuite from './apis/apis.spec.js';
+import childFactsSuite from './child-facts.spec.js';
 import eventEmitterSuite from './event-emitter.spec.js';
 import listsSuite from './lists/lists.spec.js';
 import classesSuite from './primitives/classes.spec.js';
@@ -25,6 +26,7 @@ run({
     unsupportedSuite,
     eventEmitterSuite,
     classesSuite,
+    childFactsSuite,
     defaultsSuite,
     stylesheetSuite,
     primitivesSuite,

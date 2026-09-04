@@ -31,9 +31,7 @@
 
 import Gio from 'gi://Gio?version=2.0';
 import {
-    Children,
     createElement,
-    isValidElement,
     useContext,
     useEffect,
     useMemo,
@@ -46,16 +44,15 @@ import {
 
 import { accessor } from './accessor.js';
 import { onLiveRegion } from './announce.js';
+import { childFacts, childNodes, isAbsoluteChild, isTextNode } from './child-facts.js';
 import { ParentContext, ParentProvider } from './parent-context.js';
 import { onGesture, onPressStateChange } from './press.js';
 import type { ClassNameInput } from './primitives/classes.js';
 import { PrimitiveError } from './primitives/errors.js';
 import { createHandle, type TextInputHandle } from './primitives/handles.js';
 import {
-    declaresAbsolute,
     resolvePrimitive,
     type ChildContext,
-    type ChildFacts,
     type PrimitivePlan,
     type PrimitiveProps,
     type ResolvedAnnouncement,
@@ -64,8 +61,7 @@ import {
     type ResolvedGesture,
     type WidgetNode,
 } from './primitives/resolve.js';
-import { flattenStyle, type StyleAuthored, type StyleInput, type StyleObject } from './primitives/style.js';
-import { isAnimatedValue } from './animated/brand.js';
+import { splitAnimatedStyle, type StyleAuthored, type StyleInput, type StyleObject } from './primitives/style.js';
 import { animatedProperty, assertNoStaticClash } from './animated/properties.js';
 import type { AnimatedValue } from './animated/value.js';
 import { styleConfig } from './style-config.js';
@@ -89,40 +85,6 @@ export interface CommonProps {
 }
 
 type AnyProps = Readonly<Record<string, unknown>>;
-
-const isTextNode = (child: ReactNode): boolean => typeof child === 'string' || typeof child === 'number';
-
-/**
- * Does this child declare `position: absolute`?
- *
- * The predicate is L2's, so the COUNT the parent takes here and the PLACEMENT it
- * makes later cannot disagree. The `catch` is the one place in this package where
- * swallowing is correct, and it is not defensive padding: the parent is asking a
- * question about SOMEBODY ELSE'S props, and a composite child whose `style` carries
- * a property L1 does not route (`<MyCard style={{ shadowColor }}/>`, a component
- * that never reaches L2) would otherwise make the PARENT throw for a defect that is
- * not its own. Nothing is lost — a child that really is absolute and answered
- * `false` here lands under a parent that stayed a `Gtk.Box`, and `resolveIntent`
- * refuses it by name: "the PARENT has to be a `Gtk.Overlay`, and it is not".
- */
-function isAbsoluteChild(child: ReactNode, tokens: StyleTokens): boolean {
-    if (!isValidElement(child)) return false;
-    try {
-        return declaresAbsolute(child.props as PrimitiveProps, tokens);
-    } catch {
-        return false;
-    }
-}
-
-function childFacts(children: readonly ReactNode[], tokens: StyleTokens): ChildFacts {
-    let absolute = 0;
-    let text = false;
-    for (const child of children) {
-        if (isTextNode(child)) text = true;
-        else if (isAbsoluteChild(child, tokens)) absolute++;
-    }
-    return { absolute, count: children.length, text };
-}
 
 /**
  * L2's `events` → host props, with STABLE identities.
@@ -216,7 +178,7 @@ export function usePlan(primitive: string, authored: object): Rendered {
     const props = authored as AnyProps;
     const parent = useContext(ParentContext);
     const config = styleConfig();
-    const children = Children.toArray((props as { children?: ReactNode }).children);
+    const children = childNodes((props as { children?: ReactNode }).children);
     const plan = resolvePrimitive(primitive, props as PrimitiveProps, {
         tokens: config.tokens,
         sheet: config.sheet,
@@ -857,33 +819,37 @@ interface AnimatedBinding {
 }
 
 /**
- * An authored style → the plain half and the animated half.
+ * An authored style → the plain half and the bindings the effect below attaches.
+ *
+ * The SPLIT is L2's (`primitives/style.ts`' `splitAnimatedStyle`) and the BINDINGS are
+ * this file's, because the split has a second reader: a parent counting its absolutely
+ * positioned children reads an `<Animated.View>`'s style through the same function
+ * (`child-facts.ts`). Two copies of it were how a Fragment and an animated fade both
+ * came back as "not absolutely positioned" — #1451.
  *
  * The split has to happen BEFORE the partition, and that is measured rather than
  * tidy: `@gjsify/gtk-host/style`'s `partitionPaint` pushes `${cssName}: ${value}`
  * with no check on the value's type, so an `Animated.Value` left in the object
  * becomes the GTK CSS declaration `opacity: [object Object]` — which GTK's parser
- * drops in silence. `primitives/style.ts` now refuses a non-scalar style value for
- * the same reason, which is what makes forgetting the `Animated.` on a plain
- * `<View>` a named error instead of a screen where nothing moves.
+ * drops in silence. `primitives/style.ts` refuses a non-scalar style value for the
+ * same reason, which is what makes forgetting the `Animated.` on a plain `<View>` a
+ * named error instead of a screen where nothing moves.
  */
-function splitAnimatedStyle(
+function animatedBindings(
     primitive: string,
     style: AnimatedStyleInput | undefined,
 ): { readonly plain: StyleObject; readonly bindings: readonly AnimatedBinding[] } {
-    const flat = flattenStyle(style as StyleInput);
-    const plain: Record<string, unknown> = {};
+    const { plain, animated } = splitAnimatedStyle(style as StyleInput);
     const bindings: AnimatedBinding[] = [];
-    for (const [key, value] of Object.entries(flat)) {
-        if (!isAnimatedValue(value)) {
-            plain[key] = value;
-            continue;
-        }
+    for (const [key, value] of Object.entries(animated)) {
         // The refusal for an unanimatable key fires here, at the element, rather than
         // inside the effect that would have bound it: an effect's stack names the
         // effect, and an author needs the element.
         animatedProperty(primitive, key);
-        bindings.push({ key, value: value as AnimatedValue });
+        // `AnimatedValueLike` is the BRAND, which is all L2 may know (`animated/brand.ts`),
+        // and `AnimatedValue` is its only implementer — whose private fields make the two
+        // structurally disjoint. The narrowing belongs here because this file owns the class.
+        bindings.push({ key, value: value as unknown as AnimatedValue });
     }
     return { plain, bindings };
 }
@@ -906,7 +872,7 @@ function splitAnimatedStyle(
  */
 export function AnimatedView(props: AnimatedViewProps): ReactElement {
     const config = styleConfig();
-    const { plain, bindings } = splitAnimatedStyle('Animated.View', props.style);
+    const { plain, bindings } = animatedBindings('Animated.View', props.style);
     const authored: AnimatedViewProps = { ...props, style: plain };
     assertNoStaticClash(
         'Animated.View',

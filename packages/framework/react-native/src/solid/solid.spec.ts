@@ -37,7 +37,7 @@ import { dumpTree, gtkChildren, installDiagnosticsGate } from '@gjsify/gtk-host/
 import { MINIMAL_TOKENS, type StyleTokens } from '@gjsify/gtk-host/style';
 import { createRoot } from '@gjsify/gtk-host/react';
 import { For, createComponent, mount } from '@gjsify/gtk-host/solid';
-import { createElement as createReactElement, type ReactNode } from 'react';
+import { createElement as createReactElement, Fragment, type ReactNode } from 'react';
 import { createSignal } from 'solid-js';
 
 import { PrimitiveError } from '../primitives/errors.js';
@@ -69,8 +69,26 @@ type PrimitiveName = 'View' | 'Text' | 'Pressable' | 'ScrollView' | 'ActivityInd
 interface Authored {
     readonly primitive: PrimitiveName;
     readonly props?: Readonly<Record<string, unknown>>;
-    readonly children?: readonly (Authored | string)[];
+    readonly children?: readonly AuthoredChild[];
 }
+
+/**
+ * A wrapper that is meant to add NOTHING to the widget tree.
+ *
+ * Each framework has its own spelling for it — a `<>…</>` in React, a plain array in
+ * Solid — so the authored tree cannot name either. What the vector then measures is
+ * whether both frameworks agree that it is transparent, which is not a given: Solid's
+ * `resolveChildren` flattens nested arrays and its children stamp themselves, so the
+ * whole class was invisible there, while React's parent reads DESCRIPTORS and
+ * `Children.toArray` does not descend into a Fragment (#1451).
+ */
+interface Group {
+    readonly group: readonly AuthoredChild[];
+}
+
+type AuthoredChild = Authored | Group | string;
+
+const isGroup = (child: Authored | Group): child is Group => 'group' in child;
 
 /**
  * The properties a snapshot reads, in GJS' accessor spelling.
@@ -204,7 +222,14 @@ const ownTypes = (tree: readonly Snapshot[]): string[] => {
 
 // --- the two front ends, and nothing else in this file knows a framework ------
 
-function toReact(node: Authored, key?: string): ReactNode {
+function toReact(node: Authored | Group, key?: string): ReactNode {
+    if (isGroup(node)) {
+        return createReactElement(
+            Fragment,
+            key === undefined ? null : { key },
+            ...node.group.map((child, index) => (typeof child === 'string' ? child : toReact(child, String(index)))),
+        );
+    }
     const children = (node.children ?? []).map((child, index) =>
         typeof child === 'string' ? child : toReact(child, String(index)),
     );
@@ -225,7 +250,8 @@ function toReact(node: Authored, key?: string): ReactNode {
  * plain value here would have hidden the one L2 change this milestone needed, because
  * `Object.entries` over plain values has no side effect.
  */
-function toSolid(node: Authored): unknown {
+function toSolid(node: Authored | Group): unknown {
+    if (isGroup(node)) return node.group.map((child) => (typeof child === 'string' ? child : toSolid(child)));
     const component = solid[node.primitive] as unknown as (props: object) => unknown;
     const props: Record<string, unknown> = { ...node.props };
     if (node.children !== undefined) {
@@ -371,6 +397,23 @@ const VECTORS: readonly Vector[] = [
             children: [
                 { primitive: 'Text', children: ['body'] },
                 { primitive: 'Text', props: { className: 'absolute inset-0' }, children: ['badge'] },
+            ],
+        },
+        types: ['GtkOverlay', 'GtkBox', 'GtkLabel', 'GtkLabel'],
+    },
+    {
+        // The same tree with the absolute child inside a transparent wrapper, which is
+        // the one authoring shape that used to produce two DIFFERENT trees: Solid saw
+        // through its array and built the overlay, React did not see through the
+        // Fragment and refused the child by name. Parity is the assertion that the
+        // wrapper is transparent under both, not that either is merely non-empty.
+        name: 'an absolute child inside a transparent wrapper',
+        tree: {
+            primitive: 'View',
+            props: { className: 'p-2' },
+            children: [
+                { primitive: 'Text', children: ['body'] },
+                { group: [{ primitive: 'Text', props: { className: 'absolute inset-0' }, children: ['badge'] }] },
             ],
         },
         types: ['GtkOverlay', 'GtkBox', 'GtkLabel', 'GtkLabel'],
