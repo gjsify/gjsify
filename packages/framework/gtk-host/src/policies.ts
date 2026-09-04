@@ -242,6 +242,12 @@ const toplevelOf = (widget: Gtk.Widget): Gtk.Window | null => {
  * already-presented dialog in the OLD window's host — `w1.visibleDialog` still
  * true after `w1.set_content(null)` — so a subtree moved to a second window would
  * silently keep showing its modal in the first.
+ *
+ * SYMMETRIC, and the second direction is not free. GTK does not take the dialog
+ * down when the anchor loses its window, so losing a toplevel RETRACTS the node
+ * rather than merely failing to present it (see `placeAgainst`). Without that, a
+ * subtree that is detached and never re-rooted keeps its sheet on screen in the
+ * window it left, and only a re-root — which such a subtree never gets — repairs it.
  */
 export function presentPortal(
     parent: HostElement,
@@ -269,10 +275,33 @@ function placeAgainst(
     child: HostElement,
     portal: Extract<NodePlacement, { kind: 'portal' }>,
 ): boolean {
-    const target = toplevelOf(anchor);
-    if (!target) return false;
     const node = child.widget as unknown as Gtk.Widget | null;
     if (!node) return false;
+    const target = toplevelOf(anchor);
+    if (!target) {
+        // THE ANCHOR HAS NO WINDOW, so neither may the portal — and this is a
+        // RETRACT rather than a bare `return false` because the same line is
+        // reached from an UNROOT, not only from a deferred insert.
+        //
+        // A portal is presented exactly when its anchor is in a toplevel. The wait
+        // above enforces one direction of that; without this the other direction
+        // was silently missing. MEASURED on libadwaita 1.9.3: after
+        // `w1.set_content(null)` the dialog is STILL in `w1`'s host —
+        // `w1.visibleDialog` is the dialog — so the sheet kept showing in a window
+        // its own subtree had left, and stayed up for as long as no second window
+        // happened to claim that subtree. Only a re-root repaired it, and a subtree
+        // that is merely detached never re-roots.
+        //
+        // It also keeps `attached` honest: this function returns false here, so the
+        // host recorded "GTK has NOT taken this node" while GTK still had it on
+        // screen — the exact conflation `attached` exists to prevent (ADR 0045 § 4).
+        //
+        // Unconditional, for the reason `retractPortal` is: `force_close` on a node
+        // that was never presented is silent (measured), so no "is it up?" probe is
+        // needed, and on a deferred insert this is a no-op.
+        portalMethod(child, portal.close, 'close').call(node);
+        return false;
+    }
     if (node.get_parent()) {
         // Already up. Where it is up decides whether this is a no-op or a move:
         // MEASURED, `present()` on a dialog already presented for ANOTHER host is

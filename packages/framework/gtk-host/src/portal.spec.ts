@@ -267,6 +267,40 @@ export default async () => {
                 destroy(dialog);
             });
 
+            await it('comes down when the parent leaves its toplevel and no other takes it', async () => {
+                // THE OTHER DIRECTION of the wait, and it was missing. A portal is
+                // presented exactly when its anchor is in a toplevel; the insert
+                // above enforces that going in, this enforces it coming out.
+                // MEASURED on libadwaita 1.9.3: `set_content(null)` does NOT take
+                // the dialog down — `w1.visibleDialog` is still the dialog — so the
+                // sheet kept showing in a window its own subtree had left. Only a
+                // re-root repaired it, and a merely detached subtree never re-roots.
+                const window = new Adw.Window();
+                const box = new Gtk.Box();
+                window.set_content(box);
+                const parent = adopt(box);
+                const dialog = createElement('AdwDialog');
+                insert(dialog, parent);
+                expect(window.visibleDialog !== null).toBe(true);
+                expect(dialog.attached).toBe(true);
+
+                window.set_content(null);
+
+                // Both facts, and the second is the one that was wrong: the host
+                // said "GTK has not taken this node" while GTK still had it up.
+                expect(window.visibleDialog).toBe(null);
+                expect(dialog.attached).toBe(false);
+                expect(widgetOf(dialog).get_root()).toBe(null);
+
+                // And the wait is still armed, so a later window still gets it.
+                expect(dialog.portalWatch !== null).toBe(true);
+                const second = new Adw.Window();
+                second.set_content(box);
+                expect(dialog.attached).toBe(true);
+                expect(second.visibleDialog !== null).toBe(true);
+                destroy(dialog);
+            });
+
             await it('drops the subscription when the node is removed', async () => {
                 const box = new Gtk.Box();
                 const parent = adopt(box);

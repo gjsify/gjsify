@@ -135,6 +135,14 @@ showing its modal in the first. And a bare re-present is
 `Gtk-WARNING **: Can't set new parent …`, with the move NOT happening; close-then-present
 is the sequence that works, measured.
 
+The rule is therefore SYMMETRIC: a portal is presented exactly when its anchor is in a
+toplevel, and the subscription enforces both directions. Losing the toplevel RETRACTS the
+node — not merely "does not present it". Stating only the first direction left the second
+missing in the first cut of this seam: a subtree that is detached and never re-rooted kept
+its sheet on screen in the window it had left, repaired only by a re-root that a detached
+subtree never gets. It also broke the fact below, because the host recorded `attached`
+false while GTK still had the node up.
+
 `attached` — the host's separate fact for "GTK has taken this node" — is therefore
 written by the present, not by the insert. A deferred portal is claimed by the host and
 not yet taken by GTK, which is precisely the distinction that fact exists to keep.
@@ -222,7 +230,7 @@ per case. Source read at `refs/libadwaita/src/adw-dialog.c` — `adw_dialog_root
 | H | `can-close: false` → `close()` / `force_close()` | `close()` false + `close-attempt`, still up / `force_close()` closes + `closed` |
 | I | `notify::root` on a grandchild box | fires on root (`AdwWindow`) and again on unroot (null) |
 | J | re-present for another host | `Adwaita-CRITICAL` + `Gtk-WARNING`, **and the dialog stays in the first window** |
-| L | unroot the parent while presented | dialog stays in the OLD window's host; `force_close` then `present` re-hosts cleanly |
+| L | unroot the parent while presented | dialog stays in the OLD window's host — GTK does NOT take it down, so the seam must; `force_close` then `present` re-hosts cleanly |
 | M | `Adw.Dialog` subclasses by `type_is_a` | `AboutDialog`, `AlertDialog`, `PreferencesDialog`, `ShortcutsDialog`; `MessageDialog` is not one |
 | N | `map` / `unmap` on a presented dialog | `map` 0 on `present()` against an unshown window, **1** after the window's own `present()`; `unmap` 1 on close |
 

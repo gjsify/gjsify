@@ -38,7 +38,10 @@ Design decisions: [ADR 0032](adr/0032-react-native-on-the-gtk-host.md),
      …` plus `Gtk-WARNING **: Can't set new parent …`; the dialog stays in the first
      window. Close-then-present is the sequence that works, which is what the host does
      when a subtree moves between toplevels — measured, unrooting the parent leaves the
-     dialog in the OLD window's host with `visibleDialog` still set.
+     dialog in the OLD window's host with `visibleDialog` still set. GTK never takes it
+     down by itself, so the host closes the dialog when its anchor loses a toplevel: a
+     subtree that is detached and never re-rooted would otherwise keep its sheet on
+     screen in the window it left.
    - **`Gtk.Widget::map` on the dialog is the SHOWN moment, not the presented one**, and
      it fires once. `present()` against a window that has not been shown yet emits
      nothing; the emission arrives on the window's own `present()`. That is `onShow`.
