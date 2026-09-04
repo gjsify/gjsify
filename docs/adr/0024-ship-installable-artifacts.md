@@ -1405,3 +1405,91 @@ project that is GJS on Linux and Node on Windows builds two bundles — `dist/<n
 `dist/<name>.node.mjs` is the layout this tree documents as normal, and `discoverPayload` stages
 both — but every layout's launcher names the same one of them. That is the next axis, and it is a
 separate question with a separate config surface; `status/open-todos.md` carries it.
+
+## Amendment, 2026-09-04 — the runtime and the payload are ONE decision
+
+§ A22 ends by naming what it did not do: the runtime became per target and the bundle stayed one
+path. That sentence describes a gap, and the gap was measured before this amendment was written —
+`gjsify ship` 0.47.0, a React-Native-on-GTK application, `gjsify.ship.app.darwin: "node"`, and a
+`.app` that cannot start (#1545).
+
+### A23. `gjsify.ship.bundle` is per target too, and the pair is CHECKED
+
+**What the run printed, in full, on the subject of the runtime:**
+
+```
+[gjsify ship] runtime for darwin: node — `gjsify.ship.app.darwin` overrides `gjsify.app`.
+```
+
+That line is correct. The launcher it produced ends `exec node "$contents/Resources/lib/app.gjs.mjs"`,
+and `app.gjs.mjs` is a `--app gjs` bundle, because `main` is what the payload comes from and Linux
+is that project's primary target. Measured directly, the artifact dies before a line of application
+code:
+
+```
+Error [ERR_UNSUPPORTED_ESM_URL_SCHEME]: Only URLs with a scheme in: file, data, and node are
+supported by the default ESM loader. Received protocol 'gi:'
+```
+
+So ship honoured both keys, they contradicted each other, and the only output on the subject read
+as confirmation. `--skip-build` changes nothing: the choice is `main`, not a build artifact ship
+selects.
+
+**The decision, in the shape § A22 already established.** `gjsify.ship.bundle` accepts the table
+`{linux,darwin,win32}` beside its existing scalar form, `resolveShipBundle` is `resolveShipApp`'s
+twin — same OS vocabulary, same mis-keyed-key refusal, same "which key answered" in the result —
+and `commands/ship.ts` resolves the pair in one place before anything is staged. Fall-through, not
+requirement: a target with no key keeps `gjsify.main`, so every single-host project is untouched
+and nothing new is mandatory.
+
+Two alternatives were rejected where #1545 raised them. **Deriving the entry from the runtime by
+filename** (`app.node.mjs` beside `app.gjs.mjs`) is a heuristic over an output name the project
+owns, and this tree already refuses that guess elsewhere. **Having ship invoke `gjsify build --app
+<runtime>`** cannot serve the phase that needs it most: `--from-stage` packs on a host with no
+project, no bundler and no sources (§ A2). A declaration works in both phases, and the stage
+manifest already carries the RESOLVED value, so nothing there changes.
+
+**The discriminator exists, which § A22's follow-up said it did not.** It is the module scheme, and
+it is exact in both directions because each host's loader refuses the other's — measured on GJS
+1.86 and Node 24:
+
+| the entry imports | under `node` | under `gjs` |
+|---|---|---|
+| `gi://Gtk?version=4.0` | `ERR_UNSUPPORTED_ESM_URL_SCHEME … Received protocol 'gi:'` | resolves |
+| `node:fs` | resolves | `ImportError: Unsupported URI scheme for importing: node` |
+
+Neither is a claim about how the bundle was built: it is the specifier the running loader rejects,
+read out of the file that will be installed. `assertEntryRunsUnder` refuses on evidence FOR the
+wrong host and never on its absence — a bundle naming neither scheme passes, because nothing was
+observed to contradict. That asymmetry is `assertLauncherMatchesInterpreter`'s, and for its reason:
+a guard that turns working packages into failures buys nothing over the defect it prevents.
+
+**A second defect fell out of writing the discriminator, and it is the more expensive one.**
+`scanGiNamespaces` — the source of every artifact's typelib `Depends:` (§ 6) — read `gi://`
+specifiers only. A `--app node` bundle has none: `gjsGiNodePlugin` rewrites each one into
+`require('@gjsify/node-gi/gi').requireGi("Ns", "Ver")`. So every node-target artifact derived an
+EMPTY typelib dependency set, installed cleanly, and died at its first GI call — the exact failure
+the bare-side-effect-import fix in that module was written to prevent, arriving again through the
+other build target. The scanner now reads both emitted forms in one acorn pass, binding-traced
+rather than name-matched, because over-approximating a namespace fails the build.
+
+**Why nothing caught it.** Every ship fixture's "node bundle" was hand-written with `gi://` imports
+in it — a shape `gjsify build --app node` cannot emit and node cannot run. The fixture now imports
+`giNodeShimSource` from the plugin that writes it, so the text under test is the text that ships,
+and it carries the second real shape too (an application written against `@gjsify/node-gi`
+directly, whose import survives into the output because the addon is external).
+
+**What the e2e suite said before the fix.** `tests/e2e/ship`'s per-target-runtime case scaffolded
+`gjsify.ship.app.win32: "node"` with the payload left on `gjsify.main` — this defect, encoded as a
+passing test, with a comment saying the launcher's choice of file "is a separate axis … so this
+test says nothing about it". It now declares the win32 entry, and asserts the other half of the
+decision: a bundle declared for one OS is dropped from every other OS's payload. That exclusion is
+not tidiness — `discoverPayload` stages the whole directory the entry lives in, so without it each
+artifact carries a bundle its own interpreter cannot load, on macOS inside the signed `.app`.
+
+**Correction to § A22, kept as the record per § 7's precedent.** Its closing paragraph is now
+false: the bundle is no longer one path, and the discriminator it called nonexistent is
+`utils/ship/entry-interpreter.ts`. Its diagnosis was right about where the difficulty sits — the
+bundle path is read before the settings are resolved — which is why the resolver runs beside
+`resolveShipApp` and feeds `discoverPayload` rather than being derived from the settings it
+precedes.

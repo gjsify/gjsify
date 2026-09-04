@@ -40,17 +40,46 @@ export const BUNDLE = [
 ].join('\n');
 
 /**
+ * The shim `--app node` compiles a `gi://` import into, IMPORTED from the plugin
+ * that emits it.
+ *
+ * Not restated, for `STAGE_MANIFEST_FILE`'s reason one level up: this is the
+ * exact text a node bundle carries where a GJS bundle carries a `gi://`
+ * specifier, and a fixture holding its own copy of it would keep agreeing with
+ * itself after the plugin moved.
+ */
+const { giNodeShimSource } = await import(
+    pathToFileURL(
+        join(MONOREPO_ROOT, 'packages', 'infra', 'rolldown-plugin-gjsify', 'lib', 'plugins', 'gjs-gi-node.js'),
+    ).href
+);
+
+/**
  * The `--app node` twin of {@link BUNDLE}.
  *
- * `gi://` imports on purpose: a Node bundle still reaches GI through
- * `@gjsify/node-gi`, so the typelib dependencies must be derived for it exactly
- * as for a GJS one. A plain `console.log` bundle would have proved only that the
- * interpreter line changed.
+ * GI reach on purpose: a Node bundle still reaches GI through `@gjsify/node-gi`,
+ * so the typelib dependencies must be derived for it exactly as for a GJS one. A
+ * plain `console.log` bundle would have proved only that the interpreter line
+ * changed.
+ *
+ * BUT NOT THROUGH `gi://`, which is what this fixture used to say and what made
+ * it a fixture no build can produce and no interpreter can run: `--app node`
+ * rewrites every `gi://` into the shim above, and node's ESM loader refuses the
+ * scheme outright (ERR_UNSUPPORTED_ESM_URL_SCHEME). Written the old way, this
+ * file asserted that a `.deb` derives `gir1.2-gtk-4.0` from a bundle whose real
+ * counterpart derives nothing — which is exactly the defect that survived
+ * (#1545, `utils/ship/gi-namespaces.ts`).
  */
 export const NODE_BUNDLE = [
-    `import Gtk from 'gi://Gtk?version=4.0';`,
-    `import Adw from 'gi://Adw?version=1';`,
-    `console.log(Gtk, Adw);`,
+    // The rewritten `gi://` import, verbatim from the plugin that writes it.
+    giNodeShimSource('Gtk', '4.0').replace('export default', 'const Gtk ='),
+    // And the OTHER shape a shipped node bundle has: an application written
+    // against `@gjsify/node-gi` directly. `@gjsify/node-gi/gi` is external in
+    // every `--app node` build (a native addon cannot be bundled), so this import
+    // survives into the output exactly as written. One fixture, both readers.
+    `import { requireGi } from '@gjsify/node-gi/gi';`,
+    `const Adw = requireGi('Adw', '1');`,
+    `console.log(typeof Gtk, typeof Adw);`,
     '',
 ].join('\n');
 

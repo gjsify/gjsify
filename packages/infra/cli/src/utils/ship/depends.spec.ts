@@ -316,6 +316,52 @@ export default async () => {
             ).toStrictEqual([]);
         });
 
+        await it('finds the namespaces a --app node bundle carries', async () => {
+            // `gjsGiNodePlugin` rewrites every `gi://` into this shim, so a node
+            // bundle carries NO `gi://` specifier and the scanner that read only
+            // that form derived an EMPTY dependency set: the package installed
+            // and died at its first GI call. Verbatim from the emitted shim,
+            // including the `require` the bundle keeps external.
+            const shim = [
+                `import { createRequire } from 'node:module';`,
+                `const require = createRequire(import.meta.url);`,
+                `let cached;`,
+                `function load() {`,
+                `  if (cached === undefined) {`,
+                `    cached = require('@gjsify/node-gi/gi').requireGi("Gtk", "4.0");`,
+                `  }`,
+                `  return cached;`,
+                `}`,
+            ].join('\n');
+            expect(scanGiNamespaces(shim)).toStrictEqual(['Gtk-4.0']);
+        });
+
+        await it('finds requireGi through every binding node-gi exports it under', async () => {
+            // A hand-written node-gi application does not go through the shim,
+            // and `requireGi` is both the named and the DEFAULT export
+            // (`packages/node-gi/node-gi/gi.d.ts`), so all three spellings reach
+            // the same function and all three must derive the same dependency.
+            const named = `import { requireGi } from '@gjsify/node-gi/gi';\nconst Gtk = requireGi('Gtk', '4.0');`;
+            const renamed = `import { requireGi as gi } from '@gjsify/node-gi/gi';\nconst A = gi('Adw', '1');`;
+            const asDefault = `import gi from '@gjsify/node-gi/gi';\nconst S = gi('Soup', '3.0');`;
+            const namespace = `import * as gi from '@gjsify/node-gi/gi';\nconst G = gi.requireGi('GLib');`;
+            expect(scanGiNamespaces(named)).toStrictEqual(['Gtk-4.0']);
+            expect(scanGiNamespaces(renamed)).toStrictEqual(['Adw-1']);
+            expect(scanGiNamespaces(asDefault)).toStrictEqual(['Soup-3.0']);
+            expect(scanGiNamespaces(namespace)).toStrictEqual(['GLib']);
+        });
+
+        await it('does not read a foreign requireGi, because over-approximating fails the build', async () => {
+            // BINDING-TRACED, not name-matched. An unmapped namespace is a build
+            // failure, so a method that merely shares the name would make a
+            // correct project unpackageable — the same asymmetry the `gi://`
+            // string case below is about.
+            expect(
+                scanGiNamespaces(`import { requireGi } from 'somewhere-else';\nrequireGi('Gtk', '4.0');`),
+            ).toStrictEqual([]);
+            expect(scanGiNamespaces(`plugins.requireGi('Gtk', '4.0');`)).toStrictEqual([]);
+        });
+
         await it('parses a specifier with and without a version', async () => {
             expect(parseGiSpecifier('gi://Gtk?version=4.0')).toBe('Gtk-4.0');
             expect(parseGiSpecifier('gi://Gtk')).toBe('Gtk');

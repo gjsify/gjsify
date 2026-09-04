@@ -71,6 +71,7 @@ import { isUnder, SHARE } from '../utils/ship/share-dirs.js';
 import { compileSchemasForStage } from '../utils/ship/schemas.js';
 import { buildMsi, MSI_PAYLOAD_DIR } from '../utils/ship/msi.js';
 import { buildZip, zipEntriesFromPayload } from '../utils/ship/zip.js';
+import { assertEntryRunsUnder } from '../utils/ship/entry-interpreter.js';
 import { scanGiNamespaces } from '../utils/ship/gi-namespaces.js';
 import {
     assertLauncherMatchesInterpreter,
@@ -94,8 +95,8 @@ import {
 import { renderLauncher } from '../utils/ship/launcher.js';
 import { buildRpm } from '../utils/ship/rpm.js';
 import {
-    declaredBundlePath,
     resolveShipApp,
+    resolveShipBundle,
     resolveShipSettings,
     type ShipPackageManifest,
 } from '../utils/ship/settings.js';
@@ -375,12 +376,24 @@ async function assemble(args: ShipOptions): Promise<void> {
 
     if (!args['skip-build']) await runProjectBuild(projectDir);
 
+    // THE OTHER HALF of the resolution above, and they are one decision: the
+    // runtime a target execs and the entry it hands that runtime (#1545). Two
+    // keys, resolved by two twin functions, compared by `assertEntryRunsUnder`
+    // as soon as both answers and the file exist.
+    const resolvedBundle = resolveShipBundle({ pkg, ship, layoutOs: layout.os });
+    if (resolvedBundle.overridden) {
+        console.log(
+            `${LOG} entry for ${layout.name}: ${resolvedBundle.declared} — \`${resolvedBundle.key}\` ` +
+                'overrides `gjsify.main`.',
+        );
+    }
     const discovered = discoverPayload({
         projectDir,
         pkg,
         ship,
         flatpakIcon: flatpak.icon,
-        declaredBundle: declaredBundlePath(pkg, ship),
+        declaredBundle: resolvedBundle.declared,
+        foreignBundles: resolvedBundle.foreign,
     });
     const { settings, metadata, warnings } = resolveShipSettings({
         projectDir,
@@ -401,6 +414,22 @@ async function assemble(args: ShipOptions): Promise<void> {
     // runtime does not have is already wrong, and it is the stage that crosses to
     // the packing host.
     for (const format of formats) assertFormatCanRunInterpreter(format, settings.app);
+
+    // The entry, read ONCE: the pair check below and the namespace scan further
+    // down both ask what this file imports, and a bundle is the biggest file in
+    // the project.
+    const bundleSource = readFileSync(settings.bundlePath, 'utf-8');
+    // BEFORE anything is staged, for the reason above and one more: this is the
+    // refusal that says the artifact could never have started, and the run that
+    // reports it must not also print a stage path.
+    assertEntryRunsUnder({
+        interpreter: settings.app,
+        source: bundleSource,
+        entry: relative(projectDir, settings.bundlePath) || settings.bundlePath,
+        appKey: resolvedApp.key,
+        bundleKey: resolvedBundle.key,
+        layoutOs: layout.os,
+    });
 
     const mtime = buildTimestamp(settings.bundlePath);
     const metadataInputs = {
@@ -573,7 +602,7 @@ async function assemble(args: ShipOptions): Promise<void> {
     // `gi://` specifiers are what the emitted `Depends:` is derived from
     // (ADR 0024 § 6), and the packing host has the staged copy but no way to
     // tell which staged file is the entry.
-    const namespaces = scanGiNamespaces(readFileSync(settings.bundlePath, 'utf-8'));
+    const namespaces = scanGiNamespaces(bundleSource);
     if (args.verbose) console.log(`${LOG} gi namespaces: ${namespaces.join(', ') || '(none)'}`);
 
     // PLACED, like the payload, and through the same map. `planOverlay` answers a

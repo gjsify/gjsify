@@ -1094,32 +1094,6 @@ misled. These are the upstream source of that claim, and a stale comment is how 
 grows back. Left for a commit of its own because both files path-filter CI job
 selection, and editing them from a docs branch is churn where it is riskiest.
 
-### `gjsify ship`: the RUNTIME is per target, the BUNDLE is still one path
-
-The runtime half is closed (#1486, ADR 0024 § A22): `gjsify.ship.app.{linux,darwin,win32}`
-overrides `gjsify.app` per target, one resolver answers, and every generator reads the
-runtime of ITS OWN target — so stating macOS's answer no longer moves the Linux
-`Depends:`. What that makes askable is the next question, and it is genuinely a different
-one.
-
-**`gjsify.ship.bundle` is a single path**, falling back to `gjsify.main` then
-`package.json#main`, and every layout's launcher names the file it resolves to. A project
-that is GJS on Linux and Node on Windows has TWO bundles — `dist/<name>.gjs.js` beside
-`dist/<name>.node.mjs` is the layout `resolve-gjs-entry.ts` documents as normal — and
-`discoverPayload` already stages both, because it takes the whole directory beside the
-bundle. So the payload is right and the launcher's exec line is not: the Windows `.cmd`
-runs `node` over whichever single file the project declared.
-
-**What makes it non-obvious rather than a five-line follow-up.** The bundle path is read
-before the settings are resolved (`declaredBundlePath` feeds `discoverPayload`), several
-other keys are addressed relative to it, and `assertLauncherMatchesInterpreter` compares
-the launcher with the DEPENDENCY — never with the bundle's dialect, which nothing reads.
-So the failure mode is silent in exactly the way the runtime one was: a `.app` or a
-program directory that assembles, packs and installs, and dies at first launch on a
-machine nobody here owns. A fix wants the same shape as § A22 — one resolver, per target,
-with the resolved value in the stage manifest — plus a discriminator that can tell a GJS
-bundle from a Node one, which is the part that does not exist yet.
-
 ### `gjsify ship --sign`: three things M6 did not prove, each with what WAS measured
 
 The signing interface landed whole (ADR 0024 § A12-§ A17) and its darwin half is
