@@ -30,6 +30,34 @@ them is a decision about which package OWNS the API, not a refactor. Establish t
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### A `Gtk.Window` in a child list is accepted silently, where an `Adw.Dialog` aborts
+
+ADR 0045 gave `@gjsify/gtk-host` a placement axis because `box.append(dialog)` is `g_error()` —
+SIGABRT, exit 134 — once the box is rooted in a window. The same probe measured the neighbouring
+case and it does NOT abort:
+
+    const outer = new Adw.Window();
+    const box = new Gtk.Box();
+    outer.set_content(box);            // box is rooted
+    box.append(new Gtk.Window());      // exit 0, win.get_parent() === box
+
+A toplevel sitting inside a child list is wrong in the same way a parented dialog is — it is a
+`GtkRoot` with a parent — and GTK says nothing at all about it. So it is the quieter half of the
+same class, arriving through the door this repository pays most for.
+
+It is NOT fixed by the portal placement, and the reason is a decision rather than an omission:
+`gtk_window_present()` takes NO argument (measured, arity 0, against `adw_dialog_present`'s 1), so
+a window is not *presented against* anything. It is a root, not a node with two positions in the
+tree, and the portal arm's whole content is the parent that joins those two positions —
+`descriptorProblems()` now refuses a zero-argument `present` as a portal for exactly that reason.
+
+What is undecided, and why this is an entry rather than a fix: whether a `<GtkWindow>` element
+should be renderable at all, and if so what its placement means. That is the window-chrome and
+router layer's question (`@gjsify/react-native`'s `router/chrome.ts`, ADR 0043's application
+handle), not the widget table's — and answering it inside a placement ADR would have been a
+routing decision taken in the wrong file. Whoever takes it up: the measurement above is the
+starting point, and a third `NodePlacement` kind is four `never` arms away.
+
 ### One package, two module instances — a "singleton" the bundle duplicates
 
 `@gjsify/adwaita-nativescript` is bundled **TWICE** into the NativeScript storybook

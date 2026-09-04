@@ -182,10 +182,16 @@ export default async () => {
         await it('leaves every name a table judges to that table', async () => {
             // THE SAFETY PROPERTY behind widening `isImportable`. The derived list can
             // only ADD names no table has heard of; it can never promote a `planned`
-            // React Native name, because the lookup asks the tables first. `Modal` is
-            // planned and stays refused whatever else claims it.
-            expect(isImportable('Modal')).toBe(false);
-            expect(isOwnExport('Modal')).toBe(false);
+            // React Native name, because the lookup asks the tables first.
+            //
+            // The name is TAKEN FROM THE TABLE rather than written here, for the
+            // reason `unsupported.spec.ts` derives its fixture: this vector named
+            // `Modal`, ADR 0045 made `Modal` partial, and a literal fixture then
+            // fails a test that is still asserting something true.
+            const planned = Object.keys(SUPPORT_TABLE).find((key) => SUPPORT_TABLE[key]?.status === 'planned');
+            expect(planned === undefined).toBe(false);
+            expect(isImportable(planned as string)).toBe(false);
+            expect(isOwnExport(planned as string)).toBe(false);
             const collisions = OWN_EXPORT_NAMES.filter(
                 (name) => SUPPORTED_NAMES.includes(name) || ROUTER_NAMES.includes(name),
             );
