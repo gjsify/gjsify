@@ -219,7 +219,7 @@ export class GtkDropDown extends HTMLElement {
         // `<adw-combo-row>` deliberately answers it the other way (`ComboState.hasIndex`).
         if (!this._state.hasIndex(index)) return;
         // Both core setters return "did it change", which is what gates the notify — no
-        // second copy of the current index is kept here, so `setOptions`' own label
+        // second copy of the current index is kept here, so `setModel`' own label
         // re-sync cannot masquerade as one.
         const changed = opts.fromUser ? this._state.select(index) : this._state.setSelectedIndex(index);
         this._updateLabel();
