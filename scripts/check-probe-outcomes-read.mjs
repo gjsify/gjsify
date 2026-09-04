@@ -43,6 +43,35 @@ const WORKFLOWS = join(ROOT, '.github', 'workflows');
 const KEY = /^\s*(?:-\s+)?([A-Za-z-]+):/;
 
 /**
+ * Blank out every BLOCK SCALAR body, so a `run:` script is never read as YAML.
+ *
+ * Measured against this checker: a `run: |` body containing an indented
+ * `- name: fake step` / `continue-on-error: true` was parsed as a step and
+ * refused, and an `id:` inside a heredoc won over the step's real one. Both are
+ * the same mistake — reading a payload as structure — and both are why the
+ * neighbouring workflow checks extract these bodies rather than skim past them.
+ *
+ * The rule is one line long and the same one `check-workflow-run-syntax.mjs`
+ * uses: everything indented deeper than the key introducing the scalar belongs
+ * to it. Lines are replaced by empty ones rather than removed, so every index
+ * still names the line it did before.
+ */
+function withoutBlockScalars(lines) {
+    const out = [...lines];
+    for (let i = 0; i < out.length; i += 1) {
+        if (!/^\s*(?:-\s+)?[A-Za-z-]+:\s*[|>][-+0-9]*\s*(?:#.*)?$/.test(out[i])) continue;
+        const keyIndent = (out[i].match(/^\s*/) ?? [''])[0].length;
+        for (let j = i + 1; j < out.length; j += 1) {
+            if (out[j].trim() === '') continue;
+            const indent = (out[j].match(/^\s*/) ?? [''])[0].length;
+            if (indent <= keyIndent) break;
+            out[j] = '';
+        }
+    }
+    return out;
+}
+
+/**
  * The step block a line belongs to.
  *
  * A step's keys all sit at ONE indent, and exactly one of them is prefixed by the
@@ -103,11 +132,16 @@ const files = readdirSync(WORKFLOWS)
 for (const name of files) {
     const path = join(WORKFLOWS, name);
     const text = readFileSync(path, 'utf8');
-    const lines = text.split('\n');
+    const lines = withoutBlockScalars(text.split('\n'));
     const rel = relative(ROOT, path);
 
     for (let i = 0; i < lines.length; i += 1) {
-        if (!/^\s*continue-on-error:\s*true\s*(?:#.*)?$/.test(lines[i])) continue;
+        // ANY value but a literal `false`, because an EXPRESSION is the shape that
+        // hides best: `continue-on-error: ${{ github.event_name == 'push' }}` is
+        // sometimes true, and a check keyed on the literal counted it as gating and
+        // walked past it. `false` is the one value that cannot swallow a failure.
+        const flag = /^\s*continue-on-error:\s*(.+?)\s*(?:#.*)?$/.exec(lines[i]);
+        if (!flag || flag[1] === 'false') continue;
         const block = stepBlockAround(lines, i);
         if (block === null) continue;
         probes += 1;

@@ -30,14 +30,39 @@
 
 import { appendFileSync } from 'node:fs';
 
-const label = process.env.PROBE_LABEL ?? '';
-const outcome = process.env.PROBE_OUTCOME ?? '';
+const rawLabel = process.env.PROBE_LABEL ?? '';
+const outcome = (process.env.PROBE_OUTCOME ?? '').trim();
+
+/**
+ * The label, made safe to print into two formats that both read control text.
+ *
+ * A workflow-command line is `::name key=value::text`, and a step summary is
+ * Markdown — so a label carrying a newline plus `::error …` emits a REAL
+ * annotation of someone else's making, and one carrying a backtick closes the
+ * code span it was meant to sit inside. Measured against this script: a
+ * two-line label produced a standalone `::error title=Injected::…` on stdout.
+ * The label comes from a workflow's `env:` block rather than from a stranger,
+ * so this is hygiene rather than a security boundary — but a reporter that can
+ * be made to report something else is not one.
+ *
+ * Whitespace is collapsed (a command is one line by construction), backticks and
+ * colons that could open a command are escaped, and the whole thing is bounded:
+ * a 4 KB label in a summary row is not a label, it is the row.
+ */
+const label = rawLabel
+    .replace(/\s+/g, ' ')
+    // eslint-disable-next-line no-control-regex -- the point is to remove them
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/::/g, '∷')
+    .replace(/`/g, "'")
+    .trim()
+    .slice(0, 200);
 
 if (label === '' || outcome === '') {
     console.error(
         'report-probe-outcome: PROBE_LABEL and PROBE_OUTCOME are both required.\n' +
             '    A call site that forgets one reports nothing and exits 0, which is the shape it exists to end.\n' +
-            `    Got PROBE_LABEL="${label}", PROBE_OUTCOME="${outcome}".`,
+            `    Got PROBE_LABEL="${rawLabel}", PROBE_OUTCOME="${outcome}".`,
     );
     process.exit(1);
 }
@@ -63,4 +88,15 @@ console.log(line);
 
 const summary = process.env.GITHUB_STEP_SUMMARY;
 // Absent off Actions, which is where this script is also run by its own e2e.
-if (summary) appendFileSync(summary, `${line}\n`);
+if (summary) {
+    try {
+        appendFileSync(summary, `${line}\n`);
+    } catch (error) {
+        // NEVER FATAL. This step exists to report a result that GitHub already
+        // throws away, and a reporter that fails the job it is reporting on turns
+        // a probe's note into the probe's verdict — measured: an unwritable
+        // `GITHUB_STEP_SUMMARY` exited 1 with a stack trace. The line is on stdout
+        // either way, which is where the log reader looks.
+        console.log(`::warning::could not append to the step summary: ${error?.message ?? error}`);
+    }
+}

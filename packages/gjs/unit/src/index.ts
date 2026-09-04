@@ -95,6 +95,19 @@ let countAssertions = 0;
  */
 let countTestsRun = 0;
 let countTestsFailed = 0;
+/**
+ * Failures that belong to NO test: a stray assertion from a leaked timer, a suite
+ * or run that timed out, a declared axis that exercised nothing, a spec that left
+ * the process in a deleted working directory.
+ *
+ * Kept apart from {@link countTestsFailed} because the summary states a RATIO, and
+ * these raise the numerator without raising the denominator — measured: two suites
+ * timing out plus one stray assertion over two real tests printed `3 of 2 tests
+ * failed`, and with no real tests at all, `2 of 0`. An impossible ratio is not a
+ * rounding error in a line whose whole job is to be quoted; it is the same defect
+ * as the one #1557 fixed one field over. Both gate the run.
+ */
+let countFailuresOutsideTests = 0;
 let countTestsIgnored = 0;
 /**
  * Did a throw escape a suite BODY (rather than an `it()`)?
@@ -169,6 +182,9 @@ const noteWarning = (message: string): void => {
     warnings.push({ suite: currentSuite, message });
 };
 
+/** The message of whatever was thrown, for a diagnostic that must not throw itself. */
+const errorMessage = (error: unknown): string => (error as { message?: string })?.message ?? String(error);
+
 /**
  * Whether the process CWD was still readable the last time a test ended.
  *
@@ -219,7 +235,7 @@ const probeCwd = (): boolean => {
 const noteIfCwdDestroyed = (expectation: string): void => {
     if (!cwdReadable || probeCwd()) return;
     cwdReadable = false;
-    ++countTestsFailed;
+    ++countFailuresOutsideTests;
     const message =
         `this test left the process in a deleted working directory — every later ` +
         `\`process.cwd()\`, including one inside a spawned child, now fails with ENOENT. ` +
@@ -235,7 +251,7 @@ const noteIfCwdDestroyed = (expectation: string): void => {
  * test, so it gets its own pseudo-test instead of an innocent bystander's tally.
  */
 const noteStrayFailure = (message: string): void => {
-    ++countTestsFailed;
+    ++countFailuresOutsideTests;
     strayFailures.push({ suite: currentSuite, message });
     testErrors.push({
         suite: currentSuite,
@@ -1040,6 +1056,14 @@ export const describe = async function (
     const t0 = now();
     // This suite's own hooks, popped in `finally` below: a describe whose body
     // throws must not leave its hooks running over its siblings.
+    //
+    // ONE CASE THIS CANNOT HOLD, measured: a describe that TIMES OUT keeps
+    // running — `withTimeout` cannot cancel a promise — so a hook it registers
+    // after the timeout lands in the frame that is current by then, which is the
+    // parent's. The run is already failing loudly with a named suite timeout when
+    // that happens, and routing a late registration back to its own describe needs
+    // async context this package cannot have (`AsyncLocalStorage` lives in
+    // `@gjsify/async_hooks`, a higher tier). Recorded in `status/open-todos.md`.
     hookFrames.push({ before: [], after: [] });
     try {
         await withTimeout(callback, suiteTimeoutMs, `describe: ${moduleName}`);
@@ -1049,7 +1073,7 @@ export const describe = async function (
             // failure ledger, so the run reported "1 of N tests failed" over a ledger
             // that named nothing — which is the whole of #1159. A recap alone would
             // not have fixed it: there was nothing to recap.
-            ++countTestsFailed;
+            ++countFailuresOutsideTests;
             testErrors.push({ suite: moduleName, test: '<suite timed out>', message: e.message });
             print(`  ${RED}⏱ Suite timed out: ${e.message}${RESET}`);
         } else {
@@ -1249,14 +1273,34 @@ export const it = async function (
         await runBeforeEachHooks();
 
         await withTimeout(callback, timeoutMs, expectation);
-
-        await runAfterEachHooks();
     } catch (e) {
         threw = true;
         observed = e;
         // Observed by this boundary → not lost. Anything still in the ledger is.
         if (e instanceof Error) ledger.delete(e);
     } finally {
+        // TEARDOWN RUNS WHATEVER HAPPENED, which is the whole point of an
+        // `afterEach` and was not true until #1554's second half. It used to sit
+        // in the `try` after the body, so a test that threw — or whose `beforeEach`
+        // rejected — skipped its own teardown silently. That is this file's own
+        // failure mode one level in: a diagnostics gate that asserts in `afterEach`
+        // stopped asserting for exactly the cases that had something to say, and
+        // an `it.failing` never tore down at all, since throwing IS its contract.
+        //
+        // A teardown that throws is a FAILURE of this test and must not be
+        // swallowed either — but it must not overwrite a body failure, which is
+        // the one a reader is looking for.
+        try {
+            await runAfterEachHooks();
+        } catch (e) {
+            if (!threw) {
+                threw = true;
+                observed = e;
+                if (e instanceof Error) ledger.delete(e);
+            } else {
+                noteWarning(`afterEach also threw while "${expectation}" was already failing: ${errorMessage(e)}`);
+            }
+        }
         --activeTestDepth;
         assertionLedgers.pop();
         noteIfCwdDestroyed(expectation);
@@ -1319,7 +1363,10 @@ export const getTestCounters = (): {
     assertions: number;
     /** Tests that ran. The number that survives a refactor. */
     tests: number;
+    /** Tests that ran and failed. */
     failed: number;
+    /** Failures belonging to no test — a stray assertion, a timeout, an unexercised axis. */
+    failedOutsideTests: number;
     ignored: number;
     xfail: number;
     warnings: number;
@@ -1327,6 +1374,7 @@ export const getTestCounters = (): {
     assertions: countAssertions,
     tests: countTestsRun,
     failed: countTestsFailed,
+    failedOutsideTests: countFailuresOutsideTests,
     ignored: countTestsIgnored,
     xfail: countTestsXfail,
     warnings: warnings.length,
@@ -1396,12 +1444,19 @@ it.failing = async function (
     try {
         await runBeforeEachHooks();
         await withTimeout(callback, timeoutMs, expectation);
-        await runAfterEachHooks();
     } catch {
         // The expected outcome: tolerating THIS failure is the contract, and the
         // pass-branch below is what keeps the marker honest.
         threw = true;
     } finally {
+        // In the `finally` for `it()`'s reason, and here it is not an edge case
+        // but the RULE: an active `it.failing` throws by contract, so teardown in
+        // the `try` meant every expected failure skipped it.
+        try {
+            await runAfterEachHooks();
+        } catch (e) {
+            noteWarning(`afterEach threw after the expected failure "${expectation}": ${errorMessage(e)}`);
+        }
         --activeTestDepth;
         assertionLedgers.pop();
     }
@@ -1518,7 +1573,7 @@ const browserSignalDone = () => {
     if (!doc) return;
     g.__gjsify_test_results = {
         passed: countTestsRun - countTestsFailed,
-        failed: countTestsFailed,
+        failed: countTestsFailed + countFailuresOutsideTests,
         total: countTestsRun,
         assertions: countAssertions,
         errors: testErrors,
@@ -1546,7 +1601,7 @@ const failUnexercisedAxes = async (declared: readonly Runtime[]): Promise<void> 
         const rec = axisLedger.get(axis);
         if (rec && rec.tests > 0) continue;
 
-        ++countTestsFailed;
+        ++countFailuresOutsideTests;
         const detail = rec
             ? `${rec.matched} gate(s) matched but executed no test, ${rec.ignored} stood down`
             : 'no on() gate named it';
@@ -1564,6 +1619,34 @@ const failUnexercisedAxes = async (declared: readonly Runtime[]): Promise<void> 
  * rule is exactly where the regression lived. `bodyThrew` with a zero tally used to
  * answer 0, so a run that dropped eight of nine suites reported success.
  */
+/**
+ * The red summary's sentence: what failed, in terms that can be true together.
+ *
+ * TWO CLAUSES, because they are two different facts and one ratio cannot carry
+ * both. `N of M tests failed` is only true of failures a TEST owns; a stray
+ * assertion, a suite timeout and an unexercised axis raise the numerator without
+ * raising the denominator, and the arithmetic then says something impossible —
+ * measured before the split: `3 of 2 tests failed`, and with no real tests at
+ * all, `2 of 0`. A line whose whole job is to be quoted cannot print that.
+ *
+ * Exported and pure for `failure-recap.spec.ts`'s reason: the wording is free to
+ * change, the accounting is not, and a spec asserting on printed colour would
+ * pin the wrong half.
+ */
+export const formatFailureVerdict = (counts: { failed: number; outside: number; tests: number }): string => {
+    const parts: string[] = [];
+    if (counts.failed) parts.push(`${counts.failed} of ${counts.tests} tests failed`);
+    if (counts.outside) {
+        const plural = counts.outside === 1 ? '' : 's';
+        parts.push(
+            counts.failed
+                ? `${counts.outside} failure${plural} outside any test`
+                : `${counts.outside} failure${plural} outside any test, ${counts.tests} tests passed`,
+        );
+    }
+    return parts.join(', and ');
+};
+
 export const exitCodeFor = (failed: number, bodyThrew: boolean): number => (failed > 0 || bodyThrew ? 1 : 0);
 
 const printResult = () => {
@@ -1621,11 +1704,14 @@ const printResult = () => {
         }
     }
 
-    if (countTestsFailed) {
+    if (countTestsFailed || countFailuresOutsideTests) {
         printFailureRecap(rtTag);
-        print(
-            `\n${RED}❌ ${rtTag}${countTestsFailed} of ${countTestsRun} tests failed${countsSuffix()}${durationStr}${RESET}`,
-        );
+        const verdict = formatFailureVerdict({
+            failed: countTestsFailed,
+            outside: countFailuresOutsideTests,
+            tests: countTestsRun,
+        });
+        print(`\n${RED}❌ ${rtTag}${verdict}${countsSuffix()}${durationStr}${RESET}`);
     } else if (suiteBodyThrew) {
         // Every test that ran passed, and the run is still not a pass: a suite body
         // threw, so later suites never started. Printing the green line here — with
@@ -1686,7 +1772,7 @@ const countsSuffix = (): string => {
  * list.
  */
 const printFailureRecap = (rtTag: string): void => {
-    for (const line of formatFailureRecap(testErrors, countTestsFailed, rtTag)) print(line);
+    for (const line of formatFailureRecap(testErrors, countTestsFailed + countFailuresOutsideTests, rtTag)) print(line);
     // On Actions, also put the names on the run's SUMMARY page. That is where the
     // person who just merged is already looking, and until now the only annotation
     // there was `Process completed with exit code 1`.
@@ -1831,7 +1917,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
                     // counted failure that is absent from the ledger cannot be named
                     // in the recap, and the recap is the only place a CI reader looks.
                     print(`\n${RED}⏱ ${e.message}${RESET}`);
-                    ++countTestsFailed;
+                    ++countFailuresOutsideTests;
                     testErrors.push({ suite: '<test run>', test: '<run timed out>', message: e.message });
                 } else {
                     throw e;
@@ -1889,7 +1975,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
             // Node.js exits here: without a mainloop, the code after `mainloop?.run()`
             // below would already have run before any test did.
             if (!mainloop) {
-                const exitCode = exitCodeFor(countTestsFailed, suiteBodyThrew);
+                const exitCode = exitCodeFor(countTestsFailed + countFailuresOutsideTests, suiteBodyThrew);
                 try {
                     const process = globalThis.process || (await import('node:process'));
                     process.exit(exitCode);
@@ -1905,7 +1991,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
     // GJS exits only after the mainloop returns — `system.exit()` from inside a
     // mainloop callback does not terminate immediately.
     if (mainloop) {
-        const exitCode = exitCodeFor(countTestsFailed, suiteBodyThrew);
+        const exitCode = exitCodeFor(countTestsFailed + countFailuresOutsideTests, suiteBodyThrew);
         // Real-GJS-only path (see the `mainloop` gate above), where `imports.system`
         // is a native builtin that always resolves and `exit()` never throws.
         runtimeGlobals().imports?.system?.exit(exitCode);

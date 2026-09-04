@@ -129,6 +129,60 @@ jobs:
         }
     });
 
+    it('reads a step that is only SOMETIMES continue-on-error', () => {
+        // The shape that hides best: an expression is true on some events, and a
+        // check keyed on the literal `true` walked past it as if it gated.
+        const expr = STEP('').replace(
+            'continue-on-error: true',
+            "continue-on-error: ${{ github.event_name == 'push' }}",
+        );
+        const root = withWorkflows({ 'probe.yml': expr });
+        try {
+            const { code, out } = check(root);
+            assert.equal(code, 1);
+            assert.match(out, /has no `id`/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('does not read a `run:` script as YAML', () => {
+        // Both directions were measured against this checker: a shell body that
+        // contains step-shaped text was refused as a step with no id, and an `id:`
+        // inside a heredoc won over the step's real one, so a properly reported
+        // probe was reported as unread.
+        const withScript = `name: probe
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'The probe'
+        continue-on-error: true
+        run: |
+          cat <<'EOF' > snippet.yml
+          - name: fake step
+            id: decoy
+            continue-on-error: true
+          EOF
+          node run-the-suite.mjs
+        id: the-probe
+      - name: 'Probe outcome'
+        if: always()
+        env:
+          PROBE_OUTCOME: \${{ steps.the-probe.outcome }}
+        run: node scripts/report-probe-outcome.mjs
+`;
+        const root = withWorkflows({ 'probe.yml': withScript });
+        try {
+            const { code, out } = check(root);
+            assert.equal(code, 0, out);
+            assert.match(out, /1 continue-on-error step\(s\)/);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
     it('holds over the real .github/workflows tree', () => {
         const { code, out } = check(MONOREPO_ROOT);
         assert.equal(code, 0, out);
@@ -171,6 +225,45 @@ describe('reporting one probe outcome', () => {
         // an unfamiliar value would be the same silence one level up.
         const { summary } = report({ PROBE_LABEL: 'the probe', PROBE_OUTCOME: 'wobbly' });
         assert.match(summary, /unrecognised outcome "wobbly"/);
+    });
+
+    it('cannot be made to report something else', () => {
+        // A workflow command is `::name key=value::text` on a line of its own, and
+        // a summary row is Markdown. Measured against this script before it
+        // sanitised: a two-line label emitted a standalone `::error title=…::` —
+        // an annotation of someone else's making, from the reporter whose job is to
+        // be believed.
+        const { stdout, summary } = report({
+            PROBE_LABEL: 'benign\n::error title=Injected::pretend gate failure',
+            PROBE_OUTCOME: 'failure',
+        });
+        assert.doesNotMatch(stdout, /^::error/m);
+        assert.doesNotMatch(summary, /^::error/m);
+        // …and a backtick cannot close the code span the label sits in.
+        const { summary: quoted } = report({ PROBE_LABEL: 'a` — **pwned**', PROBE_OUTCOME: 'failure' });
+        assert.doesNotMatch(quoted, /`a` /);
+    });
+
+    it('reports a padded outcome as the outcome it is', () => {
+        const { stdout } = report({ PROBE_LABEL: 'the probe', PROBE_OUTCOME: 'failure ' });
+        assert.match(stdout, /::warning title=Probe failed/);
+    });
+
+    it('does not fail the step when the summary cannot be written', () => {
+        // It exists to report a result GitHub already throws away; failing the job
+        // it reports on turns a note into the verdict. Measured: an unwritable
+        // `GITHUB_STEP_SUMMARY` exited 1 with a stack trace.
+        const stdout = execFileSync(process.execPath, [REPORT], {
+            encoding: 'utf-8',
+            env: {
+                ...process.env,
+                PROBE_LABEL: 'the probe',
+                PROBE_OUTCOME: 'success',
+                GITHUB_STEP_SUMMARY: '/nope/definitely-not-writable.md',
+            },
+        });
+        assert.match(stdout, /✅ \*\*probe\*\*/);
+        assert.match(stdout, /could not append to the step summary/);
     });
 
     it('REFUSES to report nothing at exit 0', () => {

@@ -10,7 +10,7 @@
 // The two counters are separated here rather than in a doc comment because the
 // distinction is only worth anything if it holds: a test count that drifted back
 // into counting assertions would read exactly like the line this replaced.
-import { describe, expect, getTestCounters, it } from '@gjsify/unit';
+import { describe, expect, formatFailureVerdict, getTestCounters, it } from '@gjsify/unit';
 
 export default async () => {
     await describe('run counters', async () => {
@@ -42,6 +42,23 @@ export default async () => {
             // …while assertions kept moving independently, which is the whole point
             // of carrying both.
             expect(now.assertions > snapshot.assertions).toBe(true);
+        });
+
+        await it('never states a ratio that cannot be true', async () => {
+            // Three paths raise the failure count without a test having run — a
+            // stray assertion, a timed-out suite or run, a declared axis that
+            // exercised nothing. Counted into one number they printed `3 of 2 tests
+            // failed`, and with no real tests, `2 of 0`.
+            expect(formatFailureVerdict({ failed: 1, outside: 0, tests: 7 })).toBe('1 of 7 tests failed');
+            expect(formatFailureVerdict({ failed: 1, outside: 2, tests: 7 })).toBe(
+                '1 of 7 tests failed, and 2 failures outside any test',
+            );
+            expect(formatFailureVerdict({ failed: 0, outside: 2, tests: 0 })).toBe(
+                '2 failures outside any test, 0 tests passed',
+            );
+            expect(formatFailureVerdict({ failed: 0, outside: 1, tests: 3 })).toBe(
+                '1 failure outside any test, 3 tests passed',
+            );
         });
     });
 };

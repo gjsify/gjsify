@@ -98,6 +98,32 @@ export default async () => {
             });
         });
 
+        await describe('teardown when the body fails', async () => {
+            const seen: string[] = [];
+
+            await describe('an expected failure still tears down', async () => {
+                afterEach(() => {
+                    seen.push('after');
+                });
+                // `it.failing` throwing IS its contract, so before the teardown
+                // moved into a `finally` this hook ran for NO expected failure at
+                // all — and an `it()` that threw skipped it too, which is the same
+                // silence one level over: a gate that asserts in `afterEach` stops
+                // asserting for exactly the cases that had something to say.
+                await it.failing(
+                    'throws, as declared',
+                    async () => {
+                        throw new Error('the fixture');
+                    },
+                    'the fixture for the teardown-on-failure case',
+                );
+            });
+
+            await it('ran the afterEach of the failing case', async () => {
+                expect(seen).toStrictEqual(['after']);
+            });
+        });
+
         await describe('a describe whose body throws', async () => {
             const seen: string[] = [];
 

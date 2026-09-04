@@ -253,12 +253,21 @@ describe('@gjsify/unit failure attribution E2E', { timeout: 5 * 60 * 1000 }, () 
         // real test. No real it() line (a "❌ <name>  (<ms>)" entry) is marked
         // failed — the only ❌ allowed is the summary "❌ N of M tests failed".
         assert.match(plain, /assertion fired outside any it\(\)/, 'stray line should appear');
-        const itFailureLines = plain.split('\n').filter((l) => /❌\s+\S/.test(l) && !/tests failed/.test(l));
+        // And the SUMMARY says which kind of failure it was. A stray assertion
+        // belongs to no test, so counting it into the ratio printed `1 of 2 tests
+        // failed` over two tests that both passed — the arithmetic was possible
+        // here and impossible as soon as there were more strays than tests
+        // (measured: `3 of 2`, and `2 of 0`). ADR 0044.
+        assert.match(plain, /❌ .*1 failure outside any test, 2 tests passed/, 'the verdict names the kind');
+        const VERDICT = /tests failed|failures? outside any test/;
+        const itFailureLines = plain.split('\n').filter((l) => /❌\s+\S/.test(l) && !VERDICT.test(l));
         assert.deepStrictEqual(itFailureLines, [], 'no real it() should be marked failed');
 
         // The count must equal the number of strays (1) — no divergence between
-        // the summary count and the printed failures.
-        assert.match(plain, /1 of \d+ tests failed/, 'count should reflect the 1 stray');
+        // the summary count and the printed failures. It is NOT phrased as a ratio
+        // over tests any more, which is the correction above: the stray is not one
+        // of them.
+        assert.doesNotMatch(plain, /\d+ of \d+ tests failed/, 'a stray is not a test failure');
 
         // A genuine failure (the leak IS a real test bug) → non-zero exit.
         assert.notStrictEqual(code, 0, 'run with a stray must exit non-zero');
@@ -344,11 +353,12 @@ describe('@gjsify/unit failure attribution E2E', { timeout: 5 * 60 * 1000 }, () 
         const { code, out: stdout } = runBundle(out);
         const plain = stripAnsi(stdout);
 
-        // The summary's "N completed" counts expect() calls, not it()s. The
-        // point is that it reports completed (0 failures), with all three it()s
-        // green and no stray. The optional `[<runtime>]` label (e.g.
-        // `✔ [Node.js 26.4.0] 4 completed`) sits between the tick and the count.
-        assert.match(plain, /✔ (?:\[[^\]]+\] )?\d+ completed/, 'clean run reports completed, 0 failed');
+        // The point is that it reports a clean run (0 failures), with all three
+        // it()s green and no stray. The optional `[<runtime>]` label (e.g.
+        // `✔ [Node.js 26.4.0] 3 tests passed`) sits between the tick and the count.
+        // The count is TESTS since #1557 — it used to be assertions under the word
+        // "completed", which is what made a falling number unreadable.
+        assert.match(plain, /✔ (?:\[[^\]]+\] )?\d+ tests? passed/, 'clean run reports a pass, 0 failed');
         assert.match(plain, /✔ passes 1/);
         assert.match(plain, /✔ toThrow does not leak/);
         assert.doesNotMatch(plain, /tests failed/, 'no failure summary');

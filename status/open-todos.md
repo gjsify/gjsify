@@ -1120,6 +1120,29 @@ machine nobody here owns. A fix wants the same shape as § A22 — one resolver,
 with the resolved value in the stage manifest — plus a discriminator that can tell a GJS
 bundle from a Node one, which is the part that does not exist yet.
 
+### A timed-out `describe` can still register a hook, and it lands on its parent
+
+`@gjsify/unit` scopes `beforeEach`/`afterEach` per `describe` (#1554): a frame is pushed on
+entry and popped when the body returns. A body that TIMES OUT does not return — `withTimeout`
+rejects the wrapper, and nothing cancels the body, because a promise cannot be cancelled. So
+the frame is popped while the body is still running, and a hook it registers afterwards lands
+in whatever frame is current by then, which is the parent's.
+
+**Measured**: a describe with `suiteTimeout: 40` sleeping 150 ms and registering its hooks
+after the sleep — a later sibling test then logged `["LEAKED-before", "n-body", "LEAKED-after"]`.
+Same symptom as the incident that motivated the scoping (an innocent neighbour), narrowed to a
+suite that is already failing.
+
+**Why it is not simply fixed.** Routing a late registration back to the describe it was
+written in needs async context — `AsyncLocalStorage`, which lives in `@gjsify/async_hooks`, a
+package `@gjsify/unit` may not depend on (tier direction, ADR 0003). A `closed` flag on the
+frame does not help: the late write does not target the popped frame, it targets the parent.
+What WOULD work is refusing to register into any frame once a timeout has been seen, which
+trades a leak for a silently dropped hook — the same class, in the other direction.
+
+The run is red and names the timed-out suite either way, so the cost is a confusing extra
+failure rather than a silent one.
+
 ### `gjsify ship --sign`: three things M6 did not prove, each with what WAS measured
 
 The signing interface landed whole (ADR 0024 § A12-§ A17) and its darwin half is
