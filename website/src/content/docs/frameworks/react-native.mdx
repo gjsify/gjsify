@@ -146,9 +146,16 @@ one, so a second call while the first is still running is refused by name rather
 taking the first one's window. Await the call, or render both trees under one root component:
 
 ```tsx
-const code = await AppRegistry.runApplication('Counter', { applicationId: 'com.example.Counter' });
-return process.exit(code);
+async function main(): Promise<void> {
+    const code = await AppRegistry.runApplication('Counter', { applicationId: 'com.example.Counter' });
+    return process.exit(code);
+}
+
+main();
 ```
+
+`return process.exit(code)`, not a bare `process.exit()`: a bare call leaves the GTK main loop
+mid-teardown, and you get a core dump where you wanted an exit code.
 
 While it runs, `AppRegistry.getApplication()` and `AppRegistry.getWindow()` answer with the
 `Adw.Application` and its window — that is how you add an action, set a default size or connect
