@@ -180,38 +180,6 @@ Two things to fix, and they are separable:
    an absent class by name rather than dereference it — otherwise the next OS finding
    arrives as six anonymous type errors, which is how this one nearly did.
 
-### Two `@gjsify/react-native` image vectors assert a POSIX path where GLib returns a native one
-
-Measured by `gtk-os-suites.yml`'s win32 leg, 2026-08-31. `primitives/widgets.spec.ts`
-gives `Image` and `ImageBackground` a `source: { uri: '/nonexistent-gjsify-vector.png' }`
-and then asserts
-
-```
-expect(picture.file?.get_path()).toBe('/nonexistent-gjsify-vector.png')
-```
-
-On win32 both fail with `Expected: /nonexistent-gjsify-vector.png` /
-`Actual: \nonexistent-gjsify-vector.png`.
-
-**The assertion owns this, not the layer.** `src/components.ts` builds the file with
-`Gio.File.new_for_path(...)` for a `path`-kind source, and `g_file_get_path()` is
-documented to return the NATIVE path — so on Windows GLib normalising the separator to
-`\` is the correct answer and the POSIX literal is the wrong expectation. The competing
-reading, that the value should be compared as a URI (where `\` would be wrong), is
-excluded by the code rather than by preference: the assertion calls `get_path()`, not
-`get_uri()`.
-
-Fix is one of: compare against a host-shaped expectation, compare `get_uri()` on both
-sides, or use a relative fixture with no leading separator.
-
-**This is the MIRROR of a class the repo already guards.**
-`docs/code-anti-patterns.md` carries "a filesystem path SPLIT on `'/'` alone" with
-`scripts/check-posix-path-slice.mjs` behind it, from #1143/#1148 where five live sites
-were found. That guard watches path *slicing*; nothing watches a POSIX-shaped EXPECTED
-VALUE, which is the same assumption on the other side of an assertion and equally
-invisible from Linux. Worth a rule once there is a second instance — one is a fix, two
-is a class.
-
 ### The darwin GTK bundles ship no `GIRepository-2.0` typelib; the win32 one does
 
 Noticed while diffing the two published 0.45.0 closures for the entry above, and
@@ -3444,58 +3412,88 @@ own SKIP gate — it already carries nine of them — so it skips where an Adwai
 cannot complete startup and keeps running where it can. Removing the ledger entry in the same
 change is what `check-e2e-suite-coverage.mjs` will then require.
 
-### `react-native-devtools` needs a display, and one already exists in CI
+### 78 `refs/` line citations carry no `#anchor`, and `refs/gtk` is not checked out anywhere
 
-`tests/e2e/react-native-devtools/` (ADR 0043) proves that a React Native application whose
-whole bootstrap is `registerRootComponent` is reachable over `org.gjsify.Devtools`: the export
-line, a **mapped** window, both rendered widgets in `DumpTree`, a `Screenshot` carrying PNG
-bytes, and `ActivateWidget` → `GetProperty` showing the label React changed. A third vector
-renders `<RouterRoot>` through the same bootstrap and counts mapped `AdwHeaderBar`s. Measured
-green on a desktop session, all three.
+`scripts/check-refs-citations.mjs` now reads the LINE half of a coordinate (#1529): the
+cited range must exist, be ordered and not be blank, and an `#anchor` — the text after
+`#` in `refs/node/lib/internal/tls/wrap.js:1305-1306#getFinished` — must appear within
+it. RANGE catches a citation that DRIFTED; ANCHOR is the only arm that catches one that
+was wrong when it was written, which is the shape #1529 measured.
 
-It is ledgered rather than listed for a different reason than `devtools-export`'s: a GTK window
-cannot MAP without a display, `test:e2e` has none, and the suite's SKIP gate checks for one — so
-listing it would buy a silent suite, which is the state this ledger exists to prevent.
+ANCHOR is opt-in per citation, and today exactly ONE citation in the tree has one — the
+gate fails if that reaches zero, so the arm cannot be silently emptied, but it is not
+yet coverage. Measured by the same run: 119 coordinates name a line, 79 are readable
+here (only `refs/libadwaita` is on disk in CI, which is 48 of them), 40 skip.
 
-Which means three lines in `runApplication` are guarded by NOTHING that CI runs:
-`registerBuiltinWidgets()`, the option passthrough, and `provideWindowChrome()`. No unit vector
-can hold any of them — each is observable only by running the loop, and `app-registry.spec.ts`
-covers `toShellOptions` precisely because that one IS a pure value.
+Retrofitting the other 78 is not one change: they live mostly in `packages/web/adwaita-*`
+and `tests/integration/`, and each needs a human to OPEN the cited lines and write down
+what is actually there — which is the work, and the point. Doing it mechanically would
+write an anchor derived from whatever the line currently says, which vouches for a wrong
+address as readily as a right one.
 
-The third is measured rather than argued. Deleting `provideWindowChrome(chrome, …)` from the
-render call, dropping `chrome` from the destructuring and deleting the now-dead import — the
-whole shape a careless rebase produces — leaves `oxfmt` clean, `oxlint` at 0, `tsc` at 0 and
-`@gjsify/react-native` at 2345 completed / 0 failed, **#1540's ten window-chrome vectors
-included**: `router/router.spec.ts` composes `buildWindowShell()` + `provideWindowChrome()`
-itself and never runs the bootstrap, which is the drift `window-chrome.ts`' own header warns
-about one function earlier. From outside, the same build draws TWO mapped header bars — #1460,
-two sets of window controls, one dead close button.
+Two coverage limits worth knowing before anyone starts:
 
-WHAT IS LEFT: main.yml's `examples` job already runs `xvfb-run … dbus-run-session` around
-`scripts/showcase-smoke.mjs`, which is precisely the environment this suite asks for. Of the two
-facts that had to be confirmed in that job, one is now measured and one is the real blocker:
+- **`refs/gtk` is checked out by no job.** `audit-runtimes.yml` inits `refs/libadwaita`
+  only (~13 MB; realizing the whole pool is ~150 GB). So the five `refs/gtk` line
+  citations — including the three `gtkmenutrackeritem.c` coordinates whose wrongness IS
+  #1529, corrected in #1528 before the merge — are skipped in CI and can drift again
+  unwatched. A shallow `refs/gtk` init would cover them; it is a real CI cost against a
+  five-citation corpus, so it is a decision rather than an oversight.
+- **The `c:332` shorthand is invisible.** `packages/web/adwaita-core/src/menu.ts` names
+  the file once as `refs/gtk/gtk/gtkmenutrackeritem.c` and then cites lines as bare
+  `c:332`, `:1049`, `gtkmenutrackeritem.c:822`. The reader only sees a line attached to
+  a full `refs/` coordinate, so roughly fifteen of the most load-bearing citations in
+  the tree are not in the 119 at all. Teaching it the shorthand means tracking a
+  "current file" through a comment block, which is a heuristic — the cheaper fix is to
+  spell those coordinates in full when they are anchored.
 
-- **The built libs are there.** `gjsify-setup` restores the build-output cache, whose path list
-  is `packages/*/*/lib` (minus three infra opt-outs), and the job `needs: build`, which saves it.
-  `packages/infra/cli/dist/cli.gjs.mjs` arrives via `bootstrap-bundles: 'true'`, and the
-  `@gjsify/rolldown-native-linux-x64` typelib the fixture build needs is COMMITTED, not built —
-  so none of the three preconditions the SKIP gate checks is missing there.
-- **The trigger is not.** The job is gated on `@gjsify/example-*` being in the closure (or a
-  global run), so a change confined to `packages/framework/react-native/**` skips it entirely —
-  the suite would then be silent for exactly the PRs it exists to catch. Widening that condition,
-  or giving the suite its own `xvfb-run … dbus-run-session` step in the `e2e` job (the shape the
-  `test` job already uses for `Test WebGL conformance`), is the decision left to make.
+### 36 of 203 doc fences show no imports, and nothing reads them
 
-Either way the step needs a SKIP-is-fatal switch: the suite's gate has nine preconditions and
-going quiet on any of them in CI is the same green-that-checked-nothing this ledger exists to
-prevent. If `devtools-export`'s open question turns out to be the same environmental fact, both
-suites land in the same place together.
+`check-doc-fences.mjs`'s SNIPPETS arm (#1516) typechecks a documentation fence only when
+it shows at least one `import … from`, on the reasoning that such a fence is claiming to
+be a program a reader can run, while one that elides its imports is an excerpt. That
+selector is what makes the arm zero-false-positive: measured on this tree, a rule that
+flagged every called-but-unbound identifier in ALL 203 js/ts fences reported 26 of them
+and essentially none was a defect (class methods, GJS ambient globals, deliberately
+elided namespace imports in `patterns/`, compiler-output samples).
 
-One measurement for whoever writes that step: `GTK_A11Y` is unset on a desktop session and the
-fixture logs `Unable to acquire the address of the accessibility bus … Permission denied` — a
-warning, not a failure, but the `examples` job already sets `GTK_A11Y=none` alongside
-`GSK_RENDERER=cairo`/`GDK_BACKEND=x11`/`LIBGL_ALWAYS_SOFTWARE=1`, and the same set belongs on
-this suite's step.
+So the 36 import-less fences are unread, on purpose, and a `ReferenceError` in one of
+them would ship. Closing that needs the fences to declare their own completeness — a
+meta on the fence, per #1516's option 1 — which is an authoring convention to agree
+before it is a checker to write.
+
+### The doc-fence typecheck lends every GJS fence the DOM's globals
+
+`check-doc-fences.mjs`'s SNIPPETS arm compiles each page with
+`lib: ["ES2024", "DOM"]`, so `window`, `document`, `location`, `event`, `self`, `top`,
+`parent`, `origin`, `name`, `status`, `close`, `open` and `focus` all count as BOUND in a
+fence that imports `gi://` and will not have any of them at runtime. That is the #1516
+class the arm exists to catch, masked.
+
+MEASURED with the arm's own tsconfig shape: `confirmDialog(window, …)` reports nothing
+under `["ES2024","DOM"]` and `error TS2304: Cannot find name 'window'` under `["ES2024"]`.
+A live instance existed while the arm was being written —
+`guides/native-adwaita-app.md`'s "Ask, notify, pick a file" fence passed a bare `window`
+to four `@gjsify/adwaita-app` calls as the parent `Adw.ApplicationWindow` — and is fixed.
+
+Dropping the DOM lib globally is NOT the repair, twice over: `console` is declared by
+neither `lib.es2024` nor `@girs/gjs`'s ambient globals, so every GJS fence would flag it,
+and the `adwaita-web`, canvas and iframe fences legitimately use `document`,
+`MessageEvent`, `ResizeObserver` and `WebGLRenderingContext`. What it wants is a per-fence
+lib choice — a fence importing `gi://` gets no DOM — plus an ambient declaration of the
+globals GJS really has. The second half is a curated list, which is a drift source of its
+own, so it needs deciding rather than writing.
+
+### Two reference-doc gaps found in the #1516 audit
+
+Both are from the issue and neither is a fence defect, so neither is closed by the
+SNIPPETS arm:
+
+- **No page answers "how do I test my app?"** `gjsify test` has a row in the CLI
+  reference table and nothing else — no guide, no sidebar entry. For someone evaluating
+  the framework it is a first-hour question.
+- **`gjsify showcase` lists no `webrtc-video`**, while the sidebar carries
+  `showcases/webrtc-video`. One of the two is wrong.
 
 ### `logSignals` has no test
 
