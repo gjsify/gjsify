@@ -711,6 +711,24 @@ export default async () => {
                 });
             });
 
+            await it('maps every accessibilityRole onto a role the installed GTK carries', async () => {
+                // THE MECHANISM, not another example. A misspelled nick resolves
+                // perfectly in the table and fails in a consumer's window — the
+                // exact class this whole spec file exists for — and one vector per
+                // role would still miss the 34th somebody adds. So the assertion is
+                // over the TABLE: every value it maps to must be a real member of
+                // `Gtk.AccessibleRole` on the GTK that is installed.
+                const route = PRIMITIVES.View?.props.accessibilityRole as { map: Record<string, string> };
+                const roles = Gtk.AccessibleRole as unknown as Record<string, number | undefined>;
+                const unresolved = Object.entries(route.map)
+                    .filter(([, nick]) => roles[nick.toUpperCase().replace(/-/g, '_')] === undefined)
+                    .map(([name, nick]) => `${name} → ${nick}`);
+                expect(unresolved).toStrictEqual([]);
+                // …and the table is not empty, which is what makes the line above an
+                // assertion rather than a loop over nothing.
+                expect(Object.keys(route.map).length).toBeGreaterThan(30);
+            });
+
             await it('puts accessibilityLabel and accessibilityHint into the widget’s AT context', async () => {
                 // NOT a setter echo, and that is the whole point of using these
                 // functions. `Gtk.test_accessible_has_property` reads the widget's
