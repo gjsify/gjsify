@@ -80,6 +80,16 @@ function makeMonorepo(withCreateApp = true): string {
             deps: {},
             devDeps: {},
         },
+        // The React Native layer. It IS a workspace and needs no extra seed — the
+        // coupling exists for the TIER, because its only external observer is an e2e
+        // suite that a `packages/framework/react-native/**` diff would otherwise not
+        // turn on.
+        {
+            rel: 'packages/framework/react-native',
+            name: '@gjsify/react-native',
+            deps: {},
+            devDeps: {},
+        },
     ];
     if (withCreateApp) {
         // Directory name `create-gjsify`, package name `@gjsify/create-app` —
@@ -480,6 +490,32 @@ export default async (): Promise<void> => {
             // shortcut must not swallow the extra seed.
             const r = runClassify(root, ['templates/adw-canvas2d/src/foo.spec.ts']);
             expect(r.workspaces.includes('@gjsify/create-app')).toBe(true);
+        });
+
+        // ── Script-based coupling: packages/framework/react-native (#1550) ──
+        await it('packages/framework/react-native/** turns the e2e tier on', async () => {
+            // tests/e2e/react-native-devtools is the only external observer of
+            // `AppRegistry.runApplication`, and the e2e tier otherwise turns on only
+            // for a `tests/e2e/**` touch — so the suite was silent for exactly the
+            // diffs it exists to catch.
+            const r = runClassify(root, ['packages/framework/react-native/src/app-registry.ts']);
+            expect(r.runE2E).toBe(true);
+        });
+
+        await it('the react-native coupling adds NO seed of its own', async () => {
+            // The package is a workspace and seeds itself; a coupling that also
+            // seeded something would be claiming a rebuild edge that does not exist.
+            const r = runClassify(root, ['packages/framework/react-native/src/app-registry.ts']);
+            expect(r.workspaces.includes('@gjsify/react-native')).toBe(true);
+            expect(r.workspaces.includes('@gjsify/create-app')).toBe(false);
+        });
+
+        await it('a react-native spec file ALSO turns the e2e tier on', async () => {
+            // TEST_ONLY skips closure expansion, and the coupling must survive that
+            // shortcut: a change to a react-native vector is exactly when the loop
+            // observer is worth running.
+            const r = runClassify(root, ['packages/framework/react-native/src/widgets.spec.ts']);
+            expect(r.runE2E).toBe(true);
         });
 
         await it('a non-templates change does NOT seed create-app', async () => {
