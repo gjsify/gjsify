@@ -85,6 +85,21 @@ where no project exists. The packers take `PackSettings` — the half that cross
 Every omission from that closure fails silently at exit 0, which is why `tests/e2e/ship-from-stage`
 DELETES the project between the phases; without the deletion a reach-back succeeds and proves nothing.
 
+**THE RUNTIME AND THE ENTRY ARE ONE DECISION, and both are per target** (ADR 0024 § A22, § A23).
+`gjsify.ship.app.<os>` overrides `gjsify.app`; `gjsify.ship.bundle.<os>` overrides `gjsify.main`;
+`resolveShipApp` and `resolveShipBundle` are twins — same OS vocabulary, same refusal of a key
+nothing reads, same "which key answered" in the result — and `commands/ship.ts` resolves the pair
+before anything is staged. Declaring only the first is what shipped a `.app` whose launcher execs
+`node` over a `--app gjs` bundle: built, reported as built, dead on its first import (#1545).
+`assertEntryRunsUnder` refuses that pair on the module SCHEME each host's loader rejects (`gi://`
+under node, `node:` under gjs) — on evidence FOR the wrong host, never on its absence, like
+`assertLauncherMatchesInterpreter`. A bundle declared for one OS is dropped from every other OS's
+payload, fall-through entries included, because `discoverPayload` stages the whole directory the
+entry lives in. **A reader of an emitted bundle must key on the module STRING, never on a callee
+name**: two `gi://` shims in one bundle means two `require` bindings, so the second is renamed even
+without `--minify`, and `scanGiNamespaces` — the source of every artifact's typelib `Depends:` —
+answered `[]` for real node bundles for exactly that reason.
+
 **`--sign <identity>` is a MUTATION of the payload and its ORDER is load-bearing** (ADR 0024 § A12-§ A17). It takes the string `codesign`/`signtool` resolves a key by — never a certificate, so nothing here can leak — and an absent identity SKIPS loudly at exit 0. `readStage` compares staged file SIZES, so it must validate BEFORE anything re-signs: `signPayload` therefore takes `readStage`'s output and returns the packer's input, in scratch, never in the arriving stage. **The darwin leg signs every Mach-O and THEN seals the `<App>.app`** (ADR 0040) — a seal hashes what it seals — so the payload may GROW, in one enumerated place (`sealAddPrefix`, decided by the pure `partitionSignedFileSet`); the seal was refused for a measured-wrong reason, the extended-attribute rule being Apple's for a LOOSE file. Table + oracle + what stays UNVERIFIED (signtool, notarytool, every darwin claim — no macOS host): [docs/ship-formats.md](../../../docs/ship-formats.md) § Signing.
 
 **The windows layout OWNS A PROGRAM, and emitting it is what closed the console window** (ADR 0040). `cmd.exe` is a console-subsystem image whatever `node.exe` is, so the console is allocated before the interpreter starts: `Subsystem`-patching `node.exe` fixes nothing and discards every byte the app writes. `utils/ship/pe-launcher.ts` emits a GUI-subsystem PE the way `deb.ts`/`msi.ts` emit their formats — no vendored binary, no toolchain, nobody's licence but ours — staged through the windows `Layout.metadata` seam, running the `.cmd` rather than reimplementing it. Both its probes were measured wrong first (`GetConsoleWindow` answers NULL for a WINDOWLESS console). No CI leg sees any of it; the window count is `win11-gjsify`, session 1.

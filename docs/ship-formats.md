@@ -371,6 +371,23 @@ There is deliberately no per-LAYOUT default: an absent override means `gjsify.ap
 reason: `gjsify.ship.app.windows` resolves to nothing and would leave that target silently on the
 project-wide answer.
 
+**AND SO IS THE ENTRY** (#1545, ADR 0024 § A23). The runtime a target execs and the bundle it hands
+that runtime are one decision, and declaring only the first is what produced a `.app` that could not
+start: `gjsify.ship.app.darwin: "node"` moved the launcher, the payload stayed on `gjsify.main` — a
+`--app gjs` bundle, because Linux was that project's primary target — and node's ESM loader refused
+`gi:` before a line of application code ran. `gjsify.ship.bundle` therefore takes the same
+`{linux,darwin,win32}` table beside its scalar form, resolved by `resolveShipBundle`,
+`resolveShipApp`'s twin in every respect including the refusal of a key nothing reads. A target with
+no key keeps `gjsify.main`.
+
+Two things follow that are worth stating because neither is obvious. `assertEntryRunsUnder`
+(`utils/ship/entry-interpreter.ts`) reads the entry's module SCHEMES and refuses the pair that
+cannot work — `gi://` under `node`, `node:` under `gjs` — on evidence for the wrong host and never
+on its absence, so a bundle naming neither passes. And a bundle declared for one OS is dropped from
+every OTHER OS's payload: `discoverPayload` stages the whole directory the entry lives in, so
+without that the `.app` carries the Linux bundle inside its signed tree. Only the declared entries
+are dropped, never a guess at which sibling chunks belong to them.
+
 `utils/ship/payload.ts`'s `readLauncherInterpreters` strips a surrounding shell quote before taking
 the basename, and that is not tidiness: without it `"$here/node"` read back as `node"`, which is
 neither known interpreter, so `assertLauncherMatchesInterpreter` took its "a program that is
