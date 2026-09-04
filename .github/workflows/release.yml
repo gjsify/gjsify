@@ -180,6 +180,13 @@ jobs:
       # before its first `PUT` — 8m41s of a 21m02s step, in a 33m02s job, doing
       # the same two builds again over the tree they had just written.
       #
+      # #1522 left one thing unsplit: that window also covered
+      # `verify-package-outputs.mjs --scope examples`, which STAYS. Read out of
+      # the same job log — last example build 09:16:09.626, the check's two
+      # lines 09:16:09.724, the sweep's first child 09:16:10.084 — it is under
+      # half a second of the 8m41s. So the deleted work is the two builds, and
+      # the number does not need a caveat it did not have.
+      #
       # It is not free minutes: the sibling of the window the asset-upload
       # comment below records — release tag exists, packages do not — is exactly
       # this long, on every release, for no output.
