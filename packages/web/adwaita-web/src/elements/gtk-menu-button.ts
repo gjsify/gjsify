@@ -271,7 +271,7 @@ export class GtkMenuButton extends HTMLElement {
     }
 
     private _renderMenu(): void {
-        this._menuView.setModel(this._model);
+        this._menuView.setMenuModel(this._model);
         this._menuView.setTitle(this.getAttribute('menu-title') ?? this._menuTitle);
         this._menuView.render();
         if (this._model.length === 0) this._popoverEl.popdown();
