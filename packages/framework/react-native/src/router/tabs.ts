@@ -30,6 +30,13 @@
 // reverse direction is not optional here either; without it a click on the switcher
 // changes the widget and not React's state, and every hook in the tab that just
 // appeared reads the wrong route.
+//
+// AND THE REVERSE DIRECTION NEEDS AN ECHO GUARD THIS LAYER OWNS, because
+// `Adw.ViewStack` emits that one signal for three different events and only one of
+// them is a click: the user's, the layer's own `set_visible_child_name`, and
+// libadwaita's pick of a first page while the reconciler is still INSERTING them
+// (`add_page` selects a page whenever the stack has none). `shownRef` is that guard —
+// `onVisibleChildChanged` carries what it replaced, and why the obvious guard raced.
 
 import { TabActions, TabRouter, useNavigationBuilder } from '@react-navigation/core';
 import type {
@@ -221,11 +228,24 @@ function TabsView(props: TabsViewProps): ReactElement {
         return () => titleSlot.setTitleWidget(null);
     }, [titleSlot, props.headerShown, switcher]);
 
+    /**
+     * The page THIS layer last asked the stack to show, so its own echo is
+     * recognisable. `null` until it has asked at all.
+     *
+     * Written BEFORE the call and not after, and that ordering is the whole point:
+     * `set_visible_child_name` emits `notify::visible-child-name` from inside itself,
+     * so the handler runs while `showFocusedPage` is still on the stack. Recording the
+     * name afterwards would record it one emission too late — which is exactly the
+     * window the defect lived in.
+     */
+    const shownRef = useRef<string | null>(null);
+
     // React → widget. The name is the route key, which is also what the page was
     // added under, so this is the join and not a lookup.
     useLayoutEffect(() => {
         const stack = stackRef.current;
         if (stack === null || focused === undefined) return;
+        shownRef.current = focused;
         showFocusedPage(stack, focused);
     });
 
@@ -234,8 +254,23 @@ function TabsView(props: TabsViewProps): ReactElement {
      *
      * No debounce is needed and none is added — `notify::visible-child-name` fires
      * once per change, unlike `Adw.NavigationView::popped` which fires once per popped
-     * page. The `focused` guard is what stops the echo: the effect above sets the same
-     * property, and its notify arrives with the name already equal.
+     * page.
+     *
+     * THE ECHO GUARD READS `shownRef`, NOT `navigation.getState()`, AND THAT IS
+     * MEASURED. The obvious guard — "the name already equals the focused route" — asks
+     * the CONTAINER, whose state `BaseNavigationContainer` publishes from an effect and
+     * which therefore still holds the route the commit in progress has already left.
+     * Measured on a five-tab group entered at `/t3`: the effect above put the stack on
+     * `t3`, the notify arrived from inside that very call, and `navigation.getState()`
+     * answered `t0` — so the guard missed its own echo, and this handler emitted a
+     * `tabPress` and dispatched a `jumpTo` for a tab nobody pressed. That it named the
+     * RIGHT tab there is timing: the same lag with the stack still on libadwaita's
+     * insertion-time pick dispatches the FIRST page instead, and the deep link the
+     * application was entered with is gone (#1453).
+     *
+     * `shownRef.current === null` is the third emitter and it is not a click either:
+     * `add_page` selects a page whenever the stack has none, so the reconciler's first
+     * insertion picks one before this layer has asked for anything at all.
      *
      * `tabPress` is emitted first and CAN be prevented, because that is React
      * Navigation's own contract for a tab and the thing a "scroll to top on second
@@ -247,6 +282,7 @@ function TabsView(props: TabsViewProps): ReactElement {
         if (stack === null) return;
         const name = stack.get_visible_child_name();
         if (name === null) return;
+        if (shownRef.current === null || name === shownRef.current) return;
         const current = navigation.getState();
         if (name === current.routes[current.index]?.key) return;
         const route = current.routes.find((candidate) => candidate.key === name);
@@ -263,8 +299,11 @@ function TabsView(props: TabsViewProps): ReactElement {
             // Through the same guard, not a raw set: putting the widget BACK is the same
             // operation with the same two silent no-ops, and this is the one caller React
             // does not re-run afterwards — a prevented press changes no state, so no render
-            // follows to try again.
-            showFocusedPage(stack, current.routes[current.index]?.key ?? name);
+            // follows to try again. `shownRef` first, for the reason the effect above
+            // records: the notify comes out of the call.
+            const back = current.routes[current.index]?.key ?? name;
+            shownRef.current = back;
+            showFocusedPage(stack, back);
             return;
         }
         navigation.dispatch({ ...TabActions.jumpTo(route.name, route.params), target: current.key });
