@@ -28,15 +28,40 @@
 // happen at a lifecycle moment (`devtools`, `onStartup`), and `getApplication()` /
 // `getWindow()` answer "which application am I in" from anywhere in the tree.
 
+// THE WINDOW'S CHROME IS CHECKED WHERE IT IS BUILT (#1546, #1549). `@gjsify/gtk-host/
+// conformance`'s `windowChromeProblems()` is the right instrument for "can the user
+// close this window, and is there exactly one button that does" — and for its whole
+// life the only thing that pointed it anywhere was a hand-written vector, so the
+// composition it was written for (this one) was the one composition it never saw. That
+// is settled here rather than left as a choice: this function is the ONE composer of a
+// React Native window on this layer, so it runs the reader itself, once, when the
+// window maps.
+//
+// ONCE AND NOT PER COMMIT, and the reason is the instrument's own: the invariant is
+// about the RESTING composition, and `Adw.NavigationView` keeps a departing page mapped
+// while the arriving one slides in — so a window mid-push legitimately draws two header
+// bars and a per-commit check would report a defect for every animation. At map time
+// there is no transition in flight (the router's first stack sync is explicitly
+// unanimated), which is what makes this moment both cheap and free of false positives.
+// It is also the moment the defect it was built for surfaces: #1460 was an application
+// that OPENED with two close buttons. A composition that goes wrong later is what a
+// driveable check answers, and that is a `@gjsify/devtools` method rather than a walk
+// per frame — see `status/open-todos.md`.
+//
+// NO GATE, deliberately. One tree walk per window is not worth a switch, and a switch
+// is one more thing that is off in the configuration where the check was needed.
+//
 // VALUES through `gi://`, types through `@girs/*` — and this is a machine-checked
 // constraint, not a style. `scripts/audit-runtimes.mjs` only tolerates this
 // package's `node: "polyfill"` slot while its shipping source has `gi_url` and NOT
 // `girs_value`: a value import from `@girs/*` flips the signal and the declared
 // runtime table drifts from the suggested one, which fails `runtimes-drift`.
 import Adw from 'gi://Adw?version=1';
+import GLib from 'gi://GLib?version=2.0';
 import type Gtk from '@girs/gtk-4.0';
 import { type AdwaitaAppOptions, runAdwaitaApp } from '@gjsify/adwaita-app';
 import { registerBuiltinWidgets } from '@gjsify/gtk-host';
+import { windowChromeProblems } from '@gjsify/gtk-host/conformance';
 import { createRoot, type ReactRoot } from '@gjsify/gtk-host/react';
 import { createElement, type ComponentType } from 'react';
 
@@ -100,6 +125,62 @@ const registry = new Map<string, Registration>();
  * application in this repo can use it.
  */
 let live: LiveRoot | null = null;
+
+/**
+ * The key of the `runApplication` call that currently owns the loop, or `null`.
+ *
+ * A SECOND CONCURRENT CALL IS REFUSED BY NAME, which is the design question #1551 left
+ * open and this is the answer: two React Native applications in one GJS process have no
+ * defined meaning here — `AppRegistry` creates the application, and there is one
+ * `GApplication` per process — so a named error beats a clear that only looks correct.
+ *
+ * What it looked like without one: both calls write `live`, whichever resolves first
+ * reads `mounted = live` — by then the OTHER call's handle — and unmounts a React root
+ * belonging to an application that is still running, leaving its window up and empty.
+ * Not exotic either: `runAdwaitaApp` documents the single-instance handoff, where a
+ * second launch returns promptly having built no window at all.
+ *
+ * Set BEFORE the await and cleared in a `finally`, so the refusal is answerable without
+ * running a loop and a launch that REJECTS does not leave a dead application answering
+ * `getApplication()` — the state this file's own comment calls worse than `null`.
+ */
+let running: string | null = null;
+
+/**
+ * What the last window-chrome check found, in the sentences it found them in.
+ *
+ * A reader rather than only a log, for the reason `announce.ts` keeps one: a window
+ * whose chrome is right and a window nobody checked print the same nothing, and only an
+ * answer tells them apart. Empty after a clean check, empty before the first one.
+ */
+let chromeProblems: readonly string[] = [];
+
+/** Every problem the last mapped window's chrome had. Empty is the clean answer. */
+export const lastWindowChromeProblems = (): readonly string[] => chromeProblems;
+
+/**
+ * Ask `windowChromeProblems()` about this window once it is on screen, and report.
+ *
+ * ON THE IDLE AFTER `map`, not in the handler: `map` runs while GTK is still bringing
+ * the window up, and the census counts what DRAWS. The idle is the first moment the
+ * answer means anything.
+ *
+ * The mapped re-check is not a paranoid probe: a window can be closed between the map
+ * and the idle, and `windowChromeProblems` REFUSES an unmapped root by design — so
+ * without it a fast open-and-close prints a problem about the measurement rather than
+ * about the window.
+ */
+function checkWindowChrome(window: Gtk.Window): void {
+    const id = window.connect('map', () => {
+        window.disconnect(id);
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            if (!window.get_mapped()) return GLib.SOURCE_REMOVE;
+            chromeProblems = windowChromeProblems(window);
+            for (const problem of chromeProblems) console.warn(`@gjsify/react-native: ${problem}`);
+            return GLib.SOURCE_REMOVE;
+        });
+    });
+}
 
 /**
  * What `runApplication` owns while the loop runs. NOT exported, and the two
@@ -176,6 +257,81 @@ function buildWindow(
     return { window, content: shell.content, chrome: shell.chrome };
 }
 
+/**
+ * Build the window, mount the registered component into it, publish the chrome.
+ *
+ * A NAMED FUNCTION AND NOT THE CLOSURE IT WAS, for the reason `window-chrome.ts` gives
+ * one function earlier: the vectors have to measure THIS composition, and a spec that
+ * rebuilt it by hand passes while the shipping shell drifts. That is #1549 as measured
+ * — deleting `provideWindowChrome(chrome, …)` from the render call below left `oxfmt`
+ * clean, `oxlint` at 0, `tsc` at 0 and the whole `@gjsify/react-native` suite green,
+ * ten hand-written window-chrome vectors included, while the running application drew
+ * two mapped `AdwHeaderBar`s: two sets of window controls, one dead close button
+ * (#1460).
+ *
+ * The seam is HERE and not one call further out because `runApplication` cannot be
+ * entered from a spec at all: it runs a `Gio.Application`, and a nested
+ * `g_application_run` inside the test runner's own main loop never returns — measured,
+ * `g_application_run: assertion '!application->priv->must_quit_now' failed` and a
+ * timed-out case. Everything past this function is the shell's, and `toShellOptions`
+ * already holds the hand-over to it.
+ */
+export function mountApplicationRoot(
+    app: Adw.Application,
+    appKey: string,
+    options: RunApplicationOptions,
+    provider: ComponentProvider,
+): Gtk.Window {
+    const { window, content, chrome } = buildWindow(app, appKey, options);
+    const Component = provider();
+    const root = createRoot(content);
+    live = { app, window, content, root };
+    // `createElement`, not a hand-built element literal and not a JSX runtime. The
+    // literal's `$$typeof` symbol is React-version-specific (`react.element` became
+    // `react.transitional.element` in 19) and a JSX runtime would tie this module to a
+    // dialect the consumer has not chosen. `createElement` is neither.
+    root.render(provideWindowChrome(chrome, createElement(Component, options.initialProps ?? {})));
+    checkWindowChrome(window);
+    return window;
+}
+
+/**
+ * Hold the process's one application handle for the duration of ONE launch.
+ *
+ * THE LAUNCHER IS A PARAMETER, which is what makes this the shipping code rather than a
+ * copy of it: `runApplication` hands it `runAdwaitaApp`, and a vector hands it a
+ * launcher it can resolve or reject on cue — so both defects #1551 names are reachable
+ * without a `Gio` main loop, which a spec cannot run (see `mountApplicationRoot`).
+ *
+ * Everything the handle owns is released in the `finally`, and that is the second
+ * defect: a launch that REJECTS after the window was built used to leave `live` set, so
+ * `getApplication()` kept answering with a dead application — the state this file's own
+ * comment calls worse than answering `null`.
+ */
+export async function ownTheApplication(appKey: string, launch: () => Promise<number>): Promise<number> {
+    if (running !== null) {
+        throw new Error(
+            `@gjsify/react-native: AppRegistry.runApplication("${appKey}") was called while "${running}" is ` +
+                'still running. One process is one GApplication here — this layer CREATES the application, which ' +
+                'is the declared divergence from React Native — so a second call has no window of its own to ' +
+                'build and would take the first one\u2019s handle away from it. Await the first call, or render ' +
+                'both trees under one root component.',
+        );
+    }
+    running = appKey;
+    try {
+        return await launch();
+    } finally {
+        // Cleanup beside ownership: the handle belongs to THIS call, so it is this call
+        // that clears it — and only if nothing has replaced it, which is what makes the
+        // clear safe rather than merely tidy.
+        const mounted = live;
+        live = null;
+        running = null;
+        mounted?.root.unmount();
+    }
+}
+
 export const AppRegistry = {
     /** Register a root component under `appKey`. React Native's own signature. */
     registerComponent(appKey: string, componentProvider: ComponentProvider): string {
@@ -248,28 +404,11 @@ export const AppRegistry = {
         // that one logged trace. Idempotent — registration is keyed on the GType.
         registerBuiltinWidgets();
 
-        const code = await runAdwaitaApp(
-            toShellOptions(options, (app) => {
-                const { window, content, chrome } = buildWindow(app, appKey, options);
-                const Component = registration.provider();
-                const root = createRoot(content);
-                live = { app, window, content, root };
-                // `createElement`, not a hand-built element literal and not a JSX
-                // runtime. The literal's `$$typeof` symbol is React-version-specific
-                // (`react.element` became `react.transitional.element` in 19) and a
-                // JSX runtime would tie this module to a dialect the consumer has not
-                // chosen. `createElement` is neither.
-                root.render(provideWindowChrome(chrome, createElement(Component, options.initialProps ?? {})));
-                return window;
-            }),
+        return ownTheApplication(appKey, () =>
+            runAdwaitaApp(
+                toShellOptions(options, (app) => mountApplicationRoot(app, appKey, options, registration.provider)),
+            ),
         );
-        // Cleanup beside ownership: this function is the only writer of `live`, so it
-        // is also the one that clears it. An accessor answering with a closed
-        // application's window is worse than answering `null`.
-        const mounted = live;
-        live = null;
-        mounted?.root.unmount();
-        return code;
     },
 
     /** React Native's teardown hook. Unmounts the tree; the loop is the caller's. */

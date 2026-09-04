@@ -3410,19 +3410,19 @@ It is ledgered rather than listed for a different reason than `devtools-export`'
 cannot MAP without a display, `test:e2e` has none, and the suite's SKIP gate checks for one — so
 listing it would buy a silent suite, which is the state this ledger exists to prevent.
 
-Which means three lines in `runApplication` are guarded by NOTHING that CI runs:
-`registerBuiltinWidgets()`, the option passthrough, and `provideWindowChrome()`. No unit vector
-can hold any of them — each is observable only by running the loop, and `app-registry.spec.ts`
-covers `toShellOptions` precisely because that one IS a pure value.
+UPDATED 2026-09-04 (#1549): two of the three lines that were guarded by nothing now have a
+unit vector. `runApplication` still cannot be entered from a spec — a nested
+`g_application_run` inside the runner's own main loop never returns (measured:
+`g_application_run: assertion '!application->priv->must_quit_now' failed`, case timed out at
+5 s) — so ADR 0043's amendment splits it at `mountApplicationRoot` and `ownTheApplication`,
+and `app-registry.spec.ts` drives the real composition through those. `provideWindowChrome()`
+is held there: with the call deleted the vector reads 2 mapped header bars and
+`windowChromeProblems()` answers "2 sets of window controls draw at the end … 1 of those close
+buttons close nothing the user is looking at".
 
-The third is measured rather than argued. Deleting `provideWindowChrome(chrome, …)` from the
-render call, dropping `chrome` from the destructuring and deleting the now-dead import — the
-whole shape a careless rebase produces — leaves `oxfmt` clean, `oxlint` at 0, `tsc` at 0 and
-`@gjsify/react-native` at 2345 completed / 0 failed, **#1540's ten window-chrome vectors
-included**: `router/router.spec.ts` composes `buildWindowShell()` + `provideWindowChrome()`
-itself and never runs the bootstrap, which is the drift `window-chrome.ts`' own header warns
-about one function earlier. From outside, the same build draws TWO mapped header bars — #1460,
-two sets of window controls, one dead close button.
+WHAT IS STILL GUARDED BY NOTHING CI RUNS: `registerBuiltinWidgets()`, and everything past
+`toShellOptions` — the shell's own lifecycle wiring (`installDevtools` at `startup`, `activate`
+building the window, `runAsync`). Those need the loop, which needs this suite to have a host.
 
 WHAT IS LEFT: main.yml's `examples` job already runs `xvfb-run … dbus-run-session` around
 `scripts/showcase-smoke.mjs`, which is precisely the environment this suite asks for. Of the two
@@ -4563,3 +4563,57 @@ own write", so the next such prop is written as an `on:notify::` route, tests gr
 external write, and ships announcing nothing. A route kind (`announce` is the precedent — it is
 a table field, and it is the reason both L3s subscribe directly) or a per-binding declaration
 checked by the surface gates would make the class visible; naming it here is not that check.
+
+### The window-chrome check fires at startup only; a composition that breaks LATER is unwatched
+
+ADR 0043's amendment takes option A of #1546: `AppRegistry` runs
+`@gjsify/gtk-host/conformance`'s `windowChromeProblems()` over its own window, once, on the
+idle after `map`, ungated, and publishes the answer as `lastWindowChromeProblems()`. That
+catches the shape the instrument was built for — #1460 was an application that OPENED with two
+close buttons — and it is the only option that fires for a consumer who never writes a vector.
+
+It does NOT catch a composition that goes wrong after startup, and the reason it cannot is the
+instrument's own: the invariant is about the RESTING composition, `Adw.NavigationView` keeps a
+departing page mapped while the arriving one slides in, and a per-commit check would therefore
+report a defect for every push. Measured in `gtk-host/conformance/window-chrome.ts`' own header:
+four mapped header bars and four sets of controls at the moment a nested tab group is entered.
+
+So option B is still open and is what answers the rest: a `WindowChromeProblems` method on
+`@gjsify/devtools`, beside `DumpTree`/`Screenshot`. Zero cost when nobody asks, no layering
+question, and it composes with the headless driving a driver already does — walk an
+application's routes and ask after each, at a moment the driver knows is resting. The case
+#1546 was written from is exactly that: a `headerShown: false` screen pushed on top of a
+bar-ful root stack, which is a NAVIGATION and not a launch.
+
+Blocked on nothing but the decision to spend a devtools method on it.
+
+### `Adw.ViewStack` dangles `last_visible_child` when a page is removed mid-transition
+
+Measured by the reporter of #1453 on gjs 1.88.1 / libadwaita 1.9.3 / GTK 4.22 / Wayland, from a
+core dump: the same application SIGSEGVed once in three runs and printed
+`gtk_widget_set_child_visible: assertion 'GTK_IS_WIDGET (widget)' failed` the other two, with
+this stack — `add_page` → `set_visible_child` → `adw_animation_skip` → `transition_done_cb` →
+`gtk_widget_set_child_visible`.
+
+Read against `refs/libadwaita/src/adw-view-stack.c`, the mechanism is upstream's:
+`set_visible_child` records the outgoing page in `self->last_visible_child` and starts an
+animation; `stack_remove` clears that page's widget (`g_clear_object (&page->widget)`) and drops
+the page WITHOUT clearing `last_visible_child`; the next `set_visible_child` skips the running
+animation, and `transition_done_cb` then calls `gtk_widget_set_child_visible` on a NULL — or
+freed — widget. `adw_animation_play` only leaves the animation running when the widget is
+MAPPED, which is why an unmapped tree never sees it.
+
+WHAT #1453's FIX DOES AND DOES NOT DO. The React-side driver is closed: `<Tabs>` no longer reads
+its own `set_visible_child_name` as a user action, so a deep link no longer produces the
+navigation churn that fed the removals. The GTK hazard itself is NOT closed and was NOT
+reproduced in-process — `router.spec.ts`' vectors never remove a `ViewStack` page one at a time,
+because React unmounts a deleted subtree from its top and the pages go with the stack. Reaching
+it needs a page list that SHRINKS in a mapped window, which is a route set that changes at
+runtime.
+
+Two things to settle when someone does reach it: whether this layer can avoid leaving a
+transition in flight at all through public API (`Adw.ViewStack:enable-transitions` is NOT it —
+measured in the source, `enable_transitions: false` sets the animation's duration to 0 and
+`adw_animation_play` still schedules a tick, so the in-flight window survives), and whether the
+right home for the repair is an upstream libadwaita issue plus a guard here.
+
