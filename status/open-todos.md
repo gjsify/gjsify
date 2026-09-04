@@ -3412,20 +3412,34 @@ own SKIP gate — it already carries a list of them — so it skips where an Adw
 cannot complete startup and keeps running where it can. Removing the ledger entry in the same
 change is what `check-e2e-suite-coverage.mjs` will then require.
 
-### 78 `refs/` line citations carry no `#anchor`, and `refs/gtk` is not checked out anywhere
+### Nearly every `refs/` line citation carries no `#anchor`, and `refs/gtk` is checked out nowhere
 
 `scripts/check-refs-citations.mjs` now reads the LINE half of a coordinate (#1529): the
 cited range must exist, be ordered and not be blank, and an `#anchor` — the text after
 `#` in `refs/node/lib/internal/tls/wrap.js:1305-1306#getFinished` — must appear within
 it. RANGE catches a citation that DRIFTED; ANCHOR is the only arm that catches one that
-was wrong when it was written, which is the shape #1529 measured.
+was wrong when it was written, which is the shape #1529 measured. The gate's own summary
+line is the count of both, per run; nothing here restates it.
 
-ANCHOR is opt-in per citation, and today exactly ONE citation in the tree has one — the
-gate fails if that reaches zero, so the arm cannot be silently emptied, but it is not
-yet coverage. Measured by the same run: 119 coordinates name a line, 79 are readable
-here (only `refs/libadwaita` is on disk in CI, which is 48 of them), 40 skip.
+ANCHOR is opt-in per citation and a handful have opted in, so it is a live arm rather
+than coverage. The gate fails when the TRACKED TREE holds no anchor at all, which cannot
+be emptied silently.
 
-Retrofitting the other 78 is not one change: they live mostly in `packages/web/adwaita-*`
+**The incident that shaped that rule, because a rule without it gets simplified back.**
+The first version counted anchors it had READ and reported the number as a property of
+the tree, so `audit-runtimes.yml` — which checks out `refs/libadwaita` and nothing else,
+~13 MB against ~150 GB for the pool — found both of the tree's anchors inside `refs/node`,
+counted zero and failed with "no line citation in the tree carries an `#anchor`". The
+tree had two. A gate that misreports its own reason is the class this whole round is
+about, and it told the author to add a thing that was already there. The two facts are
+separate now: anchors IN THE TREE is read from `git ls-files`, is the same answer in
+every job, and staying at zero is fatal; anchors VERIFIED HERE depends on which
+submodules are on disk and is a named line in the summary. What keeps the second from
+quietly reaching zero on the job that gates `main` is not a rule but a fact:
+`packages/web/adwaita-core/src/accent.ts` anchors a `refs/libadwaita` coordinate, and
+that is the one submodule this workflow checks out.
+
+Retrofitting the rest is not one change: they live mostly in `packages/web/adwaita-*`
 and `tests/integration/`, and each needs a human to OPEN the cited lines and write down
 what is actually there — which is the work, and the point. Doing it mechanically would
 write an anchor derived from whatever the line currently says, which vouches for a wrong
@@ -3434,30 +3448,31 @@ address as readily as a right one.
 Two coverage limits worth knowing before anyone starts:
 
 - **`refs/gtk` is checked out by no job.** `audit-runtimes.yml` inits `refs/libadwaita`
-  only (~13 MB; realizing the whole pool is ~150 GB). So the five `refs/gtk` line
-  citations — including the three `gtkmenutrackeritem.c` coordinates whose wrongness IS
-  #1529, corrected in #1528 before the merge — are skipped in CI and can drift again
-  unwatched. A shallow `refs/gtk` init would cover them; it is a real CI cost against a
-  five-citation corpus, so it is a decision rather than an oversight.
+  only. So the `refs/gtk` line citations — including the three `gtkmenutrackeritem.c`
+  coordinates whose wrongness IS #1529, corrected in #1528 before the merge — are
+  skipped in CI and can drift again unwatched. A shallow `refs/gtk` init would cover
+  them; it is a real CI cost against a handful of citations, so it is a decision rather
+  than an oversight.
 - **The `c:332` shorthand is invisible.** `packages/web/adwaita-core/src/menu.ts` names
   the file once as `refs/gtk/gtk/gtkmenutrackeritem.c` and then cites lines as bare
   `c:332`, `:1049`, `gtkmenutrackeritem.c:822`. The reader only sees a line attached to
-  a full `refs/` coordinate, so roughly fifteen of the most load-bearing citations in
-  the tree are not in the 119 at all. Teaching it the shorthand means tracking a
-  "current file" through a comment block, which is a heuristic — the cheaper fix is to
-  spell those coordinates in full when they are anchored.
+  a full `refs/` coordinate, so some of the most load-bearing citations in the tree are
+  not in the gate's corpus at all. Teaching it the shorthand means tracking a "current
+  file" through a comment block, which is a heuristic — the cheaper fix is to spell
+  those coordinates in full when they are anchored.
 
-### 36 of 203 doc fences show no imports, and nothing reads them
+### The doc fences that show no imports are unread, on purpose
 
 `check-doc-fences.mjs`'s SNIPPETS arm (#1516) typechecks a documentation fence only when
 it shows at least one `import … from`, on the reasoning that such a fence is claiming to
 be a program a reader can run, while one that elides its imports is an excerpt. That
 selector is what makes the arm zero-false-positive: measured on this tree, a rule that
-flagged every called-but-unbound identifier in ALL 203 js/ts fences reported 26 of them
-and essentially none was a defect (class methods, GJS ambient globals, deliberately
-elided namespace imports in `patterns/`, compiler-output samples).
+flagged every called-but-unbound identifier in EVERY js/ts fence flagged a large minority
+of them and essentially none was a defect (class methods, GJS ambient globals,
+deliberately elided namespace imports in `patterns/`, compiler-output samples). How many
+fences the arm reads and how many it passes over is printed by the gate on every run.
 
-So the 36 import-less fences are unread, on purpose, and a `ReferenceError` in one of
+So the import-less fences are unread, on purpose, and a `ReferenceError` in one of
 them would ship. Closing that needs the fences to declare their own completeness — a
 meta on the fence, per #1516's option 1 — which is an authoring convention to agree
 before it is a checker to write.
