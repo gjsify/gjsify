@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Reference: refs/node/lib/_tls_wrap.js (TLSSocket.prototype.getFinished /
+// Reference: refs/node/lib/internal/tls/wrap.js:1305-1306#getFinished
+//   (TLSSocket.prototype.getFinished /
 //   getPeerFinished); no upstream `test-tls-getfinished.js` ships with
 //   Node — the API is documented but not exercised at the test layer.
 //   This spec is the original "real handshake → channel-binding bytes"

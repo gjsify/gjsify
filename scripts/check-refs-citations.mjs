@@ -88,6 +88,48 @@ const UNDECLARED_SUBMODULES = {
 /** This gate's own tracked path, posix-spelled — see {@link vouchedFor}. */
 const SELF = 'scripts/check-refs-citations.mjs';
 
+/**
+ * The LINE half of a coordinate: `:332`, `:336-346`, or either with an `#anchor`.
+ *
+ * THE GAP (#1529). Everything above this line asks whether a cited FILE exists. A
+ * citation can be wrong by hundreds of lines and still pass — measured on #1528,
+ * where three coordinates into `gtkmenutrackeritem.c` described the right semantics
+ * at the wrong addresses (`c:551-562` for the role derivation, which is a block of
+ * local declarations ~215 lines away from it), and this gate exited 0 on all three.
+ * The instance was corrected before the merge; the class was not, and it matters
+ * more than a typo: one of those strings sits in `@gjsify/adwaita-core`'s
+ * conformance vectors and is PUBLISHED, so a reader who follows it lands on
+ * variable declarations and concludes the vector's rationale is wrong. Citations
+ * into `refs/` are how this repo grounds behaviour in upstream source instead of in
+ * recollection; one that cannot be trusted to point at the right line turns
+ * "verified against upstream" into "asserted, and the assertion was never read".
+ *
+ * WHAT IS HELD, and each arm is zero-false-positive BY CONSTRUCTION, because the
+ * two heuristics that would catch more were MEASURED and are worse than nothing:
+ *
+ *   RANGE   the cited lines must exist and be ordered (`1 <= start <= end <= EOF`),
+ *           and must not be entirely blank. This is the half that makes a `refs/`
+ *           bump report its own damage: a citation correct when written drifts
+ *           silently today, and a file that shrinks under it now fails.
+ *
+ *   ANCHOR  `…/gtkmenutrackeritem.c:332#sensitive` — the text after `#` must appear
+ *           within the cited range. This is the half that catches a citation wrong
+ *           AT BIRTH, which RANGE cannot: 551-562 exists, it simply says something
+ *           else. It is opt-in per citation, and that is a deliberate limit rather
+ *           than an oversight — see the note in `status/open-todos.md`.
+ *
+ * WHAT WAS MEASURED AND REJECTED: deriving the anchor from the citing prose — take
+ * the backticked tokens near the coordinate and require one of them at the cited
+ * lines. Run over this tree it flags 14 of the 40 line citations that have a
+ * backticked token nearby, and reading them, they are overwhelmingly prose that
+ * merely MENTIONS a name rather than quoting the cited source (`SHORTCUT_LABEL_VECTORS`
+ * is the citing file's own constant; `.rpm` is a sentence). That is the same
+ * quote-versus-mention wall `status/sections/priorities.md` records at 42 of 98 for
+ * the ledger, reached independently here. A guard with that flag rate gets switched
+ * off and then proves nothing, so it is not built.
+ */
+const LINE_SUFFIX = /^:(\d+)(?:-(\d+))?(?:#([^\s`'"),\]]+))?/;
+
 // ONE extension list, read from both ends: which tracked files this gate OPENS, and
 // which path shapes count as a citation once opened. They were two, and the smaller
 // silently decided coverage — 28 files (18 `.cc`, 4 `.vala`, 2 `.rs`, 2 `.toml`, an
@@ -169,6 +211,8 @@ const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, maxBuffer: 
 
 /** coordinate → the tracked files citing it, in posix spelling on every platform. */
 const cited = new Map();
+/** `{ coordinate, start, end, anchor, where }` for every coordinate naming a LINE. */
+const lineCitations = [];
 let placeholders = 0;
 for (const trackedFile of tracked) {
     let text;
@@ -209,6 +253,21 @@ for (const trackedFile of tracked) {
                 }
                 if (!cited.has(coordinate)) cited.set(coordinate, new Set());
                 cited.get(coordinate).add(toPosixPath(trackedFile));
+                // The line half, read only for the coordinate the `refs/` prefix is
+                // actually attached to: a `, sibling.c` continuation carries no line
+                // of its own, and the brace expansions name a family.
+                if (coordinate === raw && paths.length === 1) {
+                    const suffix = LINE_SUFFIX.exec(text.slice(match.index + match[0].length));
+                    if (suffix) {
+                        lineCitations.push({
+                            coordinate,
+                            start: Number(suffix[1]),
+                            end: Number(suffix[2] ?? suffix[1]),
+                            anchor: suffix[3],
+                            where: toPosixPath(trackedFile),
+                        });
+                    }
+                }
             }
         }
     }
@@ -274,6 +333,126 @@ for (const [submodule, reason] of Object.entries(UNDECLARED_SUBMODULES)) {
     );
 }
 
+/**
+ * What is wrong with ONE line citation against the file it names, or `null`.
+ *
+ * A pure function of the file's lines and the coordinate, so the fixture matrix
+ * below can put every shape through the real reader rather than through a copy.
+ */
+function lineProblem(lines, citation) {
+    const { start, end, anchor } = citation;
+    if (start < 1 || end < start) {
+        return `names lines ${start}-${end}, which is not a range`;
+    }
+    if (end > lines.length) {
+        return `names line ${end}, and the file has ${lines.length} — the citation is past the end of the file, so the submodule moved under it or the number was never right`;
+    }
+    const body = lines.slice(start - 1, end);
+    if (body.every((line) => line.trim() === '')) {
+        return `names ${start === end ? `line ${start}` : `lines ${start}-${end}`}, which is blank`;
+    }
+    if (anchor !== undefined && !body.join('\n').includes(anchor)) {
+        const shown = body
+            .map((line) => line.trim())
+            .filter((line) => line !== '')
+            .slice(0, 3)
+            .join(' / ');
+        return `carries the anchor \`${anchor}\`, and ${start === end ? `line ${start}` : `lines ${start}-${end}`} does not contain it. What is there: ${shown.slice(0, 160)}`;
+    }
+    return null;
+}
+
+// THE DETECTOR IS ASSERTED BEFORE IT IS BELIEVED. Every arm below is silent on a
+// clean tree, and a reader that has quietly stopped reading is silent in exactly the
+// same way — so the shapes are put through `lineProblem` first and a wrong verdict is
+// fatal. Same reason `scripts/check-changelog-references.mjs` runs a fixture matrix
+// ahead of the file it checks.
+const LINE_FIXTURES = [
+    { why: 'a correct single-line citation', at: { start: 3, end: 3 }, bad: false },
+    { why: 'a correct range', at: { start: 2, end: 4 }, bad: false },
+    { why: 'a line past the end of the file', at: { start: 99, end: 99 }, bad: true },
+    { why: 'a range whose end is past the end of the file', at: { start: 3, end: 99 }, bad: true },
+    { why: 'an inverted range', at: { start: 4, end: 2 }, bad: true },
+    { why: 'a zero line number', at: { start: 0, end: 0 }, bad: true },
+    { why: 'a range that is entirely blank', at: { start: 5, end: 6 }, bad: true },
+    { why: 'an anchor that IS at the cited line', at: { start: 3, end: 3, anchor: 'sensitive' }, bad: false },
+    // THE #1529 SHAPE, and the only arm that catches it: the range exists, it is not
+    // blank, and it says something else entirely.
+    {
+        why: 'an anchor that is in the file but NOT at the cited line',
+        at: { start: 7, end: 8, anchor: 'sensitive' },
+        bad: true,
+    },
+    { why: 'an anchor spanning a range that contains it', at: { start: 2, end: 4, anchor: 'enabled' }, bad: false },
+];
+
+const FIXTURE_LINES = [
+    'static void',
+    'gtk_menu_tracker_item_set_enabled (GtkMenuTrackerItem *self,',
+    '                                   gboolean enabled) { self->sensitive = enabled;',
+    '}',
+    '',
+    '   ',
+    '  GVariant *value;',
+    '  gboolean is_radio;',
+];
+
+for (const fixture of LINE_FIXTURES) {
+    const verdict = lineProblem(FIXTURE_LINES, { anchor: undefined, ...fixture.at });
+    if (fixture.bad !== (verdict !== null)) {
+        failures.push(
+            `SELF-TEST: the line reader must ${fixture.bad ? 'REJECT' : 'ACCEPT'} ${fixture.why}, and it did not ` +
+                `(verdict: ${verdict ?? 'accepted'}). Nothing this gate says about a cited line can be believed.`,
+        );
+    }
+}
+
+let linesChecked = 0;
+let linesSkipped = 0;
+let anchored = 0;
+for (const citation of lineCitations) {
+    const submodule = citation.coordinate.split('/')[1];
+    if (!declared.has(submodule) || !isCheckedOut(ROOT, submodule)) {
+        linesSkipped += 1;
+        continue;
+    }
+    let lines;
+    try {
+        lines = readFileSync(join(ROOT, citation.coordinate), 'utf8').split('\n');
+    } catch {
+        // The file arm above already failed on this coordinate, or it is a directory.
+        linesSkipped += 1;
+        continue;
+    }
+    linesChecked += 1;
+    if (citation.anchor !== undefined) anchored += 1;
+    const problem = lineProblem(lines, citation);
+    if (problem !== null) {
+        failures.push(
+            `${citation.coordinate}:${citation.start}${citation.end === citation.start ? '' : `-${citation.end}`} ` +
+                `${problem}. Cited by ${citation.where}.\n` +
+                '    Read the file and cite the line that carries the behaviour, or drop the line number.',
+        );
+    }
+}
+
+// A corpus of zero is this gate reporting a clean tree it never read.
+if (lineCitations.length === 0) {
+    failures.push(
+        'the line reader found no `refs/<sub>/<path>:<line>` coordinate anywhere in the tree. That is a broken ' +
+            'scan, not a tree without line citations.',
+    );
+} else if (anchored === 0) {
+    // The ANCHOR arm is the only one that catches a citation wrong at birth, and an
+    // opt-in arm with nothing opted in is an arm that cannot fail. One real anchored
+    // citation keeps it exercised on every run; retrofitting the rest is ledgered in
+    // `status/open-todos.md`.
+    failures.push(
+        'no line citation in the tree carries an `#anchor`, so the arm that verifies WHAT is at a cited line ran ' +
+            'over nothing. Anchor at least one — `refs/<sub>/<path>:<line>#<token at that line>`.',
+    );
+}
+
 if (failures.length > 0) {
     console.error(`check-refs-citations: ${failures.length} unfollowable citation(s):\n`);
     for (const failure of failures) console.error(`  - ${failure}`);
@@ -294,5 +473,8 @@ console.log(
     `check-refs-citations: ${cited.size} coordinates cited across ${new Set([...cited.keys()].map((c) => c.split('/')[1])).size} submodules — ` +
         `${checked} resolved in the ${checkable} of ${declared.size} declared submodules checked out here, ` +
         `${skippedTotal} skipped (${[...skipped.keys()].sort().join(', ') || 'none'}), ` +
-        `${ledgered} undeclared submodule(s) ledgered, ${placeholders} family patterns not addressable.`,
+        `${ledgered} undeclared submodule(s) ledgered, ${placeholders} family patterns not addressable. ` +
+        `Of ${lineCitations.length} coordinate(s) naming a LINE, ${linesChecked} were read against the file ` +
+        `(${anchored} with an #anchor verified at the cited text), ${linesSkipped} skipped as not checked out, ` +
+        `after ${LINE_FIXTURES.length} self-test shapes.`,
 );
