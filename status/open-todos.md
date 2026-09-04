@@ -3410,13 +3410,30 @@ It is ledgered rather than listed for a different reason than `devtools-export`'
 cannot MAP without a display, `test:e2e` has none, and the suite's SKIP gate checks for one — so
 listing it would buy a silent suite, which is the state this ledger exists to prevent.
 
+Which means the change this PR makes to `runApplication` — `registerBuiltinWidgets()` above all,
+whose only vector is this suite — is guarded by NOTHING that CI runs. `app-registry.spec.ts`
+covers `toShellOptions` and nothing else, because no unit vector can hold "`runApplication` calls
+it": the call is only observable by running the loop.
+
 WHAT IS LEFT: main.yml's `examples` job already runs `xvfb-run … dbus-run-session` around
-`scripts/showcase-smoke.mjs`, which is precisely the environment this suite asks for. Moving it
-there needs two facts confirmed in that job, both of which the SKIP gate would otherwise absorb
-without a word: that `packages/framework/{react-native,adwaita-app,devtools,gtk-host}/lib` are
-built there, and that its trigger condition fires for a change to those packages (it is gated on
-`@gjsify/example-*` being in the closure). If `devtools-export`'s open question turns out to be
-the same environmental fact, both suites land in that job together.
+`scripts/showcase-smoke.mjs`, which is precisely the environment this suite asks for. Of the two
+facts that had to be confirmed in that job, one is now measured and one is the real blocker:
+
+- **The built libs are there.** `gjsify-setup` restores the build-output cache, whose path list
+  is `packages/*/*/lib` (minus three infra opt-outs), and the job `needs: build`, which saves it.
+  `packages/infra/cli/dist/cli.gjs.mjs` arrives via `bootstrap-bundles: 'true'`, and the
+  `@gjsify/rolldown-native-linux-x64` typelib the fixture build needs is COMMITTED, not built —
+  so none of the three preconditions the SKIP gate checks is missing there.
+- **The trigger is not.** The job is gated on `@gjsify/example-*` being in the closure (or a
+  global run), so a change confined to `packages/framework/react-native/**` skips it entirely —
+  the suite would then be silent for exactly the PRs it exists to catch. Widening that condition,
+  or giving the suite its own `xvfb-run … dbus-run-session` step in the `e2e` job (the shape the
+  `test` job already uses for `Test WebGL conformance`), is the decision left to make.
+
+Either way the step needs a SKIP-is-fatal switch: the suite's gate has nine preconditions and
+going quiet on any of them in CI is the same green-that-checked-nothing this ledger exists to
+prevent. If `devtools-export`'s open question turns out to be the same environmental fact, both
+suites land in the same place together.
 
 ### `logSignals` has no test
 
