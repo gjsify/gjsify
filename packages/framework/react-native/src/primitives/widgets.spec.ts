@@ -32,6 +32,13 @@
 // `GLib-GObject-CRITICAL`s on stderr, and the case named "…with no diagnostic"
 // green at exit 0. Both concerns now live in `gated` itself, and nothing else in
 // this file may call `beforeEach` or `afterEach`.
+//
+// CORRECTED 2026-09-04 (#1554): both halves are fixed in the runner. Hooks are
+// SCOPED — one frame per `describe`, popped when it returns — so a second
+// registration composes with the first instead of replacing it, and a sibling
+// cannot unhook a neighbour. The measurements above are kept as the record of
+// what the old shape cost; the last sentence is now a convention, and `gated`
+// earns its place by being the one declaration of what a gated block means.
 
 import Gdk from 'gi://Gdk?version=4.0';
 import GObject from 'gi://GObject?version=2.0';

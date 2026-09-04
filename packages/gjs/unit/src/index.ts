@@ -36,9 +36,13 @@ interface _RuntimeGlobals {
         documentElement: { dataset: Record<string, string> };
     };
     __gjsify_test_results?: {
+        /** Tests that ran and did not fail. */
         passed: number;
         failed: number;
+        /** Tests that ran — NOT assertions, which is what this used to carry (#1557). */
         total: number;
+        /** Assertions executed, kept beside the total rather than instead of it. */
+        assertions: number;
         errors: Array<{ suite: string; test: string; message: string }>;
     };
 }
@@ -69,8 +73,41 @@ interface _CountedError {
 const mainloop: GLib.MainLoop | undefined =
     typeof runtimeGlobals().process?.versions?.gjs === 'string' ? runtimeGlobals().imports?.mainloop : undefined;
 
-let countTestsOverall = 0;
+/**
+ * ASSERTIONS executed — `expect()`, `assert()` and friends each add one.
+ *
+ * Named for what it counts since #1557, because the old name (`countTestsOverall`,
+ * printed as "N completed") read as tests to every consumer that ever quoted it,
+ * including two commit messages now on `main`. It is also not comparable across
+ * commits: a suite that asserts inside data-driven loops moves this number without
+ * changing what it verifies — measured on `@gjsify/react-native`, where 25 tests
+ * were ADDED, 58 `expect(` call sites were added, nothing was skipped or deleted,
+ * and the number FELL by 114. The number worth comparing is {@link countTestsRun}.
+ */
+let countAssertions = 0;
+/**
+ * TESTS that ran: one per `it()` that was not skipped, plus each `it.failing`
+ * whose expectation was active.
+ *
+ * Stable under refactoring, which is the property `countAssertions` lacks and the
+ * reason a falling count could not be read as a regression without diffing the
+ * executed test NAMES by hand (#1557).
+ */
+let countTestsRun = 0;
 let countTestsFailed = 0;
+/**
+ * Failures that belong to NO test: a stray assertion from a leaked timer, a suite
+ * or run that timed out, a declared axis that exercised nothing, a spec that left
+ * the process in a deleted working directory.
+ *
+ * Kept apart from {@link countTestsFailed} because the summary states a RATIO, and
+ * these raise the numerator without raising the denominator — measured: two suites
+ * timing out plus one stray assertion over two real tests printed `3 of 2 tests
+ * failed`, and with no real tests at all, `2 of 0`. An impossible ratio is not a
+ * rounding error in a line whose whole job is to be quoted; it is the same defect
+ * as the one #1557 fixed one field over. Both gate the run.
+ */
+let countFailuresOutsideTests = 0;
 let countTestsIgnored = 0;
 /**
  * Did a throw escape a suite BODY (rather than an `it()`)?
@@ -91,8 +128,8 @@ let countTestsXfail = 0;
  * which is correct — `on('Deno', …)` is supposed to contribute nothing under Node.
  * The gap is that a gate which SHOULD have fired and did not is indistinguishable
  * from one that correctly stood down: a miss only does `++countTestsIgnored`, the
- * count is printed, and the exit code reads `countTestsFailed` alone. So an axis
- * that stopped running leaves nothing behind — strictly worse than a deleted test
+ * count is printed, and neither failure counter moves. So an axis that stopped
+ * running leaves nothing behind — strictly worse than a deleted test
  * file, which at least shows up as a file that is gone.
  *
  * `tests` is the delta the matched blocks actually executed, not the number of
@@ -145,6 +182,9 @@ const noteWarning = (message: string): void => {
     warnings.push({ suite: currentSuite, message });
 };
 
+/** The message of whatever was thrown, for a diagnostic that must not throw itself. */
+const errorMessage = (error: unknown): string => (error as { message?: string })?.message ?? String(error);
+
 /**
  * Whether the process CWD was still readable the last time a test ended.
  *
@@ -195,7 +235,7 @@ const probeCwd = (): boolean => {
 const noteIfCwdDestroyed = (expectation: string): void => {
     if (!cwdReadable || probeCwd()) return;
     cwdReadable = false;
-    ++countTestsFailed;
+    ++countFailuresOutsideTests;
     const message =
         `this test left the process in a deleted working directory — every later ` +
         `\`process.cwd()\`, including one inside a spawned child, now fails with ENOENT. ` +
@@ -211,7 +251,7 @@ const noteIfCwdDestroyed = (expectation: string): void => {
  * test, so it gets its own pseudo-test instead of an innocent bystander's tally.
  */
 const noteStrayFailure = (message: string): void => {
-    ++countTestsFailed;
+    ++countFailuresOutsideTests;
     strayFailures.push({ suite: currentSuite, message });
     testErrors.push({
         suite: currentSuite,
@@ -1014,6 +1054,17 @@ export const describe = async function (
     const prevSuite = currentSuite;
     currentSuite = moduleName;
     const t0 = now();
+    // This suite's own hooks, popped in `finally` below: a describe whose body
+    // throws must not leave its hooks running over its siblings.
+    //
+    // ONE CASE THIS CANNOT HOLD, measured: a describe that TIMES OUT keeps
+    // running — `withTimeout` cannot cancel a promise — so a hook it registers
+    // after the timeout lands in the frame that is current by then, which is the
+    // parent's. The run is already failing loudly with a named suite timeout when
+    // that happens, and routing a late registration back to its own describe needs
+    // async context this package cannot have (`AsyncLocalStorage` lives in
+    // `@gjsify/async_hooks`, a higher tier). Recorded in `status/open-todos.md`.
+    hookFrames.push({ before: [], after: [] });
     try {
         await withTimeout(callback, suiteTimeoutMs, `describe: ${moduleName}`);
     } catch (e) {
@@ -1022,19 +1073,18 @@ export const describe = async function (
             // failure ledger, so the run reported "1 of N tests failed" over a ledger
             // that named nothing — which is the whole of #1159. A recap alone would
             // not have fixed it: there was nothing to recap.
-            ++countTestsFailed;
+            ++countFailuresOutsideTests;
             testErrors.push({ suite: moduleName, test: '<suite timed out>', message: e.message });
             print(`  ${RED}⏱ Suite timed out: ${e.message}${RESET}`);
         } else {
             throw e;
         }
+    } finally {
+        hookFrames.pop();
     }
     currentSuite = prevSuite;
     const duration = now() - t0;
     print(`  ${GRAY}↳ ${formatDuration(duration)}${RESET}`);
-
-    beforeEachCb = null;
-    afterEachCb = null;
 };
 
 describe.skip = async function (moduleName: string, _callback?: Callback) {
@@ -1122,7 +1172,7 @@ export const on = async function (onRuntime: Runtime | Runtime[], version: strin
 
     // Measured across the gate, so a block that matched and then registered
     // nothing scores zero rather than counting as coverage (see `AxisRecord`).
-    const testsBefore = countTestsOverall;
+    const testsBefore = countTestsRun;
     await callback();
 
     // ONLY the axis that matched is credited. `on(['Node.js', 'Gjs'], …)` running
@@ -1131,18 +1181,60 @@ export const on = async function (onRuntime: Runtime | Runtime[], version: strin
     // false claim this ledger exists to make impossible.
     const rec = axisRecord(matchedAxis ?? onRuntime[0]);
     ++rec.matched;
-    rec.tests += countTestsOverall - testsBefore;
+    rec.tests += countTestsRun - testsBefore;
 };
 
-let beforeEachCb: Callback | undefined | null;
-let afterEachCb: Callback | undefined | null;
+/**
+ * The hooks in scope, one frame per enclosing `describe` plus a module-level root.
+ *
+ * ONE SLOT PER MODULE IS WHAT THIS REPLACES, and it failed in two directions at
+ * once (#1554). A second `beforeEach` REPLACED the first silently, so a block
+ * that registered its own pair switched off whatever gate was already there —
+ * measured in `@gjsify/react-native`'s `widgets.spec.ts`, where the diagnostics
+ * gate ran for 12 of 49 cases and a test named "…with no diagnostic" was green
+ * with two `GLib-GObject-CRITICAL`s printed inside it. And `describe` nulled
+ * both slots on RETURN, so hooks registered around several sibling describes
+ * stopped applying after the first one — measured in `host.spec.ts`, where a GTK
+ * critical injected into describe #15 surfaced twelve tests later on an innocent
+ * neighbour.
+ *
+ * Both are the same missing structure: hooks have a SCOPE, and one variable
+ * cannot hold one. A frame is pushed per `describe` and popped when it returns,
+ * so a nested block inherits its parents' hooks and cannot unhook them, and two
+ * registrations in one scope both run rather than one winning silently.
+ *
+ * ORDER is the unwinding one: `beforeEach` outermost-first in registration order,
+ * `afterEach` innermost-first in reverse, so a setup/teardown pair nests the way
+ * the `try`/`finally` a reader pictures would.
+ */
+interface HookFrame {
+    before: Callback[];
+    after: Callback[];
+}
+
+const hookFrames: HookFrame[] = [{ before: [], after: [] }];
+
+const currentHookFrame = (): HookFrame => hookFrames[hookFrames.length - 1] as HookFrame;
 
 export const beforeEach = function (callback?: Callback) {
-    beforeEachCb = callback;
+    if (typeof callback === 'function') currentHookFrame().before.push(callback);
 };
 
 export const afterEach = function (callback?: Callback) {
-    afterEachCb = callback;
+    if (typeof callback === 'function') currentHookFrame().after.push(callback);
+};
+
+/** Every `beforeEach` in scope, outermost frame first. */
+const runBeforeEachHooks = async (): Promise<void> => {
+    for (const frame of hookFrames) for (const hook of frame.before) await hook();
+};
+
+/** Every `afterEach` in scope, unwinding: innermost frame first, reverse registration. */
+const runAfterEachHooks = async (): Promise<void> => {
+    for (let i = hookFrames.length - 1; i >= 0; --i) {
+        const frame = hookFrames[i] as HookFrame;
+        for (let j = frame.after.length - 1; j >= 0; --j) await (frame.after[j] as Callback)();
+    }
 };
 
 export const it = async function (
@@ -1161,6 +1253,10 @@ export const it = async function (
     const timeoutMs = typeof options === 'number' ? options : (options?.timeout ?? timeoutConfig.testTimeout);
 
     const t0 = now();
+    // Counted where the test COMMITS to running — after every skip path above, so
+    // a skipped test is not a test that ran, which is the distinction a total can
+    // never carry on its own (#1557).
+    ++countTestsRun;
     // Attributes a matcher throw to THIS test rather than to a stray pseudo-test.
     // Balanced in `finally`, so an assertion firing after this test resolved is
     // correctly recognised as out-of-band (see triggerResult / noteStrayFailure).
@@ -1174,21 +1270,37 @@ export const it = async function (
     let observed: unknown;
     let threw = false;
     try {
-        if (typeof beforeEachCb === 'function') {
-            await beforeEachCb();
-        }
+        await runBeforeEachHooks();
 
         await withTimeout(callback, timeoutMs, expectation);
-
-        if (typeof afterEachCb === 'function') {
-            await afterEachCb();
-        }
     } catch (e) {
         threw = true;
         observed = e;
         // Observed by this boundary → not lost. Anything still in the ledger is.
         if (e instanceof Error) ledger.delete(e);
     } finally {
+        // TEARDOWN RUNS WHATEVER HAPPENED, which is the whole point of an
+        // `afterEach` and was not true until #1554's second half. It used to sit
+        // in the `try` after the body, so a test that threw — or whose `beforeEach`
+        // rejected — skipped its own teardown silently. That is this file's own
+        // failure mode one level in: a diagnostics gate that asserts in `afterEach`
+        // stopped asserting for exactly the cases that had something to say, and
+        // an `it.failing` never tore down at all, since throwing IS its contract.
+        //
+        // A teardown that throws is a FAILURE of this test and must not be
+        // swallowed either — but it must not overwrite a body failure, which is
+        // the one a reader is looking for.
+        try {
+            await runAfterEachHooks();
+        } catch (e) {
+            if (!threw) {
+                threw = true;
+                observed = e;
+                if (e instanceof Error) ledger.delete(e);
+            } else {
+                noteWarning(`afterEach also threw while "${expectation}" was already failing: ${errorMessage(e)}`);
+            }
+        }
         --activeTestDepth;
         assertionLedgers.pop();
         noteIfCwdDestroyed(expectation);
@@ -1247,14 +1359,22 @@ it.skip = async function (expectation: string, _callback?: () => void | Promise<
  * is free to change, its accounting is not.
  */
 export const getTestCounters = (): {
-    overall: number;
+    /** Assertions executed. NOT comparable across commits — see {@link countAssertions}. */
+    assertions: number;
+    /** Tests that ran. The number that survives a refactor. */
+    tests: number;
+    /** Tests that ran and failed. */
     failed: number;
+    /** Failures belonging to no test — a stray assertion, a timeout, an unexercised axis. */
+    failedOutsideTests: number;
     ignored: number;
     xfail: number;
     warnings: number;
 } => ({
-    overall: countTestsOverall,
+    assertions: countAssertions,
+    tests: countTestsRun,
     failed: countTestsFailed,
+    failedOutsideTests: countFailuresOutsideTests,
     ignored: countTestsIgnored,
     xfail: countTestsXfail,
     warnings: warnings.length,
@@ -1311,6 +1431,9 @@ it.failing = async function (
         return it(expectation, callback, { timeout: timeoutMs });
     }
     const t0 = now();
+    // An active expectation still RUNS the test; only its verdict is inverted. The
+    // `when: false` branch above delegates to `it()` and is counted there.
+    ++countTestsRun;
     ++activeTestDepth;
     // Own ledger frame, so an assertion thrown inside THIS probe cannot leak into
     // the enclosing it()'s ledger (`it.failing` runs nested inside an `it()` — see
@@ -1319,14 +1442,21 @@ it.failing = async function (
     assertionLedgers.push(new Set<Error>());
     let threw = false;
     try {
-        if (typeof beforeEachCb === 'function') await beforeEachCb();
+        await runBeforeEachHooks();
         await withTimeout(callback, timeoutMs, expectation);
-        if (typeof afterEachCb === 'function') await afterEachCb();
     } catch {
         // The expected outcome: tolerating THIS failure is the contract, and the
         // pass-branch below is what keeps the marker honest.
         threw = true;
     } finally {
+        // In the `finally` for `it()`'s reason, and here it is not an edge case
+        // but the RULE: an active `it.failing` throws by contract, so teardown in
+        // the `try` meant every expected failure skipped it.
+        try {
+            await runAfterEachHooks();
+        } catch (e) {
+            noteWarning(`afterEach threw after the expected failure "${expectation}": ${errorMessage(e)}`);
+        }
         --activeTestDepth;
         assertionLedgers.pop();
     }
@@ -1356,7 +1486,7 @@ it.failing = async function (
 // The optional second argument mirrors vitest/jest `expect(value, message?)`: a
 // human label that does not affect matching.
 export const expect = function (actualValue: unknown, _message?: string) {
-    ++countTestsOverall;
+    ++countAssertions;
 
     const expecter = new MatcherFactory(actualValue, true);
 
@@ -1376,7 +1506,7 @@ const failAssertion = (error: unknown): never => {
 };
 
 export const assert = function (success: unknown, message?: string | Error) {
-    ++countTestsOverall;
+    ++countAssertions;
     try {
         nodeAssert(success, message);
     } catch (error) {
@@ -1385,7 +1515,7 @@ export const assert = function (success: unknown, message?: string | Error) {
 };
 
 assert.strictEqual = function <T>(actual: unknown, expected: T, message?: string | Error): asserts actual is T {
-    ++countTestsOverall;
+    ++countAssertions;
     try {
         nodeAssert.strictEqual(actual, expected, message);
     } catch (error) {
@@ -1394,7 +1524,7 @@ assert.strictEqual = function <T>(actual: unknown, expected: T, message?: string
 };
 
 assert.throws = function (promiseFn: () => unknown, ...args: [AssertPredicate?, string?]) {
-    ++countTestsOverall;
+    ++countAssertions;
     let error: unknown;
     try {
         promiseFn();
@@ -1416,7 +1546,7 @@ assert.throws = function (promiseFn: () => unknown, ...args: [AssertPredicate?, 
 };
 
 assert.deepStrictEqual = function <T>(actual: unknown, expected: T, message?: string | Error): asserts actual is T {
-    ++countTestsOverall;
+    ++countAssertions;
     try {
         nodeAssert.deepStrictEqual(actual, expected, message);
     } catch (error) {
@@ -1442,9 +1572,10 @@ const browserSignalDone = () => {
     const doc = g.document;
     if (!doc) return;
     g.__gjsify_test_results = {
-        passed: countTestsOverall - countTestsFailed,
-        failed: countTestsFailed,
-        total: countTestsOverall,
+        passed: countTestsRun - countTestsFailed,
+        failed: countTestsFailed + countFailuresOutsideTests,
+        total: countTestsRun,
+        assertions: countAssertions,
         errors: testErrors,
     };
     doc.documentElement.dataset.testsDone = 'true';
@@ -1470,7 +1601,7 @@ const failUnexercisedAxes = async (declared: readonly Runtime[]): Promise<void> 
         const rec = axisLedger.get(axis);
         if (rec && rec.tests > 0) continue;
 
-        ++countTestsFailed;
+        ++countFailuresOutsideTests;
         const detail = rec
             ? `${rec.matched} gate(s) matched but executed no test, ${rec.ignored} stood down`
             : 'no on() gate named it';
@@ -1488,6 +1619,34 @@ const failUnexercisedAxes = async (declared: readonly Runtime[]): Promise<void> 
  * rule is exactly where the regression lived. `bodyThrew` with a zero tally used to
  * answer 0, so a run that dropped eight of nine suites reported success.
  */
+/**
+ * The red summary's sentence: what failed, in terms that can be true together.
+ *
+ * TWO CLAUSES, because they are two different facts and one ratio cannot carry
+ * both. `N of M tests failed` is only true of failures a TEST owns; a stray
+ * assertion, a suite timeout and an unexercised axis raise the numerator without
+ * raising the denominator, and the arithmetic then says something impossible —
+ * measured before the split: `3 of 2 tests failed`, and with no real tests at
+ * all, `2 of 0`. A line whose whole job is to be quoted cannot print that.
+ *
+ * Exported and pure for `failure-recap.spec.ts`'s reason: the wording is free to
+ * change, the accounting is not, and a spec asserting on printed colour would
+ * pin the wrong half.
+ */
+export const formatFailureVerdict = (counts: { failed: number; outside: number; tests: number }): string => {
+    const parts: string[] = [];
+    if (counts.failed) parts.push(`${counts.failed} of ${counts.tests} tests failed`);
+    if (counts.outside) {
+        const plural = counts.outside === 1 ? '' : 's';
+        parts.push(
+            counts.failed
+                ? `${counts.outside} failure${plural} outside any test`
+                : `${counts.outside} failure${plural} outside any test, ${counts.tests} tests passed`,
+        );
+    }
+    return parts.join(', and ');
+};
+
 export const exitCodeFor = (failed: number, bodyThrew: boolean): number => (failed > 0 || bodyThrew ? 1 : 0);
 
 const printResult = () => {
@@ -1545,21 +1704,46 @@ const printResult = () => {
         }
     }
 
-    if (countTestsFailed) {
+    if (countTestsFailed || countFailuresOutsideTests) {
         printFailureRecap(rtTag);
-        print(`\n${RED}❌ ${rtTag}${countTestsFailed} of ${countTestsOverall} tests failed${durationStr}${RESET}`);
+        const verdict = formatFailureVerdict({
+            failed: countTestsFailed,
+            outside: countFailuresOutsideTests,
+            tests: countTestsRun,
+        });
+        print(`\n${RED}❌ ${rtTag}${verdict}${countsSuffix()}${durationStr}${RESET}`);
     } else if (suiteBodyThrew) {
         // Every test that ran passed, and the run is still not a pass: a suite body
         // threw, so later suites never started. Printing the green line here — with
         // the process about to exit 1 — is the mixed signal a reader resolves in
         // favour of the colour.
         print(
-            `\n${RED}❌ ${rtTag}${countTestsOverall} test${countTestsOverall === 1 ? '' : 's'} passed, ` +
-                `then a suite body threw — the run is INCOMPLETE${durationStr}${RESET}`,
+            `\n${RED}❌ ${rtTag}${countTestsRun} test${countTestsRun === 1 ? '' : 's'} passed, ` +
+                `then a suite body threw — the run is INCOMPLETE${countsSuffix()}${durationStr}${RESET}`,
         );
     } else {
-        print(`\n${GREEN}✔ ${rtTag}${countTestsOverall} completed${durationStr}${RESET}`);
+        print(
+            `\n${GREEN}✔ ${rtTag}${countTestsRun} test${countTestsRun === 1 ? '' : 's'} passed` +
+                `${countsSuffix()}${durationStr}${RESET}`,
+        );
     }
+};
+
+/**
+ * What the summary line carries besides the verdict: assertions, and skips.
+ *
+ * BOTH ARE THERE BECAUSE OF WHAT THE OLD LINE HID (#1557). It read `N completed`,
+ * `N` was assertions, and every consumer quoted it as tests — so a number that
+ * fell because a table got tidier read exactly like a gate that had started
+ * skipping. Refuting that needed the skipped count and the executed test names,
+ * and neither was in the line everyone quotes. A skip is arithmetically
+ * indistinguishable from a deleted test in a total, so the total alone can never
+ * separate them; the count of skips can, and costs one clause.
+ */
+const countsSuffix = (): string => {
+    const parts = [`${countAssertions} assertion${countAssertions === 1 ? '' : 's'}`];
+    if (countTestsIgnored) parts.push(`${countTestsIgnored} ignored`);
+    return `  ${GRAY}· ${parts.join(' · ')}${RESET}`;
 };
 
 /**
@@ -1588,7 +1772,7 @@ const printResult = () => {
  * list.
  */
 const printFailureRecap = (rtTag: string): void => {
-    for (const line of formatFailureRecap(testErrors, countTestsFailed, rtTag)) print(line);
+    for (const line of formatFailureRecap(testErrors, countTestsFailed + countFailuresOutsideTests, rtTag)) print(line);
     // On Actions, also put the names on the run's SUMMARY page. That is where the
     // person who just merged is already looking, and until now the only annotation
     // there was `Process completed with exit code 1`.
@@ -1733,7 +1917,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
                     // counted failure that is absent from the ledger cannot be named
                     // in the recap, and the recap is the only place a CI reader looks.
                     print(`\n${RED}⏱ ${e.message}${RESET}`);
-                    ++countTestsFailed;
+                    ++countFailuresOutsideTests;
                     testErrors.push({ suite: '<test run>', test: '<run timed out>', message: e.message });
                 } else {
                     throw e;
@@ -1791,7 +1975,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
             // Node.js exits here: without a mainloop, the code after `mainloop?.run()`
             // below would already have run before any test did.
             if (!mainloop) {
-                const exitCode = exitCodeFor(countTestsFailed, suiteBodyThrew);
+                const exitCode = exitCodeFor(countTestsFailed + countFailuresOutsideTests, suiteBodyThrew);
                 try {
                     const process = globalThis.process || (await import('node:process'));
                     process.exit(exitCode);
@@ -1807,7 +1991,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
     // GJS exits only after the mainloop returns — `system.exit()` from inside a
     // mainloop callback does not terminate immediately.
     if (mainloop) {
-        const exitCode = exitCodeFor(countTestsFailed, suiteBodyThrew);
+        const exitCode = exitCodeFor(countTestsFailed + countFailuresOutsideTests, suiteBodyThrew);
         // Real-GJS-only path (see the `mainloop` gate above), where `imports.system`
         // is a native builtin that always resolves and `exit()` never throws.
         runtimeGlobals().imports?.system?.exit(exitCode);

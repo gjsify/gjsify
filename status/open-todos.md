@@ -1119,6 +1119,29 @@ artifacts somewhere the project does not also use as scratch. Both are config su
 the ADR treatment rather than a filter someone adds in passing. Until then the fat is visible only
 to a reader of `--verbose`, which is how it stayed unnoticed in the first place.
 
+### A timed-out `describe` can still register a hook, and it lands on its parent
+
+`@gjsify/unit` scopes `beforeEach`/`afterEach` per `describe` (#1554): a frame is pushed on
+entry and popped when the body returns. A body that TIMES OUT does not return — `withTimeout`
+rejects the wrapper, and nothing cancels the body, because a promise cannot be cancelled. So
+the frame is popped while the body is still running, and a hook it registers afterwards lands
+in whatever frame is current by then, which is the parent's.
+
+**Measured**: a describe with `suiteTimeout: 40` sleeping 150 ms and registering its hooks
+after the sleep — a later sibling test then logged `["LEAKED-before", "n-body", "LEAKED-after"]`.
+Same symptom as the incident that motivated the scoping (an innocent neighbour), narrowed to a
+suite that is already failing.
+
+**Why it is not simply fixed.** Routing a late registration back to the describe it was
+written in needs async context — `AsyncLocalStorage`, which lives in `@gjsify/async_hooks`, a
+package `@gjsify/unit` may not depend on (tier direction, ADR 0003). A `closed` flag on the
+frame does not help: the late write does not target the popped frame, it targets the parent.
+What WOULD work is refusing to register into any frame once a timeout has been seen, which
+trades a leak for a silently dropped hook — the same class, in the other direction.
+
+The run is red and names the timed-out suite either way, so the cost is a confusing extra
+failure rather than a silent one.
+
 ### `canPlayType` answers from a hardcoded list, and one of its answers is now known wrong
 
 `@gjsify/webaudio`'s `HTMLAudioElement` carries `SUPPORTED_TYPES`, a hardcoded set of MIME types

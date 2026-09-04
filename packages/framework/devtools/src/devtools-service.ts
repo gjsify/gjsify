@@ -20,6 +20,7 @@ import { dumpCss, swapCss } from './css.js';
 import { dumpGSettings } from './gsettings.js';
 import {
     activateWidget,
+    DEFAULT_DUMP_DEPTH,
     dumpTree,
     findWidgetPath,
     getWidgetProperty,
@@ -317,12 +318,28 @@ export class DevtoolsService {
         return JSON.stringify(listToplevels());
     }
 
-    /** `DumpTree(root, depth) -> s` — JSON widget tree from `root` ('' = active window). */
+    /**
+     * `DumpTree(root, depth) -> s` — JSON widget tree from `root` ('' = active window).
+     *
+     * THE DEFAULT WAS 8 AND DID NOT REACH THE BOTTOM OF AN ORDINARY WINDOW.
+     * Measured on a routed application: the navigation page's own
+     * `AdwToolbarView` sits at level 7 and its `AdwHeaderBar` below that, so the
+     * default answered ZERO header bars for a window that drew one — and the
+     * existing devtools vectors' widgets sit at exactly 8, one nesting away from
+     * vanishing the same way (#1553).
+     *
+     * {@link DEFAULT_DUMP_DEPTH} is the new floor and the bound stays: this is the
+     * answer to "what did the application draw", read over D-Bus, and an unbounded
+     * walk of a deep tree is not free. What changed with it is that the bound now
+     * SAYS so — `truncated: true` on any node whose children were not walked — so
+     * a caller reading zero children can tell "nothing there" from "I stopped
+     * looking", which is the distinction a bigger number alone would not buy.
+     */
     DumpTree(root: string, depth: number): string {
         const resolved = this._resolveRootWidget(root);
         if (!resolved)
             throw new Error(formatDbusErrorMessage('not-found', `no widget at '${root || 'active window'}'`));
-        return JSON.stringify(dumpTree(resolved.widget, depth > 0 ? depth : 8, resolved.path));
+        return JSON.stringify(dumpTree(resolved.widget, depth > 0 ? depth : DEFAULT_DUMP_DEPTH, resolved.path));
     }
 
     /** `GetProperty(path, prop) -> s` — JSON value of a widget's GObject property. */
