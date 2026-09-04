@@ -97,7 +97,13 @@ const PATH_KEYS = ['icon', 'schemas', 'licenseFile'];
 const SIGN_OSES = new Set(['darwin', 'win32']);
 
 /**
- * The OSes `gjsify.ship.app` may be keyed on, and the runtimes it may name.
+ * The OSes `gjsify.ship.app` and `gjsify.ship.bundle` may be keyed on, and the
+ * runtimes the first of them may name.
+ *
+ * ONE set for both, because they are one decision split over two keys: the
+ * runtime a target execs and the entry it hands that runtime. A vocabulary that
+ * drifted between them would let a project name darwin's entry under a key
+ * darwin's runtime is not read from.
  *
  * The `process.platform` spelling again, for the reason `SIGN_OSES` gives: the
  * value that resolves is chosen by the LAYOUT being assembled. All three are in,
@@ -172,6 +178,38 @@ export function auditShip(ctx) {
                     `${pkg.rel}/package.json: \`gjsify.ship.targets\` names "${target}", which \`gjsify ship\` cannot ` +
                         `build. Known targets: ${[...TARGETS].join(', ')}.`,
                 );
+            }
+        }
+
+        // `bundle` as a TABLE, which is the only half of it this rule can judge.
+        // The paths themselves stay unchecked for the reason PATH_KEYS gives —
+        // they are build outputs, absent in a clean checkout — but a key nothing
+        // reads is exactly as silent here as it is on `app`, and costs more: the
+        // target keeps the project's entry and ships a bundle its own
+        // interpreter cannot load (#1545).
+        const bundle = block.bundle;
+        if (bundle !== undefined && typeof bundle !== 'string') {
+            if (bundle === null || typeof bundle !== 'object' || Array.isArray(bundle)) {
+                failures.push(
+                    `${pkg.rel}/package.json: \`gjsify.ship.bundle\` must be a path or an object keyed by OS — ` +
+                        `one entry for every target, or one per target.`,
+                );
+            } else {
+                for (const [os, entry] of Object.entries(bundle)) {
+                    if (!APP_OSES.has(os)) {
+                        failures.push(
+                            `${pkg.rel}/package.json: \`gjsify.ship.bundle.${os}\` is not an OS \`gjsify ship\` ` +
+                                `assembles for. Known: ${[...APP_OSES].join(', ')} — the \`process.platform\` ` +
+                                `spelling, not the \`gjsify ship <os>\` positional's. An entry under a key nothing ` +
+                                `reads leaves that target on \`gjsify.main\` with nothing to say so.`,
+                        );
+                    } else if (typeof entry !== 'string' || entry.length === 0) {
+                        failures.push(
+                            `${pkg.rel}/package.json: \`gjsify.ship.bundle.${os}\` must be a path to the built ` +
+                                `bundle that target installs.`,
+                        );
+                    }
+                }
             }
         }
 

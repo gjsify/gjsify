@@ -13,10 +13,11 @@ import {
     descriptionParagraphs,
     deriveBinaryName,
     resolveShipApp,
+    resolveShipBundle,
     resolveShipSettings,
     type SettingsInput,
 } from './settings.js';
-import type { ShipAppOptions } from '../../types/config-data.js';
+import type { ConfigDataShip, ShipAppOptions } from '../../types/config-data.js';
 import { normaliseVersion } from './version.js';
 
 function input(overrides: Partial<SettingsInput> = {}): SettingsInput {
@@ -218,6 +219,89 @@ export default async () => {
             // check that only fires on the mis-keyed OS never fires at all.
             expect(() => resolveShipApp({ project: 'gjs', perTarget: misKeyed, layoutOs: 'linux' })).toThrow(
                 '`gjsify.ship.app.windows` is not an OS',
+            );
+        });
+    });
+
+    await describe('resolveShipBundle', async () => {
+        await it('keeps every single-host project on gjsify.main', async () => {
+            // Fall-through, not requirement: the table is what a two-host project
+            // needs, and nothing about it is mandatory for one host.
+            expect(resolveShipBundle({ pkg: { main: 'dist/app.js' }, ship: {}, layoutOs: 'linux' })).toStrictEqual({
+                declared: 'dist/app.js',
+                key: 'main',
+                overridden: false,
+                foreign: [],
+            });
+            const gjsifyMain = { main: 'lib/index.js', gjsify: { main: 'dist/app.gjs.mjs' } };
+            const resolved = resolveShipBundle({ pkg: gjsifyMain, ship: {}, layoutOs: 'linux' });
+            expect(resolved.declared).toBe('dist/app.gjs.mjs');
+            expect(resolved.key).toBe('gjsify.main');
+        });
+
+        await it('gives each target its own entry, and names the key that answered', async () => {
+            // The pair `gjsify.ship.app` makes necessary: that key moves the
+            // launcher to `node`, and before #1545 nothing moved the payload with
+            // it — so the `.app` shipped the GJS bundle and died on first import.
+            const ship = { bundle: { darwin: 'dist/app.node.mjs', win32: 'dist/app.node.mjs' } };
+            const darwin = resolveShipBundle({
+                pkg: { gjsify: { main: 'dist/app.gjs.mjs' } },
+                ship,
+                layoutOs: 'darwin',
+            });
+            expect(darwin.declared).toBe('dist/app.node.mjs');
+            expect(darwin.key).toBe('gjsify.ship.bundle.darwin');
+            expect(darwin.overridden).toBe(true);
+            const linux = resolveShipBundle({ pkg: { gjsify: { main: 'dist/app.gjs.mjs' } }, ship, layoutOs: 'linux' });
+            expect(linux.declared).toBe('dist/app.gjs.mjs');
+            expect(linux.key).toBe('gjsify.main');
+            expect(linux.overridden).toBe(false);
+        });
+
+        await it('reads a plain string as one entry for every target', async () => {
+            const ship = { bundle: 'dist/app.gjs.mjs' };
+            expect(resolveShipBundle({ pkg: {}, ship, layoutOs: 'darwin' }).key).toBe('gjsify.ship.bundle');
+            expect(resolveShipBundle({ pkg: {}, ship, layoutOs: 'darwin' }).foreign).toStrictEqual([]);
+        });
+
+        await it("names the OTHER targets' entries, which this payload must not carry", async () => {
+            // Both bundles are built into ONE directory and `discoverPayload`
+            // stages that directory whole, so without this list each artifact
+            // carries the other's bundle — on macOS inside the signed `.app`.
+            const ship = { bundle: { linux: 'dist/app.gjs.mjs', darwin: 'dist/app.node.mjs' } };
+            expect(resolveShipBundle({ pkg: {}, ship, layoutOs: 'darwin' }).foreign).toStrictEqual([
+                'dist/app.gjs.mjs',
+            ]);
+            // One file named for two targets is one file: dropping it would strip
+            // the entry the artifact runs.
+            const shared = { bundle: { linux: 'dist/app.mjs', darwin: 'dist/app.mjs' } };
+            expect(resolveShipBundle({ pkg: {}, ship: shared, layoutOs: 'darwin' }).foreign).toStrictEqual([]);
+        });
+
+        await it("names the FALL-THROUGH entry too, which is #1545's own project shape", async () => {
+            // Only darwin declares an entry; linux and win32 both resolve
+            // `gjsify.main`. Reading the table alone would call darwin's payload
+            // clean and leave the GJS bundle inside the signed `.app` — the exact
+            // artifact the issue was filed about, minus the launcher.
+            const pkg = { gjsify: { main: 'dist/app.gjs.mjs' } };
+            const ship = { bundle: { darwin: 'dist/app.node.mjs' } };
+            expect(resolveShipBundle({ pkg, ship, layoutOs: 'darwin' }).foreign).toStrictEqual(['dist/app.gjs.mjs']);
+            // …and the targets that kept the fall-through have nothing to drop:
+            // darwin's entry is theirs to exclude, once.
+            expect(resolveShipBundle({ pkg, ship, layoutOs: 'linux' }).foreign).toStrictEqual(['dist/app.node.mjs']);
+            // A project with no table at all resolves one entry everywhere.
+            expect(resolveShipBundle({ pkg, ship: {}, layoutOs: 'darwin' }).foreign).toStrictEqual([]);
+        });
+
+        await it('refuses a key it does not read, on the run that does not read it either', async () => {
+            // Same silence as `gjsify.ship.app.windows`, one key over: the target
+            // keeps `gjsify.main` and every gate stays green.
+            const misKeyed = { bundle: { windows: 'dist/app.node.mjs' } } as unknown as ConfigDataShip;
+            expect(() => resolveShipBundle({ pkg: {}, ship: misKeyed, layoutOs: 'win32' })).toThrow(
+                '`gjsify.ship.bundle.windows` is not an OS',
+            );
+            expect(() => resolveShipBundle({ pkg: {}, ship: misKeyed, layoutOs: 'linux' })).toThrow(
+                '`gjsify.ship.bundle.windows` is not an OS',
             );
         });
     });

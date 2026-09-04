@@ -1094,31 +1094,30 @@ misled. These are the upstream source of that claim, and a stale comment is how 
 grows back. Left for a commit of its own because both files path-filter CI job
 selection, and editing them from a docs branch is churn where it is riskiest.
 
-### `gjsify ship`: the RUNTIME is per target, the BUNDLE is still one path
+### The payload is "the directory the entry lives in", and that ships a scratch tree
 
-The runtime half is closed (#1486, ADR 0024 § A22): `gjsify.ship.app.{linux,darwin,win32}`
-overrides `gjsify.app` per target, one resolver answers, and every generator reads the
-runtime of ITS OWN target — so stating macOS's answer no longer moves the Linux
-`Depends:`. What that makes askable is the next question, and it is genuinely a different
-one.
+`discoverPayload` stages every file beside the resolved entry, minus the locale tree and minus
+the entries other targets declared (#1545). Everything else in that directory is payload by
+definition, and nobody declared it.
 
-**`gjsify.ship.bundle` is a single path**, falling back to `gjsify.main` then
-`package.json#main`, and every layout's launcher names the file it resolves to. A project
-that is GJS on Linux and Node on Windows has TWO bundles — `dist/<name>.gjs.js` beside
-`dist/<name>.node.mjs` is the layout `resolve-gjs-entry.ts` documents as normal — and
-`discoverPayload` already stages both, because it takes the whole directory beside the
-bundle. So the payload is right and the launcher's exec line is not: the Windows `.cmd`
-runs `node` over whichever single file the project declared.
+**Measured on the application #1545 was filed from**: `Contents/Resources/lib/` was the project's
+`dist/` verbatim — the two bundles plus **20 PNG screenshots, a `sweep/` directory, four
+debug-probe bundles and a `node_modules`**. The `.app` came to 12 007 054 bytes and most of it is
+not the application. `--verbose` lists the files without commenting on them.
 
-**What makes it non-obvious rather than a five-line follow-up.** The bundle path is read
-before the settings are resolved (`declaredBundlePath` feeds `discoverPayload`), several
-other keys are addressed relative to it, and `assertLauncherMatchesInterpreter` compares
-the launcher with the DEPENDENCY — never with the bundle's dialect, which nothing reads.
-So the failure mode is silent in exactly the way the runtime one was: a `.app` or a
-program directory that assembles, packs and installs, and dies at first launch on a
-machine nobody here owns. A fix wants the same shape as § A22 — one resolver, per target,
-with the resolved value in the stage manifest — plus a discriminator that can tell a GJS
-bundle from a Node one, which is the part that does not exist yet.
+**Why this is not simply "add an ignore list".** The obvious exclusions are wrong in both
+directions. `node_modules` beside the entry is REQUIRED for a `--app node` artifact —
+`utils/ship/app-runtime.ts` stages `@gjsify/node-gi`'s JavaScript into exactly such a directory,
+because the bundle keeps that package external and a `.app` has no consumer `node_modules` to
+resolve it against. And a bundle's own shared chunks are indistinguishable from a project's stray
+files by any rule this tree can write, which is why the foreign-entry exclusion is deliberately
+limited to the DECLARED entries and nothing around them.
+
+So the question is what a payload IS, and the honest answers are a declaration
+(`gjsify.ship.include`/`exclude`, keyed like the two per-target tables) or a build that writes its
+artifacts somewhere the project does not also use as scratch. Both are config surface, so both want
+the ADR treatment rather than a filter someone adds in passing. Until then the fat is visible only
+to a reader of `--verbose`, which is how it stayed unnoticed in the first place.
 
 ### A timed-out `describe` can still register a hook, and it lands on its parent
 

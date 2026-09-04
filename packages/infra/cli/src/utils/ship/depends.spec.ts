@@ -316,6 +316,92 @@ export default async () => {
             ).toStrictEqual([]);
         });
 
+        await it('finds the namespaces a --app node bundle carries', async () => {
+            // `gjsGiNodePlugin` rewrites every `gi://` into this shim, so a node
+            // bundle carries NO `gi://` specifier and the scanner that read only
+            // that form derived an EMPTY dependency set: the package installed
+            // and died at its first GI call. Verbatim from the emitted shim,
+            // including the `require` the bundle keeps external.
+            const shim = [
+                `import { createRequire } from 'node:module';`,
+                `const require = createRequire(import.meta.url);`,
+                `let cached;`,
+                `function load() {`,
+                `  if (cached === undefined) {`,
+                `    cached = require('@gjsify/node-gi/gi').requireGi("Gtk", "4.0");`,
+                `  }`,
+                `  return cached;`,
+                `}`,
+            ].join('\n');
+            expect(scanGiNamespaces(shim)).toStrictEqual(['Gtk-4.0']);
+        });
+
+        await it('finds them in the bundle a real `gjsify build --app node` writes', async () => {
+            // VERBATIM from `gjsify build src/app.ts --app node` on a two-import
+            // app, both spellings, and this is the case a hand-written shim cannot
+            // stand in for. TWO shims in one bundle means two `require` bindings,
+            // so the second is renamed even without `--minify` — which is the
+            // DEFAULT, and there the loader is called `n` and the arguments are
+            // template literals. A reader keyed on the identifier `require` answers
+            // `[]` here, which is a legal answer, so the artifact ships with no
+            // typelib `Depends:` and nothing says a word.
+            const unminified = [
+                `import { createRequire } from "node:module";`,
+                `const require$1 = createRequire(import.meta.url);`,
+                `let cached$1;`,
+                `function load$1() {`,
+                `	if (cached$1 === void 0) cached$1 = require$1("@gjsify/node-gi/gi").requireGi("Gtk", "4.0");`,
+                `	return cached$1;`,
+                `}`,
+            ].join('\n');
+            const minified =
+                'import{createRequire as e}from"node:module";var t=Object.defineProperty,' +
+                '__name=(e,n)=>t(e,`name`,{value:n,configurable:!0});const n=e(import.meta.url);let r;' +
+                'function load$1(){return r===void 0&&(r=n(`@gjsify/node-gi/gi`).requireGi(`Gtk`,`4.0`)),r}';
+            expect(scanGiNamespaces(unminified)).toStrictEqual(['Gtk-4.0']);
+            expect(scanGiNamespaces(minified)).toStrictEqual(['Gtk-4.0']);
+        });
+
+        await it('finds requireGi through every binding node-gi exports it under', async () => {
+            // A hand-written node-gi application does not go through the shim,
+            // and `requireGi` is both the named and the DEFAULT export
+            // (`packages/node-gi/node-gi/gi.d.ts`), so all three spellings reach
+            // the same function and all three must derive the same dependency.
+            const named = `import { requireGi } from '@gjsify/node-gi/gi';\nconst Gtk = requireGi('Gtk', '4.0');`;
+            const renamed = `import { requireGi as gi } from '@gjsify/node-gi/gi';\nconst A = gi('Adw', '1');`;
+            const asDefault = `import gi from '@gjsify/node-gi/gi';\nconst S = gi('Soup', '3.0');`;
+            const namespace = `import * as gi from '@gjsify/node-gi/gi';\nconst G = gi.requireGi('GLib');`;
+            expect(scanGiNamespaces(named)).toStrictEqual(['Gtk-4.0']);
+            expect(scanGiNamespaces(renamed)).toStrictEqual(['Adw-1']);
+            expect(scanGiNamespaces(asDefault)).toStrictEqual(['Soup-3.0']);
+            expect(scanGiNamespaces(namespace)).toStrictEqual(['GLib']);
+        });
+
+        await it("does not read a minified callback that borrowed the namespace import's name", async () => {
+            // MEASURED on `gjsify build --app node` output. The minifier gives an
+            // `import * as gi` and a callback PARAMETER the same short name in
+            // different scopes, and this reader has no scope analysis — so a flat
+            // set of bindings read `e(`Zzqfoo`)` as a namespace, and `deriveDepends`
+            // then refused to package a correct project. A module namespace object
+            // is not callable at all, which is what makes the split exact rather
+            // than a heuristic.
+            const minified =
+                'import*as e from"@gjsify/node-gi/gi";const t=e.requireGi(`Gtk`,`4.0`);' +
+                'function render(e,n){return e(n)+e(`Zzqfoo`)}';
+            expect(scanGiNamespaces(minified)).toStrictEqual(['Gtk-4.0']);
+        });
+
+        await it('does not read a foreign requireGi, because over-approximating fails the build', async () => {
+            // BINDING-TRACED, not name-matched. An unmapped namespace is a build
+            // failure, so a method that merely shares the name would make a
+            // correct project unpackageable — the same asymmetry the `gi://`
+            // string case below is about.
+            expect(
+                scanGiNamespaces(`import { requireGi } from 'somewhere-else';\nrequireGi('Gtk', '4.0');`),
+            ).toStrictEqual([]);
+            expect(scanGiNamespaces(`plugins.requireGi('Gtk', '4.0');`)).toStrictEqual([]);
+        });
+
         await it('parses a specifier with and without a version', async () => {
             expect(parseGiSpecifier('gi://Gtk?version=4.0')).toBe('Gtk-4.0');
             expect(parseGiSpecifier('gi://Gtk')).toBe('Gtk');

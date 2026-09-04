@@ -744,16 +744,26 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         const dir = scaffold(join(tmpDir, 'per-target-runtime'), (pkg, at) => {
             pkg.gjsify.app = 'gjs';
             pkg.gjsify.ship.app = { win32: 'node' };
-            // The sibling a cross-OS project really builds. Staged either way —
-            // `discoverPayload` takes the whole directory — and which one the
-            // launcher NAMES is a separate axis (`gjsify.ship.bundle` is still one
-            // path), so this test says nothing about it.
+            // The sibling a cross-OS project really builds — and the entry the
+            // win32 target hands the runtime it just chose. Declaring only the
+            // runtime is what #1545 measured: the launcher moved to `node`, the
+            // payload stayed on `gjsify.main`, and the artifact died on its first
+            // import. This test used to encode that state as a passing case.
+            pkg.gjsify.ship.bundle = { win32: 'dist/app.node.mjs' };
             writeFileSync(join(at, 'dist', 'app.node.mjs'), NODE_BUNDLE);
         });
 
         // ── the target that said NOTHING, and must therefore have changed nothing
         runCliSync(CLI_ENTRY, ['ship', 'linux', '--skip-build', '--out', 'ship-linux'], { cwd: dir });
         assert.match(readFileSync(join(dir, 'ship-linux', 'stage', 'bin', 'ship-demo'), 'utf-8'), /exec gjs -m /);
+        // …except for the one thing a per-target entry DOES change here: the
+        // win32 bundle is not in the Linux payload. `gjs` cannot load it, and the
+        // test above proves an UNDECLARED sibling is still carried, so this
+        // asserts the declaration and not the directory walk.
+        assert.ok(
+            !listPayload(join(dir, 'ship-linux', 'stage')).includes('lib/ship-demo/app.node.mjs'),
+            'the win32 entry must not ship inside the Linux package',
+        );
 
         if (probe('ar') && probe('tar')) {
             const extracted = join(tmpDir, 'per-target-deb');
