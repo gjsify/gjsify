@@ -301,6 +301,50 @@ pays a tail re-append. Its near-identical sibling `Adw.PreferencesPage` does hav
 `insert(group, i)`, so it is `indexed` and places at the index directly. That is why the table
 is measured per widget rather than inherited.
 
+## A dialog is presented, not adopted
+
+One family of widgets takes none of the rules above, and the difference is not a degradation you
+can work around. An `Adw.Dialog` is **presented against** a parent and never parented by it, so
+its place in your tree and its place in the GTK tree are different places — a portal. Put one in
+a box and the process aborts.
+
+So a dialog declares that instead, and the host places it by calling `present()` on the dialog
+rather than an adder on the parent. Write it exactly where it belongs in your markup:
+
+```tsx
+function Editor() {
+    const [open, setOpen] = createSignal(false);
+    return (
+        <gtk-box orientation="vertical" spacing={12}>
+            <gtk-button label="Rename…" onClicked={() => setOpen(true)} />
+            <Show when={open()}>
+                <adw-dialog title="Rename" onClosed={() => setOpen(false)}>
+                    <gtk-entry />
+                </adw-dialog>
+            </Show>
+        </gtk-box>
+    );
+}
+```
+
+Three things follow, and they are the same in all three adapters because the rule is the host's:
+
+- **the dialog is not a child of the box.** It takes no position in the box's child list, so the
+  button above it is the box's only child and adding or removing the dialog never moves anything.
+- **rendering it opens it; unrendering it closes it.** There is no imperative `present` call to
+  make and no `close` to remember — the dialog is up for exactly as long as the element is in
+  your tree, and it is closed unconditionally when the element goes, whatever `can-close` says.
+- **it waits for a window.** Renderers build a subtree before they insert it, so at the moment
+  your dialog is created its parent is usually not in a window yet. Presenting then would open a
+  stray toplevel; the host waits until the tree is really inside one, and presents there.
+
+`AdwDialog`, `AdwAlertDialog`, `AdwAboutDialog`, `AdwPreferencesDialog` and `AdwShortcutsDialog`
+are placed this way. The four subclasses build their own contents from their own API
+(`add_response`, `add`) and inherit a `set_child` that would replace that, so each is a tag you
+can create, give properties and handlers, and present — while a child written **inside** one is
+refused by name rather than silently wiping the widget's own template. Put your own layout in an
+`<adw-dialog>`; fill a subclass through its API, off a `ref`.
+
 ## Long lists
 
 A `Gtk.ListView` takes no children. It installs no `append`, no `add` and no `set_child`, so

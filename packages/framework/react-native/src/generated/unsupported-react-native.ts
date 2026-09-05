@@ -12,7 +12,6 @@
 
 import { unsupported } from '../unsupported.js';
 
-export const Modal = unsupported('Modal', 'react-native');
 export const RefreshControl = unsupported('RefreshControl', 'react-native');
 export const AppState = unsupported('AppState', 'react-native');
 export const PixelRatio = unsupported('PixelRatio', 'react-native');

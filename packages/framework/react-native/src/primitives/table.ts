@@ -20,18 +20,19 @@
 // callback bug in the application, forever. `children`, `key` and `ref` are the
 // only exceptions, because they are the framework's and never reach a widget.
 //
-// WHY `Modal` IS NOT HERE, and it is the sharpest measurement of this milestone.
+// WHY `Modal` IS HERE NOW, and it is still the sharpest measurement of this file.
 // ADR 0032 maps it to `Adw.Dialog`, and an `Adw.Dialog` cannot be an ordinary
-// element. Measured on libadwaita 1.9.3 / gjs 1.88.1, with the box ROOTED IN A
+// element: measured on libadwaita 1.9.3 / gjs 1.88.1, with the box ROOTED IN A
 // WINDOW — a detached box accepts the append in silence, so a re-test on a bare
-// box 'disproves' this and puts the primitive back: `box.append(dialog)` calls
-// `g_error()` — "Trying to add AdwDialog … to GtkBox. Use adw_dialog_present() to
-// show dialogs." — which is SIGABRT and a core dump, not an exception a host can
+// box 'disproves' this and puts the naive mapping back — `box.append(dialog)` calls
+// `g_error()`, "Trying to add AdwDialog … to GtkBox. Use adw_dialog_present() to
+// show dialogs.", which is SIGABRT and a core dump, not an exception a host can
 // catch and not a warning a diagnostics gate can count. A dialog is PRESENTED
-// against a parent, never parented by it, which makes `<Modal>` a portal rather
-// than a primitive; the host has no portal seam. So `Modal` stays `planned` and its
-// generated refusing export is the honest answer — strictly better than a `partial`
-// that aborts the process the first time somebody renders one.
+// against a parent, never parented by it, which makes `<Modal>` a PORTAL rather
+// than an ordinary primitive. That is not a property of this table: it is a
+// property of the tree, so it was fixed in the tree. `@gjsify/gtk-host` grew a
+// placement axis for it (ADR 0045) and `AdwDialog` declares it, so the row below
+// is an ordinary row — the abort is unreachable because nothing is appended.
 
 import type { AccessibleAttribute, AccessibleRoute } from './accessibility.js';
 import type { Orientation, WidgetFacts, WrapsInto } from './intents.js';
@@ -1330,6 +1331,112 @@ export const PRIMITIVES: Readonly<Record<string, PrimitiveSpec>> = {
         textSink: null,
         overlayOnAbsoluteChild: { tag: 'GtkOverlay', slot: 'overlay' },
         props: { ...COMMON, pointerEvents: POINTER_EVENTS },
+    },
+
+    // `Modal` — the one primitive whose HOST NODE IS NOT ITS PARENT NODE.
+    //
+    // It is here because the host grew a seam for that (ADR 0045): an `AdwDialog`
+    // declares `placement: { kind: 'portal', present, force_close }`, so nothing is
+    // ever appended into the parent and the `g_error()` that used to make this row
+    // unshippable is unreachable. The measurement that kept `Modal` out of this
+    // table is unchanged and is now the seam's reason rather than the primitive's
+    // refusal: with the box ROOTED IN A WINDOW, `box.append(dialog)` is
+    // `Adwaita-ERROR **: Trying to add AdwDialog … to GtkBox …` — SIGABRT, exit 134,
+    // a core dump — while a DETACHED box takes the same append in silence.
+    //
+    // `can-close: false` UNCONDITIONALLY, and it is the whole of what makes the two
+    // models agree. React Native owns a modal's visibility through `visible` and
+    // nothing else; a dialog that closed itself on Escape would leave the element
+    // mounted with `visible` still true and nothing on screen, with no prop change
+    // to re-present it — the silent divergence this layer refuses everywhere. So the
+    // dialog never closes itself: the user's dismissal arrives as `close-attempt`
+    // (that is `onRequestClose`, which React Native documents as required for
+    // exactly this reason), and the only thing that takes the sheet down is the
+    // element being unrendered. MEASURED: with `can-close: false`, `close()` returns
+    // FALSE, emits `close-attempt` and leaves the dialog up; `force_close()` — which
+    // is what the host's portal placement names — closes it and emits `closed`.
+    //
+    // AND THE CONTENT BOX IS NOT DECORATION. `Adw.Dialog` holds ONE child
+    // (`set_child`/`get_child`, measured), so two children under a `<Modal>` would be
+    // an assignment that evicts the first, silently. The box makes the arity right;
+    // it carries no style prop of its own because React Native's `Modal` has no
+    // second style prop to carry it (`ScrollView` has `contentContainerStyle`), so
+    // `style` and `className` land on the dialog — where the paint half works and a
+    // layout utility is refused by name, because an `Adw.Dialog` is not a box.
+    Modal: {
+        tag: 'AdwDialog',
+        widgetProps: { 'can-close': false },
+        cssClasses: [],
+        orientation: 'vertical',
+        // NOT a box: `Adw.Dialog` installs no `orientation` and no `spacing`
+        // (measured), so `items-*`/`gap-*` on a `<Modal>` are refused naming the
+        // primitive rather than dropped. They belong on a `<View>` inside it.
+        widget: LEAF,
+        textSink: null,
+        content: {
+            tag: 'GtkBox',
+            widgetProps: { orientation: 'vertical' },
+            orientation: 'vertical',
+            widget: BOX,
+            styleProp: null,
+            classNameProp: null,
+        },
+        props: {
+            ...COMMON,
+            // Read directly by the binding, exactly as `contentContainerStyle` is:
+            // the element is RENDERED only while this is true, and a portal that is
+            // not rendered is not presented. Listed so an unknown-prop refusal names
+            // the right spelling.
+            visible: {
+                to: 'ignored',
+                why: 'read directly by the binding: the element is rendered only while it is true',
+            },
+            // MEASURED: `close-attempt` is what `Adw.Dialog` emits when the user asks
+            // to close a dialog whose `can-close` is false — Escape, the close
+            // control, a click on the backdrop — and it carries no payload, which is
+            // also React Native's shape (`DirectEventHandler<null>`).
+            onRequestClose: { to: 'event', signal: 'close-attempt' },
+            // MEASURED on libadwaita 1.9.3 / GTK 4.22.4: `map` fires ONCE and it
+            // fires when the dialog is actually on screen — `present()` against a
+            // window that has not been shown yet emits nothing, and the emission
+            // arrives on `win.present()`. That is React Native's own contract
+            // ("called once the modal has been shown") more exactly than the present
+            // call would be.
+            onShow: { to: 'event', signal: 'map' },
+            onDismiss: {
+                to: 'refused',
+                why: 'would never fire. The only thing that dismisses a dialog here is the element being unrendered, and the host disconnects a node’s handlers BEFORE it retracts the node — so `Adw.Dialog::closed` is emitted with the handler already gone. A callback that fires for no dismissal at all is worse than one that says so. Do the work in the effect cleanup of whatever renders the `<Modal>`',
+            },
+            animationType: {
+                to: 'refused',
+                why: 'libadwaita animates the presentation itself and picks the animation from `Adw.Dialog:presentation-mode` — a floating sheet fades and scales, a bottom sheet slides up — so there is no property that selects one. Reach the dialog through a `ref` and set `presentation-mode` if the sheet should arrive from the bottom',
+            },
+            transparent: {
+                to: 'refused',
+                why: 'an `Adw.Dialog` is always a sheet over libadwaita’s own dimmed backdrop; there is no full-bleed transparent mode, and faking one would be a sheet with no chrome that still dims. For an overlay you paint yourself, put an absolutely positioned `<View>` in a `<View>` — that becomes a `Gtk.Overlay` — instead of a `<Modal>`',
+            },
+            backdropColor: {
+                to: 'refused',
+                why: 'see `transparent` — the dim layer is libadwaita’s and is painted from the theme',
+            },
+            presentationStyle: {
+                to: 'refused',
+                why: 'iOS presentation vocabulary. The GTK axis is `Adw.Dialog:presentation-mode` (auto / floating / bottom-sheet), which says WHERE the sheet sits rather than how much it covers, so no member of this maps onto one. Set that property through a `ref`',
+            },
+            allowSwipeDismissal: {
+                to: 'refused',
+                why: 'swipe-to-dismiss is a touch gesture; the desktop dismissal is Escape or a click on the backdrop, and `onRequestClose` already reports both',
+            },
+            supportedOrientations: { to: 'refused', why: 'a desktop window has no orientation to lock' },
+            onOrientationChange: { to: 'refused', why: 'see `supportedOrientations` — nothing rotates' },
+            modalRef: {
+                to: 'refused',
+                why: 'React Native’s second ref, to the native modal host view. There is one node here and `ref` already hands back its `Gtk.Widget`; two refs to one widget would be two names for the same thing',
+            },
+            hardwareAccelerated: { to: 'ignored', why: 'an Android window flag; GTK4 renders through GSK either way' },
+            statusBarTranslucent: { to: 'ignored', why: 'a desktop window has no status bar to go under' },
+            navigationBarTranslucent: { to: 'ignored', why: 'see `statusBarTranslucent`' },
+        },
     },
 
     // `Icon` is NOT a React Native name, and it is here for the reason the primitive

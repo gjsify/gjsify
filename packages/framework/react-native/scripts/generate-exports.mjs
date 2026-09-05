@@ -340,13 +340,37 @@ function renderPrimitiveSection(heading, primitive, spec, note, { table, answers
     out.push(`${facts.join(' · ')}.`, '');
     if (note !== null) out.push(note, '');
     out.push('| prop | answer | GTK | why |', '|---|---|---|---|');
+    /** The per-value refusals, in row order, rendered under the table (#1555). */
+    const refusals = [];
     for (const prop of answers.propNamesOf(spec)) {
         const answer = answers.answerFor(primitive, spec, prop, table.FRAMEWORK_PROPS);
+        const refused = Object.keys(answer.refuses).sort();
+        if (refused.length > 0) refusals.push([prop, answer, refused]);
+        // A prop can be ACCEPTED and still refuse some of its values, and a `why` of
+        // `—` on such a row reads as "everything lands". The names go in the row so
+        // the reader of the row knows which values are not answered; the sentences go
+        // below, because they are paragraphs and a table cell is not.
+        const why =
+            answer.why !== ''
+                ? cell(answer.why)
+                : refused.length === 0
+                  ? '—'
+                  : `refuses ${refused.map((one) => `\`${cell(one)}\``).join(', ')} — see below`;
         out.push(
-            `| \`${prop}\` | ${answer.status} | ${answer.gtk.length === 0 ? '—' : answer.gtk.map((one) => `\`${cell(one)}\``).join(', ')} | ${answer.why === '' ? '—' : cell(answer.why)} |`,
+            `| \`${prop}\` | ${answer.status} | ${answer.gtk.length === 0 ? '—' : answer.gtk.map((one) => `\`${cell(one)}\``).join(', ')} | ${why} |`,
         );
     }
     out.push('');
+    for (const [prop, answer, refused] of refusals) {
+        out.push(
+            answer.status === 'accessible'
+                ? `\`${prop}\` takes a record, and these keys are refused by name:`
+                : `\`${prop}\` is answered for every other value, and these are refused by name:`,
+            '',
+        );
+        for (const one of refused) out.push(`- \`${one}\` — ${answer.refuses[one]}`);
+        out.push('');
+    }
     return out.join('\n');
 }
 
@@ -388,8 +412,13 @@ export function renderPropDoc(surface) {
         '`refused` throws a `PrimitiveError` at render time. A prop that appears in no row throws too,',
         'naming the ones that are here.',
         '',
-        'Ask this from a test rather than reading it: `acceptsProp("Text", "onPress")` is `false` and',
-        '`explainProp("Text", "onPress")` is the sentence a render would have thrown (ADR 0039).',
+        'A prop can be answered and still refuse some of its VALUES by name — `accessibilityRole` is',
+        'the one that does. Those rows name the refused values and the sentences follow the table.',
+        '',
+        'Ask this from a test rather than reading it: `acceptsProp("Text", "onPress")` is `false`,',
+        '`explainProp("Text", "onPress")` is the sentence a render would have thrown, and',
+        '`explainPropValue("View", "accessibilityRole", "keyboardkey")` is the one it would have thrown',
+        'for that value (ADR 0039).',
         '',
         ...sections,
     ].join('\n');

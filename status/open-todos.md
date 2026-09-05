@@ -30,6 +30,34 @@ them is a decision about which package OWNS the API, not a refactor. Establish t
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### A `Gtk.Window` in a child list is accepted silently, where an `Adw.Dialog` aborts
+
+ADR 0045 gave `@gjsify/gtk-host` a placement axis because `box.append(dialog)` is `g_error()` —
+SIGABRT, exit 134 — once the box is rooted in a window. The same probe measured the neighbouring
+case and it does NOT abort:
+
+    const outer = new Adw.Window();
+    const box = new Gtk.Box();
+    outer.set_content(box);            // box is rooted
+    box.append(new Gtk.Window());      // exit 0, win.get_parent() === box
+
+A toplevel sitting inside a child list is wrong in the same way a parented dialog is — it is a
+`GtkRoot` with a parent — and GTK says nothing at all about it. So it is the quieter half of the
+same class, arriving through the door this repository pays most for.
+
+It is NOT fixed by the portal placement, and the reason is a decision rather than an omission:
+`gtk_window_present()` takes NO argument (measured, arity 0, against `adw_dialog_present`'s 1), so
+a window is not *presented against* anything. It is a root, not a node with two positions in the
+tree, and the portal arm's whole content is the parent that joins those two positions —
+`descriptorProblems()` now refuses a zero-argument `present` as a portal for exactly that reason.
+
+What is undecided, and why this is an entry rather than a fix: whether a `<GtkWindow>` element
+should be renderable at all, and if so what its placement means. That is the window-chrome and
+router layer's question (`@gjsify/react-native`'s `router/chrome.ts`, ADR 0043's application
+handle), not the widget table's — and answering it inside a placement ADR would have been a
+routing decision taken in the wrong file. Whoever takes it up: the measurement above is the
+starting point, and a third `NodePlacement` kind is four `never` arms away.
+
 ### One package, two module instances — a "singleton" the bundle duplicates
 
 `@gjsify/adwaita-nativescript` is bundled **TWICE** into the NativeScript storybook
@@ -4649,3 +4677,65 @@ own write", so the next such prop is written as an `on:notify::` route, tests gr
 external write, and ships announcing nothing. A route kind (`announce` is the precedent — it is
 a table field, and it is the reason both L3s subscribe directly) or a per-binding declaration
 checked by the surface gates would make the class visible; naming it here is not that check.
+
+### The window-chrome check fires at startup only; a composition that breaks LATER is unwatched
+
+ADR 0043's amendment takes option A of #1546: `AppRegistry` runs
+`@gjsify/gtk-host/conformance`'s `windowChromeProblems()` over its own window, once, on the
+idle after `map`, ungated, and publishes the answer as `lastWindowChromeProblems()`. That
+catches the shape the instrument was built for — #1460 was an application that OPENED with two
+close buttons — and it is the only option that fires for a consumer who never writes a vector.
+
+It does NOT catch a composition that goes wrong after startup, and the reason it cannot is the
+instrument's own: the invariant is about the RESTING composition, `Adw.NavigationView` keeps a
+departing page mapped while the arriving one slides in, and a per-commit check would therefore
+report a defect for every push. Measured in `gtk-host/conformance/window-chrome.ts`' own header:
+four mapped header bars and four sets of controls at the moment a nested tab group is entered.
+
+So option B is still open and is what answers the rest: a `WindowChromeProblems` method on
+`@gjsify/devtools`, beside `DumpTree`/`Screenshot`. Zero cost when nobody asks, no layering
+question, and it composes with the headless driving a driver already does — walk an
+application's routes and ask after each, at a moment the driver knows is resting. The case
+#1546 was written from is exactly that: a `headerShown: false` screen pushed on top of a
+bar-ful root stack, which is a NAVIGATION and not a launch.
+
+Blocked on nothing but the decision to spend a devtools method on it.
+
+### A `ViewStack` page removed mid-transition can crash, and gtk-host is where it would be avoided
+
+The crash itself is upstream libadwaita's, and it is ledgered where this repository puts an
+upstream gap: `status/upstream-patch-candidates.md` carries the source reading, #1453's
+reporter's backtrace, why `AdwViewStack:enable-transitions = false` is not an escape, what a
+consumer can do meanwhile, and the upstream ask. This entry is only the half that is ours, so
+there is one copy of the mechanism rather than two.
+
+`@gjsify/gtk-host`'s reconciler is what removes an `AdwViewStack` page one at a time, so it is
+the layer that could keep the dangling pointer from being created at all. The lead is in
+libadwaita's own source: `update_child_visible` clears `last_visible_child` whenever the page it
+names stops being visible (`adw-view-stack.c:1073`), so hiding the child and letting that notify
+land before the remove would take the freed page out of play through public API.
+
+NOT done in #1567, and the reason is that it would be a guard nothing measures. These vectors
+never remove a `ViewStack` page one at a time — React unmounts a deleted subtree from its top and
+the pages go with the stack — so reaching the crash needs a route set that SHRINKS while the
+window is mapped, and nothing in the tree builds one.
+
+BLOCKED ON THE VECTOR, not on the decision: build the shrinking-route-set case first. If it
+reproduces the assertion, the hide-then-remove belongs in gtk-host's `ViewStack` descriptor with
+that case holding it, and both retire the day the upstream fix ships.
+
+### `registerBuiltinWidgets()` and the shell lifecycle past `toShellOptions` have no vector
+
+Carried out of `### \`react-native-devtools\` needs a display, and one already exists in CI`,
+which this round deletes: that entry existed because the suite had no host and listing it would
+have bought a silent suite. It has a host now (#1550), so the entry's premise is gone — but the
+residue #1549 recorded is not, and it would have gone with it.
+
+What is still guarded by nothing that CI runs: `registerBuiltinWidgets()`, and everything past
+`toShellOptions` — the shell's own lifecycle wiring (`installDevtools` at `startup`, `activate`
+building the window, `runAsync`). ADR 0043's amendment split `runApplication` at
+`mountApplicationRoot` and `ownTheApplication` precisely because the entry point cannot be
+reached from a spec: a nested `g_application_run` inside the runner's own main loop never
+returns (measured: `g_application_run: assertion '!application->priv->must_quit_now' failed`,
+the case timed out at 5 s). So these need the LOOP, which is what the e2e host now provides —
+the work is writing the vectors, not finding somewhere to run them.

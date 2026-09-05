@@ -713,15 +713,26 @@ export default async () => {
             expect(escaped).toStrictEqual([]);
         });
 
-        await it('leaves Modal out, because appending an AdwDialog ABORTS the process', async () => {
-            // The measurement, and it needs its precondition: the box must be ROOTED in a
-            // window. A detached box accepts the append in silence.
-            // `box.append(dialog)` calls `g_error()` — SIGABRT and a
-            // core dump, not an exception a host can catch. A `partial` here would be
-            // a promise that kills the process on first render.
-            expect(PRIMITIVES.Modal).toBeUndefined();
-            expect(SUPPORT_TABLE.Modal?.status).toBe('planned');
+        await it('carries Modal as a PORTAL, and never as a child of anything', async () => {
+            // THE MEASUREMENT THAT KEPT THIS ROW OUT IS UNCHANGED, and it needs its
+            // precondition: the box must be ROOTED in a window, because a detached
+            // box accepts the same append in silence. `box.append(dialog)` calls
+            // `g_error()` — SIGABRT and a core dump, not an exception a host can
+            // catch. What changed is where the fact lives: `@gjsify/gtk-host` grew a
+            // placement axis (ADR 0045) and `AdwDialog` declares `present` /
+            // `force_close` on it, so nothing is appended and the abort is
+            // unreachable. This vector pins the two halves that make that true.
+            expect(PRIMITIVES.Modal?.tag).toBe('AdwDialog');
+            expect(SUPPORT_TABLE.Modal?.status).toBe('partial');
             expect(SUPPORT_TABLE.Modal?.reason).toContain('g_error()');
+            // `can-close: false` is what makes `visible` the only thing that
+            // dismisses it. Written here as well as in `defaults.ts` because a table
+            // that quietly dropped it would leave the dialog closing itself while
+            // React still believed it was up — and nothing else would fail.
+            expect(PRIMITIVES.Modal?.widgetProps['can-close']).toBe(false);
+            // The content box: `Adw.Dialog` holds ONE child, so two children under a
+            // `<Modal>` would be an assignment that evicts the first, silently.
+            expect(PRIMITIVES.Modal?.content?.tag).toBe('GtkBox');
         });
 
         await it('gives every refusal a reason, and makes every cross-reference resolve', async () => {

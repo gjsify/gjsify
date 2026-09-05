@@ -35,7 +35,7 @@ import type { LayoutIntent, StyleProps, StyleTokens } from '@gjsify/gtk-host/sty
 import { resolveAccessible, type ResolvedAccessible } from './accessibility.js';
 import { unknownPrimitiveDetail, unknownPropDetail } from './answers.js';
 import type { ClassNameInput } from './classes.js';
-import { PrimitiveError } from './errors.js';
+import { describeValue as describe, PrimitiveError } from './errors.js';
 import {
     resolveIntent,
     type ChildContext,
@@ -813,12 +813,5 @@ function assertOneTextAuthority(
 
 const orientationOf = (value: unknown, fallback: Orientation): Orientation =>
     value === 'horizontal' || value === 'vertical' ? value : fallback;
-
-const describe = (value: unknown): string =>
-    typeof value === 'string'
-        ? `"${value}"`
-        : value !== null && typeof value === 'object'
-          ? Object.prototype.toString.call(value)
-          : String(value);
 
 export type { ChildContext, ChildFacts, Orientation, WidgetFacts };
