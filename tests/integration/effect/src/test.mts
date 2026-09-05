@@ -30,22 +30,7 @@
 // appears in this source.
 
 import { run } from '@gjsify/unit';
-import runtimeSurfaceSuite from './runtime-surface.spec.js';
-import fileSystemSuite from './filesystem.spec.js';
-import pathSuite from './path.spec.js';
-import scopeSuite from './scope.spec.js';
-import schedulerSuite from './scheduler.spec.js';
-import clockSuite from './clock.spec.js';
-import streamSuite from './stream.spec.js';
-import configEnvSuite from './config-env.spec.js';
 
-run({
-    runtimeSurfaceSuite,
-    fileSystemSuite,
-    pathSuite,
-    scopeSuite,
-    schedulerSuite,
-    clockSuite,
-    streamSuite,
-    configEnvSuite,
-});
+import { commonSuites } from './suites.js';
+
+run(commonSuites);

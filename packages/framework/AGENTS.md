@@ -1,8 +1,6 @@
 # AGENTS.md — `packages/framework/*` (Framework pillar)
 
 > Scope: this directory tree. Repo-wide rules live in the [root AGENTS.md](../../AGENTS.md) — read that first.
-> Global-registration ownership is ADR 0012; the `/register` convention itself is
-> [docs/register-convention.md](../../docs/register-convention.md).
 
 ## Framework — `packages/framework/*`
 
@@ -20,6 +18,7 @@ Composition-first (Remix/Astro/SvelteKit feel). Anything NOT Node/Web/DOM/infra 
 | video | Gst, Gtk 4 | HTMLVideoElement, `VideoBridge`→`Gtk.Picture` (gtk4paintablesink); srcObject (MediaStream) + src (playbin) |
 | iframe | WebKit 6.0 | HTMLIFrameElement, `IFrameBridge`→`WebKit.WebView`, postMessage bridge, navigation |
 | webkit-native · webview2-native | WebKit.framework / WebView2, Gtk 4 | **no JavaScript** — the shims that MAKE `gi://WebKit` 6.0 exist off Linux, so the row above needs no OS branch: darwin = Apple's WKWebView (ADR 0022), win32 = Chromium via WebView2 (ADR 0035). Each deliberately claims `WebKit-6.0`; which answers is decided by `GI_TYPELIB_PATH`, i.e. by packaging. Each owns the loop bridge its host's callbacks need (CFRunLoop / Win32 message queue). win32 is stage-1 OVERLAY hosting: a child HWND outside GSK's scene graph, named by `get_hosting_mode`. Details: [darwin](webkit-native/README.md) · [win32](webview2-native/README.md) |
+| effect-platform | Gio, GLib, Gtk 4 (`/gtk`) | Effect's platform services over GNOME (ADR 0050) — a PLATFORM package, not a renderer |
 | stories | — | Story-authoring contract (StoryControl union, StoryMeta, StoryModule, `argsFromControls`, `isStoryModule`) — pure TS, all-`polyfill`; the shared vocabulary every renderer consumes |
 | storybook-core | stories | **Renderer-agnostic storybook logic** shared by the GTK/browser/NS renderers — pure TS, all-`polyfill`: `StoryViewBase<TNode>` (chrome via abstract `createChrome` seam), generic `StoryRegistry`, `bindControl` (all per-kind coercion; the leaf-widget factory is the only renderer seam), `StorybookController`/`StorybookView` (mount/select/args state machine + the MCP surface), `collectStoryModules`, `buildStorybookDevtoolsExtension`. Pure named exports, no `/register` |
 | storybook | Adw, Gtk, Gdk, Gio, GLib, stories | GTK/Adwaita renderer: `StoryWidget` (Adw.Bin), `StoryRegistryService` (one per run, no singleton), programmatic `StorybookWindow` (**no `.blp`** so the lib builds under `--library`), `runStorybook()`. Launched via `gjsify storybook`; `--runtime node` builds the SAME storybook `--app node` and runs it via node-gi (e2e `tests/e2e/storybook-on-node`) |

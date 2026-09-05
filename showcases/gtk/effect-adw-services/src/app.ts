@@ -11,10 +11,11 @@
 // provide it. So this window's tree is Blueprint's (`window.blp`), and Effect
 // supplies:
 //
-//   effect-gio/errors.ts       GError → Effect's eleven normalized SystemError tags
-//   effect-gio/filesystem.ts   effect/FileSystem over Gio.File, cancellable for real
-//   effect-gio/scope.ts        a Scope that GObject `destroy` closes — RAII for GJS
-//   effect-gio/signal.ts       a GObject signal as a Stream, with the strategy named
+//   @gjsify/effect-platform       GError → Effect's normalized SystemError tags,
+//                                 effect/FileSystem over Gio.File (cancellable for
+//                                 real), effect/Path over GLib
+//   @gjsify/effect-platform/gtk   a Scope a GObject lifetime closes, and a GObject
+//                                 signal as a Stream
 //
 // SELF-VERIFYING through `runHostProbeApp` from `@gjsify/gtk-host` — the same
 // harness the host-counter showcases use. It owns the `GJSIFY_HOST_PROBE=1` gate,
@@ -30,19 +31,20 @@
 // makes the Gio layer a drop-in rather than a lookalike.
 
 import Adw from 'gi://Adw?version=1';
+import Gdk from 'gi://Gdk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
+import type GObject from 'gi://GObject?version=2.0';
 import GLib from 'gi://GLib?version=2.0';
 
 import * as NodeFileSystem from '@effect/platform-node-shared/NodeFileSystem';
+import * as NodePath from '@effect/platform-node-shared/NodePath';
 import { runHostProbeApp, type ProbeCheck } from '@gjsify/gtk-host';
-import { Duration, Effect, Exit, Fiber, Scope, Stream } from 'effect';
+import { Duration, Effect, Exit, Fiber, type Layer, Scope, Stream } from 'effect';
 import * as FileSystem from 'effect/FileSystem';
+import * as Path from 'effect/Path';
 
-import * as GioFileSystem from './effect-gio/filesystem.js';
-import { gioAsync } from './effect-gio/filesystem.js';
-import { reasonOf } from './effect-gio/errors.js';
-import { propertyStream } from './effect-gio/signal.js';
-import { runInScope, widgetScope, windowScope } from './effect-gio/scope.js';
+import { fileSystemLayer, gioAsync, pathLayer, reasonOf } from '@gjsify/effect-platform';
+import { propertyStream, runInScope, widgetScope, windowScope } from '@gjsify/effect-platform/gtk';
 import { EffectServicesWindow } from './window.js';
 
 // BEFORE any template is instantiated. GtkBuilder resolves `Adw.EntryRow` by GType
@@ -63,6 +65,17 @@ const MISSING = `${SOURCE_DIR}/there-is-no-such-file-here`;
 interface Ui {
     readonly window: EffectServicesWindow;
 }
+
+/**
+ * A boolean signal's answer, recovered from an `emit` that @girs types as `void`.
+ *
+ * The GIR carries each signal's return type; the generated `emit` signature does
+ * not, so there is no typed way to read back what `key-pressed` answered. The cast
+ * lives here, once, rather than at each call site — and it is the reason the probe
+ * can test the sync boundary at all.
+ */
+const emitBoolean = (source: GObject.Object, signal: string, ...args: unknown[]): boolean =>
+    source.emit(signal, ...args) as unknown as boolean;
 
 function buildUi(app: Adw.Application | null): Ui {
     return { window: new EffectServicesWindow(app ? { application: app } : {}) };
@@ -96,7 +109,7 @@ async function assertUi(ui: Ui, check: ProbeCheck): Promise<Record<string, unkno
     check('the window title came from the template', ui.window.title === 'Effect services');
 
     // 2. Both layers, one program.
-    const viaGio = await Effect.runPromise(Effect.provide(readAndFail, GioFileSystem.layer));
+    const viaGio = await Effect.runPromise(Effect.provide(readAndFail, fileSystemLayer));
     const viaNode = await Effect.runPromise(Effect.provide(readAndFail, NodeFileSystem.layer));
 
     check("the Gio layer lists this showcase's own source directory", viaGio.names.includes('window.blp'));
@@ -111,8 +124,8 @@ async function assertUi(ui: Ui, check: ProbeCheck): Promise<Record<string, unkno
 
     // 3. The mapping is a MAPPING, not a NotFound special case. A GError from
     //    another domain with the same numeric code must NOT become NotFound —
-    //    `Gio.IOErrorEnum.NOT_FOUND` and `GLib.FileError.EXIST` are both 1.
-    const foreign = GLib.Error.new_literal(GLib.file_error_quark(), GLib.FileError.EXIST, 'from another domain');
+    //    Measured: `Gio.IOErrorEnum.NOT_FOUND` and `GLib.FileError.ISDIR` are both 1.
+    const foreign = GLib.Error.new_literal(GLib.file_error_quark(), GLib.FileError.ISDIR, 'from another domain');
     check('a same-coded error from another domain is Unknown', reasonOf(foreign) === 'Unknown');
     check(
         'a real GIO NOT_FOUND is NotFound',
@@ -204,7 +217,51 @@ async function assertUi(ui: Ui, check: ProbeCheck): Promise<Record<string, unkno
     check('the property stream starts with the current value', seen[0] === '');
     check('and delivers the change', seen[1] === SOURCE_DIR);
 
-    // 6. RAII, and the trap underneath it.
+    // 6. THE PATH LAYER, held to the same "two layers, one answer" standard as the
+    //    FileSystem one. These are the operations the window's Escape handler runs
+    //    on a real path, and GLib is the implementation underneath — `dirname` is
+    //    `g_path_get_dirname`, `join` is `g_build_filenamev`, `resolve` is
+    //    `g_canonicalize_filename`.
+    const pathAnswers = (layer: Layer.Layer<Path.Path>) =>
+        Effect.runPromise(
+            Effect.provide(
+                Effect.gen(function* () {
+                    const path = yield* Path.Path;
+                    return {
+                        dirname: path.dirname(`${SOURCE_DIR}/window.blp`),
+                        join: path.join(SOURCE_DIR, '..', 'src'),
+                        normalize: path.normalize(`${SOURCE_DIR}/./x/../window.blp`),
+                        sep: path.sep,
+                    };
+                }),
+                layer,
+            ),
+        );
+    const glibPath = await pathAnswers(pathLayer);
+    const nodePath = await pathAnswers(NodePath.layer);
+    check('the GLib Path layer answers about a real path', glibPath.dirname === SOURCE_DIR);
+    check('and it agrees with node:path on all of them', JSON.stringify(glibPath) === JSON.stringify(nodePath));
+
+    // 7. THE SYNC BOUNDARY. `Gtk.EventControllerKey::key-pressed` is a boolean
+    //    signal: GTK reads the answer the moment the handler returns, so a fiber
+    //    cannot supply it and an `async` handler would return a truthy Promise and
+    //    swallow every key. The window answers synchronously and forks the work.
+    //    Emitted rather than typed, because a probe has no input device — what is
+    //    under test is the handler's contract, not GTK's key delivery.
+    await Effect.runPromise(Effect.sleep(Duration.millis(400)));
+    const startedBefore = ui.window.state.started;
+    check(
+        'Escape is consumed, and the answer is there on return',
+        emitBoolean(ui.window.keys, 'key-pressed', Gdk.KEY_Escape, 0, 0),
+    );
+    check(
+        'a key the window does not handle is left to propagate',
+        emitBoolean(ui.window.keys, 'key-pressed', Gdk.KEY_a, 0, 0) === false,
+    );
+    await Effect.runPromise(Effect.sleep(Duration.millis(200)));
+    check('and the work Escape started ran as a fiber', ui.window.state.started > startedBefore);
+
+    // 8. RAII, and the trap underneath it.
     //
     //    `widgetScope` closes on `destroy`, which GTK4 emits from DISPOSE. So
     //    `window.destroy()` — with the application still holding a reference, i.e.
@@ -272,7 +329,7 @@ await runHostProbeApp<Ui>({
     // `run_dispose` and not `destroy`: the window owns a fiber reading its path
     // entry, its scope closes on `close-request` or `destroy`, and a window that
     // was never presented emits NEITHER from `destroy()` — measured, see
-    // `effect-gio/scope.ts`. So `destroy()` here would leave the probe's own
+    // `@gjsify/effect-platform/gtk`. So `destroy()` here would leave the probe's own
     // window behind with a live fiber in it, which is precisely the class of
     // defect the diagnostics count (taken after teardown) exists to catch.
     teardown: (ui) => ui.window.run_dispose(),

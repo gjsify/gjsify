@@ -1,0 +1,78 @@
+{
+    "name": "@gjsify/effect-platform",
+    "version": "0.48.0",
+    "description": "Effect's platform services over GNOME: effect/FileSystem on Gio.File with cancellation that reaches GIO, effect/Path on GLib, GError mapped onto Effect's normalized platform errors, and a /gtk subpath binding GObject lifetimes to Effect Scopes",
+    "type": "module",
+    "main": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./gtk": {
+            "types": "./lib/types/gtk.d.ts",
+            "default": "./lib/esm/gtk.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "sideEffects": false,
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "tier": 3,
+        "headless": [
+            "Gdk",
+            "GdkPixbuf",
+            "Gsk",
+            "Gtk",
+            "Adw"
+        ]
+    },
+    "dependencies": {
+        "@girs/gio-2.0": "4.6.0",
+        "@girs/gjs": "4.6.0",
+        "@girs/glib-2.0": "4.6.0",
+        "@girs/gobject-2.0": "4.6.0",
+        "@girs/gtk-4.0": "4.6.0"
+    },
+    "peerDependencies": {
+        "effect": ">=4.0.0-rc.112"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "effect": "4.0.0-rc.112",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/effect-platform"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/effect-platform#readme"
+}

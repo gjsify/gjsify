@@ -19,17 +19,18 @@
 // two counters in the interface are there to make it visible rather than claimed.
 
 import Adw from 'gi://Adw?version=1';
+import Gdk from 'gi://Gdk?version=4.0';
 import GObject from 'gi://GObject?version=2.0';
-import type Gtk from 'gi://Gtk?version=4.0';
+import Gtk from 'gi://Gtk?version=4.0';
 
-import { Duration, Effect, Stream } from 'effect';
+import { Duration, Effect, Layer, Stream } from 'effect';
 import * as FileSystem from 'effect/FileSystem';
+import * as Path from 'effect/Path';
 
 import Template from './window.blp';
 
-import * as GioFileSystem from './effect-gio/filesystem.js';
-import { propertyStream } from './effect-gio/signal.js';
-import { runInScope, windowScope, type WidgetScope } from './effect-gio/scope.js';
+import { fileSystemLayer, pathLayer } from '@gjsify/effect-platform';
+import { propertyStream, runInScope, windowScope, type WidgetScope } from '@gjsify/effect-platform/gtk';
 
 /** What one directory read can end as. Total, so rendering needs no `else`. */
 export type ReadOutcome =
@@ -39,6 +40,15 @@ export type ReadOutcome =
 
 /** How many rows the group shows before it stops adding them. */
 const MAX_ROWS = 12;
+
+/**
+ * Everything the window's fibers need, as one layer.
+ *
+ * Both halves are GNOME's own: `effect/FileSystem` on `Gio.File`, `effect/Path` on
+ * GLib. Swapping in `@effect/platform-node-shared`'s layers here would change
+ * nothing else in this file, which is the property `app.ts` asserts.
+ */
+const Services = Layer.mergeAll(fileSystemLayer, pathLayer);
 
 export class EffectServicesWindow extends Adw.ApplicationWindow {
     declare private _pathRow: Adw.EntryRow;
@@ -60,6 +70,8 @@ export class EffectServicesWindow extends Adw.ApplicationWindow {
 
     /** Closed when the window is closed or disposed; owns every fiber it starts. */
     readonly lifetime: WidgetScope;
+    /** Exposed so the probe can emit a real `key-pressed` and read the answer back. */
+    readonly keys: Gtk.EventControllerKey;
 
     private started = 0;
     private interrupted = 0;
@@ -70,7 +82,10 @@ export class EffectServicesWindow extends Adw.ApplicationWindow {
     constructor(params: Partial<Adw.ApplicationWindow.ConstructorProps> = {}) {
         super(params);
         this.lifetime = windowScope(this);
-        runInScope(this.lifetime.scope, Effect.provide(this.watchPath(), GioFileSystem.layer));
+        this.keys = new Gtk.EventControllerKey();
+        this._pathRow.add_controller(this.keys);
+        this.keys.connect('key-pressed', (_c, keyval) => this.onKeyPressed(keyval));
+        runInScope(this.lifetime.scope, Effect.provide(this.watchPath(), Services));
     }
 
     /** The whole behaviour of the window, as one Effect. */
@@ -118,6 +133,36 @@ export class EffectServicesWindow extends Adw.ApplicationWindow {
                 }),
             ),
         );
+    }
+
+    /**
+     * THE SYNC BOUNDARY, in the one place GTK actually forces it.
+     *
+     * `Gtk.EventControllerKey::key-pressed` is a boolean signal: `true` consumes the
+     * key, `false` lets it propagate. GTK reads that answer the moment the handler
+     * returns, so a fiber cannot supply it — and an `async` handler is worse than
+     * useless here, because the Promise it returns is truthy and would swallow every
+     * key the controller sees.
+     *
+     * So the DECISION is made here, synchronously, and the WORK is forked into the
+     * window's scope. Escape means "go up one directory": the answer is `true`
+     * immediately, the read that follows is a fiber the window owns.
+     */
+    private onKeyPressed(keyval: number): boolean {
+        if (keyval !== Gdk.KEY_Escape) return false;
+        runInScope(this.lifetime.scope, Effect.provide(this.readParent(), Services));
+        return true;
+    }
+
+    /** The forked half of Escape. `Path.dirname` is GLib's, via the platform layer. */
+    private readParent(): Effect.Effect<void, never, FileSystem.FileSystem | Path.Path> {
+        const self = this;
+        return Effect.gen(function* () {
+            const path = yield* Path.Path;
+            const parent = path.dirname(self._pathRow.get_text());
+            const outcome = yield* self.readDirectory(parent);
+            self.render(outcome);
+        }).pipe(Effect.orDie);
     }
 
     private showCounters(): void {

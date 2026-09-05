@@ -18,6 +18,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 import { Cause, Duration, Effect, Exit, Fiber, Latch, Queue, Stream } from 'effect';
 import { pipe } from 'effect/Function';
+import { TestClock } from 'effect/testing';
 
 import { runLive, runTest } from './run.js';
 
@@ -174,6 +175,26 @@ export default async () => {
                             Stream.runCollect,
                         );
                         expect(result).toStrictEqual([4]);
+                    }),
+                );
+            });
+
+            await it('timeoutOrElse - should not apply timeout after switch', async () => {
+                await runTest(
+                    Effect.gen(function* () {
+                        const fiber = yield* pipe(
+                            Stream.never,
+                            Stream.timeoutOrElse({
+                                duration: Duration.zero,
+                                orElse: () =>
+                                    Stream.succeed(1).pipe(Stream.tap(() => Effect.sleep(Duration.seconds(1)))),
+                            }),
+                            Stream.runCollect,
+                            Effect.forkChild({ startImmediately: true }),
+                        );
+                        yield* TestClock.adjust(Duration.seconds(1));
+                        const result = yield* Fiber.join(fiber);
+                        expect(result).toStrictEqual([1]);
                     }),
                 );
             });

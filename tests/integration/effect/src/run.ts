@@ -10,12 +10,12 @@
 // runtime reaches @gjsify/timers and the GLib main loop. So specs that exist to
 // measure gjsify (rather than to port upstream) say `runLive` on purpose.
 
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 import { TestClock } from 'effect/testing';
 
 /** Upstream's `it.effect`: a virtual clock only `TestClock.adjust` advances. */
 export const runTest = <E, A>(self: Effect.Effect<A, E, never>): Promise<A> =>
-    Effect.runPromise(Effect.provide(self, Layer.mergeAll(TestClock.layer())) as Effect.Effect<A, E, never>);
+    Effect.runPromise(Effect.provide(self, TestClock.layer()));
 
 /** Upstream's `it.live`: the host's real clock and real timers. */
 export const runLive = <E, A>(self: Effect.Effect<A, E, never>): Promise<A> => Effect.runPromise(self);

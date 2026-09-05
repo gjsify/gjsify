@@ -6,9 +6,10 @@
 // type — a `GLib.Error` carrying a numeric `code` whose meaning depends on which
 // `domain` produced it. So the only thing a consumer can write today is
 // `catch (e) { if (e.code === Gio.IOErrorEnum.NOT_FOUND) … }`, and getting the
-// domain wrong is silent: `Gio.IOErrorEnum.NOT_FOUND` is 1 and so is
-// `GLib.FileError.EXIST`, so a mismatched domain reads a real error as a different
-// real error rather than as an unknown one.
+// domain wrong is silent. Measured: `Gio.IOErrorEnum.NOT_FOUND` is 1, and so is
+// `GLib.FileError.ISDIR` — so a code read without its domain turns "is a
+// directory" into "not found", which is a different REAL error rather than an
+// unknown one, and nothing downstream can tell.
 //
 // Effect already has the vocabulary this wants: `PlatformError` wrapping a
 // `SystemError` whose `_tag` is one of eleven normalized reasons. Mapping GIO onto

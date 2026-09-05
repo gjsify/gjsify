@@ -32,10 +32,10 @@ export default async () => {
                         const fiber = yield* Effect.forkChild(Scope.close(scope, Exit.void), {
                             startImmediately: true,
                         });
-                        expect(fiber.pollUnsafe()).toBe(undefined);
+                        expect(fiber.pollUnsafe()).toBeUndefined();
                         // One second, not three: parallel means the three sleeps overlap.
                         yield* TestClock.adjust(Duration.seconds(1));
-                        expect(fiber.pollUnsafe() !== undefined).toBe(true);
+                        expect(fiber.pollUnsafe()).toBeDefined();
                     }),
                 );
             });

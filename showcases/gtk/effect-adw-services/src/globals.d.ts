@@ -4,6 +4,7 @@
 /// <reference types="@girs/glib-2.0/ambient" />
 /// <reference types="@girs/gobject-2.0/ambient" />
 /// <reference types="@girs/gio-2.0/ambient" />
+/// <reference types="@girs/gdk-4.0/ambient" />
 /// <reference types="@girs/gtk-4.0/ambient" />
 /// <reference types="@girs/adw-1/ambient" />
 /// <reference types="@gjsify/vite-plugin-blueprint/types" />

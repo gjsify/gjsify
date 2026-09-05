@@ -70,6 +70,7 @@ the TODO records the *what's left*.
 | [0047](0047-portable-adjustment.md) | A numeric range is a value, and the value is `Gtk.Adjustment` | Proposed |
 | [0048](0048-page-selection-by-identity.md) | A selection takes the shape its counterpart gives it: a name, a page, or an ordinal | Proposed |
 | [0049](0049-style-classes-are-a-list.md) | A look is a style class, and a widget carries a LIST of them | Proposed |
+| [0050](0050-effect-platform-services-for-gnome.md) | Effect's platform services for GNOME are a platform package, not a renderer | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

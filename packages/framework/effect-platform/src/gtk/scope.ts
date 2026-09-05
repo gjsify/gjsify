@@ -40,7 +40,12 @@
 // swallowing every key it was asked about. A fiber cannot answer that. So the rule
 // is: the DECISION stays synchronous in the handler, and the WORK is forked. That
 // is what `runInScope` is for, and why it returns a `Fiber` rather than a promise —
-// there is nothing in a handler that could await one.
+// there is nothing in a handler that could await one. `window.ts` does exactly this
+// for Escape, and the probe emits the signal and reads the boolean back.
+//
+// If a handler needs the fiber's OUTCOME, that is `fiber.addObserver(exit => …)`,
+// which is synchronous and one line. An earlier version of this file wrapped it as
+// `onExit`; nothing ever called the wrapper, so it is gone.
 
 import type GObject from 'gi://GObject?version=2.0';
 import type Gtk from 'gi://Gtk?version=4.0';
@@ -137,16 +142,3 @@ export const runInScope = <A, E>(scope: Scope.Scope, effect: Effect.Effect<A, E,
     // returns a completed Exit while the work is still running, which reads exactly
     // like "the scope never started anything".
     Effect.runSync(Effect.forkIn(effect, scope));
-
-/**
- * Hand a fiber's outcome back to a synchronous callback.
- *
- * The counterpart to {@link runInScope}: how a handler that started work gets to
- * update a label when the work is done, without an `async` handler and without a
- * floating promise. `Exit` rather than a value/error pair because interruption is
- * a third outcome, and a window scope closing mid-flight produces exactly that —
- * a UI that treats it as a failure reports an error for a window the user closed.
- */
-export const onExit = <A, E>(fiber: Fiber.Fiber<A, E>, handle: (exit: Exit.Exit<A, E>) => void): void => {
-    fiber.addObserver(handle);
-};

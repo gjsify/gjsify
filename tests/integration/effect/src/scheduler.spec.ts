@@ -29,7 +29,11 @@ interface Spy {
 }
 
 /** `vi.spyOn(host, name).mockImplementation(impl)`, hand-rolled. */
-const spyOn = (host: Record<string, unknown>, name: string, impl: (...args: never[]) => unknown): Spy => {
+const spyOn = (
+    host: Record<string, unknown>,
+    name: string,
+    impl: (this: unknown, ...args: never[]) => unknown,
+): Spy => {
     const original = host[name];
     const spy: Spy = {
         calls: 0,
@@ -38,9 +42,13 @@ const spyOn = (host: Record<string, unknown>, name: string, impl: (...args: neve
             else host[name] = original;
         },
     };
-    host[name] = (...args: never[]) => {
+    // `function` and not an arrow: the call-through case applies `impl` with the
+    // receiver, and an arrow would hand it `undefined`. Latent today because the one
+    // call-through case asserts a count of zero, which is exactly the kind of thing
+    // that stops being latent when someone adds a second case.
+    host[name] = function (this: unknown, ...args: never[]) {
         spy.calls++;
-        return impl(...args);
+        return impl.apply(this, args);
     };
     return spy;
 };

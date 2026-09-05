@@ -27,12 +27,18 @@ own state and Effect only sequences the mutations.
 What no GJS application has is the other half. So this showcase is deliberately the small,
 honest cut: Effect sits *beside* the widgets and supplies
 
-| module | what it bridges |
+Those bridges are no longer in this directory. They started here, which was the right first step —
+the two design questions they answer (which signal closes a widget scope, and how much of
+`FileSystem` a Gio layer should implement) were open until something used them. Both are answered
+now, so the code graduated to
+[`@gjsify/effect-platform`](../../../packages/framework/effect-platform) per
+[ADR 0050](../../../docs/adr/0050-effect-platform-services-for-gnome.md), and this showcase is one
+of its consumers:
+
+| entry | what this window uses from it |
 |---|---|
-| [`effect-gio/errors.ts`](src/effect-gio/errors.ts) | `GError` → Effect's eleven normalized `SystemError` tags |
-| [`effect-gio/filesystem.ts`](src/effect-gio/filesystem.ts) | a read-only `effect/FileSystem` over `Gio.File`, cancellable for real |
-| [`effect-gio/scope.ts`](src/effect-gio/scope.ts) | a `Scope` a GObject lifetime closes — RAII for GJS |
-| [`effect-gio/signal.ts`](src/effect-gio/signal.ts) | a GObject signal as a `Stream`, with the buffering strategy named |
+| `@gjsify/effect-platform` | `fileSystemLayer` (`effect/FileSystem` on `Gio.File`), `pathLayer` (`effect/Path` on GLib), `reasonOf` (`GError` → a tag) |
+| `@gjsify/effect-platform/gtk` | `windowScope`, `runInScope`, `propertyStream` |
 
 Effect's own behaviour is upstream's business and is covered in this repo by
 [`tests/integration/effect`](../../../tests/integration/effect) — 63 cases, green on GJS and on
@@ -105,27 +111,34 @@ directory, stats a missing path and asks `exists`, run once against
 `GioFileSystem.layer` and once against `@effect/platform-node-shared`'s `NodeFileSystem.layer`.
 Both must return the same listing and the same `NotFound` — including on the failure path, where a
 private error vocabulary would have diverged. The mapping is then checked for being a *mapping*:
-`Gio.IOErrorEnum.NOT_FOUND` and `GLib.FileError.EXIST` are both `1`, so a same-coded error from
+`Gio.IOErrorEnum.NOT_FOUND` and `GLib.FileError.ISDIR` are both `1`, so a same-coded error from
 another domain must come back `Unknown`, and a GIO code Effect has no tag for (`IS_DIRECTORY`)
 must come back `Unknown` too rather than a near miss.
 
-## Scope of the Gio layer
+## Cost
 
-Read-only, and stated in the code: `access`, `exists`, `stat`, `readFile`, `readFileString`,
-`readDirectory`, `realPath`, `readLink`. `FileSystem.makeNoop` fills the rest with failures, so an
-unimplemented call reports itself instead of quietly returning a wrong answer. Nothing that writes
-is implemented — a showcase that can delete files is a showcase nobody runs twice.
+Measured before the layer was committed to, because "Effect plus your layers is a lot of
+JavaScript for SpiderMonkey" was the one objection worth settling first. Importing Effect and
+running one effect adds **25 KB** to a GJS bundle and **2 ms** to cold start (12 runs, 45 ms →
+47 ms). This window with the platform layer is 213 KB against 165 KB for `adw-blueprint-layout`
+and 188 KB for `adw-host-counter`, neither of which uses Effect. Tree-shaking over Effect 4 works.
 
-## Why this is not a `@gjsify/*` package (yet)
+The `app.gjs.mjs` bundle is larger than that, and deliberately: it also carries
+`@effect/platform-node-shared` so the probe can run one program against two FileSystem layers. No
+application would ship the second one.
 
-The four modules under `src/effect-gio/` are the shape a reusable layer would have, and they are
-deliberately not one. A new `@gjsify/*` name needs an ADR and an npm first-publish plus Trusted
-Publisher bootstrap *before* the release that ships it, and the two design questions this showcase
-answered — which signal a widget scope closes on, and how much of `effect/FileSystem` a Gio layer
-should implement — were open until it was written. Living in a showcase is what let them be
-answered by measurement instead of by argument.
+## Why a Blueprint template and not one of the three renderers
 
-What would have to be true to promote it: the write half of `FileSystem` (with the flag semantics
-the [integration suite](../../../tests/integration/effect) already holds the Node layer to), a
-`Path` layer over GLib, and the same suite run against *this* layer rather than only against
-`NodeFileSystem`.
+The spec this was built from said "through one of the existing renderers", and this window is not
+that: its tree is `window.blp` plus a handful of `Adw.ActionRow`s built in TypeScript. The
+deviation is deliberate and worth naming rather than glossing.
+
+The claim under test is *Effect touches no widget*, and the strongest evidence for it is that
+neither this file nor the platform layer imports a renderer at all. Routing the same window through
+React would have added a second thing to be wrong about without making that claim any stronger —
+and the three host-counter showcases already answer the rendering question. Blueprint is also what
+this repo's own `prefer-blueprint-template` rule asks of an application interface, for a reason
+that applies here too: a caption assigned from TypeScript is invisible to `xgettext`.
+
+What is *not* demonstrated, therefore: that these services compose with a gtk-host renderer. They
+should, since neither side knows the other exists, but nothing here proves it.
