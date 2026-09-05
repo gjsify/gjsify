@@ -52,6 +52,7 @@ import * as FileSystem from 'effect/FileSystem';
 import type { PlatformError } from 'effect/PlatformError';
 
 import { isIoError, toPlatformError } from './errors.js';
+import { badArgument } from 'effect/PlatformError';
 import { gioAsync } from './gio-async.js';
 import { openFile } from './file.js';
 
@@ -295,6 +296,22 @@ const copy = (
         // while `effect/FileSystem`'s `copy` is contractually recursive and the Node
         // layer passes `recursive: true`. Without this a caller swapping the layers
         // gets a failure where it had a copy.
+        // Copying a tree INTO itself would descend into the destination this call
+        // just made and recurse to PATH_MAX. Node's `fs.cp` refuses it outright
+        // (`ERR_FS_CP_EINVAL`) and so does this.
+        if (to === from || to.startsWith(`${from}${GLib.DIR_SEPARATOR_S}`)) {
+            return yield* Effect.fail(
+                badArgument({
+                    module: 'FileSystem',
+                    method,
+                    description: 'cannot copy a path into itself',
+                }),
+            );
+        }
+        // NOFOLLOW, so a directory SYMLINK is a symlink to copy and not a tree to
+        // walk. Without it `get_file_type()` says `SymbolicLink`, `copyOne` follows
+        // it, and `g_file_copy` refuses the directory behind it with WOULD_RECURSE —
+        // so any tree containing one failed.
         const info = yield* queryInfo(from, method, false);
         if (info.get_file_type() === Gio.FileType.DIRECTORY) {
             yield* Effect.try({
@@ -339,6 +356,10 @@ const copyOne = (
             // `ALL_METADATA` would also carry uid, gid, mode and xattrs, which is more
             // than the option asks for.
             if (options?.preserveTimestamps !== true) flags |= Gio.FileCopyFlags.TARGET_DEFAULT_MODIFIED_TIME;
+            // A symlink is copied AS a symlink, which is Node's default
+            // (`dereference: false`) and the only reading under which the tree walk
+            // above terminates.
+            flags |= Gio.FileCopyFlags.NOFOLLOW_SYMLINKS;
             fileFor(from).copy(fileFor(to), flags, null, null);
         },
         // The path Effect reports is the SOURCE, which is what the conformance suite
@@ -437,13 +458,13 @@ const unimplemented = (method: string) =>
     Effect.die(new Error(`@gjsify/effect-platform: FileSystem.${method} has no GIO equivalent`));
 
 /**
- * The read-only Gio implementation.
+ * The Gio implementation.
  *
- * `FileSystem.make` and not `makeNoop`: `make` demands the COMPLETE interface, so
- * a method added upstream cannot arrive here as a silent default. It derives
- * `exists` from `access`, `readFileString` from `readFile`, and `stream`/`sink`
- * from `open` — so those four are correct here for free, and `stream`/`sink` die
- * because `open` does.
+ * `FileSystem.make` and not `makeNoop`: `make` demands the COMPLETE interface, so a
+ * method added upstream cannot arrive here as a silent default. It derives `exists`
+ * from `access`, `readFileString` from `readFile`, and `stream`/`sink` from `open`,
+ * all four of which are implemented — so those derivations are correct here for
+ * free rather than inheriting a stub.
  */
 export const makeGioFileSystem = (): FileSystem.FileSystem =>
     FileSystem.make({
@@ -499,20 +520,12 @@ export const makeGioFileSystem = (): FileSystem.FileSystem =>
                     : Effect.succeed(target);
             }),
 
-        // `realPath` is NOT among them, deliberately. GIO has no canonicalizer that
-        // resolves symlinks: `g_file_resolve_relative_path` and
-        // `g_canonicalize_filename` are both pure string work, so a `realPath` built
-        // on either returns a plausible answer for a path whose components are
-        // links — the quiet wrong answer this layer exists to avoid. Doing it
-        // properly means walking the path and following `standard::symlink-target`
-        // per component, which belongs in the package this may become, not here.
-        // `realPath` is NOT implemented, deliberately. GIO has no canonicalizer that
-        // resolves symlinks: `g_file_resolve_relative_path` and
-        // `g_canonicalize_filename` are both pure string work, so a `realPath` built
-        // on either returns a plausible answer for a path whose components are links
-        // — the quiet wrong answer this layer exists to avoid. Doing it properly
-        // means walking the path and following `standard::symlink-target` per
-        // component; until someone needs it, saying so beats guessing.
+        // The three GIO simply does not have. `realPath`: no symlink-resolving
+        // canonicalizer — `g_file_resolve_relative_path` and `g_canonicalize_filename`
+        // are both pure string work, so one built on either returns a plausible answer
+        // for a path whose components are links, the quiet wrong answer this layer
+        // exists to avoid. `link`: `g_file_make_symbolic_link` has no hard-link
+        // sibling. `glob`: no matcher.
         realPath: () => unimplemented('realPath'),
 
         // GIO exposes no hard-link call at all (`g_file_make_symbolic_link` has no
@@ -549,9 +562,14 @@ export const makeGioFileSystem = (): FileSystem.FileSystem =>
         // `g_file_move`/`g_file_copy` DO have async forms, and this layer does not
         // use them: `@girs` types their progress and ready parameters as
         // `GObject.Closure`, which is the GIR's shape for a callback with user data
-        // and is not constructible from GJS in any reasonable way. The synchronous
-        // calls take a `Gio.Cancellable`, so interruption still reaches GIO; what is
-        // lost is that the call blocks the caller while it runs.
+        // and is not constructible from GJS in any reasonable way.
+        //
+        // SO THESE TWO ARE NOT INTERRUPTIBLE, and the earlier wording here claimed
+        // otherwise. The synchronous call would take a `Gio.Cancellable`, but there
+        // is nothing to cancel it FROM: `Effect.try` hands no `AbortSignal`, and the
+        // call blocks the fiber for its whole duration, so an interrupt cannot be
+        // delivered until after it returns. Every other method in this layer goes
+        // through `gioAsync` and is interruptible; these two are the exception.
         rename: (from, to) =>
             Effect.try({
                 try: () => {

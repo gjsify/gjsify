@@ -25,7 +25,7 @@ await Effect.runPromise(Effect.provide(program, fileSystemLayer))
 
 | entry | provides | reaches |
 |---|---|---|
-| `@gjsify/effect-platform` | `fileSystemLayer`, `pathLayer`, `reasonOf`, `toPlatformError`, `gioAsync` | GLib, GIO |
+| `@gjsify/effect-platform` | `fileSystemLayer`, `pathLayer`, `reasonOf`, `isIoError`, `toPlatformError`, `gioAsync` | GLib, GIO |
 | `@gjsify/effect-platform/gtk` | `widgetScope`, `windowScope`, `signalScope`, `runInScope`, `signalStream`, `propertyStream` | GTK, GObject |
 
 The root entry declares `gjsify.headless` and CI walks its import graph to hold it. A service
@@ -37,6 +37,12 @@ services earn their keep.
 **Cancellation reaches GIO.** `Effect.callback` hands its register function an `AbortSignal`;
 every GIO async call takes a `Gio.Cancellable`. `gioAsync` wires the two, so interrupting a fiber
 stops the in-flight read rather than discarding its result. Nothing promise-based can offer that.
+
+**`effect/Path` is held against `node:path` operation by operation.** GLib has
+`g_path_get_basename` and `g_path_get_dirname`, and they are not `path.posix`: measured,
+`basename('')` is `.` where Node says `''`, and `dirname('a/b/')` is `a/b` where Node says `a`. The
+differential in `tests/integration/effect` found eleven such classes that hand-written expectations
+had all missed, which is why it exists.
 
 **A `GError` becomes a tag you can branch on.** Today every failing GIO call is a `GLib.Error`
 with a number whose meaning depends on its domain. Measured: `Gio.IOErrorEnum.NOT_FOUND` and
@@ -69,7 +75,9 @@ Three GIO semantics had to be corrected to get there, and each is recorded where
 - A `GFileOutputStream` buffers where a descriptor does not, so every write flushes.
 - `g_file_copy_async`/`move_async` are typed with `GObject.Closure` parameters by `@girs`, which
   is not constructible from GJS in any reasonable way, so the layer takes the synchronous call.
-  Interruption still reaches GIO through the cancellable; what is lost is that the call blocks.
+  **`copy`, `copyFile` and `rename` are therefore the three methods here that are NOT
+  interruptible** — the call blocks the fiber for its whole duration, so an interrupt cannot be
+  delivered until after it returns. Everything else goes through `gioAsync`.
 
 ## What it does not implement
 

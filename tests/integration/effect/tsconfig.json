@@ -25,6 +25,7 @@
         "src/scheduler.spec.ts",
         "src/clock.spec.ts",
         "src/stream.spec.ts",
-        "src/config-env.spec.ts"
+        "src/config-env.spec.ts",
+        "src/path-differential.spec.ts"
     ]
 }

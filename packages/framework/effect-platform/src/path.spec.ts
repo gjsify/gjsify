@@ -34,7 +34,9 @@ export default async () => {
                 expect(path.join('/tmp', 'a', 'b.txt')).toBe('/tmp/a/b.txt');
                 expect(path.join('/tmp/', '/a/', '/b.txt')).toBe('/tmp/a/b.txt');
                 expect(path.join('a', '', 'b')).toBe('a/b');
-                expect(path.join()).toBe('');
+                // Node answers `.` for nothing, and the differential in
+                // `tests/integration/effect` is what settles that rather than this line.
+                expect(path.join()).toBe('.');
             });
         });
 

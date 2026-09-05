@@ -178,6 +178,7 @@ one expects across prerelease tags.
 | `clock` | 2 | which of our APIs the Clock reads. Pins `process.hrtime.bigint` as the monotonic source and `Date.now` as the wall source, incl. the wall-clock-jumps-backwards case a single-source clock gets wrong |
 | `stream` | 13 | `Stream.callback` in full (emit, end, fail, throw, backpressure, cleanup-on-interrupt) — the push-to-pull shape a GTK signal has — plus all five `timeout` cases, plus 2 authored real-clock cases |
 | `config-env` | 5 | Effect's env reader against `@gjsify/process`'s GLib Proxy: read, delete, empty string as absent, empty string preserved, and `ownKeys` via the root record |
+| `path-differential` | 11 | GJS ONLY. `effect/Path` over GLib against `effect/Path` over `node:path`, one case per OPERATION over one corpus. Upstream has no Path conformance suite, so this is the oracle; it found eleven divergence classes on its first run that the hand-written expectations had all missed |
 
 **Two legs, and they answer different questions.** Upstream's `it.effect` runs on a virtual
 `TestClock` and asserts about ORDER; `it.live` runs on the host clock and asserts about elapsed

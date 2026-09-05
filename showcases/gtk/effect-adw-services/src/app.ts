@@ -194,10 +194,10 @@ async function assertUi(ui: Ui, check: ProbeCheck): Promise<Record<string, unkno
     //    `source.connect()` happens — runs when the stream is first PULLED, and
     //    `forkChild({ startImmediately: true })` does not get the fiber that far.
     //    Measured: without a yield here the `set_text` lands before the handler
-    //    exists, no element is ever offered, and the probe times out at 60s with no
-    //    output. Nothing buffers a signal emitted before its connection; the
-    //    mitigation in real code is the seed element below, which is why
-    //    `propertyStream` starts with the current value instead of only changes.
+    //    exists, no element is ever offered, and the probe never completes. Nothing
+    //    buffers a signal emitted before its connection, and `propertyStream`'s seed
+    //    element does not change that — it is read before the subscription, so it
+    //    fixes what a late subscriber SEES, not this race.
     const seen = await Effect.runPromise(
         Effect.scoped(
             Effect.gen(function* () {

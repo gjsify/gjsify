@@ -32,22 +32,21 @@ import { gioAsync } from './gio-async.js';
 /** How a flag maps onto GIO: which streams it opens, and whether writes append. */
 export interface OpenPlan {
     readonly readable: boolean;
-    readonly writable: boolean;
     /** Writes go to the end of the file regardless of the read position. */
     readonly append: boolean;
 }
 
 const PLANS: Readonly<Record<FileSystem.OpenFlag, OpenPlan>> = {
-    r: { readable: true, writable: false, append: false },
-    'r+': { readable: true, writable: true, append: false },
-    w: { readable: false, writable: true, append: false },
-    'w+': { readable: true, writable: true, append: false },
-    wx: { readable: false, writable: true, append: false },
-    'wx+': { readable: true, writable: true, append: false },
-    a: { readable: false, writable: true, append: true },
-    'a+': { readable: true, writable: true, append: true },
-    ax: { readable: false, writable: true, append: true },
-    'ax+': { readable: true, writable: true, append: true },
+    r: { readable: true, append: false },
+    'r+': { readable: true, append: false },
+    w: { readable: false, append: false },
+    'w+': { readable: true, append: false },
+    wx: { readable: false, append: false },
+    'wx+': { readable: true, append: false },
+    a: { readable: false, append: true },
+    'a+': { readable: true, append: true },
+    ax: { readable: false, append: true },
+    'ax+': { readable: true, append: true },
 };
 
 /** The GIO streams behind one open file, plus what the flag asked for. */
@@ -322,9 +321,18 @@ export const makeFile = (path: string, streams: Streams, stat: Effect.Effect<Fil
         stat,
         seek: (offset, from) =>
             Effect.sync(() => {
-                cursor = from === 'start' ? Number(offset) : cursor + Number(offset);
+                // Clamped at zero: `Size` is a byte COUNT and a negative one is not a
+                // position any read could use, so `seek(-100, 'current')` near the
+                // start lands at the start rather than handing back a value that
+                // would later be passed to `read_bytes_async`.
+                const next = from === 'start' ? Number(offset) : cursor + Number(offset);
+                cursor = next < 0 ? 0 : next;
                 return FileSystem.Size(cursor);
             }),
+        // `g_output_stream_flush` and NOT an `fsync`: it pushes GIO's own buffer to
+        // the kernel, which is what makes a write visible to another opener, and says
+        // nothing about the disk. `effect/FileSystem` does not distinguish the two,
+        // and GIO offers no fsync at all.
         sync: Effect.gen(function* () {
             const output = streams.output;
             if (output === null) return;

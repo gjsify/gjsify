@@ -76,7 +76,9 @@ source object as a parameter.
 and `forkChild({ startImmediately: true })` does not get the fiber that far. An emission before
 that is simply not seen. Invisible in an application, where the subscription is set up in a
 constructor and the first emission comes from a user; immediate the moment a test emits
-programmatically. `propertyStream` starts with the property's *current* value for that reason.
+programmatically, which is why the probe sleeps before it emits. `propertyStream`'s seed element
+does *not* close that window — `Stream.concat` reads the seed before the second stream is pulled —
+it fixes the steady state, so a late subscriber sees today's value instead of nothing.
 
 **`Effect.forkIn` is itself an Effect that yields the fiber.** `runFork(forkIn(e, scope))` hands
 back a `Fiber<Fiber<A, E>>` — an outer fiber that completes at once with the real one as its
