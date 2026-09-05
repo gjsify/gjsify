@@ -283,6 +283,16 @@ export const DEFAULT_ROWS: readonly DefaultRow[] = [
         verdict: 'agrees',
         reason: 'Neither grows until asked. `flex-1` is what asks, and `intents.ts` resolves it against the PARENT’s axis.',
     },
+    // --- Adw.Dialog ----------------------------------------------------------
+    {
+        gtype: 'AdwDialog',
+        property: 'can-close',
+        gtk: true,
+        reactNative: 'a modal is dismissed by its `visible` prop and by nothing else',
+        source: 'React Native’s `Modal`: `visible` is the only thing that shows or hides it, and `onRequestClose` is documented as required on Android and tvOS precisely because the modal does not dismiss itself.',
+        verdict: 'primitive',
+        reason: 'Not a default divergence but the contract that makes the two models agree. A dialog left able to close itself would take the sheet down on Escape while the element stayed mounted with `visible` still true — nothing on screen, and no prop change left to re-present it. With `can-close: false` the user’s dismissal arrives as `close-attempt` (that is `onRequestClose`) and only unrendering the element closes the dialog, through the portal placement’s `force_close`.',
+    },
     {
         gtype: 'GtkWidget',
         property: 'opacity',

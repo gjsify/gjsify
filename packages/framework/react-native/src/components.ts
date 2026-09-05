@@ -730,6 +730,43 @@ export function SafeAreaView(props: ViewProps): ReactElement {
     return render(usePlan('SafeAreaView', props));
 }
 
+export interface ModalProps extends CommonProps {
+    /** Default `true`, as React Native's is. `false` renders nothing at all. */
+    visible?: boolean;
+    /**
+     * The user asked for this modal to go away — `Adw.Dialog::close-attempt`.
+     *
+     * REQUIRED IN PRACTICE, exactly as React Native documents it for Android and
+     * tvOS, and here for the same reason made explicit: the dialog is built with
+     * `can-close: false`, so Escape, the close control and a click on the backdrop
+     * all arrive HERE and none of them takes the sheet down. Setting `visible` to
+     * false does. Without this prop a modal cannot be dismissed by the user, which
+     * is React Native's behaviour and not a limitation of this layer.
+     */
+    onRequestClose?: () => void;
+    /** The modal is on screen — `Gtk.Widget::map`, which fires once. */
+    onShow?: () => void;
+}
+
+/**
+ * A portal: the element's host node is not its parent node (ADR 0045).
+ *
+ * The whole component is `visible`. Everything else — presenting the dialog against
+ * the parent's toplevel, waiting for one when the tree is still detached, taking the
+ * sheet back down on unmount — is the host's placement axis, which is why this is
+ * eight lines and why a Vue or Solid binding gets the same behaviour for free.
+ *
+ * THE HOOKS RUN EITHER WAY, and that is the one thing this file could get wrong: an
+ * early return before `usePlan` would change the component's hook count the first
+ * time `visible` flipped, which React refuses outright. So the plan is always built
+ * and only the RENDER is conditional — and an unrendered element is one React
+ * deletes, which reaches `destroy` in the host and closes the dialog.
+ */
+export function Modal(props: ModalProps): ReactElement | null {
+    const rendered = usePlan('Modal', props);
+    return props.visible === false ? null : render(rendered);
+}
+
 export interface KeyboardAvoidingViewProps extends ViewProps {
     /** A declared no-op: there is no on-screen keyboard to move out of the way of. */
     behavior?: 'height' | 'position' | 'padding';

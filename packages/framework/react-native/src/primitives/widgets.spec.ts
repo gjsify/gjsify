@@ -40,6 +40,7 @@
 // what the old shape cost; the last sentence is now a convention, and `gated`
 // earns its place by being the one declaration of what a gated block means.
 
+import Adw from 'gi://Adw?version=1';
 import Gdk from 'gi://Gdk?version=4.0';
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
@@ -60,6 +61,7 @@ import {
     Image,
     ImageBackground,
     KeyboardAvoidingView,
+    Modal,
     Pressable,
     SafeAreaView,
     ScrollView,
@@ -221,6 +223,37 @@ function mounted(element: ReactNode, body: (container: Gtk.Box) => void): void {
         body(container);
     } finally {
         root.unmount();
+    }
+}
+
+/**
+ * `mounted`, with the container really inside a toplevel — the fixture `<Modal>` needs.
+ *
+ * The default `mounted` above mounts into a BARE `Gtk.Box`, and for a portal that is
+ * the trap rather than a simplification: an `Adw.Dialog` presented against an
+ * unrooted parent opens a separate `GtkWindow` at exit 0, and `box.append(dialog)` —
+ * the thing the portal placement replaces — is a silent no-op on a bare box and
+ * SIGABRT on a rooted one. A vector for a modal that used `mounted` would measure
+ * neither. An `Adw.Window`, because only the libadwaita windows carry the
+ * `AdwDialogHost` a dialog is presented into.
+ *
+ * `renderAgain` is handed through because that is how `visible` is exercised: the
+ * modal closes by being unrendered, so the vector has to render twice.
+ */
+function mountedInWindow(
+    element: ReactNode,
+    body: (facts: { container: Gtk.Box; window: Adw.Window; renderAgain: (next: ReactNode) => void }) => void,
+): void {
+    const window = new Adw.Window();
+    const container = new Gtk.Box();
+    window.set_content(container);
+    const root = createRoot(container);
+    try {
+        root.render(element);
+        body({ container, window, renderAgain: (next) => flushSync(() => root.render(next)) });
+    } finally {
+        root.unmount();
+        window.destroy();
     }
 }
 
@@ -1222,6 +1255,102 @@ export default async () => {
                         expect(gtkChildren(box).map(typeOf)).toStrictEqual(['GtkLabel']);
                     },
                 );
+            });
+        });
+
+        await gated('<Modal>, the one primitive whose host node is not its parent node', async () => {
+            await it('presents into the window and puts NOTHING in the parent box', async () => {
+                // The two halves of the seam, in one tree. The append this replaces
+                // is `g_error()` on exactly this shape — a rooted box — so "the box
+                // is empty" is the assertion that says the abort is unreachable
+                // rather than merely untriggered.
+                configureStyle({ tokens: TOKENS });
+                mountedInWindow(
+                    createElement(Modal, {}, createElement(Text, {}, 'in the sheet')),
+                    ({ container, window }) => {
+                        expect(gtkChildren(container).length).toBe(0);
+                        const dialog = window.visibleDialog;
+                        expect(dialog !== null).toBe(true);
+                        expect(typeOf(dialog as unknown as Gtk.Widget)).toBe('AdwDialog');
+                        // The children went through the implicit content box, which is
+                        // what makes two of them legal.
+                        const content = (dialog as Adw.Dialog).get_child() as Gtk.Box;
+                        expect(typeOf(content)).toBe('GtkBox');
+                        expect((gtkChildren(content)[0] as Gtk.Label).label).toBe('in the sheet');
+                    },
+                );
+            });
+
+            await it('holds several children, which one Adw.Dialog slot could not', async () => {
+                configureStyle({ tokens: TOKENS });
+                mountedInWindow(
+                    createElement(
+                        Modal,
+                        {},
+                        createElement(Text, { key: 'a' }, 'first'),
+                        createElement(Text, { key: 'b' }, 'second'),
+                    ),
+                    ({ window }) => {
+                        const content = (window.visibleDialog as Adw.Dialog).get_child() as Gtk.Box;
+                        expect(gtkChildren(content).map((w) => (w as Gtk.Label).label)).toStrictEqual([
+                            'first',
+                            'second',
+                        ]);
+                    },
+                );
+            });
+
+            await it('closes when visible goes false, and comes back when it goes true', async () => {
+                configureStyle({ tokens: TOKENS });
+                const tree = (visible: boolean): ReactNode =>
+                    createElement(Modal, { visible }, createElement(Text, {}, 'sheet'));
+                mountedInWindow(tree(true), ({ window, renderAgain }) => {
+                    expect(window.visibleDialog !== null).toBe(true);
+                    renderAgain(tree(false));
+                    // `can-close: false` is on the dialog, so this only works because
+                    // the host's portal placement calls the FORCED close. With
+                    // `close()` the sheet would still be up and this line would read
+                    // the same dialog back.
+                    expect(window.visibleDialog).toBe(null);
+                    renderAgain(tree(true));
+                    expect(window.visibleDialog !== null).toBe(true);
+                });
+            });
+
+            await it('does not shift the siblings it is rendered between', async () => {
+                configureStyle({ tokens: TOKENS });
+                mountedInWindow(
+                    createElement(
+                        Fragment,
+                        {},
+                        createElement(Text, { key: 'a' }, 'above'),
+                        createElement(Modal, { key: 'm' }, createElement(Text, {}, 'sheet')),
+                        createElement(Text, { key: 'b' }, 'below'),
+                    ),
+                    ({ container, window }) => {
+                        expect(gtkChildren(container).map((w) => (w as Gtk.Label).label)).toStrictEqual([
+                            'above',
+                            'below',
+                        ]);
+                        expect(window.visibleDialog !== null).toBe(true);
+                    },
+                );
+            });
+
+            await it('refuses a layout utility on the dialog, naming the primitive', async () => {
+                // An `Adw.Dialog` installs no `orientation` and no `spacing`, so
+                // `items-center` on a `<Modal>` has nowhere to land. A silent drop
+                // here is the failure this layer exists to remove; the fix is a
+                // `<View>` inside the modal, which the message says.
+                configureStyle({ tokens: TOKENS });
+                let caught: unknown;
+                try {
+                    mountedInWindow(createElement(Modal, { className: 'items-center' }), () => {});
+                } catch (error) {
+                    caught = error;
+                }
+                expect(caught instanceof PrimitiveError).toBe(true);
+                expect(String(caught)).toContain('Modal');
             });
         });
 

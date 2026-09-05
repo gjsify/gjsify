@@ -22,7 +22,7 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `EventEmitter` | — | — | Pure JavaScript; nothing in it touches a platform. |
 | `unstable_batchedUpdates` | — | — | React 19 batches automatically; this is the identity call it already is upstream — literally so since 0.86, where the getter became a method whose body is `fn(bookkeeping)`. |
 
-### Supported, with named limits (31)
+### Supported, with named limits (32)
 
 | export | tier | GTK | why |
 |---|---|---|---|
@@ -35,6 +35,7 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `Linking` | P1 | Gtk.UriLauncher | openURL and canOpenURL only. |
 | `Switch` | P1 | Gtk.Switch | Direct counterpart. |
 | `Platform` | P1 | — | OS is "linux" \| "macos" \| "windows"; select() picks the default branch. |
+| `Modal` | P1 | Adw.Dialog | A PORTAL: the element’s host node is not its parent node. An Adw.Dialog is PRESENTED against a parent and never parented by it — MEASURED on libadwaita 1.9.3 / GTK 4.22.4, box.append(dialog) with the box ROOTED IN A WINDOW is g_error() (SIGABRT, exit 134, a core dump), while a detached box takes the same append in silence, which is how a re-test on a bare box appears to disprove it. So @gjsify/gtk-host grew a placement axis (ADR 0045) and AdwDialog declares present/force_close on it; nothing is appended and the abort is unreachable. |
 | `Share` | P1 | Gdk.Clipboard | No desktop share sheet worth pretending about; copying the link is the honest mapping. |
 | `AppRegistry` | P1 | Adw.Application + Adw.ApplicationWindow | The entry point. Nothing renders without a window, so this is P1 despite being a shim. |
 | `StyleSheet` | P1 | Gdk.Monitor.scale for hairlineWidth | create/flatten/compose/hairlineWidth/absoluteFill. Style objects go through the same partition as classes (ADR 0032 § 4), which is why create can be identity. |
@@ -50,7 +51,7 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `Button` | P2 | Gtk.Button | The one component whose React Native styling story is "you cannot", which GTK agrees with. title, onPress and disabled. |
 | `Dimensions` | P2 | Gtk.Window allocation, Gdk.Monitor geometry | get("window") is the window, not the screen — a desktop app is not full-screen, so the screen’s number would be wrong in the ordinary case. get("screen") is the monitor, because that is what it asks for. |
 | `useWindowDimensions` | P2 | Gdk.Surface notify::width/height, Gtk.Window allocation | The hook form of Dimensions, through useSyncExternalStore so a resize between render and commit cannot tear. |
-| `Alert` | P2 | Adw.AlertDialog | Direct counterpart, and buildable where Modal is not: Alert is a FUNCTION CALL, so no element is ever inserted into a widget. Measured on libadwaita 1.9.3 — present(null) from a plain function, with no parent and no window, returned with no diagnostic. |
+| `Alert` | P2 | Adw.AlertDialog | Direct counterpart, and it needed no placement seam to be one: Alert is a FUNCTION CALL, so no element is ever inserted into a widget (Modal is the same widget family as an ELEMENT, and reaches the same call through the host portal placement of ADR 0045). Measured on libadwaita 1.9.3 — present(null) from a plain function, with no parent and no window, returned with no diagnostic. |
 | `SafeAreaView` | P2 | Gtk.Box | The INSET has no desktop meaning; the layout does. It is a View in every other respect, and it has to be a real export to be imported. |
 | `StatusBar` | P2 | — | A desktop window has no status bar to configure, and <StatusBar/> is in the first ten lines of most React Native screens — so it renders NOTHING and says so, rather than failing to import. |
 | `KeyboardAvoidingView` | P2 | Gtk.Box | No on-screen keyboard eats a desktop window layout, so the AVOIDING is the no-op. React Native’s KeyboardAvoidingView is a View that changes its own height; what is left here is the View. |
@@ -58,11 +59,10 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `Animated` | P3 | Adw.TimedAnimation, over Adw.CallbackAnimationTarget | Value, timing and View — the three names a measured application uses, in one file of 28 routes. The rest of the subsystem is a graph evaluated per frame, and every other member refuses BY NAME. |
 | `Easing` | P3 | AdwEasing, through Adw.TimedAnimation:easing | Not arithmetic, which the planning entry called it: React Native’s easings are FUNCTIONS and AdwEasing is an ENUM with no callback form, so this is a name-to-enum mapping and every pair in it is measured. |
 
-### Planned (33)
+### Planned (32)
 
 | export | tier | GTK | why |
 |---|---|---|---|
-| `Modal` | P1 | Adw.Dialog | An Adw.Dialog cannot be an ordinary element. MEASURED on libadwaita 1.9.3: box.append(dialog) calls g_error() — SIGABRT and a core dump, not a catchable exception — but ONLY when the box is rooted in a window. A detached box accepts the append in silence, so a re-test on a bare box appears to disprove this and puts the primitive back. A dialog is PRESENTED against a parent, never parented by it, so this is a PORTAL and needs a host seam that does not exist yet. |
 | `AppState` | P3 | Gtk.Application / Gdk.Surface state | active/background from window focus and visibility. |
 | `PixelRatio` | P3 | Gdk.Surface.scale-factor | The scale factor of the surface the widget is on. |
 | `PlatformColor` | P3 | Adwaita named colours | Maps unusually well — GTK’s palette is exactly this idea. |

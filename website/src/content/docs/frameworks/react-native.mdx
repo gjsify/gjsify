@@ -215,6 +215,7 @@ You can set it in `package.json` instead:
 | `Switch` | `Gtk.Switch` |
 | `ActivityIndicator` | `Adw.Spinner` |
 | `SafeAreaView`, `KeyboardAvoidingView` | `Gtk.Box`, since a window has neither notch nor soft keyboard |
+| `Modal` | `Adw.Dialog`, presented against the parent rather than placed inside it |
 
 A list looks the way it does on a phone:
 
@@ -243,6 +244,58 @@ is generated from that data, so it cannot drift. You can read the same data from
 ```ts
 import { SUPPORT_TABLE, isImportable, explainUnsupported } from '@gjsify/react-native';
 ```
+
+## A modal is a dialog, and `visible` is the whole of it
+
+`<Modal>` renders an `Adw.Dialog` — a sheet over the window it is in, with libadwaita's own dim
+behind it. It is the one component whose widget is not placed inside its parent: a dialog is
+*presented against* a parent, so the box you write it in never holds it and never shifts because
+of it. Write it where it belongs and drive it with `visible`:
+
+```tsx
+import { useState } from 'react';
+import { Modal, Pressable, Text, View } from 'react-native';
+
+function Notes() {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <View className="flex-1 p-m">
+            <Pressable onPress={() => setOpen(true)}>
+                <Text>Rename…</Text>
+            </Pressable>
+
+            <Modal visible={open} onRequestClose={() => setOpen(false)}>
+                <View className="p-l gap-m">
+                    <Text className="text-lg">Rename this note</Text>
+                    <Pressable onPress={() => setOpen(false)}>
+                        <Text>Done</Text>
+                    </Pressable>
+                </View>
+            </Modal>
+        </View>
+    );
+}
+```
+
+**`onRequestClose` is required in practice**, exactly as React Native documents it for Android
+and tvOS, and here for a reason you can see: the dialog never closes itself. Escape, the close
+control and a click on the backdrop all arrive at `onRequestClose`, and setting `visible` to
+false is what takes the sheet down. Leave the prop out and the user cannot dismiss it.
+
+`onShow` fires once, when the modal is actually on screen. Children go into a box inside the
+dialog, so several of them are fine — and `style` and `className` land on the **dialog**, which
+is not a box, so `items-*` and `gap-*` there are refused by name and belong on a `<View>` inside.
+
+Refused, each naming what to do instead: `animationType`, `transparent`, `backdropColor` and
+`presentationStyle` (libadwaita animates and dims the sheet itself, and picks the animation from
+`Adw.Dialog:presentation-mode` — reach it through a `ref` if you want a bottom sheet),
+`onDismiss` (the only thing that dismisses the dialog is the element being unrendered, so put
+that work in the effect cleanup of whatever renders the `<Modal>`), plus `allowSwipeDismissal`,
+`supportedOrientations`, `onOrientationChange` and `modalRef`.
+
+For a question with buttons and no layout of your own, `Alert.alert()` is the shorter answer —
+it is an `Adw.AlertDialog` and it needs no element at all.
 
 ## Adwaita widgets
 

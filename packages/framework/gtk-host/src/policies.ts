@@ -9,12 +9,17 @@
 // therefore states its own rules as DATA in its descriptor, and this file is the
 // only code that reads them. Four framework adapters share it; none of them may
 // contain an insertion rule of its own.
+//
+// TWO AXES, not one, since the portal seam (ADR 0045). `ChildPolicy` says how a
+// PARENT adopts a child; `NodePlacement` says whether the node goes into its
+// parent at all. The second half lives under § Portal placement below and is the
+// only part of this file a parent's policy never reaches.
 
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { err, GtkHostError } from './errors.js';
 import { beginHostWrite, endHostWrite } from './signals.js';
-import type { ChildPolicy, HostElement } from './types.js';
+import type { ChildPolicy, HostElement, NodePlacement, WidgetDescriptor } from './types.js';
 
 type AnyWidget = Gtk.Widget & Record<string, (...args: unknown[]) => unknown>;
 
@@ -154,6 +159,203 @@ export function slotOccupant(widget: Gtk.Widget, setter: string): Gtk.Widget | n
     const getter = setter.replace(/^set_/, 'get_');
     if (typeof host[getter] !== 'function') return undefined;
     return (host[getter]() as Gtk.Widget | null) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Portal placement — a node whose host node is not its parent node
+// ---------------------------------------------------------------------------
+
+/** What an absent `placement` means, spelled once. */
+const PARENTED: NodePlacement = { kind: 'parented' };
+
+/**
+ * The declared placement of a node. The ONE place absence is turned into a value.
+ *
+ * Everything downstream switches on the union rather than on `descriptor.placement
+ * !== undefined`, so the absent case is a member with a name instead of a
+ * falsiness test that a third kind would quietly join.
+ */
+export const placementOf = (descriptor: WidgetDescriptor): NodePlacement => descriptor.placement ?? PARENTED;
+
+/** The portal arm, or null. The narrow question four call sites ask. */
+export function portalOf(descriptor: WidgetDescriptor): Extract<NodePlacement, { kind: 'portal' }> | null {
+    const placement = placementOf(descriptor);
+    switch (placement.kind) {
+        case 'parented':
+            return null;
+        case 'portal':
+            return placement;
+        default:
+            return unhandledPlacement(placement);
+    }
+}
+
+/** `unhandledPolicy`'s twin for the placement axis, and it exists for the same reason. */
+export function unhandledPlacement(placement: never): never {
+    throw new Error(`unhandled node placement: ${JSON.stringify(placement)}`);
+}
+
+/** Is this node placed against its parent rather than into it? */
+export const isPortal = (el: HostElement): boolean => portalOf(el.descriptor) !== null;
+
+function portalMethod(el: HostElement, method: string, role: 'present' | 'close'): (...a: unknown[]) => unknown {
+    const node = el.widget as unknown as Record<string, ((...a: unknown[]) => unknown) | undefined> | null;
+    const fn = node?.[method];
+    if (typeof fn !== 'function') throw err.portalMethodMissing(el.descriptor.gtype, method, role);
+    return fn;
+}
+
+/**
+ * The toplevel a widget is in, or null — the whole precondition a portal has.
+ *
+ * `Gtk.Window` and not "a non-null root", because it is libadwaita's OWN
+ * boundary: `adw_dialog_root()` returns early unless `GTK_IS_WINDOW (root)`, and
+ * `adw_dialog_present()` falls back to a standalone window for anything else.
+ * Asking the same question the library asks is what keeps this generic code from
+ * having a second opinion about a specific widget.
+ */
+const toplevelOf = (widget: Gtk.Widget): Gtk.Window | null => {
+    const root = widget.get_root() as unknown;
+    return root instanceof Gtk.Window ? root : null;
+};
+
+/**
+ * Show a portal node against its parent — or subscribe and wait, if it is too early.
+ *
+ * Returns whether GTK has actually taken the node, which is what `attached` means.
+ *
+ * WHY THE WAIT IS THE FEATURE. Every framework builds bottom-up: React creates the
+ * whole subtree, appends its children, and inserts the ROOT into the container
+ * last, so at the moment a `<Modal>` is inserted its parent is usually not in a
+ * window yet. MEASURED on libadwaita 1.9.3 / GTK 4.22.4, presenting against an
+ * unrooted box: `adw_dialog_present` finds no `AdwDialogHost` among the parent's
+ * ancestors and takes its documented other branch, `present_as_window` — the
+ * dialog opens as a SEPARATE `GtkWindow`, `win.visibleDialog` stays false, exit 0,
+ * no diagnostic. A modal that floats out of its own application is exactly the
+ * green-and-wrong this host exists to refuse, and nothing in the shadow tree can
+ * see it.
+ *
+ * `notify::root` is the instrument. MEASURED: it fires on a GRANDCHILD box when
+ * the toplevel takes the subtree (root -> AdwWindow), and again on unroot (root ->
+ * null). The subscription STAYS for the life of the attachment rather than being
+ * one-shot, because re-rooting is real: measured, unrooting the parent leaves an
+ * already-presented dialog in the OLD window's host — `w1.visibleDialog` still
+ * true after `w1.set_content(null)` — so a subtree moved to a second window would
+ * silently keep showing its modal in the first.
+ *
+ * SYMMETRIC, and the second direction is not free. GTK does not take the dialog
+ * down when the anchor loses its window, so losing a toplevel RETRACTS the node
+ * rather than merely failing to present it (see `placeAgainst`). Without that, a
+ * subtree that is detached and never re-rooted keeps its sheet on screen in the
+ * window it left, and only a re-root — which such a subtree never gets — repairs it.
+ */
+export function presentPortal(
+    parent: HostElement,
+    child: HostElement,
+    portal: Extract<NodePlacement, { kind: 'portal' }>,
+): boolean {
+    const anchor = parent.widget as unknown as Gtk.Widget | null;
+    if (!anchor) return false;
+    // BOTH METHODS, BEFORE THE SUBSCRIPTION, and the order is the point rather
+    // than tidiness: the placement can be deferred, so a missing method would
+    // otherwise first be discovered inside a `notify::root` handler — where a
+    // throw is a GJS exception logged from a signal callback with nothing to
+    // attribute it to, long after the insert that caused it returned. Asked here,
+    // it is a named refusal at the insert. `descriptorProblems()` catches a
+    // built-in descriptor up front; an application-registered one is checked by
+    // nobody, which is the same gap `slotNeedsRemove` fills for a slot.
+    portalMethod(child, portal.present, 'present');
+    portalMethod(child, portal.close, 'close');
+    watchPortalRoot(anchor, child, portal);
+    return placeAgainst(anchor, child, portal);
+}
+
+function placeAgainst(
+    anchor: Gtk.Widget,
+    child: HostElement,
+    portal: Extract<NodePlacement, { kind: 'portal' }>,
+): boolean {
+    const node = child.widget as unknown as Gtk.Widget | null;
+    if (!node) return false;
+    const target = toplevelOf(anchor);
+    if (!target) {
+        // THE ANCHOR HAS NO WINDOW, so neither may the portal — and this is a
+        // RETRACT rather than a bare `return false` because the same line is
+        // reached from an UNROOT, not only from a deferred insert.
+        //
+        // A portal is presented exactly when its anchor is in a toplevel. The wait
+        // above enforces one direction of that; without this the other direction
+        // was silently missing. MEASURED on libadwaita 1.9.3: after
+        // `w1.set_content(null)` the dialog is STILL in `w1`'s host —
+        // `w1.visibleDialog` is the dialog — so the sheet kept showing in a window
+        // its own subtree had left, and stayed up for as long as no second window
+        // happened to claim that subtree. Only a re-root repaired it, and a subtree
+        // that is merely detached never re-roots.
+        //
+        // It also keeps `attached` honest: this function returns false here, so the
+        // host recorded "GTK has NOT taken this node" while GTK still had it on
+        // screen — the exact conflation `attached` exists to prevent (ADR 0045 § 4).
+        //
+        // Unconditional, for the reason `retractPortal` is: `force_close` on a node
+        // that was never presented is silent (measured), so no "is it up?" probe is
+        // needed, and on a deferred insert this is a no-op.
+        portalMethod(child, portal.close, 'close').call(node);
+        return false;
+    }
+    if (node.get_parent()) {
+        // Already up. Where it is up decides whether this is a no-op or a move:
+        // MEASURED, `present()` on a dialog already presented for ANOTHER host is
+        // `Adwaita-CRITICAL **: Cannot present … as it's already presented for …`
+        // plus `Gtk-WARNING **: Can't set new parent …` — and the move does not
+        // happen, so the shadow tree would claim a placement GTK refused. Closing
+        // first is the sequence that works (measured: force_close, then present,
+        // lands it in the new window with no diagnostic).
+        if (toplevelOf(node) === target) return true;
+        portalMethod(child, portal.close, 'close').call(node);
+    }
+    portalMethod(child, portal.present, 'present').call(node, anchor);
+    return true;
+}
+
+function watchPortalRoot(
+    anchor: Gtk.Widget,
+    child: HostElement,
+    portal: Extract<NodePlacement, { kind: 'portal' }>,
+): void {
+    if (child.portalWatch?.widget === anchor) return;
+    if (child.portalWatch) retractPortalWatch(child);
+    const id = anchor.connect('notify::root', () => {
+        // `attached` is written HERE and not by the caller, because this is the
+        // moment GTK takes the node — the insert that started it all returned long
+        // ago. It is the same fact the synchronous path records, arriving late.
+        child.attached = placeAgainst(anchor, child, portal);
+    });
+    child.portalWatch = { widget: anchor, id };
+}
+
+function retractPortalWatch(child: HostElement): void {
+    const watch = child.portalWatch;
+    if (!watch) return;
+    child.portalWatch = null;
+    watch.widget.disconnect(watch.id);
+}
+
+/**
+ * Take a portal node back down, with no probe and no `attached` guard.
+ *
+ * UNCONDITIONALLY, twice over, and both halves are measured. The method the
+ * descriptor names is the FORCED close (`force_close`, not `close`): an unmount is
+ * not a user request, and `close()` on a dialog whose `can-close` is FALSE returns
+ * FALSE, emits `close-attempt` and leaves it on screen. And `force_close()` on a
+ * node that was never presented is silent, where `close()` is
+ * `Adwaita-CRITICAL **: Trying to close … that's not presented` at exit 0 — so the
+ * host needs no "is it up?" question, which is the one it could not answer without
+ * knowing what a dialog is.
+ */
+export function retractPortal(child: HostElement, portal: Extract<NodePlacement, { kind: 'portal' }>): void {
+    retractPortalWatch(child);
+    if (!child.widget) return;
+    portalMethod(child, portal.close, 'close').call(child.widget);
 }
 
 export interface Placement {
@@ -405,6 +607,12 @@ function clearIfCurrent(host: AnyWidget, setter: string, address: Gtk.Widget): v
 }
 
 export function removeChild(parent: HostElement, child: HostElement): void {
+    // BEFORE the two guards below, and both would be wrong for a portal. The
+    // parent never took the node, so there is nothing of the parent's to call —
+    // and `attached` is false for a portal still waiting for a toplevel, which is
+    // exactly the state whose subscription has to be disconnected.
+    const portal = portalOf(child.descriptor);
+    if (portal) return retractPortal(child, portal);
     const host = parent.widget as unknown as AnyWidget;
     if (!host) return;
     // Never ask GTK to remove what it never adopted. A node can be linked in the

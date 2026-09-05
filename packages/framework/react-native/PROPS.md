@@ -580,6 +580,48 @@ widget `GtkBox` · takes no text child.
 - `slidingdrawer` — names a deprecated Android class — see `drawerlayout`
 - `summary` — is an iOS trait for the one element VoiceOver reads first when an app launches, and GTK has no counterpart because a desktop screen reader announces the focused widget instead. Put the text in the window title, or carry it as `accessibilityLabel` on the element it summarises — React Native’s role list has no `status`, so there is no role to give it here
 
+## `<Modal>`
+
+widget `AdwDialog` · children go into `GtkBox` · takes no text child.
+
+| prop | answer | GTK | why |
+|---|---|---|---|
+| `accessibilityHint` | accessible | `Gtk.Accessible.update_property(): help-text` | — |
+| `accessibilityLabel` | accessible | `Gtk.Accessible.update_property(): label` | — |
+| `accessibilityLiveRegion` | refused | — | declares that a screen reader should speak this element when its CONTENT changes. GTK has the announcement — `Gtk.Accessible.announce(message, priority)` since 4.14 — but not the watch: it is an imperative call, and this element’s content is a SUBTREE, which GTK emits no signal for. `<Text>` answers this prop, because its content is one property (`Gtk.Label:label`) and so is both the moment and the message. Elsewhere, call `announce()` on the widget through a ref when you change the content |
+| `accessibilityRole` | property | `accessible-role` | refuses `drawerlayout`, `horizontalscrollview`, `keyboardkey`, `pager`, `scrollview`, `slidingdrawer`, `summary` — see below |
+| `accessibilityState` | accessible | `busy → Gtk.Accessible.update_state(): busy`, `checked → Gtk.Accessible.update_state(): checked`, `disabled → Gtk.Accessible.update_state(): disabled`, `expanded → Gtk.Accessible.update_state(): expanded`, `selected → Gtk.Accessible.update_state(): selected` | — |
+| `accessible` | ignored | — | asks for two things, and GTK already answers one: every GTK widget is in the accessibility tree, so “this element is an accessibility element” is the desktop default rather than an opt-in. The other thing it asks — merge my whole subtree into ONE accessible node, which is what `accessible={true}` does on iOS — GTK has no mechanism for, and a desktop screen reader navigates the widget tree it is given. To take an element OUT of that tree, set `accessibilityRole="none"`: it is the one prop that writes `Gtk.Accessible:accessible-role`, and two props writing one property is the silent-drop shape this table refuses by name |
+| `allowSwipeDismissal` | refused | — | swipe-to-dismiss is a touch gesture; the desktop dismissal is Escape or a click on the backdrop, and `onRequestClose` already reports both |
+| `animationType` | refused | — | libadwaita animates the presentation itself and picks the animation from `Adw.Dialog:presentation-mode` — a floating sheet fades and scales, a bottom sheet slides up — so there is no property that selects one. Reach the dialog through a `ref` and set `presentation-mode` if the sheet should arrive from the bottom |
+| `backdropColor` | refused | — | see `transparent` — the dim layer is libadwaita’s and is painted from the theme |
+| `hardwareAccelerated` | ignored | — | an Android window flag; GTK4 renders through GSK either way |
+| `id` | refused | — | would write `Gtk.Widget:name`, and so does `testID`. Two props for one property is the silent-drop shape the host refuses by name (`signalTaken`), so this layer picks one: use `testID` |
+| `modalRef` | refused | — | React Native’s second ref, to the native modal host view. There is one node here and `ref` already hands back its `Gtk.Widget`; two refs to one widget would be two names for the same thing |
+| `nativeID` | refused | — | would write `Gtk.Widget:name`, and so does `testID`. Two props for one property is the silent-drop shape the host refuses by name (`signalTaken`), so this layer picks one: use `testID` |
+| `navigationBarTranslucent` | ignored | — | see `statusBarTranslucent` |
+| `onDismiss` | refused | — | would never fire. The only thing that dismisses a dialog here is the element being unrendered, and the host disconnects a node’s handlers BEFORE it retracts the node — so `Adw.Dialog::closed` is emitted with the handler already gone. A callback that fires for no dismissal at all is worse than one that says so. Do the work in the effect cleanup of whatever renders the `<Modal>` |
+| `onLayout` | refused | — | GTK reports its allocation through `Gtk.Widget.vfunc_size_allocate`, a SUBCLASS override rather than a signal, so there is no handler to bind. `useWindowDimensions` (tier P2) is the window-level answer |
+| `onOrientationChange` | refused | — | see `supportedOrientations` — nothing rotates |
+| `onRequestClose` | event | `close-attempt` | — |
+| `onShow` | event | `map` | — |
+| `presentationStyle` | refused | — | iOS presentation vocabulary. The GTK axis is `Adw.Dialog:presentation-mode` (auto / floating / bottom-sheet), which says WHERE the sheet sits rather than how much it covers, so no member of this maps onto one. Set that property through a `ref` |
+| `statusBarTranslucent` | ignored | — | a desktop window has no status bar to go under |
+| `supportedOrientations` | refused | — | a desktop window has no orientation to lock |
+| `testID` | property | `name` | — |
+| `transparent` | refused | — | an `Adw.Dialog` is always a sheet over libadwaita’s own dimmed backdrop; there is no full-bleed transparent mode, and faking one would be a sheet with no chrome that still dims. For an overlay you paint yourself, put an absolutely positioned `<View>` in a `<View>` — that becomes a `Gtk.Overlay` — instead of a `<Modal>` |
+| `visible` | ignored | — | read directly by the binding: the element is rendered only while it is true |
+
+`accessibilityRole` is answered for every other value, and these are refused by name:
+
+- `drawerlayout` — names Android’s DrawerLayout. The desktop pattern survives the component (`Adw.OverlaySplitView`), but it is a widget rather than a role — drop the prop and give the drawer an `accessibilityLabel`; React Native’s role list has no `navigation`, and the widget carries the rest
+- `horizontalscrollview` — names an Android class, like `scrollview` — use `<ScrollView horizontal>` and drop the prop
+- `keyboardkey` — describes a key of an on-screen keyboard, and neither GTK nor ARIA has a role for one — a desktop keyboard is the input method, not a widget in your tree. If you are building a keypad, the keys are `accessibilityRole="button"`; the container needs no role, because React Native has no spelling for ARIA’s `group` and a plain `<View>` is already the `generic` a screen reader walks through
+- `pager` — names Android’s ViewPager. GTK’s counterpart is a `Gtk.Stack`, and the role a screen reader wants on it is `tablist` when it has visible switchers and nothing at all when it does not
+- `scrollview` — names Android’s ScrollView class rather than a role, and this layer already answers the idea: `<ScrollView>` becomes a `Gtk.ScrolledWindow`, whose accessibility a screen reader reads from the widget itself. Drop the prop
+- `slidingdrawer` — names a deprecated Android class — see `drawerlayout`
+- `summary` — is an iOS trait for the one element VoiceOver reads first when an app launches, and GTK has no counterpart because a desktop screen reader announces the focused widget instead. Put the text in the window title, or carry it as `accessibilityLabel` on the element it summarises — React Native’s role list has no `status`, so there is no role to give it here
+
 ## `<Icon>`
 
 widget `GtkImage` · takes no text child.
