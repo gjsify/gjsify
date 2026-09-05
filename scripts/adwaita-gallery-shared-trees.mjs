@@ -283,9 +283,16 @@ export const ADWAITA_GALLERY_TREE_DIVERGENCES = {
         'composition: the GTK tree carries an action button the port has no room for, and the icon is `iconName` against the glyph fallback `iconText`.',
     'Adw.ToolbarView':
         'composition: the bottom bar is a `gtk-box` of four buttons on GTK — `Gtk.ActionBar` has no child policy — and a second `AdwHeaderBar` on the port.',
-    // --- nothing forces these ---
+    // --- nothing forces the LIST; the names beside it are another matter ---
+    //
+    // Both of these also carry a `cssClasses` against the port's style-class property,
+    // and that half is NOT closable: `@nativescript/core`'s `ViewBase` owns the name
+    // `cssClasses` as the live `Set<string>` its CSS engine reads, so the port cannot
+    // take the GIR spelling however far the rest converges. Closing the content gap
+    // would therefore move these two into `vocabulary` rather than into the shared
+    // source — which is why the shorter lists are recorded here rather than padded.
     'Adw.WrapBox':
-        'content: the block preview and the framework tabs show eight chips, the NativeScript template six, and it spells `TypeScript` where the other three spell `Typescript`. Plus the `label`/`cssClasses` against `text`/`variant` vocabulary gap.',
+        'content: eight chips in the block preview, the framework tabs and all three storybooks, six in the NativeScript template. Nothing in the port forces the shorter list. Beside it the `label`/`cssClasses` against `text`/`variant` names, whose second half cannot converge.',
     'Gtk.Button':
-        'content: the preview and the framework tabs show five buttons, the NativeScript template four — the icon-only circular one is missing, and its icon would be an SVG source. Plus a `GtkBox` against a `StackLayout` and the `label`/`cssClasses` gap.',
+        'content: five buttons in the preview and the framework tabs, four in the NativeScript template — the icon-only circular one is missing, and its icon would be an SVG SOURCE there rather than a name (see status/open-todos.md, "A property can agree on its NAME and disagree on its VALUE KIND"). Beside it a `GtkBox` against a `StackLayout`.',
 };

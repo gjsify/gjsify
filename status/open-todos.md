@@ -482,6 +482,82 @@ criterion still wants `@gjsify/adwaita-core/conformance` vectors run over one au
 through both renderers; the seven blocks here are what such a suite would have to start
 from, and the ledger says what would have to converge before it could grow past them.
 
+### A property can agree on its NAME and disagree on its VALUE KIND
+
+`check-vocabulary-alignment.mjs` prints a property distance and calls a NativeScript
+property "already agreeing" when its name is a key of the GIR counterpart's props
+interface. It compares names and nothing else, so a property that agrees on its name and
+means something different is counted on the agreeing side. The entry above says the
+one-vocabulary goal is checked by NAME and not by BEHAVIOUR; this is that sentence one
+level down, with a named instance instead of a general worry.
+
+**The instance.** `Adw.ButtonRow:start-icon-name` is *"the icon name to show before the
+title"* — a name looked up in an icon theme. `AdwButtonRow.startIconName` on the port is
+*"a leading Adwaita symbolic SVG string (e.g. `listAddSymbolic`)"* — the SVG document
+itself. Both are `string`; both are spelled `startIconName`; the gate counts them as
+agreement. A caller who reads the aligned vocabulary and passes `list-add-symbolic` gets
+no icon, and nothing in this repository says why.
+
+**The census, so the class is sized rather than feared.** 43 NativeScript widget classes
+whose class name is itself a GType in `gtk-host`'s runtime table set 139 properties
+between them; 95 of those names are keys of the counterpart's props interface. (The gate's
+own figures are larger because `counterpartsOf` also unions the `composes` entries in
+`NS_WIDGET_ALIGNMENT`, which this census did not resolve — it is a strict subset, and a
+census that quietly claimed the gate's corpus would be a measurement narrower than its
+claim.) Of the 95:
+
+| what the two sides do | pairs |
+|---|---|
+| the type agrees and so does the meaning | 30 |
+| the type differs: the port widens to `\| string`, because an XML attribute arrives as one | 37 |
+| the type differs: a GIR nick-union against the port's own enum, same kind | 11 |
+| the type differs: a toolkit type against its NativeScript peer (`Gtk.Widget` → `View`) | 4 |
+| the type differs: a declared portable value form (ADR 0042 · 0046 · 0047) | 3 |
+| the type differs: nullability only | 1 |
+| **the type differs AND so does the kind of value** | **3** |
+| **the type AGREES and the kind of value does not** | **5** |
+| the evidence does not decide | 1 |
+
+The three the type already shows are `AdwTabView.selectedPage` (`Adw.TabPage` against a
+page-id string), `AdwTabView.defaultIcon` (`Gio.Icon` against a string) and
+`GtkImage.iconSize` (a `Gtk.IconSize` enum against a DIP number). The five it does not are
+one family: `GtkImage.iconName`, `AdwStatusPage.iconName`, `AdwButtonContent.iconName`,
+`AdwButtonRow.startIconName` and `AdwButtonRow.endIconName` — an icon-theme NAME on the GIR
+side, an Adwaita symbolic SVG SOURCE on the port. The undecidable one is
+`AdwPreferencesPage.iconName`: the port stores the string and nothing renders it, so no
+evidence in the tree says which kind it is. It is recorded as undetermined rather than
+counted on either side.
+
+**Why this is an entry and not an arm, measured rather than assumed.**
+
+*A type comparison would fire on 59 of the 95 and 56 of those are deliberate* — the
+`| string` widening IS the XML door, and the enum and portable-value rows are the port
+doing exactly what its ADRs say. To reach zero false positives it would need those 56
+declared: a 56-entry ledger to hold a 3-member finding, and blind to the other five
+anyway.
+
+*A prose comparison is incomplete on BOTH sides, and its failure mode is silence.* The GIR
+docs phrase "this value is an icon name" four different ways across the five — *"The icon
+name to show before the title"*, *"The name of the icon to be used"*, *"The name of the
+displayed icon"*, *"The name of the icon in the icon theme"* — and the first reader written
+here, built from two of them, missed `AdwButtonContent.iconName` and reported a smaller
+class than it had found. The port says *"symbolic SVG string"* on four of the five and says
+nothing of the sort on `AdwPreferencesPage.iconName`. Neither vocabulary is closed, so a
+regex over either goes quiet when someone rewords a comment, and a gate that goes quiet
+looks exactly like a gate that passed.
+
+*There is no structural marker across the family either.* Two of the five name the setter
+parameter `svg`, two assign `this._iconSvg`, and `AdwButtonRow` delegates to
+`_buttonState.setStartIconName` and shows nothing at the setter at all.
+
+**What a checker would have to read to be honest**: not the name, not the TypeScript type
+and not the prose, but where the value GOES — whether the string reaches an SVG asset
+resolver or an icon-theme lookup. That is a call-graph question over the port's setters,
+and it is the same question one level up from `gtk-host`'s own `coerce` seam. Until
+something can answer it, the five are recorded here and `NS_PROPERTY_ALIGNMENT` is
+unchanged: adding them to a table that exists to explain names would file a value-kind
+divergence under the heading that already counts it as agreement.
+
 ### One vocabulary is a rule for EVERY surface — clause 3 holds on all three renderers
 
 **ADR 0034 stages 2, 3, 6 and 4 have landed** (in that order, ahead of stage 1; the
