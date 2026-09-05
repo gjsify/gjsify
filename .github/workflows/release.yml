@@ -1267,6 +1267,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # THE READER BELOW IS A REPO SCRIPT, so this job needs the repo. It did not
+      # have it, and `node scripts/report-probe-outcome.mjs` died with
+      # `Cannot find module …/scripts/report-probe-outcome.mjs` on v0.48.0 — a job
+      # whose own header says "a failed dispatch must not fail a publish that
+      # already succeeded", failed by the step that reports on the dispatch. The
+      # dispatch itself had succeeded.
+      #
+      # Only ever visible here: `release.yml` runs on `release` and
+      # `workflow_dispatch`, so no PR could have exercised it.
+      # The SAME ref the publish jobs use, so the reporter is the one that shipped
+      # rather than whatever main holds by the time the probe runs. No credentials:
+      # this job reads one file and pushes nothing.
+      - name: Checkout the release ref (the outcome reader is a repo script)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+          persist-credentials: false
+
       - name: Dispatch the cross-platform probe (measures what was just published)
         id: dispatch-probe
         continue-on-error: true
