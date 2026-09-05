@@ -122,16 +122,24 @@ const readHostWidgetTable = () => {
         // a missing gtk-host build input, and the message has to say which one.
         throw new Error(`generate-adwaita-framework-snippets: cannot read ${HOST_WIDGET_TABLE} (${error.message})`);
     }
-    const rows = [...src.matchAll(/\{\s*gtype:\s*'([^']+)',\s*tag:\s*'([^']+)'/g)];
+    const rows = [...src.matchAll(/\{\s*gtype:\s*'([^']+)',\s*tag:\s*'([^']+)'/g)].map((m) => [m[1], m[2]]);
     // An empty read would turn every lookup below into a throw naming the TAG, which is
     // the one thing that would not be wrong.
     if (rows.length === 0) {
         throw new Error(`generate-adwaita-framework-snippets: ${HOST_WIDGET_TABLE} yielded no gtype/tag row`);
     }
-    return new Map(rows.map((m) => [m[2], m[1]]));
+    return rows;
 };
 
-const GTYPE_BY_TAG = readHostWidgetTable();
+/**
+ * Every `{ gtype, tag }` row of that table, exported so arm 11 can hold `hostTagOf`
+ * against it without parsing the same generated file a second time — two readers of
+ * one shape is two things to update when the shape changes, and only one of them
+ * would go loud.
+ */
+export const HOST_WIDGET_ROWS = readHostWidgetTable();
+
+const GTYPE_BY_TAG = new Map(HOST_WIDGET_ROWS.map(([gtype, tag]) => [tag, gtype]));
 
 export const gtypeOfTag = (tag) => {
     const gtype = GTYPE_BY_TAG.get(tag);

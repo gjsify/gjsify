@@ -101,6 +101,7 @@ import {
 import { ADWAITA_GALLERY_REFUSALS, ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
 import {
     gtypeOfTag,
+    HOST_WIDGET_ROWS,
     OXFMT_EXEMPT_OUTPUTS,
     PROBE_SOURCES,
     snippetLines,
@@ -1120,14 +1121,10 @@ for (const widget of sharedByWidget.keys()) {
 // Only this direction is a rule. `gtypeOfTag` is that same table read backwards
 // (`tagOf` collapses an acronym run, so no case rule recovers `GtkGLArea` from
 // `gtk-gl-area`), which is why there is nothing here to assert about it.
-const hostRows =
-    widgetsSrc === null
-        ? []
-        : [...widgetsSrc.matchAll(/\{\s*gtype:\s*'([^']+)',\s*tag:\s*'([^']+)'/g)].map((m) => [m[1], m[2]]);
-if (hostRows.length === 0) {
+if (HOST_WIDGET_ROWS.length === 0) {
     failures.push("gtk-host's gtype/tag rows read as empty — hostTagOf would be asserted against nothing");
 }
-for (const [gtype, tag] of hostRows) {
+for (const [gtype, tag] of HOST_WIDGET_ROWS) {
     let produced;
     try {
         produced = hostTagOf(gtype);
