@@ -45,6 +45,16 @@
 //      Platform-global names (`slot`, `class`, `aria-*`, …) are excepted, and an element
 //      that observes NOTHING is skipped: its attributes are its parent's to read, which is
 //      what `<adw-view-switcher-page>` is.
+//   4. the same rule on the website's own SCRIPTS, which arm 3 cannot see: it reads
+//      markup, and `el.setAttribute('x', …)` is a call. ADR 0048 renamed
+//      `<adw-tab-view selected="n">` to `selected-page="<page id>"` and recorded that
+//      nothing in `website/` wrote it — measured wrong twice over, because both writers
+//      spelled it as a call: `CommandTabs.astro` (the npm/yarn/gjsify tabs, restored from
+//      localStorage and mirrored across the page) and `AdwWidget.astro` (every gallery
+//      block's implementation tabs). Both became silent no-ops, and neither a type nor
+//      arm 3 nor `astro build` could say so. So a binding taken from a custom-element
+//      selector is followed to its `set/get/has/removeAttribute` calls, and the name each
+//      one passes is held against the same `observedAttributes` list arm 3 uses.
 //
 // Plain Node over the repo's own files: no install, no build, no astro render.
 //
@@ -78,14 +88,40 @@ const fail = (what, expected, actual) => failures.push(`${what}\n      expected 
  * whose attributes belong to whichever parent reads them (`<adw-view-switcher-page>`).
  */
 const PLATFORM_GLOBAL = new Set(['slot', 'class', 'id', 'style', 'hidden', 'role', 'tabindex', 'part', 'lang', 'dir']);
+/** Whether a name belongs to the WIDGET's vocabulary at all. Shared by arms 3 and 4. */
+const isVocabulary = (name) => !PLATFORM_GLOBAL.has(name) && !name.startsWith('data-') && !name.startsWith('aria-');
 const unobservedIn = (markup, tag, observed) =>
-    [...sampleAttributes(markup, tag).keys()].filter(
-        (name) =>
-            !observed.includes(name) &&
-            !PLATFORM_GLOBAL.has(name) &&
-            !name.startsWith('data-') &&
-            !name.startsWith('aria-'),
-    );
+    [...sampleAttributes(markup, tag).keys()].filter((name) => !observed.includes(name) && isVocabulary(name));
+
+/**
+ * `<name>.setAttribute('x', …)` where `<name>` was bound from a custom-element selector,
+ * paired with the tag that selector named — the arm-4 finding.
+ *
+ * Deliberately shallow: one file, one binding statement, direct calls on that binding.
+ * A binding that travels through a helper or a field is out of reach and stays so, which
+ * is why arm 4 reports how many receivers it RESOLVED — a rule that silently resolves
+ * none is the shape this file exists to refuse.
+ */
+const ELEMENT_BINDING =
+    /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?(?:=|\sof\s)[^;]*?\b(?:querySelector(?:All)?|createElement)\s*(?:<[^;()]*>)?\s*\(\s*['"`]\s*([a-z][\w-]*)/g;
+
+function scriptedAttributeWrites(text) {
+    const bindings = new Map();
+    for (const [, name, tag] of text.matchAll(ELEMENT_BINDING)) {
+        // A custom element, i.e. a tag with a hyphen — `div`, `button` and the rest carry
+        // no widget vocabulary and are not this rule's business.
+        if (tag.includes('-')) bindings.set(name, tag);
+    }
+    const writes = [];
+    for (const [name, tag] of bindings) {
+        const call = new RegExp(
+            `(?<![\\w$.])${name.replaceAll('$', '\\$')}\\s*[?!]?\\.\\s*(?:set|get|has|remove)Attribute\\s*\\(\\s*(['"\`])([^'"\`]+)\\1`,
+            'g',
+        );
+        for (const [, , attr] of text.matchAll(call)) writes.push({ name, tag, attr });
+    }
+    return { receivers: bindings, writes };
+}
 
 // ---------------------------------------------------------------- 1. fixtures
 
@@ -195,6 +231,48 @@ for (const [what, markup, tag, observed, expected] of UNOBSERVED_FIXTURES) {
     }
 }
 
+// The arm-4 reader on the shapes a regex over source can get wrong. It has to SEE the
+// incident's own line, and it has to stay silent on a receiver that is not a widget.
+/** @type {[string, string, string[]][]} name, source, expected `<tag> <attr>` pairs */
+const SCRIPTED_FIXTURES = [
+    [
+        "the incident's own line — a renamed attribute written as a call",
+        "const view = el.querySelector<Adw.TabView>('adw-tab-view[data-cmd-view]');\n" +
+            "if (index >= 0) view.setAttribute('selected', String(index));",
+        ['adw-tab-view selected'],
+    ],
+    [
+        'a `for … of` binding, an optional call, and a getter',
+        "for (const row of host.querySelectorAll('adw-combo-row')) {\n" +
+            "  row?.setAttribute('items', '[]');\n" +
+            "  row.getAttribute('model');\n}",
+        ['adw-combo-row items', 'adw-combo-row model'],
+    ],
+    [
+        'a receiver that names no custom element carries no widget vocabulary',
+        "const frame = btn.querySelector('.frame');\nframe.setAttribute('data-copied', '1');\n" +
+            "const div = document.createElement('div');\ndiv.setAttribute('selected', '2');",
+        [],
+    ],
+    [
+        'a binding whose name is a PREFIX of another binding',
+        "const view = el.querySelector('adw-tab-view');\nconst viewBar = el.querySelector('adw-view-switcher-bar');\n" +
+            "viewBar.setAttribute('reveal', '');",
+        ['adw-view-switcher-bar reveal'],
+    ],
+    [
+        'a member access that merely ENDS in the binding name',
+        "const view = el.querySelector('adw-tab-view');\nthis.view.setAttribute('selected', '1');",
+        [],
+    ],
+];
+for (const [what, source, expected] of SCRIPTED_FIXTURES) {
+    const got = scriptedAttributeWrites(source).writes.map((w) => `${w.tag} ${w.attr}`);
+    if (got.join(',') !== expected.join(',')) {
+        fail(`fixture — scripted: ${what}`, JSON.stringify(expected), JSON.stringify(got));
+    }
+}
+
 // ------------------------------------------------- 2. every shipped preview fence
 
 const { byTag } = observedAttributes(ROOT);
@@ -251,6 +329,47 @@ for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
     }
 }
 
+// ------------------------------------------- 4. the website's own scripted writes
+
+/** Every source file the site SHIPS behaviour from, `website/src` down. */
+function* sourceFiles(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) yield* sourceFiles(full);
+        else if (/\.(astro|mdx|ts|mts|mjs)$/.test(entry.name)) yield full;
+    }
+}
+
+let receiversSeen = 0;
+let scriptedSeen = 0;
+for (const file of sourceFiles(join(ROOT, 'website/src'))) {
+    const { receivers, writes } = scriptedAttributeWrites(readFileSync(file, 'utf8'));
+    const rel = file.slice(ROOT.length + 1);
+    for (const tag of receivers.values()) if ((byTag.get(tag)?.length ?? 0) > 0) receiversSeen++;
+    for (const { name, tag, attr } of writes) {
+        const names = byTag.get(tag);
+        // An element that observes NOTHING is its parent's to read — the arm-3 exception.
+        if (names === undefined || names.length === 0 || !isVocabulary(attr)) continue;
+        scriptedSeen++;
+        if (names.includes(attr)) continue;
+        fail(
+            `${rel} — \`${name}\` is an <${tag}> and writes \`${attr}\``,
+            `an attribute <${tag}> observes (${names.join(', ')})`,
+            'a name it never reads, so the call compiles, runs, and does nothing at all',
+        );
+    }
+}
+
+if (receiversSeen === 0) {
+    // The same refusal the fence floor below makes: a reader that resolves no receiver
+    // satisfies the loop above by never entering it, and reports a clean site.
+    failures.push(
+        'resolved 0 custom-element bindings in website/src — the arm-4 reader found no ' +
+            'receiver to follow, so it checked nothing',
+    );
+}
+
 if (blocks === 0 || cellsSeen === 0) {
     // A scanner that finds nothing passes every assertion above it. That is the failure
     // this repo keeps paying for, so it is an error rather than a quiet exit 0.
@@ -263,6 +382,8 @@ if (failures.length > 0) {
     process.exit(1);
 }
 console.log(
-    `check-website-attr-samples: ${FIXTURES.length + UNOBSERVED_FIXTURES.length} fixtures and ${cellsSeen} cells ` +
-        `across ${blocks} gallery blocks, ${unobservedSeen} unobserved attribute(s) written — ok`,
+    `check-website-attr-samples: ${FIXTURES.length + UNOBSERVED_FIXTURES.length + SCRIPTED_FIXTURES.length} ` +
+        `fixtures and ${cellsSeen} cells across ${blocks} gallery blocks, ${unobservedSeen} unobserved ` +
+        `attribute(s) written; ${scriptedSeen} scripted attribute name(s) on ${receiversSeen} resolved ` +
+        'element binding(s) — ok',
 );
