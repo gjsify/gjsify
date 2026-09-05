@@ -6,7 +6,7 @@
 // widget module `extends GridLayout`, which evaluates the bare
 // `@nativescript/core` specifier at module-eval and is unresolvable on GJS/Node,
 // so `adw-bottom-sheet.ts` cannot be loaded here. That widget is a thin
-// `GridLayout` wrapper over exactly the surface below: `openState` forwards to
+// `GridLayout` wrapper over exactly the surface below: `open` forwards to
 // `state.setOpen`, `canClose` to `state.setCanClose`, the subscription calls
 // {@link applySheetVisibility} and notifies `notify::open`, and `requestClose`
 // is {@link requestBottomSheetClose} plus one `notify()`.
@@ -138,7 +138,7 @@ export const AdwBottomSheetNsTest = async () => {
         });
 
         await it('emits notify::open only on a real change', () => {
-            // `openState` used to be the only state this port had, and its guard
+            // `open` used to be the only state this port had, and its guard
             // is the one thing it got right (adw-bottom-sheet.c:1672-1682) —
             // this pins it so the lift did not lose it.
             const sheet = mountSheet();
@@ -148,10 +148,10 @@ export const AdwBottomSheetNsTest = async () => {
             expect(sheet.notifications).toStrictEqual([true, false]);
         });
 
-        await it('close() stays ungated while a dismissal is gated', () => {
+        await it('writing `open` stays ungated while a dismissal is gated', () => {
             // "Bottom sheet can still be closed using [property@BottomSheet:open]"
-            // — adw-bottom-sheet.c:2071. `close()` is that property; the drag
-            // handle and the back button are not.
+            // — adw-bottom-sheet.c:2071. Upstream names the PROPERTY as the way
+            // past `can-close`; the drag handle and the back button are not it.
             const sheet = mountSheet();
             sheet.state.setOpen(true);
             sheet.state.setCanClose(false);
@@ -163,8 +163,9 @@ export const AdwBottomSheetNsTest = async () => {
 
         await it('a drag-handle tap leaves an open sheet open', () => {
             // REGRESSION PIN: the handle was a Label with a `tap` listener wired
-            // straight to `close()`. adw-bottom-sheet.c:1197-1198 makes it
-            // untargetable, so it closes nothing.
+            // straight to the port's old `close()` method (gone — the property is
+            // the whole programmatic surface). adw-bottom-sheet.c:1197-1198 makes
+            // the handle untargetable, so it closes nothing.
             const sheet = mountSheet();
             sheet.state.setOpen(true);
             sheet.events.length = 0;

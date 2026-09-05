@@ -3,8 +3,7 @@
 // Renders a REAL NativeScript `GridLayout` overlaying a content layer (row-spanned)
 // with a bottom-anchored sheet panel that is shown/hidden. Mirrors
 // `Adw.BottomSheet`: `setContent()` (the always-visible body), `setSheet()` (the
-// panel that slides up), `open`/`close`, `can-close` and the `close-attempt`
-// signal.
+// panel that slides up), `open`, `can-close` and the `close-attempt` signal.
 //
 // The open state and the dismissal gate are NOT implemented here: they live in
 // `@gjsify/adwaita-core` (`BottomSheetPresentation` + `resolveBottomSheetClose`,
@@ -14,7 +13,7 @@
 //
 // `requestClose(source)` is the INTERACTIVE entry point, so a host can route the
 // Android back button or an in-sheet close button through the same gate the browser
-// port uses; `open()`/`close()` stay the PROGRAMMATIC pair and deliberately ignore
+// port uses; writing `open` is the PROGRAMMATIC path and deliberately ignores
 // `can-close`, as upstream says outright. The drag handle does NOT close on tap:
 // libadwaita builds it `can_focus = FALSE`, `can_target = FALSE`, a decorative pill
 // whose only behavioural role is `allow_mouse_drag = show_drag_handle || bottom_bar`.
@@ -23,7 +22,7 @@
 // box-shadow or translate transition, so the sheet is bottom-aligned in the grid and
 // toggled by `visibility`: instant show/hide, no upward slide, no dimming
 // scrim/backdrop-blur. The look and the state machine are faithful; an app wanting the
-// slide wraps `open`/`close` in `view.animate({ translate })`. (A `modal` sheet on a
+// slide wraps the `open` write in `view.animate({ translate })`. (A `modal` sheet on a
 // phone is more naturally a native `Dialogs`/modal Page — this targets the in-page form.)
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-bottom-sheet`.
@@ -169,25 +168,23 @@ export class AdwBottomSheet extends GridLayout {
         return this._sheetChild;
     }
 
-    /** Open the sheet programmatically. */
-    open(): void {
-        this.openState = true;
-    }
-
     /**
-     * Close the sheet programmatically. Like `AdwBottomSheet:open` this ignores
-     * `can-close`; a user-driven dismissal belongs in {@link requestClose}.
+     * Whether the sheet is open (`AdwBottomSheet:open`). Toggling shows/hides the panel
+     * and emits `notify::open`.
+     *
+     * Like the GTK property this ignores `can-close`; a user-driven dismissal belongs in
+     * {@link requestClose}.
+     *
+     * BREAKING: was `openState`, and `sheet.open = true` / `= false` replace the port's
+     * own `open()` / `close()` methods, which libadwaita has no counterpart for. Why the
+     * collision with them was not a reason to keep the divergent name is ADR 0034
+     * § Amendment 11.
      */
-    close(): void {
-        this.openState = false;
-    }
-
-    /** Whether the sheet is open. Toggling shows/hides the panel + emits `notify::open`. */
-    get openState(): boolean {
+    get open(): boolean {
         return this._state.open;
     }
 
-    set openState(value: boolean | string) {
+    set open(value: boolean | string) {
         this._state.setOpen(xmlBoolean(value, false));
     }
 

@@ -822,7 +822,7 @@ content pane, not to work.
     const toggle = new Gtk.Button();
     toggle.text = 'Toggle sheet';
     toggle.variant = 'pill';
-    toggle.addEventListener('tap', () => { sheet.openState = !sheet.openState; });
+    toggle.addEventListener('tap', () => { sheet.open = !sheet.open; });
     center.addChild(toggle);
     sheet.setContent(center);
 
@@ -843,7 +843,7 @@ content pane, not to work.
     box.addChild(group);
     sheet.setSheet(box);
 
-    sheet.openState = true;
+    sheet.open = true;
     ```
   </Fragment>
 </AdwWidget>

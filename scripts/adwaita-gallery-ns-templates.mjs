@@ -489,7 +489,7 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
         page: 'navigation',
         root: {
             tag: 'AdwBottomSheet',
-            props: { openState: true },
+            props: { open: true },
             children: [
                 {
                     tag: 'AdwStatusPage',
