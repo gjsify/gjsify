@@ -141,22 +141,22 @@ each other and mean the same thing everywhere in the toolkit, so a
 
     const pill = new Gtk.Button();
     pill.text = 'Pill';
-    pill.variant = 'pill';
+    pill.cssClasses = 'pill';
     box.add(pill);
 
     const suggested = new Gtk.Button();
     suggested.text = 'Suggested';
-    suggested.variant = 'suggested-action';
+    suggested.cssClasses = 'suggested-action';
     box.add(suggested);
 
     const destructive = new Gtk.Button();
     destructive.text = 'Delete';
-    destructive.variant = 'destructive-action';
+    destructive.cssClasses = 'destructive-action';
     box.add(destructive);
 
     const flat = new Gtk.Button();
     flat.text = 'Flat';
-    flat.variant = 'flat';
+    flat.cssClasses = 'flat';
     box.add(flat);
     ```
   </Fragment>
