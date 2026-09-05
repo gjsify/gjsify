@@ -215,6 +215,27 @@ const SCRIPT_COUPLINGS: readonly ScriptCoupling[] = [
         runE2E: true,
         why: '@gjsify/create-app build → node scripts/process-template.mjs reads templates/',
     },
+    {
+        // THE SAME SHAPE AS `.githooks/` ABOVE, one layer up: the guard's trigger names
+        // the TEST's path instead of the thing under test. `AppRegistry.runApplication`
+        // holds three lines observable only by RUNNING the loop —
+        // `registerBuiltinWidgets()`, the `toShellOptions` passthrough and
+        // `provideWindowChrome()` — and their one external observer is
+        // `tests/e2e/react-native-devtools`, which main.yml's `e2e` job now runs under
+        // xvfb + a session bus (#1550). Without this entry a change confined to
+        // `packages/framework/react-native/**` seeds its own workspace, the e2e tier
+        // stays OFF (it turns on for a `tests/e2e/**` touch), and the suite is silent
+        // for exactly the PRs it exists to catch. Measured on #1540: deleting
+        // `provideWindowChrome()` left format, lint, tsc and all in-process assertions
+        // green while the application drew two header bars.
+        //
+        // No extra seeds — the package is a workspace and already seeds itself. The
+        // TIER is the point, as for `.githooks/`.
+        match: /^packages\/framework\/react-native\//,
+        seeds: [],
+        runE2E: true,
+        why: 'tests/e2e/react-native-devtools is the only external observer of AppRegistry.runApplication',
+    },
 ];
 
 export function classifyAndExpand(workspaces: readonly Workspace[], changedFiles: readonly string[]): ClassifyResult {
@@ -321,7 +342,15 @@ export function classifyAndExpand(workspaces: readonly Workspace[], changedFiles
             global: false,
             reason: `test-only (${remaining.length} file(s) in ${only})`,
             workspaces: [only],
-            runE2E: touchedE2E,
+            // `|| couplingRunE2E`: this shortcut skips CLOSURE EXPANSION, and a
+            // declared tier is not part of the closure. Dropping it here made a
+            // coupling's reach depend on the SHAPE of the changed path — the
+            // `.githooks/` entry survived only because a hook is not a spec file,
+            // while `packages/framework/react-native/src/widgets.spec.ts` fell
+            // through and turned the e2e tier back off. Measured by the vector
+            // "a react-native spec file ALSO turns the e2e tier on", which was RED
+            // when it was written (#1550).
+            runE2E: touchedE2E || couplingRunE2E,
             runIntegration: touchedIntegration || isIntegrationWorkspace(only),
             skipAll: false,
         };

@@ -16,6 +16,8 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 
+import { e2eSkipReason } from '../helpers.mjs';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const GJS_BUNDLE = resolve(__dirname, 'dist/probe.gjs.mjs');
 // The per-target package, a SIBLING of the bridge since ADR 0017:
@@ -60,6 +62,18 @@ function runProbe(withCore) {
 
 const prebuildsBuilt = existsSync(`${PREBUILD_DIR}/GjsifyTerminal-1.0.typelib`);
 
+// The core-module half needs a STAGED prebuild, which `test:e2e` does not build — the
+// reason this suite is ledgered in `scripts/e2e-unlisted-suites.mjs`. Routed through
+// `e2eSkipReason` so a host that means to run it can say so with
+// `GJSIFY_E2E_REQUIRE=terminal-native` and get a named failure instead of a silence
+// (#1550). No CI job sets it yet: nothing in CI stages this prebuild.
+const CORE_SKIP = e2eSkipReason('terminal-native', [
+    [
+        'a staged GjsifyTerminal-1.0.typelib (gjsify workspace @gjsify/terminal-native run build:prebuilds)',
+        prebuildsBuilt,
+    ],
+]);
+
 await describe('terminal-native E2E', async () => {
     await describe('without core module', async () => {
         let r;
@@ -92,14 +106,11 @@ await describe('terminal-native E2E', async () => {
         });
     });
 
-    if (!prebuildsBuilt) {
-        await describe('with core module', async () => {
-            it('SKIP — run yarn build:prebuilds in packages/node/terminal-native first', () => {
-                console.log(
-                    'Skipping: prebuilds not built. Run: yarn workspace @gjsify/terminal-native build:prebuilds',
-                );
-            });
-        });
+    if (CORE_SKIP !== false) {
+        // A `describe` that SKIPS, not an `it` that logs and passes. The placeholder it
+        // replaces was a green test named SKIP: it reported success for a leg that had
+        // measured nothing, which is the shape #1550 exists to remove.
+        await describe('with core module', { skip: CORE_SKIP }, () => {});
     } else {
         await describe('with core module', async () => {
             let r;

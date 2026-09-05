@@ -709,7 +709,18 @@ function normaliseSource(
     if (typeof uri !== 'string' || uri === '') {
         return refuse(`expects { uri: string }; got uri = ${describe(uri)}`);
     }
-    const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(uri)?.[1]?.toLowerCase();
+    // A DRIVE LETTER IS NOT A SCHEME. `C:\images\logo.png` satisfies RFC 3986's scheme
+    // grammar exactly — `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )` admits a
+    // single letter — so a one-character prefix used to fall through to the refusal
+    // below and answer "is a `c:` URI, and this layer only opens what GTK can read
+    // synchronously", for the most ordinary absolute path there is on the one OS that
+    // has drive letters. Found while fixing the two win32 Image vectors of #1556, in
+    // the function they exercise; no vector reached it because no vector wrote a
+    // Windows path. `+` rather than `*` is the whole fix: no registered URI scheme is
+    // one letter, and WHATWG's URL parser carves the same exception for the same
+    // reason. Deliberately NOT gated on `process.platform` — one source string must
+    // not mean two different things depending on where it is read.
+    const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]+):/.exec(uri)?.[1]?.toLowerCase();
     if (scheme === undefined) return { kind: 'path', value: uri };
     if (scheme === 'file' || scheme === 'resource') return { kind: 'uri', value: uri };
     if (scheme === 'http' || scheme === 'https' || scheme === 'data') {

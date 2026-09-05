@@ -11,6 +11,8 @@ These packages let you draw with the browser APIs inside a real GTK window. You 
 import Adw from 'gi://Adw?version=1';
 import { Canvas2DBridge } from '@gjsify/canvas2d';
 
+const app = new Adw.Application({ applicationId: 'org.example.CanvasDemo' });
+
 const bridge = new Canvas2DBridge();
 bridge.installGlobals();
 
@@ -27,6 +29,8 @@ win.set_default_size(600, 400);
 win.set_child(bridge);
 win.present();
 ```
+
+`app` is the `Adw.Application` your program already has; the WebGL example below reuses this one.
 
 `bridge` **is** a `Gtk.DrawingArea`, so `set_size_request`, `add_css_class` and every other widget method work on it. `onReady` fires once the widget has a real surface; touching the canvas before that gives you a zero-sized one.
 

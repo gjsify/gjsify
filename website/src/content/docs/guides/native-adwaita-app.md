@@ -98,8 +98,11 @@ exactly this: it runs any `Gio.Application` on `runAsync` and adds the second-in
 notice.
 
 ```ts
+import Adw from 'gi://Adw?version=1';
 import { runApplication } from '@gjsify/adwaita-app';
 import system from 'system';
+
+const myApp = new Adw.Application({ applicationId: 'org.example.App' });
 
 await runApplication(myApp, [system.programInvocationName, ...system.programArgs]);
 ```
@@ -117,12 +120,17 @@ Call it from your `Adw.ApplicationWindow` subclass, fill the returned `stack`, a
 returned `widget` as the window content.
 
 ```ts
+import Adw from 'gi://Adw?version=1';
 import { createNavShell, type NavItem } from '@gjsify/adwaita-app';
 
 const NAV: NavItem[] = [
     { id: 'overview', label: 'Overview', icon: 'go-home-symbolic' },
     { id: 'reports', label: 'Reports', icon: 'x-office-spreadsheet-symbolic', subtitle: 'Monthly' },
 ];
+
+// Your own views. Any Gtk.Widget does; these two are placeholders.
+const buildOverview = (): Adw.StatusPage => new Adw.StatusPage({ title: 'Overview' });
+const buildReports = (): Adw.StatusPage => new Adw.StatusPage({ title: 'Reports' });
 
 const shell = createNavShell(this, {
     items: NAV,
@@ -151,7 +159,10 @@ when it arrives, an error page when it doesn't. `LoadingStack` is a `Gtk.Stack` 
 has those three pages, named `loading`, `content` and `error`.
 
 ```ts
+import Adw from 'gi://Adw?version=1';
 import { LoadingStack } from '@gjsify/adwaita-app';
+
+const buildReportView = (): Adw.StatusPage => new Adw.StatusPage({ title: 'Report' });
 
 const stack = new LoadingStack({ widthRequest: 360, heightRequest: 220 });
 stack.setContent(buildReportView());
@@ -163,7 +174,18 @@ stack.showContent();
 async) and a `fill` function that renders the result.
 
 ```ts
+import Adw from 'gi://Adw?version=1';
 import { LoadToken, loadIntoStack } from '@gjsify/adwaita-app';
+
+interface Report {
+    readonly rows: readonly string[];
+}
+
+const currentYear = new Date().getFullYear();
+
+// Your own async source, and your own renderer for what it returns.
+const fetchReport = async (year: number): Promise<Report> => ({ rows: [`Total ${year}`] });
+const renderReport = (data: Report): Adw.StatusPage => new Adw.StatusPage({ title: data.rows[0] });
 
 const token = new LoadToken();
 
@@ -190,27 +212,34 @@ Using your own stack instead of `LoadingStack`? Give its children the names `loa
 These wrap the response-signal Adwaita widgets so you can `await` them.
 
 ```ts
+import Adw from 'gi://Adw?version=1';
 import {
     confirmDialog, errorDialog,
     registerToastOverlay, showToast,
     pickFile, saveFile,
 } from '@gjsify/adwaita-app';
 
-if (await confirmDialog(window, { heading: 'Delete this report?', destructive: true, defaultResponse: 'cancel' })) {
+// The parent every one of these dialogs is modal to — your own window, not a
+// browser `window`. GJS has no such global.
+const myWindow = new Adw.ApplicationWindow({ application: new Adw.Application({ applicationId: 'org.example.App' }) });
+
+if (await confirmDialog(myWindow, { heading: 'Delete this report?', destructive: true, defaultResponse: 'cancel' })) {
     // the user said yes
 }
 
-await errorDialog(window, 'Import failed', String(err));
+const err = new Error('Unsupported file format');   // whatever you caught
+await errorDialog(myWindow, 'Import failed', String(err));
 
+const myToastOverlay = new Adw.ToastOverlay();
 registerToastOverlay(myToastOverlay);   // once, while building the window
 showToast('Saved.');                     // from anywhere afterwards
 showToast('Still working…', 0);          // 0 seconds = sticky
 
-const path = await pickFile(window, {
+const path = await pickFile(myWindow, {
     title: 'Open project',
     filters: [{ name: 'JSON', patterns: ['*.json'] }],
 });
-const target = await saveFile(window, { title: 'Export', initialName: 'report.csv' });
+const target = await saveFile(myWindow, { title: 'Export', initialName: 'report.csv' });
 ```
 
 `pickFile` and `saveFile` resolve to `null` when the user cancels, so a cancel is a normal
@@ -227,6 +256,9 @@ view you're working on instead of clicking there every time.
 
 ```ts
 import { readAppDevHooks, resolveInitialNavIndex } from '@gjsify/adwaita-app';
+
+// Whatever `MYAPP_FILE` should open — your own document store.
+const store = { load: (path: string): void => console.log('opening', path) };
 
 const hooks = readAppDevHooks({ prefix: 'MYAPP' });
 shell.selectByIndex(resolveInitialNavIndex(NAV, hooks.view));

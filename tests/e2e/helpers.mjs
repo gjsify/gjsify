@@ -771,3 +771,51 @@ export function hasCommand(cmd) {
     }
     return false;
 }
+
+/**
+ * Why a suite will not run — or, when `GJSIFY_E2E_REQUIRE` names it, a THROW.
+ *
+ * THE CLASS (#1550). A suite behind a SKIP gate reports the same thing whether it
+ * passed or never ran: nothing. `react-native-devtools` names a long list of
+ * preconditions and
+ * is the only external observer of `AppRegistry.runApplication`'s body (ADR 0043);
+ * `devtools-export` and `terminal-native` are ledgered beside it in
+ * `scripts/e2e-unlisted-suites.mjs` for the same reason. Put any of them on a CI
+ * host missing ONE precondition and the job goes green having measured nothing —
+ * the defect `scripts/report-probe-outcome.mjs` exists to end one layer up,
+ * relocated into a workflow where it looks like coverage instead.
+ *
+ * SO A HOST THAT MEANS TO RUN A SUITE SAYS SO, and a missing precondition is then a
+ * failure NAMING it rather than a silence. `GJSIFY_E2E_REQUIRE` is a
+ * comma-separated list of suite directory names, or `all`; `1` is accepted as a
+ * spelling of `all`, because that is what a workflow author writes first.
+ *
+ * PER-SUITE, and that is not a convenience. `devtools-export` has a MEASURED and
+ * still unexplained failure in the containerised runner — the application owns
+ * `org.example.reprotest` and then loses it — so a switch that demanded every
+ * ledgered suite at once would turn an open question into a red gate. A host
+ * asserts only what it has been shown to provide.
+ *
+ * @param {string} suite the suite's directory name under `tests/e2e/`
+ * @param {ReadonlyArray<readonly [string, boolean]>} preconditions `[what it needs, is it here]`
+ * @returns {false | string} `false` to RUN — the value `node:test`'s `skip` wants — or the reason
+ */
+export function e2eSkipReason(suite, preconditions) {
+    const missing = preconditions.filter(([, ok]) => !ok).map(([what]) => what);
+    if (missing.length === 0) return false;
+    const reason = `${suite}: host is missing ${missing.length} of ${preconditions.length} precondition(s) — ${missing.join('; ')}`;
+    const required = (process.env.GJSIFY_E2E_REQUIRE ?? '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== '');
+    if (required.includes(suite) || required.includes('all') || required.includes('1')) {
+        throw new Error(
+            `${reason}.\n` +
+                `    GJSIFY_E2E_REQUIRE names "${suite}", so skipping is a FAILURE here: a host that\n` +
+                '    claims it can run this suite and then goes quiet reports exactly what a host that\n' +
+                '    ran it and found nothing wrong reports. Install the missing precondition, or stop\n' +
+                '    naming this suite in GJSIFY_E2E_REQUIRE.',
+        );
+    }
+    return reason;
+}

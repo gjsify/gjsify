@@ -222,6 +222,11 @@ A list looks the way it does on a phone:
 ```tsx
 import { FlatList, Text, View } from 'react-native';
 
+const items = [
+    { id: 'a', title: 'Quarterly report' },
+    { id: 'b', title: 'Travel expenses' },
+];
+
 <FlatList
     data={items}
     keyExtractor={(item) => item.id}
@@ -458,7 +463,10 @@ so entering at `/settings` rather than at the index route is the ordinary path, 
 ```tsx
 import { router } from '@gjsify/react-native/router';
 
-// From a URI handler, a `Gio.SimpleAction`, or your own restore logic.
+// Whatever handed you the entry point: a URI handler, a `Gio.SimpleAction`,
+// or your own restore logic.
+const entryHref = '/settings';
+
 router.navigate(entryHref);
 ```
 

@@ -37,6 +37,7 @@ Three steps, the same for all four:
 import Adw from 'gi://Adw?version=1';
 import { WebGLBridge } from '@gjsify/webgl';
 
+const app = new Adw.Application({ applicationId: 'org.example.BridgeDemo' });
 const bridge = new WebGLBridge();
 
 bridge.installGlobals();            // 1. optional: expose the browser globals
@@ -49,6 +50,9 @@ const win = new Adw.ApplicationWindow({ application: app });
 win.set_child(bridge);              // 3. mount it like any other widget
 win.present();
 ```
+
+`app` is the `Adw.Application` your program already has, and every example below mounts into a
+window of that same application.
 
 **Wait for `onReady`.** The underlying surface does not exist until GTK realizes the widget,
 so `bridge.canvas` is `null` before that. `onReady` fires as soon as the surface exists, and
@@ -212,6 +216,8 @@ gjsify install @gjsify/iframe
 ```ts
 import Adw from 'gi://Adw?version=1';
 import { IFrameBridge } from '@gjsify/iframe';
+
+const handler = (event: MessageEvent) => console.log('the page said:', event.data);
 
 const bridge = new IFrameBridge();
 bridge.onReady((iframe) => {

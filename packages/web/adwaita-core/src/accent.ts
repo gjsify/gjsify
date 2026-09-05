@@ -27,7 +27,7 @@
 //
 // Reference: refs/libadwaita/src/adw-accent-color.c
 // Reference: refs/libadwaita/src/adw-color-utils.c (rgb↔oklab)
-// Reference: refs/libadwaita/src/stylesheet/_colors.scss:146-170
+// Reference: refs/libadwaita/src/stylesheet/_colors.scss:146-170#--accent-bg-color
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 /** The nine accent colours `AdwAccentColor` offers, in its own order. */

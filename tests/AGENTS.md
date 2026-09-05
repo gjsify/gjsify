@@ -45,7 +45,7 @@ modules, NEITHER re-implementable in a suite: `helpers.mjs` (repo paths, packing
 a private server. `scripts/check-e2e-harness-duplication.mjs` fails on a private copy — a raw
 `createServer` included — and holds the incident; its ALLOWED ledger carries the suites whose
 subject IS a different npm API (publish, onboard, self-update) and is self-retiring. A suite-specific POLICY over the shared runner stays local (`build-cache`'s hermetic env);
-a second implementation does not. `runCli` defaults to 30 s — longer goes at the CALL SITE.
+a second implementation does not. `runCli` defaults to 30 s — longer goes at the CALL SITE. A suite whose host may lack a precondition (a display, a bus, a staged prebuild) declares them through **`e2eSkipReason(suite, [[what it needs, is it here], …])`** instead of a boolean chain: it returns the reason for `node:test`'s `skip`, and THROWS naming what is missing when `GJSIFY_E2E_REQUIRE` (comma-separated suite names, or `all`) names the suite — so a CI host that means to run one is red on a missing precondition instead of green having measured nothing. A job asserts only what it has been shown to provide, per suite; `main.yml`'s `e2e` job names `react-native-devtools` and nothing else.
 
 ### Browser tests — `tests/browser/` (Playwright, Firefox/SpiderMonkey)
 

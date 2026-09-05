@@ -1340,6 +1340,39 @@ jobs:
       - name: E2E tests (shard ${{ matrix.shard }}/4)
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/e2e-shard.mjs ${{ matrix.shard }} 4'
 
+      # ── the one ledgered suite that needs a DISPLAY and a session bus ─────
+      #
+      # `tests/e2e/react-native-devtools` (ADR 0043) is the only external observer of
+      # `AppRegistry.runApplication`'s body, and it ran in NO job (#1550). Three lines
+      # in that function are reachable by no unit vector, because their only witness is
+      # the running loop: `registerBuiltinWidgets()`, the `toShellOptions` passthrough
+      # and `provideWindowChrome()`. Deleting the last one leaves oxfmt, oxlint, tsc and
+      # every in-process assertion green while the shipping application draws two header
+      # bars — measured, and written into the suite's own header.
+      #
+      # It is NOT in `test:e2e`: that batch has no display, so listing it there would
+      # buy a permanent silence instead of a run. It is here instead, with the
+      # environment its SKIP gate asks for — `xvfb-run` and the env the `examples` job
+      # puts around the showcase smoke launch, which is where this was measured to
+      # work. No `dbus-run-session` around the step, unlike that one: the suite opens a
+      # fresh session bus per vector itself, so the fixture never inherits a stale
+      # owner of the well-known name it claims.
+      #
+      # `GJSIFY_E2E_REQUIRE` IS THE POINT OF THE STEP. Without it a container missing
+      # any one precondition goes quiet and the step is green having measured
+      # nothing — the same conclusion-is-not-the-result defect as a `continue-on-error`
+      # probe (#1552), relocated into a workflow where it reads as coverage. With it the
+      # skip becomes a failure NAMING what is missing. Only this suite is named: the
+      # other two ledgered suites route through the same switch, but `devtools-export`
+      # loses its well-known bus name in this container for a reason nobody has found,
+      # and nothing in CI stages `terminal-native`'s prebuild.
+      #
+      # Shard 1 only — the suite is not sharded, and running it four times would cost
+      # four builds of the same fixture.
+      - name: E2E react-native-devtools (under a display)
+        if: ${{ matrix.shard == 1 }}
+        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" GJSIFY_E2E_REQUIRE=react-native-devtools LIBGL_ALWAYS_SOFTWARE=1 GSK_RENDERER=cairo GDK_BACKEND=x11 GTK_A11Y=none xvfb-run -a --server-args="-screen 0 1280x720x24" node --test tests/e2e/react-native-devtools/run.mjs'
+
   # ── build:infra on a cold tree with NO node ──────────────────────────
   #
   # WHAT IS ALREADY COVERED, so this job says only what that one cannot. The

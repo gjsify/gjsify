@@ -27,7 +27,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { prebuildDir } from '../helpers.mjs';
+import { e2eSkipReason, prebuildDir } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
@@ -58,25 +58,36 @@ function hasAdw() {
 const arch = archDir();
 const PREBUILD = arch ? prebuildDir('infra', 'rolldown-native', arch) : null;
 
-const SKIP =
-    process.platform !== 'linux' ||
-    !arch ||
-    !hasCmd('gjs') ||
-    !hasCmd('dbus-run-session', ['--help']) ||
-    !hasCmd('gdbus', ['--help']) ||
-    !existsSync(CLI_BUNDLE) ||
-    !PREBUILD ||
-    !existsSync(join(PREBUILD, 'GjsifyRolldown-1.0.typelib')) ||
-    !existsSync(join(WS_MODULES, '@gjsify')) ||
-    !existsSync(join(WS_MODULES, 'rolldown')) ||
+// Named preconditions rather than a boolean chain, so a host that means to run this
+// says so and a missing one is a failure that NAMES it (#1550,
+// `e2eSkipReason`). NOTE that no CI job sets `GJSIFY_E2E_REQUIRE` for this suite yet:
+// it loses its well-known bus name in the containerised runner for a reason nobody has
+// found (measured; `scripts/e2e-unlisted-suites.mjs` carries the readout), and
+// demanding it there would turn an open question into a red gate.
+const SKIP = e2eSkipReason('devtools-export', [
+    ['a Linux host', process.platform === 'linux'],
+    ['an x64 or arm64 arch', arch !== null],
+    ['gjs on PATH', hasCmd('gjs')],
+    ['dbus-run-session on PATH', hasCmd('dbus-run-session', ['--help'])],
+    ['gdbus on PATH', hasCmd('gdbus', ['--help'])],
+    ['the committed CLI bundle (packages/infra/cli/dist/cli.gjs.mjs)', existsSync(CLI_BUNDLE)],
+    [
+        'the @gjsify/rolldown-native typelib for this arch',
+        PREBUILD !== null && existsSync(join(PREBUILD, 'GjsifyRolldown-1.0.typelib')),
+    ],
+    [
+        'an installed workspace node_modules (@gjsify, rolldown)',
+        existsSync(join(WS_MODULES, '@gjsify')) && existsSync(join(WS_MODULES, 'rolldown')),
+    ],
     // The package the fixture BUNDLES, not merely one it resolves. Every gate above
     // asks whether the toolchain is present; none asked whether the thing under test is
     // BUILT, so on a tree with `node_modules` but no `packages/framework/devtools/lib`
     // the suite ran and died inside rolldown with
     // `gjsify-unresolved-workspace-import: NotFound("@gjsify/devtools")` — an
     // environment fact reported as a failed assertion about DBus.
-    !existsSync(join(REPO_ROOT, 'packages', 'framework', 'devtools', 'lib')) ||
-    !hasAdw();
+    ['BUILT lib/ for @gjsify/devtools', existsSync(join(REPO_ROOT, 'packages', 'framework', 'devtools', 'lib'))],
+    ['a loadable Adw-1 typelib', hasAdw()],
+]);
 
 // A bash driver run INSIDE a fresh `dbus-run-session` (its own bus → no stale
 // well-known-name owner from a prior run). Launches the built fixture, waits for
