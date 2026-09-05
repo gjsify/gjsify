@@ -49,6 +49,11 @@ import { execFileSync } from 'node:child_process';
  * mirrors `header-max-length`: this list IS the claim being checked, there is no
  * resolved config to read it from, and a missing entry fails open on exactly the
  * spelling it forgot.
+ *
+ * The same page: "The keywords can be followed by colons or in uppercase. For
+ * example: `Closes: #10`, `CLOSES #10`, or `CLOSES: #10`." So the colon is part
+ * of the keyword's grammar, not punctuation after it — hence the `:?` in CHAIN.
+ * Without it `Closes: #a, #b` closed #a and this check called the body clean.
  */
 const CLOSING_KEYWORDS = ['close', 'closes', 'closed', 'fix', 'fixes', 'fixed', 'resolve', 'resolves', 'resolved'];
 
@@ -56,13 +61,24 @@ const CLOSING_KEYWORDS = ['close', 'closes', 'closed', 'fix', 'fixes', 'fixed', 
 const REF = String.raw`(?:[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+)?#\d+`;
 
 /**
- * What separates a dangling reference from the one before it. Both spellings the
- * two incidents used, plus the `and` form, which reads even more like a list that
- * works: `Fixes #10 and #11`.
+ * Whitespace a list may span: at most ONE line break, never a blank one.
+ * `Closes #10` followed by a paragraph opening `And #11 is a follow-up.` is two
+ * paragraphs and closes nothing it did not mean to — with `\s*` on both sides of
+ * the separator this check read it as a broken list and would have blocked a
+ * correct merge, which is the one failure mode a REQUIRED check cannot have.
  */
-const SEPARATOR = String.raw`(?:\s*,\s*(?:and\s+)?|\s+and\s+)`;
+const GAP = String.raw`[^\S\n]*(?:\n[^\S\n]*)?`;
 
-const CHAIN = new RegExp(String.raw`\b(${CLOSING_KEYWORDS.join('|')})\s+(${REF})((?:${SEPARATOR}${REF})+)`, 'gi');
+/**
+ * What separates a dangling reference from the one before it. The comma both
+ * incidents used; `;` and `&`, which are what a hand reaching for "and one more"
+ * types; and the `and` form, which reads even more like a list that works:
+ * `Fixes #10 and #11`. A bare `and` has to stay on the reference's own line —
+ * one line further down it is prose far more often than a list.
+ */
+const SEPARATOR = String.raw`(?:${GAP}[,;&]${GAP}(?:and[^\S\n]+)?|[^\S\n]+and[^\S\n]+)`;
+
+const CHAIN = new RegExp(String.raw`\b(${CLOSING_KEYWORDS.join('|')}):?\s+(${REF})((?:${SEPARATOR}${REF})+)`, 'gi');
 
 /** Every reference inside an already-matched tail. Each is keyword-less by construction. */
 const TAIL_REF = new RegExp(REF, 'g');
@@ -154,6 +170,12 @@ const VECTORS = [
     { name: 'mid-sentence', text: 'This one closes #99001, #99002 for good.', expect: ['#99002'] },
     { name: 'past tense', text: 'Fixed #99001, #99002', expect: ['#99002'] },
     { name: 'chain resumes after a keyword', text: 'Closes #99001, #99002, closes #99003.', expect: ['#99002'] },
+    { name: 'a colon, which GitHub documents', text: 'Closes: #99001, #99002', expect: ['#99002'] },
+    { name: 'colon AND uppercase, both documented', text: 'FIXES: #99001, #99002', expect: ['#99002'] },
+    { name: 'ampersand', text: 'Fixes #99001 & #99002', expect: ['#99002'] },
+    { name: 'semicolon', text: 'Closes #99001; #99002', expect: ['#99002'] },
+    { name: 'wrapped after the comma', text: 'Closes #99001,\n#99002', expect: ['#99002'] },
+    { name: 'CRLF, the line ending GitHub sends', text: 'Closes #99001, #99002\r\n', expect: ['#99002'] },
 
     // ── must NOT be flagged ──────────────────────────────────────────────────
     { name: 'one ref', text: 'Closes #99001.', expect: [] },
@@ -175,6 +197,12 @@ const VECTORS = [
     { name: 'inside an indented fence', text: '  ```js\n  Closes #99001, #99002\n  ```\n', expect: [] },
     { name: 'after a fence, still read', text: '```\ncode\n```\n\nCloses #99001, #99002', expect: ['#99002'] },
     { name: 'a version, not a reference', text: 'Closes #99001, v0.48.0 shipped it.', expect: [] },
+    // Without the `#` anchor in REF this one flags `42`, and every other vector
+    // stays green — it is the whole of what holds that anchor.
+    { name: 'a bare number, not a reference', text: 'Closes #99001, 42 files changed.', expect: [] },
+    { name: 'a new paragraph that opens with And', text: 'Closes #99001\n\nAnd #99002 is a follow-up.', expect: [] },
+    { name: 'a next line that opens with and', text: 'Closes #99001\nand #99002 stays open.', expect: [] },
+    { name: 'a comma cannot reach past a blank line', text: 'Closes #99001,\n\n#99002 is separate.', expect: [] },
 ];
 
 function selfTest() {
