@@ -126,16 +126,17 @@ const libraryVersion = {
     Pango: Pango.version_string(),
 };
 
-/** Every member of one enum, by its MEMBER spelling, with its value and deprecation. */
+/**
+ * Every member of one enum, by its MEMBER spelling, with its value and deprecation.
+ *
+ * Declaration order is not carried here: the nick list this annotates is already in
+ * it, so the loops below iterate that and a second ordering would be a second answer.
+ */
 function membersOf(info) {
     const out = new Map();
     for (let i = 0; i < info.get_n_values(); i++) {
         const value = info.get_value(i);
-        out.set(value.get_name().toUpperCase(), {
-            value: value.get_value(),
-            deprecated: value.is_deprecated(),
-            order: i,
-        });
+        out.set(value.get_name().toUpperCase(), { value: value.get_value(), deprecated: value.is_deprecated() });
     }
     return out;
 }
