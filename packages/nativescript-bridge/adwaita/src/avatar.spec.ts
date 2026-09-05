@@ -16,7 +16,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { avatarIconSize, avatarMode } from '@gjsify/adwaita-core';
-import { AVATAR_MODE_VECTORS } from '@gjsify/adwaita-core/conformance';
+import { AVATAR_ICON_SIZE_VECTORS, AVATAR_MODE_VECTORS } from '@gjsify/adwaita-core/conformance';
 import { avatarDefaultSymbolic, imageMissingSymbolic } from '@gjsify/adwaita-icons/status';
 
 import { extractIconPaths } from './widgets/icon-path.js';
@@ -83,18 +83,18 @@ export default async () => {
         });
     });
 
-    await describe('avatarIconSize (the glyph inside the circle)', async () => {
+    await describe('avatarIconSize (adw_avatar_set_size, adw-avatar.c:756)', async () => {
+        for (const { size, iconSize } of AVATAR_ICON_SIZE_VECTORS) {
+            await it(`size ${size} -> ${iconSize}`, () => {
+                // The same table the browser renderer drives, so a local
+                // "simplification" back to a hand-typed factor fails here.
+                expect(avatarIconSize(size)).toBe(iconSize);
+            });
+        }
+
         await it('gives the fallback icon a box the circle can hold', () => {
-            // At the sizes this port actually ships avatars at.
             const outside = [24, 32, 48, 96, 128].filter((size) => avatarIconSize(size) > size / 1.4142);
             expect(outside).toStrictEqual([]);
-        });
-
-        await it('is the same number the web renderer draws at', () => {
-            // Both renderers call the core helper; this pins the value so a local
-            // "simplification" back to a hand-typed factor fails here.
-            expect(avatarIconSize(96)).toBe(53);
-            expect(avatarIconSize(48)).toBe(26);
         });
     });
 

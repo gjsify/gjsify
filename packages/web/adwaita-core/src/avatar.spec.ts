@@ -21,6 +21,7 @@ import { glibClamp } from './glib.js';
 import {
     AVATAR_COLOR_VECTORS,
     AVATAR_FONT_SIZE_VECTORS,
+    AVATAR_ICON_SIZE_VECTORS,
     AVATAR_INITIALS_VECTORS,
     AVATAR_MODE_VECTORS,
 } from './conformance/avatar.js';
@@ -122,11 +123,17 @@ export default async () => {
         });
     });
 
-    await describe('avatarIconSize (the fallback glyph inside the circle)', async () => {
+    await describe('avatarIconSize (adw_avatar_set_size, adw-avatar.c:756)', async () => {
+        for (const { size, iconSize } of AVATAR_ICON_SIZE_VECTORS) {
+            await it(`size ${size} -> ${iconSize} — gtk_image_set_pixel_size(icon, size / 2)`, () => {
+                expect(avatarIconSize(size)).toBe(iconSize);
+            });
+        }
+
         await it('never draws the glyph outside the circle it sits in', () => {
-            // The only property that is actually derivable: an icon box larger than the
-            // inscribed square `size / 1.4142` sticks out of a round avatar. 0.55 is a
-            // choice, this is the bound it has to respect.
+            // A box larger than the inscribed square `size / 1.4142` sticks out of a
+            // round avatar. The C's half-size clears it; the `round(size * 0.55)` this
+            // replaced also did, which is why the bound alone never noticed the drift.
             const outside: number[] = [];
             for (let size = 16; size <= 256; size++) {
                 if (avatarIconSize(size) > size / 1.4142) outside.push(size);

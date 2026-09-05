@@ -225,15 +225,16 @@ export function flattenAvatarGradient(color: AdwAvatarColor): string {
  * The box the FALLBACK ICON gets inside an avatar of `size`, in the renderer's own
  * length unit (CSS px on the web, DIPs on NativeScript).
  *
- * NOT from the C, and the distinction matters: `adw-avatar.c` sizes nothing here —
- * the icon is a `GtkImage` child whose extent comes from the stylesheet, and
- * `refs/libadwaita/src/stylesheet/widgets/_avatar.scss:1` carries no icon rule at
- * all, so there is no number in libadwaita to port. 0.55 is the web renderer's
- * approximation of what `mask-size: contain` used to do, and it lives here because a
- * SECOND renderer now needs it: two hand-copied 0.55s are two numbers that drift
- * apart, and the whole point of the fallback icon being shared is that both
- * renderers draw the same glyph at the same relative size.
+ * `adw_avatar_set_size` sizes the icon itself —
+ * `gtk_image_set_pixel_size (self->icon, size / 2)`
+ * (refs/libadwaita/src/adw-avatar.c:756#gtk_image_set_pixel_size) — so this is a
+ * PORTED number, not a chosen one. `size` is an `int` there, so `/` truncates.
+ *
+ * The stylesheet was the wrong place to look for it, and looking only there is how
+ * the web renderer arrived at a hand-typed `size * 0.55`: `_avatar.scss` really does
+ * carry no icon rule, which reads as "libadwaita says nothing" right up until the C
+ * is read. 0.55 drew the glyph ~10% larger than GTK does at every size.
  */
 export function avatarIconSize(size: number): number {
-    return Math.round(size * 0.55);
+    return Math.trunc(size / 2);
 }

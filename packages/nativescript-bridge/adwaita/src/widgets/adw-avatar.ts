@@ -104,8 +104,7 @@ export class AdwAvatar extends GridLayout {
         // (at size 128 it asked for 51px against a 44px cap and the initials
         // spilled out of the circle).
         this._label.set('fontSize', Math.round(Math.min(this._size * 0.4, avatarMaxFontSize(this._size))));
-        // The glyph scales with the circle by the same factor the web renderer uses;
-        // the number lives in the core so the two cannot drift apart.
+        // Half the diameter, as `adw_avatar_set_size` gives its icon child.
         this._icon.iconSize = avatarIconSize(this._size);
     }
 
