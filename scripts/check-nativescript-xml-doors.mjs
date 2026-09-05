@@ -43,12 +43,30 @@
 //      apps that never touch XML.
 //   3. Every exemption is checked back: a `STRING_TOLERANT` entry that stops accepting a
 //      string, and a `NOT_AN_XML_WIDGET` file that turns up in the `ELEMENTS` map.
+//   4. THE THIRD DOOR (ADR 0034 § 4). Every constructible widget class takes the optional
+//      construct-props bag and APPLIES it as the last statement of its own constructor.
+//      Both halves are the rule: a class that takes `props` and never routes it accepts a
+//      bag and drops it, and one that applies it anywhere but last has its own setup
+//      overwrite what the caller asked for. Never forwarded to `super()` either — a
+//      subclass of a subclass would apply the same bag two or three times, once before its
+//      own children exist.
+//   5. THE `Gtk.Align` TABLE. Its nick list is `GtkAlignNick`'s, in that order and that
+//      spelling; every declared ALIAS names a member that comes before it; and every member
+//      is either mapped onto a NativeScript alignment on BOTH axes or refused with a
+//      reason. The constants themselves are derived from those two, so there is no number
+//      here to get wrong — which matters because nothing in this repository carries GIR
+//      enum VALUES and these gates run with no install: `GTK_ALIGN_BASELINE` was deprecated
+//      in GTK 4.12 into an alias of `GTK_ALIGN_BASELINE_FILL`, so 2 of the 7 members are
+//      NOT their position, and both in-repo shortcuts (the nick order, and `@girs`'s
+//      initialiser-less `enum Align`) say otherwise. What this arm CANNOT hold is that one
+//      alias declaration; `construct-props.spec.ts` pins the seven derived numbers instead.
 //
 // Plain Node over the repo's own files — no install, no build. It defines nothing that
 // writes, and `nativescript-xml-doors.mjs` beside it is a library for the same reason.
 //
 // Usage: node scripts/check-nativescript-xml-doors.mjs [--root <dir>]
 
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -56,12 +74,21 @@ import {
     attributeKind,
     coerces,
     COERCERS,
+    CONSTRUCT_PROPS_APPLIER,
+    constructorOf,
     doorFor,
+    GTK_HOST_NICKS,
     JSON_DOORS,
     jsonDoors,
+    NO_CONSTRUCT_PROPS,
     NOT_AN_XML_WIDGET,
+    NS_CONSTRUCT_PROPS,
+    NS_GTK_ALIGN,
     NS_WIDGETS_DIR,
     readElements,
+    readNickUnion,
+    readRecordLiteral,
+    readStringArray,
     readTypeSources,
     readWidgets,
     SETTER_ONLY_ON_BASE,
@@ -226,6 +253,192 @@ for (const [file, why] of Object.entries(NOT_AN_XML_WIDGET)) {
         failures.push(
             `NOT_AN_XML_WIDGET says ${file} is "${why}", but ${offered.join(', ')} IS reachable from XML. ` +
                 'Drop the entry — a stale exemption reads as considered.',
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 4. the construct-props bag reaches every widget, and is applied last
+// ---------------------------------------------------------------------------
+
+let applierSource = '';
+try {
+    applierSource = readFileSync(join(ROOT, NS_CONSTRUCT_PROPS), 'utf8');
+} catch {
+    failures.push(`${NS_CONSTRUCT_PROPS} is not readable — arm 4 has nothing to hold the widgets against.`);
+}
+if (applierSource !== '' && !applierSource.includes('export function applyConstructProps(')) {
+    failures.push(`${NS_CONSTRUCT_PROPS} no longer exports applyConstructProps — every widget below calls it.`);
+}
+
+let bagged = 0;
+for (const [tag, { file, text }] of [...sources].sort()) {
+    const exempt = NO_CONSTRUCT_PROPS[tag];
+    const ctor = constructorOf(text, tag);
+    if (ctor === null) {
+        failures.push(`${file}: ${tag} declares no constructor, so nothing here can offer or refuse the bag.`);
+        continue;
+    }
+    const takes = /\bprops\?: ConstructProps<(\w+)>/.exec(ctor.params);
+    const statements = ctor.executable
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line !== '');
+    const applies = statements.filter((line) => line.startsWith(CONSTRUCT_PROPS_APPLIER));
+    if (exempt !== undefined) {
+        if (takes === null && applies.length === 0) continue;
+        failures.push(
+            `NO_CONSTRUCT_PROPS says ${tag} does not take a bag because "${exempt}" — but it does now. ` +
+                'Drop the entry; a stale exemption reads as considered.',
+        );
+        continue;
+    }
+    if (takes === null) {
+        failures.push(
+            `${file}: ${tag}'s constructor takes no \`props?: ConstructProps<${tag}>\`. Every widget on this ` +
+                'surface offers the bag (ADR 0034 § 4), so a caller porting `new Adw.X({ … })` off GJS meets ' +
+                'one widget that silently does not. Add it, or declare the class in NO_CONSTRUCT_PROPS.',
+        );
+        continue;
+    }
+    if (takes[1] !== tag) {
+        failures.push(
+            `${file}: ${tag}'s constructor declares \`ConstructProps<${takes[1]}>\`. The bag is typed off the ` +
+                'class it constructs, so the wrong one there accepts keys this widget does not have and ' +
+                'refuses keys it does — at runtime, where the type said otherwise.',
+        );
+        continue;
+    }
+    if (applies.length === 0) {
+        failures.push(
+            `${file}: ${tag} takes a construct-props bag and never calls ${CONSTRUCT_PROPS_APPLIER}. It ` +
+                'accepts the bag and drops it — the silent no-op this whole file exists to refuse, one door over.',
+        );
+        continue;
+    }
+    if (applies.length > 1) {
+        failures.push(`${file}: ${tag} applies its bag ${applies.length} times; once, last, is the rule.`);
+        continue;
+    }
+    if (statements.at(-1) !== `${CONSTRUCT_PROPS_APPLIER};`) {
+        failures.push(
+            `${file}: ${tag} applies its bag before the end of its constructor (last statement is ` +
+                `\`${statements.at(-1)}\`). A construct property has to WIN over the constructor's own setup, ` +
+                'which it only does if nothing runs after it.',
+        );
+        continue;
+    }
+    if (/super\([^)]*\bprops\b/.test(ctor.executable)) {
+        failures.push(
+            `${file}: ${tag} forwards its bag to super(). Each class applies its OWN bag, or a subclass of a ` +
+                'subclass applies the same one twice — the second time before its own children exist.',
+        );
+        continue;
+    }
+    bagged += 1;
+}
+notes.push(
+    `${bagged} widget class(es) take a construct-props bag and apply it last ` +
+        `(${Object.keys(NO_CONSTRUCT_PROPS).length} abstract base(s) declared exempt)`,
+);
+if (bagged === 0) failures.push('no widget class was found to take a construct-props bag — arm 4 proved nothing');
+
+// ---------------------------------------------------------------------------
+// 5. the Gtk.Align table agrees with the GIR-derived nick list
+// ---------------------------------------------------------------------------
+
+let alignSource = null;
+let nicks = null;
+try {
+    alignSource = readFileSync(join(ROOT, NS_GTK_ALIGN), 'utf8');
+} catch {
+    failures.push(`${NS_GTK_ALIGN} is not readable — arm 5 would pass vacuously.`);
+}
+try {
+    nicks = readNickUnion(readFileSync(join(ROOT, GTK_HOST_NICKS), 'utf8'), 'GtkAlignNick');
+} catch {
+    failures.push(`${GTK_HOST_NICKS} is not readable — arm 5 has no independent side to compare against.`);
+}
+if (nicks === null && alignSource !== null) {
+    failures.push(`${GTK_HOST_NICKS} declares no GtkAlignNick — the table below would be held against nothing.`);
+}
+if (alignSource !== null && nicks !== null) {
+    const order = readStringArray(alignSource, 'GTK_ALIGN_NICKS');
+    const aliases = readRecordLiteral(alignSource, 'GTK_ALIGN_ALIASES');
+    const horizontal = readRecordLiteral(alignSource, 'NS_HORIZONTAL_ALIGNMENT');
+    const vertical = readRecordLiteral(alignSource, 'NS_VERTICAL_ALIGNMENT');
+    const refusals = readRecordLiteral(alignSource, 'GTK_ALIGN_REFUSALS');
+    const unreadable = [
+        ['GTK_ALIGN_NICKS', order],
+        ['GTK_ALIGN_ALIASES', aliases],
+        ['NS_HORIZONTAL_ALIGNMENT', horizontal],
+        ['NS_VERTICAL_ALIGNMENT', vertical],
+        ['GTK_ALIGN_REFUSALS', refusals],
+    ].filter(([, read]) => read === null);
+    if (unreadable.length > 0) {
+        failures.push(
+            `${NS_GTK_ALIGN}: ${unreadable.map(([name]) => name).join(', ')} could not be read as a flat ` +
+                'declaration. A reader that cannot read one has to say so; silence here is a clean bill for ' +
+                'a table nothing looked at.',
+        );
+    } else {
+        if (order.join(' ') !== nicks.join(' ')) {
+            failures.push(
+                `GTK_ALIGN_NICKS is [${order.join(', ')}] where GtkAlignNick in ${GTK_HOST_NICKS} is ` +
+                    `[${nicks.join(', ')}]. ORDER is part of the comparison, not only membership: the ` +
+                    'constants are derived from this sequence, so a member in the wrong place shifts every ' +
+                    'number after it and a misspelling silently loses one.',
+            );
+        }
+        for (const [alias, target] of aliases) {
+            const stripped = target.replace(/^'|'$/g, '');
+            const at = order.indexOf(alias);
+            const to = order.indexOf(stripped);
+            if (at === -1) {
+                failures.push(`GTK_ALIGN_ALIASES names '${alias}', which is not a Gtk.Align member.`);
+            } else if (to === -1) {
+                failures.push(`GTK_ALIGN_ALIASES points '${alias}' at '${stripped}', which is not a member.`);
+            } else if (to >= at) {
+                failures.push(
+                    `GTK_ALIGN_ALIASES points '${alias}' at '${stripped}', which does not come before it. An ` +
+                        'alias takes the value of a member already counted; pointing forward would make the ' +
+                        'derivation depend on a number that does not exist yet.',
+                );
+            }
+        }
+        for (const nick of order) {
+            const mapped = [horizontal.has(nick), vertical.has(nick)];
+            const refused = refusals.has(nick);
+            if (mapped[0] !== mapped[1]) {
+                failures.push(
+                    `Gtk.Align '${nick}' is mapped on one axis and not the other. Every member of this enum ` +
+                        'means something on both, or on neither — an axis-shaped hole is the silent omission ' +
+                        'ADR 0034 § 1 refuses.',
+                );
+                continue;
+            }
+            if (mapped[0] === refused) {
+                failures.push(
+                    refused
+                        ? `Gtk.Align '${nick}' is both mapped onto a NativeScript alignment and declared refused.`
+                        : `Gtk.Align '${nick}' is neither mapped onto a NativeScript alignment nor declared in ` +
+                              'GTK_ALIGN_REFUSALS with a reason. A member with no counterpart is a DECLARATION ' +
+                              '(ADR 0034 § 1), never an absence.',
+                );
+            }
+        }
+        for (const [nick, why] of refusals) {
+            if (!order.includes(nick)) {
+                failures.push(`GTK_ALIGN_REFUSALS names '${nick}', which is not a Gtk.Align member.`);
+            } else if (why.length < 20) {
+                failures.push(`GTK_ALIGN_REFUSALS['${nick}'] gives no reason worth the name: ${why}`);
+            }
+        }
+        notes.push(
+            `${order.length} Gtk.Align member(s) held against GtkAlignNick in order — ` +
+                `${horizontal.size} mapped per axis, ${refusals.size} declared refused, ` +
+                `${aliases.size} declared alias(es); the constants are derived from those and the alias ` +
+                'declaration is the one GIR fact no in-repo oracle can check',
         );
     }
 }
