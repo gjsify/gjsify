@@ -221,7 +221,7 @@ export const EXPECTED: readonly ExpectView[] = [
             ] }
     },
     { widget: 'Adw.BottomSheet', view: 'AdwBottomSheet', root:
-        { tag: 'adw:BottomSheet', props: {"openState":true}, children: [
+        { tag: 'adw:BottomSheet', props: {"open":true}, children: [
                 { tag: 'adw:StatusPage', slot: 'content', props: {"title":"Now Playing","description":"The sheet slides up over this."} },
                 { tag: 'adw:PreferencesGroup', slot: 'sheet', props: {"title":"Queue"}, children: [
                         { tag: 'adw:ActionRow', props: {"title":"Blue Monday","subtitle":"New Order"} },

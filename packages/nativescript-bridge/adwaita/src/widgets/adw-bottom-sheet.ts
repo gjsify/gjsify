@@ -169,25 +169,25 @@ export class AdwBottomSheet extends GridLayout {
         return this._sheetChild;
     }
 
-    /** Open the sheet programmatically. */
-    open(): void {
-        this.openState = true;
-    }
-
     /**
-     * Close the sheet programmatically. Like `AdwBottomSheet:open` this ignores
-     * `can-close`; a user-driven dismissal belongs in {@link requestClose}.
+     * Whether the sheet is open (`AdwBottomSheet:open`). Toggling shows/hides the panel
+     * and emits `notify::open`.
+     *
+     * Like the GTK property this ignores `can-close`; a user-driven dismissal belongs in
+     * {@link requestClose}.
+     *
+     * IT WAS `openState`, and the reason it could not simply be `open` was a COLLISION,
+     * not a disagreement: this class carried `open()` and `close()` methods, and one name
+     * cannot be both a method and an accessor on one prototype. libadwaita has neither
+     * method — `adw_bottom_sheet_set_open()` is the setter of this very property — so the
+     * two conveniences were what kept the port's own doc saying "Whether the sheet is
+     * open" under a name GTK does not use. `sheet.open = true` replaces `sheet.open()`.
      */
-    close(): void {
-        this.openState = false;
-    }
-
-    /** Whether the sheet is open. Toggling shows/hides the panel + emits `notify::open`. */
-    get openState(): boolean {
+    get open(): boolean {
         return this._state.open;
     }
 
-    set openState(value: boolean | string) {
+    set open(value: boolean | string) {
         this._state.setOpen(xmlBoolean(value, false));
     }
 

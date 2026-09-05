@@ -6,7 +6,7 @@
 // widget module `extends GridLayout`, which evaluates the bare
 // `@nativescript/core` specifier at module-eval and is unresolvable on GJS/Node,
 // so `adw-bottom-sheet.ts` cannot be loaded here. That widget is a thin
-// `GridLayout` wrapper over exactly the surface below: `openState` forwards to
+// `GridLayout` wrapper over exactly the surface below: `open` forwards to
 // `state.setOpen`, `canClose` to `state.setCanClose`, the subscription calls
 // {@link applySheetVisibility} and notifies `notify::open`, and `requestClose`
 // is {@link requestBottomSheetClose} plus one `notify()`.
@@ -138,7 +138,7 @@ export const AdwBottomSheetNsTest = async () => {
         });
 
         await it('emits notify::open only on a real change', () => {
-            // `openState` used to be the only state this port had, and its guard
+            // `open` used to be the only state this port had, and its guard
             // is the one thing it got right (adw-bottom-sheet.c:1672-1682) —
             // this pins it so the lift did not lose it.
             const sheet = mountSheet();

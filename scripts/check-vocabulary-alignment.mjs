@@ -438,10 +438,14 @@ const RN_WIDGET_ALIGNMENT = {};
  * level down. Some of those are additionally structural: `AdwSpinRow`'s three scalars and
  * `AdwHeaderBar`'s two strings each collapse into ONE key, and one name cannot be two.
  *
- * `adw-bottom-sheet.openState` is the one entry the rule does NOT explain, which is why it
- * is worth naming here rather than leaving a reader to infer a bucket for it: both sides
- * hold a boolean, so the rule says converge, and what stops it is a collision inside JS
- * with the class's own `open()` method. Its entry carries that reasoning.
+ * `adw-bottom-sheet.openState` was the one entry the rule did NOT explain — both sides held
+ * a boolean, so the rule said converge, and what stopped it was a collision inside JS with
+ * the class's own `open()` method. It CONVERGED: the two conveniences that caused the
+ * collision (`open()`/`close()`) have no libadwaita counterpart —
+ * `adw_bottom_sheet_set_open()` is the setter of the property itself — so they went and the
+ * property took the GIR name. Kept in this header because the shape recurs: a collision
+ * with a port-owned method is not a reason a name cannot converge, it is a question about
+ * the method.
  *
  * HOW MANY ARE IN EACH OF THOSE GROUPS IS NOT WRITTEN HERE. The distance is printed by the
  * summary at the bottom of this file, and a hand-kept breakdown beside a printed total is
@@ -456,10 +460,6 @@ const RN_WIDGET_ALIGNMENT = {};
  */
 const NS_PROPERTY_ALIGNMENT = {
     // ── The same control under another spelling. This is the printed distance. ────────
-    'adw-bottom-sheet.openState': {
-        gir: 'open',
-        why: '`Adw.BottomSheet:open` is the same slot, and the port says so in its own doc ("Whether the sheet is open", adw-bottom-sheet.ts:185). It is spelled `openState` because the class also carries `open()` and `close()` methods and one JS class cannot hold both under one name — so converging renames the METHODS, not the property. Considered in the 2026-09-01 pass and refused: libadwaita gives the type no method to rename them AFTER, so the two would have to be invented, trading a declared property divergence for an undeclared method one.',
-    },
     'gtk-button.variant': {
         gir: 'cssClasses',
         why: 'On GTK the Adwaita button variants are STYLE CLASSES over GtkButton — `.suggested-action` / `.destructive-action` / `.flat` / `.pill` in refs/libadwaita/src/stylesheet/widgets/_buttons.scss — which is what `GtkWidget:css-classes` carries. The setter swaps exactly one such class (gtk-button.ts:59), so the control is the class list under an enum-shaped name.',

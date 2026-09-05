@@ -28,7 +28,7 @@ export class BottomSheetNsStory extends StoryView {
         toggle.text = 'Toggle sheet';
         toggle.variant = 'pill';
         toggle.addEventListener('tap', () => {
-            if (this._sheet) this._sheet.openState = !this._sheet.openState;
+            if (this._sheet) this._sheet.open = !this._sheet.open;
         });
 
         center.addChild(toggle);
@@ -82,7 +82,7 @@ export class BottomSheetNsStory extends StoryView {
 
     private _sync(): void {
         if (!this._sheet) return;
-        // NS Adw.BottomSheet models `open` (via `openState`) and `can-close`, both
+        // NS Adw.BottomSheet models `open` and `can-close`, both
         // out of the shared `@gjsify/adwaita-core` state. `modal` has no NS
         // equivalent: the CSS subset here has no scrim/backdrop.
         //
@@ -92,7 +92,7 @@ export class BottomSheetNsStory extends StoryView {
         // what it has (Android back, an in-sheet button) into
         // `requestClose(source)`.
         this._sheet.canClose = this.args.canClose as boolean;
-        this._sheet.openState = this.args.open as boolean;
+        this._sheet.open = this.args.open as boolean;
         // Read so the control stays bound to this rendering too.
         void (this.args.modal as boolean);
     }

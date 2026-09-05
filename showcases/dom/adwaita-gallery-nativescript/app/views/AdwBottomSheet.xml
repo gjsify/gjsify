@@ -1,7 +1,7 @@
 <adw:BottomSheet
   xmlns="http://schemas.nativescript.org/tns.xsd"
   xmlns:adw="~/adw"
-  openState="true"
+  open="true"
 >
   <adw:BottomSheet.content>
     <adw:StatusPage
