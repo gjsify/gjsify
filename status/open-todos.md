@@ -738,6 +738,27 @@ without its surface is a claim wider than its measurement.
 A full `tsc` conformance check remains the right oracle on the wrong instrument —
 `Gtk.Entry` is 509 members, and the gate job runs `checkout` + `setup-node` with no install.
 
+**Stage 8 landed and left one thing no gate here can hold: GIR enum VALUES.** The
+construct-props bag ships on all 46 NativeScript widgets (ADR 0034 § Amendment 13) and
+accepts `Gtk.Align.CENTER` as well as `'center'`, which needs a value table on a target with
+no typelib. Nothing in this repository carries one: `generated/props.ts` emits nick UNIONS,
+`generated/surface-data.mts` emits nick LISTS, and neither emits a number — while both
+obvious in-repo derivations are measurably WRONG for this very enum, because
+`GTK_ALIGN_BASELINE` was deprecated in GTK 4.12 into an alias of `GTK_ALIGN_BASELINE_FILL`
+(the nick position and `@girs`'s initialiser-less `enum Align` both give `baseline` 5 and
+`baseline-center` 6; the GIR and the typelib give 4 and 5). `gtk-align.ts` therefore derives
+its constants from the nick order plus ONE declared alias, and
+`check-nativescript-xml-doors.mjs` holds everything except that declaration. **The fix is an
+`ENUM_VALUES` beside `ENUM_NICKS`**: gtk-host's generator already reads the latter out of
+each `@girs` package's `vocabulary` entry (ADR 0029), so emitting the former into
+`generated/surface-data.mts` would make the table derivable, retire the declaration, and —
+the reason it is worth more than one enum — unblock the same treatment for the **15** other
+setters on this surface whose declared string union is exactly a GIR enum's nick set, across
+**11** distinct enums. Measured against the 158 setters the package declares. One of them,
+`AdwWrapBox.wrapPolicy`, is ambiguous by nick set alone — `'minimum' | 'natural'` matches
+`GtkScrollablePolicy`, `AdwFoldThresholdPolicy` and `AdwWrapPolicy` exactly — so the enum
+behind a setter has to be declared either way.
+
 ### The vocabulary gate measured ONE direction, and the other one is now a ratchet
 
 `NS_PROPERTY_ALIGNMENT` holds the port's SETTABLE properties against the counterpart's
