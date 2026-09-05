@@ -126,7 +126,6 @@ export type {
     NotifySliderValueEventData,
     NotifyExpandedEventData,
     ExpanderStateListener,
-    AdwButtonVariant,
     MenuItemActivatedEventData,
     MenuSheetPresenter,
     MenuSheetRow,

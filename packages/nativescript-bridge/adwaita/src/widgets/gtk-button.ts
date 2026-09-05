@@ -2,12 +2,12 @@
 //
 // NAMED FOR THE LIBRARY THAT OWNS THE GTYPE (ADR 0034 clause 1). libadwaita ships no
 // button type: it styles `GtkButton` through `_buttons.scss`, so the widget is GTK's and
-// the Adwaita part is the stylesheet — which is exactly what the `variant` property below
-// applies. The file used to be `adw-button.ts` exporting `AdwButton`, and that prefix
+// the Adwaita part is the stylesheet — which is exactly what the `cssClasses` property
+// below carries. The file used to be `adw-button.ts` exporting `AdwButton`, and that prefix
 // named the design system while claiming to name the widget.
 //
-// Extends the REAL NativeScript `Button` and exposes a `variant` property that
-// applies the Adwaita button style classes (`.suggested-action` / `.destructive-action`
+// Extends the REAL NativeScript `Button` and exposes a `cssClasses` property that
+// carries the Adwaita button style classes (`.suggested-action` / `.destructive-action`
 // / `.flat` / `.pill`), styled in `src/theme/adwaita.css`. Mirrors how libadwaita
 // buttons get their look from a CSS style class rather than a distinct widget:
 // pill radius, accent fill for suggested, red text for destructive, transparent
@@ -17,25 +17,11 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { ADW_BUTTON_STYLE_CLASSES, type AdwButtonStyleClass, buttonStyleClass } from '@gjsify/adwaita-core';
 import { Button } from '@nativescript/core';
-
-/**
- * The Adwaita button variants this widget can apply. `'default'` = plain button.
- *
- * The class list is `@gjsify/adwaita-core`'s, not a local table: this widget's own
- * one was MISSING `circular`, which the browser element had, and neither file could
- * see the other. `circular` is now here because the shared table says it exists.
- *
- * STILL `Adw…`, on a class that is not: the variants ARE libadwaita style classes
- * (`.suggested-action`, `.pill`, `_buttons.scss`), so the prefix names what they are.
- * ADR 0034 clause 1 renames WIDGETS after the library owning their GType; a style-class
- * vocabulary is not a widget, and renaming it would have moved a true name to a false one.
- */
-export type AdwButtonVariant = 'default' | AdwButtonStyleClass;
+import { classNameWith, normalizeCssClasses } from './css-classes.js';
 
 export class GtkButton extends Button {
-    private _variant: AdwButtonVariant = 'default';
+    private _cssClasses: string[] = [];
 
     constructor() {
         super();
@@ -46,27 +32,25 @@ export class GtkButton extends Button {
     }
 
     /**
-     * The Adwaita style variant. Setting it swaps the corresponding CSS class
-     * (one of `GtkButton.variantClasses`) onto the button,
-     * preserving the base `adw-button` class. Note that `pill` is the rounded
-     * SHAPE and combines with no other variant here (set the shape OR the accent
-     * intent — matching how this CSS subset expresses them as flat classes).
+     * The style classes this button carries (`GtkWidget:css-classes`), without the
+     * `adw-button` class that makes it a button — GTK's own rule for the property.
+     *
+     * IT WAS `variant`, AN ENUM, AND THAT WAS ONE LOOK AT A TIME (ADR 0049). Its own doc
+     * said so: "`pill` is the rounded SHAPE and combines with no other variant here (set
+     * the shape OR the accent intent)". GTK holds a LIST, so `.pill.suggested-action` is
+     * an ordinary Adwaita button and was unreachable through the enum. The names are the
+     * CLASS names now, not the web element's attribute spellings: `suggested-action`,
+     * not `suggested`.
+     *
+     * From XML it is a space-separated list, which is what an attribute can carry:
+     * `<gtk:Button cssClasses="pill suggested-action" />`.
      */
-    get variant(): AdwButtonVariant {
-        return this._variant;
+    get cssClasses(): string[] {
+        return [...this._cssClasses];
     }
 
-    set variant(value: AdwButtonVariant) {
-        this._variant = value;
-        const styleClass = value === 'default' ? null : buttonStyleClass(value);
-        this.className = styleClass ? `adw-button ${styleClass}` : 'adw-button';
-    }
-
-    /**
-     * All Adwaita variant class names this widget recognises — exposed for tests
-     * and for consumers composing class lists manually.
-     */
-    static get variantClasses(): readonly string[] {
-        return ADW_BUTTON_STYLE_CLASSES;
+    set cssClasses(value: string | null | undefined) {
+        this._cssClasses = normalizeCssClasses(value);
+        this.className = classNameWith('adw-button', this._cssClasses);
     }
 }

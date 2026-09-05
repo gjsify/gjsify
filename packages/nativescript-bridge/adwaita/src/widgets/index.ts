@@ -64,7 +64,6 @@ export type { NotifySliderValueEventData } from './adw-slider-row.js';
 export { AdwExpanderRow, ExpanderState, NOTIFY_EXPANDED } from './adw-expander-row.js';
 export type { ExpanderStateListener, NotifyExpandedEventData } from './adw-expander-row.js';
 export { GtkButton } from './gtk-button.js';
-export type { AdwButtonVariant } from './gtk-button.js';
 export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
 export { GtkMenuButton, MENU_ITEM_ACTIVATED } from './gtk-menu-button.js';
 export type { MenuItemActivatedEventData } from './gtk-menu-button.js';

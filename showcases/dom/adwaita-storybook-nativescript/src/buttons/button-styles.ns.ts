@@ -3,16 +3,16 @@
 // GTK showcase's renderer-agnostic *.meta.ts barrel).
 //
 // Mirrors the native/browser twins: a wrapping row of buttons demonstrating the
-// Adwaita style variants, plus a live demo button driven by the `style` control.
+// Adwaita style classes, plus a live demo button driven by the `style` control.
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { Adw, Gtk, type AdwButtonVariant } from '@gjsify/adwaita-nativescript';
+import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { buttonStylesMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-// The storybook `style` value → Gtk.Button variant. `circular` is icon-only in
-// the twins; the NS subset has no circular variant, so it falls back to `pill`
-// with a glyph label (mirroring the icon-only intent of the native demo).
-const VARIANT_BY_STYLE: Record<string, AdwButtonVariant> = {
+// The storybook `style` value → the button's `css-classes` (ADR 0049). `circular` is
+// icon-only in the twins; the NS subset styles no circular class, so it falls back to
+// `pill` with a glyph label (mirroring the icon-only intent of the native demo).
+const CLASSES_BY_STYLE: Record<string, string> = {
     pill: 'pill',
     circular: 'pill',
     'suggested-action': 'suggested-action',
@@ -20,10 +20,10 @@ const VARIANT_BY_STYLE: Record<string, AdwButtonVariant> = {
     flat: 'flat',
 };
 
-function button(label: string, variant: AdwButtonVariant): Gtk.Button {
+function button(label: string, cssClasses: string): Gtk.Button {
     const btn = new Gtk.Button();
     btn.text = label;
-    btn.variant = variant;
+    btn.cssClasses = cssClasses;
     return btn;
 }
 
@@ -47,7 +47,7 @@ export class ButtonStylesNsStory extends StoryView {
         box.horizontalAlignment = 'center';
 
         box.add(button('Pill', 'pill'));
-        // `circular` is icon-only in the twins; NS has no circular variant — use a
+        // `circular` is icon-only in the twins; NS styles no circular class — use a
         // pill with a glyph as the closest icon-only equivalent.
         box.add(button('\u{2795}', 'pill')); // ➕ (list-add)
         box.add(button('Suggested', 'suggested-action'));
@@ -68,8 +68,7 @@ export class ButtonStylesNsStory extends StoryView {
 
     private _applyStyle(style: string): void {
         if (!this._demo) return;
-        const variant = VARIANT_BY_STYLE[style] ?? 'default';
-        this._demo.variant = variant;
+        this._demo.cssClasses = CLASSES_BY_STYLE[style] ?? '';
         // The circular style is icon-only (no label), like the native demo.
         if (style === 'circular') {
             this._demo.text = '\u{2795}'; // ➕ (list-add)

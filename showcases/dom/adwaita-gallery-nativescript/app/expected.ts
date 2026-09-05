@@ -108,10 +108,10 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Gtk.Button', view: 'GtkButton', root:
         { tag: 'StackLayout', props: {"orientation":"horizontal"}, children: [
-                { tag: 'gtk:Button', props: {"text":"Pill","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"Suggested","variant":"suggested"} },
-                { tag: 'gtk:Button', props: {"text":"Delete","variant":"destructive"} },
-                { tag: 'gtk:Button', props: {"text":"Flat","variant":"flat"} }
+                { tag: 'gtk:Button', props: {"text":"Pill","cssClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"Suggested","cssClasses":"suggested-action"} },
+                { tag: 'gtk:Button', props: {"text":"Delete","cssClasses":"destructive-action"} },
+                { tag: 'gtk:Button', props: {"text":"Flat","cssClasses":"flat"} }
             ] }
     },
     { widget: 'Gtk.Entry', view: 'GtkEntry', root:
@@ -124,9 +124,9 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Adw.HeaderBar', view: 'AdwHeaderBar', root:
         { tag: 'adw:HeaderBar', children: [
-                { tag: 'gtk:Button', slot: 'startBox', props: {"text":"‹","variant":"flat"} },
+                { tag: 'gtk:Button', slot: 'startBox', props: {"text":"‹","cssClasses":"flat"} },
                 { tag: 'adw:WindowTitle', slot: 'titleWidget', props: {"title":"Text Editor","subtitle":"notes.md"} },
-                { tag: 'gtk:Button', slot: 'endBox', props: {"text":"≡","variant":"flat"} }
+                { tag: 'gtk:Button', slot: 'endBox', props: {"text":"≡","cssClasses":"flat"} }
             ] }
     },
     { widget: 'Adw.ToolbarView', view: 'AdwToolbarView', root:
@@ -140,12 +140,12 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Adw.WrapBox', view: 'AdwWrapBox', root:
         { tag: 'adw:WrapBox', props: {"childSpacing":8,"lineSpacing":8}, children: [
-                { tag: 'gtk:Button', props: {"text":"Design","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"Adwaita","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"GNOME","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"GTK","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"TypeScript","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"Storybook","variant":"pill"} }
+                { tag: 'gtk:Button', props: {"text":"Design","cssClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"Adwaita","cssClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"GNOME","cssClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"GTK","cssClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"TypeScript","cssClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"Storybook","cssClasses":"pill"} }
             ] }
     },
     { widget: 'Adw.Avatar', view: 'AdwAvatar', root:
