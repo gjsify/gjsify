@@ -4944,3 +4944,21 @@ never been a problem in practice, which is the only reason this is an entry rath
 blocker. The candidate fixes both have costs worth measuring before picking: making
 `page-id` required is a breaking change to every declared page, and deriving the id from the
 title makes it move when the title does.
+
+### NativeScript XML can no longer say which tab starts selected
+
+[ADR 0048](../docs/adr/0048-page-selection-by-identity.md) § 3 gave the web a markup door
+(`<adw-tab-view selected-page="<page id>">`) and gave NativeScript none, on the reading that
+its XML door IS the property. A property holding an `AdwTabPage` is not an XML door:
+measured with `check-nativescript-xml-doors`, `selectedPage` lands in "typed as something no
+XML attribute can carry" (19 → 20 setters) while the two numeric doors left the coercing set
+(66 → 64), and `AdwTabView` is now the one XML-reachable class with a selection and no
+string-typed setter for it. `<AdwTabView selected="1">` worked through `xmlNumber` and is
+silently dead; nothing replaced it, and an XML attribute is not typechecked, so nothing says
+so.
+
+`AdwViewStack` is unaffected — `visibleChildName` is a string and stays the door there.
+
+The candidate is a `selectedPageId` string setter mirroring the web's attribute, which is
+the same question as the id-taking `setSelectedPage` above: settle the id-vs-page shape once
+across `setSelectedPage`, `isClosing`, `closePage`, `setPagePinned` and this, or not at all.

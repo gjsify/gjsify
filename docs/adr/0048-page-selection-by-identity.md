@@ -76,16 +76,43 @@ than a property because the difference is the holding: a call resolves against t
 list as it is at that moment and keeps nothing, while a property invites a caller to hold
 a number that later means another page.
 
-**It is port-owned, and the reference says so**: `refs/libadwaita/src/adw-view-stack.h`
-declares no ordinal API at all, and neither does `adw-tab-view.h` — `select_previous_page`
-and `select_next_page` are the only relative moves there. So this is not GTK's shape being
-restored; it is the port's own, named for the `selectNthPage` the tab view has carried all
-along so that the two widgets ask the same question the same way.
+**It is port-owned as a SETTER, and the reference is more precise than that**: neither
+`refs/libadwaita/src/adw-view-stack.h` nor `adw-tab-view.h` declares a function that
+SELECTS by position — `select_previous_page` / `select_next_page` are the only relative
+moves. An ordinal is not absent from either, though, and pretending it is would make the
+weaker argument:
+
+- `adw_tab_view_get_nth_page (AdwTabView *self, int position)`
+  (`refs/libadwaita/src/adw-tab-view.h:192#adw_tab_view_get_nth_page`) is a public ordinal
+  ACCESSOR.
+- `select_nth_page_cb` (`refs/libadwaita/src/adw-tab-view.c:2137#select_nth_page_cb`) is
+  libadwaita's OWN ordinal selection — the
+  Alt+1…Alt+9 / Alt+0 shortcut — and it is exactly this composition:
+  `adw_tab_view_get_nth_page()` then `adw_tab_view_set_selected_page()`. Private, because a
+  shortcut handler is not API.
+- both widgets hand out a `GtkSelectionModel`
+  (`refs/libadwaita/src/adw-view-stack.h:166#adw_view_stack_get_pages`;
+  `refs/libadwaita/src/adw-tab-view.h:268#adw_tab_view_get_pages`), and selection on one is
+  positional.
+
+So `selectNthPage` is not an ordinal libadwaita refuses; it is the ordinal libadwaita
+performs, promoted from a private shortcut handler to a method, and named for the
+`selectNthPage` the tab view has carried all along so that the two widgets ask the same
+question the same way. What stays port-owned is putting it in the public surface.
 
 Without it the translation is `stack.pages[n]?.name`, and the first draft of this change
 wrote that line **three times** across the two switcher bars — the copied-arithmetic smell
 [ADR 0047](0047-portable-adjustment.md) found in `AdwSliderRow`, arriving in the same
 change that was supposed to reduce it. One method, three call sites, no copies.
+
+And that is the weaker half of the case. `pages[n].name` is not a translation of
+`selectNthPage(n)` at all for two page shapes the specs already pin: a page whose name is
+`''` cannot be selected by name (`view-stack.spec.ts:226` — the reflection guard never
+fires for it), and where two pages share a name a lookup resolves to the FIRST
+(`:252`, written against exactly that bounce). A switcher bar renders button *n* over
+whatever pages the stack holds, duplicates and blanks included, so for those two it has no
+name to pass. The method is not a convenience over the name; it is the only door onto the
+pages the name cannot reach.
 
 ### 2. `AdwTabView`: `selected` becomes `selectedPage`, and it holds the page
 
@@ -109,8 +136,20 @@ select by; that is the same bargain `<adw-view-stack visible-child-name>` has al
 for a page with no name, and it is why the parse rule is *ignore an id no page holds*
 rather than *fall back to the first page*.
 
-`@gjsify/adwaita-nativescript` needs no equivalent: its XML door is the property, and the
-property now holds a page.
+Ignored, and RECORDED: the refusal goes through `setSelectedPage`, so an id no page holds
+appends C's `page_belongs_to_this_view` assertion to `view.diagnostics`, where the ordinal
+attribute refused an out-of-range index in silence. The selection is the same either way;
+what changes is that the typo is now visible to anyone reading the diagnostics.
+
+`@gjsify/adwaita-nativescript` gets no equivalent, and that is a LOSS, not a
+non-requirement. Its XML door IS the property, and a property holding an object is not one:
+measured, `check-nativescript-xml-doors` moves `selectedPage` into "typed as something no
+XML attribute can carry" (19 → 20) and `AdwTabView` is left with no string-typed selection
+setter at all, where `selected="1"` used to work through `xmlNumber`. So a NativeScript XML
+tree can no longer declare which tab starts selected — only code can. The web kept a markup
+door for exactly this reason and NativeScript should have the same one; it is written down
+in `status/open-todos.md` rather than added here, because the shape (`selectedPageId`, or
+the id-taking method question below) is one decision and should be made once.
 
 ### 4. The core keeps its ordinal API, and that is the point of the split
 
@@ -128,18 +167,40 @@ surface where it is a promise about a page. So the two switcher bars translate t
 - **Breaking**, on two published packages. `stack.visibleChildIndex = 2` becomes
   `stack.selectNthPage(2)` (or `stack.visibleChildName = '…'`), and `view.selected = 2`
   becomes `view.selectNthPage(2)` — a method both tab views already had — or
-  `view.selectedPage = page`. Every migration is one line and mechanical, and none has a
-  silent failure mode: the removed setters were the only writable properties of their name,
-  so an unmigrated write is a TypeScript error and, at runtime, a no-op on a getter.
+  `view.selectedPage = page`. Every migration is one line and mechanical.
+- **A PROPERTY write fails loudly; an ATTRIBUTE write does not.** The removed setters were
+  the only writable properties of their name, so an unmigrated `stack.visibleChildIndex = 2`
+  is a TypeScript error and, at runtime, a no-op on a getter. Three other doors have no such
+  backstop and each one was measured going silently dead:
+  - `view.setAttribute('selected', String(n))` on the web element. `website/` had TWO —
+    `CommandTabs.astro` (the npm/yarn/gjsify tabs, restored from `localStorage` and mirrored
+    across the page) and `AdwWidget.astro` (every gallery block's implementation tabs) —
+    which the first draft of this ADR recorded as none, because it grepped the PROPERTY
+    names. Both are migrated with this change, and `check-website-attr-samples.mjs` arm 4
+    now follows a binding taken from a custom-element selector to its `setAttribute` calls,
+    which is the reason this was ever findable by anything but a reader clicking a tab.
+  - `<AdwTabView selected="1" />` and `<AdwViewStack visibleChildIndex="2" />` in
+    NativeScript XML, which no type sees at all.
+- **XML doors DID change**, contrary to the first draft of this section. Measured with
+  `check-nativescript-xml-doors`: coercing non-string setters 66 → 64 (both numeric doors
+  gone), setters XML cannot carry 19 → 20 (`selectedPage` holds an object). What is true is
+  the narrower claim: nothing is left half-reachable — `visibleChildName` is a string, which
+  is what an XML attribute is anyway, and `selectedPage` is refused rather than coerced.
 - The vocabulary ledger loses two `should converge` property entries. That is the metric
   moving because the thing it measures moved: `check-vocabulary-alignment.mjs` counts
-  SETTABLE properties, because a door is what a portable authored tree writes.
-- No XML door changes. `visibleChildIndex` and `selected` were reachable from NativeScript
-  XML as numbers; `visibleChildName` is a string, which is what an XML attribute is anyway,
-  and `selectedPage` holds an object, which XML cannot express and therefore never offered.
-- Nothing in `website/`, `showcases/`, `packages/framework/stories` or the generated
-  NativeScript templates writes either property — measured before writing this, which is
-  why this ADR proposes a removal rather than a deprecation.
+  SETTABLE properties, because a door is what a portable authored tree writes. Measured:
+  143 → 142 settable, 107 → 108 agreeing, distance 7 → 5 property names.
+- **A refusal that was silent is now RECORDED**, on the web element and on both renderers'
+  tab views. `selected = 99` went through `selectNthPage`, which refuses an out-of-range
+  index and pushes nothing; an unknown `selected-page` id and `selectedPage = null` with
+  pages present both go through `setSelectedPage`, which is where C's
+  `page_belongs_to_this_view` and `ADW_IS_TAB_PAGE` assertions live. The selection outcome
+  is unchanged — both are refused — but `view.diagnostics` grows an entry where it did not.
+  That is the right answer (a typo'd id in markup is exactly what C would `g_critical`
+  about) and it is asserted in `tab-view.spec.ts`, not left to be discovered.
+- Nothing in `showcases/`, `packages/framework/stories` or the generated NativeScript
+  templates writes either property, which is why this ADR proposes a removal rather than a
+  deprecation. `website/` did — see the second bullet.
 
 ## What this does not decide
 
