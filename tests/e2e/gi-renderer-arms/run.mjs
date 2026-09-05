@@ -136,9 +136,13 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             assert.ok(existsSync(built.outFile) && statSync(built.outFile).size > 0, 'bundle missing or empty');
 
             const bundle = readFileSync(built.outFile, 'utf-8');
-            // The arm substitutes a module; it must not leave the specifier behind. Same
-            // substring rule `app-browser` and `ns-bridge-bundles` hold, which is also why
-            // the arm's own refusal text is forbidden from quoting a `gi://` URL.
+            // The arm substitutes a module; it must not leave the specifier behind — the
+            // same rule `app-browser` and `ns-bridge-bundles` hold over their own bundles,
+            // and read the same way, as text. Because it is text, THIS assertion is also
+            // the only thing forbidding the arm's emitted refusal from quoting a `gi://`
+            // URL: those two suites never pass `--gi-renderer`, so the arm's diagnostics
+            // cannot reach them. The `textual-mention` row below is where the two answers
+            // — "no import survived" and "these four characters are absent" — come apart.
             assert.ok(!bundle.includes('gi://'), 'the bundle leaks a gi:// specifier');
             assert.ok(!bundle.includes('@girs/'), 'the bundle leaks an @girs/* specifier');
 
@@ -229,6 +233,36 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
             assert.notEqual(built.status, 0, `a mismatched ?version= built anyway\n${built.output}`);
             assert.match(built.output, /version 2/, 'the refusal does not name the version that was asked for');
             assert.match(built.output, /version 1/, 'the refusal does not name the version it answers');
+        });
+
+        // The two refusals above act on SPECIFIERS. This row is the other half of that
+        // sentence: the same two strings, sitting in the source as literals, must be left
+        // alone. A text-shaped arm would fail this build twice over.
+        it(`--app ${app} --gi-renderer refuses gi:// imports, not gi:// text`, () => {
+            const built = build('textual-mention.ts', app, { name: 'textual' });
+            assert.equal(built.status, 0, `a gi:// string literal was read as an import\n${built.output}`);
+
+            const bundle = readFileSync(built.outFile, 'utf-8');
+            assert.match(bundle, /gi:\/\/Gio\?version=2\.0/, 'the unanswerable-namespace literal did not survive');
+            assert.match(bundle, /gi:\/\/Adw\?version=9/, 'the wrong-version literal did not survive');
+
+            // The leak guard in the `resolves gi://Adw` row reads `bundle.includes('gi://')`.
+            // This bundle carries those four characters and is nevertheless clean, and the
+            // proof that no occurrence is an import is the build's own exit code, not a second
+            // reading of the same bytes: the arm refuses BOTH of these specifiers, so an
+            // import-shaped one could not have produced a status of 0. A substring is not
+            // an import — `status/open-todos.md` argues the guards from this bundle.
+            assert.ok(
+                bundle.includes('gi://'),
+                'the fixture no longer puts a gi:// substring in the bundle, so this row measures nothing',
+            );
+
+            // …and the real import beside the literals still landed on the arm, so the row
+            // cannot go green by the arm being absent.
+            const report = evaluate(built.outFile, app);
+            assert.equal(report.error, null, `bundle failed to evaluate: ${report.error}`);
+            assert.equal(report.kind, 'function', 'the real gi:// import did not reach the renderer');
+            assert.equal(report.protoIdentity, true, 'the subclass does not extend the namespace member');
         });
 
         it(`--app ${app} --gi-renderer refuses an absent MEMBER by name, at runtime`, () => {
