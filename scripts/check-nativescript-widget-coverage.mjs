@@ -475,8 +475,8 @@ export function coverageProblems(world) {
             const set = widget.setters.has(property);
             if (set && declared.has(property)) {
                 problems.push(
-                    `${widget.klass} now sets '${property}' — delete it from ${LEDGER_SOURCE} so the backlog ` +
-                        'can only shrink. A declaration whose gap is closed is a stale reason left standing.',
+                    `${widget.klass} now sets '${property}' — delete it from ${LEDGER_SOURCE}. A declaration ` +
+                        'whose gap is closed is a stale reason left standing, and the next reader believes it.',
                 );
                 continue;
             }
