@@ -9,6 +9,7 @@ import {
     avatarColor,
     avatarColorClass,
     avatarFontSize,
+    avatarIconSize,
     avatarInitials,
     avatarMaxFontSize,
     avatarMode,
@@ -118,6 +119,30 @@ export default async () => {
 
         await it('falls back to the cap when nothing has been measured yet', () => {
             expect(avatarFontSize(48, { width: 0, height: 0 })).toBeCloseTo(avatarMaxFontSize(48), 6);
+        });
+    });
+
+    await describe('avatarIconSize (the fallback glyph inside the circle)', async () => {
+        await it('never draws the glyph outside the circle it sits in', () => {
+            // The only property that is actually derivable: an icon box larger than the
+            // inscribed square `size / 1.4142` sticks out of a round avatar. 0.55 is a
+            // choice, this is the bound it has to respect.
+            const outside: number[] = [];
+            for (let size = 16; size <= 256; size++) {
+                if (avatarIconSize(size) > size / 1.4142) outside.push(size);
+            }
+            expect(outside).toStrictEqual([]);
+        });
+
+        await it('is monotonic and integral', () => {
+            const regressions: number[] = [];
+            let previous = -1;
+            for (let size = 16; size <= 256; size++) {
+                const box = avatarIconSize(size);
+                if (box < previous || !Number.isInteger(box)) regressions.push(size);
+                previous = box;
+            }
+            expect(regressions).toStrictEqual([]);
         });
     });
 
