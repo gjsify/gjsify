@@ -84,6 +84,7 @@ ship/
 │   └── share/…
 ├── overlay/
 │   ├── deb/share/doc/my-app/copyright
+│   ├── deb/share/doc/my-app/changelog.Debian.gz
 │   └── rpm/share/licenses/my-app/LICENSE
 └── out/
     ├── my-app_1.2.3-1_all.deb
@@ -93,15 +94,59 @@ ship/
 `stage/` is the whole app. The launcher in `bin/`, your bundle in
 `lib/<name>/`, and the desktop entry, icon, AppStream metainfo, MIME types and
 schemas in `share/`. `overlay/` holds what one format wants somewhere of its
-own, which today is the licence and nothing else. Debian policy puts it in
-`share/doc/<pkg>/copyright`, rewrapped as a machine-readable copyright file;
-RPM puts the plain text in `share/licenses/<pkg>/`. A project with no licence
-file gets no overlay at all.
+own. Debian policy puts the licence in `share/doc/<pkg>/copyright`, rewrapped
+as a machine-readable copyright file, and a changelog beside it; RPM puts the
+plain licence text in `share/licenses/<pkg>/` and asks for no changelog. A
+project with no licence file is refused rather than packaged without one.
 
 Both packers read `stage/` back off disk rather than keeping it in memory, so
 what you inspect is what a user installs.
 
-Two details worth knowing.
+### The Debian changelog
+
+Every `.deb` carries `/usr/share/doc/<pkg>/changelog.Debian.gz`. Debian Policy
+§ 4.4 makes it mandatory, `lintian` reports a missing one as an error
+(`E: no-changelog`), and neither `dpkg -i` nor `apt install` says a word about
+it — so a package without one installs perfectly and fails review.
+
+You write nothing for it. `gjsify ship` looks for your project's own
+`CHANGELOG.md` (then `CHANGELOG`, `CHANGELOG.txt`, `NEWS.md`, `NEWS`), beside
+the project and then up to the root of its repository — the same search the
+licence file gets, so one changelog at the top of a monorepo covers every
+package under it. Point `gjsify.ship.changelogFile` at another file to override
+it.
+
+The entry it writes describes the version being packaged:
+
+```text
+my-app (1.2.3-1) unstable; urgency=medium
+
+  * canvas: draw the grid before the selection overlay (#412)
+  * settings: remember the last window size (#409)
+
+ -- Ada Lovelace <ada@example.org>  Fri, 04 Sep 2026 18:07:27 +0000
+```
+
+The bullets are the `*`/`-` lines your changelog lists under that version's
+heading, with Markdown links flattened to their text and long lines wrapped.
+The `## [1.2.3](…) (2026-09-03)` heading `release-it` and
+`conventional-changelog` write is understood, as is a bare `## 1.2.3`. If
+nothing there names this version — or you ship no changelog at all — the entry
+is one line naming the version and your `homepage`, which satisfies the policy
+without inventing history.
+
+Two things are deliberate. It is ONE entry, not your whole history: this file
+is the *packaging* changelog, and `gjsify ship` packages a version once. And
+the timestamp is the build stamp, the same one every other header in the
+artifact carries, so packing the same build twice still gives identical bytes.
+
+Two `lintian` warnings remain on it and neither is worth acting on:
+`initial-upload-closes-no-bugs` expects the first upload of a package to the
+Debian archive to close its ITP bug, which a package built here never has, and
+`changelog-not-compressed-with-max-compression` asks for `gzip -9`, which the
+compression API available under GJS cannot request yet.
+
+### Two more details worth knowing
 
 **The whole bundle directory is staged.** `gjsify.main: "dist/gjs.js"` stages
 all of `dist/` into `lib/my-app/`. Keep build leftovers out of that directory,
@@ -432,6 +477,7 @@ already ships a Flatpak often needs no `gjsify.ship` block at all.
     "schemas": "data",                     // where the *.gschema.xml files live
     "categories": ["Utility"],             // also decides deb Section: and rpm Group:
     "release": "1",                        // package revision within one app version
+    "changelogFile": "CHANGELOG.md",       // else the first one found up to the repo root
     "minGjsVersion": "1.86",
     "localeDir": "dist/locale",            // compiled .mo catalogues
     "mimeTypes": [                         // shared-mime-info types your app opens

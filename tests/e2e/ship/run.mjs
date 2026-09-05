@@ -318,7 +318,15 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         if (!probe('ar') || !probe('tar')) return;
         const md5sums = readControlFile('md5sums');
         const lines = md5sums.trimEnd().split('\n');
-        assert.equal(lines.length, 8); // 7 staged + the copyright overlay
+        // DERIVED from the two directories the package is assembled out of, never a
+        // literal: the number moved the day a second overlay file (the Debian
+        // changelog) landed, and a hardcoded one turns that into a puzzle about a
+        // count instead of a statement about the package.
+        assert.equal(
+            lines.length,
+            listPayload(join(projectDir, 'ship', 'stage')).length +
+                listFiles(join(projectDir, 'ship', 'overlay', 'deb')).length,
+        );
         for (const line of lines) {
             // Exactly two spaces, and no leading `./` — unlike every other
             // path in the package.
@@ -353,6 +361,28 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         const listing = readDataListing();
         assert.ok(listing.some((entry) => entry.name === './usr/share/doc/ship-demo/copyright'));
         assert.ok(!listing.some((entry) => entry.name.includes('share/licenses')), 'rpm layout leaked into the .deb');
+    });
+
+    // Debian Policy § 4.4, the other mandatory file in `share/doc/<pkg>/` — and the
+    // last error-severity lintian tag this writer carried:
+    // `E: no-changelog usr/share/doc/gjsify/changelog.Debian.gz (non-native package)`.
+    // The `.gz` is not decoration: an uncompressed file at that path is a different
+    // lintian tag, and one at `changelog.gz` would be the NATIVE package's name,
+    // which `deb.ts`'s `Version: <version>-<release>` is not.
+    it('.deb: the changelog is gzipped, dated, and names this exact version', () => {
+        if (!probe('ar') || !probe('tar')) return;
+        const unpacked = join(tmpDir, 'deb-changelog');
+        rmSync(unpacked, { recursive: true, force: true });
+        mkdirSync(unpacked, { recursive: true });
+        execFileSync('tar', ['xzf', join(extractDeb(), 'data.tar.gz'), '-C', unpacked]);
+        const path = join(unpacked, 'usr', 'share', 'doc', 'ship-demo', 'changelog.Debian.gz');
+        assert.ok(existsSync(path), 'no usr/share/doc/ship-demo/changelog.Debian.gz in the data member');
+        const text = execFileSync('gzip', ['-dc', path], { encoding: 'utf-8' });
+        // The three lines dpkg and lintian parse: the header's package/version pair,
+        // and the trailer with its one leading space and its TWO before the date.
+        assert.match(text, /^ship-demo \(1\.2\.3-1\) unstable; urgency=medium$/m);
+        assert.match(text, /^ -- .+ <.+@.+>  [A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} \+0000$/m);
+        assert.match(text, /^ {2}\* /m);
     });
 
     // ── the .rpm ──────────────────────────────────────────────────────────

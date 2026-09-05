@@ -13,8 +13,10 @@
 //   * no `staged` — modes come from the plan (see `stage-writer.ts`), so the
 //     launcher packs 0644 and the installed `bin/<name>` is not executable.
 //   * no `overlay` — the `.deb` ships no `/usr/share/doc/<pkg>/copyright`,
-//     which Debian Policy § 12.5 requires and lintian errors on, and the
-//     `.rpm` ships no `/usr/share/licenses/<pkg>/LICENSE`.
+//     which Debian Policy § 12.5 requires and lintian errors on, no
+//     `/usr/share/doc/<pkg>/changelog.Debian.gz`, which § 4.4 requires and
+//     lintian also errors on, and the `.rpm` ships no
+//     `/usr/share/licenses/<pkg>/LICENSE`.
 //   * no `namespaces` — they are scanned from the BUILD TREE's bundle, so a
 //     packing host that re-derived nothing would emit `Depends:` without
 //     `gir1.2-gtk-4.0` and `gir1.2-adw-1`: the package installs on a machine
@@ -37,6 +39,8 @@
 
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
+
+import { base64Decode, base64Encode } from '../base64.js';
 
 import { cliVersion } from '../publish-headers.js';
 import { FORMAT_IDS } from './formats.js';
@@ -107,8 +111,17 @@ export const STAGE_MANIFEST_FILE = '.gjsify-ship-stage.json';
  *    the one thing the reader can do about it. That is the same shape the 3-to-4
  *    paragraph describes, and at 5 the schema check above fires first and says
  *    "re-run the `--stage` phase with this gjsify".
+ *
+ * 6 made an overlay entry carry EITHER `text` or `base64`, for the gzipped
+ * `changelog.Debian.gz` Debian Policy § 4.4 requires. That is the meaning case
+ * again and the sharpest one yet: a schema-5 reader demands `text` on every
+ * entry, so it meets a 6 stage and fails on `overlay.deb[1].text must be a
+ * string` — a sentence about a field, over a stage whose only problem is the
+ * gjsify reading it. And the inverse is worse than a bad message: a reader that
+ * ignored the unknown key would write an entry with no bytes, or write base64 AS
+ * text, and ship a `.deb` whose changelog is a wall of ASCII at exit 0.
  */
-export const STAGE_SCHEMA_VERSION = 5;
+export const STAGE_SCHEMA_VERSION = 6;
 
 /** What this stage was assembled FOR, in the repo-wide `${process.platform}-${process.arch}` spelling. */
 export interface StageTarget {
@@ -122,9 +135,19 @@ export interface StageFileRecord extends StagedMode {
     bytes: number;
 }
 
-/** One pre-rendered overlay file. Text only — see {@link writeStageManifest}. */
+/**
+ * One pre-rendered overlay file. EXACTLY ONE of `text` and `base64` is present —
+ * see {@link writeStageManifest} for why a file reference is still refused.
+ *
+ * `text` is preferred wherever the content is text, because the sidecar is the one
+ * artifact in this handoff a human reads: the whole copyright is legible in it. The
+ * `base64` half exists for the gzipped Debian changelog, whose bytes must be the
+ * bytes that ship — a stage packed on another host cannot re-compress it and get
+ * the same file.
+ */
 export interface StageOverlayFile extends StagedMode {
-    text: string;
+    text?: string;
+    base64?: string;
 }
 
 export interface StageManifest {
@@ -212,17 +235,18 @@ export function writeStageManifest(input: StageManifestInput): StageManifest {
     const overlay: Partial<Record<FormatId, StageOverlayFile[]>> = {};
     for (const format of input.formats) {
         overlay[format.id] = (input.overlay.get(format.id) ?? []).map((file) => {
-            if (file.source.kind !== 'text') {
-                // Every overlay entry `planOverlay` produces today is rendered text. A file
-                // reference would be a build-host path, and putting one in here is how the
-                // manifest would start naming files the packing host cannot open.
-                throw new Error(
-                    `gjsify ship: internal error — the ${format.id} overlay entry ${file.path} is a file ` +
-                        'reference, and a stage manifest may only carry rendered text. Render it in ' +
-                        '`planOverlay` instead.',
-                );
+            if (file.source.kind === 'text') return { path: file.path, mode: file.mode, text: file.source.text };
+            if (file.source.kind === 'bytes') {
+                return { path: file.path, mode: file.mode, base64: base64Encode(file.source.data) };
             }
-            return { path: file.path, mode: file.mode, text: file.source.text };
+            // A FILE reference is still refused. It would be a build-host path, and
+            // putting one in here is how the manifest would start naming files the
+            // packing host cannot open — the failure the closure exists to prevent.
+            throw new Error(
+                `gjsify ship: internal error — the ${format.id} overlay entry ${file.path} is a file ` +
+                    'reference, and a stage manifest may only carry rendered bytes. Render it in ' +
+                    '`planOverlay` instead.',
+            );
         });
     }
 
@@ -382,10 +406,23 @@ export function readStageManifest(stageDir: string): StageManifest {
         // lintian errors on.
         manifest.overlay[id] = expectArray(overlay[id], at(`overlay.${id}`)).map((entry, index) => {
             const file = record(entry, at(`overlay.${id}[${index}]`));
+            const where = at(`overlay.${id}[${index}]`);
+            // EXACTLY ONE, checked in both directions. Neither would write an empty
+            // file at a path Debian policy demands content at; both would leave which
+            // one wins to whichever branch `overlayFiles` happens to test first.
+            if ((file.text === undefined) === (file.base64 === undefined)) {
+                throw new Error(
+                    `gjsify ship: ${where} must carry exactly one of \`text\` and \`base64\`. ` +
+                        'An overlay entry is either rendered text or rendered bytes; an entry with ' +
+                        'neither would pack an empty file at a path the format requires content at.',
+                );
+            }
             return {
                 path: expectString(file.path, at(`overlay.${id}[${index}].path`)),
                 mode: expectInteger(file.mode, at(`overlay.${id}[${index}].mode`)),
-                text: expectString(file.text, at(`overlay.${id}[${index}].text`)),
+                ...(file.text === undefined
+                    ? { base64: expectString(file.base64, at(`overlay.${id}[${index}].base64`)) }
+                    : { text: expectString(file.text, at(`overlay.${id}[${index}].text`)) }),
             };
         });
     }
@@ -419,7 +456,10 @@ export function overlayFiles(manifest: StageManifest, format: FormatId): StagedF
     return (manifest.overlay[format] ?? []).map((file) => ({
         path: file.path,
         mode: file.mode,
-        source: { kind: 'text', text: file.text },
+        source:
+            file.base64 === undefined
+                ? ({ kind: 'text', text: file.text ?? '' } as const)
+                : ({ kind: 'bytes', data: base64Decode(file.base64) } as const),
     }));
 }
 

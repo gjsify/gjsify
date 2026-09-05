@@ -354,7 +354,7 @@ gjsify run ./server.mjs -- --port 8080
 | Argument / Option | Description |
 |---|---|
 | `<target>` | A script name from the current `package.json`, or a path to a built bundle. |
-| `[args..]` | Extra arguments forwarded to the script or to the runtime. Use `--` before flags you do not want gjsify to parse. |
+| `[args..]` | Extra arguments forwarded to the script or to the runtime. Use `--` before flags you do not want gjsify to parse. Everything after `--` reaches the target as you typed it, numbers included — `-- --port 8080` arrives as `--port 8080`, and `-- --scale 1.0` arrives as `1.0` rather than `1`. |
 | `-w`, `--workspace <name>` | Run `<target>` as a script in the named workspace, like `npm run <script> -w <name>`. Matches the package name, the workspace-relative path, or the directory basename. |
 | `--runtime <gjs\|node\|bun\|deno>` | Launch a bundle **file** on this runtime. Forces file mode. |
 | `--node-script` | Treat `<target>` as an unbundled Node-style script that imports `node:` builtins, and run it on the host runtime. Under GJS the file is bundled `--app gjs` on the fly first, which is what lets a repo script run on a machine with no Node. Cannot be combined with `--runtime` or `--workspace`. |
@@ -815,6 +815,7 @@ gjsify foreach -p -t build                    # parallel, topological order
 gjsify foreach --no-private build             # skip private:true workspaces
 gjsify foreach --include '@gjsify/web-*' test # glob filter
 gjsify foreach --exec -- npm publish --tag latest
+gjsify foreach --exec -- gjsify publish --verify-timeout 5 --tag latest
 ```
 
 | Option | Default | Description |
@@ -830,7 +831,7 @@ gjsify foreach --exec -- npm publish --tag latest
 | `-d`, `--with-dependencies` | `false` | Also select everything the filtered set depends on. `--include` only filters and `--topological` only orders, so neither can say "and the packages these need". Excludes are re-applied afterwards. |
 | `--private` | `true` | Include private workspaces. `--no-private` skips them. |
 | `-j`, `--jobs <n>` | cpu count | Max concurrent workspaces in `--parallel` mode. |
-| `--exec` | `false` | Treat `<script> [args..]` as an arbitrary command. Use `-- <cmd>` so flags reach the command. |
+| `--exec` | `false` | Treat `<script> [args..]` as an arbitrary command. Use `-- <cmd>` so flags reach the command. Everything after `--` is forwarded verbatim, numbers included. |
 | `--cached` | `GJSIFY_BUILD_CACHE=1` | Content-hash build cache. See [Build cache](#build-cache). Script mode only. |
 | `--shard <index>/<total>` | none | Run one deterministic slice of the matched workspaces, for example `--shard 2/4`, to fan a long run across parallel CI jobs. Partitioned by sorted name, so shards are disjoint and their union is the full set. Order-independent, so fine for tests and wrong for ordered builds. |
 | `-v`, `--verbose` | `false` | Echo every spawned command. |
