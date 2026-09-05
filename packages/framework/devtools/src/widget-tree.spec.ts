@@ -292,20 +292,50 @@ export default async () => {
     });
 
     await describe('dumpTree', async () => {
+        /**
+         * One widget, sized. `measure` answers per orientation, and the VERTICAL answer
+         * is a function of the width it is asked for — which is the only reason the
+         * geometry half of the dump exists.
+         */
+        interface Sized {
+            /** The BORDER box, which is what `compute_bounds` answers. */
+            width?: number;
+            height?: number;
+            /** CSS margins, which `compute_bounds` excludes and `measure` includes. */
+            margin?: { start: number; end: number; top: number; bottom: number };
+            widthRequest?: [number, number];
+            /** Called with the width `dumpTree` measured at, so a spec can vary on it. */
+            heightRequest?: (forWidth: number) => [number, number];
+        }
+
+        const sizedWidget = (name: string, child: Gtk.Widget | null, size: Sized = {}): Gtk.Widget => {
+            const margin = size.margin ?? { start: 0, end: 0, top: 0, bottom: 0 };
+            return asWidget({
+                constructor: { $gtype: { name } },
+                get_name: () => '',
+                get_css_classes: () => [],
+                get_mapped: () => true,
+                get_visible: () => true,
+                get_first_child: () => child,
+                get_next_sibling: () => null,
+                compute_bounds: () => [
+                    true,
+                    { get_width: () => size.width ?? 100, get_height: () => size.height ?? 20 },
+                ],
+                get_margin_start: () => margin.start,
+                get_margin_end: () => margin.end,
+                get_margin_top: () => margin.top,
+                get_margin_bottom: () => margin.bottom,
+                measure: (orientation: number, forSize: number) =>
+                    orientation === 0 ? (size.widthRequest ?? [10, 100]) : (size.heightRequest?.(forSize) ?? [20, 20]),
+            });
+        };
+
         /** A chain of `depth` widgets, each the only child of the one above. */
         const chain = (depth: number): Gtk.Widget => {
             let node: Gtk.Widget | null = null;
             for (let i = depth; i > 0; --i) {
-                const child = node;
-                node = asWidget({
-                    constructor: { $gtype: { name: `GtkLevel${i}` } },
-                    get_name: () => '',
-                    get_css_classes: () => [],
-                    get_mapped: () => true,
-                    get_visible: () => true,
-                    get_first_child: () => child,
-                    get_next_sibling: () => null,
-                });
+                node = sizedWidget(`GtkLevel${i}`, node);
             }
             return node as Gtk.Widget;
         };
@@ -340,6 +370,129 @@ export default async () => {
             }
             expect(levels).toBe(12);
             expect(node.truncated).toBe(undefined);
+        });
+
+        await it('reports what a widget was given beside what it asked for', async () => {
+            const dumped = dumpTree(
+                sizedWidget('GtkLabel', null, {
+                    width: 170,
+                    height: 23,
+                    widthRequest: [78, 206],
+                    heightRequest: () => [17, 17],
+                }),
+                1,
+                'toplevel:0',
+            );
+            expect(dumped.geometry).toStrictEqual({
+                width: 170,
+                height: 23,
+                widthRequest: [78, 206],
+                heightRequest: [17, 17],
+            });
+        });
+
+        await it('measures the height AT THE ALLOCATED WIDTH, not at the natural one', async () => {
+            // The whole point of the field. A wrapping label answers one line at its
+            // natural width and two at the width it actually got; a dump that asked
+            // `-1` would report the number that agrees with the allocation and hide
+            // exactly the case worth finding.
+            let askedFor: number | null = null;
+            const dumped = dumpTree(
+                sizedWidget('GtkLabel', null, {
+                    width: 170,
+                    height: 23,
+                    widthRequest: [78, 206],
+                    heightRequest: (forWidth) => {
+                        askedFor = forWidth;
+                        return forWidth >= 206 ? [17, 17] : [40, 40];
+                    },
+                }),
+                1,
+                'toplevel:0',
+            );
+            expect(askedFor).toBe(170);
+            expect(dumped.geometry?.heightRequest).toStrictEqual([40, 40]);
+            expect(dumped.geometry?.short).toBe(true);
+        });
+
+        await it('works in the margin box, which is the one measure() speaks', async () => {
+            // Measured on GTK 4.22.4: `compute_bounds` answers the border box and
+            // `measure` the margin box, so a widget with margins compares two different
+            // rectangles unless the margins are added back. The first version of this
+            // compared against `get_width()` — the CONTENT box — and called 116 of 293
+            // widgets in a real window clipped.
+            let askedFor: number | null = null;
+            const dumped = dumpTree(
+                sizedWidget('GtkLabel', null, {
+                    width: 68,
+                    height: 17,
+                    margin: { start: 7, end: 7, top: 4, bottom: 4 },
+                    widthRequest: [49, 82],
+                    heightRequest: (forWidth) => {
+                        askedFor = forWidth;
+                        return [25, 25];
+                    },
+                }),
+                1,
+                'toplevel:0',
+            );
+            expect(dumped.geometry?.width).toBe(82);
+            expect(dumped.geometry?.height).toBe(25);
+            expect(askedFor).toBe(82);
+            // 82x25 against a request of 82x25 is exactly met, so nothing is flagged.
+            expect(dumped.geometry?.short).toBe(undefined);
+        });
+
+        await it('leaves out geometry when the toolkit cannot compute bounds', async () => {
+            const unbounded = asWidget({
+                constructor: { $gtype: { name: 'GtkLabel' } },
+                get_name: () => '',
+                get_css_classes: () => [],
+                get_mapped: () => true,
+                get_visible: () => true,
+                get_first_child: () => null,
+                get_next_sibling: () => null,
+                compute_bounds: () => [false, null],
+            });
+            expect(dumpTree(unbounded, 1, 'toplevel:0').geometry).toBe(undefined);
+        });
+
+        await it('measures at -1 when a mapped widget has no allocation yet', async () => {
+            // `measure(VERTICAL, 0)` is a legal call that answers about a zero-width
+            // widget, so a width of 0 has to become "no constraint" rather than a
+            // constraint of nothing.
+            let askedFor: number | null = null;
+            dumpTree(
+                sizedWidget('GtkBox', null, {
+                    width: 0,
+                    height: 0,
+                    heightRequest: (forWidth) => {
+                        askedFor = forWidth;
+                        return [0, 0];
+                    },
+                }),
+                1,
+                'toplevel:0',
+            );
+            expect(askedFor).toBe(-1);
+        });
+
+        await it('leaves an unmapped widget without geometry at all', async () => {
+            // An unmapped widget has no allocation, so its two zeros beside a request
+            // would read as "clipped to nothing" for every page of a stack that is not
+            // the visible one.
+            const unmapped = asWidget({
+                constructor: { $gtype: { name: 'GtkLabel' } },
+                get_name: () => '',
+                get_css_classes: () => [],
+                get_mapped: () => false,
+                get_visible: () => true,
+                get_first_child: () => null,
+                get_next_sibling: () => null,
+            });
+            const dumped = dumpTree(unmapped, 1, 'toplevel:0');
+            expect(dumped.geometry).toBe(undefined);
+            expect(dumped.mapped).toBe(false);
         });
     });
 };

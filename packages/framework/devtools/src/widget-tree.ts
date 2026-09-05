@@ -2,7 +2,7 @@
 // stable index paths, property read, focused-widget path). Original implementation.
 
 import Gtk from 'gi://Gtk?version=4.0';
-import type { NodeInfo } from '@gjsify/devtools-protocol';
+import type { NodeGeometry, NodeInfo } from '@gjsify/devtools-protocol';
 
 /** A parsed widget path: a toplevel index + a chain of child indices. */
 export interface ParsedWidgetPath {
@@ -260,6 +260,67 @@ export function findWidgetPath(root: Gtk.Widget, selector: WidgetSelector, baseP
 export const DEFAULT_DUMP_DEPTH = 40;
 
 /**
+ * What a mapped widget was given, beside what it asked for.
+ *
+ * MAPPED ONLY, and that is the whole guard: an unmapped widget has no allocation, so it
+ * reports zero and a measurement describes what it would want somewhere it is not. Two
+ * zeros beside a request would read as "clipped to nothing" for every page of a stack
+ * that is not the visible one.
+ *
+ * ## THREE BOXES BEHIND FOUR ACCESSORS, and getting this wrong is the whole difficulty
+ *
+ * Measured on GTK 4.22.4 with a `Gtk.Label` carrying `padding: 3px 5px` and, separately,
+ * `margin: 4px 7px`, over a content box of 68x17:
+ *
+ * | | padded | margined |
+ * |---|---|---|
+ * | `get_width()` / `get_height()` | 68x17 | 68x17 |
+ * | `compute_bounds(self)` | 78x23 | 68x17 |
+ * | `measure()` natural | 78x23 | 82x25 |
+ *
+ * So `get_width()` is the CONTENT box, `compute_bounds()` is the border box, and
+ * `measure()` speaks the MARGIN box. Comparing a request against `get_width()` compares
+ * two different rectangles, and the error is not a rounding one: measuring the height of
+ * the padded label at `get_width()` answers 40 where the correct question answers 23,
+ * because 68 as a margin-box width leaves 58 for the text and wraps it onto two lines.
+ *
+ * That mistake, made here first, flagged 116 of 293 widgets in a real window as clipped.
+ * Everything below therefore works in the margin box: `compute_bounds()` plus the four
+ * margins, which is `get_allocation()`'s rectangle without calling a function GTK 4.12
+ * deprecated.
+ *
+ * ## Why the height is measured at the allocated width
+ *
+ * Because that is the question. A wrapping label asked for its height at its natural
+ * width answers one line, and at the width it actually got answers two. The two agree
+ * except where a parent measured one and allocated the other, which is the defect.
+ *
+ * Two `gtk_widget_measure()` calls per mapped node. GTK caches a size request per
+ * (orientation, for_size), and the pair asked for here is the pair the layout just asked
+ * for itself, so this reads that cache rather than provoking a re-layout.
+ */
+function geometryOf(widget: Gtk.Widget): NodeGeometry | undefined {
+    if (!widget.get_mapped()) return undefined;
+    const [known, bounds] = widget.compute_bounds(widget);
+    if (!known) return undefined;
+    const width = bounds.get_width() + widget.get_margin_start() + widget.get_margin_end();
+    const height = bounds.get_height() + widget.get_margin_top() + widget.get_margin_bottom();
+    const [minWidth, natWidth] = widget.measure(Gtk.Orientation.HORIZONTAL, -1);
+    // `-1` when there is no allocation to speak of: `measure(VERTICAL, 0)` is a legal
+    // call that answers about a zero-width widget, which is a constraint rather than the
+    // absence of one.
+    const [minHeight, natHeight] = widget.measure(Gtk.Orientation.VERTICAL, width > 0 ? width : -1);
+    const geometry: NodeGeometry = {
+        width,
+        height,
+        widthRequest: [minWidth, natWidth],
+        heightRequest: [minHeight, natHeight],
+    };
+    if (width < minWidth || height < minHeight) geometry.short = true;
+    return geometry;
+}
+
+/**
  * Dump a widget subtree to {@link NodeInfo}, bounded by `maxDepth`.
  *
  * The bound LEAVES A TRACE, and that is the half worth stating: a node cut off
@@ -267,6 +328,13 @@ export const DEFAULT_DUMP_DEPTH = 40;
  * of the two zeros it got (#1553). A bound itself is right — an unbounded dump of
  * a deep tree over D-Bus is not free — and it is only expensive when it is
  * invisible in the answer.
+ *
+ * Every mapped node also carries {@link NodeGeometry}: what it was allocated and what
+ * it asked for, with `short: true` where the first is less than the second. That is
+ * unconditional rather than a flag, and the reason is that the caller who needs it does
+ * not yet know which widget to ask about — sweeping the dump for `short` finds the
+ * clipped widget, and a flag would have to be turned on by someone who already
+ * suspected one.
  */
 export function dumpTree(root: Gtk.Widget, maxDepth: number, basePath: string): NodeInfo {
     const node: NodeInfo = {
@@ -278,6 +346,8 @@ export function dumpTree(root: Gtk.Widget, maxDepth: number, basePath: string): 
         visible: root.get_visible(),
         children: [],
     };
+    const geometry = geometryOf(root);
+    if (geometry !== undefined) node.geometry = geometry;
     if (maxDepth <= 0) {
         // `get_first_child()` rather than a count: one call answers "is there more
         // below this", and the marker must mean HAS CHILDREN — a leaf reached
