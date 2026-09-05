@@ -1,0 +1,54 @@
+{
+    "name": "@gjsify/example-gtk-effect-adw-services",
+    "version": "0.48.0",
+    "description": "Effect 4 running the services behind an Adwaita window on GJS: a Gio-backed effect/FileSystem layer, GError mapped onto Effect's tagged platform errors, a Scope closed by GObject destroy, and a GTK signal read as a Stream",
+    "type": "module",
+    "private": true,
+    "main": "dist/app.gjs.mjs",
+    "files": [
+        "dist",
+        "src"
+    ],
+    "scripts": {
+        "clear": "gjsify clear dist tsconfig.tsbuildinfo",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjs",
+        "build:gjs": "gjsify build src/app.ts --app gjs --outfile dist/app.gjs.mjs",
+        "start:gjs": "gjs -m dist/app.gjs.mjs",
+        "probe": "gjsify run build:gjs && GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs"
+    },
+    "gjsify": {
+        "main": "dist/app.gjs.mjs",
+        "tier": 3,
+        "example": {
+            "runtimes": [
+                "gjs"
+            ]
+        }
+    },
+    "devDependencies": {
+        "@effect/platform-node-shared": "4.0.0-rc.112",
+        "@girs/adw-1": "4.6.0",
+        "@girs/gio-2.0": "4.6.0",
+        "@girs/gjs": "4.6.0",
+        "@girs/glib-2.0": "4.6.0",
+        "@girs/gobject-2.0": "4.6.0",
+        "@girs/gtk-4.0": "4.6.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/vite-plugin-blueprint": "workspace:^",
+        "@types/node": "^25.9.2",
+        "effect": "4.0.0-rc.112",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "showcases/gtk/effect-adw-services"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/gtk/effect-adw-services#readme"
+}

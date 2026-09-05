@@ -1,0 +1,74 @@
+using Gtk 4.0;
+using Adw 1;
+
+// The whole interface, so that every caption above is reachable by xgettext and
+// nothing below builds a widget in TypeScript. What the TypeScript half does is
+// hand data to the widgets this file names — which is the split the repo's
+// `prefer-blueprint-template` rule exists to keep.
+//
+// Adw.ApplicationWindow and not Adw.Bin: unlike AdwHeaderBar and AdwToolbarView,
+// the application window is derivable, so it can be a template's own type.
+template $EffectServicesWindow: Adw.ApplicationWindow {
+  title: _("Effect services");
+  default-width: 620;
+  default-height: 640;
+
+  content: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      title-widget: Adw.WindowTitle {
+        title: _("Effect services");
+        subtitle: _("effect/FileSystem over Gio.File");
+      };
+    }
+
+    content: Gtk.ScrolledWindow {
+      hscrollbar-policy: never;
+
+      Adw.Clamp {
+        maximum-size: 560;
+
+        Gtk.Box {
+          orientation: vertical;
+          spacing: 18;
+          margin-top: 24;
+          margin-bottom: 24;
+          margin-start: 12;
+          margin-end: 12;
+
+          Adw.PreferencesGroup {
+            title: _("Read a directory");
+            description: _("Every keystroke is a Stream element; the read runs as a fiber owned by this window.");
+
+            Adw.EntryRow pathRow {
+              title: _("Path");
+            }
+          }
+
+          Adw.PreferencesGroup resultGroup {
+            title: _("Entries");
+
+            Adw.ActionRow statusRow {
+              title: _("Waiting");
+              subtitle: _("Type a path above.");
+            }
+          }
+
+          Adw.PreferencesGroup {
+            title: _("Fiber activity");
+
+            Adw.ActionRow fibersRow {
+              title: _("Reads started");
+              subtitle: "0";
+            }
+
+            Adw.ActionRow interruptedRow {
+              title: _("Superseded and interrupted");
+              subtitle: "0";
+            }
+          }
+        }
+      }
+    };
+  };
+}
