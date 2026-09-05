@@ -324,11 +324,24 @@ export default async () => {
                 expect(sequenceKey(b, true)).not.toBe(keyA);
             });
 
-            await it('sequenceKey falls back to the emulating-pointer flag when the wrapper is not legible', async () => {
-                const opaque = { toString: () => '[object Object]' } as unknown as Gdk.EventSequence;
-                expect(sequenceKey(opaque, true)).toBe('primary');
-                expect(sequenceKey(opaque, false)).toBe('secondary');
-                expect(sequenceKey(null, true)).toBe('primary');
+            await it('sequenceKey keys a null sequence by the flag quietly, and an illegible wrapper by the flag with one warning', async () => {
+                const warnings: string[] = [];
+                const original = console.warn;
+                console.warn = (...args: unknown[]) => {
+                    warnings.push(args.map(String).join(' '));
+                };
+                try {
+                    expect(sequenceKey(null, true)).toBe('primary');
+                    expect(sequenceKey(null, false)).toBe('secondary');
+                    expect(warnings.length).toBe(0);
+                    const opaque = { toString: () => '[object Object]' } as unknown as Gdk.EventSequence;
+                    expect(sequenceKey(opaque, true)).toBe('primary');
+                    expect(sequenceKey(opaque, false)).toBe('secondary');
+                    expect(warnings.length).toBe(1);
+                    expect(warnings[0]).toMatch(/GdkEventSequence identity is not readable/);
+                } finally {
+                    console.warn = original;
+                }
             });
 
             await it('surfaceToWidget maps a surface position through the native transform and the widget tree', async () => {

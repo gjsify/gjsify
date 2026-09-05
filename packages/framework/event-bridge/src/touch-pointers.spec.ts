@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import type { Event as OurEvent } from '@gjsify/dom-events';
+import { type Event as OurEvent, PointerEvent as OurPointerEvent } from '@gjsify/dom-events';
 import { TouchPointerTranslator, type TouchFrame, type TouchPhase } from './touch-pointers.js';
 
 type Recorded = OurEvent & {
@@ -124,8 +124,25 @@ export default async () => {
             expect(by('pointermove').buttons).toBe(1);
             expect(by('pointerup').buttons).toBe(0);
             expect(by('pointerup').pressure).toBe(0);
+            // Nothing changed between pointerup and the boundary events.
+            expect(by('pointerout').button).toBe(-1);
+            expect(by('pointerleave').button).toBe(-1);
             expect(by('mousedown').detail).toBe(1);
             expect(by('click').detail).toBe(1);
+        });
+
+        await it('click is a PointerEvent carrying the contact, with button/buttons in the mouse model', async () => {
+            const { el, t } = setup();
+            t.handle(frame('begin', 'a', 1, 1));
+            t.handle(frame('end', 'a', 5, 5));
+            const click = el.events.find((e) => e.type === 'click')!;
+            expect(click).toBeInstanceOf(OurPointerEvent);
+            expect(click.pointerType).toBe('touch');
+            expect(click.pointerId).toBe(2);
+            expect(click.isPrimary).toBe(true);
+            expect(click.button).toBe(0);
+            expect(click.buttons).toBe(0);
+            expect(click.clientX).toBe(5);
         });
 
         await it('tracks movementX/movementY per contact', async () => {
@@ -240,6 +257,128 @@ export default async () => {
             expect(el.events.filter((e) => e.type === 'pointerup').length).toBe(0);
             expect(t.activeCount).toBe(1);
             expect(el.events[secondDown].pointerId).toBe(3);
+            // The stale contact is cancelled where it last was, not where the new one begins.
+            expect(el.events[cancelAt].pointerId).toBe(2);
+            expect(el.events[cancelAt].clientX).toBe(1);
+            expect(el.events[secondDown].clientX).toBe(50);
+        });
+
+        await it('a stale key that comes back while the element is away does not hand its stream to the returning element', async () => {
+            let el: ReturnType<typeof recorder> | null = recorder();
+            const t = new TouchPointerTranslator(
+                () => el,
+                () => undefined,
+            );
+            t.handle(frame('begin', 'a', 1, 1));
+            const first = el;
+            el = null;
+            t.handle(frame('begin', 'a', 2, 2));
+            expect(t.activeCount).toBe(0);
+            el = recorder();
+            t.handle(frame('update', 'a', 3, 3));
+            t.handle(frame('end', 'a', 3, 3));
+            expect(el.events.length).toBe(0);
+            // The first element saw the contact arrive and nothing after; there was nowhere to cancel it.
+            expect(first.types()[first.types().length - 1]).toBe('mousedown');
+        });
+
+        await it('interleaved contacts closing out of order leave nothing pressed, and the fan-out after them is inert', async () => {
+            const { el, win, t } = setup();
+            t.handle(frame('begin', 'a', 1, 1));
+            t.handle(frame('begin', 'b', 2, 2, false));
+            t.handle(frame('cancel', 'a', 1, 1));
+            expect(t.activeCount).toBe(1);
+            t.handle(frame('end', 'b', 2, 2, false));
+            expect(t.activeCount).toBe(0);
+            const n = el.events.length;
+            t.handle(frame('end', 'a', 1, 1));
+            t.handle(frame('cancel', 'b', 2, 2, false));
+            t.handle(frame('update', 'a', 9, 9));
+            expect(el.events.length).toBe(n);
+            expect(el.events.filter((e) => e.type === 'pointercancel').map((e) => e.pointerId)).toStrictEqual([2]);
+            expect(el.events.filter((e) => e.type === 'pointerup').map((e) => e.pointerId)).toStrictEqual([3]);
+            expect(el.events.filter((e) => e.type === 'mousedown').length).toBe(1);
+            expect(win.types()).toStrictEqual(['mouseup']);
+        });
+
+        await it('holds its invariants over every frame order a digitizer or a lost frame can produce', async () => {
+            // A seeded xorshift stream of random frames over three keys, the first of which emulates
+            // the pointer; the model beside it is the set of keys with an unclosed begin. Violations
+            // are collected rather than asserted one by one so a failure names its seed and frame.
+            const phases: TouchPhase[] = ['begin', 'update', 'end', 'cancel'];
+            const violations: string[] = [];
+            let framesRun = 0;
+            for (let seed = 1; seed <= 1500; seed++) {
+                let x = (seed * 2654435761) >>> 0;
+                const rnd = () => {
+                    x ^= x << 13;
+                    x >>>= 0;
+                    x ^= x >>> 17;
+                    x ^= x << 5;
+                    x >>>= 0;
+                    return x;
+                };
+                const { el, win, t } = setup();
+                const open = new Set<string>();
+                const steps = 4 + (rnd() % 28);
+                for (let i = 0; i < steps; i++) {
+                    const key = 'abc'[rnd() % 3];
+                    const phase = phases[rnd() % 4];
+                    const before = el.events.length;
+                    t.handle(frame(phase, key, (rnd() % 1200) / 3, (rnd() % 2400) / 3, key === 'a'));
+                    framesRun++;
+                    const wasOpen = open.has(key);
+                    if (phase === 'begin') open.add(key);
+                    else if (!wasOpen && el.events.length !== before)
+                        violations.push(`${seed}:${i} ${phase} on inactive ${key} emitted`);
+                    else if (phase === 'end' || phase === 'cancel') open.delete(key);
+                    if (t.activeCount !== open.size)
+                        violations.push(`${seed}:${i} activeCount ${t.activeCount} != ${open.size}`);
+                }
+                const openIds = new Set<number>();
+                for (const e of el.events) if (e.type === 'pointerdown') openIds.add(e.pointerId!);
+                const byId = new Map<number, string[]>();
+                for (const e of el.events) {
+                    if (e.pointerId === undefined || e.type === 'click') continue;
+                    let list = byId.get(e.pointerId);
+                    if (!list) byId.set(e.pointerId, (list = []));
+                    list.push(e.type);
+                }
+                for (const [id, types] of byId) {
+                    if (types.slice(0, 3).join() !== 'pointerover,pointerenter,pointerdown')
+                        violations.push(`${seed} id ${id} opens ${types.slice(0, 3)}`);
+                    if (types.filter((v) => v === 'pointerdown').length !== 1)
+                        violations.push(
+                            `${seed} id ${id} pointerdown x${types.filter((v) => v === 'pointerdown').length}`,
+                        );
+                    const closeAt = types.findIndex((v) => v === 'pointerup' || v === 'pointercancel');
+                    if (closeAt !== -1 && types.slice(closeAt + 1).join() !== 'pointerout,pointerleave')
+                        violations.push(`${seed} id ${id} after close: ${types.slice(closeAt + 1)}`);
+                    if (types.filter((v) => v === 'pointerup' || v === 'pointercancel').length > 1)
+                        violations.push(`${seed} id ${id} closed twice`);
+                }
+                // Every contact that is still open must be exactly the ones without a close.
+                const unclosed = [...byId].filter(
+                    ([, types]) => !types.some((v) => v === 'pointerup' || v === 'pointercancel'),
+                ).length;
+                if (unclosed !== open.size)
+                    violations.push(`${seed} ${unclosed} unclosed streams for ${open.size} open keys`);
+                // Compatibility mouse buttons balance, with the primary's mouseup at the window on cancel.
+                const downs = el.events.filter((e) => e.type === 'mousedown').length;
+                const ups =
+                    el.events.filter((e) => e.type === 'mouseup').length +
+                    win.events.filter((e) => e.type === 'mouseup').length;
+                if (downs - ups !== (open.has('a') ? 1 : 0))
+                    violations.push(
+                        `${seed} mousedown ${downs} vs mouseup ${ups} with primary ${open.has('a') ? 'open' : 'closed'}`,
+                    );
+                if (el.events.some((e) => e.type === 'click' && e.pointerId !== undefined && !e.isPrimary))
+                    violations.push(`${seed} click from a non-primary contact`);
+                t.cancelAll(NO_MODS);
+                if (t.activeCount !== 0) violations.push(`${seed} cancelAll left ${t.activeCount}`);
+            }
+            expect(framesRun).toBeGreaterThan(20000);
+            expect(violations).toStrictEqual([]);
         });
     });
 
@@ -269,6 +408,11 @@ export default async () => {
             expect(cancel.button).toBe(-1);
             expect(cancel.buttons).toBe(0);
             expect(cancel.cancelable).toBe(false);
+            // PE § pointercancel: the coordinates are the last dispatched pointer event's, not the frame's.
+            expect(cancel.clientX).toBe(194.333333 - 10 * 0.233333);
+            expect(cancel.clientY).toBe(774 - 10 * 2.966667);
+            expect(el.events.find((e) => e.type === 'pointerout')!.clientX).toBe(cancel.clientX);
+            expect(win.events[0].clientX).toBe(cancel.clientX);
         });
 
         await it('the gesture fan-out that follows a cancel emits nothing more', async () => {

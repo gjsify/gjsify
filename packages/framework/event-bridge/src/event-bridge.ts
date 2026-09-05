@@ -76,20 +76,23 @@ let sequenceKeyFallbackReported = false;
 /**
  * A key equal for every event of one contact and distinct across concurrent contacts.
  *
- * `GdkEventSequence` is an opaque boxed pointer (the Wayland backend passes touch slot + 1) with
- * no accessor at all, and GJS creates a fresh wrapper for every call, so two wrappers of the
+ * `GdkEventSequence` is an opaque boxed pointer (the Wayland backend passes the wl_touch id + 1;
+ * measured `0x2a1`/`0x2a2` for two fingers on mutter 48) with no accessor at all, and GJS
+ * creates a fresh wrapper for every call, so two wrappers of the
  * same contact are never `===`. The pointer is still legible: GJS prints every wrapper as
  * `[boxed instance wrapper GIName:Gdk.EventSequence jsobj@0x… native@0x…]`, and the `native@`
- * address is the sequence itself. A runtime that prints something else (node-gi) falls back to
- * the emulating-pointer flag, which still separates two concurrent contacts — measured 330/249
- * true/false over real two-finger episodes — and says so once instead of silently merging fingers.
+ * address is the sequence itself; GTK registers the type with an identity copy, so every wrapper
+ * of one contact prints the same address. A runtime that prints something else (node-gi) falls
+ * back to the emulating-pointer flag, which still separates two concurrent contacts — measured
+ * 330/249 true/false over real two-finger episodes — and says so once instead of silently merging
+ * fingers. A null sequence is GTK's own "the pointer" sequence, not a legibility problem, so it
+ * takes the flag key quietly.
  */
 export function sequenceKey(sequence: Gdk.EventSequence | null, isPrimary: boolean): string {
-    if (sequence !== null) {
-        const text = String(sequence);
-        const at = text.lastIndexOf(NATIVE_ADDRESS_MARKER);
-        if (at !== -1 && text.endsWith(']')) return text.slice(at + NATIVE_ADDRESS_MARKER.length, -1);
-    }
+    if (sequence === null) return isPrimary ? 'primary' : 'secondary';
+    const text = String(sequence);
+    const at = text.lastIndexOf(NATIVE_ADDRESS_MARKER);
+    if (at !== -1 && text.endsWith(']')) return text.slice(at + NATIVE_ADDRESS_MARKER.length, -1);
     if (!sequenceKeyFallbackReported) {
         sequenceKeyFallbackReported = true;
         console.warn(
@@ -131,6 +134,8 @@ interface _GlobalEventTargetHolder {
 function getGlobalEventTarget(): { dispatchEvent(event: Event): boolean } | undefined {
     return (globalThis as unknown as _GlobalEventTargetHolder).__gjsify_globalEventTarget;
 }
+
+const NO_MODIFIERS: ModifierKeys = { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false };
 
 function modifiersFromState(mods: number): ModifierKeys {
     return {
@@ -598,4 +603,15 @@ export function attachEventControllers(
     });
 
     widget.add_controller(legacyCtrl);
+
+    // GTK resets every controller when the widget unmaps or turns insensitive (gtkwidget.c
+    // gtk_widget_real_unmap / gtk_widget_set_sensitive → gtk_widget_reset_controllers), which is
+    // how a GtkGesture cancels its sequences. The raw stream has no reset, and once the pointer
+    // focus moved on, the contacts' TOUCH_END lands under the finger and never here — so the
+    // translator ends them the way the gestures do.
+    widget.connect('unmap', () => touch.cancelAll(NO_MODIFIERS));
+    widget.connect('state-flags-changed', (_w: Gtk.Widget, previous: Gtk.StateFlags) => {
+        const insensitive = Gtk.StateFlags.INSENSITIVE;
+        if (widget.get_state_flags() & insensitive && !(previous & insensitive)) touch.cancelAll(NO_MODIFIERS);
+    });
 }

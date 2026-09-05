@@ -92,7 +92,10 @@ export class TouchPointerTranslator {
         }
     }
 
-    /** Every contact ends in `pointercancel` — for a grab that moved to another surface. */
+    /**
+     * Every contact ends in `pointercancel` — for a grab that moved to another surface, or a widget
+     * that unmapped or turned insensitive under the finger.
+     */
     cancelAll(modifiers: ModifierKeys): void {
         for (const [key, touch] of this.active) {
             this.cancel({
@@ -107,9 +110,11 @@ export class TouchPointerTranslator {
     }
 
     private begin(frame: TouchFrame): void {
+        // The stale contact goes first, before the element check: an element that is away while a
+        // key comes back must not inherit the old pointerId's stream once it returns.
+        if (this.active.has(frame.key)) this.cancel(frame);
         const el = this.getElement();
         if (!el) return;
-        if (this.active.has(frame.key)) this.cancel(frame);
 
         const touch: ActiveTouch = {
             id: this.nextId++,
@@ -177,9 +182,11 @@ export class TouchPointerTranslator {
 
         el.dispatchEvent(new OurPointerEvent('pointerup', pointer));
         if (compat) el.dispatchEvent(new OurMouseEvent('mouseup', { ...mouse, detail: 1 }));
-        this.leave(el, touch, pointer, mouse);
-        // Activation is not a compatibility mouse event: it survives a cancelled pointerdown.
-        if (touch.isPrimary) el.dispatchEvent(new OurMouseEvent('click', { ...mouse, detail: 1 }));
+        // Nothing about the contact changed between pointerup and the boundary events (PE § button).
+        this.leave(el, touch, { ...pointer, button: -1 }, mouse);
+        // Activation is not a compatibility mouse event: it survives a cancelled pointerdown. PE L3
+        // makes click a PointerEvent whose button/buttons follow the mouse model.
+        if (touch.isPrimary) el.dispatchEvent(new OurPointerEvent('click', { ...pointer, detail: 1 }));
     }
 
     private cancel(frame: TouchFrame): void {
@@ -189,8 +196,14 @@ export class TouchPointerTranslator {
         const el = this.getElement();
         if (!el) return;
 
-        const pointer = this.pointerInit(frame, touch, -1, 0, 0);
-        const mouse = this.mouseInit(frame, 0, 0);
+        // PE § pointercancel: coordinates and isPrimary MUST match the last dispatched pointer event
+        // with this pointerId, so the position is the contact's, not the frame's (a compositor cancel
+        // or a stale-key begin carries its own). The same clause asks for the last pressure too, which
+        // would read 0.5 on an event that ends the contact; both browser engines report 0 there, and
+        // the pressure/buttons rule agrees with them, so 0 is deliberate.
+        const at: TouchFrame = { ...frame, x: touch.lastX, y: touch.lastY };
+        const pointer = this.pointerInit(at, touch, -1, 0, 0);
+        const mouse = this.mouseInit(at, 0, 0);
 
         el.dispatchEvent(new OurPointerEvent('pointercancel', { ...pointer, cancelable: false }));
         if (touch.isPrimary && !touch.preventMouse) {

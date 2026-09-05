@@ -60,9 +60,14 @@ synthetic touch through `org.gnome.Mutter.RemoteDesktop` and then a real finger 
 The touch path (`touch-pointers.ts`, no GTK imports, unit-tested with the frame shapes the adapter extracts):
 
 - **Identity.** `pointerId` is distinct per `GdkEventSequence`. The sequence is an opaque boxed pointer (the Wayland
-  backend passes touch slot + 1) with no accessor, and GJS returns a fresh wrapper per call, so `sequenceKey()` reads
-  the `native@` address off the wrapper's `toString()`. A runtime that prints something else falls back to the
-  emulating-pointer flag — still correct for two contacts — and says so once.
+  backend passes the wl_touch id + 1) with no accessor, and GJS returns a fresh wrapper per call, so `sequenceKey()`
+  reads the `native@` address off the wrapper's `toString()` — GTK registers the type with an identity copy, so every
+  wrapper of one contact prints the same address (118 of 118 rows on device). A runtime that prints something else
+  falls back to the emulating-pointer flag — still correct for two contacts — and says so once.
+- **The mouse pointer leaves when a finger lands.** On the first touch after mouse activity GTK emits
+  `EventControllerMotion::leave` for the mouse, so `pointerleave` (pointerId 1) plus its `mouseleave`/`mouseout` land
+  between the contact's `mousedown` and `mouseup`; the contact's own `mouseout`/`mouseleave` still follow `pointerup`.
+  Measured on device, once per mouse→touch transition; a hover consumer sees the leave twice, never a missing one.
 - **`isPrimary`** is `GdkTouchEvent.get_emulating_pointer()`, evaluated only after the source is known to be a
   touchscreen (mouse events read `false` too).
 - **Coordinates** come from `Gdk.Event.get_position()` (surface-relative) through `surfaceToWidget()`, the same
@@ -70,14 +75,17 @@ The touch path (`touch-pointers.ts`, no GTK imports, unit-tested with the frame 
   scale 3 reports thirds of a pixel).
 - **Cancel.** `TOUCH_CANCEL` → `pointercancel` — a GNOME Mobile edge swipe reaches the client as begin + updates and
   is then cancelled by the shell, fanning `cancel` out to every gesture; the translator ignores the fan-out because
-  the contact is already gone. A `GRAB_BROKEN` to a foreign surface cancels every contact (what `GtkGesture` does;
-  unmeasured). A `begin` for a contact still active cancels the stale one first, so a lost `TOUCH_END` heals.
+  the contact is already gone. `pointercancel` carries the last dispatched position, not the frame's. Every contact
+  is cancelled on a `GRAB_BROKEN` to a foreign surface and when the widget unmaps or turns insensitive — the three
+  places `GtkGesture` cancels its own sequences (unmeasured; the translator's `cancelAll` is unit-tested). A `begin`
+  for a contact still active cancels the stale one first, so a lost `TOUCH_END` heals.
 - **Compatibility mouse events** follow Pointer Events Level 3 § "Mapping for devices that do not support hover"
   verbatim: `mousemove, pointerover, pointerenter, mouseover, mouseenter, pointerdown, mousedown, [pointermove,
   mousemove]*, pointerup, mouseup, pointerout, pointerleave, mouseout, mouseleave, click`; primary contact only;
   a cancelled primary `pointerdown` suppresses mousedown/mousemove/mouseup but not the transitions or `click`;
-  `pointercancel` sends its `mouseup` at the window. `detail` is 1 — GTK's `n_press` was measured untrustworthy on
-  touch — so there is no touch `dblclick`.
+  `pointercancel` sends its `mouseup` at the window. `click` is a `PointerEvent` (PE L3) with `button`/`buttons` in
+  the mouse model. `detail` is 1 — GTK's `n_press` was measured untrustworthy on touch — so there is no touch
+  `dblclick`.
 - **No gesture semantics** (pan, pinch, long-press, tap-vs-stroke) live in the bridge: a consumer rebuilds them from
   the per-contact stream. No `TouchEvent`/`TouchList`: pointer events carry every field needed, `@gjsify/dom-events`
   has no `TouchEvent`, and Excalibur uses pointer events exclusively when `PointerEvent` exists.
