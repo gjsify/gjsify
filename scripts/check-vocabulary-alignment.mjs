@@ -430,13 +430,19 @@ const RN_WIDGET_ALIGNMENT = {};
  * inversion and was done rather than deferred because a `disabled` sitting beside GTK's
  * `sensitive` is the false friend the whole exercise exists to remove.
  *
- * Almost everything that did NOT converge is a SHAPE difference wearing a name: the GIR
- * key holds a list model (`model`, `menuModel`), an adjustment object (`adjustment`), a
- * widget (`titleWidget`), a page object (`selectedPage`), a class list (`cssClasses`) or a
- * name where the port holds an index (`visibleChildName`). Taking those names would put a
- * GTK word on a value that is not the GTK thing — the flattening this ADR undoes, one
- * level down. Some of those are additionally structural: `AdwSpinRow`'s three scalars and
- * `AdwHeaderBar`'s two strings each collapse into ONE key, and one name cannot be two.
+ * Everything that did NOT converge is a SHAPE difference wearing a name: the GIR key holds a
+ * value the port has no type for — a widget, a page object, a class list, or a name where the
+ * port holds an index. Taking those names would put a GTK word on a value that is not the GTK
+ * thing — the flattening this ADR undoes, one level down. Some are additionally structural:
+ * `AdwHeaderBar`'s two strings collapse into ONE key, and one name cannot be two.
+ *
+ * WHICH KEYS THOSE ARE IS NOT WRITTEN HERE, only which KINDS — the entries are below, and a
+ * list of them up here is a second copy that drifts. It did: this paragraph went on naming
+ * `menuModel`, `model` and `adjustment` after #1528, #1566 and #1570 had each retired the
+ * entries behind one of them. It drifted because a shape difference is not permanent — ADRs
+ * 0042, 0046 and 0047 gave the port a portable form for those three kinds, and every entry
+ * naming one converged. That is the live question for what is left: not whether a shape
+ * difference is hard, but whether the port can be given the shape.
  *
  * `adw-bottom-sheet.openState` was the one entry the rule did NOT explain — both sides held
  * a boolean, so the rule said converge, and what stopped it was a collision inside JS with
