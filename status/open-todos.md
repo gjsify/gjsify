@@ -5005,7 +5005,10 @@ external"* — positive:
     tests/e2e/node-gi-build/run.mjs:98,103
     tests/e2e/storybook-on-node/run.mjs:144, and :155 (the POSITIVE one)
     tests/e2e/vite-plugin-gjsify/run.mjs:142,147
-    tests/e2e/gi-renderer-arms/run.mjs:142,143
+    tests/e2e/gi-renderer-arms/run.mjs:146,147
+
+A fifteenth site, `gi://` asserted PRESENT at `gi-renderer-arms/run.mjs:256`, is not one of them:
+it is the counter-example these fourteen need and is described at the end of this entry.
 
 The claim each of them makes is *"no `gi://` import survived this build"*. What each of them
 measures is *"those four characters do not appear anywhere in the output text"*. Today the two
@@ -5034,10 +5037,23 @@ guard cannot make that distinction at all, and the distinction is the only thing
 to assert.
 
 The local fix was to stop quoting the URL: the refusal names namespace and version separately,
-and both bundles carry zero. That is
-recorded in `plugins/gi-renderer.ts`'s header as a constraint on what the arm may SAY, which is
-the wrong place for it to live permanently — it makes a diagnostic's wording load-bearing for a
-guard two directories away.
+and both bundles carry zero. That is recorded in `plugins/gi-renderer.ts`'s header as a
+constraint on what the arm may SAY, which is the wrong place for it to live permanently: a
+diagnostic's wording should not be load-bearing for a test assertion.
+
+**One thing that entry got wrong, and it narrows the claim.** It read as though `app-browser`
+and `ns-bridge-bundles` were the guards forcing the wording. They are not, and could not be:
+neither passes `--gi-renderer`, so the arm never composes in their builds and its diagnostic
+cannot appear in their bundles. Measured — `grep -rl 'giRenderer\|gi-renderer' tests/` returns
+`gi-renderer-arms/run.mjs` and `gi-renderer-arms/probe-runner.mjs`, and nothing else. The
+wording constraint is therefore SELF-imposed by `gi-renderer-arms:146`, which is also the good
+news: two of the fourteen sites are in the suite that owns the rule, and fixing those two alone
+retires it, with no other suite's population to re-run.
+
+`fixtures/textual-mention.ts` in that suite is now the executable form of this entry's argument
+— a bundle that carries the four characters with no import among them, proved not by a second
+reading of the bytes but by the build having exited 0 where an import-shaped occurrence would
+have been refused by name.
 
 **What an import-shaped check would have to read instead.** Not the text. Either (a) the emitted
 IMPORT STATEMENTS — parse the bundle and take the `source.value` of every `ImportDeclaration`,
@@ -5046,8 +5062,8 @@ every `Export*Declaration` with a `source`, and every `ImportExpression` with a 
 the React Native gate) — or (b) the module graph, if the CLI grows a way to report the
 specifiers a build left external. Fourteen sites also means this wants ONE helper in
 `tests/e2e/helpers.mjs`, not fourteen copies; the copies are themselves the "duplication instead
-of a helper" anti-pattern, and they are why a single diagnostic string turned two suites red on
-a PR that touched neither.
+of a helper" anti-pattern, and fourteen of them are why the fix has to be one edit rather than
+fourteen judgements about what each suite meant.
 
 **Should it change? Yes** — but the positive site is the stronger reason, not the negative ones.
 A negative substring check fails LOUDLY and on the wrong PR, which is annoying and attributable.
@@ -5056,10 +5072,9 @@ ANYWHERE, so the day a `gi://` string lands in that bundle for any other reason,
 goes green having stopped measuring whether the gjs target still externalises the specifier —
 the green-that-checked-nothing class this repository pays most for.
 
-**Not changed in #1580, deliberately.** The guards are load-bearing for five suites that PR
-otherwise does not touch, and it could not run them honestly: that worktree's `node_modules`
-carries `@girs/* 4.1.0` against the declared `4.6.0`, so `@gjsify/gtk-host` does not type-check
-and the topological build stops there. Rewriting a guard one cannot re-run across its whole
-population is how a guard gets quietly weakened. The arm ships with the narrower rule instead
-(its diagnostics may not quote a `gi://` URL), and this entry is the retirement condition for
-that rule.
+**Not changed in #1580, deliberately.** Twelve of the fourteen sites are load-bearing for five
+suites that PR otherwise does not touch, and rewriting a guard across a population one has not
+re-run is how a guard gets quietly weakened. The arm ships with the narrower rule instead (its
+EMITTED refusal may not quote a `gi://` URL), and this entry is the retirement condition for
+that rule. Retiring it needs only the two sites in `gi-renderer-arms` — the twelve elsewhere
+constrain nothing about the arm.

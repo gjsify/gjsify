@@ -2235,10 +2235,14 @@ which is what makes that row usable as the suite's CONTROL rather than only as h
 | `gi://` / `@girs/` substrings left in the bundle | 0 / 0 | 0 / 0 |
 | `@nativescript/core` import clause | — | 1, still external |
 
-Suite: **17 tests, 17 passing**. Mutation-tested by making the arm's `resolveId` return
-`null`: **12 of the 17 go red**, and the 5 that stay green are exactly the rows that do not
+Suite: **19 tests, 19 passing**. Mutation-tested by making the arm's `resolveId` return
+`null`: **14 of the 19 go red**, and the 5 that stay green are exactly the rows that do not
 depend on the arm resolving anything — the two flag-less controls, the two "flag refused on a
-target with no arm" rows, and the version-provenance row.
+target with no arm" rows, and the version-provenance row. A second mutation gives the two
+`textual-mention` rows their own red: a `transform` hook that throws whenever the four
+characters appear in a module's SOURCE — a text-shaped arm — fails both of them, naming the
+defect (*"a gi:// string literal was read as an import"*), while every row that only exercises
+real imports stays green.
 
 ### The four decisions, and what each was decided on
 
@@ -2337,13 +2341,30 @@ and ignored is the failure this repository keeps paying for.
 
 ### One constraint the implementation discovered
 
-**The arm's diagnostics may not quote a `gi://` URL.** `tests/e2e/app-browser` and
-`tests/e2e/ns-bridge-bundles` both assert `!bundle.includes('gi://')` — a SUBSTRING, because
-on those targets an unresolved GI import is always a missing alias. The first version of the
-runtime refusal quoted the specifier, and measured, that put one `gi://` occurrence into every
-green bundle: a diagnostic string the guard cannot tell apart from the defect it watches for.
-The refusal names namespace and version separately instead, and both green probe bundles carry
-zero. The build-time refusals still quote the specifier — they are thrown, never emitted.
+**The arm's EMITTED refusal may not quote a `gi://` URL.** `tests/e2e/gi-renderer-arms` asserts
+`!bundle.includes('gi://')` on the bundles it builds — a SUBSTRING, the rule `tests/AGENTS.md`
+states for these targets, where an unresolved GI import is a missing alias. The first version of
+the runtime refusal quoted the specifier, and measured, that put one `gi://` occurrence into
+every green probe bundle: a diagnostic string the guard cannot tell apart from the defect it
+watches for. The refusal names namespace and version separately instead, and both green probe
+bundles carry zero. The build-time refusals still quote the specifier — they are thrown, never
+emitted.
+
+**The constraint is self-imposed, and this suite is its only source.** `app-browser` and
+`ns-bridge-bundles` hold the same substring rule over their own bundles, but neither passes
+`--gi-renderer`: the arm never composes there, so its diagnostic cannot reach them, and no
+wording of it could have turned them red. Measured — nothing under `tests/` names the flag but
+`gi-renderer-arms` itself. So the rule retires the moment that suite's own two assertions become
+import-shaped; the argument for changing all fourteen sites, and the one POSITIVE site that is
+the stronger reason, are in `status/open-todos.md`.
+
+**What the arm itself does distinguish is measured.** `fixtures/textual-mention.ts` carries the
+two specifiers the build-time refusals reject — `gi://Gio?version=2.0` and `gi://Adw?version=9`
+— as string literals beside one real `gi://Adw?version=1` import. It builds clean on both
+targets, the real import still lands on the arm, and both literals survive into the bundle: the
+arm reads specifiers, never text. That bundle is also the case where the suite's own leak guard
+would call a clean build a leak, which is what makes the entry above a measurement rather than
+an argument.
 
 ### What is deliberately left open
 

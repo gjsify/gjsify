@@ -93,12 +93,18 @@ export interface GiRendererOptions {
  * spelling, which is the thing ADR 0034 exists to remove.
  *
  * ITS REFUSAL NAMES THE NAMESPACE AND VERSION SEPARATELY RATHER THAN QUOTING THE
- * SPECIFIER, and that is not a style choice. `tests/e2e/ns-bridge-bundles` and
- * `tests/e2e/app-browser` both assert `!bundle.includes('gi://')` — a SUBSTRING, because
- * on those two targets an unresolved GI import is always a missing alias. A diagnostic
- * carrying the literal `gi://Adw?version=1` would leave that guard unable to tell a
- * message from the defect it watches for. Measured: with the specifier quoted, both green
- * probe bundles carried one `gi://` occurrence and neither of them was an import.
+ * SPECIFIER. `tests/e2e/gi-renderer-arms` asserts `!bundle.includes('gi://')` on the
+ * bundles it builds — a SUBSTRING, because on these two targets an unresolved GI import
+ * is a missing alias (`tests/AGENTS.md`) — and this string is reachable, so rolldown keeps
+ * it. Measured: with the specifier quoted, both green probe bundles carried one `gi://`
+ * occurrence and neither of them was an import.
+ *
+ * THE CONSTRAINT IS SELF-IMPOSED, and only that one suite imposes it. `app-browser` and
+ * `ns-bridge-bundles` hold the same substring rule over their own bundles, but neither
+ * passes `--gi-renderer`, so the arm never composes there and this text cannot reach them
+ * — measured, nothing under `tests/` names the flag but `gi-renderer-arms` itself. Making
+ * that suite's two assertions import-shaped would retire this rule outright; the argument,
+ * the other twelve sites and the retirement condition are in `status/open-todos.md`.
  */
 export function giRendererShimSource(options: GiRendererOptions, namespace: string, version: string): string {
     return (
