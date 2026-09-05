@@ -175,4 +175,33 @@ export const ADJUSTMENT_SNAP_VECTORS: ReadonlyArray<AdjustmentSnapVector> = [
         from: 6,
         snapped: 6,
     },
+    {
+        // The row that says the RESULT is a tick rather than merely inside the range.
+        // Clamping the value instead of the tick index answered 10 here — two off the grid
+        // `0, 4, 8`, from a function whose whole contract is "the nearest step".
+        rule: 'an upper bound off the grid is not reachable, even when the drag ends ON it',
+        input: { lower: 0, upper: 10, stepIncrement: 4 },
+        from: 10,
+        snapped: 8,
+    },
+    {
+        // …and the row that says the opposite half holds too. A DECIMAL step makes an exact
+        // tick read as a hair under one in binary floating point — `(0.3 - 0) / 0.1` is
+        // 2.9999999999999996 — so a plain floor of the tick index drops a whole step and
+        // answers 0.2 for a bound that IS on the grid. Decimals are what an author writes,
+        // which makes this the common case rather than the exotic one.
+        rule: 'an upper bound ON the grid is reachable, decimal step and all',
+        input: { lower: 0, upper: 0.3, stepIncrement: 0.1 },
+        from: 0.3,
+        snapped: 0.3,
+    },
+    {
+        // The error at the OTHER end: `0 + 2 * 0.1` is 0.2 exactly, but `0 + 3 * 0.1` is
+        // 0.30000000000000004 — outside the range it belongs to — so the result is clamped
+        // after the tick arithmetic as well as before it.
+        rule: 'and a tick below it is exact rather than one step off the accumulated sum',
+        input: { lower: 0, upper: 0.3, stepIncrement: 0.1 },
+        from: 0.21,
+        snapped: 0.2,
+    },
 ];
