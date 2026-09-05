@@ -4912,3 +4912,35 @@ reached from a spec: a nested `g_application_run` inside the runner's own main l
 returns (measured: `g_application_run: assertion '!application->priv->must_quit_now' failed`,
 the case timed out at 5 s). So these need the LOOP, which is what the e2e host now provides —
 the work is writing the vectors, not finding somewhere to run them.
+
+### `AdwTabView` offers the page as a property and its id as a method, and libadwaita does neither
+
+[ADR 0048](../docs/adr/0048-page-selection-by-identity.md) made `selectedPage` the door on
+both renderers, holding the page — `Adw.TabView:selected-page`'s own shape. What it did not
+touch is the method beside it: `setSelectedPage(id: string | null)` takes an ID, where
+`adw_tab_view_set_selected_page()` takes the PAGE (`refs/libadwaita/src/adw-tab-view.h:150#adw_tab_view_set_selected_page`).
+
+So one widget now answers the same question in two shapes, one line apart. Deliberately left
+for now, with the reason: a method is not what a portable authored tree writes and the
+vocabulary ledger does not read one, so this costs a second breaking change with no
+measurement behind it. The measurement that would settle it is who CALLS it — the port's own
+internals pass an id they have (`_state.selectedId`), and a consumer holding a page would
+prefer the property that now exists.
+
+The same question is open one call further: `isClosing(id)`, `closePage(id)`,
+`setPagePinned(id, …)` are the same shape, and libadwaita takes an `AdwTabPage *` in every
+one. Settle them together or not at all — an id-taking `closePage` beside a page-taking
+`setSelectedPage` would be worse than either consistent answer.
+
+### A tab page with no `page-id` cannot be named from markup, and the reflection then leaks a generated id
+
+`<adw-tab-view selected-page="…">` (ADR 0048 § 3) names the page by the id
+`<adw-tab-page page-id>` declares. A page that declares none gets `_nextId()`'s value, which
+an author cannot predict — so for those pages the markup door is write-never, and the
+reflection writes that generated id back into the DOM where it reads like an API.
+
+`<adw-view-stack visible-child-name>` has the same shape for a page with no name and it has
+never been a problem in practice, which is the only reason this is an entry rather than a
+blocker. The candidate fixes both have costs worth measuring before picking: making
+`page-id` required is a breaking change to every declared page, and deriving the id from the
+title makes it move when the title does.

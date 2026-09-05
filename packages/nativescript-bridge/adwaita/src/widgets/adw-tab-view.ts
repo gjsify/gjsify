@@ -46,7 +46,7 @@ import {
     type TabViewNotifyPayload,
 } from './tab-view-state.js';
 import type { AdwViewPage } from './view-switcher-base.js';
-import { xmlBoolean, xmlNumber } from './xml-values.js';
+import { xmlBoolean } from './xml-values.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
@@ -169,14 +169,20 @@ export class AdwTabView extends GridLayout {
         return this._state.selectedIndex;
     }
 
-    /** The selected page index. Setting it IGNORES a non-integer or out-of-range value. */
-    get selected(): number {
-        return this._state.selectedIndex;
+    /**
+     * The selected page (`Adw.TabView:selected-page`), `null` when the view is empty.
+     *
+     * THE PAGE, NOT ITS POSITION (ADR 0048). `Adw.TabView` is the one widget in this port
+     * whose counterpart selects by OBJECT rather than by name or by ordinal, and the model
+     * has held that object all along — this property is the door onto it. Setting a page
+     * this view does not hold is ignored, as `setSelectedPage` already was.
+     */
+    get selectedPage(): AdwTabPage | null {
+        return this._state.selectedPage;
     }
 
-    set selected(raw: number | string) {
-        const value = xmlNumber(raw, this.selected);
-        this._state.selectNthPage(value);
+    set selectedPage(page: AdwTabPage | null) {
+        this._state.setSelectedPage(page?.id ?? null);
     }
 
     isClosing(id: string): boolean {

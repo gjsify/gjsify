@@ -68,6 +68,7 @@ the TODO records the *what's left*.
 | [0045](0045-portal-placement-in-the-gtk-host.md) | A node whose host node is not its parent node: a placement axis beside the child policy, so an `Adw.Dialog` is presented rather than appended | Accepted |
 | [0046](0046-portable-list-model.md) | A list is a value — but only for the widgets GTK gives a `model` | Proposed |
 | [0047](0047-portable-adjustment.md) | A numeric range is a value, and the value is `Gtk.Adjustment` | Proposed |
+| [0048](0048-page-selection-by-identity.md) | A selection takes the shape its counterpart gives it: a name, a page, or an ordinal | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

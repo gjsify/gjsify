@@ -238,19 +238,19 @@ export const AdwTabViewConformanceTest = async () => {
             //...and the attribute is put back in sync rather than left lying.
             view.setAttribute('selected', '1');
             expect(view.selectedIndex).toBe(1);
-            expect(view.getAttribute('selected')).toBe('1');
+            expect(view.getAttribute('selected-page')).toBe(view.pages[1]!.id);
             host.remove();
         });
 
         await it('notifies on a PROGRAMMATIC selection, not only on a click', () => {
-            // C notifies on EVERY path: a programmatic `view.selected = 2` must notify as
-            // a tab click does.
+            // C notifies on EVERY path: a programmatic `view.selectedPage = …` must notify
+            // as a tab click does.
             const { view, host } = mountThree();
             const seen: number[] = [];
             view.addEventListener('notify::selected-page', (event) =>
                 seen.push((event as CustomEvent).detail.selected),
             );
-            view.selected = 2;
+            view.selectedPage = view.pages[2]!;
             expect(seen).toStrictEqual([2]);
             host.remove();
         });
@@ -259,7 +259,7 @@ export const AdwTabViewConformanceTest = async () => {
             const { view, host } = mountThree();
             const chips = tabChips(view);
             chips[1]!.click();
-            expect(view.getAttribute('selected')).toBe('1');
+            expect(view.getAttribute('selected-page')).toBe(view.pages[1]!.id);
 
             for (const id of ['a', 'b', 'c']) view.closePage(id);
             expect(view.nPages).toBe(0);

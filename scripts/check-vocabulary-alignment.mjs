@@ -482,14 +482,6 @@ const NS_PROPERTY_ALIGNMENT = {
     'adw-split-button.actions': {
         own: 'The same map as `GtkMenuButton.actions` above, on the widget whose dropdown half IS a `GtkMenuButton` — `adw_split_button_set_menu_model` passes straight through to one (adw-split-button.c:376-378). `Adw.SplitButton` declares no action-group property either, for the same reason: on GTK the group is INHERITED through the hierarchy, never assigned per widget (ADR 0042 § 2). Declared and left.',
     },
-    'adw-tab-view.selected': {
-        gir: 'selectedPage',
-        why: "`Adw.TabView:selected-page` is the same slot, holding an `Adw.TabPage` where the port holds its index (adw-tab-view.ts:173-177). NativeScript has no tab-page object to hand back, so the index is the port's shape of the same selection.",
-    },
-    'adw-view-stack.visibleChildIndex': {
-        gir: 'visibleChildName',
-        why: 'GTK selects the page by widget (`visible-child`) or by name (`visible-child-name`); the port selects it by index (adw-view-stack.ts:119-123). The convergent spelling is the NAME one, because a name is a string and a string is what survives an XML attribute — the same argument ADR 0034 § 4 makes for enum nicks.',
-    },
 
     // ── The counterpart's writable surface has no key for it. Declared and left. ──────
     'adw-about-dialog.open': {

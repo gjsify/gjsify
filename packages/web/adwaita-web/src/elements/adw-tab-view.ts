@@ -106,11 +106,11 @@ export class AdwTabView extends HTMLElement {
     private readonly _hovered = new Set<string>();
     private _initialized = false;
     private _generatedIds = 0;
-    /** Guards the `selected` attribute reflection against re-entering the model. */
+    /** Guards the `selected-page` attribute reflection against re-entering the model. */
     private _reflecting = false;
 
     static get observedAttributes() {
-        return ['selected', 'autohide', 'expand-tabs', 'no-close'];
+        return ['selected-page', 'autohide', 'expand-tabs', 'no-close'];
     }
 
     constructor() {
@@ -131,13 +131,19 @@ export class AdwTabView extends HTMLElement {
         this._state.subscribe((change) => this._onSelectionChange(change));
     }
 
-    /** Zero-based index of the visible page, `-1` when the view is empty. */
-    get selected(): number {
-        return this._state.selectedIndex;
+    /**
+     * The selected page (`Adw.TabView:selected-page`), `null` when the view is empty.
+     *
+     * THE PAGE, NOT ITS POSITION (ADR 0048). Its position is {@link selectedIndex}, which
+     * stays a read-only report; `Adw.TabView` selects by object, and the model has held
+     * that object all along.
+     */
+    get selectedPage(): AdwTabViewPage | null {
+        return this._state.selectedPage;
     }
 
-    set selected(value: number) {
-        this._state.selectNthPage(value);
+    set selectedPage(page: AdwTabViewPage | null) {
+        this._state.setSelectedPage(page?.id ?? null);
     }
 
     /**
@@ -177,8 +183,8 @@ export class AdwTabView extends HTMLElement {
         this._initialized = true;
 
         // Read the declared selection BEFORE adopting anything: the auto-select
-        // of the first page reflects its own index into this very attribute.
-        const declaredSelection = this.getAttribute('selected');
+        // of the first page reflects its own id into this very attribute.
+        const declaredSelection = this.getAttribute('selected-page');
 
         // Snapshot the declared pages, then take over the subtree. The elements
         // themselves become the panels, so they must survive replaceChildren.
@@ -195,12 +201,12 @@ export class AdwTabView extends HTMLElement {
 
     attributeChangedCallback(name: string, _old: string | null, _value: string | null) {
         if (!this._initialized) return;
-        if (name === 'selected') {
+        if (name === 'selected-page') {
             // The LIVE attribute, not the value captured when the reaction was
             // queued: reflection writes this attribute, and a custom-element
             // reaction can run after a later write has already superseded it.
             if (this._reflecting) return;
-            const current = this.getAttribute('selected');
+            const current = this.getAttribute('selected-page');
             if (current !== null) this._applySelectedAttribute(current);
             return;
         }
@@ -724,19 +730,25 @@ export class AdwTabView extends HTMLElement {
 
     private _reflectSelected(): void {
         this._reflecting = true;
-        const index = this._state.selectedIndex;
-        if (index < 0) this.removeAttribute('selected');
-        else if (this.getAttribute('selected') !== String(index)) this.setAttribute('selected', String(index));
+        const id = this._state.selectedId;
+        if (id === null) this.removeAttribute('selected-page');
+        else if (this.getAttribute('selected-page') !== id) this.setAttribute('selected-page', id);
         this._reflecting = false;
     }
 
+    /**
+     * `selected-page="<page id>"` — the markup half of {@link selectedPage} (ADR 0048).
+     *
+     * The id is the one `<adw-tab-page page-id>` declares; a page that declares none gets
+     * a generated one, which an author cannot predict and therefore cannot select by. That
+     * is the same bargain `<adw-view-stack visible-child-name>` already makes for a page
+     * with no name, and it is why `page-id` exists.
+     *
+     * An id no page holds is IGNORED rather than treated as the first page — libadwaita
+     * refuses a foreign `AdwTabPage` outright, and `setSelectedPage` is the refusal here.
+     */
     private _applySelectedAttribute(value: string): void {
-        const index = Number.parseInt(value, 10);
-        // An unparseable value is IGNORED rather than treated as 0, and an out-of-range
-        // one is refused rather than clamped: libadwaita refuses both, so
-        // `selected="oops"` must not select the first page nor `selected="99"` the last.
-        if (Number.isNaN(index)) return;
-        this._state.selectNthPage(index);
+        this._state.setSelectedPage(value);
     }
 
     /**

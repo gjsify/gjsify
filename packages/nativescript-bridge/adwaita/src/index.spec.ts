@@ -198,19 +198,22 @@ class MockViewStack {
     get visibleChildIndex(): number {
         return this._visible;
     }
-    set visibleChildIndex(value: number) {
-        if (!Number.isFinite(value) || value < 0 || value >= this._pages.length) return;
-        if (value === this._visible) return;
+    // ADR 0048: a read-only ordinal on the widget, so the mock offers the same call the
+    // widget does rather than a setter the widget no longer has.
+    selectNthPage(value: number): boolean {
+        if (!Number.isFinite(value) || value < 0 || value >= this._pages.length) return false;
+        if (value === this._visible) return false;
         this._visible = value;
         this.notified.push({ index: value, name: this._pages[value].name });
         for (const fn of this._subs) fn();
+        return true;
     }
     get visibleChildName(): string {
         return this._pages[this._visible]?.name ?? '';
     }
     set visibleChildName(name: string) {
         const idx = this._pages.findIndex((p) => p.name === name);
-        if (idx >= 0) this.visibleChildIndex = idx;
+        if (idx >= 0) this.selectNthPage(idx);
     }
     pageVisibility(): string[] {
         return this._pages.map((_, i) => (i === this._visible ? 'visible' : 'collapse'));
@@ -227,7 +230,7 @@ class MockViewSwitcherBar {
         this._sync();
     }
     tap(index: number): void {
-        this._stack.visibleChildIndex = index;
+        this._stack.selectNthPage(index);
     }
     private _sync(): void {
         const sel = this._stack.visibleChildIndex;
@@ -733,8 +736,8 @@ export default async () => {
             stack.add('code', 'Code');
             stack.add('debug', 'Debug');
             stack.visibleChildName = 'debug';
-            stack.visibleChildIndex = 2; // no change
-            stack.visibleChildIndex = 9; // out of range
+            stack.selectNthPage(2); // no change
+            stack.selectNthPage(9); // out of range
             expect(stack.visibleChildIndex).toBe(2);
             expect(stack.notified).toStrictEqual([{ index: 2, name: 'debug' }]);
         });
@@ -750,7 +753,7 @@ export default async () => {
             expect(stack.visibleChildName).toBe('code');
             expect(bar.activeButtons).toStrictEqual([false, true]);
             // ...and a programmatic stack change syncs the bar back.
-            stack.visibleChildIndex = 0;
+            stack.selectNthPage(0);
             expect(bar.activeButtons).toStrictEqual([true, false]);
         });
 
