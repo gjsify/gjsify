@@ -4991,3 +4991,75 @@ of them moves.
 
 Worth settling with the same measurement the rest of ADR 0049 used: what does
 `refs/libadwaita`'s own demo do, and what does `adwaita-web` render for a flat header today.
+
+### Six e2e suites assert "no `gi://` import survived" by looking for four characters
+
+`tests/e2e/{app-browser,ns-bridge-bundles,node-gi-build,storybook-on-node,vite-plugin-gjsify}`
+and `tests/e2e/gi-renderer-arms` decide whether a build leaked a GI edge with
+`bundle.includes('gi://')` / `bundle.includes('@girs/')`. **Fourteen assertion sites**, thirteen
+negative and one — `storybook-on-node/run.mjs:155`, *"gjs bundle should keep gi:// specifiers
+external"* — positive:
+
+    tests/e2e/app-browser/run.mjs:86,91,137,142
+    tests/e2e/ns-bridge-bundles/run.mjs:199,200
+    tests/e2e/node-gi-build/run.mjs:98,103
+    tests/e2e/storybook-on-node/run.mjs:144, and :155 (the POSITIVE one)
+    tests/e2e/vite-plugin-gjsify/run.mjs:142,147
+    tests/e2e/gi-renderer-arms/run.mjs:142,143
+
+The claim each of them makes is *"no `gi://` import survived this build"*. What each of them
+measures is *"those four characters do not appear anywhere in the output text"*. Today the two
+answers agree, and they agree BY LUCK: nothing in a bundle happens to mention the specifier in
+any position other than an import.
+
+**Measured, from the ADR 0034 stage 9 arm (#1580).** That arm emits a virtual module whose
+runtime refusal originally quoted the import it was refusing —
+
+    const SPEC = "gi://Adw?version=1";
+    …
+    throw new Error(SPEC + ' on --app ' + APP + ': ' + RENDERER + ' has no ' + String(property) …)
+
+— and the string is reachable, so rolldown keeps it. Both green probe bundles then carried
+exactly **one** `gi://` occurrence, **zero** of which were import-shaped. A/B on one tree
+state, same fixture, only the refusal wording differing:
+
+    quoting the specifier   browser       500 197 B   1 occurrence, 0 of them an import
+                            nativescript  214 036 B   1 occurrence, 0 of them an import
+    naming the parts        browser       500 202 B   0 occurrences
+                            nativescript  214 041 B   0 occurrences
+
+"Not an import" is a claim about POSITION, and deciding it needed a second reading of the same
+bytes — no occurrence sits after a `from` and a quote. That is the whole point: the substring
+guard cannot make that distinction at all, and the distinction is the only thing it is trying
+to assert.
+
+The local fix was to stop quoting the URL: the refusal names namespace and version separately,
+and both bundles carry zero. That is
+recorded in `plugins/gi-renderer.ts`'s header as a constraint on what the arm may SAY, which is
+the wrong place for it to live permanently — it makes a diagnostic's wording load-bearing for a
+guard two directories away.
+
+**What an import-shaped check would have to read instead.** Not the text. Either (a) the emitted
+IMPORT STATEMENTS — parse the bundle and take the `source.value` of every `ImportDeclaration`,
+every `Export*Declaration` with a `source`, and every `ImportExpression` with a literal argument
+(`acorn` is already in the tree and `utils/scan-named-imports.ts` already does this shape for
+the React Native gate) — or (b) the module graph, if the CLI grows a way to report the
+specifiers a build left external. Fourteen sites also means this wants ONE helper in
+`tests/e2e/helpers.mjs`, not fourteen copies; the copies are themselves the "duplication instead
+of a helper" anti-pattern, and they are why a single diagnostic string turned two suites red on
+a PR that touched neither.
+
+**Should it change? Yes** — but the positive site is the stronger reason, not the negative ones.
+A negative substring check fails LOUDLY and on the wrong PR, which is annoying and attributable.
+`storybook-on-node:155` is the other direction: it passes as long as the four characters appear
+ANYWHERE, so the day a `gi://` string lands in that bundle for any other reason, the assertion
+goes green having stopped measuring whether the gjs target still externalises the specifier —
+the green-that-checked-nothing class this repository pays most for.
+
+**Not changed in #1580, deliberately.** The guards are load-bearing for five suites that PR
+otherwise does not touch, and it could not run them honestly: that worktree's `node_modules`
+carries `@girs/* 4.1.0` against the declared `4.6.0`, so `@gjsify/gtk-host` does not type-check
+and the topological build stops there. Rewriting a guard one cannot re-run across its whole
+population is how a guard gets quietly weakened. The arm ships with the narrower rule instead
+(its diagnostics may not quote a `gi://` URL), and this entry is the retirement condition for
+that rule.

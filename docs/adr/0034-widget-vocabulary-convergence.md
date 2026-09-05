@@ -2226,7 +2226,7 @@ which is what makes that row usable as the suite's CONTROL rather than only as h
 | | `--app browser` → `@gjsify/adwaita-web` | `--app nativescript` → `@gjsify/adwaita-nativescript` |
 |---|---|---|
 | flag-less bundle | 133 B, `Class extends value undefined` | 133 B, same |
-| `--gi-renderer` bundle | 500 006 B | 213 893 B |
+| `--gi-renderer` bundle | 500 202 B | 214 041 B |
 | `typeof Adw.ActionRow` | `function` | `function` |
 | `Object.getPrototypeOf(ProbeRow) === Adw.ActionRow` | true | true |
 | the class is the renderer's | `customElements.get('adw-action-row') === Adw.ActionRow`, 64 elements defined | `Adw.ActionRow.prototype instanceof` an `@nativescript/core` class |
@@ -2327,8 +2327,8 @@ tree**, where a transitively-imported `gi://GLib` would go from a silent stub to
 failure.
 
 What opt-in actually buys is stated without a breakage claim: the arm makes a **tier-2 widget
-toolkit a build-time dependency of any bundle that names `gi://Adw`** — 133 B → 500 006 B and
-213 893 B on the probe, and on NativeScript a `@nativescript/core` import clause the
+toolkit a build-time dependency of any bundle that names `gi://Adw`** — 133 B → 500 202 B and
+214 041 B on the probe, and on NativeScript a `@nativescript/core` import clause the
 flag-less bundle did not have — and nothing in a tree can infer that its `gi://Adw` was meant
 to be `@gjsify/adwaita-web` rather than nothing. That is the same shape as `--dialect
 react-native`, which is opt-in for the same reason and whose header says so. `config.ts`

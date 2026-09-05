@@ -24,7 +24,7 @@
 //
 // What opt-in buys is that the arm makes a tier-2 widget toolkit a BUILD-TIME
 // DEPENDENCY of any bundle naming `gi://Adw` (measured on the probe fixture:
-// 133 bytes to 500 006 on browser and 213 893 on NativeScript, the latter with a
+// 133 bytes to 500 202 on browser and 214 041 on NativeScript, the latter with a
 // `@nativescript/core` import clause the flag-less bundle did not have), and nothing
 // in a tree can infer that its `gi://Adw` was meant to be `@gjsify/adwaita-web`
 // rather than nothing. `--dialect` is opt-in for the same shape of reason; see
