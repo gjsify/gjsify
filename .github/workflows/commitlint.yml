@@ -78,10 +78,11 @@ jobs:
       # reads on merge, and the only one that changes the state of OTHER records:
       # a `Closes #a, #b, #c` list closes #a and leaves the rest open while
       # reporting the intent to close all three. #1567 and #1565 left seven issues
-      # open that way on 2026-09-04 — they were closed by hand a day later, each
-      # with the commit that had already fixed it. This reads the body AND the PR's
-      # commit messages, because a squash body is composed from those: that is the
-      # surface which rescued #1568, whose own body carried the same broken list.
+      # open that way across the 0.48.0 release — they were closed by hand on
+      # 2026-09-05, each with the commit that had already fixed it. This reads the
+      # body AND the PR's commit messages, because a squash body is composed from
+      # those: that is the surface which rescued #1568, whose own body carried the
+      # same broken list.
       - name: Check that every closing keyword closes what it names
         if: github.event_name == 'pull_request'
         env:

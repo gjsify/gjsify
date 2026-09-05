@@ -1,24 +1,29 @@
 #!/usr/bin/env node
 // A closing keyword closes ONE issue. A comma after it closes nothing.
 //
-// THE INCIDENT, twice on 2026-09-04 and both released in 0.48.0. #1567's body
-// opened with `Closes #1453, #1547, #1546, #1551, #1555.` and #1565's with
-// `Closes #1556, #1550, #1516, #1529.`. GitHub closed the FIRST ref of each and
-// left seven issues open — open while the work that fixed them was on `main`, in
-// a release, and being read by whoever went looking for what was left to do.
-// They were closed by hand a day later, each with the commit that had already
-// fixed it.
+// THE INCIDENT. Three PR bodies written inside twenty minutes on 2026-09-04, all
+// three merged into 0.48.0. #1567's opened with
+// `Closes #1453, #1547, #1546, #1549, #1551, #1555.` and #1565's with
+// `Closes #1556, #1550, #1516, #1529.`. Each merge closed the FIRST ref and no
+// other — #1453 on 2026-09-04T20:26Z, #1556 on 2026-09-05T10:40Z — with one
+// exception that is the whole reason both surfaces are read below: #1549 closed
+// too, because a commit body inside #1567 happened to say `That closes #1549`
+// mid-sentence. SEVEN stayed open while the work that fixed them was on `main`,
+// in a release, and being read by whoever went looking for what was left to do.
+// They were closed by hand on 2026-09-05, 14:47-14:48Z, each with the commit that
+// had already fixed it. Every timestamp here is read off the issue timelines.
 //
-// THE CONTROL, same day, same repository, same squash mechanics: #1568 closed all
-// four of its issues. Its BODY carried the identical broken list — measured here,
-// this check flags it — and what saved it was the other surface: four separate
-// `Closes #N.` lines in its commit messages. So the variable is the SPELLING and
-// not the merge, which is what makes this checkable at all; and a PR is only ever
-// one surface away from the defect, which is why both are read below. GitHub's own
-// rule: the keyword must be repeated before every reference.
+// THE CONTROL is the third of those bodies, same squash mechanics: #1568 closed
+// all four of its issues at 2026-09-05T09:46Z. Its BODY carried the identical
+// broken list — measured here, this check flags it — and what saved it was the
+// other surface: four separate `Closes #N.` lines in its commit messages. So the
+// variable is the SPELLING and not the merge, which is what makes this checkable
+// at all; and a PR is only ever one surface away from the defect, which is why
+// both are read below. GitHub's own rule: the keyword must be repeated before
+// every reference.
 //
 // WHY THIS SHAPE OF DEFECT IS WORSE THAN A BROKEN LINK. It reports success. The
-// body SAYS five issues are closed, the merge SAYS it succeeded, and the four
+// body SAYS six issues are closed, the merge SAYS it succeeded, and the four
 // that stayed open look — to anyone reading the issue list — like work nobody has
 // done. That is the same class `check-pr-title-length.mjs` and
 // `check-pr-title-types.mjs` were written for: a string that becomes history and
@@ -37,6 +42,16 @@
 // and inline spans are blanked before the scan, so prose ABOUT this defect (this
 // header included) can spell the broken form without tripping the check, and so
 // a body quoting a log line is not read as an intent to close.
+//
+// WHERE "code is exempt" STOPS, and why it stops there. A four-space indented
+// block and an `<!-- -->` comment are code in a rendered BODY; this check reads
+// both as prose and flags a broken list in either. Deliberate: a commit message
+// is not markdown, so blanking those shapes would open a blind spot on the very
+// surface that does the closing — #1549 closed on a mid-sentence
+// `That closes #1549` in one of #1567's commit bodies and on nothing else. Also
+// unmatched, the other end of the same trade: `**Closes** #a, #b`, where emphasis
+// splits the keyword off its space, and a bare issue URL after a keyword, which
+// GitHub's documented syntax does not list as a closing reference at all.
 //
 // Usage (in a pull_request job):
 //   PR_BODY=… PR_BASE_SHA=… PR_HEAD_SHA=… node scripts/check-closing-keywords.mjs
