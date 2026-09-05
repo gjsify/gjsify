@@ -12,11 +12,15 @@
 //      matching packages automatically without prompting; same selection
 //      logic as above but no UI loop.
 //
-//   3. `--align`: offline consistency-only mode. Finds deps declared at
-//      multiple ranges across the workspace and proposes a single range
-//      (the highest declared) — no registry calls.
+//   3. `--align`: offline repair mode. Finds deps declared at multiple ranges
+//      across the workspace and proposes a single range (the highest declared)
+//      — no registry calls. With `--exact` it repairs the second question too:
+//      a dep every manifest declares identically as `^4.1.0` is consistent and
+//      still carries an operator, so the operator goes as well.
 //
-//   4. `--check`: CI gate. Exits non-zero when any inconsistency exists.
+//   4. `--check`: CI gate. Exits non-zero when any inconsistency exists; with
+//      `--exact`, also when any matched declaration carries a range operator.
+//      Whatever `--check` rejects, `--align` with the same flags repairs.
 //
 // Filters:
 //
@@ -40,6 +44,7 @@ import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import {
     groupByDependency,
     findInconsistencies,
+    isInconsistent,
     type DepDeclaration,
     type DependencyGroup,
 } from '../utils/dep-aggregation.js';
@@ -110,7 +115,7 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
             })
             .option('align', {
                 description:
-                    'Offline consistency mode: find deps declared at multiple ranges across the workspace and align them to the highest. No registry calls.',
+                    'Offline repair mode: find deps declared at multiple ranges across the workspace and align them to the highest. With `--exact`, also drop the range operator from declarations that already agree. No registry calls.',
                 type: 'boolean',
                 default: false,
             })
@@ -122,7 +127,7 @@ export const upgradeCommand: Command<unknown, UpgradeOptions> = {
             })
             .option('exact', {
                 description:
-                    'Pin without a range operator. When writing, emits `1.2.3` instead of `^1.2.3`; with `--check`, fails on any matched dep that carries one. Pair with `--filter` — a repository-wide exactness check fails on every ordinary caret dep by design.',
+                    'Pin without a range operator. When writing, emits `1.2.3` instead of `^1.2.3`; with `--check`, fails on any matched dep that carries one; with `--align`, repairs exactly that. Pair with `--filter` — a repository-wide exactness run touches every ordinary caret dep by design.',
                 type: 'boolean',
                 default: false,
             })
@@ -438,22 +443,69 @@ function runCheckMode(groups: readonly DependencyGroup[], exact = false): void {
             console.error(`    ${range.padEnd(16)} — ${holders.join(', ')}`);
         }
     }
-    console.error(`\nFix: run \`gjsify upgrade --align\` (offline; aligns each dep to its highest declared range).`);
+    console.error(
+        exact
+            ? `\nFix: run \`gjsify upgrade --align --exact\` (offline; aligns each dep to its highest declared version and drops the operator).`
+            : `\nFix: run \`gjsify upgrade --align\` (offline; aligns each dep to its highest declared range).`,
+    );
     process.exit(1);
 }
 
+/**
+ * The groups `--align` has work on.
+ *
+ * Inconsistency is the whole question for a bare `--align`: a dep every manifest declares
+ * identically is done. `--exact` asks a second one, and the two do not overlap — a tree
+ * where every manifest says `^4.1.0` is perfectly consistent and carries an operator on
+ * every one of those declarations, which is precisely what `--check --exact` rejects.
+ *
+ * Selecting on inconsistency alone therefore made the repair that `--check --exact`'s own
+ * failure message names answer `nothing to do` to the tree it was pointed at: the gate
+ * demanded a property the fix could not deliver, cheerfully. Measured on bauplaner's five
+ * `@girs/*` declarations, all five `^4.1.0` and all five consistent.
+ */
+function alignTargets(groups: readonly DependencyGroup[], exact: boolean): DependencyGroup[] {
+    if (!exact) return findInconsistencies(groups);
+    return groups.filter((g) => isInconsistent(g) || g.occurrences.some((o) => o.prefix !== ''));
+}
+
+/**
+ * A repair that silently skipped part of its job must not report success.
+ *
+ * The loop that produces is gate red → repair "done" → gate red, where the second red
+ * reads as if the repair had never run. `^1.x` is the shape that lands here: `--check
+ * --exact` flags the operator, and no single version can be read out of the range to pin
+ * it at, so there is nothing to write and the CLI says which deps those are instead.
+ */
+function reportUnrepairable(groups: readonly DependencyGroup[]): void {
+    console.error(`\ngjsify upgrade --align: ${groups.length} dep(s) left unrepaired — no version to align on:\n`);
+    for (const g of groups) {
+        console.error(`  ${ANSI.bold}${g.name}${ANSI.reset}  ${[...g.declaredRanges].join(', ')}`);
+    }
+    console.error(`\nThose ranges name no single version. Edit them by hand, or resolve one with \`--latest\`.`);
+    return process.exit(1);
+}
+
 function runAlignMode(groups: readonly DependencyGroup[], args: UpgradeOptions): void {
-    const inconsistencies = findInconsistencies(groups);
-    if (inconsistencies.length === 0) {
-        console.log(`gjsify upgrade --align: nothing to do. ${groups.length} dep(s) already consistent.`);
+    const exact = args.exact ?? false;
+    const targets = alignTargets(groups, exact);
+    if (targets.length === 0) {
+        console.log(
+            `gjsify upgrade --align: nothing to do. ${groups.length} dep(s) already consistent` +
+                (exact ? `, every declaration pinned exactly.` : `.`),
+        );
         return;
     }
-    // For each inconsistency, the alignment target is the highest declared version
-    // — preserve the prefix of the dominant occurrence so the range shape doesn't
-    // mutate (caret stays caret, tilde stays tilde).
+    // For each target, the alignment version is the highest declared one — preserve the
+    // prefix of the dominant occurrence so the range shape doesn't mutate (caret stays
+    // caret, tilde stays tilde). Under `--exact` the prefix is dropped, in `targetRange`.
     const updates: UpgradeGroup[] = [];
-    for (const g of inconsistencies) {
-        if (!g.highestVersion) continue;
+    const unrepairable: DependencyGroup[] = [];
+    for (const g of targets) {
+        if (!g.highestVersion) {
+            unrepairable.push(g);
+            continue;
+        }
         // Pick a prefix: use the prefix of the dominant range; if dominant has
         // no prefix, default to "^" (the npm-cli default).
         const dominantOcc = g.occurrences.find((o) => o.currentRange === g.dominantRange);
@@ -465,25 +517,26 @@ function runAlignMode(groups: readonly DependencyGroup[], args: UpgradeOptions):
             occurrences: g.occurrences.map((o) => ({ ...o, prefix })),
         });
     }
-    if (updates.length === 0) {
-        console.log('gjsify upgrade --align: inconsistencies present but no parseable target version. No-op.');
-        return;
-    }
-    console.log(
-        `gjsify upgrade --align: aligning ${updates.length} inconsistent dep(s) to their highest declared version:\n`,
-    );
-    for (const u of updates) {
-        const newPrefix = u.occurrences[0]?.prefix ?? '^';
+    if (updates.length > 0) {
         console.log(
-            `  ${u.name.padEnd(28)}  ranges: ${[...u.declaredRanges].join(', ')}  →  ${targetRange(newPrefix, u.latestVersion, args.exact ?? false)}`,
+            exact
+                ? `gjsify upgrade --align --exact: pinning ${updates.length} dep(s) to their highest declared version, without a range operator:\n`
+                : `gjsify upgrade --align: aligning ${updates.length} inconsistent dep(s) to their highest declared version:\n`,
         );
+        for (const u of updates) {
+            const newPrefix = u.occurrences[0]?.prefix ?? '^';
+            console.log(
+                `  ${u.name.padEnd(28)}  ranges: ${[...u.declaredRanges].join(', ')}  →  ${targetRange(newPrefix, u.latestVersion, exact)}`,
+            );
+        }
+        if (args.dryRun) {
+            console.log('\n[gjsify upgrade --align] --dry-run: no files changed.');
+        } else {
+            const files = applyToFiles(updates, exact);
+            console.log(`\n✏️  updated ${updates.length} dep(s) across ${files} package.json file(s).`);
+        }
     }
-    if (args.dryRun) {
-        console.log('\n[gjsify upgrade --align] --dry-run: no files changed.');
-        return;
-    }
-    const files = applyToFiles(updates, args.exact);
-    console.log(`\n✏️  updated ${updates.length} dep(s) across ${files} package.json file(s).`);
+    if (unrepairable.length > 0) return reportUnrepairable(unrepairable);
 }
 
 // ─── Registry resolution (group-aware) ─────────────────────────────────
