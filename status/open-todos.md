@@ -597,21 +597,28 @@ three measured over the same 43 widgets:
 
 The chain is what makes a number nobody can act on: it puts `GtkWidget`'s keys plus
 `GtkAccessible`/`GtkBuildable`/`GtkConstraintTarget` behind every widget, and 96 % of it is
-"missing" on a port whose views are `GridLayout`s. Own-body-only is symmetric instead —
-both sides count what the TYPE introduces — and it has one honest under-count, stated
-rather than hidden: a property a GIR type inherits from a GIR ancestor is measured on THAT
-ancestor's row when the port ships it as a widget too (`AdwSwitchRow`'s `title` is counted
-on `adw-action-row`) and is not counted at all when it does not.
+"missing" on a port whose views are `GridLayout`s. Own-body-only keeps the GIR side to what
+the TYPE introduces — the PORT side is deliberately not symmetric with it and resolves the
+port's own `extends` chain, for the false-red reason the section below gives — and it has
+one honest under-count, stated rather than hidden: a property a GIR type inherits from a
+GIR ancestor is measured on THAT ancestor's row when the port ships the ancestor as a
+widget too (`AdwSwitchRow`'s `subtitle` is `AdwActionRow`'s and is counted on
+`adw-action-row`), and is not counted at all when it does not — `AdwSwitchRow`'s `title` is
+`AdwPreferencesRow`'s, the port ships no `adw-preferences-row`, and nothing measures it.
 
 The live totals are the gate's summary line and are not restated here. What it does NOT
 print is the SHAPE of the backlog, which is the census — at the landing commit, 12 widgets
 short nothing, 7 short one, 6 short two, 6 short three, 3 short four, 3 short five, 3 short
 six, and then three long tails: `GtkMenuButton` (8 of 9 unset), `AdwAboutDialog` (15 of 22)
-and `GtkEntry` (26 of 28). Those three carry 49 of the total, so the backlog is not evenly
-spread and the obvious first pass is one widget, not a sweep. The three widgets whose file
-spelling is NOT a GTK tag (`adw-image-button`, `adw-slider-row`, `adw-data-grid`) are
-declared divergences `NS_WIDGET_ALIGNMENT` owns and are deliberately outside this gate;
-reading that ledger from a second script would be a second copy of it.
+and `GtkEntry` (26 of 28). Three of the 12 short nothing are short nothing VACUOUSLY —
+`AdwPasswordEntryRow`, `AdwSpinner` and `AdwToastOverlay` declare no scalar property of
+their own at all, so there was nothing for the port to be short of, and the gate prints
+those apart from the nine that hold something. The three long tails carry 49 of the total,
+so the backlog is not evenly spread and the obvious first pass is one widget, not a sweep.
+The three widgets whose file spelling is NOT a GTK tag (`adw-image-button`,
+`adw-slider-row`, `adw-data-grid`) are declared divergences `NS_WIDGET_ALIGNMENT` owns and
+are deliberately outside this gate; reading that ledger from a second script would be a
+second copy of it.
 
 **Two findings the census turned up that are not gaps.**
 
@@ -687,9 +694,10 @@ comparison but ADR 0027 § 9's conformance vectors.
 Found while building the coverage census, and it is the same blind side one direction over.
 `check-vocabulary-alignment.mjs` reads a widget's settable properties with
 `settablePropertiesOfClass`, which reads ONE class body. That is right wherever a port
-widget's base is itself a widget file — `AdwSwitchRow`'s inherited `title` is held on
-`adw-action-row`'s own row — and wrong for a base that is not:
-`packages/nativescript-bridge/adwaita/src/widgets/split-view-base.ts` and
+widget's base is itself a widget file — the PORT's `AdwActionRow` declares `set title`, so
+`AdwSwitchRow`'s inherited `title` is held on `adw-action-row`'s own row (this is the port
+hierarchy, not the GIR one, where `title` is `AdwPreferencesRow`'s) — and wrong for a base
+that is not: `packages/nativescript-bridge/adwaita/src/widgets/split-view-base.ts` and
 `view-switcher-base.ts` are not `<library>-<name>.ts` files, so the 10 setters they declare
 are read by nothing.
 

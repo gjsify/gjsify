@@ -25,10 +25,12 @@
 // exactly what ADR 0034 § 4 names as the convergent spelling for both surfaces.
 //
 // THE OWN BODY, NOT THE `extends` CHAIN. Both ratchets ask what the GType ITSELF
-// declares. Resolving the chain would put `GtkWidget`'s 59 keys behind every widget and
-// produce a number nobody can act on; the chain-resolved set is the right one for the
-// opposite question (is a property a surface HAS a key of its counterpart), which is
-// what `check-vocabulary-alignment.mjs` uses it for.
+// declares. Resolving the chain would put the whole of `GtkWidget` behind every widget
+// and produce a number nobody can act on — the three rungs of that ladder are measured in
+// `status/open-todos.md` rather than written here, because a count in a comment is the
+// copy that drifts. The chain-resolved set is the right one for the opposite question (is
+// a property a surface HAS a key of its counterpart), which is what
+// `check-vocabulary-alignment.mjs` uses it for.
 
 /** A GIR type that holds an object — a slot on either renderer, never an attribute. */
 const OBJECT_TYPE = /\b(?:Gtk|Adw|Gio|Gdk|Pango|GObject)\.\w+/;

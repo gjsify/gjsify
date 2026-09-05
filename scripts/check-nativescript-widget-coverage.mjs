@@ -27,13 +27,16 @@
 // `extends` chain — minus signal handlers and minus widget-valued slots. Every one of
 // those four choices removes a number nobody could act on:
 //
-//   · the CHAIN would put `GtkWidget`'s ~59 keys, plus `GtkAccessible`/`GtkBuildable`/
-//     `GtkConstraintTarget`, behind every widget: 1835 keys against 231, and 1699 of
-//     them "missing" on a port whose views are `GridLayout`s. A property a GIR type
-//     inherits from a GIR ancestor is measured on THAT ancestor's row when the port
-//     ships it as a widget too — `AdwSwitchRow`'s `title` is counted on `adw-action-row`
-//     — and is not counted at all when it does not, which is this denominator's one
-//     under-count and is stated rather than hidden.
+//   · the CHAIN would put `GtkWidget` plus `GtkAccessible`/`GtkBuildable`/
+//     `GtkConstraintTarget` behind every widget, nearly all of it reading as "missing"
+//     on a port whose views are `GridLayout`s — a number nobody can act on. The ladder's
+//     three rungs are MEASURED in `status/open-todos.md`, not written here: a count in a
+//     comment is the copy that drifts, and the one that stood here contradicted that
+//     ladder in the same change. A property a GIR type inherits from a GIR ancestor is
+//     measured on THAT ancestor's row when the port ships the ancestor as a widget too
+//     (`AdwSwitchRow`'s `subtitle` is `AdwActionRow`'s, counted on `adw-action-row`) and
+//     not at all when it does not (`AdwSwitchRow`'s `title` is `AdwPreferencesRow`'s and
+//     the port ships no `adw-preferences-row`) — the one under-count, stated not hidden.
 //   · `onNotify*`/`on<Signal>` are a JSX convention. A NativeScript view takes
 //     `addEventListener`, so there is no property to be missing.
 //   · a widget-valued key (`child`, `content`, `sidebar`, `title-widget`) is a SLOT.
@@ -63,9 +66,12 @@
 //   CAN. The two sides are independent and neither reads the other: the port's setters
 //   are hand-typed accessors, and `generated/props.ts` is emitted from the GIR by a
 //   generator that reads none of them. A gap that is not declared fails. A declared gap
-//   the widget now sets fails, so the backlog can only shrink. A declared gap that is no
-//   longer a scalar property of that GType fails, so a @girs bump that drops a property
-//   cannot leave a ledger row describing something that does not exist.
+//   the widget now sets fails, so a gap that closes cannot leave its reason standing. A
+//   declared gap that is no longer a scalar property of that GType fails, so a @girs
+//   bump that drops a property cannot leave a ledger row describing something that does
+//   not exist. The TOTAL is not the invariant and does not only fall — a new widget, or
+//   a @girs bump that ADDS a property, raises it. What holds is that neither direction
+//   is silent: a new gap costs a written reason here, a closed one costs deleting it.
 //
 //   CANNOT. The `why` floor holds a table in this file against a constant in this file:
 //   it refuses a blank, it judges nothing. And the comparison target is a file this
@@ -118,12 +124,14 @@ const MIN_REASON = 40;
  * worse than naming none". A per-WIDGET reason is a different object — it says what this
  * port BUILDS and therefore which part of the GTK widget it does not reach, which is a
  * statement about the file it names and can be checked by reading it. A per-property one
- * would be 131 sentences of which most would be that same sentence restated.
+ * would be one sentence per gap below, most of them that same sentence restated.
  *
  * THE RATCHET, in both directions. A gap not listed here fails. A listed gap the widget
- * now sets fails, so closing one is an edit here and the number can only go down. A
- * listed name that is no longer a scalar property of that GType fails, so a @girs bump
- * cannot leave a row describing a property that does not exist.
+ * now sets fails, so closing one is an edit here. A listed name that is no longer a
+ * scalar property of that GType fails, so a @girs bump cannot leave a row describing a
+ * property that does not exist. The total is not the invariant and does not only fall —
+ * a new widget, or a @girs bump that ADDS a property, raises it. What holds is that
+ * neither direction happens without this edit.
  *
  * NO COUNT IS WRITTEN IN THIS COMMENT. The summary at the bottom derives every number it
  * prints, for the reason ADR 0034 § *Why the distance has to be PRINTED by a gate* gives
@@ -774,13 +782,22 @@ if (problems.length > 0) {
 const scalarTotal = world.measured.reduce((sum, widget) => sum + widget.scalars.size, 0);
 const backlog = Object.values(KNOWN_GAPS).reduce((sum, entry) => sum + entry.gaps.length, 0);
 const withGaps = Object.keys(KNOWN_GAPS).length;
-const complete = world.measured.filter((widget) => KNOWN_GAPS[widget.tag] === undefined).length;
+// A counterpart declaring NO scalar property of its OWN gives its widget an empty
+// denominator — `AdwPasswordEntryRow` introduces nothing over `AdwEntryRow` — and "holds
+// every one" is then true of it vacuously. Counted with the real ones it would be this
+// gate reporting a pass it did not measure, so they are named apart; the control above
+// is what catches the day ALL of them read that way.
+const held = world.measured.filter((widget) => widget.scalars.size > 0);
+const vacuous = world.measured.filter((widget) => widget.scalars.size === 0).map((widget) => widget.tag);
+const complete = held.filter((widget) => KNOWN_GAPS[widget.tag] === undefined).length;
 console.log(
     `check-nativescript-widget-coverage: self-test green — ${VECTORS.length - 1} failing vector(s), ` +
         `${BASE_VECTORS.length} reader vector(s). ${world.measured.length} NativeScript widgets share a ` +
         `spelling with a GTK tag and are held against ${scalarTotal} scalar GIR propert(y|ies) their ` +
         `counterparts declare — ${scalarTotal - backlog} are set, ${backlog} across ${withGaps} widgets remain ` +
-        `a declared backlog, and ${complete} widgets hold every one. ${world.unmeasured.length} widget(s) have ` +
-        `no GTK tag of their own and are NOT measured here (${world.unmeasured.join(', ')}) — ` +
-        'check-vocabulary-alignment.mjs is what declares what they are.',
+        `a declared backlog, and ${complete} widgets hold every one their counterpart declares. ` +
+        `${vacuous.length} counterpart(s) declare no scalar property of their own, so those widgets have ` +
+        `nothing to hold and are not evidence of anything${vacuous.length > 0 ? ` (${vacuous.join(', ')})` : ''}. ` +
+        `${world.unmeasured.length} widget(s) have no GTK tag of their own and are NOT measured here ` +
+        `(${world.unmeasured.join(', ')}) — check-vocabulary-alignment.mjs is what declares what they are.`,
 );
