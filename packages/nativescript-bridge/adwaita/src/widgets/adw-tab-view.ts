@@ -181,21 +181,22 @@ export class AdwTabView extends GridLayout {
         return this._state.selectedPage;
     }
 
-    set selectedPage(page: AdwTabPage | null) {
-        // `page_belongs_to_this_view` — see the web twin, which carries the measurement: an
-        // id is unique within ONE view, so passing another view's page would select this
-        // view's page of the same name instead of refusing. The object is what separates
-        // them.
-        if (page !== null && !this._state.pages.includes(page)) return;
-        this._state.setSelectedPage(page?.id ?? null);
+    set selectedPage(page: AdwTabPage | string | null) {
+        // The PAGE, or its id — and the id spelling is what an XML attribute can carry, so
+        // `<AdwTabView selectedPage="inbox">` declares the starting tab. Both go to the
+        // core, which owns the page list and therefore owns `page_belongs_to_this_view`:
+        // an id is unique within ONE view, so a foreign page read as an id would select
+        // this view's page of the same id instead of refusing.
+        this._state.setSelectedPage(page);
     }
 
     isClosing(id: string): boolean {
         return this._state.isClosing(id);
     }
 
-    setSelectedPage(id: string | null): boolean {
-        return this._state.setSelectedPage(id);
+    /** `adw_tab_view_set_selected_page`, which takes the PAGE; an id is accepted too. */
+    setSelectedPage(page: AdwTabPage | string | null): boolean {
+        return this._state.setSelectedPage(page);
     }
 
     selectNthPage(n: number): boolean {

@@ -211,9 +211,10 @@ surface where it is a promise about a page. So the two switcher bars translate t
   When one does, the table above is the rule it inherits.
 - **Ordinal REPORTS elsewhere are untouched**, including every `selected` on the three
   widgets whose counterpart is ordinal.
-- **`setSelectedPage(id)` keeps its id parameter**, so the two renderers now offer the page
-  through a property and its id through a method. libadwaita's own
-  `adw_tab_view_set_selected_page()` takes the PAGE, so the method diverges from its
-  counterpart in shape — but a method is not what a portable authored tree writes, the
-  vocabulary ledger does not read one, and changing it is a second breaking change with no
-  measurement behind it yet. It is written down in `status/open-todos.md` instead.
+- **`setSelectedPage` takes the PAGE now, and an id as well** — widened in the core rather
+  than guarded in each renderer, because the identity check `page_belongs_to_this_view` can
+  only be answered where the page list lives. A renderer-side guard was written first and
+  measured wrong twice over: it is two copies, and its refusal is silent where C raises a
+  diagnostic. The remaining id-taking methods — `isClosing`, `closePage`, `setPagePinned` —
+  are unchanged and stay in `status/open-todos.md`; libadwaita takes an `AdwTabPage *` in
+  every one, and settling them together is a decision this ADR does not need to make.

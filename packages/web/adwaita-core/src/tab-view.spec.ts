@@ -391,5 +391,28 @@ export default async () => {
             expect(state.setSelectedPage(null)).toBe(false);
             expect(state.diagnostics).toStrictEqual([]);
         });
+
+        await it('refuses a page belonging to ANOTHER view, which its id cannot say', () => {
+            // `_nextId` counts per view, so two views both hold `page-0` — reading only the
+            // id would select THIS view's page of that id. Measured before the core took
+            // the page: `a.setSelectedPage(b.pages[1])` moved `a` to index 1.
+            const a = new TabViewState();
+            const b = new TabViewState();
+            for (const state of [a, b]) {
+                state.appendPage({ id: 'one' });
+                state.appendPage({ id: 'two' });
+            }
+            a.setSelectedPage('one');
+
+            expect(a.setSelectedPage(b.pages[1]!)).toBe(false);
+            expect(a.selectedId).toBe('one');
+            const last = a.diagnostics[a.diagnostics.length - 1];
+            expect(last?.includes('page_belongs_to_this_view')).toBe(true);
+
+            // ...and its OWN page of the same id is accepted, so the refusal is identity
+            // and not the id.
+            expect(a.setSelectedPage(a.pages[1]!)).toBe(true);
+            expect(a.selectedId).toBe('two');
+        });
     });
 };

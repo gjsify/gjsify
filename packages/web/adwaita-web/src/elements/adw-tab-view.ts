@@ -143,14 +143,14 @@ export class AdwTabView extends HTMLElement {
     }
 
     set selectedPage(page: AdwTabViewPage | null) {
-        // `page_belongs_to_this_view`, which the ID cannot answer: an id is unique WITHIN a
-        // view, never across two — a declared `page-id` is the author's to repeat and
-        // `_nextId` counts per element, so two views both hold a `tab-1`. Measured before
-        // this line existed: `viewA.selectedPage = viewB.pages[2]` moved viewA to index 2.
-        // The OBJECT is what tells them apart, and it is the whole reason this property
-        // takes one rather than the id `setSelectedPage` takes.
-        if (page !== null && !this._state.pages.includes(page)) return;
-        this._state.setSelectedPage(page?.id ?? null);
+        // Straight to the core, which owns the page list and therefore owns
+        // `page_belongs_to_this_view` — the check an ID cannot answer: an id is unique
+        // WITHIN a view, never across two (a declared `page-id` is the author's to repeat
+        // and `_nextId` counts per element, so two views both hold a `tab-1`). Measured
+        // before the core took the page: `viewA.selectedPage = viewB.pages[2]` moved viewA
+        // to index 2 instead of refusing. The refusal carries C's own diagnostic now,
+        // where a renderer-side guard could only return in silence.
+        this._state.setSelectedPage(page);
     }
 
     /**
@@ -285,8 +285,9 @@ export class AdwTabView extends HTMLElement {
         return this._state.isClosing(id);
     }
 
-    setSelectedPage(id: string | null): boolean {
-        return this._state.setSelectedPage(id);
+    /** `adw_tab_view_set_selected_page`, which takes the PAGE; an id is accepted too. */
+    setSelectedPage(page: AdwTabViewPage | string | null): boolean {
+        return this._state.setSelectedPage(page);
     }
 
     selectNthPage(n: number): boolean {
