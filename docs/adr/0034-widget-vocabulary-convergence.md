@@ -1744,6 +1744,11 @@ flattening this ADR undoes, one level down. Some of those are additionally struc
 `AdwSpinRow`'s `min`/`max`/`step` and `AdwHeaderBar`'s `title`/`subtitle` each collapse
 into ONE key, and one name cannot be two.
 
+> **Superseded by § Amendment 11 (2026-09-05)** in subject and verdict: `openState` converged,
+> and the rule now explains every entry the ledger still carries. The paragraph below is left
+> as written because the mistake in it is what the amendment is for — it ruled a convergence
+> out after considering exactly one repair for the obstacle. The rest of this section stands.
+
 `AdwBottomSheet.openState` is the single entry the rule does not reach, and naming it is
 the point: both sides hold a BOOLEAN, so the rule says converge. What stops it is a
 collision inside JavaScript — `open` is taken by the class's own `open()` method, and
@@ -2149,29 +2154,31 @@ has a case to serve is a rule nobody can check.
 
 ## Amendment 11, 2026-09-05 — `openState` converged, and the reasoning that said it could not
 
-§ *What the remainder is* named `AdwBottomSheet.openState` as **the single entry the rule
-does not reach**, and gave the reason: both sides hold a boolean, so the rule says converge,
-and what stops it is a collision inside JavaScript with the class's own `open()` method —
-"libadwaita gives the type no method names to rename those to, so converging would trade a
-declared property divergence for an invented, undeclared method one."
+§ Amendment 7's *The property names: eleven of twenty-five, and the rule that split them*
+named `AdwBottomSheet.openState` as **the single entry the rule does not reach**, and gave
+the reason: both sides hold a boolean, so the rule says converge, and what stops it is a
+collision inside JavaScript with the class's own `open()` method — "libadwaita gives the type
+no method names to rename those to, so converging would trade a declared property divergence
+for an invented, undeclared method one."
 
 The premise is right and the conclusion had one option too few. **Renaming the methods was
 never the only way out of the collision; deleting them was.** Measured against
 `refs/libadwaita/src/adw-bottom-sheet.h`: `grep -c 'adw_bottom_sheet_open\|adw_bottom_sheet_close'`
 is **0** — the type has no open/close pair at all, and
 `refs/libadwaita/src/adw-bottom-sheet.h:50#adw_bottom_sheet_set_open` is the setter of this
-very property. So `open()` and `close()`
-were port-owned conveniences that existed to write the property, and the property could not
-take its own GIR name because of them. `sheet.open = true` is what both did.
+very property. So `open()` and `close()` were port-owned conveniences that existed to write
+the property, and the property could not take its own GIR name because of them.
+`sheet.open = true` is what both did.
 
-The passage above is left as written, because what is worth keeping is not the verdict but
-the shape of the mistake: the reasoning ruled out a convergence by considering exactly one
-repair for the obstacle and finding it worse than the disease. **A collision with a
-port-owned method is not a reason a name cannot converge — it is a question about the
-method**, and the question is whether the counterpart has one. `check-vocabulary-alignment.mjs`
-carries that sentence in its ledger header now, where the next entry of this shape will be
-read.
+That paragraph is left as written under a supersession note, because what is worth keeping is
+not the verdict but the shape of the mistake: the reasoning ruled out a convergence by
+considering exactly one repair for the obstacle and finding it worse than the disease. **A
+collision with a port-owned method is not a reason a name cannot converge — it is a question
+about the method**, and the question is whether the counterpart has one.
+`check-vocabulary-alignment.mjs` carries that sentence in its ledger header now, where the
+next entry of this shape will be read.
 
-What it does NOT change: the rest of § *What the remainder is* stands. The remaining entries
-are structural — an adjustment, a widget, a page object, a class list, a name where the port
-holds an index — and none of them is a collision.
+What it does NOT change: the rest of that section stands. The six entries the ledger still
+carries are structural — a widget (`titleWidget`, twice), a page object (`selectedPage`), a
+class list (`cssClasses`, twice) and a name where the port holds an index
+(`visibleChildName`) — and none of them is a collision.
