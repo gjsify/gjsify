@@ -609,9 +609,9 @@ one more: a nick says what a member is CALLED, and nothing said what it is WORTH
 ADR 0034 stage 8 is where that surfaced. `@gjsify/adwaita-nativescript` accepts
 `new Adw.Avatar({ halign: Gtk.Align.CENTER })` — a snippet ported off GJS, where the
 value is an integer and there is no typelib to resolve it. The obvious in-repo
-derivation, position in the nick list, is wrong, and the stage said so in its own gate
-header: *"nothing in this repository carries GIR enum VALUES"*. It shipped one authored
-alias declaration instead, and named the fix.
+derivation, position in the nick list, is wrong, and the stage said so in the gate header
+it shipped on PR #1579: *"nothing in this repository carries GIR enum VALUES"*. It
+authored one alias declaration instead, and named the fix.
 
 ### The premise, re-derived rather than carried over
 
@@ -636,10 +636,10 @@ implicit numbering is what produces the 5 and 6. The GIR gives
 `<member name="baseline" value="4" deprecated="1" deprecated-version="4.12">` next to
 `<member name="baseline_fill" value="4" version="4.12">`, and the typelib agrees.
 
-### The finding is six times larger than one alias
+### Six more enums where counting is wrong, and only one of them is an alias
 
 Counting positions is wrong on **7 of the 129 enum types** the vocabulary covers, and
-only one of them is the alias. Printed by `node scripts/check-enum-values.mjs` on every
+the alias is one of the seven, not the reason for the other six. Printed by `node scripts/check-enum-values.mjs` on every
 run, so this list is an illustration and not the record:
 
 | enum | why counting fails |
@@ -668,7 +668,7 @@ only open question is which source fills it.
    with **8** `export const` names — `PROVENANCE`, `OWN_PROPS`, `OWN_SIGNALS`, `DECLS`,
    `CHILD_HOLDERS`, `ENUM_NICKS`, `SLOT_CANDIDATES`, `SINCE` — and **zero** occurrences
    of a value table. Adding one is an upstream ts-for-gir change plus a release, which
-   is the same blocker step 3 of this ADR carried for three weeks. It stays the right
+   is the same blocker step 3 of this ADR carried until a release shipped. It stays the right
    long-term home, and when it lands the generator here swaps its INPUT and its output
    does not change shape — which is why the artifact, not the source, is the durable
    half of this amendment.
