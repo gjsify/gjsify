@@ -92,8 +92,10 @@ read, and the step's whole content is one env pair and one script call.
 `packages/framework/AGENTS.md` — which owns the devtools D-Bus method table, and would
 otherwise carry `truncated` — is 50 bytes below the 32 KiB `project_doc_max_bytes` cap, where
 Codex silently truncates the tail. It takes no new sentence, so the `DumpTree` contract lives
-here and on `NodeInfo` itself. That file needs a section moved into `docs/`, which is its own
-change and not this one's to make.
+here and on `NodeInfo` itself. That file needs a section moved out, which is its own change and
+not this one's to make. **LANDED 2026-09-05:** the method table now lives in
+[`packages/framework/devtools/README.md`](../../packages/framework/devtools/README.md), and that
+AGENTS.md is back under the 20 KB target.
 
 What none of this reaches is the question one level up — an instrument nobody reads at all.
 `report-probe-outcome.mjs` writes a job-summary row and an annotation; whether either is read
