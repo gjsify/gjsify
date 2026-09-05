@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { isGjs, hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { buildAppForRuntime } from './utils/runtimes.js';
 import { DIALECT_APPS, isSourceDialect, SOURCE_DIALECTS } from '@gjsify/rolldown-plugin-gjsify';
+import { GI_RENDERER_APPS } from '@gjsify/resolve-npm';
 
 /**
  * Does the failed `import()` of a config look like a MODULE-RESOLUTION failure
@@ -298,6 +299,7 @@ export class Config {
         configData.verbose = cliArgs.verbose || cliArgs.logLevel === 'debug' || cliArgs.logLevel === 'verbose';
         configData.exclude = cliArgs.exclude || [];
         if (cliArgs.consoleShim !== undefined) configData.consoleShim = cliArgs.consoleShim;
+        if (cliArgs.giRenderer !== undefined) configData.giRenderer = cliArgs.giRenderer;
         // `--dialect` narrows here rather than at the call site. yargs `choices`
         // already rejects an unknown value typed on the command line, but a
         // `gjsify.dialect` in package.json or `.gjsifyrc.*` never passes through
@@ -333,6 +335,18 @@ export class Config {
                 `gjsify build: --dialect ${configData.dialect} has no effect on --app ${configData.app}. ` +
                     `It composes on ${[...DIALECT_APPS].join(' and ')} only. ` +
                     'Drop the dialect, or build one of those targets.',
+            );
+        }
+        // Same rule for the `gi://` arm, and the same reason: `--gi-renderer --app gjs`
+        // would parse, resolve and compose nothing, so the flag would be accepted and
+        // ignored. On `gjs` and `node` the specifier is already answered — natively and
+        // through `requireGi` — so there is nothing for a renderer to substitute for.
+        if (configData.giRenderer === true && !GI_RENDERER_APPS.includes(configData.app)) {
+            throw new Error(
+                `gjsify build: --gi-renderer has no effect on --app ${configData.app}. ` +
+                    `It composes on ${GI_RENDERER_APPS.join(' and ')} only — the targets with no GObject ` +
+                    'introspection to answer `gi://` with. `--app gjs` resolves it natively and `--app node` ' +
+                    'through @gjsify/node-gi, so neither needs a widget renderer standing in for it.',
             );
         }
         if (cliArgs.globals !== undefined) configData.globals = cliArgs.globals;

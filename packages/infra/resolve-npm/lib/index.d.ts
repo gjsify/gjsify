@@ -94,3 +94,17 @@ export declare function listDeclaredRuntimes(): Promise<
         }
     >
 >;
+
+/**
+ * `--app <target>` → the package whose `Adw` / `Gtk` namespace exports answer `gi://` on
+ * that target, and the GI namespace versions the arm accepts (ADR 0034 stage 9).
+ *
+ * A target absent from this record has no arm: `gi://*` there keeps resolving to the empty
+ * module, which is what every target but `gjs` and `node` did before the arms existed.
+ */
+export declare const GI_RENDERERS: Readonly<
+    Record<string, { renderer: string; namespaces: Readonly<Record<string, string>> }>
+>;
+
+/** The `--app` values {@link GI_RENDERERS} has a row for, so a refused flag can name them. */
+export declare const GI_RENDERER_APPS: readonly string[];

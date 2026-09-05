@@ -98,6 +98,20 @@ export interface ConfigData {
      * see the header of `SourceDialect`.
      */
     dialect?: SourceDialect;
+    /**
+     * Resolve `gi://Ns?version=X` to the target's widget renderer rather than to an
+     * empty module (ADR 0034 stage 9). `--app browser` answers out of
+     * `@gjsify/adwaita-web`, `--app nativescript` out of `@gjsify/adwaita-nativescript`;
+     * `GI_RENDERERS` in `@gjsify/resolve-npm` is the table, and a target with no row
+     * there has no arm. Default: unset.
+     *
+     * Opt-in, never inferred: a `gi://` import reaching one of those targets today is
+     * usually a GJS-only code path pulled in transitively, which the empty module
+     * silences on purpose. On by default it would pull a widget toolkit into bundles
+     * that never named one, and turn every unanswerable namespace from a silent stub
+     * into a hard build failure.
+     */
+    giRenderer?: boolean;
     /** Comma-separated global identifiers to register. Format: see CliBuildOptions. */
     globals?: string;
     /**
