@@ -159,7 +159,7 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                 { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Adwaita","cssClasses":["pill"]} },
                 { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"GNOME","cssClasses":["pill"]} },
                 { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"GTK","cssClasses":["pill"]} },
-                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Typescript","cssClasses":["pill"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"TypeScript","cssClasses":["pill"]} },
                 { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Storybook","cssClasses":["pill"]} },
                 { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Wrapping","cssClasses":["pill"]} },
                 { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Layout","cssClasses":["pill"]} }

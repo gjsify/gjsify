@@ -291,7 +291,7 @@ export const ADWAITA_GALLERY_TREES = [
         root: {
             tag: 'adw-wrap-box',
             props: { childSpacing: 8, lineSpacing: 8 },
-            children: ['Design', 'Adwaita', 'GNOME', 'GTK', 'Typescript', 'Storybook', 'Wrapping', 'Layout'].map(
+            children: ['Design', 'Adwaita', 'GNOME', 'GTK', 'TypeScript', 'Storybook', 'Wrapping', 'Layout'].map(
                 (label) => ({ tag: 'gtk-button', props: { label, cssClasses: ['pill'] } }),
             ),
         },
