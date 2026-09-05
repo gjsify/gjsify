@@ -174,8 +174,12 @@ export class AdwTabView extends GridLayout {
      *
      * THE PAGE, NOT ITS POSITION (ADR 0048). `Adw.TabView` is the one widget in this port
      * whose counterpart selects by OBJECT rather than by name or by ordinal, and the model
-     * has held that object all along — this property is the door onto it. Setting a page
-     * this view does not hold is ignored, as `setSelectedPage` already was.
+     * has held that object all along — this getter is the door onto it.
+     *
+     * READS THE PAGE, WRITES THE ID: the setter below takes the id this port uses as its
+     * page handle, because that is what an XML attribute can carry. TypeScript allows the
+     * two halves to differ, so `view.selectedPage = view.selectedPage` is a type error
+     * rather than a silent one — which is the intended reading, not an oversight.
      */
     get selectedPage(): AdwTabPage | null {
         return this._state.selectedPage;

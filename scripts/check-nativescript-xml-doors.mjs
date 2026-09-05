@@ -31,7 +31,10 @@
 //      Three of the four did not even move the counter. So the reader parses every
 //      declaration, an unreadable one is a FAILURE rather than a skip, and a type an
 //      attribute genuinely cannot carry is COUNTED — the totals have to add up to the
-//      setters that exist, or "all of them coerce" is a claim about the parser.
+//      setters that exist, or "all of them coerce" is a claim about the parser. STRING
+//      doors are counted for the same reason and were the last bucket that was not:
+//      they need no coercion, so the loop skipped them, so a reader that stopped
+//      resolving `string` at all printed the same summary as one that resolved every one.
 //   2. No accessor in the package is a GETTER named after one of NativeScript's
 //      setter-only accessors. `GridLayoutBase.rows` and `.columns` have setters and no
 //      getters, so a same-named getter on a subclass shadows the setter and assignment
@@ -104,6 +107,7 @@ for (const tag of elements) {
 
 let checked = 0;
 let uncarryable = 0;
+let strings = 0;
 for (const tag of [...reachable].sort()) {
     const { file, text } = sources.get(tag);
     // Only the setters this class DECLARES; an inherited one is checked on its owner.
@@ -124,7 +128,17 @@ for (const tag of [...reachable].sort()) {
         }
         const annotation = setter.annotation;
         const kind = attributeKind(types, annotation);
-        if (kind === 'string') continue;
+        // A string door needs no coercion — NativeScript hands the setter the raw string
+        // and a string is what it wanted. COUNTED anyway, for the reason arm 1's header
+        // gives about every other bucket: this was the one skip that moved no counter, so
+        // "classified `string`" and "the reader never saw it" printed identically. Measured
+        // on ADR 0048: `AdwTabView.selectedPage` went from an object type (uncarryable, 20)
+        // to `string | null`, which is the whole claim that NativeScript XML got its tab
+        // selection back — and the summary could not say it had.
+        if (kind === 'string') {
+            strings += 1;
+            continue;
+        }
         // `null` is "an XML attribute cannot carry this" — an array of options, another
         // View. COUNTED rather than passed over, so the arm's totals add up to the
         // setters it read: a skip nobody counts is how a resolver that stopped
@@ -159,8 +173,10 @@ for (const tag of [...reachable].sort()) {
     }
 }
 notes.push(`${checked} non-string setter(s) on ${reachable.size} XML-reachable class(es), all coercing`);
+notes.push(`${strings} setter(s) an attribute carries as-is, needing no coercion`);
 notes.push(`${uncarryable} setter(s) typed as something no XML attribute can carry, held by no rule and counted`);
 if (checked === 0) failures.push('no non-string setter was found at all — arm 1 proved nothing');
+if (strings === 0) failures.push('no string setter was found at all — the reader stopped resolving `string`');
 
 // ---------------------------------------------------------------------------
 // 2. no getter shadows a NativeScript setter-only accessor

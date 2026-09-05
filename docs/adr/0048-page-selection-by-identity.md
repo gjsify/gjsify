@@ -114,13 +114,30 @@ whatever pages the stack holds, duplicates and blanks included, so for those two
 name to pass. The method is not a convenience over the name; it is the only door onto the
 pages the name cannot reach.
 
-### 2. `AdwTabView`: `selected` becomes `selectedPage`, and it holds the page
+### 2. `AdwTabView`: `selected` becomes `selectedPage`, and it holds an identity
 
 `selected` — a settable ordinal on both renderers — is replaced by `selectedPage`, which is
-`Adw.TabView`'s own property name and, as there, holds the PAGE rather than a number. The
-core already models exactly this (`TabViewState.selectedPage`), so the renderers expose a
-value that existed and was not reachable from the outside except through
-`setSelectedPage(id)`.
+`Adw.TabView`'s own property name and, as there, an IDENTITY rather than a number. The core
+already models exactly this (`TabViewState.selectedPage`), so the renderers expose a value
+that existed and was not reachable from the outside except through a method.
+
+**The two renderers write it in different shapes, and that is a decision** (ADR 0034 § 1
+clause 3: a divergence is declared, with its reason — the clause the phrase "converges in
+name, never in shape" belongs to is `composes`, which is about a widget assembled
+differently from its GIR counterpart, not about two renderers differing from each other;
+and the vocabulary ledger compares property NAMES, so nothing measures this either way):
+
+| | reads | writes | why |
+|---|---|---|---|
+| `@gjsify/adwaita-web` | the page | the page | its DOM has a page ELEMENT, and its markup door carries the id separately as `selected-page` |
+| `@gjsify/adwaita-nativescript` | the page | the page's **id** | an id already IS the page handle on that port (`isClosing`, `closePage`, `setPagePinned` all take one) and an XML attribute can carry nothing else — § 3 |
+
+The cost is on the NativeScript half and is deliberate: the two accessors have unrelated
+types, which TypeScript has allowed since 5.1, so `view.selectedPage = view.selectedPage`
+is a TYPE ERROR rather than a silent one. The alternative — `AdwTabPage | string | null` on
+the setter, which is what the core takes — makes the round-trip legal but is currently
+classified `json` by `check-nativescript-xml-doors` and turns the door red; that gate defect
+is in `status/open-todos.md`, and it is the thing to fix before revisiting this.
 
 `selectedIndex` and `selectedId` stay as the getters they already are. Neither is a door.
 
@@ -141,15 +158,27 @@ appends C's `page_belongs_to_this_view` assertion to `view.diagnostics`, where t
 attribute refused an out-of-range index in silence. The selection is the same either way;
 what changes is that the typo is now visible to anyone reading the diagnostics.
 
-`@gjsify/adwaita-nativescript` gets no equivalent, and that is a LOSS, not a
-non-requirement. Its XML door IS the property, and a property holding an object is not one:
-measured, `check-nativescript-xml-doors` moves `selectedPage` into "typed as something no
-XML attribute can carry" (19 → 20) and `AdwTabView` is left with no string-typed selection
-setter at all, where `selected="1"` used to work through `xmlNumber`. So a NativeScript XML
-tree can no longer declare which tab starts selected — only code can. The web kept a markup
-door for exactly this reason and NativeScript should have the same one; it is written down
-in `status/open-todos.md` rather than added here, because the shape (`selectedPageId`, or
-the id-taking method question below) is one decision and should be made once.
+`@gjsify/adwaita-nativescript` needs its own equivalent, because there the property IS the
+XML door and a property holding an object is not one. The first draft of this ADR gave it
+none and the loss was measurable: `selectedPage` landed in "typed as something no XML
+attribute can carry" and `AdwTabView` was left as the one XML-reachable class with a
+selection and no string-typed setter for it, where `<AdwTabView selected="1">` had worked
+through `xmlNumber`. So the setter there takes the ID — `<AdwTabView selectedPage="inbox">`
+— which is § 2's asymmetry and its reason.
+
+Measured with `check-nativescript-xml-doors`, whose string-door counter was added for this
+claim, because "classified `string`" and "the reader never saw it" printed identically
+before it:
+
+| | coercing non-string | string, carried as-is | XML cannot carry |
+|---|---|---|---|
+| before this ADR | 66 | 70 | 19 |
+| with an object-typed `selectedPage` | 64 | 70 | **20** |
+| as it stands | 64 | **71** | 19 |
+
+`selected` and `visibleChildIndex` left the numeric bucket and `selectedPage` joined the
+string one: two XML doors removed, one added, and no setter left in the bucket an attribute
+cannot reach.
 
 ### 4. The core keeps its ordinal API, and that is the point of the split
 
@@ -181,11 +210,11 @@ surface where it is a promise about a page. So the two switcher bars translate t
     which is the reason this was ever findable by anything but a reader clicking a tab.
   - `<AdwTabView selected="1" />` and `<AdwViewStack visibleChildIndex="2" />` in
     NativeScript XML, which no type sees at all.
-- **XML doors DID change**, contrary to the first draft of this section. Measured with
-  `check-nativescript-xml-doors`: coercing non-string setters 66 → 64 (both numeric doors
-  gone), setters XML cannot carry 19 → 20 (`selectedPage` holds an object). What is true is
-  the narrower claim: nothing is left half-reachable — `visibleChildName` is a string, which
-  is what an XML attribute is anyway, and `selectedPage` is refused rather than coerced.
+- **XML doors DID change**, contrary to the first draft of this section, and the final shape
+  is not the one that draft described either. Measured with `check-nativescript-xml-doors`:
+  coercing non-string setters 66 → 64 (both numeric doors gone), string doors 70 → 71
+  (`selectedPage` is one now), setters XML cannot carry 19 → 19 (it passed through 20 while
+  the setter took the object). Two doors removed, one added, none left half-reachable.
 - The vocabulary ledger loses two `should converge` property entries. That is the metric
   moving because the thing it measures moved: `check-vocabulary-alignment.mjs` counts
   SETTABLE properties, because a door is what a portable authored tree writes. Measured:
