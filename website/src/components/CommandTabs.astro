@@ -148,6 +148,9 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
 
 <script>
     import '@gjsify/adwaita-web';
+    // The element CLASS, for the ordinal door below — see AdwWidget.astro, which selects
+    // the same way for the same reason (ADR 0048).
+    import type { Adw } from '@gjsify/adwaita-web';
 
     // One key per tab GROUP. `runtime` keeps the original key so an existing
     // visitor's stored choice survives; other groups get their own namespace.
@@ -162,11 +165,13 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
         if (!runtime) return;
         for (const el of document.querySelectorAll<HTMLElement>('[data-command-tabs]')) {
             if (groupOf(el) !== group) continue;
-            const view = el.querySelector('adw-tab-view[data-cmd-view]');
+            const view = el.querySelector<Adw.TabView>('adw-tab-view[data-cmd-view]');
             if (!view || view === skip) continue;
             const runtimes = (el.dataset.runtimes ?? '').split(',');
             const index = runtimes.indexOf(runtime);
-            if (index >= 0) view.setAttribute('selected', String(index));
+            // A CALL, not an attribute (ADR 0048): `selected="n"` is no longer read, and the
+            // markup half is `selected-page="<page id>"`, which these pages do not declare.
+            if (index >= 0) view.selectNthPage(index);
         }
     };
 
