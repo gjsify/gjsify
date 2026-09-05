@@ -14,7 +14,10 @@
 // returns `null` by design, meaning "no backend here". The result was not a
 // crash and not a warning: AdwIcon, AdwImageButton, AdwMenuButton,
 // AdwButtonContent and every row with an icon rendered NO ICON on iOS, silently,
-// for the whole life of the declaration. Nothing could have caught it — the
+// for the whole life of the declaration. (Two of those four have since been
+// renamed for the library owning their GType — `AdwIcon` is `GtkImage`,
+// `AdwMenuButton` is `GtkMenuButton`, ADR 0034 — and the names are kept as
+// written because they are what the incident was measured on.) Nothing could have caught it — the
 // package builds, type-checks and passes its suite on a platform it does not
 // serve, because the suite runs on GJS and Node where neither variant loads.
 //

@@ -39,7 +39,7 @@
 //     here. This is also why a website `.mdx` is read only for `=`-form HTML attributes:
 //     the same file carries GJS (`iconName: 'x-symbolic'`) and Blueprint
 //     (`icon-name: "x-symbolic";`) panes, both colon-form, both about other renderers.
-//   • the NativeScript port — its `AdwIcon` takes SVG SOURCE, not a name, so a missing
+//   • the NativeScript port — its `GtkImage` takes SVG SOURCE, not a name, so a missing
 //     icon there is a missing import the compiler already rejects.
 //   • FIXTURES: `*.spec.ts` anywhere, and adwaita-core's `conformance/` vector tables.
 //     NOT because they are malformed — only `conformance/view-stack.ts` is; `action-row`

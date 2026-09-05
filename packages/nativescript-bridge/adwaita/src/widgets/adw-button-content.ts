@@ -1,7 +1,7 @@
 // AdwButtonContent — a Libadwaita-style icon+label content for NativeScript.
 //
 // Renders a REAL NativeScript horizontal `StackLayout` with a leading
-// {@link AdwIcon} (a native-rasterised Adwaita symbolic icon) and a text `Label`,
+// {@link GtkImage} (a native-rasterised Adwaita symbolic icon) and a text `Label`,
 // meant to be placed as the child content of a button (or as the label widget of
 // an {@link AdwSplitButton}). Mirrors `Adw.ButtonContent`: `icon` + `label`,
 // `useUnderline`, `canShrink`, plus `iconColor` so the icon can match the
@@ -25,7 +25,7 @@
 import { Label, StackLayout, type View } from '@nativescript/core';
 import { ADW_BUTTON_CONTENT_DEFAULTS } from '@gjsify/adwaita-core';
 import type { AdwButtonContentProps, ButtonContentEllipsize } from '@gjsify/adwaita-core';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import {
     buttonContentClassName,
     buttonContentEllipsize,
@@ -43,7 +43,7 @@ const BASE_CLASS = 'adw-button-content';
 
 export class AdwButtonContent extends StackLayout {
     /** The leading symbolic icon. Always parented — the C never hides the image. */
-    protected readonly _icon: AdwIcon;
+    protected readonly _icon: GtkImage;
     /** The text label. */
     protected readonly _label: Label;
     private readonly _props: AdwButtonContentProps = { ...ADW_BUTTON_CONTENT_DEFAULTS };
@@ -56,7 +56,7 @@ export class AdwButtonContent extends StackLayout {
         this.className = BASE_CLASS;
         this.horizontalAlignment = 'center';
 
-        const icon = new AdwIcon();
+        const icon = new GtkImage();
         icon.className = `${icon.className} adw-button-content-icon`.trim();
         icon.verticalAlignment = 'middle';
         icon.iconName = buttonContentIconSvg('');

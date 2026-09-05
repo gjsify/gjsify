@@ -76,7 +76,7 @@ export {
     resolveMenuChoice,
 } from './menu-sheet.js';
 export type { MenuSheetPresenter, MenuSheetRow } from './menu-sheet.js';
-export { AdwIcon, DEFAULT_ADW_ICON_SIZE } from './adw-icon.js';
+export { GtkImage, DEFAULT_GTK_IMAGE_SIZE } from './gtk-image.js';
 export { AdwBanner, BUTTON_CLICKED } from './adw-banner.js';
 export { AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';
 export { AdwWindowTitle } from './adw-window-title.js';
@@ -300,7 +300,7 @@ import { AdwExpanderRow } from './adw-expander-row.js';
 import { GtkButton } from './gtk-button.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { GtkMenuButton } from './gtk-menu-button.js';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import { AdwBanner } from './adw-banner.js';
 import { AdwAvatar } from './adw-avatar.js';
 import { AdwWindowTitle } from './adw-window-title.js';
@@ -348,7 +348,7 @@ const ELEMENTS = {
     GtkButton,
     AdwImageButton,
     GtkMenuButton,
-    AdwIcon,
+    GtkImage,
     AdwBanner,
     AdwAvatar,
     AdwWindowTitle,

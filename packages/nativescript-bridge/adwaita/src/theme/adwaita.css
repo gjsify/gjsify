@@ -264,7 +264,7 @@ Page.adw-window {
  * Their 24×24 + 5 padding box (_lists.scss:194-198) is deliberately NOT
  * reproduced. It is a hit/alignment box around a 16 glyph, and NS would read a
  * `min-width` on an `Image` as room to SCALE the bitmap into — an icon half
- * again too large rather than a roomier one. The glyph size is AdwIcon's own. */
+ * again too large rather than a roomier one. The glyph size is GtkImage's own. */
 .adw-entry-indicator,
 .adw-entry-edit {
     margin: 0 0 0 6;
@@ -329,7 +329,7 @@ Page.adw-window {
 }
 
 .adw-combo-chevron {
-    /* An AdwIcon (Image) rendering `pan-down-symbolic`; size + dim colour are set
+    /* A GtkImage (Image) rendering `pan-down-symbolic`; size + dim colour are set
      * on the widget. Only the gap to the value label is styled here. */
     margin: 0 0 0 2;
     vertical-align: middle;
@@ -362,7 +362,7 @@ Page.adw-window {
 
 /* `dropdown > button > box { border-spacing: 6px }` (_dropdowns.scss:2-3) — the
  * gap between label and arrow. The arrow's 16px size (_dropdowns.scss:10-13) is
- * the AdwIcon default, and its colour follows the light/dark scheme, so neither
+ * the GtkImage default, and its colour follows the light/dark scheme, so neither
  * is set anywhere. */
 .adw-drop-down-chevron {
     margin: 0 0 0 6;
@@ -448,7 +448,7 @@ Page.adw-window {
  *
  * The `width: 32` / `height: 32` that used to be here NEVER APPLIED. NativeScript
  * ignores a CSS value for a property the widget has set as a LOCAL one
- * (properties/index.js:585-598), and `AdwIcon` assigns `width`/`height` in its
+ * (properties/index.js:585-598), and `GtkImage` assigns `width`/`height` in its
  * constructor — so the chevron has always been the 16 `expander`'s own minimum
  * asks for (_expanders.scss:2-3), which is right, while the stylesheet claimed
  * a 32 tap target it never got. `color` and `font-size` were dead for the other
@@ -911,7 +911,7 @@ Page.adw-window {
     padding: 24 32 24 32;
 }
 
-/* The symbolic icon (AdwIcon) — only spacing; size/colour are baked by AdwIcon. */
+/* The symbolic icon (GtkImage) — only spacing; size/colour are baked by GtkImage. */
 .adw-status-page-icon {
     margin: 0 0 12 0;
 }
@@ -961,7 +961,7 @@ Page.adw-window {
  * three children with `border-spacing: 6px` (_lists.scss:458-462), which the NS
  * subset has no property for — so the 6 rides on the icons, mirrored.
  *
- * MARGIN ONLY. Both are `AdwIcon`s, i.e. `Image`s showing a bitmap that was
+ * MARGIN ONLY. Both are `GtkImage`s, i.e. `Image`s showing a bitmap that was
  * rendered in its fill colour, so `color` here reaches nothing and `font-size`
  * has no text to size. They used to be declared anyway, which put a dead accent
  * declaration in the runtime-accent table as well; the colour now follows the
@@ -1012,7 +1012,7 @@ Page.adw-window {
 
 /* On a suggested/destructive button the label must take the button's foreground
  * (the explicit dark label colour above would otherwise win over the inherited
- * one). The matching ICON colour is pre-baked by the caller via AdwIcon.iconColor. */
+ * one). The matching ICON colour is pre-baked by the caller via GtkImage.iconColor. */
 .adw-button.suggested-action .adw-button-content-label {
     color: #ffffff;
 }
@@ -1711,7 +1711,7 @@ Page.ns-dark.adw-window {
 /* ===== Dark: expander row ===== */
 
 /* No dark counterpart for the chevron: the 70% is an alpha over whatever the
- * bitmap was rendered in, and AdwIcon re-renders that on a scheme change. The
+ * bitmap was rendered in, and GtkImage re-renders that on a scheme change. The
  * `color` this rule used to set reached an `Image` and did nothing. */
 
 .ns-dark .adw-expander-disclosure {

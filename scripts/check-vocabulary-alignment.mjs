@@ -325,8 +325,9 @@ const WEB_ELEMENT_ALIGNMENT = {
  *   { gap: '#NNNN' }               nobody has decided. Not a reason — a pointer.
  *
  * `gir` and `composes` name a GTYPE and are held against the runtime table's GType keys,
- * not against a tag: `AdwIcon` is `GtkImage`, whose tag is `gtk-image`, and deriving one
- * spelling from the other would be this file inventing a mapping instead of reading one.
+ * not against a tag: `adw-image-button` composes `GtkButton` and `GtkImage`, whose tags are
+ * `gtk-button` and `gtk-image`, and deriving one spelling from the other would be this file
+ * inventing a mapping instead of reading one.
  *
  * A `gir` ENTRY IS NOT ITSELF A RENAME. It records that the port ships the widget under
  * another spelling and says why; converging is a separate decision, taken per widget with
@@ -335,16 +336,20 @@ const WEB_ELEMENT_ALIGNMENT = {
  * as redundant. What this table gives the ones that stay is a number.
  */
 const NS_WIDGET_ALIGNMENT = {
-    // Four GTK widgets used to wear an Adw prefix here — `AdwButton`, `AdwDropDown`,
-    // `AdwEntry`, `AdwMenuButton`. They are `gtk-button.ts` … `gtk-menu-button.ts` now, so
-    // they share a spelling and have no entry: an entry for a converged widget fails as
-    // redundant, which is what keeps this table from outliving the work it records.
+    // FIVE GTK widgets used to wear an Adw prefix here — `AdwButton`, `AdwDropDown`,
+    // `AdwEntry`, `AdwMenuButton` and, since 2026-09-05, `AdwIcon`. They are
+    // `gtk-button.ts` … `gtk-image.ts` now, so they share a spelling and have no entry: an
+    // entry for a converged widget fails as redundant, which is what keeps this table from
+    // outliving the work it records.
+    //
+    // `AdwIcon` was the one held back, and what held it was the OTHER gate: the storybook
+    // coverage check joins the two renderers on the bare name, so renaming one surface
+    // alone split one widget into two one-renderer rows. The browser element had already
+    // taken the GIR name (§ Amendment 5), so converging this one closed the pair instead of
+    // splitting it — one row on both renderers, and the `sameWidgetAs` bridge retired with
+    // the entry.
     // No tag under either spelling — and that is three different situations, read from
     // the files rather than inferred from the names.
-    'adw-icon': {
-        gir: 'GtkImage',
-        why: 'A non-interactive NativeScript Image rendering an Adwaita symbolic SVG (adw-icon.ts:1-3, `export class AdwIcon extends Image` at :24). That is Gtk.Image with an icon-name. adwaita-web reached the same verdict about its own copy and acted on it — the element is <gtk-image> there since ADR 0034 § Amendment 5 — so the two renderers agree on the widget and disagree only on the spelling. It is the ONE of the five that did not converge with the rest of this surface, and the reason is the second renderer: converging changes the BARE name (`icon` to `image`), which is what `check-storybook-widget-coverage.mjs` joins the two renderers on, so doing it here alone turns one widget into two one-renderer-only widgets and invalidates its own NO_STORY_OF_ITS_OWN exemption — three failures whose only fix is three ledger entries that would each be false. The two surfaces rename together, in one change.',
-    },
     'adw-image-button': {
         composes: ['GtkButton', 'GtkImage'],
         why: 'Upstream .image-button is a style CLASS on button (refs/libadwaita/src/stylesheet/widgets/_buttons.scss:66, pin 42f647ff), not a type, so on GTK this is a Gtk.Button holding a Gtk.Image. The NativeScript Button is text-only and cannot host a child view, so the port builds a tappable GridLayout around a centred Image instead (adw-image-button.ts:6-8). ADR 0034 § 1 says it "converges in NAME, never in shape", and the name it would converge to — gtk-button — is TAKEN: this port also ships the plain button, which is now GtkButton in gtk-button.ts. One GIR name cannot name two constructors, the same collision Gtk.CheckButton met on the web surface, so the plain form holds the name and this one keeps its own. It converges in neither, which is a third outcome § 1 does not have a word for.',
@@ -514,8 +519,8 @@ const NS_PROPERTY_ALIGNMENT = {
     'adw-button-row.startIconColor': {
         own: 'The same stylesheet-versus-bitmap split as `adw-button-content.iconColor`, and the port states it in place: "the icon bitmap is pre-coloured, so CSS cannot recolour it" (adw-button-row.ts:156). GTK has no icon-colour property to converge towards on any type.',
     },
-    'adw-icon.iconColor': {
-        own: 'No GIR type has an icon-colour property; on GTK a symbolic icon takes its colour from the CSS `color` of its node. The port pins a hex value into the rendered SVG so a context colour survives both schemes (adw-icon.ts:81-85).',
+    'gtk-image.iconColor': {
+        own: 'No GIR type has an icon-colour property; on GTK a symbolic icon takes its colour from the CSS `color` of its node. The port pins a hex value into the rendered SVG so a context colour survives both schemes (gtk-image.ts:81-85).',
     },
     'adw-image-button.iconColor': {
         own: 'Same as the other three icon colours on this surface: a stylesheet concern on GTK, with no writable key on `Gtk.Image` or `Gtk.Button` to name. The port pins it because the SVG is rendered rather than themed (adw-image-button.ts:105-109).',

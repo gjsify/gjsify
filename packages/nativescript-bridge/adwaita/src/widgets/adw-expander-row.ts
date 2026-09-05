@@ -11,7 +11,7 @@
 // The disclosure STATE MACHINE (the expanded/collapsed toggle + notify-on-change)
 // is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link ExpanderState};
 // this class composes it and keeps only the NS render half: the `GridLayout`
-// disclosure box + chevron `AdwIcon` + the `notify::expanded` GObject-style signal,
+// disclosure box + chevron `GtkImage` + the `notify::expanded` GObject-style signal,
 // all driven by the state object.
 //
 // NOTE on animation: the NativeScript CSS subset used by this package has no
@@ -29,7 +29,7 @@ import { GridLayout, ItemSpec, StackLayout, type EventData } from '@nativescript
 import { panDownSymbolic, panUpSymbolic } from '@gjsify/adwaita-icons/ui';
 import { ExpanderState } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import { resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean } from './xml-values.js';
 
@@ -56,7 +56,7 @@ export class AdwExpanderRow extends AdwActionRow {
     override readonly isActionRow: boolean = false;
 
     /** The disclosure chevron (suffix) — a plain symbolic icon, like Adw.ExpanderRow. */
-    protected readonly _toggle: AdwIcon;
+    protected readonly _toggle: GtkImage;
     /** The container of revealed child rows (second grid row). */
     protected readonly _disclosure: StackLayout;
     /** The headless expanded/collapsed disclosure state machine (ADR 0004). */
@@ -82,7 +82,7 @@ export class AdwExpanderRow extends AdwActionRow {
 
         // Adwaita expanders use a plain chevron affordance (pan-down = collapsed,
         // pan-up = expanded) — a REAL symbolic icon, not a `▾` glyph or a button.
-        const toggle = new AdwIcon();
+        const toggle = new GtkImage();
         toggle.iconName = panDownSymbolic;
         toggle.className = `${toggle.className} adw-expander-toggle`.trim();
         this.setSuffix(toggle);

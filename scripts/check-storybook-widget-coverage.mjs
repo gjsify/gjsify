@@ -97,6 +97,7 @@ const NO_STORY_OF_ITS_OWN = {
         'Feedback/Preferences Dialog renders it — the story builds an `Adw.PreferencesPage`, fills it with a group of rows and adds it to the dialog. A page only ever appears inside a preferences dialog, so the story is named after the thing the reader is looking for.',
     'view-stack':
         'A stack shows exactly one page and offers no way to change it — alone it is a blank preview. Every switcher story builds one and drives it: View Switcher, Inline View Switcher, View Switcher Bar.',
+    image: 'There is no Adwaita or GTK icon WIDGET to demonstrate: GTK draws a `Gtk.Image` inline, as the navigation stories do, and the browser element exists because CSS needs a box to hang a symbolic on — so a story would show a GTK primitive rather than an Adwaita widget. This is the exemption the two retired one-renderer rows said the pair would inherit on the day it converged (2026-09-05), which is what it did: `AdwIcon` became `GtkImage`, both renderers now spell it `image`, and one row replaces the pair plus its `sameWidgetAs` bridge.',
     'data-grid':
         'The one widget here with no GTK renderer at all — it is an original @gjsify widget, not a libadwaita port. A GTK story would have to hand-assemble a `Gtk.Grid`, i.e. put a fourth implementation in a showcase where no package owns it. If a GTK data grid is wanted it starts as a package (#1050).',
 };
@@ -189,18 +190,6 @@ const ONE_RENDERER_ONLY = {
     dialog: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    icon: {
-        only: 'nativescript',
-        sameWidgetAs: 'image',
-        decision:
-            'WHY the pair `sameWidgetAs` declares is still two rows: `NS_WIDGET_ALIGNMENT` in check-vocabulary-alignment.mjs declares `adw-icon` to be `GtkImage`, and that declaration is what the vocabulary distance counts. The browser element took the GIR name on 2026-09-01 (ADR 0034 clause 1, § Amendment 5), and the NativeScript port renamed four widgets on the same rule and deliberately left this one (§ Amendment 6): converging it also changes the BARE name — `icon` to `image` — that THIS check joins the two renderers on, so doing it on one surface alone turns one widget into two one-renderer-only widgets and invalidates its own NO_STORY_OF_ITS_OWN exemption. So this row is a NAMING asymmetry that the vocabulary gate already measures, not a missing port, and it retires the day the two surfaces rename together.',
-    },
-    image: {
-        only: 'web',
-        sameWidgetAs: 'icon',
-        decision:
-            'The browser spelling of `GtkImage`; `sameWidgetAs` carries the pairing. What this entry holds that the field cannot is the STORY exemption it inherits the day the pair converges: there is no Adwaita or GTK icon WIDGET to reference; GTK draws a `Gtk.Image` inline (the navigation stories do), and the browser element exists because CSS needs a box to hang a symbolic on, so a story would demonstrate a GTK primitive rather than an Adwaita widget.',
     },
     'image-button': {
         only: 'nativescript',

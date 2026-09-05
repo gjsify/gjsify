@@ -2102,3 +2102,47 @@ by rule 10 of `check-adwaita-rn-platform-split.mjs`; its CALLER half is held by 
 that is the gap that is left. Adding the third entry today would buy no coverage — with no
 namespace to derive from, the retired set is empty and `callerProblems` skips the surface,
 including the vacuity arm. It closes on the day this file is given that surface's namespace.
+
+## Amendment 10, 2026-09-05 — the fifth NativeScript widget, and the class that stays behind
+
+`AdwIcon` is `GtkImage`, and the widget-name distance is one.
+
+**Why it was the one held back.** Amendment 6 renamed four NativeScript widgets and left this
+one, because a second gate joins the two renderers on the widget's BARE name:
+`check-storybook-widget-coverage.mjs` matched `icon` on NativeScript with `image` on the web
+through a `sameWidgetAs` bridge, and renaming one surface alone was read as splitting one
+widget into two one-renderer-only rows. The browser element had already taken the GIR name
+(Amendment 5), so converging this one CLOSED the pair instead of splitting it — which the gate
+confirmed in the only way worth having: it went red twice on the way, once per stale row, and
+the two messages are different because the two rows became stale for different reasons —
+
+    adw-icon:  ledgered as one-renderer-only, but it is on NEITHER renderer. Drop the entry.
+    gtk-image: ledgered as one-renderer-only, but it is on BOTH renderers now — it landed.
+               Drop the entry.
+
+— then green with one row where two had been.
+
+The story exemption the retired rows said the pair "inherits the day it converges" is now that
+one row, carrying the same reason: there is no Adwaita or GTK icon WIDGET to demonstrate — GTK
+draws a `Gtk.Image` inline, and the browser element exists because CSS needs a box to hang a
+symbolic on.
+
+**And a distinction this rename got wrong first, which a third gate caught.** The widget's
+emitted STYLE CLASS was renamed with it, `adw-icon` → `gtk-image`, and
+`check-nativescript-theme-classes.mjs` refused: *"gtk-image is listed, but no widget emits it
+any more"*. It was right for a reason worth writing down, because the two vocabularies are not
+one:
+
+> A widget is named after the library that owns its **GType** (clause 1). A style class is
+> named after the **design system whose stylesheet carries it**, which is Adwaita's.
+
+`GtkButton` next door already does exactly this — the class it sets is `adw-button` — so the
+four earlier renames left their classes alone and only this one moved them. The class is back
+to `adw-icon` and the widget file says why in place.
+
+That gate has a blind spot underneath, and it is worth stating rather than fixing here:
+`isTracked` counts a name only when it starts with `adw-`. Today that is exactly right, since
+every style class this port emits is Adwaita's. It stops being right the day a widget emits a
+`gtk-`-prefixed class, and nothing would report it — the class would simply leave the gate's
+sight. Recorded in `status/open-todos.md`; not changed now, because a rule widened before it
+has a case to serve is a rule nobody can check.

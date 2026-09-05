@@ -221,7 +221,7 @@ knowing which one you are on:
 | Renderer | How a name resolves | An unknown name |
 | --- | --- | --- |
 | GTK (`@gjsify/adwaita-app`) | `GtkIconTheme` looks it up in the **system** icon theme at runtime | draws the theme's `image-missing` |
-| NativeScript (`@gjsify/adwaita-nativescript`) | `AdwIcon` is handed the **SVG source**, not a name | cannot happen — a missing icon is a missing import |
+| NativeScript (`@gjsify/adwaita-nativescript`) | `GtkImage` is handed the **SVG source**, not a name | cannot happen — a missing icon is a missing import |
 | Web (this package) | a **compile-time** subset, plus `registerIcon` | draws `image-missing` |
 
 All three therefore end on ONE glyph for a name they cannot draw. The web reaches it by two

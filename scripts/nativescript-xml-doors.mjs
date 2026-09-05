@@ -172,8 +172,12 @@ export const WIDGET_REFERENCE = '(?:Adw|Gtk)\\.?\\w+';
  * Namespace member -> the class it binds, e.g. `Adw.SwitchRow` -> `AdwSwitchRow`.
  *
  * Read off the package's own `src/namespace/` barrels through the shared reader, so the
- * placement is stated once. `Gtk.Image` -> `AdwIcon` is the member whose two sides do not
- * read alike, and it is exactly why this is a lookup and not a string transform.
+ * placement is stated once. A LOOKUP AND NOT A STRING TRANSFORM, and the example that
+ * used to justify it is gone: `Gtk.Image` bound `AdwIcon` until 2026-09-05, when the
+ * widget took the GIR name (ADR 0034 § Amendment 10) and every member began reading
+ * alike. What keeps this a lookup is that the barrel DECIDES the placement — `Adw` or
+ * `Gtk` per member, from the library owning the GType — and a transform would have to
+ * re-derive that decision from the name it is trying to produce.
  */
 export function readNamespaceSpellings(root) {
     const spellings = new Map();
