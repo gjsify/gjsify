@@ -24,7 +24,7 @@
 //
 // THE ASSERTIONS ARE ABOUT THE INTEGRATION, not about Effect. Effect's own
 // behaviour is upstream's business and is covered in this repo by
-// `tests/integration/effect` (63 cases on GJS and Node). What only a running GTK
+// `tests/integration/effect`. What only a running GTK
 // application can answer is: does an interrupted fiber actually cancel a
 // `Gio.Cancellable`, does `destroy` really run the finalizers, and do the two
 // FileSystem layers give the same answers to the same program — which is what

@@ -55,8 +55,11 @@ always, `gtk_window_destroy()` emits `unrealize` and no `destroy`. The full meas
 Upstream authored `FileSystem.test-utils.ts` as a suite parameterised by a layer, so Node, Bun and
 Deno answer the same questions. [`tests/integration/effect`](../../../tests/integration/effect)
 ports it once and runs it twice: over `node:fs` and over this package's Gio layer. **Both pass all
-21 cases**, including the ones about the file cursor that nobody here would have thought to ask —
-seek backwards, `a+` with separate read and write positions, truncate under a live cursor.
+of it**, including the cases about the file cursor that nobody here would have thought to ask —
+seek backwards, `a+` with separate read and write positions, truncate under a live cursor. The
+per-run counts live in
+[`status/integration-coverage.md`](../../../status/integration-coverage.md), which is where a number
+can be re-measured instead of remembered.
 
 Three GIO semantics had to be corrected to get there, and each is recorded where it bites:
 
@@ -79,10 +82,10 @@ default.
 
 ## Cost
 
-Importing Effect and running one effect adds **25 KB** to a GJS bundle and **2 ms** to cold start
-(12 runs, 45 ms → 47 ms). A GTK window using this layer measures 213 KB against 165–188 KB for two
-comparable showcases that use no Effect at all. Tree-shaking over Effect 4 works; you pay for what
-you import.
+Tree-shaking over Effect 4 works: you pay for what you import, and a GTK window using this layer
+lands in the same size class as comparable showcases that use no Effect at all. The figures, and
+which artifact each one came from, are in
+[ADR 0050](../../../docs/adr/0050-effect-platform-services-for-gnome.md) § Cost.
 
 ## Peer dependency
 

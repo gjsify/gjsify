@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: MIT
 //
-// Renders this showcase's window to PNG, so the README's pictures are
-// REGENERATED rather than remembered.
+// Renders this showcase's window to PNG, so the README's pictures can be
+// regenerated instead of redrawn by hand.
 //
 // WHY IT EXISTS AT ALL. `@gjsify/gtk-host`'s probe harness records the incident
 // behind this: a tree whose assertions all passed rendered an EMPTY window, exit 0,
 // zero GTK diagnostics, because the only witness to "did this draw" is the window.
-// `app.ts` asserts the tree; this draws it. A screenshot pasted into a README once
-// and never regenerated is the same class of claim as a comment with a live count
-// in it — true when written, unfalsifiable afterwards.
+// `app.ts` asserts the tree; this draws it.
+//
+// WHAT IT IS NOT. Nothing runs this in CI — capturing a window needs a presented
+// toplevel, and the probe path deliberately never presents one. So the committed
+// images can go stale, and this file being reproducible is only worth as much as
+// somebody remembering to run it after changing the interface. What IS held on every
+// run is `app.ts`'s probe, which asserts the tree the pictures show.
 //
 // It captures through `captureWidgetPng` (`Gtk.WidgetPaintable` → `render_texture`
 // → `save_to_png_bytes`), not through the compositor, so it needs no screenshot

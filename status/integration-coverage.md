@@ -174,7 +174,6 @@ one expects across prerelease tags.
 | `filesystem` + `filesystem-gio` | 21 ×2 | upstream's LAYER-PARAMETERISED conformance suite, ported once and run over `@gjsify/fs` and over the Gio layer. Both pass all 21. The Gio leg is GJS-only |
 | `path` | 2 | POSIX **and win32** file-URL conversion over `@gjsify/{path,url}` — the win32 leg exercises the `path.win32` branch nothing else in this tree calls |
 | `scope` | 4 | 1 ported (parallel finalization under `TestClock`) + 3 authored: reverse-order release, release on interruption, idempotent double close |
-| `stream` timeout | +1 | the fifth upstream `timeoutOrElse` case, restored after review found the port had four |
 | `scheduler` | 6 | the sync/host split. The sharp one is `runSyncExit does not schedule timers after yielding`: if it ever did, `Effect.runSync` on GJS would stop returning a value, because the continuation would land on the next main-loop turn — which for a synchronous caller is never |
 | `clock` | 2 | which of our APIs the Clock reads. Pins `process.hrtime.bigint` as the monotonic source and `Date.now` as the wall source, incl. the wall-clock-jumps-backwards case a single-source clock gets wrong |
 | `stream` | 13 | `Stream.callback` in full (emit, end, fail, throw, backpressure, cleanup-on-interrupt) — the push-to-pull shape a GTK signal has — plus all five `timeout` cases, plus 2 authored real-clock cases |

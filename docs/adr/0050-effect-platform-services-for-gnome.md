@@ -11,8 +11,9 @@ system: `Effect<A, E, R>` puts the failure channel and the dependency set in the
 signature, fibers can be interrupted where promises cannot, and a `Scope` releases
 what it acquired even when the work is interrupted.
 
-Its 4.0 RC runs on GJS **unmodified**. `tests/integration/effect` measures that: 64
-cases on Node and 85 on GJS, no `@gjsify/*` change required. Bare GJS supplies only
+Its 4.0 RC runs on GJS **unmodified** — no change to any existing `@gjsify/*`
+package. `tests/integration/effect` measures that, and `status/integration-coverage.md`
+carries the counts. Bare GJS supplies only
 `WeakRef` and `FinalizationRegistry` of what Effect reaches for; the rest —
 `structuredClone`, `MessageChannel`, `AbortController`, `queueMicrotask`,
 `performance`, `Symbol.dispose`, `process` — is `@gjsify/*` output and holds.
@@ -67,14 +68,20 @@ test, and that is exactly where these services are most useful.
 authored `FileSystem.test-utils.ts` as a suite parameterised by a layer, so that
 Node, Bun and Deno answer the same questions. `tests/integration/effect` ports it
 once and runs it twice: over `node:fs` (i.e. `@gjsify/fs`) and over this package's
-Gio layer. Both pass all 21 cases. Neither implementation chose the questions.
+Gio layer. Both pass all of it. Neither implementation chose the questions.
 
 ## Consequences
 
 **A new published `@gjsify/*` name needs its npm first-publish and Trusted Publisher
-bootstrap before the release that ships it** (§ Package convention). Until
-`gjsify onboard @gjsify/effect-platform` has run, a release stalls at this name and
-at every alphabetically later one.
+bootstrap before the release that ships it** (§ Package convention). Note the actual
+failure mode, which is worse than a stall and is why the ledger exists:
+`npm:publish` passes `--tolerate-untrusted-new`, so the release goes **green with the
+name simply absent**, announced by one line in a serial log, and npm then skips the
+unresolvable edge at install time in silence (docs/publishing.md). `gjsify onboard`
+is a SWEEP over every publishable package, not a per-name command; the per-name
+recipe is `gjsify publish packages/framework/effect-platform --access public --otp
+<code>` then `gjsify trust @gjsify/effect-platform`, and the name must be verified
+against the registry afterwards before the ledger entry is removed.
 
 **`effect` is a peer dependency, not a dependency.** A consumer's Effect and the
 layer's must be the same instance or the service keys do not match. The RC is pinned
@@ -96,11 +103,29 @@ POSIX `w`/`w+`; a `GFileOutputStream` buffers where a descriptor does not, so ev
 write flushes; and `g_file_copy_async`/`move_async` are typed with `GObject.Closure`
 parameters by `@girs`, so the layer takes the synchronous call and says so.
 
-**Cost, measured before committing rather than after.** Importing Effect and running
-one effect adds 25 KB to a GJS bundle and 2 ms to cold start (12 runs, 45 ms → 47 ms).
-The showcase window with this layer is 213 KB against 165–188 KB for two comparable
-GTK showcases that use no Effect at all. Tree-shaking over Effect 4 works; you pay
-for what you import.
+### Cost
+
+Measured before the decision rather than after it, because "Effect plus your layers
+is a lot of JavaScript for SpiderMonkey" was the one objection worth settling first.
+Per ADR 0044, here is what the instrument measured.
+
+**The Effect core, isolated.** Two `--app gjs` bundles built from two source files
+that differ only in `import { Effect } from 'effect'` plus one `Effect.runSync`:
+136.5 KB against 161.1 KB, so **+25 KB**. Cold start is `gjs -m <bundle>` twelve
+times, wall clock divided by twelve, on this workstation: 45 ms against 47 ms, so
+**+2 ms**. Both bundles print one line and exit, so the figures are parse plus
+initialisation and nothing else.
+
+**A real window.** `showcases/gtk/effect-adw-services`'s `dist/shot.gjs.mjs` — the
+Blueprint window, this package's Gio layer, Effect and `@gjsify/devtools` — is
+213 KB, against `adw-blueprint-layout`'s 165 KB and `adw-host-counter`'s 188 KB,
+neither of which uses Effect. The same showcase's `dist/app.gjs.mjs` is larger and
+is NOT the comparison: it additionally bundles `@effect/platform-node-shared` so its
+probe can run one program against two FileSystem layers.
+
+Tree-shaking over Effect 4 works; you pay for what you import. These are numbers from
+one machine and one Effect version, and they are recorded to answer "is this
+affordable at all", not as a budget anything is held to.
 
 ## Alternatives considered
 

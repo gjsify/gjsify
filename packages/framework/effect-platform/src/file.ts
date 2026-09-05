@@ -6,11 +6,11 @@
 // to the end of the file while the READ position moves independently. A
 // `Gio.FileIOStream` has one `Gio.Seekable` position shared by both directions, so
 // the two cannot be represented directly. `GioFile` therefore keeps the read
-// position itself and, in append mode, seeks to the end before every write and
-// back afterwards. That is emulation, and it is written out here rather than left
-// as a surprise: the upstream conformance suite asks about exactly this
-// ("should maintain a read cursor in append mode"), which is why the emulation
-// exists at all.
+// position itself and, in append mode, seeks to the end before every write. It does
+// not seek back: `readBytes` seeks to the tracked read position before every read,
+// so the two never observe each other's seeks. That is emulation, written out here
+// rather than left as a surprise, and the upstream conformance suite asks about
+// exactly it ("should maintain a read cursor in append mode").
 //
 // WHY `read_bytes_async` AND NOT `read_async`. `read_async` fills a caller-supplied
 // buffer, and GJS marshals that as an out-parameter copy rather than writing into
@@ -60,13 +60,22 @@ interface Streams {
 }
 
 /**
- * POSIX `w`/`w+`: create the file if it is missing, open it read-write, truncate.
+ * Create the file if it is missing, then open it read-write; truncate on request.
+ *
+ * `w`/`w+` truncate, `a+` does not. Both need the create, because
+ * `g_file_open_readwrite` refuses a path that does not exist while POSIX `w`, `w+`
+ * and `a+` all create one — measured: without it, `a+` on a missing file answered
+ * `NotFound` where Node creates the file.
  *
  * `g_file_create` raises `EXISTS` on an existing file, which here is the ordinary
- * case rather than a failure, so it is discarded — the truncate that follows makes
- * both paths end in the same state.
+ * case rather than a failure, so it is discarded.
  */
-const openTruncating = (file: Gio.File, path: string, plan: OpenPlan): Effect.Effect<Streams, PlatformError> =>
+const openOrCreate = (
+    file: Gio.File,
+    path: string,
+    plan: OpenPlan,
+    truncate: boolean,
+): Effect.Effect<Streams, PlatformError> =>
     Effect.gen(function* () {
         yield* Effect.ignore(
             gioAsync({
@@ -88,10 +97,12 @@ const openTruncating = (file: Gio.File, path: string, plan: OpenPlan): Effect.Ef
                 f.open_readwrite_async(GLib.PRIORITY_DEFAULT, cancellable, (_s, result) => done(result)),
             finish: (f, result) => f.open_readwrite_finish(result),
         });
-        yield* Effect.try({
-            try: () => stream.truncate(0, null),
-            catch: (error) => toPlatformError({ method: 'open', pathOrDescriptor: path, error }),
-        });
+        if (truncate) {
+            yield* Effect.try({
+                try: () => stream.truncate(0, null),
+                catch: (error) => toPlatformError({ method: 'open', pathOrDescriptor: path, error }),
+            });
+        }
         return {
             input: plan.readable ? stream.get_input_stream() : null,
             output: stream.get_output_stream(),
@@ -148,7 +159,7 @@ const openStreams = (path: string, flag: FileSystem.OpenFlag): Effect.Effect<Str
             // conformance case "should track the cursor position when writing"
             // reads back mid-stream. Measured: with `replace_readwrite_async` that
             // case saw an empty file after three writes.
-            return openTruncating(file, path, plan);
+            return openOrCreate(file, path, plan, true);
         case 'wx':
         case 'ax':
             return Effect.map(
@@ -198,18 +209,9 @@ const openStreams = (path: string, flag: FileSystem.OpenFlag): Effect.Effect<Str
             );
         case 'a+':
             // `g_file_append_to` gives no input stream, so `a+` opens read-write and
-            // the append behaviour is this module's own (see the header).
-            return Effect.map(
-                gioAsync({
-                    method,
-                    path,
-                    source: file,
-                    start: (f, cancellable, done) =>
-                        f.open_readwrite_async(GLib.PRIORITY_DEFAULT, cancellable, (_s, result) => done(result)),
-                    finish: (f, result) => f.open_readwrite_finish(result),
-                }),
-                io,
-            );
+            // the append behaviour is this module's own (see the header). It must
+            // CREATE a missing file, which `g_file_open_readwrite` does not.
+            return openOrCreate(file, path, plan, false);
     }
 };
 
@@ -376,5 +378,7 @@ export const openFile = (
             streams,
             file: makeFile(path, streams, stat(path)),
         })),
-        ({ streams }) => Effect.sync(() => streams.closable.close(null)),
+        // `g_io_stream_close` is `throws="1"`, and this runs during scope release: a
+        // throw there becomes a defect that REPLACES whatever the body was reporting.
+        ({ streams }) => Effect.ignore(Effect.try(() => streams.closable.close(null))),
     ).pipe(Effect.map(({ file }) => file));

@@ -131,8 +131,8 @@ export const windowScope = (window: Gtk.Window): WidgetScope => signalScope(wind
  *
  * Returns the `Fiber` rather than a promise on purpose: the caller is a signal
  * handler that must return NOW, and a promise there is a value GTK will
- * misinterpret. Read the result — if you need one — with {@link onExit}, which is
- * also synchronous.
+ * misinterpret. If you need the outcome, that is `fiber.addObserver(exit => …)`,
+ * which is synchronous and one line.
  */
 export const runInScope = <A, E>(scope: Scope.Scope, effect: Effect.Effect<A, E, never>): Fiber.Fiber<A, E> =>
     // `runSync` and not `runFork`, and the difference is not stylistic:

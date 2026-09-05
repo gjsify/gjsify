@@ -1,53 +1,57 @@
 // SPDX-License-Identifier: MIT
 //
-// A READ-ONLY `effect/FileSystem` over `Gio.File`.
+// `effect/FileSystem` over `Gio.File`.
 //
 // WHY A SECOND FILESYSTEM AT ALL, when `@effect/platform-node-shared`'s
 // `NodeFileSystem.layer` already runs on GJS through @gjsify/fs — and this repo's
-// own integration suite proves it against 21 upstream conformance cases. Two
-// reasons, and neither is "because we can":
+// integration suite holds it there. Two reasons, and neither is "because we can":
 //
 //   1. THE MAIN LOOP. `@gjsify/fs`'s async calls are async in JavaScript; GIO's are
 //      async in the GLib main loop. In a GTK application that is the difference
 //      between a read that shares the loop with the frame clock and one that does
-//      not, and it is the reason a GNOME app reaches for `Gio.File` in the first
-//      place.
+//      not, and it is why a GNOME app reaches for `Gio.File` in the first place.
 //   2. CANCELLATION HAS AN ADDRESSEE. `Effect.callback` hands the register function
-//      an `AbortSignal` that fires when the fiber is interrupted, and GIO takes a
-//      `Gio.Cancellable` on every async call. Wiring one to the other means
-//      interrupting a fiber actually stops the in-flight I/O rather than only
-//      abandoning its result — which is what closing a window mid-read should do,
-//      and what no promise-based layer can offer.
+//      an `AbortSignal`; every GIO async call takes a `Gio.Cancellable`. Wiring one
+//      to the other means interrupting a fiber STOPS the in-flight I/O rather than
+//      only abandoning its result, which no promise-based layer can offer.
 //
-// SCOPE, STATED PLAINLY. Implemented over GIO: `access`, `stat`, `readFile`,
-// `readDirectory`, `readLink`. `exists`, `readFileString`, `stream` and `sink` are
-// Effect's own derivations of those. Everything else, and everything that WRITES,
-// is an explicit `unimplemented` stub. A showcase that can delete files is a
-// showcase nobody runs twice, and the read surface is where the mapping lives.
+// WHAT IS AND IS NOT HERE. Reading, writing, directories, temp files, attributes,
+// rename, copy, symlink and `watch` are implemented over GIO. Three methods raise a
+// DEFECT because GIO has no equivalent: `realPath` (no symlink-resolving
+// canonicalizer), `link` (no hard-link call) and `glob` (no matcher). Effect derives
+// `exists` from `access`, `readFileString` from `readFile`, and `stream`/`sink` from
+// `open`, so those four come out right for free.
 //
-// THE STUBS DIE, THEY DO NOT FAIL, and that is the whole reason this file spells
-// out the complete interface instead of taking `FileSystem.makeNoop`'s defaults.
-// `makeNoop` answers `remove()` with `Effect.void`, a SILENT SUCCESS: a caller
-// deleting a file through this layer would be told it worked. Its other defaults
-// fail with `NotFound`, which is worse than useless here — it is the tag a real
-// missing file carries, so `Effect.catchTag` on it swallows "this layer cannot do
-// that" as "the file is not there". A defect is not a recoverable error, so an
-// unimplemented method raises one.
+// A DEFECT, NOT A FAILURE, and that is the whole reason this file spells out the
+// complete interface instead of taking `FileSystem.makeNoop`'s defaults. `makeNoop`
+// answers `remove()` with `Effect.void`, a SILENT SUCCESS: a caller deleting a file
+// through it would be told it worked. Its other defaults fail with `NotFound`, which
+// is worse than useless here — it is the tag a real missing file carries, so
+// `Effect.catchTag` on it swallows "this layer cannot do that" as "the file is not
+// there". The absence is a property of the LAYER, not of the path, so it is
+// unrecoverable by definition.
 //
 // The `_tag` a failure carries comes from `errors.ts`, so consumer code reads the
 // same `error.reason._tag === 'NotFound'` here as against the Node layer. That
-// interchangeability is the point of the exercise; see `app.ts`, which asserts it
-// by running the same program against both layers.
+// interchangeability is the point, and `tests/integration/effect` holds it: upstream's
+// own layer-parameterised conformance suite runs over both layers, and both pass all
+// of it.
+//
+// `mode` IS IGNORED by `open`, `writeFile` and `makeDirectory`. GIO's creation calls
+// take `GFileCreateFlags`, which carries `PRIVATE` and `REPLACE_DESTINATION` and no
+// permission bits; setting a mode means a `chmod` after the fact, which is not the
+// same thing as creating with it and would race. Callers that need a mode should
+// call `chmod`.
 
 import Gio from 'gi://Gio?version=2.0';
 import GLib from 'gi://GLib?version=2.0';
 
-import { Effect, Layer, Option, Result, Stream } from 'effect';
+import { Effect, Layer, Option, Result, type Scope, Stream } from 'effect';
 import * as Queue from 'effect/Queue';
 import * as FileSystem from 'effect/FileSystem';
 import type { PlatformError } from 'effect/PlatformError';
 
-import { toPlatformError } from './errors.js';
+import { isIoError, toPlatformError } from './errors.js';
 import { gioAsync } from './gio-async.js';
 import { openFile } from './file.js';
 
@@ -141,22 +145,11 @@ const readFile = (path: string): Effect.Effect<Uint8Array, PlatformError> =>
     });
 
 const readDirectory = (path: string): Effect.Effect<Array<string>, PlatformError> =>
-    Effect.gen(function* () {
-        const enumerator = yield* gioAsync({
-            method: 'readDirectory',
-            path,
-            source: fileFor(path),
-            start: (file, cancellable, done) =>
-                file.enumerate_children_async(
-                    Gio.FILE_ATTRIBUTE_STANDARD_NAME,
-                    Gio.FileQueryInfoFlags.NONE,
-                    GLib.PRIORITY_DEFAULT,
-                    cancellable,
-                    (_source, result) => done(result),
-                ),
-            finish: (file, result) => file.enumerate_children_finish(result),
-        });
+    Effect.scoped(readDirectoryScoped(path));
 
+const readDirectoryScoped = (path: string): Effect.Effect<Array<string>, PlatformError, Scope.Scope> =>
+    Effect.gen(function* () {
+        const enumerator = yield* openEnumerator(path);
         // A batch at a time, because `next_files_async` is how GIO paginates and a
         // directory with 100k entries should not become one 100k-element callback.
         const names: Array<string> = [];
@@ -172,9 +165,36 @@ const readDirectory = (path: string): Effect.Effect<Array<string>, PlatformError
             if (batch.length === 0) break;
             for (const info of batch) names.push(info.get_name());
         }
-        enumerator.close(null);
         return names;
     });
+
+/**
+ * The enumerator as a SCOPED resource.
+ *
+ * `g_file_enumerator_close` is `throws="1"`, and the walk above can be interrupted
+ * between batches — a bare `close()` at the end of the loop is therefore both an
+ * unguarded throw and a leak on the path that does not reach it.
+ */
+const openEnumerator = (path: string): Effect.Effect<Gio.FileEnumerator, PlatformError, Scope.Scope> =>
+    Effect.acquireRelease(
+        gioAsync({
+            method: 'readDirectory',
+            path,
+            source: fileFor(path),
+            start: (file, cancellable, done) =>
+                file.enumerate_children_async(
+                    Gio.FILE_ATTRIBUTE_STANDARD_NAME,
+                    Gio.FileQueryInfoFlags.NONE,
+                    GLib.PRIORITY_DEFAULT,
+                    cancellable,
+                    (_source, result) => done(result),
+                ),
+            finish: (file, result) => file.enumerate_children_finish(result),
+        }),
+        // Release must not fail: a close that throws during scope teardown becomes a
+        // defect, and it would replace whatever the body was already reporting.
+        (enumerator) => Effect.ignore(Effect.try(() => enumerator.close(null))),
+    );
 
 /** `g_path_get_dirname`, needed by the scoped temp-file finalizer. */
 const dirnameOf = (path: string): string => GLib.path_get_dirname(path);
@@ -186,16 +206,27 @@ const makeTempDirectory = (options?: {
 }): Effect.Effect<string, PlatformError> =>
     Effect.try({
         try: () => {
-            const template = `${options?.prefix ?? 'effect-gio-'}XXXXXX`;
+            const template = `${options?.prefix ?? 'effect-platform-'}XXXXXX`;
             if (options?.directory === undefined) return GLib.Dir.make_tmp(template);
-            // `g_dir_make_tmp` always uses $TMPDIR, so a requested parent is built by
-            // hand — which is also the only way to honour `directory`.
-            const dir = GLib.build_filenamev([
-                options.directory,
-                template.replace('XXXXXX', String(GLib.random_int())),
-            ]);
-            Gio.File.new_for_path(dir).make_directory_with_parents(null);
-            return dir;
+            // `g_dir_make_tmp` always uses $TMPDIR, so honouring `directory` means
+            // building the name here. `g_file_make_directory` and NOT
+            // `..._with_parents`: the latter SUCCEEDS on an existing directory, so two
+            // callers could be handed the same one and the first scoped finalizer
+            // would then delete the other's tree. Failing on EXISTS is what makes the
+            // retry mean something.
+            for (let attempt = 0; attempt < 64; attempt++) {
+                const dir = GLib.build_filenamev([
+                    options.directory,
+                    template.replace('XXXXXX', String(GLib.random_int())),
+                ]);
+                try {
+                    Gio.File.new_for_path(dir).make_directory(null);
+                    return dir;
+                } catch (error) {
+                    if (!isIoError(error) || error.code !== Gio.IOErrorEnum.EXISTS) throw error;
+                }
+            }
+            throw new Error('no unused temporary directory name after 64 attempts');
         },
         catch: (error) => toPlatformError({ method: 'makeTempDirectory', error }),
     });
@@ -208,7 +239,7 @@ const makeTempFile = (options?: {
     Effect.flatMap(makeTempDirectory({ directory: options?.directory, prefix: options?.prefix }), (dir) =>
         Effect.try({
             try: () => {
-                const name = `${options?.prefix ?? 'effect-gio-'}${GLib.random_int()}${options?.suffix ?? ''}`;
+                const name = `${options?.prefix ?? 'effect-platform-'}${GLib.random_int()}${options?.suffix ?? ''}`;
                 const path = GLib.build_filenamev([dir, name]);
                 Gio.File.new_for_path(path).create(Gio.FileCreateFlags.NONE, null).close(null);
                 return path;
@@ -259,11 +290,55 @@ const copy = (
         | undefined,
     method: string,
 ): Effect.Effect<void, PlatformError> =>
+    Effect.gen(function* () {
+        // A DIRECTORY IS A TREE WALK. `g_file_copy` refuses one with `WOULD_RECURSE`,
+        // while `effect/FileSystem`'s `copy` is contractually recursive and the Node
+        // layer passes `recursive: true`. Without this a caller swapping the layers
+        // gets a failure where it had a copy.
+        const info = yield* queryInfo(from, method, false);
+        if (info.get_file_type() === Gio.FileType.DIRECTORY) {
+            yield* Effect.try({
+                try: () => {
+                    fileFor(to).make_directory_with_parents(null);
+                },
+                catch: (error) => toPlatformError({ method, pathOrDescriptor: to, error }),
+            }).pipe(
+                // An existing destination directory is the ordinary case when copying
+                // INTO a tree that already partly exists; a real failure resurfaces on
+                // the first child copy, which reports the child's own path.
+                Effect.catchTag('PlatformError', (error) =>
+                    error.reason._tag === 'AlreadyExists' ? Effect.void : Effect.fail(error),
+                ),
+            );
+            for (const name of yield* readDirectory(from)) {
+                yield* copy(GLib.build_filenamev([from, name]), GLib.build_filenamev([to, name]), options, method);
+            }
+            return;
+        }
+        yield* copyOne(from, to, options, method);
+    });
+
+const copyOne = (
+    from: string,
+    to: string,
+    options:
+        | { readonly overwrite?: boolean | undefined; readonly preserveTimestamps?: boolean | undefined }
+        | undefined,
+    method: string,
+): Effect.Effect<void, PlatformError> =>
     Effect.try({
         try: () => {
             let flags = Gio.FileCopyFlags.NONE;
-            if (options?.overwrite !== false) flags |= Gio.FileCopyFlags.OVERWRITE;
-            if (options?.preserveTimestamps === true) flags |= Gio.FileCopyFlags.ALL_METADATA;
+            // `overwrite` DEFAULTS TO FALSE, as it does in the Node layer
+            // (`force: options?.overwrite ?? false`). An earlier version read
+            // `!== false`, which turned an unqualified `copy` into a clobber — and
+            // the conformance case only passes `{ overwrite: false }`, so the default
+            // was untested in both directions.
+            if (options?.overwrite === true) flags |= Gio.FileCopyFlags.OVERWRITE;
+            // `TARGET_DEFAULT_MODIFIED_TIME` off is what "preserve timestamps" means;
+            // `ALL_METADATA` would also carry uid, gid, mode and xattrs, which is more
+            // than the option asks for.
+            if (options?.preserveTimestamps !== true) flags |= Gio.FileCopyFlags.TARGET_DEFAULT_MODIFIED_TIME;
             fileFor(from).copy(fileFor(to), flags, null, null);
         },
         // The path Effect reports is the SOURCE, which is what the conformance suite
@@ -293,7 +368,17 @@ const watch = (path: string): Stream.Stream<FileSystem.WatchEvent, PlatformError
         }),
     );
 
-/** Only the three GIO events Effect's `WatchEvent` has a shape for. */
+/**
+ * The GIO events Effect's three `WatchEvent` shapes can carry.
+ *
+ * What is DROPPED, and one of them matters: `PRE_UNMOUNT`, `UNMOUNTED` and
+ * `CHANGES_DONE_HINT` have no counterpart, and neither does `RENAMED` — which
+ * `WATCH_MOVES` is what PRODUCES. Asking for `WATCH_MOVES` replaces a
+ * delete-then-create pair with one `RENAMED` for an in-directory rename, so a rename
+ * inside the watched directory currently surfaces as nothing at all. Reporting it as
+ * a `Remove` of the old name plus a `Create` of the new one needs the event's second
+ * file argument, which is why it is named here rather than quietly approximated.
+ */
 const WATCH_EVENTS: ReadonlyMap<number, (path: string) => FileSystem.WatchEvent> = new Map<
     number,
     (path: string) => FileSystem.WatchEvent
@@ -349,7 +434,7 @@ const setAttribute = (
  * put it in the same channel as a missing file and invite a `catchTag` to hide it.
  */
 const unimplemented = (method: string) =>
-    Effect.die(new Error(`effect-gio: FileSystem.${method} is not implemented (this layer is read-only)`));
+    Effect.die(new Error(`@gjsify/effect-platform: FileSystem.${method} has no GIO equivalent`));
 
 /**
  * The read-only Gio implementation.

@@ -24,8 +24,8 @@ mode was never the hard part for an effect system anyway: immediate mode would b
 graph re-evaluated sixty times a second is what makes one expensive, while a GTK tree keeps its
 own state and Effect only sequences the mutations.
 
-What no GJS application has is the other half. So this showcase is deliberately the small,
-honest cut: Effect sits *beside* the widgets and supplies
+What no GJS application has is the other half, and this showcase is the small, honest cut: Effect
+sits *beside* the widgets and supplies the services.
 
 Those bridges are no longer in this directory. They started here, which was the right first step —
 the two design questions they answer (which signal closes a widget scope, and how much of
@@ -41,8 +41,9 @@ of its consumers:
 | `@gjsify/effect-platform/gtk` | `windowScope`, `runInScope`, `propertyStream` |
 
 Effect's own behaviour is upstream's business and is covered in this repo by
-[`tests/integration/effect`](../../../tests/integration/effect) — 63 cases, green on GJS and on
-Node. This showcase asserts only what a *running GTK application* can answer.
+[`tests/integration/effect`](../../../tests/integration/effect), whose counts live in
+[`status/integration-coverage.md`](../../../status/integration-coverage.md). This showcase asserts
+only what a *running GTK application* can answer.
 
 ## Four things measured here, not assumed
 
@@ -108,7 +109,7 @@ for the reason the probe harness records: the only witness to *did this draw* is
 
 The load-bearing assertion is **one program, two layers**: a single `Effect` that lists a
 directory, stats a missing path and asks `exists`, run once against
-`GioFileSystem.layer` and once against `@effect/platform-node-shared`'s `NodeFileSystem.layer`.
+`fileSystemLayer` and once against `@effect/platform-node-shared`'s `NodeFileSystem.layer`.
 Both must return the same listing and the same `NotFound` — including on the failure path, where a
 private error vocabulary would have diverged. The mapping is then checked for being a *mapping*:
 `Gio.IOErrorEnum.NOT_FOUND` and `GLib.FileError.ISDIR` are both `1`, so a same-coded error from

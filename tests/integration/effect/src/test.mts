@@ -18,7 +18,7 @@
 // `^` does not mean what one expects across prerelease tags.
 //
 //   runtime-surface  the platform APIs Effect reaches for, before any Effect runs
-//   filesystem       21 upstream conformance cases over @gjsify/fs
+//   filesystem       upstream's conformance suite over @gjsify/fs
 //   path             POSIX + win32 file-URL conversion over @gjsify/{path,url}
 //   scope            finalizer order, interruption, double close
 //   scheduler        the sync/host split, and that runSyncExit schedules no timer

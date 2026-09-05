@@ -15,8 +15,8 @@
 // seek, write in `a+` where the read and write positions are separate, truncate
 // under a live cursor.
 //
-// BOTH LAYERS PASS ALL 21, which is why there is no per-layer escape hatch in this
-// file. Should one appear, the tool is `it.failing(name, fn, reason)` — it RUNS the
+// BOTH LAYERS PASS ALL OF IT, which is why there is no per-layer escape hatch in
+// this file. Should one appear, the tool is `it.failing(name, fn, reason)` — it RUNS the
 // case and turns red the day it starts passing — never a skip and never an
 // `if (layer === …)`, because a gap that cannot retire itself is a gap nobody
 // removes.

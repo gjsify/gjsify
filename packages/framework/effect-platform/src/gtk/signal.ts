@@ -33,6 +33,10 @@ export interface SignalStreamOptions {
     /**
      * What a full buffer does. `'sliding'` drops the oldest; `'suspend'` blocks the
      * emitter, which for a main-loop signal means the window stops drawing.
+     *
+     * `'suspend'` is offered rather than forbidden because the type is `Queue`'s own
+     * and a non-main-loop `GObject` — a worker's `Gio.Task`, an `EventBus` — can
+     * legitimately want it. For anything GTK emits it is the wrong answer.
      */
     readonly strategy?: 'sliding' | 'suspend';
 }
@@ -55,8 +59,8 @@ export interface SignalStreamOptions {
  * constructed and not when a fiber running it is forked — so an emission between
  * those two moments is simply not seen. In an application this is invisible,
  * because the subscription is set up in a constructor and the first emission comes
- * from a user; it is visible the moment a test emits programmatically. That is
- * what `propertyStream`'s seed element exists for.
+ * from a user; it is visible the moment a test emits programmatically, and the
+ * showcase's probe has to sleep before it emits for that reason.
  */
 export const signalStream = <A extends ReadonlyArray<unknown> = ReadonlyArray<unknown>>(
     source: GObject.Object,
@@ -83,7 +87,10 @@ export const signalStream = <A extends ReadonlyArray<unknown> = ReadonlyArray<un
  *
  * Starting with the current value is what makes this usable as a source of truth
  * rather than a change log — a consumer subscribing after the property was already
- * set otherwise renders an empty view until the user types again.
+ * set otherwise renders an empty view until the user types again. It does NOT close
+ * the subscription gap above: `Stream.concat` reads the seed before the second
+ * stream is pulled, so a change landing in between is still missed. What it fixes is
+ * the steady state, not the race.
  *
  * `read` IS EXPLICIT, and both reasons are worth stating. `GObject.Object.get_property`
  * is the GIR method, which takes a name AND a `GObject.Value` to fill — a
