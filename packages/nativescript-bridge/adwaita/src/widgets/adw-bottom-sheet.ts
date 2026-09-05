@@ -3,8 +3,7 @@
 // Renders a REAL NativeScript `GridLayout` overlaying a content layer (row-spanned)
 // with a bottom-anchored sheet panel that is shown/hidden. Mirrors
 // `Adw.BottomSheet`: `setContent()` (the always-visible body), `setSheet()` (the
-// panel that slides up), `open`/`close`, `can-close` and the `close-attempt`
-// signal.
+// panel that slides up), `open`, `can-close` and the `close-attempt` signal.
 //
 // The open state and the dismissal gate are NOT implemented here: they live in
 // `@gjsify/adwaita-core` (`BottomSheetPresentation` + `resolveBottomSheetClose`,
@@ -14,7 +13,7 @@
 //
 // `requestClose(source)` is the INTERACTIVE entry point, so a host can route the
 // Android back button or an in-sheet close button through the same gate the browser
-// port uses; `open()`/`close()` stay the PROGRAMMATIC pair and deliberately ignore
+// port uses; writing `open` is the PROGRAMMATIC path and deliberately ignores
 // `can-close`, as upstream says outright. The drag handle does NOT close on tap:
 // libadwaita builds it `can_focus = FALSE`, `can_target = FALSE`, a decorative pill
 // whose only behavioural role is `allow_mouse_drag = show_drag_handle || bottom_bar`.
@@ -23,7 +22,7 @@
 // box-shadow or translate transition, so the sheet is bottom-aligned in the grid and
 // toggled by `visibility`: instant show/hide, no upward slide, no dimming
 // scrim/backdrop-blur. The look and the state machine are faithful; an app wanting the
-// slide wraps `open`/`close` in `view.animate({ translate })`. (A `modal` sheet on a
+// slide wraps the `open` write in `view.animate({ translate })`. (A `modal` sheet on a
 // phone is more naturally a native `Dialogs`/modal Page — this targets the in-page form.)
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-bottom-sheet`.
@@ -176,12 +175,10 @@ export class AdwBottomSheet extends GridLayout {
      * Like the GTK property this ignores `can-close`; a user-driven dismissal belongs in
      * {@link requestClose}.
      *
-     * IT WAS `openState`, and the reason it could not simply be `open` was a COLLISION,
-     * not a disagreement: this class carried `open()` and `close()` methods, and one name
-     * cannot be both a method and an accessor on one prototype. libadwaita has neither
-     * method — `adw_bottom_sheet_set_open()` is the setter of this very property — so the
-     * two conveniences were what kept the port's own doc saying "Whether the sheet is
-     * open" under a name GTK does not use. `sheet.open = true` replaces `sheet.open()`.
+     * BREAKING: was `openState`, and `sheet.open = true` / `= false` replace the port's
+     * own `open()` / `close()` methods, which libadwaita has no counterpart for. Why the
+     * collision with them was not a reason to keep the divergent name is ADR 0034
+     * § Amendment 11.
      */
     get open(): boolean {
         return this._state.open;

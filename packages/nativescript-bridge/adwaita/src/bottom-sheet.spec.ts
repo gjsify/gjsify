@@ -148,10 +148,10 @@ export const AdwBottomSheetNsTest = async () => {
             expect(sheet.notifications).toStrictEqual([true, false]);
         });
 
-        await it('close() stays ungated while a dismissal is gated', () => {
+        await it('writing `open` stays ungated while a dismissal is gated', () => {
             // "Bottom sheet can still be closed using [property@BottomSheet:open]"
-            // — adw-bottom-sheet.c:2071. `close()` is that property; the drag
-            // handle and the back button are not.
+            // — adw-bottom-sheet.c:2071. Upstream names the PROPERTY as the way
+            // past `can-close`; the drag handle and the back button are not it.
             const sheet = mountSheet();
             sheet.state.setOpen(true);
             sheet.state.setCanClose(false);
@@ -163,8 +163,9 @@ export const AdwBottomSheetNsTest = async () => {
 
         await it('a drag-handle tap leaves an open sheet open', () => {
             // REGRESSION PIN: the handle was a Label with a `tap` listener wired
-            // straight to `close()`. adw-bottom-sheet.c:1197-1198 makes it
-            // untargetable, so it closes nothing.
+            // straight to the port's old `close()` method (gone — the property is
+            // the whole programmatic surface). adw-bottom-sheet.c:1197-1198 makes
+            // the handle untargetable, so it closes nothing.
             const sheet = mountSheet();
             sheet.state.setOpen(true);
             sheet.events.length = 0;
