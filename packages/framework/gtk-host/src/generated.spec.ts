@@ -27,6 +27,7 @@ import {
     REQUIRED_CONSTRUCT_PROPS,
 } from './descriptors/index.js';
 import { createElement, insert, materialize, setEventHandler, setProp } from './host.js';
+import { ENUM_VALUES, ENUM_VALUES_UNAVAILABLE, VALUES_PROVENANCE } from './generated/enum-values.mjs';
 import { DECLS, ENUM_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
 import { camelOf, eventPropOf } from './generator/names.mjs';
 import { enumMembers, isWritable, lookupEnumNick, paramSpecs } from './props.js';
@@ -576,6 +577,92 @@ export default async () => {
                 // Not vacuous: an empty `ENUM_NICKS`, or a lookup that found no enum
                 // object at all, would satisfy the line above with nothing checked.
                 expect(checked > 100).toBe(true);
+            });
+
+            await it('gives every enum nick the number the installed typelib registers', async () => {
+                // THE VALUE HALF, and the reason `generated/enum-values.mts` exists at
+                // all: `ENUM_NICKS` says what a member is CALLED and nothing here said
+                // what it IS. A surface with no GI has to hand GTK an integer, and
+                // counting positions in the nick list answers wrong on seven of the 129
+                // enums — `GtkConstraintStrength.required` is 1001001000 where counting
+                // says 0. The artifact is read from a typelib by
+                // `scripts/generate-enum-values.mjs`; this is the check that the typelib
+                // it was read from and the one running agree.
+                //
+                // WHY A DISAGREEMENT IS NORMALLY A DEFECT. An enum value is ABI: GTK 4
+                // cannot renumber `GtkAlign` without breaking every compiled caller. So
+                // a version gap can only ADD members, and the one member in the corpus
+                // that legitimately MOVES is a count sentinel —
+                // `GtkEditableProperties.num-properties`, 8 on a GTK with eight editable
+                // properties and 10 on one with ten. That is why a mismatch is excused
+                // only where the host is NEWER than the artifact, and is named even then.
+                const values = Object.entries(ENUM_VALUES);
+                const valuesAgainst: Readonly<Record<string, string>> = Object.fromEntries(
+                    VALUES_PROVENANCE.split(' ')
+                        .map((part) => /^(\w+)-[\d.]+\/([\d.]+)$/.exec(part))
+                        .filter((m): m is RegExpExecArray => m !== null)
+                        .map((m) => [m[1] as string, m[2] as string]),
+                );
+                /** True where the RUNNING library is newer than the one the values came from. */
+                const hostIsAhead = (gtype: string): boolean => {
+                    const library = libraryOf(gtype);
+                    const read = valuesAgainst[library];
+                    return read !== undefined && newerThan(running[library] as string, read);
+                };
+                const problems: string[] = [];
+                const moved: string[] = [];
+                const absent: string[] = [];
+                for (const [key, value] of values) {
+                    const at = key.indexOf('.');
+                    const gtype = key.slice(0, at);
+                    const nick = key.slice(at + 1);
+                    const here = lookupEnumNick(gtype, nick);
+                    if (here === undefined) {
+                        // The artifact was generated against a NEWER library than this
+                        // one. Same shape as the nick check above, excused the same way:
+                        // a member that does not exist here cannot carry a number.
+                        (predatesHost(gtype) ? absent : problems).push(`${key} has no member on this host`);
+                        continue;
+                    }
+                    if (here === value) continue;
+                    (hostIsAhead(gtype) ? moved : problems).push(`${key} is ${value} in the artifact and ${here} here`);
+                }
+                if (absent.length > 0)
+                    console.error(`  (${absent.length} valued nick(s) this host does not have: ${absent.join(', ')})`);
+                if (moved.length > 0)
+                    console.error(
+                        `  (${moved.length} value(s) moved under a newer library — regenerate with ` +
+                            `\`gjs -m scripts/generate-enum-values.mjs\`: ${moved.join(', ')})`,
+                    );
+                expect(problems).toStrictEqual([]);
+                // Not vacuous: an empty artifact, or a `lookupEnumNick` that resolved
+                // nothing, would satisfy the line above having compared no numbers.
+                expect(values.length > 500).toBe(true);
+            });
+
+            await it('excuses only the enum nicks this host really has no member for', async () => {
+                // The OTHER direction on the declared remainder. A nick lands in
+                // `ENUM_VALUES_UNAVAILABLE` because the generating host's library had no
+                // such member; on a host that HAS it the entry is stale, and the artifact
+                // is behind rather than wrong. Reported rather than failed for exactly
+                // that reason — being behind costs a number nobody could read yet, and
+                // the step that fixes it is the generator's own `--check`.
+                const stale = Object.keys(ENUM_VALUES_UNAVAILABLE).filter((key) => {
+                    const at = key.indexOf('.');
+                    return lookupEnumNick(key.slice(0, at), key.slice(at + 1)) !== undefined;
+                });
+                if (stale.length > 0)
+                    console.error(
+                        `  (${stale.length} nick(s) excused as unavailable that this host DOES register — ` +
+                            `the artifact predates this machine's libraries: ${stale.join(', ')})`,
+                    );
+                // Every excused nick is still one the vocabulary offers. That half is
+                // not version-relative, so it is an assertion and not a report.
+                const unknown = Object.keys(ENUM_VALUES_UNAVAILABLE).filter((key) => {
+                    const at = key.indexOf('.');
+                    return !(ENUM_NICKS[key.slice(0, at)] ?? []).includes(key.slice(at + 1));
+                });
+                expect(unknown).toStrictEqual([]);
             });
 
             await it('names every event prop so the host resolves it back to the same signal', async () => {
