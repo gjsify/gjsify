@@ -2,9 +2,72 @@
 
 import Adw from 'gi://Adw?version=1';
 
-import type { WidgetDescriptor } from '../types.js';
+import type { NodePlacement, WidgetDescriptor } from '../types.js';
+
+/**
+ * The placement every `Adw.Dialog` shares — ADR 0045, and the whole of the seam's
+ * shipped membership.
+ *
+ * `present` and `force_close` are measured on libadwaita 1.9.3; the three
+ * measurements that pick those two names, rather than `close`, are on
+ * `NodePlacement`'s portal arm in `types.ts`.
+ *
+ * ONE CONSTANT AND FIVE ROWS, because a portal is a fact about the TYPE and
+ * libadwaita has five of them (measured with `GObject.type_is_a`:
+ * `AdwDialog`, `AdwAboutDialog`, `AdwAlertDialog`, `AdwPreferencesDialog`,
+ * `AdwShortcutsDialog`; `AdwMessageDialog` is NOT one — it is a `GtkWindow`).
+ * They are named rather than derived because registration is exact: the generated
+ * table registers each subclass under its own GType with `children:
+ * { kind: 'uncurated' }`, so an inherited placement would never be looked up and
+ * `<adw-alert-dialog>` under a rooted box would abort the process. `portal
+ * placement is inherited by every Adw.Dialog subclass` in `portal.spec.ts` is what
+ * keeps the list complete when libadwaita adds the sixth.
+ */
+const DIALOG_PORTAL: NodePlacement = { kind: 'portal', present: 'present', close: 'force_close' };
 
 export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
+    {
+        gtype: 'AdwDialog',
+        ctor: () => Adw.Dialog,
+        // ONE CHILD, and the ordinary `AdwBin` rule: MEASURED on libadwaita 1.9.3,
+        // `set_child`/`get_child` are the only child-taking pair on the class. The
+        // interesting half of this descriptor is `placement`, not `children` — the
+        // dialog adopts its content exactly like every other bin and reaches the
+        // screen like nothing else in the table.
+        children: { kind: 'single', set: 'set_child' },
+        placement: DIALOG_PORTAL,
+    },
+    // The four subclasses. `uncurated` CHILDREN is the honest state and not an
+    // oversight: each builds its own template out of its own API (`add_response`
+    // on the alert, `add` on the preferences dialog), and every one of them
+    // INHERITS `set_child` from `AdwDialog`, where writing through it would
+    // replace that template — the `AdwExpanderRow` trap one class up. So the tag
+    // can be created, propertied, presented and closed, and a child in it is a
+    // named `uncurated-placement` refusal rather than a silent replacement.
+    {
+        gtype: 'AdwAlertDialog',
+        ctor: () => Adw.AlertDialog,
+        children: { kind: 'uncurated' },
+        placement: DIALOG_PORTAL,
+    },
+    {
+        gtype: 'AdwAboutDialog',
+        ctor: () => Adw.AboutDialog,
+        children: { kind: 'uncurated' },
+        placement: DIALOG_PORTAL,
+    },
+    {
+        gtype: 'AdwPreferencesDialog',
+        ctor: () => Adw.PreferencesDialog,
+        children: { kind: 'uncurated' },
+        placement: DIALOG_PORTAL,
+    },
+    {
+        gtype: 'AdwShortcutsDialog',
+        ctor: () => Adw.ShortcutsDialog,
+        children: { kind: 'uncurated' },
+        placement: DIALOG_PORTAL,
+    },
     // A child holder like GTK's three, and it arrives here for the same reason: the
     // rule selects a concrete non-widget that declares both halves of a one-child slot
     // whose child is a widget, and this is the fourth and only Adw member of that set.

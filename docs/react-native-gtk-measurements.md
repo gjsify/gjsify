@@ -10,12 +10,41 @@ Design decisions: [ADR 0032](adr/0032-react-native-on-the-gtk-host.md),
 [ADR 0036](adr/0036-third-party-react-native-surfaces.md),
 [ADR 0039](adr/0039-react-native-prop-surface.md).
 
-1. **`box.append(AdwDialog)` calls `g_error()`** → SIGABRT and a core dump, not an
-   exception a host can catch and not a warning a diagnostics gate can count. So
-   `<Modal>` is a PORTAL and stays `planned`: a `partial` there kills the process on
-   the first render. Measure it with the box ROOTED IN A WINDOW — a detached box
-   accepts the append in silence, so a re-test on a bare box "disproves" this and puts
-   the primitive back.
+1. **`box.append(AdwDialog)` calls `g_error()`** → SIGABRT and a core dump (exit 134),
+   not an exception a host can catch and not a warning a diagnostics gate can count.
+   Measure it with the box ROOTED IN A WINDOW — a detached box accepts the append in
+   silence at exit 0, so a re-test on a bare box "disproves" this. So `<Modal>` is a
+   PORTAL: an element whose host node is not its parent node. It is `partial` since
+   [ADR 0045](adr/0045-portal-placement-in-the-gtk-host.md) gave `@gjsify/gtk-host` a
+   placement axis, and three more measurements shape that seam, all on libadwaita
+   1.9.3 / GTK 4.22.4:
+
+   - **presenting against a parent that is in NO window opens a separate `GtkWindow`,
+     at exit 0.** `adw_dialog_present` finds no `AdwDialogHost` among the parent's
+     ancestors and takes its documented `present_as_window` branch;
+     `window.visibleDialog` stays null and nothing is logged. Every framework builds
+     bottom-up, so this is the ORDINARY case at insert time, not an edge one. The host
+     waits on `notify::root`, which fires on a grandchild box when the toplevel takes
+     the subtree, and again on unroot.
+   - **the close a host calls is `force_close`, never `close`.** With
+     `can-close: false` — which is how `onRequestClose` is honoured, and what makes
+     `visible` the only thing that dismisses a modal — `close()` returns FALSE, emits
+     `close-attempt` and leaves the dialog on screen. `force_close()` closes it and
+     emits `closed`. And `close()` on a dialog that was never presented is
+     `Adwaita-CRITICAL **: Trying to close … that's not presented` where `force_close()`
+     is silent, so the forced one also needs no "is it up?" probe.
+   - **re-presenting an already-presented dialog for a different host is a CRITICAL,
+     and the move does not happen.** `Cannot present … as it's already presented for
+     …` plus `Gtk-WARNING **: Can't set new parent …`; the dialog stays in the first
+     window. Close-then-present is the sequence that works, which is what the host does
+     when a subtree moves between toplevels — measured, unrooting the parent leaves the
+     dialog in the OLD window's host with `visibleDialog` still set. GTK never takes it
+     down by itself, so the host closes the dialog when its anchor loses a toplevel: a
+     subtree that is detached and never re-rooted would otherwise keep its sheet on
+     screen in the window it left.
+   - **`Gtk.Widget::map` on the dialog is the SHOWN moment, not the presented one**, and
+     it fires once. `present()` against a window that has not been shown yet emits
+     nothing; the emission arrives on the window's own `present()`. That is `onShow`.
 
 2. **`onChangeText` binds `notify::text`, NOT `Gtk.Editable::changed`.**
    `gtk_editable_set_text` is a delete followed by an insert, so ONE write over

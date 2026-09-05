@@ -198,6 +198,35 @@ platform, not from the bridge:
 
 Remaining darwin gaps are tracked in [`status/open-todos.md`](../../../status/open-todos.md).
 
+### The darwin GL 4.1 ceiling
+
+The one-line rule in [packages/framework/AGENTS.md](../AGENTS.md) links here for the
+measurement behind it, because a rule without its reason gets "simplified" back into the
+bug. Measured on macOS 15.7 / GdkMacosGLContext (`4.1 APPLE-21.1.1`, GLSL 4.10).
+
+**The two missing entry points, reproduced.** `glInvalidateFramebuffer` and
+`glInvalidateSubFramebuffer` are GL 4.3 and absent, hence the `epoxyGlVersion() >= 43` gate
+in `webgl2-rendering-context.vala` — libepoxy ABORTS on a missing entry point rather than
+returning null. They are also the only two, and that is a count anyone can re-take: of the
+219 `epoxy_gl*` entry points `libgwebgl.dylib` references, `dlsym` against
+`OpenGL.framework` resolves 217.
+
+```bash
+nm -u libgwebgl.dylib | sed -n 's/^ *_epoxy_//p' | grep -E '^gl[A-Z]'
+# then, per name, ctypes.CDLL('/System/Library/Frameworks/OpenGL.framework/OpenGL')
+```
+
+**The GLES 3.0 spellings with no desktop-4.1 equivalent stay missing**, and this is the part
+the shader rewrite above does not reach: `GL_PRIMITIVE_RESTART_FIXED_INDEX` (4.3 on desktop)
+and the mandatory ETC2/EAC compressed formats. Both surface as a **draw-time** error rather
+than a compile failure, so a shader that compiles is not evidence that a scene using them
+will render.
+
+For the dialect rewrite itself — including why **win32 is rewritten too**, which this file
+predicted wrongly once — see [Platform coverage](#platform-coverage) above. Host diagnosis:
+`gjsify run packages/framework/webgl/scripts/probe-gl-host.js`, which also draws a
+shader-free pattern so a blank window cannot be mistaken for a failed shader.
+
 ## Diagnosing a host
 
 ```bash

@@ -88,9 +88,71 @@ export interface HostElement extends HostNodeBase {
      * computes "first" and the whole rendered tree lands ABOVE the app's own chrome.
      */
     foreign: readonly Gtk.Widget[];
+    /**
+     * A PORTAL node's subscription to its parent's `root`, or null.
+     *
+     * Only a `portal` placement ever has one, and it is per-attachment state
+     * exactly like `wrapper` — a side table keyed on the element would be a second
+     * tree that can disagree with this one. See {@link NodePlacement}'s portal arm
+     * for what the subscription is for and what it was measured against.
+     */
+    portalWatch: { widget: Gtk.Widget; id: number } | null;
 }
 
 export type HostNode = HostElement | HostText | HostAnchor;
+
+// ---------------------------------------------------------------------------
+// Node placement — how a node reaches the screen at all
+// ---------------------------------------------------------------------------
+
+/**
+ * The axis ABOVE `ChildPolicy`, and the two are orthogonal on purpose.
+ *
+ * `ChildPolicy` answers "how does this parent adopt a child". It presumes the
+ * answer to a question nobody had to ask until now: *does this node go into its
+ * parent at all?* For every widget in the table it does. For an `Adw.Dialog` it
+ * does not, and the difference is not a degradation the parent can absorb —
+ * MEASURED on libadwaita 1.9.3 / GTK 4.22.4 / gjs 1.88.1, `box.append(dialog)`
+ * with the box ROOTED IN A WINDOW reaches
+ *
+ *     Adwaita-ERROR **: Trying to add AdwDialog 0x… to GtkBox 0x…. Use
+ *     adw_dialog_present() to show dialogs.
+ *
+ * which is `g_error()`: SIGABRT, exit 134, a core dump. Not an exception a `try`
+ * in the reconciler can catch and not a warning a diagnostics gate can count.
+ * `adw_dialog_root()` raises it from the ROOT vfunc, which is why a DETACHED box
+ * accepts the very same append in silence at exit 0 — re-testing this on a bare
+ * box "disproves" it and puts the append back.
+ *
+ * So the descriptor declares the axis, and `policies.ts` is the only reader.
+ * `parented` is every other widget and is what an ABSENT `placement` means; the
+ * union still cannot be forgotten because there is exactly one normaliser
+ * (`placementOf`) and every switch over it ends in `unhandledPlacement`.
+ */
+export type NodePlacement =
+    /** The parent's `ChildPolicy` places it. Every widget but the dialog family. */
+    | { readonly kind: 'parented' }
+    /**
+     * The node places ITSELF against its parent: `present(parent)` / `close()`.
+     *
+     * Three measurements shape the two method names, all on libadwaita 1.9.3:
+     *
+     *  - `present` TAKES THE PARENT WIDGET (`adw_dialog_present` arity 1, against
+     *    `gtk_window_present`'s 0). That is what makes this a portal rather than a
+     *    toplevel: the node has a place in the shadow tree and a different place in
+     *    the GTK tree, and the parent is what joins them.
+     *  - `close` IS THE UNCONDITIONAL ONE, `force_close` and not `close`. An
+     *    unmount is not a user request: with `can-close: false` (which is how
+     *    `onRequestClose` is honoured one layer up) `adw_dialog_close()` returns
+     *    FALSE, emits `close-attempt` and LEAVES THE DIALOG ON SCREEN — measured.
+     *    `force_close()` closes it and emits `closed`.
+     *  - AND `force_close` IS SAFE ON A NODE THAT WAS NEVER PRESENTED, where
+     *    `close` is not: measured, `close()` on an unpresented dialog answers
+     *    `Adwaita-CRITICAL **: Trying to close AdwDialog 0x… that's not presented`
+     *    at exit 0, and `force_close()` is silent. So the host needs no
+     *    "is it up?" probe before retracting one.
+     */
+    | { readonly kind: 'portal'; readonly present: string; readonly close: string };
 
 // ---------------------------------------------------------------------------
 // Child placement
@@ -263,6 +325,19 @@ export interface WidgetDescriptor {
     /** Lazy so `gi://` loads late and an unused descriptor costs nothing. */
     readonly ctor: () => GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object);
     readonly children: ChildPolicy;
+    /**
+     * How this node reaches the screen. Absent means `{ kind: 'parented' }`.
+     *
+     * Optional rather than required, and the reason is the shape of the table
+     * rather than convenience: the generated half is the whole GIR widget set and
+     * not one row of it is a portal, so a required field would be ~900 identical
+     * lines. Nothing is left implicit by that — `placementOf()` normalises the
+     * absence in ONE place and every switch over the result has a `never` arm, so
+     * a third placement kind cannot be added without every reader failing to
+     * compile. `descriptorProblems()` holds the declared methods against the
+     * installed class, exactly as it does for `children`.
+     */
+    readonly placement?: NodePlacement;
     /**
      * Where a text child goes. Absent means text under this widget is an ERROR
      * that names the tag — never a silent drop.

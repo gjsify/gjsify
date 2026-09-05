@@ -8,7 +8,10 @@ const BUNDLE_TIMEOUT = 110_000;
 interface GjsifyTestResults {
     passed: number;
     failed: number;
+    /** Tests that ran. Was ASSERTIONS until #1557 renamed the two apart. */
     total: number;
+    /** Assertions executed — the floor below is over this one, deliberately. */
+    assertions: number;
     errors: Array<{ suite: string; test: string; message: string }>;
 }
 
@@ -38,14 +41,15 @@ for (const bundle of bundles) {
 
         // `failed === 0` is satisfied by a bundle that registered NOTHING: `browserSignalDone()`
         // sets the results and `data-tests-done` unconditionally, so `run({})` reports 0/0/0 and
-        // passes — measured through this harness. `total` is @gjsify/unit's `countTestsOverall`,
-        // which `expect()` and the `assert*` family increment and a stood-down `on(…)` test does
-        // NOT: a floor over ASSERTIONS, so the message names all three ways to reach zero. Every
-        // browser entry clears it today (fewest ungated assertions reachable: web/gamepad, 5).
-        // A floor cannot see a PARTIAL shrink — that is
+        // passes — measured through this harness. The floor is over ASSERTIONS and stays there:
+        // a suite that runs tests which assert nothing is the third way to reach zero, and a
+        // test count cannot see it. `results.total` is TESTS since #1557 renamed the two apart,
+        // so the floor now reads `results.assertions`, which is the number it always meant.
+        // Every browser entry clears it today (fewest ungated assertions reachable:
+        // web/gamepad, 5). A floor cannot see a PARTIAL shrink — that is
         // `scripts/check-browser-test-registration.mjs`; the rest of the residual is in main.yml.
         expect(
-            results.total,
+            results.assertions,
             `${bundle.url} ran 0 assertions — the bundle registered no suite, its suites assert ` +
                 'nothing, or every test stood down on an `on(…)` gate',
         ).toBeGreaterThan(0);

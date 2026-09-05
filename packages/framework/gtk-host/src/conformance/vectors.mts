@@ -92,6 +92,12 @@ async function refusalOf(run: () => Promise<unknown>): Promise<string> {
  * `gated` rather than a bare `describe`: `@gjsify/unit` keeps ONE
  * `beforeEach`/`afterEach` slot per module and nulls both when a describe returns,
  * so hooks registered outside the block cover exactly one sibling.
+ *
+ * CORRECTED 2026-09-04 (#1554): hooks are SCOPED now — one frame per `describe`,
+ * popped when it returns — so hooks registered outside the block cover every
+ * sibling, and two registrations in one scope both run. `gated` stays because it
+ * keeps one declaration of what a gated block means, not because the runner
+ * forgets.
  */
 export async function runAdapterVectors(harness: VectorHarness, gate: DiagnosticsGate): Promise<void> {
     const { framework, mount } = harness;

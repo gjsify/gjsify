@@ -47,10 +47,20 @@
 // during the same pass, so the switcher lands on the commit after the page's, and
 // `tabs.ts` wires the stack from the switcher's ref for exactly that reason.
 
-import { createContext, createElement, useCallback, useContext, useLayoutEffect, useRef, useState } from 'react';
+import {
+    createContext,
+    createElement,
+    useCallback,
+    useContext,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
 import { RouterError } from './errors.js';
+import { PerRouteCache } from './per-route-cache.js';
 import { useWindowChrome } from '../window-chrome.js';
 
 /** Where an inner level puts what it wants the window's one header bar to show. */
@@ -164,6 +174,8 @@ export interface TitleSlots {
     titleWidgetFor(key: string): ReactElement | null;
     /** The slot for this key, with an identity that survives every re-render. */
     slotFor(key: string): ChromeSlot;
+    /** Drop the slots of every bar this navigator no longer renders. */
+    retain(keys: ReadonlySet<string>): void;
 }
 
 /**
@@ -173,6 +185,13 @@ export interface TitleSlots {
  * a fresh object per render would make the context value change on every commit and
  * re-run every consumer's effect, which for this consumer means clearing and
  * re-setting the contribution in a loop.
+ *
+ * Cached and therefore PRUNED, through the one lifecycle `per-route-cache.ts` owns:
+ * the key is a route key, of which React Navigation mints a fresh one per pushed
+ * instance, so an unpruned map grows with the navigation history (#1547). `held` and
+ * `widgets` need no prune of their own — a contributor's effect cleanup clears both on
+ * the way out — and `retain` is the caller's, because only the navigator knows which
+ * bars it still renders.
  *
  * A SECOND live contribution to one bar REFUSES. The cleanup in a contributor's
  * effect clears the slot before it re-runs, so the same contributor re-setting is
@@ -186,13 +205,11 @@ export function useTitleSlots(navigator: string): TitleSlots {
     // inside an effect, where the state of the render that is being committed is not
     // readable yet, and a stale answer there would let the second contributor through.
     const held = useRef(new Map<string, ReactElement>());
-    const slots = useRef(new Map<string, ChromeSlot>());
+    const slots = useRef(new PerRouteCache<ChromeSlot>());
 
     const slotFor = useCallback(
-        (key: string): ChromeSlot => {
-            const existing = slots.current.get(key);
-            if (existing !== undefined) return existing;
-            const slot: ChromeSlot = {
+        (key: string): ChromeSlot =>
+            slots.current.getOrCreate(key, () => ({
                 setTitleWidget(element: ReactElement | null): void {
                     const current = held.current.get(key);
                     if (element === null) {
@@ -217,13 +234,17 @@ export function useTitleSlots(navigator: string): TitleSlots {
                     held.current.set(key, element);
                     setWidgets((previous) => ({ ...previous, [key]: element }));
                 },
-            };
-            slots.current.set(key, slot);
-            return slot;
-        },
+            })),
         [navigator],
     );
 
+    // Bound to the cache and not to a render, so a navigator's whole slot map goes
+    // when the navigator does — a `useEffect` cleanup with an empty dependency list is
+    // the unmount, and nothing else runs it.
+    const cache = slots.current;
+    useEffect(() => () => cache.clear(), [cache]);
+
+    const retain = useCallback((keys: ReadonlySet<string>): void => slots.current.retain(keys), []);
     const titleWidgetFor = useCallback((key: string): ReactElement | null => widgets[key] ?? null, [widgets]);
-    return { titleWidgetFor, slotFor };
+    return { titleWidgetFor, slotFor, retain };
 }

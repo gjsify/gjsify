@@ -30,6 +30,34 @@ them is a decision about which package OWNS the API, not a refactor. Establish t
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### A `Gtk.Window` in a child list is accepted silently, where an `Adw.Dialog` aborts
+
+ADR 0045 gave `@gjsify/gtk-host` a placement axis because `box.append(dialog)` is `g_error()` —
+SIGABRT, exit 134 — once the box is rooted in a window. The same probe measured the neighbouring
+case and it does NOT abort:
+
+    const outer = new Adw.Window();
+    const box = new Gtk.Box();
+    outer.set_content(box);            // box is rooted
+    box.append(new Gtk.Window());      // exit 0, win.get_parent() === box
+
+A toplevel sitting inside a child list is wrong in the same way a parented dialog is — it is a
+`GtkRoot` with a parent — and GTK says nothing at all about it. So it is the quieter half of the
+same class, arriving through the door this repository pays most for.
+
+It is NOT fixed by the portal placement, and the reason is a decision rather than an omission:
+`gtk_window_present()` takes NO argument (measured, arity 0, against `adw_dialog_present`'s 1), so
+a window is not *presented against* anything. It is a root, not a node with two positions in the
+tree, and the portal arm's whole content is the parent that joins those two positions —
+`descriptorProblems()` now refuses a zero-argument `present` as a portal for exactly that reason.
+
+What is undecided, and why this is an entry rather than a fix: whether a `<GtkWindow>` element
+should be renderable at all, and if so what its placement means. That is the window-chrome and
+router layer's question (`@gjsify/react-native`'s `router/chrome.ts`, ADR 0043's application
+handle), not the widget table's — and answering it inside a placement ADR would have been a
+routing decision taken in the wrong file. Whoever takes it up: the measurement above is the
+starting point, and a third `NodePlacement` kind is four `never` arms away.
+
 ### One package, two module instances — a "singleton" the bundle duplicates
 
 `@gjsify/adwaita-nativescript` is bundled **TWICE** into the NativeScript storybook
@@ -1118,6 +1146,29 @@ So the question is what a payload IS, and the honest answers are a declaration
 artifacts somewhere the project does not also use as scratch. Both are config surface, so both want
 the ADR treatment rather than a filter someone adds in passing. Until then the fat is visible only
 to a reader of `--verbose`, which is how it stayed unnoticed in the first place.
+
+### A timed-out `describe` can still register a hook, and it lands on its parent
+
+`@gjsify/unit` scopes `beforeEach`/`afterEach` per `describe` (#1554): a frame is pushed on
+entry and popped when the body returns. A body that TIMES OUT does not return — `withTimeout`
+rejects the wrapper, and nothing cancels the body, because a promise cannot be cancelled. So
+the frame is popped while the body is still running, and a hook it registers afterwards lands
+in whatever frame is current by then, which is the parent's.
+
+**Measured**: a describe with `suiteTimeout: 40` sleeping 150 ms and registering its hooks
+after the sleep — a later sibling test then logged `["LEAKED-before", "n-body", "LEAKED-after"]`.
+Same symptom as the incident that motivated the scoping (an innocent neighbour), narrowed to a
+suite that is already failing.
+
+**Why it is not simply fixed.** Routing a late registration back to the describe it was
+written in needs async context — `AsyncLocalStorage`, which lives in `@gjsify/async_hooks`, a
+package `@gjsify/unit` may not depend on (tier direction, ADR 0003). A `closed` flag on the
+frame does not help: the late write does not target the popped frame, it targets the parent.
+What WOULD work is refusing to register into any frame once a timeout has been seen, which
+trades a leak for a silently dropped hook — the same class, in the other direction.
+
+The run is red and names the timed-out suite either way, so the cost is a confusing extra
+failure rather than a silent one.
 
 ### `canPlayType` answers from a hardcoded list, and one of its answers is now known wrong
 
@@ -3434,19 +3485,19 @@ It is ledgered rather than listed for a different reason than `devtools-export`'
 cannot MAP without a display, `test:e2e` has none, and the suite's SKIP gate checks for one — so
 listing it would buy a silent suite, which is the state this ledger exists to prevent.
 
-Which means three lines in `runApplication` are guarded by NOTHING that CI runs:
-`registerBuiltinWidgets()`, the option passthrough, and `provideWindowChrome()`. No unit vector
-can hold any of them — each is observable only by running the loop, and `app-registry.spec.ts`
-covers `toShellOptions` precisely because that one IS a pure value.
+UPDATED 2026-09-04 (#1549): two of the three lines that were guarded by nothing now have a
+unit vector. `runApplication` still cannot be entered from a spec — a nested
+`g_application_run` inside the runner's own main loop never returns (measured:
+`g_application_run: assertion '!application->priv->must_quit_now' failed`, case timed out at
+5 s) — so ADR 0043's amendment splits it at `mountApplicationRoot` and `ownTheApplication`,
+and `app-registry.spec.ts` drives the real composition through those. `provideWindowChrome()`
+is held there: with the call deleted the vector reads 2 mapped header bars and
+`windowChromeProblems()` answers "2 sets of window controls draw at the end … 1 of those close
+buttons close nothing the user is looking at".
 
-The third is measured rather than argued. Deleting `provideWindowChrome(chrome, …)` from the
-render call, dropping `chrome` from the destructuring and deleting the now-dead import — the
-whole shape a careless rebase produces — leaves `oxfmt` clean, `oxlint` at 0, `tsc` at 0 and
-`@gjsify/react-native` at 2345 completed / 0 failed, **#1540's ten window-chrome vectors
-included**: `router/router.spec.ts` composes `buildWindowShell()` + `provideWindowChrome()`
-itself and never runs the bootstrap, which is the drift `window-chrome.ts`' own header warns
-about one function earlier. From outside, the same build draws TWO mapped header bars — #1460,
-two sets of window controls, one dead close button.
+WHAT IS STILL GUARDED BY NOTHING CI RUNS: `registerBuiltinWidgets()`, and everything past
+`toShellOptions` — the shell's own lifecycle wiring (`installDevtools` at `startup`, `activate`
+building the window, `runAsync`). Those need the loop, which needs this suite to have a host.
 
 WHAT IS LEFT: main.yml's `examples` job already runs `xvfb-run … dbus-run-session` around
 `scripts/showcase-smoke.mjs`, which is precisely the environment this suite asks for. Of the two
@@ -4588,6 +4639,52 @@ external write, and ships announcing nothing. A route kind (`announce` is the pr
 a table field, and it is the reason both L3s subscribe directly) or a per-binding declaration
 checked by the surface gates would make the class visible; naming it here is not that check.
 
+### The window-chrome check fires at startup only; a composition that breaks LATER is unwatched
+
+ADR 0043's amendment takes option A of #1546: `AppRegistry` runs
+`@gjsify/gtk-host/conformance`'s `windowChromeProblems()` over its own window, once, on the
+idle after `map`, ungated, and publishes the answer as `lastWindowChromeProblems()`. That
+catches the shape the instrument was built for — #1460 was an application that OPENED with two
+close buttons — and it is the only option that fires for a consumer who never writes a vector.
+
+It does NOT catch a composition that goes wrong after startup, and the reason it cannot is the
+instrument's own: the invariant is about the RESTING composition, `Adw.NavigationView` keeps a
+departing page mapped while the arriving one slides in, and a per-commit check would therefore
+report a defect for every push. Measured in `gtk-host/conformance/window-chrome.ts`' own header:
+four mapped header bars and four sets of controls at the moment a nested tab group is entered.
+
+So option B is still open and is what answers the rest: a `WindowChromeProblems` method on
+`@gjsify/devtools`, beside `DumpTree`/`Screenshot`. Zero cost when nobody asks, no layering
+question, and it composes with the headless driving a driver already does — walk an
+application's routes and ask after each, at a moment the driver knows is resting. The case
+#1546 was written from is exactly that: a `headerShown: false` screen pushed on top of a
+bar-ful root stack, which is a NAVIGATION and not a launch.
+
+Blocked on nothing but the decision to spend a devtools method on it.
+
+### A `ViewStack` page removed mid-transition can crash, and gtk-host is where it would be avoided
+
+The crash itself is upstream libadwaita's, and it is ledgered where this repository puts an
+upstream gap: `status/upstream-patch-candidates.md` carries the source reading, #1453's
+reporter's backtrace, why `AdwViewStack:enable-transitions = false` is not an escape, what a
+consumer can do meanwhile, and the upstream ask. This entry is only the half that is ours, so
+there is one copy of the mechanism rather than two.
+
+`@gjsify/gtk-host`'s reconciler is what removes an `AdwViewStack` page one at a time, so it is
+the layer that could keep the dangling pointer from being created at all. The lead is in
+libadwaita's own source: `update_child_visible` clears `last_visible_child` whenever the page it
+names stops being visible (`adw-view-stack.c:1073`), so hiding the child and letting that notify
+land before the remove would take the freed page out of play through public API.
+
+NOT done in #1567, and the reason is that it would be a guard nothing measures. These vectors
+never remove a `ViewStack` page one at a time — React unmounts a deleted subtree from its top and
+the pages go with the stack — so reaching the crash needs a route set that SHRINKS while the
+window is mapped, and nothing in the tree builds one.
+
+BLOCKED ON THE VECTOR, not on the decision: build the shrinking-route-set case first. If it
+reproduces the assertion, the hide-then-remove belongs in gtk-host's `ViewStack` descriptor with
+that case holding it, and both retire the day the upstream fix ships.
+
 ### `check-e2e-harness-duplication` matches a NAME, so an unrelated helper reads as a copy
 
 `scripts/check-e2e-harness-duplication.mjs:85` detects the `run-cli` rule with
@@ -4610,4 +4707,3 @@ unable to catch a real copy that spells itself `runCommand`. Narrowing it wants 
 behaviour discriminator — a spawn whose first argument is a CLI entry, say — and a
 measurement of how many of the 151 suites change verdict under it, which is why this is
 an entry rather than a patch in the PR that hit it.
-

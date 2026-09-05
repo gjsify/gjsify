@@ -20,9 +20,9 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `useColorScheme` | P1 | Adw.StyleManager.dark | Follows the Adwaita colour scheme — the dark property, which is what the user is looking at, not color-scheme, which is what the application asked for. |
 | `Appearance` | P2 | Adw.StyleManager | The imperative sibling of useColorScheme, over the SAME reader — getColorScheme reads Adw.StyleManager:dark (what the user is looking at) and setColorScheme writes :color-scheme (what the application asked for), which is exactly the split React Native’s getter and setter have. |
 | `EventEmitter` | — | — | Pure JavaScript; nothing in it touches a platform. |
-| `unstable_batchedUpdates` | — | — | React 19 batches automatically; this is the identity call it already is upstream. |
+| `unstable_batchedUpdates` | — | — | React 19 batches automatically; this is the identity call it already is upstream — literally so since 0.86, where the getter became a method whose body is `fn(bookkeeping)`. |
 
-### Supported, with named limits (31)
+### Supported, with named limits (32)
 
 | export | tier | GTK | why |
 |---|---|---|---|
@@ -35,6 +35,7 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `Linking` | P1 | Gtk.UriLauncher | openURL and canOpenURL only. |
 | `Switch` | P1 | Gtk.Switch | Direct counterpart. |
 | `Platform` | P1 | — | OS is "linux" \| "macos" \| "windows"; select() picks the default branch. |
+| `Modal` | P1 | Adw.Dialog | A PORTAL: the element’s host node is not its parent node. An Adw.Dialog is PRESENTED against a parent and never parented by it — MEASURED on libadwaita 1.9.3 / GTK 4.22.4, box.append(dialog) with the box ROOTED IN A WINDOW is g_error() (SIGABRT, exit 134, a core dump), while a detached box takes the same append in silence, which is how a re-test on a bare box appears to disprove it. So @gjsify/gtk-host grew a placement axis (ADR 0045) and AdwDialog declares present/force_close on it; nothing is appended and the abort is unreachable. |
 | `Share` | P1 | Gdk.Clipboard | No desktop share sheet worth pretending about; copying the link is the honest mapping. |
 | `AppRegistry` | P1 | Adw.Application + Adw.ApplicationWindow | The entry point. Nothing renders without a window, so this is P1 despite being a shim. |
 | `StyleSheet` | P1 | Gdk.Monitor.scale for hairlineWidth | create/flatten/compose/hairlineWidth/absoluteFill. Style objects go through the same partition as classes (ADR 0032 § 4), which is why create can be identity. |
@@ -50,7 +51,7 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `Button` | P2 | Gtk.Button | The one component whose React Native styling story is "you cannot", which GTK agrees with. title, onPress and disabled. |
 | `Dimensions` | P2 | Gtk.Window allocation, Gdk.Monitor geometry | get("window") is the window, not the screen — a desktop app is not full-screen, so the screen’s number would be wrong in the ordinary case. get("screen") is the monitor, because that is what it asks for. |
 | `useWindowDimensions` | P2 | Gdk.Surface notify::width/height, Gtk.Window allocation | The hook form of Dimensions, through useSyncExternalStore so a resize between render and commit cannot tear. |
-| `Alert` | P2 | Adw.AlertDialog | Direct counterpart, and buildable where Modal is not: Alert is a FUNCTION CALL, so no element is ever inserted into a widget. Measured on libadwaita 1.9.3 — present(null) from a plain function, with no parent and no window, returned with no diagnostic. |
+| `Alert` | P2 | Adw.AlertDialog | Direct counterpart, and it needed no placement seam to be one: Alert is a FUNCTION CALL, so no element is ever inserted into a widget (Modal is the same widget family as an ELEMENT, and reaches the same call through the host portal placement of ADR 0045). Measured on libadwaita 1.9.3 — present(null) from a plain function, with no parent and no window, returned with no diagnostic. |
 | `SafeAreaView` | P2 | Gtk.Box | The INSET has no desktop meaning; the layout does. It is a View in every other respect, and it has to be a real export to be imported. |
 | `StatusBar` | P2 | — | A desktop window has no status bar to configure, and <StatusBar/> is in the first ten lines of most React Native screens — so it renders NOTHING and says so, rather than failing to import. |
 | `KeyboardAvoidingView` | P2 | Gtk.Box | No on-screen keyboard eats a desktop window layout, so the AVOIDING is the no-op. React Native’s KeyboardAvoidingView is a View that changes its own height; what is left here is the View. |
@@ -58,17 +59,15 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `Animated` | P3 | Adw.TimedAnimation, over Adw.CallbackAnimationTarget | Value, timing and View — the three names a measured application uses, in one file of 28 routes. The rest of the subsystem is a graph evaluated per frame, and every other member refuses BY NAME. |
 | `Easing` | P3 | AdwEasing, through Adw.TimedAnimation:easing | Not arithmetic, which the planning entry called it: React Native’s easings are FUNCTIONS and AdwEasing is an ENUM with no callback form, so this is a name-to-enum mapping and every pair in it is measured. |
 
-### Planned (26)
+### Planned (32)
 
 | export | tier | GTK | why |
 |---|---|---|---|
-| `Modal` | P1 | Adw.Dialog | An Adw.Dialog cannot be an ordinary element. MEASURED on libadwaita 1.9.3: box.append(dialog) calls g_error() — SIGABRT and a core dump, not a catchable exception — but ONLY when the box is rooted in a window. A detached box accepts the append in silence, so a re-test on a bare box appears to disprove this and puts the primitive back. A dialog is PRESENTED against a parent, never parented by it, so this is a PORTAL and needs a host seam that does not exist yet. |
 | `AppState` | P3 | Gtk.Application / Gdk.Surface state | active/background from window focus and visibility. |
 | `PixelRatio` | P3 | Gdk.Surface.scale-factor | The scale factor of the surface the widget is on. |
 | `PlatformColor` | P3 | Adwaita named colours | Maps unusually well — GTK’s palette is exactly this idea. |
 | `AccessibilityInfo` | P3 | Gtk.Accessible / AT-SPI | The highest-value P3 entry: GTK’s accessibility model is strong and the props map onto it well. |
 | `LayoutAnimation` | P3 | — | Needs an animated layout pass, which is the same subsystem as Animated. |
-| `InteractionManager` | P3 | — | Deferring work until interactions settle; a main-loop idle source is the counterpart. |
 | `useAnimatedValue` | P3 | — | Part of the Animated subsystem. |
 | `useAnimatedValueXY` | P3 | — | Part of the Animated subsystem. |
 | `useAnimatedColor` | P3 | — | Part of the Animated subsystem. |
@@ -88,6 +87,14 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `ProgressBarAndroid` | P3 | Gtk.ProgressBar | Android-only by name; GTK has the widget. |
 | `NativeEventEmitter` | P3 | — | It would construct and subscribe, but nothing native would ever emit into it — shipping that needs a decision, not a class. |
 | `DeviceEventEmitter` | P3 | — | The global emitter. Lands with NativeEventEmitter, and for the same reason. |
+| `AssetRegistry` | P3 | the bundler’s own asset map | undefined |
+| `unstable_VirtualArray` | P3 | Gio.ListStore | The array-backed implementation of the `VirtualCollection` interface — `size` plus `at(index)`. Its own doc warns it is not for large arrays, because the constructor copies the input; the LAZY case is the interface, not this class. `Gio.ListStore` is the same array-backed shape, and a Gio.ListModel of one\u2019s own is the lazy one. |
+| `unstable_createVirtualCollectionView` | P3 | Gtk.ListView / Gtk.GridView | Builds a view component from a layout component and a generator. The per-item render is the returned component\u2019s `children` render prop — which is what `Gtk.SignalListItemFactory` answers; the generator is a different thing (see below). |
+| `unstable_VirtualColumn` | P3 | Gtk.ListView (vertical) | The collection view built over the column generator. Its layout component renders children plus a spacer and nothing else — the AXIS is in the generator\u2019s spacer style, not in the layout. |
+| `unstable_VirtualColumnGenerator` | P3 | Gtk.ListView\u2019s own recycling window | NOT per item: `{ initial: { itemCount, spacerStyle }, next(event) }` \u2014 how many items to render and how tall the spacer is, recomputed on a mode change. It never sees an item. GTK computes the same thing itself from the viewport. |
+| `unstable_VirtualRow` | P3 | Gtk.ListView (horizontal) | The row twin of the column view. Its layout component is identical to the column\u2019s; on GTK the pair is one view with its orientation set. Upstream exports no row GENERATOR, so only one half of the pair is configurable from outside. |
+| `unstable_getScrollParent` | P3 | the enclosing Gtk.ScrolledWindow | The nearest scrollable ancestor of a node. GTK answers it by walking parents to a Gtk.ScrolledWindow, and returns nothing at the root for the same reason React Native does. |
+| `unstable_DEFAULT_INITIAL_NUM_TO_RENDER` | P3 | — | The constant 7, upstream’s initial window size. GTK sizes its own recycling window from the viewport, so this is a number to expose rather than to obey. |
 
 ### No meaning on a desktop window (6)
 
@@ -100,7 +107,7 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `DevMenu` | — | — | The shake-to-open developer menu. |
 | `DevSettings` | — | — | Development-client settings for a phone runtime. |
 
-### Refused (25)
+### Refused (23)
 
 | export | tier | GTK | why |
 |---|---|---|---|
@@ -125,8 +132,6 @@ Imported from `react-native`; answered by `@gjsify/react-native`.
 | `findNodeHandle` | — | — | Returns a native view tag. A ref here is the Gtk.Widget itself, which is more useful. |
 | `registerCallableModule` | — | — | Registers a module callable from the native side. There is no native side. |
 | `Networking` | — | — | React Native’s XHR internals. Use fetch, which gjsify provides. |
-| `NativeDialogManagerAndroid` | — | — | An Android dialog native module. Alert is the portable spelling. |
-| `Touchable` | — | — | The legacy mixin behind the Touchable family, not a public component. |
 | `NativeAppEventEmitter` | — | — | The legacy iOS app-event emitter. |
 | `RootTagContext` | — | — | A React Native surface identifier. This layer has one root per Adw window. |
 

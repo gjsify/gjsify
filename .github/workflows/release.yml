@@ -1268,6 +1268,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Dispatch the cross-platform probe (measures what was just published)
+        id: dispatch-probe
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1292,6 +1293,12 @@ jobs:
             }
             console.log("dispatched cli-cross-platform.yml against the freshly published latest");
           '
+      - name: 'Probe outcome: Dispatch the cross-platform probe'
+        if: always()
+        env:
+          PROBE_LABEL: 'Dispatch the cross-platform probe (measures what was just published)'
+          PROBE_OUTCOME: ${{ steps.dispatch-probe.outcome }}
+        run: node scripts/report-probe-outcome.mjs
 
   # ---------------------------------------------------------------------------
   # @gjsify/napi — the N-API host for GJS (native `.node` addons IN GJS), the

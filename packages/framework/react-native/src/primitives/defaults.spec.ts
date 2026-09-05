@@ -10,6 +10,7 @@
 // centred, on every screen. The vectors below are what stops a sixth doing the same —
 // a `widgetProps` entry with no row fails, and a row that stops being true fails.
 
+import Adw from 'gi://Adw?version=1';
 import Gtk from 'gi://Gtk?version=4.0';
 import GObject from 'gi://GObject?version=2.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
@@ -38,8 +39,16 @@ const accessor = (name: string): string => name.replace(/-([a-z0-9])/g, (_, c: s
  * default is a different number whenever a constructor overrides it.
  */
 function freshWidget(gtype: string): Gtk.Widget {
-    const ctor = (Gtk as unknown as Record<string, new () => Gtk.Widget>)[gtype.replace(/^Gtk/, '')];
-    if (typeof ctor !== 'function') throw new Error(`no Gtk constructor for ${gtype}`);
+    // BOTH NAMESPACES, because the ledger's key is a GType name and the table names
+    // libadwaita widgets too. It knew only `Gtk*` until `AdwDialog:can-close` joined,
+    // and the failure was `no Gtk constructor for AdwDialog` — the ledger's own
+    // closure check reporting a hole in its READER rather than in the ledger. Every
+    // future Adw entry would have hit the same wall.
+    const source = gtype.startsWith('Adw')
+        ? (Adw as unknown as Record<string, unknown>)
+        : (Gtk as unknown as Record<string, unknown>);
+    const ctor = source[gtype.replace(/^(Gtk|Adw)/, '')] as (new () => Gtk.Widget) | undefined;
+    if (typeof ctor !== 'function') throw new Error(`no constructor for ${gtype}`);
     return new ctor();
 }
 

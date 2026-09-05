@@ -123,10 +123,15 @@ A `Gtk.Overlay` measures only its main child. A 9 px main child beside a 266 px 
 gave the overlay 9 px, which is why absolute positioning changes which widget a `View` becomes
 rather than adding a property to it.
 
-`Modal` is not a primitive and stays unimplemented rather than partial. `box.append(dialog)`
-calls `g_error()`, which is SIGABRT and a core dump rather than a catchable exception, when the
-box is rooted in a window. A detached box accepts the same append in silence, so a re-test on a
-bare box appears to disprove this and puts the primitive back.
+`Modal` is a PORTAL: its host node is not its parent node. `box.append(dialog)` calls
+`g_error()`, which is SIGABRT and a core dump rather than a catchable exception, when the box is
+rooted in a window. A detached box accepts the same append in silence, so a re-test on a bare box
+appears to disprove this and puts the naive mapping back. The fix is in the tree rather than in
+this layer: `@gjsify/gtk-host` carries a placement axis ([ADR 0045](adr/0045-portal-placement-in-the-gtk-host.md))
+whose portal arm is `present(parent)` / `force_close()`, `AdwDialog` and its four subclasses
+declare it, and nothing is ever appended. Presenting against a parent that is in NO window opens
+a separate `GtkWindow` at exit 0, so the host waits on `notify::root` — which every framework
+needs, because every framework builds bottom-up.
 
 `Dimensions` reads the surface, not the window: a 640×480 window has a 668×509 surface, which
 carries the client-side-decoration shadow. Whether the window's allocation is already updated

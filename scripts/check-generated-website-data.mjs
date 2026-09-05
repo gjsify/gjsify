@@ -371,11 +371,28 @@ if (widgetsSrc === null || propsSrc === null || descriptorFiles.some((f) => f ==
         return propCache.get(tag);
     };
 
-    /** GType -> the slot names its CURATED descriptor declares, or null for none. */
+    /**
+     * GType -> the slot names its CURATED CHILD POLICY declares, or null for none.
+     *
+     * KEYED ON THE POLICY, NOT ON TABLE MEMBERSHIP, and the difference is measured
+     * rather than pedantic. Both readers below ask one question — *can a child go
+     * inside this widget?* — and "the gtype appears in `descriptors/*.ts`" was a
+     * proxy for it that held only while every curated row was curated for its
+     * CHILDREN. ADR 0045 broke that: a descriptor can now be curated for its
+     * PLACEMENT alone (`AdwAlertDialog` and its three siblings are portals whose
+     * child policy is still `uncurated`, because each builds its own template and
+     * inherits a `set_child` that would replace it). Read as membership, this file
+     * then called a perfectly live `uncurated-placement` refusal stale.
+     *
+     * So a block declaring `children: { kind: 'uncurated' }` is skipped, which puts
+     * it back where it was before it was curated at all — the honest state, and the
+     * one `gtk-host` itself reports.
+     */
     const curatedSlots = new Map();
     for (const block of descriptorSrc.split(/\n    \{\n/).slice(1)) {
         const gtype = /gtype:\s*'([^']+)'/.exec(block)?.[1];
         if (!gtype) continue;
+        if (/children:\s*\{[\s\S]*?kind:\s*'uncurated'/.test(block)) continue;
         const slots = /slots:\s*\{([^}]*)\}/.exec(block)?.[1];
         curatedSlots.set(gtype, slots === undefined ? null : [...slots.matchAll(/(\w+):/g)].map((m) => m[1]));
     }
