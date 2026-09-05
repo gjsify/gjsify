@@ -42,16 +42,36 @@ convergence is also a feature, which is the opposite of the usual trade in this 
 
 ## Decision
 
-### 1. `cssClasses` on both widgets, and the base class is not in it
+### 1. `styleClasses` on both widgets, and the base class is not in it
 
-`GtkButton.variant` and `AdwHeaderBar.flat` become `cssClasses`, the counterpart's own
-property name.
+`GtkButton.variant` and `AdwHeaderBar.flat` become `styleClasses`, holding what
+`GtkWidget:css-classes` holds.
 
 The list excludes the class that says what the widget IS — `adw-button`, `adw-header-bar` —
 because that is GTK's rule and not a convenience: a widget's CSS name is not a member of
-`css-classes`, and `gtk_widget_get_css_classes` never returns it. The widget keeps that
-class on its `className` so its own stylesheet still applies; `cssClasses` reads back
-exactly what the caller wrote.
+`css-classes`, and `gtk_widget_get_css_classes` never returns it (measured under gjs 1.88.1
+/ libadwaita 1.9.3: a fresh `Gtk.Button` answers `[]`). The widget keeps that class on its
+`className` so its own stylesheet still applies; `styleClasses` reads back exactly what the
+caller wrote.
+
+**Not `cssClasses`, which is the counterpart's own name — because on NativeScript that name
+is taken, and taking it is fatal.** `@nativescript/core`'s `ViewBase` declares
+`readonly cssClasses: Set<string>` (`ui/core/view-base/index.d.ts:366`), assigns it in its
+constructor (`index.js:226`), and rebuilds that very Set from `className` on every write
+(`classNameProperty.valueChanged`, `index.js:1140-1154`). A subclass accessor SHADOWS the
+constructor's assignment, so the Set never exists and the first `className` write — the one
+in `GtkButton`'s own constructor — throws `cssClasses.has is not a function`. Measured
+against 9.1.0-alpha.11, the version the showcase pins, by running those two bodies verbatim.
+
+Nothing here could see it: the package typechecks against its own ambient `ns-core.d.ts`
+slice, which is a `declare module` and therefore WINS over the real `@nativescript/core`
+even when one is installed, and no test constructs a widget because `extends FlexboxLayout`
+cannot be imported outside a NativeScript runtime. `ns-core.d.ts` now declares the member,
+so `gjsify tsc` answers TS2611 to the next widget that reaches for the name.
+
+`styleClasses` is libadwaita's own word for these ("the `.flat` style class") and is free in
+the whole of `@nativescript/core`. The ledger carries `cssClasses` as the convergence target
+this surface cannot reach, with that measurement as the reason.
 
 ### 2. The names are CLASS names, and nothing is resolved
 
@@ -61,13 +81,13 @@ unknown ones simply match no rule, so the port neither validates nor rewrites.
 `@gjsify/adwaita-core`'s `ADW_BUTTON_STYLE_ALIASES` — which maps `suggested` →
 `suggested-action` — stays exactly where it was: it is the **web element's attribute**
 vocabulary (`<gtk-button suggested>`), and an attribute name is not a class name. Resolving
-aliases inside `cssClasses` would make the property mean something GTK's does not.
+aliases inside `styleClasses` would make the property mean something GTK's does not.
 
 ### 3. The door takes a string; the read-back is a list
 
 ```ts
-get cssClasses(): string[]
-set cssClasses(value: string | null | undefined)   // space-separated, as in XML
+get styleClasses(): string[]
+set styleClasses(value: string | null | undefined)   // space-separated, as in XML
 ```
 
 This is the DOM's own `className` / `classList` split rather than a compromise. The two
@@ -82,7 +102,7 @@ running both gates: `attributeKind` files it as `json`, `check-nativescript-xml-
 demands a `parseAdjustment()`-shaped door, and `check-generated-website-data` refuses every
 gallery block that writes the attribute as a string. No spelling gets past it — the gate
 calls a literal `json` only when it parses to a plain OBJECT (`!Array.isArray`), so
-`cssClasses='["pill"]'` classifies as `string` and fails the same way. Inventing a kind to
+`styleClasses='["pill"]'` classifies as `string` and fails the same way. Inventing a kind to
 offer a second spelling of a door that already works is the *"second way to say what the
 table can already say"* that gate's own header refuses.
 
@@ -93,13 +113,22 @@ callers are the two setters, and both are typed `string | null | undefined`.
 ## Consequences
 
 - **Breaking**, on one published package:
-  `button.variant = 'suggested'` → `button.cssClasses = 'suggested-action'`;
-  `header.flat = true` → `header.cssClasses = 'flat'`;
-  `<gtk:Button variant="pill">` → `cssClasses="pill"`;
+  `button.variant = 'suggested'` → `button.styleClasses = 'suggested-action'`;
+  `header.flat = true` → `header.styleClasses = 'flat'`;
+  `<gtk:Button variant="pill">` → `styleClasses="pill"`;
   `AdwButtonVariant` is gone as an exported type.
-- **A composed look is expressible for the first time**: `cssClasses = 'pill suggested-action'`.
-- The vocabulary ledger loses its last two `should converge` property entries that are a
-  SPELLING rather than a structure.
+- **A composed look is expressible for the first time**:
+  `styleClasses = 'pill suggested-action'`.
+- **The vocabulary distance does not move.** Both entries stay in the ledger as
+  `should converge`, now under the new spelling and with the platform collision as their
+  reason — 7 property names, where the first draft of this ADR claimed 5. The feature is
+  the composable list; the convergence is not available here.
+- **The read-back order is this port's, not GTK's.** Measured: `set_css_classes(['pill',
+  'suggested-action'])` answers `["suggested-action","pill"]`, and both orders of
+  `['zzz-one','aaa-two']` answer `["zzz-one","aaa-two"]` — GTK holds the list in GQuark
+  order, an interning artifact of which name was first seen anywhere in the process. The
+  port keeps the order written. It de-duplicates as GTK does, and additionally trims, where
+  GTK does not (`set_css_classes(['  x  '])` answers `["  x  "]`).
 - No `@gjsify/adwaita-core` change. The class table and the alias map were already shared,
   and this ADR moves nothing into or out of them.
 

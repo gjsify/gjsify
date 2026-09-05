@@ -43,7 +43,7 @@ export class PreferencesGroupNsStory extends StoryView {
         // group header — the NS group now has that slot, so the three renderers
         // present the story identically instead of moving the button into a row.
         const signOut = new Gtk.Button();
-        signOut.cssClasses = 'flat';
+        signOut.styleClasses = 'flat';
         signOut.text = 'Sign out';
         this._group.headerSuffix = signOut;
 

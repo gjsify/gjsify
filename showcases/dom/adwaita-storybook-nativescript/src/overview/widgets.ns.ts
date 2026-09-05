@@ -131,12 +131,12 @@ export class OverviewWidgetsNsStory extends StoryView {
 
         const save = new Gtk.Button();
         save.text = OVERVIEW_TEXT.save;
-        save.cssClasses = 'suggested-action';
+        save.styleClasses = 'suggested-action';
         buttons.addChild(save);
 
         const remove = new Gtk.Button();
         remove.text = OVERVIEW_TEXT.delete;
-        remove.cssClasses = 'destructive-action';
+        remove.styleClasses = 'destructive-action';
         buttons.addChild(remove);
 
         actions.addRow(buttons);

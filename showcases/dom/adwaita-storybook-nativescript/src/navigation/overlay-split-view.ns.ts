@@ -45,7 +45,7 @@ export class OverlaySplitViewNsStory extends StoryView {
         // Toolbar view with a flat, title-less header bar framing the boxed list —
         // mirrors the native add_css_class('sidebar') + showTitle:false.
         const header = new Adw.HeaderBar();
-        header.cssClasses = 'flat';
+        header.styleClasses = 'flat';
 
         const toolbarView = new Adw.ToolbarView();
         toolbarView.addTopBar(header);

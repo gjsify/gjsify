@@ -5,18 +5,18 @@
 >
   <gtk:Button
     text="Pill"
-    cssClasses="pill"
+    styleClasses="pill"
   />
   <gtk:Button
     text="Suggested"
-    cssClasses="suggested-action"
+    styleClasses="suggested-action"
   />
   <gtk:Button
     text="Delete"
-    cssClasses="destructive-action"
+    styleClasses="destructive-action"
   />
   <gtk:Button
     text="Flat"
-    cssClasses="flat"
+    styleClasses="flat"
   />
 </StackLayout>

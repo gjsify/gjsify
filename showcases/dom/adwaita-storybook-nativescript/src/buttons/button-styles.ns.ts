@@ -9,7 +9,7 @@ import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@
 import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { buttonStylesMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-// The storybook `style` value → the button's `css-classes` (ADR 0049). `circular` is
+// The storybook `style` value → the button's style classes (ADR 0049). `circular` is
 // icon-only in the twins; the NS subset styles no circular class, so it falls back to
 // `pill` with a glyph label (mirroring the icon-only intent of the native demo).
 const CLASSES_BY_STYLE: Record<string, string> = {
@@ -20,10 +20,10 @@ const CLASSES_BY_STYLE: Record<string, string> = {
     flat: 'flat',
 };
 
-function button(label: string, cssClasses: string): Gtk.Button {
+function button(label: string, styleClasses: string): Gtk.Button {
     const btn = new Gtk.Button();
     btn.text = label;
-    btn.cssClasses = cssClasses;
+    btn.styleClasses = styleClasses;
     return btn;
 }
 
@@ -68,7 +68,7 @@ export class ButtonStylesNsStory extends StoryView {
 
     private _applyStyle(style: string): void {
         if (!this._demo) return;
-        this._demo.cssClasses = CLASSES_BY_STYLE[style] ?? '';
+        this._demo.styleClasses = CLASSES_BY_STYLE[style] ?? '';
         // The circular style is icon-only (no label), like the native demo.
         if (style === 'circular') {
             this._demo.text = '\u{2795}'; // ➕ (list-add)

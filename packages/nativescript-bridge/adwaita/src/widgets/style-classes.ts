@@ -1,4 +1,4 @@
-// `GtkWidget:css-classes` for the NativeScript port — the style classes a widget carries
+// `GtkWidget:css-classes` for the NativeScript port, spelled `styleClasses` — the style classes a widget carries
 // BESIDE the one that says what it is.
 //
 // WHY THIS EXISTS RATHER THAN A PROPERTY PER LOOK. Adwaita's button variants and the flat
@@ -23,18 +23,38 @@
 //
 // THE BASE CLASS IS NOT IN THE LIST, and that is GTK's rule rather than a convenience: a
 // widget's CSS name (`button`, `headerbar`) is not a member of `css-classes`, and
-// `gtk_widget_get_css_classes` never returns it. Here the base is `adw-button` /
-// `adw-header-bar`, so `cssClasses` reads back exactly what the caller set, and the widget
-// keeps the class that makes its own stylesheet apply.
+// `gtk_widget_get_css_classes` never returns it (measured under gjs 1.88.1: a fresh
+// `Gtk.Button` answers `[]`). Here the base is `adw-button` / `adw-header-bar`, so
+// `styleClasses` reads back exactly what the caller set, and the widget keeps the class
+// that makes its own stylesheet apply.
+//
+// SPELLED `styleClasses`, NOT `cssClasses`, AND THAT IS NOT A PREFERENCE. `cssClasses` is
+// TAKEN on this platform: `ViewBase` declares `readonly cssClasses: Set<string>` and its
+// constructor assigns it, and `classNameProperty.valueChanged` clears and repopulates that
+// very Set on every `className` write. A subclass accessor SHADOWS the constructor's
+// assignment, so the Set never exists and the first `className` write — the one in
+// `GtkButton`'s own constructor — dies on `cssClasses.has is not a function`. Measured
+// against @nativescript/core 9.1.0-alpha.11 with the two bodies run verbatim; the port's
+// own `ns-core.d.ts` now declares the member, so the compiler says it too (TS2611).
+// libadwaita's own documentation calls these STYLE CLASSES, so the name is a true one and
+// the ledger carries `cssClasses` as the convergence target it cannot reach.
+//
+// GTK'S OWN READ-BACK ORDER IS NOT THE CALLER'S — measured: `set_css_classes(['pill',
+// 'suggested-action'])` answers `["suggested-action","pill"]`, and both orders of
+// `['zzz-one','aaa-two']` answer `["zzz-one","aaa-two"]`, because the list is held in
+// GQuark order. That is an interning artifact, not a contract, so this port keeps the
+// order written. It de-duplicates as GTK does; it also TRIMS, where GTK does not
+// (`set_css_classes(['  x  '])` answers `["  x  "]`), because splitting a string is what
+// makes a name here.
 //
 // PASS-THROUGH, NOT VALIDATION. `gtk_widget_set_css_classes` takes any names; unknown ones
 // simply match no rule. `@gjsify/adwaita-core`'s `ADW_BUTTON_STYLE_ALIASES` maps the WEB
 // element's boolean ATTRIBUTE names (`suggested`) onto class names
 // (`suggested-action`) — that is an attribute vocabulary, not this one, and resolving
-// aliases here would make `cssClasses` mean something GTK does not.
+// aliases here would make `styleClasses` mean something GTK does not.
 
 /**
- * What a `cssClasses` write means here.
+ * What a `styleClasses` write means here.
  *
  * THE DOOR TAKES A STRING AND THE READ-BACK IS A LIST, which is the DOM's own
  * `className`/`classList` split and not a compromise: the two places that WRITE this are a
@@ -50,17 +70,17 @@
  * the internals are the two setters and both are typed `string | null | undefined`, so the
  * arm was unreachable and its `String(name)` coercion guarded nothing.
  */
-export type AdwCssClassesInput = string | null | undefined;
+export type AdwStyleClassesInput = string | null | undefined;
 
 /**
- * The class list a `cssClasses` write means: split on whitespace, trimmed, de-duplicated,
- * order preserved.
+ * The class list a `styleClasses` write means: split on whitespace, trimmed,
+ * de-duplicated, order preserved.
  *
  * A STRING IS THE XML DOOR. NativeScript's `setPropertyValue` ends in `instance[name] =
- * value`, so `<gtk:Button cssClasses="pill suggested-action">` hands the setter that whole
- * string — the same fact `xmlNumber`/`xmlBoolean` exist for, one type over.
+ * value`, so `<gtk:Button styleClasses="pill suggested-action">` hands the setter that
+ * whole string — the same fact `xmlNumber`/`xmlBoolean` exist for, one type over.
  */
-export function normalizeCssClasses(value: AdwCssClassesInput): string[] {
+export function normalizeStyleClasses(value: AdwStyleClassesInput): string[] {
     if (value === null || value === undefined) return [];
     const seen = new Set<string>();
     for (const name of value.split(/\s+/)) {

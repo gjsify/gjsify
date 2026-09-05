@@ -2,11 +2,11 @@
 //
 // NAMED FOR THE LIBRARY THAT OWNS THE GTYPE (ADR 0034 clause 1). libadwaita ships no
 // button type: it styles `GtkButton` through `_buttons.scss`, so the widget is GTK's and
-// the Adwaita part is the stylesheet — which is exactly what the `cssClasses` property
+// the Adwaita part is the stylesheet — which is exactly what the `styleClasses` property
 // below carries. The file used to be `adw-button.ts` exporting `AdwButton`, and that prefix
 // named the design system while claiming to name the widget.
 //
-// Extends the REAL NativeScript `Button` and exposes a `cssClasses` property that
+// Extends the REAL NativeScript `Button` and exposes a `styleClasses` property that
 // carries the Adwaita button style classes (`.suggested-action` / `.destructive-action`
 // / `.flat` / `.pill`), styled in `src/theme/adwaita.css`. Mirrors how libadwaita
 // buttons get their look from a CSS style class rather than a distinct widget:
@@ -18,10 +18,10 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { Button } from '@nativescript/core';
-import { classNameWith, normalizeCssClasses } from './css-classes.js';
+import { classNameWith, normalizeStyleClasses } from './style-classes.js';
 
 export class GtkButton extends Button {
-    private _cssClasses: string[] = [];
+    private _styleClasses: string[] = [];
 
     constructor() {
         super();
@@ -42,15 +42,19 @@ export class GtkButton extends Button {
      * CLASS names now, not the web element's attribute spellings: `suggested-action`,
      * not `suggested`.
      *
+     * NOT `cssClasses`: `ViewBase` owns that name as a live `Set<string>` the CSS engine
+     * rebuilds on every `className` write, and shadowing it kills the widget in its own
+     * constructor — see `style-classes.ts`.
+     *
      * From XML it is a space-separated list, which is what an attribute can carry:
-     * `<gtk:Button cssClasses="pill suggested-action" />`.
+     * `<gtk:Button styleClasses="pill suggested-action" />`.
      */
-    get cssClasses(): string[] {
-        return [...this._cssClasses];
+    get styleClasses(): string[] {
+        return [...this._styleClasses];
     }
 
-    set cssClasses(value: string | null | undefined) {
-        this._cssClasses = normalizeCssClasses(value);
-        this.className = classNameWith('adw-button', this._cssClasses);
+    set styleClasses(value: string | null | undefined) {
+        this._styleClasses = normalizeStyleClasses(value);
+        this.className = classNameWith('adw-button', this._styleClasses);
     }
 }

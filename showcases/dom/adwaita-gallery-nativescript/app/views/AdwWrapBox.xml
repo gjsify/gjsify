@@ -7,26 +7,26 @@
 >
   <gtk:Button
     text="Design"
-    cssClasses="pill"
+    styleClasses="pill"
   />
   <gtk:Button
     text="Adwaita"
-    cssClasses="pill"
+    styleClasses="pill"
   />
   <gtk:Button
     text="GNOME"
-    cssClasses="pill"
+    styleClasses="pill"
   />
   <gtk:Button
     text="GTK"
-    cssClasses="pill"
+    styleClasses="pill"
   />
   <gtk:Button
     text="TypeScript"
-    cssClasses="pill"
+    styleClasses="pill"
   />
   <gtk:Button
     text="Storybook"
-    cssClasses="pill"
+    styleClasses="pill"
   />
 </adw:WrapBox>
