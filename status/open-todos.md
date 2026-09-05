@@ -1,5 +1,10 @@
 <!-- Authored Open-TODO sections — THIS FILE is the tracked source of truth (the
-     rendered STATUS.md view is generated and gitignored). One `### Two XMLHttpRequest implementations, and the docs name the wrong one as the only one
+     rendered STATUS.md view is generated and gitignored). One `### <title>` per open item.
+     A RESOLVED item is DELETED (its record is the commit + CHANGELOG that closed
+     it) — the status-data check rejects struck-through / ✓ / "Completed"
+     headings, so the done-log cannot regrow. -->
+
+### Two XMLHttpRequest implementations, and the docs name the wrong one as the only one
 
 `@gjsify/xmlhttprequest` ships a class in `src/index.ts`. `@gjsify/fetch` ships another in
 `src/xhr.ts` (11 269 bytes). `packages/infra/resolve-npm/lib/index.mjs` routes the SCOPED
@@ -25,10 +30,6 @@ constants as module-level `export const`s and may or may not carry the same defe
 either class is a published-contract change (`@gjsify/xmlhttprequest` is tier 1), and merging
 them is a decision about which package OWNS the API, not a refactor. Establish that first.
 
-### <title>` per open item.
-     A RESOLVED item is DELETED (its record is the commit + CHANGELOG that closed
-     it) — the status-data check rejects struck-through / ✓ / "Completed"
-     headings, so the done-log cannot regrow. -->
 
 ### A `Gtk.Window` in a child list is accepted silently, where an `Adw.Dialog` aborts
 
