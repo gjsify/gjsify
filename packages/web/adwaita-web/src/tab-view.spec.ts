@@ -243,6 +243,21 @@ export const AdwTabViewConformanceTest = async () => {
             host.remove();
         });
 
+        await it('REFUSES a page belonging to ANOTHER view', () => {
+            // `page_belongs_to_this_view`. The property holds the PAGE but the setter passes
+            // its ID, and an id is only unique WITHIN a view — declared ones are the author's
+            // and `_nextId` counts per element, so two views both hold a `tab-1`. Passing
+            // another view's page must not select this view's page of the same name.
+            const first = mountThree();
+            const second = mountThree();
+            second.view.selectedPage = second.view.pages[2]!;
+            first.view.selectedPage = second.view.pages[2]!;
+            expect(first.view.selectedIndex).toBe(0);
+            expect(second.view.selectedIndex).toBe(2);
+            first.host.remove();
+            second.host.remove();
+        });
+
         await it('RECORDS the refusal, where the ordinal door recorded nothing', () => {
             // The behaviour change ADR 0048 does not name: `selected="99"` went through
             // `selectNthPage`, which refuses an out-of-range index SILENTLY, while an

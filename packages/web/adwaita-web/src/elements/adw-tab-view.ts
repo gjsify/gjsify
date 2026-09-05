@@ -143,6 +143,13 @@ export class AdwTabView extends HTMLElement {
     }
 
     set selectedPage(page: AdwTabViewPage | null) {
+        // `page_belongs_to_this_view`, which the ID cannot answer: an id is unique WITHIN a
+        // view, never across two — a declared `page-id` is the author's to repeat and
+        // `_nextId` counts per element, so two views both hold a `tab-1`. Measured before
+        // this line existed: `viewA.selectedPage = viewB.pages[2]` moved viewA to index 2.
+        // The OBJECT is what tells them apart, and it is the whole reason this property
+        // takes one rather than the id `setSelectedPage` takes.
+        if (page !== null && !this._state.pages.includes(page)) return;
         this._state.setSelectedPage(page?.id ?? null);
     }
 

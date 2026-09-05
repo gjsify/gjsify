@@ -182,6 +182,11 @@ export class AdwTabView extends GridLayout {
     }
 
     set selectedPage(page: AdwTabPage | null) {
+        // `page_belongs_to_this_view` — see the web twin, which carries the measurement: an
+        // id is unique within ONE view, so passing another view's page would select this
+        // view's page of the same name instead of refusing. The object is what separates
+        // them.
+        if (page !== null && !this._state.pages.includes(page)) return;
         this._state.setSelectedPage(page?.id ?? null);
     }
 

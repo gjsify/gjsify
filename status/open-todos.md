@@ -4923,9 +4923,25 @@ touch is the method beside it: `setSelectedPage(id: string | null)` takes an ID,
 So one widget now answers the same question in two shapes, one line apart. Deliberately left
 for now, with the reason: a method is not what a portable authored tree writes and the
 vocabulary ledger does not read one, so this costs a second breaking change with no
-measurement behind it. The measurement that would settle it is who CALLS it — the port's own
-internals pass an id they have (`_state.selectedId`), and a consumer holding a page would
-prefer the property that now exists.
+measurement behind it.
+
+**There is a measurement now, and it is the seam itself.** The property holds the page and
+the setter passes its ID, and an id is unique WITHIN a view, never across two: a declared
+`page-id` is the author's to repeat and `_nextId` counts per element, so two views both hold
+a `tab-1`. Measured on the first draft of ADR 0048, in firefox:
+`viewA.selectedPage = viewB.pages[2]` moved viewA to index 2 instead of refusing, where
+`adw_tab_view_set_selected_page` asserts `page_belongs_to_this_view`. Both renderers now
+refuse by object identity in the setter — the defect is gone — but the refusal is SILENT
+where C `g_critical`s, because the assertion lives in `TabViewState.setSelectedPage` and an
+id that collides never reaches it.
+
+The core is where this belongs: `setSelectedPage` accepting the PAGE beside the id would put
+the identity check and its diagnostic in the one place both renderers share, and would not
+break a caller (every existing one passes a string). Two copies of a one-line guard is what
+the split costs meanwhile, and on NativeScript the guard is untested — no spec in that
+package imports a widget module, because `extends GridLayout` evaluates the bare
+`@nativescript/core` specifier at module-eval (`tab-view.spec.ts` header). The web twin
+carries the vector for both.
 
 The same question is open one call further: `isClosing(id)`, `closePage(id)`,
 `setPagePinned(id, …)` are the same shape, and libadwaita takes an `AdwTabPage *` in every
