@@ -14,8 +14,10 @@
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjs",
         "build:gjs": "gjsify build src/app.ts --app gjs --outfile dist/app.gjs.mjs",
+        "build:shot": "gjsify build src/shot.ts --app gjs --outfile dist/shot.gjs.mjs",
         "start:gjs": "gjs -m dist/app.gjs.mjs",
-        "probe": "gjsify run build:gjs && GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs"
+        "probe": "gjsify run build:gjs && GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs",
+        "shot": "gjsify run build:shot && gjs -m dist/shot.gjs.mjs"
     },
     "gjsify": {
         "main": "dist/app.gjs.mjs",
@@ -35,6 +37,7 @@
         "@girs/gobject-2.0": "4.6.0",
         "@girs/gtk-4.0": "4.6.0",
         "@gjsify/cli": "workspace:^",
+        "@gjsify/devtools": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@types/node": "^25.9.2",
         "effect": "4.0.0-rc.112",

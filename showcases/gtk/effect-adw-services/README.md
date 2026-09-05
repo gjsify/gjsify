@@ -7,7 +7,14 @@ widget tree is Blueprint's; Effect renders nothing.
 ```bash
 gjsify run build && gjsify run start:gjs   # the window
 gjsify run probe                           # the assertions, headless
+gjsify run shot                            # regenerate the pictures below
 ```
+
+| a directory read | the same read against a path that is not there |
+|---|---|
+| ![Listing](docs/listing.png) | ![NotFound](docs/not-found.png) |
+
+`NotFound` is Effect's word, not this showcase's — see *one program, two layers* below.
 
 ## Why this is not a fourth renderer
 
@@ -87,6 +94,11 @@ lookalike.
 `runHostProbeApp` from `@gjsify/gtk-host` owns the harness — the `GJSIFY_HOST_PROBE=1` env gate,
 the GTK diagnostics collector, the `check()` recorder, the `PROBE: PASS|FAIL <json>` protocol and
 the rule that the GUI path runs the same assertions before presenting.
+
+The pictures above are `gjsify run shot`'s output, captured through
+`captureWidgetPng` (`Gtk.WidgetPaintable` → `render_texture`) rather than the compositor — no
+screenshot portal, same bytes on a headless runner. They are regenerated rather than remembered,
+for the reason the probe harness records: the only witness to *did this draw* is the window.
 
 The load-bearing assertion is **one program, two layers**: a single `Effect` that lists a
 directory, stats a missing path and asks `exists`, run once against
