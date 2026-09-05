@@ -72,6 +72,7 @@ import {
     dataGridTracksKey,
 } from './data-grid-model.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when an interactive row is tapped. Mirrors the browser's `row-activated`. */
 export const ROW_ACTIVATED = 'row-activated';
@@ -104,9 +105,11 @@ export class AdwDataGrid extends GridLayout {
     /** The columns×rows the views were built for — the rebuild guard. */
     private _shapeKey = '';
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwDataGrid>) {
         super();
         this.className = 'adw-data-grid';
+
+        applyConstructProps(this, props);
     }
 
     /** The column descriptors. Setting them re-derives the tracks. */

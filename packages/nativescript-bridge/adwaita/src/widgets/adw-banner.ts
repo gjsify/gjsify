@@ -25,6 +25,7 @@ import { bannerButtonText, bannerButtonVisible, parseBannerButtonStyle } from '@
 import type { AdwBannerButtonStyle } from '@gjsify/adwaita-core';
 import { bannerButtonClassName, bannerTitleText, bannerVisibility, defaultBannerProps } from './chrome.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when the banner's action button is tapped. */
 export const BUTTON_CLICKED = 'buttonClicked';
@@ -40,7 +41,7 @@ export class AdwBanner extends GridLayout {
     private _hasButton = false;
     private readonly _props = defaultBannerProps();
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwBanner>) {
         super();
 
         this.className = 'adw-banner';
@@ -73,6 +74,8 @@ export class AdwBanner extends GridLayout {
         // the divergence: a constructed-but-unrevealed banner used to be on
         // screen on a device and off it in the browser.
         this.visibility = bannerVisibility(this._props.revealed);
+
+        applyConstructProps(this, props);
     }
 
     /** The banner message. Pango markup when {@link useMarkup}. */

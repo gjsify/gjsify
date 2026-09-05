@@ -22,6 +22,7 @@ import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { renderSymbolicIcon } from './icons.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Default symbolic-icon size, in DIPs — the Adwaita 16px icon grid. */
 export const DEFAULT_ICON_BUTTON_ICON_SIZE = 16;
@@ -36,7 +37,7 @@ export class AdwImageButton extends GridLayout {
     private _iconSize = DEFAULT_ICON_BUTTON_ICON_SIZE;
     private _unsubScheme: (() => void) | null = null;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwImageButton>) {
         super();
 
         this.className = 'adw-image-button';
@@ -70,6 +71,8 @@ export class AdwImageButton extends GridLayout {
             this._unsubScheme?.();
             this._unsubScheme = null;
         });
+
+        applyConstructProps(this, props);
     }
 
     /** Adopt the active scheme's default fill (no-op if the caller pinned a colour). */

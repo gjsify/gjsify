@@ -30,6 +30,7 @@ import { AdwActionRow } from './adw-action-row.js';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { ButtonRowState, buttonRowIconColor, buttonRowIconVisuals } from './row-state.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when the row is tapped. Mirrors `Adw.ButtonRow::activated`. */
 export { ACTIVATED } from './adw-action-row.js';
@@ -59,7 +60,7 @@ export class AdwButtonRow extends AdwActionRow {
      */
     private readonly _buttonState = new ButtonRowState();
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwButtonRow>) {
         super();
 
         this.className = 'adw-row adw-action-row adw-button-row';
@@ -112,6 +113,8 @@ export class AdwButtonRow extends AdwActionRow {
 
         // …and darkens on press, like an Adwaita `.button` row.
         attachRowPressFeedback(this);
+
+        applyConstructProps(this, props);
     }
 
     /** A centered symbolic icon, collapsed until it has content. Its fill is set by

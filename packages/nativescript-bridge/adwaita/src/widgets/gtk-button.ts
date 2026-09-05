@@ -19,16 +19,19 @@
 
 import { Button } from '@nativescript/core';
 import { classNameWith, normalizeStyleClasses } from './style-classes.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export class GtkButton extends Button {
     private _styleClasses: string[] = [];
 
-    constructor() {
+    constructor(props?: ConstructProps<GtkButton>) {
         super();
         this.className = 'adw-button';
         // Adwaita buttons are FLAT — kill the Android Material elevation/shadow so
         // suggested/destructive/flat/pill don't render as raised Material buttons.
         this.set('androidElevation', 0);
+
+        applyConstructProps(this, props);
     }
 
     /**

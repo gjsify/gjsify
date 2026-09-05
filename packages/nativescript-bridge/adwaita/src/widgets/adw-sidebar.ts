@@ -26,6 +26,7 @@ import { attachRowPressFeedback } from './row-press.js';
 import { SidebarState, sidebarRowClassName, sidebarSectionsFromLabels } from './sidebar-model.js';
 import type { AdwSidebarItemSpec, AdwSidebarSectionSpec, SidebarItemFilter } from './sidebar-model.js';
 import { xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when {@link AdwSidebar.selected} changes. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
@@ -62,7 +63,7 @@ export class AdwSidebar extends ScrollView {
     private readonly _state = new SidebarState();
     private readonly _rows: { view: GridLayout; index: number }[] = [];
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwSidebar>) {
         super();
 
         this.orientation = 'vertical';
@@ -90,6 +91,8 @@ export class AdwSidebar extends ScrollView {
             };
             this.notify(data);
         });
+
+        applyConstructProps(this, props);
     }
 
     /** Set the navigation item labels — one untitled section. Rebuilds the tappable rows. */

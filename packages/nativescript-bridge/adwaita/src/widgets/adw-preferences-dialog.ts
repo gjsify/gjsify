@@ -32,6 +32,7 @@ import type { SearchPreferencesOptions } from '@gjsify/adwaita-core';
 import { AdwImageButton } from './adw-image-button.js';
 import { searchNsPreferences, type NsPreferencesSearchResult, type NsSearchablePage } from './preferences-search.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when the dialog is closed. */
 export const CLOSED = 'closed';
@@ -42,7 +43,7 @@ export class AdwPreferencesDialog extends GridLayout {
     protected readonly _titleLabel: Label;
     protected readonly _body: StackLayout;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwPreferencesDialog>) {
         super();
 
         this.className = 'adw-preferences-dialog';
@@ -96,6 +97,8 @@ export class AdwPreferencesDialog extends GridLayout {
         GridLayout.setRow(body, 1);
         card.addChild(body);
         this._body = body;
+
+        applyConstructProps(this, props);
     }
 
     /** The dialog title. */

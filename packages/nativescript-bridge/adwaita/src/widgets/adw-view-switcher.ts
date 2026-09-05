@@ -12,11 +12,14 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { AdwViewSwitcherBase } from './view-switcher-base.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export class AdwViewSwitcher extends AdwViewSwitcherBase {
-    constructor() {
+    constructor(props?: ConstructProps<AdwViewSwitcher>) {
         super('adw-view-switcher');
         this._initClasses();
+
+        applyConstructProps(this, props);
     }
 
     protected get barClass(): string {

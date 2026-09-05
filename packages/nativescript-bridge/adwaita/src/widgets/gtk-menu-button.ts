@@ -33,6 +33,7 @@ import type { AdwMenuActions, AdwMenuInput, AdwMenuModel } from '@gjsify/adwaita
 import { action, type EventData } from '@nativescript/core';
 import { AdwImageButton } from './adw-image-button.js';
 import { MENU_CANCEL_LABEL, presentMenuSheet, refuseMenuString } from './menu-sheet.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when a menu item is chosen. */
 export const MENU_ITEM_ACTIVATED = 'menuItemActivated';
@@ -57,13 +58,15 @@ export class GtkMenuButton extends AdwImageButton {
     private _actions: AdwMenuActions | null = null;
     private _menuTitle = '';
 
-    constructor() {
+    constructor(props?: ConstructProps<GtkMenuButton>) {
         super();
         // Keep the AdwImageButton base styling; add a marker class for any tweaks.
         this.className = `${this.className} adw-menu-button`.trim();
         this.addEventListener('tap', () => {
             void this._openMenu();
         });
+
+        applyConstructProps(this, props);
     }
 
     /**

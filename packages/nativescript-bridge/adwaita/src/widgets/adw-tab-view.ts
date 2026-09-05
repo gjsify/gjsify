@@ -47,6 +47,7 @@ import {
 } from './tab-view-state.js';
 import type { AdwViewPage } from './view-switcher-base.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
@@ -106,7 +107,7 @@ export class AdwTabView extends GridLayout {
      */
     closeHandler: ((page: AdwTabPage) => boolean | 'defer') | null = null;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwTabView>) {
         super();
 
         this.className = 'adw-tab-view';
@@ -140,6 +141,8 @@ export class AdwTabView extends GridLayout {
             };
             this.notify(data);
         });
+
+        applyConstructProps(this, props);
     }
 
     // --- Model surface (thin delegations to TabViewState) --------------------

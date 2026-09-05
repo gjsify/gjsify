@@ -36,6 +36,7 @@ import { resolveHostInsets } from './host-insets.js';
 import { observeWindowInsets } from './window-insets-source.js';
 import { NO_INSETS, type WindowInsets, insetsOwedBy, toolbarViewInsetPadding } from './window-insets.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** The classes the widget starts with; the derived ones are swapped in beside them. */
 const BASE_CLASSES = {
@@ -64,7 +65,7 @@ export class AdwToolbarView extends GridLayout {
     private _bottomBarCount = 0;
     private _detachInsets: (() => void) | null = null;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwToolbarView>) {
         super();
 
         this.className = BASE_CLASSES.view;
@@ -105,6 +106,8 @@ export class AdwToolbarView extends GridLayout {
             this._detachInsets?.();
             this._detachInsets = null;
         });
+
+        applyConstructProps(this, props);
     }
 
     /** Append a widget (e.g. an {@link AdwHeaderBar}) to the top-bar slot. */

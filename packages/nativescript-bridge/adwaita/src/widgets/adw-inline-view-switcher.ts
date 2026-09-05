@@ -28,15 +28,18 @@ import { isInlineViewSwitcherDisplayMode } from '@gjsify/adwaita-core';
 import type { AdwInlineViewSwitcherDisplayMode } from '@gjsify/adwaita-core';
 import { AdwViewSwitcherBase } from './view-switcher-base.js';
 import type { ViewSwitcherKind } from './view-switcher-model.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export class AdwInlineViewSwitcher extends AdwViewSwitcherBase {
     // libadwaita's default, and the class the toggle group starts with
     // (adw-inline-view-switcher.c:657, :715).
     private _displayMode: AdwInlineViewSwitcherDisplayMode = 'labels';
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwInlineViewSwitcher>) {
         super('adw-inline-view-switcher');
         this._initClasses();
+
+        applyConstructProps(this, props);
     }
 
     protected get barClass(): string {
