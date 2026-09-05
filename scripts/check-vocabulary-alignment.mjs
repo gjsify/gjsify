@@ -325,8 +325,9 @@ const WEB_ELEMENT_ALIGNMENT = {
  *   { gap: '#NNNN' }               nobody has decided. Not a reason — a pointer.
  *
  * `gir` and `composes` name a GTYPE and are held against the runtime table's GType keys,
- * not against a tag: `AdwIcon` is `GtkImage`, whose tag is `gtk-image`, and deriving one
- * spelling from the other would be this file inventing a mapping instead of reading one.
+ * not against a tag: `adw-image-button` composes `GtkButton` and `GtkImage`, whose tags are
+ * `gtk-button` and `gtk-image`, and deriving one spelling from the other would be this file
+ * inventing a mapping instead of reading one.
  *
  * A `gir` ENTRY IS NOT ITSELF A RENAME. It records that the port ships the widget under
  * another spelling and says why; converging is a separate decision, taken per widget with
