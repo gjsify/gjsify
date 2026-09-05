@@ -31,11 +31,14 @@ export const NS_PACKAGE_SRC = 'packages/nativescript-bridge/adwaita/src';
 /**
  * Where a setter's type ALIASES are declared.
  *
- * The widgets are not self-contained here: `AdwButtonVariant` is
- * `'default' | AdwButtonStyleClass`, and that second half is a headless type in
- * `@gjsify/adwaita-core` derived from an `as const` array. A resolver that stopped at
- * the widget directory answered "not a string" for a type that is nothing but strings,
- * and every `<GtkButton variant="pill">` in the gallery failed a check that was wrong.
+ * The widgets are not self-contained here. The incident was `AdwButtonVariant`, which was
+ * `'default' | AdwButtonStyleClass` with that second half a headless type in
+ * `@gjsify/adwaita-core` derived from an `as const` array: a resolver that stopped at the
+ * widget directory answered "not a string" for a type that is nothing but strings, and
+ * every `<GtkButton variant="pill">` in the gallery failed a check that was wrong. That
+ * type is GONE since ADR 0049 — the third entry is not. Removing it moves the count of
+ * setters "typed as something no XML attribute can carry" from 19 to 33, so fourteen other
+ * doors still resolve through `adwaita-core`.
  */
 export const NS_TYPE_DIRS = [
     NS_WIDGETS_DIR,

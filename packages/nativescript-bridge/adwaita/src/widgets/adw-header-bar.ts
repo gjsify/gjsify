@@ -4,8 +4,8 @@
 // slot, a centered title widget, and an end slot. The centered title defaults to
 // an {@link AdwWindowTitle} (so `title`/`subtitle` work out of the box) but can be
 // replaced with any custom widget via {@link setTitleWidget}. Mirrors
-// `Adw.HeaderBar`: start/end packing + a centered title-widget. A `flat` option
-// drops the bottom hairline / background fill for the "flat" header style.
+// `Adw.HeaderBar`: start/end packing + a centered title-widget. The `flat` STYLE CLASS
+// (`styleClasses="flat"`, ADR 0049) drops the bottom hairline / background fill.
 //
 // CORE-VIA: ./adw-window-title.js — the centred title IS that widget, and title/subtitle run in its WindowTitleState.
 //
@@ -27,7 +27,7 @@ import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, StackLayout } from '@nativescript/core';
 import { AdwWindowTitle } from './adw-window-title.js';
 import { resolveBuilderSlot } from './builder-slots.js';
-import { xmlBoolean } from './xml-values.js';
+import { classNameWith, normalizeStyleClasses } from './style-classes.js';
 
 /**
  * The slots a template may name, spelled as this widget's own properties —
@@ -42,7 +42,7 @@ export class AdwHeaderBar extends GridLayout {
     protected readonly _endBox: StackLayout;
     /** The centered title widget (default {@link AdwWindowTitle}). */
     private _titleWidget: View;
-    private _flat = false;
+    private _styleClasses: string[] = [];
 
     constructor() {
         super();
@@ -101,17 +101,28 @@ export class AdwHeaderBar extends GridLayout {
     }
 
     /**
-     * Whether the header bar is flat (no background fill / no bottom separator),
-     * matching `Adw.HeaderBar`'s `.flat` style. Toggling swaps the `flat` class.
+     * The style classes this header bar carries (`GtkWidget:css-classes`), without the
+     * `adw-header-bar` class that makes it one — GTK's own rule for the property.
+     *
+     * IT WAS `flat`, A BOOLEAN (ADR 0049), and the port's own doc said what it really was:
+     * "matching `Adw.HeaderBar`'s `.flat` style. Toggling swaps the `flat` class." A style
+     * class is `GtkWidget:css-classes` on GTK, which is a LIST — so `flat` was one look
+     * with a property of its own while every other look had none.
+     *
+     * NOT `cssClasses`: `ViewBase` owns that name as a live `Set<string>` the CSS engine
+     * rebuilds on every `className` write, and shadowing it kills the widget in its own
+     * constructor — see `style-classes.ts`.
+     *
+     * `header.styleClasses = 'flat'` replaces `header.flat = true`, and from XML
+     * `styleClasses="flat"` replaces `flat="true"`.
      */
-    get flat(): boolean {
-        return this._flat;
+    get styleClasses(): string[] {
+        return [...this._styleClasses];
     }
 
-    set flat(raw: boolean | string) {
-        const value = xmlBoolean(raw, this.flat);
-        this._flat = !!value;
-        this.className = this._flat ? 'adw-header-bar flat' : 'adw-header-bar';
+    set styleClasses(value: string | null | undefined) {
+        this._styleClasses = normalizeStyleClasses(value);
+        this.className = classNameWith('adw-header-bar', this._styleClasses);
     }
 
     /** Pack a widget at the start (left) of the bar — `gtk_box_append`. */

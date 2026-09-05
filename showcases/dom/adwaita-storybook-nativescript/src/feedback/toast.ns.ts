@@ -21,7 +21,7 @@ export class ToastNsStory extends StoryView {
     initialize(): void {
         const button = new Gtk.Button();
         button.text = 'Show toast';
-        button.variant = 'pill';
+        button.styleClasses = 'pill';
         button.horizontalAlignment = 'center';
         button.verticalAlignment = 'middle';
         button.addEventListener('tap', () => this._showToast());

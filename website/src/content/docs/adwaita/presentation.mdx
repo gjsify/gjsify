@@ -330,7 +330,7 @@ give the user a way out, such as a button that creates their first document.
 
     const button = new Gtk.Button();
     button.text = 'New Document';
-    button.variant = 'suggested-action';
+    button.styleClasses = 'suggested-action';
 
     const page = new Adw.StatusPage();
     page.iconName = folderSymbolic; // an Adwaita symbolic icon (SVG string)
