@@ -458,11 +458,14 @@ jobs:
       # The other half of that vocabulary: what a nick is WORTH. `ENUM_NICKS` says a
       # member is called `baseline`; nothing said it is 4. A surface with no GI has to
       # hand GTK an integer anyway, and counting the position in the nick list is wrong
-      # on seven of the 129 enums — `GtkAlign` because GTK 4.12 deprecated
+      # on six of the 129 enums — `GtkAlign` because GTK 4.12 deprecated
       # `GTK_ALIGN_BASELINE` into an ALIAS sharing one value, `GtkResponseType` because
       # it counts down from -1, and `GtkConstraintStrength.required` is 1001001000 where
       # counting answers 0. `generated/enum-values.mts` carries the numbers, read from
-      # the installed typelib by `scripts/generate-enum-values.mjs`.
+      # the installed typelib by `scripts/generate-enum-values.mjs`. A seventh,
+      # `GtkEditableProperties`, disagrees only where the installed GTK is older than the
+      # vocabulary; the step prints it apart and guards on the six, because an enum that
+      # disagrees either way cannot witness that the numbers were read.
       # THIS job cannot reach that typelib, which is the whole reason the artifact is
       # committed — so the split is deliberate and both halves are named here: this step
       # holds the SHAPE (every nick has a number or a stated reason, no number names a

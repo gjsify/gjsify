@@ -9,8 +9,8 @@
 // no install, which is the job a committed artifact exists to do.
 //
 // The nick lists this annotates are in `surface-data.mts`. Position in that list is
-// NOT the value — see the generator's header for the six enums where counting is
-// wrong, and `ENUM_ALIASES` below for the case that makes it wrong for GtkAlign.
+// NOT the value — see the generator's header for the enums where counting is wrong,
+// and `ENUM_ALIASES` below for the case that makes it wrong for GtkAlign.
 
 /**
  * The libraries these numbers were read from, in the vocabulary's own provenance

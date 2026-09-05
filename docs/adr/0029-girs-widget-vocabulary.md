@@ -654,6 +654,15 @@ run, so this list is an illustration and not the record:
 `GtkConstraintStrength` is why "off by one" is the wrong mental model: counting answers
 0 where the library means 1001001000.
 
+**Six of the seven are facts about GTK; the seventh is a fact about this host.**
+`GtkEditableProperties` disagrees with counting only because the vocabulary describes a
+newer GTK than the installed one, and its two unvalued nicks shift every position after
+them — on a host that has all eleven members, `num-properties` is 10 at position 10 and
+counting is right. That distinction is not cosmetic. It is what the gate guards on:
+an enum that disagrees with counting whether the numbers were READ or INVENTED cannot
+witness that they were read, and the arm that exists to catch a counted oracle stayed
+silent behind exactly this one until it was measured (see below).
+
 ### Where the numbers come from, and what the other two cost
 
 Three sources were available, and the constraint that decides between them is not
@@ -740,10 +749,20 @@ neither is a silent drop and the gate fails on it.
   every nick numbered or excused, no number naming a nick the vocabulary lacks, and
   every alias declared from BOTH directions — the groups are re-derived from the values,
   so an alias a future GTK introduces fails with a name instead of shifting six numbers
-  quietly. Self-testing, 12 failing vectors and 10 reader vectors, and the vectors paid
+  quietly. Self-testing, 13 failing vectors and 10 reader vectors, and the vectors paid
   for themselves immediately: one caught the shared reader returning the empty brackets
   of `readonly string[]` instead of the initialiser after them — silently, the exact
   "answers with fewer facts" failure this ADR's Amendment records twice.
+
+  Its non-vacuity arm is the one this gate lives or dies by, and the first version of it
+  did not work. Guarding on "some enum's value differs from its position" read the whole
+  list, so `GtkEditableProperties` — which differs for the version-skew reason above —
+  kept it satisfied: a generator handed back the member INDEX instead of the member's
+  value, all 737 numbers came out counted, and this arm said nothing. The run failed only
+  because the alias floor beside it noticed that the counted `GtkAlign` no longer spelled
+  one value under two nicks, which is a different rule and would not have held had GTK
+  ever retired the alias. The arm now guards on the enums whose nick list is COMPLETE,
+  and a vector reproduces the counted-with-a-gap oracle so the hole cannot reopen.
 - `gtk-host/src/generated.spec.ts` — the GJS suite, where a typelib exists. Holds every
   NUMBER against it, with the version rule above.
 
@@ -775,7 +794,10 @@ nothing and emits text `oxfmt --check` already accepts, so the comparison is exa
   these is another GtkAlign" was a hope. It also confirms the other half of stage 8's
   finding: `'minimum' | 'natural'` is `GtkScrollablePolicy`, `AdwFoldThresholdPolicy`
   and `AdwWrapPolicy` at 0 and 1 alike, so the enum behind a setter has to be DECLARED
-  and can never be inferred — not from its nicks, and not from its numbers either.
+  wherever its nick set names more than one — and the numbers do not break the tie
+  either, which is the half the oracle adds. Stage 8 did identify 11 enums from their
+  nick sets, so inference is not useless; it is unsound, and a setter cannot say which
+  of the two it is without the declaration.
 - **It does not move the fact upstream.** `ENUM_VALUES` in the `@girs` vocabulary is
   still the right end state; this puts the consumer side in place so that landing it
   upstream changes one input and no contract.

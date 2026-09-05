@@ -583,9 +583,11 @@ export default async () => {
                 // THE VALUE HALF, and the reason `generated/enum-values.mts` exists at
                 // all: `ENUM_NICKS` says what a member is CALLED and nothing here said
                 // what it IS. A surface with no GI has to hand GTK an integer, and
-                // counting positions in the nick list answers wrong on seven of the 129
+                // counting positions in the nick list answers wrong on six of the 129
                 // enums — `GtkConstraintStrength.required` is 1001001000 where counting
-                // says 0. The artifact is read from a typelib by
+                // says 0 — plus a seventh, `GtkEditableProperties`, wherever the
+                // installed GTK is older than the vocabulary and an unvalued nick shifts
+                // every position after it. The artifact is read from a typelib by
                 // `scripts/generate-enum-values.mjs`; this is the check that the typelib
                 // it was read from and the one running agree.
                 //
