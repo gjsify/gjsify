@@ -647,7 +647,7 @@ run, so this list is an illustration and not the record:
 | `GtkAlign` | two nicks, one value — `baseline` = `baseline-fill` = 4 since GTK 4.12 |
 | `GtkResponseType` | counts DOWN: `none` = −1 … `help` = −11 |
 | `GtkConstraintRelation`, `GtkOrdering` | start at −1 |
-| `GtkTextWindowType` | starts at 1; position 0 is a member the GIR does not export |
+| `GtkTextWindowType` | its first member is 1, so nothing at all sits at position 0 |
 | `GtkConstraintStrength` | `required` = 1001001000, `strong` = 1000000000, `medium` = 1000, `weak` = 1 |
 | `GtkEditableProperties` | `num-properties` is 8 here and sits at position 10 — see below |
 
