@@ -471,7 +471,7 @@ size or a count.
   <Fragment slot="preview">
     ```html
     <adw-preferences-group>
-      <adw-spin-row title="Font size" min="0" max="100" value="16" step="1"></adw-spin-row>
+      <adw-spin-row title="Font size" value="16" adjustment='{"lower":0,"upper":100,"stepIncrement":1}'></adw-spin-row>
     </adw-preferences-group>
     ```
   </Fragment>
@@ -512,10 +512,8 @@ size or a count.
 
     const row = new Adw.SpinRow();
     row.title = 'Font size';
-    row.min = 0;
-    row.max = 100;
+    row.adjustment = { lower: 0, upper: 100, stepIncrement: 1 };
     row.value = 16;
-    row.step = 1;
     ```
   </Fragment>
 </AdwWidget>

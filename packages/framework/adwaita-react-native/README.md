@@ -84,7 +84,7 @@ a GTK-only consumer does not need it installed.
 | `Adw.PasswordEntryRow` | `title`, `text`, `maxLength`, `editable`, `showApplyButton`, `onNotifyText`, `onApply`, `onEntryActivated` | `Adw.EntryRow`'s surface exactly — the subclass declares no property of its own. `maxLength` counts CHARACTERS through the core, never `TextInput.maxLength`'s UTF-16 units |
 | `Adw.PreferencesGroup` | `children` (the rows), `title`, `description` | A titled card. Five visibility answers from one `derivePreferencesGroupHeader` call; the card hides itself at zero rows while its header stays |
 | `Adw.PreferencesPage` | `children` (the groups), `title`, `iconName`, `name`, `description`, `descriptionCentered`, `useUnderline` | Four of the five properties are identity a view switcher reads, drawn by neither half — as in libadwaita. Only `description` is painted |
-| `Adw.SpinRow` | `title`, `subtitle`, `value`, `lower`, `upper`, `stepIncrement`, `digits`, `onNotifyValue` | The range is `Gtk.Adjustment`'s three own property names rather than a fourth private spelling. Every mutation clamps, including a bound that moves under the value |
+| `Adw.SpinRow` | `title`, `subtitle`, `value`, `adjustment`, `digits`, `onNotifyValue` | The range is one `adjustment` — `@gjsify/adwaita-core`'s portable `Gtk.Adjustment` (ADR 0047), the same value the two sibling Adwaita renderers take. Every mutation clamps, including a bound that moves under the value |
 | `Adw.Spinner` | `widthRequest`, `heightRequest` | The BOX and the RING are two numbers: an unbounded box around a ring capped at 64 |
 | `Adw.StatusPage` | `children`, `iconName`, `title`, `description` | A centred empty state. The icon draws on GTK only |
 | `Adw.SwitchRow` | `title`, `subtitle`, `active` (false), `onNotifyActive` | Controlled. The whole row toggles, not only the handle |
@@ -262,13 +262,6 @@ than smoothed over.
   `use-subtitle` on and is replaced by the next selection change. Measured on libadwaita
   1.9.3 and asserted on both halves. Reproducing the lag here would mean carrying a
   libadwaita ordering artefact into a renderer that has no reason for it.
-- **`Adw.SpinRow`'s range is spelled `lower`/`upper`/`stepIncrement`, where the two sibling
-  Adwaita renderers spell it `min`/`max`/`step`.** Those are
-  `adw_spin_row_new_with_range`'s PARAMETER names; these are `Gtk.Adjustment`'s own GObject
-  property names for the same three values, and this package's rule is that a caller writes
-  the property they would look up in libadwaita's documentation. The arithmetic is still
-  shared — both halves map onto `@gjsify/adwaita-core`'s `SpinState`, which uses the short
-  names internally.
 - **`Adw.SpinRow`'s decimal separator is the process locale's on GTK and always `.` on React
   Native.** `gtk_spin_button_update` formats the displayed value through the C library's
   locale — measured on gjs 1.88.1 under a de_DE locale, a `digits={2}` row of 3.14159 reads
@@ -276,14 +269,6 @@ than smoothed over.
   on every machine there is. The two halves therefore agree on the DIGIT COUNT and differ by
   one character. Both suites assert the digits; neither builds its expectation from the
   locale, because a test that did would be measuring the machine it runs on.
-- **A range that moves past itself notifies twice more on React Native than on GTK.** The
-  GTK half builds one new `Gtk.Adjustment` from `lower`, `upper` and `stepIncrement`
-  together, so moving 0…100/50 to 200…300/250 is a single step. The React Native half
-  applies each property in its own effect — one per setter, because each has its own guard
-  in the C — so it passes through an inverted range: `setMin(200)` runs while the maximum is
-  still 100, and `SpinState`'s clamp answers the maximum. `onNotifyValue` therefore reports
-  `100, 200, 250` where GTK reports the end state. The settled value is the same on both,
-  React batches the renders, and the stream is asserted so that changing it is a decision.
 - **`Adw.SpinRow` carries no `climb-rate`, `snap-to-ticks`, `numeric`, `update-policy` or
   `wrap`.** Each needs an editable text entry or a key-repeat timer the React Native half
   does not have, so carrying them would mean a property GTK honours and the phone ignores.

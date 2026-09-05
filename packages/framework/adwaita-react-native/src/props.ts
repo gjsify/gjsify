@@ -20,6 +20,7 @@
 // so those names are not declared at all and the omissions are listed in the README.
 
 import type {
+    AdwAdjustmentInput,
     AdwBannerButtonStyle,
     AdwLengthUnit,
     AdwListModelInput,
@@ -608,14 +609,18 @@ export interface AdwComboRowProps extends AdwRowProps {
  * sibling renderer has them either.
  */
 export interface AdwSpinRowProps extends AdwRowProps {
-    /** `value` — the current number, clamped into {@link lower}…{@link upper}. Default 0. */
+    /** `value` — the current number, clamped into the {@link adjustment}'s range. Default 0. */
     value?: number;
-    /** `Gtk.Adjustment:lower` — the smallest value the stepper reaches. Default 0. */
-    lower?: number;
-    /** `Gtk.Adjustment:upper` — the largest. Default 100, which is `SpinState`'s own. */
-    upper?: number;
-    /** `Gtk.Adjustment:step-increment` — one stepper press. Default 1. */
-    stepIncrement?: number;
+    /**
+     * `adjustment` — the range this row steps through, as `@gjsify/adwaita-core`'s portable
+     * {@link AdwAdjustmentInput} (ADR 0047).
+     *
+     * It used to be three flat props here (`lower`, `upper`, `stepIncrement`), which were
+     * `Gtk.Adjustment`'s own field names hoisted onto the ROW — the right vocabulary in the
+     * wrong place, since `Adw.SpinRow` has no such properties. Unwritten fields take
+     * `ADW_ADJUSTMENT_DEFAULTS`, so `adjustment={{ upper: 20 }}` is 0…20 step 1.
+     */
+    adjustment?: AdwAdjustmentInput;
     /** `digits` — decimal places DISPLAYED. Default 0. */
     digits?: number;
     /**

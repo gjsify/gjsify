@@ -19,8 +19,6 @@ export class SpinRowNsStory extends StoryView {
 
     initialize(): void {
         this._row = new Adw.SpinRow();
-        this._row.min = 0;
-        this._row.max = 100;
         this._syncRow();
 
         const group = new Adw.PreferencesGroup();
@@ -40,9 +38,12 @@ export class SpinRowNsStory extends StoryView {
     private _syncRow(): void {
         if (!this._row) return;
         this._row.title = this.args.title as string;
-        // Mirror Adw.SpinRow.digits via the step's decimal precision.
+        // The WHOLE adjustment every time, as the browser port writes it: the same value
+        // the GTK story hands `new Gtk.Adjustment` (ADR 0047), written the same way on all
+        // three renderers — except `digits`, which this row does not have and mirrors
+        // through the step's decimal precision instead.
         const digits = this.args.digits as number;
-        this._row.step = 10 ** -digits;
+        this._row.adjustment = { lower: 0, upper: 100, pageIncrement: 10, stepIncrement: 10 ** -digits };
         this._row.value = this.args.value as number;
     }
 }

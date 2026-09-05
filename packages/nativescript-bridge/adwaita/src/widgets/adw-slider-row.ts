@@ -4,14 +4,22 @@
 // is the NS counterpart of the GTK storybook's `Gtk.Scale` RANGE card and the
 // browser's `input[type=range]` `.sb-range-row`, so a RANGE story control renders
 // as a REAL slider (matching native) rather than a `[−] value [+]` stepper.
-// `value`/`min`/`max`/`step` mirror `Adw.SpinRow`'s adjustment; dragging the slider
-// snaps to `step`, updates the value label and emits `notify::value`.
+//
+// libadwaita declares no `AdwSliderRow`, so this row is the port's own (declared in
+// `NS_WIDGET_ALIGNMENT`) — but its RANGE is not. On GTK a `Gtk.Scale` is a `GtkRange`,
+// and a `GtkRange` is handed a `Gtk.Adjustment`, so the value/bounds/step this row steps
+// through is the same portable `AdwAdjustment` the spin row takes (ADR 0047). It used to
+// carry a fourth copy of the clamp-and-step arithmetic in four private fields; it composes
+// `SpinState` now, and the snap a dragged thumb needs is `snapAdjustmentValue` —
+// `snap-to-ticks`'s arithmetic, in the module that owns the range.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `.sb-range-row` + the GTK
 // `Gtk.Scale` card. Reference: refs/libadwaita/src/stylesheet/widgets/_scale.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, Slider, StackLayout, type EventData } from '@nativescript/core';
+import { SpinState, parseAdjustment, snapAdjustmentValue } from '@gjsify/adwaita-core';
+import type { AdwAdjustment, AdwAdjustmentInput } from '@gjsify/adwaita-core';
 import { xmlNumber } from './xml-values.js';
 
 /** Event name emitted when {@link AdwSliderRow.value} changes. Mirrors GObject `notify::value`. */
@@ -19,7 +27,7 @@ export const NOTIFY_SLIDER_VALUE = 'notify::value';
 
 /** Payload of the `notify::value` event. */
 export interface NotifySliderValueEventData extends EventData {
-    /** The new numeric value (already clamped to `[min, max]` and snapped to `step`). */
+    /** The new numeric value (already clamped into the adjustment's range and snapped to a tick). */
     value: number;
 }
 
@@ -31,10 +39,8 @@ export class AdwSliderRow extends StackLayout {
     /** The horizontal slider. */
     protected readonly _slider: Slider;
 
-    private _value = 0;
-    private _min = 0;
-    private _max = 100;
-    private _step = 1;
+    /** The headless adjustment: clamp, step and the two signals (ADR 0004, ADR 0047). */
+    private readonly _state = new SpinState();
     /** Guards the slider's `valueChange` while we programmatically set its value. */
     private _suppress = false;
 
@@ -58,15 +64,16 @@ export class AdwSliderRow extends StackLayout {
 
         const valueLabel = new Label();
         valueLabel.className = 'adw-slider-value';
-        valueLabel.text = String(this._value);
+        valueLabel.text = String(this._state.value);
         GridLayout.setColumn(valueLabel, 1);
         header.addChild(valueLabel);
 
+        const range = this._state.adjustment;
         const slider = new Slider();
         slider.className = 'adw-slider';
-        slider.minValue = this._min;
-        slider.maxValue = this._max;
-        slider.value = this._value;
+        slider.minValue = range.lower;
+        slider.maxValue = range.upper;
+        slider.value = range.value;
 
         this.addChild(header);
         this.addChild(slider);
@@ -75,41 +82,50 @@ export class AdwSliderRow extends StackLayout {
         this._valueLabel = valueLabel;
         this._slider = slider;
 
+        // The label follows every value change; the THUMB only follows a programmatic one,
+        // because on an interactive change the thumb is already where the finger left it —
+        // writing it back mid-drag is what `_suppress` exists to keep from re-entering.
+        this._state.subscribe((change) => {
+            this._valueLabel.text = String(change.value);
+            if (change.interactive) {
+                const data: NotifySliderValueEventData = {
+                    eventName: NOTIFY_SLIDER_VALUE,
+                    object: this,
+                    value: change.value,
+                };
+                this.notify(data);
+            } else {
+                this._sync();
+            }
+        });
+
+        // A moved bound is the slider's own geometry, which is why this row needs the
+        // signal the spin row does not: `Gtk.Adjustment::changed` re-sizes the track.
+        this._state.subscribeChanged((adjustment) => {
+            this._slider.minValue = adjustment.lower;
+            this._slider.maxValue = adjustment.upper;
+            this._sync();
+        });
+
         slider.addEventListener('valueChange', () => {
             if (this._suppress) return;
-            const snapped = this._snap(this._slider.value);
+            const snapped = snapAdjustmentValue(this._state.adjustment, this._slider.value);
             if (snapped !== this._slider.value) {
-                // Re-snap the thumb to the step grid without re-emitting.
+                // Re-snap the thumb to the tick grid without re-emitting.
                 this._suppress = true;
                 this._slider.value = snapped;
                 this._suppress = false;
             }
-            if (snapped !== this._value) {
-                this._value = snapped;
-                this._valueLabel.text = String(snapped);
-                const data: NotifySliderValueEventData = {
-                    eventName: NOTIFY_SLIDER_VALUE,
-                    object: this,
-                    value: snapped,
-                };
-                this.notify(data);
-            }
+            this._state.setValueInteractive(snapped);
         });
-    }
-
-    /** Clamp to `[min, max]` then snap to the nearest `step` from `min`. */
-    private _snap(n: number): number {
-        const clamped = Math.min(this._max, Math.max(this._min, n));
-        const steps = Math.round((clamped - this._min) / this._step);
-        return Math.min(this._max, this._min + steps * this._step);
     }
 
     /** Push the current value to the slider + label without emitting. */
     private _sync(): void {
         this._suppress = true;
-        this._slider.value = this._value;
+        this._slider.value = this._state.value;
         this._suppress = false;
-        this._valueLabel.text = String(this._value);
+        this._valueLabel.text = String(this._state.value);
     }
 
     /** The group title shown in the header (left). */
@@ -121,52 +137,29 @@ export class AdwSliderRow extends StackLayout {
         this._titleLabel.text = value ?? '';
     }
 
-    /** The current numeric value (always within `[min, max]`, snapped to `step`). */
+    /** The current numeric value (always within the adjustment's range, snapped to a tick). */
     get value(): number {
-        return this._value;
+        return this._state.value;
     }
 
     set value(raw: number | string) {
-        const v = xmlNumber(raw, this.value);
-        const next = this._snap(Number.isFinite(v) ? v : 0);
-        if (next !== this._value) {
-            this._value = next;
-            this._sync();
-        }
+        this._state.setValue(snapAdjustmentValue(this._state.adjustment, xmlNumber(raw, this.value)));
     }
 
-    /** Lower bound. Re-clamps the current value if it now falls below. */
-    get min(): number {
-        return this._min;
+    /**
+     * The numeric range this row slides through — the `Gtk.Adjustment` a `Gtk.Scale` is
+     * handed, under the same key the spin row uses.
+     *
+     * Reads back whole; writes MERGE, so `adjustment = { upper: 20 }` moves one bound and
+     * leaves the rest. From XML it is a JSON object —
+     * `adjustment='{"lower":0,"upper":20,"stepIncrement":5}'`.
+     */
+    get adjustment(): AdwAdjustment {
+        return this._state.adjustment;
     }
 
-    set min(raw: number | string) {
-        const v = xmlNumber(raw, this.min);
-        this._min = Number.isFinite(v) ? v : 0;
-        this._slider.minValue = this._min;
-        this.value = this._value;
-    }
-
-    /** Upper bound. Re-clamps the current value if it now falls above. */
-    get max(): number {
-        return this._max;
-    }
-
-    set max(raw: number | string) {
-        const v = xmlNumber(raw, this.max);
-        this._max = Number.isFinite(v) ? v : 100;
-        this._slider.maxValue = this._max;
-        this.value = this._value;
-    }
-
-    /** Snap granularity applied as the slider is dragged. */
-    get step(): number {
-        return this._step;
-    }
-
-    set step(raw: number | string) {
-        const v = xmlNumber(raw, this.step);
-        this._step = Number.isFinite(v) && v > 0 ? v : 1;
+    set adjustment(v: AdwAdjustmentInput | string) {
+        this._state.configure(typeof v === 'string' ? parseAdjustment(v) : v);
     }
 
     /** The underlying {@link Slider} (e.g. to tweak styling). */

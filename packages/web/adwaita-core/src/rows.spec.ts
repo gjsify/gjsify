@@ -7,15 +7,8 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import {
-    ADW_COMBO_NO_SELECTION,
-    ComboState,
-    ExpanderState,
-    SpinState,
-    ToggleGroupState,
-    normalizeComboOptions,
-} from './rows.js';
-import type { ComboStateChange, SpinStateChange, ToggleGroupStateChange } from './rows.js';
+import { ADW_COMBO_NO_SELECTION, ComboState, ExpanderState, ToggleGroupState, normalizeComboOptions } from './rows.js';
+import type { ComboStateChange, ToggleGroupStateChange } from './rows.js';
 import { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS } from './conformance/rows.js';
 import type { ComboSelectionStep } from './conformance/rows.js';
 import { LIST_MODEL_OWNERSHIP_VECTORS, applyListReadback } from './conformance/list.js';
@@ -250,106 +243,6 @@ export default async () => {
             state.setSelectedIndex(1);
             expect(state.setSelectedIndex(Number.NaN)).toBe(true);
             expect(state.selectedIndex).toBe(0);
-        });
-    });
-
-    await describe('SpinState numeric adjustment (Adw.SpinRow)', async () => {
-        await it('clamps a programmatic value to [min, max]', () => {
-            const state = new SpinState();
-            state.setMin(0);
-            state.setMax(10);
-            state.setValue(99);
-            expect(state.value).toBe(10);
-            state.setValue(-5);
-            expect(state.value).toBe(0);
-        });
-
-        await it('increments by step and clamps at max', () => {
-            const state = new SpinState();
-            state.setMin(0);
-            state.setMax(4);
-            state.setStep(2);
-            expect(state.increment()).toBe(true);
-            expect(state.value).toBe(2);
-            expect(state.increment()).toBe(true);
-            expect(state.value).toBe(4);
-            expect(state.increment()).toBe(false); // clamped at max → no change
-            expect(state.value).toBe(4);
-        });
-
-        await it('decrements by step', () => {
-            const state = new SpinState();
-            state.setMin(0);
-            state.setMax(10);
-            state.setValue(6);
-            state.setStep(2);
-            expect(state.decrement()).toBe(true);
-            expect(state.value).toBe(4);
-            expect(state.decrement()).toBe(true);
-            expect(state.value).toBe(2);
-        });
-
-        await it('decrement clamps a partial step to min', () => {
-            const state = new SpinState();
-            state.setMin(0);
-            state.setMax(10);
-            state.setValue(1);
-            state.setStep(5);
-            expect(state.decrement()).toBe(true); // 1 - 5 = -4 → clamp 0
-            expect(state.value).toBe(0);
-        });
-
-        await it('re-clamps the current value when min rises above it', () => {
-            const state = new SpinState();
-            state.setValue(3);
-            expect(state.setMin(5)).toBe(true); // value 3 < new min 5 → re-clamped
-            expect(state.value).toBe(5);
-        });
-
-        await it('re-clamps the current value when max drops below it', () => {
-            const state = new SpinState();
-            state.setValue(80);
-            expect(state.setMax(50)).toBe(true);
-            expect(state.value).toBe(50);
-        });
-
-        await it('rejects a non-positive or non-finite step (falls back to 1)', () => {
-            const state = new SpinState();
-            state.setStep(0);
-            expect(state.step).toBe(1);
-            state.setStep(-3);
-            expect(state.step).toBe(1);
-            state.setStep(Number.NaN);
-            expect(state.step).toBe(1);
-            state.setStep(4);
-            expect(state.step).toBe(4);
-        });
-
-        await it('coerces a non-finite programmatic value to 0 (then clamps)', () => {
-            const state = new SpinState();
-            state.setMin(2);
-            state.setMax(10);
-            state.setValue(Number.NaN); // → 0 → clamp to min 2
-            expect(state.value).toBe(2);
-        });
-
-        await it('tags interactive vs programmatic changes and notifies only on change', () => {
-            const state = new SpinState();
-            state.setMin(0);
-            state.setMax(10);
-            const changes: SpinStateChange[] = [];
-            state.subscribe((c) => changes.push(c));
-
-            state.setValue(5); // programmatic
-            state.increment(); // interactive (5 -> 6)
-            state.setValue(5); // programmatic (6 -> 5)
-            state.setValue(5); // no change → no notify
-
-            expect(changes).toStrictEqual([
-                { value: 5, interactive: false },
-                { value: 6, interactive: true },
-                { value: 5, interactive: false },
-            ]);
         });
     });
 

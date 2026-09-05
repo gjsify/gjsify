@@ -1,10 +1,20 @@
 // <adw-spin-row> — row with a title/subtitle and a numeric spin control (+/− buttons).
 //
-// The ADJUSTMENT state machine (value/min/max/step plus the clamp-on-every-mutation and
-// the change detection) is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
+// The ADJUSTMENT state machine (the range, the clamp on every mutation and the change
+// detection) is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
 // {@link SpinState}; this element keeps only the DOM half — the −/input/+ control, the
 // step-precision display (the `Adw.SpinRow:digits` concern, which belongs to the widget
 // rather than to the adjustment) and the `notify::value` event.
+//
+// THE RANGE IS ONE ATTRIBUTE, `adjustment`, and it is JSON:
+//
+//     <adw-spin-row title="Zoom" adjustment='{"lower":1,"upper":20,"stepIncrement":1}'>
+//
+// `min` / `max` / `step` are gone. `Adw.SpinRow` has no such properties — it has an
+// `adjustment`, and three renderers spelling that range three ways is what ADR 0047
+// removes. The value is the portable `AdwAdjustment`, so a range authored here is the one
+// the NativeScript row and the React Native widget take. The same markup door
+// `<adw-combo-row model=…>` opens for its list, on the same reasoning.
 //
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
@@ -12,18 +22,19 @@
 //   title/subtitle text column added to match Adw.SpinRow; the adjustment state
 //   machine composed from @gjsify/adwaita-core.
 
-import { SpinState, deriveRowLabels } from '@gjsify/adwaita-core';
+import { SpinState, deriveRowLabels, normalizeAdjustment, parseAdjustment } from '@gjsify/adwaita-core';
+import type { AdwAdjustment, AdwAdjustmentInput } from '@gjsify/adwaita-core';
 
 export class AdwSpinRow extends HTMLElement {
     private _input!: HTMLInputElement;
     private _titleEl!: HTMLSpanElement;
     private _subtitleEl!: HTMLSpanElement;
-    /** The headless value/min/max/step adjustment with clamping (ADR 0004). */
+    /** The headless adjustment: the range, the clamp and the two signals (ADR 0004, ADR 0047). */
     private readonly _state = new SpinState();
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['title', 'subtitle', 'value', 'min', 'max', 'step'];
+        return ['title', 'subtitle', 'value', 'adjustment'];
     }
 
     get value(): number {
@@ -37,16 +48,35 @@ export class AdwSpinRow extends HTMLElement {
         this._syncValue();
     }
 
+    /**
+     * The numeric range — `Adw.SpinRow:adjustment`, as the portable value.
+     *
+     * Reads back whole; writes MERGE, so `el.adjustment = { upper: 20 }` moves one bound
+     * and leaves the value where it is. A string is read as the JSON the attribute carries,
+     * so the property and the attribute mean the same thing.
+     */
+    get adjustment(): AdwAdjustment {
+        return this._state.adjustment;
+    }
+
+    set adjustment(v: AdwAdjustmentInput | string) {
+        this._state.configure(typeof v === 'string' ? parseAdjustment(v) : v);
+    }
+
     connectedCallback() {
         if (this._initialized) return;
         this._initialized = true;
 
         // Seed the headless adjustment BEFORE subscribing, so building the initial
-        // DOM below is not driven by a change notification.
-        this._state.setMin(parseFloat(this.getAttribute('min') || '0'));
-        this._state.setMax(parseFloat(this.getAttribute('max') || '100'));
-        this._state.setStep(parseFloat(this.getAttribute('step') || '1'));
-        this._state.setValue(this._roundToStep(parseFloat(this.getAttribute('value') || String(this._state.min))));
+        // DOM below is not driven by a change notification. The range comes whole, so the
+        // authored `value` attribute is applied against the range it was authored beside
+        // rather than against whatever a partly-seeded state held.
+        const range = normalizeAdjustment(parseAdjustment(this.getAttribute('adjustment')));
+        this._state.configure(range);
+        const authoredValue = this.getAttribute('value');
+        this._state.setValue(
+            this._roundToStep(authoredValue === null ? range.value : Number.parseFloat(authoredValue)),
+        );
 
         const text = document.createElement('div');
         text.className = 'adw-row-text';
@@ -62,7 +92,7 @@ export class AdwSpinRow extends HTMLElement {
         const decBtn = document.createElement('button');
         decBtn.className = 'adw-spin-dec';
         decBtn.textContent = '−';
-        decBtn.addEventListener('click', () => this._adjust(-this._state.step));
+        decBtn.addEventListener('click', () => this._adjust(-this._state.adjustment.stepIncrement));
 
         const input = document.createElement('input');
         input.type = 'text';
@@ -80,7 +110,7 @@ export class AdwSpinRow extends HTMLElement {
         const incBtn = document.createElement('button');
         incBtn.className = 'adw-spin-inc';
         incBtn.textContent = '+';
-        incBtn.addEventListener('click', () => this._adjust(this._state.step));
+        incBtn.addEventListener('click', () => this._adjust(this._state.adjustment.stepIncrement));
 
         control.append(decBtn, input, incBtn);
         this.replaceChildren(text, control);
@@ -99,21 +129,12 @@ export class AdwSpinRow extends HTMLElement {
             this._renderText();
             return;
         }
-        const num = parseFloat(val || '0');
-        switch (name) {
-            case 'value':
-                this._state.setValue(this._roundToStep(num));
-                break;
-            case 'min':
-                this._state.setMin(num);
-                break;
-            case 'max':
-                this._state.setMax(num);
-                break;
-            case 'step':
-                this._state.setStep(num);
-                break;
+        if (name === 'adjustment') {
+            this._state.configure(parseAdjustment(val));
+            return;
         }
+        // `value`, the only other observed attribute reaching here.
+        this._state.setValue(this._roundToStep(Number.parseFloat(val || '0')));
     }
 
     private _renderText() {
@@ -151,7 +172,7 @@ export class AdwSpinRow extends HTMLElement {
 
     private _roundToStep(n: number): number {
         if (!Number.isFinite(n)) return n;
-        const decimals = this._countDecimals(this._state.step);
+        const decimals = this._countDecimals(this._state.adjustment.stepIncrement);
         return decimals > 0 ? parseFloat(n.toFixed(decimals)) : n;
     }
 
@@ -162,7 +183,7 @@ export class AdwSpinRow extends HTMLElement {
     }
 
     private _formatValue(v: number): string {
-        const decimals = this._countDecimals(this._state.step);
+        const decimals = this._countDecimals(this._state.adjustment.stepIncrement);
         return decimals > 0 ? v.toFixed(decimals) : String(v);
     }
 }

@@ -22,6 +22,7 @@ import accentTestSuite from './accent.spec.js';
 import colorSchemeTestSuite from './color-scheme.spec.js';
 import dialogTestSuite from './dialog.spec.js';
 import listTestSuite from './list.spec.js';
+import adjustmentTestSuite from './adjustment.spec.js';
 import rowsTestSuite from './rows.spec.js';
 import toastTestSuite from './toast.spec.js';
 import popoverTestSuite from './popover.spec.js';
@@ -38,6 +39,7 @@ import swipeTestSuite from './swipe.spec.js';
 
 run({
     aboutDialogTestSuite,
+    adjustmentTestSuite,
     bannerTestSuite,
     buttonContentTestSuite,
     buttonTestSuite,

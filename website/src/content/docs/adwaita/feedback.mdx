@@ -433,8 +433,7 @@ the web port renders them stacked instead.
 
     const fontSize = new Adw.SpinRow();
     fontSize.title = 'Font size';
-    fontSize.min = 8;
-    fontSize.max = 24;
+    fontSize.adjustment = { lower: 8, upper: 24 };
     fontSize.value = 12;
     group.addRow(fontSize);
 

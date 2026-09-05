@@ -5,8 +5,9 @@
 //   - {@link ExpanderState}    — `Adw.ExpanderRow`'s expanded/collapsed disclosure.
 //   - {@link ComboState}       — `Adw.ComboRow`'s selectedIndex↔selectedValue mapping
 //                                over an options list, with empty/out-of-range guards.
-//   - {@link SpinState}        — `Adw.SpinRow`'s value/min/max/step adjustment with
-//                                clamping on every mutation and stepped increments.
+//   - {@link SpinState}        — `Adw.SpinRow`'s adjustment: a watchable `Gtk.Adjustment`
+//                                over the portable value in `adjustment.ts` (ADR 0047),
+//                                which is where it now lives.
 //   - {@link ToggleGroupState} — `Adw.ToggleGroup`'s selected segment over a label list.
 //
 // PLATFORM-NEUTRAL: renders nothing, touches no global timer and no DOM. Each state
@@ -32,6 +33,10 @@ import type { AdwComboOption, AdwListItemsChanged } from './list.js';
 // neither import path changed and no fifth spelling of "an item" was created.
 export { ADW_COMBO_NO_SELECTION, normalizeComboOptions } from './list.js';
 export type { AdwComboOption, AdwComboOptionInput } from './list.js';
+// `SpinState` moved to `adjustment.ts` with the value it holds (ADR 0047) and is
+// re-exported here, so the import path three renderers use did not change.
+export { SpinState } from './adjustment.js';
+export type { SpinStateChange, SpinStateListener, SpinStateRangeListener } from './adjustment.js';
 
 /** Subscriber for {@link ExpanderState} changes — receives the new expanded flag. */
 export type ExpanderStateListener = (expanded: boolean) => void;
@@ -319,125 +324,6 @@ export class ComboState {
     /** Number of options. */
     get count(): number {
         return this._options.length;
-    }
-}
-
-/** Payload of a {@link SpinState} change. */
-export interface SpinStateChange {
-    /** The new value (already clamped to `[min, max]`). */
-    value: number;
-    /** True for a stepper press ({@link SpinState.increment}/{@link SpinState.decrement}); false for a programmatic set/re-clamp. */
-    interactive: boolean;
-}
-
-/** Subscriber for {@link SpinState} changes. */
-export type SpinStateListener = (change: SpinStateChange) => void;
-
-/**
- * The numeric adjustment state of a spin row: `value` bounded by `[min, max]` and
- * stepped by `step`. Every mutation clamps into range. Mirrors `Adw.SpinRow`: a
- * programmatic {@link setValue} (or a re-clamp from a moved {@link setMin}/{@link setMax})
- * notifies `interactive: false` (the renderer refreshes the display but re-emits no
- * `notify::value`), while {@link increment}/{@link decrement} are the stepper presses
- * that notify `interactive: true`.
- */
-export class SpinState {
-    private _value = 0;
-    private _min = 0;
-    private _max = 100;
-    private _step = 1;
-    private readonly _listeners = new Set<SpinStateListener>();
-
-    /** Subscribe to value changes. Returns an unsubscribe function. */
-    subscribe(listener: SpinStateListener): () => void {
-        this._listeners.add(listener);
-        return () => {
-            this._listeners.delete(listener);
-        };
-    }
-
-    private _emit(interactive: boolean): void {
-        const change: SpinStateChange = { value: this._value, interactive };
-        // Snapshot so a listener that unsubscribes mid-fan-out can't skip another.
-        // oxlint-disable-next-line unicorn/no-useless-spread -- the copy IS the snapshot: a Set iterator is live, so an unsubscribe mid-fan-out would skip the next listener
-        for (const listener of [...this._listeners]) listener(change);
-    }
-
-    private _clamp(n: number): number {
-        return Math.min(this._max, Math.max(this._min, n));
-    }
-
-    private _bump(delta: number): boolean {
-        const next = this._clamp(this._value + delta);
-        if (next === this._value) return false;
-        this._value = next;
-        this._emit(true);
-        return true;
-    }
-
-    /** Re-clamp the current value after a bound moved; notifies `interactive: false` on change. */
-    private _reclamp(): boolean {
-        const next = this._clamp(this._value);
-        if (next === this._value) return false;
-        this._value = next;
-        this._emit(false);
-        return true;
-    }
-
-    /** The current numeric value (always within `[min, max]`). */
-    get value(): number {
-        return this._value;
-    }
-
-    /** Lower bound. */
-    get min(): number {
-        return this._min;
-    }
-
-    /** Upper bound. */
-    get max(): number {
-        return this._max;
-    }
-
-    /** Increment/decrement step applied per stepper press. */
-    get step(): number {
-        return this._step;
-    }
-
-    /** Programmatic value set — clamp, notify `interactive: false` on change. Returns whether it changed. */
-    setValue(value: number): boolean {
-        const next = this._clamp(Number.isFinite(value) ? value : 0);
-        if (next === this._value) return false;
-        this._value = next;
-        this._emit(false);
-        return true;
-    }
-
-    /** Set the lower bound and re-clamp the value into range. Returns whether the value changed. */
-    setMin(value: number): boolean {
-        this._min = Number.isFinite(value) ? value : 0;
-        return this._reclamp();
-    }
-
-    /** Set the upper bound and re-clamp the value into range. Returns whether the value changed. */
-    setMax(value: number): boolean {
-        this._max = Number.isFinite(value) ? value : 0;
-        return this._reclamp();
-    }
-
-    /** Set the step. A non-positive or non-finite step falls back to `1`. */
-    setStep(value: number): void {
-        this._step = Number.isFinite(value) && value > 0 ? value : 1;
-    }
-
-    /** Step up by `step`, clamped to `max`. Notifies `interactive: true` on change. Returns whether it changed. */
-    increment(): boolean {
-        return this._bump(this._step);
-    }
-
-    /** Step down by `step`, clamped to `min`. Notifies `interactive: true` on change. Returns whether it changed. */
-    decrement(): boolean {
-        return this._bump(-this._step);
     }
 }
 

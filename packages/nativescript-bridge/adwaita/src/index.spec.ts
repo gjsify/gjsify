@@ -19,9 +19,17 @@ import {
     normalizeClampSize,
     normalizeMenuModel,
     resolveSpinnerSize,
+    snapAdjustmentValue,
 } from '@gjsify/adwaita-core';
-import type { AdwMenuInput } from '@gjsify/adwaita-core';
-import { AVATAR_COLOR_VECTORS, AVATAR_INITIALS_VECTORS, COMBO_CHOOSER_VECTORS } from '@gjsify/adwaita-core/conformance';
+import type { AdwAdjustmentInput, AdwMenuInput } from '@gjsify/adwaita-core';
+import {
+    ADJUSTMENT_AUTHORED_VECTORS,
+    ADJUSTMENT_PARSE_VECTORS,
+    ADJUSTMENT_SNAP_VECTORS,
+    AVATAR_COLOR_VECTORS,
+    AVATAR_INITIALS_VECTORS,
+    COMBO_CHOOSER_VECTORS,
+} from '@gjsify/adwaita-core/conformance';
 import { assertNativeScript, isNativeScript } from '@gjsify/native-platform';
 import { avatarColor, avatarInitials } from './widgets/avatar-color.js';
 import {
@@ -69,7 +77,7 @@ import type { BreakpointConditionLeaf } from './widgets/breakpoint.js';
 import { AdwAlertResponses, AdwToast, AdwToastQueue, DEFAULT_TOAST_TIMEOUT } from '@gjsify/adwaita-core';
 import type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
 // Same for the row interaction state machines, specced in the core's `rows.spec.ts`.
-import { ComboState, ExpanderState, SpinState, ToggleGroupState } from '@gjsify/adwaita-core';
+import { ComboState, ExpanderState, SpinState, ToggleGroupState, parseAdjustment } from '@gjsify/adwaita-core';
 
 // The XML-registration helper's own module is import-safe, but it lives in the widgets
 // barrel, which DOES pull the classes — so its absent-global no-op contract is
@@ -113,32 +121,21 @@ class MockEntryRow {
 
 // Mirrors AdwSliderRow's clamp-then-snap-to-step, in lockstep with
 // `src/widgets/adw-slider-row.ts` `_snap`.
+// Mirrors AdwSliderRow's value half — the widget cannot be instantiated off-device, so
+// this composes exactly what it composes: the core adjustment plus `snapAdjustmentValue`.
+// It used to hold its OWN copy of the clamp-and-snap arithmetic, which meant these
+// assertions passed while measuring the mock; the copy went with ADR 0047.
 class MockSliderRow {
-    private _value = 0;
-    private _min = 0;
-    private _max = 100;
-    private _step = 1;
-    private _snap(n: number): number {
-        const clamped = Math.min(this._max, Math.max(this._min, n));
-        const steps = Math.round((clamped - this._min) / this._step);
-        return Math.min(this._max, this._min + steps * this._step);
-    }
+    private readonly _state = new SpinState();
     get value(): number {
-        return this._value;
+        return this._state.value;
     }
     set value(v: number) {
-        this._value = this._snap(Number.isFinite(v) ? v : 0);
+        this._state.setValue(snapAdjustmentValue(this._state.adjustment, v));
     }
-    set min(v: number) {
-        this._min = v;
-        this.value = this._value;
-    }
-    set max(v: number) {
-        this._max = v;
-        this.value = this._value;
-    }
-    set step(v: number) {
-        this._step = v > 0 ? v : 1;
+    set adjustment(v: AdwAdjustmentInput) {
+        this._state.configure(v);
+        this.value = this._state.value;
     }
 }
 
@@ -543,58 +540,87 @@ export default async () => {
         }
     });
 
+    // THE SHARED TABLES, driven through what the widgets compose — the same rows the core
+    // suite and the browser suite assert, so a range authored in one dialect means the same
+    // thing in all three (ADR 0047). The widget classes cannot be constructed off-device,
+    // so these drive `SpinState` and `snapAdjustmentValue` directly: exactly what
+    // `AdwSpinRow` and `AdwSliderRow` hold, reached without `@nativescript/core`.
+    await describe('the portable adjustment on NativeScript', async () => {
+        for (const vector of ADJUSTMENT_AUTHORED_VECTORS) {
+            await it(`authored: ${vector.rule}`, () => {
+                const state = new SpinState();
+                state.configure(vector.input);
+                expect(state.adjustment).toStrictEqual({ ...vector.adjustment });
+            });
+        }
+
+        // The XML door, which is where a NativeScript attribute arrives: a string, handed
+        // to the same setter a TypeScript caller writes an object to.
+        const SEEDED = { value: 7, lower: 0, upper: 100, stepIncrement: 1, pageIncrement: 1, pageSize: 0 };
+        for (const vector of ADJUSTMENT_PARSE_VECTORS) {
+            await it(`attribute: ${vector.rule}`, () => {
+                const state = new SpinState();
+                state.setValue(7);
+                expect(state.adjustment).toStrictEqual(SEEDED);
+
+                state.configure(parseAdjustment(vector.raw));
+                expect(state.adjustment).toStrictEqual({ ...SEEDED, ...vector.input });
+            });
+        }
+
+        for (const vector of ADJUSTMENT_SNAP_VECTORS) {
+            await it(`snap: ${vector.rule}`, () => {
+                const state = new SpinState();
+                state.configure(vector.input);
+                expect(snapAdjustmentValue(state.adjustment, vector.from)).toBe(vector.snapped);
+            });
+        }
+    });
+
     await describe('AdwSpinRow numeric stepper (core SpinState re-export)', async () => {
         // The full clamp/step-edge matrix is specced in @gjsify/adwaita-core.
         await it('clamps the value and steps to the bounds', () => {
             const state = new SpinState();
-            state.setMin(0);
-            state.setMax(4);
-            state.setValue(99);
+            state.configure({ lower: 0, upper: 4, stepIncrement: 2, value: 99 });
             expect(state.value).toBe(4); // clamped
-            state.setStep(2);
             state.setValue(0);
             state.increment();
             expect(state.value).toBe(2);
             state.increment();
             state.increment();
-            expect(state.value).toBe(4); // clamped at max
+            expect(state.value).toBe(4); // clamped at the upper bound
         });
 
-        await it('re-clamps the current value when min rises above it', () => {
+        await it('re-clamps the current value when the lower bound rises above it', () => {
             const state = new SpinState();
             state.setValue(3);
-            state.setMin(5);
+            state.configure({ lower: 5 });
             expect(state.value).toBe(5);
         });
     });
 
     await describe('AdwSliderRow range snap (mock)', async () => {
-        await it('clamps to [min, max]', () => {
+        await it('clamps into the adjustment range', () => {
             const row = new MockSliderRow();
-            row.min = 16;
-            row.max = 64;
+            row.adjustment = { lower: 16, upper: 64 };
             row.value = 99;
             expect(row.value).toBe(64);
             row.value = 0;
             expect(row.value).toBe(16);
         });
 
-        await it('snaps to the nearest step from min', () => {
+        await it('snaps to the nearest tick from the lower bound', () => {
             const row = new MockSliderRow();
-            row.min = 0;
-            row.max = 100;
-            row.step = 5;
+            row.adjustment = { lower: 0, upper: 100, stepIncrement: 5 };
             row.value = 23;
             expect(row.value).toBe(25);
             row.value = 21;
             expect(row.value).toBe(20);
         });
 
-        await it('snaps relative to a non-zero min', () => {
+        await it('snaps relative to a non-zero lower bound', () => {
             const row = new MockSliderRow();
-            row.min = 16;
-            row.max = 64;
-            row.step = 4;
+            row.adjustment = { lower: 16, upper: 64, stepIncrement: 4 };
             row.value = 49; // 16 + round(33/4)*4 = 16 + 8*4 = 48
             expect(row.value).toBe(48);
         });

@@ -474,7 +474,7 @@ export default async () => {
             await it('carries the authored range and value — the pair', async () => {
                 laidOut(
                     <AdwPreferencesGroup title="Appearance">
-                        <AdwSpinRow title="Scale" lower={0} upper={200} stepIncrement={25} value={50} />
+                        <AdwSpinRow title="Scale" adjustment={{ lower: 0, upper: 200, stepIncrement: 25 }} value={50} />
                     </AdwPreferencesGroup>,
                     (container) => {
                         const row = find(container, 'AdwSpinRow') as Adw.SpinRow;
@@ -491,7 +491,7 @@ export default async () => {
                 // corrected, it never exists out of range. 5 into 10…20 is 10 on both halves.
                 laidOut(
                     <AdwPreferencesGroup title="Appearance">
-                        <AdwSpinRow title="Scale" lower={10} upper={20} value={5} />
+                        <AdwSpinRow title="Scale" adjustment={{ lower: 10, upper: 20 }} value={5} />
                     </AdwPreferencesGroup>,
                     (container) => {
                         expect((find(container, 'AdwSpinRow') as Adw.SpinRow).value).toBe(10);
@@ -502,13 +502,13 @@ export default async () => {
             await it('re-clamps when a bound moves under the value — the pair', async () => {
                 laidOut(
                     <AdwPreferencesGroup title="Appearance">
-                        <AdwSpinRow title="Scale" lower={0} upper={100} value={80} />
+                        <AdwSpinRow title="Scale" adjustment={{ lower: 0, upper: 100 }} value={80} />
                     </AdwPreferencesGroup>,
                     (container, _window, rerender) => {
                         expect((find(container, 'AdwSpinRow') as Adw.SpinRow).value).toBe(80);
                         rerender(
                             <AdwPreferencesGroup title="Appearance">
-                                <AdwSpinRow title="Scale" lower={0} upper={50} value={80} />
+                                <AdwSpinRow title="Scale" adjustment={{ lower: 0, upper: 50 }} value={80} />
                             </AdwPreferencesGroup>,
                         );
                         // 80 was legal and is not any more. Both halves answer 50.
@@ -526,7 +526,7 @@ export default async () => {
                 // re-renders a spin row after its value moved, so nothing else can see it.
                 laidOut(
                     <AdwPreferencesGroup title="Appearance">
-                        <AdwSpinRow title="Scale" lower={0} upper={100} stepIncrement={10} value={50} />
+                        <AdwSpinRow title="Scale" adjustment={{ lower: 0, upper: 100, stepIncrement: 10 }} value={50} />
                     </AdwPreferencesGroup>,
                     (container, _window, rerender) => {
                         // The stepper's effect without the click: the widget owns its value,
@@ -534,7 +534,11 @@ export default async () => {
                         (find(container, 'AdwSpinRow') as Adw.SpinRow).value = 60;
                         rerender(
                             <AdwPreferencesGroup title="Appearance">
-                                <AdwSpinRow title="Zoom" lower={0} upper={100} stepIncrement={10} value={50} />
+                                <AdwSpinRow
+                                    title="Zoom"
+                                    adjustment={{ lower: 0, upper: 100, stepIncrement: 10 }}
+                                    value={50}
+                                />
                             </AdwPreferencesGroup>,
                         );
                         const row = find(container, 'AdwSpinRow') as Adw.SpinRow;
@@ -555,9 +559,7 @@ export default async () => {
                     <AdwPreferencesGroup title="Appearance">
                         <AdwSpinRow
                             title="Scale"
-                            lower={0}
-                            upper={200}
-                            stepIncrement={25}
+                            adjustment={{ lower: 0, upper: 200, stepIncrement: 25 }}
                             value={50}
                             onNotifyValue={(value) => seen.push(value)}
                         />
@@ -568,9 +570,7 @@ export default async () => {
                             <AdwPreferencesGroup title="Appearance">
                                 <AdwSpinRow
                                     title="Scale"
-                                    lower={0}
-                                    upper={200}
-                                    stepIncrement={25}
+                                    adjustment={{ lower: 0, upper: 200, stepIncrement: 25 }}
                                     value={75}
                                     onNotifyValue={(value) => seen.push(value)}
                                 />
@@ -589,7 +589,12 @@ export default async () => {
             await it('formats the value with `digits` — the pair, as a STRING', async () => {
                 laidOut(
                     <AdwPreferencesGroup title="Appearance">
-                        <AdwSpinRow title="Scale" lower={0} upper={10} stepIncrement={1} value={3.14159} digits={2} />
+                        <AdwSpinRow
+                            title="Scale"
+                            adjustment={{ lower: 0, upper: 10, stepIncrement: 1 }}
+                            value={3.14159}
+                            digits={2}
+                        />
                     </AdwPreferencesGroup>,
                     (container) => {
                         const row = find(container, 'AdwSpinRow') as Adw.SpinRow;

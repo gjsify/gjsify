@@ -235,15 +235,31 @@ export type {
     AdwListModelInput,
 } from './list.js';
 
-// --- Row interaction state machines (Adw.ExpanderRow/ComboRow/SpinRow/ToggleGroup) ---
-export { ComboState, ExpanderState, SpinState, ToggleGroupState } from './rows.js';
+// --- The portable adjustment (Gtk.Adjustment's six numbers + its two signals — ADR 0047) ---
+export {
+    ADW_ADJUSTMENT_DEFAULTS,
+    adjustmentRange,
+    clampAdjustmentValue,
+    normalizeAdjustment,
+    parseAdjustment,
+    snapAdjustmentValue,
+    SpinState,
+} from './adjustment.js';
+export type {
+    AdwAdjustment,
+    AdwAdjustmentInput,
+    SpinStateChange,
+    SpinStateListener,
+    SpinStateRangeListener,
+} from './adjustment.js';
+
+// --- Row interaction state machines (Adw.ExpanderRow/ComboRow/ToggleGroup) ---
+export { ComboState, ExpanderState, ToggleGroupState } from './rows.js';
 export type {
     ComboItemsListener,
     ComboStateChange,
     ComboStateListener,
     ExpanderStateListener,
-    SpinStateChange,
-    SpinStateListener,
     ToggleGroupStateChange,
     ToggleGroupStateListener,
 } from './rows.js';
