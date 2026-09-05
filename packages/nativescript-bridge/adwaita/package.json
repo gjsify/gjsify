@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/adwaita-nativescript",
-    "version": "0.47.0",
+    "version": "0.48.0",
     "description": "Native Adwaita widgets for the NativeScript runtime — real NativeScript components (StackLayout/GridLayout/Switch/Label) styled like Libadwaita, not a webview",
     "type": "module",
     "module": "lib/esm/index.js",

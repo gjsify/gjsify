@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-gtk-adwaita-gallery-vue",
-    "version": "0.47.0",
+    "version": "0.48.0",
     "description": "Every Adwaita gallery snippet that has a Vue dialect, generated from one source and asserted against the real GTK widget tree",
     "type": "module",
     "private": true,

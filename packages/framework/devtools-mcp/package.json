@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/devtools-mcp",
-    "version": "0.47.0",
+    "version": "0.48.0",
     "description": "MCP↔devtools bridge for GJS apps — exposes a running app's org.gjsify.Devtools control plane (DBus) to an AI agent as MCP tools",
     "type": "module",
     "module": "lib/esm/index.js",

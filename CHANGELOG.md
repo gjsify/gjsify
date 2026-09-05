@@ -1,5 +1,68 @@
 # Changelog
 
+## [0.48.0](https://github.com/gjsify/gjsify/compare/v0.47.0...v0.48.0) (2026-09-05)
+
+### ⚠ BREAKING CHANGES
+
+* **adwaita:** one adjustment on every range (#1570)
+* **adwaita:** `ComboState.model`, and the `model` getters forwarding
+to it on `@gjsify/adwaita-web` and `@gjsify/adwaita-nativescript`,
+returned the stored array and now return a copy. Same type, same
+contents; identity changes, so mutating the read-back array no longer
+reaches the state — and the read-mutate-assign round trip works again.
+
+Claude-Session: https://claude.ai/code/session_01Kqk9FGBqqApC8168wzgiwF
+* **adwaita:** AdwMenuEntry and parseMenuEntries are removed, and AdwMenuItem is
+reused with an incompatible shape. The input type accepts both 'Save' and { label:
+'Save' }, so annotations can simply be dropped. Activation reports a path, not an index.
+
+Claude-Session: https://claude.ai/code/session_01TGTu3xiJDXtxVdB7vkzcyC
+* **adwaita-nativescript:** the 43 flat widget classes and the ./widgets subpath are removed from
+@gjsify/adwaita-nativescript. Use Adw.<Widget> / Gtk.<Widget> from the package root, or
+the new ./adw and ./gtk subpaths. In XML, <adw:PreferencesGroup> replaces the class name.
+
+Claude-Session: https://claude.ai/code/session_01TGTu3xiJDXtxVdB7vkzcyC
+* **adwaita-react-native:** drop the flat classes (#1519)
+
+### Features
+
+* **adwaita-nativescript:** drop the flat classes ([#1520](https://github.com/gjsify/gjsify/issues/1520)) ([415fd40](https://github.com/gjsify/gjsify/commit/415fd40d970cdb552419b4f013d06f6abc83a7a7)), closes [#1519](https://github.com/gjsify/gjsify/issues/1519)
+* **adwaita-react-native:** drop the flat classes ([#1519](https://github.com/gjsify/gjsify/issues/1519)) ([f5aa838](https://github.com/gjsify/gjsify/commit/f5aa83800e3d347fae89548d0899cd7c54bab994)), closes [#1520](https://github.com/gjsify/gjsify/issues/1520)
+* **adwaita:** one adjustment on every range ([#1570](https://github.com/gjsify/gjsify/issues/1570)) ([1744436](https://github.com/gjsify/gjsify/commit/174443626895c24f5b5d16527c9baeb99b123db3))
+* **adwaita:** one model on every list widget, and only there ([#1566](https://github.com/gjsify/gjsify/issues/1566)) ([a7b9712](https://github.com/gjsify/gjsify/commit/a7b9712a189d71ed7aea65b1df7dd8f9a62ba255)), closes [#1525](https://github.com/gjsify/gjsify/issues/1525) [#1525](https://github.com/gjsify/gjsify/issues/1525)
+* **adwaita:** one portable menu model ([#1528](https://github.com/gjsify/gjsify/issues/1528)) ([12ddb62](https://github.com/gjsify/gjsify/commit/12ddb627f7ecb49c8a065b0dbcd43e1c202ab6de))
+* **gtk-host:** a portal seam, and React Native's Modal on it ([#1563](https://github.com/gjsify/gjsify/issues/1563)) ([86fc1cd](https://github.com/gjsify/gjsify/commit/86fc1cdd484786718e22e1062f1eaf4ec4296667))
+* **react-native:** accessibility props over GTK ([#1541](https://github.com/gjsify/gjsify/issues/1541)) ([54f7f72](https://github.com/gjsify/gjsify/commit/54f7f72028ee53b6f8357082fd09654fbe2fb962)), closes [#1552](https://github.com/gjsify/gjsify/issues/1552) [#1556](https://github.com/gjsify/gjsify/issues/1556) [#1555](https://github.com/gjsify/gjsify/issues/1555) [#1455](https://github.com/gjsify/gjsify/issues/1455)
+* **react-native:** hand the application back ([#1538](https://github.com/gjsify/gjsify/issues/1538)) ([e04cefc](https://github.com/gjsify/gjsify/commit/e04cefc692fa03e349bf6830a056c836b1dab33d)), closes [#1550](https://github.com/gjsify/gjsify/issues/1550) [#1540](https://github.com/gjsify/gjsify/issues/1540) [#1460](https://github.com/gjsify/gjsify/issues/1460) [#1549](https://github.com/gjsify/gjsify/issues/1549) [#1551](https://github.com/gjsify/gjsify/issues/1551)
+
+### Bug Fixes
+
+* **adwaita-web:** keep the combo row's model live ([#1525](https://github.com/gjsify/gjsify/issues/1525)) ([cd6c9ab](https://github.com/gjsify/gjsify/commit/cd6c9ab4894c0747fa46be9e14d2cbd8b22ff878))
+* **cli:** the payload the runtime cannot load ([#1559](https://github.com/gjsify/gjsify/issues/1559)) ([b4cf01f](https://github.com/gjsify/gjsify/commit/b4cf01f361ff818b4c3e6aec168e6a423efc560b))
+* **e2e:** skip create-app in the publish window ([#1530](https://github.com/gjsify/gjsify/issues/1530)) ([fc0ed39](https://github.com/gjsify/gjsify/commit/fc0ed39ad85a87621622051af16ebd55eb1b8f8a)), closes [#1523](https://github.com/gjsify/gjsify/issues/1523)
+* four defects on the release path, and the .deb changelog ([#1568](https://github.com/gjsify/gjsify/issues/1568)) ([6ff86a3](https://github.com/gjsify/gjsify/commit/6ff86a3804daf2b1ad8d910a458c99e772ee2931)), closes [#1530](https://github.com/gjsify/gjsify/issues/1530) [#1531](https://github.com/gjsify/gjsify/issues/1531) [#1340](https://github.com/gjsify/gjsify/issues/1340) [#1340](https://github.com/gjsify/gjsify/issues/1340) [#1533](https://github.com/gjsify/gjsify/issues/1533) [#1522](https://github.com/gjsify/gjsify/issues/1522) [#1522](https://github.com/gjsify/gjsify/issues/1522)
+* **gtk-host:** clear a nullable prop for real ([#1532](https://github.com/gjsify/gjsify/issues/1532)) ([6ca817b](https://github.com/gjsify/gjsify/commit/6ca817bccb1487639efb7ef91ea10f6541c62a5e))
+* **gtk-host:** quote a font family GTK refuses ([#1543](https://github.com/gjsify/gjsify/issues/1543)) ([4df4640](https://github.com/gjsify/gjsify/commit/4df4640ee19bc7e26700d0a472a2a68530bb8d0a))
+* instruments that state what they measured ([#1560](https://github.com/gjsify/gjsify/issues/1560)) ([eb01efe](https://github.com/gjsify/gjsify/commit/eb01efe2753bc373f69b81068ef0ca5622dbfbc8))
+* **node-gi:** the seed that matched nothing ([#1562](https://github.com/gjsify/gjsify/issues/1562)) ([0498711](https://github.com/gjsify/gjsify/commit/0498711fe6893e7dedec9b19bdf37bf923593031)), closes [#1544](https://github.com/gjsify/gjsify/issues/1544) [#1097](https://github.com/gjsify/gjsify/issues/1097)
+* one header bar per routed window ([#1540](https://github.com/gjsify/gjsify/issues/1540)) ([ab1554b](https://github.com/gjsify/gjsify/commit/ab1554bd4ff50a2e220f0d68ca45a495bed5c955)), closes [#1546](https://github.com/gjsify/gjsify/issues/1546) [#1547](https://github.com/gjsify/gjsify/issues/1547)
+* **react-native:** deep links, per-route caches, and the bootstrap's vectors ([#1567](https://github.com/gjsify/gjsify/issues/1567)) ([349d1fd](https://github.com/gjsify/gjsify/commit/349d1fda2827c5501c9721f8fe51018eb556b989)), closes [#1453](https://github.com/gjsify/gjsify/issues/1453) [#1547](https://github.com/gjsify/gjsify/issues/1547) [#1547](https://github.com/gjsify/gjsify/issues/1547) [#1555](https://github.com/gjsify/gjsify/issues/1555) [#1551](https://github.com/gjsify/gjsify/issues/1551) [#1546](https://github.com/gjsify/gjsify/issues/1546) [#1460](https://github.com/gjsify/gjsify/issues/1460) [#1551](https://github.com/gjsify/gjsify/issues/1551) [#1549](https://github.com/gjsify/gjsify/issues/1549)
+* **react-native:** see through child wrappers ([#1537](https://github.com/gjsify/gjsify/issues/1537)) ([6ba60c4](https://github.com/gjsify/gjsify/commit/6ba60c4c74b58ee759b538220bb481b677b530af))
+* the four places where a green result meant nothing ([#1565](https://github.com/gjsify/gjsify/issues/1565)) ([faf2d14](https://github.com/gjsify/gjsify/commit/faf2d14918afe0c5e5b44cdee39cccfc5ba93b41)), closes [#1556](https://github.com/gjsify/gjsify/issues/1556) [#1552](https://github.com/gjsify/gjsify/issues/1552) [#1552](https://github.com/gjsify/gjsify/issues/1552) [#1516](https://github.com/gjsify/gjsify/issues/1516) [#1528](https://github.com/gjsify/gjsify/issues/1528) [#1529](https://github.com/gjsify/gjsify/issues/1529) [#1516](https://github.com/gjsify/gjsify/issues/1516) [#1550](https://github.com/gjsify/gjsify/issues/1550)
+* **vite-plugin-gettext:** refuse to gut a catalog ([#1521](https://github.com/gjsify/gjsify/issues/1521)) ([8877d84](https://github.com/gjsify/gjsify/commit/8877d84a124a30dfb8306dba773a308e2744a8a3))
+
+### Documentation
+
+* **release:** the prose for 0.48.0 ([9ba0bae](https://github.com/gjsify/gjsify/commit/9ba0baed17491dd9bf7c56586ee32ba6bc27aeb0)), closes [#1569](https://github.com/gjsify/gjsify/issues/1569)
+
+### Code Refactoring
+
+* **adwaita-nativescript:** the icon is a GtkImage ([#1569](https://github.com/gjsify/gjsify/issues/1569)) ([fd218e0](https://github.com/gjsify/gjsify/commit/fd218e0c9e486d286cf308d219b8929f092a021c))
+
+### Maintenance
+
+* **react-native:** track the surface the tree resolves ([#1561](https://github.com/gjsify/gjsify/issues/1561)) ([a139a3e](https://github.com/gjsify/gjsify/commit/a139a3eef811a5b1fcb47bcbc815d39891456654))
+
 ## [0.47.0](https://github.com/gjsify/gjsify/compare/v0.46.0...v0.47.0) (2026-09-03)
 
 ### Features
