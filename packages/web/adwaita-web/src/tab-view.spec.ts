@@ -243,17 +243,30 @@ export const AdwTabViewConformanceTest = async () => {
             host.remove();
         });
 
-        await it('REFUSES a page belonging to ANOTHER view', () => {
-            // `page_belongs_to_this_view`. The property holds the PAGE but the setter passes
-            // its ID, and an id is only unique WITHIN a view — declared ones are the author's
-            // and `_nextId` counts per element, so two views both hold a `tab-1`. Passing
-            // another view's page must not select this view's page of the same name.
+        await it('REFUSES a page belonging to ANOTHER view, and RECORDS it', () => {
+            // `page_belongs_to_this_view`. An id is only unique WITHIN a view — declared ones
+            // are the author's to repeat and `_nextId` counts per element, so two views both
+            // hold a `tab-1`. Both views here hold 'a'/'b'/'c', which is the collision.
             const first = mountThree();
             const second = mountThree();
             second.view.selectedPage = second.view.pages[2]!;
+            expect(second.view.selectedIndex).toBe(2);
+
             first.view.selectedPage = second.view.pages[2]!;
             expect(first.view.selectedIndex).toBe(0);
             expect(second.view.selectedIndex).toBe(2);
+            // The refusal carries C's own assertion. It did NOT while the check was a
+            // renderer-side guard returning in silence, which is why the check moved into
+            // `TabViewState` — the one place that owns the page list.
+            expect(first.view.diagnostics).toStrictEqual([
+                "adw_tab_view_set_selected_page: assertion 'page_belongs_to_this_view (self, selected_page)' failed",
+            ]);
+            expect(second.view.diagnostics).toStrictEqual([]);
+
+            // ...and this view's OWN page of that same id is accepted, so what was refused
+            // is the IDENTITY and not the id.
+            first.view.selectedPage = first.view.pages[2]!;
+            expect(first.view.selectedIndex).toBe(2);
             first.host.remove();
             second.host.remove();
         });

@@ -403,16 +403,38 @@ export default async () => {
                 state.appendPage({ id: 'two' });
             }
             a.setSelectedPage('one');
+            expect(a.diagnostics).toStrictEqual([]);
 
             expect(a.setSelectedPage(b.pages[1]!)).toBe(false);
             expect(a.selectedId).toBe('one');
-            const last = a.diagnostics[a.diagnostics.length - 1];
-            expect(last?.includes('page_belongs_to_this_view')).toBe(true);
+            // EXACTLY one, and the text C raises. The page overload refuses and returns
+            // before it recurses, so the id arm never runs for a foreign page — a `toBe(2)`
+            // here is the double-push that a substring check on the LAST entry cannot see.
+            expect(a.diagnostics).toStrictEqual([
+                "adw_tab_view_set_selected_page: assertion 'page_belongs_to_this_view (self, selected_page)' failed",
+            ]);
 
             // ...and its OWN page of the same id is accepted, so the refusal is identity
-            // and not the id.
+            // and not the id — and the accepted path records nothing.
             expect(a.setSelectedPage(a.pages[1]!)).toBe(true);
             expect(a.selectedId).toBe('two');
+            expect(a.diagnostics).toHaveLength(1);
+        });
+
+        await it('carries `interactive` through the page overload', () => {
+            // The overload RECURSES with `page.id`. A recursion that dropped the flag would
+            // notify `interactive: true` for a model-driven selection and every listener
+            // that distinguishes a user's click from the model's own move would be wrong —
+            // and `setSelectedPage(page)` reads identically at the call site either way.
+            const state = new TabViewState();
+            state.appendPage({ id: 'one' });
+            state.appendPage({ id: 'two' });
+            const seen: boolean[] = [];
+            state.subscribe((change) => seen.push(change.interactive));
+
+            state.setSelectedPage(state.pages[1]!, false);
+            state.setSelectedPage(state.pages[0]!);
+            expect(seen).toStrictEqual([false, true]);
         });
     });
 };
