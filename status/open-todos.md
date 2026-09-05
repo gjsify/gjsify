@@ -4971,3 +4971,23 @@ probably become one table keyed by kind rather than a third constant beside
 Not built now because one door does not establish a rule, and a kind invented for a single
 member is the "second way to say what the table can already say" that gate's own header
 refuses. The second member is what should trigger this.
+### `headerbar.flat` is deprecated upstream, and the port just made it a first-class value
+
+[ADR 0049](../docs/adr/0049-style-classes-are-a-list.md) turned `AdwHeaderBar.flat` into
+`styleClasses='flat'` — a real convergence in shape, and a class libadwaita is retiring. The
+citation trail is the finding: `refs/libadwaita/src/stylesheet/widgets/_header-bar.scss` has
+no `.flat` DEFINITION at all, only `.titlebar headerbar:not(.flat)` in a window-shadow
+block; the class lives in `_deprecated.scss:456#headerbar.flat` and `adw-header-bar.c`
+mentions `flat` nowhere. Upstream's replacement is `AdwToolbarView`, whose
+`top-bar-style`/`bottom-bar-style` carry the same look as an ENUM on the container rather
+than a class on the bar.
+
+Nothing is wrong today: the class still exists, still styles, and the port's own stylesheet
+is what renders it. What is open is which side of the deprecation this port follows, and it
+is not a rename — `AdwToolbarView` is a widget this port does not have, and
+`@gjsify/adwaita-react-native` already carries `topBarStyle`/`bottomBarStyle` on its own
+toolbar props (`props.ts:145-147`), so the two surfaces would answer differently until one
+of them moves.
+
+Worth settling with the same measurement the rest of ADR 0049 used: what does
+`refs/libadwaita`'s own demo do, and what does `adwaita-web` render for a flat header today.
