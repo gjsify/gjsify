@@ -335,6 +335,16 @@ jobs:
       - name: Check every continue-on-error probe is read
         run: node scripts/check-probe-outcomes-read.mjs
 
+      # And that the reader can RUN. The check above got its reader and could not
+      # ask whether the JOB carrying it checks the repo out — that is job scope,
+      # and it is file-scoped by design. v0.48.0's release paid for the gap:
+      # `dispatch-cross-platform-probe` ran `node scripts/report-probe-outcome.mjs`
+      # in a job with no checkout, so the reporter died with `Cannot find module`
+      # and failed the job it exists to report on. The dispatch had succeeded.
+      # Invisible on every PR, because `release.yml` runs on `release` only.
+      - name: Check every job running a repo script checks the repo out
+        run: node scripts/check-workflow-script-checkout.mjs
+
       # A bare `npm install "@gjsify/x@<the version we just published>"` reads an
       # ETARGET as a verdict, and npm can serve a packument older than a PUT it has
       # already acknowledged: v0.46.0 lost three publish legs that way, on a version
@@ -1058,6 +1068,16 @@ jobs:
       # been red with nobody counting them (#1552, #1556).
       - name: Check every continue-on-error probe is read
         run: node scripts/check-probe-outcomes-read.mjs
+
+      # And that the reader can RUN. The check above got its reader and could not
+      # ask whether the JOB carrying it checks the repo out — that is job scope,
+      # and it is file-scoped by design. v0.48.0's release paid for the gap:
+      # `dispatch-cross-platform-probe` ran `node scripts/report-probe-outcome.mjs`
+      # in a job with no checkout, so the reporter died with `Cannot find module`
+      # and failed the job it exists to report on. The dispatch had succeeded.
+      # Invisible on every PR, because `release.yml` runs on `release` only.
+      - name: Check every job running a repo script checks the repo out
+        run: node scripts/check-workflow-script-checkout.mjs
 
       # A bare `npm install "@gjsify/x@<the version we just published>"` reads an
       # ETARGET as a verdict, and npm can serve a packument older than a PUT it has
