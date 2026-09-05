@@ -466,7 +466,6 @@ const RN_WIDGET_ALIGNMENT = {};
  */
 const NS_PROPERTY_ALIGNMENT = {
     // ── The same control under another spelling. This is the printed distance. ────────
-    },
     'gtk-button.styleClasses': {
         gir: 'cssClasses',
         why: "`GtkWidget:css-classes` is the slot and `cssClasses` is the name, but on this surface that name is TAKEN and taking it is fatal: `@nativescript/core`'s `ViewBase` declares `readonly cssClasses: Set<string>` (ui/core/view-base/index.d.ts:366), assigns it in its constructor (index.js:226), and `classNameProperty.valueChanged` clears and repopulates that Set on every `className` write (index.js:1140-1154). A subclass accessor SHADOWS the constructor's assignment, so the Set never exists and the first `className` write — the one in the widget's own constructor — dies on `cssClasses.has is not a function`; measured against 9.1.0-alpha.11 by running those two bodies verbatim. `styleClasses` is libadwaita's own word for the same thing and is free in the whole of `@nativescript/core`. Declared and left: the divergence is the PLATFORM's, and `ns-core.d.ts` now declares the member so `gjsify tsc` answers TS2611 to anyone who reaches for the convergent spelling again.",
