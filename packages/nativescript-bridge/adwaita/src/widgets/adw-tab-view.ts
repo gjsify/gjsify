@@ -46,7 +46,7 @@ import {
     type TabViewNotifyPayload,
 } from './tab-view-state.js';
 import type { AdwViewPage } from './view-switcher-base.js';
-import { xmlBoolean, xmlNumber } from './xml-values.js';
+import { xmlBoolean } from './xml-values.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
@@ -169,22 +169,43 @@ export class AdwTabView extends GridLayout {
         return this._state.selectedIndex;
     }
 
-    /** The selected page index. Setting it IGNORES a non-integer or out-of-range value. */
-    get selected(): number {
-        return this._state.selectedIndex;
+    /**
+     * The selected page (`Adw.TabView:selected-page`), `null` when the view is empty.
+     *
+     * THE PAGE, NOT ITS POSITION (ADR 0048). `Adw.TabView` is the one widget in this port
+     * whose counterpart selects by OBJECT rather than by name or by ordinal, and the model
+     * has held that object all along — this getter is the door onto it.
+     *
+     * READS THE PAGE, WRITES THE ID: the setter below takes the id this port uses as its
+     * page handle, because that is what an XML attribute can carry. TypeScript allows the
+     * two halves to differ, so `view.selectedPage = view.selectedPage` is a type error
+     * rather than a silent one — which is the intended reading, not an oversight.
+     */
+    get selectedPage(): AdwTabPage | null {
+        return this._state.selectedPage;
     }
 
-    set selected(raw: number | string) {
-        const value = xmlNumber(raw, this.selected);
-        this._state.selectNthPage(value);
+    set selectedPage(id: string | null) {
+        // THE ID, BECAUSE ON THIS PORT AN ID IS WHAT A PAGE HANDLE IS. Every other page
+        // call here takes one — `isClosing`, `closePage`, `setPagePinned` — and a
+        // NativeScript XML attribute can carry nothing else, so `<AdwTabView
+        // selectedPage="inbox">` is the only way markup can declare a starting tab. The web
+        // twin takes the page OBJECT because its DOM has one and its attribute carries the
+        // id separately; ADR 0034 § 1 converges the NAME and never the shape.
+        //
+        // The core refuses an id this view does not hold, with the diagnostic C raises —
+        // and because a caller here cannot hand over another view's page object, the
+        // cross-view confusion the web twin has to guard against cannot arise.
+        this._state.setSelectedPage(id);
     }
 
     isClosing(id: string): boolean {
         return this._state.isClosing(id);
     }
 
-    setSelectedPage(id: string | null): boolean {
-        return this._state.setSelectedPage(id);
+    /** `adw_tab_view_set_selected_page`. The page, or the id this port uses as its handle. */
+    setSelectedPage(page: AdwTabPage | string | null): boolean {
+        return this._state.setSelectedPage(page);
     }
 
     selectNthPage(n: number): boolean {

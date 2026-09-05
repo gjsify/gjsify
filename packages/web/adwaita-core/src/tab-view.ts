@@ -563,15 +563,37 @@ export class TabViewState<T = unknown> {
     }
 
     /**
-     * Select a page by id. Returns whether the selection changed.
+     * Select a page — by the PAGE, or by its id. Returns whether the selection changed.
      *
      * An unknown id is refused, and `null` is accepted only while the view is empty —
      * `adw_tab_view_set_selected_page` asserts `ADW_IS_TAB_PAGE` +
      * `page_belongs_to_this_view` when `n_pages > 0`, and `selected_page == NULL`
      * otherwise. `interactive` defaults to `true` because this IS the explicit call;
      * the model-driven paths (first-page auto-select, close successor) pass `false`.
+     *
+     * THE PAGE OVERLOAD IS WHAT MAKES `page_belongs_to_this_view` TRUE HERE. An id is
+     * unique within ONE view (`_nextId` counts per view), so handing this view another
+     * view's page and reading only its id selects the page of the same id HERE — measured
+     * on the renderers' `selectedPage` setters, where `viewA.selectedPage = viewB.pages[2]`
+     * moved viewA to index 2 rather than refusing. The object is what separates them, so
+     * the identity check belongs at the one place that owns the page list, and the refusal
+     * carries the same diagnostic C raises rather than being a silent no-op in two
+     * renderers.
      */
-    setSelectedPage(id: string | null, interactive = true): boolean {
+    setSelectedPage(page: AdwTabPageState<T> | string | null, interactive = true): boolean {
+        if (page !== null && typeof page !== 'string') {
+            if (!this.pages.includes(page)) {
+                this._diagnostics.push(
+                    assertionDiagnostic(
+                        'adw_tab_view_set_selected_page',
+                        'page_belongs_to_this_view (self, selected_page)',
+                    ),
+                );
+                return false;
+            }
+            return this.setSelectedPage(page.id, interactive);
+        }
+        const id = page;
         if (id === null) {
             if (this.nPages > 0) {
                 this._diagnostics.push(

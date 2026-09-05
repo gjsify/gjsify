@@ -28,7 +28,7 @@ export const AdwTabViewTest = async () => {
         await it('builds one tab per page and shows the first page', async () => {
             const view = makeTabView();
             expect(view.querySelectorAll('.adw-tab').length).toBe(3);
-            expect(view.selected).toBe(0);
+            expect(view.selectedIndex).toBe(0);
             const pages = view.querySelectorAll('.adw-tab-page');
             expect((pages[0] as HTMLElement).hidden).toBe(false);
             expect((pages[1] as HTMLElement).hidden).toBe(true);
@@ -42,15 +42,18 @@ export const AdwTabViewTest = async () => {
                 notified = (event as CustomEvent).detail.selected;
             });
             (view.querySelectorAll('.adw-tab')[2] as HTMLButtonElement).click();
-            expect(view.selected).toBe(2);
+            expect(view.selectedIndex).toBe(2);
             expect(notified).toBe(2);
             expect((view.querySelectorAll('.adw-tab-page')[2] as HTMLElement).hidden).toBe(false);
             view.parentElement?.remove();
         });
 
-        await it('setting the selected attribute switches pages', async () => {
+        await it('setting the selected-page attribute switches pages', async () => {
             const view = makeTabView();
-            view.setAttribute('selected', '1');
+            // ADR 0048: the markup door names the PAGE. `makeTabView` declares no
+            // `page-id`, so the ids are the generated ones the element reflects back.
+            const second = view.pages[1]!.id;
+            view.setAttribute('selected-page', second);
             expect((view.querySelectorAll('.adw-tab-page')[1] as HTMLElement).hidden).toBe(false);
             expect((view.querySelectorAll('.adw-tab-page')[0] as HTMLElement).hidden).toBe(true);
             view.parentElement?.remove();
@@ -70,7 +73,7 @@ export const AdwTabViewTest = async () => {
             expect(view.querySelectorAll('.adw-tab').length).toBe(2);
             // Closing a page BEFORE the selection must not also select the tab,
             // and must leave the selected PAGE selected.
-            expect(view.selected).toBe(0);
+            expect(view.selectedIndex).toBe(0);
             view.parentElement?.remove();
         });
     });

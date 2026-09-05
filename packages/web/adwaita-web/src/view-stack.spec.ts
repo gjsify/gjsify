@@ -66,7 +66,9 @@ function mountStack(pages: readonly ViewStackVectorPage[], visibleChildName?: st
 function applyOp(stack: AdwViewStack, op: ViewStackVectorOp): void {
     switch (op.kind) {
         case 'selectIndex':
-            stack.visibleChildIndex = op.index;
+            // ADR 0048: the element has no ordinal SETTER any more; the ordinal is this
+            // call, and it forwards to the same core guard the vector pins.
+            stack.selectNthPage(op.index);
             break;
         case 'selectName':
             stack.visibleChildName = op.name;
@@ -224,7 +226,7 @@ export const AdwViewStackTest = async () => {
         await it('reflects the selection back, including an empty name', () => {
             const { stack, host } = mountStack([{ name: 'a' }, { name: '' }]);
             expect(stack.getAttribute('visible-child-name')).toBe('a');
-            stack.visibleChildIndex = 1;
+            stack.selectNthPage(1);
             // Reflection guarded by `if (current && …)` never fires for nameless pages.
             expect(stack.getAttribute('visible-child-name')).toBe('');
             host.remove();
@@ -252,7 +254,7 @@ export const AdwViewStackTest = async () => {
             // with duplicate names a naive re-lookup resolves to the FIRST match and
             // undoes the selection.
             const { stack, host } = mountStack([{ name: 'dup' }, { name: 'dup' }]);
-            stack.visibleChildIndex = 1;
+            stack.selectNthPage(1);
             expect(stack.visibleChildIndex).toBe(1);
             expect(stack.getAttribute('visible-child-name')).toBe('dup');
             host.remove();

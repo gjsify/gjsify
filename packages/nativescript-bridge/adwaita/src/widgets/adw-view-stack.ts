@@ -28,7 +28,6 @@ import {
     type AdwViewStackPage,
     type ViewStackNotifyPayload,
 } from './view-stack-state.js';
-import { xmlNumber } from './xml-values.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
@@ -116,14 +115,34 @@ export class AdwViewStack extends GridLayout {
         return this._state.pages;
     }
 
-    /** The visible page index, `-1` when nothing is selected. Swaps the visible page + emits. */
+    /**
+     * The visible page's position, `-1` when nothing is selected.
+     *
+     * A REPORT, NOT A DOOR (ADR 0048). `Adw.ViewStack` selects by NAME, and an ordinal
+     * is derived: an insertion before the visible page increments it, a reorder rewrites
+     * it and a removal decrements it — the three cases `ViewStackState` carries code for.
+     * So it is safe to read at a moment and unsafe to hold, and selecting is
+     * {@link visibleChildName}.
+     */
     get visibleChildIndex(): number {
         return this._state.visibleIndex;
     }
 
-    set visibleChildIndex(raw: number | string) {
-        const value = xmlNumber(raw, this.visibleChildIndex);
-        this._state.setVisibleIndex(value);
+    /**
+     * Show the page at position `n`. Returns whether the selection moved.
+     *
+     * THE ORDINAL IS A CALL, NOT A PROPERTY (ADR 0048). It resolves against the page list
+     * as it is at THIS moment and keeps nothing, which is the whole difference from the
+     * setter it replaces: a held index silently comes to mean another page after an
+     * insert, a reorder or a removal. Port-owned — measured, `refs/libadwaita` gives
+     * `AdwViewStack` no ordinal API at all — and named for the `selectNthPage` the tab
+     * view already has, so the two widgets ask the same question the same way.
+     *
+     * A non-integer or out-of-range `n` selects nothing; the guard is the core's
+     * ({@link ViewStackState.setVisibleIndex}) and is pinned by the shared vectors.
+     */
+    selectNthPage(n: number): boolean {
+        return this._state.setVisibleIndex(n);
     }
 
     /** The visible page name (`Adw.ViewStack.visible-child-name`), `''` for none. */

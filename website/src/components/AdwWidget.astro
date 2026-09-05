@@ -558,6 +558,10 @@ for (const spec of WINDOWS) {
     // runs before the code below, so every element is defined by the time the
     // previews mount.
     import '@gjsify/adwaita-web';
+    // The element CLASS, for the ordinal door below. `<adw-tab-view>` has no settable
+    // ordinal any more (ADR 0048) and an attribute is a string no type sees, so the
+    // selection has to go through a method a type can miss.
+    import type { Adw } from '@gjsify/adwaita-web';
 
     // Mount each preview: clone its inert <template> into the stage now that the
     // custom elements are defined. Building the subtree and attaching it in one go
@@ -586,14 +590,19 @@ for (const spec of WINDOWS) {
             // happen to answer right today. The marker stays, because what makes it
             // right is that it names the window's OWN view rather than where the
             // preview currently sits.
-            const view = el.querySelector('adw-tab-view[data-impl-view]');
+            const view = el.querySelector<Adw.TabView>('adw-tab-view[data-impl-view]');
             if (!view || view === skip) continue;
             const impls = (el.dataset.impls ?? '').split(',');
             const index = impls.indexOf(impl);
             // The windows hold disjoint tab sets, so a stored choice simply does not
             // apply to most of them: picking "Blueprint" moves every Native
             // TypeScript window and leaves the others where the reader left them.
-            if (index >= 0) view.setAttribute('selected', String(index));
+            // A CALL, not an attribute: `selected="n"` was the door until ADR 0048 renamed
+            // the markup half to `selected-page="<page id>"`, and these panes declare no
+            // `page-id`. The stored preference is a NAME resolved to a position against the
+            // list as it is now — nothing here holds the number, which is the whole
+            // difference the ADR draws.
+            if (index >= 0) view.selectNthPage(index);
         }
     };
 

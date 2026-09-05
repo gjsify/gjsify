@@ -99,8 +99,10 @@ export class AdwViewSwitcherBar extends HTMLElement {
                     const stack = this._stack;
                     if (!stack) return;
                     const index = Number(item.dataset.pageIndex);
-                    // Re-assigning the current index would re-run the stack's transition.
-                    if (stack.visibleChildIndex !== index) stack.visibleChildIndex = index;
+                    // The roving-focus list is ordinal and the stack resolves it (ADR 0048).
+                    // Re-selecting the current page would re-run the stack's transition, which
+                    // is why the position is compared before the call.
+                    if (stack.visibleChildIndex !== index) stack.selectNthPage(index);
                 },
             });
         }
@@ -238,7 +240,8 @@ export class AdwViewSwitcherBar extends HTMLElement {
 
         button.append(icon, label, indicator);
         button.addEventListener('click', () => {
-            if (this._stack) this._stack.visibleChildIndex = pageIndex;
+            // Ordinal here, resolved by the stack (ADR 0048) — as in `select` above.
+            this._stack?.selectNthPage(pageIndex);
         });
 
         return { button, icon, label, indicator };

@@ -26,7 +26,8 @@
 // Properties (mirroring Adw.ViewStack):
 //   pages               — readonly page descriptors ({ name, title, icon, content, visible }).
 //   visibleChildName    — name of the visible page ('' when nothing is selected).
-//   visibleChildIndex   — zero-based index of the visible page, -1 for none (guarded).
+//   visibleChildIndex   — READ-ONLY report: position of the visible page, -1 for none.
+//                         Selecting is `visibleChildName` (ADR 0048).
 //   visibleChild        — the visible page's content element (or null).
 // Methods:
 //   add(content, name, title?, icon?) — append a page; returns its descriptor.
@@ -70,13 +71,28 @@ export class AdwViewStack extends HTMLElement {
         return this._state.pages;
     }
 
-    /** Zero-based index of the visible page, `-1` when nothing is selected. */
+    /**
+     * Zero-based position of the visible page, `-1` when nothing is selected.
+     *
+     * A REPORT, NOT A DOOR (ADR 0048). `Adw.ViewStack` selects by NAME, and an ordinal is
+     * derived — an insertion before the visible page increments it, a reorder rewrites it,
+     * a removal decrements it. Selecting is {@link visibleChildName}.
+     */
     get visibleChildIndex(): number {
         return this._state.visibleIndex;
     }
 
-    set visibleChildIndex(value: number) {
-        this._state.setVisibleIndex(value);
+    /**
+     * Show the page at position `n`. Returns whether the selection moved.
+     *
+     * THE ORDINAL IS A CALL, NOT A PROPERTY (ADR 0048): it resolves against the page list
+     * as it is now and keeps nothing, where a held index comes to mean another page after
+     * an insert, a reorder or a removal. Port-owned — `refs/libadwaita` gives
+     * `AdwViewStack` no ordinal API — and named for the tab view's existing
+     * `selectNthPage`. The guard on `n` is the core's and is pinned by the shared vectors.
+     */
+    selectNthPage(n: number): boolean {
+        return this._state.setVisibleIndex(n);
     }
 
     get visibleChildName(): string {

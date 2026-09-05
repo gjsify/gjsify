@@ -219,7 +219,9 @@ export class AdwViewSwitcherBar extends GridLayout {
 
         attachRowPressFeedback(button);
         button.addEventListener('tap', () => {
-            if (this._stack) this._stack.visibleChildIndex = pageIndex;
+            // A bar IS ordinal — button n shows page n — and the stack resolves that to a
+            // page at the moment of the tap (ADR 0048). Nothing here holds an index.
+            this._stack?.selectNthPage(pageIndex);
         });
 
         GridLayout.setColumn(button, column);

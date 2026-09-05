@@ -4912,3 +4912,62 @@ reached from a spec: a nested `g_application_run` inside the runner's own main l
 returns (measured: `g_application_run: assertion '!application->priv->must_quit_now' failed`,
 the case timed out at 5 s). So these need the LOOP, which is what the e2e host now provides —
 the work is writing the vectors, not finding somewhere to run them.
+
+### `AdwTabView`'s id-taking methods, where libadwaita takes the page
+
+[ADR 0048](../docs/adr/0048-page-selection-by-identity.md) made `selectedPage` the door on
+both renderers and widened `TabViewState.setSelectedPage` to take the PAGE as well as an id
+— that one had to move, because `page_belongs_to_this_view` cannot be answered from an id:
+ids are unique within ONE view (`_nextId` counts per view), so `a.setSelectedPage(b.pages[1])`
+read as an id selected `a`'s own page of that id. The core refuses it now, with the
+diagnostic C raises.
+
+What is left is the rest of the family: `isClosing(id)`, `closePage(id)`,
+`closePageFinish(id, …)` and `setPagePinned(id, …)` all take an ID where libadwaita takes an
+`AdwTabPage *` (`refs/libadwaita/src/adw-tab-view.h:150#adw_tab_view_set_selected_page` is
+the shape for all of them). Each carries the same latent confusion the selection one did,
+and none has produced a measured defect yet — which is exactly why they are here rather than
+in that ADR. Settle them together or not at all: an id-taking `closePage` beside a
+page-taking `setSelectedPage` is already the asymmetry, and fixing half of it twice is worse
+than either consistent answer.
+
+
+### A tab page with no `page-id` cannot be named from markup, and the reflection then leaks a generated id
+
+`<adw-tab-view selected-page="…">` (ADR 0048 § 3) names the page by the id
+`<adw-tab-page page-id>` declares. A page that declares none gets `_nextId()`'s value, which
+an author cannot predict — so for those pages the markup door is write-never, and the
+reflection writes that generated id back into the DOM where it reads like an API.
+
+`<adw-view-stack visible-child-name>` has the same shape for a page with no name and it has
+never been a problem in practice, which is the only reason this is an entry rather than a
+blocker. The candidate fixes both have costs worth measuring before picking: making
+`page-id` required is a breaking change to every declared page, and deriving the id from the
+title makes it move when the title does.
+
+
+### The XML-door gate has no kind for "an object, or the key that names it"
+
+`check-nativescript-xml-doors` classifies a setter's declared type into `number`, `boolean`,
+`string` and `json` — the last added by [ADR 0047](../docs/adr/0047-portable-adjustment.md)
+for `AdwSpinRow.adjustment`, where the string spelling is JSON text a parser reads.
+
+[ADR 0048](../docs/adr/0048-page-selection-by-identity.md) met the shape that is neither.
+`AdwTabView.selectedPage` wants to take `AdwTabPage | string | null` — the page, or the id
+that names it — and `attributeKind` files any `<object> | string` union as `json`, so the
+gate then demands the setter run a JSON parser it has no business running. Measured while
+writing that change: the annotation alone turns the door red with *"does not go through
+parseAdjustment()"*.
+
+The NativeScript setter takes the ID for now, which is honest there — every other page call
+on that port takes one, and an XML attribute can carry nothing else. What is unresolved is
+the gate: `jsonDoors()` verifies an exported FUNCTION whose body has a `catch`, and a
+key-taking door has neither (it is a method, and it refuses by recording a diagnostic rather
+than by throwing). A fourth kind wants its own verifier — *the string half names something
+the receiver owns, the lookup refuses without throwing* — and the two registries should
+probably become one table keyed by kind rather than a third constant beside
+`STRING_TOLERANT` and `JSON_DOORS`.
+
+Not built now because one door does not establish a rule, and a kind invented for a single
+member is the "second way to say what the table can already say" that gate's own header
+refuses. The second member is what should trigger this.

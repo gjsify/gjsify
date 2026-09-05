@@ -207,7 +207,7 @@ export const AdwTabViewConformanceTest = async () => {
         });
     });
 
-    await describe('adw-tab-view selected attribute', async () => {
+    await describe('adw-tab-view selected-page attribute', async () => {
         function mountThree(attrs = ''): { view: AdwTabView; host: HTMLElement } {
             const host = document.createElement('div');
             host.innerHTML = `<adw-tab-view ${attrs}>
@@ -219,38 +219,92 @@ export const AdwTabViewConformanceTest = async () => {
             return { view: host.querySelector('adw-tab-view') as AdwTabView, host };
         }
 
-        await it('selects the declared index instead of the auto-pick', () => {
-            const { view, host } = mountThree('selected="2"');
+        await it('selects the declared PAGE instead of the auto-pick', () => {
+            const { view, host } = mountThree('selected-page="c"');
             expect(view.selectedIndex).toBe(2);
+            expect(view.selectedId).toBe('c');
             expect(shownPanels(view)).toStrictEqual([false, false, true]);
             host.remove();
         });
 
-        await it('IGNORES an out-of-range or unparseable index instead of clamping it', () => {
-            // A clamping `Number.isNaN(raw) ? 0 : Math.min(Math.max(raw, 0), max)` selects
-            // the last page for `99` and the first for `-1`/`oops`; libadwaita refuses all
-            // three.
+        await it('IGNORES an id no page holds instead of falling back to the first', () => {
+            // The ordinal spellings are just unknown ids now (ADR 0048), and a fallback to
+            // page 0 would be the same wrong answer clamping used to give: libadwaita
+            // refuses a foreign `AdwTabPage` outright.
             const { view, host } = mountThree();
             for (const value of ['99', '-1', 'oops']) {
-                view.setAttribute('selected', value);
+                view.setAttribute('selected-page', value);
                 expect(view.selectedIndex).toBe(0);
             }
             //...and the attribute is put back in sync rather than left lying.
-            view.setAttribute('selected', '1');
+            view.setAttribute('selected-page', 'b');
             expect(view.selectedIndex).toBe(1);
-            expect(view.getAttribute('selected')).toBe('1');
+            expect(view.getAttribute('selected-page')).toBe(view.pages[1]!.id);
+            host.remove();
+        });
+
+        await it('REFUSES a page belonging to ANOTHER view, and RECORDS it', () => {
+            // `page_belongs_to_this_view`. An id is only unique WITHIN a view — declared ones
+            // are the author's to repeat and `_nextId` counts per element, so two views both
+            // hold a `tab-1`. Both views here hold 'a'/'b'/'c', which is the collision.
+            const first = mountThree();
+            const second = mountThree();
+            second.view.selectedPage = second.view.pages[2]!;
+            expect(second.view.selectedIndex).toBe(2);
+
+            first.view.selectedPage = second.view.pages[2]!;
+            expect(first.view.selectedIndex).toBe(0);
+            expect(second.view.selectedIndex).toBe(2);
+            // The refusal carries C's own assertion. It did NOT while the check was a
+            // renderer-side guard returning in silence, which is why the check moved into
+            // `TabViewState` — the one place that owns the page list.
+            expect(first.view.diagnostics).toStrictEqual([
+                "adw_tab_view_set_selected_page: assertion 'page_belongs_to_this_view (self, selected_page)' failed",
+            ]);
+            expect(second.view.diagnostics).toStrictEqual([]);
+
+            // ...and this view's OWN page of that same id is accepted, so what was refused
+            // is the IDENTITY and not the id.
+            first.view.selectedPage = first.view.pages[2]!;
+            expect(first.view.selectedIndex).toBe(2);
+            first.host.remove();
+            second.host.remove();
+        });
+
+        await it('RECORDS the refusal, where the ordinal door recorded nothing', () => {
+            // The behaviour change ADR 0048 does not name: `selected="99"` went through
+            // `selectNthPage`, which refuses an out-of-range index SILENTLY, while an
+            // unknown id goes through `setSelectedPage`, which is where C's
+            // `page_belongs_to_this_view` assertion lives. Three refusals, three records —
+            // if this list stays empty the element is swallowing the typo the reader made.
+            const { view, host } = mountThree();
+            expect(view.diagnostics).toStrictEqual([]);
+            for (const value of ['99', 'oops']) view.setAttribute('selected-page', value);
+            expect(view.diagnostics).toStrictEqual([
+                "adw_tab_view_set_selected_page: assertion 'page_belongs_to_this_view (self, selected_page)' failed",
+                "adw_tab_view_set_selected_page: assertion 'page_belongs_to_this_view (self, selected_page)' failed",
+            ]);
+
+            // ...and `null` while pages exist is the OTHER half of the same C assertion,
+            // which `view.selected = -1` also used to reach in silence.
+            view.selectedPage = null;
+            expect(view.selectedIndex).toBe(0);
+            expect(view.diagnostics).toHaveLength(3);
+            expect(view.diagnostics[2]).toBe(
+                "adw_tab_view_set_selected_page: assertion 'ADW_IS_TAB_PAGE (selected_page)' failed",
+            );
             host.remove();
         });
 
         await it('notifies on a PROGRAMMATIC selection, not only on a click', () => {
-            // C notifies on EVERY path: a programmatic `view.selected = 2` must notify as
-            // a tab click does.
+            // C notifies on EVERY path: a programmatic `view.selectedPage = …` must notify
+            // as a tab click does.
             const { view, host } = mountThree();
             const seen: number[] = [];
             view.addEventListener('notify::selected-page', (event) =>
                 seen.push((event as CustomEvent).detail.selected),
             );
-            view.selected = 2;
+            view.selectedPage = view.pages[2]!;
             expect(seen).toStrictEqual([2]);
             host.remove();
         });
@@ -259,11 +313,11 @@ export const AdwTabViewConformanceTest = async () => {
             const { view, host } = mountThree();
             const chips = tabChips(view);
             chips[1]!.click();
-            expect(view.getAttribute('selected')).toBe('1');
+            expect(view.getAttribute('selected-page')).toBe(view.pages[1]!.id);
 
             for (const id of ['a', 'b', 'c']) view.closePage(id);
             expect(view.nPages).toBe(0);
-            expect(view.hasAttribute('selected')).toBe(false);
+            expect(view.hasAttribute('selected-page')).toBe(false);
             expect(view.selectedIndex).toBe(-1);
             host.remove();
         });

@@ -130,7 +130,7 @@ export const ADWAITA_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
     'adw-status-page': ['icon', 'title', 'description'],
     'adw-switch-row': ['title', 'subtitle', 'active'],
     'adw-tab-page': ['title', 'tooltip', 'icon', 'indicator-icon', 'loading', 'needs-attention', 'pinned'],
-    'adw-tab-view': ['selected', 'autohide', 'expand-tabs', 'no-close'],
+    'adw-tab-view': ['selected-page', 'autohide', 'expand-tabs', 'no-close'],
     'adw-toast-overlay': [],
     'adw-toggle': ['label', 'icon-name'],
     'adw-toggle-group': ['active', 'flat', 'round'],
