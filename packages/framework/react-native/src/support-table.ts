@@ -175,10 +175,18 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         ],
     },
     Modal: {
-        status: 'planned',
+        status: 'partial',
         tier: 'P1',
         gtk: 'Adw.Dialog',
-        reason: 'An Adw.Dialog cannot be an ordinary element. MEASURED on libadwaita 1.9.3: box.append(dialog) calls g_error() — SIGABRT and a core dump, not a catchable exception — but ONLY when the box is rooted in a window. A detached box accepts the append in silence, so a re-test on a bare box appears to disprove this and puts the primitive back. A dialog is PRESENTED against a parent, never parented by it, so this is a PORTAL and needs a host seam that does not exist yet.',
+        reason: 'A PORTAL: the element’s host node is not its parent node. An Adw.Dialog is PRESENTED against a parent and never parented by it — MEASURED on libadwaita 1.9.3 / GTK 4.22.4, box.append(dialog) with the box ROOTED IN A WINDOW is g_error() (SIGABRT, exit 134, a core dump), while a detached box takes the same append in silence, which is how a re-test on a bare box appears to disprove it. So @gjsify/gtk-host grew a placement axis (ADR 0045) and AdwDialog declares present/force_close on it; nothing is appended and the abort is unreachable.',
+        limits: [
+            'visible is the whole component: the element is RENDERED only while it is true, and the dialog is built with can-close: false so nothing else takes it down. MEASURED — with can-close: false, close() returns FALSE, emits close-attempt and leaves the dialog up; force_close(), which the host’s placement names, closes it and emits closed. A dialog that closed itself would leave the element mounted with visible still true and nothing on screen.',
+            'onRequestClose is therefore required in practice, exactly as React Native documents it for Android and tvOS: Escape, the close control and a click on the backdrop all arrive there (Adw.Dialog::close-attempt) and none of them dismisses anything by itself.',
+            'onShow is Gtk.Widget::map, and it is the shown moment rather than the presented one — MEASURED, present() against a window that has not been shown yet emits nothing and the emission arrives on the window’s present().',
+            'onDismiss is refused by name because it would never fire: the only thing that dismisses the dialog is the element being unrendered, and the host disconnects a node’s handlers before it retracts the node.',
+            'animationType, transparent, backdropColor and presentationStyle are refused by name. libadwaita animates the presentation itself and picks the animation from Adw.Dialog:presentation-mode, the dim layer is its own, and there is no full-bleed transparent mode. Reach the dialog through a ref for presentation-mode.',
+            'The children go into an implicit content box, because Adw.Dialog holds ONE child (set_child/get_child, measured) and two children would be an assignment that silently evicts the first. style and className land on the DIALOG, which is not a box — items-*/gap-* on a <Modal> are refused naming the primitive and belong on a <View> inside it.',
+        ],
     },
     useColorScheme: {
         status: 'supported',
@@ -359,7 +367,7 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         status: 'partial',
         tier: 'P2',
         gtk: 'Adw.AlertDialog',
-        reason: 'Direct counterpart, and buildable where Modal is not: Alert is a FUNCTION CALL, so no element is ever inserted into a widget. Measured on libadwaita 1.9.3 — present(null) from a plain function, with no parent and no window, returned with no diagnostic.',
+        reason: 'Direct counterpart, and it needed no placement seam to be one: Alert is a FUNCTION CALL, so no element is ever inserted into a widget (Modal is the same widget family as an ELEMENT, and reaches the same call through the host portal placement of ADR 0045). Measured on libadwaita 1.9.3 — present(null) from a plain function, with no parent and no window, returned with no diagnostic.',
         limits: [
             'destructive maps to Adw.ResponseAppearance.DESTRUCTIVE and cancel becomes the dialog’s CLOSE RESPONSE, which is stronger than an appearance: it is what Escape and the compositor’s close both produce. The first non-cancel button becomes the default response, which is Adwaita’s convention and has no React Native counterpart.',
             'Response IDs are positional (response-0, …) rather than derived from the label, so two buttons with the same text do not collide into one response.',
@@ -479,11 +487,6 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         status: 'planned',
         tier: 'P3',
         reason: 'Needs an animated layout pass, which is the same subsystem as Animated.',
-    },
-    InteractionManager: {
-        status: 'planned',
-        tier: 'P3',
-        reason: 'Deferring work until interactions settle; a main-loop idle source is the counterpart.',
     },
     useAnimatedValue: { status: 'planned', tier: 'P3', reason: 'Part of the Animated subsystem.' },
     useAnimatedValueXY: { status: 'planned', tier: 'P3', reason: 'Part of the Animated subsystem.' },
@@ -629,17 +632,12 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         reason: 'Registers a module callable from the native side. There is no native side.',
     },
     Networking: { status: 'refused', reason: 'React Native’s XHR internals. Use fetch, which gjsify provides.' },
-    NativeDialogManagerAndroid: {
-        status: 'refused',
-        reason: 'An Android dialog native module. Alert is the portable spelling.',
-    },
     ProgressBarAndroid: {
         status: 'planned',
         tier: 'P3',
         gtk: 'Gtk.ProgressBar',
         reason: 'Android-only by name; GTK has the widget.',
     },
-    Touchable: { status: 'refused', reason: 'The legacy mixin behind the Touchable family, not a public component.' },
 
     // --- event emitters -------------------------------------------------------
     //
@@ -663,9 +661,72 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         status: 'refused',
         reason: 'A React Native surface identifier. This layer has one root per Adw window.',
     },
+    AssetRegistry: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'the bundler’s own asset map',
+        reason: "New in 0.87: `registerAsset(asset) -> id` and `getAssetByID(id)`, the table Metro’s `require('./x.png')` compiles into. This layer resolves an image source through its own build rather than through Metro, so the counterpart is a map of the same shape and not a native module.",
+    },
+
     unstable_batchedUpdates: {
         status: 'supported',
-        reason: 'React 19 batches automatically; this is the identity call it already is upstream.',
+        reason: 'React 19 batches automatically; this is the identity call it already is upstream — literally so since 0.86, where the getter became a method whose body is `fn(bookkeeping)`.',
+    },
+
+    // --- P3: React Native 0.86's virtual collection, which GTK already has -----
+    //
+    // Seven names arrived together in 0.86 (`src/private/components/virtualcollection/`)
+    // and they are one API: a collection interface that does not allocate its items,
+    // a view factory over it, the two axis layouts, and two helpers. They are
+    // `unstable_` upstream and private by path, so the shape is expected to move.
+    //
+    // The reason they are `planned` rather than `refused` is that this layer already
+    // answers the older half of the same idea: `FlatList` and `VirtualizedList` are
+    // `partial` over `Gtk.ListView` + `Gio.ListStore`, which virtualises natively —
+    // GTK asks the model for the items it is about to show and recycles the rest.
+    // So the work is a mapping, not a virtualisation engine.
+
+    unstable_VirtualArray: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gio.ListStore',
+        reason: 'The array-backed implementation of the `VirtualCollection` interface — `size` plus `at(index)`. Its own doc warns it is not for large arrays, because the constructor copies the input; the LAZY case is the interface, not this class. `Gio.ListStore` is the same array-backed shape, and a Gio.ListModel of one\u2019s own is the lazy one.',
+    },
+    unstable_createVirtualCollectionView: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.ListView / Gtk.GridView',
+        reason: 'Builds a view component from a layout component and a generator. The per-item render is the returned component\u2019s `children` render prop — which is what `Gtk.SignalListItemFactory` answers; the generator is a different thing (see below).',
+    },
+    unstable_VirtualColumn: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.ListView (vertical)',
+        reason: 'The collection view built over the column generator. Its layout component renders children plus a spacer and nothing else — the AXIS is in the generator\u2019s spacer style, not in the layout.',
+    },
+    unstable_VirtualColumnGenerator: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.ListView\u2019s own recycling window',
+        reason: 'NOT per item: `{ initial: { itemCount, spacerStyle }, next(event) }` \u2014 how many items to render and how tall the spacer is, recomputed on a mode change. It never sees an item. GTK computes the same thing itself from the viewport.',
+    },
+    unstable_VirtualRow: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Gtk.ListView (horizontal)',
+        reason: 'The row twin of the column view. Its layout component is identical to the column\u2019s; on GTK the pair is one view with its orientation set. Upstream exports no row GENERATOR, so only one half of the pair is configurable from outside.',
+    },
+    unstable_getScrollParent: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'the enclosing Gtk.ScrolledWindow',
+        reason: 'The nearest scrollable ancestor of a node. GTK answers it by walking parents to a Gtk.ScrolledWindow, and returns nothing at the root for the same reason React Native does.',
+    },
+    unstable_DEFAULT_INITIAL_NUM_TO_RENDER: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: '—',
+        reason: 'The constant 7, upstream’s initial window size. GTK sizes its own recycling window from the viewport, so this is a number to expose rather than to obey.',
     },
 
     // --- not reachable in this toolchain -------------------------------------
@@ -1571,7 +1632,7 @@ export { OWN_EXPORT_NAMES };
  * falls through to the layer's own exports — and only on the ROOT surface, because
  * `configureStyle` is exported from `@gjsify/react-native` and from nowhere else.
  * That order is the safety property: the derived list can add names, never promote a
- * `planned` one, so a mistake upstream of it cannot turn `import { Modal }` into a
+ * `planned` one, so a mistake upstream of it cannot turn an import of one into a
  * green build.
  *
  * A name in NEITHER population is still refused — which is the whole difference

@@ -49,4 +49,17 @@ export interface NodeInfo {
     /** Shallow scalar properties, when requested. */
     props?: Record<string, unknown>;
     children: NodeInfo[];
+    /**
+     * This node HAS children the dump did not walk, because the depth bound
+     * stopped it here.
+     *
+     * Present only when true, so a full dump carries nothing extra. Without it a
+     * truncated node and a leaf are byte-identical in the JSON, and a caller that
+     * walks the result and finds nothing cannot tell "there is nothing there"
+     * from "I stopped looking" (#1553). Measured on a routed application window:
+     * a vector counting `AdwHeaderBar` read 0 for a window that plainly drew one,
+     * because the header bar sits below the default bound — a confident wrong
+     * number rather than an error, which is the expensive half of the pair.
+     */
+    truncated?: true;
 }

@@ -1,7 +1,7 @@
 {
     "AGENTS.md": 23125,
     "packages/dom/AGENTS.md": 2081,
-    "packages/framework/AGENTS.md": 32718,
+    "packages/framework/AGENTS.md": 32737,
     "packages/infra/AGENTS.md": 1131,
     "packages/infra/cli/AGENTS.md": 26093,
     "packages/infra/resolve-npm/AGENTS.md": 7270,
@@ -12,5 +12,5 @@
     "packages/node-runtime/AGENTS.md": 8770,
     "packages/node/AGENTS.md": 18085,
     "packages/web/AGENTS.md": 10086,
-    "tests/AGENTS.md": 9638
+    "tests/AGENTS.md": 10782
 }

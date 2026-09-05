@@ -1,19 +1,22 @@
-// `Alert` — an `Adw.AlertDialog`, and the reason it is buildable while `Modal` is not.
+// `Alert` — an `Adw.AlertDialog`, and the API that needed no seam to be buildable.
 //
-// READ THE `Modal` ENTRY FIRST. `Modal` is `planned` because an `Adw.Dialog` cannot be
-// an ordinary ELEMENT: measured on libadwaita 1.10, `box.append(dialog)` calls
-// `g_error()` — SIGABRT and a core dump, not a catchable exception — when the box is
-// rooted in a window. A host inserts an element by calling its parent's adder, so
-// there is no way to render `<Modal>` without making that call.
+// READ THE `Modal` ENTRY ALONGSIDE THIS. An `Adw.Dialog` cannot be an ordinary
+// ELEMENT: measured on libadwaita 1.9.3, `box.append(dialog)` calls `g_error()` —
+// SIGABRT and a core dump, not a catchable exception — when the box is rooted in a
+// window. A host inserts an element by calling its parent's adder, so `<Modal>` was
+// unbuildable until `@gjsify/gtk-host` grew a placement axis that does not call one
+// (ADR 0045); it is `partial` now, and this file is what its seam was measured
+// against.
 //
-// `Alert` never makes it. MEASURED on libadwaita 1.9.3, from a plain function with no
+// `Alert` never needed any of that. MEASURED on libadwaita 1.9.3, from a plain function with no
 // element, no parent widget and no window anywhere: `new Adw.AlertDialog({heading,
 // body})`, three `add_response` calls, `set_response_appearance`,
 // `set_close_response`, `set_default_response`, then `present(null)` — returned
 // without throwing and with no diagnostic, and `close()` afterwards likewise. A
 // dialog is PRESENTED AGAINST a parent, never parented BY one, and `present`'s
-// argument is optional; so the difference between the two entries is not the widget,
-// it is that one API is a function call and the other is a child insertion.
+// argument is optional; so the difference between the two entries was never the
+// widget, it is that one API is a function call and the other is an element — and an
+// element needs a PLACEMENT, which is the thing that had to be built.
 //
 // (Also measured, and it is the same fact from the other side: `present(loose)` with a
 // detached `Gtk.Box` as the parent worked too. The parent is a place to anchor, not an

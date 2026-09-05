@@ -25,6 +25,7 @@ export const OWN_EXPORT_NAMES: readonly string[] = [
     'explainUnsupported',
     'isImportable',
     'isOwnExport',
+    'lastWindowChromeProblems',
     'primitives',
     'propAnswer',
     'propNames',

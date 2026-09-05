@@ -202,6 +202,22 @@ export const err = {
                 `and the application's own widget is simply gone. Mount into a container of your own inside ` +
                 `<${parentTag}>, or clear the existing child first (${setter}(null)) if replacing it is the intent.`,
         ),
+    /**
+     * A portal descriptor naming a method the installed class does not have.
+     *
+     * `descriptorProblems()` rejects this shape up front, so a BUILT-IN descriptor
+     * can never reach here — an application-registered one is checked by nobody,
+     * and the alternative is `TypeError: widget[placement.present] is not a
+     * function` thrown from inside an insert, naming neither the tag nor the axis.
+     */
+    portalMethodMissing: (tag: string, method: string, role: 'present' | 'close') =>
+        new GtkHostError(
+            'portal-method-missing',
+            `<${tag}> declares placement: { kind: 'portal', ${role}: '${method}' } and the installed class has ` +
+                `no ${method}(). A portal is placed by calling that method on the node itself — nothing goes ` +
+                `into the parent — so without it the node can never reach the screen and never leave it. ` +
+                `Fix the descriptor, or drop the portal placement and give the widget an ordinary child policy.`,
+        ),
     notAnElement: (kind: string) =>
         new GtkHostError(
             'not-an-element',

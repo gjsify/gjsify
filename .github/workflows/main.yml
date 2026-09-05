@@ -291,6 +291,12 @@ jobs:
           gjs -m packages/infra/cli/dist/affected.gjs.mjs \
               --base "${{ steps.base.outputs.sha }}" \
               --format=github-actions
+      - name: 'Probe outcome: Classify affected workspaces'
+        if: always()
+        env:
+          PROBE_LABEL: 'Classify affected workspaces'
+          PROBE_OUTCOME: ${{ steps.classify.outcome }}
+        run: node scripts/report-probe-outcome.mjs
 
   # ── Whole-tree checks ───────────────────────────────────────────────
   # The three claims in this workflow that are about the TREE rather than about
@@ -1736,6 +1742,7 @@ jobs:
       # Delete an entry from the ledger the moment its package goes green.
       - name: Probe the known-red browser bundles (not a gate)
         if: ${{ steps.bundles.outputs.count != '0' }}
+        id: browser-bundles
         continue-on-error: true
         working-directory: tests/browser
         run: |
@@ -1745,6 +1752,12 @@ jobs:
             echo "::warning title=Browser probe::a ledgered bundle still fails — expected while its entry is in BROWSER_PROBE_GREP"
             exit 1
           fi
+      - name: 'Probe outcome: Probe the known-red browser bundles'
+        if: always()
+        env:
+          PROBE_LABEL: 'Probe the known-red browser bundles (not a gate)'
+          PROBE_OUTCOME: ${{ steps.browser-bundles.outcome }}
+        run: node scripts/report-probe-outcome.mjs
 
       - name: Upload the Playwright report
         if: ${{ failure() && steps.bundles.outputs.count != '0' }}
@@ -2810,6 +2823,7 @@ jobs:
 
       - name: Report gates that did not run at this commit
         shell: bash
+        id: gate-history
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -2830,6 +2844,12 @@ jobs:
           if [ -n "$SHA_B" ]; then args+=(--sha "$SHA_B"); fi
           if [ -n "$ANNOTATE" ]; then args+=("$ANNOTATE"); fi
           node scripts/report-gate-history.mjs "${args[@]}"
+      - name: 'Probe outcome: Report gates that did not run at this commit'
+        if: always()
+        env:
+          PROBE_LABEL: 'Report gates that did not run at this commit'
+          PROBE_OUTCOME: ${{ steps.gate-history.outcome }}
+        run: node scripts/report-probe-outcome.mjs
 
   # The integration suites are gated by the `integration` job above, for the
   # subset measured green in this image. Which suites those are, and the cause

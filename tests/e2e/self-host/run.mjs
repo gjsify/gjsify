@@ -201,11 +201,13 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
 
         const out = gjs(['-m', outfile]);
         assert.equal(out.status, 0, `yargs bundle run failed: ${out.stderr}`);
-        // `@gjsify/unit` prints `✔ <count> completed` on success.
+        // `@gjsify/unit` prints `✔ <tests> tests passed · <assertions> assertions`
+        // on success. 52 is the ASSERTION count — the number this line has always
+        // asserted, under its old name "completed" (#1557).
         assert.match(
             out.stdout,
-            /\b52 completed\b/,
-            `expected '52 completed' in output, got: ${out.stdout.slice(-500)}`,
+            /\b52 assertions\b/,
+            `expected '52 assertions' in output, got: ${out.stdout.slice(-500)}`,
         );
     });
 
@@ -233,6 +235,6 @@ describe('CLI self-host loop', { timeout: 5 * 60 * 1000 }, () => {
 
         const fromNode = gjs(['-m', nodeOut]);
         assert.equal(fromNode.status, 0, `node-built bundle failed under gjs: ${fromNode.stderr}`);
-        assert.match(fromNode.stdout, /\b52 completed\b/);
+        assert.match(fromNode.stdout, /\b52 assertions\b/);
     });
 });

@@ -639,3 +639,4 @@ jobs:
           fi
 
           verdict "PASS — GJS cold-tree bootstrap produced a loadable CLI $DECLARED that reproduces the committed bundles"
+

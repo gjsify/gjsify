@@ -26,7 +26,7 @@ export {
     setText,
     widgetOf,
 } from './host.js';
-export { addressOf, reorderMode } from './policies.js';
+export { addressOf, isPortal, placementOf, portalOf, reorderMode } from './policies.js';
 export { toSignalName, isEventProp } from './signals.js';
 export {
     constructOnlyNames,

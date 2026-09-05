@@ -308,17 +308,18 @@ export default async () => {
             });
         });
 
-        await gated('Alert, which is buildable where Modal is not', async () => {
+        await gated('Alert, which needed no placement seam to be buildable', async () => {
             await it('presents from a plain function with NO element and no parent', async () => {
-                // THE MEASUREMENT THAT SETTLES THE DIFFERENCE. `Modal` is `planned`
-                // because `box.append(dialog)` calls `g_error()` — SIGABRT, not an
-                // exception — when the box is rooted in a window, and a host inserts an
-                // element by calling its parent's adder. `Alert` never makes that call:
-                // it is a function, `present(parent)` takes an OPTIONAL anchor, and the
-                // dialog is presented AGAINST a parent rather than parented BY one.
-                // Measured on libadwaita 1.9.3: `present(null)` returned with no
-                // diagnostic. The gate around this describe is what asserts the "no
-                // diagnostic" half.
+                // THE MEASUREMENT THAT SETTLES THE DIFFERENCE. `box.append(dialog)`
+                // calls `g_error()` — SIGABRT, not an exception — when the box is
+                // rooted in a window, and a host inserts an element by calling its
+                // parent's adder. `Alert` never makes that call: it is a function,
+                // `present(parent)` takes an OPTIONAL anchor, and the dialog is
+                // presented AGAINST a parent rather than parented BY one. Measured on
+                // libadwaita 1.9.3: `present(null)` returned with no diagnostic. The
+                // gate around this describe is what asserts the "no diagnostic" half.
+                // `<Modal>` reaches the same call through the host's portal placement
+                // (ADR 0045), which is what made it buildable as an ELEMENT.
                 //
                 // THE PRECONDITION THAT MEASUREMENT WAS MISSING: presenting realises
                 // a real GDK surface, which is the first thing in this suite to make

@@ -16,8 +16,8 @@ import GObject from 'gi://GObject?version=2.0';
 import type Gtk from '@girs/gtk-4.0';
 
 import { BUILTIN_DESCRIPTORS } from '../descriptors/index.js';
-import { addressOf, adderSlots, unhandledPolicy } from '../policies.js';
-import type { ChildPolicy, HostElement, WidgetDescriptor } from '../types.js';
+import { addressOf, adderSlots, isPortal, placementOf, unhandledPlacement, unhandledPolicy } from '../policies.js';
+import type { ChildPolicy, HostElement, NodePlacement, WidgetDescriptor } from '../types.js';
 
 /** Every method name a policy names, so the check does not have to know the shapes. */
 export function methodsOf(policy: ChildPolicy): string[] {
@@ -44,6 +44,25 @@ export function methodsOf(policy: ChildPolicy): string[] {
             return [policy.attach, policy.remove];
         default:
             return unhandledPolicy(policy);
+    }
+}
+
+/**
+ * Every method a PLACEMENT names — the second axis's answer to `methodsOf`.
+ *
+ * Separate from `methodsOf` rather than folded into it, because the two are
+ * checked against different things: a child policy's methods are called on the
+ * PARENT and a placement's on the NODE ITSELF, so a single list would make the
+ * message name the wrong object.
+ */
+export function placementMethodsOf(placement: NodePlacement): string[] {
+    switch (placement.kind) {
+        case 'parented':
+            return [];
+        case 'portal':
+            return [placement.present, placement.close];
+        default:
+            return unhandledPlacement(placement);
     }
 }
 
@@ -89,6 +108,30 @@ export function descriptorProblems(
                 problems.push({
                     gtype: d.gtype,
                     problem: `declares children.${method}(), which ${actual} does not have`,
+                });
+            }
+        }
+        const placement = placementOf(d);
+        for (const method of placementMethodsOf(placement)) {
+            if (typeof (Klass.prototype as Record<string, unknown>)[method] !== 'function') {
+                problems.push({
+                    gtype: d.gtype,
+                    problem: `declares placement.${method}(), which ${actual} does not have`,
+                });
+            }
+        }
+        // A portal's `present` TAKES THE PARENT — that is what makes it a portal
+        // rather than a toplevel, and the arity is where the two are told apart:
+        // measured, `adw_dialog_present` is 1 and `gtk_window_present` is 0. A
+        // zero-argument `present` called with a widget would ignore it silently and
+        // open a window of its own, which is the exact defect the seam exists to
+        // stop.
+        if (placement.kind === 'portal') {
+            const present = (Klass.prototype as Record<string, unknown>)[placement.present];
+            if (typeof present === 'function' && present.length !== 1) {
+                problems.push({
+                    gtype: d.gtype,
+                    problem: `placement.${placement.present}() takes ${present.length} argument(s) on ${actual}, and a portal is presented AGAINST a parent, which is exactly one`,
                 });
             }
         }
@@ -211,11 +254,18 @@ function policyProblems(d: WidgetDescriptor, Klass: { prototype: object }, actua
 
 export { descendants, dumpTree, findDescendant, gtkChildTypes, gtkChildren } from './tree.js';
 
-/** The addresses a host element's element-children occupy, in shadow order. */
+/**
+ * The addresses a host element's element-children occupy, in shadow order.
+ *
+ * A PORTAL child occupies none — it is presented against this element and lives
+ * under the toplevel's dialog host — so including it would make every vector that
+ * compares this against the real child list disagree by one node that is not
+ * there.
+ */
 export function addressesOf(el: HostElement): Gtk.Widget[] {
     const out: Gtk.Widget[] = [];
     for (let n = el.first; n; n = n.next) {
-        if (n.kind === 'element' && n.widget) out.push(addressOf(n));
+        if (n.kind === 'element' && n.widget && !isPortal(n)) out.push(addressOf(n));
     }
     return out;
 }

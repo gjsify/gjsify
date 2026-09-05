@@ -247,7 +247,27 @@ export function findWidgetPath(root: Gtk.Widget, selector: WidgetSelector, baseP
     return null;
 }
 
-/** Dump a widget subtree to {@link NodeInfo}, bounded by `maxDepth`. */
+/**
+ * How deep `DumpTree` walks when the caller names no depth.
+ *
+ * 8 was the first guess and it was measured short: an ordinary Adwaita window
+ * puts an `AdwToolbarView` at level 7 and its `AdwHeaderBar` below that, so the
+ * default answered zero header bars for a window that drew one (#1553). 40 is
+ * chosen to clear a real application tree with room, not to be unbounded — the
+ * dump crosses D-Bus, and `truncated` is what makes the remaining bound honest
+ * rather than invisible.
+ */
+export const DEFAULT_DUMP_DEPTH = 40;
+
+/**
+ * Dump a widget subtree to {@link NodeInfo}, bounded by `maxDepth`.
+ *
+ * The bound LEAVES A TRACE, and that is the half worth stating: a node cut off
+ * here carries `truncated: true`, so a caller reading zero children knows which
+ * of the two zeros it got (#1553). A bound itself is right — an unbounded dump of
+ * a deep tree over D-Bus is not free — and it is only expensive when it is
+ * invisible in the answer.
+ */
 export function dumpTree(root: Gtk.Widget, maxDepth: number, basePath: string): NodeInfo {
     const node: NodeInfo = {
         path: basePath,
@@ -258,7 +278,14 @@ export function dumpTree(root: Gtk.Widget, maxDepth: number, basePath: string): 
         visible: root.get_visible(),
         children: [],
     };
-    if (maxDepth <= 0) return node;
+    if (maxDepth <= 0) {
+        // `get_first_child()` rather than a count: one call answers "is there more
+        // below this", and the marker must mean HAS CHILDREN — a leaf reached
+        // exactly at the bound is a complete answer and must not be flagged as a
+        // partial one.
+        if (root.get_first_child()) node.truncated = true;
+        return node;
+    }
     let child = root.get_first_child();
     let i = 0;
     while (child) {

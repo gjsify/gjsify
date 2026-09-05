@@ -345,9 +345,10 @@ const dismissRefusal = (call: string): RouterError =>
     new RouterError(
         'unresolved-href',
         `router.${call}()`,
-        'dismisses a MODAL, and this layer has no modal stack to dismiss from: `<Modal>` is `planned` in the ' +
-            'support table because an `Adw.Dialog` is PRESENTED against a parent rather than parented by it, which ' +
-            'needs a portal seam the host does not have. `router.back()` pops the navigation stack',
+        'dismisses a MODAL, and this layer has no modal stack to dismiss from. `<Modal>` itself is buildable ' +
+            'now — the host places an `Adw.Dialog` by PRESENTING it against a parent rather than parenting it ' +
+            '(ADR 0045) — but a modal STACK is a routing concept this layer has not decided: which presented ' +
+            'dialogs count as entries, and what `dismissTo` names. `router.back()` pops the navigation stack',
     );
 
 // ---------------------------------------------------------------------------

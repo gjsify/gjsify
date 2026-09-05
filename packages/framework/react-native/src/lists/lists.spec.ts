@@ -153,6 +153,10 @@ export default async () => {
         // style pair and silenced the gate for every case in them — the same defect
         // `widgets.spec.ts` records with the measurement that found it. Nothing else
         // in this file may call `beforeEach` or `afterEach`.
+        // CORRECTED 2026-09-04 (#1554): a second registration COMPOSES now, so a
+        // gated block can no longer silence this pair, and the last sentence is a
+        // convention rather than a requirement — one place deciding what a gated
+        // block means is still worth keeping.
         const gated = (name: string, run: () => Promise<void>): Promise<void> =>
             describe(name, async () => {
                 beforeEach(() => {

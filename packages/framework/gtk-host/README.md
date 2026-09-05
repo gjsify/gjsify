@@ -77,7 +77,8 @@ already-parented ones, at exit 0.
 ## Child placement
 
 Seven policy kinds, declared per widget as data and dispatched on the policy's
-own `kind`. Descriptor lookup is by exact GType name; `mountRoot` is the one path
+own `kind` — and one widget family that takes none of them, § *Node placement*
+below. Descriptor lookup is by exact GType name; `mountRoot` is the one path
 that walks the type hierarchy (`GObject.type_is_a`, via `nearestRegistered`), so
 an application's own subclass resolves to its ancestor's rules:
 
@@ -116,6 +117,59 @@ the join between React's membership and GTK's ordering.
 attachment point, `layout={{ column, row, columnSpan, rowSpan }}` a `coords` cell,
 `layout={{ name, title }}` a `keyed` page. Both are read at placement time, so
 changing either RE-PLACES the child rather than doing nothing.
+
+## Node placement — a portal
+
+Every policy above ends in a call on the PARENT, which presumes an answer to a
+question one widget family answers differently: **does this node go into its parent
+at all?** An `Adw.Dialog` does not. It is *presented against* a parent and never
+parented by it, so its position in the authored tree and its position in the GTK
+tree are different places — a portal.
+
+Descriptors therefore carry a second, orthogonal declaration
+([ADR 0045](../../../docs/adr/0045-portal-placement-in-the-gtk-host.md)). `children`
+says how a parent adopts a child; `placement` says whether it adopts one at all.
+
+```ts
+{ gtype: 'AdwDialog', ctor: () => Adw.Dialog,
+  children: { kind: 'single', set: 'set_child' },
+  placement: { kind: 'portal', present: 'present', close: 'force_close' } }
+```
+
+MEASURED on libadwaita 1.9.3 / GTK 4.22.4 / gjs 1.88.1, and every line of the seam
+is one of these:
+
+| case | result |
+|---|---|
+| `box.append(dialog)`, box **rooted in a window** | `Adwaita-ERROR`, **SIGABRT, exit 134**, core dump |
+| `box.append(dialog)`, box **detached** | **exit 0, silent** — which is how a bare-box re-test "disproves" the row above |
+| `dialog.present(box)`, box **not** in a window | opens a **separate `GtkWindow`**, exit 0, `visibleDialog` false |
+| `dialog.close()` with `can-close: false` | returns **false**, emits `close-attempt`, **stays up** |
+| `dialog.close()` never presented | `Adwaita-CRITICAL … that's not presented` |
+| `dialog.force_close()` never presented | **silent** |
+| re-`present()` for a second host | `Adwaita-CRITICAL` + `Gtk-WARNING`, **and it does not move** |
+| `notify::root` on a grandchild box | fires on root and again on unroot |
+
+So: the declared close is the **forced** one (an unmount is not a user request, and
+it needs no "is it up?" probe); presenting **waits** on the parent's `notify::root`,
+because every framework builds bottom-up and a `<Modal>` inserted before its tree is
+rooted would otherwise float out of the application; the subscription is kept, so a
+subtree moved to another toplevel is re-hosted with a close-then-present rather than
+the critical; and a portal counts for nothing in the sibling index, the tail rotation,
+either slot reader or `addressesOf`.
+
+`attached` — "GTK has taken this node" — is written by the present, not by the
+insert. A deferred portal is claimed by the host and not yet taken by GTK, which is
+exactly the distinction that flag exists to keep.
+
+Membership is the `Adw.Dialog` family and nothing else: `AdwDialog` plus
+`AdwAboutDialog`, `AdwAlertDialog`, `AdwPreferencesDialog` and `AdwShortcutsDialog`,
+each **named** rather than inherited because descriptor lookup is exact — and
+`portal.spec.ts` walks `GObject.type_is_a(…, Adw.Dialog)` over the registered table,
+so libadwaita's next dialog subclass fails the suite instead of aborting somebody's
+application. A `Gtk.Window` is deliberately not one: `gtk_window_present()` takes no
+argument, so there is nothing to present it *against*, and `descriptorProblems()`
+refuses a zero-argument `present` as a portal.
 
 ## Lists — `@gjsify/gtk-host/list`
 
