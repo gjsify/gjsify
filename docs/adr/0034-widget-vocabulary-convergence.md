@@ -2113,9 +2113,14 @@ one, because a second gate joins the two renderers on the widget's BARE name:
 through a `sameWidgetAs` bridge, and renaming one surface alone was read as splitting one
 widget into two one-renderer-only rows. The browser element had already taken the GIR name
 (Amendment 5), so converging this one CLOSED the pair instead of splitting it — which the gate
-confirmed in the only way worth having: it went red twice on the way, once per stale row
-(*"ledgered as one-renderer-only, but it is on BOTH renderers now — it landed. Drop the
-entry."*), then green with one row where two had been.
+confirmed in the only way worth having: it went red twice on the way, once per stale row, and
+the two messages are different because the two rows became stale for different reasons —
+
+    adw-icon:  ledgered as one-renderer-only, but it is on NEITHER renderer. Drop the entry.
+    gtk-image: ledgered as one-renderer-only, but it is on BOTH renderers now — it landed.
+               Drop the entry.
+
+— then green with one row where two had been.
 
 The story exemption the retired rows said the pair "inherits the day it converges" is now that
 one row, carrying the same reason: there is no Adwaita or GTK icon WIDGET to demonstrate — GTK

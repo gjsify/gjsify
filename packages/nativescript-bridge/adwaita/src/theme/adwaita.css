@@ -329,7 +329,7 @@ Page.adw-window {
 }
 
 .adw-combo-chevron {
-    /* An GtkImage (Image) rendering `pan-down-symbolic`; size + dim colour are set
+    /* A GtkImage (Image) rendering `pan-down-symbolic`; size + dim colour are set
      * on the widget. Only the gap to the value label is styled here. */
     margin: 0 0 0 2;
     vertical-align: middle;
