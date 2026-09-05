@@ -18,6 +18,7 @@
     },
     "license": "MIT",
     "dependencies": {
+        "@gjsify/adwaita-icons": "^0.48.0",
         "@gjsify/adwaita-nativescript": "^0.48.0",
         "@gjsify/devtools-nativescript": "^0.48.0",
         "@gjsify/example-gtk-adwaita-storybook": "^0.48.0",
