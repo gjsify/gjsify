@@ -2045,8 +2045,8 @@ its own components — the exact failure § Amendment 7 records four clause-1 re
 through. A consumer app is unaffected: its own barrel may export whatever it likes, including
 the class.
 
-`ADWAITA_GALLERY_NS_REFUSALS` still names classes (`AdwComboRow.options is an array of
-choices`), and that is a DECLARED divergence rather than an oversight: a refusal is a statement
+`ADWAITA_GALLERY_NS_REFUSALS` still names classes (`AdwComboRow.model is a list of
+items`), and that is a DECLARED divergence rather than an oversight: a refusal is a statement
 about the port's implementation, the classes did not move, and
 `check-generated-website-data.mjs` tells a class MENTION from the gallery block's title by
 exactly that spelling (`CLASS_MENTION`, `\b((?:Adw|Gtk)[A-Z]\w*)`). Converging the prose would

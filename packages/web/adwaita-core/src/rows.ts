@@ -24,6 +24,15 @@
 // Reference: refs/libadwaita/src/adw-{expander-row,combo-row,spin-row,toggle-group}.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import { clampListSelection, listItemsChanged } from './list.js';
+import type { AdwComboOption, AdwListItemsChanged } from './list.js';
+
+// The ITEM vocabulary moved to `list.ts` (ADR 0046) — one module owns what an item is, for
+// every widget GTK gives a `model` property. Re-exported under its published names so
+// neither import path changed and no fifth spelling of "an item" was created.
+export { ADW_COMBO_NO_SELECTION, normalizeComboOptions } from './list.js';
+export type { AdwComboOption, AdwComboOptionInput } from './list.js';
+
 /** Subscriber for {@link ExpanderState} changes — receives the new expanded flag. */
 export type ExpanderStateListener = (expanded: boolean) => void;
 
@@ -81,53 +90,6 @@ export class ExpanderState {
     }
 }
 
-/** One selectable option in a {@link ComboState}. */
-export interface AdwComboOption {
-    /** Display label shown in the row + chooser. */
-    label: string;
-    /** Underlying value returned by {@link ComboState.selectedValue}. */
-    value: string;
-}
-
-/**
- * What an author may write for one option before {@link normalizeComboOptions}
- * has seen it: a bare string (value === label, the `Gtk.StringList` case), or a
- * partial descriptor where either half may stand in for the other.
- */
-export type AdwComboOptionInput = string | { value?: unknown; label?: unknown };
-
-/**
- * Raw authored options → the stable `{ value, label }` descriptors every combo surface
- * works with.
- *
- * A bare string is both value and label (`Gtk.StringList`'s model, which is what
- * `Adw.ComboRow` is fed in the common case). In a descriptor either half stands in for the
- * missing other, so `{ label: 'Apple' }` is addressable by the value `'Apple'` rather than
- * by `undefined`. ONE home for the rule, so `<adw-combo-row>` and `<gtk-drop-down>` cannot
- * accept two different option vocabularies.
- */
-export function normalizeComboOptions(raw: ReadonlyArray<AdwComboOptionInput> | null | undefined): AdwComboOption[] {
-    if (!Array.isArray(raw)) return [];
-    return raw.map((entry) => {
-        if (typeof entry === 'string') return { value: entry, label: entry };
-        const value = entry?.value === undefined ? String(entry?.label ?? '') : String(entry.value);
-        const label = entry?.label === undefined ? value : String(entry.label);
-        return { value, label };
-    });
-}
-
-/**
- * The "no item is selected" index — the TS mirror of `GTK_INVALID_LIST_POSITION`
- * (`AdwComboRow:selected`'s default and empty value).
- *
- * libadwaita spells it `G_MAXUINT` because the property is a `guint`; `-1` is the idiomatic
- * TS sentinel and the spelling {@link ADW_SIDEBAR_NO_SELECTION} uses for the same GTK
- * constant. Without it, an EMPTY model and a model whose first item has an empty label are
- * indistinguishable — both report index 0 with `selectedValue === ''` — so a renderer that
- * wants to draw a placeholder has nothing to test.
- */
-export const ADW_COMBO_NO_SELECTION = -1;
-
 /** Payload of a {@link ComboState} change. */
 export interface ComboStateChange {
     /** The (new) selected index, or {@link ADW_COMBO_NO_SELECTION}. */
@@ -140,27 +102,56 @@ export interface ComboStateChange {
     interactive: boolean;
 }
 
-/** Subscriber for {@link ComboState} changes. */
+/** Subscriber for {@link ComboState} selection changes. */
 export type ComboStateListener = (change: ComboStateChange) => void;
 
+/** Subscriber for {@link ComboState} MODEL changes — one `items-changed` per replacement. */
+export type ComboItemsListener = (change: AdwListItemsChanged) => void;
+
 /**
- * The selection state of a combo row: an options list plus the selected index,
- * with a two-way index↔value mapping and empty/out-of-range guards. Mirrors
- * `Adw.ComboRow`: a programmatic set ({@link setSelectedIndex} / {@link setSelectedValue}
- * / {@link setOptions}) updates silently (`interactive: false` — the renderer refreshes
- * the inline value but re-emits no `notify::selected`), while {@link select} is the
- * user pick that notifies (`interactive: true`).
+ * The selection state of a combo row: a portable list model (`AdwListModel`) plus
+ * the selected index, with a two-way index↔value mapping and empty/out-of-range guards.
+ * Mirrors `Adw.ComboRow`: a programmatic set ({@link setSelectedIndex} /
+ * {@link setSelectedValue} / {@link setModel}) updates silently (`interactive: false` —
+ * the renderer refreshes the inline value but re-emits no `notify::selected`), while
+ * {@link select} is the user pick that notifies (`interactive: true`).
+ *
+ * TWO SIGNALS, because they answer different questions and a renderer needs both
+ * (ADR 0046). {@link subscribe} reports the SELECTION; {@link subscribeItems} reports WHERE
+ * the model changed, so a renderer splices its item views instead of rebuilding them.
+ * `Adw.ComboRow` gets both from GTK for free — the first is `notify::selected`, the second
+ * is `Gio.ListModel::items-changed` on the model it holds — and this class had only the
+ * first, which is why both browser selectors dropped every option node on every
+ * assignment.
  */
 export class ComboState {
     private _options: AdwComboOption[] = [];
     private _selected = 0;
     private readonly _listeners = new Set<ComboStateListener>();
+    private readonly _itemListeners = new Set<ComboItemsListener>();
 
     /** Subscribe to selection changes. Returns an unsubscribe function. */
     subscribe(listener: ComboStateListener): () => void {
         this._listeners.add(listener);
         return () => {
             this._listeners.delete(listener);
+        };
+    }
+
+    /**
+     * Subscribe to MODEL changes — `Gio.ListModel::items-changed`, one splice per
+     * {@link setModel}. Returns an unsubscribe function.
+     *
+     * Fires BEFORE the selection change {@link setModel} also emits, which is the order
+     * that makes it usable: the selection subscriber writes the new index into the item
+     * views, so those views have to exist by then. The rebuild path had the inverse
+     * ordering hazard written down in `<adw-combo-row>` — "AFTER the rebuild, never during
+     * it" — and this is what removes it rather than documenting it again.
+     */
+    subscribeItems(listener: ComboItemsListener): () => void {
+        this._itemListeners.add(listener);
+        return () => {
+            this._itemListeners.delete(listener);
         };
     }
 
@@ -183,29 +174,71 @@ export class ComboState {
         return true;
     }
 
-    /** The selectable options. */
-    get options(): AdwComboOption[] {
-        return this._options;
+    /**
+     * The list model — `Adw.ComboRow:model` / `Gtk.DropDown:model`, in portable form.
+     *
+     * A COPY, items included, and that is load-bearing rather than defensive. The splice
+     * (ADR 0046) decides what changed by COMPARING the assigned model against the stored
+     * one, so anything that leaks a reference into `_options` makes the comparison read the
+     * new value on both sides and answer "nothing changed". Handing back `_options` itself
+     * did exactly that, and it turned a pattern that WORKED under the old full rebuild into
+     * a silent no-op:
+     *
+     * ```ts
+     * const m = row.model; m.push(item); row.model = m;   // → no splice, DOM unchanged
+     * ```
+     *
+     * Fresh items and not just a fresh array, because the same failure sits one level down:
+     * `m[0].label = 'x'` through a shared descriptor mutates the stored one too, and the
+     * comparison is by BOTH halves. A frozen item would have made the mutation loud; a copy
+     * makes the round trip CORRECT, which is the difference between documenting the hazard
+     * and removing it.
+     *
+     * Cost, MEASURED rather than assumed (Node 24.19, `{value,label}` records): linear, about
+     * four nanoseconds per item — so a read is well under a microsecond at every size a combo
+     * row actually holds, and the assignment beside it already costs more. What the shape
+     * rules out is a per-item read: the three call sites that had one — `_applyItemsChanged`
+     * in each browser selector and `_filter` in `<gtk-drop-down>`, which runs per row per
+     * keystroke — hoist it out of their loop, so a read is O(n) once per operation instead of
+     * O(n²). Nothing reads it per frame. A model large enough for the linear term to matter is
+     * a `Gtk.ListView` and belongs to `ListController`'s virtualisation, which ADR 0046 § 7
+     * keeps out of this class on purpose.
+     */
+    get model(): AdwComboOption[] {
+        return this._options.map((option) => ({ value: option.value, label: option.label }));
     }
 
     /**
-     * Replace the options, then notify (`interactive: false`) so the renderer re-syncs the
-     * inline value label — which may change even at an unchanged index, because the label is
-     * read out of the MODEL.
+     * Replace the model: emit the splice that turns the old one into the new
+     * ({@link subscribeItems}), then notify the SELECTION (`interactive: false`) so the
+     * renderer re-syncs the inline value label — which may change even at an unchanged
+     * index, because the label is read out of the model.
      *
-     * Replacing the model re-runs autoselect, so an index the new one does not have falls
-     * back to 0 — including the sentinel, which is how a row recovers a selection when its
-     * model grows. An EMPTY model has no 0 to fall back to and lands on
-     * {@link ADW_COMBO_NO_SELECTION}.
+     * Replacing the model re-runs autoselect ({@link clampListSelection}), so an index the
+     * new one does not have falls back to 0 — including the sentinel, which is how a row
+     * recovers a selection when its model grows. An EMPTY model has no 0 to fall back to
+     * and lands on {@link ADW_COMBO_NO_SELECTION}.
      *
-     * The check is `hasIndex`, not `selected >= length`: the sentinel is BELOW the range, so
-     * a one-sided comparison leaves a `-1` in place and a model that was emptied and
-     * refilled comes back with nothing selected.
+     * The selection notify is UNCONDITIONAL while the splice is not: an assignment of an
+     * equal model emits no `items-changed` (GTK emits none either) but still re-runs the
+     * label sync, because that is the behaviour every renderer has depended on since this
+     * class existed and nothing measured says it is wrong.
      */
-    setOptions(options: AdwComboOption[]): void {
-        this._options = Array.isArray(options) ? options : [];
-        if (!this.hasIndex(this._selected)) {
-            this._selected = this._options.length === 0 ? ADW_COMBO_NO_SELECTION : 0;
+    setModel(model: AdwComboOption[]): void {
+        const previous = this._options;
+        const next = Array.isArray(model) ? model : [];
+        const change = listItemsChanged(previous, next);
+        // Copied AFTER the comparison, and for the reason {@link model} gives from the other
+        // side: the stored model shares nothing with a caller, so a retained input array —
+        // or a retained item — cannot mutate what the next assignment is compared against.
+        // Closing one door and not the other would leave the same silent no-op reachable by
+        // the other route.
+        this._options = next.map((option) => ({ value: option.value, label: option.label }));
+        this._selected = clampListSelection(this._selected, next.length);
+        if (change) {
+            // Snapshot, for the reason `_emit` states.
+            // oxlint-disable-next-line unicorn/no-useless-spread -- the copy IS the snapshot: a Set iterator is live, so an unsubscribe mid-fan-out would skip the next listener
+            for (const listener of [...this._itemListeners]) listener(change);
         }
         this._emit(false);
     }

@@ -219,18 +219,26 @@ export type {
     OrderedConfirmResponses,
 } from './dialog.js';
 
-// --- Row interaction state machines (Adw.ExpanderRow/ComboRow/SpinRow/ToggleGroup) ---
+// --- The portable list model (the item vocabulary + items-changed — ADR 0046) ---
 export {
     ADW_COMBO_NO_SELECTION,
-    ComboState,
-    ExpanderState,
-    SpinState,
-    ToggleGroupState,
+    clampListSelection,
+    listItemsChanged,
     normalizeComboOptions,
-} from './rows.js';
+    parseListModel,
+} from './list.js';
 export type {
     AdwComboOption,
     AdwComboOptionInput,
+    AdwListItemsChanged,
+    AdwListModel,
+    AdwListModelInput,
+} from './list.js';
+
+// --- Row interaction state machines (Adw.ExpanderRow/ComboRow/SpinRow/ToggleGroup) ---
+export { ComboState, ExpanderState, SpinState, ToggleGroupState } from './rows.js';
+export type {
+    ComboItemsListener,
     ComboStateChange,
     ComboStateListener,
     ExpanderStateListener,
@@ -530,6 +538,7 @@ export {
     tabIconState,
     tabTooltip,
     tabTooltipIsMarkup,
+    tabViewItemsChanged,
     tabsRevealed,
 } from './tab-view.js';
 export type {

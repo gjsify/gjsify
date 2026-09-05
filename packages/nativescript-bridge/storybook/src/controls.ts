@@ -127,7 +127,7 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
         const row = new Adw.ComboRow();
         row.title = label(control);
         if (control.description) row.subtitle = control.description;
-        row.options = options.map((o) => ({ label: o.label, value: String(o.value) }));
+        row.model = options.map((o) => ({ label: o.label, value: String(o.value) }));
         let cb: (v: number) => void = () => {};
         row.addEventListener(NOTIFY_SELECTED, (e) => cb((e as NotifySelectedEventData).selected));
         return {

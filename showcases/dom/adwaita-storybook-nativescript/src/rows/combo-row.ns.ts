@@ -21,7 +21,7 @@ export class ComboRowNsStory extends StoryView {
         this._row = new Adw.ComboRow();
         // Adw.ComboRow expects {label, value} options; the shared metadata ships
         // plain strings, so map each to an identical label/value pair.
-        this._row.options = [...COMBO_ROW_OPTIONS].map((s) => ({ label: s, value: s }));
+        this._row.model = [...COMBO_ROW_OPTIONS];
         this._syncRow();
 
         const group = new Adw.PreferencesGroup();

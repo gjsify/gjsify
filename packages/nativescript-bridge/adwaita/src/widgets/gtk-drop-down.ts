@@ -31,8 +31,8 @@
 
 import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';
 import { action, Label, StackLayout, type EventData } from '@nativescript/core';
-import { ComboState } from '@gjsify/adwaita-core';
-import type { AdwComboOption } from '@gjsify/adwaita-core';
+import { ComboState, normalizeComboOptions } from '@gjsify/adwaita-core';
+import type { AdwComboOption, AdwListModelInput } from '@gjsify/adwaita-core';
 import { AdwIcon } from './adw-icon.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
@@ -110,7 +110,7 @@ export class GtkDropDown extends StackLayout {
     /** Open the native chooser and apply the picked option. */
     private async _openChooser(): Promise<void> {
         if (this._state.count === 0) return;
-        const labels = this._state.options.map((o) => o.label);
+        const labels = this._state.model.map((o) => o.label);
         const chosen = await action({
             title: this._chooserTitle || undefined,
             cancelButtonText: 'Cancel',
@@ -122,13 +122,17 @@ export class GtkDropDown extends StackLayout {
         this._state.select(labels.indexOf(chosen));
     }
 
-    /** The selectable options. Updates the button label. */
-    get options(): AdwComboOption[] {
-        return this._state.options;
+    /** The list model (`Gtk.DropDown:model`). Updates the button label. */
+    get model(): AdwComboOption[] {
+        return this._state.model;
     }
 
-    set options(value: AdwComboOption[]) {
-        this._state.setOptions(value);
+    set model(value: AdwListModelInput) {
+        // The SAME normaliser the browser elements run, so one authored model — bare
+        // strings included — moves between the surfaces unchanged. This setter used to
+        // take descriptors only, so `model = ['a','b']` stored strings and every label
+        // read back `undefined`.
+        this._state.setModel(normalizeComboOptions(value));
     }
 
     /** The selected option index (`Gtk.DropDown:selected`). */
@@ -152,7 +156,7 @@ export class GtkDropDown extends StackLayout {
 
     /** The selected option descriptor, or `null` when out of range (`Gtk.DropDown:selected-item`). */
     get selectedItem(): AdwComboOption | null {
-        return this._state.options[this._state.selectedIndex] ?? null;
+        return this._state.model[this._state.selectedIndex] ?? null;
     }
 
     /**

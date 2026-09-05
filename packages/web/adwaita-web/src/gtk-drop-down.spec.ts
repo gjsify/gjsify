@@ -7,11 +7,18 @@
 // button label, `selected`/`selectedValue` and the `change` stream. `<adw-combo-row>`
 // composes the same `ComboState` and drives the same table from its own DOM
 // (`adw-row-state.spec.ts`) — it could not while two of its four step ops had no DOM
-// spelling there, its options arriving through the `items` attribute at connect time only.
+// spelling there, its model arriving through an attribute at connect time only (#1525).
 // The two are worth driving separately because they part on ONE row, below.
 import { describe, it, expect } from '@gjsify/unit';
 
-import { COMBO_SELECTION_VECTORS } from '@gjsify/adwaita-core/conformance';
+import {
+    COMBO_SELECTION_VECTORS,
+    LIST_ITEMS_CHANGED_VECTORS,
+    LIST_MODEL_OWNERSHIP_VECTORS,
+    LIST_NORMALIZE_VECTORS,
+    LIST_PARSE_VECTORS,
+    applyListReadback,
+} from '@gjsify/adwaita-core/conformance';
 import type { ComboSelectionStep, ComboSelectionVector } from '@gjsify/adwaita-core/conformance';
 
 import type { GtkDropDown } from './elements/gtk-drop-down.js';
@@ -38,8 +45,8 @@ function openChooser(dd: GtkDropDown): void {
  */
 function applyStep(dd: GtkDropDown, step: ComboSelectionStep): void {
     switch (step.op) {
-        case 'setOptions':
-            dd.options = step.options;
+        case 'setModel':
+            dd.model = step.model;
             return;
         case 'setSelectedIndex':
             dd.selected = step.index;
@@ -129,19 +136,19 @@ export const GtkDropDownTest = async () => {
         });
     });
 
-    await describe('gtk-drop-down options', async () => {
+    await describe('gtk-drop-down model', async () => {
         await it('accepts a string[] (value === label)', async () => {
             const dd = makeDropDown();
-            dd.options = ['One', 'Two', 'Three'];
-            expect(dd.options.length).toBe(3);
-            expect(dd.options[0]).toStrictEqual({ value: 'One', label: 'One' });
+            dd.model = ['One', 'Two', 'Three'];
+            expect(dd.model.length).toBe(3);
+            expect(dd.model[0]).toStrictEqual({ value: 'One', label: 'One' });
             expect(dd.querySelector('.adw-drop-down-label')?.textContent).toBe('One');
             dd.remove();
         });
 
         await it('accepts {value,label}[] and shows the selected label', async () => {
             const dd = makeDropDown();
-            dd.options = [
+            dd.model = [
                 { value: 'a', label: 'Apple' },
                 { value: 'b', label: 'Banana' },
             ];
@@ -151,12 +158,12 @@ export const GtkDropDownTest = async () => {
             dd.remove();
         });
 
-        await it('parses options from the JSON attribute', async () => {
+        await it('parses the model from the JSON attribute', async () => {
             const dd = document.createElement('gtk-drop-down') as GtkDropDown;
-            dd.setAttribute('options', '[{"value":"x","label":"Ex"},{"value":"y","label":"Why"}]');
+            dd.setAttribute('model', '[{"value":"x","label":"Ex"},{"value":"y","label":"Why"}]');
             dd.setAttribute('selected', '1');
             document.body.appendChild(dd);
-            expect(dd.options.length).toBe(2);
+            expect(dd.model.length).toBe(2);
             expect(dd.selected).toBe(1);
             expect(dd.selectedValue).toBe('y');
             dd.remove();
@@ -164,8 +171,93 @@ export const GtkDropDownTest = async () => {
 
         await it('renders one popover item per option', async () => {
             const dd = makeDropDown();
-            dd.options = ['a', 'b', 'c'];
+            dd.model = ['a', 'b', 'c'];
             expect(dd.querySelectorAll('.adw-drop-down-item').length).toBe(3);
+            dd.remove();
+        });
+
+        for (const vector of LIST_NORMALIZE_VECTORS) {
+            await it(`normalize — ${vector.rule}`, async () => {
+                const dd = makeDropDown();
+                dd.model = vector.input;
+                expect(dd.model).toStrictEqual([...vector.model]);
+                expect(
+                    [...dd.querySelectorAll('.adw-drop-down-item-label')].map((label) => label.textContent),
+                ).toStrictEqual(vector.model.map((item) => item.label));
+                dd.remove();
+            });
+        }
+
+        // The `model` ATTRIBUTE door, driven here as well as on `<adw-combo-row>`: both
+        // selectors read it through the SAME `parseListModel`, so a table asserted on one
+        // of them says nothing about the other's `attributeChangedCallback` branch — which
+        // is the half that was write-once on the row for its whole life (#1525).
+        for (const vector of LIST_PARSE_VECTORS) {
+            await it(`attribute — ${vector.rule}`, async () => {
+                const dd = makeDropDown();
+                // Set AFTER connect, so the attribute reaches the callback rather than the
+                // seeding path: a total parser has to be total on the live door too.
+                dd.setAttribute('model', vector.attribute);
+                expect(dd.model).toStrictEqual([...vector.model]);
+                dd.remove();
+            });
+        }
+
+        // The half no pure test reaches: a replaced model must SPLICE the row buttons, not
+        // rebuild them. Identity is what says which happened — and it is what a user feels,
+        // because a rebuilt row loses its focus and the popover its scroll position.
+        for (const vector of LIST_ITEMS_CHANGED_VECTORS) {
+            await it(`items-changed — ${vector.rule}`, async () => {
+                const dd = makeDropDown();
+                dd.model = vector.previous;
+                const before = [...dd.querySelectorAll('.adw-drop-down-item')];
+
+                dd.model = vector.next;
+
+                const after = [...dd.querySelectorAll('.adw-drop-down-item')];
+                expect(after.map((item) => item.querySelector('.adw-drop-down-item-label')?.textContent)).toStrictEqual(
+                    vector.next.map((item) => item.label),
+                );
+                expect(before.filter((item) => after.includes(item)).length).toBe(vector.survivors);
+                dd.remove();
+            });
+        }
+
+        // WHO OWNS the array `model` hands back — the row buttons are what shows it, for
+        // the reason `adw-row-state.spec.ts` gives on the same table.
+        for (const vector of LIST_MODEL_OWNERSHIP_VECTORS) {
+            await it(`ownership — ${vector.rule}`, async () => {
+                const dd = makeDropDown();
+                const input = vector.initial.map((item) => ({ ...item }));
+                dd.model = input;
+                const before = [...dd.querySelectorAll('.adw-drop-down-item')];
+
+                const mutated = applyListReadback(vector.source === 'input' ? input : dd.model, vector.op);
+                if (vector.assign) dd.model = mutated;
+
+                expect(dd.model).toStrictEqual([...vector.model]);
+                const after = [...dd.querySelectorAll('.adw-drop-down-item')];
+                expect(after.map((item) => item.querySelector('.adw-drop-down-item-label')?.textContent)).toStrictEqual(
+                    vector.model.map((item) => item.label),
+                );
+                expect(before.filter((item) => after.includes(item)).length).toBe(vector.survivors);
+                dd.remove();
+            });
+        }
+
+        // The defect the splice exposed: each row's click handler used to close over the
+        // index it was BUILT at, which a rebuild always refreshed. Under a splice it does
+        // not, so the handler asks the list where the row is now.
+        await it('a row that a splice shifted still selects itself', async () => {
+            const dd = makeDropDown();
+            dd.model = ['b', 'c'];
+            const rowForB = dd.querySelectorAll('.adw-drop-down-item')[0] as HTMLButtonElement;
+            dd.model = ['a', 'b', 'c'];
+            expect(dd.querySelectorAll('.adw-drop-down-item')[1]).toBe(rowForB);
+
+            (dd.querySelector('.adw-drop-down-button') as HTMLButtonElement).click();
+            rowForB.click();
+            expect(dd.selectedValue).toBe('b');
             dd.remove();
         });
     });
@@ -173,7 +265,7 @@ export const GtkDropDownTest = async () => {
     await describe('gtk-drop-down selected ↔ value sync', async () => {
         await it('selectedValue setter finds the index by value', async () => {
             const dd = makeDropDown();
-            dd.options = [
+            dd.model = [
                 { value: 'r', label: 'Red' },
                 { value: 'g', label: 'Green' },
                 { value: 'b', label: 'Blue' },
@@ -186,7 +278,7 @@ export const GtkDropDownTest = async () => {
 
         await it('selected reflects to the attribute + marks the row', async () => {
             const dd = makeDropDown();
-            dd.options = ['a', 'b'];
+            dd.model = ['a', 'b'];
             dd.selected = 1;
             expect(dd.getAttribute('selected')).toBe('1');
             const items = dd.querySelectorAll('.adw-drop-down-item');
@@ -197,7 +289,7 @@ export const GtkDropDownTest = async () => {
 
         await it('selectedItem returns the descriptor', async () => {
             const dd = makeDropDown();
-            dd.options = [{ value: 'k', label: 'Key' }];
+            dd.model = [{ value: 'k', label: 'Key' }];
             expect(dd.selectedItem).toStrictEqual({ value: 'k', label: 'Key' });
             dd.remove();
         });
@@ -206,7 +298,7 @@ export const GtkDropDownTest = async () => {
             // The property setters can run BEFORE connectedCallback builds the DOM, where
             // _updateLabel would touch an undefined label element.
             const dd = document.createElement('gtk-drop-down') as GtkDropDown;
-            dd.options = ['a', 'b', 'c'];
+            dd.model = ['a', 'b', 'c'];
             dd.selected = 2;
             expect(dd.isConnected).toBe(false);
             document.body.appendChild(dd);
@@ -220,7 +312,7 @@ export const GtkDropDownTest = async () => {
     await describe('gtk-drop-down notify-on-change', async () => {
         await it('a programmatic set fires notify::selected but NOT change (DOM <select> semantics)', async () => {
             const dd = makeDropDown();
-            dd.options = ['a', 'b', 'c'];
+            dd.model = ['a', 'b', 'c'];
             let notifyCount = 0;
             let changeCount = 0;
             dd.addEventListener('notify::selected', () => notifyCount++);
@@ -243,7 +335,7 @@ export const GtkDropDownTest = async () => {
 
         await it('a popover item click selects, fires change + closes', async () => {
             const dd = makeDropDown();
-            dd.options = ['a', 'b', 'c'];
+            dd.model = ['a', 'b', 'c'];
             let change: unknown = null;
             dd.addEventListener('change', (e) => {
                 change = (e as CustomEvent).detail;
@@ -262,7 +354,7 @@ export const GtkDropDownTest = async () => {
     await describe('gtk-drop-down popover behaviour', async () => {
         await it('opens on button click and closes on outside pointerdown', async () => {
             const dd = makeDropDown();
-            dd.options = ['a', 'b'];
+            dd.model = ['a', 'b'];
             const button = dd.querySelector('.adw-drop-down-button') as HTMLButtonElement;
             const popover = dd.querySelector('.adw-drop-down-popover') as HTMLElement;
             expect(popover.hidden).toBe(true);
@@ -278,7 +370,7 @@ export const GtkDropDownTest = async () => {
 
         await it('a disabled dropdown does not open', async () => {
             const dd = makeDropDown();
-            dd.options = ['a', 'b'];
+            dd.model = ['a', 'b'];
             dd.setAttribute('disabled', '');
             (dd.querySelector('.adw-drop-down-button') as HTMLButtonElement).click();
             expect(dd.active).toBe(false);
@@ -289,7 +381,7 @@ export const GtkDropDownTest = async () => {
     await describe('gtk-drop-down search', async () => {
         await it('renders a search entry and filters the list', async () => {
             const dd = makeDropDown();
-            dd.options = ['Apple', 'Banana', 'Cherry'];
+            dd.model = ['Apple', 'Banana', 'Cherry'];
             dd.enableSearch = true;
             const search = dd.querySelector('.adw-drop-down-search') as HTMLInputElement;
             expect(search).toBeTruthy();

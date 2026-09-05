@@ -53,7 +53,7 @@ import type { AdwComboOption, ComboStateChange } from '../rows.js';
  * and compares what the user would see.
  */
 export type ComboSelectionStep =
-    | { op: 'setOptions'; options: ReadonlyArray<AdwComboOption> }
+    | { op: 'setModel'; model: ReadonlyArray<AdwComboOption> }
     | { op: 'setSelectedIndex'; index: number }
     | { op: 'setSelectedValue'; value: string }
     | { op: 'select'; index: number };
@@ -87,7 +87,7 @@ const AB: ReadonlyArray<AdwComboOption> = [
  * drives, plus the two port answers the C leaves open (see
  * the module header).
  *
- * Note that EVERY scenario starts with a `setOptions`, which is itself an
+ * Note that EVERY scenario starts with a `setModel`, which is itself an
  * emission: the model is what the label is read out of, so a renderer that
  * repaints only on a selection change draws a stale value after the list is
  * replaced. That first change is in `emitted` for exactly that reason.
@@ -96,7 +96,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'programmatic index set',
         steps: [
-            { op: 'setOptions', options: AB },
+            { op: 'setModel', model: AB },
             { op: 'setSelectedIndex', index: 1 },
         ],
         selected: 1,
@@ -111,7 +111,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'setting the index already held',
         steps: [
-            { op: 'setOptions', options: AB },
+            { op: 'setModel', model: AB },
             { op: 'setSelectedIndex', index: 1 },
             { op: 'setSelectedIndex', index: 1 },
         ],
@@ -127,7 +127,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'the chooser pick',
         steps: [
-            { op: 'setOptions', options: AB },
+            { op: 'setModel', model: AB },
             { op: 'select', index: 1 },
         ],
         selected: 1,
@@ -142,7 +142,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'picking the option already selected',
         steps: [
-            { op: 'setOptions', options: AB },
+            { op: 'setModel', model: AB },
             { op: 'select', index: 0 },
         ],
         selected: 0,
@@ -154,7 +154,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'a dismissed chooser',
         steps: [
-            { op: 'setOptions', options: AB },
+            { op: 'setModel', model: AB },
             { op: 'select', index: -1 },
         ],
         selected: 0,
@@ -166,7 +166,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'select by value',
         steps: [
-            { op: 'setOptions', options: AB },
+            { op: 'setModel', model: AB },
             { op: 'setSelectedValue', value: 'b' },
         ],
         selected: 1,
@@ -181,7 +181,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'select by an unknown value',
         steps: [
-            { op: 'setOptions', options: AB },
+            { op: 'setModel', model: AB },
             { op: 'setSelectedValue', value: 'zzz' },
         ],
         selected: 0,
@@ -193,8 +193,8 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'the model is replaced at the same index',
         steps: [
-            { op: 'setOptions', options: [{ label: 'First', value: 'a' }] },
-            { op: 'setOptions', options: [{ label: 'Renamed', value: 'a' }] },
+            { op: 'setModel', model: [{ label: 'First', value: 'a' }] },
+            { op: 'setModel', model: [{ label: 'Renamed', value: 'a' }] },
         ],
         selected: 0,
         value: 'a',
@@ -208,9 +208,9 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'the model shrinks past the selection',
         steps: [
-            { op: 'setOptions', options: AB },
+            { op: 'setModel', model: AB },
             { op: 'setSelectedIndex', index: 1 },
-            { op: 'setOptions', options: [{ label: 'Only', value: 'a' }] },
+            { op: 'setModel', model: [{ label: 'Only', value: 'a' }] },
         ],
         selected: 0,
         value: 'a',
@@ -225,7 +225,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'an index past the end',
         steps: [
-            { op: 'setOptions', options: [{ label: 'Only', value: 'a' }] },
+            { op: 'setModel', model: [{ label: 'Only', value: 'a' }] },
             { op: 'setSelectedIndex', index: 5 },
         ],
         selected: 5,
@@ -239,7 +239,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     },
     {
         name: 'an empty model',
-        steps: [{ op: 'setOptions', options: [] }],
+        steps: [{ op: 'setModel', model: [] }],
         selected: -1,
         value: '',
         label: '',
@@ -249,7 +249,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'picking from an empty model',
         steps: [
-            { op: 'setOptions', options: [] },
+            { op: 'setModel', model: [] },
             { op: 'select', index: 0 },
         ],
         selected: -1,
@@ -261,9 +261,9 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'emptying a model that had a selection',
         steps: [
-            { op: 'setOptions', options: AB },
+            { op: 'setModel', model: AB },
             { op: 'setSelectedIndex', index: 1 },
-            { op: 'setOptions', options: [] },
+            { op: 'setModel', model: [] },
         ],
         selected: -1,
         value: '',
@@ -278,9 +278,9 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     {
         name: 'a model that is emptied and refilled',
         steps: [
-            { op: 'setOptions', options: AB },
-            { op: 'setOptions', options: [] },
-            { op: 'setOptions', options: AB },
+            { op: 'setModel', model: AB },
+            { op: 'setModel', model: [] },
+            { op: 'setModel', model: AB },
         ],
         selected: 0,
         value: 'a',
@@ -294,7 +294,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     },
     {
         name: 'a model with an empty first label is still a selection',
-        steps: [{ op: 'setOptions', options: [{ label: '', value: 'blank' }] }],
+        steps: [{ op: 'setModel', model: [{ label: '', value: 'blank' }] }],
         selected: 0,
         value: 'blank',
         label: '',

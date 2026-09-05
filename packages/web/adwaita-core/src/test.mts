@@ -21,6 +21,7 @@ import breakpointBinTestSuite from './breakpoint-bin.spec.js';
 import accentTestSuite from './accent.spec.js';
 import colorSchemeTestSuite from './color-scheme.spec.js';
 import dialogTestSuite from './dialog.spec.js';
+import listTestSuite from './list.spec.js';
 import rowsTestSuite from './rows.spec.js';
 import toastTestSuite from './toast.spec.js';
 import popoverTestSuite from './popover.spec.js';
@@ -47,6 +48,7 @@ run({
     colorSchemeTestSuite,
     toastTestSuite,
     dialogTestSuite,
+    listTestSuite,
     rowsTestSuite,
     popoverTestSuite,
     avatarTestSuite,

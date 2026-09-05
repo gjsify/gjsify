@@ -21,8 +21,8 @@
 
 import type {
     AdwBannerButtonStyle,
-    AdwComboOptionInput,
     AdwLengthUnit,
+    AdwListModelInput,
     AdwPackType,
     AdwToast,
     AdwToolbarStyle,
@@ -531,11 +531,12 @@ export interface AdwPreferencesGroupProps extends AdwWidgetProps {
  * `model` IS THE LIBADWAITA NAME AND NOT THE LIBADWAITA TYPE, which is the one liberty this
  * surface takes and the reason it can exist at all. `AdwComboRow:model` is a
  * `Gio.ListModel`; a props file that may import neither `gi://Gio` nor `react-native` cannot
- * name that type, and the gallery refuses the widget outright for exactly this
- * (`adwaita-gallery-trees.mjs`: "its items are a Gio.ListModel; a row without them teaches
- * the wrong thing"). What both halves CAN share is `@gjsify/adwaita-core`'s
- * `AdwComboOptionInput` — the option vocabulary `<adw-combo-row>` and
- * `@gjsify/adwaita-nativescript` already accept — so the property keeps libadwaita's name
+ * name that type, and the gallery still refuses the widget — no longer for the value but for
+ * the seam (`adwaita-gallery-trees.mjs`: "its model is a Gio.ListModel, and nothing turns
+ * the portable list form into one at the ParamSpec seam"). What both halves CAN share is
+ * `@gjsify/adwaita-core`'s `AdwListModelInput` — the portable list model (ADR 0046), the
+ * item vocabulary `<adw-combo-row>` and `@gjsify/adwaita-nativescript` already accept —
+ * so the property keeps libadwaita's name
  * and takes the shared description of a model. The GTK half turns it into the real
  * `Gtk.StringList` it has to be; the React Native half feeds it to `ComboState`.
  *
@@ -558,7 +559,7 @@ export interface AdwPreferencesGroupProps extends AdwWidgetProps {
  */
 export interface AdwComboRowProps extends AdwRowProps {
     /** `model` — the selectable items. See above on the type. */
-    model?: readonly AdwComboOptionInput[];
+    model?: AdwListModelInput;
     /** `selected` — the position of the selected item. Default 0. */
     selected?: number;
     /**

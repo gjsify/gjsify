@@ -156,7 +156,14 @@ export class PopoverMenuView {
         (rows[skip] ?? rows[0])?.focus();
     }
 
-    setModel(model: AdwMenuModel): void {
+    /**
+     * Named for the value it takes, and NOT `setModel` — the portable LIST model gave
+     * `ComboState` a `setModel` (ADR 0046), and two methods called `setModel` over two
+     * unrelated values on one surface is the collision the vocabulary work exists to
+     * remove. It also un-blinds `check-adwaita-collection-reactivity`, which resolves a
+     * collection call by the setter's name.
+     */
+    setMenuModel(model: AdwMenuModel): void {
         // A CHANGED model invalidates the open page: the submenu it named may not exist
         // any more, and rendering a page that is gone leaves an empty popover with a
         // back row and no way to see what happened. An UNCHANGED one must not — every

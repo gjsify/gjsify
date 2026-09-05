@@ -109,7 +109,7 @@ const ADWAITA_WEB_FACTORY: ControlWidgetFactory<HTMLElement> = {
         const options = control.options ?? [];
         const row = document.createElement('adw-combo-row') as HTMLElement & { selected: number };
         row.setAttribute('title', label(control));
-        row.setAttribute('items', JSON.stringify(options.map((o) => o.label)));
+        row.setAttribute('model', JSON.stringify(options.map((o) => o.label)));
         let cb: (v: number) => void = () => {};
         row.addEventListener('notify::selected', (e) => cb((e as CustomEvent<{ selected: number }>).detail.selected));
         return {

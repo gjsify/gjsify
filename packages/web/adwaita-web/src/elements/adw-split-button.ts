@@ -525,7 +525,7 @@ export class AdwSplitButton extends HTMLElement {
 
     private _renderMenu(): void {
         this._menuEl.open = this._state.open;
-        this._menuView.setModel(this._state.menuModel ?? []);
+        this._menuView.setMenuModel(this._state.menuModel ?? []);
         this._menuView.render();
     }
 }

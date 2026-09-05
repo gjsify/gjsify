@@ -52,7 +52,7 @@ export const ADWAITA_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
     'adw-carousel-indicator-dots': ['for'],
     'adw-carousel-indicator-lines': ['for'],
     'adw-clamp': ['maximum-size', 'tightening-threshold'],
-    'adw-combo-row': ['title', 'subtitle', 'options', 'items', 'selected'],
+    'adw-combo-row': ['title', 'subtitle', 'model', 'selected'],
     'adw-data-grid': ['columns', 'rows', 'caption', 'interactive'],
     'adw-dialog': ['title', 'open', 'can-close', 'content-width', 'content-height', 'presentation-mode', 'show-header'],
     'adw-entry-row': ['title', 'text', 'editable', 'max-length', 'show-apply-button', 'activates-default'],
@@ -165,7 +165,7 @@ export const ADWAITA_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
     ],
     'gtk-button': ['icon', 'label', 'tooltip', 'disabled', 'flat', 'suggested', 'destructive', 'circular', 'pill'],
     'gtk-check-button': ['checked', 'indeterminate', 'disabled', 'label'],
-    'gtk-drop-down': ['options', 'items', 'selected', 'enable-search', 'disabled'],
+    'gtk-drop-down': ['model', 'selected', 'enable-search', 'disabled'],
     'gtk-entry': ['value', 'placeholder', 'type', 'disabled', 'maxlength'],
     'gtk-image': ['icon-name', 'size'],
     'gtk-menu-button': ['icon-name', 'menu-title', 'menu-model', 'disabled', 'flat', 'circular', 'direction'],
@@ -175,7 +175,7 @@ export const ADWAITA_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** How many attributes the web pillar observes in total. */
-export const ADWAITA_ATTRIBUTE_COUNT = 278;
+export const ADWAITA_ATTRIBUTE_COUNT = 276;
 
 /** How many elements the pillar registers. An element with none is still an entry. */
 export const ADWAITA_ELEMENT_COUNT = 65;

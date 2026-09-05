@@ -18,6 +18,7 @@ import {
     TAB_VIEW_VECTORS,
     TABS_REVEALED_VECTORS,
     applyTabViewOp,
+    replayTabPagesAsSplices,
     seedTabViewPages,
     tabViewClosing,
     tabViewOrder,
@@ -99,6 +100,19 @@ export default async () => {
                 expect(run.changes).toStrictEqual([...vector.changes]);
                 if (vector.pagesChanges) expect(run.pagesChanges).toStrictEqual([...vector.pagesChanges]);
                 if (vector.closeAttempts) expect(run.attempts).toStrictEqual([...vector.closeAttempts]);
+
+                // ADR 0046: the page signal, replayed as portable `items-changed` splices,
+                // must reproduce the order this widget actually ended on. That is the whole
+                // claim — `TabViewPagesChange` IS the positional list signal — measured
+                // against a real change stream rather than asserted in an ADR.
+                if (vector.pagesChanges) {
+                    expect(
+                        replayTabPagesAsSplices(
+                            vector.pages.map((page) => page.id),
+                            run.pagesChanges,
+                        ),
+                    ).toStrictEqual([...vector.order]);
+                }
 
                 expect(tabViewOrder(run.state)).toStrictEqual([...vector.order]);
                 expect(run.state.nPinnedPages).toBe(vector.nPinnedPages);
