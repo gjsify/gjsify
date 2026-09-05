@@ -73,6 +73,14 @@
 //      file, arm 1 then reports drift that is not drift, and the repair is to
 //      re-add the exemption rather than to re-run the generator — so the failure
 //      has to say which of the two it is.
+//  11. The two authored trees describe the SAME UI, or say why they do not. Every
+//      block drawn by both renderers is either authored ONCE in
+//      `adwaita-gallery-shared-trees.mjs` or ledgered in that file's
+//      `ADWAITA_GALLERY_TREE_DIVERGENCES` with the measured reason — never both and
+//      never neither, and a ledgered block whose two trees have BECOME identical
+//      fails, the same self-retiring shape as (5b). Arms 4-6 and 7-9 each hold ONE
+//      tree against ONE renderer, so both were green while `Adw.ExpanderRow` showed
+//      "Proxy settings" on three tabs and "Advanced" on the fourth.
 //
 // Plain Node over the repo's own files — no install, no build, no astro render.
 //
@@ -86,6 +94,11 @@ import { fileURLToPath } from 'node:url';
 import { galleryElementTag } from '../website/src/components/attr-sample.mjs';
 import { observedAttributes } from './adwaita-elements.mjs';
 import { ADWAITA_GALLERY_NS_REFUSALS, ADWAITA_GALLERY_NS_TEMPLATES } from './adwaita-gallery-ns-templates.mjs';
+import {
+    ADWAITA_GALLERY_SHARED_TREES,
+    ADWAITA_GALLERY_TREE_DIVERGENCES,
+    hostTagOf,
+} from './adwaita-gallery-shared-trees.mjs';
 import { ADWAITA_GALLERY_REFUSALS, ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
 import {
     gtypeOfTag,
@@ -990,6 +1003,121 @@ try {
 } catch (error) {
     failures.push(`${OXFMT_CONFIG} is unreadable (${error.message}) — arm 7 would pass vacuously`);
 }
+
+// ---------------------------------------------------------------------------
+// 11. one authored tree where the two renderers agree, a ledgered reason where not
+// ---------------------------------------------------------------------------
+
+/**
+ * The two authored trees describe the same UI, or say why they do not.
+ *
+ * WHAT WAS UNHELD. Arms 4-6 hold the framework trees against `gtk-host` and arms
+ * 7-9 hold the NativeScript templates against the port. Both were true of a gallery
+ * whose two sources described DIFFERENT widgets under one block title, because
+ * nothing compared them to each other: `Adw.ExpanderRow` shipped "Proxy settings"
+ * with a host and an authentication toggle on three tabs, and "Advanced" with a
+ * developer-mode toggle and an endpoint on the fourth, children in the opposite
+ * order, for as long as both files existed. Every arm was green.
+ *
+ * SO THIS ONE COMPARES THEM, with the shared source's case rule as the only
+ * transform, and demands that every block carrying both is either authored ONCE
+ * (`ADWAITA_GALLERY_SHARED_TREES`) or ledgered with a measured reason
+ * (`ADWAITA_GALLERY_TREE_DIVERGENCES`) — never both, never neither. That is ADR 0027
+ * § 9's criterion applied to the gallery: the same authored tree through two
+ * renderers with no per-surface branch.
+ *
+ * The self-retiring half is the one worth having. A ledgered block whose two trees
+ * have BECOME identical fails here, exactly as a stale `uncurated-placement` refusal
+ * fails in arm 5b — so the branches closing the renderer gaps one property at a time
+ * cannot leave a divergence reason standing after its reason is gone.
+ */
+const sharedByWidget = new Map(ADWAITA_GALLERY_SHARED_TREES.map((tree) => [tree.widget, tree]));
+const gtkByWidget = new Map(ADWAITA_GALLERY_TREES.map((tree) => [tree.widget, tree]));
+const nsByWidget = new Map(ADWAITA_GALLERY_NS_TEMPLATES.map((tree) => [tree.widget, tree]));
+
+/** A node as a comparable string, tags normalised to the GIR class name. */
+const shapeOf = (node, tagOf) =>
+    JSON.stringify({
+        tag: tagOf(node.tag),
+        slot: node.slot ?? null,
+        props: Object.entries(node.props ?? {}),
+        children: (node.children ?? []).map((child) => shapeOf(child, tagOf)),
+    });
+// The framework trees speak `gtk-host` tags, the NativeScript ones GIR class names,
+// so only ONE side is transformed — and by the inverse of the rule the shared source
+// emits with, asserted below rather than assumed.
+const gtkShape = (tree) => shapeOf(tree.root, gtypeOfTag);
+const nsShape = (tree) => shapeOf(tree.root, (tag) => tag);
+
+const paired = [...gtkByWidget.keys()].filter((widget) => nsByWidget.has(widget));
+let convergedBlocks = 0;
+for (const widget of paired) {
+    const converged = gtkShape(gtkByWidget.get(widget)) === nsShape(nsByWidget.get(widget));
+    if (converged) convergedBlocks += 1;
+    const isShared = sharedByWidget.has(widget);
+    const ledgered = Object.hasOwn(ADWAITA_GALLERY_TREE_DIVERGENCES, widget);
+    if (isShared && ledgered) {
+        failures.push(`${widget} is both a shared tree and a ledgered divergence — it cannot be two sources.`);
+    } else if (!isShared && !ledgered) {
+        failures.push(
+            `${widget} has a framework tree AND a NativeScript template, and is neither authored from ` +
+                'adwaita-gallery-shared-trees.mjs nor ledgered in ADWAITA_GALLERY_TREE_DIVERGENCES. Two hand-written ' +
+                'trees for one gallery block drift without anything noticing, which is what this arm exists to stop.',
+        );
+    }
+    if (isShared && !converged) {
+        failures.push(
+            `${widget} is authored once in adwaita-gallery-shared-trees.mjs, and the two renderings do not agree. ` +
+                'A derivation grew a per-surface branch, or a consumer edited the tree it was handed.',
+        );
+    }
+    if (ledgered && converged) {
+        failures.push(
+            `${widget} is ledgered as a divergence and its two trees are now IDENTICAL. The reason has been ` +
+                'closed — move the block into ADWAITA_GALLERY_SHARED_TREES and delete the ledger entry, so the ' +
+                'gallery stops carrying two sources for a widget that needs one.',
+        );
+    }
+}
+
+for (const widget of Object.keys(ADWAITA_GALLERY_TREE_DIVERGENCES)) {
+    if (paired.includes(widget)) continue;
+    failures.push(
+        `${widget} is ledgered as a tree divergence, but it does not have a tree on both renderers ` +
+            `(framework: ${gtkByWidget.has(widget) ? 'yes' : 'no'}, NativeScript: ${nsByWidget.has(widget) ? 'yes' : 'no'}). ` +
+            "A block only one renderer draws is a REFUSAL, recorded beside that renderer's own list.",
+    );
+}
+
+for (const widget of sharedByWidget.keys()) {
+    if (gtkByWidget.has(widget) && nsByWidget.has(widget)) continue;
+    failures.push(`${widget} is a shared tree that one of the two generators no longer emits.`);
+}
+
+// The two case rules are inverses, and nothing but this loop says so: `hostTagOf`
+// lives with the shared trees and `gtypeOfTag` with the framework generator, so a
+// special case added to one would silently turn the other into a lookup table —
+// which is the arrangement both generator headers refuse.
+for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
+    const walk = (node) => {
+        const round = gtypeOfTag(hostTagOf(node.tag));
+        if (round !== node.tag) {
+            failures.push(
+                `${tree.widget}: ${node.tag} -> ${hostTagOf(node.tag)} -> ${round}. hostTagOf and gtypeOfTag have ` +
+                    'stopped being inverses, so the shared vocabulary is now a translation.',
+            );
+        }
+        for (const child of node.children ?? []) walk(child);
+    };
+    walk(tree.root);
+}
+
+if (paired.length === 0) failures.push('no gallery block has a tree on both renderers — arm 11 proved nothing');
+
+notes.push(
+    `${paired.length} block(s) drawn by both renderers — ${sharedByWidget.size} from one authored tree, ` +
+        `${Object.keys(ADWAITA_GALLERY_TREE_DIVERGENCES).length} ledgered as divergent; ${convergedBlocks} agree today`,
+);
 
 // A scan whose corpus is empty reports green while proving nothing.
 if (blocks === 0) failures.push('no <AdwWidget> block found on any gallery page — the reader is broken');
