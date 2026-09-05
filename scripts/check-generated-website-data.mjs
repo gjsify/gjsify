@@ -76,11 +76,10 @@
 //  11. The two authored trees describe the SAME UI, or say why they do not. Every
 //      block drawn by both renderers is either authored ONCE in
 //      `adwaita-gallery-shared-trees.mjs` or ledgered in that file's
-//      `ADWAITA_GALLERY_TREE_DIVERGENCES` with the measured reason — never both and
-//      never neither, and a ledgered block whose two trees have BECOME identical
-//      fails, the same self-retiring shape as (5b). Arms 4-6 and 7-9 each hold ONE
-//      tree against ONE renderer, so both were green while `Adw.ExpanderRow` showed
-//      "Proxy settings" on three tabs and "Advanced" on the fourth.
+//      `ADWAITA_GALLERY_TREE_DIVERGENCES`, never both and never neither, and a
+//      ledgered block whose two trees have BECOME identical fails, the same
+//      self-retiring shape as (5b). (4)-(9) each hold ONE tree against ONE renderer,
+//      which is why they were all green while one block drew two different widgets.
 //
 // Plain Node over the repo's own files — no install, no build, no astro render.
 //
@@ -1009,22 +1008,14 @@ try {
 // ---------------------------------------------------------------------------
 
 /**
- * The two authored trees describe the same UI, or say why they do not.
+ * The two authored trees describe the same UI, or say why they do not — ADR 0027
+ * § 9's criterion applied to the gallery.
  *
- * WHAT WAS UNHELD. Arms 4-6 hold the framework trees against `gtk-host` and arms
- * 7-9 hold the NativeScript templates against the port. Both were true of a gallery
- * whose two sources described DIFFERENT widgets under one block title, because
- * nothing compared them to each other: `Adw.ExpanderRow` shipped "Proxy settings"
- * with a host and an authentication toggle on three tabs, and "Advanced" with a
- * developer-mode toggle and an endpoint on the fourth, children in the opposite
- * order, for as long as both files existed. Every arm was green.
- *
- * SO THIS ONE COMPARES THEM, with the shared source's case rule as the only
- * transform, and demands that every block carrying both is either authored ONCE
- * (`ADWAITA_GALLERY_SHARED_TREES`) or ledgered with a measured reason
- * (`ADWAITA_GALLERY_TREE_DIVERGENCES`) — never both, never neither. That is ADR 0027
- * § 9's criterion applied to the gallery: the same authored tree through two
- * renderers with no per-surface branch.
+ * THE INCIDENT. `Adw.ExpanderRow` shipped "Proxy settings" with a host and an
+ * authentication toggle on three tabs, and "Advanced" with a developer-mode toggle
+ * and an endpoint on the fourth, children in the opposite order, for as long as both
+ * source files existed. Every arm was green throughout: each holds ONE tree against
+ * ONE renderer, and nothing compared the two to each other.
  *
  * The self-retiring half is the one worth having. A ledgered block whose two trees
  * have BECOME identical fails here, exactly as a stale `uncurated-placement` refusal
@@ -1078,6 +1069,20 @@ for (const widget of paired) {
                 'gallery stops carrying two sources for a widget that needs one.',
         );
     }
+}
+
+// The four kinds are a vocabulary, so they are held rather than trusted: they say what
+// a reader would have to DO, and the jobs are not interchangeable — a `property` is a
+// renderer change, a `content` is a decision about what the block should show.
+const DIVERGENCE_KINDS = new Set(['property', 'vocabulary', 'composition', 'content']);
+for (const [widget, reason] of Object.entries(ADWAITA_GALLERY_TREE_DIVERGENCES)) {
+    const kind = /^([a-z]+):/.exec(reason)?.[1];
+    if (kind !== undefined && DIVERGENCE_KINDS.has(kind)) continue;
+    failures.push(
+        `${widget}: its divergence reason opens with ${kind === undefined ? 'no kind' : `"${kind}"`}, and a reason ` +
+            `must open with one of ${[...DIVERGENCE_KINDS].join(', ')} — the kind is what says whether closing it ` +
+            'is a renderer change, a rename, or a decision about what the block should show.',
+    );
 }
 
 for (const widget of Object.keys(ADWAITA_GALLERY_TREE_DIVERGENCES)) {

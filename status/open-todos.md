@@ -392,7 +392,9 @@ and nothing here asserts that it behaves like one.
 
 The criterion that closes the GOAL out is in ADR 0027 § 9 and is unchanged: the same
 authored tree, rendered through the GTK host and through `adwaita-web`, satisfies the
-same `@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch.
+same `@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch. The
+"same authored tree" half now exists for part of the gallery and is measured — see *The
+gallery's two authored trees agree on 7 blocks of 23* below.
 Until that is measured the goal stays a direction, not a claim — and the longer
 horizon it points at (NativeScript and browser builds from one native-authored
 source) needs its own ADR.
@@ -406,6 +408,79 @@ And `bindEmptySections` derives SYNCHRONOUSLY, so it must run AFTER the router's
 `install` — routing first hides a section a declared child had already earned, and it
 only un-hides a microtask later, after `_syncClasses` has measured a bar at
 `offsetHeight` 0. That cost 8 real failures once; the three call sites now say so.
+
+### The gallery's two authored trees agree on 7 blocks of 23, and the rest is ledgered
+
+ADR 0027 § 9's criterion is *"the same authored tree, rendered through the GTK host and
+through `adwaita-web`, satisfies the same `@gjsify/adwaita-core/conformance` vectors with
+no per-surface markup branch"*. The entry above says the NAME half is held and the
+BEHAVIOUR half is not. This one is about a third thing that was held by nothing at all:
+whether the gallery's own sources describe the SAME UI.
+
+They are two files — `scripts/adwaita-gallery-trees.mjs` for the Solid/Vue/React tabs and
+`scripts/adwaita-gallery-ns-templates.mjs` for the NativeScript one — written by hand,
+independently. Arms 4-6 hold the first against `gtk-host`; arms 7-9 hold the second
+against the port. Both were green while `Adw.ExpanderRow` shipped *"Proxy settings"* with
+a host and an authentication toggle on three tabs and *"Advanced"* with a developer-mode
+toggle and an endpoint on the fourth, children in the opposite order, for as long as both
+files existed. Nothing compared one to the other.
+
+**The census that sized the work.** 40 blocks; 23 carry a tree on both renderers, and the
+other 17 are refused by one or by both with a reason already recorded. Of the 23, compared
+node by node with the GIR-name case rule as the only transform:
+
+| | blocks | |
+|---|---|---|
+| identical | 7 | authored once in `scripts/adwaita-gallery-shared-trees.mjs` |
+| `property` | 4 | same shape and tags; one renderer has no such property |
+| `vocabulary` | 3 | same shape; a tag, slot or property is spelled differently |
+| `composition` | 7 | genuinely different UIs, each forced by a renderer |
+| `content` | 2 | nothing forced them apart — two authors, two examples |
+
+Every number is recomputed by arm 11 of `check-generated-website-data.mjs`, which prints
+the partition on every run and fails on a ledgered block whose two trees have BECOME
+identical — the self-retiring shape of arm 5b's stale-refusal rule, so the branches closing
+the renderer gaps one property at a time cannot leave a dead reason standing.
+
+**What blocks the remaining 16, in the order it can be paid.**
+
+*The 4 `property` ones are renderer work and are already in flight or trivially scoped.*
+`Adw.Avatar` needs `showInitials` and `iconName` on the NativeScript `AdwAvatar`, which
+today sets only `size` and `text`. `Gtk.Entry` needs nothing: `widthRequest` is a GTK size
+request and the port has no layout surface, so this one may stay ledgered forever.
+`Adw.PasswordEntryRow` is the mirror — `revealed` is the port's, and libadwaita exposes the
+peek icon rather than the state. `Adw.ButtonRow` is the interesting one: `startIconName`
+exists on BOTH and means different things, an icon NAME on GTK and an Adwaita symbolic SVG
+STRING on the port. A property that agrees on its name and disagrees on its value is worse
+than one that is missing, and `check-vocabulary-alignment.mjs` counts it as agreement.
+
+*The 3 `vocabulary` ones close for free when the convergence that gate already counts down
+lands* — `label`/`text`, `wrap`/`textWrap`, `cssClasses`/`class`, and the three header-bar
+slots spelled `start`/`title`/`end` against `startBox`/`titleWidget`/`endBox`. Slots are
+why no shared tree uses one yet: the shared source admits a block only when it needs no
+alias, and every slotted pair still needs three.
+
+*The 7 `composition` ones each need a decision before they need code*, and two of them are
+the same decision twice: an `AdwHeaderBar` title is a slotted `AdwWindowTitle` child on GTK
+and a plain `title` property on the port, so `Adw.OverlaySplitView` and `Adw.ToolbarView`
+carry two nodes more on one side than the other. Converging them means deciding which
+renderer is wrong, which is an ADR 0034 question and not a gallery one.
+
+*The 2 `content` ones are the ones nobody has an excuse for*, and they are left as measured
+rather than fixed because the fix collides with `feat/portable-style-classes`, which is
+editing exactly those lines. `Adw.WrapBox`: the block preview and three tabs show eight
+chips, the NativeScript template six, and it spells `TypeScript` where the other three
+spell `Typescript` — so one of the four is also a typo, in the preview that decides.
+`Gtk.Button`: five buttons against four, the icon-only circular one missing. The rule that
+settles both is the one `Adw.WrapBox`'s own tree already states — a gallery block is one
+widget written several ways, so its `preview` fragment is the authority — and in both cases
+it is the NativeScript template that drifted from it.
+
+**What this does NOT close.** Two authored trees agreeing is not two renderers behaving the
+same, and the shared source is compared as DATA rather than as a rendered tree. The
+criterion still wants `@gjsify/adwaita-core/conformance` vectors run over one authored tree
+through both renderers; the seven blocks here are what such a suite would have to start
+from, and the ledger says what would have to converge before it could grow past them.
 
 ### One vocabulary is a rule for EVERY surface — clause 3 holds on all three renderers
 

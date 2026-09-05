@@ -2,12 +2,10 @@
 // GTK host and the NativeScript port — ADR 0027 § 9's acceptance criterion, at the
 // size the gallery actually reaches today.
 //
-// WHAT ADR 0027 § 9 ASKS FOR
+// WHAT WAS MISSING
 //
-// "The same authored tree, rendered through the GTK host and through `adwaita-web`,
-// satisfies the same `@gjsify/adwaita-core/conformance` vectors with no per-surface
-// markup branch." `scripts/check-vocabulary-alignment.mjs` holds the NAMES across the
-// renderers and prints the distance every run; what nothing held until this file is
+// `scripts/check-vocabulary-alignment.mjs` holds the widget NAMES across the
+// renderers and prints the distance every run. What nothing held until this file is
 // whether the gallery's own two authored trees — `adwaita-gallery-trees.mjs` for
 // Solid/Vue/React and `adwaita-gallery-ns-templates.mjs` for the NativeScript XML —
 // DESCRIBE THE SAME UI. They are written by hand, independently, so a block can
@@ -15,23 +13,18 @@
 //
 // THE CENSUS THAT SIZED THIS FILE
 //
-// 40 gallery blocks. 23 carry BOTH a `gtk-host` tree and a NativeScript template;
-// the other 17 are refused by one renderer or by both, with a reason already
-// recorded beside each list. Of those 23, measured node by node with the tag-case
-// rule below as the ONLY transform:
+// A minority of the blocks drawn by BOTH renderers describe the same UI today; this
+// file is that minority and {@link ADWAITA_GALLERY_TREE_DIVERGENCES} is the rest,
+// each with the measured reason and a `kind` naming what would close it. No count is
+// written here on purpose — arm 11 of `check-generated-website-data.mjs` derives the
+// partition and prints it every run, and it fails the day a ledgered block CONVERGES
+// and is still ledgered, the same self-retiring shape as the refusal lists this file
+// sits beside.
 //
-//   ·  7 identical — this file.
-//   ·  4 same shape and same tags, one renderer lacking a property the other sets.
-//   ·  3 same shape, needing a tag, slot or property RENAME to line up.
-//   ·  9 genuinely different compositions — of which TWO are different only because
-//      two authors picked different examples, which is the whole point of the
-//      question and is why the ledger below diagnoses them as `content` rather than
-//      leaving them filed with the seven the renderers really do force apart.
-//
-// Every one of the 16 is in {@link ADWAITA_GALLERY_TREE_DIVERGENCES} with the
-// measured reason, and arm 11 of `check-generated-website-data.mjs` fails the day
-// one of them CONVERGES and is still ledgered — the same self-retiring shape as the
-// refusal lists it sits beside.
+// What the census FOUND, which no count would have said: two of the divergences are
+// not forced by either renderer at all. Two authors simply wrote two different
+// examples of one widget, and one gallery block therefore drew two different UIs
+// under one title for as long as both source files existed.
 //
 // WHY THIS IS NOT THE ALIAS TABLE BOTH GENERATORS REFUSE
 //
@@ -190,9 +183,6 @@ export const hostTagOf = (gtype) => {
 };
 
 const SHARED_BY_WIDGET = new Map(ADWAITA_GALLERY_SHARED_TREES.map((tree) => [tree.widget, tree]));
-
-/** Every gallery block this file is the single source of. */
-export const SHARED_WIDGETS = new Set(SHARED_BY_WIDGET.keys());
 
 const entryFor = (widget) => {
     const tree = SHARED_BY_WIDGET.get(widget);
