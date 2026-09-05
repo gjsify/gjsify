@@ -116,9 +116,11 @@ function lineOf(text, index) {
  * Every place a closing keyword is followed by references it does not close.
  *
  * Returns `{ keyword, closed, dangling[], line }` per chain. Pure over its input
- * so the self-test can hand it bodies that were never written anywhere.
+ * so the self-test below can hand it bodies that were never written anywhere.
+ * NOT exported: this module runs its CLI at import time and exits, so an exported
+ * name would be one no caller can reach without terminating its own process.
  */
-export function danglingClosingRefs(text) {
+function danglingClosingRefs(text) {
     const scannable = blankCode(text ?? '');
     const findings = [];
 
@@ -245,6 +247,22 @@ const body = process.env.PR_BODY ?? '';
 const baseSha = process.env.PR_BASE_SHA ?? '';
 const headSha = process.env.PR_HEAD_SHA ?? '';
 
+// An empty PR_BODY is legitimate: GitHub sends null for a PR with no description.
+// An empty RANGE is not. Without it this read one surface, exited 0, and printed a
+// success line naming the body it had read — green over a PR whose COMMITS carry
+// the list, which is the surface #1568 closed all four of its issues from. Same
+// refusal `check-pr-title-length.mjs` makes when PR_TITLE is empty.
+if (!baseSha || !headSha) {
+    console.error(
+        '::error::check-closing-keywords: PR_BASE_SHA/PR_HEAD_SHA are empty — this must run in a pull_request job.',
+    );
+    console.error(
+        '::error::Reading the body alone reports clean on a PR whose commit messages carry the list. #1568 ' +
+            'closed its four issues from exactly there.',
+    );
+    process.exit(1);
+}
+
 /**
  * The commit messages in the PR. A squash body is composed from these, and #1568
  * closed four issues from exactly there, so they carry the same claim the body
@@ -254,8 +272,6 @@ const headSha = process.env.PR_HEAD_SHA ?? '';
  * history is too shallow to walk — a corpus this check could quietly report clean.
  */
 function commitMessages() {
-    if (!baseSha || !headSha) return null;
-
     const out = execFileSync('git', ['log', '--format=%B%x00', `${baseSha}..${headSha}`], {
         encoding: 'utf8',
         maxBuffer: 64 * 1024 * 1024,
@@ -267,9 +283,7 @@ function commitMessages() {
         .filter(Boolean);
 }
 
-const sources = [{ what: 'the PR body', text: body }];
-
-let commits = null;
+let commits;
 try {
     commits = commitMessages();
 } catch (error) {
@@ -278,26 +292,25 @@ try {
     process.exit(1);
 }
 
-if (commits !== null) {
-    if (commits.length === 0) {
-        console.error(`::error::check-closing-keywords: ${baseSha}..${headSha} yielded no commit message.`);
-        console.error('::error::A pull request has at least one. Reading zero here would report every PR clean.');
-        process.exit(1);
-    }
-    commits.forEach((message, i) => {
-        sources.push({ what: `commit ${i + 1} of ${commits.length}`, text: message });
-    });
+if (commits.length === 0) {
+    console.error(`::error::check-closing-keywords: ${baseSha}..${headSha} yielded no commit message.`);
+    console.error('::error::A pull request has at least one. Reading zero here would report every PR clean.');
+    process.exit(1);
 }
+
+const sources = [
+    { what: 'the PR body', text: body },
+    ...commits.map((message, i) => ({ what: `commit ${i + 1} of ${commits.length}`, text: message })),
+];
 
 const findings = sources.flatMap(({ what, text }) =>
     danglingClosingRefs(text).map((finding) => ({ ...finding, what })),
 );
 
 if (findings.length === 0) {
-    const read = [`the PR body (${body.length} characters)`];
-    if (commits !== null) read.push(`${commits.length} commit message(s)`);
     console.log(
-        `closing-keywords: self-test green — ${VECTORS.length} vector(s). Read ${read.join(' and ')}; ` +
+        `closing-keywords: self-test green — ${VECTORS.length} vector(s). Read the PR body ` +
+            `(${body.length} characters) and ${commits.length} commit message(s); ` +
             'no closing keyword carries a reference it does not close.',
     );
     process.exit(0);
@@ -305,9 +318,10 @@ if (findings.length === 0) {
 
 console.error('::error::A closing keyword closes ONE issue. These references are named but not closed by it:');
 for (const finding of findings) {
+    const isOrAre = finding.dangling.length === 1 ? 'is' : 'are';
     console.error(
         `::error::  ${finding.what}, line ${finding.line}: "${finding.keyword} ${finding.closed}" closes ` +
-            `${finding.closed} and nothing else — ${finding.dangling.join(', ')} are not closed by it.`,
+            `${finding.closed} and nothing else — ${finding.dangling.join(', ')} ${isOrAre} not closed by it.`,
     );
     console.error(`::error::    write instead: ${repaired(finding)}`);
 }
