@@ -82,7 +82,9 @@ function residue(body, spans) {
  *
  * ORDER IS LOAD-BEARING and that is the whole reason this file exists: the obvious way
  * to turn a nick into the integer GTK wants is to count its position in this list, and
- * that answer is wrong for six of the enums it covers.
+ * that answer is wrong for six of the enums it covers — and for a seventh on any host
+ * whose GTK predates the vocabulary, where an unvalued nick shifts every position after
+ * it. {@link countingWouldBeWrong} keeps the two apart; only the six are evidence.
  */
 export function readNickLists(text) {
     const body = readBlock(text, 'ENUM_NICKS');
@@ -181,10 +183,20 @@ export function groupsByValue(nicks, valueOf) {
 }
 
 /**
- * The enums where at least one nick's value is NOT its position in the nick list.
+ * The enums where at least one nick's value is NOT its position in the nick list,
+ * each with whether that disagreement is evidence about the LIBRARY.
  *
  * The finding this whole artifact exists for, computed rather than written down, so
  * the gate can print today's number instead of restating a measurement that drifts.
+ *
+ * `comparable` is false where some nick of the enum has no value on the generating
+ * host: that nick carries no number, so every LATER nick sits one position further
+ * along than the library numbers it, and the disagreement measures the version gap
+ * rather than the numbering. Both kinds are returned, because a caller that GUARDS on
+ * this needs them apart — measured 2026-09-06, a generator handed back the member
+ * INDEX instead of the member's value and `GtkEditableProperties` (`num-properties` 8
+ * at position 10, two newer nicks unvalued) was the only enum left on this list, so a
+ * wholly counted oracle went past the one arm that exists to catch exactly that.
  */
 export function countingWouldBeWrong(nickLists, values) {
     const wrong = [];
@@ -193,7 +205,8 @@ export function countingWouldBeWrong(nickLists, values) {
             const value = values.get(entryKey(gtype, nick));
             return value !== undefined && value !== index;
         });
-        if (off.length > 0) wrong.push([gtype, off]);
+        const comparable = nicks.every((nick) => values.has(entryKey(gtype, nick)));
+        if (off.length > 0) wrong.push({ gtype, off, comparable });
     }
     return wrong;
 }

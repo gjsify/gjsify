@@ -12,6 +12,12 @@
 // counting answers 0. `generated/enum-values.mts` is the answer, read from the
 // installed typelib by `scripts/generate-enum-values.mjs`.
 //
+// A SEVENTH enum disagrees with counting on this host and is not evidence of anything
+// about GTK: where the vocabulary describes a newer library than the one installed, a
+// nick with no value shifts every position after it, which is `GtkEditableProperties`
+// below. The run prints the two apart and guards on the six, because an enum that
+// disagrees either way cannot tell a read oracle from a counted one.
+//
 // WHICH HALF EACH GATE HOLDS, and why it is two gates and not one
 //
 // The numbers' SOURCE is a typelib, so the check that holds them against it needs a
@@ -245,24 +251,41 @@ export function inspect(surfaceText, valuesText) {
         );
     }
 
+    // Only an enum whose EVERY nick carries a value is evidence here. On one with a
+    // gap, the unvalued nick shifts every later position, so the enum disagrees with
+    // counting whether the numbers were read or invented — and that is not a hypothesis:
+    // a generator returning the member index instead of its value left
+    // `GtkEditableProperties` as the sole entry on this list, which kept the old
+    // `wrong.length === 0` arm silent about a wholly counted oracle. The only failure
+    // that run produced came from the alias floor below, a different rule that happened
+    // to notice; guarding on the comparable subset is what makes this arm the one that
+    // catches it.
     const wrong = countingWouldBeWrong(nickLists, values);
-    if (wrong.length === 0) {
+    const evidence = wrong.filter((entry) => entry.comparable);
+    const skewed = wrong.filter((entry) => !entry.comparable);
+    if (evidence.length === 0) {
         failures.push(
-            "every nick's value equals its position in the nick list, which is what this artifact exists " +
-                'because it is NOT. Either the values were counted instead of read, or the corpus lost ' +
-                'GtkAlign, GtkResponseType and the four others — and the two want different repairs.',
+            'no enum with a complete nick list carries a value that differs from its position, which is ' +
+                'what this artifact exists because they DO. Either the values were counted instead of read, ' +
+                'or the corpus lost GtkAlign, GtkResponseType and the four others — and the two want ' +
+                'different repairs. An enum some nick of which has no value here cannot stand in: its later ' +
+                'positions are shifted by the gap, so it disagrees with counting either way.',
         );
     }
 
+    const listed = (entries) => entries.map(({ gtype, off }) => `${gtype} (${off.length})`).join(', ');
     notes.push(`${values.size} value(s) over ${nickLists.size} enum type(s), ${covered} nick(s) accounted for`);
     notes.push(
         `${aliases.size} alias(es) over ${aliasGroups} shared value(s), ` +
             `${deprecated.size} deprecated member(s), ${unavailable.size} unavailable on the generating host`,
     );
-    notes.push(
-        `${wrong.length} enum(s) where a nick's value is NOT its position — ` +
-            wrong.map(([gtype, off]) => `${gtype} (${off.length})`).join(', '),
-    );
+    notes.push(`${evidence.length} enum(s) the library numbers off their position — ${listed(evidence)}`);
+    if (skewed.length > 0) {
+        notes.push(
+            `${skewed.length} more differ only because a nick has no value on the generating host, which ` +
+                `shifts every position after it — ${listed(skewed)}`,
+        );
+    }
     return { failures, notes };
 }
 
@@ -375,7 +398,17 @@ vector(
     'an oracle whose values are all their positions',
     "export const ENUM_NICKS: Readonly<Record<string, readonly string[]>> = {\n    GtkOrientation: ['horizontal', 'vertical'],\n};",
     "export const ENUM_VALUES: Readonly<Record<string, number>> = {\n    'GtkOrientation.horizontal': 0,\n    'GtkOrientation.vertical': 1,\n};\nexport const ENUM_ALIASES: Readonly<Record<string, string>> = {};\nexport const ENUM_DEPRECATED: readonly string[] = [];\nexport const ENUM_VALUES_UNAVAILABLE: Readonly<Record<string, string>> = {};",
-    'which is what this artifact exists because it is NOT',
+    'no enum with a complete nick list',
+);
+// The same counted oracle with ONE enum carrying a gap, which is what the corpus
+// actually looks like. The arm above read the whole list and this pair left an entry on
+// it, so it passed a wholly counted artifact — the real GtkEditableProperties, whose
+// `num-properties` sits at position 10 with two newer nicks unvalued, did exactly this.
+vector(
+    'a counted oracle whose one off-position enum has a gap',
+    "export const ENUM_NICKS: Readonly<Record<string, readonly string[]>> = {\n    GtkOrientation: ['horizontal', 'vertical'],\n    GtkEditableProperties: ['prop-text', 'prop-unreleased', 'num-properties'],\n};",
+    "export const ENUM_VALUES: Readonly<Record<string, number>> = {\n    'GtkOrientation.horizontal': 0,\n    'GtkOrientation.vertical': 1,\n    'GtkEditableProperties.prop-text': 0,\n    'GtkEditableProperties.num-properties': 1,\n};\nexport const ENUM_ALIASES: Readonly<Record<string, string>> = {};\nexport const ENUM_DEPRECATED: readonly string[] = [];\nexport const ENUM_VALUES_UNAVAILABLE: Readonly<Record<string, string>> = {\n    'GtkEditableProperties.prop-unreleased': 'Gtk 4.22.4',\n};",
+    'no enum with a complete nick list',
 );
 
 const baseline = inspect(NICKS, VALUES);
