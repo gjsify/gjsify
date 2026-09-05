@@ -1194,6 +1194,32 @@ is Tier 2, so it cannot import it. Either the table moves somewhere both may rea
 GStreamer directly (`Gst.ElementFactory` is already in reach through `gst-init.ts`) and the table
 stays the BUILDER's declaration. The second is smaller and does not move a published contract.
 
+### The theme-class gate counts a name only if it starts with `adw-`
+
+`check-nativescript-theme-classes.mjs` holds every style class a NativeScript widget emits
+against the stylesheet that must carry it, and its filter is one line:
+
+    const isTracked = (name) => name.startsWith('adw-') || UNPREFIXED.has(name);
+
+**Right today, and only because of a distinction ADR 0034 § Amendment 10 had to state
+explicitly**: a widget is named after the library owning its GType, a style class after the
+design system whose stylesheet carries it. Every class this port emits is Adwaita's — the five
+widgets that took GIR names (`GtkButton`, `GtkDropDown`, `GtkEntry`, `GtkMenuButton`,
+`GtkImage`) all still set `adw-*` classes, deliberately.
+
+**What it cannot see** is the day that stops being true. A widget emitting a `gtk-`-prefixed
+class would leave the gate's sight silently: not reported as unstyled, not reported at all —
+the same shape as a seed that matches nothing (#1544), one file over. Measured while renaming
+`AdwIcon`: moving its class to `gtk-image` produced *"listed, but no widget emits it any
+more"* for the ledger entry and NOTHING for the new class, which is the asymmetry.
+
+**Why it is not widened now.** A rule widened before it has a case to serve is a rule nobody
+can check: with no `gtk-`-prefixed class in the tree, the widened filter and the current one
+are indistinguishable on every input, and the vector that would separate them has to invent
+the thing it tests. The trigger to act is the first widget that genuinely wants a GTK-named
+class — at which point the filter becomes `startsWith('adw-') || startsWith('gtk-')` and the
+ledger keys move with it.
+
 ### `gjsify ship --sign`: three things M6 did not prove, each with what WAS measured
 
 The signing interface landed whole (ADR 0024 § A12-§ A17) and its darwin half is

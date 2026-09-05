@@ -1,7 +1,7 @@
 // AdwToggleGroup — a Libadwaita-style segmented control for NativeScript.
 //
 // Renders a REAL NativeScript horizontal `StackLayout` of mutually-exclusive
-// toggle segments (each a tappable box with an optional `AdwIcon` symbolic + a
+// toggle segments (each a tappable box with an optional `GtkImage` symbolic + a
 // `Label`), styled as Adwaita's LINKED toggle group: a tinted rounded container
 // with the selected segment raised to a white pill. Mirrors `Adw.ToggleGroup`:
 // `options` (labels) / `setToggles` (label+icon), `selected` index, and a
@@ -26,7 +26,7 @@
 
 import { Label, StackLayout, type EventData } from '@nativescript/core';
 import { ToggleGroupState } from '@gjsify/adwaita-core';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import { xmlNumber } from './xml-values.js';
 
 // Re-export the headless state machine so consumers can reach it from
@@ -100,7 +100,7 @@ export class AdwToggleGroup extends StackLayout {
             seg.horizontalAlignment = 'center';
 
             if (toggle.icon) {
-                const icon = new AdwIcon();
+                const icon = new GtkImage();
                 icon.className = `${icon.className} adw-toggle-icon`.trim();
                 icon.verticalAlignment = 'middle';
                 icon.iconName = toggle.icon;

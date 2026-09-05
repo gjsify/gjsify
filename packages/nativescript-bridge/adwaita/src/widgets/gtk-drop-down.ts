@@ -33,7 +33,7 @@ import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';
 import { action, Label, StackLayout, type EventData } from '@nativescript/core';
 import { ComboState, normalizeComboOptions } from '@gjsify/adwaita-core';
 import type { AdwComboOption, AdwListModelInput } from '@gjsify/adwaita-core';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
 
@@ -54,7 +54,7 @@ export class GtkDropDown extends StackLayout {
     /** The button label — the selected option. */
     protected readonly _label: Label;
     /** The down-chevron — a real Adwaita `pan-down-symbolic` icon. */
-    protected readonly _chevron: AdwIcon;
+    protected readonly _chevron: GtkImage;
     /** The headless options list + selectedIndex↔selectedValue state machine (ADR 0004). */
     private readonly _state = new ComboState();
     /** Title shown atop the substituted `action()` sheet. */
@@ -71,11 +71,11 @@ export class GtkDropDown extends StackLayout {
         label.text = '';
 
         // `dropdown arrow { min-height: 16px; min-width: 16px }`
-        // (_dropdowns.scss:10-13) — which is exactly `DEFAULT_ADW_ICON_SIZE`, so
+        // (_dropdowns.scss:10-13) — which is exactly `DEFAULT_GTK_IMAGE_SIZE`, so
         // no size is set here. The colour is likewise left alone: an unpinned
-        // AdwIcon follows the light/dark scheme, and GTK draws this arrow in the
+        // GtkImage follows the light/dark scheme, and GTK draws this arrow in the
         // button's own foreground.
-        const chevron = new AdwIcon();
+        const chevron = new GtkImage();
         chevron.className = 'adw-drop-down-chevron';
         chevron.iconName = panDownSymbolic;
 

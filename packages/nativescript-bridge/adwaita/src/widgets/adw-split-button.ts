@@ -1,8 +1,8 @@
 // AdwSplitButton — a Libadwaita-style split button for NativeScript.
 //
 // Renders a REAL NativeScript `GridLayout` (columns `auto, auto`): a tappable
-// main action part (an `AdwIcon` symbolic OR a text `Label`) linked to a tappable
-// dropdown-arrow part (a REAL pan-* / open-menu `AdwIcon`, not a `⌄` glyph).
+// main action part (an `GtkImage` symbolic OR a text `Label`) linked to a tappable
+// dropdown-arrow part (a REAL pan-* / open-menu `GtkImage`, not a `⌄` glyph).
 // Mirrors `Adw.SplitButton`: tapping the main part emits `clicked`; tapping the
 // arrow opens a native `action()` menu from {@link AdwSplitButton.menu} and emits
 // `menuTapped`.
@@ -31,7 +31,7 @@ import {
     assertMenuRenderable,
 } from '@gjsify/adwaita-core';
 import type { AdwMenuActions, AdwMenuInput, AdwMenuModel, SplitButtonDirection } from '@gjsify/adwaita-core';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { MENU_CANCEL_LABEL, presentMenuSheet, refuseMenuString } from './menu-sheet.js';
 import { setActionIcon, splitButtonArrowSvg } from './split-button.js';
@@ -65,11 +65,11 @@ export class AdwSplitButton extends GridLayout {
     /** The action label (shown in label mode). */
     protected readonly _actionLabel: Label;
     /** The action symbolic icon (shown in icon mode). */
-    protected readonly _actionIcon: AdwIcon;
+    protected readonly _actionIcon: GtkImage;
     /** The dropdown-arrow part (column 1). */
     protected readonly _dropdownPart: GridLayout;
     /** The direction arrow. */
-    protected readonly _chevron: AdwIcon;
+    protected readonly _chevron: GtkImage;
     private readonly _state = new SplitButtonState();
     private _actions: AdwMenuActions | null = null;
     /** Which of the two action views is currently parented. */
@@ -105,7 +105,7 @@ export class AdwSplitButton extends GridLayout {
         actionLabel.verticalAlignment = 'middle';
         actionPart.addChild(actionLabel);
 
-        const actionIcon = new AdwIcon();
+        const actionIcon = new GtkImage();
         actionIcon.className = `${actionIcon.className} adw-split-button-action-icon`.trim();
         actionIcon.verticalAlignment = 'middle';
 
@@ -121,7 +121,7 @@ export class AdwSplitButton extends GridLayout {
         dropdownPart.addRow(new ItemSpec(1, 'star'));
         GridLayout.setColumn(dropdownPart, 1);
 
-        const chevron = new AdwIcon();
+        const chevron = new GtkImage();
         chevron.className = `${chevron.className} adw-split-button-chevron`.trim();
         chevron.iconName = splitButtonArrowSvg(this._state.direction);
         chevron.horizontalAlignment = 'center';

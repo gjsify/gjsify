@@ -33,7 +33,7 @@
 
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 import { buildViewSwitcherButtons, viewSwitcherPagesFromStack } from '@gjsify/adwaita-core';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import type { AdwViewStack } from './adw-view-stack.js';
 import { NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
 import { attachRowPressFeedback } from './row-press.js';
@@ -43,7 +43,7 @@ import { xmlBoolean } from './xml-values.js';
 /** The per-button NS nodes, so a selection change repaints instead of rebuilding. */
 interface BarButtonNodes {
     button: StackLayout;
-    icon: AdwIcon;
+    icon: GtkImage;
     label: Label;
     badge: Label;
 }
@@ -200,7 +200,7 @@ export class AdwViewSwitcherBar extends GridLayout {
 
         // Icon and label always exist — the icon carries the `image-missing`
         // fallback rather than disappearing.
-        const icon = new AdwIcon();
+        const icon = new GtkImage();
         icon.className = `${icon.className} adw-viewswitcherbar-button-icon`.trim();
         icon.horizontalAlignment = 'center';
         button.addChild(icon);

@@ -35,7 +35,7 @@ export function statusPageLabelVisibility(text: string | null | undefined): Stat
  * `has_image`, bound to the image's `visible`.
  *
  * C is `paintable || (icon_name && icon_name[0])`; this port has no `paintable`
- * counterpart (the icon is an SVG string handed to `AdwIcon`), so only the second
+ * counterpart (the icon is an SVG string handed to `GtkImage`), so only the second
  * half applies. Kept as its own predicate rather than folded into
  * {@link statusPageLabelVisibility} because upstream really are two closures, and
  * the missing half is a real gap rather than a simplification.

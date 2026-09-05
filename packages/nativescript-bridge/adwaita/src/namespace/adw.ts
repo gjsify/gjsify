@@ -17,7 +17,7 @@
 //   * the widget file's own spelling IS a tag in gtk-host's generated widget table
 //     (`adw-action-row`) -> libadwaita owns the GType -> `Adw.ActionRow`, this file;
 //   * `NS_WIDGET_ALIGNMENT` declares the widget a `gir` alias of a GType whose tag is
-//     `gtk-*` (`adw-icon` is `GtkImage`) -> GTK owns the GType -> `Gtk.Image`, `./gtk.ts`.
+//     `gtk-*` (`gtk-image` is `GtkImage`) -> GTK owns the GType -> `Gtk.Image`, `./gtk.ts`.
 //
 // THE LOOKUP IS THE DIFFERENCE FROM THE WEB SURFACE, and ADR 0034 § 3 says so: this
 // ledger is keyed on GTYPES (`gir: 'GtkButton'`), not on tags, so placing a member is a

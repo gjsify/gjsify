@@ -11,7 +11,7 @@
 // selectedValue mapping, the empty/out-of-range guards, and the programmatic-vs-
 // interactive notify split) is HEADLESS and lives in `@gjsify/adwaita-core` (ADR
 // 0004) as {@link ComboState}; this class composes it and keeps only the NS render
-// half: the inline value `Label` + chevron `AdwIcon`, the native `action()`
+// half: the inline value `Label` + chevron `GtkImage`, the native `action()`
 // chooser, and the `notify::selected` GObject-style signal — all driven by the
 // state object (a programmatic set refreshes the label silently, the chooser pick
 // re-emits `notify::selected`).
@@ -26,7 +26,7 @@ import { action, Label, StackLayout, type EventData } from '@nativescript/core';
 import { ComboState, normalizeComboOptions } from '@gjsify/adwaita-core';
 import type { AdwComboOption, AdwListModelInput } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
 
@@ -50,7 +50,7 @@ export class AdwComboRow extends AdwActionRow {
     /** The dim inline value label (selected option). */
     protected readonly _valueLabel: Label;
     /** The down-chevron — a real Adwaita `pan-down-symbolic` icon. */
-    protected readonly _chevron: AdwIcon;
+    protected readonly _chevron: GtkImage;
     /** The headless options list + selectedIndex↔selectedValue state machine (ADR 0004). */
     private readonly _state = new ComboState();
 
@@ -67,7 +67,7 @@ export class AdwComboRow extends AdwActionRow {
         valueLabel.className = 'adw-combo-value';
         valueLabel.text = '';
 
-        const chevron = new AdwIcon();
+        const chevron = new GtkImage();
         chevron.className = 'adw-combo-chevron';
         chevron.iconColor = '#9a9a9a'; // dim — matches the old chevron's ~0.45 alpha
         chevron.iconSize = 16;

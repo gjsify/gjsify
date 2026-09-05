@@ -28,7 +28,7 @@ import { documentEditSymbolic, objectSelectSymbolic } from '@gjsify/adwaita-icon
 import { ADW_ACCENT_FG_COLOR, EntryRowState, type EntryRowRenderState } from '@gjsify/adwaita-core';
 
 import { AdwActionRow } from './adw-action-row.js';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { NS_EDIT_ICON_CLASS, NS_ENTRY_ROW_CLASS, applyEntryRowState } from './entry-row-view.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
@@ -85,9 +85,9 @@ export class AdwEntryRow extends AdwActionRow {
     /** The trailing affordance box — `Adw.EntryRow`'s suffixes BOX, not a slot. */
     protected readonly _suffixes: StackLayout;
     /** The pencil (`edit_icon`). Non-interactive, like its `can-target=False` original. */
-    protected readonly _editIcon: AdwIcon;
+    protected readonly _editIcon: GtkImage;
     /** The caps-lock warning slot (`indicator`). */
-    protected readonly _indicator: AdwIcon;
+    protected readonly _indicator: GtkImage;
     protected readonly _applyButton: AdwImageButton;
     /** The suffix installed through the inherited single-slot {@link setSuffix}. */
     private _slotSuffix: View | null = null;
@@ -137,8 +137,8 @@ export class AdwEntryRow extends AdwActionRow {
         // The indicator slot starts EMPTY, as upstream's does — `AdwPasswordEntryRow`
         // fills it in. Its visibility (and the apply button's) comes from the first
         // render below, reproducing `adw_entry_row_init`'s hidden start.
-        const indicator = new AdwIcon();
-        indicator.className = 'adw-icon adw-entry-indicator';
+        const indicator = new GtkImage();
+        indicator.className = 'gtk-image adw-entry-indicator';
         suffixes.addChild(indicator);
         this._indicator = indicator;
 
@@ -158,7 +158,7 @@ export class AdwEntryRow extends AdwActionRow {
         suffixes.addChild(applyButton);
         this._applyButton = applyButton;
 
-        const editIcon = new AdwIcon();
+        const editIcon = new GtkImage();
         editIcon.className = NS_EDIT_ICON_CLASS;
         editIcon.iconName = documentEditSymbolic;
         suffixes.addChild(editIcon);

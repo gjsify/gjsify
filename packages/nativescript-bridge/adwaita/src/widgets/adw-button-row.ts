@@ -8,7 +8,7 @@
 //
 // FIDELITY: faithful. The row is a real tappable `GridLayout`; the centered accent
 // label matches `Adw.ButtonRow`'s default. Both icons are REAL Adwaita symbolic
-// icons ({@link AdwIcon}, accent-coloured to match the title).
+// icons ({@link GtkImage}, accent-coloured to match the title).
 //
 // The title/icon visibility rules are HEADLESS and live in
 // `@gjsify/adwaita-core` (ADR 0004) as `ButtonRowState`, shared with
@@ -27,7 +27,7 @@
 import { StackLayout } from '@nativescript/core';
 import { adwaitaAccent, onAdwaitaAccentChanged } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { ButtonRowState, buttonRowIconColor, buttonRowIconVisuals } from './row-state.js';
 
@@ -42,9 +42,9 @@ export class AdwButtonRow extends AdwActionRow {
     /** The horizontal content box (leading icon + centered title + trailing icon). */
     protected readonly _contentBox: StackLayout;
     /** The leading symbolic icon. */
-    protected readonly _startIcon: AdwIcon;
+    protected readonly _startIcon: GtkImage;
     /** The trailing symbolic icon. */
-    protected readonly _endIcon: AdwIcon;
+    protected readonly _endIcon: GtkImage;
     /** An explicit icon fill (the destructive red), or `null` to follow the accent. */
     private _pinnedIconColor: string | null = null;
     /** Live accent subscription — held only while the row is on screen. */
@@ -86,7 +86,7 @@ export class AdwButtonRow extends AdwActionRow {
         // and the generated override repaints it through CSS; these two are
         // pre-coloured bitmaps, so nothing but this re-render can move them —
         // they stayed the constructor's blue on an orange page. Subscribed on
-        // load and dropped on unload, as `AdwIcon` does for the colour scheme.
+        // load and dropped on unload, as `GtkImage` does for the colour scheme.
         this.addEventListener('loaded', () => {
             this._applyIconColor();
             this._unsubAccent ??= onAdwaitaAccentChanged(() => this._applyIconColor());
@@ -116,8 +116,8 @@ export class AdwButtonRow extends AdwActionRow {
 
     /** A centered symbolic icon, collapsed until it has content. Its fill is set by
      *  {@link _applyIconColor}, which is also what follows an accent change. */
-    private static _makeIcon(className: string): AdwIcon {
-        const icon = new AdwIcon();
+    private static _makeIcon(className: string): GtkImage {
+        const icon = new GtkImage();
         icon.className = `${icon.className} ${className}`.trim();
         icon.verticalAlignment = 'middle';
         return icon;
@@ -171,7 +171,7 @@ export class AdwButtonRow extends AdwActionRow {
         this._endIcon.iconColor = color;
     }
 
-    /** Push the derived icon payload + visibility onto the two `AdwIcon`s. */
+    /** Push the derived icon payload + visibility onto the two `GtkImage`s. */
     private _applyIcons(): void {
         const visuals = buttonRowIconVisuals(this._buttonState.state);
         this._startIcon.iconName = visuals.startIcon;

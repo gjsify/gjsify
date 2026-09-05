@@ -64,7 +64,7 @@ export const NS_ENTRY_ROW_CLASS = 'adw-row adw-action-row adw-entry-row';
 export const NS_PASSWORD_ENTRY_ROW_CLASS = `${NS_ENTRY_ROW_CLASS} adw-password-entry-row`;
 
 /** Class list of the trailing pencil. */
-export const NS_EDIT_ICON_CLASS = 'adw-icon adw-entry-edit';
+export const NS_EDIT_ICON_CLASS = 'gtk-image adw-entry-edit';
 
 /**
  * Marker class for a desensitized part. NS has no insensitive state, so the

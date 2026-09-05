@@ -6,7 +6,7 @@
 // rather than the object literal § Amendment 7 left here are all in `./adw.ts`. One
 // statement of it, because a second copy is the one that drifts.
 //
-// `Gtk.Image` IS `AdwIcon`, and it is the one member whose binding does not read like its
+// `Gtk.Image` IS `GtkImage`, and it is the one member whose binding does not read like its
 // name. Converging the CLASS would also change the bare name (`icon` -> `image`), which is
 // what `check-storybook-widget-coverage.mjs` joins the two renderers on, so the rename
 // waits for `@gjsify/adwaita-web` to make it in the same change — ADR 0034 § Amendment 7,
@@ -17,5 +17,5 @@
 export { GtkButton as Button } from '../widgets/gtk-button.js';
 export { GtkDropDown as DropDown } from '../widgets/gtk-drop-down.js';
 export { GtkEntry as Entry } from '../widgets/gtk-entry.js';
-export { AdwIcon as Image } from '../widgets/adw-icon.js';
+export { GtkImage as Image } from '../widgets/gtk-image.js';
 export { GtkMenuButton as MenuButton } from '../widgets/gtk-menu-button.js';
