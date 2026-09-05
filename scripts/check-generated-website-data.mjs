@@ -107,7 +107,7 @@ import {
     attributeKind,
     chainOf,
     coerces,
-    COERCERS,
+    doorFor,
     membersOf,
     readElements,
     readNamespaceSpellings,
@@ -645,9 +645,33 @@ if (nsSources.size === 0) {
         return { slots, named, anyChild };
     };
 
-    /** What a template literal is, in the vocabulary `attributeKind` answers in. */
+    /**
+     * What a template literal is, in the vocabulary `attributeKind` answers in.
+     *
+     * A JSON DOOR is a string in the template and `json` to the classifier, so the spelling
+     * alone cannot tell the two apart — the CONTENT does: a string that parses to a plain
+     * object is the door's, any other string is a plain `string` attribute. That is a real
+     * test rather than a widening, and it is the one a reader of the template needs: an
+     * `adjustment='{"lower":1}'` that stopped being JSON would author nothing at all, in
+     * silence, because the door is total by construction.
+     */
+    const parsesToObject = (value) => {
+        if (typeof value !== 'string') return false;
+        try {
+            const parsed = JSON.parse(value);
+            return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
+        } catch {
+            return false;
+        }
+    };
     const literalKind = (value) =>
-        typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'boolean' : 'string';
+        typeof value === 'number'
+            ? 'number'
+            : typeof value === 'boolean'
+              ? 'boolean'
+              : parsesToObject(value)
+                ? 'json'
+                : 'string';
 
     // A class THIS package declares, told from a NativeScript-core one by its library
     // prefix. `Adw` alone was the test until ADR 0034 clause 1 renamed four widgets to
@@ -702,7 +726,7 @@ if (nsSources.size === 0) {
             if (!coerces(setter, kind)) {
                 failures.push(
                     `${widget}: <${node.tag} ${name}="${value}"> — the setter does not go through ` +
-                        `${COERCERS[kind]}(). NativeScript assigns an attribute VERBATIM, so the widget would ` +
+                        `${doorFor(kind)}(). NativeScript assigns an attribute VERBATIM, so the widget would ` +
                         'receive the STRING: a number falls back to the default and "false" is truthy. ' +
                         '(check-nativescript-xml-doors.mjs holds this for the whole package.)',
                 );

@@ -112,7 +112,7 @@ export const ADWAITA_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
         'copy-button-tooltip',
         'fill-height',
     ],
-    'adw-spin-row': ['title', 'subtitle', 'value', 'min', 'max', 'step'],
+    'adw-spin-row': ['title', 'subtitle', 'value', 'adjustment'],
     'adw-spinner': ['size'],
     'adw-split-button': [
         'label',
@@ -175,7 +175,7 @@ export const ADWAITA_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** How many attributes the web pillar observes in total. */
-export const ADWAITA_ATTRIBUTE_COUNT = 276;
+export const ADWAITA_ATTRIBUTE_COUNT = 274;
 
 /** How many elements the pillar registers. An element with none is still an entry. */
 export const ADWAITA_ELEMENT_COUNT = 65;

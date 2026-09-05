@@ -127,6 +127,24 @@ In markup the value is JSON, which is the door `<adw-combo-row model=…>` alrea
 answered with a whole adjustment would carry `value: 0` into every write and silently reset
 the row, which is the attribute-ordering hazard `spin-row.gtk.tsx` already records for props.
 
+**The markup door needed a word the gates did not have.** `attributeKind()` classified a
+setter's declared type as `number`, `boolean`, `string` — or `null`, meaning "an XML
+attribute cannot carry this". `AdwAdjustmentInput | string` answered `null`, so the setter
+landed in the UNCARRYABLE bucket and no rule looked at it again, while
+`check-generated-website-data.mjs` demanded the whole gallery block be declared a refusal.
+Both were wrong in the same way: an attribute CAN carry an object, as the JSON text a door
+parses, and that is a third kind rather than an absence. It is now `json`, with
+`JSON_DOORS` naming the parsers and `jsonDoors()` verifying each still takes a string and
+still cannot throw — the shape `STRING_TOLERANT` already had.
+
+What opts a setter in is its own declared annotation: `<Something> | string` says the
+attribute spelling exists. `AdwComboRow.model` is annotated `AdwListModelInput`, which
+RESOLVES to a union containing `string` — and a bare string there is one ITEM, not JSON. So
+the test reads the setter's annotation rather than the resolved alias, which is what keeps
+the two apart. The template side is checked by CONTENT rather than spelling: a `json`
+attribute must be a string that parses to a plain object, so an `adjustment='{"lower":1}'`
+that stopped being JSON fails instead of silently authoring nothing.
+
 **A STORY CONTROL keeps `min`/`max`/`step`, and that is not an inconsistency.** Those are
 `adw_spin_row_new_with_range`'s parameter names — GTK's own convenience constructor, which
 the GTK storybook calls — so the three numbers are the AUTHOR's vocabulary and the
@@ -177,6 +195,12 @@ waiting on it, and `status/open-todos.md` carries it.
   clamping, which is harmless only while 0 is inside the range: on `[-5, -1]` a `NaN` write
   clamped to `-1` — the MAXIMUM. `NaN` lands on the lower bound now, and `±Infinity`, which
   carries a direction, clamps to the bound it is heading for.
+
+- **A blind spot in two gates closes with it.** `attributeKind()` had no word for an
+  attribute carrying an OBJECT, so `AdwSpinRow.adjustment` was counted as un-carryable and
+  the gallery block was demanded as a refusal. The `json` kind is that word; removing the
+  `parseAdjustment` call from the setter now reddens `check-nativescript-xml-doors.mjs`
+  with the sentence that names it, which is the A/B this arm was written against.
 
 - **Three vocabulary-ledger entries retire.** The distance
   `check-vocabulary-alignment.mjs` prints goes from ten property names to seven.
