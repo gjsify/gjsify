@@ -29,11 +29,11 @@
 //
 //   · the CHAIN would put `GtkWidget` plus `GtkAccessible`/`GtkBuildable`/
 //     `GtkConstraintTarget` behind every widget, nearly all of it reading as "missing"
-//     on a port whose views are `GridLayout`s — a number nobody can act on. The ladder's
-//     three rungs are MEASURED in `status/open-todos.md`, not written here: a count in a
-//     comment is the copy that drifts, and the one that stood here contradicted that
-//     ladder in the same change. A property a GIR type inherits from a GIR ancestor is
-//     measured on THAT ancestor's row when the port ships the ancestor as a widget too
+//     on a port whose views are `GridLayout`s. The ladder's three rungs are MEASURED in
+//     `status/open-todos.md`, not written here: a count in a comment is the copy that
+//     drifts, and the one that stood here contradicted that ladder in the same change. A
+//     property a GIR type inherits from a GIR ancestor is measured on THAT ancestor's row
+//     when the port ships the ancestor as a widget too
 //     (`AdwSwitchRow`'s `subtitle` is `AdwActionRow`'s, counted on `adw-action-row`) and
 //     not at all when it does not (`AdwSwitchRow`'s `title` is `AdwPreferencesRow`'s and
 //     the port ships no `adw-preferences-row`) — the one under-count, stated not hidden.
@@ -45,8 +45,11 @@
 //   · the generator emits multiword properties twice (`canOpen` beside `'can-open'`), so
 //     without the dedupe every multiword gap would count double.
 //
-// Those exclusions are COUNTED and printed, so the rule cannot drown its findings in
-// false ones and cannot quietly grow a fifth exclusion either.
+// Each exclusion is STATED with what it removes and pinned by its own vector in the
+// shared reader's self-test, and a fifth would have to be added in
+// `gir-scalar-properties.mjs`, where BOTH ratchets would carry it. What no run prints is
+// how many keys each one removes: the ladder in `status/open-todos.md` measures that, and
+// its 293 → 231 rung IS the slot exclusion.
 //
 // THE PORT SIDE RESOLVES THE PORT'S OWN `extends` CHAIN, AND THAT IS NOT A DETAIL
 //
