@@ -49,7 +49,9 @@
 //      bag and drops it, and one that applies it anywhere but last has its own setup
 //      overwrite what the caller asked for. Never forwarded to `super()` either — a
 //      subclass of a subclass would apply the same bag two or three times, once before its
-//      own children exist.
+//      own children exist. AND `NO_CONSTRUCT_PROPS` IS HELD FROM BOTH SIDES, because an
+//      exemption is the one way this arm answers to SUBTRACTION — the incident is at the
+//      loop that checks it.
 //   5. THE `Gtk.Align` TABLE. Its nick list is `GtkAlignNick`'s, in that order and that
 //      spelling; every declared ALIAS names a member that comes before it; and every member
 //      is either mapped onto a NativeScript alignment on BOTH axes or refused with a
@@ -269,6 +271,33 @@ try {
 }
 if (applierSource !== '' && !applierSource.includes('export function applyConstructProps(')) {
     failures.push(`${NS_CONSTRUCT_PROPS} no longer exports applyConstructProps — every widget below calls it.`);
+}
+
+// The exemption is checked back BEFORE it is used, because it is the one way this arm can
+// be answered by SUBTRACTION. Everything below fails a widget that is missing something;
+// an entry here removes a widget from the question entirely, and the count the arm prints
+// then drops by one with nothing else to see. MEASURED on this arm: exempting `AdwAvatar` —
+// concrete, XML-reachable — and deleting its bag took the printed count down by one at exit
+// 0, and an entry for a class the package does not declare at all took it UP by one, also at
+// exit 0, under the words "abstract base(s) declared exempt". So an entry has to name a class
+// that IS here and IS abstract, which is what the note has been claiming on its own.
+for (const [tag, why] of Object.entries(NO_CONSTRUCT_PROPS)) {
+    const declared = sources.get(tag);
+    if (declared === undefined) {
+        failures.push(
+            `NO_CONSTRUCT_PROPS names ${tag}, which no widget source declares. Drop the entry — a stale ` +
+                'exemption reads as considered, and this one is counted in the number the arm prints.',
+        );
+        continue;
+    }
+    if (!new RegExp(`export abstract class ${tag}\\b`).test(declared.text)) {
+        failures.push(
+            `${declared.file}: NO_CONSTRUCT_PROPS exempts ${tag} because "${why}", but ${tag} is not ` +
+                'declared `abstract`. Only a base nobody constructs directly may sit this rule out — a ' +
+                'CONCRETE widget exempted here is a widget a caller can reach with `new`, silently without ' +
+                'the bag, and the only trace is that the printed count is one lower.',
+        );
+    }
 }
 
 let bagged = 0;

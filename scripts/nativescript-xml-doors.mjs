@@ -206,8 +206,13 @@ export const GTK_HOST_NICKS = 'packages/framework/gtk-host/src/generated/props.t
 /**
  * Widget classes that do NOT take a construct-props bag, and why.
  *
- * Checked back like every exemption here: an entry that grows a no-argument constructor,
- * or that stops declaring a class, fails rather than sitting there reading as considered.
+ * ABSTRACT BASES ONLY, and the checker enforces the word rather than trusting it: an entry
+ * must name a class this package still declares, and declares `abstract`. This is the only
+ * table here that can answer a rule by SUBTRACTION — everything else in arm 4 fails a widget
+ * for missing something, while an entry here takes a widget out of the question and shows up
+ * as nothing but a smaller printed count. Measured before it was held: `AdwAvatar` exempted
+ * and stripped of its bag left the gate at exit 0 one widget short, and a name nothing
+ * declares raised the exempt count instead of failing.
  */
 export const NO_CONSTRUCT_PROPS = {
     AdwSplitViewBase:
