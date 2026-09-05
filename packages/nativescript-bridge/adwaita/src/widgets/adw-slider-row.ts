@@ -104,14 +104,22 @@ export class AdwSliderRow extends StackLayout {
         //
         // AND RE-SNAPS, which clamping alone does not do. A moved bound moves the TICK GRID
         // with it — 25 is on `0, 5, 10, …` and off `1, 6, 11, …` — so a value the old grid
-        // allowed can be left between two ticks of the new one. The setters this replaced
-        // ended with `this.value = this._value` for exactly that, and losing it is invisible
-        // to a suite that writes the range before the value.
+        // allowed can be left between two ticks of the new one. The `min` and `max` setters
+        // this replaced ended with `this.value = this._value` for exactly that (`step` did
+        // not, which was its own gap), and losing it is invisible to a suite that writes the
+        // range before the value.
         this._state.subscribeChanged((adjustment) => {
             this._slider.minValue = adjustment.lower;
             this._slider.maxValue = adjustment.upper;
-            this._state.setValue(snapAdjustmentValue(adjustment, this._state.value));
-            this._sync();
+            // ONLY WHEN IT ACTUALLY MOVES. A re-snap is this widget's own arithmetic, not an
+            // author placing a value, and `setValue` cannot tell the two apart — so calling
+            // it unconditionally marked every range write as "a value was written" and made
+            // this row answer a later range move differently from `AdwSpinRow`, which has no
+            // re-snap. An unwritten value sits on the lower bound, which is tick 0, so the
+            // guard is also exactly when there is nothing to do.
+            const snapped = snapAdjustmentValue(adjustment, this._state.value);
+            if (snapped === this._state.value) this._sync();
+            else this._state.setValue(snapped);
         });
 
         slider.addEventListener('valueChange', () => {

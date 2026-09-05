@@ -34,11 +34,12 @@ thirteen GTK widget interfaces and a list `model` on five. An adjustment propert
 `GtkScaleButton`, `GtkScrollbar`, `GtkScrolledWindow`, and `GtkScrollable`'s
 `hadjustment`/`vadjustment` (so `GtkViewport`, which implements it) — read from
 `packages/framework/gtk-host/src/generated/surface-data.mts`, whose provenance line names
-the libraries it was generated from. Three of those declare the property THEMSELVES rather
-than inheriting it: in GTK 4 `GtkScrollbar` and `GtkScrolledWindow` both extend `GtkWidget`
-directly, which is worth stating because the GTK 3 hierarchy they had is the one a reader
-remembers. A numeric range is not a widget's private state on GTK: it is a value the widget
-is HANDED.
+the libraries it was generated from. In that file all seven declare the property THEMSELVES;
+`GtkScale` and `GtkViewport` are the two that inherit it, from `GtkRange` and
+`GtkScrollable`. Worth stating because `GtkScrollbar` and `GtkScrolledWindow` extend
+`GtkWidget` directly in GTK 4, not the two types the GTK 3 hierarchy a reader remembers
+would put above them. A numeric range is not a widget's private state on GTK: it is a value
+the widget is HANDED.
 
 And the arithmetic had already been copied. `AdwSliderRow` — the port's own widget, with no
 libadwaita counterpart — carried four private fields and its own clamp-and-snap; the mock

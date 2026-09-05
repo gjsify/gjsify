@@ -101,6 +101,12 @@ export default async () => {
                 const base = normalizeAdjustment({ stepIncrement: 5 });
                 expect(normalizeAdjustment({ stepIncrement: 0 }, base).stepIncrement).toBe(5);
                 expect(normalizeAdjustment({ stepIncrement: -1 }, base).stepIncrement).toBe(5);
+
+                // And a BASE that carries an impossible step does not propagate it: this
+                // function establishes the invariant, so no argument can talk it out of one.
+                const broken = { value: 0, lower: 0, upper: 10, stepIncrement: 0, pageIncrement: 0, pageSize: 0 };
+                expect(normalizeAdjustment({}, broken).stepIncrement).toBe(1);
+                expect(normalizeAdjustment({ stepIncrement: -2 }, broken).stepIncrement).toBe(1);
             });
 
             await it('lets a page increment EQUAL to the step follow it', () => {
@@ -222,6 +228,17 @@ export default async () => {
                 expect(snapAdjustmentValue(uneven, -99)).toBe(0);
             });
 
+            await it('reaches an on-grid bound whose step is a DECIMAL', () => {
+                // `(0.3 - 0) / 0.1` is 2.9999999999999996 in binary floating point, so a
+                // plain `Math.floor` of it drops a whole tick — and `0 + 3 * 0.1` is
+                // 0.30000000000000004, which is outside the range it belongs to. Both ends
+                // of that error are corrected, and a fractional range is what an author
+                // writes rather than an exotic case.
+                expect(snapAdjustmentValue(scalar(0, 0.3, 0.1), 0.3)).toBe(0.3);
+                expect(snapAdjustmentValue(scalar(0, 0.6, 0.2), 0.6)).toBe(0.6);
+                expect(snapAdjustmentValue(scalar(0, 2.4, 0.8), 2.4)).toBe(2.4);
+            });
+
             await it('answers a TICK even when the drag ends exactly on an off-grid bound', () => {
                 // The gap above the last tick decides it, and it has to be more than half a
                 // step for the rounding to reach the bound at all: `[0, 10]` step 4 has
@@ -301,6 +318,28 @@ export default async () => {
                 resting.setValue(5);
                 resting.configure({ lower: 0 });
                 expect(resting.value).toBe(5);
+            });
+
+            await it('does NOT count a write that says nothing as a placement', () => {
+                // A non-finite value expresses no position, and a stepper press at the end
+                // of the range moves nothing — neither may decide where a later range move
+                // puts the value.
+                const nan = new SpinState();
+                nan.configure({ value: Number.NaN });
+                nan.configure({ lower: -100, upper: -50 });
+                expect(nan.value).toBe(-100);
+
+                const floored = new SpinState();
+                expect(floored.decrement()).toBe(false);
+                floored.configure({ lower: -100, upper: -50 });
+                expect(floored.value).toBe(-100);
+
+                // But a write that names a finite value HAS placed it, even where the number
+                // did not move: 0 was written, and a range excluding it re-clamps.
+                const written = new SpinState();
+                written.setValue(0);
+                written.configure({ lower: -100, upper: -50 });
+                expect(written.value).toBe(-50);
             });
 
             await it('counts a value inside a configure as written', () => {

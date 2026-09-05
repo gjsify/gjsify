@@ -134,7 +134,10 @@ class MockSliderRow {
         // keeps this mock from doing something the widget does not — the shape ADR 0047
         // removed from this file once already.
         this._state.subscribeChanged((adjustment) => {
-            this._state.setValue(snapAdjustmentValue(adjustment, this._state.value));
+            // Guarded as the widget guards it: a re-snap that changes nothing must not mark
+            // the value as WRITTEN, or this row stops answering like `AdwSpinRow`.
+            const snapped = snapAdjustmentValue(adjustment, this._state.value);
+            if (snapped !== this._state.value) this._state.setValue(snapped);
         });
     }
     get value(): number {
@@ -632,6 +635,16 @@ export default async () => {
             row.adjustment = { lower: 16, upper: 64, stepIncrement: 4 };
             row.value = 49; // 16 + round(33/4)*4 = 16 + 8*4 = 48
             expect(row.value).toBe(48);
+        });
+
+        await it('leaves an UNWRITTEN value following the range, as the spin row does', () => {
+            // The re-snap must not place the value: a row nobody has written to opens at the
+            // bottom of whatever range it is given, on both widgets.
+            const row = new MockSliderRow();
+            row.adjustment = { lower: 10, upper: 20 };
+            expect(row.value).toBe(10);
+            row.adjustment = { lower: -100, upper: -50 };
+            expect(row.value).toBe(-100);
         });
 
         await it('re-snaps a settled value when a bound moves the GRID under it', () => {

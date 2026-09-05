@@ -5,9 +5,10 @@
 // `GtkRange` (so `GtkScale`, which extends it), `GtkScaleButton`, `GtkScrollbar`,
 // `GtkScrolledWindow`, and `GtkScrollable`'s `hadjustment`/`vadjustment` (so `GtkViewport`,
 // which implements it) — read from `gtk-host/src/generated/surface-data.mts`, whose
-// provenance line names the libraries it was generated from. Three of the seven declare it
-// THEMSELVES: in GTK 4 `GtkScrollbar` and `GtkScrolledWindow` extend `GtkWidget` directly,
-// not `GtkRange` and `GtkScrollable` as the GTK 3 hierarchy a reader remembers would say.
+// provenance line names the libraries it was generated from — where all seven declare the
+// property THEMSELVES, `GtkScale` and `GtkViewport` being the two that inherit it. In GTK 4
+// `GtkScrollbar` and `GtkScrolledWindow` extend `GtkWidget` directly, not `GtkRange` and
+// `GtkScrollable` as the GTK 3 hierarchy a reader remembers would say.
 // A numeric range is not a widget's own private state on GTK: it is a value the widget is
 // HANDED, which is why one portable value reaches all of them and why three renderers
 // spelling it `min`/`max`/`step` was three spellings of a type that already has a name.
@@ -160,8 +161,8 @@ export function clampAdjustmentValue(adjustment: AdwAdjustment, value: number): 
  * itself a tick — `[0, 10]` step 4 answered `10`, which is off the grid `0, 4, 8` by two —
  * so the function promised the nearest step and returned something that was not a step at
  * all. An upper bound off the grid is simply not reachable by snapping; that is what
- * snapping to ticks means, and it is what the slider row did before this arithmetic had a
- * name.
+ * snapping to ticks means. The slider row's own `_snap` had the same defect before this
+ * arithmetic had a name (`Math.min(this._max, …)`), so this is a repair and not a port.
  *
  * It is a function rather than a mode on {@link SpinState} because only one renderer needs
  * it: a stepper moves BY the step and can never land between ticks, while a dragged slider
@@ -170,9 +171,18 @@ export function clampAdjustmentValue(adjustment: AdwAdjustment, value: number): 
 export function snapAdjustmentValue(adjustment: AdwAdjustment, value: number): number {
     const clamped = clampAdjustmentValue(adjustment, value);
     const [low, high] = adjustmentRange(adjustment);
-    const lastTick = Math.floor((high - low) / adjustment.stepIncrement);
+    const spans = (high - low) / adjustment.stepIncrement;
+    // THE TOLERANCE IS NOT DECORATION. Binary floating point makes an exact tick read as a
+    // hair UNDER one — `(0.3 - 0) / 0.1` is 2.9999999999999996 — and flooring that drops a
+    // whole tick: `[0, 0.3]` step 0.1 answered 0.2, one step below a bound that IS on the
+    // grid. Decimals are what an author writes, so this is the common case rather than the
+    // exotic one. Relative, so it holds at any magnitude, and four orders above the double
+    // epsilon so it cannot swallow a real gap.
+    const lastTick = Math.floor(spans + Math.max(1, Math.abs(spans)) * 1e-12);
     const ticks = Math.min(lastTick, Math.max(0, Math.round((clamped - low) / adjustment.stepIncrement)));
-    return low + ticks * adjustment.stepIncrement;
+    // Clamped again, because `low + ticks * step` accumulates its own error the other way:
+    // `0 + 3 * 0.1` is 0.30000000000000004, which is outside a range ending at 0.3.
+    return Math.min(high, Math.max(low, low + ticks * adjustment.stepIncrement));
 }
 
 /**
@@ -193,7 +203,12 @@ export function normalizeAdjustment(input?: AdwAdjustmentInput | null, base: Adw
     // function declines, and declining it by resetting the step to 1 would make a rejected
     // value change the state anyway.
     const stepCandidate = finite(authored.stepIncrement, base.stepIncrement);
-    const stepIncrement = stepCandidate > 0 ? stepCandidate : base.stepIncrement;
+    const stepIncrement =
+        stepCandidate > 0
+            ? stepCandidate
+            : base.stepIncrement > 0
+              ? base.stepIncrement
+              : ADW_ADJUSTMENT_DEFAULTS.stepIncrement;
     // A page increment EQUAL to the step follows it, so moving the step alone does not
     // silently leave Page Up/Down on the old distance. The test is the two NUMBERS and not
     // the author's intent, which this function cannot see: one authored to the same value
@@ -307,6 +322,11 @@ export class SpinState {
      * is the documented behaviour and a different thing. Without the flag the two are
      * indistinguishable, and a fresh row configured to `[-100, -50]` opened at -50 — the
      * maximum, from an author who wrote no value at all.
+     *
+     * A WRITE PLACES THE VALUE EVEN WHEN THE NUMBER DOES NOT MOVE: `setValue(0)` on a row
+     * already at 0 has still said where the value belongs, and a later range move re-clamps
+     * it rather than re-seeding it. The two exceptions are the two writes that say nothing —
+     * a non-finite value, and a stepper press at the end of the range that moves nothing.
      */
     private _valueSet = false;
     private readonly _listeners = new Set<SpinStateListener>();
@@ -342,9 +362,11 @@ export class SpinState {
     }
 
     private _bump(delta: number): boolean {
-        this._valueSet = true;
         const next = clampAdjustmentValue(this._adjustment, this._adjustment.value + delta);
+        // A press at the end of the range moves nothing and places nothing: the stepper is
+        // the one caller that can be pressed WITHOUT expressing where the value should be.
         if (next === this._adjustment.value) return false;
+        this._valueSet = true;
         this._adjustment = { ...this._adjustment, value: next };
         this._emit(true);
         return true;
@@ -374,7 +396,10 @@ export class SpinState {
         const previous = this._adjustment;
         const seeded = this._valueSet ? previous : { ...previous, value: Number.NaN };
         const next = normalizeAdjustment(input, seeded);
-        if (typeof input?.value === 'number') this._valueSet = true;
+        // A FINITE value is a placement; `NaN` is not one. `typeof NaN === 'number'`, so
+        // taking the loose test would let a garbage write decide where every later range
+        // move puts the value.
+        if (typeof input?.value === 'number' && Number.isFinite(input.value)) this._valueSet = true;
         const rangeMoved =
             next.lower !== previous.lower ||
             next.upper !== previous.upper ||
@@ -393,7 +418,7 @@ export class SpinState {
 
     /** Programmatic value set — clamp, notify `interactive: false` on change. Returns whether it changed. */
     setValue(value: number): boolean {
-        this._valueSet = true;
+        if (Number.isFinite(value)) this._valueSet = true;
         const next = clampAdjustmentValue(this._adjustment, value);
         if (next === this._adjustment.value) return false;
         this._adjustment = { ...this._adjustment, value: next };
@@ -412,7 +437,7 @@ export class SpinState {
      * Returns whether it changed.
      */
     setValueInteractive(value: number): boolean {
-        this._valueSet = true;
+        if (Number.isFinite(value)) this._valueSet = true;
         const next = clampAdjustmentValue(this._adjustment, value);
         if (next === this._adjustment.value) return false;
         this._adjustment = { ...this._adjustment, value: next };

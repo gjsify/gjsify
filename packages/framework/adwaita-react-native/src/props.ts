@@ -592,7 +592,7 @@ export interface AdwComboRowProps extends AdwRowProps {
  * IT USED TO BE THREE SCALARS HERE, hoisted onto the ROW: `lower`, `upper` and
  * `stepIncrement` — the adjustment's own GObject property names, on an object that has
  * none of them. The right vocabulary in the wrong place, and a fourth shape beside the two
- * sibling renderers' `min`/`max`/`step`. All three converged on the value
+ * sibling renderers' `min`/`max`/`step`. All three converged on the one key the row has.
  *
  * `digits` IS A ROW PROPERTY AND NOT AN ADJUSTMENT ONE — `AdwSpinRow:digits`, the number of
  * decimal places DISPLAYED. It is carried because it is the only one of the row's own
