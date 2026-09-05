@@ -23,6 +23,7 @@ import shipFontsSuite from './utils/ship/discover-fonts.spec.js';
 import msgfmtMergeSuite from './utils/msgfmt-merge.spec.js';
 import shipTypelibsSuite from './utils/ship/discover-typelibs.spec.js';
 import shipBundleDiscoverySuite from './utils/ship/discover-bundle.spec.js';
+import base64Suite from './utils/base64.spec.js';
 import shipMimeSuite from './utils/ship/mime.spec.js';
 import shipLicenseSuite from './utils/ship/discover-license.spec.js';
 import shipDependsSuite from './utils/ship/depends.spec.js';
@@ -238,6 +239,7 @@ run(
         shipLocalesSuite,
         shipFontsSuite,
         msgfmtMergeSuite,
+        base64Suite,
         shipMimeSuite,
         shipLicenseSuite,
         shipDependsSuite,

@@ -40,7 +40,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
 
-import { base64Decode, base64Encode } from '@gjsify/buffer';
+import { base64Decode, base64Encode } from '../base64.js';
 
 import { cliVersion } from '../publish-headers.js';
 import { FORMAT_IDS } from './formats.js';

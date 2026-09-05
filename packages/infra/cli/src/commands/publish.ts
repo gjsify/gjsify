@@ -44,7 +44,7 @@ import type { Command } from '../types/index.js';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { base64Encode } from '@gjsify/buffer';
+import { base64Encode } from '../utils/base64.js';
 import { DEFAULT_REGISTRY, registryFor } from '@gjsify/npm-registry';
 import { buildPublishHeaders, escapePackageName } from '../utils/publish-headers.js';
 import { packWorkspace, type PackWorkspaceOptions } from './pack.js';
