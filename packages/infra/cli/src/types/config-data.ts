@@ -472,6 +472,13 @@ export interface ConfigDataShip extends AppMetadata {
     schemas?: string;
     /** Licence file. Default: the first of LICENSE, LICENSE.md, LICENSE.txt, COPYING. */
     licenseFile?: string;
+    /**
+     * The project's own changelog, rendered into the `.deb`'s
+     * `share/doc/<package>/changelog.Debian.gz` (Debian Policy § 4.4).
+     * Default: the first of CHANGELOG.md, CHANGELOG, CHANGELOG.txt, NEWS.md,
+     * searched up to the repository root exactly as `licenseFile` is.
+     */
+    changelogFile?: string;
     /** deb `Section:`. Default: derived from `categories`. */
     section?: string;
     /** rpm `Group:`. Default: derived from `categories`. */

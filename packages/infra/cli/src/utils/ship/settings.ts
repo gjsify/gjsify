@@ -55,6 +55,7 @@ export interface DiscoveredPayload {
     /** Absolute paths of the font faces the application ships itself. */
     fontFiles: string[];
     licenseFile?: string;
+    changelogFile?: string;
 }
 
 export interface SettingsInput {
@@ -295,6 +296,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         description,
         license,
         licenseFile: discovered.licenseFile,
+        changelogFile: discovered.changelogFile,
         homepage: metadata.homepageUrl ?? pkg.homepage,
         section: ship.section ?? sections.section,
         group: ship.group ?? sections.group,
@@ -515,6 +517,9 @@ export function descriptionParagraphs(
 
 /** `LICENSE`, `LICENSE.md`, … — the names a licence file actually has. */
 export const LICENSE_FILE_NAMES = ['LICENSE', 'LICENSE.md', 'LICENSE.txt', 'COPYING', 'COPYING.md'] as const;
+
+/** `CHANGELOG.md`, … — the names a project's own changelog actually has. */
+export const CHANGELOG_FILE_NAMES = ['CHANGELOG.md', 'CHANGELOG', 'CHANGELOG.txt', 'NEWS.md', 'NEWS'] as const;
 
 /** The bundle's own basename, used as the launcher's exec target. */
 export function bundleEntryName(bundlePath: string): string {

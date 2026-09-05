@@ -305,6 +305,11 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // /usr/share/doc/<package>/copyright, and lintian errors without it.
         licenseDest: (binaryName) => `share/doc/${binaryName}/copyright`,
         licenseKind: 'debian-copyright',
+        // Debian Policy § 4.4. `.Debian` and not plain `changelog` because
+        // `deb.ts` writes `Version: <version>-<release>`, i.e. a Debian
+        // revision, i.e. a non-native package — which is the half of lintian's
+        // `no-changelog … (non-native package)` that names the FILE.
+        changelogDest: (binaryName) => `share/doc/${binaryName}/changelog.Debian.gz`,
         archName: debArch,
         fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}_${s.version}-${s.release}_${archLabel}.deb`,
         artifactKind: 'file',

@@ -1111,12 +1111,57 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
     // it is one flag in one script — so assert the flag is still there. Without
     // this, dropping it would be invisible until a release aborted in exactly
     // the wrong place.
-    it('the npm:publish sweep publishes in dependency order', () => {
+    // THE SUBJECT IS DERIVED, because it moved once and this assertion did not
+    // move with it. #1522 split `npm:publish` into `build && build:examples &&
+    // npm:publish:prebuilt` and pointed `release.yml` at the second half; a test
+    // that reads `scripts['npm:publish']` literally then sees three `gjsify run`
+    // calls and no sweep at all. So: ask the WORKFLOW which root script the
+    // release runs, and expand `gjsify run <name>` until the commands appear.
+    // Naming the script here instead would re-open the same hole one rename later.
+    it('the release publish sweep publishes in dependency order', () => {
         const rootManifest = JSON.parse(
             readFileSync(fileURLToPath(new URL('../../../package.json', import.meta.url)), 'utf8'),
         );
-        const script = rootManifest.scripts['npm:publish'];
-        assert.ok(script, 'root package.json must declare npm:publish');
+        const workflow = readFileSync(
+            fileURLToPath(new URL('../../../.github/workflows/release.yml', import.meta.url)),
+            'utf8',
+        );
+
+        /** `gjsify run a` where `a` is `… && gjsify run b` → both bodies, one string. */
+        const expand = (name, seen = new Set()) => {
+            if (seen.has(name)) return '';
+            seen.add(name);
+            const body = rootManifest.scripts[name];
+            if (body === undefined) return '';
+            return body.replace(/gjsify run ([\w:.-]+)/g, (whole, ref) => expand(ref, seen) || whole);
+        };
+
+        // Every root script the publish step of `release.yml` invokes, plus the
+        // human entry point — the partial-publish hazard is the sweep's, not the
+        // caller's, so a hand publish from a checkout has to be ordered too.
+        // COMMENT LINES DROPPED FIRST. The step below this one opens with a
+        // comment quoting `gjsify run build`, and a slice that keeps it makes this
+        // test assert publish order over the root build script — green or red for
+        // reasons that have nothing to do with the sweep.
+        const body = workflow
+            .split('\n')
+            .filter((line) => !/^\s*#/.test(line))
+            .join('\n');
+        const step = body.slice(body.indexOf('name: Publish packages to npm'));
+        const invoked = [...step.slice(0, step.indexOf('\n      - name:')).matchAll(/gjsify run ([\w:.-]+)/g)].map(
+            ([, name]) => name,
+        );
+        assert.ok(
+            invoked.length > 0,
+            "this test could not find a `gjsify run <script>` in release.yml's `Publish packages to npm` step, so " +
+                'it does not know which sweep ships. Update it to match the new shape.',
+        );
+        for (const name of invoked) {
+            assert.ok(
+                rootManifest.scripts[name],
+                `release.yml's publish step runs \`gjsify run ${name}\`, which the root package.json does not declare`,
+            );
+        }
 
         // The flag has to belong to `gjsify foreach`, NOT to the command it
         // execs. Matching it anywhere in the segment also accepted
@@ -1127,25 +1172,28 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
         // command. `[^&|]` keeps a segment from spilling across a `&&`.
         const SWEEP = /gjsify foreach\b((?:(?!--exec\b)[^&|])*)--exec\b([^&|]*)/g;
         const ORDER_FLAG = /(?:^|\s)(?:--topological\b|-[a-zA-Z]*t[a-zA-Z]*\b)/; // --topological | -t | a cluster like -vt
-        const sweeps = [...script.matchAll(SWEEP)].filter(([, , execed]) => /\bgjsify publish\b/.test(execed));
-        // Not "no sweep, nothing to check": an assertion that cannot locate its
-        // subject has verified nothing, and passing there is the failure mode
-        // this whole PR is about. If the publish sweep is respelled, this test
-        // gets updated deliberately.
-        assert.ok(
-            sweeps.length > 0,
-            'this test could not find a `gjsify foreach … --exec … gjsify publish …` sweep in npm:publish, so it ' +
-                `verified NOTHING about publish order. Update it to match the new shape. Got: ${script}`,
-        );
-        for (const [, foreachArgv] of sweeps) {
-            assert.match(
-                foreachArgv,
-                ORDER_FLAG,
-                'the `gjsify foreach` publish sweep must carry --topological in its OWN arguments: the graph counts ' +
-                    'optionalDependencies, so every platform child precedes its bridge and any prefix of an aborted ' +
-                    'sweep is still a resolvable tree. Unordered, a fail-fast abort can publish a bridge pinning ' +
-                    `siblings that do not exist. Got: ${script}`,
+        for (const name of [...invoked, 'npm:publish']) {
+            const script = expand(name);
+            const sweeps = [...script.matchAll(SWEEP)].filter(([, , execed]) => /\bgjsify publish\b/.test(execed));
+            // Not "no sweep, nothing to check": an assertion that cannot locate its
+            // subject has verified nothing, and passing there is the failure mode
+            // this whole PR is about. If the publish sweep is respelled, this test
+            // gets updated deliberately.
+            assert.ok(
+                sweeps.length > 0,
+                `this test could not find a \`gjsify foreach … --exec … gjsify publish …\` sweep in ${name}, so it ` +
+                    `verified NOTHING about publish order. Update it to match the new shape. Got: ${script}`,
             );
+            for (const [, foreachArgv] of sweeps) {
+                assert.match(
+                    foreachArgv,
+                    ORDER_FLAG,
+                    'the `gjsify foreach` publish sweep must carry --topological in its OWN arguments: the graph ' +
+                        'counts optionalDependencies, so every platform child precedes its bridge and any prefix of ' +
+                        'an aborted sweep is still a resolvable tree. Unordered, a fail-fast abort can publish a ' +
+                        `bridge pinning siblings that do not exist. In ${name}: ${script}`,
+                );
+            }
         }
     });
 });

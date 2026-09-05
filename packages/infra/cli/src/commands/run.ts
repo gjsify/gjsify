@@ -17,6 +17,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { basename, delimiter, join, resolve } from 'node:path';
 import type { Command } from '../types/index.js';
+import { doubleDashArgs } from '../utils/double-dash-args.js';
 import { describeExit, spawnToCompletion } from '../utils/spawn.js';
 import { runGjsBundle } from '../utils/run-gjs.js';
 import { runRuntimeBundle } from '../utils/run-node.js';
@@ -116,6 +117,11 @@ export const runCommand: Command<unknown, RunOptions> = {
                 // Without this, anything after `--` lands in args._ and is
                 // silently dropped by the handler.
                 'populate--': true,
+                // …and hand that tail on as the TEXT the caller typed. Without
+                // this yargs types a bare number in the array — and in the
+                // `[args..]` positional — as a `number`, which the reader below
+                // used to drop outright (#1531).
+                'parse-positional-numbers': false,
                 // Forward UNKNOWN flags to the target without requiring `--`:
                 //   gjsify run dist/app.gjs.mjs serve --port 8080 --year 2025
                 // Without this, the top-level `.strict()` (cli-app.ts) rejects
@@ -134,10 +140,7 @@ export const runCommand: Command<unknown, RunOptions> = {
         // than silently discarding them (without it they land in args._ and
         // are never forwarded to the child).
         const positionalArgs = (args.args as string[]) ?? [];
-        const doubleDashArgs = (((args as Record<string, unknown>)['--'] as unknown[]) ?? []).filter(
-            (v): v is string => typeof v === 'string',
-        );
-        const extraArgs = [...positionalArgs, ...doubleDashArgs];
+        const extraArgs = [...positionalArgs, ...doubleDashArgs(args)];
 
         // `--node-script` (explicit) → run an UNBUNDLED Node-style script on the
         // host runtime; under GJS it is bundled `--app gjs` on the fly first.

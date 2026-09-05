@@ -10,6 +10,7 @@
 // project pays the most for.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { gunzip } from '@gjsify/tar';
 
 import { assertOverlayIsLicensed, iconSizeDir, planOverlay, planStage, type StageInputs } from './plan.js';
 import { FORMATS } from './formats.js';
@@ -60,8 +61,21 @@ function inputs(overrides: Partial<StageInputs> = {}): StageInputs {
         launcher: '#!/bin/sh\n',
         metainfo: '<component/>\n',
         desktopEntry: '[Desktop Entry]\n',
+        // 2026-09-05T12:34:56Z — a fixed build stamp, so the changelog trailer below
+        // is an equality rather than an "is a date" shape check.
+        mtime: 1_788_611_696,
         ...overrides,
     };
+}
+
+/** The message an awaited rejection carried, or `''` when it resolved. */
+async function rejection(promise: Promise<unknown>): Promise<string> {
+    try {
+        await promise;
+        return '';
+    } catch (error) {
+        return (error as Error).message;
+    }
 }
 
 export default async () => {
@@ -225,8 +239,7 @@ export default async () => {
 
     await describe('planOverlay', async () => {
         await it('writes Debian machine-readable copyright, with blank lines escaped', async () => {
-            const overlay = planOverlay(settings(), FORMATS.deb, inputs({ licenseText: 'MIT\n\nPermission…\n' }));
-            expect(overlay.length).toBe(1);
+            const overlay = await planOverlay(settings(), FORMATS.deb, inputs({ licenseText: 'MIT\n\nPermission…\n' }));
             expect(overlay[0]?.path).toBe('share/doc/hello/copyright');
             const text = overlay[0]?.source.kind === 'text' ? overlay[0].source.text : '';
             expect(text).toContain('Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/');
@@ -235,9 +248,37 @@ export default async () => {
         });
 
         await it('copies the licence verbatim for rpm', async () => {
-            const overlay = planOverlay(settings(), FORMATS.rpm, inputs({ licenseText: 'MIT\n\nPermission…\n' }));
+            const overlay = await planOverlay(settings(), FORMATS.rpm, inputs({ licenseText: 'MIT\n\nPermission…\n' }));
+            expect(overlay.length).toBe(1);
             expect(overlay[0]?.path).toBe('share/licenses/hello/LICENSE');
             expect(overlay[0]?.source.kind === 'text' ? overlay[0].source.text : '').toBe('MIT\n\nPermission…\n');
+        });
+
+        // Debian Policy § 4.4, the last error-severity lintian tag the hand-written
+        // writer had left: `E: no-changelog usr/share/doc/gjsify/changelog.Debian.gz
+        // (non-native package)`. GZIPPED HERE and not at pack time, because
+        // `--from-stage` rehydrates these bytes out of the sidecar and packs them.
+        await it('gzips a Debian changelog beside the copyright', async () => {
+            const overlay = await planOverlay(settings(), FORMATS.deb, inputs({ licenseText: 'MIT\n' }));
+            expect(overlay.length).toBe(2);
+            expect(overlay[1]?.path).toBe('share/doc/hello/changelog.Debian.gz');
+            const data = overlay[1]?.source.kind === 'bytes' ? overlay[1].source.data : new Uint8Array();
+            // The gzip magic, and a zeroed header stamp — two hosts packing one stage
+            // have to produce the same bytes (utils/ship/gzip.ts).
+            expect([data[0], data[1]]).toStrictEqual([0x1f, 0x8b]);
+            expect([data[4], data[5], data[6], data[7]]).toStrictEqual([0, 0, 0, 0]);
+            expect(new TextDecoder().decode(await gunzip(data))).toBe(
+                'hello (1.0.0-1) unstable; urgency=medium\n' +
+                    '\n' +
+                    '  * Release 1.0.0. See https://example.org for the upstream changes.\n' +
+                    '\n' +
+                    ' -- Dev <dev@example.org>  Sat, 05 Sep 2026 12:34:56 +0000\n',
+            );
+        });
+
+        await it('leaves rpm without one, because rpm requires none', async () => {
+            const overlay = await planOverlay(settings(), FORMATS.rpm, inputs({ licenseText: 'MIT\n' }));
+            expect(overlay.map((file) => file.path)).toStrictEqual(['share/licenses/hello/LICENSE']);
         });
 
         // This case USED to assert `.length === 0`, and that empty overlay is
@@ -245,8 +286,12 @@ export default async () => {
         // `/usr/share/doc/gjsify/copyright`. The package installed; only a real
         // `lintian` on a bare-ubuntu leg ever said otherwise.
         await it('refuses a project with no licence file, naming the file that would be missing', async () => {
-            expect(() => planOverlay(settings(), FORMATS.deb, inputs())).toThrow(/share\/doc\/hello\/copyright/);
-            expect(() => planOverlay(settings(), FORMATS.rpm, inputs())).toThrow(/share\/licenses\/hello\/LICENSE/);
+            expect(await rejection(planOverlay(settings(), FORMATS.deb, inputs()))).toContain(
+                'share/doc/hello/copyright',
+            );
+            expect(await rejection(planOverlay(settings(), FORMATS.rpm, inputs()))).toContain(
+                'share/licenses/hello/LICENSE',
+            );
         });
     });
 
@@ -259,7 +304,7 @@ export default async () => {
         });
 
         await it('passes an overlay that carries a licence', async () => {
-            const overlay = planOverlay(settings(), FORMATS.deb, inputs({ licenseText: 'MIT\n' }));
+            const overlay = await planOverlay(settings(), FORMATS.deb, inputs({ licenseText: 'MIT\n' }));
             assertOverlayIsLicensed('deb', 'hello', overlay);
         });
     });

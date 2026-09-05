@@ -15,6 +15,7 @@ import type { Command } from '../types/index.js';
 import { runGjsBundle } from '../utils/run-gjs.js';
 import { parseSpec, type ParsedSpec } from '../utils/parse-spec.js';
 import { resolveGjsEntry } from '../utils/resolve-gjs-entry.js';
+import { doubleDashArgs } from '../utils/double-dash-args.js';
 import {
     cacheDirFor,
     createCacheKey,
@@ -47,7 +48,11 @@ export const dlxCommand: Command<unknown, DlxOptions> = {
             // --help` shows ts-for-gir's --help instead of gjsify dlx's.
             // Without `populate--`, the trailing `--help` is consumed at
             // the gjsify level and the bundle never sees it.
-            .parserConfiguration({ 'populate--': true })
+            // `parse-positional-numbers: false` alongside it: the `--` tail and the
+            // `[extraArgs..]` positional are the caller's argv, not numbers, and yargs
+            // otherwise retypes a bare `5` (#1531). `--cache-max-age` declares
+            // `type: 'number'` and is unaffected.
+            .parserConfiguration({ 'populate--': true, 'parse-positional-numbers': false })
             .positional('spec', {
                 description: 'Package spec (`name`, `name@version`, `@scope/name@spec`, or local path).',
                 type: 'string',
@@ -111,10 +116,7 @@ export const dlxCommand: Command<unknown, DlxOptions> = {
         // number)[]`), so flags like `--help` reach the bundle untouched.
         // Merge those into the positional extraArgs the splitter sees so
         // both call shapes share one downstream path.
-        const passthroughDoubleDash = ((args as { ['--']?: ReadonlyArray<string | number> })['--'] ?? []).map((v) =>
-            String(v),
-        );
-        const extraArgsCombined = [...(args.extraArgs ?? []), ...passthroughDoubleDash];
+        const extraArgsCombined = [...(args.extraArgs ?? []), ...doubleDashArgs(args)];
         const { binName, extraArgs } = splitBinAndArgs(pkgDir, args.binOrArg, extraArgsCombined);
 
         const entry = resolveGjsEntry(pkgDir, binName);

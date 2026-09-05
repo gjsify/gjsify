@@ -11,6 +11,7 @@ import bundlerPickSuite from './bundler-pick.spec.js';
 import reflectionTransformOrderSuite from './reflection-transform-order.spec.js';
 import cliFailSuite from './cli-fail.spec.js';
 import shipPlanSuite from './utils/ship/plan.spec.js';
+import shipChangelogSuite from './utils/ship/changelog.spec.js';
 import shipLayoutSuite from './utils/ship/layout.spec.js';
 import shipPayloadSuite from './utils/ship/payload.spec.js';
 import shipLauncherSuite from './utils/ship/launcher.spec.js';
@@ -22,6 +23,7 @@ import shipFontsSuite from './utils/ship/discover-fonts.spec.js';
 import msgfmtMergeSuite from './utils/msgfmt-merge.spec.js';
 import shipTypelibsSuite from './utils/ship/discover-typelibs.spec.js';
 import shipBundleDiscoverySuite from './utils/ship/discover-bundle.spec.js';
+import base64Suite from './utils/base64.spec.js';
 import shipMimeSuite from './utils/ship/mime.spec.js';
 import shipLicenseSuite from './utils/ship/discover-license.spec.js';
 import shipDependsSuite from './utils/ship/depends.spec.js';
@@ -121,6 +123,7 @@ import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.j
 import platformResolveSuite from './platform-resolve.spec.js';
 import reactNativeAliasSuite from './react-native-alias.spec.js';
 import reactNativeGateSuite from './react-native-gate.spec.js';
+import doubleDashArgsSuite from './utils/double-dash-args.spec.js';
 
 // ---------------------------------------------------------------------------
 // Capability-gated skips
@@ -224,6 +227,7 @@ run(
         reflectionTransformOrderSuite,
         cliFailSuite,
         shipPlanSuite,
+        shipChangelogSuite,
         shipLayoutSuite,
         shipPayloadSuite,
         shipTypelibsSuite,
@@ -235,6 +239,7 @@ run(
         shipLocalesSuite,
         shipFontsSuite,
         msgfmtMergeSuite,
+        base64Suite,
         shipMimeSuite,
         shipLicenseSuite,
         shipDependsSuite,
@@ -327,6 +332,7 @@ run(
         prunePrefixSuite,
         unresolvedWorkspaceImportSuite,
         platformResolveSuite,
+        doubleDashArgsSuite,
         reactNativeAliasSuite,
         reactNativeGateSuite,
     },

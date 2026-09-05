@@ -9,7 +9,12 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 
 import type { ConfigDataShip } from '../../types/config-data.js';
-import { LICENSE_FILE_NAMES, type DiscoveredPayload, type ShipPackageManifest } from './settings.js';
+import {
+    CHANGELOG_FILE_NAMES,
+    LICENSE_FILE_NAMES,
+    type DiscoveredPayload,
+    type ShipPackageManifest,
+} from './settings.js';
 
 const ICON_EXTENSIONS = ['.svg', '.png'];
 
@@ -89,6 +94,7 @@ export function discoverPayload(input: DiscoverInput): DiscoveredPayload {
         localeFiles,
         fontFiles: discoverFonts(projectDir, ship.fonts),
         licenseFile: discoverLicense(projectDir, ship.licenseFile),
+        changelogFile: discoverChangelog(projectDir, ship.changelogFile),
     };
 }
 
@@ -430,6 +436,40 @@ function discoverLicense(projectDir: string, configured: string | undefined): st
     }
     for (const dir of licenseSearchDirs(projectDir)) {
         for (const name of LICENSE_FILE_NAMES) {
+            const target = join(dir, name);
+            if (existsSync(target)) return target;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * The project's own changelog — the prose the `.deb`'s `changelog.Debian.gz` is
+ * rendered from (Debian Policy § 4.4).
+ *
+ * SAME SEARCH AS THE LICENCE, deliberately, and for the same reason: a package
+ * inside a monorepo does not carry its own copy. `packages/infra/cli` has no
+ * CHANGELOG.md and the release train writes one at the repository root, so a
+ * `projectDir`-only search would find nothing for the one in-tree project that
+ * declares `gjsify.ship`. {@link licenseSearchDirs} stops at the first ancestor
+ * that is a project root, which is what keeps an unrelated parent directory's
+ * file out.
+ *
+ * Absence is NOT an error here, unlike the licence: Policy § 4.4 requires the
+ * FILE, not a particular history, and `renderDebianChangelog` writes a
+ * one-line entry naming the version when there is no prose to quote. Refusing
+ * would make a changelog a precondition for packaging anything.
+ */
+function discoverChangelog(projectDir: string, configured: string | undefined): string | undefined {
+    if (configured !== undefined) {
+        const target = resolve(projectDir, configured);
+        if (!existsSync(target)) {
+            throw new Error(`gjsify ship: the configured changelog file ${configured} does not exist.`);
+        }
+        return target;
+    }
+    for (const dir of licenseSearchDirs(projectDir)) {
+        for (const name of CHANGELOG_FILE_NAMES) {
             const target = join(dir, name);
             if (existsSync(target)) return target;
         }

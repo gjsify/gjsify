@@ -3,6 +3,8 @@
 // as `utils/copy-targets.ts`, and for the same reason: a stager that discovers
 // its own inputs can only be tested by building a real project.
 
+import { renderDebianChangelog } from './changelog.js';
+import { gzipDeterministic } from './gzip.js';
 import { renderMimePackage } from './mime.js';
 import { SHARE } from './share-dirs.js';
 import { basename, extname, posix } from 'node:path';
@@ -21,6 +23,10 @@ export interface StageInputs {
     desktopEntry?: string;
     /** Contents of the project's licence file, when one was found. */
     licenseText?: string;
+    /** Contents of the project's own changelog, when one was found. */
+    changelogText?: string;
+    /** The build stamp every header and every rendered file shares — the changelog's date. */
+    mtime: number;
 }
 
 /**
@@ -184,7 +190,11 @@ function planFonts(settings: ShipSettings): StagedFile[] {
  * missing `LICENSE` — actually is; {@link assertOverlayIsLicensed} repeats it at
  * pack time for a stage that arrived from somewhere else.
  */
-export function planOverlay(settings: ShipSettings, format: FormatDescriptor, inputs: StageInputs): StagedFile[] {
+export async function planOverlay(
+    settings: ShipSettings,
+    format: FormatDescriptor,
+    inputs: StageInputs,
+): Promise<StagedFile[]> {
     if (inputs.licenseText === undefined) {
         throw new Error(
             `gjsify ship: no licence file found, so the ${format.id} package would ship no ` +
@@ -198,7 +208,25 @@ export function planOverlay(settings: ShipSettings, format: FormatDescriptor, in
         format.licenseKind === 'debian-copyright'
             ? renderDebianCopyright(settings, inputs.licenseText)
             : inputs.licenseText;
-    return [{ path: format.licenseDest(settings.binaryName), mode: 0o644, source: { kind: 'text', text } }];
+    const files: StagedFile[] = [
+        { path: format.licenseDest(settings.binaryName), mode: 0o644, source: { kind: 'text', text } },
+    ];
+
+    // COMPRESSED HERE, not at pack time, and that is what makes the two-phase
+    // handoff sound: `--from-stage` rehydrates the overlay out of the sidecar and
+    // packs it, so the assembling host's bytes have to BE the shipped bytes. A
+    // gzip performed on the packing host would put a second compressor's output in
+    // an artifact whose every other byte came from the first. `gzipDeterministic`
+    // zeroes the header stamp for the usual reason (utils/ship/gzip.ts).
+    if (format.changelogDest !== undefined) {
+        const changelog = renderDebianChangelog(settings, inputs.changelogText, inputs.mtime);
+        files.push({
+            path: format.changelogDest(settings.binaryName),
+            mode: 0o644,
+            source: { kind: 'bytes', data: await gzipDeterministic(new TextEncoder().encode(changelog)) },
+        });
+    }
+    return files;
 }
 
 /**
