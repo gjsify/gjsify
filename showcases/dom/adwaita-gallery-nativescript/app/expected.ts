@@ -149,7 +149,7 @@ export const EXPECTED: readonly ExpectView[] = [
             ] }
     },
     { widget: 'Adw.Avatar', view: 'AdwAvatar', root:
-        { tag: 'adw:Avatar', props: {"text":"Ada Lovelace","size":96} }
+        { tag: 'adw:Avatar', props: {"text":"Ada Lovelace","size":96,"showInitials":true} }
     },
     { widget: 'Adw.Banner', view: 'AdwBanner', root:
         { tag: 'adw:Banner', props: {"title":"Metered connection: updates paused","buttonLabel":"Resume","revealed":true} }

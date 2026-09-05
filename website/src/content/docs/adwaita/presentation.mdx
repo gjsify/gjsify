@@ -77,12 +77,16 @@ it from an inline list glyph up to a full profile header.
   <Fragment slot="nativescript">
     ```ts
     import { Adw } from '@gjsify/adwaita-nativescript';
+    import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 
     const avatar = new Adw.Avatar();
     avatar.text = 'Ada Lovelace';
     avatar.size = 96;
-    // The NS avatar always shows derived initials. The CSS-subset widget has no
-    // icon-theme lookup, so `showInitials` / `iconName` have no equivalent.
+    avatar.showInitials = true;
+    // `iconName` takes the SVG SOURCE, not a theme name — nothing on this runtime
+    // resolves one, so the fallback glyph is handed in. Left empty it is the same
+    // Adwaita person icon, and `showInitials = false` is what shows it.
+    avatar.iconName = avatarDefaultSymbolic;
     ```
   </Fragment>
 </AdwWidget>

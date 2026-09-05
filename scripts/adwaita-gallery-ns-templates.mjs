@@ -287,7 +287,12 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
     {
         widget: 'Adw.Avatar',
         page: 'presentation',
-        root: { tag: 'AdwAvatar', props: { text: 'Ada Lovelace', size: 96 } },
+        // `showInitials` and not `iconName`: the icon property is an SVG SOURCE (the
+        // same reason `AdwStatusPage` below reaches for `iconText`), and an unset one
+        // already falls back to the Adwaita person glyph — so the attribute worth
+        // showing is the one that CHOOSES between the two, which is a boolean and
+        // carries through XML.
+        root: { tag: 'AdwAvatar', props: { text: 'Ada Lovelace', size: 96, showInitials: true } },
     },
     {
         widget: 'Adw.Banner',

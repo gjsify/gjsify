@@ -3,4 +3,5 @@
   xmlns:adw="~/adw"
   text="Ada Lovelace"
   size="96"
+  showInitials="true"
 />
