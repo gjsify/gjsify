@@ -82,7 +82,7 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
         widget: 'Adw.ActionRow',
         page: 'boxed-lists',
         // The prefix icon and the chevron the GTK snippet carries are NOT here, and
-        // the reason is one door up: `AdwIcon.iconName` takes an SVG SOURCE, not an icon
+        // the reason is one door up: `GtkImage.iconName` takes an SVG SOURCE, not an icon
         // name, so a template that wanted one would have to inline the whole
         // document into an attribute. The measured pattern in this port is an `id`
         // in the markup and the icon assigned in the code-behind — which is what the

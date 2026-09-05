@@ -851,7 +851,9 @@ if (nsSources.size === 0) {
     // Class -> the XML name of it, off the package's OWN namespace barrels. That is the
     // independent side: `nsDeclaredClasses` knows every class and no prefix rule, these
     // know the placement and no template, and the generator is what has to agree with
-    // both. `Gtk.Image` binding `AdwIcon` is why this is a lookup and not a transform.
+    // both. A lookup and not a transform because the barrel DECIDES the placement; the
+    // member that used to show it — `Gtk.Image` binding `AdwIcon` — reads alike since
+    // ADR 0034 § Amendment 10, and none is left that does not.
     const nsPlacement = new Map();
     for (const [spelling, klass] of readNamespaceSpellings(ROOT)) {
         const [namespace, member] = spelling.split('.');

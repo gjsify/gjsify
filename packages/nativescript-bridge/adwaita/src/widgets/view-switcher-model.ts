@@ -24,7 +24,7 @@ import type { AdwViewSwitcherPageInit, ViewSwitcherStateChange } from '@gjsify/a
  * `icon` are NULLABLE on purpose: a page with neither renders no button at all, and
  * an absent title flattened to `''` makes that rule inexpressible.
  *
- * `icon` is an Adwaita symbolic SVG DOCUMENT here, not a GTK icon name: `AdwIcon`
+ * `icon` is an Adwaita symbolic SVG DOCUMENT here, not a GTK icon name: `GtkImage`
  * rasterises the path data natively. The core treats the field as an opaque
  * handle and only ever interprets "absent or empty"; {@link nsIconSvg} resolves
  * the fallback sentinel it hands back.
@@ -86,7 +86,7 @@ export function viewSwitcherPageSpecs(pages: readonly AdwViewPage[]): AdwViewSwi
 }
 
 /**
- * Resolve the core's icon slot to something `AdwIcon` can rasterise.
+ * Resolve the core's icon slot to something `GtkImage` can rasterise.
  *
  * The core substitutes the NAME `image-missing` for an absent icon. On the browser
  * side that name becomes a CSS mask class; here it has to become the actual

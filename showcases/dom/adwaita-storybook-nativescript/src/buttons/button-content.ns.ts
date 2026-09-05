@@ -13,7 +13,7 @@ import { starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { StackLayout } from '@nativescript/core';
 import { buttonContentMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-// GTK symbolic name → a real Adwaita symbolic SVG, rasterised natively by AdwIcon. NOT an emoji
+// GTK symbolic name → a real Adwaita symbolic SVG, rasterised natively by GtkImage. NOT an emoji
 // glyph, so this matches Adw.ButtonContent.
 const ICON_SVGS: Record<string, string> = {
     'folder-download-symbolic': folderDownloadSymbolic,

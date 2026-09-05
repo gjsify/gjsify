@@ -5,7 +5,7 @@
 //
 // The NS-specific halves stay with their owners: the HOST APP toggles `ns-dark` on
 // its root view (NS re-applies CSS on a class change) and seeds the scheme from
-// `Application.systemAppearance()`; `AdwIcon` / `AdwImageButton` subscribe here and
+// `Application.systemAppearance()`; `GtkImage` / `AdwImageButton` subscribe here and
 // RE-RENDER their pre-coloured symbolic-icon `Bitmap` on a change, because the NS CSS
 // subset cannot recolour a bitmap — UNLESS the caller set an explicit colour, which
 // must survive both schemes.

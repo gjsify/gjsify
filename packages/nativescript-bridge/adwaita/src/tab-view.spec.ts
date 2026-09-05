@@ -284,7 +284,7 @@ export default async () => {
 
         for (const vector of TAB_ICON_STATE_VECTORS) {
             await it(`icon slots: ${vector.rule}`, () => {
-                // The chip drives both AdwIcon slots straight off this derivation
+                // The chip drives both GtkImage slots straight off this derivation
                 // — NS carries the symbolic SVG string in the `icon` field, which
                 // the model treats as opaque.
                 const state = createTabViewState();

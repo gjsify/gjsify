@@ -3,7 +3,7 @@
 // Renders a REAL NativeScript `GridLayout` (columns `auto, *, auto`): a leading
 // PREFIX slot in column 0, a title+subtitle `Label` stack in column 1, and a
 // trailing SUFFIX slot in column 2 — matching `Adw.ActionRow`'s prefix / text /
-// suffix layout (the prefix typically holds an `AdwIcon` symbolic icon). Styled
+// suffix layout (the prefix typically holds an `GtkImage` symbolic icon). Styled
 // via the `adw-row adw-action-row` CSS classes (see `src/theme/adwaita.css`) —
 // NOT a webview.
 //

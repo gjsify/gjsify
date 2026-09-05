@@ -11,7 +11,7 @@
 // in `view-switcher-model.ts`, which the spec suite drives because a widget
 // module cannot be imported off-device.
 //
-// Each switcher button is a REAL tappable NS `StackLayout` holding an `AdwIcon`
+// Each switcher button is a REAL tappable NS `StackLayout` holding an `GtkImage`
 // + a `Label` + a badge `Label`. Press feedback is wired with
 // {@link attachRowPressFeedback} (NS only auto-applies `:highlighted` to
 // `Button`, and these buttons are layouts). `AdwTabView` is an EDITABLE ordered
@@ -29,7 +29,7 @@
 import { GridLayout, ItemSpec, Label, StackLayout, type EventData } from '@nativescript/core';
 import { buildViewSwitcherButtons } from '@gjsify/adwaita-core';
 import type { AdwInlineViewSwitcherDisplayMode, AdwViewSwitcherPolicy, ViewSwitcherState } from '@gjsify/adwaita-core';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import {
     applyViewSwitcherVisibility,
@@ -60,7 +60,7 @@ export interface NotifyViewSelectedEventData extends EventData, ViewSwitcherNoti
 /** The per-button NS nodes kept so a selection change repaints instead of rebuilding. */
 interface ButtonNodes {
     button: StackLayout;
-    icon: AdwIcon;
+    icon: GtkImage;
     label: Label;
     badge: Label;
 }
@@ -196,7 +196,7 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         // Icon and label always EXIST, as AdwViewSwitcherButton's template does;
         // what varies is what they carry. The icon holds the `image-missing`
         // fallback when the page has none.
-        const icon = new AdwIcon();
+        const icon = new GtkImage();
         icon.className = `${icon.className} ${this.buttonClass}-icon`.trim();
         icon.verticalAlignment = 'middle';
         button.addChild(icon);

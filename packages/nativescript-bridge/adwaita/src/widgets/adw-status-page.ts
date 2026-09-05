@@ -1,7 +1,7 @@
 // AdwStatusPage — a Libadwaita-style empty-state page for NativeScript.
 //
 // Renders a REAL NativeScript `GridLayout` centering a vertical stack of: an
-// optional icon (a symbolic SVG via {@link AdwIcon}, or a glyph `Label`), a bold
+// optional icon (a symbolic SVG via {@link GtkImage}, or a glyph `Label`), a bold
 // `title` `Label`, a dim `description` `Label`, and an optional child widget
 // (e.g. an action button). Mirrors `Adw.StatusPage`: `icon`, `iconText`, `title`,
 // `description`, `setChild()`.
@@ -22,7 +22,7 @@
 
 import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import { statusPageIconVisibility, statusPageLabelVisibility } from './status-page-content.js';
 
 /** Default status-page icon size (DIPs) — Adw.StatusPage shows a large glyph. */
@@ -34,7 +34,7 @@ export class AdwStatusPage extends GridLayout {
     /** The centered vertical stack. */
     protected readonly _stack: StackLayout;
     /** The large symbolic icon (shown when an `icon` SVG is set). */
-    protected readonly _icon: AdwIcon;
+    protected readonly _icon: GtkImage;
     private _iconSvg = '';
     /** The large glyph label (shown when `iconText` is set — the legacy fallback). */
     protected readonly _iconLabel: Label;
@@ -68,7 +68,7 @@ export class AdwStatusPage extends GridLayout {
         // Every part starts empty, and its own predicate says an empty part is not
         // in the layout — so the page opens as a bare centered stack, not as three
         // blank lines waiting to be filled.
-        const icon = new AdwIcon();
+        const icon = new GtkImage();
         icon.className = `${icon.className} adw-status-page-icon`.trim();
         icon.horizontalAlignment = 'center';
         icon.iconColor = DEFAULT_STATUS_ICON_COLOR;

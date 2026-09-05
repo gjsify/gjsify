@@ -32,7 +32,7 @@ import { GridLayout, ItemSpec, Label, StackLayout, type EventData, type View } f
 import { windowCloseSymbolic } from '@gjsify/adwaita-icons/ui';
 import { tabIconState } from '@gjsify/adwaita-core';
 import type { AdwTabPageSpec, TabViewPagesChange } from '@gjsify/adwaita-core';
-import { AdwIcon } from './adw-icon.js';
+import { GtkImage } from './gtk-image.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { attachRowPressFeedback } from './row-press.js';
 import {
@@ -78,8 +78,8 @@ export interface ClosePageEventData extends EventData {
 /** The NS widgets making up one tab chip. */
 interface TabChip {
     button: StackLayout;
-    icon: AdwIcon;
-    indicator: AdwIcon;
+    icon: GtkImage;
+    indicator: GtkImage;
     label: Label;
     close: AdwImageButton;
 }
@@ -435,12 +435,12 @@ export class AdwTabView extends GridLayout {
         button.className = 'adw-tab-view-tab';
         button.verticalAlignment = 'middle';
 
-        const icon = new AdwIcon();
+        const icon = new GtkImage();
         icon.className = `${icon.className} adw-tab-view-tab-icon`.trim();
         icon.verticalAlignment = 'middle';
         button.addChild(icon);
 
-        const indicator = new AdwIcon();
+        const indicator = new GtkImage();
         indicator.className = `${indicator.className} adw-tab-view-tab-icon`.trim();
         indicator.verticalAlignment = 'middle';
         button.addChild(indicator);

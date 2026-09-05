@@ -297,7 +297,7 @@ export const AdwViewSwitcherNsTest = async () => {
 
         await it('resolves the fallback SENTINEL to a real symbolic document', () => {
             // On the browser side `image-missing` becomes a CSS mask class; here
-            // it has to become the SVG itself, because AdwIcon rasterises path
+            // it has to become the SVG itself, because GtkImage rasterises path
             // data and would render nothing for a bare name.
             const svg = nsIconSvg(viewSwitcherIconName(null));
             expect(svg).not.toBe(VIEW_SWITCHER_FALLBACK_ICON);
