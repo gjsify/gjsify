@@ -455,6 +455,29 @@ jobs:
       - name: Check the widget vocabulary is aligned across surfaces (self-testing)
         run: node scripts/check-vocabulary-alignment.mjs
 
+      # The other half of that vocabulary: what a nick is WORTH. `ENUM_NICKS` says a
+      # member is called `baseline`; nothing said it is 4. A surface with no GI has to
+      # hand GTK an integer anyway, and counting the position in the nick list is wrong
+      # on seven of the 129 enums — `GtkAlign` because GTK 4.12 deprecated
+      # `GTK_ALIGN_BASELINE` into an ALIAS sharing one value, `GtkResponseType` because
+      # it counts down from -1, and `GtkConstraintStrength.required` is 1001001000 where
+      # counting answers 0. `generated/enum-values.mts` carries the numbers, read from
+      # the installed typelib by `scripts/generate-enum-values.mjs`.
+      # THIS job cannot reach that typelib, which is the whole reason the artifact is
+      # committed — so the split is deliberate and both halves are named here: this step
+      # holds the SHAPE (every nick has a number or a stated reason, no number names a
+      # nick the vocabulary lacks, every alias declared from both directions), and
+      # gtk-host's `generated.spec.ts` holds every NUMBER against whatever typelib is
+      # running, where there is one. A committed artifact whose source no gate can reach
+      # is the second truth this repository refuses; two gates over one artifact is how
+      # it stays one.
+      # Self-testing, for the reason the step above spells out, and its vectors already
+      # earned their keep: one of them caught the shared reader returning the empty
+      # brackets of `readonly string[]` instead of the initialiser after them —
+      # silently, which is the failure mode that reader's header is about.
+      - name: Check the enum-value oracle annotates every nick (self-testing)
+        run: node scripts/check-enum-values.mjs
+
       # The React Native support table (ADR 0032 § 8) is one file three readers share:
       # the bundler gate, the runtime refusals and the generated README section. This
       # holds all three against it — the key set against react-native's own export list,
