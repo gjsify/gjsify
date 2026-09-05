@@ -37,6 +37,18 @@ gjsify upgrade --align
 gjsify upgrade --check
 ```
 
+## Pin without a range operator
+
+Consistency is not exactness. A tree where every manifest agrees on `^4.1.0` passes `--check` and still lets a minor release move under a consumer's lockfile-less install, so a package whose subpaths you depend on wants the whole version declared. `--exact` is that question, on both sides of the pair: `--check --exact` is the gate, and `--align --exact` is the repair — offline, keeping each declared version and dropping only the operator.
+
+```bash
+gjsify upgrade --check --exact --filter @girs   # gate
+gjsify upgrade --align --exact --filter @girs   # repair, offline
+gjsify upgrade --latest --exact --filter @girs  # repair at the newest release instead
+```
+
+Pair `--exact` with `--filter`. Without one it reaches every dependency you declare, and an ordinary caret on a third-party package is not a defect.
+
 ## What moves together, and what does not
 
 **Moves together:** every published `@gjsify/*` package. The Node.js modules, the Web APIs, the DOM bridges, the native prebuilds, the CLI and the build tooling all carry the same version number.

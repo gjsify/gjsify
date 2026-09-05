@@ -344,6 +344,149 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
         assert.match(out, /gjsify upgrade --check: OK/);
     });
 
+    // ─── --exact: the gate and the repair have to agree ────────────────
+
+    /**
+     * A monorepo whose `@girs/*` declarations all AGREE on one caret range.
+     *
+     * Consistent, and every declaration still carries an operator — the shape
+     * `--check --exact` exists to reject, and the one `--align` alone has nothing to say
+     * about. Two workspaces, so a repair that only reaches one file is visible.
+     */
+    function scaffoldConsistentButLoose(rootName, girsRange = '^4.1.0') {
+        const root = join(tmpDir, rootName);
+        mkdirSync(join(root, 'packages', 'alpha'), { recursive: true });
+        mkdirSync(join(root, 'packages', 'beta'), { recursive: true });
+        writeFileSync(
+            join(root, 'package.json'),
+            JSON.stringify({ name: rootName, version: '1.0.0', private: true, workspaces: ['packages/*'] }, null, 2) +
+                '\n',
+        );
+        writeFileSync(
+            join(root, 'packages', 'alpha', 'package.json'),
+            JSON.stringify(
+                {
+                    name: '@m/alpha',
+                    version: '1.0.0',
+                    private: true,
+                    dependencies: { '@girs/gtk-4.0': girsRange, '@girs/adw-1': girsRange, 'lib-a': '^1.0.0' },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+        writeFileSync(
+            join(root, 'packages', 'beta', 'package.json'),
+            JSON.stringify(
+                {
+                    name: '@m/beta',
+                    version: '1.0.0',
+                    private: true,
+                    dependencies: { '@girs/gtk-4.0': girsRange, 'lib-a': '^1.0.0' },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+        return root;
+    }
+
+    const girsOf = (root, ws) =>
+        JSON.parse(readFileSync(join(root, 'packages', ws, 'package.json'), 'utf-8')).dependencies;
+
+    // THE discriminator. `--check --exact` fails and names `--align --exact` as the fix;
+    // that fix used to answer "nothing to do", because align selected on inconsistency
+    // alone and this tree is perfectly consistent. Gate red → repair "done" → gate red.
+    it('--exact: --align repairs exactly what --check rejects', async () => {
+        const root = scaffoldConsistentButLoose('mono-exact-roundtrip');
+
+        // 1. the gate is RED, and names the repair.
+        await assert.rejects(runUpgrade(['--check', '--exact', '--filter', '@girs'], { cwd: root }), (err) => {
+            assert.equal(err.code, 1);
+            assert.match(err.stderr ?? '', /carry a range operator/);
+            assert.match(err.stderr ?? '', /--align --exact/);
+            return true;
+        });
+
+        // 2. the repair reports work and writes both files.
+        const out = await runUpgrade(['--align', '--exact', '--filter', '@girs'], { cwd: root });
+        assert.match(out, /pinning 2 dep\(s\)/);
+        assert.match(out, /updated 2 dep\(s\) across 2 package\.json file\(s\)/);
+        assert.equal(girsOf(root, 'alpha')['@girs/gtk-4.0'], '4.1.0');
+        assert.equal(girsOf(root, 'alpha')['@girs/adw-1'], '4.1.0');
+        assert.equal(girsOf(root, 'beta')['@girs/gtk-4.0'], '4.1.0');
+        // Untouched: outside the filter.
+        assert.equal(girsOf(root, 'alpha')['lib-a'], '^1.0.0');
+
+        // 3. the gate is GREEN. Without step 3 this test would pass on a repair that
+        //    wrote something the gate still rejects.
+        const check = await runUpgrade(['--check', '--exact', '--filter', '@girs'], { cwd: root });
+        assert.match(check, /every declaration pinned exactly/);
+    });
+
+    it('--exact: --align --dry-run announces the pin and writes nothing', async () => {
+        const root = scaffoldConsistentButLoose('mono-exact-dryrun');
+        const before = readFileSync(join(root, 'packages', 'alpha', 'package.json'), 'utf-8');
+        const out = await runUpgrade(['--align', '--exact', '--dry-run', '--filter', '@girs'], { cwd: root });
+        assert.match(out, /pinning 2 dep\(s\)/);
+        assert.match(out, /→ +4\.1\.0/);
+        assert.match(out, /--dry-run: no files changed/);
+        assert.equal(readFileSync(join(root, 'packages', 'alpha', 'package.json'), 'utf-8'), before);
+    });
+
+    // The early return is load-bearing for plain `--align`: consistency is the whole
+    // question there, and a caret is not a defect. Widening the target set for `--exact`
+    // must not widen it here.
+    it('--align without --exact leaves a consistent caret tree alone', async () => {
+        const root = scaffoldConsistentButLoose('mono-align-plain');
+        const before = readFileSync(join(root, 'packages', 'alpha', 'package.json'), 'utf-8');
+        const out = await runUpgrade(['--align', '--filter', '@girs'], { cwd: root });
+        assert.match(out, /nothing to do/);
+        assert.doesNotMatch(out, /pinned exactly/);
+        assert.equal(readFileSync(join(root, 'packages', 'alpha', 'package.json'), 'utf-8'), before);
+        // …and plain `--check` agrees the tree is fine.
+        const check = await runUpgrade(['--check', '--filter', '@girs'], { cwd: root });
+        assert.match(check, /--check: OK/);
+    });
+
+    it('--exact: --align is a no-op on an already-pinned tree', async () => {
+        const root = scaffoldConsistentButLoose('mono-exact-noop', '4.6.0');
+        const out = await runUpgrade(['--align', '--exact', '--filter', '@girs'], { cwd: root });
+        assert.match(out, /nothing to do/);
+        assert.match(out, /every declaration pinned exactly/);
+        assert.equal(girsOf(root, 'alpha')['@girs/gtk-4.0'], '4.6.0');
+    });
+
+    // A repair that quietly skips part of its job hands back a green exit on a tree the
+    // gate still rejects, and the next red looks like the repair never ran.
+    it('--exact: --align exits non-zero when a range names no version', async () => {
+        const root = join(tmpDir, 'mono-exact-unrepairable');
+        mkdirSync(join(root, 'packages', 'one'), { recursive: true });
+        writeFileSync(
+            join(root, 'package.json'),
+            JSON.stringify({ name: 'mono-x', version: '1.0.0', private: true, workspaces: ['packages/*'] }, null, 2) +
+                '\n',
+        );
+        writeFileSync(
+            join(root, 'packages', 'one', 'package.json'),
+            JSON.stringify(
+                { name: '@m/one', version: '1.0.0', private: true, dependencies: { 'lib-a': '^1.x' } },
+                null,
+                2,
+            ) + '\n',
+        );
+        await assert.rejects(runUpgrade(['--align', '--exact'], { cwd: root }), (err) => {
+            assert.equal(err.code, 1);
+            assert.match(err.stderr ?? '', /left unrepaired/);
+            assert.match(err.stderr ?? '', /lib-a/);
+            return true;
+        });
+        assert.equal(
+            JSON.parse(readFileSync(join(root, 'packages', 'one', 'package.json'), 'utf-8')).dependencies['lib-a'],
+            '^1.x',
+        );
+    });
+
     it('workspace mode: --exclude-workspace glob pattern matches multiple', async () => {
         // Excluding ALL of '@m/*' leaves only the root workspace (which has no
         // deps). `--check` should report nothing to check.
