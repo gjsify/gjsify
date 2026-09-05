@@ -43,9 +43,11 @@
 // asserts the round trip, so the two cannot drift apart into a table.
 //
 // The vocabulary is the GIR class name because that is the one spelling both
-// renderers already agree on (ADR 0034 clause 1: named from the GIR). Authoring in
-// either renderer's own spelling would make one of them the reference and the other
-// a translation, which is what this file exists to stop.
+// renderers already carry (ADR 0034 clause 1, "named from the GIR"): it is the
+// `gtype` column of `gtk-host`'s generated table and it is the NativeScript widget's
+// class name. Authoring in either renderer's own MARKUP spelling — `adw-banner` or
+// `adw:Banner` — would make one of them the reference and the other a translation,
+// which is what this file exists to stop.
 
 /**
  * @typedef {Object} SharedNode
@@ -213,9 +215,12 @@ export const gtkHostTree = (widget) => {
 /**
  * The shared block as `adwaita-gallery-ns-templates.mjs` needs it.
  *
- * NO transform, and that asymmetry is the point rather than an oversight: the
- * NativeScript port's XML element names ARE the GIR class names (ADR 0034 clause 1),
- * so the vocabulary this file is authored in is already the one that ships there.
+ * NO transform, and that asymmetry is the point rather than an oversight: a
+ * NativeScript template names a widget by its CLASS, and the port's class names are
+ * the GIR ones (ADR 0034 clause 1), so the vocabulary this file is authored in is
+ * already the one that side is written in. The `adw:`/`gtk:` prefix the emitted XML
+ * carries is the generator's namespace spelling, applied downstream of here — which
+ * is why it is not a transform this file owes anybody.
  */
 export const nativeScriptTree = (widget) => {
     const tree = entryFor(widget);
