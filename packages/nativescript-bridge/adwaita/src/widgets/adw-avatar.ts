@@ -1,37 +1,24 @@
 // AdwAvatar — a Libadwaita-style avatar for NativeScript.
 //
-// Renders a REAL NativeScript `GridLayout` with a circular accent-tinted background
-// and, in one shared cell, the two things `Adw.Avatar` falls back to: a centered
-// initials `Label` and a symbolic icon. The circle is `width == height` plus a
-// `border-radius` of half the size (the `adw-avatar` CSS class + an inline size).
+// A REAL NativeScript `GridLayout` with a circular accent-tinted background and, in one
+// shared cell, the two things `Adw.Avatar` falls back to: a centered initials `Label` and
+// a symbolic icon. The circle is `width == height` plus a `border-radius` of half the size
+// (the `adw-avatar` CSS class + an inline size). WHICH child is shown, and why the
+// fallback icon needed no icon-theme lookup, is `avatar-view.ts`.
 //
-// WHICH of the two is shown is `update_visibility`, decided in `avatar-view.ts` over
-// the headless `avatarMode` (ADR 0004) — which also records why the fallback icon
-// needed no icon-theme lookup, and why its default glyph is the icon theme's asset
-// rather than the one the C names.
+// `showInitials` DEFAULTS TO FALSE, which is a behaviour change and deliberately the C's
+// default (refs/libadwaita/src/adw-avatar.c:434-435#show-initials) — the same one
+// `<adw-avatar>` on the web already takes, where an absent attribute is false. The port
+// used to show initials unconditionally; a bare avatar carrying a name now renders the
+// fallback person icon, exactly as `new Adw.Avatar()` does under GTK.
 //
-// `showInitials` DEFAULTS TO FALSE, which is a behaviour change and deliberately the
-// C's default (refs/libadwaita/src/adw-avatar.c:434-435#show-initials) — the same one
-// `<adw-avatar>` on the web already takes, where the attribute's absence is false. The
-// port used to show initials unconditionally, so a bare avatar carrying a name rendered
-// initials; it now renders the fallback person icon until a caller asks for initials,
-// exactly as `new Adw.Avatar()` does under GTK.
-//
-// The background COLOUR is derived from the name exactly like `Adw.Avatar`:
-// `(g_str_hash(text) % 14) + 1` picks one of the 14 libadwaita avatar colours. It is
-// applied in EVERY mode, because C runs `set_class_color` regardless of `show-initials`
-// and the property's own doc says the text "is only used to generate the color if
-// show-initials is FALSE". The NS CSS subset has no gradient, so the flat fill is the
-// 50/50 blend of the palette's start→stop gradient, and both children take the matching
-// light `fg`.
-//
-// Both derivations are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004); the
-// flat-fill wrapper sits in `avatar-color.ts` (NS-core-free, so the spec can drive it
-// off-device) and this module keeps only the GridLayout that paints the result. The
+// The per-name colour is applied in EVERY mode, because C runs `set_class_color`
+// regardless of `show-initials` and the property's own doc says the text "is only used to
+// generate the color if show-initials is FALSE". The derivation is headless (ADR 0004);
+// the flat-fill wrapper is `avatar-color.ts`, NS-core-free so a spec can drive it. The
 // palette + hash used to be a local copy of the web renderer's copy, and both hashed
 // UTF-16 code units where GLib hashes UTF-8 bytes, so every accented name got the wrong
-// colour on both renderers. The shared vectors in `@gjsify/adwaita-core/conformance`
-// now pin this to the C source.
+// colour on both renderers — pinned to the C by the shared conformance vectors since.
 //
 // `custom-image` has no counterpart here — the value has one (`ImageSource`), the
 // CIRCULAR CLIP does not, and `status/open-todos.md` holds what a device run must answer.
@@ -41,10 +28,10 @@
 
 import { GridLayout, ItemSpec, Label } from '@nativescript/core';
 
-import { avatarIconSize, avatarMaxFontSize, avatarMode } from '@gjsify/adwaita-core';
+import { avatarIconSize, avatarMaxFontSize } from '@gjsify/adwaita-core';
 
 import { avatarColor, avatarInitials } from './avatar-color.js';
-import { AVATAR_DEFAULT_ICON, avatarIconSvg, avatarVisibilities } from './avatar-view.js';
+import { AVATAR_DEFAULT_ICON, avatarViewState } from './avatar-view.js';
 import { GtkImage } from './gtk-image.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 
@@ -138,14 +125,15 @@ export class AdwAvatar extends GridLayout {
 
     /** Show the child `update_visibility` says, and give the icon arm its glyph. */
     private _applyMode(): void {
-        // `hasCustomImage` is FALSE because this port has no `custom-image` counterpart
-        // (status/open-todos.md), not because the mode cannot arise — see
-        // `avatarVisibilities`, which expresses all three.
-        const mode = avatarMode({ hasCustomImage: false, showInitials: this._showInitials, text: this._text });
-        const visibilities = avatarVisibilities(mode);
-        this._label.visibility = visibilities.label;
-        this._icon.visibility = visibilities.icon;
-        if (mode === 'icon') this._icon.iconName = avatarIconSvg(this._iconName);
+        const state = avatarViewState({
+            showInitials: this._showInitials,
+            text: this._text,
+            iconName: this._iconName,
+        });
+        this._label.visibility = state.label;
+        this._icon.visibility = state.icon;
+        // Only when it is on screen: assigning `iconName` rasterises a bitmap.
+        if (state.icon === 'visible') this._icon.iconName = state.iconSvg;
     }
 
     /** The name the initials are derived from, and the colour is hashed from. */

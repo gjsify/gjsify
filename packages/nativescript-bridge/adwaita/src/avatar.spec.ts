@@ -5,11 +5,13 @@
 // NativeScript), so this suite drives `widgets/avatar-view.ts` — the SHIPPING helpers
 // `AdwAvatar` itself calls, never a transcription of them.
 //
-// What it holds the port to: the widget exposed `text` and `size` only, so the initials
-// arm was the whole widget and a caller could not ask for the fallback icon
-// `new Adw.Avatar()` shows under GTK. The MODE is asserted against the shared vectors
-// rather than re-derived, which is what makes this a check on the NativeScript half and
-// not a second copy of the C. Colour and initials are covered in `index.spec.ts`.
+// The MODE is asserted against the shared vectors rather than re-derived, which is what
+// makes this a check on the NativeScript half and not a second copy of the C. Colour and
+// initials are covered in `index.spec.ts`.
+//
+// WHAT IT STILL CANNOT REACH: the three assignments inside `AdwAvatar` that put the
+// answer on the two children. `avatarViewState` exists to make everything BEFORE them
+// falsifiable; the assignments themselves are only checked by running the app.
 
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -18,7 +20,7 @@ import { AVATAR_MODE_VECTORS } from '@gjsify/adwaita-core/conformance';
 import { avatarDefaultSymbolic, imageMissingSymbolic } from '@gjsify/adwaita-icons/status';
 
 import { extractIconPaths } from './widgets/icon-path.js';
-import { AVATAR_DEFAULT_ICON, avatarIconSvg, avatarVisibilities } from './widgets/avatar-view.js';
+import { AVATAR_DEFAULT_ICON, avatarIconSvg, avatarViewState, avatarVisibilities } from './widgets/avatar-view.js';
 
 export default async () => {
     await describe('avatarVisibilities (Adw.Avatar update_visibility, adw-avatar.c:117-124)', async () => {
@@ -93,6 +95,39 @@ export default async () => {
             // "simplification" back to a hand-typed factor fails here.
             expect(avatarIconSize(96)).toBe(53);
             expect(avatarIconSize(48)).toBe(26);
+        });
+    });
+
+    await describe('avatarViewState (everything AdwAvatar decides)', async () => {
+        await it('a bare avatar carrying a name shows the fallback icon', () => {
+            // The break this PR is about, from the caller's side: `showInitials` is
+            // FALSE by default, so a name alone no longer switches the label on.
+            const state = avatarViewState({ showInitials: false, text: 'Ada Lovelace', iconName: '' });
+            expect(state.mode).toBe('icon');
+            expect(state.label).toBe('collapse');
+            expect(state.icon).toBe('visible');
+            expect(state.iconSvg).toBe(AVATAR_DEFAULT_ICON);
+        });
+
+        await it('asking for initials switches the label on and the icon off', () => {
+            const state = avatarViewState({ showInitials: true, text: 'Ada Lovelace', iconName: '' });
+            expect(state.mode).toBe('initials');
+            expect(state.label).toBe('visible');
+            expect(state.icon).toBe('collapse');
+        });
+
+        await it("a caller's own SVG replaces the default in the icon arm", () => {
+            const state = avatarViewState({ showInitials: false, text: '', iconName: imageMissingSymbolic });
+            expect(state.iconSvg).toBe(imageMissingSymbolic);
+        });
+
+        await it('never reports the image mode, because the port cannot draw one', () => {
+            // `hasCustomImage` is hard-wired FALSE here; the day it is not, this is the
+            // test that has to change, rather than a silent third branch appearing.
+            const modes = [true, false].flatMap((showInitials) =>
+                ['', 'Ada'].map((text) => avatarViewState({ showInitials, text, iconName: '' }).mode),
+            );
+            expect(modes.includes('image')).toBe(false);
         });
     });
 };
