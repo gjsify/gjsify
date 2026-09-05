@@ -512,7 +512,7 @@ describe('what the cancel did, not what it posted', () => {
  * @param {string[]} ids run ids on stdin
  * @param {Record<string, string[]>} statuses id → the status each successive GET answers
  */
-function runCli(ids, statuses, { cancel = 202, forceCancel = 202 } = {}) {
+function runCancelScript(ids, statuses, { cancel = 202, forceCancel = 202 } = {}) {
     const dir = mkdtempSync(join(tmpdir(), 'gjsify-cancel-cli-'));
     try {
         const eventPath = join(dir, 'event.json');
@@ -543,7 +543,7 @@ function runCli(ids, statuses, { cancel = 202, forceCancel = 202 } = {}) {
 
 describe('the annotation the workflow leaves behind', () => {
     it('says nothing at all when there was nothing to cancel', () => {
-        const result = runCli([], {});
+        const result = runCancelScript([], {});
         assert.equal(result.status, 0, result.stderr);
         assert.match(result.stdout, /No superseded runs for synchronize on PR #1568 — nothing to cancel\./);
         assert.doesNotMatch(result.stdout, /::(notice|warning)::/);
@@ -552,7 +552,7 @@ describe('the annotation the workflow leaves behind', () => {
     it('counts the runs that STOPPED, in the string a human reads', () => {
         // Two accepted POSTs, two runs that stop. `2 of 2`, and never the POST count
         // under a different name.
-        const result = runCli(['33857585236', '33857738939'], {
+        const result = runCancelScript(['33857585236', '33857738939'], {
             33857585236: ['completed'],
             33857738939: ['completed'],
         });
@@ -566,7 +566,7 @@ describe('the annotation the workflow leaves behind', () => {
         // does not reach the checks list; the deadlock this job exists to break has to.
         // ~20s: the SHIPPED settle runs for real here, because the point of this case
         // is the entry block exactly as CI executes it.
-        const result = runCli(['33857585236', '33857738939'], {
+        const result = runCancelScript(['33857585236', '33857738939'], {
             33857585236: ['completed'],
             33857738939: ['in_progress'],
         });
@@ -577,7 +577,7 @@ describe('the annotation the workflow leaves behind', () => {
     it('a fork PR, where nothing was accepted, stays a notice', () => {
         // Every POST 403s on a read-only token. Annotating that on every fork
         // contribution would train the annotation out of meaning anything.
-        const result = runCli(['33857585236'], { 33857585236: ['queued'] }, { cancel: 403, forceCancel: 403 });
+        const result = runCancelScript(['33857585236'], { 33857585236: ['queued'] }, { cancel: 403, forceCancel: 403 });
         assert.equal(result.status, 0, result.stderr);
         assert.match(result.stdout, /::notice::0 of 1 run\(s\)/);
         assert.doesNotMatch(result.stdout, /::warning::/);

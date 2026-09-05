@@ -4587,3 +4587,27 @@ own write", so the next such prop is written as an `on:notify::` route, tests gr
 external write, and ships announcing nothing. A route kind (`announce` is the precedent — it is
 a table field, and it is the reason both L3s subscribe directly) or a per-binding declaration
 checked by the surface gates would make the class visible; naming it here is not that check.
+
+### `check-e2e-harness-duplication` matches a NAME, so an unrelated helper reads as a copy
+
+`scripts/check-e2e-harness-duplication.mjs:85` detects the `run-cli` rule with
+`/\bfunction runCli\s*\(/` — the identifier, not what the function does. The rule exists
+for a measured reason (its own header: `runCli` had existed in eight signatures, so a
+correction to the writer landed in one of nine drifted copies), and the shared module is
+the right answer for a suite that really does drive the CLI.
+
+But `tests/e2e/ci-cancel-superseded-runs/run.mjs` tripped it while doing something the
+shared helper cannot: it writes an `--import` prologue that replaces `globalThis.fetch`,
+feeds run ids on **stdin**, and wants the `spawnSync` RESULT rather than a throw or a
+promise. `mock-registry.mjs`'s `runCli(cliEntry, args, {cwd, env, timeoutMs})` spawns with
+`stdio: ['ignore', 'pipe', 'pipe']` and takes no `input`; `runCliSync` throws on a non-zero
+exit, which is the opposite of what that suite asserts. So the fix there was to name the
+helper for what it runs (`runCancelScript`) — accurate, and it stops the false positive —
+not to route it through a harness that answers a different question.
+
+That leaves the rule able to catch the next accurate-but-similarly-named helper, and
+unable to catch a real copy that spells itself `runCommand`. Narrowing it wants a
+behaviour discriminator — a spawn whose first argument is a CLI entry, say — and a
+measurement of how many of the 151 suites change verdict under it, which is why this is
+an entry rather than a patch in the PR that hit it.
+
