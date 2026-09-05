@@ -181,20 +181,25 @@ export class AdwTabView extends GridLayout {
         return this._state.selectedPage;
     }
 
-    set selectedPage(page: AdwTabPage | string | null) {
-        // The PAGE, or its id — and the id spelling is what an XML attribute can carry, so
-        // `<AdwTabView selectedPage="inbox">` declares the starting tab. Both go to the
-        // core, which owns the page list and therefore owns `page_belongs_to_this_view`:
-        // an id is unique within ONE view, so a foreign page read as an id would select
-        // this view's page of the same id instead of refusing.
-        this._state.setSelectedPage(page);
+    set selectedPage(id: string | null) {
+        // THE ID, BECAUSE ON THIS PORT AN ID IS WHAT A PAGE HANDLE IS. Every other page
+        // call here takes one — `isClosing`, `closePage`, `setPagePinned` — and a
+        // NativeScript XML attribute can carry nothing else, so `<AdwTabView
+        // selectedPage="inbox">` is the only way markup can declare a starting tab. The web
+        // twin takes the page OBJECT because its DOM has one and its attribute carries the
+        // id separately; ADR 0034 § 1 converges the NAME and never the shape.
+        //
+        // The core refuses an id this view does not hold, with the diagnostic C raises —
+        // and because a caller here cannot hand over another view's page object, the
+        // cross-view confusion the web twin has to guard against cannot arise.
+        this._state.setSelectedPage(id);
     }
 
     isClosing(id: string): boolean {
         return this._state.isClosing(id);
     }
 
-    /** `adw_tab_view_set_selected_page`, which takes the PAGE; an id is accepted too. */
+    /** `adw_tab_view_set_selected_page`. The page, or the id this port uses as its handle. */
     setSelectedPage(page: AdwTabPage | string | null): boolean {
         return this._state.setSelectedPage(page);
     }

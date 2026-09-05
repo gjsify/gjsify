@@ -4945,20 +4945,29 @@ blocker. The candidate fixes both have costs worth measuring before picking: mak
 `page-id` required is a breaking change to every declared page, and deriving the id from the
 title makes it move when the title does.
 
-### NativeScript XML can no longer say which tab starts selected
 
-[ADR 0048](../docs/adr/0048-page-selection-by-identity.md) § 3 gave the web a markup door
-(`<adw-tab-view selected-page="<page id>">`) and gave NativeScript none, on the reading that
-its XML door IS the property. A property holding an `AdwTabPage` is not an XML door:
-measured with `check-nativescript-xml-doors`, `selectedPage` lands in "typed as something no
-XML attribute can carry" (19 → 20 setters) while the two numeric doors left the coercing set
-(66 → 64), and `AdwTabView` is now the one XML-reachable class with a selection and no
-string-typed setter for it. `<AdwTabView selected="1">` worked through `xmlNumber` and is
-silently dead; nothing replaced it, and an XML attribute is not typechecked, so nothing says
-so.
+### The XML-door gate has no kind for "an object, or the key that names it"
 
-`AdwViewStack` is unaffected — `visibleChildName` is a string and stays the door there.
+`check-nativescript-xml-doors` classifies a setter's declared type into `number`, `boolean`,
+`string` and `json` — the last added by [ADR 0047](../docs/adr/0047-portable-adjustment.md)
+for `AdwSpinRow.adjustment`, where the string spelling is JSON text a parser reads.
 
-The candidate is a `selectedPageId` string setter mirroring the web's attribute, which is
-the same question as the id-taking `setSelectedPage` above: settle the id-vs-page shape once
-across `setSelectedPage`, `isClosing`, `closePage`, `setPagePinned` and this, or not at all.
+[ADR 0048](../docs/adr/0048-page-selection-by-identity.md) met the shape that is neither.
+`AdwTabView.selectedPage` wants to take `AdwTabPage | string | null` — the page, or the id
+that names it — and `attributeKind` files any `<object> | string` union as `json`, so the
+gate then demands the setter run a JSON parser it has no business running. Measured while
+writing that change: the annotation alone turns the door red with *"does not go through
+parseAdjustment()"*.
+
+The NativeScript setter takes the ID for now, which is honest there — every other page call
+on that port takes one, and an XML attribute can carry nothing else. What is unresolved is
+the gate: `jsonDoors()` verifies an exported FUNCTION whose body has a `catch`, and a
+key-taking door has neither (it is a method, and it refuses by recording a diagnostic rather
+than by throwing). A fourth kind wants its own verifier — *the string half names something
+the receiver owns, the lookup refuses without throwing* — and the two registries should
+probably become one table keyed by kind rather than a third constant beside
+`STRING_TOLERANT` and `JSON_DOORS`.
+
+Not built now because one door does not establish a rule, and a kind invented for a single
+member is the "second way to say what the table can already say" that gate's own header
+refuses. The second member is what should trigger this.
