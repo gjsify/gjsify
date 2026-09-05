@@ -2519,3 +2519,16 @@ GTK spellings as real setters would mean 46 near-identical accessor pairs or a p
 patch, and adding them to the BAG alone would give the two doors different vocabularies —
 `<adw:Avatar halign="center">` would not work. Left as a § 1 convergence question rather than
 answered by a special case.
+
+**And the same question, admitted: the shipped widening already does that on the VERTICAL
+axis.** The argument above is about property NAMES, and the values it carries fall under it
+too. NativeScript's `verticalAlignment` is `'top' | 'middle' | 'bottom' | 'stretch'` and its
+layout pass sends anything else to the `default:` arm, which is `stretch`. So `center`,
+`start` and `end` reach the widget as `middle` / `top` / `bottom` through the bag and as
+themselves through `<adw:Avatar verticalAlignment="center">`, where they silently stretch —
+three spellings the two doors do not share. The horizontal axis has no such gap, which is why
+the divergence is exactly as wide as the translation § Context missed. It is DECLARED rather
+than closed: the attribute door has no coercer to hang it on, and a per-widget
+`set verticalAlignment` would shadow `View`'s own, which is the hazard
+`check-nativescript-xml-doors.mjs` arm 2 exists for. Same convergence question as
+`halign` / `valign`, and it retires with it.

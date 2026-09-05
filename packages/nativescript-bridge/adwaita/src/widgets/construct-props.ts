@@ -45,7 +45,9 @@ import { GTK_ALIGN, gtkAlignRefusal, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNM
  * one that admits two impossible ones and says so when they arrive.
  */
 export type ConstructProps<T> = Partial<{
-    [K in keyof T as T[K] extends (...args: never[]) => unknown ? never : K]: T[K];
+    [K in keyof T as T[K] extends (...args: never[]) => unknown ? never : K]: K extends AlignmentProp
+        ? T[K] | number
+        : T[K];
 }>;
 
 /**
@@ -54,14 +56,37 @@ export type ConstructProps<T> = Partial<{
  * `horizontalAlignment` and `verticalAlignment` are NativeScript's own — declared by
  * `View`, never re-declared by a widget here — so this is a WIDENING of what they accept
  * and not a second vocabulary: every NativeScript spelling passes through untouched, and
- * only the GTK-side ones are translated. XML is unaffected for the same reason; an author
- * writing `<adw:Avatar horizontalAlignment="center">` was always writing the NativeScript
- * value and still is.
+ * only the GTK-side ones are translated.
+ *
+ * WHERE THIS DOOR AND THE ATTRIBUTE DOOR DISAGREE, exactly. NativeScript's `verticalAlignment`
+ * is `'top' | 'middle' | 'bottom' | 'stretch'`, and its layout pass sends anything else to the
+ * `default:` arm, which is `stretch`
+ * (`ui/core/view/view-helper/view-helper-common.ts`, both platforms). So the three GTK
+ * spellings this table TRANSLATES on that axis — `center`, `start`, `end` — reach the widget
+ * as `middle`/`top`/`bottom` through the bag and as themselves through
+ * `<adw:Avatar verticalAlignment="center">`, where they silently stretch. The horizontal axis
+ * has no such gap: `start`, `end` and `center` are NativeScript's own words, and `fill` maps
+ * to `stretch`, which is also what the `default:` arm does with it. Nothing here closes the
+ * vertical three — the attribute door has no coercer to hang this on and a per-widget
+ * `set verticalAlignment` would shadow `View`'s, which is the hazard arm 2 of
+ * `check-nativescript-xml-doors.mjs` exists for — so it is a declared divergence and the same
+ * § 1 convergence question ADR 0034 § Amendment 12 leaves open for `halign` / `valign`.
  */
-const ALIGNMENT_AXES: Readonly<Record<string, 'horizontal' | 'vertical'>> = {
+const ALIGNMENT_AXES = {
     horizontalAlignment: 'horizontal',
     verticalAlignment: 'vertical',
-};
+} as const satisfies Readonly<Record<string, 'horizontal' | 'vertical'>>;
+
+/**
+ * The keys the bag reads as a `Gtk.Align` — the runtime table's OWN key set, so the type
+ * cannot admit one the applier does not translate or refuse one it does.
+ *
+ * {@link ConstructProps} widens exactly these to `| number`. Without it the constant spelling
+ * was reachable at runtime and refused by the compiler: `new AdwAvatar({ horizontalAlignment:
+ * Gtk.Align.CENTER })` was `TS2322: Type 'number' is not assignable to type 'string'`, which
+ * is the one caller the second spelling exists for.
+ */
+export type AlignmentProp = keyof typeof ALIGNMENT_AXES;
 
 /** How an assignment to `key` would land, or `null` when it would land nowhere. */
 function settableDoor(target: object, key: string): 'accessor' | 'data' | null {
@@ -140,7 +165,7 @@ export function applyConstructProps(target: object, props?: Readonly<Record<stri
             );
         }
         if (value === undefined) continue;
-        const axis = ALIGNMENT_AXES[key];
+        const axis = (ALIGNMENT_AXES as Readonly<Record<string, 'horizontal' | 'vertical' | undefined>>)[key];
         (target as Record<string, unknown>)[key] = axis === undefined ? value : nsAlignment(value, axis);
     }
 }

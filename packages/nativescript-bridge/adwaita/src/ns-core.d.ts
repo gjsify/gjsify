@@ -65,7 +65,15 @@ declare module '@nativescript/core' {
         width: number | string;
         /** Inline height in DIPs or a percentage string. */
         height: number | string;
-        /** Horizontal alignment (`'left' | 'center' | 'right' | 'stretch'`). */
+        /**
+         * Horizontal alignment
+         * (`'start' | 'left' | 'center' | 'right' | 'end' | 'stretch'`).
+         *
+         * `start`/`end` are real members and are resolved against the view's own `direction`
+         * by the shared layout pass — the four-value reading this comment used to carry is
+         * the one ADR 0034 § Amendment 12 corrects, and `gtk-align.ts` maps GTK's `start`
+         * and `end` onto them.
+         */
         horizontalAlignment: string;
         /** Vertical alignment (`'top' | 'middle' | 'bottom' | 'stretch'`). */
         verticalAlignment: string;

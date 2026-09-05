@@ -11,8 +11,24 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { applyConstructProps, nsAlignment } from './widgets/construct-props.js';
+import { applyConstructProps, type ConstructProps, nsAlignment } from './widgets/construct-props.js';
 import { GTK_ALIGN, GTK_ALIGN_REFUSALS, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './widgets/gtk-align.js';
+
+/**
+ * Every mapped member, per axis, written out.
+ *
+ * The tables in `gtk-align.ts` are DATA, and the gate beside them only holds their KEY SETS —
+ * that each member is mapped on both axes or refused on both. Nothing held the VALUES until
+ * this table did, and the two rows carrying the correction ADR 0034 § Amendment 12 makes
+ * (`start` and `end` really do have a horizontal counterpart) were the least held of all:
+ * MEASURED by replacing both with nonsense strings, at which point the gate exited 0 and
+ * every test in the package still passed. So this is the second side, authored here, and the
+ * key-set assertion below makes a NEW row fail rather than pass unnoticed.
+ */
+const NS_ALIGNMENT: Readonly<Record<'horizontal' | 'vertical', Readonly<Record<string, string>>>> = {
+    horizontal: { fill: 'stretch', start: 'start', end: 'end', center: 'center' },
+    vertical: { fill: 'stretch', start: 'top', end: 'bottom', center: 'middle' },
+};
 
 /**
  * The `@nativescript/core` half — the two alignment properties, where a real `View` keeps
@@ -133,13 +149,16 @@ export default async () => {
             });
         });
 
-        await it('translates the nick per axis, where NativeScript spells it differently', () => {
-            expect(nsAlignment('fill', 'horizontal')).toBe('stretch');
-            expect(nsAlignment('center', 'horizontal')).toBe('center');
-            // The vertical axis has no `center` and no `start`/`end` at all.
-            expect(nsAlignment('center', 'vertical')).toBe('middle');
-            expect(nsAlignment('start', 'vertical')).toBe('top');
-            expect(nsAlignment('end', 'vertical')).toBe('bottom');
+        await it('translates EVERY mapped member on both axes, each row pinned by name', () => {
+            for (const axis of ['horizontal', 'vertical'] as const) {
+                const table = axis === 'horizontal' ? NS_HORIZONTAL_ALIGNMENT : NS_VERTICAL_ALIGNMENT;
+                // A row added to the shipping table with no line in NS_ALIGNMENT fails HERE,
+                // rather than travelling unpinned the way `start`/`end` did.
+                expect([axis, Object.keys(table).sort()]).toStrictEqual([axis, Object.keys(NS_ALIGNMENT[axis]).sort()]);
+                for (const [nick, expected] of Object.entries(NS_ALIGNMENT[axis])) {
+                    expect([axis, nick, nsAlignment(nick, axis)]).toStrictEqual([axis, nick, expected]);
+                }
+            }
         });
 
         await it('accepts the constant a ported GJS snippet carries', () => {
@@ -189,6 +208,22 @@ export default async () => {
             applyConstructProps(widget, { horizontalAlignment: 'right', verticalAlignment: 'top' });
             expect(widget.horizontalAlignment).toBe('right');
             expect(widget.verticalAlignment).toBe('top');
+        });
+
+        await it('takes the constant through the TYPED door, not only the applier', () => {
+            // `applyConstructProps` takes a bare record, so every case above reaches the
+            // runtime without ever asking the compiler. The annotation on this const is the
+            // question a real caller asks — and it USED to be answered `TS2322: Type 'number'
+            // is not assignable to type 'string'`, on the one spelling the constant exists for.
+            const ported: ConstructProps<WidgetShape> = {
+                size: 96,
+                horizontalAlignment: GTK_ALIGN.center,
+                verticalAlignment: GTK_ALIGN.fill,
+            };
+            const widget = new WidgetShape();
+            applyConstructProps(widget, ported);
+            expect(widget.horizontalAlignment).toBe('center');
+            expect(widget.verticalAlignment).toBe('stretch');
         });
     });
 };
