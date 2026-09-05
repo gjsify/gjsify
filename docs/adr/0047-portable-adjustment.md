@@ -29,12 +29,16 @@ the largest single group in the ten property names `check-vocabulary-alignment.m
 as the remaining distance.
 
 **The reach is wider than either sibling ADR's.** `Gio.MenuModel` is a writable property on
-thirteen GTK widget interfaces and a list `model` on five. `Gtk.Adjustment` is one on
-**six** — `AdwSpinRow`, `GtkSpinButton`, `GtkRange` (so `GtkScale` and `GtkScrollbar`),
-`GtkScaleButton`, and `GtkScrollable`'s `hadjustment`/`vadjustment` (so `GtkScrolledWindow`
-and `GtkViewport`), read from `packages/framework/gtk-host/src/generated/surface-data.mts`,
-whose provenance line names the libraries it was generated from. A numeric range is not a
-widget's private state on GTK: it is a value the widget is HANDED.
+thirteen GTK widget interfaces and a list `model` on five. An adjustment property is on
+**seven** — `AdwSpinRow`, `GtkSpinButton`, `GtkRange` (so `GtkScale`, which extends it),
+`GtkScaleButton`, `GtkScrollbar`, `GtkScrolledWindow`, and `GtkScrollable`'s
+`hadjustment`/`vadjustment` (so `GtkViewport`, which implements it) — read from
+`packages/framework/gtk-host/src/generated/surface-data.mts`, whose provenance line names
+the libraries it was generated from. Three of those declare the property THEMSELVES rather
+than inheriting it: in GTK 4 `GtkScrollbar` and `GtkScrolledWindow` both extend `GtkWidget`
+directly, which is worth stating because the GTK 3 hierarchy they had is the one a reader
+remembers. A numeric range is not a widget's private state on GTK: it is a value the widget
+is HANDED.
 
 And the arithmetic had already been copied. `AdwSliderRow` — the port's own widget, with no
 libadwaita counterpart — carried four private fields and its own clamp-and-snap; the mock
@@ -191,6 +195,21 @@ waiting on it, and `status/open-todos.md` carries it.
   value now, written in one `configure` together with the value, and both halves notify
   exactly once. The other retired entry is the vocabulary itself.
 
+- **Snapping answers a TICK, which the arithmetic it replaced did not.** `AdwSliderRow`'s
+  `_snap` clamped the VALUE after rounding, so an upper bound off the grid was returned as
+  itself: `[0, 10]` step 4 answered `10`, two off the grid `0, 4, 8`, from a function whose
+  whole contract is "the nearest step". `snapAdjustmentValue` clamps the tick INDEX instead.
+  It also re-snaps when a bound MOVES, which the old setters did (`this.value = this._value`
+  at the end of each) and the first version of this change dropped — invisible to a suite
+  that writes the range before the value, and caught by driving the other order.
+
+- **An unwritten value follows the bottom of the range, until one is written.** Clamping the
+  default `0` into a range that excludes zero lands on whichever end is nearer:
+  `adjustment='{"lower":-100,"upper":-50}'` opened at **-50**, the maximum, from an author
+  who wrote no value at all. `SpinState` now knows whether a value has ever been written; an
+  unwritten one follows the lower bound, a written one RE-CLAMPS as documented. The two are
+  different rules and were indistinguishable before.
+
 - **A latent clamp defect goes with it.** `SpinState` coerced a non-finite value to 0 before
   clamping, which is harmless only while 0 is inside the range: on `[-5, -1]` a `NaN` write
   clamped to `-1` — the MAXIMUM. `NaN` lands on the lower bound now, and `±Infinity`, which
@@ -212,8 +231,9 @@ waiting on it, and `status/open-todos.md` carries it.
   `ADJUSTMENT_SNAP_VECTORS` at the core and on NativeScript, which is where the only slider
   is.
 
-- **What is NOT ported**: `GtkSpinButton`, `GtkScale`, `GtkScrollbar`, `GtkScaleButton` and
-  `GtkScrollable` have no widget on any renderer here, so nothing about them is decided —
+- **What is NOT ported**: `GtkSpinButton`, `GtkScale`, `GtkScrollbar`, `GtkScrolledWindow`,
+  `GtkScaleButton` and `GtkScrollable` have no widget on any renderer here, so nothing about
+  them is decided —
   only that the value they would take already exists. `climb-rate`, `numeric`,
   `update-policy`, `wrap` and `digits` are ROW properties rather than adjustment ones and
   are untouched; `snap-to-ticks` is present as arithmetic and not as a widget property,

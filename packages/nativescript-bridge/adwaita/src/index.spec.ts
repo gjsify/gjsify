@@ -127,6 +127,16 @@ class MockEntryRow {
 // assertions passed while measuring the mock; the copy went with ADR 0047.
 class MockSliderRow {
     private readonly _state = new SpinState();
+    constructor() {
+        // The widget's `changed` subscriber, which is where the re-snap lives: a moved bound
+        // moves the tick grid, so a value the old grid allowed can land between two ticks of
+        // the new one. Registering it HERE rather than re-snapping inside the setter is what
+        // keeps this mock from doing something the widget does not — the shape ADR 0047
+        // removed from this file once already.
+        this._state.subscribeChanged((adjustment) => {
+            this._state.setValue(snapAdjustmentValue(adjustment, this._state.value));
+        });
+    }
     get value(): number {
         return this._state.value;
     }
@@ -135,7 +145,6 @@ class MockSliderRow {
     }
     set adjustment(v: AdwAdjustmentInput) {
         this._state.configure(v);
-        this.value = this._state.value;
     }
 }
 
@@ -623,6 +632,18 @@ export default async () => {
             row.adjustment = { lower: 16, upper: 64, stepIncrement: 4 };
             row.value = 49; // 16 + round(33/4)*4 = 16 + 8*4 = 48
             expect(row.value).toBe(48);
+        });
+
+        await it('re-snaps a settled value when a bound moves the GRID under it', () => {
+            // The order the other rows never use: value first, then the range. 25 is on the
+            // grid `0, 5, 10, …` and off `1, 6, 11, …`, and clamping alone leaves it there.
+            const row = new MockSliderRow();
+            row.adjustment = { lower: 0, upper: 100, stepIncrement: 5 };
+            row.value = 23;
+            expect(row.value).toBe(25);
+
+            row.adjustment = { lower: 1 };
+            expect(row.value).toBe(26);
         });
     });
 

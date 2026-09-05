@@ -94,7 +94,7 @@ same state machines, so a behaviour fix lands once and both ports pick it up.
 | --- | --- | --- |
 | `<adw-toast-overlay>` | `AdwToastQueue` + `AdwToast` | one toast at a time, FIFO ordering, auto-dismiss lifecycle |
 | `<adw-combo-row>` | `ComboState` | the list model + its `items-changed` splice, index↔value mapping, out-of-range guards, programmatic-vs-user split |
-| `<adw-spin-row>` | `SpinState` | value/min/max/step with clamping on every mutation |
+| `<adw-spin-row>` | `SpinState` | one `adjustment` (`Gtk.Adjustment`'s six numbers, ADR 0047) plus `value`, clamping on every mutation |
 | `<adw-toggle-group>` | `ToggleGroupState` | segment list, guarded active index |
 | `<adw-expander-row>` | `ExpanderState` | expanded/collapsed disclosure |
 | `<adw-alert-dialog>` | `AdwAlertResponses` | response registry, default/close response, resolve-to-chosen-id |

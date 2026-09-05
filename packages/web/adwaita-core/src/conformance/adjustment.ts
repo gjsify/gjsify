@@ -91,6 +91,15 @@ export const ADJUSTMENT_AUTHORED_VECTORS: ReadonlyArray<AdjustmentAuthoredVector
         input: { lower: 0, upper: 100, pageSize: 20, value: 95 },
         adjustment: { ...DEFAULTS, pageSize: 20, value: 80 },
     },
+    {
+        // Clamping the DEFAULT 0 into this range lands on -50, the maximum, from an author
+        // who wrote no value at all. A range excluding zero is where "the default value is
+        // 0" and "the default value is the bottom" come apart, and every surface seeding a
+        // fresh adjustment goes through this row.
+        rule: 'an unwritten value on a range that excludes zero lands at the BOTTOM, not the top',
+        input: { lower: -100, upper: -50 },
+        adjustment: { ...DEFAULTS, lower: -100, upper: -50, value: -100 },
+    },
 ];
 
 /** One JSON attribute, and the fields it authored. */

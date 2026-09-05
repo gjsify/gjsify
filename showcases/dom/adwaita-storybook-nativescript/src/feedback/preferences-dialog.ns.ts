@@ -62,9 +62,7 @@ export class PreferencesDialogNsStory extends StoryView {
         // Font size — a spin row bounded 8–24, defaulting to 12.
         const fontSize = new Adw.SpinRow();
         fontSize.title = 'Font size';
-        fontSize.min = 8;
-        fontSize.max = 24;
-        fontSize.step = 1;
+        fontSize.adjustment = { lower: 8, upper: 24, stepIncrement: 1 };
         fontSize.value = 12;
         group.addRow(fontSize);
 

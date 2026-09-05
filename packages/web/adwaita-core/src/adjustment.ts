@@ -1,14 +1,16 @@
 // The portable adjustment — `Gtk.Adjustment`'s six numbers as plain data (ADR 0047).
 //
 // The third sibling of `menu.ts` and `list.ts`, and the one with the WIDEST reach of the
-// three. `Gtk.Adjustment` is a writable property on six GTK types here — `AdwSpinRow`,
-// `GtkSpinButton`, `GtkRange` (so `GtkScale` and `GtkScrollbar`), `GtkScaleButton`, and
-// `GtkScrollable`'s `hadjustment`/`vadjustment` (so `GtkScrolledWindow`, `GtkViewport`) —
-// read from `gtk-host/src/generated/surface-data.mts`, whose provenance line names the
-// libraries it was generated from. A numeric range is not a widget's own private state on
-// GTK: it is a value the widget is HANDED, which is why one portable value reaches all of
-// them and why three renderers spelling it `min`/`max`/`step` was three spellings of a type
-// that already has a name.
+// three. An adjustment property is on seven GTK types here — `AdwSpinRow`, `GtkSpinButton`,
+// `GtkRange` (so `GtkScale`, which extends it), `GtkScaleButton`, `GtkScrollbar`,
+// `GtkScrolledWindow`, and `GtkScrollable`'s `hadjustment`/`vadjustment` (so `GtkViewport`,
+// which implements it) — read from `gtk-host/src/generated/surface-data.mts`, whose
+// provenance line names the libraries it was generated from. Three of the seven declare it
+// THEMSELVES: in GTK 4 `GtkScrollbar` and `GtkScrolledWindow` extend `GtkWidget` directly,
+// not `GtkRange` and `GtkScrollable` as the GTK 3 hierarchy a reader remembers would say.
+// A numeric range is not a widget's own private state on GTK: it is a value the widget is
+// HANDED, which is why one portable value reaches all of them and why three renderers
+// spelling it `min`/`max`/`step` was three spellings of a type that already has a name.
 //
 // WHAT WAS DIVERGENT. `Adw.SpinRow` has no `min`, no `max` and no `step`: it has an
 // `adjustment` (`Adw.SpinRow:adjustment`, since libadwaita 1.4). `@gjsify/adwaita-web` and
@@ -100,6 +102,18 @@ export const ADW_ADJUSTMENT_DEFAULTS: AdwAdjustment = {
     pageSize: 0,
 };
 
+/**
+ * The defaults with NO value yet — the base {@link normalizeAdjustment} uses when a caller
+ * gives none.
+ *
+ * `NaN` is not a placeholder here, it is the statement: nothing has written a value, and
+ * {@link clampAdjustmentValue} already says where an unwritten one goes — the LOWER bound.
+ * That is one mechanism rather than a special case, and it is the difference between
+ * `adjustment='{"lower":-100,"upper":-50}'` showing -100 and showing -50, which is what
+ * clamping the default 0 into a range that excludes zero answers.
+ */
+const UNSEEDED: AdwAdjustment = { ...ADW_ADJUSTMENT_DEFAULTS, value: Number.NaN };
+
 /** A finite number, or `fallback`. The one guard every field below shares. */
 function finite(value: unknown, fallback: number): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
@@ -139,8 +153,15 @@ export function clampAdjustmentValue(adjustment: AdwAdjustment, value: number): 
  * `AdwSpinRow:snap-to-ticks` (and `GtkSpinButton`'s before it) is documented as "whether
  * erroneous values are automatically changed to the nearest step", and the ticks are the
  * step grid counted FROM THE LOWER BOUND — a range of `[1, 10]` with a step of 3 has ticks
- * at 1, 4, 7 and 10, not at 3, 6, 9. The result never leaves {@link adjustmentRange}: the
- * tick above the top of the range rounds back down to the one below it.
+ * at 1, 4, 7 and 10, not at 3, 6, 9.
+ *
+ * THE TICK INDEX IS WHAT IS CLAMPED, not the value it produces, and the difference is a
+ * whole tick wide. Clamping the value lands on the upper BOUND whenever that bound is not
+ * itself a tick — `[0, 10]` step 4 answered `10`, which is off the grid `0, 4, 8` by two —
+ * so the function promised the nearest step and returned something that was not a step at
+ * all. An upper bound off the grid is simply not reachable by snapping; that is what
+ * snapping to ticks means, and it is what the slider row did before this arithmetic had a
+ * name.
  *
  * It is a function rather than a mode on {@link SpinState} because only one renderer needs
  * it: a stepper moves BY the step and can never land between ticks, while a dragged slider
@@ -149,8 +170,9 @@ export function clampAdjustmentValue(adjustment: AdwAdjustment, value: number): 
 export function snapAdjustmentValue(adjustment: AdwAdjustment, value: number): number {
     const clamped = clampAdjustmentValue(adjustment, value);
     const [low, high] = adjustmentRange(adjustment);
-    const ticks = Math.round((clamped - low) / adjustment.stepIncrement);
-    return Math.min(high, low + ticks * adjustment.stepIncrement);
+    const lastTick = Math.floor((high - low) / adjustment.stepIncrement);
+    const ticks = Math.min(lastTick, Math.max(0, Math.round((clamped - low) / adjustment.stepIncrement)));
+    return low + ticks * adjustment.stepIncrement;
 }
 
 /**
@@ -162,18 +184,20 @@ export function snapAdjustmentValue(adjustment: AdwAdjustment, value: number): n
  * of zero is a stepper that cannot move, which is GTK's default and not a usable one), and
  * `value` is clamped last, against the range the other five just described.
  */
-export function normalizeAdjustment(
-    input?: AdwAdjustmentInput | null,
-    base: AdwAdjustment = ADW_ADJUSTMENT_DEFAULTS,
-): AdwAdjustment {
+export function normalizeAdjustment(input?: AdwAdjustmentInput | null, base: AdwAdjustment = UNSEEDED): AdwAdjustment {
     const authored = input ?? {};
     const lower = finite(authored.lower, base.lower);
     const upper = Math.max(lower, finite(authored.upper, base.upper));
+    // A REFUSED write keeps what the adjustment held, rather than falling to the global
+    // default: `configure({ stepIncrement: 0 })` on a state stepping by 5 is a write this
+    // function declines, and declining it by resetting the step to 1 would make a rejected
+    // value change the state anyway.
     const stepCandidate = finite(authored.stepIncrement, base.stepIncrement);
-    const stepIncrement = stepCandidate > 0 ? stepCandidate : ADW_ADJUSTMENT_DEFAULTS.stepIncrement;
-    // A page increment that was FOLLOWING the step keeps following it, so moving the step
-    // alone does not silently leave Page Up/Down on the old distance; one authored apart
-    // from the step is carried through untouched.
+    const stepIncrement = stepCandidate > 0 ? stepCandidate : base.stepIncrement;
+    // A page increment EQUAL to the step follows it, so moving the step alone does not
+    // silently leave Page Up/Down on the old distance. The test is the two NUMBERS and not
+    // the author's intent, which this function cannot see: one authored to the same value
+    // as the step is indistinguishable from one that defaulted to it, and moves with it.
     const baseFollowsStep = base.pageIncrement === base.stepIncrement;
     const pageCandidate = finite(authored.pageIncrement, baseFollowsStep ? stepIncrement : base.pageIncrement);
     const pageIncrement = pageCandidate > 0 ? pageCandidate : stepIncrement;
@@ -186,6 +210,8 @@ export function normalizeAdjustment(
         pageIncrement,
         pageSize,
     };
+    // An unauthored value falls back to the base's — which is {@link UNSEEDED}'s `NaN` when
+    // no value has been written anywhere yet, and the clamp takes that to the lower bound.
     ranged.value = clampAdjustmentValue(ranged, typeof authored.value === 'number' ? authored.value : base.value);
     return ranged;
 }
@@ -272,6 +298,17 @@ export type SpinStateRangeListener = (adjustment: AdwAdjustment) => void;
  */
 export class SpinState {
     private _adjustment: AdwAdjustment = normalizeAdjustment();
+    /**
+     * Whether a value has ever been WRITTEN — by a setter, a stepper, or a `configure`
+     * carrying one.
+     *
+     * Until one has, the value is not a value: it is wherever the bottom of the range is,
+     * and it follows a bound that moves. After one has, a moved bound RE-CLAMPS it, which
+     * is the documented behaviour and a different thing. Without the flag the two are
+     * indistinguishable, and a fresh row configured to `[-100, -50]` opened at -50 — the
+     * maximum, from an author who wrote no value at all.
+     */
+    private _valueSet = false;
     private readonly _listeners = new Set<SpinStateListener>();
     private readonly _rangeListeners = new Set<SpinStateRangeListener>();
 
@@ -305,6 +342,7 @@ export class SpinState {
     }
 
     private _bump(delta: number): boolean {
+        this._valueSet = true;
         const next = clampAdjustmentValue(this._adjustment, this._adjustment.value + delta);
         if (next === this._adjustment.value) return false;
         this._adjustment = { ...this._adjustment, value: next };
@@ -334,7 +372,9 @@ export class SpinState {
      */
     configure(input: AdwAdjustmentInput | null | undefined): boolean {
         const previous = this._adjustment;
-        const next = normalizeAdjustment(input, previous);
+        const seeded = this._valueSet ? previous : { ...previous, value: Number.NaN };
+        const next = normalizeAdjustment(input, seeded);
+        if (typeof input?.value === 'number') this._valueSet = true;
         const rangeMoved =
             next.lower !== previous.lower ||
             next.upper !== previous.upper ||
@@ -353,6 +393,7 @@ export class SpinState {
 
     /** Programmatic value set — clamp, notify `interactive: false` on change. Returns whether it changed. */
     setValue(value: number): boolean {
+        this._valueSet = true;
         const next = clampAdjustmentValue(this._adjustment, value);
         if (next === this._adjustment.value) return false;
         this._adjustment = { ...this._adjustment, value: next };
@@ -371,6 +412,7 @@ export class SpinState {
      * Returns whether it changed.
      */
     setValueInteractive(value: number): boolean {
+        this._valueSet = true;
         const next = clampAdjustmentValue(this._adjustment, value);
         if (next === this._adjustment.value) return false;
         this._adjustment = { ...this._adjustment, value: next };

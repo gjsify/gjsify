@@ -95,9 +95,25 @@ export default async () => {
                 expect(normalizeAdjustment({ stepIncrement: 4 }).stepIncrement).toBe(4);
             });
 
-            await it('lets the page increment follow the step until one is authored', () => {
+            await it('a REFUSED step keeps what the base held, rather than falling to 1', () => {
+                // Declining a write must not change the state: a state stepping by 5 that is
+                // handed a 0 keeps stepping by 5.
+                const base = normalizeAdjustment({ stepIncrement: 5 });
+                expect(normalizeAdjustment({ stepIncrement: 0 }, base).stepIncrement).toBe(5);
+                expect(normalizeAdjustment({ stepIncrement: -1 }, base).stepIncrement).toBe(5);
+            });
+
+            await it('lets a page increment EQUAL to the step follow it', () => {
                 expect(normalizeAdjustment({ stepIncrement: 5 }).pageIncrement).toBe(5);
                 expect(normalizeAdjustment({ stepIncrement: 5, pageIncrement: 20 }).pageIncrement).toBe(20);
+
+                // The test is the two NUMBERS, not the author's intent — one written to the
+                // same value as the step is indistinguishable from one that defaulted to it,
+                // and moves with it.
+                const paired = normalizeAdjustment({ stepIncrement: 2, pageIncrement: 2 });
+                expect(normalizeAdjustment({ stepIncrement: 7 }, paired).pageIncrement).toBe(7);
+                const apart = normalizeAdjustment({ stepIncrement: 2, pageIncrement: 9 });
+                expect(normalizeAdjustment({ stepIncrement: 7 }, apart).pageIncrement).toBe(9);
             });
 
             await it('clamps the authored value last, against the range the other five describe', () => {
@@ -206,6 +222,14 @@ export default async () => {
                 expect(snapAdjustmentValue(uneven, -99)).toBe(0);
             });
 
+            await it('answers a TICK even when the drag ends exactly on an off-grid bound', () => {
+                // The gap above the last tick decides it, and it has to be more than half a
+                // step for the rounding to reach the bound at all: `[0, 10]` step 4 has
+                // ticks 0, 4, 8 and a gap of 2. Clamping the VALUE answered 10 here.
+                expect(snapAdjustmentValue(scalar(0, 10, 4), 10)).toBe(8);
+                expect(snapAdjustmentValue(scalar(0, 5, 2), 5)).toBe(4);
+            });
+
             await it('does reach an upper that IS on the grid', () => {
                 expect(snapAdjustmentValue(scalar(0, 9, 3), 99)).toBe(9);
             });
@@ -253,6 +277,39 @@ export default async () => {
                 falling.setValue(80);
                 expect(falling.configure({ upper: 50 })).toBe(true);
                 expect(falling.value).toBe(50);
+            });
+
+            await it('follows a moved bound until a value is WRITTEN, and re-clamps after', () => {
+                // A fresh adjustment has no value yet, so the bottom of the range is where
+                // it sits: clamping the default 0 into a range that excludes zero would put
+                // it on the MAXIMUM instead.
+                const fresh = new SpinState();
+                fresh.configure({ lower: -100, upper: -50 });
+                expect(fresh.value).toBe(-100);
+
+                // Once a value has been written, a moved bound RE-CLAMPS it — the nearer
+                // end, not the bottom.
+                const used = new SpinState();
+                used.setValue(80);
+                used.configure({ upper: 50 });
+                expect(used.value).toBe(50);
+
+                // And a written value resting ON the lower bound stays where it is when the
+                // bound moves away from it, which is what tells the two rules apart.
+                const resting = new SpinState();
+                resting.configure({ lower: 5, upper: 10 });
+                resting.setValue(5);
+                resting.configure({ lower: 0 });
+                expect(resting.value).toBe(5);
+            });
+
+            await it('counts a value inside a configure as written', () => {
+                const state = new SpinState();
+                state.configure({ lower: 0, upper: 100, value: 40 });
+                state.configure({ lower: 60 });
+                expect(state.value).toBe(60); // re-clamped, not re-seeded — same number, and
+                state.configure({ lower: 0 });
+                expect(state.value).toBe(60); // THIS is the row: a seeded value would follow.
             });
 
             await it('reports no change when configure is handed what it already holds', () => {

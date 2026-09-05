@@ -439,18 +439,20 @@ export default async () => {
             expect(valueLabel(tree)).toStrictEqual(['10', true]);
         });
 
-        await it('applies the bounds before the value, so a range that MOVES is not clamped away', async () => {
-            // `setValue` clamps against whatever range is installed at the time, so the
-            // four prop effects have to run bounds-first. Every other fixture here straddles
-            // `SpinState`'s default 0…100 and cannot see the order; this one moves the range
-            // ENTIRELY above it, so applying the value first would clamp 250 to 100, then
-            // `setMin(200)` would re-clamp it to 200 and the row would settle two steps from
-            // where it was authored. Swapping the four effects makes this the only red row.
+        await it('takes a range that MOVES entirely, without clamping the value on the way', async () => {
+            // `setValue` clamps against whatever range is installed at the time, and this
+            // fixture is the one that can SEE that: every other row here straddles the
+            // default 0…100, while this range sits entirely above it. It used to hold an
+            // ORDER — four prop effects, bounds before value — because the range arrived as
+            // three separate props; writing the value first clamped 250 to 100, and the
+            // bounds then re-clamped it to 200. There is no order left to get wrong: the
+            // range and the value go in one `configure`, which is why the stream below is
+            // one number and not three.
             //
-            // The INITIALISER's order is the same and is NOT held here: `mount` flushes
-            // effects inside `act`, so the settled tree is the effects' answer either way.
-            // What the initialiser buys is the first frame, which this harness cannot read —
-            // `create()` outside `act` returns a null tree on React 19 (`render.spec.ts`).
+            // The INITIALISER is not held here either way: `mount` flushes effects inside
+            // `act`, so the settled tree is the effects' answer. What the initialiser buys
+            // is the first frame, which this harness cannot read — `create()` outside `act`
+            // returns a null tree on React 19 (`render.spec.ts`).
             const tree = mounted(<AdwSpinRow title="Scale" adjustment={{ lower: 200, upper: 300 }} value={250} />);
             expect(valueLabel(tree)).toStrictEqual(['250', true]);
 

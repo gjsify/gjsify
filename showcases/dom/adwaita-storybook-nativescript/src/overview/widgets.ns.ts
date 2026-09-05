@@ -79,9 +79,13 @@ export class OverviewWidgetsNsStory extends StoryView {
 
         const devices = new Adw.SpinRow();
         devices.title = OVERVIEW_TEXT.devices;
-        devices.min = OVERVIEW_DEVICES.lower;
-        devices.max = OVERVIEW_DEVICES.upper;
-        devices.step = OVERVIEW_DEVICES.step;
+        // The same three numbers the GTK story hands `new Gtk.Adjustment`, now under the
+        // same key on both renderers (ADR 0047).
+        devices.adjustment = {
+            lower: OVERVIEW_DEVICES.lower,
+            upper: OVERVIEW_DEVICES.upper,
+            stepIncrement: OVERVIEW_DEVICES.step,
+        };
         devices.value = OVERVIEW_DEVICES.value;
         account.addRow(devices);
 

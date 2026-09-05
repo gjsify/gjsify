@@ -101,9 +101,16 @@ export class AdwSliderRow extends StackLayout {
 
         // A moved bound is the slider's own geometry, which is why this row needs the
         // signal the spin row does not: `Gtk.Adjustment::changed` re-sizes the track.
+        //
+        // AND RE-SNAPS, which clamping alone does not do. A moved bound moves the TICK GRID
+        // with it — 25 is on `0, 5, 10, …` and off `1, 6, 11, …` — so a value the old grid
+        // allowed can be left between two ticks of the new one. The setters this replaced
+        // ended with `this.value = this._value` for exactly that, and losing it is invisible
+        // to a suite that writes the range before the value.
         this._state.subscribeChanged((adjustment) => {
             this._slider.minValue = adjustment.lower;
             this._slider.maxValue = adjustment.upper;
+            this._state.setValue(snapAdjustmentValue(adjustment, this._state.value));
             this._sync();
         });
 

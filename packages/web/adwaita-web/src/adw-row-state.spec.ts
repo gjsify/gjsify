@@ -417,16 +417,25 @@ export const AdwRowStateTest = async () => {
 
         for (const vector of ADJUSTMENT_PARSE_VECTORS) {
             await it(`attribute: ${vector.rule}`, () => {
+                // Seeded through the ATTRIBUTE and not left at the defaults, so the write
+                // below has something to overwrite: a row that starts where it ends cannot
+                // tell a door that read the vector from one that was never called.
                 const { el: row, host } = parse<AdwSpinRow>(
-                    '<adw-spin-row title="Amount" value="7"></adw-spin-row>',
+                    `<adw-spin-row title="Amount" value="7" adjustment='{"upper":40}'></adw-spin-row>`,
                     'adw-spin-row',
                 );
-                expect(row.adjustment).toStrictEqual(SEEDED);
+                expect(row.adjustment).toStrictEqual({ ...SEEDED, upper: 40 });
 
-                if (vector.raw !== null) row.setAttribute('adjustment', vector.raw);
+                // `null` is the ABSENT attribute, and removing one is how an element meets
+                // it: `attributeChangedCallback` fires with a null value, which the door has
+                // to answer as "nothing authored" rather than as a whole adjustment. The
+                // element never sees that call if the test simply skips the write.
+                if (vector.raw === null) row.removeAttribute('adjustment');
+                else row.setAttribute('adjustment', vector.raw);
 
-                // The authored fields over what the row already held, and nothing else.
-                expect(row.adjustment).toStrictEqual({ ...SEEDED, ...vector.input });
+                // The authored fields over what the row already held, and nothing else —
+                // `upper: 40` survives every row that does not name an upper.
+                expect(row.adjustment).toStrictEqual({ ...SEEDED, upper: 40, ...vector.input });
                 host.remove();
             });
         }
