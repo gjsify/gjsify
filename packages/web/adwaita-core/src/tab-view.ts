@@ -25,6 +25,7 @@
 // Reference: refs/libadwaita/src/adw-tab.c (AdwTab close button, tooltip, icons)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import type { AdwListItemsChanged } from './list.js';
 import { ViewStackState } from './view-stack.js';
 import type { AdwViewStackPageInfo } from './view-stack.js';
 
@@ -172,6 +173,44 @@ export interface TabViewPagesChange {
 
 /** Subscriber for {@link TabViewState} page-list changes. */
 export type TabViewPagesListener = (change: TabViewPagesChange) => void;
+
+/**
+ * The same change as a portable `items-changed` (ADR 0046) — the mapping that makes "the
+ * tab view's page signal IS the positional list signal" a CHECKABLE claim rather than a
+ * sentence in an ADR.
+ *
+ * `TabViewPagesChange` was the only positional collection signal in this package, and it
+ * is the evidence the portable one is shaped right; the portable one is GLib's, because
+ * `AdwTabView:pages` really is a `GListModel` even though the PAGES are appended by a
+ * method. The five kinds fold onto the three numbers exactly:
+ *
+ *   attached   (p, 0, 1)  an item arrived at p
+ *   detached   (p, 1, 0)  an item left p
+ *   updated    (p, 1, 1)  the item at p is a different thing to draw — which is how
+ *                         `GListModel` spells a per-item change; it has no other verb
+ *   reordered  \
+ *   pinned     /  the span between the two positions, removed and re-added. A move has no
+ *                 verb either, and `g_list_store_move` reports it the same way.
+ *
+ * NOT a lossy conversion in the direction that matters: {@link AdwListItemsChanged} plus
+ * the change's `id` is enough to replay the whole page order, which is what the two
+ * renderer tab-view suites assert against the orders their real widgets end on.
+ */
+export function tabViewItemsChanged(change: TabViewPagesChange): AdwListItemsChanged {
+    switch (change.kind) {
+        case 'attached':
+            return { position: change.position, removed: 0, added: 1 };
+        case 'detached':
+            return { position: change.position, removed: 1, added: 0 };
+        case 'updated':
+            return { position: change.position, removed: 1, added: 1 };
+        default: {
+            const position = Math.min(change.position, change.previousPosition);
+            const span = Math.abs(change.position - change.previousPosition) + 1;
+            return { position, removed: span, added: span };
+        }
+    }
+}
 
 /** What a tab draws in its icon and indicator slots — the result of {@link tabIconState}. */
 export interface TabIconState {

@@ -322,7 +322,7 @@ the web port renders them stacked instead.
       <adw-preferences-page title="General" icon-name="preferences-system-symbolic">
         <adw-preferences-group title="Appearance" description="Control how the application looks and behaves.">
           <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
-          <adw-combo-row title="Accent colour" items='["Blue","Teal","Green","Orange","Purple"]' selected="0"></adw-combo-row>
+          <adw-combo-row title="Accent colour" model='["Blue","Teal","Green","Orange","Purple"]' selected="0"></adw-combo-row>
           <adw-spin-row title="Font size" min="8" max="24" value="12" step="1"></adw-spin-row>
         </adw-preferences-group>
       </adw-preferences-page>
@@ -427,7 +427,7 @@ the web port renders them stacked instead.
 
     const accent = new Adw.ComboRow();
     accent.title = 'Accent colour';
-    accent.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((label) => ({ label, value: label }));
+    accent.model = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'];
     accent.selected = 0;
     group.addRow(accent);
 

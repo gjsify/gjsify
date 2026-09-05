@@ -82,7 +82,7 @@ export function AdwComboRow({
     // chevron would appear a frame after the row it belongs to.
     const [row] = useState(() => {
         const state = new ComboState();
-        state.setOptions(normalizeComboOptions(model));
+        state.setModel(normalizeComboOptions(model));
         if (selected !== undefined) state.setSelectedIndex(selected);
         return state;
     });
@@ -113,9 +113,9 @@ export function AdwComboRow({
     // occur in an authored label, so `['a b']` and `['a', 'b']` are two keys and not one.
     const key = optionsKey(model);
 
-    // `setOptions` IS THE ONE SETTER WITH NO GUARD, and it needs this latch rather than
+    // `setModel` IS THE ONE SETTER WITH NO GUARD, and it needs this latch rather than
     // deserving one. Every other setter in the core early-outs on an unchanged value, so a
-    // mount effect that re-applies what the initialiser already set is silent; `setOptions`
+    // mount effect that re-applies what the initialiser already set is silent; `setModel`
     // ALWAYS emits, because the label is read out of the MODEL and can change at an
     // unchanged index. Measured before this ref existed: mounting a combo row called
     // `onNotifySelected(0)` with nothing having happened — `[0, 1]` where a single press
@@ -126,7 +126,7 @@ export function AdwComboRow({
     useEffect(() => {
         if (appliedOptions.current === key) return;
         appliedOptions.current = key;
-        row.setOptions(normalizeComboOptions(model));
+        row.setModel(normalizeComboOptions(model));
         // `key` and not `model` in the dependency, and `model` read inside: an inline
         // `model={['a','b']}` literal is a new array on every render, so depending on its
         // IDENTITY would re-run this — and therefore re-emit — forever.

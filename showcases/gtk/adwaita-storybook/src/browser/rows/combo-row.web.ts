@@ -16,7 +16,7 @@ export class ComboRowWebStory extends StoryElement {
 
     initialize(): void {
         this._row = document.createElement('adw-combo-row');
-        this._row.setAttribute('items', JSON.stringify([...COMBO_ROW_OPTIONS]));
+        this._row.setAttribute('model', JSON.stringify([...COMBO_ROW_OPTIONS]));
         this._syncRow();
 
         const group = document.createElement('adw-preferences-group');

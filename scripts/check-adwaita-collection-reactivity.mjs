@@ -84,17 +84,17 @@
 //     Measured the other way round: move the pre-fix `<adw-combo-row>`'s connect-time
 //     seeding one hop up into a base class and all three rules fall silent on the
 //     unchanged bug.
-//   · MODULE-LEVEL PARSING. The attribute reader sees a list parsed by a MEMBER of the
-//     class — `JSON.parse` inline, or a helper taking the attribute name — not one parsed
-//     by a module function. TWO widgets have that shape since ADR 0042 gave both menu
-//     buttons one `menu-model` attribute read through core's `parseMenuModel(…)`:
-//     `adw-split-button.ts`, which rule 1 holds anyway because its collection is
-//     `SplitButtonState.setMenuModel`, and `gtk-menu-button.ts`, which rule 1 does NOT
-//     hold — it keeps its model in its own field rather than in a core state class, so
-//     every rule here is silent on it and the census has no entry to break. Its
-//     `set menuModel` and its `menu-model` branch of `attributeChangedCallback` are both
-//     asserted by `packages/web/adwaita-web/src/gtk-menu-button.spec.ts`; that is a spec
-//     standing where this reader cannot.
+//   · MODULE-LEVEL PARSING — CLOSED, and worth keeping as the reason the closure is
+//     shaped the way it is. The attribute reader used to look for the literal
+//     `JSON.parse(` inside a class member, so a parser that MOVED into core took the
+//     attribute out of sight with it. It was written down here as a limit covering the two
+//     menu buttons after ADR 0042, and then came true again: ADR 0046 moved both
+//     selectors' attribute parsing into `parseListModel`, and `attr:model` went invisible
+//     on `<adw-combo-row>` and `<gtk-drop-down>` at the moment their rules were meant to
+//     hold it. {@link coreListParsers} DERIVES the parser names from core — a string in, a
+//     list out — rather than listing them, because a hand-kept list has the same failure
+//     one rename later. All four widgets are held by rules 2 and 3 now, and
+//     `gtk-menu-button` has its first census entry.
 //
 // Plain Node over the repo's own files — no install, no build — so it runs in
 // `audit-runtimes.yml` next to the other repo-scoped Adwaita guards.
@@ -153,23 +153,24 @@ const CONNECT_TIME_ONLY = {
  */
 const COLLECTION_CENSUS = {
     'NativeScript/adw-alert-dialog': ['AdwAlertResponses.addResponses'],
-    'NativeScript/adw-combo-row': ['ComboState.setOptions'],
+    'NativeScript/adw-combo-row': ['ComboState.setModel'],
     'NativeScript/adw-navigation-view': ['NavigationViewState.replaceWithTags'],
     'NativeScript/adw-sidebar': ['SidebarState.setSections'],
     'NativeScript/adw-split-button': ['SplitButtonState.setMenuModel'],
     'NativeScript/adw-toggle-group': ['ToggleGroupState.setLabels'],
     'NativeScript/adw-view-switcher-bar': ['ViewSwitcherBarState.setPages'],
-    'NativeScript/gtk-drop-down': ['ComboState.setOptions'],
-    'browser/adw-combo-row': ['ComboState.setOptions', 'attr:items', 'attr:options'],
+    'NativeScript/gtk-drop-down': ['ComboState.setModel'],
+    'browser/adw-combo-row': ['ComboState.setModel', 'attr:model'],
     'browser/adw-data-grid': ['attr:columns', 'attr:rows'],
     'browser/adw-inline-view-switcher': ['ViewSwitcherState.setPages'],
     'browser/adw-navigation-view': ['NavigationViewState.replaceWithTags'],
     'browser/adw-sidebar': ['SidebarState.setSections'],
-    'browser/adw-split-button': ['SplitButtonState.setMenuModel'],
+    'browser/adw-split-button': ['SplitButtonState.setMenuModel', 'attr:menu-model'],
     'browser/adw-toggle-group': ['ToggleGroupState.setLabels'],
+    'browser/gtk-menu-button': ['attr:menu-model'],
     'browser/adw-view-switcher': ['ViewSwitcherState.setPages'],
     'browser/adw-view-switcher-bar': ['ViewSwitcherBarState.setPages'],
-    'browser/gtk-drop-down': ['ComboState.setOptions', 'attr:items', 'attr:options'],
+    'browser/gtk-drop-down': ['ComboState.setModel', 'attr:model'],
 };
 
 function fail(lines) {
@@ -220,6 +221,37 @@ function coreListAliases() {
 /** Whether a signature names a list, directly or through one of core's list aliases. */
 const namesAList = (signature, aliases) =>
     LIST_TYPE.test(signature) || [...aliases].some((alias) => new RegExp(`\\b${alias}\\b`).test(signature));
+
+/**
+ * Core's exported functions that turn a STRING into a list — `parseListModel`,
+ * `parseMenuModel`. A widget calling one of these on a `getAttribute` is parsing a
+ * collection attribute, exactly as an inline `JSON.parse` is.
+ *
+ * DERIVED, not listed, and that is the whole reason it can be trusted: the previous
+ * reader looked for the literal `JSON.parse(` in a class member, so a parser that MOVED
+ * into core took the attribute out of this file's sight with it. That was written down as
+ * a KNOWN LIMIT covering two widgets and then came true a third time — ADR 0046 moved
+ * both selectors' attribute parsing to `parseListModel`, and `attr:model` went invisible
+ * on `<adw-combo-row>` and `<gtk-drop-down>` at the same moment their rules were supposed
+ * to hold it. A hand-kept list of parser names would have had the same failure mode one
+ * rename later.
+ *
+ * The shape is deliberately narrow — a `string` somewhere in the parameters and a list
+ * (through {@link coreListAliases}' one hop) coming back — so a core helper that merely
+ * TAKES a string is not mistaken for an attribute door.
+ */
+function coreListParsers(aliases) {
+    const parsers = new Set();
+    for (const file of sourcesUnder(CORE_SRC)) {
+        const code = stripComments(readFileSync(join(ROOT, file), 'utf8'));
+        for (const [, name, params, ret] of code.matchAll(
+            /\bexport\s+function\s+([A-Za-z0-9_$]+)\s*\(([^)]*)\)\s*:\s*([^{]+)\{/g,
+        )) {
+            if (/\bstring\b/.test(params) && namesAList(ret, aliases)) parsers.add(name);
+        }
+    }
+    return parsers;
+}
 
 /**
  * A method that TAKES a collection in, as opposed to one that hands an element back.
@@ -298,7 +330,7 @@ function classBody(code, className) {
  *
  * Keyed on the ONE-LEVEL indent oxfmt gives a class member, which is what separates a
  * declaration from a call statement inside a body: `    set options(` against
- * `        this._state.setOptions(`. `oxfmt --check` is what keeps that true, and a member
+ * `        this._state.setModel(`. `oxfmt --check` is what keeps that true, and a member
  * this reader misses would take its call sites with it — so a widget class that yields NO
  * members is a failure below, not a pass.
  */
@@ -409,7 +441,7 @@ function sourcesUnder(dir) {
  *
  * A COLLECTION setter is a public method of an exported state class whose parameter list
  * names a list. `set x(v: T[])` accessors are deliberately not in here: this map exists to
- * attribute a widget's CALL SITE (`this._state.setOptions(…)`), and an accessor is never
+ * attribute a widget's CALL SITE (`this._state.setModel(…)`), and an accessor is never
  * called by name.
  */
 function coreCollectionSetters() {
@@ -441,7 +473,7 @@ function coreCollectionSetters() {
  * Read one widget class: its settable collection properties, and the attributes it parses
  * as lists.
  */
-function readWidget(text, className, coreClasses) {
+function readWidget(text, className, coreClasses, parseCalls, aliases) {
     const code = stripComments(text);
     const body = classBody(code, className);
     if (body === null) return null;
@@ -449,11 +481,18 @@ function readWidget(text, className, coreClasses) {
     const lineIn = (index) => lineOf(code, body.offset + index);
     const fields = stateFields(body.text, coreClasses);
 
+    // `namesAList`, not a bare bracket test: rule 3 asks whether the widget publishes a
+    // setter for the collection its attribute carries, and both of the collections whose
+    // authored form has a NAME — `AdwMenuInput`, `AdwListModelInput` — are spelled with
+    // that name at the setter. A bracket test reported all four widgets that take one as
+    // having "list setters: [none]" while the setter was on the line above the attribute.
     const listSetters = members
-        .filter((member) => member.kind === 'set' && LIST_TYPE.test(signatureOf(body.text, members, member)))
+        .filter((member) => member.kind === 'set' && namesAList(signatureOf(body.text, members, member), aliases))
         .map((member) => member.name);
 
-    // Members whose body parses JSON — where a collection attribute is read.
+    // Members whose body turns text into a list — where a collection attribute is read.
+    // `parseCalls` is `JSON.parse` plus core's own string→list functions
+    // ({@link coreListParsers}), because a parser that moved into core is still a parser.
     //
     // "IN A MEMBER THAT PARSES" IS NOT "PARSED", and the looser reading was measured wrong
     // on the very element this file was written for: the pre-fix `<adw-combo-row>` reads
@@ -461,21 +500,22 @@ function readWidget(text, className, coreClasses) {
     // and a member-wide scan reported the scalar `selected` as a collection with no list
     // setter. A check that invents a collection is worse than one that misses it — that
     // claim is what a reader would go and act on. So the literal has to FEED the parse.
-    const parsers = members.filter((member) => memberText(body.text, members, member).includes('JSON.parse('));
+    const anyParseCall = new RegExp(`(?:${parseCalls})\\s*\\(`);
+    const parsers = members.filter((member) => anyParseCall.test(memberText(body.text, members, member)));
     const parsedAttributes = new Map();
     for (const parser of parsers) {
         const source = memberText(body.text, members, parser);
-        // Locals a `JSON.parse` consumes — the indirect shape both selectors use:
-        // `const raw = this.getAttribute('options') ?? this.getAttribute('items');` and,
-        // below it, `JSON.parse(raw)`.
-        const parsedLocals = [...source.matchAll(/JSON\.parse\(\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\)/g)].map(
-            ([, local]) => local,
-        );
+        // Locals a parse call consumes — the indirect shape a widget reading two attribute
+        // spellings uses: `const raw = this.getAttribute('a') ?? this.getAttribute('b');`
+        // and, below it, `JSON.parse(raw)`.
+        const parsedLocals = [
+            ...source.matchAll(new RegExp(`(?:${parseCalls})\\(\\s*([A-Za-z_$][A-Za-z0-9_$]*)\\s*\\)`, 'g')),
+        ].map(([, local]) => local);
         // (a) the literal read in a STATEMENT that feeds the parse — directly, or by
         //     declaring one of those locals.
         for (const statement of source.split(';')) {
             const feeds =
-                statement.includes('JSON.parse(') ||
+                anyParseCall.test(statement) ||
                 parsedLocals.some((local) => new RegExp(`\\b(?:const|let|var)\\s+${local}\\b`).test(statement));
             if (!feeds) continue;
             for (const [, name] of statement.matchAll(/\bgetAttribute\(\s*['"]([^'"]+)['"]/g)) {
@@ -495,20 +535,27 @@ function readWidget(text, className, coreClasses) {
 }
 
 /**
- * `this.<field>` → the class that field holds, for the state objects a widget composes.
+ * `this.<field>` → the class that field holds, for every field a widget composes.
  *
  * Four shapes, all of them in the tree and all of them declarations rather than
  * inferences: a typed field (`_state: ViewSwitcherState = …`), a constructed one
  * (`_state = new ComboState()`), a typed getter (`private get _state(): ViewSwitcherState`
  * — `<adw-view-switcher>` builds its state lazily so a `scheduler` set before connect is
  * the one used), and a `create<Class>()` factory, which is how the NativeScript widgets
- * reach a state they must not construct directly. The factory name is only believed when
- * it spells a class core actually exports.
+ * reach a state they must not construct directly.
+ *
+ * IT KEEPS THE NON-CORE FIELDS TOO, and that is what stops a call being credited to a
+ * class it was never made on. It used to drop them, so an unresolved receiver and a
+ * receiver resolving to something else were the same answer, and
+ * {@link coreCallSites} fell back to the setter's single owner for both. MEASURED:
+ * `this._menuView.setMenuModel(…)` in `<gtk-menu-button>` — a renderer-local view class,
+ * not a state — was reported as the widget carrying `SplitButtonState.setMenuModel`,
+ * complete with a fix instructing it to publish a setter for a collection it does not own.
  */
 function stateFields(body, coreClasses) {
     const fields = new Map();
     const remember = (name, className) => {
-        if (className && coreClasses.has(className) && !fields.has(name)) fields.set(name, className);
+        if (className && !fields.has(name)) fields.set(name, className);
     };
     for (const [, name, type] of body.matchAll(
         /\n {4}(?:(?:public|private|protected|static|readonly) +)*([A-Za-z_$][A-Za-z0-9_$]*) *: *([A-Za-z0-9_$]+)/g,
@@ -556,21 +603,74 @@ function attributeBranches(widget) {
 }
 
 /**
- * Every call to `.<setter>(` in a widget body, with the member it sits in and the core
- * class the receiver holds (`null` when the receiver names none — a forwarding helper
- * such as NativeScript's `NavigationStack`, which is not itself a core state).
+ * Whether a RENDERER-LOCAL class forwards `setter` to a core state — one hop, over the
+ * classes of the package the widget lives in.
+ *
+ * The hop exists because both answers are in the tree and they are opposites.
+ * `NsNavigationStack.replaceWithTags` is `this._state.replaceWithTags(tags)`, so a widget
+ * calling it through that helper really does carry `NavigationViewState.replaceWithTags`.
+ * `PopoverMenuView.setMenuModel` renders DOM and reaches no state at all, so a widget
+ * calling THAT carries nothing of `SplitButtonState`'s. Without the hop the two are one
+ * case, and whichever way it is resolved is wrong for the other.
  */
-function coreCallSites(widget, setter) {
+function forwardsToCore(localClasses, className, setter, coreClasses) {
+    const local = localClasses.get(className);
+    if (local === undefined) return false;
+    const fields = stateFields(local.text, coreClasses);
+    for (const match of local.text.matchAll(new RegExp(`\\.${setter}\\s*\\(`, 'g'))) {
+        const receiver = /this\.([A-Za-z0-9_$]+)$/.exec(local.text.slice(0, match.index));
+        if (receiver === null) continue;
+        const held = fields.get(receiver[1]);
+        if (held !== undefined && coreClasses.has(held)) return true;
+    }
+    return false;
+}
+
+/**
+ * Every call to `.<setter>(` in a widget body, with the member it sits in and the core
+ * class the receiver holds.
+ *
+ * `owner: null` means the receiver names no class this reader can resolve, or names one
+ * that FORWARDS to a core state ({@link forwardsToCore}); the caller then falls back to
+ * the setter's single owner. A receiver resolving to a renderer-local class that reaches
+ * no state is DROPPED: the call was made on something else, and crediting it to the one
+ * core class declaring that method name is how a widget acquires a collection it has
+ * nothing to do with (see {@link stateFields}).
+ */
+function coreCallSites(widget, setter, coreClasses, localClasses) {
     const sites = [];
     for (const match of widget.body.text.matchAll(new RegExp(`\\.${setter}\\s*\\(`, 'g'))) {
         const receiver = /this\.([A-Za-z0-9_$]+)$/.exec(widget.body.text.slice(0, match.index));
+        const held = receiver === null ? null : (widget.stateFields.get(receiver[1]) ?? null);
+        if (held !== null && !coreClasses.has(held) && !forwardsToCore(localClasses, held, setter, coreClasses)) {
+            continue;
+        }
         sites.push({
             member: memberAt(widget.members, match.index),
             line: widget.lineIn(match.index),
-            owner: receiver === null ? null : (widget.stateFields.get(receiver[1]) ?? null),
+            owner: coreClasses.has(held ?? '') ? held : null,
         });
     }
     return sites;
+}
+
+/**
+ * `class name` → its source, for every class the renderer package declares.
+ *
+ * Read whole-file rather than per class body: the one hop above only asks whether a state
+ * setter is called anywhere inside, and a class that reaches its state from a closure or a
+ * sibling helper in the same file is forwarding just as much as one that does it in a
+ * method. Over-accepting here keeps a real collection visible; under-accepting deletes one.
+ */
+function localClassesUnder(dir) {
+    const classes = new Map();
+    for (const file of sourcesUnder(dir)) {
+        const code = stripComments(readFileSync(join(ROOT, file), 'utf8'));
+        for (const [, name] of code.matchAll(/\bexport\s+class\s+([A-Za-z0-9_$]+)/g)) {
+            if (!classes.has(name)) classes.set(name, { file, text: code });
+        }
+    }
+    return classes;
 }
 
 // ---------------------------------------------------------------------------
@@ -586,10 +686,24 @@ if (coreSetters.size === 0) {
 }
 /** The state classes a widget field may be believed to hold. */
 const coreClasses = new Set([...coreSetters.values()].flat().map((owner) => owner.className));
+/** Core's exported type aliases that ARE lists — read once, used by three rules. */
+const CORE_LIST_ALIASES = coreListAliases();
+/** Every spelling of "this text becomes a list", as one regex alternation. */
+const PARSE_CALLS = ['JSON\\.parse', ...[...coreListParsers(CORE_LIST_ALIASES)].sort()].join('|');
 
 const RENDERERS = [
-    { label: 'browser', tags: adwaitaWebElements(ROOT), web: true },
-    { label: 'NativeScript', tags: adwaitaNativeScriptWidgets(ROOT), web: false },
+    {
+        label: 'browser',
+        tags: adwaitaWebElements(ROOT),
+        web: true,
+        localClasses: localClassesUnder('packages/web/adwaita-web/src'),
+    },
+    {
+        label: 'NativeScript',
+        tags: adwaitaNativeScriptWidgets(ROOT),
+        web: false,
+        localClasses: localClassesUnder('packages/nativescript-bridge/adwaita/src'),
+    },
 ];
 
 const problems = [];
@@ -611,7 +725,7 @@ for (const renderer of RENDERERS) {
     for (const [tag, file] of [...renderer.tags].sort()) {
         const className = tagClass(tag);
         const text = readFileSync(join(ROOT, file), 'utf8');
-        const widget = readWidget(text, className, coreClasses);
+        const widget = readWidget(text, className, coreClasses, PARSE_CALLS, CORE_LIST_ALIASES);
         if (widget === null) continue;
         // A class with code in it but no readable member is the vacuous pass this whole
         // file exists to refuse — its call sites would read as none. A marker class
@@ -631,7 +745,7 @@ for (const renderer of RENDERERS) {
 
         // Rule 1 — collect; the verdict is per widget, with its siblings named, below.
         for (const [setter, owners] of coreSetters) {
-            const sites = coreCallSites(widget, setter);
+            const sites = coreCallSites(widget, setter, coreClasses, renderer.localClasses);
             if (sites.length === 0) continue;
             collections += 1;
             // Which core class this widget's collection IS. A receiver that names one

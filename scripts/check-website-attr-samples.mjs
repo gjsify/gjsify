@@ -33,6 +33,18 @@
 //      observed attribute occurs, verbatim, in the fence it was read from — after
 //      decoding — so a scan that drifts into another element's attributes fails here
 //      rather than on the page.
+//   3. …and the OTHER direction, which arm 2 is structurally blind to: an attribute the
+//      fence WRITES that the element does not observe. Arm 2 walks the observed names, so
+//      a name outside that list is not compared to anything — it just never appears in the
+//      table, and the page reads as if the preview had not set it. Measured: the
+//      `<adw-combo-row>` preview on /adwaita/boxed-lists/ wrote `items` for its whole
+//      life, which the row never observed and its `connectedCallback` read anyway; ADR
+//      0046 then RENAMED that attribute to `model` and four call sites elsewhere in the
+//      tree kept writing `items` into an element that had stopped reading it at all —
+//      silently empty widgets, because an attribute is a string and no type sees it.
+//      Platform-global names (`slot`, `class`, `aria-*`, …) are excepted, and an element
+//      that observes NOTHING is skipped: its attributes are its parent's to read, which is
+//      what `<adw-view-switcher-page>` is.
 //
 // Plain Node over the repo's own files: no install, no build, no astro render.
 //
@@ -57,6 +69,23 @@ const docsDir = (section) => join(ROOT, 'website/src/content/docs', section);
 
 const failures = [];
 const fail = (what, expected, actual) => failures.push(`${what}\n      expected ${expected}\n      actual   ${actual}`);
+
+/**
+ * Attribute names an element carries WITHOUT observing them — the arm-3 finding.
+ *
+ * The exceptions are the two shapes that are not the widget's vocabulary at all: the
+ * platform-global names any HTML element takes, and every element that observes nothing,
+ * whose attributes belong to whichever parent reads them (`<adw-view-switcher-page>`).
+ */
+const PLATFORM_GLOBAL = new Set(['slot', 'class', 'id', 'style', 'hidden', 'role', 'tabindex', 'part', 'lang', 'dir']);
+const unobservedIn = (markup, tag, observed) =>
+    [...sampleAttributes(markup, tag).keys()].filter(
+        (name) =>
+            !observed.includes(name) &&
+            !PLATFORM_GLOBAL.has(name) &&
+            !name.startsWith('data-') &&
+            !name.startsWith('aria-'),
+    );
 
 // ---------------------------------------------------------------- 1. fixtures
 
@@ -140,11 +169,38 @@ for (const [what, markup, tag, expected] of FIXTURES) {
     }
 }
 
+// The arm-3 rule on broken input, so it cannot go quietly blind: it has to SEE the name
+// the element does not observe, and it has to stay silent on the two exceptions.
+/** @type {[string, string, string, readonly string[], readonly string[]][]} */
+const UNOBSERVED_FIXTURES = [
+    [
+        'the retired spelling of a renamed attribute',
+        `<adw-combo-row title="Region" items='["A"]' selected="0"></adw-combo-row>`,
+        'adw-combo-row',
+        ['title', 'subtitle', 'model', 'selected'],
+        ['items'],
+    ],
+    [
+        'a platform-global name is not the widget vocabulary',
+        '<gtk-button slot="start" class="flat" aria-label="Back" data-x="1" label="Back"></gtk-button>',
+        'gtk-button',
+        ['label'],
+        [],
+    ],
+];
+for (const [what, markup, tag, observed, expected] of UNOBSERVED_FIXTURES) {
+    const got = unobservedIn(markup, tag, observed);
+    if (got.join(',') !== expected.join(',')) {
+        fail(`fixture — unobserved: ${what}`, JSON.stringify(expected), JSON.stringify(got));
+    }
+}
+
 // ------------------------------------------------- 2. every shipped preview fence
 
 const { byTag } = observedAttributes(ROOT);
 let blocks = 0;
 let cellsSeen = 0;
+let unobservedSeen = 0;
 for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
     readdirSync(docsDir(section))
         .filter((f) => f.endsWith('.mdx'))
@@ -169,6 +225,14 @@ for (const { page, file } of DOCS_SECTIONS.flatMap((section) =>
         }
         blocks++;
         const markup = fenced[1];
+        for (const name of unobservedIn(markup, tag, names)) {
+            unobservedSeen++;
+            fail(
+                `${page} — <${tag}> writes \`${name}\``,
+                `an attribute <${tag}> observes (${names.join(', ')})`,
+                'a name it never reads, so the preview shows one thing and the element does another',
+            );
+        }
         for (const cell of attributeCells(names, sampleAttributes(markup, tag))) {
             cellsSeen++;
             if (cell.kind !== 'value') continue;
@@ -199,5 +263,6 @@ if (failures.length > 0) {
     process.exit(1);
 }
 console.log(
-    `check-website-attr-samples: ${FIXTURES.length} fixtures and ${cellsSeen} cells across ${blocks} gallery blocks — ok`,
+    `check-website-attr-samples: ${FIXTURES.length + UNOBSERVED_FIXTURES.length} fixtures and ${cellsSeen} cells ` +
+        `across ${blocks} gallery blocks, ${unobservedSeen} unobserved attribute(s) written — ok`,
 );

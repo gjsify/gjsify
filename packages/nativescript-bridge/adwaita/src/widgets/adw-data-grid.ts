@@ -31,7 +31,7 @@
 // cannot exclude a child from track sizing — the caller owns the title above the
 // `ScrollView`. `columns` / `rows` are set from CODE; the element is registered so
 // it can be PLACED in markup, structured data arrives from the code-behind, as for
-// `AdwComboRow.options`.
+// `AdwComboRow.model`.
 //
 // FIDELITY: approximated, typographically. libadwaita's `.numeric` is
 // `font-variant-numeric: tabular-nums` and the NativeScript CSS subset has no

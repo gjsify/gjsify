@@ -23,8 +23,8 @@
 
 import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';
 import { action, Label, StackLayout, type EventData } from '@nativescript/core';
-import { ComboState } from '@gjsify/adwaita-core';
-import type { AdwComboOption } from '@gjsify/adwaita-core';
+import { ComboState, normalizeComboOptions } from '@gjsify/adwaita-core';
+import type { AdwComboOption, AdwListModelInput } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { AdwIcon } from './adw-icon.js';
 import { attachRowPressFeedback } from './row-press.js';
@@ -122,7 +122,7 @@ export class AdwComboRow extends AdwActionRow {
         // `n_items > 1`: a single option is not a choice, and libadwaita makes
         // the row non-activatable rather than opening a sheet with one entry.
         if (!this._state.presentsChooser) return;
-        const labels = this._state.options.map((o) => o.label);
+        const labels = this._state.model.map((o) => o.label);
         const chosen = await action({
             title: this.title || undefined,
             cancelButtonText: 'Cancel',
@@ -133,13 +133,17 @@ export class AdwComboRow extends AdwActionRow {
         this._state.select(labels.indexOf(chosen));
     }
 
-    /** The selectable options. Updates the inline value label. */
-    get options(): AdwComboOption[] {
-        return this._state.options;
+    /** The list model (`Adw.ComboRow:model`). Updates the inline value label. */
+    get model(): AdwComboOption[] {
+        return this._state.model;
     }
 
-    set options(value: AdwComboOption[]) {
-        this._state.setOptions(value);
+    set model(value: AdwListModelInput) {
+        // The SAME normaliser the browser elements run, so one authored model — bare
+        // strings included — moves between the surfaces unchanged. This setter used to
+        // take descriptors only, so `model = ['a','b']` stored strings and every label
+        // read back `undefined`.
+        this._state.setModel(normalizeComboOptions(value));
     }
 
     /** The selected option index. Updates the inline value label. */

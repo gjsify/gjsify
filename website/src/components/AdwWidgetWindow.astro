@@ -297,9 +297,13 @@ if (attributes !== null && preview === null) {
                             {/* OBSERVES is the precise word and the caption spends one sentence on
                                 what it means, because the looser wording was wrong. "Set anything
                                 else and it never hears about it" was the first version, and the
-                                fence one tab to the LEFT refutes it: the `<adw-combo-row>` preview
-                                on /adwaita/boxed-lists/ sets `items`, which the row does not
-                                observe and which its `connectedCallback` reads anyway.
+                                fence one tab to the LEFT refuted it: the `<adw-combo-row>` preview
+                                on /adwaita/boxed-lists/ set `items`, which the row did not observe
+                                and which its `connectedCallback` read anyway. ADR 0046 retired that
+                                attribute — the preview writes the observed `model` now — and
+                                `check-website-attr-samples.mjs` arm 3 holds the general case, so a
+                                preview writing a name its element never reads is a red gate rather
+                                than a caption a reader has to be careful about.
 
                                 ACROSS EVERY occurrence is the other sentence, and it is not
                                 padding. /adwaita/buttons/ paints five `<gtk-button>`s, one per

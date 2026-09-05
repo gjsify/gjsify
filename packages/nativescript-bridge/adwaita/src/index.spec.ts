@@ -509,7 +509,7 @@ export default async () => {
         // NS `AdwComboRow` composes.
         await it('resolves selectedValue from selectedIndex', () => {
             const state = new ComboState();
-            state.setOptions([
+            state.setModel([
                 { label: 'One', value: 'a' },
                 { label: 'Two', value: 'b' },
             ]);
@@ -519,10 +519,10 @@ export default async () => {
 
         await it('setSelectedValue moves selectedIndex; out-of-range → empty value', () => {
             const state = new ComboState();
-            state.setOptions([{ label: 'One', value: 'a' }]);
+            state.setModel([{ label: 'One', value: 'a' }]);
             state.setSelectedIndex(5);
             expect(state.selectedValue).toBe('');
-            state.setOptions([
+            state.setModel([
                 { label: 'One', value: 'a' },
                 { label: 'Two', value: 'b' },
             ]);
@@ -537,7 +537,7 @@ export default async () => {
         for (const { count, presentsChooser, rule } of COMBO_CHOOSER_VECTORS) {
             await it(`${count} option(s) → presentsChooser ${presentsChooser}: ${rule}`, () => {
                 const state = new ComboState();
-                state.setOptions(Array.from({ length: count }, (_, i) => ({ label: `L${i}`, value: `v${i}` })));
+                state.setModel(Array.from({ length: count }, (_, i) => ({ label: `L${i}`, value: `v${i}` })));
                 expect(state.presentsChooser).toBe(presentsChooser);
             });
         }

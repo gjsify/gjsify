@@ -48,7 +48,7 @@ preferences page.
       <button slot="header-suffix" class="adw-button flat">Sign out</button>
       <adw-entry-row title="Display name" text="Grace Hopper"></adw-entry-row>
       <adw-switch-row title="Sync over Wi-Fi only" subtitle="Avoid using mobile data for backups" active></adw-switch-row>
-      <adw-combo-row title="Region" items='["Europe","Americas","Asia","Oceania"]' selected="0"></adw-combo-row>
+      <adw-combo-row title="Region" model='["Europe","Americas","Asia","Oceania"]' selected="0"></adw-combo-row>
     </adw-preferences-group>
     ```
   </Fragment>
@@ -363,6 +363,11 @@ to reveal it. Use it anywhere a password or key is edited inline.
 Pick one option from a fixed list. The row shows an inline **drop-down**, and the
 selection is an index into the model you gave it, not the string itself.
 
+The list is the **model** property. Write it as an array of plain strings, or of
+`{ value, label }` objects when the value you store differs from the text you
+show — `{ label: 'Blue' }` on its own is addressed by `'Blue'`. In markup the
+same array goes in the `model` attribute as JSON.
+
 <AdwWidget title="Adw.ComboRow">
   <Fragment slot="preview">
     ```html
@@ -370,7 +375,7 @@ selection is an index into the model you gave it, not the string itself.
       <adw-combo-row
         title="Accent colour"
         subtitle="Used to highlight selected items"
-        items='["Blue","Teal","Green","Orange","Purple"]'
+        model='["Blue","Teal","Green","Orange","Purple"]'
         selected="1"
       ></adw-combo-row>
     </adw-preferences-group>
@@ -414,11 +419,47 @@ selection is an index into the model you gave it, not the string itself.
     const row = new Adw.ComboRow();
     row.title = 'Accent colour';
     row.subtitle = 'Used to highlight selected items';
-    row.options = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'].map((s) => ({ label: s, value: s }));
+    row.model = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'];
     row.selected = 1;
     ```
   </Fragment>
 </AdwWidget>
+
+The model stays live. Assign a new one whenever your data changes and the row
+follows — the visible list, the inline value and the chevron, which the row hides
+while there is nothing to choose between:
+
+```ts
+const row = document.querySelector('adw-combo-row');
+
+row.model = ['Blue', 'Teal'];
+row.selectedValue = 'Teal'; // pick by value; `row.selected` picks by index
+row.selectedItem; // → { value: 'Teal', label: 'Teal' }
+
+row.model = [...row.model, { value: 'g', label: 'Green' }];
+```
+
+That last line adds one option and leaves the two already on screen alone, so a
+list that grows does not flicker or lose the reader's place.
+
+Reading `row.model` hands you a copy of the list, so you can build the next one
+out of it — push, filter, rename an item — and nothing on screen moves until you
+assign it back.
+
+The same array is what [`<gtk-drop-down>`](/gjsify/gtk/controls/#drop-down) takes,
+under the same `model` name — and so do `Adw.ComboRow` on NativeScript and the
+`<AdwComboRow model={…}>` prop in React Native, so one model moves between the
+surfaces without being rewritten. On GJS the property is a real `Gtk.StringList`,
+as the code windows above show.
+
+:::note
+`model` is what this row and the drop-down take, and only they. The widgets whose
+contents are **child widgets** — sidebar, tab view, toggle group, view stack,
+carousel — have no such property, here or in Libadwaita: their items are added one
+at a time. Keep using what each one already gives you — `<adw-sidebar>`'s
+`sections`, `<adw-tab-view>`'s `appendPage()`, or plain child elements in markup
+for the toggle group, the view stack and the carousel.
+:::
 
 ## Spin Row
 

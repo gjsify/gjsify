@@ -93,7 +93,7 @@ same state machines, so a behaviour fix lands once and both ports pick it up.
 | Element | Core state machine | What core owns |
 | --- | --- | --- |
 | `<adw-toast-overlay>` | `AdwToastQueue` + `AdwToast` | one toast at a time, FIFO ordering, auto-dismiss lifecycle |
-| `<adw-combo-row>` | `ComboState` | options list, index↔value mapping, out-of-range guards, programmatic-vs-user split |
+| `<adw-combo-row>` | `ComboState` | the list model + its `items-changed` splice, index↔value mapping, out-of-range guards, programmatic-vs-user split |
 | `<adw-spin-row>` | `SpinState` | value/min/max/step with clamping on every mutation |
 | `<adw-toggle-group>` | `ToggleGroupState` | segment list, guarded active index |
 | `<adw-expander-row>` | `ExpanderState` | expanded/collapsed disclosure |
