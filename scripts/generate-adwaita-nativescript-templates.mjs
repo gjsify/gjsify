@@ -194,10 +194,26 @@ export function elementsUsed() {
  * Booleans and numbers become their source spelling and nothing more, because that
  * is all an attribute can be: NativeScript hands a plain accessor the STRING, so the
  * template cannot promise a type and the probe is what checks the widget recovers
- * one. `&`, `<` and `"` are escaped; `>` needs no escape inside an attribute and
+ * one. `&` and `<` are escaped; `>` needs no escape inside an attribute and
  * escaping it would make the template differ from what an author would write.
+ *
+ * THE QUOTE FOLLOWS THE VALUE. A value carrying a double quote — a JSON object, which is
+ * how `adjustment` and any other portable value reaches XML — is delimited by SINGLE
+ * quotes instead of having every `"` in it escaped to `&quot;`. Both are correct XML and
+ * NativeScript decodes either, but one of them is what an author would type and the other
+ * is what a generator produces; this file's output is read on the website as an example.
  */
-const attrValue = (value) => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+const attrEscaped = (value, quote) =>
+    String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(quote === '"' ? /"/g : /'/g, quote === '"' ? '&quot;' : '&apos;');
+
+/** One `name="value"` pair, quoted with whichever delimiter the value does not contain. */
+const attribute = (name, value) => {
+    const quote = String(value).includes('"') ? "'" : '"';
+    return `${name}=${quote}${attrEscaped(value, quote)}${quote}`;
+};
 
 /**
  * One node as XML, with the namespace declarations on the root only.
@@ -209,7 +225,7 @@ const attrValue = (value) => String(value).replace(/&/g, '&amp;').replace(/</g, 
  */
 function xml(node, depth, rootAttrs = []) {
     const pad = INDENT.repeat(depth);
-    const attrs = [...rootAttrs, ...Object.entries(node.props ?? {}).map(([n, v]) => `${n}="${attrValue(v)}"`)];
+    const attrs = [...rootAttrs, ...Object.entries(node.props ?? {}).map(([n, v]) => attribute(n, v))];
     const inline = attrs.length <= 1;
     const head = inline
         ? `${pad}<${qualify(node.tag)}${attrs.length > 0 ? ` ${attrs[0]}` : ''}`

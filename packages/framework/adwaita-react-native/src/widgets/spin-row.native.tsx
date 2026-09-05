@@ -22,10 +22,10 @@
 // The two buttons stay in the tree and go `disabled` at the ends, which is the shape a suite
 // can read — an absent button proves nothing about which end was reached.
 
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Pressable, Text } from 'react-native';
 
-import { SpinState } from '@gjsify/adwaita-core';
+import { SpinState, adjustmentRange, normalizeAdjustment } from '@gjsify/adwaita-core';
 
 import type { AdwSpinRowProps } from '../props.js';
 import { ADW_ROW_STYLE, AdwRowLabels } from '../row-shell.native.js';
@@ -47,26 +47,50 @@ export function AdwSpinRow({
     title,
     subtitle,
     value,
-    lower,
-    upper,
-    stepIncrement,
+    adjustment,
     digits,
     onNotifyValue,
 }: AdwSpinRowProps): ReactElement | null {
-    // SEEDED IN THE INITIALISER, and IN THIS ORDER. The bounds are set before the value,
-    // because `setValue` clamps against whatever range is installed at the time — seeding
-    // `value` first would clamp it against `SpinState`'s default 0…100 and a row authored
-    // `lower={200} upper={300} value={250}` would mount at 100. Measured, and it is the same
-    // ordering hazard `spin-row.gtk.tsx` carries about the adjustment.
+    // SEEDED IN ONE CALL, which is what the portable adjustment bought here. The three
+    // bounds used to be set one at a time BEFORE the value, because `setValue` clamps
+    // against whatever range is installed at the time and seeding `value` first clamped it
+    // against the default 0…100 — a row authored `lower={200} upper={300} value={250}`
+    // mounted at 100. `configure` takes the whole range at once, so there is no order for a
+    // later edit to get wrong. The same hazard `spin-row.gtk.tsx` records, closed the same
+    // way.
     const [row] = useState(() => {
         const state = new SpinState();
-        if (lower !== undefined) state.setMin(lower);
-        if (upper !== undefined) state.setMax(upper);
-        if (stepIncrement !== undefined) state.setStep(stepIncrement);
+        state.configure(adjustment);
         if (value !== undefined) state.setValue(value);
         return state;
     });
     const [current, setCurrent] = useState(() => row.value);
+    // The RANGE is held in state as well, because the two stepper buttons read it: a bound
+    // that moves without moving the value would otherwise leave `disabled` on the old ends
+    // — the value signal alone cannot say a range changed, which is why `Gtk.Adjustment`
+    // has two.
+    const [range, setRange] = useState(() => adjustmentRange(row.adjustment));
+
+    // MEMOISED ON THE NUMBERS, NOT ON THE OBJECT, and this is the same measurement
+    // `spin-row.gtk.tsx` carries about its `Gtk.Adjustment`: `adjustment={{ upper: 100 }}`
+    // is a fresh literal on every render, so an effect keyed on the prop itself re-runs on
+    // every re-render — and re-writing the authored value is exactly how a value the USER
+    // stepped to gets taken back. `preferences.native.spec.tsx` presses `+` and then
+    // re-renders with an unrelated prop, which is the assertion that fails without this.
+    const authored = useMemo(
+        () => normalizeAdjustment(adjustment),
+        [
+            adjustment?.lower,
+            adjustment?.upper,
+            adjustment?.stepIncrement,
+            adjustment?.pageIncrement,
+            adjustment?.pageSize,
+            adjustment?.value,
+        ],
+    );
+    // The value the props name, if either of them does — the `value` prop wins over one
+    // written inside the adjustment, because it is the more specific of the two.
+    const authoredValue = value ?? adjustment?.value;
 
     useEffect(
         () =>
@@ -81,19 +105,20 @@ export function AdwSpinRow({
         [row, onNotifyValue],
     );
 
-    // One effect per property, in the same order as the initialiser and for the same reason.
+    useEffect(() => row.subscribeChanged((next) => setRange(adjustmentRange(next))), [row]);
+
+    // ONE effect for the range AND the value, which is what makes the two halves report the
+    // same STREAM and not just the same final number. Two effects meant a range that moves
+    // re-clamped the old value first and notified it — `[200, 250]` where the GTK half,
+    // which builds one new `Gtk.Adjustment` from all six numbers, notifies `[250]`. The
+    // divergence was in the writing, not in the arithmetic, so it goes away by writing once.
+    //
+    // A row that names NO value keeps the one it holds: the five bounds are written and the
+    // value is left out, so an uncontrolled row does not snap back to 0 when a bound moves.
     useEffect(() => {
-        if (lower !== undefined) row.setMin(lower);
-    }, [row, lower]);
-    useEffect(() => {
-        if (upper !== undefined) row.setMax(upper);
-    }, [row, upper]);
-    useEffect(() => {
-        if (stepIncrement !== undefined) row.setStep(stepIncrement);
-    }, [row, stepIncrement]);
-    useEffect(() => {
-        if (value !== undefined) row.setValue(value);
-    }, [row, value]);
+        const { value: _ignored, ...bounds } = authored;
+        row.configure(authoredValue === undefined ? bounds : { ...bounds, value: authoredValue });
+    }, [row, authored, authoredValue]);
 
     const decrement = useCallback(() => {
         row.decrement();
@@ -106,10 +131,10 @@ export function AdwSpinRow({
         <Pressable style={ADW_ROW_STYLE} accessibilityRole="adjustable">
             <AdwRowLabels title={title} subtitle={subtitle} />
             <Text>{current.toFixed(digits ?? 0)}</Text>
-            <Pressable accessibilityRole="button" disabled={current <= row.min} onPress={decrement}>
+            <Pressable accessibilityRole="button" disabled={current <= range[0]} onPress={decrement}>
                 <Text>{DECREASE_GLYPH}</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" disabled={current >= row.max} onPress={increment}>
+            <Pressable accessibilityRole="button" disabled={current >= range[1]} onPress={increment}>
                 <Text>{INCREASE_GLYPH}</Text>
             </Pressable>
         </Pressable>

@@ -323,7 +323,7 @@ the web port renders them stacked instead.
         <adw-preferences-group title="Appearance" description="Control how the application looks and behaves.">
           <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
           <adw-combo-row title="Accent colour" model='["Blue","Teal","Green","Orange","Purple"]' selected="0"></adw-combo-row>
-          <adw-spin-row title="Font size" min="8" max="24" value="12" step="1"></adw-spin-row>
+          <adw-spin-row title="Font size" value="12" adjustment='{"lower":8,"upper":24}'></adw-spin-row>
         </adw-preferences-group>
       </adw-preferences-page>
     </adw-preferences-dialog>
@@ -433,8 +433,7 @@ the web port renders them stacked instead.
 
     const fontSize = new Adw.SpinRow();
     fontSize.title = 'Font size';
-    fontSize.min = 8;
-    fontSize.max = 24;
+    fontSize.adjustment = { lower: 8, upper: 24 };
     fontSize.value = 12;
     group.addRow(fontSize);
 

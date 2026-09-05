@@ -26,6 +26,7 @@ import breakpointTestSuite from './breakpoint.spec.js';
 import colorSchemeTestSuite from './color-scheme.spec.js';
 import dialogTestSuite from './dialog.spec.js';
 import listTestSuite from './list.spec.js';
+import adjustmentTestSuite from './adjustment.spec.js';
 import rowsTestSuite from './rows.spec.js';
 import toastTestSuite from './toast.spec.js';
 import popoverTestSuite from './popover.spec.js';
@@ -38,6 +39,7 @@ import spinnerTestSuite from './spinner.spec.js';
 import shortcutLabelTestSuite from './shortcut-label.spec.js';
 
 run({
+    adjustmentTestSuite,
     aboutDialogTestSuite,
     bannerTestSuite,
     buttonContentTestSuite,

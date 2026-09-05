@@ -5,8 +5,6 @@
   <adw:SpinRow
     title="Copies"
     value="3"
-    min="1"
-    max="20"
-    step="1"
+    adjustment='{"lower":1,"upper":20,"stepIncrement":1}'
   />
 </adw:PreferencesGroup>

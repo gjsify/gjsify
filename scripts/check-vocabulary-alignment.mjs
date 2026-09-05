@@ -476,18 +476,6 @@ const NS_PROPERTY_ALIGNMENT = {
         gir: 'cssClasses',
         why: 'The port\'s own doc says what this is — "matching `Adw.HeaderBar`\'s `.flat` style. Toggling swaps the `flat` class" (adw-header-bar.ts:106). A style class is `GtkWidget:css-classes` on GTK, the same slot `GtkButton.variant` above reaches.',
     },
-    'adw-spin-row.min': {
-        gir: 'adjustment',
-        why: 'GTK keeps the whole range in one object: `Adw.SpinRow:adjustment`, a `Gtk.Adjustment` whose `lower` this is. The port carries three scalars instead because NativeScript has no adjustment type (adw-spin-row.ts:114-118). Three names into one key, which is what convergence here would collapse them to.',
-    },
-    'adw-spin-row.max': {
-        gir: 'adjustment',
-        why: 'The `upper` of the same `Gtk.Adjustment` that `Adw.SpinRow:adjustment` holds (adw-spin-row.ts:123-127). Split out for the same reason as `min`: there is no adjustment object on NativeScript to put it in.',
-    },
-    'adw-spin-row.step': {
-        gir: 'adjustment',
-        why: 'The `step-increment` of the same `Gtk.Adjustment` (adw-spin-row.ts:132-136). Named `step` because the port applies it directly per button press; on GTK the button press reads it off the adjustment.',
-    },
     'gtk-menu-button.actions': {
         own: "`AdwMenuActions` is the portable stand-in for a `GActionGroup` (ADR 0042 § 2): the map a surface with no action group consults for a menu item's enabled and checked state, which `GMenuModel` does not carry — measured in gtkmenutrackeritem.c, where `sensitive` is the action's `enabled` (c:332) and `role`/`toggled` come from its STATE (c:336-346). GTK needs no counterpart property: a `GtkWidget` reaches its action group through the widget hierarchy (`gtk_widget_insert_action_group` on an ancestor, `gtk_widget_get_action_group`), so there is no GIR key to converge on. Declared and left.",
     },

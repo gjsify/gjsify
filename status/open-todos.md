@@ -4483,6 +4483,15 @@ already established, and the two gallery trees with their probes. Whether
 part of the same decision — `@gjsify/gtk-host/list` is a published subpath and
 `@gjsify/react-native` consumes it.
 
+**A THIRD portable value now waits on the same seam.** ADR 0047 gave the numeric
+range one (`AdwAdjustment`, `adjustment` on all four surfaces), and `coerce` has no
+branch turning it into a `Gtk.Adjustment` either — a caller writing
+`<adw-spin-row adjustment={…}>` in gtk-host JSX still constructs the real GObject.
+That conversion is written and working one package over
+(`packages/framework/adwaita-react-native/src/widgets/spin-row.gtk.tsx`), exactly as
+the list's is, so the same sentence applies: the conversion exists and is simply not
+at the seam. Three values waiting on one branch is the argument for building it.
+
 ### The list widgets GTK builds with a METHOD have no portable collection, and a model type is the wrong fix
 
 The other half of #1524, and it is deliberately NOT what ADR 0046 built.

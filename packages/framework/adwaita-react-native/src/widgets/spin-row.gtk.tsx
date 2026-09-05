@@ -10,7 +10,12 @@
 // about its model: gtk-host writes a property only when the prop changes, and a freshly
 // constructed `Gtk.Adjustment` is a new value every render, so an unmemoised one would be
 // re-set on every parent re-render and take the value back to whatever was authored. The key
-// is the three numbers, not the object identity.
+// is the six numbers, not the object identity — and they are six because the authored value
+// arrives as ONE portable `AdwAdjustment` now (ADR 0047), normalised by the core rather than
+// defaulted here.
+//
+// THIS FILE IS WHERE THE PORTABLE VALUE BECOMES A REAL `Gtk.Adjustment`. That edge belongs
+// here and not in `@gjsify/adwaita-core`, which imports no `gi://` and runs on a phone.
 //
 // `value` IS ON THE ADJUSTMENT AND NOT ON THE ROW, and the order is the reason.
 // `Adw.SpinRow:value` forwards to the adjustment and is clamped by whatever range that
@@ -25,50 +30,51 @@ import Gtk from 'gi://Gtk?version=4.0';
 import type Adw from 'gi://Adw?version=1';
 import { useCallback, useMemo, useRef, type ReactElement } from 'react';
 
+import { ADW_ADJUSTMENT_DEFAULTS, clampAdjustmentValue, normalizeAdjustment } from '@gjsify/adwaita-core';
+
 import type { AdwSpinRowProps } from '../props.js';
 
 /**
- * `SpinState`'s own defaults, which are the ones the React Native half falls back to.
+ * The defaults both halves fall back to — re-exported from `@gjsify/adwaita-core`, which is
+ * where they moved with the value they describe (ADR 0047).
  *
- * Exported so the spec asserts the two halves against ONE table rather than each against its
- * own literals. They are not libadwaita's: a bare `Gtk.Adjustment` is 0…0 with a step of 0,
- * which is a spin row that cannot move. `@gjsify/adwaita-core` picked 0…100 step 1, both
- * sibling renderers use it, and the GTK half adopts it here rather than shipping a widget
- * whose omitted range means something else than it does on a phone.
+ * Kept exported under this name because the spec asserts the two halves against ONE table
+ * rather than each against its own literals. They are not libadwaita's: a bare
+ * `Gtk.Adjustment` is 0…0 with a step of 0, which is a spin row that cannot move.
  */
-export const ADW_SPIN_ROW_DEFAULTS = { lower: 0, upper: 100, stepIncrement: 1, value: 0 } as const;
+export const ADW_SPIN_ROW_DEFAULTS = ADW_ADJUSTMENT_DEFAULTS;
 
 /** {@link import('./spin-row.js').AdwSpinRow} on GTK. */
 export function AdwSpinRow({
     title,
     subtitle,
     value,
-    lower,
-    upper,
-    stepIncrement,
+    adjustment,
     digits,
     onNotifyValue,
 }: AdwSpinRowProps): ReactElement | null {
     const row = useRef<Adw.SpinRow | null>(null);
 
-    const low = lower ?? ADW_SPIN_ROW_DEFAULTS.lower;
-    const high = upper ?? ADW_SPIN_ROW_DEFAULTS.upper;
-    const step = stepIncrement ?? ADW_SPIN_ROW_DEFAULTS.stepIncrement;
-    const current = value ?? ADW_SPIN_ROW_DEFAULTS.value;
+    // The core fills the authored subset out to six numbers, so this file no longer picks a
+    // default per field. The value is clamped HERE rather than left to the constructor: a
+    // `Gtk.Adjustment` clamps its own value against whatever range is installed when the
+    // property is written, and `g_object_new` gives no order between two of them — so a
+    // value authored below the range is clamped by the CORE, which both halves share, and
+    // the two suites can assert the same number.
+    const range = normalizeAdjustment(adjustment);
+    const current = clampAdjustmentValue(range, value ?? range.value);
 
-    const adjustment = useMemo(
+    const adjusted = useMemo(
         () =>
             new Gtk.Adjustment({
-                lower: low,
-                upper: high,
-                stepIncrement: step,
-                // `page-increment` is Page Up/Down and neither half exposes it; leaving it at
-                // 0 would make those keys a no-op on GTK and a divergence nobody authored, so
-                // it follows the step.
-                pageIncrement: step,
+                lower: range.lower,
+                upper: range.upper,
+                stepIncrement: range.stepIncrement,
+                pageIncrement: range.pageIncrement,
+                pageSize: range.pageSize,
                 value: current,
             }),
-        [low, high, step, current],
+        [range.lower, range.upper, range.stepIncrement, range.pageIncrement, range.pageSize, current],
     );
 
     const notifyValue = useCallback(() => {
@@ -81,7 +87,7 @@ export function AdwSpinRow({
             ref={row}
             title={title}
             subtitle={subtitle}
-            adjustment={adjustment}
+            adjustment={adjusted}
             digits={digits}
             onNotifyValue={onNotifyValue === undefined ? undefined : notifyValue}
         />

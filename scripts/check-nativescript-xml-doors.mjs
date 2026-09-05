@@ -53,6 +53,9 @@ import {
     attributeKind,
     coerces,
     COERCERS,
+    doorFor,
+    JSON_DOORS,
+    jsonDoors,
     NOT_AN_XML_WIDGET,
     NS_WIDGETS_DIR,
     readElements,
@@ -79,6 +82,7 @@ if (sources.size === 0) failures.push('no widget source was readable — every a
 if (elements.size === 0) failures.push("the widgets barrel's ELEMENTS map read as empty — arm 1 has no corpus");
 
 failures.push(...stringTolerant(ROOT));
+failures.push(...jsonDoors(ROOT));
 
 // ---------------------------------------------------------------------------
 // 1. every non-string setter reachable from XML coerces
@@ -137,7 +141,7 @@ for (const tag of [...reachable].sort()) {
         // regression shipped in this file's first version and nothing could see it,
         // because "it calls a coercer" was all anything asked.
         const loose = Object.keys(STRING_TOLERANT).find((fn) => setter.executable.includes(`${fn}(`));
-        if (loose !== undefined && setter.executable.includes(`${COERCERS[kind]}(`)) {
+        if (kind !== 'json' && loose !== undefined && setter.executable.includes(`${COERCERS[kind]}(`)) {
             failures.push(
                 `${file}: ${tag}.${name} passes its value through ${COERCERS[kind]}() AND ${loose}(). ` +
                     `${loose}() already takes a string and parses it with Number.parseFloat, so the wrapper ` +
@@ -148,8 +152,9 @@ for (const tag of [...reachable].sort()) {
         if (coerces(setter, kind)) continue;
         failures.push(
             `${file}: ${tag}.${name} is declared \`${annotation}\` and does not go through ` +
-                `${COERCERS[kind]}(). NativeScript hands a plain accessor the raw STRING, so a number falls ` +
-                'back to the default and "false" is truthy — both silently, both rendering.',
+                `${doorFor(kind)}(). NativeScript hands a plain accessor the raw STRING, so a number falls ` +
+                'back to the default, "false" is truthy, and a JSON object is one long label — all silently, ' +
+                'all rendering.',
         );
     }
 }
@@ -219,5 +224,6 @@ if (failures.length > 0) {
 
 console.log(
     `check-nativescript-xml-doors: OK — ${elements.size} element(s), ` +
-        `${Object.keys(STRING_TOLERANT).length} string-tolerant normalizer(s) verified.`,
+        `${Object.keys(STRING_TOLERANT).length} string-tolerant normalizer(s) and ` +
+        `${Object.keys(JSON_DOORS).length} JSON door(s) verified.`,
 );

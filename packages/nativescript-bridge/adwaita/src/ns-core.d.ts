@@ -66,6 +66,18 @@ declare module '@nativescript/core' {
         paddingBottom: number;
         paddingLeft: number;
         paddingRight: number;
+        /**
+         * Inline margin in DIPs, per edge — the OUTSIDE of the same box.
+         *
+         * Here because a real view carries them and this slice is what tells a gate a
+         * write is a NativeScript property rather than a dead one: the storybook's
+         * shortcut-label grid spaces its rows with `marginBottom`, which read as a write
+         * into nothing the moment anything looked.
+         */
+        marginTop: number;
+        marginBottom: number;
+        marginLeft: number;
+        marginRight: number;
         /** Visibility (`'visible' | 'hidden' | 'collapse'`). */
         visibility: string;
         /** Whether the view responds to touch at all — NS's `gtk_widget_set_can_target`. */

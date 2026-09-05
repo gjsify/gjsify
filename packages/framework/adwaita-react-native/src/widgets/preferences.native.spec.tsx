@@ -428,65 +428,82 @@ export default async () => {
 
     await describe('the spin row both halves answer alike', async () => {
         await it('carries the authored range and value — the pair', async () => {
-            const tree = mounted(<AdwSpinRow title="Scale" lower={0} upper={200} stepIncrement={25} value={50} />);
+            const tree = mounted(
+                <AdwSpinRow title="Scale" adjustment={{ lower: 0, upper: 200, stepIncrement: 25 }} value={50} />,
+            );
             expect(valueLabel(tree)).toStrictEqual(['50', true]);
         });
 
         await it('clamps a value authored below the range — the pair', async () => {
-            const tree = mounted(<AdwSpinRow title="Scale" lower={10} upper={20} value={5} />);
+            const tree = mounted(<AdwSpinRow title="Scale" adjustment={{ lower: 10, upper: 20 }} value={5} />);
             expect(valueLabel(tree)).toStrictEqual(['10', true]);
         });
 
-        await it('applies the bounds before the value, so a range that MOVES is not clamped away', async () => {
-            // `setValue` clamps against whatever range is installed at the time, so the
-            // four prop effects have to run bounds-first. Every other fixture here straddles
-            // `SpinState`'s default 0…100 and cannot see the order; this one moves the range
-            // ENTIRELY above it, so applying the value first would clamp 250 to 100, then
-            // `setMin(200)` would re-clamp it to 200 and the row would settle two steps from
-            // where it was authored. Swapping the four effects makes this the only red row.
+        await it('takes a range that MOVES entirely, without clamping the value on the way', async () => {
+            // `setValue` clamps against whatever range is installed at the time, and this
+            // fixture is the one that can SEE that: every other row here straddles the
+            // default 0…100, while this range sits entirely above it. It used to hold an
+            // ORDER — four prop effects, bounds before value — because the range arrived as
+            // three separate props; writing the value first clamped 250 to 100, and the
+            // bounds then re-clamped it to 200. There is no order left to get wrong: the
+            // range and the value go in one `configure`, which is why the stream below is
+            // one number and not three.
             //
-            // The INITIALISER's order is the same and is NOT held here: `mount` flushes
-            // effects inside `act`, so the settled tree is the effects' answer either way.
-            // What the initialiser buys is the first frame, which this harness cannot read —
-            // `create()` outside `act` returns a null tree on React 19 (`render.spec.ts`).
-            const tree = mounted(<AdwSpinRow title="Scale" lower={200} upper={300} value={250} />);
+            // The INITIALISER is not held here either way: `mount` flushes effects inside
+            // `act`, so the settled tree is the effects' answer. What the initialiser buys
+            // is the first frame, which this harness cannot read — `create()` outside `act`
+            // returns a null tree on React 19 (`render.spec.ts`).
+            const tree = mounted(<AdwSpinRow title="Scale" adjustment={{ lower: 200, upper: 300 }} value={250} />);
             expect(valueLabel(tree)).toStrictEqual(['250', true]);
 
             const seen: number[] = [];
             const renderer = mount(
-                <AdwSpinRow title="Scale" lower={0} upper={100} value={50} onNotifyValue={(v) => seen.push(v)} />,
+                <AdwSpinRow
+                    title="Scale"
+                    adjustment={{ lower: 0, upper: 100 }}
+                    value={50}
+                    onNotifyValue={(v) => seen.push(v)}
+                />,
             );
             act(() => {
                 renderer.update(
                     <AdwSpinRow
                         title="Scale"
-                        lower={200}
-                        upper={300}
+                        adjustment={{ lower: 200, upper: 300 }}
                         value={250}
                         onNotifyValue={(v) => seen.push(v)}
                     />,
                 );
             });
             expect(valueLabel(renderer.toJSON() as ReactTestRendererJSON)).toStrictEqual(['250', true]);
-            // THE WHOLE STREAM, INCLUDING THE 100 — which is a real intermediate and not a
-            // rounding artefact. `setMin(200)` runs while `_max` is still 100, so the range
-            // is momentarily INVERTED and `Math.min(max, Math.max(min, v))` answers the max:
-            // 100. `setMax(300)` then re-clamps to 200 and the value effect lands 250. The
-            // GTK half has no such stream — it builds one new `Gtk.Adjustment` from all
-            // three numbers at once — so this is asserted here and named in the README
-            // rather than smoothed into a number the two halves do not share.
-            expect(seen).toStrictEqual([100, 200, 250]);
+            // THE WHOLE STREAM, AND IT IS ONE NUMBER — which it was not before ADR 0047.
+            // Three flat props were written one at a time, so `setMin(200)` ran while the
+            // upper was still 100 and the range was momentarily INVERTED: the stream was
+            // `[100, 200, 250]`, and the 100 was a real intermediate the GTK half never
+            // produced. The range arrives as one value now and is written in one
+            // `configure` with the value, so both halves notify exactly once.
+            expect(seen).toStrictEqual([250]);
         });
 
         await it('re-clamps when a bound moves under the value — the pair', async () => {
             const seen: number[] = [];
             const renderer = mount(
-                <AdwSpinRow title="Scale" lower={0} upper={100} value={80} onNotifyValue={(v) => seen.push(v)} />,
+                <AdwSpinRow
+                    title="Scale"
+                    adjustment={{ lower: 0, upper: 100 }}
+                    value={80}
+                    onNotifyValue={(v) => seen.push(v)}
+                />,
             );
             expect(valueLabel(renderer.toJSON() as ReactTestRendererJSON)).toStrictEqual(['80', true]);
             act(() => {
                 renderer.update(
-                    <AdwSpinRow title="Scale" lower={0} upper={50} value={80} onNotifyValue={(v) => seen.push(v)} />,
+                    <AdwSpinRow
+                        title="Scale"
+                        adjustment={{ lower: 0, upper: 50 }}
+                        value={80}
+                        onNotifyValue={(v) => seen.push(v)}
+                    />,
                 );
             });
             // 80 was legal and is not any more. Both halves answer 50 — and this half also
@@ -501,7 +518,9 @@ export default async () => {
             // GTK one does: the value effect keys on the PROP, which did not change, so a
             // stepped value is not written back to what was authored. `SpinState` is the
             // buffer here as the `Gtk.Adjustment` is there.
-            const renderer = mount(<AdwSpinRow title="Scale" lower={0} upper={100} stepIncrement={10} value={50} />);
+            const renderer = mount(
+                <AdwSpinRow title="Scale" adjustment={{ lower: 0, upper: 100, stepIncrement: 10 }} value={50} />,
+            );
             const increase = (): ReactTestRendererJSON =>
                 flatten(renderer.toJSON() as ReactTestRendererJSON).filter(
                     (n) =>
@@ -513,14 +532,21 @@ export default async () => {
             press(increase());
             expect(valueLabel(renderer.toJSON() as ReactTestRendererJSON)).toStrictEqual(['60', true]);
             act(() => {
-                renderer.update(<AdwSpinRow title="Zoom" lower={0} upper={100} stepIncrement={10} value={50} />);
+                renderer.update(
+                    <AdwSpinRow title="Zoom" adjustment={{ lower: 0, upper: 100, stepIncrement: 10 }} value={50} />,
+                );
             });
             expect(valueLabel(renderer.toJSON() as ReactTestRendererJSON)).toStrictEqual(['60', true]);
         });
 
         await it('formats the value with `digits` — the pair, as a STRING', async () => {
             const tree = mounted(
-                <AdwSpinRow title="Scale" lower={0} upper={10} stepIncrement={1} value={3.14159} digits={2} />,
+                <AdwSpinRow
+                    title="Scale"
+                    adjustment={{ lower: 0, upper: 10, stepIncrement: 1 }}
+                    value={3.14159}
+                    digits={2}
+                />,
             );
             // The GTK half reads '3.14' back off the real widget's `GtkEditable` text.
             expect(valueLabel(tree)).toStrictEqual(['3.14', true]);
@@ -531,9 +557,7 @@ export default async () => {
             const renderer = mount(
                 <AdwSpinRow
                     title="Scale"
-                    lower={0}
-                    upper={3}
-                    stepIncrement={2}
+                    adjustment={{ lower: 0, upper: 3, stepIncrement: 2 }}
                     value={0}
                     onNotifyValue={(v) => seen.push(v)}
                 />,

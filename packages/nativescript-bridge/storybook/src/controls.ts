@@ -148,9 +148,12 @@ function spinRow(control: StoryNumberControl): ControlWidget<View, number> {
     const row = new Adw.SpinRow();
     row.title = label(control);
     if (control.description) row.subtitle = control.description;
-    row.min = control.min ?? 0;
-    row.max = control.max ?? 100;
-    row.step = control.step ?? 1;
+    // A STORY CONTROL keeps `min`/`max`/`step` and the WIDGET takes an `adjustment`, which
+    // is not an inconsistency: `Adw.SpinRow.new_with_range(min, max, step)` is GTK's own
+    // convenience constructor, and the GTK storybook calls exactly that one door up
+    // (`framework/storybook/src/window.ts`). The three numbers are the AUTHOR's vocabulary;
+    // the adjustment is the widget's (ADR 0047), and this line is the map between them.
+    row.adjustment = { lower: control.min ?? 0, upper: control.max ?? 100, stepIncrement: control.step ?? 1 };
     let cb: (v: number) => void = () => {};
     row.addEventListener(NOTIFY_VALUE, (e) => cb((e as NotifyValueEventData).value));
     return {
@@ -169,9 +172,8 @@ function spinRow(control: StoryNumberControl): ControlWidget<View, number> {
 function sliderRow(control: StoryNumberControl): ControlWidget<View, number> {
     const row = new AdwSliderRow();
     row.title = label(control);
-    row.min = control.min ?? 0;
-    row.max = control.max ?? 100;
-    row.step = control.step ?? 1;
+    // The same map as `spinRow` above, onto the same portable value.
+    row.adjustment = { lower: control.min ?? 0, upper: control.max ?? 100, stepIncrement: control.step ?? 1 };
     let cb: (v: number) => void = () => {};
     row.addEventListener(NOTIFY_SLIDER_VALUE, (e) => cb((e as NotifySliderValueEventData).value));
     return {

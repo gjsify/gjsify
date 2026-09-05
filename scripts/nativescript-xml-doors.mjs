@@ -69,8 +69,35 @@ export const STRING_TOLERANT = {
     normalizeClampProp: `${NS_WIDGETS_DIR}/chrome.ts`,
 };
 
+/**
+ * The JSON doors: a setter whose value is an OBJECT reaches XML as one of these.
+ *
+ * A THIRD kind beside `number` and `boolean`, and it exists because a portable VALUE is
+ * not a primitive. `AdwSpinRow.adjustment` takes `Gtk.Adjustment`'s six numbers as one
+ * object (ADR 0047) — an attribute can carry that, as the JSON text the setter parses,
+ * which is a different thing from "an attribute cannot carry this" and was indistinguishable
+ * from it before: `attributeKind` answered `null` for `AdwAdjustmentInput | string`, so the
+ * setter landed in the UNCARRYABLE bucket and no rule looked at it again.
+ *
+ * The declared shape is what opts in: a setter annotated `<Something> | string` says the
+ * attribute spelling exists. `AdwComboRow.model` is annotated `AdwListModelInput`, which
+ * RESOLVES to a union containing `string` — and a bare string there is one ITEM, not JSON.
+ * That is why the test reads the setter's own annotation rather than the resolved alias.
+ *
+ * Each entry is VERIFIED against its own declaration by `jsonDoors()`, like
+ * `STRING_TOLERANT` is: a door that stops taking a string stops being one.
+ */
+export const JSON_DOORS = {
+    parseAdjustment: 'packages/web/adwaita-core/src/adjustment.ts',
+};
+
 /** The coercers this package's own door is made of. */
 export const COERCERS = { number: 'xmlNumber', boolean: 'xmlBoolean' };
+
+/** What a setter of `kind` must put its value through, named for a failure message. */
+export function doorFor(kind) {
+    return kind === 'json' ? Object.keys(JSON_DOORS).join(' / ') : COERCERS[kind];
+}
 
 /**
  * NativeScript accessors that have a SETTER and no getter.
@@ -444,6 +471,10 @@ export function attributeKind(texts, annotation, seen = new Set()) {
     if (parts.every((p) => p === 'string' || /^'[^']*'$/.test(p) || stringUnion(list, p))) return 'string';
     if (parts.every((p) => /^-?\d+(?:\.\d+)?$/.test(p))) return 'number';
     if (parts.every((p) => p === 'true' || p === 'false')) return 'boolean';
+    // A JSON DOOR — see {@link JSON_DOORS}. Reached only when some member is NOT
+    // string-ish (the test above would have answered `string`), so `| string` beside it
+    // is the widget saying an attribute carries this as text the setter parses.
+    if (parts.length > 1 && parts.includes('string')) return 'json';
     // One named alias left: resolve it and ask the same question of what it stands for.
     // `seen` is what keeps `type A = B; type B = A;` from recurring forever.
     if (parts.length === 1 && /^\w+$/.test(parts[0]) && !seen.has(parts[0])) {
@@ -480,8 +511,53 @@ export function membersOf(sources, tag) {
 /** Does the setter actually put the value through something that accepts a string? */
 export function coerces(setter, kind) {
     if (kind === 'string') return true;
+    // A JSON door is not interchangeable with a primitive coercer: `xmlNumber` on an
+    // object gives the fallback, and `parseAdjustment` on a number gives nothing
+    // authored. So this kind is held against ITS OWN doors and no others.
+    if (kind === 'json') return Object.keys(JSON_DOORS).some((fn) => setter.executable.includes(`${fn}(`));
     if (setter.executable.includes(`${COERCERS[kind]}(`)) return true;
     return Object.keys(STRING_TOLERANT).some((fn) => setter.executable.includes(`${fn}(`));
+}
+
+/**
+ * Every `JSON_DOORS` entry really is a total string→object door.
+ *
+ * The twin of {@link stringTolerant}, and it asks for two things rather than one: the
+ * first parameter still accepts a `string`, AND the function does not throw on a bad one.
+ * The second is what a door IS — an attribute is where an author's typo arrives, and a
+ * door that throws stops the element upgrading rather than ignoring the typo.
+ */
+export function jsonDoors(root) {
+    const problems = [];
+    for (const [fn, rel] of Object.entries(JSON_DOORS)) {
+        let text = null;
+        try {
+            text = readFileSync(join(root, rel), 'utf8');
+        } catch {
+            problems.push(`JSON_DOORS names ${fn} in ${rel}, which is not readable.`);
+            continue;
+        }
+        const decl = new RegExp(`export function ${fn}\\(\\s*\\w+: ([^,)]+)`).exec(text);
+        if (decl === null) {
+            problems.push(`JSON_DOORS names ${fn}, which ${rel} does not export as a function.`);
+            continue;
+        }
+        if (!/\bstring\b/.test(decl[1])) {
+            problems.push(
+                `JSON_DOORS names ${fn}, whose first parameter is \`${decl[1].trim()}\` — it no longer ` +
+                    'accepts a string, so an XML attribute cannot reach it.',
+            );
+            continue;
+        }
+        const body = text.slice(text.indexOf(`export function ${fn}(`));
+        if (!/\bcatch\b/.test(body.slice(0, body.indexOf('\n}\n') + 1))) {
+            problems.push(
+                `JSON_DOORS names ${fn}, whose body has no \`catch\` — a door is where an author's typo ` +
+                    'arrives, and one that throws stops the element upgrading instead of ignoring the typo.',
+            );
+        }
+    }
+    return problems;
 }
 
 /** Every `STRING_TOLERANT` entry really does declare a `string` in its first parameter. */

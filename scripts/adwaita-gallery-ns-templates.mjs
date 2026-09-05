@@ -138,15 +138,22 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
     {
         widget: 'Adw.SpinRow',
         page: 'boxed-lists',
-        // A refusal in the framework trees, and a template here: the NS row owns its
-        // range as four plain numbers, where GTK's takes a `Gtk.Adjustment` — a
-        // GObject that is not a widget and has no tag in any element model.
+        // A refusal in the framework trees, and a template here: the range is a
+        // `Gtk.Adjustment` on GTK — a GObject that is not a widget and has no tag in any
+        // element model — and the portable value of it here (ADR 0047). The attribute
+        // carries that value as JSON, which is the door `adw-spin-row.ts`'s setter opens;
+        // it is why this widget is not in `ADWAITA_GALLERY_NS_REFUSALS` beside the ones
+        // whose object property no attribute can carry.
         root: {
             tag: 'AdwPreferencesGroup',
             children: [
                 {
                     tag: 'AdwSpinRow',
-                    props: { title: 'Copies', value: 3, min: 1, max: 20, step: 1 },
+                    props: {
+                        title: 'Copies',
+                        value: 3,
+                        adjustment: JSON.stringify({ lower: 1, upper: 20, stepIncrement: 1 }),
+                    },
                 },
             ],
         },

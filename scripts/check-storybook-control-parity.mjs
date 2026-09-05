@@ -245,6 +245,45 @@ const settersOf = (file) => {
  * 117 held writes to 0 with the run still green, one story file at a time.
  */
 const NS_WIDGET_FIELD = new RegExp(`\\b_([A-Za-z0-9_$]+)\\s*:\\s*(${WIDGET_REFERENCE})\\b`, 'g');
+
+/**
+ * The OTHER way a story holds a widget: a local `const row = new Adw.SpinRow()`.
+ *
+ * The field arm above sees only what a story keeps between renders. A widget built and
+ * configured inside one method — which is most of the rows in a preferences page — has no
+ * annotation to key on, and every write to it was invisible. MEASURED: ADR 0047 replaced
+ * `AdwSpinRow.min`/`max`/`step` with one `adjustment`, and two stories kept assigning the
+ * old three (`preferences-dialog.ns.ts`, `widgets.ns.ts`). Six dead writes, every gate
+ * green, both rows silently rendering the default range — the same sentence this file
+ * opens with, one binding form over.
+ *
+ * The CONSTRUCTOR is the annotation here, which makes this arm no more speculative than
+ * the other: `new Adw.SpinRow()` says the class outright.
+ */
+const NS_WIDGET_LOCAL = new RegExp(
+    `\\b(?:const|let|var)\\s+([A-Za-z0-9_$]+)\\s*(?::\\s*[^=;]+)?=\\s*new\\s+(${WIDGET_REFERENCE})\\s*\\(`,
+    'g',
+);
+
+/**
+ * ANY other binding of the same name, widget or not.
+ *
+ * The ambiguity test cannot be "bound to two different widget classes": a name bound once
+ * as a widget and once as a plain object — `const row = new Adw.SpinRow()` in one method,
+ * `const row = { … }` in another — would then be held against the widget for both, and a
+ * perfectly correct write into the object reads as a dead one. This reader is LEXICAL and
+ * has no scopes, so a name it sees bound twice is a name it cannot answer for.
+ */
+const ANY_LOCAL_BINDING = /\b(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*(?::\s*[^=;]+)?=/g;
+
+/**
+ * …and a reassignment, which `const` forbids but `let` does not.
+ *
+ * The lookbehind is what keeps a DECLARATION from counting twice: `const row = …` is a
+ * binding the pattern above already counted, and counting it again here dropped every
+ * widget local as ambiguous — the arm went silently back to holding nothing.
+ */
+const LOCAL_REASSIGNMENT = /(?<![.\w$])(?<!\b(?:const|let|var)\s)([A-Za-z0-9_$]+)\s*=[^=]/gm;
 let nsWidgetSources = new Map();
 let nsCoreProperties = new Set();
 let nsSpellings = new Map();
@@ -265,21 +304,51 @@ if (nsWidgetSources.size === 0 || nsCoreProperties.size === 0) {
 }
 let deadWriteChecked = 0;
 
-/** Every `this._field.prop = …` in a NativeScript story whose widget has no such member. */
+/** Every write to a story-held widget — field or local — whose class has no such member. */
 function deadWrites(code) {
     const fields = new Map();
     for (const [, field, spelling] of code.matchAll(NS_WIDGET_FIELD)) {
         const klass = widgetClassOf(spelling, nsSpellings);
         if (klass !== null && nsWidgetSources.has(klass)) fields.set(field, klass);
     }
+    // A NAME BOUND TWICE IN ONE FILE IS DROPPED, because this reader is lexical and has no
+    // scopes: `widgets.ns.ts` builds a `const child` as an `Adw.SwitchRow` in one branch and
+    // as an `Adw.ActionRow` in the other, and holding `child.active` against whichever
+    // binding came last reports a write that is perfectly correct. An ambiguous name is a
+    // name this arm cannot answer for, and it says so by not answering.
+    const locals = new Map();
+    for (const [, local, spelling] of code.matchAll(NS_WIDGET_LOCAL)) {
+        const klass = widgetClassOf(spelling, nsSpellings);
+        if (klass !== null && nsWidgetSources.has(klass)) locals.set(local, klass);
+    }
+    // Count every binding of every name, then drop the widget locals bound more than once —
+    // by a second widget, by a plain value, or by a bare reassignment.
+    const bindings = new Map();
+    const count = (name) => bindings.set(name, (bindings.get(name) ?? 0) + 1);
+    for (const [, name] of code.matchAll(ANY_LOCAL_BINDING)) count(name);
+    for (const [, name] of code.matchAll(LOCAL_REASSIGNMENT)) if (locals.has(name)) count(name);
+    for (const [local] of locals) if ((bindings.get(local) ?? 0) > 1) locals.delete(local);
     const found = [];
+    /** One write, held against the class the binding names. */
+    const hold = (binding, klass, property) => {
+        deadWriteChecked += 1;
+        if (nsCoreProperties.has(property)) return;
+        if (membersOf(nsWidgetSources, klass).has(property)) return;
+        found.push({ binding, klass, property });
+    };
     for (const [, field, property] of code.matchAll(/\bthis\._([A-Za-z0-9_$]+)\.([A-Za-z0-9_$]+)\s*=[^=]/g)) {
         const klass = fields.get(field);
-        if (klass === undefined) continue;
-        deadWriteChecked += 1;
-        if (nsCoreProperties.has(property)) continue;
-        if (membersOf(nsWidgetSources, klass).has(property)) continue;
-        found.push({ field, klass, property });
+        if (klass !== undefined) hold(`this._${field}`, klass, property);
+    }
+    // A bare `name.prop = …`, which matches every object write in the file — only the ones
+    // whose receiver a `new Adw.*` bound above are held, so nothing else is reached. The
+    // COMPOUND forms count as writes too: `row.prop += 1` and `row.prop ??= 1` reach the
+    // same dead own-property, and `\s*=[^=]` alone sees neither.
+    for (const [, local, property] of code.matchAll(
+        /(?:^|[^.\w$])([A-Za-z0-9_$]+)\.([A-Za-z0-9_$]+)\s*(?:[-+*/%&|^]|\*\*|<<|>>>?|\?\?|\|\||&&)?=(?!=)/gm,
+    )) {
+        const klass = locals.get(local);
+        if (klass !== undefined) hold(local, klass, property);
     }
     return found;
 }
@@ -355,9 +424,9 @@ if (declared === 0) {
 // widget, and the loop above skips a meta with an empty control set entirely.
 const nativescript = renderings.find((target) => target.label === 'NativeScript');
 for (const [name, file] of nativescript?.files ?? []) {
-    for (const { field, klass, property } of deadWrites(stripComments(readFileSync(file, 'utf8')))) {
+    for (const { binding, klass, property } of deadWrites(stripComments(readFileSync(file, 'utf8')))) {
         failures.push(
-            `${name}@NativeScript: writes \`this._${field}.${property}\`, and ${klass} has no such member.\n` +
+            `${name}@NativeScript: writes \`${binding}.${property}\`, and ${klass} has no such member.\n` +
                 '    NativeScript takes the assignment as a dead own-property — no throw, no warning — so the\n' +
                 '    control moves and does nothing. Check whether the property was RENAMED: this is what a\n' +
                 '    converged name leaves behind at a call site the rename missed.',
@@ -366,8 +435,9 @@ for (const [name, file] of nativescript?.files ?? []) {
 }
 if (deadWriteChecked === 0) {
     console.error(
-        'check-storybook-control-parity: no `this._field.property =` write on a declared widget was found\n' +
-            '  in any NativeScript story. That is a broken scan, not a storybook that sets nothing.',
+        'check-storybook-control-parity: no write on a declared widget was found — neither a `this._field.prop =`\n' +
+            '  nor a `local.prop =` on one a `new Adw.*` bound, in any NativeScript story. That is a broken\n' +
+            '  scan, not a storybook that sets nothing.',
     );
     process.exit(1);
 }

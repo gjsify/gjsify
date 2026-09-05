@@ -88,9 +88,17 @@ const ADWAITA_WEB_FACTORY: ControlWidgetFactory<HTMLElement> = {
     number(control: StoryNumberControl): ControlWidget<HTMLElement, number> {
         const row = document.createElement('adw-spin-row') as HTMLElement & { value: number };
         row.setAttribute('title', label(control));
-        row.setAttribute('min', String(control.min ?? 0));
-        row.setAttribute('max', String(control.max ?? 100));
-        row.setAttribute('step', String(control.step ?? 1));
+        // A STORY CONTROL keeps `min`/`max`/`step` — that is `Adw.SpinRow.new_with_range`'s
+        // own vocabulary, which the GTK storybook calls directly — and the ELEMENT takes one
+        // `adjustment` (ADR 0047). This line is the map between the two.
+        row.setAttribute(
+            'adjustment',
+            JSON.stringify({
+                lower: control.min ?? 0,
+                upper: control.max ?? 100,
+                stepIncrement: control.step ?? 1,
+            }),
+        );
         let cb: (v: number) => void = () => {};
         row.addEventListener('notify::value', (e) => cb((e as CustomEvent<{ value: number }>).detail.value));
         return {

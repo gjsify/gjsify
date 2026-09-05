@@ -20,6 +20,7 @@
 // so those names are not declared at all and the omissions are listed in the README.
 
 import type {
+    AdwAdjustmentInput,
     AdwBannerButtonStyle,
     AdwLengthUnit,
     AdwListModelInput,
@@ -583,19 +584,15 @@ export interface AdwComboRowProps extends AdwRowProps {
  *
  * The two labels are {@link AdwRowProps}', as on every other boxed-list row here.
  *
- * THE RANGE IS THREE SCALARS AND libadwaita SPELLS IT AS ONE OBJECT. `AdwSpinRow:adjustment`
- * is a `Gtk.Adjustment` — a GObject that is not a widget, which is what the gallery refuses
- * the widget for — so the same rule as {@link AdwComboRowProps}' `model` applies: this file
- * cannot name the type, and the three values it carries are named here instead. The names
- * are the ADJUSTMENT's own GObject property names — `Gtk.Adjustment:lower`, `:upper`,
- * `:step-increment` — rather than a fourth private spelling.
+ * THE RANGE IS ONE OBJECT, as libadwaita spells it. `AdwSpinRow:adjustment` is a
+ * `Gtk.Adjustment` — a GObject that is not a widget — and this file names the portable form
+ * of it, `@gjsify/adwaita-core`'s {@link AdwAdjustmentInput} (ADR 0047), which is the value
+ * all four surfaces take under this one key.
  *
- * THAT IS A DECLARED DIVERGENCE FROM THE TWO SIBLING RENDERERS, which flatten the same three
- * onto `min`/`max`/`step`. Those are `adw_spin_row_new_with_range`'s PARAMETER names, not
- * property names, and `props.ts`' rule is that a caller writes the property they would look
- * up in libadwaita's documentation. `@gjsify/adwaita-core`'s `SpinState` calls them
- * `min`/`max`/`step` internally; both halves here map onto that, so the arithmetic is still
- * shared and only the spelling at the surface differs.
+ * IT USED TO BE THREE SCALARS HERE, hoisted onto the ROW: `lower`, `upper` and
+ * `stepIncrement` — the adjustment's own GObject property names, on an object that has
+ * none of them. The right vocabulary in the wrong place, and a fourth shape beside the two
+ * sibling renderers' `min`/`max`/`step`. All three converged on the one key the row has.
  *
  * `digits` IS A ROW PROPERTY AND NOT AN ADJUSTMENT ONE — `AdwSpinRow:digits`, the number of
  * decimal places DISPLAYED. It is carried because it is the only one of the row's own
@@ -608,14 +605,18 @@ export interface AdwComboRowProps extends AdwRowProps {
  * sibling renderer has them either.
  */
 export interface AdwSpinRowProps extends AdwRowProps {
-    /** `value` — the current number, clamped into {@link lower}…{@link upper}. Default 0. */
+    /** `value` — the current number, clamped into the {@link adjustment}'s range. Default 0. */
     value?: number;
-    /** `Gtk.Adjustment:lower` — the smallest value the stepper reaches. Default 0. */
-    lower?: number;
-    /** `Gtk.Adjustment:upper` — the largest. Default 100, which is `SpinState`'s own. */
-    upper?: number;
-    /** `Gtk.Adjustment:step-increment` — one stepper press. Default 1. */
-    stepIncrement?: number;
+    /**
+     * `adjustment` — the range this row steps through, as `@gjsify/adwaita-core`'s portable
+     * {@link AdwAdjustmentInput} (ADR 0047).
+     *
+     * It used to be three flat props here (`lower`, `upper`, `stepIncrement`), which were
+     * `Gtk.Adjustment`'s own field names hoisted onto the ROW — the right vocabulary in the
+     * wrong place, since `Adw.SpinRow` has no such properties. Unwritten fields take
+     * `ADW_ADJUSTMENT_DEFAULTS`, so `adjustment={{ upper: 20 }}` is 0…20 step 1.
+     */
+    adjustment?: AdwAdjustmentInput;
     /** `digits` — decimal places DISPLAYED. Default 0. */
     digits?: number;
     /**

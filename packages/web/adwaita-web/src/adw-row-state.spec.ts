@@ -10,6 +10,8 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
+    ADJUSTMENT_AUTHORED_VECTORS,
+    ADJUSTMENT_PARSE_VECTORS,
     COMBO_CHOOSER_VECTORS,
     COMBO_SELECTION_VECTORS,
     LIST_ITEMS_CHANGED_VECTORS,
@@ -393,9 +395,54 @@ export const AdwRowStateTest = async () => {
     });
 
     await describe('adw-spin-row (SpinState)', async () => {
+        // THE SHARED TABLES, driven through the ELEMENT and its markup door — the same rows
+        // the core suite and the NativeScript suite assert, so a range authored in one
+        // dialect means the same thing in all three (ADR 0047).
+        for (const vector of ADJUSTMENT_AUTHORED_VECTORS) {
+            await it(`authored: ${vector.rule}`, () => {
+                const { el: row, host } = parse<AdwSpinRow>(
+                    `<adw-spin-row title="Amount" adjustment='${JSON.stringify(vector.input)}'></adw-spin-row>`,
+                    'adw-spin-row',
+                );
+                expect(row.adjustment).toStrictEqual({ ...vector.adjustment });
+                expect(row.value).toBe(vector.adjustment.value);
+                host.remove();
+            });
+        }
+
+        // The state the parse rows are written over: the defaults with a value of 7, so a
+        // door that answered with a WHOLE adjustment would take the value back to 0 — which
+        // is what this table's `{"upper":20}` row exists to catch.
+        const SEEDED = { value: 7, lower: 0, upper: 100, stepIncrement: 1, pageIncrement: 1, pageSize: 0 };
+
+        for (const vector of ADJUSTMENT_PARSE_VECTORS) {
+            await it(`attribute: ${vector.rule}`, () => {
+                // Seeded through the ATTRIBUTE and not left at the defaults, so the write
+                // below has something to overwrite: a row that starts where it ends cannot
+                // tell a door that read the vector from one that was never called.
+                const { el: row, host } = parse<AdwSpinRow>(
+                    `<adw-spin-row title="Amount" value="7" adjustment='{"upper":40}'></adw-spin-row>`,
+                    'adw-spin-row',
+                );
+                expect(row.adjustment).toStrictEqual({ ...SEEDED, upper: 40 });
+
+                // `null` is the ABSENT attribute, and removing one is how an element meets
+                // it: `attributeChangedCallback` fires with a null value, which the door has
+                // to answer as "nothing authored" rather than as a whole adjustment. The
+                // element never sees that call if the test simply skips the write.
+                if (vector.raw === null) row.removeAttribute('adjustment');
+                else row.setAttribute('adjustment', vector.raw);
+
+                // The authored fields over what the row already held, and nothing else —
+                // `upper: 40` survives every row that does not name an upper.
+                expect(row.adjustment).toStrictEqual({ ...SEEDED, upper: 40, ...vector.input });
+                host.remove();
+            });
+        }
+
         await it('steps at step precision and notifies only on a stepper press', async () => {
             const { el: row, host } = parse<AdwSpinRow>(
-                '<adw-spin-row title="Amount" min="0" max="10" step="0.1" value="0"></adw-spin-row>',
+                `<adw-spin-row title="Amount" value="0" adjustment='{"lower":0,"upper":10,"stepIncrement":0.1}'></adw-spin-row>`,
                 'adw-spin-row',
             );
             const input = row.querySelector('input') as HTMLInputElement;
@@ -424,7 +471,7 @@ export const AdwRowStateTest = async () => {
 
         await it('clamps to the lower bound and re-clamps when a bound moves', async () => {
             const { el: row, host } = parse<AdwSpinRow>(
-                '<adw-spin-row title="Amount" min="2" max="8" step="1" value="5"></adw-spin-row>',
+                `<adw-spin-row title="Amount" value="5" adjustment='{"lower":2,"upper":8}'></adw-spin-row>`,
                 'adw-spin-row',
             );
             const input = row.querySelector('input') as HTMLInputElement;
@@ -432,9 +479,10 @@ export const AdwRowStateTest = async () => {
             row.value = -4;
             expect(row.value).toBe(2);
 
-            // Moving the upper bound below the value pulls the value into range.
+            // Moving the upper bound below the value pulls the value into range — and the
+            // attribute names ONLY the bound, so the value it does not name is not reset.
             row.value = 8;
-            row.setAttribute('max', '6');
+            row.setAttribute('adjustment', '{"upper":6}');
             expect(row.value).toBe(6);
             expect(input.value).toBe('6');
 

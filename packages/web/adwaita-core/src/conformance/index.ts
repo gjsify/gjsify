@@ -278,6 +278,10 @@ export type {
     SplitButtonTooltipVector,
 } from './split-button.js';
 
+// --- The portable adjustment (Gtk.Adjustment's six numbers — ADR 0047) vectors ---
+export { ADJUSTMENT_AUTHORED_VECTORS, ADJUSTMENT_PARSE_VECTORS, ADJUSTMENT_SNAP_VECTORS } from './adjustment.js';
+export type { AdjustmentAuthoredVector, AdjustmentParseVector, AdjustmentSnapVector } from './adjustment.js';
+
 // --- The portable list model (item vocabulary + items-changed — ADR 0046) vectors ---
 export {
     LIST_ITEMS_CHANGED_VECTORS,

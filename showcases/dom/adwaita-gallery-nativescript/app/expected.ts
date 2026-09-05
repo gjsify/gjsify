@@ -95,7 +95,7 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Adw.SpinRow', view: 'AdwSpinRow', root:
         { tag: 'adw:PreferencesGroup', children: [
-                { tag: 'adw:SpinRow', props: {"title":"Copies","value":3,"min":1,"max":20,"step":1} }
+                { tag: 'adw:SpinRow', props: {"title":"Copies","value":3,"adjustment":"{\"lower\":1,\"upper\":20,\"stepIncrement\":1}"} }
             ] }
     },
     { widget: 'Adw.ButtonRow', view: 'AdwButtonRow', root:
