@@ -463,7 +463,10 @@ so entering at `/settings` rather than at the index route is the ordinary path, 
 ```tsx
 import { router } from '@gjsify/react-native/router';
 
-// From a URI handler, a `Gio.SimpleAction`, or your own restore logic.
+// Whatever handed you the entry point: a URI handler, a `Gio.SimpleAction`,
+// or your own restore logic.
+const entryHref = '/settings';
+
 router.navigate(entryHref);
 ```
 
