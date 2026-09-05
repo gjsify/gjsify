@@ -432,8 +432,8 @@ node by node with the GIR-name case rule as the only transform:
 | | blocks | |
 |---|---|---|
 | identical | 7 | authored once in `scripts/adwaita-gallery-shared-trees.mjs` |
-| `property` | 4 | same shape and tags; one renderer has no such property |
-| `vocabulary` | 3 | same shape; a tag, slot or property is spelled differently |
+| `property` | 5 | same shape and tags; one renderer has no such property |
+| `vocabulary` | 2 | same shape; a tag, slot or property is spelled differently |
 | `composition` | 7 | genuinely different UIs, each forced by a renderer |
 | `content` | 2 | nothing forced them apart — two authors, two examples |
 
@@ -444,21 +444,30 @@ the renderer gaps one property at a time cannot leave a dead reason standing.
 
 **What blocks the remaining 16, in the order it can be paid.**
 
-*The 4 `property` ones are renderer work and are already in flight or trivially scoped.*
-`Adw.Avatar` needs `showInitials` and `iconName` on the NativeScript `AdwAvatar`, which
-today sets only `size` and `text`. `Gtk.Entry` needs nothing: `widthRequest` is a GTK size
-request and the port has no layout surface, so this one may stay ledgered forever.
-`Adw.PasswordEntryRow` is the mirror — `revealed` is the port's, and libadwaita exposes the
-peek icon rather than the state. `Adw.ButtonRow` is the interesting one: `startIconName`
-exists on BOTH and means different things, an icon NAME on GTK and an Adwaita symbolic SVG
-STRING on the port. A property that agrees on its name and disagrees on its value is worse
-than one that is missing, and `check-vocabulary-alignment.mjs` counts it as agreement.
+*The 5 `property` ones are renderer work and are already in flight or trivially scoped.*
+`Adw.Avatar` needs `showInitials` and `iconName` on the NativeScript `AdwAvatar`, whose
+whole Adwaita surface today is `size` and `text` — and whose `set text` always renders
+initials, so there is no icon path to reach either. `Gtk.Entry` needs nothing:
+`widthRequest` is a GTK size request and the port has no layout surface, so this one may
+stay ledgered forever. `Adw.PasswordEntryRow` and `Adw.Spinner` are the same shape from the
+other side: `adw_password_entry_row_class_init` and `adw_spinner_class_init` install NO
+properties at all, so `revealed` and `spinning` have no GIR counterpart to converge on —
+libadwaita keeps the reveal toggle as a private `GtkButton` suffix, and an `Adw.Spinner`
+cannot be stopped where a `GtkSpinner` can. (Both were first written up as a difference in
+what libadwaita EXPOSES — a peek icon, a size — which named a property of `GtkPasswordEntry`
+and one nothing has; the classes install none.) `Adw.ButtonRow` is the interesting one:
+`startIconName` exists on BOTH and means different things, an icon NAME on GTK and an
+Adwaita symbolic SVG STRING on the port. A property that agrees on its name and disagrees on
+its value is worse than one that is missing, and `check-vocabulary-alignment.mjs` counts it
+as agreement.
 
-*The 3 `vocabulary` ones close for free when the convergence that gate already counts down
+*The 2 `vocabulary` ones close for free when the convergence that gate already counts down
 lands* — `label`/`text`, `wrap`/`textWrap`, `cssClasses`/`class`, and the three header-bar
 slots spelled `start`/`title`/`end` against `startBox`/`titleWidget`/`endBox`. Slots are
 why no shared tree uses one yet: the shared source admits a block only when it needs no
-alias, and every slotted pair still needs three.
+alias, and every slotted pair still needs three. `Adw.Spinner` sat here until its `spinning`
+half was read: a `vocabulary` entry PROMISES the block lands in the shared source for free
+when the renames land, so a missing property filed under it is a promise nothing can keep.
 
 *The 7 `composition` ones each need a decision before they need code*, and two of them are
 the same decision twice: an `AdwHeaderBar` title is a slotted `AdwWindowTitle` child on GTK
@@ -467,14 +476,26 @@ carry two nodes more on one side than the other. Converging them means deciding 
 renderer is wrong, which is an ADR 0034 question and not a gallery one.
 
 *The 2 `content` ones are the ones nobody has an excuse for*, and they are left as measured
-rather than fixed because the fix collides with `feat/portable-style-classes`, which is
-editing exactly those lines. `Adw.WrapBox`: the block preview and three tabs show eight
-chips, the NativeScript template six, and it spells `TypeScript` where the other three
-spell `Typescript` — so one of the four is also a typo, in the preview that decides.
-`Gtk.Button`: five buttons against four, the icon-only circular one missing. The rule that
-settles both is the one `Adw.WrapBox`'s own tree already states — a gallery block is one
-widget written several ways, so its `preview` fragment is the authority — and in both cases
-it is the NativeScript template that drifted from it.
+rather than fixed because closing the LIST would not move either into the shared source:
+both also carry a `cssClasses` against the port's style-class property, and that half does
+not close by renaming. `@nativescript/core`'s `ViewBase` already owns the name — its
+constructor assigns `this.cssClasses = new Set()`, its `ClassSelector.match` reads
+`node.cssClasses.has(…)` and its `className` setter clears and refills the same Set — so
+taking the name means shadowing that field with an accessor pair that still hands the CSS
+engine a live mutable Set, and the value kinds differ besides (`string[]` against
+`Set<string>`). Padding the lists moves them from `content` to `vocabulary`, which is a
+bucket sideways and not a block shared. `Adw.WrapBox`: the block
+preview and three tabs show eight chips, the NativeScript template six. `Gtk.Button`: five
+buttons against four, the icon-only circular one missing. The rule that settles both is the
+one `Adw.WrapBox`'s own tree already states — a gallery block is one widget written several
+ways, so its `preview` fragment is the authority — and in both cases it is the NativeScript
+template that drifted from it.
+
+The census also found the `Adw.WrapBox` chip list spelled `Typescript` in seven authored
+sites and `TypeScript` in one — the NativeScript template, the only one that was right. All
+seven were corrected here. It is worth keeping because of WHERE it hid: seven of the eight
+copies agreed, so every majority-wins reading of the gallery would have propagated the
+typo, and no arm compares a chip label to anything at all.
 
 **What this does NOT close.** Two authored trees agreeing is not two renderers behaving the
 same, and the shared source is compared as DATA rather than as a rendered tree. The

@@ -285,41 +285,51 @@ export const ADWAITA_GALLERY_TREE_DIVERGENCES = {
     'Adw.ButtonRow':
         'property: `AdwButtonRow.startIconName` exists on both and means different things — an icon NAME on GTK, an Adwaita symbolic SVG STRING on NativeScript — and the port has no `cssClasses`.',
     'Adw.PasswordEntryRow':
-        'property: `revealed` is a NativeScript-side property; `gtk-host` has none on `adw-password-entry-row`, because libadwaita exposes the peek icon rather than the state.',
+        'property: `revealed` is a NativeScript-side property and `gtk-host` has none on `adw-password-entry-row` — `adw_password_entry_row_class_init` installs NO properties at all, and the reveal toggle is a private `GtkButton` suffix the class never exposes. (Not the peek icon: `show-peek-icon` is `GtkPasswordEntry`, which this row does not derive from.)',
     'Gtk.Entry':
         'property: `widthRequest` is a GTK size request; the NativeScript `GtkEntry` sets `editable`, `field`, `maxLength`, `placeholderText`, `text` and `textLength` and nothing about layout.',
+    // Filed as `vocabulary` when it was first ledgered, on the reading that `size` and
+    // `widthRequest` are two spellings of one thing. The half that decides it is
+    // `spinning`: `adw_spinner_class_init` installs NO properties, so there is no GTK
+    // name for it to be spelled differently from. A `vocabulary` entry PROMISES the
+    // block lands in the shared source for free when the renames land, and a missing
+    // property filed under it is a promise nothing can keep.
+    'Adw.Spinner':
+        'property: the NativeScript `spinning` has no GTK counterpart at all — `adw_spinner_class_init` installs no properties, so an `Adw.Spinner` cannot be stopped where a `GtkSpinner` can. Its `size` is the other half: the widget fills what it is given, so GTK sets `widthRequest`/`heightRequest` where the port exposes one diameter.',
     // --- same shape, different spellings ---
     'Adw.Clamp':
         'vocabulary: one `GtkLabel` against one `Label`, and `label`/`wrap`/`cssClasses` against `text`/`textWrap`/`class`. Same values on both sides; only the names differ.',
     'Adw.HeaderBar':
         'vocabulary: the three slots are spelled `start`/`title`/`end` against `startBox`/`titleWidget`/`endBox`, and the trailing button is a `GtkMenuButton` on GTK where the port has no menu widget.',
-    'Adw.Spinner':
-        'vocabulary: `Adw.Spinner` has no size of its own and fills what it is given, so GTK sets `widthRequest`/`heightRequest` where the port exposes `size` and `spinning`.',
     // --- different UI ---
     'Adw.ActionRow':
         'composition: the prefix icon and the chevron are two children on GTK and none on NativeScript, where `GtkImage.iconName` takes an SVG source no attribute can carry.',
     'Adw.ButtonContent':
         'composition: GTK wraps the content in a `gtk-button`; the port declares the content alone, and its `iconName` is an SVG source, so the label is the half a template holds.',
     'Adw.NavigationSplitView':
-        'composition: GTK refuses anything but an `Adw.NavigationPage` in either pane, so its tree carries two wrappers the port does not need.',
+        'composition: libadwaita refuses anything but an `Adw.NavigationPage` in either pane — a `g_return_if_fail (ADW_IS_NAVIGATION_PAGE (…))` in both setters, plus a buildable warning — so its tree carries two wrappers the port does not need.',
     'Adw.NavigationView':
-        'composition: same two `AdwNavigationPage` wrappers as the split view, plus the page `tag` a GTK push needs and NativeScript reads from the code-behind.',
+        'composition: same two `AdwNavigationPage` wrappers as the split view, plus the page `tag` that `adw_navigation_view_push_by_tag()` and the `navigation.push` action need, and NativeScript reads from the code-behind.',
     'Adw.OverlaySplitView':
         'composition: an `AdwHeaderBar` title is a slotted `AdwWindowTitle` child on GTK and a plain `title` property on the port, so the GTK tree has two nodes more.',
     'Adw.StatusPage':
         'composition: the GTK tree carries an action button the port has no room for, and the icon is `iconName` against the glyph fallback `iconText`.',
     'Adw.ToolbarView':
-        'composition: the bottom bar is a `gtk-box` of four buttons on GTK — `Gtk.ActionBar` has no child policy — and a second `AdwHeaderBar` on the port.',
+        'composition: the bottom bar is a `gtk-box` of four buttons on GTK — `gtk-host` curates no child policy for `GtkActionBar`, so placing into one raises `uncurated-placement`; the widget itself has `pack_start`/`pack_end` — and a second `AdwHeaderBar` on the port.',
     // --- nothing forces the LIST; the names beside it are another matter ---
     //
     // Both of these also carry a `cssClasses` against the port's style-class property,
-    // and that half is NOT closable: `@nativescript/core`'s `ViewBase` owns the name
-    // `cssClasses` as the live `Set<string>` its CSS engine reads, so the port cannot
-    // take the GIR spelling however far the rest converges. Closing the content gap
-    // would therefore move these two into `vocabulary` rather than into the shared
-    // source — which is why the shorter lists are recorded here rather than padded.
+    // and that half does not close by renaming. `@nativescript/core`'s `ViewBase`
+    // already owns the name: its constructor assigns `this.cssClasses = new Set()`,
+    // its CSS engine READS it (`ClassSelector.match` calls `node.cssClasses.has(…)`)
+    // and its `className` setter MUTATES it (`clear()`, then `add()` per token). Taking
+    // the name would mean shadowing that field with an accessor pair that still hands
+    // the engine a live mutable Set — possible, not free, and a different value kind
+    // besides (`string[]` against `Set<string>`). So closing the content gap moves
+    // these two into `vocabulary` rather than into the shared source, which is why the
+    // shorter lists are recorded here rather than padded.
     'Adw.WrapBox':
-        'content: eight chips in the block preview, the framework tabs and all three storybooks, six in the NativeScript template. Nothing in the port forces the shorter list. Beside it the `label`/`cssClasses` against `text`/`variant` names, whose second half cannot converge.',
+        'content: eight chips in the block preview, the framework tabs and all three storybooks, six in the NativeScript template. Nothing in the port forces the shorter list. Beside it the `label`/`cssClasses` against `text`/`variant` names, whose second half does not converge by renaming.',
     'Gtk.Button':
         'content: five buttons in the preview and the framework tabs, four in the NativeScript template — the icon-only circular one is missing, and its icon would be an SVG SOURCE there rather than a name (see status/open-todos.md, "A property can agree on its NAME and disagree on its VALUE KIND"). Beside it a `GtkBox` against a `StackLayout`.',
 };
