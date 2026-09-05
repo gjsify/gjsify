@@ -38,9 +38,10 @@
 // names, the same property names, the same values, in the same order. The single
 // transform is {@link hostTagOf}, which turns the GIR class name a block is authored
 // in into the `gtk-host` tag — `AdwPreferencesGroup` -> `adw-preferences-group`, a
-// deterministic case rule and not a lookup, and the exact inverse of the
-// `gtypeOfTag` the framework generator already runs in the other direction. Arm 11
-// asserts the round trip, so the two cannot drift apart into a table.
+// deterministic case rule and not a semantic mapping. It is `gtk-host`'s OWN rule
+// (`tagOf` in `packages/framework/gtk-host/src/tags.ts`), and arm 11 runs it against
+// every row of that package's generated table, so it cannot drift into a private
+// second spelling.
 //
 // The vocabulary is the GIR class name because that is the one spelling both
 // renderers already carry (ADR 0034 clause 1, "named from the GIR"): it is the
@@ -171,17 +172,43 @@ export const ADWAITA_GALLERY_SHARED_TREES = [
 /**
  * `AdwPreferencesGroup` -> `adw-preferences-group`, the only transform in this file.
  *
- * A case rule and not a lookup: the namespace is split off first and the remainder
- * kebab-cased, which is the exact inverse of `gtypeOfTag` in
- * `generate-adwaita-framework-snippets.mjs`. Arm 11 asserts the round trip on every
- * shared tag, so the day one of the two grows a special case the other does not, the
- * gate says so instead of the gallery quietly shipping two spellings.
+ * THE RULE IS `@gjsify/gtk-host`'S, RESTATED — `tagOf` in
+ * `packages/framework/gtk-host/src/tags.ts` is what actually stamps the `tag` column
+ * of the generated table, and this is that algorithm. It is restated rather than
+ * imported because these scripts are plain Node over the repo's own files and
+ * `tags.ts` is TypeScript, and it is HELD rather than trusted: arm 11 of
+ * `check-generated-website-data.mjs` runs it against every row of
+ * `gtk-host/src/generated/widgets.ts` and fails on the first row it does not
+ * reproduce. The first version of this function was a naive `([a-z0-9])([A-Z])`
+ * split, and the table caught it on `GtkGLArea` — it produced `gtk-glarea` where
+ * gtk-host stamps `gtk-gl-area`.
+ *
+ * The last capital of an acronym run opens the next word, which is why `GLArea` is
+ * `gl-area` and not `g-l-area`.
+ *
+ * NOT AN INVERSE OF ANYTHING, and the first version of this comment claimed it was.
+ * Tag -> GType is lossy in exactly that case — `gtk-gl-area` reads back as
+ * `GtkGlArea` and no case rule can know better — so `gtypeOfTag` is the generated
+ * table read backwards rather than a second rule. One direction is a rule the table
+ * holds; the other is the table.
  */
 export const hostTagOf = (gtype) => {
-    const parts = /^(Adw|Gtk)([A-Z]\w*)$/.exec(gtype);
-    if (parts === null) throw new Error(`adwaita-gallery-shared-trees: ${gtype} is not a GIR class name`);
-    const [, ns, rest] = parts;
-    return `${ns.toLowerCase()}-${rest.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()}`;
+    if (!/^(?:Adw|Gtk)[A-Z]\w*$/.test(gtype)) {
+        throw new Error(`adwaita-gallery-shared-trees: ${gtype} is not a GIR class name`);
+    }
+    const out = [];
+    for (let i = 0; i < gtype.length; i++) {
+        const c = gtype[i];
+        if (c >= 'A' && c <= 'Z' && i > 0) {
+            const prev = gtype[i - 1];
+            const next = i + 1 < gtype.length ? gtype[i + 1] : '';
+            const endsLowerRun = !(prev >= 'A' && prev <= 'Z');
+            const endsAcronym = next >= 'a' && next <= 'z';
+            if (endsLowerRun || endsAcronym) out.push('-');
+        }
+        out.push(c.toLowerCase());
+    }
+    return out.join('');
 };
 
 const SHARED_BY_WIDGET = new Map(ADWAITA_GALLERY_SHARED_TREES.map((tree) => [tree.widget, tree]));

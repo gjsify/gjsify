@@ -1026,17 +1026,27 @@ const sharedByWidget = new Map(ADWAITA_GALLERY_SHARED_TREES.map((tree) => [tree.
 const gtkByWidget = new Map(ADWAITA_GALLERY_TREES.map((tree) => [tree.widget, tree]));
 const nsByWidget = new Map(ADWAITA_GALLERY_NS_TEMPLATES.map((tree) => [tree.widget, tree]));
 
-/** A node as a comparable string, tags normalised to the GIR class name. */
+/**
+ * A node as a comparable string, tags normalised to the GIR class name.
+ *
+ * The properties are SORTED, and that is what the arm is asking: two trees describe
+ * the same UI or they do not, and the order two authors happened to type `title` and
+ * `subtitle` in is not part of the UI. Compared as written, a parity branch that
+ * closes a `property` divergence by adding the missing props in a different order
+ * would leave its ledger entry standing with nothing to notice — the self-retiring
+ * half would have been the half that silently passes. (Measured on today's 23 pairs:
+ * no divergence is order-only, so this changes no verdict and closes the hole.)
+ */
 const shapeOf = (node, tagOf) =>
     JSON.stringify({
         tag: tagOf(node.tag),
         slot: node.slot ?? null,
-        props: Object.entries(node.props ?? {}),
+        props: Object.entries(node.props ?? {}).sort(([a], [b]) => (a < b ? -1 : 1)),
         children: (node.children ?? []).map((child) => shapeOf(child, tagOf)),
     });
 // The framework trees speak `gtk-host` tags, the NativeScript ones GIR class names,
-// so only ONE side is transformed — and by the inverse of the rule the shared source
-// emits with, asserted below rather than assumed.
+// so only ONE side is transformed — by `gtk-host`'s own generated table, which is
+// what `gtypeOfTag` reads.
 const gtkShape = (tree) => shapeOf(tree.root, gtypeOfTag);
 const nsShape = (tree) => shapeOf(tree.root, (tag) => tag);
 
@@ -1099,24 +1109,47 @@ for (const widget of sharedByWidget.keys()) {
     failures.push(`${widget} is a shared tree that one of the two generators no longer emits.`);
 }
 
-// The two case rules are inverses, and nothing but this loop says so: `hostTagOf`
-// lives with the shared trees and `gtypeOfTag` with the framework generator, so a
-// special case added to one would silently turn the other into a lookup table —
-// which is the arrangement both generator headers refuse.
-for (const tree of ADWAITA_GALLERY_SHARED_TREES) {
-    const walk = (node) => {
-        const round = gtypeOfTag(hostTagOf(node.tag));
-        if (round !== node.tag) {
-            failures.push(
-                `${tree.widget}: ${node.tag} -> ${hostTagOf(node.tag)} -> ${round}. hostTagOf and gtypeOfTag have ` +
-                    'stopped being inverses, so the shared vocabulary is now a translation.',
-            );
-        }
-        for (const child of node.children ?? []) walk(child);
-    };
-    walk(tree.root);
+// `hostTagOf` is a RULE and gtk-host's generated table is what the rule has to
+// reproduce, so it is held against the whole table and not against the seven tags the
+// shared trees happen to use today. The first version of this loop walked only those
+// seven and read green while the rule was already wrong: `GtkGLArea` came out
+// `gtk-glarea` where gtk-host stamps `gtk-gl-area`, and the gallery would have shipped
+// a tag nothing renders on the first block that drew one. A rule asserted over the
+// corpus it is allowed to be used on is the only version of this check worth having.
+//
+// Only this direction is a rule. `gtypeOfTag` is that same table read backwards
+// (`tagOf` collapses an acronym run, so no case rule recovers `GtkGLArea` from
+// `gtk-gl-area`), which is why there is nothing here to assert about it.
+const hostRows =
+    widgetsSrc === null
+        ? []
+        : [...widgetsSrc.matchAll(/\{\s*gtype:\s*'([^']+)',\s*tag:\s*'([^']+)'/g)].map((m) => [m[1], m[2]]);
+if (hostRows.length === 0) {
+    failures.push("gtk-host's gtype/tag rows read as empty — hostTagOf would be asserted against nothing");
+}
+for (const [gtype, tag] of hostRows) {
+    let produced;
+    try {
+        produced = hostTagOf(gtype);
+    } catch (error) {
+        // Every row is a class hostTagOf must be able to name; refusing one is the
+        // same defect as spelling it wrong, and the message has to say which row.
+        failures.push(`hostTagOf(${gtype}) threw (${error.message}) — gtk-host's table says its tag is ${tag}.`);
+        continue;
+    }
+    if (produced !== tag) {
+        failures.push(
+            `hostTagOf(${gtype}) is ${produced}, and gtk-host's generated table stamps ${tag}. The shared trees ` +
+                "would emit a tag nothing renders — the rule is gtk-host's tagOf, in gtk-host/src/tags.ts.",
+        );
+    }
 }
 
+// An EMPTY shared source is deliberately not a failure — it is the honest state of a
+// gallery where nothing agrees yet, and the arm still compares all 23 pairs. What
+// would be vacuous is having no pair to compare at all. (An emptied shared source is
+// loud anyway: both generators call `gtkHostTree`/`nativeScriptTree` by name, and
+// `entryFor` throws that name.)
 if (paired.length === 0) failures.push('no gallery block has a tree on both renderers — arm 11 proved nothing');
 
 notes.push(

@@ -94,18 +94,51 @@ const INDENT = '    ';
 
 const kebab = (name) => name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
+const HOST_WIDGET_TABLE = join(ROOT, 'packages/framework/gtk-host/src/generated/widgets.ts');
+
 /**
  * `adw-header-bar` -> `AdwHeaderBar`, the GType the probe reads back.
  *
- * The namespace is prepended AFTER the rest is camel-cased, not substituted for the
- * prefix. Measured: substituting first leaves no dash in front of the first word, so
- * `adw-preferences-group` came out `AdwpreferencesGroup` — a GType nothing has, which
+ * THE TABLE, NOT A RULE, and that is forced rather than chosen. This used to camel-case
+ * the tag back — the namespace prepended AFTER the rest, never substituted for the
+ * prefix, because substituting first left no dash in front of the first word and
+ * `adw-preferences-group` came out `AdwpreferencesGroup`, a GType nothing has, which
  * made the probe report every widget as missing while the adapter had built all 18.
+ *
+ * The rule survived that repair and still could not be right: `gtk-host`'s `tagOf`
+ * collapses an acronym run, so `GtkGLArea` is `gtk-gl-area` and reads back as
+ * `GtkGlArea` — a second GType nothing has, waiting for the first gallery block to
+ * draw a `Gtk.GLArea`. GType -> tag is a rule (`hostTagOf` in
+ * `adwaita-gallery-shared-trees.mjs`, held row for row by arm 11); tag -> GType is
+ * only ever a lookup in the table `tagOf` stamped, which is why `gtk-host` keeps the
+ * GType name as its table key.
  */
+const readHostWidgetTable = () => {
+    let src;
+    try {
+        src = readFileSync(HOST_WIDGET_TABLE, 'utf8');
+    } catch (error) {
+        // A raw ENOENT stack out of a module body reads like a broken generator. It is
+        // a missing gtk-host build input, and the message has to say which one.
+        throw new Error(`generate-adwaita-framework-snippets: cannot read ${HOST_WIDGET_TABLE} (${error.message})`);
+    }
+    const rows = [...src.matchAll(/\{\s*gtype:\s*'([^']+)',\s*tag:\s*'([^']+)'/g)];
+    // An empty read would turn every lookup below into a throw naming the TAG, which is
+    // the one thing that would not be wrong.
+    if (rows.length === 0) {
+        throw new Error(`generate-adwaita-framework-snippets: ${HOST_WIDGET_TABLE} yielded no gtype/tag row`);
+    }
+    return new Map(rows.map((m) => [m[2], m[1]]));
+};
+
+const GTYPE_BY_TAG = readHostWidgetTable();
+
 export const gtypeOfTag = (tag) => {
-    const [, ns, rest] = /^(adw|gtk)-(.+)$/.exec(tag);
-    const camel = rest.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    return `${ns === 'adw' ? 'Adw' : 'Gtk'}${camel[0].toUpperCase()}${camel.slice(1)}`;
+    const gtype = GTYPE_BY_TAG.get(tag);
+    if (gtype === undefined) {
+        throw new Error(`generate-adwaita-framework-snippets: <${tag}> is not a tag gtk-host generates`);
+    }
+    return gtype;
 };
 
 /**
