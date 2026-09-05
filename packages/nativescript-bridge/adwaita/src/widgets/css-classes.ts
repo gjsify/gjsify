@@ -2,10 +2,18 @@
 // BESIDE the one that says what it is.
 //
 // WHY THIS EXISTS RATHER THAN A PROPERTY PER LOOK. Adwaita's button variants and the flat
-// header bar are not properties in GTK; they are STYLE CLASSES:
-// `refs/libadwaita/src/stylesheet/widgets/_buttons.scss:220#suggested-action`, `:230` and
-// `:323` for the button looks, and
-// `refs/libadwaita/src/stylesheet/widgets/_header-bar.scss:89#flat` for the header bar's.
+// header bar are not properties in GTK; they are STYLE CLASSES —
+// `refs/libadwaita/src/stylesheet/widgets/_buttons.scss:220#suggested-action`,
+// `refs/libadwaita/src/stylesheet/widgets/_buttons.scss:230#destructive-action` and
+// `refs/libadwaita/src/stylesheet/widgets/_buttons.scss:323#pill` for the button looks,
+// `refs/libadwaita/src/stylesheet/widgets/_deprecated.scss:456#headerbar.flat` for the
+// header bar's, which `@extend`s
+// `refs/libadwaita/src/stylesheet/widgets/_header-bar.scss:112#%headerbar-flat`.
+//
+// EVERY COORDINATE HERE CARRIES ITS ANCHOR, because a bare `:230` after a full path is a
+// continuation `check-refs-citations` does not read, and the one line that WAS anchored
+// pointed at `_header-bar.scss:89` — `.titlebar headerbar:not(.flat)`, a negation in the
+// window-shadow block. The gate passed it: `flat` is a substring of `:not(.flat)`.
 //
 // The port had spelled them as an enum (`GtkButton.variant`) and a boolean
 // (`AdwHeaderBar.flat`), which is one look each: `variant` could hold `pill` OR
@@ -33,14 +41,16 @@
  * NativeScript XML attribute and `View.className`, and both are strings, while
  * `GtkWidget:css-classes` holds a list and so does the getter. An array-taking door would
  * need a fourth attribute kind in `check-generated-website-data` — it has `number`,
- * `boolean` and `json`, and a space-separated list is none of them — and inventing one to
- * offer a second spelling of a door that already works is the "second way to say what the
- * table can already say" that gate's own header refuses.
+ * `boolean` and `json`, and `json` there means "parses to a plain OBJECT", so not even
+ * `'["pill"]'` reaches it — and inventing one to offer a second spelling of a door that
+ * already works is the "second way to say what the table can already say" that gate's own
+ * header refuses.
  *
- * Accepts a `readonly string[]` at RUNTIME anyway, because `normalizeCssClasses` is also
- * how the widget's own internals rebuild the list.
+ * NO ARRAY ARM. It had one, "because the widget's internals rebuild the list through it";
+ * the internals are the two setters and both are typed `string | null | undefined`, so the
+ * arm was unreachable and its `String(name)` coercion guarded nothing.
  */
-export type AdwCssClassesInput = string | readonly string[] | null | undefined;
+export type AdwCssClassesInput = string | null | undefined;
 
 /**
  * The class list a `cssClasses` write means: split on whitespace, trimmed, de-duplicated,
@@ -52,11 +62,9 @@ export type AdwCssClassesInput = string | readonly string[] | null | undefined;
  */
 export function normalizeCssClasses(value: AdwCssClassesInput): string[] {
     if (value === null || value === undefined) return [];
-    const names = typeof value === 'string' ? value.split(/\s+/) : value;
     const seen = new Set<string>();
-    for (const name of names) {
-        const trimmed = String(name).trim();
-        if (trimmed) seen.add(trimmed);
+    for (const name of value.split(/\s+/)) {
+        if (name) seen.add(name);
     }
     return [...seen];
 }

@@ -12,10 +12,18 @@ classes, and the stylesheet is where they live:
 
 | the look | where it is defined |
 |---|---|
-| `.suggested-action` | `refs/libadwaita/src/stylesheet/widgets/_buttons.scss:220` |
-| `.destructive-action` | `:230` |
-| `.pill` | `:323` |
-| `.flat` on a header bar | `refs/libadwaita/src/stylesheet/widgets/_header-bar.scss:89` |
+| `.suggested-action` | `refs/libadwaita/src/stylesheet/widgets/_buttons.scss:220#suggested-action` |
+| `.destructive-action` | `refs/libadwaita/src/stylesheet/widgets/_buttons.scss:230#destructive-action` |
+| `.pill` | `refs/libadwaita/src/stylesheet/widgets/_buttons.scss:323#pill` |
+| `.flat` on a header bar | `refs/libadwaita/src/stylesheet/widgets/_deprecated.scss:456#headerbar.flat`, which `@extend`s `refs/libadwaita/src/stylesheet/widgets/_header-bar.scss:112#%headerbar-flat` |
+
+The header-bar row was first written as `_header-bar.scss:89`, which is
+`.titlebar headerbar:not(.flat)` — a NEGATION in the window-shadow block, not a definition.
+`check-refs-citations` passed it because the anchor `flat` is a substring of `:not(.flat)`;
+breaking the anchor makes the gate print the line, which is what showed it. The class is a
+class either way, so the decision below is unchanged — but note where the citation lands:
+libadwaita deprecates `headerbar.flat` in favour of `AdwToolbarView`, and `adw-header-bar.c`
+mentions `flat` nowhere.
 
 A GTK widget carries them in one property, `GtkWidget:css-classes`, which is a **list**.
 
@@ -69,14 +77,18 @@ strings; `GtkWidget:css-classes` holds a list, and so does the getter.
 An array-taking door would need a **fourth attribute kind** in
 `check-generated-website-data`: it knows `number`, `boolean` and `json` (the last added by
 [ADR 0047](0047-portable-adjustment.md)'s change for `adjustment`), and a space-separated
-list is none of them. Measured while writing this — annotating the setter
-`string | readonly string[]` files it as `json` and the gate then demands the gallery block
-write `cssClasses='["pill"]'`. Inventing a kind to offer a second spelling of a door that
-already works is the *"second way to say what the table can already say"* that gate's own
-header refuses.
+list is none of them. Measured by annotating the setter `string | readonly string[]` and
+running both gates: `attributeKind` files it as `json`, `check-nativescript-xml-doors` then
+demands a `parseAdjustment()`-shaped door, and `check-generated-website-data` refuses every
+gallery block that writes the attribute as a string. No spelling gets past it — the gate
+calls a literal `json` only when it parses to a plain OBJECT (`!Array.isArray`), so
+`cssClasses='["pill"]'` classifies as `string` and fails the same way. Inventing a kind to
+offer a second spelling of a door that already works is the *"second way to say what the
+table can already say"* that gate's own header refuses.
 
-`normalizeCssClasses` still accepts an array at runtime, because the widget's internals
-rebuild the list through it.
+The normalizer takes the string and nothing else. It was written to accept an array too,
+"because the widget's internals rebuild the list through it" — measured false: the only two
+callers are the two setters, and both are typed `string | null | undefined`.
 
 ## Consequences
 
