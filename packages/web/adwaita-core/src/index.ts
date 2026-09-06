@@ -77,6 +77,7 @@ export {
     avatarColor,
     avatarColorClass,
     avatarFontSize,
+    avatarIconSize,
     avatarInitials,
     avatarMaxFontSize,
     avatarMode,

@@ -44,6 +44,23 @@ declare module '@nativescript/core' {
     export class View extends Observable {
         /** CSS class list applied to this view (space-separated). */
         className: string;
+        /**
+         * The LIVE set of classes the CSS engine matches against, rebuilt from
+         * `className` on every write (`ui/core/view-base/index.js:1140-1154`), and
+         * assigned once in the `ViewBase` constructor (`:226`).
+         *
+         * Here because it is a NAME A PORT WIDGET MUST NOT TAKE, and nothing said so.
+         * ADR 0049 first spelled the style-class list `cssClasses`, which is the GIR
+         * name; a subclass accessor under that name shadows the constructor's
+         * assignment, so the Set never exists and the first `className` write — the one
+         * in `GtkButton`'s own constructor — dies on `cssClasses.has is not a function`.
+         * The package could not see it: this slice is an ambient `declare module`, so it
+         * WINS over the real `@nativescript/core` even when a consumer installs it
+         * (measured), and every widget test drives a pure helper because `extends
+         * FlexboxLayout` cannot be imported. Declaring the member is the whole guard —
+         * `gjsify tsc` now answers TS2611 on any widget that shadows it.
+         */
+        readonly cssClasses: Set<string>;
         /** Inline width in DIPs or a percentage string. */
         width: number | string;
         /** Inline height in DIPs or a percentage string. */

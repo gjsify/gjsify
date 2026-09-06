@@ -11,6 +11,7 @@ import listsSuite from './lists/lists.spec.js';
 import classesSuite from './primitives/classes.spec.js';
 import defaultsSuite from './primitives/defaults.spec.js';
 import primitivesSuite from './primitives/primitives.spec.js';
+import textMetricsSuite from './primitives/text-metrics.spec.js';
 import widgetsSuite from './primitives/widgets.spec.js';
 import propTableSuite from './prop-table.spec.js';
 import hrefSuite from './router/href.spec.js';
@@ -70,6 +71,7 @@ run({
     primitivesSuite,
     apisSuite,
     widgetsSuite,
+    textMetricsSuite,
     easingSuite,
     animatedSuite,
     listsSuite,

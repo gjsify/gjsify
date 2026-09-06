@@ -98,3 +98,25 @@ Design decisions: [ADR 0032](adr/0032-react-native-on-the-gtk-host.md),
    public getter. `has_role()` is the exception: it takes the role, so the ROLE is a
    real value check. Everything else is AT-SPI's to report, and every GTK CI leg runs
    with `GTK_A11Y=none`.
+
+9. **A wrapping `Gtk.Label` reports a natural width its own text does not fit into,
+   once anything is letter-spaced.** GTK's natural width is `ceil(logical width)`, and
+   Pango's logical extents EXCLUDE the spacing after the final glyph while its
+   line-breaker COUNTS it — so the breaker needs `ceil(logical + spacing)` and is handed
+   one or two pixels less. Measured over four strings and six spacings:
+
+   | spacing | 0.0 | 0.2 | 0.5 | 1.0 | 1.5 | 2.0 |
+   |---|---|---|---|---|---|---|
+   | short by | 0 | 0 | 0–1 | 1 | 1–2 | 2 |
+
+   `<Text>` is a label with `wrap: true`, so the consequence is a label that wraps onto
+   two lines **at its own natural width**, in a parent that measured its height for one
+   — and the second line is clipped. It reaches every flex child that does not expand,
+   which is most text in an application. Reached through CSS `letter-spacing` and
+   through a `Pango.AttrLetterSpacing` alike, unchanged by all three
+   `natural-wrap-mode` values, and not helped by excluding the final character from the
+   attribute (that lowers the natural width by the same amount). There is nothing for
+   this layer to set, so it is an `it.failing` vector in
+   `primitives/text-metrics.spec.ts` that retires itself the day GTK fixes it. Found in
+   a shipped application, in four labels of seventy-six — each one an overline or a
+   masthead date, i.e. exactly the letter-spaced kind.

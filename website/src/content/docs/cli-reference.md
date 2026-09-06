@@ -103,6 +103,7 @@ gjsify build src/index.ts --watch                               # rebuild on cha
 | `--minify` | bool | `true` | Minify the output. Pass `--no-minify` for pretty-printed code. |
 | `--globals` | string | `auto` | Which globals to inject. See [Globals](#globals). |
 | `--dialect` | `react-native` | none | Build a React Native application for a desktop target. Aliases `react-native` to [`@gjsify/react-native`](/gjsify/frameworks/react-native/) so your files keep the import they already have, and fails the build on a name that layer does not implement, naming the file and the line. Opt-in only, on `--app gjs` and `--app node`; also readable as `gjsify.dialect` in `package.json`. |
+| `--gi-renderer` | bool | `false` | Resolve `gi://Ns?version=X` to the target's widget renderer instead of to an empty module, so `import Adw from 'gi://Adw?version=1'` is the same line on every target. `--app browser` answers `gi://Adw` and `gi://Gtk` out of [`@gjsify/adwaita-web`](/gjsify/widgets/), `--app nativescript` out of `@gjsify/adwaita-nativescript`; `@girs/adw-1` reaches the same namespace. A namespace with no renderer, and a `?version=` the renderer's vocabulary was not generated against, both FAIL the build by name, and reading a widget the renderer does not ship throws naming it. Opt-in only, on those two targets. |
 | `--exclude-globals` | list | none | Identifiers to drop from the auto-detected set, for false positives out of dead compat code (`--exclude-globals fetch,XMLHttpRequest`). |
 | `--shebang` | bool | `false` | Prepend a target-appropriate shebang and `chmod 755` the output: `#!/usr/bin/env -S gjs -m` for `--app gjs`, `#!/usr/bin/env node` for `--app node`. Needs a single `--outfile`. |
 | `-w`, `--watch` | bool | `false` | Watch sources and rebuild on change, logging each rebuild with its duration. Ctrl-C stops it cleanly. Rejected with `--library`, and it needs the npm `rolldown` engine, so run it under Node. On GJS use [`gjsify dev`](#gjsify-dev), which needs no watcher API and relaunches the app too. |
@@ -687,8 +688,9 @@ gjsify upgrade --latest --dry-run       # print the plan, write nothing
 gjsify upgrade --filter '@gjsify,vite'  # narrow by substring
 gjsify upgrade --check                  # CI gate for inconsistent ranges
 gjsify upgrade --align                  # fix them, offline
-gjsify upgrade --latest --exact --filter @girs   # pin without a range operator
+gjsify upgrade --latest --exact --filter @girs   # pin at the newest release, no operator
 gjsify upgrade --check --exact --filter @girs    # CI gate for exactness
+gjsify upgrade --align --exact --filter @girs    # fix that gate, offline
 ```
 
 | Option | Default | Description |
@@ -699,9 +701,9 @@ gjsify upgrade --check --exact --filter @girs    # CI gate for exactness
 | `--filter <substring>` | none | Match against package names, case-insensitive. Repeatable, comma-separated values are split. |
 | `-p`, `--workspace <pattern>` | all | Restrict to some workspaces. Matched against the package name and the directory path. Repeatable. |
 | `--exclude-workspace <pattern>` | none | Skip workspaces, for ones with deliberate dependency drift such as integration tests pinned to a specific upstream. Repeatable. |
-| `--align` | `false` | Offline consistency mode: find deps declared at several ranges and align them to the highest. No registry calls. |
-| `--check` | `false` | CI gate: exit non-zero when any dep is declared inconsistently across workspaces. Offline. `--align` is the fix. |
-| `--exact` | `false` | Pin without a range operator. Writing, emits `1.2.3` instead of `^1.2.3`; with `--check`, fails on any matched dep that carries one. Pair with `--filter` — a repository-wide exactness check fails on every ordinary caret dep by design. |
+| `--align` | `false` | Offline repair mode: find deps declared at several ranges and align them to the highest. With `--exact`, also drop the operator from declarations that already agree. No registry calls. |
+| `--check` | `false` | CI gate: exit non-zero when any dep is declared inconsistently across workspaces. Offline. `--align` with the same flags is the fix. |
+| `--exact` | `false` | Pin without a range operator. Writing, emits `1.2.3` instead of `^1.2.3`; with `--check`, fails on any matched dep that carries one; with `--align`, repairs exactly that. Pair with `--filter` — a repository-wide exactness run touches every ordinary caret dep by design. |
 | `--dry-run` | `false` | Print the plan without writing. |
 | `-y`, `--yes` | `false` | In interactive mode, select everything without prompting. |
 | `--cwd <path>` | `process.cwd()` | Project directory. From inside a workspace it walks up to the monorepo root. |
@@ -712,6 +714,8 @@ gjsify upgrade --check --exact --filter @girs    # CI gate for exactness
 Output is a colour-coded table (red major, yellow minor, green patch, cyan prerelease). Run `gjsify install` afterwards to fetch the new versions.
 
 `@gjsify/*` packages ship as one release train, so upgrade them together: `gjsify upgrade --latest --filter @gjsify`. See [Versioning & Compatibility](/gjsify/versioning/).
+
+`--check` and `--align` answer the same two questions, so whatever the gate rejects the repair with the same flags fixes. Without `--exact` that question is consistency alone, and a tree where every manifest agrees on `^4.1.0` is done. `--exact` adds exactness, which consistency cannot answer — those same manifests all carry an operator — so `--align --exact` widens to every matched declaration that has one and rewrites it at its declared version, operator dropped. It never asks the registry: `^4.1.0` becomes `4.1.0`, not the newest 4.x. Use `--latest --exact` when you want the newest release instead. A range that names no single version (`^1.x`) cannot be pinned offline; `--align` names those deps and exits non-zero rather than reporting a repair the gate will still reject.
 
 `@girs/*` is pinned **exactly** in this repository, and a CI step holds it that way. Consistency is not the same question: every manifest agreeing on one caret is perfectly consistent and still resolves to whatever is newest, and a published package's declaration is what a consumer installs against with no lockfile of ours. Since `@gjsify/gtk-host` consumes the `@girs/<ns>/vocabulary` subpath, a minor release moving it under such an install is a real hazard — so the pin is the whole version.
 

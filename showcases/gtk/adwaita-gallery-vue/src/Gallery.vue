@@ -215,7 +215,7 @@
                 :css-classes="['pill']"
             />
             <gtk-button
-                label="Typescript"
+                label="TypeScript"
                 :css-classes="['pill']"
             />
             <gtk-button

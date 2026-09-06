@@ -471,7 +471,7 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
       <gtk-button label="Adwaita" pill></gtk-button>
       <gtk-button label="GNOME" pill></gtk-button>
       <gtk-button label="GTK" pill></gtk-button>
-      <gtk-button label="Typescript" pill></gtk-button>
+      <gtk-button label="TypeScript" pill></gtk-button>
       <gtk-button label="Storybook" pill></gtk-button>
       <gtk-button label="Wrapping" pill></gtk-button>
       <gtk-button label="Layout" pill></gtk-button>
@@ -485,7 +485,7 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
 
     const wrap = new Adw.WrapBox({ childSpacing: 8, lineSpacing: 8 });
 
-    const tags = ['Design', 'Adwaita', 'GNOME', 'GTK', 'Typescript', 'Storybook', 'Wrapping', 'Layout'];
+    const tags = ['Design', 'Adwaita', 'GNOME', 'GTK', 'TypeScript', 'Storybook', 'Wrapping', 'Layout'];
     for (const tag of tags) {
         const chip = new Gtk.Button({ label: tag });
         chip.add_css_class('pill');
@@ -527,7 +527,7 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
       }
 
       Gtk.Button {
-        label: _("Typescript");
+        label: _("TypeScript");
 
         styles ["pill"]
       }

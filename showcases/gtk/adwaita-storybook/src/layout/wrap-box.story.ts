@@ -30,7 +30,7 @@ export class WrapBoxStory extends StoryWidget {
             widthRequest: 460,
         });
 
-        const tags = ['Design', 'Adwaita', 'GNOME', 'GTK', 'Typescript', 'Storybook', 'Wrapping', 'Layout'];
+        const tags = ['Design', 'Adwaita', 'GNOME', 'GTK', 'TypeScript', 'Storybook', 'Wrapping', 'Layout'];
         for (const tag of tags) {
             const chip = new Gtk.Button({ label: tag });
             chip.add_css_class('pill');

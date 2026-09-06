@@ -90,6 +90,24 @@ export interface PluginOptions {
      */
     dialect?: SourceDialect;
     /**
+     * Resolve `gi://Ns?version=X` to the target's widget renderer rather than to an
+     * empty module — ADR 0034 stage 9. `--app browser` answers out of
+     * `@gjsify/adwaita-web`, `--app nativescript` out of `@gjsify/adwaita-nativescript`;
+     * the table is `GI_RENDERERS` in `@gjsify/resolve-npm`, and a target with no row
+     * there has no arm.
+     *
+     * Composing it also sets `emptyGirs: false` on the same build, so `@girs/adw-1`
+     * reaches its real body (`import Adw from 'gi://Adw?version=1'; export default Adw`)
+     * and its inner `gi://` is claimed here — identical to the node-gi path.
+     *
+     * OPT-IN and never inferred, for the reason `plugins/gi-renderer.ts` states at
+     * length: a `gi://` import reaching a browser or NativeScript build today is
+     * usually a GJS-only code path pulled in transitively, and answering it by default
+     * would both drag a widget toolkit into bundles that never asked for one and turn
+     * every unanswerable namespace from a silent stub into a hard build failure.
+     */
+    giRenderer?: boolean;
+    /**
      * Where to look for a `@gjsify/*` the PROJECT cannot resolve, when the input is
      * TOOLCHAIN rather than user code: a file path inside the running CLI's own
      * install, used as the importer of a second resolve.

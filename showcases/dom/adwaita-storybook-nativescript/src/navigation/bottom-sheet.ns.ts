@@ -26,7 +26,7 @@ export class BottomSheetNsStory extends StoryView {
 
         const toggle = new Gtk.Button();
         toggle.text = 'Toggle sheet';
-        toggle.variant = 'pill';
+        toggle.styleClasses = 'pill';
         toggle.addEventListener('tap', () => {
             if (this._sheet) this._sheet.open = !this._sheet.open;
         });

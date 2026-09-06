@@ -254,7 +254,10 @@ the readers every vector asserts through:
   `descendants()` — read the **real** widget tree. A renderer that asserts against
   its own bookkeeping agrees with itself while the window is wrong.
 - `installDiagnosticsGate()` — GTK's failure mode is exit 0, so every vector counts
-  GLib warnings-or-worse and fails the test that produced one.
+  GLib warnings-or-worse and fails the test that produced one. Without it the whole
+  mis-parenting class is invisible: a keyed reorder could be a no-op on screen while
+  **127 tests stayed green**, and a generic `insert_before` on a `Gtk.ListBox` bypassed
+  the row wrap and emitted **1 230 783** `Gtk-WARNING` lines at exit code 0.
 
 **One vector table runs through all three adapters.** `conformance/vectors.mts`
 (a `.mts` file, so it never reaches the published bundle: it imports

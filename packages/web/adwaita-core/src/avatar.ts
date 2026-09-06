@@ -220,3 +220,21 @@ export function flattenAvatarGradient(color: AdwAvatarColor): string {
             .padStart(2, '0');
     return `#${mix(16)}${mix(8)}${mix(0)}`;
 }
+
+/**
+ * The box the FALLBACK ICON gets inside an avatar of `size`, in the renderer's own
+ * length unit (CSS px on the web, DIPs on NativeScript).
+ *
+ * `adw_avatar_set_size` sizes the icon itself —
+ * `gtk_image_set_pixel_size (self->icon, size / 2)`
+ * (refs/libadwaita/src/adw-avatar.c:756#gtk_image_set_pixel_size) — so this is a
+ * PORTED number, not a chosen one. `size` is an `int` there, so `/` truncates.
+ *
+ * The stylesheet was the wrong place to look for it, and looking only there is how
+ * the web renderer arrived at a hand-typed `size * 0.55`: `_avatar.scss` really does
+ * carry no icon rule, which reads as "libadwaita says nothing" right up until the C
+ * is read. 0.55 drew the glyph ~10% larger than GTK does at every size.
+ */
+export function avatarIconSize(size: number): number {
+    return Math.trunc(size / 2);
+}

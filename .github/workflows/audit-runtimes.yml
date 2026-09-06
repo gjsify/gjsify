@@ -515,6 +515,18 @@ jobs:
       - name: Check adw-* elements hold their widget's GIR properties (self-testing)
         run: node scripts/check-adwaita-element-properties.mjs
 
+      # The SAME question, one renderer over, and it had no gate at all. The vocabulary
+      # step above measures ONE direction: it holds the port's settable properties
+      # against the counterpart's ConstructorProps and asks whether the NAME agrees, so a
+      # GIR property the port simply does not HAVE is invisible to it and to everything
+      # else. Measured when this landed: AdwAvatar set `text` and `size` against
+      # AdwAvatar's four scalar properties, every check green, for as long as the widget
+      # existed — while <adw-avatar> had been held against the same four since
+      # 2026-08-26. Same denominator, same reader (`gir-scalar-properties.mjs`), same
+      # ratchet: a new gap fails, and closing one fails too until it leaves the ledger.
+      - name: Check NativeScript widgets hold their widget's GIR properties (self-testing)
+        run: node scripts/check-nativescript-widget-coverage.mjs
+
       # `$adw-components` in adwaita-web's `_reset.scss` is a hand-written copy of every
       # `customElements.define('adw-…')` call, and it is what applies the ADR 0010
       # style-isolation floor. A tag missing from it renders in the host page's font and

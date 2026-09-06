@@ -64,7 +64,6 @@ export type { NotifySliderValueEventData } from './adw-slider-row.js';
 export { AdwExpanderRow, ExpanderState, NOTIFY_EXPANDED } from './adw-expander-row.js';
 export type { ExpanderStateListener, NotifyExpandedEventData } from './adw-expander-row.js';
 export { GtkButton } from './gtk-button.js';
-export type { AdwButtonVariant } from './gtk-button.js';
 export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
 export { GtkMenuButton, MENU_ITEM_ACTIVATED } from './gtk-menu-button.js';
 export type { MenuItemActivatedEventData } from './gtk-menu-button.js';
@@ -78,7 +77,7 @@ export {
 export type { MenuSheetPresenter, MenuSheetRow } from './menu-sheet.js';
 export { GtkImage, DEFAULT_GTK_IMAGE_SIZE } from './gtk-image.js';
 export { AdwBanner, BUTTON_CLICKED } from './adw-banner.js';
-export { AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';
+export { AVATAR_DEFAULT_ICON, AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';
 export { AdwWindowTitle } from './adw-window-title.js';
 export { AdwClamp, DEFAULT_CLAMP_MAX_SIZE } from './adw-clamp.js';
 

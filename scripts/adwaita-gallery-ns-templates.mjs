@@ -56,28 +56,16 @@
  * @property {NsNode} root
  */
 
+import { nativeScriptTree } from './adwaita-gallery-shared-trees.mjs';
+
 /** @type {readonly NsTemplate[]} */
 export const ADWAITA_GALLERY_NS_TEMPLATES = [
     // ------------------------------------------------------------- boxed-lists
-    {
-        widget: 'Adw.PreferencesGroup',
-        page: 'boxed-lists',
-        root: {
-            tag: 'AdwPreferencesGroup',
-            props: { title: 'Account', description: 'Manage how this device signs in and syncs.' },
-            children: [
-                { tag: 'AdwEntryRow', props: { title: 'Display name', text: 'Grace Hopper' } },
-                {
-                    tag: 'AdwSwitchRow',
-                    props: {
-                        title: 'Sync over Wi-Fi only',
-                        subtitle: 'Avoid using mobile data for backups',
-                        active: true,
-                    },
-                },
-            ],
-        },
-    },
+    // Authored once in `adwaita-gallery-shared-trees.mjs` and rendered by both this
+    // port and the three framework dialects beside it — ADR 0027 § 9's criterion at
+    // the size that file's census reaches. Seven blocks needed no alias to line up;
+    // every block that still needs one is in its divergence ledger with the reason.
+    nativeScriptTree('Adw.PreferencesGroup'),
     {
         widget: 'Adw.ActionRow',
         page: 'boxed-lists',
@@ -97,31 +85,8 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
             ],
         },
     },
-    {
-        widget: 'Adw.SwitchRow',
-        page: 'boxed-lists',
-        root: {
-            tag: 'AdwPreferencesGroup',
-            children: [
-                {
-                    tag: 'AdwSwitchRow',
-                    props: {
-                        title: 'Automatic updates',
-                        subtitle: 'Download and install updates without asking',
-                        active: true,
-                    },
-                },
-            ],
-        },
-    },
-    {
-        widget: 'Adw.EntryRow',
-        page: 'boxed-lists',
-        root: {
-            tag: 'AdwPreferencesGroup',
-            children: [{ tag: 'AdwEntryRow', props: { title: 'Display name', text: 'Ada Lovelace' } }],
-        },
-    },
+    nativeScriptTree('Adw.SwitchRow'),
+    nativeScriptTree('Adw.EntryRow'),
     {
         widget: 'Adw.PasswordEntryRow',
         page: 'boxed-lists',
@@ -181,10 +146,10 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
             tag: 'StackLayout',
             props: { orientation: 'horizontal' },
             children: [
-                { tag: 'GtkButton', props: { text: 'Pill', variant: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'Suggested', variant: 'suggested' } },
-                { tag: 'GtkButton', props: { text: 'Delete', variant: 'destructive' } },
-                { tag: 'GtkButton', props: { text: 'Flat', variant: 'flat' } },
+                { tag: 'GtkButton', props: { text: 'Pill', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'Suggested', styleClasses: 'suggested-action' } },
+                { tag: 'GtkButton', props: { text: 'Delete', styleClasses: 'destructive-action' } },
+                { tag: 'GtkButton', props: { text: 'Flat', styleClasses: 'flat' } },
             ],
         },
     },
@@ -219,13 +184,13 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
         root: {
             tag: 'AdwHeaderBar',
             children: [
-                { tag: 'GtkButton', slot: 'startBox', props: { text: '‹', variant: 'flat' } },
+                { tag: 'GtkButton', slot: 'startBox', props: { text: '‹', styleClasses: 'flat' } },
                 {
                     tag: 'AdwWindowTitle',
                     slot: 'titleWidget',
                     props: { title: 'Text Editor', subtitle: 'notes.md' },
                 },
-                { tag: 'GtkButton', slot: 'endBox', props: { text: '≡', variant: 'flat' } },
+                { tag: 'GtkButton', slot: 'endBox', props: { text: '≡', styleClasses: 'flat' } },
             ],
         },
     },
@@ -266,20 +231,25 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
     {
         widget: 'Adw.WrapBox',
         page: 'layout',
-        // A refusal in the framework trees — `gtk-host` has no child policy for
-        // `AdwWrapBox` — and a template here, because the NativeScript widget takes
-        // an XML child through `_addChildFromBuilder` and puts it where a wrap box
-        // puts children.
+        // The NativeScript widget takes an XML child through `_addChildFromBuilder`
+        // and puts it where a wrap box puts children.
+        //
+        // THIS COMMENT USED TO OPEN "a refusal in the framework trees — `gtk-host` has
+        // no child policy for `AdwWrapBox`", and that stopped being true the day the
+        // policy landed in `descriptors/adw.ts`: the framework trees carry this block.
+        // Nothing held the claim, because it is a sentence in one file ABOUT the other
+        // one — which is the gap arm 11 of `check-generated-website-data.mjs` now
+        // measures for the trees themselves.
         root: {
             tag: 'AdwWrapBox',
             props: { childSpacing: 8, lineSpacing: 8 },
             children: [
-                { tag: 'GtkButton', props: { text: 'Design', variant: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'Adwaita', variant: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'GNOME', variant: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'GTK', variant: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'TypeScript', variant: 'pill' } },
-                { tag: 'GtkButton', props: { text: 'Storybook', variant: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'Design', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'Adwaita', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'GNOME', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'GTK', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'TypeScript', styleClasses: 'pill' } },
+                { tag: 'GtkButton', props: { text: 'Storybook', styleClasses: 'pill' } },
             ],
         },
     },
@@ -287,21 +257,15 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
     {
         widget: 'Adw.Avatar',
         page: 'presentation',
-        root: { tag: 'AdwAvatar', props: { text: 'Ada Lovelace', size: 96 } },
+        // `showInitials` and not `iconName`: the icon property is an SVG SOURCE (the
+        // same reason `AdwStatusPage` below reaches for `iconText`), and an unset one
+        // already falls back to the Adwaita person glyph — so the attribute worth
+        // showing is the one that CHOOSES between the two, which is a boolean and
+        // carries through XML.
+        root: { tag: 'AdwAvatar', props: { text: 'Ada Lovelace', size: 96, showInitials: true } },
     },
-    {
-        widget: 'Adw.Banner',
-        page: 'presentation',
-        root: {
-            tag: 'AdwBanner',
-            props: { title: 'Metered connection: updates paused', buttonLabel: 'Resume', revealed: true },
-        },
-    },
-    {
-        widget: 'Adw.ShortcutLabel',
-        page: 'presentation',
-        root: { tag: 'AdwShortcutLabel', props: { accelerator: '<Control>C' } },
-    },
+    nativeScriptTree('Adw.Banner'),
+    nativeScriptTree('Adw.ShortcutLabel'),
     {
         widget: 'Adw.Spinner',
         page: 'presentation',
@@ -322,11 +286,7 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
             },
         },
     },
-    {
-        widget: 'Adw.WindowTitle',
-        page: 'presentation',
-        root: { tag: 'AdwWindowTitle', props: { title: 'Inbox', subtitle: '3 unread messages' } },
-    },
+    nativeScriptTree('Adw.WindowTitle'),
     // ---------------------------------------------------------------- feedback
     {
         widget: 'Adw.AboutDialog',
@@ -349,26 +309,7 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
             },
         },
     },
-    {
-        widget: 'Adw.ExpanderRow',
-        page: 'boxed-lists',
-        // The disclosure is a slot on this port, so the rows go in the markup. On GTK
-        // they go through `add_row()`, which no `gtk-host` policy declares — which is
-        // why the framework tabs refuse this block and this one does not.
-        root: {
-            tag: 'AdwPreferencesGroup',
-            children: [
-                {
-                    tag: 'AdwExpanderRow',
-                    props: { title: 'Advanced', subtitle: 'Options most people leave alone', expanded: true },
-                    children: [
-                        { tag: 'AdwSwitchRow', props: { title: 'Developer mode', active: false } },
-                        { tag: 'AdwEntryRow', props: { title: 'Endpoint', text: 'https://example.invalid' } },
-                    ],
-                },
-            ],
-        },
-    },
+    nativeScriptTree('Adw.ExpanderRow'),
     // ----------------------------------------------------------- view-switching
     {
         widget: 'Adw.Carousel',

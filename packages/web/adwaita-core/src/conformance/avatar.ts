@@ -81,6 +81,32 @@ export const AVATAR_FONT_SIZE_VECTORS: ReadonlyArray<AvatarFontSizeVector> = [
     { size: 128, maxFontSize: 44.31, legacyWebGuess: 51 },
 ];
 
+/** One `avatarIconSize` expectation. */
+export interface AvatarIconSizeVector {
+    /** `Adw.Avatar:size`, the circle diameter. */
+    size: number;
+    /** `gtk_image_set_pixel_size (self->icon, size / 2)` — C integer division. */
+    iconSize: number;
+}
+
+/**
+ * `adw_avatar_set_size`'s icon extent (adw-avatar.c:756).
+ *
+ * The table exists because the number was invented once: both renderers drew the
+ * fallback glyph at `round(size * 0.55)`, agreeing with each other and with nothing
+ * else, on the written grounds that libadwaita had no number to port. Odd sizes are
+ * here because `size` is an `int` in the C and `/` truncates.
+ */
+export const AVATAR_ICON_SIZE_VECTORS: ReadonlyArray<AvatarIconSizeVector> = [
+    { size: 16, iconSize: 8 },
+    { size: 24, iconSize: 12 },
+    { size: 31, iconSize: 15 },
+    { size: 32, iconSize: 16 },
+    { size: 48, iconSize: 24 },
+    { size: 96, iconSize: 48 },
+    { size: 128, iconSize: 64 },
+];
+
 /** One `avatarMode` expectation. */
 export interface AvatarModeVector {
     hasCustomImage: boolean;

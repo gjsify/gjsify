@@ -466,9 +466,13 @@ const RN_WIDGET_ALIGNMENT = {};
  */
 const NS_PROPERTY_ALIGNMENT = {
     // ── The same control under another spelling. This is the printed distance. ────────
-    'gtk-button.variant': {
+    'gtk-button.styleClasses': {
         gir: 'cssClasses',
-        why: 'On GTK the Adwaita button variants are STYLE CLASSES over GtkButton — `.suggested-action` / `.destructive-action` / `.flat` / `.pill` in refs/libadwaita/src/stylesheet/widgets/_buttons.scss — which is what `GtkWidget:css-classes` carries. The setter swaps exactly one such class (gtk-button.ts:59), so the control is the class list under an enum-shaped name.',
+        why: "`GtkWidget:css-classes` is the slot and `cssClasses` is the name, but on this surface that name is TAKEN and taking it is fatal: `@nativescript/core`'s `ViewBase` declares `readonly cssClasses: Set<string>` (ui/core/view-base/index.d.ts:366), assigns it in its constructor (index.js:226), and `classNameProperty.valueChanged` clears and repopulates that Set on every `className` write (index.js:1140-1154). A subclass accessor SHADOWS the constructor's assignment, so the Set never exists and the first `className` write — the one in the widget's own constructor — dies on `cssClasses.has is not a function`; measured against 9.1.0-alpha.11 by running those two bodies verbatim. `styleClasses` is libadwaita's own word for the same thing and is free in the whole of `@nativescript/core`. Declared and left: the divergence is the PLATFORM's, and `ns-core.d.ts` now declares the member so `gjsify tsc` answers TS2611 to anyone who reaches for the convergent spelling again.",
+    },
+    'adw-header-bar.styleClasses': {
+        gir: 'cssClasses',
+        why: 'The same slot on the same surface, for the same reason as `gtk-button.styleClasses` above: `Adw.HeaderBar:css-classes` is the key, and `cssClasses` is a name `ViewBase` already owns as a live `Set<string>` that the CSS engine rebuilds on every `className` write.',
     },
     'adw-header-bar.title': {
         gir: 'titleWidget',
@@ -477,10 +481,6 @@ const NS_PROPERTY_ALIGNMENT = {
     'adw-header-bar.subtitle': {
         gir: 'titleWidget',
         why: "The second half of the same slot: `Adw.WindowTitle:subtitle` inside the header bar's `title-widget`, which the port forwards to (adw-header-bar.ts:92-96). Two NativeScript names reaching one GIR key is the many-to-one the web table already carries for `adw-checkbox`/`adw-radio`.",
-    },
-    'adw-header-bar.flat': {
-        gir: 'cssClasses',
-        why: 'The port\'s own doc says what this is — "matching `Adw.HeaderBar`\'s `.flat` style. Toggling swaps the `flat` class" (adw-header-bar.ts:106). A style class is `GtkWidget:css-classes` on GTK, the same slot `GtkButton.variant` above reaches.',
     },
     'gtk-menu-button.actions': {
         own: "`AdwMenuActions` is the portable stand-in for a `GActionGroup` (ADR 0042 § 2): the map a surface with no action group consults for a menu item's enabled and checked state, which `GMenuModel` does not carry — measured in gtkmenutrackeritem.c, where `sensitive` is the action's `enabled` (c:332) and `role`/`toggled` come from its STATE (c:336-346). GTK needs no counterpart property: a `GtkWidget` reaches its action group through the widget hierarchy (`gtk_widget_insert_action_group` on an ancestor, `gtk_widget_get_action_group`), so there is no GIR key to converge on. Declared and left.",

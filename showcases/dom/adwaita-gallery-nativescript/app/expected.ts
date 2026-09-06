@@ -108,10 +108,10 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Gtk.Button', view: 'GtkButton', root:
         { tag: 'StackLayout', props: {"orientation":"horizontal"}, children: [
-                { tag: 'gtk:Button', props: {"text":"Pill","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"Suggested","variant":"suggested"} },
-                { tag: 'gtk:Button', props: {"text":"Delete","variant":"destructive"} },
-                { tag: 'gtk:Button', props: {"text":"Flat","variant":"flat"} }
+                { tag: 'gtk:Button', props: {"text":"Pill","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"Suggested","styleClasses":"suggested-action"} },
+                { tag: 'gtk:Button', props: {"text":"Delete","styleClasses":"destructive-action"} },
+                { tag: 'gtk:Button', props: {"text":"Flat","styleClasses":"flat"} }
             ] }
     },
     { widget: 'Gtk.Entry', view: 'GtkEntry', root:
@@ -124,9 +124,9 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Adw.HeaderBar', view: 'AdwHeaderBar', root:
         { tag: 'adw:HeaderBar', children: [
-                { tag: 'gtk:Button', slot: 'startBox', props: {"text":"‹","variant":"flat"} },
+                { tag: 'gtk:Button', slot: 'startBox', props: {"text":"‹","styleClasses":"flat"} },
                 { tag: 'adw:WindowTitle', slot: 'titleWidget', props: {"title":"Text Editor","subtitle":"notes.md"} },
-                { tag: 'gtk:Button', slot: 'endBox', props: {"text":"≡","variant":"flat"} }
+                { tag: 'gtk:Button', slot: 'endBox', props: {"text":"≡","styleClasses":"flat"} }
             ] }
     },
     { widget: 'Adw.ToolbarView', view: 'AdwToolbarView', root:
@@ -140,16 +140,16 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Adw.WrapBox', view: 'AdwWrapBox', root:
         { tag: 'adw:WrapBox', props: {"childSpacing":8,"lineSpacing":8}, children: [
-                { tag: 'gtk:Button', props: {"text":"Design","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"Adwaita","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"GNOME","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"GTK","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"TypeScript","variant":"pill"} },
-                { tag: 'gtk:Button', props: {"text":"Storybook","variant":"pill"} }
+                { tag: 'gtk:Button', props: {"text":"Design","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"Adwaita","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"GNOME","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"GTK","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"TypeScript","styleClasses":"pill"} },
+                { tag: 'gtk:Button', props: {"text":"Storybook","styleClasses":"pill"} }
             ] }
     },
     { widget: 'Adw.Avatar', view: 'AdwAvatar', root:
-        { tag: 'adw:Avatar', props: {"text":"Ada Lovelace","size":96} }
+        { tag: 'adw:Avatar', props: {"text":"Ada Lovelace","size":96,"showInitials":true} }
     },
     { widget: 'Adw.Banner', view: 'AdwBanner', root:
         { tag: 'adw:Banner', props: {"title":"Metered connection: updates paused","buttonLabel":"Resume","revealed":true} }
@@ -171,9 +171,9 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Adw.ExpanderRow', view: 'AdwExpanderRow', root:
         { tag: 'adw:PreferencesGroup', children: [
-                { tag: 'adw:ExpanderRow', props: {"title":"Advanced","subtitle":"Options most people leave alone","expanded":true}, children: [
-                        { tag: 'adw:SwitchRow', props: {"title":"Developer mode","active":false} },
-                        { tag: 'adw:EntryRow', props: {"title":"Endpoint","text":"https://example.invalid"} }
+                { tag: 'adw:ExpanderRow', props: {"title":"Proxy settings","subtitle":"Route traffic through a custom proxy","expanded":true}, children: [
+                        { tag: 'adw:EntryRow', props: {"title":"Host","text":"proxy.example.com"} },
+                        { tag: 'adw:SwitchRow', props: {"title":"Use authentication"} }
                     ] }
             ] }
     },

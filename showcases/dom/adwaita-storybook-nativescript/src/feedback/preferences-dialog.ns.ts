@@ -81,7 +81,7 @@ export class PreferencesDialogNsStory extends StoryView {
 
         const button = new Gtk.Button();
         button.text = 'Show dialog';
-        button.variant = 'pill';
+        button.styleClasses = 'pill';
         button.horizontalAlignment = 'center';
         button.verticalAlignment = 'middle';
         button.addEventListener('tap', () => this._present());

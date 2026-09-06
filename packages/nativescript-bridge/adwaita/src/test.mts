@@ -26,6 +26,8 @@ import buttonContentNsTestSuite from './button-content.spec.js';
 import shortcutLabelNsTestSuite from './shortcut-label.spec.js';
 import accentThemeNsTestSuite from './accent-theme.spec.js';
 import windowInsetsTestSuite from './window-insets.spec.js';
+import styleClassesTestSuite from './style-classes.spec.js';
+import avatarNsTestSuite from './avatar.spec.js';
 
 run({
     bannerNsTestSuite,
@@ -33,6 +35,7 @@ run({
     shortcutLabelNsTestSuite,
     accentThemeNsTestSuite,
     windowInsetsTestSuite,
+    styleClassesTestSuite,
     adwaitaNativescriptTestSuite,
     svgPathTestSuite,
     splitViewWidthTestSuite,
@@ -54,4 +57,5 @@ run({
     AdwViewSwitcherNsTest,
     wrapBoxNsTestSuite,
     statusPageNsTestSuite,
+    avatarNsTestSuite,
 });
