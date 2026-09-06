@@ -47,6 +47,17 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { observedAttributes } from './adwaita-elements.mjs';
+// The GIR side is SHARED with `check-nativescript-widget-coverage.mjs`, which asks the
+// same question of the same file for the NativeScript surface. Two copies of "what is a
+// scalar property" is two backlogs that can disagree while both stay green.
+import {
+    GIR_FIXTURE_PROPS,
+    GIR_FIXTURE_SCALARS,
+    girReaderSelfTest,
+    propsBodies,
+    scalarProps,
+    tagGTypes,
+} from './gir-scalar-properties.mjs';
 
 const ROOT = process.cwd();
 
@@ -180,86 +191,6 @@ const KNOWN_GAPS = {
     'gtk-switch': ['state'],
 };
 
-/** A GIR type that holds an object — a slot on this renderer, never an attribute. */
-const OBJECT_TYPE = /\b(?:Gtk|Adw|Gio|Gdk|Pango|GObject)\.\w+/;
-
-/**
- * An ENUM, which {@link OBJECT_TYPE} also matches and must not exclude.
- *
- * The generator spells an enum property `AdwToolbarStyleNick | Adw.ToolbarStyle`, so the
- * namespaced half makes it look object-typed. It is not: a nick is a STRING, exactly what
- * an attribute carries. The proof that these belong to the checked surface is that 17 of
- * them are already observed as attributes today (`adw-banner/button-style`,
- * `adw-dialog/presentation-mode`, `adw-toolbar-view/top-bar-style`, …). Excluding them
- * would have hidden 14 real gaps behind a justification — "an attribute cannot carry a
- * widget" — that does not apply to them.
- */
-const ENUM_TYPE = /\b\w+Nick\b/;
-
-const kebab = (name) => name.replace(/([A-Z])/g, (c) => `-${c.toLowerCase()}`);
-
-/** `tag -> GType`, from the runtime widget table. */
-export function tagGTypes(widgetsSource) {
-    const map = new Map();
-    for (const m of widgetsSource.matchAll(/gtype: '([^']+)', tag: '([^']+)'/g)) map.set(m[2], m[1]);
-    return map;
-}
-
-/**
- * `<GType> -> interface body`, brace-MATCHED rather than regex-bounded.
- *
- * A lazy `[\s\S]*?\n\}` reads an EMPTY interface as the next one's body, which silently
- * credited `adw-spinner` with `AdwSplitButton`'s properties while this was being built.
- */
-export function propsBodies(propsSource) {
-    const bodies = new Map();
-    // `extends\s`, NOT `extends ` — the generator wraps long heritage lists onto the
-    // next line, and a literal space missed 65 of 190 interfaces. Each one then had no
-    // body, and `propertyProblems` skipped its element as unmapped: eight `adw-*`
-    // elements passed by being invisible. A vector pins it.
-    //
-    // `\s*` before the brace is the SAME defect one clause over, and it was live here
-    // after the first one was fixed: `[^{]*` swallows the space only when `extends` is
-    // present, so an interface declared WITHOUT one — `export interface AdwToggleProps
-    // {` — never matched. 13 interfaces were invisible that way, and the @girs 4.5.0
-    // vocabulary took it to 25 by dropping the empty `GObject` base: `<adw-toggle>`
-    // left this check silently, and surfaced only as five KNOWN_GAPS entries reported
-    // as stale. `girs-vocabulary.mts` carries the identical rule and its own vector.
-    const head = /export interface (\w+)Props(?:\s+extends\s[^{]*)?\s*\{/g;
-    let m;
-    while ((m = head.exec(propsSource))) {
-        let depth = 1;
-        let i = head.lastIndex;
-        while (i < propsSource.length && depth > 0) {
-            const c = propsSource[i];
-            if (c === '{') depth++;
-            else if (c === '}') depth--;
-            i++;
-        }
-        bodies.set(m[1], propsSource.slice(head.lastIndex, i - 1));
-    }
-    return bodies;
-}
-
-/**
- * The scalar property names of one interface body, kebab-spelled and deduplicated.
- *
- * The generator emits multiword properties TWICE — `canOpen?: boolean;` and
- * `'can-open'?: boolean;` — so without the dedupe every multiword gap counts double.
- */
-export function scalarProps(body) {
-    const names = new Set();
-    for (const line of body.split('\n')) {
-        const m = /^\s*(?:'([a-z0-9-]+)'|([a-zA-Z][a-zA-Z0-9]*))\?:\s*(.+?);\s*$/.exec(line);
-        if (!m) continue;
-        const name = m[1] ?? kebab(m[2]);
-        if (name.startsWith('on-')) continue;
-        if (OBJECT_TYPE.test(m[3]) && !ENUM_TYPE.test(m[3])) continue;
-        names.add(name);
-    }
-    return names;
-}
-
 /** @returns {string[]} one line per problem; empty means aligned. */
 export function propertyProblems({ byTag, tagToGtype, bodies, knownGaps }) {
     const problems = [];
@@ -308,38 +239,6 @@ export function propertyProblems({ byTag, tagToGtype, bodies, knownGaps }) {
 // SELF-TEST FIRST — a check that cannot go red is worse than no check.
 // ---------------------------------------------------------------------------
 
-const FIXTURE_PROPS = `
-export interface DemoWidgetProps extends GtkWidgetProps {
-    /** A scalar. */
-    label?: string;
-    /** Multiword, emitted twice by the generator. */
-    canShrink?: boolean;
-    'can-shrink'?: boolean;
-    /** An ENUM — namespaced, but a nick is a string an attribute carries. */
-    barStyle?: AdwBarStyleNick | Adw.BarStyle;
-    'bar-style'?: AdwBarStyleNick | Adw.BarStyle;
-    /** A slot, not an attribute. */
-    child?: Gtk.Widget | null;
-    /** A signal, not a property. */
-    'on-clicked'?: () => void;
-}
-export interface RootWidgetProps {
-    /** Reachable ONLY if the head reader tolerates a space before the brace. */
-    rooted?: string;
-}
-export interface EmptyWidgetProps extends GtkWidgetProps {}
-export interface AfterEmptyProps extends GtkWidgetProps {
-    trap?: string;
-}
-export interface WrappedWidgetProps
-    extends GtkWidgetProps,
-        GtkAccessibleProps,
-        GtkBuildableProps {
-    /** Reachable ONLY if the head reader tolerates a newline after \`extends\`. */
-    wrapped?: string;
-}
-`;
-
 const FIXTURE_WIDGETS = `
     { gtype: 'DemoWidget', tag: 'adw-demo', ctor: () => Adw.Demo },
     { gtype: 'EmptyWidget', tag: 'adw-empty', ctor: () => Adw.Empty },
@@ -350,22 +249,27 @@ const FIXTURE_WIDGETS = `
 const world = (attributes, knownGaps = {}, tag = 'adw-demo') => ({
     byTag: new Map([[tag, attributes]]),
     tagToGtype: tagGTypes(FIXTURE_WIDGETS),
-    bodies: propsBodies(FIXTURE_PROPS),
+    bodies: propsBodies(GIR_FIXTURE_PROPS),
     knownGaps,
 });
 
-/** Every scalar `DemoWidget` offers — an enum among them, on purpose. */
-const DEMO_SCALARS = ['label', 'can-shrink', 'bar-style'];
-
 const VECTORS = [
-    ['every scalar observed is not a problem', () => world(DEMO_SCALARS), 0],
+    ['every scalar observed is not a problem', () => world(GIR_FIXTURE_SCALARS), 0],
     ['one unobserved scalar IS a problem', () => world(['label', 'can-shrink']), 1],
     ['all unobserved is one problem each', () => world([]), 3],
     ['a declared gap is accepted', () => world(['label', 'bar-style'], { 'adw-demo': ['can-shrink'] }), 0],
-    ['a declaration the element now honours fails', () => world(DEMO_SCALARS, { 'adw-demo': ['can-shrink'] }), 1],
-    ['a declaration for a property that does not exist fails', () => world(DEMO_SCALARS, { 'adw-demo': ['ghost'] }), 1],
-    ['a missing SLOT property is not a problem', () => world(DEMO_SCALARS), 0],
-    ['a missing SIGNAL property is not a problem', () => world(DEMO_SCALARS), 0],
+    [
+        'a declaration the element now honours fails',
+        () => world(GIR_FIXTURE_SCALARS, { 'adw-demo': ['can-shrink'] }),
+        1,
+    ],
+    [
+        'a declaration for a property that does not exist fails',
+        () => world(GIR_FIXTURE_SCALARS, { 'adw-demo': ['ghost'] }),
+        1,
+    ],
+    ['a missing SLOT property is not a problem', () => world(GIR_FIXTURE_SCALARS), 0],
+    ['a missing SIGNAL property is not a problem', () => world(GIR_FIXTURE_SCALARS), 0],
 
     // BLOCKER-1 REGRESSION. `WrappedWidget` declares its heritage across three lines,
     // which is how the generator emits a long `extends` list. With the old `extends `
@@ -440,30 +344,11 @@ function alertDialogRegression() {
 }
 
 function selfTest() {
-    const failures = [];
-
-    // The brace matcher, pinned directly: the lazy-regex bug it replaces was silent.
-    const bodies = propsBodies(FIXTURE_PROPS);
-    if (scalarProps(bodies.get('EmptyWidget') ?? '').size !== 0) {
-        failures.push('an empty interface must have no properties — the body reader ran past its closing brace');
-    }
-    if (!scalarProps(bodies.get('AfterEmpty') ?? '').has('trap')) {
-        failures.push('the interface after an empty one must still be read');
-    }
-    if (!bodies.has('WrappedWidget')) {
-        failures.push('an interface whose `extends` list wraps must be found — the head reader needs `\\s`');
-    }
-    if (!bodies.has('RootWidget')) {
-        failures.push('an interface with no `extends` must be found — the head reader needs `\\s*` before `{`');
-    }
-    const demo = scalarProps(bodies.get('DemoWidget') ?? '');
-    for (const property of DEMO_SCALARS) {
-        if (!demo.has(property)) failures.push(`DemoWidget must expose '${property}' as a scalar`);
-    }
-    if (demo.has('child')) failures.push('a widget-valued property must not count as a scalar');
-    if (demo.size !== DEMO_SCALARS.length) {
-        failures.push(`DemoWidget must expose ${DEMO_SCALARS.length} scalars, got ${[...demo].join(', ')}`);
-    }
+    // The brace matcher and the scalar rule are pinned in the module that OWNS them,
+    // and run from here as well as from the NativeScript ratchet: a shared reader only
+    // one of its two callers proves is a reader half the repository trusts on somebody
+    // else's word. The lazy-regex bug it replaces was silent.
+    const failures = girReaderSelfTest();
 
     for (const [label, build, expected] of VECTORS) {
         const got = propertyProblems(build()).length;

@@ -19,7 +19,14 @@
 // (adw-avatar.c:117-125) — the branch that wins over both others — could not be reached,
 // and the vector row covering it had nothing to drive.
 
-import { avatarColor, avatarFontSize, avatarInitials, avatarMaxFontSize, avatarMode } from '@gjsify/adwaita-core';
+import {
+    avatarColor,
+    avatarFontSize,
+    avatarIconSize,
+    avatarInitials,
+    avatarMaxFontSize,
+    avatarMode,
+} from '@gjsify/adwaita-core';
 
 import { type GtkImage, createGtkImage } from './gtk-image.js';
 
@@ -100,8 +107,9 @@ export class AdwAvatar extends HTMLElement {
             this._iconEl.iconName = this.getAttribute('icon') ?? 'avatar-default';
             // The glyph scales with the avatar: `size` sizes the BOX and the mask
             // together, which is what `.adw-avatar-icon`'s `mask-size: contain`
-            // was there to approximate.
-            this._iconEl.size = Math.round(size * 0.55);
+            // was there to approximate. The factor moved into the core when the
+            // NativeScript avatar grew the same fallback — one number, two renderers.
+            this._iconEl.size = avatarIconSize(size);
             this._iconEl.hidden = false;
         }
     }

@@ -48,6 +48,7 @@ import {
 } from './bottom-sheet-state.js';
 import { resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export { CLOSE_ATTEMPT, NOTIFY_OPEN, SHEET_CLOSE };
 export type { NotifyOpenEventData };
@@ -69,7 +70,7 @@ export class AdwBottomSheet extends GridLayout {
     /** The shared open/can-close model — the single source of truth for both. */
     private readonly _state = createBottomSheetPresentation();
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwBottomSheet>) {
         super();
 
         this.className = 'adw-bottom-sheet';
@@ -103,6 +104,8 @@ export class AdwBottomSheet extends GridLayout {
             const data: NotifyOpenEventData = { eventName: NOTIFY_OPEN, object: this, open };
             this.notify(data);
         });
+
+        applyConstructProps(this, props);
     }
 
     /** Set (or replace) the always-visible content layer (painted under the sheet). */

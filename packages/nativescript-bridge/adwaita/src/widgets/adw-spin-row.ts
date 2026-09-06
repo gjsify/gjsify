@@ -33,6 +33,7 @@ import type { AdwAdjustment, AdwAdjustmentInput } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 // Re-export the headless state machine so consumers can reach it from
 // `@gjsify/adwaita-nativescript` unchanged.
@@ -58,7 +59,7 @@ export class AdwSpinRow extends AdwActionRow {
     /** The headless adjustment: clamp, step and the two signals (ADR 0004, ADR 0047). */
     private readonly _state = new SpinState();
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwSpinRow>) {
         super();
 
         this.className = 'adw-row adw-action-row adw-spin-row';
@@ -107,6 +108,8 @@ export class AdwSpinRow extends AdwActionRow {
 
         minus.addEventListener('tap', () => this._state.decrement());
         plus.addEventListener('tap', () => this._state.increment());
+
+        applyConstructProps(this, props);
     }
 
     /** The current numeric value (always within the adjustment's range). */

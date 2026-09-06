@@ -38,6 +38,7 @@
 import { GridLayout, ItemSpec, TextField, type EventData } from '@nativescript/core';
 import { ENTRY_ROW_MAX_LENGTH_LIMIT, clampEntryText, entryTextLength } from '@gjsify/adwaita-core';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when {@link GtkEntry.text} changes. Mirrors GObject `notify::text`. */
 export const NOTIFY_TEXT = 'notify::text';
@@ -59,7 +60,7 @@ export class GtkEntry extends GridLayout {
     private _text = '';
     private _maxLength = 0;
 
-    constructor() {
+    constructor(props?: ConstructProps<GtkEntry>) {
         super();
 
         this.className = 'adw-entry';
@@ -84,6 +85,8 @@ export class GtkEntry extends GridLayout {
             const data: EventData = { eventName: ACTIVATE, object: this };
             this.notify(data);
         });
+
+        applyConstructProps(this, props);
     }
 
     /**

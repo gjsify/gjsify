@@ -28,6 +28,7 @@ import {
     type AdwViewStackPage,
     type ViewStackNotifyPayload,
 } from './view-stack-state.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
@@ -46,7 +47,7 @@ export interface NotifyVisibleChildEventData extends EventData, ViewStackNotifyP
 export class AdwViewStack extends GridLayout {
     private readonly _state = createViewStackState();
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwViewStack>) {
         super();
 
         this.className = 'adw-view-stack';
@@ -62,6 +63,8 @@ export class AdwViewStack extends GridLayout {
             };
             this.notify(data);
         });
+
+        applyConstructProps(this, props);
     }
 
     /**

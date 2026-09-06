@@ -562,6 +562,22 @@ export function loadStatusData(root, facts) {
             );
         }
     }
+    // A heading inside an HTML comment is silently dropped by the generator (regex /^### /gm
+    // matches line-start only, and comment-wrapped text does not export to STATUS.md). The error
+    // is completely silent — the entry vanishes with no warning. Catch it here.
+    const commentMatch = todosMd.match(/<!--[\s\S]*?-->/);
+    if (commentMatch) {
+        const commentText = commentMatch[0];
+        const inCommentHeadings = [...commentText.matchAll(/###\s+([^\n`<>]+)/g)];
+        for (const match of inCommentHeadings) {
+            const headingText = match[1].trim();
+            failures.push(
+                `status/open-todos.md has a \`### ${headingText}\` heading inside an HTML comment. ` +
+                    'The generator silently drops headings in comments — they do not render in STATUS.md. ' +
+                    'Move the heading and its section outside the comment block.',
+            );
+        }
+    }
 
     // The OTHER direction, and it is the same class as the corpse check above.
     //

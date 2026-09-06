@@ -29,6 +29,7 @@ import { AdwActionRow } from './adw-action-row.js';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 // Re-export the headless state machine + the option type so consumers can reach
 // them from `@gjsify/adwaita-nativescript` unchanged.
@@ -54,7 +55,7 @@ export class AdwComboRow extends AdwActionRow {
     /** The headless options list + selectedIndex↔selectedValue state machine (ADR 0004). */
     private readonly _state = new ComboState();
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwComboRow>) {
         super();
 
         this.className = 'adw-row adw-action-row adw-combo-row';
@@ -103,6 +104,8 @@ export class AdwComboRow extends AdwActionRow {
         // ...and the row darkens while held, like an Adwaita activatable row.
         attachRowPressFeedback(this);
         this._syncChooser();
+
+        applyConstructProps(this, props);
     }
 
     /**

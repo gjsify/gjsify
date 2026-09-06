@@ -227,6 +227,36 @@ predicted wrongly once — see [Platform coverage](#platform-coverage) above. Ho
 `gjsify run packages/framework/webgl/scripts/probe-gl-host.js`, which also draws a
 shader-free pattern so a blank window cannot be mistaken for a failed shader.
 
+## HiDPI: the two canvas bridges are NOT symmetric
+
+**This asymmetry is a whole bug class, and it is invisible on every machine you are likely to develop on.**
+
+GTK silently pre-scales a `Gtk.DrawingArea`'s Cairo context, so Canvas2D code written in logical pixels renders sharp with nothing to do. `Gtk.GLArea` does **not**: its framebuffer is `allocation x scale-factor` and `gl.viewport` is in raw device pixels.
+
+So the GL side reports the DRAWING BUFFER in device pixels (`canvas.width` / `canvas.height`, hence `gl.drawingBufferWidth`) while CSS layout size stays logical (`clientWidth` / `offsetWidth`), and `installGlobals()` publishes `devicePixelRatio` as an ACCESSOR over the widget's live `get_scale_factor()`. The identity
+
+```
+clientWidth * devicePixelRatio === canvas.width
+```
+
+is what lets an unmodified Three.js or Excalibur viewport cover the whole framebuffer.
+
+Reporting the allocation as `canvas.width` — as this bridge did until 2026-08 — is invisible at scale-factor 1, which is every desktop, every CI runner and every test VM. On the first scale-factor-3 host it drew each scene into the bottom-left NINTH of its widget: measured on a OnePlus 6T running postmarketOS / GNOME Mobile, where the teapot, the pixel-postprocessing and the Excalibur showcases all rendered a 120x218 corner of a 360x655-logical widget.
+
+`@gjsify/dom-elements`' register seeds `devicePixelRatio: 1` as the widget-less default only. A real `Gtk.GLArea` cannot regression-test this, because its host reports 1 — `html-canvas-element.spec.ts` varies the scale factor through a stub, which is the entire point of that stub.
+
+## Naming the GL you actually got
+
+`WEBGL_debug_renderer_info` is implemented (the spec'd `VENDOR` / `RENDERER` stay masked) and `bridge.rendererInfo` reads it, so a CPU rasteriser (`isSoftwareRenderer`) costs ONE stderr line. A GPU-less host is otherwise invisible: every draw call succeeds, and only the frame budget tells.
+
+**It is DIAGNOSTIC ONLY.** The same driver carries a demand-driven three.js scene and needs 1.1 s for a single textured full-screen draw in a game, so a renderer swap keys on a MEASURED frame budget, never on this string.
+
+## Resize, clone and the WebGL2 overrides
+
+- On resize `WebGLBridge` dispatches a DOM `resize` and re-invokes the last rAF callback — demand-driven re-render, no animation loop.
+- A canvas clones PLAIN (`_createCloneTarget`): there is one GLArea and it stays with the original.
+- `WebGL2RenderingContext` overrides `texImage2D`, `texSubImage2D` and `drawElements` from the WebGL1 base, bypassing WebGL1 format/type validation — the native Vala side handles all GLES 3.2 formats.
+
 ## Diagnosing a host
 
 ```bash

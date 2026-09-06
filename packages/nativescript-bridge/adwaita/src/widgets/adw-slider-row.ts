@@ -21,6 +21,7 @@ import { GridLayout, ItemSpec, Label, Slider, StackLayout, type EventData } from
 import { SpinState, parseAdjustment, snapAdjustmentValue } from '@gjsify/adwaita-core';
 import type { AdwAdjustment, AdwAdjustmentInput } from '@gjsify/adwaita-core';
 import { xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when {@link AdwSliderRow.value} changes. Mirrors GObject `notify::value`. */
 export const NOTIFY_SLIDER_VALUE = 'notify::value';
@@ -44,7 +45,7 @@ export class AdwSliderRow extends StackLayout {
     /** Guards the slider's `valueChange` while we programmatically set its value. */
     private _suppress = false;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwSliderRow>) {
         super();
 
         this.orientation = 'vertical';
@@ -133,6 +134,8 @@ export class AdwSliderRow extends StackLayout {
             }
             this._state.setValueInteractive(snapped);
         });
+
+        applyConstructProps(this, props);
     }
 
     /** Push the current value to the slider + label without emitting. */

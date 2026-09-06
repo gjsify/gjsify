@@ -28,6 +28,7 @@ import { GridLayout, ItemSpec, StackLayout } from '@nativescript/core';
 import { AdwWindowTitle } from './adw-window-title.js';
 import { resolveBuilderSlot } from './builder-slots.js';
 import { classNameWith, normalizeStyleClasses } from './style-classes.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /**
  * The slots a template may name, spelled as this widget's own properties —
@@ -44,7 +45,7 @@ export class AdwHeaderBar extends GridLayout {
     private _titleWidget: View;
     private _styleClasses: string[] = [];
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwHeaderBar>) {
         super();
 
         this.className = 'adw-header-bar';
@@ -76,6 +77,8 @@ export class AdwHeaderBar extends GridLayout {
         GridLayout.setColumn(endBox, 2);
         this.addChild(endBox);
         this._endBox = endBox;
+
+        applyConstructProps(this, props);
     }
 
     /** The header title — forwarded to the default {@link AdwWindowTitle}. */

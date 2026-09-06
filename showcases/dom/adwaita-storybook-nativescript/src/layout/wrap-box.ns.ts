@@ -6,7 +6,7 @@ import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@
 import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { wrapBoxMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-const TAGS = ['Design', 'Adwaita', 'GNOME', 'GTK', 'Typescript', 'Storybook', 'Wrapping', 'Layout'];
+const TAGS = ['Design', 'Adwaita', 'GNOME', 'GTK', 'TypeScript', 'Storybook', 'Wrapping', 'Layout'];
 
 export class WrapBoxNsStory extends StoryView {
     private _wrap: Adw.WrapBox | null = null;

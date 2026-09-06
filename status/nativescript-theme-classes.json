@@ -1,5 +1,6 @@
 {
     "reviewed": {
+        "adw-avatar-icon": "A hook on the avatar's fallback symbolic, which sits beside the base `adw-icon` rather than replacing it. It carries no look for the same reason `adw-icon` carries none — the glyph is a bitmap already rasterised in its fill colour at its box size, and NativeScript drops a CSS value for a property the widget set as a LOCAL one, which `GtkImage` does for width and height. Colour and size come from `iconColor` / `iconSize`, both driven from the avatar's own palette entry and diameter; what a rule could still add here is margin or opacity.",
         "adw-bottom-sheet": "The sheet host. Its only painted child node in libadwaita is `> dimming`, the scrim (_bottom-sheet.scss:2-4), which this port does not draw at all — the NS subset has no z-index or backdrop, and the widget's header says so. The panel is `.adw-bottom-sheet-panel`.",
         "adw-bottom-sheet-content": "A marker stamped on the view handed to `setContent`, and the reason `addMarkerClass` exists — it is how the widget finds that layer again to strip the class when the content is replaced.",
         "adw-bottom-sheet-sheet": "A marker stamped on the view handed to `setSheet`. It sits INSIDE `.adw-bottom-sheet-panel`, which is the node libadwaita calls `sheet` and the node this theme paints.",

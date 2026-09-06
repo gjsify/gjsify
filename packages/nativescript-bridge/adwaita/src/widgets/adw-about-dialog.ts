@@ -22,6 +22,7 @@
 import { aboutDialogVisibility } from '@gjsify/adwaita-core';
 import { Button, GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when the dialog is closed. */
 export const CLOSED = 'closed';
@@ -44,7 +45,7 @@ export class AdwAboutDialog extends GridLayout {
     private _website = '';
     private _copyright = '';
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwAboutDialog>) {
         super();
 
         this.className = 'adw-about-dialog';
@@ -86,6 +87,8 @@ export class AdwAboutDialog extends GridLayout {
         // re-renders the whole card, so one call here is what covers the state
         // before the first one.
         this._render();
+
+        applyConstructProps(this, props);
     }
 
     private _addCardLabel(card: StackLayout, className: string): Label {

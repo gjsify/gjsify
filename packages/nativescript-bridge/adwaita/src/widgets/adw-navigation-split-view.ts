@@ -29,6 +29,7 @@ import { AdwSplitViewBase } from './split-view-base.js';
 import { NsNavigationSplitViewState, splitViewColumns } from './split-view-state.js';
 import type { NavigationActionResult } from '@gjsify/adwaita-core';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Push/pop duration (ms) — matches Adwaita's ~200 ms navigation transition. */
 const NAV_ANIM_MS = 200;
@@ -37,7 +38,7 @@ const NAV_ANIM_MS = 200;
 const FALLBACK_WIDTH = 1024;
 
 export class AdwNavigationSplitView extends AdwSplitViewBase<NsNavigationSplitViewState> {
-    constructor() {
+    constructor(props?: ConstructProps<AdwNavigationSplitView>) {
         super(
             'adw-navigation-split-view',
             'navigation',
@@ -58,6 +59,8 @@ export class AdwNavigationSplitView extends AdwSplitViewBase<NsNavigationSplitVi
             }),
         );
         this._applyLayout();
+
+        applyConstructProps(this, props);
     }
 
     protected _applyLayout(): void {

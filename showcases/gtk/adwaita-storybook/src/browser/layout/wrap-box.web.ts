@@ -3,7 +3,7 @@
 import { StoryElement, type StoryArgs, type StoryMeta, type WebStoryModule } from '@gjsify/adwaita-storybook';
 import { wrapBoxMeta } from '../../layout/wrap-box.meta.js';
 
-const TAGS = ['Design', 'Adwaita', 'GNOME', 'GTK', 'Typescript', 'Storybook', 'Wrapping', 'Layout'];
+const TAGS = ['Design', 'Adwaita', 'GNOME', 'GTK', 'TypeScript', 'Storybook', 'Wrapping', 'Layout'];
 
 export class WrapBoxWebStory extends StoryElement {
     private _wrap: HTMLElement | null = null;

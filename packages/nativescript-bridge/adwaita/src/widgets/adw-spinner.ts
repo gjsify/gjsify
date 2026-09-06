@@ -27,6 +27,7 @@ import { resolveSpinnerSize, spinnerGeometry } from '@gjsify/adwaita-core';
 
 import { DEFAULT_SPINNER_SIZE } from './chrome.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export { DEFAULT_SPINNER_SIZE };
 
@@ -38,7 +39,7 @@ export class AdwSpinner extends GridLayout {
     /** Whether the consumer wants it spinning, independent of whether it is mapped. */
     private _spinning = true;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwSpinner>) {
         super();
 
         this.className = 'adw-spinner';
@@ -70,6 +71,8 @@ export class AdwSpinner extends GridLayout {
 
         this._applySize();
         this._applySpinning();
+
+        applyConstructProps(this, props);
     }
 
     private _applySize(): void {

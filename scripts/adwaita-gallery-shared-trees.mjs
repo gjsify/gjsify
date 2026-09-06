@@ -1,0 +1,335 @@
+// The gallery blocks whose widget tree is authored ONCE and rendered by both the
+// GTK host and the NativeScript port — ADR 0027 § 9's acceptance criterion, at the
+// size the gallery actually reaches today.
+//
+// WHAT WAS MISSING
+//
+// `scripts/check-vocabulary-alignment.mjs` holds the widget NAMES across the
+// renderers and prints the distance every run. What nothing held until this file is
+// whether the gallery's own two authored trees — `adwaita-gallery-trees.mjs` for
+// Solid/Vue/React and `adwaita-gallery-ns-templates.mjs` for the NativeScript XML —
+// DESCRIBE THE SAME UI. They are written by hand, independently, so a block can
+// render two different examples of one widget on one page and nothing notices.
+//
+// THE CENSUS THAT SIZED THIS FILE
+//
+// A minority of the blocks drawn by BOTH renderers describe the same UI today; this
+// file is that minority and {@link ADWAITA_GALLERY_TREE_DIVERGENCES} is the rest,
+// each with the measured reason and a `kind` naming what would close it. No count is
+// written here on purpose — arm 11 of `check-generated-website-data.mjs` derives the
+// partition and prints it every run, and it fails the day a ledgered block CONVERGES
+// and is still ledgered, the same self-retiring shape as the refusal lists this file
+// sits beside.
+//
+// What the census FOUND, which no count would have said: two of the divergences are
+// not forced by either renderer at all. Two authors simply wrote two different
+// examples of one widget, and one gallery block therefore drew two different UIs
+// under one title for as long as both source files existed.
+//
+// WHY THIS IS NOT THE ALIAS TABLE BOTH GENERATORS REFUSE
+//
+// `adwaita-gallery-trees.mjs`'s header refuses a translator between the two
+// vocabularies — "a hand-written alias table of 15 tags and 12 attribute SEMANTICS
+// … it would map behaviour and not just names, and nothing could hold it" — and
+// `adwaita-gallery-ns-templates.mjs` refuses it again from the other side. That
+// refusal stands and this file does not weaken it.
+//
+// A block joins this file only when its tree needs NO alias at all: the same widget
+// names, the same property names, the same values, in the same order. The single
+// transform is {@link hostTagOf}, which turns the GIR class name a block is authored
+// in into the `gtk-host` tag — `AdwPreferencesGroup` -> `adw-preferences-group`, a
+// deterministic case rule and not a semantic mapping. It is `gtk-host`'s OWN rule
+// (`tagOf` in `packages/framework/gtk-host/src/tags.ts`), and arm 11 runs it against
+// every row of that package's generated table, so it cannot drift into a private
+// second spelling.
+//
+// The vocabulary is the GIR class name because that is the one spelling both
+// renderers already carry (ADR 0034 clause 1, "named from the GIR"): it is the
+// `gtype` column of `gtk-host`'s generated table and it is the NativeScript widget's
+// class name. Authoring in either renderer's own MARKUP spelling — `adw-banner` or
+// `adw:Banner` — would make one of them the reference and the other a translation,
+// which is what this file exists to stop.
+
+/**
+ * @typedef {Object} SharedNode
+ * @property {string} tag                  a GIR class name, e.g. 'AdwPreferencesGroup'
+ * @property {string} [slot]               placement in the parent — see the note in
+ *                                         {@link ADWAITA_GALLERY_TREE_DIVERGENCES}: the two
+ *                                         renderers spell slots differently, so no shared
+ *                                         tree uses one yet
+ * @property {Record<string, string|number|boolean>} [props]
+ * @property {SharedNode[]} [children]
+ */
+
+/**
+ * @typedef {Object} SharedTree
+ * @property {string} widget   the `<AdwWidget title="…">` this belongs to
+ * @property {string} page     the gallery page it sits on
+ * @property {SharedNode} root
+ */
+
+/** @type {readonly SharedTree[]} */
+export const ADWAITA_GALLERY_SHARED_TREES = [
+    {
+        widget: 'Adw.PreferencesGroup',
+        page: 'boxed-lists',
+        root: {
+            tag: 'AdwPreferencesGroup',
+            props: { title: 'Account', description: 'Manage how this device signs in and syncs.' },
+            children: [
+                { tag: 'AdwEntryRow', props: { title: 'Display name', text: 'Grace Hopper' } },
+                {
+                    tag: 'AdwSwitchRow',
+                    props: {
+                        title: 'Sync over Wi-Fi only',
+                        subtitle: 'Avoid using mobile data for backups',
+                        active: true,
+                    },
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Adw.SwitchRow',
+        page: 'boxed-lists',
+        root: {
+            tag: 'AdwPreferencesGroup',
+            children: [
+                {
+                    tag: 'AdwSwitchRow',
+                    props: {
+                        title: 'Automatic updates',
+                        subtitle: 'Download and install updates without asking',
+                        active: true,
+                    },
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Adw.EntryRow',
+        page: 'boxed-lists',
+        root: {
+            tag: 'AdwPreferencesGroup',
+            children: [{ tag: 'AdwEntryRow', props: { title: 'Display name', text: 'Ada Lovelace' } }],
+        },
+    },
+    {
+        widget: 'Adw.ExpanderRow',
+        page: 'boxed-lists',
+        // Its rows go through `add_row()`, which had no `gtk-host` policy until
+        // `AdwExpanderRow` was curated — so this block was a framework refusal, and the
+        // refusal is what the probe found stale the moment the descriptor landed. An
+        // unslotted child IS the disclosure here: `defaultSlot: 'row'`. On the
+        // NativeScript side the disclosure is a builder slot, so the rows are markup
+        // there too.
+        //
+        // THE TWO TREES USED TO SHOW TWO DIFFERENT EXAMPLES — "Proxy settings" with a
+        // host and an authentication toggle on the framework tabs, "Advanced" with a
+        // developer-mode toggle and an endpoint on the NativeScript one, the children in
+        // the opposite order. Neither renderer forced that; both can carry either. The
+        // block's own `preview` fragment decides, because a gallery block is one widget
+        // written several ways and not several examples — the same argument
+        // `Adw.WrapBox`'s tree already makes about its chips.
+        root: {
+            tag: 'AdwPreferencesGroup',
+            children: [
+                {
+                    tag: 'AdwExpanderRow',
+                    props: {
+                        title: 'Proxy settings',
+                        subtitle: 'Route traffic through a custom proxy',
+                        expanded: true,
+                    },
+                    children: [
+                        { tag: 'AdwEntryRow', props: { title: 'Host', text: 'proxy.example.com' } },
+                        { tag: 'AdwSwitchRow', props: { title: 'Use authentication' } },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Adw.Banner',
+        page: 'presentation',
+        root: {
+            tag: 'AdwBanner',
+            props: { title: 'Metered connection: updates paused', buttonLabel: 'Resume', revealed: true },
+        },
+    },
+    {
+        widget: 'Adw.ShortcutLabel',
+        page: 'presentation',
+        root: { tag: 'AdwShortcutLabel', props: { accelerator: '<Control>C' } },
+    },
+    {
+        widget: 'Adw.WindowTitle',
+        page: 'presentation',
+        root: { tag: 'AdwWindowTitle', props: { title: 'Inbox', subtitle: '3 unread messages' } },
+    },
+];
+
+/**
+ * `AdwPreferencesGroup` -> `adw-preferences-group`, the only transform in this file.
+ *
+ * THE RULE IS `@gjsify/gtk-host`'S, RESTATED — `tagOf` in
+ * `packages/framework/gtk-host/src/tags.ts` is what actually stamps the `tag` column
+ * of the generated table, and this is that algorithm. It is restated rather than
+ * imported because these scripts are plain Node over the repo's own files and
+ * `tags.ts` is TypeScript, and it is HELD rather than trusted: arm 11 of
+ * `check-generated-website-data.mjs` runs it against every row of
+ * `gtk-host/src/generated/widgets.ts` and fails on the first row it does not
+ * reproduce. The first version of this function was a naive `([a-z0-9])([A-Z])`
+ * split, and the table caught it on `GtkGLArea` — it produced `gtk-glarea` where
+ * gtk-host stamps `gtk-gl-area`.
+ *
+ * The last capital of an acronym run opens the next word, which is why `GLArea` is
+ * `gl-area` and not `g-l-area`.
+ *
+ * NOT AN INVERSE OF ANYTHING, and the first version of this comment claimed it was.
+ * Tag -> GType is lossy in exactly that case — `gtk-gl-area` reads back as
+ * `GtkGlArea` and no case rule can know better — so `gtypeOfTag` is the generated
+ * table read backwards rather than a second rule. One direction is a rule the table
+ * holds; the other is the table.
+ */
+export const hostTagOf = (gtype) => {
+    if (!/^(?:Adw|Gtk)[A-Z]\w*$/.test(gtype)) {
+        throw new Error(`adwaita-gallery-shared-trees: ${gtype} is not a GIR class name`);
+    }
+    const out = [];
+    for (let i = 0; i < gtype.length; i++) {
+        const c = gtype[i];
+        if (c >= 'A' && c <= 'Z' && i > 0) {
+            const prev = gtype[i - 1];
+            const next = i + 1 < gtype.length ? gtype[i + 1] : '';
+            const endsLowerRun = !(prev >= 'A' && prev <= 'Z');
+            const endsAcronym = next >= 'a' && next <= 'z';
+            if (endsLowerRun || endsAcronym) out.push('-');
+        }
+        out.push(c.toLowerCase());
+    }
+    return out.join('');
+};
+
+const SHARED_BY_WIDGET = new Map(ADWAITA_GALLERY_SHARED_TREES.map((tree) => [tree.widget, tree]));
+
+const entryFor = (widget) => {
+    const tree = SHARED_BY_WIDGET.get(widget);
+    // A typo here would otherwise reach a generator as `undefined.root`, and a Node
+    // stack trace in a generator reads like a broken generator rather than a name
+    // that is not in this list.
+    if (tree === undefined) throw new Error(`adwaita-gallery-shared-trees: ${widget} is not a shared block`);
+    return tree;
+};
+
+// Fresh nodes on both sides rather than the authored ones: two arrays handing out the
+// same objects would let a consumer's edit reach the other renderer.
+const rebuild = (node, tagOf) => ({
+    tag: tagOf(node.tag),
+    ...(node.slot === undefined ? {} : { slot: node.slot }),
+    ...(node.props === undefined ? {} : { props: { ...node.props } }),
+    ...(node.children === undefined ? {} : { children: node.children.map((child) => rebuild(child, tagOf)) }),
+});
+
+/**
+ * The shared block as `adwaita-gallery-trees.mjs` needs it: `gtk-host` tags.
+ */
+export const gtkHostTree = (widget) => {
+    const tree = entryFor(widget);
+    return { widget: tree.widget, page: tree.page, root: rebuild(tree.root, hostTagOf) };
+};
+
+/**
+ * The shared block as `adwaita-gallery-ns-templates.mjs` needs it.
+ *
+ * NO transform, and that asymmetry is the point rather than an oversight: a
+ * NativeScript template names a widget by its CLASS, and the port's class names are
+ * the GIR ones (ADR 0034 clause 1), so the vocabulary this file is authored in is
+ * already the one that side is written in. The `adw:`/`gtk:` prefix the emitted XML
+ * carries is the generator's namespace spelling, applied downstream of here — which
+ * is why it is not a transform this file owes anybody.
+ */
+export const nativeScriptTree = (widget) => {
+    const tree = entryFor(widget);
+    return { widget: tree.widget, page: tree.page, root: rebuild(tree.root, (tag) => tag) };
+};
+
+/**
+ * Every gallery block that has a tree on BOTH renderers and is still authored twice,
+ * with the measured distance and why it stands.
+ *
+ * `kind` names what a reader would have to do to close it, and they are not the same
+ * job:
+ *
+ *   · `property` — the two trees agree on shape, tags and every shared property. One
+ *     renderer has no such property to set. Closing it is a renderer change.
+ *   · `vocabulary` — same shape, different SPELLINGS for the same thing. Closing it
+ *     is the convergence `scripts/check-vocabulary-alignment.mjs` already counts down
+ *     ("Distance to one vocabulary"), and a block lands here for free when it does.
+ *   · `composition` — the two trees are different UIs. Closing it needs a decision
+ *     about what the block should show, and sometimes a renderer change first.
+ *   · `content` — same widget, same renderer capability, DIFFERENT EXAMPLE. Nothing
+ *     forces these; they are what two independently authored trees produce. The
+ *     block's own `preview` fragment is the authority, and in every case here it is
+ *     the NativeScript template that drifted from it.
+ *
+ * Checked back like the two refusal lists it sits beside: arm 11 of
+ * `check-generated-website-data.mjs` fails on an entry whose two trees have become
+ * identical (move it into {@link ADWAITA_GALLERY_SHARED_TREES}), on an entry for a
+ * block that has no pair, and on a paired block that is neither shared nor ledgered.
+ */
+export const ADWAITA_GALLERY_TREE_DIVERGENCES = {
+    // --- one renderer has no such property ---
+    'Adw.Avatar':
+        'property: the NativeScript `AdwAvatar` sets only `size` and `text`, so `showInitials` and `iconName` have nowhere to go.',
+    'Adw.ButtonRow':
+        'property: `AdwButtonRow.startIconName` exists on both and means different things — an icon NAME on GTK, an Adwaita symbolic SVG STRING on NativeScript — and the port has no `cssClasses`.',
+    'Adw.PasswordEntryRow':
+        'property: `revealed` is a NativeScript-side property and `gtk-host` has none on `adw-password-entry-row` — `adw_password_entry_row_class_init` installs NO properties at all, and the reveal toggle is a private `GtkButton` suffix the class never exposes. (Not the peek icon: `show-peek-icon` is `GtkPasswordEntry`, which this row does not derive from.)',
+    'Gtk.Entry':
+        'property: `widthRequest` is a GTK size request; the NativeScript `GtkEntry` sets `editable`, `field`, `maxLength`, `placeholderText`, `text` and `textLength` and nothing about layout.',
+    // Filed as `vocabulary` when it was first ledgered, on the reading that `size` and
+    // `widthRequest` are two spellings of one thing. The half that decides it is
+    // `spinning`: `adw_spinner_class_init` installs NO properties, so there is no GTK
+    // name for it to be spelled differently from. A `vocabulary` entry PROMISES the
+    // block lands in the shared source for free when the renames land, and a missing
+    // property filed under it is a promise nothing can keep.
+    'Adw.Spinner':
+        'property: the NativeScript `spinning` has no GTK counterpart at all — `adw_spinner_class_init` installs no properties, so an `Adw.Spinner` cannot be stopped where a `GtkSpinner` can. Its `size` is the other half: the widget fills what it is given, so GTK sets `widthRequest`/`heightRequest` where the port exposes one diameter.',
+    // --- same shape, different spellings ---
+    'Adw.Clamp':
+        'vocabulary: one `GtkLabel` against one `Label`, and `label`/`wrap`/`cssClasses` against `text`/`textWrap`/`class`. Same values on both sides; only the names differ.',
+    'Adw.HeaderBar':
+        'vocabulary: the three slots are spelled `start`/`title`/`end` against `startBox`/`titleWidget`/`endBox`, and the trailing button is a `GtkMenuButton` on GTK where the port has no menu widget.',
+    // --- different UI ---
+    'Adw.ActionRow':
+        'composition: the prefix icon and the chevron are two children on GTK and none on NativeScript, where `GtkImage.iconName` takes an SVG source no attribute can carry.',
+    'Adw.ButtonContent':
+        'composition: GTK wraps the content in a `gtk-button`; the port declares the content alone, and its `iconName` is an SVG source, so the label is the half a template holds.',
+    'Adw.NavigationSplitView':
+        'composition: libadwaita refuses anything but an `Adw.NavigationPage` in either pane — a `g_return_if_fail (ADW_IS_NAVIGATION_PAGE (…))` in both setters, plus a buildable warning — so its tree carries two wrappers the port does not need.',
+    'Adw.NavigationView':
+        'composition: same two `AdwNavigationPage` wrappers as the split view, plus the page `tag` that `adw_navigation_view_push_by_tag()` and the `navigation.push` action need, and NativeScript reads from the code-behind.',
+    'Adw.OverlaySplitView':
+        'composition: an `AdwHeaderBar` title is a slotted `AdwWindowTitle` child on GTK and a plain `title` property on the port, so the GTK tree has two nodes more.',
+    'Adw.StatusPage':
+        'composition: the GTK tree carries an action button the port has no room for, and the icon is `iconName` against the glyph fallback `iconText`.',
+    'Adw.ToolbarView':
+        'composition: the bottom bar is a `gtk-box` of four buttons on GTK — `gtk-host` curates no child policy for `GtkActionBar`, so placing into one raises `uncurated-placement`; the widget itself has `pack_start`/`pack_end` — and a second `AdwHeaderBar` on the port.',
+    // --- nothing forces the LIST; the names beside it are another matter ---
+    //
+    // Both of these also carry a `cssClasses` against the port's style-class property,
+    // and that half does not close by renaming. `@nativescript/core`'s `ViewBase`
+    // already owns the name: its constructor assigns `this.cssClasses = new Set()`,
+    // its CSS engine READS it (`ClassSelector.match` calls `node.cssClasses.has(…)`)
+    // and its `className` setter MUTATES it (`clear()`, then `add()` per token). Taking
+    // the name would mean shadowing that field with an accessor pair that still hands
+    // the engine a live mutable Set — possible, not free, and a different value kind
+    // besides (`string[]` against `Set<string>`). So closing the content gap moves
+    // these two into `vocabulary` rather than into the shared source, which is why the
+    // shorter lists are recorded here rather than padded.
+    'Adw.WrapBox':
+        'content: eight chips in the block preview, the framework tabs and all three storybooks, six in the NativeScript template. Nothing in the port forces the shorter list. Beside it the `label`/`cssClasses` against `text`/`variant` names, whose second half does not converge by renaming.',
+    'Gtk.Button':
+        'content: five buttons in the preview and the framework tabs, four in the NativeScript template — the icon-only circular one is missing, and its icon would be an SVG SOURCE there rather than a name (see status/open-todos.md, "A property can agree on its NAME and disagree on its VALUE KIND"). Beside it a `GtkBox` against a `StackLayout`.',
+};

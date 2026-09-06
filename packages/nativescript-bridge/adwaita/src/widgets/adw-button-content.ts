@@ -37,6 +37,7 @@ import {
     buttonContentUnrootedParentClassName,
 } from './button-content.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** The content's own base class, before `can-shrink` adds its own. */
 const BASE_CLASS = 'adw-button-content';
@@ -49,7 +50,7 @@ export class AdwButtonContent extends StackLayout {
     private readonly _props: AdwButtonContentProps = { ...ADW_BUTTON_CONTENT_DEFAULTS };
     private _hostButton: View | null = null;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwButtonContent>) {
         super();
 
         this.orientation = 'horizontal';
@@ -71,6 +72,8 @@ export class AdwButtonContent extends StackLayout {
         label.visibility = buttonContentLabelVisibility('');
         this.addChild(label);
         this._label = label;
+
+        applyConstructProps(this, props);
     }
 
     /**

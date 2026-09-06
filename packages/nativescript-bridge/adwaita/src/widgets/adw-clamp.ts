@@ -27,6 +27,7 @@ import {
     defaultClampProps,
     normalizeClampProp,
 } from './chrome.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export { DEFAULT_CLAMP_MAX_SIZE, DEFAULT_CLAMP_TIGHTENING_THRESHOLD };
 
@@ -36,7 +37,7 @@ export class AdwClamp extends GridLayout {
     /** The container width the child was last clamped against, in DIPs. */
     private _measuredWidth = 0;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwClamp>) {
         super();
 
         this.className = 'adw-clamp';
@@ -51,6 +52,8 @@ export class AdwClamp extends GridLayout {
         // NativeScript has no window-resize signal, so the container's own
         // post-layout size is the size source the curve is evaluated against.
         this.addEventListener('layoutChanged', () => this._allocate());
+
+        applyConstructProps(this, props);
     }
 
     /** Set (or replace) the clamped, centered child. Pass `null` to clear it. */

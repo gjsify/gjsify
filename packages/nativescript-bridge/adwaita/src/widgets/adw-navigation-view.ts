@@ -35,6 +35,7 @@ import {
 } from './navigation-stack.js';
 import type { NsNavigationEvent } from './navigation-stack.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export { NOTIFY_VISIBLE_PAGE, POPPED, PUSHED, REPLACED };
 
@@ -54,7 +55,7 @@ export type NotifyVisiblePageEventData = AdwNavigationEventData;
 export class AdwNavigationView extends GridLayout {
     private readonly _nav: NsNavigationStack;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwNavigationView>) {
         super();
 
         this.className = 'adw-navigation-view';
@@ -82,6 +83,8 @@ export class AdwNavigationView extends GridLayout {
                     console.warn(`[AdwNavigationView] ${describeNavigationDiagnostic(diagnostic)}`),
             },
         );
+
+        applyConstructProps(this, props);
     }
 
     /**

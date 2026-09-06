@@ -26,6 +26,7 @@ import { GridLayout } from '@nativescript/core';
 import { AdwSplitViewBase } from './split-view-base.js';
 import { NsOverlaySplitViewState, splitViewColumns } from './split-view-state.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Slide/fade duration (ms) — matches Adwaita's ~200 ms sidebar reveal. */
 const OVERLAY_ANIM_MS = 200;
@@ -35,9 +36,11 @@ export class AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewStat
      *  closes the sidebar (Adwaita's click-outside-to-dismiss). Created lazily. */
     private _scrim: GridLayout | null = null;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwOverlaySplitView>) {
         super('adw-overlay-split-view', 'overlay', new NsOverlaySplitViewState());
         this._applyLayout();
+
+        applyConstructProps(this, props);
     }
 
     /**

@@ -24,6 +24,7 @@ import { Switch, type EventData } from '@nativescript/core';
 import { AdwActionRow } from './adw-action-row.js';
 import { SwitchRowState } from './row-state.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when {@link AdwSwitchRow.active} changes. Mirrors GObject `notify::active`. */
 export const NOTIFY_ACTIVE = 'notify::active';
@@ -40,7 +41,7 @@ export class AdwSwitchRow extends AdwActionRow {
     /** The headless active flag + its notify rule (ADR 0004). */
     private readonly _switchState = new SwitchRowState();
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwSwitchRow>) {
         super();
 
         this.className = 'adw-row adw-action-row adw-switch-row';
@@ -59,6 +60,8 @@ export class AdwSwitchRow extends AdwActionRow {
         // for a drag, so this is the single funnel: `setActive` returns false for
         // the write `_apply` itself just made, which is what stops the re-entry.
         sw.addEventListener('checkedChange', () => this._apply(this._switchState.setActive(sw.checked)));
+
+        applyConstructProps(this, props);
     }
 
     /** Whether the switch is on. */

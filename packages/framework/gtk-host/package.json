@@ -80,7 +80,8 @@
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs",
         "test:gjs-on-node": "gjsify run build:gjsify && gjsify run build:test:node && node dist/test.node.mjs",
-        "generate": "gjsify build src/generator/main.mts --app gjs --outfile tmp/generate.gjs.mjs && gjsify run tmp/generate.gjs.mjs -- --out src/generated && gjsify format src/generated"
+        "generate": "gjsify build src/generator/main.mts --app gjs --outfile tmp/generate.gjs.mjs && gjsify run tmp/generate.gjs.mjs -- --out src/generated && gjsify format src/generated",
+        "generate:enum-values": "gjs -m ../../../scripts/generate-enum-values.mjs"
     },
     "keywords": [
         "gjs",
