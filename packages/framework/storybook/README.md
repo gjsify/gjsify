@@ -49,6 +49,17 @@ export const MyButtonStories: StoryModule = { stories: [MyButtonStory] };
 
 Subclasses that supply their own composite `.blp` template have full layout control; otherwise `addContent()` drops the preview into default chrome. The optional `withActionGroup(prefix, actions)` decorator (`StoryModule.decorators`) installs a stubbed `Gio.SimpleActionGroup` so a previewed widget's buttons resolve in the sandbox.
 
+## The `gjsify.storybook` block is machine-checked
+
+Config lives in `package.json#gjsify.storybook`: `applicationId`, `title`, the `stories`
+directory, `globals` (`auto,dom` for canvas/DOM stories) and `runtime` (`gjs` | `node`).
+
+That block is held by the portable `storybook` conformance rule: the declared `stories`
+directory (default `src`) must exist and hold at least one `*.story.*`, resolved exactly the
+way the command resolves it. Before the rule existed a typo surfaced only when somebody
+actually ran `gjsify storybook` — and the one CI job that does is path-filtered to
+`packages/node-gi/**`, i.e. advisory.
+
 ## Run it
 
 The easy way — let the CLI discover and launch every `*.story.ts`:
@@ -92,6 +103,18 @@ gjsify debug --profile storybook          # MCP bridge: list_stories / get_curre
 ```
 
 See the [Debugging & remote control guide](https://gjsify.github.io/gjsify/guides/devtools/).
+
+## Self-verify (the node-gi capstone)
+
+`installStorybookProbe(app, window)` plus `probeEnabled()` (env `GJSIFY_STORYBOOK_PROBE`, gated
+exactly like devtools so a production build is byte-unchanged) drive a running storybook
+HEADLESSLY and IN-PROCESS — no DBus, reusing `captureWidgetPng` and `dumpTree`. It asserts the
+sidebar categories, the chrome tree, that a story renders its widget subtree, and that the window
+rasterises to a non-empty PNG, then exits 0 or 1.
+
+That is how `gjsify storybook --runtime node` proves the full Libadwaita gallery renders on Node,
+on Linux AND on Windows (the `--windowing` GTK bundle, no gvsbuild): CI
+`storybook-node-gi-bundle` feeds `gtk-smoke` and `windows-gtk-storybook`.
 
 ## Exports
 

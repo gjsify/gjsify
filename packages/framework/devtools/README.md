@@ -88,6 +88,7 @@ dbus-daemon --session --nofork --address=unix:path=/tmp/devtools-bus.sock &
 export DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/devtools-bus.sock
 # …or hand dbus-run-session a config file whose <listen> is a plain socket:
 dbus-run-session --config-file=session.conf -- <command>   # <listen>unix:tmpdir=/tmp</listen>
+# a ready-made one lives at packages/node-gi/node-gi/test/session.conf (its `test:dbus` uses it)
 ```
 
 Prefer the peer transport; the above is only for tooling that must have a bus NAME.
@@ -103,11 +104,59 @@ Prefer the peer transport; the above is only for tooling that must have a bus NA
 
 Access control follows the address FAMILY, not the platform: a unix socket authenticates with `EXTERNAL` and the server requires the peer's uid to equal ours; TCP carries no peer credentials — that same flag rejects every client there — so the nonce file is the secret. On a shared machine that is measured, not asserted: GDBus creates the nonce file **mode 0600**, binds **127.0.0.1 only**, and a client that opens the port without sending the 16 nonce bytes gets no reply at all (the connection times out). The 0600 is spec-checked, so a GLib change or a wrong flag surfaces as a failing test rather than as an open control plane.
 
+### One export per CONNECTION, and flags per address FAMILY
+
+`DevtoolsService` keys its `Gio.DBusExportedObject`s **by connection**. A peer server hands out one connection per client and keeps no shared registry, so a single export slot served the FIRST client and left every later one seeing `UnknownMethod` for all 26 methods — the bug that made this per-connection.
+
+The flag follows the address family, not the OS: `unix:` gets `AUTHENTICATION_REQUIRE_SAME_USER` (the `EXTERNAL` uid match above), and `nonce-tcp:` MUST get `NONE`. Measured on gjs 1.88.1, `REQUIRE_SAME_USER` rejects every TCP client with *"Unexpected lack of content when trying to read a line"*, because TCP carries no peer credentials — which is why the nonce file's 0600 is the secret there.
+
+win32 is detected as `GLib.DIR_SEPARATOR === 92` — GLib's own introspected compile-time constant, so there is no `uname` probe and no extra dependency ([ADR 0018](../../../docs/adr/0018-os-axis-declaration.md)).
+
+### The published address is a CLAIM, and the bridge VERIFIES it
+
+The address file (`devtoolsAddressFilePath`) outranks the session bus, because it is positive evidence that an app of that id is listening NOW. Nothing makes it true, though: it is removed on `unexport()` and on `GApplication::shutdown`, and shutdown covers SIGTERM but **not** SIGINT or SIGKILL. Worse off Linux — on macOS and Windows `GLib.get_user_runtime_dir()` degrades to the user CACHE directory, where a leftover file survives REBOOTS.
+
+So `connectToDevtools` dials, then falls back: a published address that does not answer (`G_IO_ERROR_NOT_FOUND`, measured) is DELETED and resolution continues down the precedence to the session bus, or to the diagnostic naming all three ways in — never a raw localised GIO error out of `runDevtoolsMcp`'s first statement.
+
+An EXPLICIT `--address` / `GJSIFY_DEVTOOLS_ADDRESS` does **not** fall back. It is pinned on both sides, so a dead one has to be reported rather than routed around.
+
+A peer call carries no destination bus name at all, so `nameHasOwner` / `listInstances` answer from the connection instead of from a daemon.
+
 ## Generic methods (out of the box)
 
-`GetStatus`, `Screenshot` (GSK widget snapshot PNG), `ListActions` / `ActivateAction` / `ChangeActionState` (GAction bridge), `PresentWindow`, `ResizeWindow`, plus full introspection: `ListToplevels`, `DumpTree`, `GetProperty` (by index path), `GetFocused`, `DumpGSettings`, `DumpCss` / `SwapCss` (live CSS hot-swap).
+| method | signature | what it does |
+|---|---|---|
+| `Screenshot` | `(scope: s) -> ay` | PNG bytes. `scope` `''`/`window` shoots the active window; a widget path shoots ONE widget. |
+| `DumpTree` | `-> s` | the widget tree as JSON, with stable `toplevel:N/child:M` paths. |
+| `GetProperty` | `(path, prop) -> s` | read one property off the widget at `path`. |
+| `GetFocused` / `ListToplevels` | `-> s` | the focused widget's path; the toplevel list. |
+| `FindWidget` | `(selector) -> s` | first VISIBLE+mapped match for `Type`, `:css-class` or `Type:css-class`, depth-first from the active window; `''` when none. |
+| `SendKey` | `(accel, path) -> b` | deliver a key to a widget's key controllers; an empty path means the FOCUSED widget. |
+| `ActivateWidget` | `(path) -> b` | click-drive: `gtk_widget_activate` for Button/Entry/Toggle, with a `GtkListBox` select-row / `row-activated` fallback for nav and preference rows. |
+| `GetStatus` | `-> s` | liveness + whatever extensions contribute. |
+| `ListActions` / `ActivateAction` / `ChangeActionState` | | the GAction bridge. |
+| `ResizeWindow` / `PresentWindow` | | window control. |
+| `DumpCss` / `SwapCss` | | live CSS hot-swap. |
+| `DumpGSettings` | `-> s` | the app's GSettings. |
 
 GActions are auto-bridged into the command registry (handling the `Adw.ApplicationWindow` non-export gotcha via `winActionGroup`).
+
+Three of those need their reason stated, because the obvious use is the wrong one:
+
+- **`FindWidget` exists because widget paths are POSITIONAL.** A `toplevel:0/child:3` written into a script is wrong the moment a widget is inserted above it, and every click-driving caller was re-walking `DumpTree` JSON in its own language to avoid that.
+- **`SendKey` is the half of headless driving `ActivateWidget` does not cover.** Nothing could be TYPED, so every `Gtk.EventControllerKey` handler was unverifiable. It emits `key-pressed` on the widget's own controllers rather than fabricating a `Gdk.Event` — GTK4 made events opaque with no public constructor — so it proves the HANDLER, not GDK's routing. Pair it with `GetProperty(path, "focusable")`: an unfocusable widget swallows every real key silently.
+- **`ActivateWidget` is the mutating counterpart of `GetProperty`.**
+
+`opts.extend` adds app-specific methods (§ below); `opts.instance` / `GJSIFY_DEVTOOLS_INSTANCE` scope a multi-instance app.
+
+### Calling one by hand
+
+```bash
+gdbus call --session --dest <app-id> --object-path <path>/devtools \
+  --method org.gjsify.Devtools.Screenshot ""
+```
+
+That returns an `ay` variant. `gdbus` itself cannot save binary, so unpack it from a tiny GJS caller.
 
 ## App-specific methods — a `DevtoolsExtension`
 
