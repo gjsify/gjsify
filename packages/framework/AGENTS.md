@@ -65,8 +65,7 @@ The element model UI-framework renderers (Vue/React/Solid/Angular) bind to — *
 
 ### GTK→DOM Event Bridge (`@gjsify/event-bridge`)
 
-`attachEventControllers(widget, getElement)` attaches GTK4 controllers → DOM events: EventControllerMotion→pointer/mouse move+enter/leave/over/out | GestureClick→pointer/mouse down/up, click, dblclick, contextmenu | EventControllerScroll→wheel | EventControllerKey→keydown/keyup | EventControllerFocus→focus/focusin/blur/focusout. W3C UIEvents dispatch; GTK widget-relative coords → offsetX/Y/clientX/Y; `key-map.ts` maps ~80 Gdk keyvals → DOM key/code (L/R modifiers, Numpad location). Canvas2D/WebGL bridges call it in their constructors. Event classes live in `@gjsify/dom-events`.
-
+`attachEventControllers(widget, getElement)` → UIEvents/PointerEvents on the element; table, `key-map.ts`, design: [event-bridge/README.md](event-bridge/README.md). **Two pointer sources, kept apart (measured on a real finger):** `EventControllerMotion` emits 0 `motion` for a finger and `GestureClick` strands its press on multi-finger input, so mouse/pen stay on Motion + GestureClick, the touchscreen goes `EventControllerLegacy` → `touch-pointers.ts` (a PointerEvent stream per `GdkEventSequence`, PE L3 compat mouse events, no gesture semantics, no `TouchEvent`), and touch-sourced GestureClick signals are IGNORED.
 ### Context factory registry
 
 `HTMLCanvasElement.registerContextFactory` — `@gjsify/canvas2d` registers `'2d'` (Cairo); `@gjsify/webgl` registers `'webgl'`/`'webgl2'` via subclass override + fallthrough.
