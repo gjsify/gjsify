@@ -1,0 +1,300 @@
+---
+title: Effect
+description: Typed errors from GIO, cancellation that actually stops the read, and cleanup that runs when the window closes. Effect's platform services over Gio.File and GLib, for GNOME apps written in TypeScript.
+---
+
+import CommandTabs from '../../../components/CommandTabs.astro';
+
+Three things are awkward in every GJS app, and none of them is about widgets:
+
+- **Every GIO failure looks the same.** A missing file, a permissions problem and a broken
+  symlink all arrive as a `GLib.Error` carrying a number, and the number only means something
+  once you know which domain produced it.
+- **Nothing stops a read you no longer want.** The user closes the window; the directory
+  listing keeps going, finishes, and calls back into a widget that is gone.
+- **Cleanup is on you.** There is no place to say "release this when that window goes away",
+  so it either happens by hand or it happens when the garbage collector feels like it.
+
+[Effect](https://effect.website) is a TypeScript library that answers all three, and
+`@gjsify/effect-platform` is its implementation over GNOME's own APIs: `Gio.File`, GLib, and
+GObject lifetimes.
+
+:::tip[This is not a UI framework]
+Effect does not render anything and does not replace Blueprint, Solid, Vue or React. Your
+window stays exactly what it was; Effect runs the work behind it. See
+[UI Frameworks](/gjsify/frameworks/) for the rendering half.
+:::
+
+## Install
+
+Effect itself runs on GJS unchanged — it is an ordinary npm dependency and needs nothing from
+us.
+
+<CommandTabs title="Install" group="pm">
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify install effect @gjsify/effect-platform
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npm install effect @gjsify/effect-platform
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun add effect @gjsify/effect-platform
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno add npm:effect npm:@gjsify/effect-platform
+    ```
+  </Fragment>
+</CommandTabs>
+
+:::caution[Not on npm yet]
+`@gjsify/effect-platform` is new and its first release has not been published, so the install
+above will 404 until it is. Until then you can copy the layers out of the
+[`effect-adw-services` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/effect-adw-services),
+which is what this page's examples are taken from.
+:::
+
+The package has two entry points, and which one you import decides what your code pulls in:
+
+| import | what you get | needs GTK |
+|---|---|---|
+| `@gjsify/effect-platform` | `effect/FileSystem` on `Gio.File`, `effect/Path` on GLib, GIO errors as tags | no |
+| `@gjsify/effect-platform/gtk` | scopes tied to widget lifetimes, GObject signals as streams | yes |
+
+The first one reaches GLib and GIO and nothing else, so you can use it from a CLI, a daemon or
+a test with no display.
+
+## Read a file, and know why it failed
+
+Ask for the service you need, and provide the layer once when you run the program.
+
+```ts
+import { Effect } from 'effect';
+import * as FileSystem from 'effect/FileSystem';
+import { fileSystemLayer } from '@gjsify/effect-platform';
+
+const listConfig = Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    return yield* fs.readDirectory('/etc');
+});
+
+const names = await Effect.runPromise(Effect.provide(listConfig, fileSystemLayer));
+```
+
+The interesting part is what happens when it fails. A `GLib.Error` becomes one of eleven
+normalized tags, so you can branch on the reason instead of on a number:
+
+```ts
+const outcome = Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    return yield* fs.readDirectory(path);
+}).pipe(
+    Effect.catchTag('PlatformError', (error) => {
+        switch (error.reason._tag) {
+            case 'NotFound':
+                return Effect.succeed('no such directory');
+            case 'PermissionDenied':
+                return Effect.succeed('you are not allowed to read that');
+            default:
+                // Every other reason still carries GIO's own message.
+                return Effect.succeed(error.reason.description ?? error.message);
+        }
+    }),
+);
+```
+
+The tags are Effect's, not ours, which is the point: the same code works against
+`@effect/platform-node`'s layer if you ever run it off GNOME.
+
+:::note[Why the domain matters]
+`Gio.IOErrorEnum.NOT_FOUND` and `GLib.FileError.ISDIR` are both `1`. Reading the code without
+its domain reports *is a directory* as *not found*, and nothing downstream can tell. The
+mapping checks the domain, and a GIO code Effect has no tag for comes back `Unknown` with its
+original message rather than a plausible near miss.
+:::
+
+## Stop work when the window closes
+
+This is the part that has no equivalent in a plain GJS app. Give the window a scope, start
+work inside it, and closing the window interrupts everything it started — including the read
+in flight, because the interrupt reaches GIO's own `Gio.Cancellable`.
+
+```ts
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
+import { Effect } from 'effect';
+import * as FileSystem from 'effect/FileSystem';
+import { fileSystemLayer } from '@gjsify/effect-platform';
+import { runInScope, windowScope, type WidgetScope } from '@gjsify/effect-platform/gtk';
+
+export class MyWindow extends Adw.ApplicationWindow {
+    static { GObject.registerClass(MyWindow); }
+
+    readonly lifetime: WidgetScope;
+
+    constructor(params: Partial<Adw.ApplicationWindow.ConstructorProps> = {}) {
+        super(params);
+
+        // Closed when the window is closed OR disposed, whichever comes first.
+        this.lifetime = windowScope(this);
+
+        // Owned by that scope: closing the window interrupts it.
+        runInScope(this.lifetime.scope, Effect.provide(this.loadEverything(), fileSystemLayer));
+    }
+
+    private loadEverything(): Effect.Effect<void, never, FileSystem.FileSystem> {
+        return Effect.gen(function* () {
+            const fs = yield* FileSystem.FileSystem;
+            yield* fs.readDirectory('/etc');
+        }).pipe(Effect.orDie);
+    }
+}
+```
+
+A promise cannot be cancelled, so a `readDirectory` started with `await` runs to completion no
+matter what the user does. A fiber can, and here the cancellation is not just bookkeeping: the
+GIO call stops.
+
+:::caution[`destroy` is not when the window closes]
+`GtkWidget::destroy` is emitted from *dispose*, and your application holds a reference to its
+own window — so `window.destroy()` emits `unrealize` and no `destroy` at all. A scope hooked to
+`destroy` alone keeps a closed window's work running.
+
+That is why there are two functions. `windowScope(window)` closes on `close-request` **or**
+`destroy` and is what you want for a window. `widgetScope(widget)` closes only on `destroy`,
+which is the later, stricter boundary: after it, touching the widget is a GJS error.
+:::
+
+## A signal as a stream
+
+`propertyStream` turns a GObject property into a stream of its values, starting with the one
+it has now. From there the usual stream operators apply — and `switchMap` gives you something
+that is real work to write by hand: each new value **interrupts** the work the previous one
+started.
+
+```ts
+import { Duration, Effect, Stream } from 'effect';
+import { propertyStream, runInScope } from '@gjsify/effect-platform/gtk';
+
+const watchPath = propertyStream(this._pathRow, 'text', () => this._pathRow.get_text()).pipe(
+    Stream.debounce(Duration.millis(250)),
+    Stream.filter((path) => path.trim().length > 0),
+    // A new keystroke interrupts the read the last one started.
+    Stream.switchMap((path) => Stream.fromEffect(this.readDirectory(path))),
+    Stream.runForEach((result) => Effect.sync(() => this.render(result))),
+);
+
+runInScope(this.lifetime.scope, Effect.provide(watchPath, fileSystemLayer));
+```
+
+You pass the getter (`() => row.get_text()`) rather than only the property name, because the
+GObject name and the JavaScript name differ often enough (`icon-name` is `iconName`) that
+guessing between them would be wrong some of the time.
+
+### One rule: handlers stay synchronous
+
+A GTK signal handler runs synchronously, and some of them return a value GTK reads
+immediately — `Gtk.EventControllerKey::key-pressed` returns a boolean that decides whether the
+key propagates. An `async` handler returns a Promise, which is truthy, so it would swallow
+every key it was asked about.
+
+So: **decide in the handler, fork the work.**
+
+```ts
+private onKeyPressed(keyval: number): boolean {
+    if (keyval !== Gdk.KEY_Escape) return false;   // decided, now, synchronously
+    runInScope(this.lifetime.scope, this.reloadParent());  // work runs as a fiber
+    return true;
+}
+```
+
+`runInScope` returns a `Fiber`, not a promise, precisely because there is nothing in a handler
+that could await one. If you need the outcome, `fiber.addObserver(exit => …)` is synchronous
+and one line.
+
+## Paths
+
+`effect/Path` over GLib, for when you want GNOME's own filename handling rather than a second
+copy of it:
+
+```ts
+import { Effect } from 'effect';
+import * as Path from 'effect/Path';
+import { pathLayer } from '@gjsify/effect-platform';
+
+const parentOf = (input: string) =>
+    Effect.gen(function* () {
+        const path = yield* Path.Path;
+        return path.dirname(path.resolve(input));
+    });
+
+const parent = await Effect.runPromise(Effect.provide(parentOf('~/Documents/notes.md'), pathLayer));
+```
+
+`join` is `g_build_filenamev`, `resolve` is `g_canonicalize_filename`, and the file-URL pair is
+`g_filename_{from,to}_uri` — the same encoding GIO round-trips. Everything else follows Node's
+`path.posix` rules exactly, and there is a test that compares the two implementations operation
+by operation to keep it that way.
+
+### Both services at once
+
+A program that names two services needs both layers, merged into one:
+
+```ts
+import { Effect, Layer } from 'effect';
+import * as FileSystem from 'effect/FileSystem';
+import * as Path from 'effect/Path';
+import { fileSystemLayer, pathLayer } from '@gjsify/effect-platform';
+
+const Services = Layer.mergeAll(fileSystemLayer, pathLayer);
+
+const program = Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    return yield* fs.readDirectory(path.resolve('~/Documents'));
+});
+
+const entries = await Effect.runPromise(Effect.provide(program, Services));
+```
+
+Build that once and pass it everywhere. Swapping in `@effect/platform-node`'s layers changes
+nothing else in your code, which is the property that makes the abstraction worth having.
+
+## What is not implemented
+
+Three methods raise a defect rather than guess, because GIO has no equivalent:
+
+| method | why |
+|---|---|
+| `realPath` | GIO has no canonicalizer that resolves symlinks; the string-only ones would return a plausible wrong answer |
+| `link` | there is no hard-link call, only `g_file_make_symbolic_link` |
+| `glob` | GIO ships no matcher |
+
+Three more are implemented but **not interruptible**, because their async forms are not usable
+from GJS: `copy`, `copyFile` and `rename` block the fiber while they run. Everything else can
+be cancelled.
+
+`watch` maps GIO's file-monitor events onto Effect's three `WatchEvent` shapes; a rename inside
+the watched directory currently surfaces as nothing, because GIO reports it as one `RENAMED`
+event that has no counterpart.
+
+## What it costs
+
+Importing Effect and running one effect adds about **25 KB** to a GJS bundle and **2 ms** to
+cold start. A real GTK window using these layers lands in the same size class as comparable
+windows that use no Effect at all — tree-shaking works, and you pay for what you import.
+
+## Where to look next
+
+- [effect.website](https://effect.website) for Effect itself — this page assumes nothing about
+  it beyond `Effect.gen`, `Effect.provide` and `Stream`.
+- The [`effect-adw-services` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/effect-adw-services)
+  is a complete window built this way, and every snippet above is taken from it.
+- [UI Frameworks](/gjsify/frameworks/) for the rendering half, which Effect deliberately does
+  not touch.
