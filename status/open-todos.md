@@ -1939,6 +1939,54 @@ second row (a name-based deny-list is ugly; a `gjsify.nodeOnly` manifest flag is
 honest) or whether "fails further in" is acceptable. Nobody has hit it yet
 because every host that runs those has Node.
 
+### `Adw.Avatar:custom-image` has no NativeScript counterpart, and the blocker is the CLIP
+
+`AdwAvatar` on `@gjsify/adwaita-nativescript` now carries four of its GType's five
+writable properties — `text`, `size`, `showInitials` and `iconName`. The fifth,
+`custom-image`, is not there, and the reason it is an entry rather than a fix is worth
+stating precisely, because the property's own header comment used to give the wrong one
+("the CSS-subset widget has no icon-theme lookup") for the two that WERE implementable.
+
+The VALUE is not the obstacle. `Adw.Avatar:custom-image` is a `GdkPaintable`, and
+NativeScript's honest counterpart is `ImageSource` (a decoded `android.graphics.Bitmap`
+/ `UIImage`) or the `src` string an `Image` already accepts — the browser element next
+door settled the same question by taking an image URL. The obstacle is that
+`update_visibility` puts the image INSIDE a circle, and this port cannot show that a
+NativeScript view clips a bitmap to one:
+
+  · `packages/nativescript-bridge/AGENTS.md` records the measured fact that NS does not
+    clip children to a parent's border-radius — which is why every row here is
+    transparent and the `.boxed-list` card paints the rounded fill. So the avatar's own
+    `GridLayout` radius will not clip a child `Image`.
+  · An `Image` carrying its OWN `borderRadius` is a different question and the answer is
+    per-platform. iOS sets `clipsToBounds = true` on every image
+    (refs/nativescript/packages/core/ui/image/index.ios.ts:88#clipsToBounds), so a layer
+    corner radius clips there. Android routes background *and* the four corner radii
+    into one `org.nativescript.widgets.BorderDrawable.refresh(…)` call
+    (refs/nativescript/packages/core/ui/styling/background.android.ts:79#borderDrawable.refresh),
+    which is the BACKGROUND drawable — an `ImageView`'s own drawable is painted above it,
+    and whether that one is clipped is Java this repo does not vendor.
+  · A `background-image` on the avatar's GridLayout would go through that same
+    `BorderDrawable` and might therefore be clipped for free. That is an inference from
+    one call signature, not a measurement, and `background-size: cover` is a second
+    unmeasured assumption on top of it.
+
+So the honest state is: one of two plausible implementations, neither verified, on a
+port whose iOS half is unverified on device at all (#1051). What closes this is a run,
+not a design decision — set a square photo on an avatar under both spellings on an
+Android emulator and an iOS device, and see which (if either) comes out round. Until
+then a `customImage` setter would be a property that silently draws a square where GTK
+draws a circle, which is the shape this repo treats as the defect rather than the
+fallback.
+
+Note for whoever picks it up: `avatarMode` in `@gjsify/adwaita-core` already returns
+`'image'`, `avatarVisibilities` in `widgets/avatar-view.ts` already answers for it, and
+`AdwAvatar._applyMode` passes a hardcoded `hasCustomImage: false` with a comment saying
+so. The wiring is one property and one child view; only the clip is open. The vocabulary
+ledger cannot hold this: `NS_PROPERTY_ALIGNMENT` measures properties the PORT has that
+the GIR counterpart does not, so a GIR property the port LACKS is invisible to it and to
+every other gate in the tree.
+
 ### 83 scalar GIR properties no `adw-*` element observes yet
 
 `<adw-alert-dialog>` shipped observing FOUR attributes while `Adw.AlertDialog` carries

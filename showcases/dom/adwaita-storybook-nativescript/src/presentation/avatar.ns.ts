@@ -4,7 +4,25 @@
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { Adw } from '@gjsify/adwaita-nativescript';
+import { contactNewSymbolic } from '@gjsify/adwaita-icons/actions';
+import { cameraPhotoSymbolic } from '@gjsify/adwaita-icons/devices';
+import { avatarDefaultSymbolic } from '@gjsify/adwaita-icons/status';
 import { avatarMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
+
+/**
+ * The `iconName` control's three theme names, mapped to the SVGs this renderer draws.
+ *
+ * The control is shared with the GTK and browser stories, where the value is an
+ * icon-theme NAME and the toolkit resolves it. NativeScript resolves nothing — the SVG
+ * source IS the icon identity here — so the story does for three known names what the
+ * platform does for all of them. A name outside the map leaves `iconName` empty, which
+ * falls back to the widget's own default rather than to a blank avatar.
+ */
+const ICON_SVGS: Readonly<Record<string, string>> = {
+    'avatar-default-symbolic': avatarDefaultSymbolic,
+    'contact-new-symbolic': contactNewSymbolic,
+    'camera-photo-symbolic': cameraPhotoSymbolic,
+};
 
 export class AvatarNsStory extends StoryView {
     private _avatar: Adw.Avatar | null = null;
@@ -31,12 +49,8 @@ export class AvatarNsStory extends StoryView {
         if (!this._avatar) return;
         this._avatar.text = this.args.text as string;
         this._avatar.size = this.args.size as number;
-        // Adw.Avatar (NS) supports `text` (→ derived initials) and `size` only: the
-        // CSS-subset avatar has no icon-theme lookup, so it always shows derived
-        // initials and there is nothing `showInitials`/`iconName` could switch. Read
-        // them so the controls stay bound to this rendering too.
-        void (this.args.showInitials as boolean);
-        void (this.args.iconName as string);
+        this._avatar.showInitials = this.args.showInitials as boolean;
+        this._avatar.iconName = ICON_SVGS[this.args.iconName as string] ?? '';
     }
 }
 

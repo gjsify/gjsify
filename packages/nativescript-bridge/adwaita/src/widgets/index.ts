@@ -77,7 +77,7 @@ export {
 export type { MenuSheetPresenter, MenuSheetRow } from './menu-sheet.js';
 export { GtkImage, DEFAULT_GTK_IMAGE_SIZE } from './gtk-image.js';
 export { AdwBanner, BUTTON_CLICKED } from './adw-banner.js';
-export { AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';
+export { AVATAR_DEFAULT_ICON, AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';
 export { AdwWindowTitle } from './adw-window-title.js';
 export { AdwClamp, DEFAULT_CLAMP_MAX_SIZE } from './adw-clamp.js';
 

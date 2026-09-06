@@ -9,6 +9,7 @@ import {
     avatarColor,
     avatarColorClass,
     avatarFontSize,
+    avatarIconSize,
     avatarInitials,
     avatarMaxFontSize,
     avatarMode,
@@ -20,6 +21,7 @@ import { glibClamp } from './glib.js';
 import {
     AVATAR_COLOR_VECTORS,
     AVATAR_FONT_SIZE_VECTORS,
+    AVATAR_ICON_SIZE_VECTORS,
     AVATAR_INITIALS_VECTORS,
     AVATAR_MODE_VECTORS,
 } from './conformance/avatar.js';
@@ -118,6 +120,36 @@ export default async () => {
 
         await it('falls back to the cap when nothing has been measured yet', () => {
             expect(avatarFontSize(48, { width: 0, height: 0 })).toBeCloseTo(avatarMaxFontSize(48), 6);
+        });
+    });
+
+    await describe('avatarIconSize (adw_avatar_set_size, adw-avatar.c:756)', async () => {
+        for (const { size, iconSize } of AVATAR_ICON_SIZE_VECTORS) {
+            await it(`size ${size} -> ${iconSize} — gtk_image_set_pixel_size(icon, size / 2)`, () => {
+                expect(avatarIconSize(size)).toBe(iconSize);
+            });
+        }
+
+        await it('never draws the glyph outside the circle it sits in', () => {
+            // A box larger than the inscribed square `size / 1.4142` sticks out of a
+            // round avatar. The C's half-size clears it; the `round(size * 0.55)` this
+            // replaced also did, which is why the bound alone never noticed the drift.
+            const outside: number[] = [];
+            for (let size = 16; size <= 256; size++) {
+                if (avatarIconSize(size) > size / 1.4142) outside.push(size);
+            }
+            expect(outside).toStrictEqual([]);
+        });
+
+        await it('is monotonic and integral', () => {
+            const regressions: number[] = [];
+            let previous = -1;
+            for (let size = 16; size <= 256; size++) {
+                const box = avatarIconSize(size);
+                if (box < previous || !Number.isInteger(box)) regressions.push(size);
+                previous = box;
+            }
+            expect(regressions).toStrictEqual([]);
         });
     });
 
