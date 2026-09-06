@@ -49,7 +49,12 @@ export class AdwSpinner extends GridLayout {
         const indicator = new ActivityIndicator();
         indicator.className = 'adw-spinner-ring';
         indicator.horizontalAlignment = 'center';
-        indicator.verticalAlignment = 'center';
+        // `'middle'`, not `'center'`: `CoreTypes.VerticalAlignmentType` is
+        // `'top' | 'middle' | 'bottom' | 'stretch'`. Both behave the same at runtime —
+        // NativeScript aliases the one to the other in `VerticalAlignmentText.parse`
+        // (`core-types/index.js:112`) — but only `'middle'` type-checks against the
+        // real `@nativescript/core`. The horizontal axis DOES spell it `'center'`.
+        indicator.verticalAlignment = 'middle';
         this._indicator = indicator;
         this.addChild(indicator);
 
