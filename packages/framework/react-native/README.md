@@ -32,6 +32,24 @@ a real `react-native` install when one is resolvable — and it prints which of 
 it did, because a gate that silently degrades to the weaker half is worse than one
 that has only the weaker half.
 
+### The names this layer ADDS are DERIVED, not table rows
+
+The support table answers for *React Native's* names. The ones this layer adds on top —
+`configureStyle`, `primitives`, the table's own readers — may not be table keys at all, and
+the gate refused the package's own API until they had a home. They do: `src/generated/own-exports.ts`,
+derived from `src/index.ts` rather than hand-listed.
+
+An unimplemented name is a generated **refusing export**, never an absent one. The difference is
+the diagnostic: `MISSING_EXPORT` says the name is unknown, whereas the table says it is P2 over
+`Gtk.ListView`. Read the TABLE for any question about coverage — a list written into prose drifted
+once already, omitting the whole list family, the bindings and routing.
+
+Two constraints fall out of the generator and are easy to trip:
+
+- **`src/primitives/table.ts` and `src/primitives/answers.ts` may hold NO relative value import.**
+  The generator imports them under Node's type stripping, and Node does not rewrite `./x.js` to `./x.ts`.
+- **A new `ref` handle is a table row**, never something a binding assembles.
+
 ## The PROP surface is a contract too, and it is published
 
 The support table answers "may this application import this name". One grain finer

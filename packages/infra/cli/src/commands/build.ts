@@ -122,6 +122,11 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                 type: 'string',
                 choices: [...SOURCE_DIALECTS],
             })
+            .option('gi-renderer', {
+                description:
+                    "Resolve `gi://Ns?version=X` to the target's widget renderer instead of an empty module (ADR 0034 stage 9): --app browser answers gi://Adw and gi://Gtk out of @gjsify/adwaita-web, --app nativescript out of @gjsify/adwaita-nativescript. A namespace with no renderer, and a ?version= the renderer's vocabulary was not generated against, both FAIL the build by name. Off by default — a gi:// import on those targets is usually a GJS-only code path pulled in transitively.",
+                type: 'boolean',
+            })
             .option('console-shim', {
                 description:
                     'Inject a console shim into GJS builds for clean output without the GLib prefix and with working ANSI colors. Use --no-console-shim to disable. Only applies to GJS app builds.',

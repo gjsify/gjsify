@@ -36,6 +36,7 @@ import type { AdwComboOption, AdwListModelInput } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when {@link GtkDropDown.selected} changes through a pick. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
@@ -60,7 +61,7 @@ export class GtkDropDown extends StackLayout {
     /** Title shown atop the substituted `action()` sheet. */
     private _chooserTitle = '';
 
-    constructor() {
+    constructor(props?: ConstructProps<GtkDropDown>) {
         super();
 
         this.orientation = 'horizontal';
@@ -105,6 +106,8 @@ export class GtkDropDown extends StackLayout {
         });
         // ...and the button darkens while held, like an Adwaita button `:active`.
         attachRowPressFeedback(this);
+
+        applyConstructProps(this, props);
     }
 
     /** Open the native chooser and apply the picked option. */

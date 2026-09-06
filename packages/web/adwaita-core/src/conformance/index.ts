@@ -70,10 +70,17 @@ export type {
 export {
     AVATAR_COLOR_VECTORS,
     AVATAR_FONT_SIZE_VECTORS,
+    AVATAR_ICON_SIZE_VECTORS,
     AVATAR_INITIALS_VECTORS,
     AVATAR_MODE_VECTORS,
 } from './avatar.js';
-export type { AvatarColorVector, AvatarFontSizeVector, AvatarInitialsVector, AvatarModeVector } from './avatar.js';
+export type {
+    AvatarColorVector,
+    AvatarFontSizeVector,
+    AvatarIconSizeVector,
+    AvatarInitialsVector,
+    AvatarModeVector,
+} from './avatar.js';
 
 // --- Action-row family (Adw.ActionRow/SwitchRow/ButtonRow/WindowTitle) vectors ---
 export {

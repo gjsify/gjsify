@@ -764,7 +764,7 @@ export class BuildAction {
             );
         }
 
-        const { consoleShim, globals, dialect } = this.configData;
+        const { consoleShim, globals, dialect, giRenderer } = this.configData;
 
         const userExternal = Array.isArray(userBundler.external) ? (userBundler.external as string[]) : undefined;
         const userBanner =
@@ -778,6 +778,7 @@ export class BuildAction {
             reflection: typescript?.reflection,
             consoleShim,
             ...(dialect !== undefined ? { dialect } : {}),
+            ...(giRenderer === true ? { giRenderer: true } : {}),
             ...(aliases ? { aliases } : {}),
             ...(opts.preserveDefaultExport ? { preserveDefaultExport: true } : {}),
             ...(opts.toolchainAnchor !== undefined ? { toolchainAnchor: opts.toolchainAnchor } : {}),

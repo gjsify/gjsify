@@ -28,6 +28,7 @@ export {
     MENU_ITEM_ACTIVATED,
     DEFAULT_GTK_IMAGE_SIZE,
     BUTTON_CLICKED,
+    AVATAR_DEFAULT_ICON,
     DEFAULT_AVATAR_SIZE,
     avatarInitials,
     DEFAULT_CLAMP_MAX_SIZE,
@@ -89,6 +90,10 @@ export {
     NOTIFY_RESPONSE,
     ABOUT_CLOSED,
     PREFERENCES_CLOSED,
+    // Construct properties (ADR 0034 § 4)
+    applyConstructProps,
+    nsAlignment,
+    GTK_ALIGN,
     // Interaction + icon helpers
     attachRowPressFeedback,
     renderSymbolicIcon,
@@ -165,6 +170,8 @@ export type {
     AdwResponseAppearance,
     AdwResponseOptions,
     OrderedConfirmResponses,
+    // Construct properties
+    ConstructProps,
     // Icon helpers
     SymbolicIconOptions,
     IconPath,

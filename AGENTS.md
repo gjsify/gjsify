@@ -165,11 +165,12 @@ axis 6 bundled toolchains → [docs/bundled-toolchains.md](docs/bundled-toolchai
 Every AGENTS.md ≤ 20 KB, nothing over 32 KiB: that is `project_doc_max_bytes`, where Codex
 silently truncates the tail with no warning. This file reached 277 KB before it was split, one
 defensible paragraph at a time. Held by `scripts/check-agent-context-size.mjs --check`: the 32 KiB
-cap plus an EXACT per-file ceiling. This file and `packages/framework/AGENTS.md` are over the
-20 KB target, so the gate catches REGROWTH instead of claiming the target is met. Exact means
-BELOW fails too: touch a context file, `--update`, commit `status/agent-context-budget.json` with
-it. Slack is what two concurrent PRs each spend in full, and that ledger line is what makes them
-collide in git rather than on `main` ([docs/governance.md](docs/governance.md) § Concurrent PRs).
+cap plus an EXACT per-file ceiling. Several files are over the 20 KB target — the check PRINTS
+which, and a list here goes stale as OTHER files grow — so the gate catches REGROWTH instead of
+claiming the target is met. Exact means BELOW fails too: touch a context file, `--update`, commit
+`status/agent-context-budget.json` with it. Slack is what two concurrent PRs each spend in full,
+and that ledger line is what makes them collide in git rather than on `main`
+([docs/governance.md](docs/governance.md) § Concurrent PRs).
 
 **Where content goes.** True repo-wide → this file. Scoped to one subtree → that subtree's
 AGENTS.md, authoritative there. The INCIDENT behind a rule, a lookup table, a rare procedure →

@@ -21,6 +21,7 @@ import type { View } from '@nativescript/core';
 import { ScrollView, StackLayout } from '@nativescript/core';
 import type { NsSearchableGroup, NsSearchablePage } from './preferences-search.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
     /** The vertical stack that actually holds the groups. */
@@ -31,7 +32,7 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
     private _iconName = '';
     private _useUnderline = false;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwPreferencesPage>) {
         super();
 
         this.orientation = 'vertical';
@@ -44,6 +45,8 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
         // ScrollView holds exactly one scrollable child via its `content` slot.
         this.content = content;
         this._content = content;
+
+        applyConstructProps(this, props);
     }
 
     /**

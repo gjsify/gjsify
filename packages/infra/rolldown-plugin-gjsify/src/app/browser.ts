@@ -2,7 +2,11 @@
 //
 // Browser builds redirect `@girs/*` and `gi://*` to an empty virtual module
 // (they appear transitively via `@gjsify/unit` and similar packages with
-// GJS-specific code paths). Bare Node specifiers + their `node:*` prefix
+// GJS-specific code paths) — unless `--gi-renderer` composes the ADR 0034
+// stage 9 arm, which answers `gi://Adw` / `gi://Gtk` out of `@gjsify/adwaita-web`
+// and carves `@girs/*` out of the empty redirect so they reach it.
+//
+// Bare Node specifiers + their `node:*` prefix
 // variants are routed to `@gjsify/<X>` via the curated
 // `ALIASES_NODE_FOR_BROWSER` table, whose VALUES already carry the
 // per-runtimes-triplet slot routing (`@gjsify/<X>` → `@gjsify/<X>/browser` /
@@ -18,11 +22,12 @@ import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
-import { ALIASES_NODE_FOR_BROWSER, getDerivedAliasesSync } from '@gjsify/resolve-npm';
+import { ALIASES_NODE_FOR_BROWSER, GI_RENDERERS, getDerivedAliasesSync } from '@gjsify/resolve-npm';
 
 import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
+import { giRendererPlugin } from '../plugins/gi-renderer.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 
@@ -47,6 +52,9 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
 
     const exclude = input.pluginOptions.exclude ?? [];
     const entryPoints = await globToEntryPoints(input.input, exclude);
+    // The arm is composed only when asked for. `config.ts` already refuses the flag
+    // on a target with no row, so an undefined row here means the flag was not passed.
+    const giRenderer = input.pluginOptions.giRenderer ? GI_RENDERERS['browser'] : undefined;
 
     // Bare Node-builtin + `node:*` prefix aliases — both forms route to the
     // same `@gjsify/<X>` target. Generated deterministically from
@@ -119,7 +127,13 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
     const prePlugins: RolldownPluginOption[] = [deepkitPlugin({ reflection: input.pluginOptions.reflection })];
 
     const plugins: RolldownPluginOption[] = [
-        gjsImportsEmptyPlugin(),
+        // ADR 0034 stage 9 — the `gi://` arm, ahead of the empty redirect so it
+        // claims the specifier first, exactly as `gjsGiNodePlugin` does on the node
+        // target. `emptyGirs` follows it: with the arm on, `@girs/<ns>-<ver>` must
+        // reach its real body so its inner `gi://` lands here instead of being
+        // stranded as `{}`.
+        ...(giRenderer ? [giRendererPlugin({ app: 'browser', ...giRenderer })] : []),
+        gjsImportsEmptyPlugin({ emptyGirs: !giRenderer }),
         aliasPlugin({ entries: aliasEntries }),
         blueprintPlugin() as RolldownPluginOption,
         cssAsStringPlugin(),

@@ -38,6 +38,12 @@ export interface CliBuildOptions {
      */
     dialect?: string;
     /**
+     * Resolve `gi://Ns?version=X` to the target's widget renderer instead of an empty
+     * module — `--gi-renderer` (ADR 0034 stage 9). `browser` and `nativescript` targets.
+     * Default: unset; see `ConfigData.giRenderer` for why it is opt-in.
+     */
+    giRenderer?: boolean;
+    /**
      * Comma-separated global identifiers the code needs, e.g.
      * `"fetch,Buffer,process,URL,crypto"`. Each maps to the corresponding
      * `@gjsify/<pkg>/register` module, injected into the bundle. GJS app builds only.

@@ -55,6 +55,7 @@ import {
     type WrapBoxFlexInput,
 } from './wrap-box-layout.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Every `notify::` an `Adw.WrapBox` emits (adw-wrap-box.c:284-497). */
 export type AdwWrapBoxProperty =
@@ -89,11 +90,13 @@ export class AdwWrapBox extends FlexboxLayout {
     private _naturalLineLength = ADW_WRAP_BOX_NATURAL_LINE_LENGTH_UNSET;
     private _naturalLineLengthUnit: AdwLengthUnit = ADW_WRAP_BOX_DEFAULT_LENGTH_UNIT;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwWrapBox>) {
         super();
 
         this.className = 'adw-wrap-box';
         this._applyLayout();
+
+        applyConstructProps(this, props);
     }
 
     // --- child list ---

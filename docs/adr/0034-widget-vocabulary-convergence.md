@@ -19,7 +19,15 @@
   § Amendment 9 on `@gjsify/adwaita-nativescript` — the 43 prefixed widget classes gone
   from the package root, the namespace a MODULE there too, and the XML dialect moved to
   `<adw:PreferencesGroup>` over one barrel per library, the first time the CALLERS of a
-  surface are held by a gate rather than by a compiler.
+  surface are held by a gate rather than by a compiler. Three more on 2026-09-05:
+  § Amendment 10 (`AdwIcon` took its GIR name), § Amendment 11 (`openState` converged after
+  all, and the reasoning that said it could not is kept under a supersession note),
+  § Amendment 12, which lands the `gi://` arms behind an opt-in `--gi-renderer`, so
+  `import Adw from 'gi://Adw?version=1'` resolves to the renderer's `Adw` on `--app browser`
+  and `--app nativescript` instead of to an empty module, and § Amendment 13, which lands
+  stage 8 — the construct-props bag on all 46 NativeScript widgets, the first change here to
+  reach a CONSTRUCTOR, and the one that found § Context wrong about NativeScript's alignment
+  vocabulary.
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -708,6 +716,18 @@ asking whether a mapped type agrees with its own source: it does, by constructio
 
 ### 6. The end state is a `gi://` arm per surface, not a package that aliases `@girs`
 
+> **Refined in part by § Amendment 12 (2026-09-05)**, which is where this section was
+> implemented. Two clauses below moved. The third bullet — *"namespaces with no arm keep
+> falling through to the empty module … it must stay a NAMED refusal rather than an empty
+> object"* — asks for two different things at once, and the arm chose the refusal: under
+> `--gi-renderer` an unanswerable namespace FAILS THE BUILD from `resolveId` rather than
+> falling through, because the specifier already carries the answer and a fall-through is the
+> silence this stage exists to remove. And the arm is OPT-IN, which this section did not
+> anticipate. The rest — `resolveId` `pre`, the namespace-object default export, the
+> `emptyGirs:false` composition, the sparse browser `Gtk` needing member-level refusals —
+> landed as written.
+
+
 `@girs/*` cannot be aliased: it is types plus a two-line re-export of `gi://`, and on
 NativeScript there is no GI and no libgtk. What can be aliased is the specifier that
 already has per-target resolution. The arm is the sibling of `gjsGiNodePlugin`:
@@ -974,8 +994,8 @@ under which the free adoption stays free.
 | 5 | A `Gtk` docs section **beside** `Adwaita`: `controls.mdx` moves whole (0 Adwaita blocks on it), the two `Gtk.*` blocks on `buttons.mdx` follow, `redirects` keeps the old URLs the way the `/widgets/*` rename already does. | docs | old URLs, unless redirected — which is why the redirect is part of the stage | a `Gtk.*` block under the `Adwaita` heading, or an `Adw.*` block under `Gtk`; a moved page with no redirect entry |
 | 6 | **LANDED 2026-08-30**, see § Amendment 2. Extend the tables to properties, read against `packages/framework/gtk-host/src/generated/props.ts` (in-repo, GIR-derived, no install), on the NativeScript surface. Print the count. | NS | nothing | a settable property that is neither a key of its counterpart's props interface nor declared; a convergence target that is not a key; an entry for a property that IS a key, or that nothing sets any more |
 | 7 | Emit `Gtk` / `Adw` namespace objects for `adwaita-web` and `adwaita-nativescript`, plus the `~/gtk` XML barrel, from the § 1 ledger. | web, NS | nothing (additive) | a namespace member with no ledger entry; a ledger entry with a GIR counterpart and no namespace member; an object that disagrees with the **GIR tag set** |
-| 8 | Optional construct-props bag through the declared setters; nick coercion plus a `Gtk.Align` table held against the GIR. | NS | nothing (parameter is optional; XML still calls `new T()`) | an unknown key in the bag reaching a widget without throwing; a nick table member whose number disagrees with the GIR; `check-nativescript-xml-doors.mjs` on a setter that gained a door it did not declare |
-| 9 | The `gi://` arms: `--app nativescript` first, `--app browser` second, each `resolveId` `pre` plus `emptyGirs: false`. | NS, web | nothing | an e2e sibling of `tests/e2e/ns-bridge-bundles` per target that imports `gi://Adw?version=1`, constructs `Adw.ActionRow` and asserts the result — today both produce `Class extends value undefined` |
+| 8 | **LANDED 2026-09-05**, see § Amendment 13. Optional construct-props bag through the declared setters; nick coercion plus a `Gtk.Align` table held against the GIR. | NS | nothing (parameter is optional; XML still calls `new T()`) | an unknown key in the bag reaching a widget without throwing; a nick table member whose number disagrees with the GIR; `check-nativescript-xml-doors.mjs` on a setter that gained a door it did not declare |
+| 9 | **LANDED 2026-09-05**, see § Amendment 12 — both arms in one change rather than NS then web, and behind an OPT-IN `--gi-renderer`. The `gi://` arms: `--app nativescript` and `--app browser`, each `resolveId` `pre` plus `emptyGirs: false`. | NS, web | nothing (opt-in; a build that does not pass the flag is byte-identical) | `tests/e2e/gi-renderer-arms`, a sibling of `tests/e2e/ns-bridge-bundles`, per target: it imports `gi://Adw?version=1`, constructs `Adw.ActionRow` and asserts the result — and keeps the flag-LESS build as a permanent row, because that one still has to produce `Class extends value undefined` |
 
 Stages 1–4 and 6 are ledger-and-gate work; only stage 1 touches a package, and it touches
 one that nothing consumes. (Stage 4 adds a `gjsify.widgetVocabulary` block to four manifests,
@@ -2182,3 +2202,333 @@ What it does NOT change: the rest of that section stands. The six entries the le
 carries are structural — a widget (`titleWidget`, twice), a page object (`selectedPage`), a
 class list (`cssClasses`, twice) and a name where the port holds an index
 (`visibleChildName`) — and none of them is a collision.
+
+## Amendment 12, 2026-09-05 — the `gi://` arms, opt-in, and a refusal per granularity
+
+Stage 9 is in. `import Adw from 'gi://Adw?version=1'` now resolves to the target's widget
+renderer on `--app browser` and `--app nativescript` when the build passes `--gi-renderer`,
+which is the last of the two things keeping the website's *Native TypeScript* and
+*NativeScript* snippets from being the same text.
+
+### The red, measured before the change and kept as a permanent row
+
+`tests/e2e/gi-renderer-arms` builds `fixtures/probe.ts` — a `gi://` default import, a widget
+taken out of the namespace, and `class ProbeRow extends Adw.ActionRow {}` — and evaluates
+the bundle. Without the flag, on both targets:
+
+```
+TypeError: Class extends value undefined is not a constructor or null
+```
+
+which is the string this ADR's stage table predicted. The bundle rolldown emits for it is
+one line — `var e={},ProbeRow=class extends e.ActionRow{}` — and it needs no host at all,
+which is what makes that row usable as the suite's CONTROL rather than only as history.
+
+### What is now true, per target
+
+| | `--app browser` → `@gjsify/adwaita-web` | `--app nativescript` → `@gjsify/adwaita-nativescript` |
+|---|---|---|
+| flag-less bundle | 133 B, `Class extends value undefined` | 133 B, same |
+| `--gi-renderer` bundle | 500 202 B | 214 041 B |
+| `typeof Adw.ActionRow` | `function` | `function` |
+| `Object.getPrototypeOf(ProbeRow) === Adw.ActionRow` | true | true |
+| the class is the renderer's | `customElements.get('adw-action-row') === Adw.ActionRow`, 64 elements defined | `Adw.ActionRow.prototype instanceof` an `@nativescript/core` class |
+| `new ProbeRow()` | an `HTMLElement` | not asserted — see *what is left open* |
+| `import Adw from '@girs/adw-1'` | `function` with the flag, `undefined` without | same |
+| `gi://` / `@girs/` substrings left in the bundle | 0 / 0 | 0 / 0 |
+| `@nativescript/core` import clause | — | 1, still external |
+
+Suite: **19 tests, 19 passing**. Mutation-tested by making the arm's `resolveId` return
+`null`: **14 of the 19 go red**, and the 5 that stay green are exactly the rows that do not
+depend on the arm resolving anything — the two flag-less controls, the two "flag refused on a
+target with no arm" rows, and the version-provenance row. A second mutation gives the two
+`textual-mention` rows their own red: a `transform` hook that throws whenever the four
+characters appear in a module's SOURCE — a text-shaped arm — fails both of them, naming the
+defect (*"a gi:// string literal was read as an import"*), while every row that only exercises
+real imports stays green.
+
+### The four decisions, and what each was decided on
+
+**1. Which namespaces can be answered: `Adw` and `Gtk`, and nothing else.** Those are the
+namespace objects clause 2 puts on every renderer, and they are what a renderer HAS.
+Measured, per `scripts/adwaita-elements.mjs`' own reader against gtk-host's GIR-derived
+table (169 tags: 63 `adw-`, 106 `gtk-`):
+
+| surface | `Adw` members | `Gtk` members |
+|---|---:|---:|
+| `@gjsify/adwaita-web` | 44 of 63 | 9 of 106 |
+| `@gjsify/adwaita-nativescript` | 38 of 63 | 5 of 106 |
+
+**A namespace with no renderer fails the BUILD, by name**, from `resolveId` — it does not
+fall through to the empty module, which is the clause of § 6 this amendment refines in place.
+The specifier carries the namespace, so nothing has to run for the answer to be knowable, and
+the refusal prints what the arm does answer:
+
+```
+gjsify build --app browser: `gi://Gio?version=2.0` has no widget renderer. --gi-renderer
+answers Adw (version 1), Gtk (version 4.0) out of @gjsify/adwaita-web and nothing else …
+```
+
+**Sparseness needed a second refusal at a second granularity.** § 6 called the browser `Gtk`
+namespace sparse and said every absent member has to be a named refusal; the table above says
+both namespaces are sparse on both surfaces. A property access is not knowable from a
+specifier, so that one is a RUNTIME refusal — the emitted module wraps the renderer's
+namespace in a `Proxy` whose `get` throws for any member it does not have, naming the member,
+the renderer and the members it does have. Symbols and `then` pass through, because those are
+protocol probes and refusing them breaks the module instead of reporting a missing widget.
+Measured on `fixtures/absent-member.ts`, whose `AdwApplicationWindow` is a real libadwaita
+widget neither renderer ships:
+
+```
+the Adw arm (version 1) on --app browser: @gjsify/adwaita-web has no ApplicationWindow. …
+It has: AboutDialog, ActionRow, AlertDialog, Avatar, …
+```
+
+**2. `@girs/adw-1` is answered, through `emptyGirs: false`, exactly as § 6 said.** The arm
+claims `gi://` at `resolveId` `pre` ahead of `gjsImportsEmptyPlugin`, and the flag flips
+`emptyGirs` off on the same build, so `@girs/adw-1` resolves to its real body
+(`import Adw from 'gi://Adw?version=1'; export default Adw;`) and its inner `gi://` lands on
+the arm. Measured both ways: `typeof Adw.ActionRow` is `function` with the flag and
+`undefined` without it, on both targets — no lowercased-package→namespace map anywhere.
+
+The carve-out is not scoped to `@girs/adw-1`: with the flag on, EVERY `@girs/*` on that
+target reaches its real body. Instrumented across the 53 `--app browser` test entries in this
+repository, the only `@girs`/`gi://` specifier that reaches the empty-import plugin at all is
+**`@girs/gjs`, 7 times**, whose body is `globalThis.imports || {}` — no typelib, no `gi://`,
+harmless where it lands.
+
+**3. The emitted module exports `default` and nothing else**, because that is what GJS's
+`gi://` exports. Measured on gjs 1.88.1:
+
+| spelling | GJS |
+|---|---|
+| `import Adw from 'gi://Adw?version=1'` | an object; `typeof Adw.ActionRow === 'function'` |
+| `import * as Adw from 'gi://Adw?version=1'` | a namespace whose only key is `default` |
+| `import { ActionRow } from 'gi://Adw?version=1'` | `SyntaxError: … doesn't provide an export named: 'ActionRow'` |
+| `import Adw from 'gi://Adw?version=9'` | throws `Requiring Adw, version 9: Typelib file for namespace 'Adw', version '9' not found` |
+
+So the bridge converts a NAMED export of the renderer barrel (`export * as Adw`) into the
+DEFAULT export the specifier is imported with, and stops there. Emitting named members as
+well would compile on these two targets and be a `SyntaxError` on `--app gjs` — a spelling
+that works on two surfaces of three is the second vocabulary this ADR exists to remove.
+
+The last row is why **a `?version=` that does not match is a build-time refusal**: GJS is loud
+here, and a target that accepted `?version=2` would be the only place a wrong version passes.
+The versions the arms answer are held against `@gjsify/gtk-host`'s `GENERATED_PROVENANCE`
+(`Gtk-4.0/4.23.3 Adw-1/1.10.0`) by the suite's last row — a stamp written by a generator that
+never reads the build layer, so a GIR bump moving `Adw-1` fails there rather than in a
+consumer.
+
+**4. Opt-in — and NOT because turning it on breaks things.** That was the hypothesis, and it
+is wrong. Measured by forcing the arm on across every build in this repository that has one:
+
+| population | builds | changed outcome with the arm on |
+|---|---:|---:|
+| `packages/*/*/src/test.browser.mts` (`--app browser`) | 53 | **0** (7 fail either way, on a pre-existing unbuilt dep in this checkout) |
+| `packages/nativescript-bridge/*/src/index.ts` | 5 | **0** (1 fails either way, same cause) |
+
+The instrumentation above explains it: no `gi://` reaches those builds at all, which is this
+repository's own rule working (`tests/AGENTS.md`: a `gi://` in a browser bundle is a missing
+alias). **That measurement bounds the blast radius here and says nothing about a consumer
+tree**, where a transitively-imported `gi://GLib` would go from a silent stub to a build
+failure.
+
+What opt-in actually buys is stated without a breakage claim: the arm makes a **tier-2 widget
+toolkit a build-time dependency of any bundle that names `gi://Adw`** — 133 B → 500 202 B and
+214 041 B on the probe, and on NativeScript a `@nativescript/core` import clause the
+flag-less bundle did not have — and nothing in a tree can infer that its `gi://Adw` was meant
+to be `@gjsify/adwaita-web` rather than nothing. That is the same shape as `--dialect
+react-native`, which is opt-in for the same reason and whose header says so. `config.ts`
+refuses the flag on `--app gjs` and `--app node`, naming both arms, because a flag accepted
+and ignored is the failure this repository keeps paying for.
+
+### One constraint the implementation discovered
+
+**The arm's EMITTED refusal may not quote a `gi://` URL.** `tests/e2e/gi-renderer-arms` asserts
+`!bundle.includes('gi://')` on the bundles it builds — a SUBSTRING, the rule `tests/AGENTS.md`
+states for these targets, where an unresolved GI import is a missing alias. The first version of
+the runtime refusal quoted the specifier, and measured, that put one `gi://` occurrence into
+every green probe bundle: a diagnostic string the guard cannot tell apart from the defect it
+watches for. The refusal names namespace and version separately instead, and both green probe
+bundles carry zero. The build-time refusals still quote the specifier — they are thrown, never
+emitted.
+
+**The constraint is self-imposed, and this suite is its only source.** `app-browser` and
+`ns-bridge-bundles` hold the same substring rule over their own bundles, but neither passes
+`--gi-renderer`: the arm never composes there, so its diagnostic cannot reach them, and no
+wording of it could have turned them red. Measured — nothing under `tests/` names the flag but
+`gi-renderer-arms` itself. So the rule retires the moment that suite's own two assertions become
+import-shaped; the argument for changing all fourteen sites, and the one POSITIVE site that is
+the stronger reason, are in `status/open-todos.md`.
+
+**What the arm itself does distinguish is measured.** `fixtures/textual-mention.ts` carries the
+two specifiers the build-time refusals reject — `gi://Gio?version=2.0` and `gi://Adw?version=9`
+— as string literals beside one real `gi://Adw?version=1` import. It builds clean on both
+targets, the real import still lands on the arm, and both literals survive into the bundle: the
+arm reads specifiers, never text. That bundle is also the case where the suite's own leak guard
+would call a clean build a leak, which is what makes the entry above a measurement rather than
+an argument.
+
+### What is deliberately left open
+
+- **Nothing here runs on a browser engine or on NativeScript's V8.** `probe-runner.mjs` stubs
+  a DOM and generates a `@nativescript/core` from the bundle's own import clause, so the suite
+  proves the class exists, is subclassable, is the one the renderer registered, and — on the
+  browser — constructs. It does not prove an `<adw-action-row>` lays out or that a
+  `GridLayout` measures. `tests/browser/` and `tests/integration/nativescript/` are those
+  venues; `ns-bridge-bundles` states the same limit for its own leg. The stub is admissible
+  only because the flag-less control row, run under the SAME stub, still reports
+  `Class extends value undefined`.
+- **`new Adw.ActionRow()` is not asserted on NativeScript.** With a mechanically generated
+  core the module LOADS and the class is a constructor, but construction reaches
+  `GridLayout.addColumn`/`setColumn`, and a stub rich enough to answer those would be a
+  reimplementation of NativeScript rather than a measurement of this arm.
+- **The renderer is a fixed table, not a declaration.** `GI_RENDERERS` in
+  `@gjsify/resolve-npm` names one renderer per target. A third-party surface cannot opt its
+  own package in; whether it should is a question for the day one exists, and the answer is
+  probably a `gjsify.widgetVocabulary` sub-key with a `manifest-conformance` rule behind it
+  rather than a flag value.
+- **The two snippets are still not the same text, and this stage did not rewrite them.** Read
+  off `website/src/content/docs/adwaita/presentation.mdx` today, the `Adw.Avatar` block's
+  `gjs` fragment opens `import Adw from 'gi://Adw?version=1'` and its `nativescript` fragment
+  `import { Adw } from '@gjsify/adwaita-nativescript'`. The arm is what makes the first line
+  legal on the second target; changing the published snippet is a separate move, because
+  `check-generated-website-data` holds those fences verbatim against the showcase that
+  compiles them. What remains after the import line is the construction — the `gjs` fragment
+  passes a props object, the `nativescript` one assigns four properties afterwards, which is
+  stage 8's optional construct-props bag and is not landed — plus a genuine capability gap
+  the snippet already declares in a comment (`showInitials` / `iconName` have no NS
+  equivalent). Convergence with a declared remainder, not a bijection.
+
+## Amendment 13, 2026-09-05 — the third door, and two things § Context measured wrong
+
+Stage 8 landed. `new Adw.Avatar({ size: 96, text: 'Ada Lovelace' })` now means the same
+thing on `@gjsify/adwaita-nativescript` as it does on GJS, on **46 of 46** widget classes —
+the count `check-nativescript-xml-doors.mjs` prints, not one written here.
+
+### What was decided, and what each decision was measured against
+
+**A shared function, not a base class.** The 46 classes extend **eight** different
+`@nativescript/core` bases — `GridLayout` (21), `StackLayout` (7), `ScrollView` (2),
+`FlexboxLayout`, `Button`, `Image` and `Observable` — so there is no single class to put a
+constructor parameter on, and a mixin would have to re-declare each base's type surface. The
+base is also hostile territory, which this repository has already paid for once:
+`ViewBase`'s own constructor ASSIGNS `this.cssClasses = new Set()`
+(`ui/core/view-base/index.ts:559-568`, `@nativescript/core` 9.0.21-next.15), so shadowing one
+of its members kills the widget inside its own constructor. The rule instead is that each
+class applies its OWN bag as the last statement of its OWN constructor and never forwards one
+to `super()` — a subclass of a subclass (`AdwPasswordEntryRow` over `AdwEntryRow` over
+`AdwActionRow`) would otherwise apply the same bag two or three times, the first before its
+own children exist. All four halves of that rule are what the gate holds: takes it, applies
+it, applies it once, applies it last.
+
+**An unknown key throws.** Measured on a widget-shaped class before the change:
+`Object.assign(new AdwAvatarShape(), { size: 96, text: 'Ada Lovelace', showInitals: true })`
+leaves `Object.keys()` equal to `['showInitals']` — the typo is the only thing that stuck,
+and the process exits 0. That is the same silent drop one door over that `xml-values.ts`
+exists for, so the applier walks the prototype chain and refuses a key that reaches no setter
+and no writable field. A getter with no setter is refused too: its descriptor carries
+`set: undefined`, which throws in strict mode and no-ops everywhere else.
+
+**XML is untouched, and that was checked rather than assumed.**
+`ui/builder/component-builder/index.ts:96` is `instance = new instanceType()`, unconditional
+and with no arguments; the parameter is optional; every existing template inflates the same.
+
+**Two abstract bases take no bag** and say so in `NO_CONSTRUCT_PROPS`: `AdwSplitViewBase` and
+`AdwViewSwitcherBase` are constructed only by their subclasses, which apply their own — a bag
+applied in a base runs before the derived constructor has built anything.
+
+### § Context measured NativeScript's alignment vocabulary wrong, and it is not a rounding error
+
+> *"GTK has seven members … NativeScript's `horizontalAlignment` vocabulary is
+> `'left' | 'center' | 'right' | 'stretch'`. `start`, `end` and all three baselines have no
+> counterpart."*
+
+`@nativescript/core` 9.0.21-next.15 declares
+`'start' | 'left' | 'center' | 'right' | 'end' | 'stretch'` (`core-types/index.ts:127`), and
+its SHARED layout pass resolves `start`/`end` against the view's own `direction`
+(`ui/core/view/view-helper/view-helper-common.ts:98-111`, both platforms) — the same
+direction-relative meaning GTK gives them. **Four of the seven members map, not two**, and
+the declared remainder is the three baselines and nothing else. The paragraph is left as
+written, because the example it was carrying — convergence with a declared remainder rather
+than a bijection — survives its own numbers being wrong, and because the shape of the mistake
+is worth keeping: the vocabulary was read off one of the two axes, and the vertical one
+(`'top' | 'middle' | 'bottom' | 'stretch'`, same file) is where GTK's `center` really does
+have to be translated.
+
+### The nick table has no in-repo oracle for its numbers, and the obvious two are both wrong
+
+`Gtk.Align`'s constants are **not** the positions in its nick list. `GTK_ALIGN_BASELINE` was
+deprecated in GTK 4.12 into an ALIAS of `GTK_ALIGN_BASELINE_FILL`, so the two share the value
+4 and every member after them sits one below its position. Measured three ways:
+
+| source | `baseline` | `baseline-center` |
+|---|---:|---:|
+| position in `GtkAlignNick` (`gtk-host/src/generated/props.ts`, in-repo, GIR-derived) | 5 | 6 |
+| `@girs/gtk-4.0@4.1.0`, `enum Align` with no initialisers — TypeScript's implicit numbering | 5 | 6 |
+| `Gtk-4.0.gir` (`gtk4`, org.gnome.Sdk/50) | **4** | **5** |
+| the installed typelib, read through `gjs -m` | **4** | **5** |
+
+So the two obvious in-repo derivations agree with each other and disagree with GTK, on
+exactly the enum this stage names. The table therefore **derives** its numbers from the nick
+order plus one declared alias (`{ baseline: 'baseline-fill' }`), which reduces the authored
+GIR facts from seven integers to one, and the gate holds everything around it: the nick list
+against `GtkAlignNick` in ORDER, each alias against the member set and against its own
+position, and every member either mapped on BOTH axes or refused with a printed reason.
+
+**What no gate here can hold is that one alias declaration.** Nothing in this repository
+carries GIR enum VALUES — `generated/props.ts` emits nick unions and `surface-data.mts` emits
+nick lists, neither emits a number — and these gates run in a `checkout` + `setup-node` job
+with no `@girs` install and no `refs/`. The pin is `construct-props.spec.ts`, which asserts
+the seven derived numbers literally on Node and on GJS, so the table cannot move without a
+test being edited to say so. The real fix is upstream and is recorded in
+`status/open-todos.md`: `@girs/*` now ships a `vocabulary` entry (ADR 0029) and gtk-host's
+generator already reads its `ENUM_NICKS` — an `ENUM_VALUES` beside it would make this
+derivable, and would retire the declaration.
+
+### The third door is a door, and the gate had to learn the word
+
+`nativescript-xml-doors.mjs` described TWO doors, an attribute and a child. The bag is a
+third, and it is not a cosmetic addition to that header: a value arriving through it is a real
+JS value rather than a string, so **a setter must not widen its declared type to admit an enum
+constant** — that would drag the number into the ATTRIBUTE door, where it has no coercer. Held,
+and measured both ways: widening `AdwToolbarView.topBarStyle` from `AdwToolbarStyle` to
+`AdwToolbarStyle | number` fails arm 1 immediately (*"does not go through xmlNumber()"*), and
+the shipped design keeps the setter's type as it was by coercing the constant to its nick
+BEFORE the assignment.
+
+### What is deliberately left open
+
+**The other eleven enums.** Measured across the 158 setters this package declares: **15** have
+a declared string union that is exactly a GIR enum's complete nick set, across **11** distinct
+enums — `AdwToolbarStyle` (two setters), `AdwLengthUnit` (three), `AdwPackDirection`,
+`AdwJustifyMode`, `AdwSidebarMode`, `AdwBannerButtonStyle`,
+`AdwInlineViewSwitcherDisplayMode`, `AdwViewSwitcherPolicy`, `GtkOrientation`, `GtkArrowType`
+and `GtkPackType`. Each could take its constant the way `Gtk.Align` now does. A twelfth
+setter, `AdwWrapBox.wrapPolicy`, is AMBIGUOUS by nick set alone: `'minimum' | 'natural'`
+matches `GtkScrollablePolicy`, `AdwFoldThresholdPolicy` and `AdwWrapPolicy` exactly, so the
+enum behind a setter has to be DECLARED and never inferred from its members. Not done here,
+because eleven more authored value tables against no in-repo oracle is eleven times the
+exposure the section above describes, and the `ENUM_VALUES` fix would retire all of them at
+once.
+
+**`halign` / `valign` as names.** They are keys of `Gtk.Widget.ConstructorProps` and no widget
+here declares them; what the bag widens instead is NativeScript's own
+`horizontalAlignment` / `verticalAlignment`, which every `View` already carries. Adding the
+GTK spellings as real setters would mean 46 near-identical accessor pairs or a prototype
+patch, and adding them to the BAG alone would give the two doors different vocabularies —
+`<adw:Avatar halign="center">` would not work. Left as a § 1 convergence question rather than
+answered by a special case.
+
+**And the same question, admitted: the shipped widening already does that on the VERTICAL
+axis.** The argument above is about property NAMES, and the values it carries fall under it
+too. NativeScript's `verticalAlignment` is `'top' | 'middle' | 'bottom' | 'stretch'` and its
+layout pass sends anything else to the `default:` arm, which is `stretch`. So `center`,
+`start` and `end` reach the widget as `middle` / `top` / `bottom` through the bag and as
+themselves through `<adw:Avatar verticalAlignment="center">`, where they silently stretch —
+three spellings the two doors do not share. The horizontal axis has no such gap, which is why
+the divergence is exactly as wide as the translation § Context missed. It is DECLARED rather
+than closed: the attribute door has no coercer to hang it on, and a per-widget
+`set verticalAlignment` would shadow `View`'s own, which is the hazard
+`check-nativescript-xml-doors.mjs` arm 2 exists for. Same convergence question as
+`halign` / `valign`, and it retires with it.

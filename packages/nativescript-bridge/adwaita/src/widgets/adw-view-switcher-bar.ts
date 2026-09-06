@@ -39,6 +39,7 @@ import { NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { createViewSwitcherBarState, nsIconSvg } from './view-switcher-model.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** The per-button NS nodes, so a selection change repaints instead of rebuilding. */
 interface BarButtonNodes {
@@ -56,7 +57,7 @@ export class AdwViewSwitcherBar extends GridLayout {
     private _stackListener: (() => void) | null = null;
     private readonly _barState = createViewSwitcherBarState();
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwViewSwitcherBar>) {
         super();
 
         this.className = 'adw-viewswitcherbar';
@@ -82,6 +83,8 @@ export class AdwViewSwitcherBar extends GridLayout {
             this._rebuild();
         });
         this.addEventListener('unloaded', () => this._unbindStack());
+
+        applyConstructProps(this, props);
     }
 
     /** Bind to an {@link AdwViewStack}: build buttons from its pages + two-way sync. */

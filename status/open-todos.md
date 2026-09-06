@@ -1,5 +1,10 @@
 <!-- Authored Open-TODO sections — THIS FILE is the tracked source of truth (the
-     rendered STATUS.md view is generated and gitignored). One `### Two XMLHttpRequest implementations, and the docs name the wrong one as the only one
+     rendered STATUS.md view is generated and gitignored). One `### <title>` per open item.
+     A RESOLVED item is DELETED (its record is the commit + CHANGELOG that closed
+     it) — the status-data check rejects struck-through / ✓ / "Completed"
+     headings, so the done-log cannot regrow. -->
+
+### Two XMLHttpRequest implementations, and the docs name the wrong one as the only one
 
 `@gjsify/xmlhttprequest` ships a class in `src/index.ts`. `@gjsify/fetch` ships another in
 `src/xhr.ts` (11 269 bytes). `packages/infra/resolve-npm/lib/index.mjs` routes the SCOPED
@@ -25,10 +30,6 @@ constants as module-level `export const`s and may or may not carry the same defe
 either class is a published-contract change (`@gjsify/xmlhttprequest` is tier 1), and merging
 them is a decision about which package OWNS the API, not a refactor. Establish that first.
 
-### <title>` per open item.
-     A RESOLVED item is DELETED (its record is the commit + CHANGELOG that closed
-     it) — the status-data check rejects struck-through / ✓ / "Completed"
-     headings, so the done-log cannot regrow. -->
 
 ### A `Gtk.Window` in a child list is accepted silently, where an `Adw.Dialog` aborts
 
@@ -392,7 +393,9 @@ and nothing here asserts that it behaves like one.
 
 The criterion that closes the GOAL out is in ADR 0027 § 9 and is unchanged: the same
 authored tree, rendered through the GTK host and through `adwaita-web`, satisfies the
-same `@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch.
+same `@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch. The
+"same authored tree" half now exists for part of the gallery and is measured — see *The
+gallery's two authored trees agree on 7 blocks of 23* below.
 Until that is measured the goal stays a direction, not a claim — and the longer
 horizon it points at (NativeScript and browser builds from one native-authored
 source) needs its own ADR.
@@ -406,6 +409,176 @@ And `bindEmptySections` derives SYNCHRONOUSLY, so it must run AFTER the router's
 `install` — routing first hides a section a declared child had already earned, and it
 only un-hides a microtask later, after `_syncClasses` has measured a bar at
 `offsetHeight` 0. That cost 8 real failures once; the three call sites now say so.
+
+### The gallery's two authored trees agree on 7 blocks of 23, and the rest is ledgered
+
+ADR 0027 § 9's criterion is *"the same authored tree, rendered through the GTK host and
+through `adwaita-web`, satisfies the same `@gjsify/adwaita-core/conformance` vectors with
+no per-surface markup branch"*. The entry above says the NAME half is held and the
+BEHAVIOUR half is not. This one is about a third thing that was held by nothing at all:
+whether the gallery's own sources describe the SAME UI.
+
+They are two files — `scripts/adwaita-gallery-trees.mjs` for the Solid/Vue/React tabs and
+`scripts/adwaita-gallery-ns-templates.mjs` for the NativeScript one — written by hand,
+independently. Arms 4-6 hold the first against `gtk-host`; arms 7-9 hold the second
+against the port. Both were green while `Adw.ExpanderRow` shipped *"Proxy settings"* with
+a host and an authentication toggle on three tabs and *"Advanced"* with a developer-mode
+toggle and an endpoint on the fourth, children in the opposite order, for as long as both
+files existed. Nothing compared one to the other.
+
+**The census that sized the work.** 40 blocks; 23 carry a tree on both renderers, and the
+other 17 are refused by one or by both with a reason already recorded. Of the 23, compared
+node by node with the GIR-name case rule as the only transform:
+
+| | blocks | |
+|---|---|---|
+| identical | 7 | authored once in `scripts/adwaita-gallery-shared-trees.mjs` |
+| `property` | 5 | same shape and tags; one renderer has no such property |
+| `vocabulary` | 2 | same shape; a tag, slot or property is spelled differently |
+| `composition` | 7 | genuinely different UIs, each forced by a renderer |
+| `content` | 2 | nothing forced them apart — two authors, two examples |
+
+Every number is recomputed by arm 11 of `check-generated-website-data.mjs`, which prints
+the partition on every run and fails on a ledgered block whose two trees have BECOME
+identical — the self-retiring shape of arm 5b's stale-refusal rule, so the branches closing
+the renderer gaps one property at a time cannot leave a dead reason standing.
+
+**What blocks the remaining 16, in the order it can be paid.**
+
+*The 5 `property` ones are renderer work and are already in flight or trivially scoped.*
+`Adw.Avatar` needs `showInitials` and `iconName` on the NativeScript `AdwAvatar`, whose
+whole Adwaita surface today is `size` and `text` — and whose `set text` always renders
+initials, so there is no icon path to reach either. `Gtk.Entry` needs nothing:
+`widthRequest` is a GTK size request and the port has no layout surface, so this one may
+stay ledgered forever. `Adw.PasswordEntryRow` and `Adw.Spinner` are the same shape from the
+other side: `adw_password_entry_row_class_init` and `adw_spinner_class_init` install NO
+properties at all, so `revealed` and `spinning` have no GIR counterpart to converge on —
+libadwaita keeps the reveal toggle as a private `GtkButton` suffix, and an `Adw.Spinner`
+cannot be stopped where a `GtkSpinner` can. (Both were first written up as a difference in
+what libadwaita EXPOSES — a peek icon, a size — which named a property of `GtkPasswordEntry`
+and one nothing has; the classes install none.) `Adw.ButtonRow` is the interesting one:
+`startIconName` exists on BOTH and means different things, an icon NAME on GTK and an
+Adwaita symbolic SVG STRING on the port. A property that agrees on its name and disagrees on
+its value is worse than one that is missing, and `check-vocabulary-alignment.mjs` counts it
+as agreement.
+
+*The 2 `vocabulary` ones close for free when the convergence that gate already counts down
+lands* — `label`/`text`, `wrap`/`textWrap`, `cssClasses`/`class`, and the three header-bar
+slots spelled `start`/`title`/`end` against `startBox`/`titleWidget`/`endBox`. Slots are
+why no shared tree uses one yet: the shared source admits a block only when it needs no
+alias, and every slotted pair still needs three. `Adw.Spinner` sat here until its `spinning`
+half was read: a `vocabulary` entry PROMISES the block lands in the shared source for free
+when the renames land, so a missing property filed under it is a promise nothing can keep.
+
+*The 7 `composition` ones each need a decision before they need code*, and two of them are
+the same decision twice: an `AdwHeaderBar` title is a slotted `AdwWindowTitle` child on GTK
+and a plain `title` property on the port, so `Adw.OverlaySplitView` and `Adw.ToolbarView`
+carry two nodes more on one side than the other. Converging them means deciding which
+renderer is wrong, which is an ADR 0034 question and not a gallery one.
+
+*The 2 `content` ones are the ones nobody has an excuse for*, and they are left as measured
+rather than fixed because closing the LIST would not move either into the shared source:
+both also carry a `cssClasses` against the port's style-class property, and that half does
+not close by renaming. `@nativescript/core`'s `ViewBase` already owns the name — its
+constructor assigns `this.cssClasses = new Set()`, its `ClassSelector.match` reads
+`node.cssClasses.has(…)` and its `className` setter clears and refills the same Set — so
+taking the name means shadowing that field with an accessor pair that still hands the CSS
+engine a live mutable Set, and the value kinds differ besides (`string[]` against
+`Set<string>`). Padding the lists moves them from `content` to `vocabulary`, which is a
+bucket sideways and not a block shared. `Adw.WrapBox`: the block
+preview and three tabs show eight chips, the NativeScript template six. `Gtk.Button`: five
+buttons against four, the icon-only circular one missing. The rule that settles both is the
+one `Adw.WrapBox`'s own tree already states — a gallery block is one widget written several
+ways, so its `preview` fragment is the authority — and in both cases it is the NativeScript
+template that drifted from it.
+
+The census also found the `Adw.WrapBox` chip list spelled `Typescript` in seven authored
+sites and `TypeScript` in one — the NativeScript template, the only one that was right. All
+seven were corrected here. It is worth keeping because of WHERE it hid: seven of the eight
+copies agreed, so every majority-wins reading of the gallery would have propagated the
+typo, and no arm compares a chip label to anything at all.
+
+**What this does NOT close.** Two authored trees agreeing is not two renderers behaving the
+same, and the shared source is compared as DATA rather than as a rendered tree. The
+criterion still wants `@gjsify/adwaita-core/conformance` vectors run over one authored tree
+through both renderers; the seven blocks here are what such a suite would have to start
+from, and the ledger says what would have to converge before it could grow past them.
+
+### A property can agree on its NAME and disagree on its VALUE KIND
+
+`check-vocabulary-alignment.mjs` prints a property distance and calls a NativeScript
+property "already agreeing" when its name is a key of the GIR counterpart's props
+interface. It compares names and nothing else, so a property that agrees on its name and
+means something different is counted on the agreeing side. The entry above says the
+one-vocabulary goal is checked by NAME and not by BEHAVIOUR; this is that sentence one
+level down, with a named instance instead of a general worry.
+
+**The instance.** `Adw.ButtonRow:start-icon-name` is *"the icon name to show before the
+title"* — a name looked up in an icon theme. `AdwButtonRow.startIconName` on the port is
+*"a leading Adwaita symbolic SVG string (e.g. `listAddSymbolic`)"* — the SVG document
+itself. Both are `string`; both are spelled `startIconName`; the gate counts them as
+agreement. A caller who reads the aligned vocabulary and passes `list-add-symbolic` gets
+no icon, and nothing in this repository says why.
+
+**The census, so the class is sized rather than feared.** 43 NativeScript widget classes
+whose class name is itself a GType in `gtk-host`'s runtime table set 139 properties
+between them; 95 of those names are keys of the counterpart's props interface. (The gate's
+own figures are larger because `counterpartsOf` also unions the `composes` entries in
+`NS_WIDGET_ALIGNMENT`, which this census did not resolve — it is a strict subset, and a
+census that quietly claimed the gate's corpus would be a measurement narrower than its
+claim.) Of the 95:
+
+| what the two sides do | pairs |
+|---|---|
+| the type agrees and so does the meaning | 30 |
+| the type differs: the port widens to `\| string`, because an XML attribute arrives as one | 37 |
+| the type differs: a GIR nick-union against the port's own enum, same kind | 11 |
+| the type differs: a toolkit type against its NativeScript peer (`Gtk.Widget` → `View`) | 4 |
+| the type differs: a declared portable value form (ADR 0042 · 0046 · 0047) | 3 |
+| the type differs: nullability only | 1 |
+| **the type differs AND so does the kind of value** | **3** |
+| **the type AGREES and the kind of value does not** | **5** |
+| the evidence does not decide | 1 |
+
+The three the type already shows are `AdwTabView.selectedPage` (`Adw.TabPage` against a
+page-id string), `AdwTabView.defaultIcon` (`Gio.Icon` against a string) and
+`GtkImage.iconSize` (a `Gtk.IconSize` enum against a DIP number). The five it does not are
+one family: `GtkImage.iconName`, `AdwStatusPage.iconName`, `AdwButtonContent.iconName`,
+`AdwButtonRow.startIconName` and `AdwButtonRow.endIconName` — an icon-theme NAME on the GIR
+side, an Adwaita symbolic SVG SOURCE on the port. The undecidable one is
+`AdwPreferencesPage.iconName`: the port stores the string and nothing renders it, so no
+evidence in the tree says which kind it is. It is recorded as undetermined rather than
+counted on either side.
+
+**Why this is an entry and not an arm, measured rather than assumed.**
+
+*A type comparison would fire on 59 of the 95 and 56 of those are deliberate* — the
+`| string` widening IS the XML door, and the enum and portable-value rows are the port
+doing exactly what its ADRs say. To reach zero false positives it would need those 56
+declared: a 56-entry ledger to hold a 3-member finding, and blind to the other five
+anyway.
+
+*A prose comparison is incomplete on BOTH sides, and its failure mode is silence.* The GIR
+docs phrase "this value is an icon name" four different ways across the five — *"The icon
+name to show before the title"*, *"The name of the icon to be used"*, *"The name of the
+displayed icon"*, *"The name of the icon in the icon theme"* — and the first reader written
+here, built from two of them, missed `AdwButtonContent.iconName` and reported a smaller
+class than it had found. The port says *"symbolic SVG string"* on four of the five and says
+nothing of the sort on `AdwPreferencesPage.iconName`. Neither vocabulary is closed, so a
+regex over either goes quiet when someone rewords a comment, and a gate that goes quiet
+looks exactly like a gate that passed.
+
+*There is no structural marker across the family either.* Two of the five name the setter
+parameter `svg`, two assign `this._iconSvg`, and `AdwButtonRow` delegates to
+`_buttonState.setStartIconName` and shows nothing at the setter at all.
+
+**What a checker would have to read to be honest**: not the name, not the TypeScript type
+and not the prose, but where the value GOES — whether the string reaches an SVG asset
+resolver or an icon-theme lookup. That is a call-graph question over the port's setters,
+and it is the same question one level up from `gtk-host`'s own `coerce` seam. Until
+something can answer it, the five are recorded here and `NS_PROPERTY_ALIGNMENT` is
+unchanged: adding them to a table that exists to explain names would file a value-kind
+divergence under the heading that already counts it as agreement.
 
 ### One vocabulary is a rule for EVERY surface — clause 3 holds on all three renderers
 
@@ -564,6 +737,189 @@ without its surface is a claim wider than its measurement.
 
 A full `tsc` conformance check remains the right oracle on the wrong instrument —
 `Gtk.Entry` is 509 members, and the gate job runs `checkout` + `setup-node` with no install.
+
+**Stage 8 landed and left one thing no gate here can hold: GIR enum VALUES.** The
+construct-props bag ships on all 46 NativeScript widgets (ADR 0034 § Amendment 13) and
+accepts `Gtk.Align.CENTER` as well as `'center'`, which needs a value table on a target with
+no typelib. **The oracle for this landed while stage 8 was in review** — `#1585` added
+`packages/framework/gtk-host/src/generated/enum-values.mts`, which carries `GtkAlign.fill` 0
+through `GtkAlign.baseline-center` 5 alongside `ENUM_ALIASES` and `ENUM_DEPRECATED`, so the
+repository now DOES carry GIR enum values. What is still open is CONSUMING it here:
+`generated/props.ts` emits nick UNIONS and `generated/surface-data.mts` emits nick LISTS, so
+this port still derives its numbers itself — and both obvious derivations are measurably
+WRONG for this very enum, because
+`GTK_ALIGN_BASELINE` was deprecated in GTK 4.12 into an alias of `GTK_ALIGN_BASELINE_FILL`
+(the nick position and `@girs`'s initialiser-less `enum Align` both give `baseline` 5 and
+`baseline-center` 6; the GIR and the typelib give 4 and 5). `gtk-align.ts` therefore derives
+its constants from the nick order plus ONE declared alias, and
+`check-nativescript-xml-doors.mjs` holds everything except that declaration. **The remaining
+step is to read `#1585`'s table from here** instead of deriving: it is a committed in-repo
+file, so a gate running `checkout` + `setup-node` with no `@girs` install can reach it, which
+was the whole objection. Doing so retires the hand-declared alias and — the reason it is
+worth more than one enum — unblocks the same treatment for the **15** other
+setters on this surface whose declared string union is exactly a GIR enum's nick set, across
+**11** distinct enums. Measured against the 158 setters the package declares. One of them,
+`AdwWrapBox.wrapPolicy`, is ambiguous by nick set alone — `'minimum' | 'natural'` matches
+`GtkScrollablePolicy`, `AdwFoldThresholdPolicy` and `AdwWrapPolicy` exactly — so the enum
+behind a setter has to be declared either way.
+
+### The vocabulary gate measured ONE direction, and the other one is now a ratchet
+
+`NS_PROPERTY_ALIGNMENT` holds the port's SETTABLE properties against the counterpart's
+`ConstructorProps` and asks whether the NAME agrees. A GIR property the port simply does
+not HAVE is invisible to it, and to every other gate, because nothing iterated the
+counterpart's side. So the printed *"Distance to one vocabulary: N property name(s)"*
+measures disagreement among the properties that EXIST and says nothing about the ones that
+do not.
+
+Measured instance: `AdwAvatar` set `text` and `size` while `Adw.Avatar` declares four
+scalar properties — `icon-name`, `show-initials`, `size`, `text`. Two of four, with every
+check green, for as long as the widget existed. `<adw-avatar>` had been held against the
+same four since 2026-08-26 by `check-adwaita-element-properties.mjs`; the second renderer
+had no such gate at all.
+
+`scripts/check-nativescript-widget-coverage.mjs` closes it, in the shape the web surface
+already had — a per-widget declared backlog, a new gap fails, a closed gap fails until it
+leaves the ledger. The GIR side of both is one reader now
+(`scripts/gir-scalar-properties.mjs`): two definitions of "a scalar property" would be two
+backlogs that can disagree about what they are counting while both stay green.
+
+**The denominator is the deliverable, so here is the ladder it was chosen from**, all
+three measured over the same 43 widgets:
+
+| denominator | keys | the port does not set |
+|---|---:|---:|
+| the whole `extends` chain, everything in it | 5363 | 5142 |
+| the counterpart's OWN body, `onNotify*`/signals and kebab twins removed | 293 | 181 |
+| …and widget-valued slots removed — **what the gate uses** | 231 | 131 |
+
+The chain is what makes a number nobody can act on: it puts `GtkWidget`'s keys plus
+`GtkAccessible`/`GtkBuildable`/`GtkConstraintTarget` behind every widget, and 96 % of it is
+"missing" on a port whose views are `GridLayout`s. Own-body-only keeps the GIR side to what
+the TYPE introduces — the PORT side is deliberately not symmetric with it and resolves the
+port's own `extends` chain, for the false-red reason the section below gives — and it has
+one honest under-count, stated rather than hidden: a property a GIR type inherits from a
+GIR ancestor is measured on THAT ancestor's row when the port ships the ancestor as a
+widget too (`AdwSwitchRow`'s `subtitle` is `AdwActionRow`'s and is counted on
+`adw-action-row`), and is not counted at all when it does not — `AdwSwitchRow`'s `title` is
+`AdwPreferencesRow`'s, the port ships no `adw-preferences-row`, and nothing measures it.
+
+The live totals are the gate's summary line and are not restated here. What it does NOT
+print is the SHAPE of the backlog, which is the census — at the landing commit, 12 widgets
+short nothing, 7 short one, 6 short two, 6 short three, 3 short four, 3 short five, 3 short
+six, and then three long tails: `GtkMenuButton` (8 of 9 unset), `AdwAboutDialog` (15 of 22)
+and `GtkEntry` (26 of 28). Three of the 12 short nothing are short nothing VACUOUSLY —
+`AdwPasswordEntryRow`, `AdwSpinner` and `AdwToastOverlay` declare no scalar property of
+their own at all, so there was nothing for the port to be short of, and the gate prints
+those apart from the nine that hold something. The three long tails carry 49 of the total,
+so the backlog is not evenly spread and the obvious first pass is one widget, not a sweep.
+The three widgets whose file spelling is NOT a GTK tag (`adw-image-button`,
+`adw-slider-row`, `adw-data-grid`) are declared divergences `NS_WIDGET_ALIGNMENT` owns and
+are deliberately outside this gate; reading that ledger from a second script would be a
+second copy of it.
+
+**Two findings the census turned up that are not gaps.**
+
+`Gtk.Entry:visibility` is password masking; the port's `GtkEntry` already answers to
+`visibility` from NativeScript's `View`, meaning show-or-hide. Same spelling, two controls,
+and it is the only such collision in the corpus — measured against the ambient
+`ns-core.d.ts` slice, so a name NS core carries that the slice does not declare would be
+missed.
+
+`AdwViewSwitcher` HAS `Adw.ViewSwitcher:policy` and not under that name:
+`AdwViewSwitcherBase` declares a protected `policy` getter for the button orientation and
+exposes the settable door as `switcherPolicy` beside it. ADR 0034 § Amendment 11 already
+settled the shape — a collision with a port-owned member is a question about that member,
+not a reason the name cannot converge — and this one is internal, so it can be renamed.
+
+### A name can agree while the VALUE KIND disagrees, and the declarations mostly cannot tell
+
+The second census, and the reason it produced no gate. Of the 109 property names where the
+port and its counterpart agree, the two declared TYPES — the GIR annotation in
+`generated/props.ts` against the port's setter parameter — say:
+
+| | rows | what it is |
+|---|---:|---|
+| the same kind | 58 | 42 string/string, 13 enum, 3 object |
+| the port widened it with `\| string` | 42 | the XML-attribute coercion `xml-values.ts` exists for: `component-builder` assigns a raw string, so `boolean` becomes `boolean \| string` |
+| a different kind | **9** | below |
+| no annotation to read | 0 | every setter on this surface is typed |
+
+The nine, each read from both sides:
+
+| | GIR | port |
+|---|---|---|
+| `AdwComboRow.model`, `GtkDropDown.model` | `Gio.ListModel \| null` | an array of option specs (ADR 0046) |
+| `AdwSplitButton.menuModel`, `GtkMenuButton.menuModel` | `Gio.MenuModel \| null` | an array of menu entries (ADR 0042) |
+| `AdwTabView.selectedPage` | `Adw.TabPage \| null` | the page id, a string (ADR 0048) |
+| `AdwTabView.defaultIcon` | `Gio.Icon` | a symbolic SVG string |
+| `AdwSidebar.filter` | `Gtk.Filter \| null` | a predicate function |
+| `GtkImage.iconSize`, `AdwImageButton.iconSize` | `GtkIconSizeNick \| Gtk.IconSize` | a size in DIPs |
+
+Seven of the nine are DECIDED portable forms with an ADR behind them — the port has no list
+model, no menu model and no page type, and giving it one was the point of those changes.
+The last two are the interesting ones and they are the same defect twice:
+`Gtk.Image:icon-size` is a three-member enum (`inherit`/`normal`/`large`) and the port's
+`iconSize` is "the icon size in DIPs" (`gtk-image.ts:109`). GTK's number for that is
+`pixel-size` — which the coverage census above lists as a gap on both widgets. So the port
+carries GTK's `pixel-size` under GTK's `icon-size` name, and `<gtk:Image iconSize="large">`
+resolves to `NaN` and falls back to 16, silently. Not fixed here: it renames a published
+attribute on a surface `feat/ns-construct-props` is rewriting, and both censuses now make
+the question visible from two directions.
+
+**Why this is not a gate.** Getting from 26 raw disagreements to those 9 took four
+normalisations, and every one of them is a judgement a gate would be encoding rather than
+measuring: absorbing the enum CONSTANT half of `XNick | Ns.X` into the nick (ADR 0034 § 4
+says the nick is the convergent spelling), resolving port type aliases across
+`@gjsify/adwaita-core` (`AdwToolbarStyle` is `'flat' | 'raised' | 'raised-border'`),
+treating `View` and `Gtk.Widget` as one kind, and forgiving the `| string` widening. A
+checker that wanted to be honest would have to read: both type surfaces, the alias
+definitions in two packages, `xml-values.ts` for which coercions exist, and the nick tables
+— and it would still stop one step short of the thing that matters.
+
+Because the case the brief for this work names is exactly the one the declarations CANNOT
+decide. `Adw.ButtonRow:start-icon-name` is `string | null` and `AdwButtonRow.startIconName`
+is `string`: the gate above and this census both call that agreement, and GTK holds an
+icon-theme NAME while the port holds a rendered symbolic SVG. Nine of the 42 string/string
+rows are icon slots of that shape, and only four say so in a way a machine can see (the
+setter parameter is literally named `svg`). ADR 0034 § Amendment 7 already ruled on it —
+*"A string is a string whether it is a theme name or an SVG source"* — so it is a recorded
+decision rather than an undetected defect, and what closes the class is not a type
+comparison but ADR 0027 § 9's conformance vectors.
+
+### The vocabulary gate's port-side reader stops at the class body, and two base classes fall out of it
+
+Found while building the coverage census, and it is the same blind side one direction over.
+`check-vocabulary-alignment.mjs` reads a widget's settable properties with
+`settablePropertiesOfClass`, which reads ONE class body. That is right wherever a port
+widget's base is itself a widget file — the PORT's `AdwActionRow` declares `set title`, so
+`AdwSwitchRow`'s inherited `title` is held on `adw-action-row`'s own row (this is the port
+hierarchy, not the GIR one, where `title` is `AdwPreferencesRow`'s) — and wrong for a base
+that is not: `packages/nativescript-bridge/adwaita/src/widgets/split-view-base.ts` and
+`view-switcher-base.ts` are not `<library>-<name>.ts` files, so the 10 setters they declare
+are read by nothing.
+
+A chain-resolving port reader adds 56 rows to that gate, of which **18 are neither a key of
+the counterpart nor declared today**:
+
+    adw-inline-view-switcher   switcherPolicy  views  selected
+    adw-view-switcher          switcherPolicy  views  selected
+    adw-navigation-split-view  showSidebar  sidebarWidth
+    adw-overlay-split-view     sidebarWidth
+    adw-button-row             subtitle  activatableWidget
+    adw-entry-row              subtitle  activatableWidget
+    adw-password-entry-row     subtitle  activatableWidget
+    adw-expander-row           activatableWidget
+    gtk-menu-button            iconColor  iconSize
+
+The fix is a one-function change in that gate's world builder plus 18 ledger entries with
+reasons, and it is a separate PR on purpose: every one of the 18 needs a `gir`-or-`own`
+verdict, `feat/ns-construct-props` is currently rewriting every widget file under it, and
+landing it in the same change as the coverage ratchet would put two moving denominators in
+one diff. The reader that does it correctly already exists — the new coverage gate walks
+the chain across the whole package and FAILS when it leaves the package at a class
+`ns-core.d.ts` does not declare, because a chain that stops early hands the comparison a
+setter set that is short rather than wrong, and a false red is the expensive kind.
 
 ### The `@girs/*` vocabulary is consumed — what the migration cost, and the one open decision
 
@@ -1607,6 +1963,54 @@ Worth deciding rather than discovering: whether the shim should REFUSE for the
 second row (a name-based deny-list is ugly; a `gjsify.nodeOnly` manifest flag is
 honest) or whether "fails further in" is acceptable. Nobody has hit it yet
 because every host that runs those has Node.
+
+### `Adw.Avatar:custom-image` has no NativeScript counterpart, and the blocker is the CLIP
+
+`AdwAvatar` on `@gjsify/adwaita-nativescript` now carries four of its GType's five
+writable properties — `text`, `size`, `showInitials` and `iconName`. The fifth,
+`custom-image`, is not there, and the reason it is an entry rather than a fix is worth
+stating precisely, because the property's own header comment used to give the wrong one
+("the CSS-subset widget has no icon-theme lookup") for the two that WERE implementable.
+
+The VALUE is not the obstacle. `Adw.Avatar:custom-image` is a `GdkPaintable`, and
+NativeScript's honest counterpart is `ImageSource` (a decoded `android.graphics.Bitmap`
+/ `UIImage`) or the `src` string an `Image` already accepts — the browser element next
+door settled the same question by taking an image URL. The obstacle is that
+`update_visibility` puts the image INSIDE a circle, and this port cannot show that a
+NativeScript view clips a bitmap to one:
+
+  · `packages/nativescript-bridge/AGENTS.md` records the measured fact that NS does not
+    clip children to a parent's border-radius — which is why every row here is
+    transparent and the `.boxed-list` card paints the rounded fill. So the avatar's own
+    `GridLayout` radius will not clip a child `Image`.
+  · An `Image` carrying its OWN `borderRadius` is a different question and the answer is
+    per-platform. iOS sets `clipsToBounds = true` on every image
+    (refs/nativescript/packages/core/ui/image/index.ios.ts:88#clipsToBounds), so a layer
+    corner radius clips there. Android routes background *and* the four corner radii
+    into one `org.nativescript.widgets.BorderDrawable.refresh(…)` call
+    (refs/nativescript/packages/core/ui/styling/background.android.ts:79#borderDrawable.refresh),
+    which is the BACKGROUND drawable — an `ImageView`'s own drawable is painted above it,
+    and whether that one is clipped is Java this repo does not vendor.
+  · A `background-image` on the avatar's GridLayout would go through that same
+    `BorderDrawable` and might therefore be clipped for free. That is an inference from
+    one call signature, not a measurement, and `background-size: cover` is a second
+    unmeasured assumption on top of it.
+
+So the honest state is: one of two plausible implementations, neither verified, on a
+port whose iOS half is unverified on device at all (#1051). What closes this is a run,
+not a design decision — set a square photo on an avatar under both spellings on an
+Android emulator and an iOS device, and see which (if either) comes out round. Until
+then a `customImage` setter would be a property that silently draws a square where GTK
+draws a circle, which is the shape this repo treats as the defect rather than the
+fallback.
+
+Note for whoever picks it up: `avatarMode` in `@gjsify/adwaita-core` already returns
+`'image'`, `avatarVisibilities` in `widgets/avatar-view.ts` already answers for it, and
+`AdwAvatar._applyMode` passes a hardcoded `hasCustomImage: false` with a comment saying
+so. The wiring is one property and one child view; only the clip is open. The vocabulary
+ledger cannot hold this: `NS_PROPERTY_ALIGNMENT` measures properties the PORT has that
+the GIR counterpart does not, so a GIR property the port LACKS is invisible to it and to
+every other gate in the tree.
 
 ### 83 scalar GIR properties no `adw-*` element observes yet
 
@@ -4991,3 +5395,90 @@ of them moves.
 
 Worth settling with the same measurement the rest of ADR 0049 used: what does
 `refs/libadwaita`'s own demo do, and what does `adwaita-web` render for a flat header today.
+
+### Six e2e suites assert "no `gi://` import survived" by looking for four characters
+
+`tests/e2e/{app-browser,ns-bridge-bundles,node-gi-build,storybook-on-node,vite-plugin-gjsify}`
+and `tests/e2e/gi-renderer-arms` decide whether a build leaked a GI edge with
+`bundle.includes('gi://')` / `bundle.includes('@girs/')`. **Fourteen assertion sites**, thirteen
+negative and one — `storybook-on-node/run.mjs:155`, *"gjs bundle should keep gi:// specifiers
+external"* — positive:
+
+    tests/e2e/app-browser/run.mjs:86,91,137,142
+    tests/e2e/ns-bridge-bundles/run.mjs:199,200
+    tests/e2e/node-gi-build/run.mjs:98,103
+    tests/e2e/storybook-on-node/run.mjs:144, and :155 (the POSITIVE one)
+    tests/e2e/vite-plugin-gjsify/run.mjs:142,147
+    tests/e2e/gi-renderer-arms/run.mjs:146,147
+
+A fifteenth site, `gi://` asserted PRESENT at `gi-renderer-arms/run.mjs:256`, is not one of them:
+it is the counter-example these fourteen need and is described at the end of this entry.
+
+The claim each of them makes is *"no `gi://` import survived this build"*. What each of them
+measures is *"those four characters do not appear anywhere in the output text"*. Today the two
+answers agree, and they agree BY LUCK: nothing in a bundle happens to mention the specifier in
+any position other than an import.
+
+**Measured, from the ADR 0034 stage 9 arm (#1580).** That arm emits a virtual module whose
+runtime refusal originally quoted the import it was refusing —
+
+    const SPEC = "gi://Adw?version=1";
+    …
+    throw new Error(SPEC + ' on --app ' + APP + ': ' + RENDERER + ' has no ' + String(property) …)
+
+— and the string is reachable, so rolldown keeps it. Both green probe bundles then carried
+exactly **one** `gi://` occurrence, **zero** of which were import-shaped. A/B on one tree
+state, same fixture, only the refusal wording differing:
+
+    quoting the specifier   browser       500 197 B   1 occurrence, 0 of them an import
+                            nativescript  214 036 B   1 occurrence, 0 of them an import
+    naming the parts        browser       500 202 B   0 occurrences
+                            nativescript  214 041 B   0 occurrences
+
+"Not an import" is a claim about POSITION, and deciding it needed a second reading of the same
+bytes — no occurrence sits after a `from` and a quote. That is the whole point: the substring
+guard cannot make that distinction at all, and the distinction is the only thing it is trying
+to assert.
+
+The local fix was to stop quoting the URL: the refusal names namespace and version separately,
+and both bundles carry zero. That is recorded in `plugins/gi-renderer.ts`'s header as a
+constraint on what the arm may SAY, which is the wrong place for it to live permanently: a
+diagnostic's wording should not be load-bearing for a test assertion.
+
+**One thing that entry got wrong, and it narrows the claim.** It read as though `app-browser`
+and `ns-bridge-bundles` were the guards forcing the wording. They are not, and could not be:
+neither passes `--gi-renderer`, so the arm never composes in their builds and its diagnostic
+cannot appear in their bundles. Measured — `grep -rl 'giRenderer\|gi-renderer' tests/` returns
+`gi-renderer-arms/run.mjs` and `gi-renderer-arms/probe-runner.mjs`, and nothing else. The
+wording constraint is therefore SELF-imposed by `gi-renderer-arms:146`, which is also the good
+news: two of the fourteen sites are in the suite that owns the rule, and fixing those two alone
+retires it, with no other suite's population to re-run.
+
+`fixtures/textual-mention.ts` in that suite is now the executable form of this entry's argument
+— a bundle that carries the four characters with no import among them, proved not by a second
+reading of the bytes but by the build having exited 0 where an import-shaped occurrence would
+have been refused by name.
+
+**What an import-shaped check would have to read instead.** Not the text. Either (a) the emitted
+IMPORT STATEMENTS — parse the bundle and take the `source.value` of every `ImportDeclaration`,
+every `Export*Declaration` with a `source`, and every `ImportExpression` with a literal argument
+(`acorn` is already in the tree and `utils/scan-named-imports.ts` already does this shape for
+the React Native gate) — or (b) the module graph, if the CLI grows a way to report the
+specifiers a build left external. Fourteen sites also means this wants ONE helper in
+`tests/e2e/helpers.mjs`, not fourteen copies; the copies are themselves the "duplication instead
+of a helper" anti-pattern, and fourteen of them are why the fix has to be one edit rather than
+fourteen judgements about what each suite meant.
+
+**Should it change? Yes** — but the positive site is the stronger reason, not the negative ones.
+A negative substring check fails LOUDLY and on the wrong PR, which is annoying and attributable.
+`storybook-on-node:155` is the other direction: it passes as long as the four characters appear
+ANYWHERE, so the day a `gi://` string lands in that bundle for any other reason, the assertion
+goes green having stopped measuring whether the gjs target still externalises the specifier —
+the green-that-checked-nothing class this repository pays most for.
+
+**Not changed in #1580, deliberately.** Twelve of the fourteen sites are load-bearing for five
+suites that PR otherwise does not touch, and rewriting a guard across a population one has not
+re-run is how a guard gets quietly weakened. The arm ships with the narrower rule instead (its
+EMITTED refusal may not quote a `gi://` URL), and this entry is the retirement condition for
+that rule. Retiring it needs only the two sites in `gi-renderer-arms` — the twelve elsewhere
+constrain nothing about the arm.

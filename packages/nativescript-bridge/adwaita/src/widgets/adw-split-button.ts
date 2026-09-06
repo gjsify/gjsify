@@ -36,6 +36,7 @@ import { attachRowPressFeedback } from './row-press.js';
 import { MENU_CANCEL_LABEL, presentMenuSheet, refuseMenuString } from './menu-sheet.js';
 import { setActionIcon, splitButtonArrowSvg } from './split-button.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when the main action part is tapped. Mirrors `Adw.SplitButton::clicked`. */
 export const CLICKED = 'clicked';
@@ -85,7 +86,7 @@ export class AdwSplitButton extends GridLayout {
      */
     private _sensitive = true;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwSplitButton>) {
         super();
 
         this.className = 'adw-split-button';
@@ -147,6 +148,8 @@ export class AdwSplitButton extends GridLayout {
 
         this._state.subscribe(() => this._render());
         this._render();
+
+        applyConstructProps(this, props);
     }
 
     /**

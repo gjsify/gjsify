@@ -12,10 +12,12 @@
 //         this with no warning, so the end of an oversized file is not "less
 //         prominent", it is ABSENT. Never waivable.
 //   SOFT  the measured ceiling in `status/agent-context-budget.json` — what each file
-//         was when last reviewed. Two files are over the 20 KB target AGENTS.md sets
-//         for itself, so a flat 20 KB gate would have failed on arrival and been
+//         was when last reviewed. Several files are still over the 20 KB target
+//         AGENTS.md sets, so a flat 20 KB gate would have failed on arrival and been
 //         waived; a per-file ratchet fails only on REGROWTH, which is the thing worth
-//         catching.
+//         catching. WHICH files is what the table below prints. This comment named them
+//         until 2026-09 and went stale without anyone touching it — two more files grew
+//         past 20 KB — so it names none now.
 //
 // The SOFT ceiling is EXACT: a file BELOW its ceiling fails too, and `--update` is the
 // one-command fix named in the message. Slack is the defect — a required check reads

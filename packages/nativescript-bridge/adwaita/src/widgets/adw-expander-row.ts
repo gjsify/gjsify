@@ -32,6 +32,7 @@ import { AdwActionRow } from './adw-action-row.js';
 import { GtkImage } from './gtk-image.js';
 import { resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 // Re-export the headless state machine so consumers can reach it from
 // `@gjsify/adwaita-nativescript` unchanged.
@@ -62,7 +63,7 @@ export class AdwExpanderRow extends AdwActionRow {
     /** The headless expanded/collapsed disclosure state machine (ADR 0004). */
     private readonly _state = new ExpanderState();
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwExpanderRow>) {
         super();
 
         this.className = 'adw-row adw-action-row adw-expander-row';
@@ -134,6 +135,8 @@ export class AdwExpanderRow extends AdwActionRow {
         };
         this._textStack.addEventListener('tap', toggleOnTap);
         toggle.addEventListener('tap', toggleOnTap);
+
+        applyConstructProps(this, props);
     }
 
     /** Append a child row (or any view) to the disclosure container. */

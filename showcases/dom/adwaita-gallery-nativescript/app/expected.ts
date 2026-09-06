@@ -149,7 +149,7 @@ export const EXPECTED: readonly ExpectView[] = [
             ] }
     },
     { widget: 'Adw.Avatar', view: 'AdwAvatar', root:
-        { tag: 'adw:Avatar', props: {"text":"Ada Lovelace","size":96} }
+        { tag: 'adw:Avatar', props: {"text":"Ada Lovelace","size":96,"showInitials":true} }
     },
     { widget: 'Adw.Banner', view: 'AdwBanner', root:
         { tag: 'adw:Banner', props: {"title":"Metered connection: updates paused","buttonLabel":"Resume","revealed":true} }
@@ -171,9 +171,9 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Adw.ExpanderRow', view: 'AdwExpanderRow', root:
         { tag: 'adw:PreferencesGroup', children: [
-                { tag: 'adw:ExpanderRow', props: {"title":"Advanced","subtitle":"Options most people leave alone","expanded":true}, children: [
-                        { tag: 'adw:SwitchRow', props: {"title":"Developer mode","active":false} },
-                        { tag: 'adw:EntryRow', props: {"title":"Endpoint","text":"https://example.invalid"} }
+                { tag: 'adw:ExpanderRow', props: {"title":"Proxy settings","subtitle":"Route traffic through a custom proxy","expanded":true}, children: [
+                        { tag: 'adw:EntryRow', props: {"title":"Host","text":"proxy.example.com"} },
+                        { tag: 'adw:SwitchRow', props: {"title":"Use authentication"} }
                     ] }
             ] }
     },

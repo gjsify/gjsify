@@ -28,6 +28,7 @@
 import { action, confirm, Observable, type EventData } from '@nativescript/core';
 import { AdwAlertResponses } from '@gjsify/adwaita-core';
 import type { AdwResponseAppearance, AdwResponseOptions } from '@gjsify/adwaita-core';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 // Re-export the headless response model + its types so existing consumers keep
 // importing them from `@gjsify/adwaita-nativescript` unchanged.
@@ -52,9 +53,11 @@ export class AdwAlertDialog extends Observable {
     /** The headless response registry + ordering + resolution (ADR 0004). */
     private readonly _responses: AdwAlertResponses;
 
-    constructor(heading = '', body = '') {
+    constructor(heading = '', body = '', props?: ConstructProps<AdwAlertDialog>) {
         super();
         this._responses = new AdwAlertResponses(heading, body);
+
+        applyConstructProps(this, props);
     }
 
     /** The dialog heading (title). */

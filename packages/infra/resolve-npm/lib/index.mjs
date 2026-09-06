@@ -11,6 +11,12 @@ export {
     resetRuntimeAliasesCache,
 } from './runtime-aliases.mjs';
 
+// Which package answers `gi://Ns` on a target with no GObject introspection — ADR 0034
+// stage 9. Kept beside the other per-target routing tables for the same reason they live
+// here: one source of truth per `--app`, reachable from the Vite presets as well as from
+// `gjsify build`.
+export { GI_RENDERERS, GI_RENDERER_APPS } from './gi-renderers.mjs';
+
 import { getDerivedAliasesSync as _getDerivedAliasesSync } from './runtime-aliases.mjs';
 
 /**

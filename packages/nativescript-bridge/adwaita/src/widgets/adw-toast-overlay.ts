@@ -28,6 +28,7 @@ import type { View } from '@nativescript/core';
 import { Button, GridLayout, ItemSpec, Label, type EventData } from '@nativescript/core';
 import { AdwToast, AdwToastQueue } from '@gjsify/adwaita-core';
 import type { AdwToastOptions, ToastScheduler } from '@gjsify/adwaita-core';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 // Re-export the headless surface so existing consumers keep importing it from
 // `@gjsify/adwaita-nativescript` unchanged.
@@ -60,7 +61,7 @@ export class AdwToastOverlay extends GridLayout {
     /** The headless one-at-a-time + auto-dismiss state machine (ADR 0004). */
     private readonly _queue: AdwToastQueue;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwToastOverlay>) {
         super();
 
         this.className = 'adw-toast-overlay';
@@ -108,6 +109,8 @@ export class AdwToastOverlay extends GridLayout {
                 this._toastStrip.visibility = 'collapse';
             },
         });
+
+        applyConstructProps(this, props);
     }
 
     /** Set (or replace) the always-visible content layer (under the toast). */

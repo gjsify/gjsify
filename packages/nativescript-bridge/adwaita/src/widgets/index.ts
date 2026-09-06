@@ -77,7 +77,7 @@ export {
 export type { MenuSheetPresenter, MenuSheetRow } from './menu-sheet.js';
 export { GtkImage, DEFAULT_GTK_IMAGE_SIZE } from './gtk-image.js';
 export { AdwBanner, BUTTON_CLICKED } from './adw-banner.js';
-export { AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';
+export { AVATAR_DEFAULT_ICON, AdwAvatar, DEFAULT_AVATAR_SIZE, avatarInitials } from './adw-avatar.js';
 export { AdwWindowTitle } from './adw-window-title.js';
 export { AdwClamp, DEFAULT_CLAMP_MAX_SIZE } from './adw-clamp.js';
 
@@ -242,6 +242,14 @@ export { AdwPreferencesDialog, CLOSED as PREFERENCES_CLOSED } from './adw-prefer
 // Wire Adwaita press-darken onto a custom activatable row (the built-in
 // activatable rows already call this internally).
 export { attachRowPressFeedback } from './row-press.js';
+
+// --- Construct properties (ADR 0034 § 4) ---
+// The optional bag every widget's constructor takes, the applier a consumer's own widget
+// subclass reuses, and `Gtk.Align` as a value table for a target that has no GI to read
+// one from.
+export { applyConstructProps, nsAlignment } from './construct-props.js';
+export type { ConstructProps } from './construct-props.js';
+export { GTK_ALIGN } from './gtk-align.js';
 
 // --- Icon rendering ---
 // Rasterise an Adwaita symbolic SVG (e.g. from `@gjsify/adwaita-icons`) to a native

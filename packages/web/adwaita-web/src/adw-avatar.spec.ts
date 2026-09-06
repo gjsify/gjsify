@@ -13,6 +13,7 @@ import { AVATAR_COLORS, avatarMaxFontSize } from '@gjsify/adwaita-core';
 import {
     AVATAR_COLOR_VECTORS,
     AVATAR_FONT_SIZE_VECTORS,
+    AVATAR_ICON_SIZE_VECTORS,
     AVATAR_INITIALS_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
 
@@ -122,6 +123,22 @@ export const AdwAvatarTest = async () => {
             expect(at(64) >= at(48)).toBe(true);
             host.remove();
         });
+    });
+
+    await describe('adw-avatar fallback glyph size (adw-avatar.c:756)', async () => {
+        for (const { size, iconSize } of AVATAR_ICON_SIZE_VECTORS) {
+            await it(`size ${size} draws the glyph at ${iconSize}`, () => {
+                // Through the ELEMENT, not the helper: the box was hand-typed here as
+                // `round(size * 0.55)` and drew ~10% larger than GTK at every size,
+                // with nothing in a position to say so.
+                const { avatar, host } = mountAvatar('Ada Lovelace', false);
+                avatar.setAttribute('size', String(size));
+                const icon = avatar.querySelector('.adw-avatar-icon') as HTMLElement;
+                expect(icon.hidden).toBe(false);
+                expect(icon.getAttribute('size')).toBe(String(iconSize));
+                host.remove();
+            });
+        }
     });
 
     await describe('adw-avatar mode (Adw.Avatar update_visibility)', async () => {

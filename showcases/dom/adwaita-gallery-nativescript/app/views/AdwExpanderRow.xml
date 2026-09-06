@@ -3,17 +3,14 @@
   xmlns:adw="~/adw"
 >
   <adw:ExpanderRow
-    title="Advanced"
-    subtitle="Options most people leave alone"
+    title="Proxy settings"
+    subtitle="Route traffic through a custom proxy"
     expanded="true"
   >
-    <adw:SwitchRow
-      title="Developer mode"
-      active="false"
-    />
     <adw:EntryRow
-      title="Endpoint"
-      text="https://example.invalid"
+      title="Host"
+      text="proxy.example.com"
     />
+    <adw:SwitchRow title="Use authentication" />
   </adw:ExpanderRow>
 </adw:PreferencesGroup>

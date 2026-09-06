@@ -30,6 +30,7 @@ import { AdwEntryRow } from './adw-entry-row.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { NS_PASSWORD_ENTRY_ROW_CLASS, applyPasswordEntryRowState } from './entry-row-view.js';
 import { xmlBoolean } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 // Re-exported so consumers reach the headless state machine from
 // `@gjsify/adwaita-nativescript` without a second import path.
@@ -51,7 +52,7 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
     /** The trailing peek (reveal/conceal) toggle button. */
     protected readonly _peekButton: AdwImageButton;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwPasswordEntryRow>) {
         super();
 
         this._field.className = 'adw-entry-field adw-password-field';
@@ -82,6 +83,8 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
             };
             this.notify(data);
         });
+
+        applyConstructProps(this, props);
     }
 
     /** Whether the contents are shown in clear text (`GtkText:visibility`). */

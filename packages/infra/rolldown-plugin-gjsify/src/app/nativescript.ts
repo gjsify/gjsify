@@ -13,7 +13,9 @@
 //
 // `@girs/*` and `gi://*` imports are silenced via `gjsImportsEmptyPlugin` —
 // they appear transitively through `@gjsify/unit` and similar packages with
-// GJS-specific code paths that never execute on NS.
+// GJS-specific code paths that never execute on NS. `--gi-renderer` (ADR 0034
+// stage 9) opts out of that for `gi://Adw` / `gi://Gtk`, answering them from
+// `@gjsify/adwaita-nativescript` and carving `@girs/*` out of the empty redirect.
 //
 // Bare Node specifiers + their `node:*` prefix variants are routed to
 // `@gjsify/<X>` via the curated `ALIASES_NODE_FOR_NATIVESCRIPT` table. Unlike
@@ -37,11 +39,12 @@ import { aliasPlugin } from '../plugins/alias.js';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
-import { ALIASES_NODE_FOR_NATIVESCRIPT, getDerivedAliasesSync } from '@gjsify/resolve-npm';
+import { ALIASES_NODE_FOR_NATIVESCRIPT, GI_RENDERERS, getDerivedAliasesSync } from '@gjsify/resolve-npm';
 
 import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
+import { giRendererPlugin } from '../plugins/gi-renderer.js';
 import {
     platformResolvePlugin,
     nativescriptSuffixChain,
@@ -78,6 +81,9 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
 
     const exclude = input.pluginOptions.exclude ?? [];
     const entryPoints = await globToEntryPoints(input.input, exclude);
+    // The arm is composed only when asked for. `config.ts` already refuses the flag
+    // on a target with no row, so an undefined row here means the flag was not passed.
+    const giRenderer = input.pluginOptions.giRenderer ? GI_RENDERERS['nativescript'] : undefined;
 
     // Target platform — discovered from the env NS' CLI sets when it spawns a
     // bundler (else `undefined` → `.native`-only resolution + neutral defines).
@@ -165,7 +171,13 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
     const prePlugins: RolldownPluginOption[] = [deepkitPlugin({ reflection: input.pluginOptions.reflection })];
 
     const plugins: RolldownPluginOption[] = [
-        gjsImportsEmptyPlugin(),
+        // ADR 0034 stage 9 — the `gi://` arm, ahead of the empty redirect so it
+        // claims the specifier first, exactly as `gjsGiNodePlugin` does on the node
+        // target. `emptyGirs` follows it: with the arm on, `@girs/<ns>-<ver>` must
+        // reach its real body so its inner `gi://` lands here instead of being
+        // stranded as `{}`.
+        ...(giRenderer ? [giRendererPlugin({ app: 'nativescript', ...giRenderer })] : []),
+        gjsImportsEmptyPlugin({ emptyGirs: !giRenderer }),
         // Platform-specific source variants (`*.android` / `*.ios` /
         // `*.native`) win over the base file — resolved BEFORE the Node-builtin
         // alias routing so a platform fork of a portable module is honored.
