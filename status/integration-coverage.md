@@ -145,6 +145,67 @@ Validates `@gjsify/devtools-cdp`'s `InspectorProtocolClient` against a **live We
 
 Tiny but load-bearing — dotenv is the most ubiquitous third-party `process.env` mutator on npm, so if the `@gjsify/process` `process.env` Proxy's get/set/delete traps drift from Node's plain-object semantics this suite catches it first. **Node: 127/127 green (96 `it()` blocks). GJS: 127/127 green, 0 skips.** parse (48 — every quoting branch, inline comments, `\n` expansion, `export` tolerance, Buffer input, duplicate-key + line-ending matrix), parse-multiline (23), config (38 — string/array/URL paths, override semantics, `processEnv` target, ENOENT), populate (18 — incl. `delete process.env.X` unsetenv trap + `in` has trap). Fixtures reproduced verbatim from upstream v17.4.2. No `@gjsify/*` fix required.
 
+## effect
+
+Effect 4 (pinned `4.0.0-rc.112`) on Node and GJS — the hardest scheduling consumer in the tree, and
+the reason this suite exists rather than another request/response library: every fiber yield goes
+through a microtask or a host timer, every interruption unwinds finalizers, and every resource is a
+`Scope` that must close on the way out. **Node: 64/64 green. GJS: 85/85 green, 0 skips.** No `@gjsify/*` change was
+required — Effect 4 loads and runs unmodified under `gjsify build --app gjs`, which was the open
+question the suite was written to answer. The GJS leg runs more cases than the Node one because the
+FileSystem conformance suite runs TWICE there, over `node:fs` and over `@gjsify/effect-platform`'s
+Gio layer (ADR 0050); the Node entry deliberately does not import the Gio leg, which would put GIO
+in an `--app node` bundle.
+
+Why the RC and not stable 3.x: 4.0 folds platform, schema, stream and http into the `effect`
+package, so `effect/FileSystem` and `effect/Path` are core rather than a separate dependency, and
+upstream ships `FileSystem.test-utils.ts` — a LAYER-PARAMETERISED conformance suite written so Node,
+Bun and Deno answer the same questions about the same contract. Pointing it at
+`@effect/platform-node-shared`'s `NodeFileSystem.layer` runs @gjsify/fs through a conformance suite
+nobody here would have thought to write, because it asks about the file CURSOR: seek forwards, seek
+backwards, read without an intervening seek, write in `a+` where read and write positions are
+separate, truncate under a live cursor. The RC announcement states no further broad breaking changes
+and asks for third-party validation before stable. `^` is not used in the pin: it does not mean what
+one expects across prerelease tags.
+
+| Spec | Cases | Validates |
+|---|---|---|
+| `runtime-surface` | 11 | the platform APIs Effect reaches for, before any Effect runs. Authored, not ported — on Node and in a browser every one is simply present, so upstream had no reason to test it. Bare GJS supplies only `WeakRef` and `FinalizationRegistry`; the other nine rows are `@gjsify/*` output |
+| `filesystem` + `filesystem-gio` | 21 ×2 | upstream's LAYER-PARAMETERISED conformance suite, ported once and run over `@gjsify/fs` and over the Gio layer. Both pass all 21. The Gio leg is GJS-only |
+| `path` | 2 | POSIX **and win32** file-URL conversion over `@gjsify/{path,url}` — the win32 leg exercises the `path.win32` branch nothing else in this tree calls |
+| `scope` | 4 | 1 ported (parallel finalization under `TestClock`) + 3 authored: reverse-order release, release on interruption, idempotent double close |
+| `scheduler` | 6 | the sync/host split. The sharp one is `runSyncExit does not schedule timers after yielding`: if it ever did, `Effect.runSync` on GJS would stop returning a value, because the continuation would land on the next main-loop turn — which for a synchronous caller is never |
+| `clock` | 2 | which of our APIs the Clock reads. Pins `process.hrtime.bigint` as the monotonic source and `Date.now` as the wall source, incl. the wall-clock-jumps-backwards case a single-source clock gets wrong |
+| `stream` | 13 | `Stream.callback` in full (emit, end, fail, throw, backpressure, cleanup-on-interrupt) — the push-to-pull shape a GTK signal has — plus all five `timeout` cases, plus 2 authored real-clock cases |
+| `config-env` | 5 | Effect's env reader against `@gjsify/process`'s GLib Proxy: read, delete, empty string as absent, empty string preserved, and `ownKeys` via the root record |
+| `path-differential` | 11 | GJS ONLY. `effect/Path` over GLib against `effect/Path` over `node:path`, one case per OPERATION over one corpus. Upstream has no Path conformance suite, so this is the oracle; it found eleven divergence classes on its first run that the hand-written expectations had all missed |
+
+**Two legs, and they answer different questions.** Upstream's `it.effect` runs on a virtual
+`TestClock` and asserts about ORDER; `it.live` runs on the host clock and asserts about elapsed
+time. Ports keep whichever the upstream case used (`src/run.ts` spells the distinction out), which
+means most ported cases reach no host timer at all. The authored real-clock cases exist for exactly
+that gap — a broken `@gjsify/timers` would otherwise pass every ported case and break in an
+application.
+
+**Test defects found by the NODE leg**, which is the leg that says the test is wrong rather than the
+implementation, all recorded in the specs: `Stream.toPull` is scoped and needed an explicit
+`Effect.scoped` the upstream harness supplies per case, and `ConfigProvider.fromEnv` reads `_` as
+its PATH SEPARATOR, so the root record lists first segments (`GJSIFY`) and not variable names
+(`GJSIFY_EFFECT_CONFIG_PROBE`).
+
+**Three defects the GIO leg found in `@gjsify/effect-platform`** on its first run, each fixed in the
+layer rather than declared as a gap: `g_file_replace*` is atomic-replace and so cannot back POSIX
+`w`/`w+` (a mid-stream read-back saw an empty file); a `GFileOutputStream` buffers where a
+descriptor does not, so every write now flushes; and `writeFile`, built out of `open` + `writeAll`,
+reported the inner method's name where the contract asks for its own.
+
+**The application-side counterpart is `showcases/gtk/effect-adw-services`**, which asks what this
+suite cannot: does an interrupted fiber actually cancel a `Gio.Cancellable`, does a GObject lifetime
+close an Effect `Scope`, and does a boolean-returning GTK signal still get its answer on time.
+
+**Cost, measured rather than assumed.** Importing Effect and running one effect adds 25 KB to a GJS
+bundle and 2 ms to cold start (12 runs, 45 ms → 47 ms). Tree-shaking over Effect 4 works.
+
 ## execa
 
 Phase D-1 Workstream T — the `execa` v9 subprocess wrapper consumed by `@gjsify/vite-plugin-blueprint` (blueprint-compiler) and `@gjsify/vite-plugin-gettext` (xgettext/msgfmt). **Node: 44/44 green. GJS: 44/44 green, 0 ignored** — the async-stdin-piping case that was ignored on GJS now runs and passes (the measured run shows no `(skipped)` and no `✗`), so the Open-TODO note about it no longer describes this suite. Fixes surfaced (landed): named-import `hrtime` preserves `.bigint`; `ChildProcess.stdio` getter exposes the `[stdin, stdout, stderr]` tuple; the `--app gjs` process-stub's `hrtime` gained `.bigint` so pre-register `__esm` lazy-init code cannot hit a TypeError.

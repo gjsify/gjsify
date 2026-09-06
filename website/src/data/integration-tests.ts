@@ -27,6 +27,7 @@ export const integrationSuites: readonly IntegrationSuite[] = [
     { name: 'cosmiconfig', exercises: 'Dynamic ESM import() with file:// URLs', category: 'fs' },
     { name: 'gettext-parser', exercises: 'Binary buffer + endianness, fs URL paths', category: 'parse' },
 
+    { name: 'effect', exercises: 'Fiber runtime: timers, AbortSignal, finalizers, fs conformance', category: 'core' },
     { name: 'execa', exercises: 'child_process spawn/exec + stream pipes', category: 'process' },
     { name: 'yargs', exercises: 'events, util, process.argv, ESM-import wiring', category: 'process' },
 

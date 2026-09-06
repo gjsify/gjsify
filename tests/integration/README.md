@@ -66,6 +66,7 @@ assertions are preserved — only the assertion dialect changes.
 | `cosmiconfig/` | `@gjsify/fs` + `@gjsify/path` + dynamic ESM `import(file://…)` | `### cosmiconfig` |
 | `deepkit-type-compiler/` | TypeScript compiler API (Phase D-1 W) | `### @deepkit/type-compiler` |
 | `dotenv/` | `@gjsify/process` (process.env Proxy round-trip through GLib.{get,set,unset}env) + `@gjsify/fs.readFileSync` | `### dotenv` |
+| `effect/` | Effect 4's fiber runtime end to end — `@gjsify/{timers,process,fs,path,abort-controller}` under the hardest scheduling consumer in the tree, plus upstream's layer-parameterised `FileSystem` conformance suite run over BOTH `node:fs` and `@gjsify/effect-platform`'s Gio layer | `### effect` |
 | `execa/` | `@gjsify/child_process` spawn + stdio + env forwarding | `### execa` |
 | `fast-glob/` | `@gjsify/fs` readdir + glob walk semantics | `### fast-glob` |
 | `gettext-parser/` | PO/MO byte-equality binary read/write | covered in suite README |

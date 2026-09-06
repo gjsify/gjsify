@@ -1,0 +1,31 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "types": [
+            "@girs/gjs",
+            "node"
+        ],
+        "target": "ESNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": false
+    },
+    "files": [
+        "src/test.mts",
+        "src/test.gjs.mts",
+        "src/suites.ts",
+        "src/fixtures.ts",
+        "src/run.ts",
+        "src/runtime-surface.spec.ts",
+        "src/filesystem-conformance.ts",
+        "src/filesystem.spec.ts",
+        "src/filesystem-gio.spec.ts",
+        "src/path.spec.ts",
+        "src/scope.spec.ts",
+        "src/scheduler.spec.ts",
+        "src/clock.spec.ts",
+        "src/stream.spec.ts",
+        "src/config-env.spec.ts",
+        "src/path-differential.spec.ts"
+    ]
+}

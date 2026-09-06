@@ -1573,6 +1573,7 @@ jobs:
           --include @gjsify/integration-deltachat
           --include @gjsify/integration-domparser
           --include @gjsify/integration-dotenv
+          --include @gjsify/integration-effect
           --include @gjsify/integration-execa
           --include @gjsify/integration-fast-glob
           --include @gjsify/integration-gettext-parser

@@ -1,0 +1,28 @@
+{
+    "compilerOptions": {
+        "outDir": "lib",
+        "declarationDir": "lib/types",
+        "rootDir": "src",
+        "tsBuildInfoFile": "tmp/.tsbuildinfo",
+        "target": "es2020",
+        "declaration": true,
+        "emitDeclarationOnly": true,
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "removeComments": false,
+        "preserveConstEnums": true,
+        "sourceMap": true,
+        "skipLibCheck": true,
+        "composite": true,
+        "incremental": true,
+        "types": ["node", "@girs/gjs", "@girs/gio-2.0", "@girs/glib-2.0", "@girs/gobject-2.0", "@girs/gtk-4.0"],
+        "lib": ["es2020"],
+        "strict": true
+    },
+    "include": ["src"],
+    "exclude": ["src/test.mts"]
+}

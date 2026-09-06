@@ -1,0 +1,33 @@
+{
+    "name": "@gjsify/integration-effect",
+    "description": "Integration tests: Effect 4 on GJS and Node. Effect's fiber runtime is the hardest scheduling consumer we have \u2014 it drives every microtask, timer, AbortSignal and finalizer we implement \u2014 and Effect 4 folds FileSystem/Path/Stream/Schema into one package, so a single dependency exercises @gjsify/{timers,process,fs,path,abort-controller,stream} through a real consumer's own test suite.",
+    "type": "module",
+    "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
+    "scripts": {
+        "clear": "gjsify clear dist tsconfig.tsbuildinfo",
+        "check": "gjsify tsc --noEmit",
+        "build:test:gjs": "gjsify build src/test.gjs.mts --app gjs --globals auto --outfile dist/test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs",
+        "build:test": "gjsify run build:test:node && gjsify run build:test:gjs",
+        "test": "gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:node": "node dist/test.node.mjs",
+        "test:gjs": "gjsify run dist/test.gjs.mjs"
+    },
+    "devDependencies": {
+        "@effect/platform-node-shared": "4.0.0-rc.112",
+        "@girs/gjs": "4.6.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/effect-platform": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "effect": "4.0.0-rc.112",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT"
+}
