@@ -11,6 +11,17 @@
 // This is the NativeScript analogue of how `packages/framework/*` lean on the
 // generated `@girs/*` types for GNOME classes: we describe the native host API
 // surface, we don't reimplement it.
+//
+// WHAT THIS FILE CANNOT CATCH. A member declared below makes a shadowing widget fail
+// HERE; a member left out stays invisible until a consumer compiles. So this is a
+// growing list, never a guarantee. Measured against `@nativescript/core@9.1.0-alpha.11`,
+// three shadowings remain that this file deliberately does NOT declare, because each is
+// a name the Adwaita vocabulary owns on purpose and declaring it would fail the build
+// here for a decision already taken: `AdwDataGrid.rows`/`.columns` over
+// `GridLayoutBase`'s track spellings (the trade `SETTER_ONLY_ON_BASE` in
+// `scripts/nativescript-xml-doors.mjs` records), and `AdwSplitButton.direction` over
+// `ViewCommon.direction`, NativeScript's RTL layout property. All three are a type
+// error for a consumer that compiles our `lib/types` without `skipLibCheck`.
 
 declare module '@nativescript/core' {
     /** Payload shape for NativeScript's `Observable.notify` / event listeners. */
@@ -252,6 +263,13 @@ declare module '@nativescript/core' {
         protected _rows: ItemSpec[];
         addColumn(itemSpec: ItemSpec): void;
         addRow(itemSpec: ItemSpec): void;
+        /**
+         * `GridLayoutBase.removeRow(itemSpec: ItemSpec)`
+         * (`ui/layouts/grid-layout/grid-layout-common.d.ts:41`). While this file listed
+         * only `removeRows()`, a widget could narrow `removeRow` and nothing here
+         * objected — `AdwExpanderRow` took a `View`, and only a consumer saw it.
+         */
+        removeRow(itemSpec: ItemSpec): void;
         /** Remove every column definition (lets a layout re-declare its columns,
          *  e.g. to flip the fixed/expanding column for a trailing sidebar). */
         removeColumns(): void;
