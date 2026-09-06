@@ -173,6 +173,93 @@ export default async () => {
             });
         });
 
+        await gated(diagnostics, 'indexed — Gtk.FlowBox (the per-line cap tracks the child count)', async () => {
+            await it('sets the cap to the child count on every insert and every remove', async () => {
+                // WHY this is maintained rather than pinned high once: GTK measures
+                // the CAP and not the children, quadratically. A two-child box at
+                // 65535 takes 1517.9 ms per measure and at 64 takes 0.018 ms
+                // (measured, GTK 4.22.4), and both lay the two children out the same,
+                // which is what let the cost sit unnoticed behind a correct screen.
+                const flow = createElement('GtkFlowBox');
+                const widget = materialize(flow) as unknown as Gtk.FlowBox;
+                const [a, b, c] = labels(3);
+                insert(a, flow);
+                expect(widget.maxChildrenPerLine).toBe(1);
+                insert(b, flow);
+                insert(c, flow);
+                expect(widget.maxChildrenPerLine).toBe(3);
+                remove(b);
+                expect(widget.maxChildrenPerLine).toBe(2);
+            });
+
+            await it('asks for one when the box is empty, because 0 is refused', async () => {
+                // `GLib-GObject-CRITICAL: value "0" … is invalid or out of range for
+                // property 'max-children-per-line' of type 'guint'` — and the property
+                // KEEPS ITS OLD VALUE behind that critical, so a 0 written here would
+                // leave the cap wherever it happened to be.
+                //
+                // THREE children and not one, which is the difference between a vector
+                // and a vector that cannot fail: emptying a box that only ever held one
+                // leaves the cap at 1 either way, so the assertion passed for a write
+                // of 0 too and only the diagnostics gate caught it.
+                const flow = createElement('GtkFlowBox');
+                const widget = materialize(flow) as unknown as Gtk.FlowBox;
+                const three = labels(3);
+                for (const label of three) insert(label, flow);
+                expect(widget.maxChildrenPerLine).toBe(3);
+                for (const label of three) remove(label);
+                expect(widget.maxChildrenPerLine).toBe(1);
+            });
+
+            await it('never overwrites a cap the author asked for', async () => {
+                // `maxChildrenPerLine={3}` is an instruction to put three on a line.
+                // The sync exists to remove a silent cost, and taking this over would
+                // be a silent change of layout — the same kind of wrong, pointed the
+                // other way.
+                // The CAMELCASE spelling, because that is the one the docblock
+                // advertises and the one an author writes; `setProp` normalises it to
+                // the kebab key the sync reads, and a vector written in kebab would
+                // never have tested that hop.
+                const flow = createElement('GtkFlowBox', { maxChildrenPerLine: 3 });
+                const widget = materialize(flow) as unknown as Gtk.FlowBox;
+                const [a, b] = labels(2);
+                insert(a, flow);
+                insert(b, flow);
+                expect(widget.maxChildrenPerLine).toBe(3);
+            });
+
+            await it('measures the same natural width as the cap the author would write', async () => {
+                // The cap is not merely expensive, it is WRONG in the answer: a
+                // natural width carries `column-spacing × (cap - 1)` of gaps that do
+                // not exist, so the pinned 65535 measured 524 867 px for content
+                // 683 px wide. Asserted as an equivalence rather than against a
+                // number, because the number is the thing under test: an authored cap
+                // the sync leaves alone must measure what the synced one measures.
+                const authored = createElement('GtkFlowBox', { 'max-children-per-line': 2, 'column-spacing': 8 });
+                const synced = createElement('GtkFlowBox', { 'column-spacing': 8 });
+                const [aw, sw] = [authored, synced].map((flow) => {
+                    const widget = materialize(flow) as unknown as Gtk.FlowBox;
+                    for (const label of labels(2)) insert(label, flow);
+                    return widget.measure(Gtk.Orientation.HORIZONTAL, -1)[1];
+                });
+                expect(sw).toBe(aw);
+            });
+
+            await it('leaves a Gtk.ListBox alone, which declares no cap', async () => {
+                // Asserted on the DATA, because the placement assertion below is true
+                // whatever the sync does and pinned the intent through nothing but the
+                // diagnostics gate. `Gtk.ListBox` has no such property at all, and
+                // writing one is a `GLib-GObject-CRITICAL` at exit 0.
+                const policy = lookupWidget('GtkListBox').children;
+                expect(policy.kind === 'indexed' && policy.perLineCap === undefined).toBe(true);
+                const list = createElement('GtkListBox');
+                const widget = materialize(list) as unknown as Gtk.ListBox;
+                const [a] = labels(1);
+                insert(a, list);
+                expect(gtkChildTypes(widget as unknown as Gtk.Widget)).toStrictEqual(['GtkListBoxRow']);
+            });
+        });
+
         await gated(diagnostics, 'single, slotted, keyed, coords', async () => {
             await it('single: set_child replaces, it does not append', async () => {
                 const bin = createElement('AdwBin');

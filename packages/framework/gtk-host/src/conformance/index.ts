@@ -157,6 +157,30 @@ export function descriptorProblems(
             }
         }
 
+        if (d.children.kind === 'indexed' && d.children.perLineCap !== undefined) {
+            // The same check `textSink` gets, for the same reason: a declared
+            // PROPERTY NAME that the class does not carry fails silently. MEASURED —
+            // `listBox.set_property('max-children-per-line', 3)` logs
+            // `GLib-GObject-CRITICAL: object class 'GtkListBox' has no property named
+            // …` and returns, at exit 0, so a typo here would simply stop capping.
+            const cap = d.children.perLineCap;
+            const specs = (Klass as unknown as { list_properties(): GObject.ParamSpec[] }).list_properties();
+            const spec = specs.find((x) => x.get_name() === cap);
+            if (!spec) {
+                problems.push({
+                    gtype: d.gtype,
+                    problem: `declares perLineCap "${cap}", which ${actual} does not have`,
+                });
+            } else if ((spec.flags & GObject.ParamFlags.WRITABLE) === 0) {
+                problems.push({ gtype: d.gtype, problem: `declares a READ-ONLY perLineCap "${cap}"` });
+            } else if (!GObject.type_is_a(spec.value_type, GObject.TYPE_UINT)) {
+                problems.push({
+                    gtype: d.gtype,
+                    problem: `declares perLineCap "${cap}", which is ${GObject.type_name(spec.value_type)}, not a count`,
+                });
+            }
+        }
+
         problems.push(...policyProblems(d, Klass as unknown as { prototype: object }, actual));
     }
     return problems;
