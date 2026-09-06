@@ -62,28 +62,17 @@
  * @property {TreeNode} root
  */
 
+import { gtkHostTree } from './adwaita-gallery-shared-trees.mjs';
+
 /** @type {readonly GalleryTree[]} */
 export const ADWAITA_GALLERY_TREES = [
     // ------------------------------------------------------------- boxed-lists
-    {
-        widget: 'Adw.PreferencesGroup',
-        page: 'boxed-lists',
-        root: {
-            tag: 'adw-preferences-group',
-            props: { title: 'Account', description: 'Manage how this device signs in and syncs.' },
-            children: [
-                { tag: 'adw-entry-row', props: { title: 'Display name', text: 'Grace Hopper' } },
-                {
-                    tag: 'adw-switch-row',
-                    props: {
-                        title: 'Sync over Wi-Fi only',
-                        subtitle: 'Avoid using mobile data for backups',
-                        active: true,
-                    },
-                },
-            ],
-        },
-    },
+    // Authored once in `adwaita-gallery-shared-trees.mjs` and rendered by both this
+    // file's three dialects and the NativeScript XML beside it — ADR 0027 § 9's
+    // criterion at the size that file's census reaches. The seven that carry it are
+    // the blocks whose two trees needed no alias to line up; every block that still
+    // needs one is in its divergence ledger with the measured reason.
+    gtkHostTree('Adw.PreferencesGroup'),
     {
         widget: 'Adw.ActionRow',
         page: 'boxed-lists',
@@ -105,31 +94,8 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
-    {
-        widget: 'Adw.SwitchRow',
-        page: 'boxed-lists',
-        root: {
-            tag: 'adw-preferences-group',
-            children: [
-                {
-                    tag: 'adw-switch-row',
-                    props: {
-                        title: 'Automatic updates',
-                        subtitle: 'Download and install updates without asking',
-                        active: true,
-                    },
-                },
-            ],
-        },
-    },
-    {
-        widget: 'Adw.EntryRow',
-        page: 'boxed-lists',
-        root: {
-            tag: 'adw-preferences-group',
-            children: [{ tag: 'adw-entry-row', props: { title: 'Display name', text: 'Ada Lovelace' } }],
-        },
-    },
+    gtkHostTree('Adw.SwitchRow'),
+    gtkHostTree('Adw.EntryRow'),
     {
         widget: 'Adw.PasswordEntryRow',
         page: 'boxed-lists',
@@ -138,31 +104,7 @@ export const ADWAITA_GALLERY_TREES = [
             children: [{ tag: 'adw-password-entry-row', props: { title: 'Password', text: 'correct-horse-battery' } }],
         },
     },
-    {
-        widget: 'Adw.ExpanderRow',
-        page: 'boxed-lists',
-        // Its rows go through `add_row()`, which had no policy until
-        // `AdwExpanderRow` was curated — so this block was a refusal, and the
-        // refusal is what the probe found stale the moment the descriptor landed.
-        // An unslotted child IS the disclosure here: `defaultSlot: 'row'`.
-        root: {
-            tag: 'adw-preferences-group',
-            children: [
-                {
-                    tag: 'adw-expander-row',
-                    props: {
-                        title: 'Proxy settings',
-                        subtitle: 'Route traffic through a custom proxy',
-                        expanded: true,
-                    },
-                    children: [
-                        { tag: 'adw-entry-row', props: { title: 'Host', text: 'proxy.example.com' } },
-                        { tag: 'adw-switch-row', props: { title: 'Use authentication' } },
-                    ],
-                },
-            ],
-        },
-    },
+    gtkHostTree('Adw.ExpanderRow'),
     {
         widget: 'Adw.ButtonRow',
         page: 'boxed-lists',
@@ -349,7 +291,7 @@ export const ADWAITA_GALLERY_TREES = [
         root: {
             tag: 'adw-wrap-box',
             props: { childSpacing: 8, lineSpacing: 8 },
-            children: ['Design', 'Adwaita', 'GNOME', 'GTK', 'Typescript', 'Storybook', 'Wrapping', 'Layout'].map(
+            children: ['Design', 'Adwaita', 'GNOME', 'GTK', 'TypeScript', 'Storybook', 'Wrapping', 'Layout'].map(
                 (label) => ({ tag: 'gtk-button', props: { label, cssClasses: ['pill'] } }),
             ),
         },
@@ -538,19 +480,8 @@ export const ADWAITA_GALLERY_TREES = [
             props: { text: 'Ada Lovelace', size: 96, showInitials: true, iconName: 'avatar-default-symbolic' },
         },
     },
-    {
-        widget: 'Adw.Banner',
-        page: 'presentation',
-        root: {
-            tag: 'adw-banner',
-            props: { title: 'Metered connection: updates paused', buttonLabel: 'Resume', revealed: true },
-        },
-    },
-    {
-        widget: 'Adw.ShortcutLabel',
-        page: 'presentation',
-        root: { tag: 'adw-shortcut-label', props: { accelerator: '<Control>C' } },
-    },
+    gtkHostTree('Adw.Banner'),
+    gtkHostTree('Adw.ShortcutLabel'),
     {
         widget: 'Adw.Spinner',
         page: 'presentation',
@@ -576,11 +507,7 @@ export const ADWAITA_GALLERY_TREES = [
             ],
         },
     },
-    {
-        widget: 'Adw.WindowTitle',
-        page: 'presentation',
-        root: { tag: 'adw-window-title', props: { title: 'Inbox', subtitle: '3 unread messages' } },
-    },
+    gtkHostTree('Adw.WindowTitle'),
 ];
 
 /**

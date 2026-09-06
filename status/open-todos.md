@@ -393,7 +393,9 @@ and nothing here asserts that it behaves like one.
 
 The criterion that closes the GOAL out is in ADR 0027 § 9 and is unchanged: the same
 authored tree, rendered through the GTK host and through `adwaita-web`, satisfies the
-same `@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch.
+same `@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch. The
+"same authored tree" half now exists for part of the gallery and is measured — see *The
+gallery's two authored trees agree on 7 blocks of 23* below.
 Until that is measured the goal stays a direction, not a claim — and the longer
 horizon it points at (NativeScript and browser builds from one native-authored
 source) needs its own ADR.
@@ -407,6 +409,176 @@ And `bindEmptySections` derives SYNCHRONOUSLY, so it must run AFTER the router's
 `install` — routing first hides a section a declared child had already earned, and it
 only un-hides a microtask later, after `_syncClasses` has measured a bar at
 `offsetHeight` 0. That cost 8 real failures once; the three call sites now say so.
+
+### The gallery's two authored trees agree on 7 blocks of 23, and the rest is ledgered
+
+ADR 0027 § 9's criterion is *"the same authored tree, rendered through the GTK host and
+through `adwaita-web`, satisfies the same `@gjsify/adwaita-core/conformance` vectors with
+no per-surface markup branch"*. The entry above says the NAME half is held and the
+BEHAVIOUR half is not. This one is about a third thing that was held by nothing at all:
+whether the gallery's own sources describe the SAME UI.
+
+They are two files — `scripts/adwaita-gallery-trees.mjs` for the Solid/Vue/React tabs and
+`scripts/adwaita-gallery-ns-templates.mjs` for the NativeScript one — written by hand,
+independently. Arms 4-6 hold the first against `gtk-host`; arms 7-9 hold the second
+against the port. Both were green while `Adw.ExpanderRow` shipped *"Proxy settings"* with
+a host and an authentication toggle on three tabs and *"Advanced"* with a developer-mode
+toggle and an endpoint on the fourth, children in the opposite order, for as long as both
+files existed. Nothing compared one to the other.
+
+**The census that sized the work.** 40 blocks; 23 carry a tree on both renderers, and the
+other 17 are refused by one or by both with a reason already recorded. Of the 23, compared
+node by node with the GIR-name case rule as the only transform:
+
+| | blocks | |
+|---|---|---|
+| identical | 7 | authored once in `scripts/adwaita-gallery-shared-trees.mjs` |
+| `property` | 5 | same shape and tags; one renderer has no such property |
+| `vocabulary` | 2 | same shape; a tag, slot or property is spelled differently |
+| `composition` | 7 | genuinely different UIs, each forced by a renderer |
+| `content` | 2 | nothing forced them apart — two authors, two examples |
+
+Every number is recomputed by arm 11 of `check-generated-website-data.mjs`, which prints
+the partition on every run and fails on a ledgered block whose two trees have BECOME
+identical — the self-retiring shape of arm 5b's stale-refusal rule, so the branches closing
+the renderer gaps one property at a time cannot leave a dead reason standing.
+
+**What blocks the remaining 16, in the order it can be paid.**
+
+*The 5 `property` ones are renderer work and are already in flight or trivially scoped.*
+`Adw.Avatar` needs `showInitials` and `iconName` on the NativeScript `AdwAvatar`, whose
+whole Adwaita surface today is `size` and `text` — and whose `set text` always renders
+initials, so there is no icon path to reach either. `Gtk.Entry` needs nothing:
+`widthRequest` is a GTK size request and the port has no layout surface, so this one may
+stay ledgered forever. `Adw.PasswordEntryRow` and `Adw.Spinner` are the same shape from the
+other side: `adw_password_entry_row_class_init` and `adw_spinner_class_init` install NO
+properties at all, so `revealed` and `spinning` have no GIR counterpart to converge on —
+libadwaita keeps the reveal toggle as a private `GtkButton` suffix, and an `Adw.Spinner`
+cannot be stopped where a `GtkSpinner` can. (Both were first written up as a difference in
+what libadwaita EXPOSES — a peek icon, a size — which named a property of `GtkPasswordEntry`
+and one nothing has; the classes install none.) `Adw.ButtonRow` is the interesting one:
+`startIconName` exists on BOTH and means different things, an icon NAME on GTK and an
+Adwaita symbolic SVG STRING on the port. A property that agrees on its name and disagrees on
+its value is worse than one that is missing, and `check-vocabulary-alignment.mjs` counts it
+as agreement.
+
+*The 2 `vocabulary` ones close for free when the convergence that gate already counts down
+lands* — `label`/`text`, `wrap`/`textWrap`, `cssClasses`/`class`, and the three header-bar
+slots spelled `start`/`title`/`end` against `startBox`/`titleWidget`/`endBox`. Slots are
+why no shared tree uses one yet: the shared source admits a block only when it needs no
+alias, and every slotted pair still needs three. `Adw.Spinner` sat here until its `spinning`
+half was read: a `vocabulary` entry PROMISES the block lands in the shared source for free
+when the renames land, so a missing property filed under it is a promise nothing can keep.
+
+*The 7 `composition` ones each need a decision before they need code*, and two of them are
+the same decision twice: an `AdwHeaderBar` title is a slotted `AdwWindowTitle` child on GTK
+and a plain `title` property on the port, so `Adw.OverlaySplitView` and `Adw.ToolbarView`
+carry two nodes more on one side than the other. Converging them means deciding which
+renderer is wrong, which is an ADR 0034 question and not a gallery one.
+
+*The 2 `content` ones are the ones nobody has an excuse for*, and they are left as measured
+rather than fixed because closing the LIST would not move either into the shared source:
+both also carry a `cssClasses` against the port's style-class property, and that half does
+not close by renaming. `@nativescript/core`'s `ViewBase` already owns the name — its
+constructor assigns `this.cssClasses = new Set()`, its `ClassSelector.match` reads
+`node.cssClasses.has(…)` and its `className` setter clears and refills the same Set — so
+taking the name means shadowing that field with an accessor pair that still hands the CSS
+engine a live mutable Set, and the value kinds differ besides (`string[]` against
+`Set<string>`). Padding the lists moves them from `content` to `vocabulary`, which is a
+bucket sideways and not a block shared. `Adw.WrapBox`: the block
+preview and three tabs show eight chips, the NativeScript template six. `Gtk.Button`: five
+buttons against four, the icon-only circular one missing. The rule that settles both is the
+one `Adw.WrapBox`'s own tree already states — a gallery block is one widget written several
+ways, so its `preview` fragment is the authority — and in both cases it is the NativeScript
+template that drifted from it.
+
+The census also found the `Adw.WrapBox` chip list spelled `Typescript` in seven authored
+sites and `TypeScript` in one — the NativeScript template, the only one that was right. All
+seven were corrected here. It is worth keeping because of WHERE it hid: seven of the eight
+copies agreed, so every majority-wins reading of the gallery would have propagated the
+typo, and no arm compares a chip label to anything at all.
+
+**What this does NOT close.** Two authored trees agreeing is not two renderers behaving the
+same, and the shared source is compared as DATA rather than as a rendered tree. The
+criterion still wants `@gjsify/adwaita-core/conformance` vectors run over one authored tree
+through both renderers; the seven blocks here are what such a suite would have to start
+from, and the ledger says what would have to converge before it could grow past them.
+
+### A property can agree on its NAME and disagree on its VALUE KIND
+
+`check-vocabulary-alignment.mjs` prints a property distance and calls a NativeScript
+property "already agreeing" when its name is a key of the GIR counterpart's props
+interface. It compares names and nothing else, so a property that agrees on its name and
+means something different is counted on the agreeing side. The entry above says the
+one-vocabulary goal is checked by NAME and not by BEHAVIOUR; this is that sentence one
+level down, with a named instance instead of a general worry.
+
+**The instance.** `Adw.ButtonRow:start-icon-name` is *"the icon name to show before the
+title"* — a name looked up in an icon theme. `AdwButtonRow.startIconName` on the port is
+*"a leading Adwaita symbolic SVG string (e.g. `listAddSymbolic`)"* — the SVG document
+itself. Both are `string`; both are spelled `startIconName`; the gate counts them as
+agreement. A caller who reads the aligned vocabulary and passes `list-add-symbolic` gets
+no icon, and nothing in this repository says why.
+
+**The census, so the class is sized rather than feared.** 43 NativeScript widget classes
+whose class name is itself a GType in `gtk-host`'s runtime table set 139 properties
+between them; 95 of those names are keys of the counterpart's props interface. (The gate's
+own figures are larger because `counterpartsOf` also unions the `composes` entries in
+`NS_WIDGET_ALIGNMENT`, which this census did not resolve — it is a strict subset, and a
+census that quietly claimed the gate's corpus would be a measurement narrower than its
+claim.) Of the 95:
+
+| what the two sides do | pairs |
+|---|---|
+| the type agrees and so does the meaning | 30 |
+| the type differs: the port widens to `\| string`, because an XML attribute arrives as one | 37 |
+| the type differs: a GIR nick-union against the port's own enum, same kind | 11 |
+| the type differs: a toolkit type against its NativeScript peer (`Gtk.Widget` → `View`) | 4 |
+| the type differs: a declared portable value form (ADR 0042 · 0046 · 0047) | 3 |
+| the type differs: nullability only | 1 |
+| **the type differs AND so does the kind of value** | **3** |
+| **the type AGREES and the kind of value does not** | **5** |
+| the evidence does not decide | 1 |
+
+The three the type already shows are `AdwTabView.selectedPage` (`Adw.TabPage` against a
+page-id string), `AdwTabView.defaultIcon` (`Gio.Icon` against a string) and
+`GtkImage.iconSize` (a `Gtk.IconSize` enum against a DIP number). The five it does not are
+one family: `GtkImage.iconName`, `AdwStatusPage.iconName`, `AdwButtonContent.iconName`,
+`AdwButtonRow.startIconName` and `AdwButtonRow.endIconName` — an icon-theme NAME on the GIR
+side, an Adwaita symbolic SVG SOURCE on the port. The undecidable one is
+`AdwPreferencesPage.iconName`: the port stores the string and nothing renders it, so no
+evidence in the tree says which kind it is. It is recorded as undetermined rather than
+counted on either side.
+
+**Why this is an entry and not an arm, measured rather than assumed.**
+
+*A type comparison would fire on 59 of the 95 and 56 of those are deliberate* — the
+`| string` widening IS the XML door, and the enum and portable-value rows are the port
+doing exactly what its ADRs say. To reach zero false positives it would need those 56
+declared: a 56-entry ledger to hold a 3-member finding, and blind to the other five
+anyway.
+
+*A prose comparison is incomplete on BOTH sides, and its failure mode is silence.* The GIR
+docs phrase "this value is an icon name" four different ways across the five — *"The icon
+name to show before the title"*, *"The name of the icon to be used"*, *"The name of the
+displayed icon"*, *"The name of the icon in the icon theme"* — and the first reader written
+here, built from two of them, missed `AdwButtonContent.iconName` and reported a smaller
+class than it had found. The port says *"symbolic SVG string"* on four of the five and says
+nothing of the sort on `AdwPreferencesPage.iconName`. Neither vocabulary is closed, so a
+regex over either goes quiet when someone rewords a comment, and a gate that goes quiet
+looks exactly like a gate that passed.
+
+*There is no structural marker across the family either.* Two of the five name the setter
+parameter `svg`, two assign `this._iconSvg`, and `AdwButtonRow` delegates to
+`_buttonState.setStartIconName` and shows nothing at the setter at all.
+
+**What a checker would have to read to be honest**: not the name, not the TypeScript type
+and not the prose, but where the value GOES — whether the string reaches an SVG asset
+resolver or an icon-theme lookup. That is a call-graph question over the port's setters,
+and it is the same question one level up from `gtk-host`'s own `coerce` seam. Until
+something can answer it, the five are recorded here and `NS_PROPERTY_ALIGNMENT` is
+unchanged: adding them to a table that exists to explain names would file a value-kind
+divergence under the heading that already counts it as agreement.
 
 ### One vocabulary is a rule for EVERY surface — clause 3 holds on all three renderers
 
