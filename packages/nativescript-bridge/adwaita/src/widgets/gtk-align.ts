@@ -29,10 +29,13 @@
 // WHAT THE GATE CAN AND CANNOT HOLD. `scripts/check-nativescript-xml-doors.mjs` holds the
 // nick list against `GtkAlignNick`, holds each alias against the member set, and holds the
 // per-axis mapping against a printed refusal for every member with no counterpart. It
-// CANNOT hold the aliasing itself: nothing in this repository carries GIR enum VALUES, and
-// the gates run in a `checkout` + `setup-node` job with no `@girs` install and no `refs/`.
-// The pin against that is `construct-props.spec.ts`, which asserts the seven derived
-// numbers literally, so the table cannot drift without a test being edited to say so.
+// does not yet hold the aliasing itself. That is now a gap rather than an impossibility:
+// #1585 landed `@gjsify/gtk-host`'s `generated/enum-values.mts`, a committed in-repo table
+// that names `GtkAlign.baseline` 4 alongside `baseline-fill` 4 in `ENUM_ALIASES`, and a
+// committed file is reachable from a `checkout` + `setup-node` job with no `@girs` install.
+// Reading it from here retires this declaration; until then the pin is
+// `construct-props.spec.ts`, which asserts the seven derived numbers literally, so the table
+// cannot drift without a test being edited to say so.
 //
 // Reference: refs/gtk gtk/gtkenums.h (GtkAlign)
 
