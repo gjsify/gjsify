@@ -170,10 +170,6 @@ const KNOWN_GAPS = {
         gaps: ['bodyUseMarkup', 'headingUseMarkup', 'preferWideLayout'],
         why: "There is no in-app dialog to carry them: this class maps onto the platform `confirm()` / `action()` sheet so the dialog looks like the user's OS rather than a libadwaita card (adw-alert-dialog.ts:12-16). A native sheet takes PLAIN strings — no Pango markup to enable — and picks its own width, so the wide-layout hint has nothing to hint to.",
     },
-    'adw-avatar': {
-        gaps: ['iconName', 'showInitials'],
-        why: 'The port renders one thing: "a circular accent-tinted background and a centered initials `Label`" (adw-avatar.ts:3-5). `Adw.Avatar` falls back to an icon when the text is empty or `show-initials` is FALSE, and neither the fallback nor the switch exists here — the initials are the only content path. This is the measured instance that motivated this check, and `<adw-avatar>` carries `icon-name` on the web surface for the same reason.',
-    },
     'adw-bottom-sheet': {
         gaps: ['align', 'canOpen', 'fullWidth', 'modal', 'revealBottomBar', 'showDragHandle'],
         why: 'The sheet is bottom-aligned in a `GridLayout` and toggled by `visibility` — "no upward slide, no dimming scrim/backdrop-blur" (adw-bottom-sheet.ts, FIDELITY). Alignment, full-width and modality are properties of a presentation this port does not perform; the bottom bar and the drag handle are the two sub-widgets it does not build, and `can-open` gates an interaction that is a plain `open` write here.',
