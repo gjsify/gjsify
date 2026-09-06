@@ -74,7 +74,7 @@ export class AdwNavigationView extends GridLayout {
                 setPageVisibility: (view, visibility) => {
                     view.visibility = visibility;
                 },
-                emit: (event) => this._emit(event),
+                emit: (event) => this._emitNavigation(event),
             },
             {
                 // The C prints these with g_critical; staying silent about a
@@ -252,7 +252,7 @@ export class AdwNavigationView extends GridLayout {
         this._nav.setPopOnEscape(value);
     }
 
-    private _emit(event: NsNavigationEvent): void {
+    private _emitNavigation(event: NsNavigationEvent): void {
         const data: AdwNavigationEventData = {
             eventName: event.name,
             object: this,

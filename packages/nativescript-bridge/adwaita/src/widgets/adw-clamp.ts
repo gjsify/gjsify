@@ -35,7 +35,7 @@ export class AdwClamp extends GridLayout {
     private _props: ClampProps = defaultClampProps();
     private _child: View | null = null;
     /** The container width the child was last clamped against, in DIPs. */
-    private _measuredWidth = 0;
+    private _clampWidth = 0;
 
     constructor(props?: ConstructProps<AdwClamp>) {
         super();
@@ -127,10 +127,10 @@ export class AdwClamp extends GridLayout {
      */
     private _allocate(): void {
         const size = this.getActualSize?.();
-        if (size && size.width > 0) this._measuredWidth = size.width;
+        if (size && size.width > 0) this._clampWidth = size.width;
         if (!this._child) return;
 
-        const { width, sizeClass } = clampAllocationFor(this._measuredWidth, this._props);
+        const { width, sizeClass } = clampAllocationFor(this._clampWidth, this._props);
         this._child.width = width;
         const className = clampChildClassName(this._child.className, sizeClass);
         if (this._child.className !== className) this._child.className = className;

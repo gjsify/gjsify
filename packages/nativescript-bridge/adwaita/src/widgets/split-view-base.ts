@@ -60,7 +60,7 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
     /** The three width PROPERTIES; the drawn width is derived from them. */
     protected _widthProps: SidebarWidthProps = defaultSidebarWidthProps();
     /** The container width the sidebar was last sized against, in DIPs. */
-    protected _measuredWidth = 0;
+    protected _splitWidth = 0;
     /** An explicit `sidebarWidth` assignment, which overrides the derivation. */
     protected _sidebarWidthOverride: number | null = null;
 
@@ -283,7 +283,7 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
     get sidebarWidth(): number {
         return (
             this._sidebarWidthOverride ??
-            sidebarWidthFor(this._measuredWidth, this._widthProps, this._widthRule, {
+            sidebarWidthFor(this._splitWidth, this._widthProps, this._widthRule, {
                 collapsed: this._state.collapsed,
             })
         );
@@ -339,7 +339,7 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
      */
     protected _applySidebarWidth(): void {
         const size = this.getActualSize?.();
-        if (size && size.width > 0) this._measuredWidth = size.width;
+        if (size && size.width > 0) this._splitWidth = size.width;
         if (!this._sidebar) return;
         // Guarded: writing the derived width unconditionally undoes a collapsed pane's
         // `'auto'` one frame later. The rule lives in the pure sibling so a spec can

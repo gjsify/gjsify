@@ -94,11 +94,11 @@ interface DataGridRowNodes {
 
 export class AdwDataGrid extends GridLayout {
     private _columns: AdwDataGridColumn[] = [];
-    private _rows: AdwDataGridRow[] = [];
+    private _dataRows: AdwDataGridRow[] = [];
     private _interactive = false;
     /** The header row's nodes, or `null` while there are no columns. */
     private _header: DataGridRowNodes | null = null;
-    /** One entry per data row, index-aligned with {@link _rows}. */
+    /** One entry per data row, index-aligned with {@link _dataRows}. */
     private _rowNodes: DataGridRowNodes[] = [];
     /** The tracks the declared columns were built from — the re-declare guard. */
     private _trackKey = '';
@@ -124,11 +124,11 @@ export class AdwDataGrid extends GridLayout {
 
     /** The row objects (copied, like the browser element does). */
     get rows(): AdwDataGridRow[] {
-        return this._rows;
+        return this._dataRows;
     }
 
     set rows(value: ReadonlyArray<AdwDataGridRow>) {
-        this._rows = Array.isArray(value) ? value.map((row) => ({ ...row })) : [];
+        this._dataRows = Array.isArray(value) ? value.map((row) => ({ ...row })) : [];
         this._render();
     }
 
@@ -180,7 +180,7 @@ export class AdwDataGrid extends GridLayout {
      */
     private _syncNodes(): void {
         const columnCount = this._columns.length;
-        const key = dataGridShapeKey(columnCount, this._rows.length);
+        const key = dataGridShapeKey(columnCount, this._dataRows.length);
         if (key === this._shapeKey) return;
         this._shapeKey = key;
 
@@ -198,7 +198,7 @@ export class AdwDataGrid extends GridLayout {
         // the boxed-list rhythm the cell padding sets.
         this.addRow(new ItemSpec(1, 'auto'));
         this._header = this._buildRow(0, columnCount, false);
-        this._rowNodes = this._rows.map((_row, index) => {
+        this._rowNodes = this._dataRows.map((_row, index) => {
             this.addRow(new ItemSpec(1, 'auto'));
             return this._buildRow(index + 1, columnCount, true);
         });
@@ -252,7 +252,7 @@ export class AdwDataGrid extends GridLayout {
             this._showCell(cell, 1);
         });
 
-        this._rows.forEach((rowData, index) => {
+        this._dataRows.forEach((rowData, index) => {
             const nodes = this._rowNodes[index];
             if (nodes === undefined) return;
             const variant = normalizeDataGridVariant(rowData.variant);
@@ -303,7 +303,7 @@ export class AdwDataGrid extends GridLayout {
      * length, so a captured row would be the previous data set's.
      */
     private _activate(index: number): void {
-        const rowData = this._rows[index];
+        const rowData = this._dataRows[index];
         if (rowData === undefined) return;
         const variant = normalizeDataGridVariant(rowData.variant);
         if (!dataGridRowInteractive(variant, rowData.interactive, this._interactive)) return;
