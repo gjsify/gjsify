@@ -598,3 +598,206 @@ machine happens to have — a test that measures the machine — or read nothing
 domparser wants the large-document assurance the parse was quietly providing (232 ms,
 53 MB RSS), it needs a GENERATED fixture of its own, in its own package, sized on
 purpose. Named here rather than left to be rediscovered as a gap.
+
+## Amendment 2 — 2026-09-05: the vocabulary carries no enum VALUES, so the repo reads them from the typelib
+
+§ Consequences made `ENUM_NICKS` one of the five runtime facts the subpath has to ship,
+"because types are erased and a spec cannot read them". It ships them, and they are
+enough for every question this repository had until a surface with **no GI** had to ask
+one more: a nick says what a member is CALLED, and nothing said what it is WORTH.
+
+ADR 0034 stage 8 is where that surfaced. `@gjsify/adwaita-nativescript` accepts
+`new Adw.Avatar({ halign: Gtk.Align.CENTER })` — a snippet ported off GJS, where the
+value is an integer and there is no typelib to resolve it. The obvious in-repo
+derivation, position in the nick list, is wrong, and the stage said so in the gate header
+it shipped on PR #1579: *"nothing in this repository carries GIR enum VALUES"*. It
+authored one alias declaration instead, and named the fix.
+
+### The premise, re-derived rather than carried over
+
+Every row measured again on 2026-09-05, on gjs 1.88.1 / gtk 4.22.4:
+
+| source | `baseline` | `baseline-center` |
+|---|---:|---:|
+| position in `GtkAlignNick` (`gtk-host/src/generated/props.ts`) | 5 | 6 |
+| `@girs/gtk-4.0@4.1.0`, `enum Align` with no initialisers | 5 | 6 |
+| `Gtk-4.0.gir`, org.gnome.Sdk/50 (8 372 958 bytes) | **4** | **5** |
+| the installed typelib, read through `gjs -m` | **4** | **5** |
+
+```sh
+grep -n 'export type GtkAlignNick' packages/framework/gtk-host/src/generated/props.ts
+sed -n '/^    enum Align {/,/^    }/p' node_modules/@girs/gtk-4.0/gtk-4.0.d.ts | grep -c '='
+GIR=$(find /var/lib/flatpak/runtime/org.gnome.Sdk/x86_64/50 -name Gtk-4.0.gir | head -1)
+grep -B2 -A3 'c:identifier="GTK_ALIGN_BASELINE"' "$GIR"
+```
+
+The `.d.ts` line answers `0` — `enum Align` carries no `=` at all, so TypeScript's
+implicit numbering is what produces the 5 and 6. The GIR gives
+`<member name="baseline" value="4" deprecated="1" deprecated-version="4.12">` next to
+`<member name="baseline_fill" value="4" version="4.12">`, and the typelib agrees.
+
+### Six more enums where counting is wrong, and only one of them is an alias
+
+Counting positions is wrong on **7 of the 129 enum types** the vocabulary covers, and
+the alias is one of the seven, not the reason for the other six. Printed by `node scripts/check-enum-values.mjs` on every
+run, so this list is an illustration and not the record:
+
+| enum | why counting fails |
+|---|---|
+| `GtkAlign` | two nicks, one value — `baseline` = `baseline-fill` = 4 since GTK 4.12 |
+| `GtkResponseType` | counts DOWN: `none` = −1 … `help` = −11 |
+| `GtkConstraintRelation`, `GtkOrdering` | start at −1 |
+| `GtkTextWindowType` | its first member is 1, so nothing at all sits at position 0 |
+| `GtkConstraintStrength` | `required` = 1001001000, `strong` = 1000000000, `medium` = 1000, `weak` = 1 |
+| `GtkEditableProperties` | `num-properties` is 8 here and sits at position 10 — see below |
+
+`GtkConstraintStrength` is why "off by one" is the wrong mental model: counting answers
+0 where the library means 1001001000.
+
+**Six of the seven are facts about GTK; the seventh is a fact about this host.**
+`GtkEditableProperties` disagrees with counting only because the vocabulary describes a
+newer GTK than the installed one, and its two unvalued nicks shift every position after
+them — on a host that has all eleven members, `num-properties` is 10 at position 10 and
+counting is right. That distinction is not cosmetic. It is what the gate guards on:
+an enum that disagrees with counting whether the numbers were READ or INVENTED cannot
+witness that they were read, and the arm that exists to catch a counted oracle stayed
+silent behind exactly this one until it was measured (see below).
+
+### Where the numbers come from, and what the other two cost
+
+Three sources were available, and the constraint that decides between them is not
+quality but REACH: the gate that has to read the answer is the required
+`checkout` + `setup-node` job — no install, no GNOME libraries, no `refs/` submodule
+beyond the one it fetches by name. **A source that job cannot reach is not a source for
+it**, which is why the answer is a COMMITTED artifact whatever the source is, and the
+only open question is which source fills it.
+
+1. **`@girs/<ns>/vocabulary`, where it belongs — and it is not there.** Measured on the
+   published tarball: `npm pack @girs/gtk-4.0@4.6.0` unpacks a `gtk-4.0-vocabulary.js`
+   with **8** `export const` names — `PROVENANCE`, `OWN_PROPS`, `OWN_SIGNALS`, `DECLS`,
+   `CHILD_HOLDERS`, `ENUM_NICKS`, `SLOT_CANDIDATES`, `SINCE` — and **zero** occurrences
+   of a value table. Adding one is an upstream ts-for-gir change plus a release, which
+   is the same blocker step 3 of this ADR carried until a release shipped. It stays the right
+   long-term home, and when it lands the generator here swaps its INPUT and its output
+   does not change shape — which is why the artifact, not the source, is the durable
+   half of this amendment.
+2. **The `.gir` XML.** It is the only one of the three that carries `glib:nick`,
+   `value` and the deprecation together in one place, and it is not in this repository:
+   a build artefact of the GTK build rather than a file in GTK's source tree, so none of
+   the 95 `refs/` submodules holds one, and § Amendment already refused to keep one here.
+   The size behind that refusal, re-measured: 8 372 958 bytes for org.gnome.Sdk/50's
+   `Gtk-4.0.gir`, against ADR 0034 § 7's 379 MB for a full pool.
+3. **The installed typelib — chosen.** It is the file GJS itself loads, it is ADR 0034
+   § 7.3's "genuinely independent" oracle, and this ADR's own `generated.spec.ts` already
+   treats it as the authority for every emitted NICK. It costs a GNOME runtime, which the
+   generator has and the gate does not.
+
+Read through `gi://GIRepository?version=3.0` rather than through the JS enum objects,
+for two facts the objects do not carry: declaration ORDER and per-member DEPRECATION.
+The two readings were differenced over all 739 nicks before the choice was made — **zero
+disagreements**, and exactly **one** deprecated member in the whole corpus,
+`GtkAlign.baseline`, which is exactly the alias.
+
+**Why a machine-read number is safe to commit.** An enum value is ABI: GTK 4 cannot
+renumber `GtkAlign` without breaking every compiled caller, so a version gap between the
+machine that generated the artifact and the machine that reads it can only ADD members,
+never move one. The corpus contains exactly one member that is exempt from that and it
+is worth naming rather than discovering: `GtkEditableProperties.num-properties` is a
+COUNT sentinel — 8 on a GTK with eight editable properties, 10 on one with ten. The
+three other sentinel-shaped names (`GtkAccessibleRelation.col-count`, `.row-count`,
+`GtkNotebookTab.last`) are ordinary members. `generated.spec.ts` therefore treats a
+value disagreement as a defect unless the RUNNING library is newer than the one the
+values were read from, and names the member even then.
+
+### What the artifact says about an alias
+
+`packages/framework/gtk-host/src/generated/enum-values.mts`, beside `surface-data.mts`
+and `.mts` for the same reason — outside the library build glob, so nothing ships it:
+
+```ts
+export const VALUES_PROVENANCE = 'Adw-1/1.9.3 Gtk-4.0/4.22.4 Pango-1.0/1.57.1';
+export const ENUM_VALUES: Readonly<Record<string, number>> = {
+    'GtkAlign.baseline-fill': 4,
+    'GtkAlign.baseline': 4,
+    'GtkAlign.baseline-center': 5,
+};
+export const ENUM_ALIASES: Readonly<Record<string, string>> = { 'GtkAlign.baseline': 'baseline-fill' };
+export const ENUM_DEPRECATED: readonly string[] = ['GtkAlign.baseline'];
+export const ENUM_VALUES_UNAVAILABLE: Readonly<Record<string, string>> = {
+    'GtkEditableProperties.prop-complete-text': 'Gtk 4.22.4',
+};
+```
+
+**Both nicks keep an entry, carrying the same number** — an alias is not a nick that
+loses its value, it is a value that has two names, and dropping either half would make
+one spelling unresolvable. `ENUM_ALIASES` adds the one thing a bare number map cannot
+say: which of the two a number should be spelled BACK as. `ENUM_DEPRECATED` is what
+decides that direction, and it is read rather than conventioned — the alternative,
+"whichever comes first in declaration order", happens to give the same answer on the one
+instance the corpus has, and would be an assumption on the next one.
+
+`ENUM_VALUES_UNAVAILABLE` is the declared remainder, and it exists because of the
+consequence this ADR's Amendment already recorded: the vocabulary can describe a NEWER
+library than the one installed. Two nicks are in it here (both new
+`GtkEditableProperties` members), and the value names the library and version that was
+asked and had none. Every nick in `ENUM_NICKS` is in one table or the other; a nick in
+neither is a silent drop and the gate fails on it.
+
+### One artifact, two gates, and why that is not one gate too many
+
+- `node scripts/check-enum-values.mjs` — the required no-install job. Holds the SHAPE:
+  every nick numbered or excused, no number naming a nick the vocabulary lacks, and
+  every alias declared from BOTH directions — the groups are re-derived from the values,
+  so an alias a future GTK introduces fails with a name instead of shifting six numbers
+  quietly. Self-testing, 13 failing vectors and 10 reader vectors, and the vectors paid
+  for themselves immediately: one caught the shared reader returning the empty brackets
+  of `readonly string[]` instead of the initialiser after them — silently, the exact
+  "answers with fewer facts" failure this ADR's Amendment records twice.
+
+  Its non-vacuity arm is the one this gate lives or dies by, and the first version of it
+  did not work. Guarding on "some enum's value differs from its position" read the whole
+  list, so `GtkEditableProperties` — which differs for the version-skew reason above —
+  kept it satisfied: a generator handed back the member INDEX instead of the member's
+  value, all 737 numbers came out counted, and this arm said nothing. The run failed only
+  because the alias floor beside it noticed that the counted `GtkAlign` no longer spelled
+  one value under two nicks, which is a different rule and would not have held had GTK
+  ever retired the alias. The arm now guards on the enums whose nick list is COMPLETE,
+  and a vector reproduces the counted-with-a-gap oracle so the hole cannot reopen.
+- `gtk-host/src/generated.spec.ts` — the GJS suite, where a typelib exists. Holds every
+  NUMBER against it, with the version rule above.
+
+Neither half is decoration. Without the first, a hand edit to the values ships until
+somebody runs the GJS suite on a machine with GTK; without the second, the numbers are
+only ever checked against themselves. A committed artifact whose source no gate can
+reach is precisely the second truth § 6 exists to prevent, and splitting the question by
+what each job can reach is what keeps it one.
+
+Regeneration is `gjs -m scripts/generate-enum-values.mjs`, and it HAS a `--check` mode —
+unlike `npm run generate` next door, whose header explains that piping through
+`gjsify format` makes a byte comparison differ on every run. This generator formats
+nothing and emits text `oxfmt --check` already accepts, so the comparison is exact.
+
+### What this deliberately does not do
+
+- **It does not rewire `Gtk.Align` in `@gjsify/adwaita-nativescript`.** That table lives
+  on the unmerged `feat/ns-construct-props` (PR #1579), so rewiring it means either
+  stacking on that branch or waiting for it. Measured against the five branches in
+  flight: the oracle as built touches no file any of them touches, while the rewiring
+  would land in `scripts/nativescript-xml-doors.mjs`, which two of them already edit.
+  The follow-up is one commit on top of #1579: delete `GTK_ALIGN_ALIASES`, read the
+  seven numbers, and let the gate hold them against `ENUM_VALUES`.
+- **It does not extend the other eleven enums**, and a number says why it need not be
+  hurried. Stage 8 measured 15 of the 158 NativeScript setters as carrying exactly a GIR
+  enum's nick set, across 11 enums. Checked against the oracle, **all 11 are dense
+  0…n−1 runs**, so **0 of the 15 setters would take a different number** than counting
+  gives them. The oracle is what makes that sentence checkable; before it, "none of
+  these is another GtkAlign" was a hope. It also confirms the other half of stage 8's
+  finding: `'minimum' | 'natural'` is `GtkScrollablePolicy`, `AdwFoldThresholdPolicy`
+  and `AdwWrapPolicy` at 0 and 1 alike, so the enum behind a setter has to be DECLARED
+  wherever its nick set names more than one — and the numbers do not break the tie
+  either, which is the half the oracle adds. Stage 8 did identify 11 enums from their
+  nick sets, so inference is not useless; it is unsound, and a setter cannot say which
+  of the two it is without the declaration.
+- **It does not move the fact upstream.** `ENUM_VALUES` in the `@girs` vocabulary is
+  still the right end state; this puts the consumer side in place so that landing it
+  upstream changes one input and no contract.
