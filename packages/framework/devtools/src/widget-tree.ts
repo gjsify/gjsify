@@ -267,27 +267,46 @@ export const DEFAULT_DUMP_DEPTH = 40;
  * zeros beside a request would read as "clipped to nothing" for every page of a stack
  * that is not the visible one.
  *
- * ## THREE BOXES BEHIND FOUR ACCESSORS, and getting this wrong is the whole difficulty
+ * ## FOUR BOXES BEHIND FOUR ACCESSORS, and getting this wrong is the whole difficulty
  *
- * Measured on GTK 4.22.4 with a `Gtk.Label` carrying `padding: 3px 5px` and, separately,
- * `margin: 4px 7px`, over a content box of 68x17:
+ * Measured on GTK 4.22.4 with one `Gtk.Label` over a content box of 306x18, under each of
+ * the four things that can sit around it: CSS `padding: 3px 5px`, CSS `border: 2px solid`,
+ * CSS `margin: 4px 7px`, and the `margin-start`/`-end`/`-top`/`-bottom` WIDGET PROPERTIES
+ * at that same 7px/4px.
  *
- * | | padded | margined |
- * |---|---|---|
- * | `get_width()` / `get_height()` | 68x17 | 68x17 |
- * | `compute_bounds(self)` | 78x23 | 68x17 |
- * | `measure()` natural | 78x23 | 82x25 |
+ * | | none | padding | border | CSS margin | widget margin | all four |
+ * |---|---|---|---|---|---|---|
+ * | `get_width()`/`get_height()` | 306x18 | 306x18 | 306x18 | 306x18 | 306x18 | 306x18 |
+ * | `compute_bounds(self)` | 306x18 | 316x24 | 310x22 | 306x18 | 306x18 | 320x28 |
+ * | `get_allocation()` | 306x18 | 316x24 | 310x22 | 320x26 | 306x18 | 334x36 |
+ * | + the four `get_margin_*()` | 306x18 | 316x24 | 310x22 | 320x26 | 320x26 | 348x44 |
+ * | `measure()` natural | 306x18 | 316x24 | 310x22 | 320x26 | 320x26 | 348x44 |
  *
- * So `get_width()` is the CONTENT box, `compute_bounds()` is the border box, and
- * `measure()` speaks the MARGIN box. Comparing a request against `get_width()` compares
- * two different rectangles, and the error is not a rounding one: measuring the height of
- * the padded label at `get_width()` answers 40 where the correct question answers 23,
- * because 68 as a margin-box width leaves 58 for the text and wraps it onto two lines.
+ * So `get_width()` answers the CONTENT box, `compute_bounds()` the BORDER box,
+ * `get_allocation()` the CSS MARGIN box, and `measure()` speaks the box outside all of
+ * them: CSS margin AND the widget's own margin properties. Only the fourth row tracks the
+ * fifth in every column, so that sum is the one allocation worth holding a request
+ * against; any other pairing subtracts two different questions from each other.
  *
- * That mistake, made here first, flagged 116 of 293 widgets in a real window as clipped.
- * Everything below therefore works in the margin box: `compute_bounds()` plus the four
- * margins, which is `get_allocation()`'s rectangle without calling a function GTK 4.12
- * deprecated.
+ * The error is not a rounding one. The padded label measured for height at its
+ * `get_width()` of 306 answers 42 where the same question in the right box (316) answers
+ * 24, because 306 read as a margin-box width leaves 296 for the text and wraps it.
+ *
+ * Two earlier versions each compared against the wrong rectangle, and each called
+ * correctly-sized widgets clipped:
+ *
+ *  - against `get_width()`, the content box: 116 of 293 widgets in a real window.
+ *  - against `compute_bounds()` plus the four margin PROPERTIES: 12 of 127 mapped widgets
+ *    in an ordinary Adwaita preferences window, 11 of them false. Its comment claimed
+ *    that sum "is `get_allocation()`'s rectangle without calling a function GTK 4.12
+ *    deprecated", and the CSS-margin column above is why it is not — `get_margin_start()`
+ *    answers the PROPERTY and knows nothing about a stylesheet, while Adwaita's own
+ *    stylesheet puts margins on boxes.
+ *
+ * `gtk_widget_get_allocation()` IS deprecated (4.12), and its notice points at
+ * `compute_bounds()`/`get_width()`, the two rectangles this must not use. It is the only
+ * public reader of the CSS margin rect, so the deprecation is taken deliberately: a
+ * deprecated call that is right is worth more than a current one that is quietly wrong.
  *
  * ## Why the height is measured at the allocated width
  *
@@ -295,21 +314,35 @@ export const DEFAULT_DUMP_DEPTH = 40;
  * width answers one line, and at the width it actually got answers two. The two agree
  * except where a parent measured one and allocated the other, which is the defect.
  *
+ * ## Why that width is then clamped to the minimum
+ *
+ * `gtk_widget_measure()` WARNS on a `for_size` below the widget's minimum in the other
+ * orientation — `Trying to measure GtkBox … for width of 34, but it needs at least 40` —
+ * and then clamps to that minimum and answers anyway. Clamping first therefore changes no
+ * number (measured: every `for_size` from 0 up to the minimum returns the minimum's
+ * answer) and keeps a dump of a window that HAS a clipped widget from printing one GTK
+ * warning per clipped widget per dump. An instrument that reports a defect by making the
+ * toolkit complain cannot be told, in a log, from the defect complaining on its own.
+ *
  * Two `gtk_widget_measure()` calls per mapped node. GTK caches a size request per
- * (orientation, for_size), and the pair asked for here is the pair the layout just asked
- * for itself, so this reads that cache rather than provoking a re-layout.
+ * (orientation, for_size) — measured with a counting `vfunc_measure`: repeated calls at
+ * one `for_size` reach the widget once, and twenty distinct sizes did not evict an earlier
+ * entry — and the pair asked for here is the pair the layout just asked for itself, so
+ * this reads that cache rather than provoking a re-layout. That is only true in the right
+ * box: the border-box width missed the cache on every CSS-margined widget, because the
+ * layout had asked at the margin-box width.
  */
 function geometryOf(widget: Gtk.Widget): NodeGeometry | undefined {
     if (!widget.get_mapped()) return undefined;
-    const [known, bounds] = widget.compute_bounds(widget);
-    if (!known) return undefined;
-    const width = bounds.get_width() + widget.get_margin_start() + widget.get_margin_end();
-    const height = bounds.get_height() + widget.get_margin_top() + widget.get_margin_bottom();
+    const allocation = widget.get_allocation();
+    const width = allocation.width + widget.get_margin_start() + widget.get_margin_end();
+    const height = allocation.height + widget.get_margin_top() + widget.get_margin_bottom();
     const [minWidth, natWidth] = widget.measure(Gtk.Orientation.HORIZONTAL, -1);
     // `-1` when there is no allocation to speak of: `measure(VERTICAL, 0)` is a legal
     // call that answers about a zero-width widget, which is a constraint rather than the
     // absence of one.
-    const [minHeight, natHeight] = widget.measure(Gtk.Orientation.VERTICAL, width > 0 ? width : -1);
+    const forWidth = width > 0 ? Math.max(width, minWidth) : -1;
+    const [minHeight, natHeight] = widget.measure(Gtk.Orientation.VERTICAL, forWidth);
     const geometry: NodeGeometry = {
         width,
         height,

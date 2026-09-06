@@ -48,10 +48,16 @@ export interface ActionList {
  * readable about it was correct — `wrap: true`, `max-width-chars: -1`, `hexpand: false`
  * — and the defect is entirely in the two numbers that were not readable.
  *
- * NO POSITION. `width`/`height` come off `get_width()`/`get_height()`; x/y would need
- * `compute_bounds()` and a `Graphene.Rect` across the bridge, and the question this
- * exists for is answered without it. `Screenshot(<path>)` already says where a widget
- * is by showing it.
+ * NO POSITION. Only a size: x/y would need the widget's bounds resolved against an
+ * ancestor and a `Graphene.Rect` carried across the bridge, and the question this exists
+ * for is answered without it. `Screenshot(<path>)` already says where a widget is by
+ * showing it.
+ *
+ * GTK ONLY, for now. The shape is shared with the DOM and NativeScript adapters (see
+ * {@link NodeInfo}) and neither fills it in, so an absent `geometry` means "this adapter
+ * does not measure", never "this widget was not measured" — the one distinction a caller
+ * sweeping a tree for {@link NodeGeometry.short} has to make before reading a clean sweep
+ * as good news.
  */
 export interface NodeGeometry {
     /**
@@ -59,12 +65,15 @@ export interface NodeGeometry {
      * and margin.
      *
      * That box and not another one because it is the box a size request speaks, so these
-     * two numbers and the two below are comparable. GTK has three: `get_width()` answers
-     * the content box, `compute_bounds()` the border box, and `measure()` the margin box,
-     * and mixing them is not a rounding error. Measured on GTK 4.22.4, a `Gtk.Label` with
-     * `padding: 3px 5px` over a 68x17 content box asks 78x23; asked for its height at 68
-     * — its content width read as a margin-box width — it answers 40, because 58 is left
-     * for text that then wraps.
+     * two numbers and the two below are comparable. GTK has FOUR and three of them are
+     * readable: `get_width()` answers the content box, `compute_bounds()` the border box,
+     * `get_allocation()` the CSS margin box, and `measure()` the box outside all of them —
+     * CSS margin plus the widget's own `margin-*` properties, which is the only rectangle
+     * with no accessor of its own and has to be summed. Mixing them is not a rounding
+     * error. Measured on GTK 4.22.4, a `Gtk.Label` with `padding: 3px 5px` over a 68x17
+     * content box asks 78x23; asked for its height at 68 — its content width read as a
+     * margin-box width — it answers 40, because 58 is left for text that then wraps. The
+     * table behind all four columns is on `geometryOf` in `@gjsify/devtools`.
      */
     width: number;
     height: number;
@@ -86,6 +95,14 @@ export interface NodeGeometry {
      * Present only when true, like {@link NodeInfo.truncated}: a caller sweeping a tree
      * for this key finds the defective widgets without a hypothesis about which one to
      * suspect, which is the difference between an instrument and a readout.
+     *
+     * NOT every one of them is a bug, and the exception is structural rather than rare. A
+     * `GtkViewport` inside a `GtkScrolledWindow` reports its child's request and is
+     * deliberately allocated less — that IS scrolling — so it carries this key in every
+     * window that scrolls (measured: the only `short` node in an Adwaita preferences
+     * window is its viewport, 900x613 against a minimum of 520x720). The key says the
+     * allocation is under the request, which is the fact; whether that is a defect is the
+     * reader's call, and a widget under a scrolled window is where the answer is no.
      */
     short?: true;
 }
@@ -109,7 +126,8 @@ export interface NodeInfo {
     /**
      * Allocation and size request. Present for a MAPPED widget only — an unmapped one
      * has no allocation, and measuring it reports what it would ask for in a place it
-     * is not, which is a number that reads like an answer and is not one.
+     * is not, which is a number that reads like an answer and is not one. Filled in by
+     * the GTK adapter alone; see {@link NodeGeometry}.
      */
     geometry?: NodeGeometry;
     children: NodeInfo[];

@@ -17,7 +17,16 @@ import { describe, expect, it, on, type Runtime } from '@gjsify/unit';
 
 const GTK_HOSTS: Runtime[] = ['Gjs', 'Node.js', 'Bun', 'Deno'];
 
-/** A label under a window, because a detached widget resolves no CSS. */
+/**
+ * A label under a window, which is the shape an application has.
+ *
+ * The rooting is NOT what makes the measurement valid, and it is worth saying so because
+ * the opposite is the natural assumption: measured on GTK 4.22.4, an unrooted label
+ * resolves the display's CSS and answers the identical natural width, letter-spacing from
+ * a stylesheet included (172 plain / 241 under `letter-spacing: 3px`, rooted or not). So a
+ * re-measurement of any of this needs no window, and a vector that drops one has not
+ * quietly changed what it measures.
+ */
 function labelled(text: string, letterSpacingPx: number): { label: Gtk.Label; window: Gtk.Window } {
     const window = new Gtk.Window();
     const label = new Gtk.Label({ label: text, wrap: true, xalign: 0, yalign: 0 });
@@ -36,7 +45,11 @@ function lines(label: Gtk.Label): { natural: number; atNatural: number; unconstr
     return {
         natural,
         atNatural: label.measure(Gtk.Orientation.VERTICAL, natural)[0],
-        unconstrained: label.measure(Gtk.Orientation.VERTICAL, 4000)[0],
+        // The one-line height, taken relative to the natural width rather than at a fixed
+        // large number: the shortfall this file is about is one or two pixels, so any
+        // width comfortably past the natural one is a line, and a constant would stop
+        // being one the day a vector carries a longer string.
+        unconstrained: label.measure(Gtk.Orientation.VERTICAL, natural + 200)[0],
     };
 }
 

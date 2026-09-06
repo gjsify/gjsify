@@ -296,12 +296,32 @@ export default async () => {
          * One widget, sized. `measure` answers per orientation, and the VERTICAL answer
          * is a function of the width it is asked for — which is the only reason the
          * geometry half of the dump exists.
+         *
+         * This suite runs on plain gjs with NO DISPLAY (see `peer-transport.spec.ts`), so
+         * a real mapped widget is out of reach and this shape is the whole model of GTK
+         * the geometry vectors get. It therefore models GTK's boxes as GTK has them,
+         * measured on 4.22.4, rather than as the code happens to read them — the previous
+         * version modelled only the two the implementation touched, and the box it was
+         * missing was the one the implementation got wrong.
          */
         interface Sized {
-            /** The BORDER box, which is what `compute_bounds` answers. */
+            /**
+             * The CSS MARGIN box, which is what `get_allocation` answers: content plus CSS
+             * padding, border AND CSS margin. NOT what `compute_bounds` answers.
+             */
             width?: number;
             height?: number;
-            /** CSS margins, which `compute_bounds` excludes and `measure` includes. */
+            /**
+             * How much of {@link Sized.width} is CSS margin. A stylesheet margin is inside
+             * the allocation and outside `compute_bounds`, and NO `get_margin_*()` reports
+             * it — which is exactly the gap that made a correctly-sized widget read as
+             * clipped.
+             */
+            cssMargin?: { start: number; end: number; top: number; bottom: number };
+            /**
+             * The `margin-*` PROPERTIES, which sit outside the allocation and inside what
+             * `measure` speaks, so they are the half that has to be added back.
+             */
             margin?: { start: number; end: number; top: number; bottom: number };
             widthRequest?: [number, number];
             /** Called with the width `dumpTree` measured at, so a spec can vary on it. */
@@ -310,6 +330,8 @@ export default async () => {
 
         const sizedWidget = (name: string, child: Gtk.Widget | null, size: Sized = {}): Gtk.Widget => {
             const margin = size.margin ?? { start: 0, end: 0, top: 0, bottom: 0 };
+            const cssMargin = size.cssMargin ?? { start: 0, end: 0, top: 0, bottom: 0 };
+            const allocated = { width: size.width ?? 100, height: size.height ?? 20 };
             return asWidget({
                 constructor: { $gtype: { name } },
                 get_name: () => '',
@@ -318,9 +340,17 @@ export default async () => {
                 get_visible: () => true,
                 get_first_child: () => child,
                 get_next_sibling: () => null,
+                get_allocation: () => ({ x: 0, y: 0, ...allocated }),
+                // The BORDER box, which nothing here should read. Present so that a
+                // rewrite reaching for it again fails on the CSS-margin vector below
+                // instead of being right for every widget whose margins happen to come
+                // from a property.
                 compute_bounds: () => [
                     true,
-                    { get_width: () => size.width ?? 100, get_height: () => size.height ?? 20 },
+                    {
+                        get_width: () => allocated.width - cssMargin.start - cssMargin.end,
+                        get_height: () => allocated.height - cssMargin.top - cssMargin.bottom,
+                    },
                 ],
                 get_margin_start: () => margin.start,
                 get_margin_end: () => margin.end,
@@ -416,11 +446,11 @@ export default async () => {
         });
 
         await it('works in the margin box, which is the one measure() speaks', async () => {
-            // Measured on GTK 4.22.4: `compute_bounds` answers the border box and
-            // `measure` the margin box, so a widget with margins compares two different
-            // rectangles unless the margins are added back. The first version of this
-            // compared against `get_width()` — the CONTENT box — and called 116 of 293
-            // widgets in a real window clipped.
+            // Measured on GTK 4.22.4: `get_allocation` stops at the CSS margin box and
+            // `measure` speaks the box outside the `margin-*` PROPERTIES too, so a widget
+            // carrying those compares two different rectangles unless they are added
+            // back. The first version of this compared against `get_width()` — the
+            // CONTENT box — and called 116 of 293 widgets in a real window clipped.
             let askedFor: number | null = null;
             const dumped = dumpTree(
                 sizedWidget('GtkLabel', null, {
@@ -443,18 +473,63 @@ export default async () => {
             expect(dumped.geometry?.short).toBe(undefined);
         });
 
-        await it('leaves out geometry when the toolkit cannot compute bounds', async () => {
-            const unbounded = asWidget({
-                constructor: { $gtype: { name: 'GtkLabel' } },
-                get_name: () => '',
-                get_css_classes: () => [],
-                get_mapped: () => true,
-                get_visible: () => true,
-                get_first_child: () => null,
-                get_next_sibling: () => null,
-                compute_bounds: () => [false, null],
-            });
-            expect(dumpTree(unbounded, 1, 'toplevel:0').geometry).toBe(undefined);
+        await it('counts a CSS margin, which no get_margin_*() reports', async () => {
+            // The regression that rewrote this function. `get_margin_start()` answers the
+            // margin-start PROPERTY; a margin from a stylesheet is invisible to it and
+            // shows up only inside the allocation. Measured on GTK 4.22.4, a `Gtk.Label`
+            // with CSS `margin: 4px 7px` over a 306x18 content box: border box 306x18,
+            // allocation 320x26, natural request 320x26. So reading the border box makes
+            // an exactly-met request look 14x8 short — and, worse, measures its height at
+            // 306, where the text wraps and asks for 44. That version called 12 of 127
+            // mapped widgets in an ordinary Adwaita preferences window clipped, 11 of
+            // them wrongly, and GTK printed a warning for three of the twelve.
+            let askedFor: number | null = null;
+            const dumped = dumpTree(
+                sizedWidget('GtkLabel', null, {
+                    width: 320,
+                    height: 26,
+                    cssMargin: { start: 7, end: 7, top: 4, bottom: 4 },
+                    widthRequest: [143, 320],
+                    heightRequest: (forWidth) => {
+                        askedFor = forWidth;
+                        return forWidth >= 320 ? [26, 26] : [44, 44];
+                    },
+                }),
+                1,
+                'toplevel:0',
+            );
+            expect(dumped.geometry?.width).toBe(320);
+            expect(dumped.geometry?.height).toBe(26);
+            expect(askedFor).toBe(320);
+            expect(dumped.geometry?.short).toBe(undefined);
+        });
+
+        await it('never measures below the minimum width, which GTK warns about', async () => {
+            // A genuinely clipped widget is the case this whole field exists to find, and
+            // it is also the case where `measure(VERTICAL, allocated)` would hand GTK a
+            // width below the minimum: `Trying to measure GtkBox … for width of 34, but
+            // it needs at least 40`, once per clipped widget per dump. GTK clamps to the
+            // minimum and answers anyway, so clamping first costs no accuracy — the
+            // reported height is the same number — and the dump stops making the toolkit
+            // complain on its behalf. `short` is still set: it compares the ALLOCATION,
+            // not the width the measurement was taken at.
+            let askedFor: number | null = null;
+            const dumped = dumpTree(
+                sizedWidget('GtkBox', null, {
+                    width: 34,
+                    height: 34,
+                    widthRequest: [40, 60],
+                    heightRequest: (forWidth) => {
+                        askedFor = forWidth;
+                        return [34, 34];
+                    },
+                }),
+                1,
+                'toplevel:0',
+            );
+            expect(askedFor).toBe(40);
+            expect(dumped.geometry?.width).toBe(34);
+            expect(dumped.geometry?.short).toBe(true);
         });
 
         await it('measures at -1 when a mapped widget has no allocation yet', async () => {
