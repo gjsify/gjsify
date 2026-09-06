@@ -20,12 +20,13 @@ import {
     shortcutLabelRenderPlan,
 } from './shortcut-label.js';
 import type { ShortcutLabelViewSpec } from './shortcut-label.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export class AdwShortcutLabel extends StackLayout {
     private _accelerator = '';
     private _disabledText = '';
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwShortcutLabel>) {
         super();
 
         this.orientation = 'horizontal';
@@ -41,6 +42,8 @@ export class AdwShortcutLabel extends StackLayout {
         // re-parent, which is correct rather than something to guard against.
         this.addEventListener('loaded', () => this._rebuild());
         this._rebuild();
+
+        applyConstructProps(this, props);
     }
 
     /** The accelerator to draw, in `gtk_accelerator_parse` syntax (`<Control>C`). */

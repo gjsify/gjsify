@@ -42,6 +42,7 @@ import {
     type CarouselNotifyPayload,
 } from './carousel-state.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 // Re-exported so the widget module stays the one import site, as
 // `widgets/index.ts` and every consumer already expect.
@@ -87,7 +88,7 @@ export class AdwCarousel extends GridLayout {
     private _nextPageId = 0;
     private _pageWidth = DEFAULT_CAROUSEL_PAGE_WIDTH;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwCarousel>) {
         super();
 
         this.className = 'adw-carousel';
@@ -136,6 +137,8 @@ export class AdwCarousel extends GridLayout {
             const data: PageChangedEventData = { eventName: PAGE_CHANGED, object: this, index };
             this.notify(data);
         });
+
+        applyConstructProps(this, props);
     }
 
     /** Append a page — `adw_carousel_append` (adw-carousel.c:1348-1357). */

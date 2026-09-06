@@ -738,6 +738,31 @@ without its surface is a claim wider than its measurement.
 A full `tsc` conformance check remains the right oracle on the wrong instrument —
 `Gtk.Entry` is 509 members, and the gate job runs `checkout` + `setup-node` with no install.
 
+**Stage 8 landed and left one thing no gate here can hold: GIR enum VALUES.** The
+construct-props bag ships on all 46 NativeScript widgets (ADR 0034 § Amendment 13) and
+accepts `Gtk.Align.CENTER` as well as `'center'`, which needs a value table on a target with
+no typelib. **The oracle for this landed while stage 8 was in review** — `#1585` added
+`packages/framework/gtk-host/src/generated/enum-values.mts`, which carries `GtkAlign.fill` 0
+through `GtkAlign.baseline-center` 5 alongside `ENUM_ALIASES` and `ENUM_DEPRECATED`, so the
+repository now DOES carry GIR enum values. What is still open is CONSUMING it here:
+`generated/props.ts` emits nick UNIONS and `generated/surface-data.mts` emits nick LISTS, so
+this port still derives its numbers itself — and both obvious derivations are measurably
+WRONG for this very enum, because
+`GTK_ALIGN_BASELINE` was deprecated in GTK 4.12 into an alias of `GTK_ALIGN_BASELINE_FILL`
+(the nick position and `@girs`'s initialiser-less `enum Align` both give `baseline` 5 and
+`baseline-center` 6; the GIR and the typelib give 4 and 5). `gtk-align.ts` therefore derives
+its constants from the nick order plus ONE declared alias, and
+`check-nativescript-xml-doors.mjs` holds everything except that declaration. **The remaining
+step is to read `#1585`'s table from here** instead of deriving: it is a committed in-repo
+file, so a gate running `checkout` + `setup-node` with no `@girs` install can reach it, which
+was the whole objection. Doing so retires the hand-declared alias and — the reason it is
+worth more than one enum — unblocks the same treatment for the **15** other
+setters on this surface whose declared string union is exactly a GIR enum's nick set, across
+**11** distinct enums. Measured against the 158 setters the package declares. One of them,
+`AdwWrapBox.wrapPolicy`, is ambiguous by nick set alone — `'minimum' | 'natural'` matches
+`GtkScrollablePolicy`, `AdwFoldThresholdPolicy` and `AdwWrapPolicy` exactly — so the enum
+behind a setter has to be declared either way.
+
 ### The vocabulary gate measured ONE direction, and the other one is now a ratchet
 
 `NS_PROPERTY_ALIGNMENT` holds the port's SETTABLE properties against the counterpart's

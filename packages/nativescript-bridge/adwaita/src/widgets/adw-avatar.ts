@@ -34,6 +34,7 @@ import { avatarColor, avatarInitials } from './avatar-color.js';
 import { AVATAR_DEFAULT_ICON, avatarViewState } from './avatar-view.js';
 import { GtkImage } from './gtk-image.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Default avatar diameter in DIPs (Adwaita's common avatar size). */
 export const DEFAULT_AVATAR_SIZE = 48;
@@ -52,7 +53,7 @@ export class AdwAvatar extends GridLayout {
     private _showInitials = false;
     private _iconName = '';
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwAvatar>) {
         super();
 
         this.className = 'adw-avatar';
@@ -84,6 +85,11 @@ export class AdwAvatar extends GridLayout {
         this._applySize();
         this._applyColor();
         this._applyMode();
+
+        // Last, deliberately: the bag assigns through the setters, and each of
+        // those runs _applyMode()/_applySize() itself. Anything appended to this
+        // constructor belongs BEFORE this call.
+        applyConstructProps(this, props);
     }
 
     /** Sync the inline width/height/border-radius/font-size for the current size. */

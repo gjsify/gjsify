@@ -22,6 +22,7 @@ import { GridLayout, ItemSpec, StackLayout, Label, type EventData } from '@nativ
 import { ActionRowState, isViewSensitive, rowLabelVisuals } from './row-state.js';
 import { xmlBoolean } from './xml-values.js';
 import { resolveBuilderSlot } from './builder-slots.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when the row is activated. Mirrors `Adw.ActionRow::activated`. */
 export const ACTIVATED = 'activated';
@@ -50,7 +51,7 @@ export class AdwActionRow extends GridLayout {
     private _prefix: View | null = null;
     private _suffix: View | null = null;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwActionRow>) {
         super();
 
         this.className = 'adw-row adw-action-row';
@@ -87,6 +88,8 @@ export class AdwActionRow extends GridLayout {
         this._applyLabels();
 
         this.addEventListener('tap', () => this.activate());
+
+        applyConstructProps(this, props);
     }
 
     /** Install a prefix widget in column 0. Replaces any previous one; `null` clears. */

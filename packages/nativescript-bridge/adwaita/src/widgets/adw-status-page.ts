@@ -24,6 +24,7 @@ import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 import { GtkImage } from './gtk-image.js';
 import { statusPageIconVisibility, statusPageLabelVisibility } from './status-page-content.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Default status-page icon size (DIPs) — Adw.StatusPage shows a large glyph. */
 const DEFAULT_STATUS_ICON_SIZE = 96;
@@ -45,7 +46,7 @@ export class AdwStatusPage extends GridLayout {
     protected readonly _descriptionLabel: Label;
     private _child: View | null = null;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwStatusPage>) {
         super();
 
         this.className = 'adw-status-page';
@@ -97,6 +98,8 @@ export class AdwStatusPage extends GridLayout {
         this._descriptionLabel = descriptionLabel;
 
         for (const part of [icon, iconLabel, titleLabel, descriptionLabel]) stack.addChild(part);
+
+        applyConstructProps(this, props);
     }
 
     /**

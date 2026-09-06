@@ -32,6 +32,7 @@ import { GtkImage } from './gtk-image.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { NS_EDIT_ICON_CLASS, NS_ENTRY_ROW_CLASS, applyEntryRowState } from './entry-row-view.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 // Re-exported so consumers reach the headless state machine (and the vector-driven
 // painter) from `@gjsify/adwaita-nativescript` without a second import path.
@@ -94,7 +95,7 @@ export class AdwEntryRow extends AdwActionRow {
     private _lastText = '';
     private _lastLength = 0;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwEntryRow>) {
         super();
 
         // `className` is NOT set here — the render below owns it, because the
@@ -181,6 +182,8 @@ export class AdwEntryRow extends AdwActionRow {
         this._lastLength = this._state.textLength;
         this._render(this._state.state);
         this._state.subscribe((state) => this._onStateChanged(state));
+
+        applyConstructProps(this, props);
     }
 
     /** The editable text. */

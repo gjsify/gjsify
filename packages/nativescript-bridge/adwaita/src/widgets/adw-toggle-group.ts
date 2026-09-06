@@ -28,6 +28,7 @@ import { Label, StackLayout, type EventData } from '@nativescript/core';
 import { ToggleGroupState } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import { xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 // Re-export the headless state machine so consumers can reach it from
 // `@gjsify/adwaita-nativescript` unchanged.
@@ -57,7 +58,7 @@ export class AdwToggleGroup extends StackLayout {
     /** The headless labels + selected-index state machine (ADR 0004). */
     private readonly _state = new ToggleGroupState();
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwToggleGroup>) {
         super();
 
         this.orientation = 'horizontal';
@@ -76,6 +77,8 @@ export class AdwToggleGroup extends StackLayout {
             };
             this.notify(data);
         });
+
+        applyConstructProps(this, props);
     }
 
     /** The segment labels (icon-less). Setting them rebuilds the toggle group. */

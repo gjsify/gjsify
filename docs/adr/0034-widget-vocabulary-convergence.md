@@ -21,10 +21,13 @@
   `<adw:PreferencesGroup>` over one barrel per library, the first time the CALLERS of a
   surface are held by a gate rather than by a compiler. Three more on 2026-09-05:
   § Amendment 10 (`AdwIcon` took its GIR name), § Amendment 11 (`openState` converged after
-  all, and the reasoning that said it could not is kept under a supersession note), and
-  § Amendment 12, which lands the LAST stage — the `gi://` arms, behind an opt-in
-  `--gi-renderer`, so `import Adw from 'gi://Adw?version=1'` resolves to the renderer's `Adw`
-  on `--app browser` and `--app nativescript` instead of to an empty module.
+  all, and the reasoning that said it could not is kept under a supersession note),
+  § Amendment 12, which lands the `gi://` arms behind an opt-in `--gi-renderer`, so
+  `import Adw from 'gi://Adw?version=1'` resolves to the renderer's `Adw` on `--app browser`
+  and `--app nativescript` instead of to an empty module, and § Amendment 13, which lands
+  stage 8 — the construct-props bag on all 46 NativeScript widgets, the first change here to
+  reach a CONSTRUCTOR, and the one that found § Context wrong about NativeScript's alignment
+  vocabulary.
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -991,7 +994,7 @@ under which the free adoption stays free.
 | 5 | A `Gtk` docs section **beside** `Adwaita`: `controls.mdx` moves whole (0 Adwaita blocks on it), the two `Gtk.*` blocks on `buttons.mdx` follow, `redirects` keeps the old URLs the way the `/widgets/*` rename already does. | docs | old URLs, unless redirected — which is why the redirect is part of the stage | a `Gtk.*` block under the `Adwaita` heading, or an `Adw.*` block under `Gtk`; a moved page with no redirect entry |
 | 6 | **LANDED 2026-08-30**, see § Amendment 2. Extend the tables to properties, read against `packages/framework/gtk-host/src/generated/props.ts` (in-repo, GIR-derived, no install), on the NativeScript surface. Print the count. | NS | nothing | a settable property that is neither a key of its counterpart's props interface nor declared; a convergence target that is not a key; an entry for a property that IS a key, or that nothing sets any more |
 | 7 | Emit `Gtk` / `Adw` namespace objects for `adwaita-web` and `adwaita-nativescript`, plus the `~/gtk` XML barrel, from the § 1 ledger. | web, NS | nothing (additive) | a namespace member with no ledger entry; a ledger entry with a GIR counterpart and no namespace member; an object that disagrees with the **GIR tag set** |
-| 8 | Optional construct-props bag through the declared setters; nick coercion plus a `Gtk.Align` table held against the GIR. | NS | nothing (parameter is optional; XML still calls `new T()`) | an unknown key in the bag reaching a widget without throwing; a nick table member whose number disagrees with the GIR; `check-nativescript-xml-doors.mjs` on a setter that gained a door it did not declare |
+| 8 | **LANDED 2026-09-05**, see § Amendment 13. Optional construct-props bag through the declared setters; nick coercion plus a `Gtk.Align` table held against the GIR. | NS | nothing (parameter is optional; XML still calls `new T()`) | an unknown key in the bag reaching a widget without throwing; a nick table member whose number disagrees with the GIR; `check-nativescript-xml-doors.mjs` on a setter that gained a door it did not declare |
 | 9 | **LANDED 2026-09-05**, see § Amendment 12 — both arms in one change rather than NS then web, and behind an OPT-IN `--gi-renderer`. The `gi://` arms: `--app nativescript` and `--app browser`, each `resolveId` `pre` plus `emptyGirs: false`. | NS, web | nothing (opt-in; a build that does not pass the flag is byte-identical) | `tests/e2e/gi-renderer-arms`, a sibling of `tests/e2e/ns-bridge-bundles`, per target: it imports `gi://Adw?version=1`, constructs `Adw.ActionRow` and asserts the result — and keeps the flag-LESS build as a permanent row, because that one still has to produce `Class extends value undefined` |
 
 Stages 1–4 and 6 are ledger-and-gate work; only stage 1 touches a package, and it touches
@@ -2396,3 +2399,136 @@ an argument.
   stage 8's optional construct-props bag and is not landed — plus a genuine capability gap
   the snippet already declares in a comment (`showInitials` / `iconName` have no NS
   equivalent). Convergence with a declared remainder, not a bijection.
+
+## Amendment 13, 2026-09-05 — the third door, and two things § Context measured wrong
+
+Stage 8 landed. `new Adw.Avatar({ size: 96, text: 'Ada Lovelace' })` now means the same
+thing on `@gjsify/adwaita-nativescript` as it does on GJS, on **46 of 46** widget classes —
+the count `check-nativescript-xml-doors.mjs` prints, not one written here.
+
+### What was decided, and what each decision was measured against
+
+**A shared function, not a base class.** The 46 classes extend **eight** different
+`@nativescript/core` bases — `GridLayout` (21), `StackLayout` (7), `ScrollView` (2),
+`FlexboxLayout`, `Button`, `Image` and `Observable` — so there is no single class to put a
+constructor parameter on, and a mixin would have to re-declare each base's type surface. The
+base is also hostile territory, which this repository has already paid for once:
+`ViewBase`'s own constructor ASSIGNS `this.cssClasses = new Set()`
+(`ui/core/view-base/index.ts:559-568`, `@nativescript/core` 9.0.21-next.15), so shadowing one
+of its members kills the widget inside its own constructor. The rule instead is that each
+class applies its OWN bag as the last statement of its OWN constructor and never forwards one
+to `super()` — a subclass of a subclass (`AdwPasswordEntryRow` over `AdwEntryRow` over
+`AdwActionRow`) would otherwise apply the same bag two or three times, the first before its
+own children exist. All four halves of that rule are what the gate holds: takes it, applies
+it, applies it once, applies it last.
+
+**An unknown key throws.** Measured on a widget-shaped class before the change:
+`Object.assign(new AdwAvatarShape(), { size: 96, text: 'Ada Lovelace', showInitals: true })`
+leaves `Object.keys()` equal to `['showInitals']` — the typo is the only thing that stuck,
+and the process exits 0. That is the same silent drop one door over that `xml-values.ts`
+exists for, so the applier walks the prototype chain and refuses a key that reaches no setter
+and no writable field. A getter with no setter is refused too: its descriptor carries
+`set: undefined`, which throws in strict mode and no-ops everywhere else.
+
+**XML is untouched, and that was checked rather than assumed.**
+`ui/builder/component-builder/index.ts:96` is `instance = new instanceType()`, unconditional
+and with no arguments; the parameter is optional; every existing template inflates the same.
+
+**Two abstract bases take no bag** and say so in `NO_CONSTRUCT_PROPS`: `AdwSplitViewBase` and
+`AdwViewSwitcherBase` are constructed only by their subclasses, which apply their own — a bag
+applied in a base runs before the derived constructor has built anything.
+
+### § Context measured NativeScript's alignment vocabulary wrong, and it is not a rounding error
+
+> *"GTK has seven members … NativeScript's `horizontalAlignment` vocabulary is
+> `'left' | 'center' | 'right' | 'stretch'`. `start`, `end` and all three baselines have no
+> counterpart."*
+
+`@nativescript/core` 9.0.21-next.15 declares
+`'start' | 'left' | 'center' | 'right' | 'end' | 'stretch'` (`core-types/index.ts:127`), and
+its SHARED layout pass resolves `start`/`end` against the view's own `direction`
+(`ui/core/view/view-helper/view-helper-common.ts:98-111`, both platforms) — the same
+direction-relative meaning GTK gives them. **Four of the seven members map, not two**, and
+the declared remainder is the three baselines and nothing else. The paragraph is left as
+written, because the example it was carrying — convergence with a declared remainder rather
+than a bijection — survives its own numbers being wrong, and because the shape of the mistake
+is worth keeping: the vocabulary was read off one of the two axes, and the vertical one
+(`'top' | 'middle' | 'bottom' | 'stretch'`, same file) is where GTK's `center` really does
+have to be translated.
+
+### The nick table has no in-repo oracle for its numbers, and the obvious two are both wrong
+
+`Gtk.Align`'s constants are **not** the positions in its nick list. `GTK_ALIGN_BASELINE` was
+deprecated in GTK 4.12 into an ALIAS of `GTK_ALIGN_BASELINE_FILL`, so the two share the value
+4 and every member after them sits one below its position. Measured three ways:
+
+| source | `baseline` | `baseline-center` |
+|---|---:|---:|
+| position in `GtkAlignNick` (`gtk-host/src/generated/props.ts`, in-repo, GIR-derived) | 5 | 6 |
+| `@girs/gtk-4.0@4.1.0`, `enum Align` with no initialisers — TypeScript's implicit numbering | 5 | 6 |
+| `Gtk-4.0.gir` (`gtk4`, org.gnome.Sdk/50) | **4** | **5** |
+| the installed typelib, read through `gjs -m` | **4** | **5** |
+
+So the two obvious in-repo derivations agree with each other and disagree with GTK, on
+exactly the enum this stage names. The table therefore **derives** its numbers from the nick
+order plus one declared alias (`{ baseline: 'baseline-fill' }`), which reduces the authored
+GIR facts from seven integers to one, and the gate holds everything around it: the nick list
+against `GtkAlignNick` in ORDER, each alias against the member set and against its own
+position, and every member either mapped on BOTH axes or refused with a printed reason.
+
+**What no gate here can hold is that one alias declaration.** Nothing in this repository
+carries GIR enum VALUES — `generated/props.ts` emits nick unions and `surface-data.mts` emits
+nick lists, neither emits a number — and these gates run in a `checkout` + `setup-node` job
+with no `@girs` install and no `refs/`. The pin is `construct-props.spec.ts`, which asserts
+the seven derived numbers literally on Node and on GJS, so the table cannot move without a
+test being edited to say so. The real fix is upstream and is recorded in
+`status/open-todos.md`: `@girs/*` now ships a `vocabulary` entry (ADR 0029) and gtk-host's
+generator already reads its `ENUM_NICKS` — an `ENUM_VALUES` beside it would make this
+derivable, and would retire the declaration.
+
+### The third door is a door, and the gate had to learn the word
+
+`nativescript-xml-doors.mjs` described TWO doors, an attribute and a child. The bag is a
+third, and it is not a cosmetic addition to that header: a value arriving through it is a real
+JS value rather than a string, so **a setter must not widen its declared type to admit an enum
+constant** — that would drag the number into the ATTRIBUTE door, where it has no coercer. Held,
+and measured both ways: widening `AdwToolbarView.topBarStyle` from `AdwToolbarStyle` to
+`AdwToolbarStyle | number` fails arm 1 immediately (*"does not go through xmlNumber()"*), and
+the shipped design keeps the setter's type as it was by coercing the constant to its nick
+BEFORE the assignment.
+
+### What is deliberately left open
+
+**The other eleven enums.** Measured across the 158 setters this package declares: **15** have
+a declared string union that is exactly a GIR enum's complete nick set, across **11** distinct
+enums — `AdwToolbarStyle` (two setters), `AdwLengthUnit` (three), `AdwPackDirection`,
+`AdwJustifyMode`, `AdwSidebarMode`, `AdwBannerButtonStyle`,
+`AdwInlineViewSwitcherDisplayMode`, `AdwViewSwitcherPolicy`, `GtkOrientation`, `GtkArrowType`
+and `GtkPackType`. Each could take its constant the way `Gtk.Align` now does. A twelfth
+setter, `AdwWrapBox.wrapPolicy`, is AMBIGUOUS by nick set alone: `'minimum' | 'natural'`
+matches `GtkScrollablePolicy`, `AdwFoldThresholdPolicy` and `AdwWrapPolicy` exactly, so the
+enum behind a setter has to be DECLARED and never inferred from its members. Not done here,
+because eleven more authored value tables against no in-repo oracle is eleven times the
+exposure the section above describes, and the `ENUM_VALUES` fix would retire all of them at
+once.
+
+**`halign` / `valign` as names.** They are keys of `Gtk.Widget.ConstructorProps` and no widget
+here declares them; what the bag widens instead is NativeScript's own
+`horizontalAlignment` / `verticalAlignment`, which every `View` already carries. Adding the
+GTK spellings as real setters would mean 46 near-identical accessor pairs or a prototype
+patch, and adding them to the BAG alone would give the two doors different vocabularies —
+`<adw:Avatar halign="center">` would not work. Left as a § 1 convergence question rather than
+answered by a special case.
+
+**And the same question, admitted: the shipped widening already does that on the VERTICAL
+axis.** The argument above is about property NAMES, and the values it carries fall under it
+too. NativeScript's `verticalAlignment` is `'top' | 'middle' | 'bottom' | 'stretch'` and its
+layout pass sends anything else to the `default:` arm, which is `stretch`. So `center`,
+`start` and `end` reach the widget as `middle` / `top` / `bottom` through the bag and as
+themselves through `<adw:Avatar verticalAlignment="center">`, where they silently stretch —
+three spellings the two doors do not share. The horizontal axis has no such gap, which is why
+the divergence is exactly as wide as the translation § Context missed. It is DECLARED rather
+than closed: the attribute door has no coercer to hang it on, and a per-widget
+`set verticalAlignment` would shadow `View`'s own, which is the hazard
+`check-nativescript-xml-doors.mjs` arm 2 exists for. Same convergence question as
+`halign` / `valign`, and it retires with it.

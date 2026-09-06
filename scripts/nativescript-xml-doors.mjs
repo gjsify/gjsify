@@ -7,7 +7,7 @@
 // templates against the same facts — and a second parser would be a second truth about
 // the same source.
 //
-// THE TWO DOORS, and why a reader has to know the difference
+// THE THREE DOORS, and why a reader has to know the difference
 //
 //   · An ATTRIBUTE. `ui/builder/component-builder`'s `setPropertyValue` ends in
 //     `instance[name] = value` for a plain accessor, so the setter receives a STRING.
@@ -15,6 +15,12 @@
 //   · A CHILD. `LayoutBaseCommon._addChildFromBuilder` ignores the name and calls
 //     `addChild`, so a widget that wants a child anywhere but its layout's first cell
 //     has to override it.
+//   · A CONSTRUCT-PROPS BAG (ADR 0034 § 4). The optional first parameter a TypeScript
+//     caller passes, which the XML builder never does — it calls `new instanceType()`
+//     with no arguments. It is a door because it reaches the same setters from a second
+//     side: a value arriving through it is a real JS value rather than a string, so a
+//     setter must NOT widen its declared type to admit an enum constant — that would
+//     drag the number into the ATTRIBUTE door, where it has no coercer.
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -177,6 +183,147 @@ export function readCoreProperties(root) {
 }
 
 /**
+ * Where the construct-props bag lives, and where its `Gtk.Align` table does.
+ *
+ * TWO files because they answer different questions: the applier is behaviour with a spec
+ * beside it, the table is DATA that a gate holds against the GIR-derived nick list.
+ */
+export const NS_CONSTRUCT_PROPS = `${NS_WIDGETS_DIR}/construct-props.ts`;
+export const NS_GTK_ALIGN = `${NS_WIDGETS_DIR}/gtk-align.ts`;
+
+/**
+ * The in-repo, GIR-derived nick lists — `packages/framework/gtk-host/src/generated/props.ts`.
+ *
+ * The independent side of the `Gtk.Align` table, and the only one that needs no install:
+ * this file is emitted from each `@girs` package's `vocabulary` entry by a generator that
+ * has never heard of the NativeScript port, and the gates run in a `checkout` +
+ * `setup-node` job with no `node_modules` at all (`audit-runtimes.yml`). It carries the
+ * SPELLING and the ORDER of
+ * every nick and no values — which is exactly why the values are authored and declared.
+ */
+export const GTK_HOST_NICKS = 'packages/framework/gtk-host/src/generated/props.ts';
+
+/**
+ * Widget classes that do NOT take a construct-props bag, and why.
+ *
+ * ABSTRACT BASES ONLY, and the checker enforces the word rather than trusting it: an entry
+ * must name a class this package still declares, and declares `abstract`. This is the only
+ * table here that can answer a rule by SUBTRACTION — everything else in arm 4 fails a widget
+ * for missing something, while an entry here takes a widget out of the question and shows up
+ * as nothing but a smaller printed count. Measured before it was held: `AdwAvatar` exempted
+ * and stripped of its bag left the gate at exit 0 one widget short, and a name nothing
+ * declares raised the exempt count instead of failing.
+ */
+export const NO_CONSTRUCT_PROPS = {
+    AdwSplitViewBase:
+        'abstract, and constructed only by AdwNavigationSplitView / AdwOverlaySplitView, which take their ' +
+        'own bag. Applying one here would run BEFORE the subclass has built its panes, and the subclass ' +
+        'would then overwrite it.',
+    AdwViewSwitcherBase:
+        'abstract, and constructed only by AdwViewSwitcher / AdwInlineViewSwitcher, for the same reason: a ' +
+        'bag applied in a base is applied before the derived constructor has run.',
+};
+
+/** How the bag is spelled, in the one place both halves of the rule can read it. */
+export const CONSTRUCT_PROPS_APPLIER = 'applyConstructProps(this, props)';
+
+/**
+ * The constructor a class declares — its parameter list and its body — or `null`.
+ *
+ * The body ends at the first line indented four spaces, the same bound {@link settersOf}
+ * uses and for the same reason: everything inside a method is indented eight or more.
+ */
+export function constructorOf(text, name) {
+    const at = new RegExp(`^export (?:abstract )?class ${name}\\b`, 'm').exec(text);
+    if (at === null) return null;
+    const decl = /^ {4}constructor\(/m.exec(text.slice(at.index));
+    if (decl === null) return null;
+    const open = at.index + decl.index + decl[0].length - 1;
+    const close = matchingParen(text, open);
+    if (close === -1) return null;
+    const brace = text.indexOf('{', close);
+    if (brace === -1) return null;
+    const after = /\n {4}\S/g;
+    after.lastIndex = brace;
+    const end = after.exec(text)?.index ?? text.length;
+    const body = text.slice(brace + 1, end);
+    return { params: text.slice(open + 1, close).trim(), body, executable: executable(body) };
+}
+
+/** The index of the `}` closing the `{` at {@link open}, or -1 when nothing does. */
+export function matchingBrace(text, open) {
+    let depth = 0;
+    for (let i = open; i < text.length; i += 1) {
+        if (text[i] === '{') depth += 1;
+        else if (text[i] === '}') {
+            depth -= 1;
+            if (depth === 0) return i;
+        }
+    }
+    return -1;
+}
+
+/**
+ * A `Record` literal in a TypeScript source, as a Map of key to raw value text.
+ *
+ * Deliberately shallow — one flat `{ key: value, … }` per declaration, values read as the
+ * text between the colon and the comma. Every table this reads is that shape on purpose:
+ * a gate that needed a parser to read its own ledger would be a second TypeScript
+ * implementation, which is how the two truths start.
+ *
+ * The body is bounded by a BRACE MATCH and not by the next `\n};`. Measured while
+ * building the arm that reads these: an EMPTY declaration (`= {};`) has no such line, so a
+ * lazy match ran past it into the next table and reported that one's four entries as this
+ * one's — a reader answering about the wrong declaration, at exit 0 with a plausible
+ * count. An empty table has to read as empty.
+ */
+export function readRecordLiteral(text, name) {
+    const code = executable(text);
+    const decl = new RegExp(`export const ${name}\\b[^=]*= \\{`).exec(code);
+    if (decl === null) return null;
+    const open = decl.index + decl[0].length - 1;
+    const close = matchingBrace(code, open);
+    if (close === -1) return null;
+    const entries = new Map();
+    for (const [, key, value] of code.slice(open + 1, close).matchAll(/^ {4}'?([\w-]+)'?:\s*([\s\S]*?),$/gm)) {
+        entries.set(key, value.trim());
+    }
+    return entries;
+}
+
+/** A flat `as const` array of string literals in a TypeScript source, in order. */
+export function readStringArray(text, name) {
+    const code = executable(text);
+    const decl = new RegExp(`export const ${name}\\b[^=]*= \\[`).exec(code);
+    if (decl === null) return null;
+    const close = code.indexOf(']', decl.index);
+    if (close === -1) return null;
+    return code
+        .slice(decl.index + decl[0].length, close)
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item !== '')
+        .map((item) => (/^'[^']*'$/.test(item) ? item.slice(1, -1) : item));
+}
+
+/**
+ * The members of `export type <name> = 'a' | 'b' | …;`, in declaration order.
+ *
+ * Order is the point: for a GIR enum with no aliased member it IS the value, which is what
+ * makes the two members of `GtkAlign` where it is NOT the value a declaration rather than
+ * a typo.
+ */
+export function readNickUnion(text, name) {
+    const decl = new RegExp(`export type ${name} =([^;]+);`).exec(text);
+    if (decl === null) return null;
+    return decl[1]
+        .split('|')
+        .map((part) => part.trim())
+        .filter((part) => part !== '')
+        .map((part) => (/^'[^']*'$/.test(part) ? part.slice(1, -1) : part));
+}
+
+/**
  * A widget class name on this surface: the library prefix, then the widget.
  *
  * `Adw\w+` alone was the whole rule until ADR 0034 clause 1 landed here — four widgets
@@ -270,7 +417,7 @@ export function chainOf(sources, tag) {
 }
 
 /** The index of the `)` closing the `(` at {@link open}, or -1 when nothing does. */
-function matchingParen(text, open) {
+export function matchingParen(text, open) {
     let depth = 0;
     for (let i = open; i < text.length; i += 1) {
         if (text[i] === '(') depth += 1;

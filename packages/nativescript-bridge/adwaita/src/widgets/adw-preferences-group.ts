@@ -24,6 +24,7 @@ import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 import { resolveBuilderSlot } from './builder-slots.js';
 import { PREFERENCES_GROUP_HEADER_CLASS, preferencesGroupVisuals } from './preferences-group-state.js';
 import type { NsSearchableGroup, NsSearchableRow } from './preferences-search.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** The one slot a template may name — everything else is a row. */
 const PREFERENCES_GROUP_SLOTS = ['headerSuffix'] as const;
@@ -44,7 +45,7 @@ export class AdwPreferencesGroup extends StackLayout implements NsSearchableGrou
     private _description = '';
     private _headerSuffix: View | null = null;
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwPreferencesGroup>) {
         super();
 
         this.orientation = 'vertical';
@@ -95,6 +96,8 @@ export class AdwPreferencesGroup extends StackLayout implements NsSearchableGrou
         this._listbox = listbox;
 
         this._applyVisuals();
+
+        applyConstructProps(this, props);
     }
 
     /**

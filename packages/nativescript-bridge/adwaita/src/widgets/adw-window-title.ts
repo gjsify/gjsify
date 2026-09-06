@@ -21,6 +21,7 @@
 
 import { Label, StackLayout, type EventData } from '@nativescript/core';
 import { WindowTitleState, toLabelVisuals } from './row-state.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Event name emitted when {@link AdwWindowTitle.title} changes. */
 export const NOTIFY_TITLE = 'notify::title';
@@ -36,7 +37,7 @@ export class AdwWindowTitle extends StackLayout {
     /** The headless title/subtitle pair + change detection (ADR 0004). */
     private readonly _state = new WindowTitleState();
 
-    constructor() {
+    constructor(props?: ConstructProps<AdwWindowTitle>) {
         super();
 
         this.orientation = 'vertical';
@@ -60,6 +61,8 @@ export class AdwWindowTitle extends StackLayout {
         this._subtitleLabel = subtitleLabel;
 
         this._apply();
+
+        applyConstructProps(this, props);
     }
 
     /** The window title (bold, top line). Empty collapses its label. */

@@ -28,6 +28,7 @@ import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { renderSymbolicIcon } from './icons.js';
 import { xmlNumber } from './xml-values.js';
+import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 /** Default decorative-icon size, in DIPs — the Adwaita 16px symbolic grid. */
 export const DEFAULT_GTK_IMAGE_SIZE = 16;
@@ -41,7 +42,7 @@ export class GtkImage extends Image {
     private _iconSize = DEFAULT_GTK_IMAGE_SIZE;
     private _unsubScheme: (() => void) | null = null;
 
-    constructor() {
+    constructor(props?: ConstructProps<GtkImage>) {
         super();
         // THE CLASS KEEPS THE `adw-` PREFIX while the widget takes the GIR name, and the
         // two are not the same vocabulary: ADR 0034 clause 1 names a WIDGET after the
@@ -66,6 +67,8 @@ export class GtkImage extends Image {
             this._unsubScheme?.();
             this._unsubScheme = null;
         });
+
+        applyConstructProps(this, props);
     }
 
     /** Adopt the active scheme's default fill (no-op if the caller pinned a colour). */
