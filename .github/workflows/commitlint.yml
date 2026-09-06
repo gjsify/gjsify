@@ -60,19 +60,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # The action above validates the title's FORM and carries no length rule, so
-      # the other half of the same asymmetry stayed open: #1125 and #1127 both
-      # merged GREEN and turned `main` red, at 111 and 105 characters against a
-      # limit of 100. #1127's title was 97 — under the limit on its own, and over it
-      # the moment GitHub appended ` (#1127)`. That is why this checks the composed
-      # SUBJECT rather than the title, and why it could not be an input on the step
-      # above.
-      - name: Check the PR title still fits after the squash suffix
+      # The action above validates the title's FORM and carries no other rule, so the
+      # rest of the same asymmetry stayed open, and it has now cost four merges. Length:
+      # #1125 and #1127 merged GREEN and turned `main` red at 111 and 105 characters
+      # against a limit of 100 — #1127's title was 97, under the limit on its own and
+      # over it the moment GitHub appended ` (#1127)`. Case: #1275 and #1590 did the
+      # same with a capitalised first word, which every branch commit avoided and the
+      # title did not. That is why this checks the composed SUBJECT rather than the
+      # title, and why neither could be an input on the step above.
+      - name: Check the squash subject the PR title becomes
         if: github.event_name == 'pull_request'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: node scripts/check-pr-title-length.mjs
+        run: node scripts/check-pr-title-subject.mjs
 
       # The two steps above cover the title. The BODY is the third string GitHub
       # reads on merge, and the only one that changes the state of OTHER records:

@@ -25,7 +25,7 @@
 // WHY THIS SHAPE OF DEFECT IS WORSE THAN A BROKEN LINK. It reports success. The
 // body SAYS six issues are closed, the merge SAYS it succeeded, and the four
 // that stayed open look — to anyone reading the issue list — like work nobody has
-// done. That is the same class `check-pr-title-length.mjs` and
+// done. That is the same class `check-pr-title-subject.mjs` and
 // `check-pr-title-types.mjs` were written for: a string that becomes history and
 // that nothing looked at. Those two cover the PR title. This is the third string
 // GitHub reads, and the only one that changes the state of OTHER records.
@@ -60,7 +60,7 @@ import { execFileSync } from 'node:child_process';
 
 /**
  * GitHub's closing keywords, verbatim from its documentation on linking a pull
- * request to an issue. Mirrored here for the reason `check-pr-title-length.mjs`
+ * request to an issue. Mirrored here for the reason `check-pr-title-subject.mjs`
  * mirrors `header-max-length`: this list IS the claim being checked, there is no
  * resolved config to read it from, and a missing entry fails open on exactly the
  * spelling it forgot.
@@ -266,7 +266,7 @@ const headSha = process.env.PR_HEAD_SHA ?? '';
 // An empty RANGE is not. Without it this read one surface, exited 0, and printed a
 // success line naming the body it had read — green over a PR whose COMMITS carry
 // the list, which is the surface #1568 closed all four of its issues from. Same
-// refusal `check-pr-title-length.mjs` makes when PR_TITLE is empty.
+// refusal `check-pr-title-subject.mjs` makes when PR_TITLE is empty.
 if (!baseSha || !headSha) {
     console.error(
         '::error::check-closing-keywords: PR_BASE_SHA/PR_HEAD_SHA are empty — this must run in a pull_request job.',
