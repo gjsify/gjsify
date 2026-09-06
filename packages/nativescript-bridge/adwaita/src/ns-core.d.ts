@@ -11,6 +11,17 @@
 // This is the NativeScript analogue of how `packages/framework/*` lean on the
 // generated `@girs/*` types for GNOME classes: we describe the native host API
 // surface, we don't reimplement it.
+//
+// WHAT THIS FILE CANNOT CATCH. A member declared below makes a shadowing widget fail
+// HERE; a member left out stays invisible until a consumer compiles. So this is a
+// growing list, never a guarantee. Measured against `@nativescript/core@9.1.0-alpha.11`,
+// three shadowings remain that this file deliberately does NOT declare, because each is
+// a name the Adwaita vocabulary owns on purpose and declaring it would fail the build
+// here for a decision already taken: `AdwDataGrid.rows`/`.columns` over
+// `GridLayoutBase`'s track spellings (the trade `SETTER_ONLY_ON_BASE` in
+// `scripts/nativescript-xml-doors.mjs` records), and `AdwSplitButton.direction` over
+// `ViewCommon.direction`, NativeScript's RTL layout property. All three are a type
+// error for a consumer that compiles our `lib/types` without `skipLibCheck`.
 
 declare module '@nativescript/core' {
     /** Payload shape for NativeScript's `Observable.notify` / event listeners. */
@@ -21,6 +32,15 @@ declare module '@nativescript/core' {
 
     /** Base of every NativeScript object — carries the event system. */
     export class Observable {
+        /**
+         * Declared here ONLY so a widget cannot shadow it. `@nativescript/core`
+         * has `_emit(eventName: string): void` PUBLIC on `Observable`
+         * (`data/observable/index.d.ts:199`), so a subclass that declares its own
+         * `private _emit` both narrows the visibility and changes the signature.
+         * This file left it out, which is why that went unseen until a consumer
+         * compiled against the real package.
+         */
+        _emit(eventName: string): void;
         /** Subscribe to an event (e.g. `'checkedChange'`, `'notify::active'`). */
         addEventListener(
             eventName: string,
@@ -42,6 +62,14 @@ declare module '@nativescript/core' {
 
     /** Base view — every visual element. */
     export class View extends Observable {
+        /**
+         * `ViewCommon` declares `private _measuredWidth`
+         * (`ui/core/view/view-common.d.ts:80`). Declared here so a widget that
+         * gives itself a field of that name fails to compile instead of colliding
+         * silently — a private base member cannot be redeclared by a subclass at
+         * any visibility.
+         */
+        private _measuredWidth: number;
         /** CSS class list applied to this view (space-separated). */
         className: string;
         /**
@@ -224,8 +252,24 @@ declare module '@nativescript/core' {
 
     /** Grid of children addressed by row/column — `<GridLayout>`. */
     export class GridLayout extends LayoutBase {
+        /**
+         * `GridLayoutBase` declares `protected _rows: Array<ItemSpec>`
+         * (`ui/layouts/grid-layout/grid-layout-common.d.ts:24`) and its constructor
+         * assigns `this._rows = new Array()`, with `addRow`/`removeRow`/`getRows`
+         * reading it. A subclass field of the same name is not only a type error:
+         * its initialiser runs AFTER the base constructor and replaces that array,
+         * so both sides then write the same slot with incompatible element types.
+         */
+        protected _rows: ItemSpec[];
         addColumn(itemSpec: ItemSpec): void;
         addRow(itemSpec: ItemSpec): void;
+        /**
+         * `GridLayoutBase.removeRow(itemSpec: ItemSpec)`
+         * (`ui/layouts/grid-layout/grid-layout-common.d.ts:41`). While this file listed
+         * only `removeRows()`, a widget could narrow `removeRow` and nothing here
+         * objected — `AdwExpanderRow` took a `View`, and only a consumer saw it.
+         */
+        removeRow(itemSpec: ItemSpec): void;
         /** Remove every column definition (lets a layout re-declare its columns,
          *  e.g. to flip the fixed/expanding column for a trailing sidebar). */
         removeColumns(): void;

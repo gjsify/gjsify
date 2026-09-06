@@ -24,8 +24,24 @@ import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 
 export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
-    /** The vertical stack that actually holds the groups. */
-    protected readonly _content: StackLayout;
+    /**
+     * The vertical stack that actually holds the groups.
+     *
+     * NOT `_content`, which is what it was called first. `ContentView` — in this
+     * class's chain via `ScrollView` — uses `this._content` as the backing store for
+     * its own `content` accessor (`ui/content-view/index.js:12,15-21`). Sharing that
+     * name does not shadow the field, it IS the field: `readonly` becomes a
+     * compile-time fiction, because `set content` writes it, so any `page.content = x`
+     * silently re-points this handle and `addGroup`/`searchGroups`/`groups` then work
+     * on the wrong view. No type-checker can catch it — `_content` appears in no
+     * `.d.ts` of `@nativescript/core`, only in the compiled JS.
+     *
+     * Five sibling widgets keep `_content` safely, because their chain runs
+     * `GridLayout → LayoutBase → CustomLayoutView` and never reaches `ContentView`.
+     * This class and `AdwSidebar` (which calls its stack `_list`) are the two on
+     * `ScrollView`, and so the two where the name is taken.
+     */
+    protected readonly _groups: StackLayout;
 
     private _title = '';
     private _name = '';
@@ -44,8 +60,10 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
 
         // ScrollView holds exactly one scrollable child via its `content` slot.
         this.content = content;
-        this._content = content;
+        this._groups = content;
 
+        // After `_groups`, because a construct prop assigns through the public
+        // setters and `addGroup` reads it.
         applyConstructProps(this, props);
     }
 
@@ -94,12 +112,12 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
 
     /** Append a preferences group (or any view) to the page. */
     addGroup(view: View): void {
-        this._content.addChild(view);
+        this._groups.addChild(view);
     }
 
     /** Remove a previously-added group from the page. */
     removeGroup(view: View): void {
-        this._content.removeChild(view);
+        this._groups.removeChild(view);
     }
 
     /**
@@ -119,9 +137,9 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
      */
     searchGroups(): readonly NsSearchableGroup[] {
         const groups: NsSearchableGroup[] = [];
-        const count = this._content.getChildrenCount();
+        const count = this._groups.getChildrenCount();
         for (let index = 0; index < count; index++) {
-            const child = this._content.getChildAt(index) as unknown as Partial<NsSearchableGroup>;
+            const child = this._groups.getChildAt(index) as unknown as Partial<NsSearchableGroup>;
             // A page may hold plain views next to its groups; only something
             // that can enumerate rows is part of the corpus.
             if (typeof child.searchRows === 'function') groups.push(child as NsSearchableGroup);
@@ -131,6 +149,6 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
 
     /** The vertical content stack holding the groups. */
     get groups(): StackLayout {
-        return this._content;
+        return this._groups;
     }
 }

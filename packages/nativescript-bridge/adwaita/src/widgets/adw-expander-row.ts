@@ -151,9 +151,21 @@ export class AdwExpanderRow extends AdwActionRow {
         this._disclosure.addChild(viewOrSpec);
     }
 
-    /** Remove a previously-added child row from the disclosure container. */
-    removeRow(view: View): void {
-        this._disclosure.removeChild(view);
+    /**
+     * Remove a previously-added child row from the disclosure container.
+     *
+     * Takes `View | ItemSpec` for the same reason `addRow` does: `GridLayout` already
+     * declares `removeRow(itemSpec: ItemSpec)`, so accepting only a `View` NARROWS an
+     * inherited signature. That is a type error for anyone compiling against the real
+     * `@nativescript/core`, and it left the base's own track teardown unreachable
+     * through this name.
+     */
+    removeRow(viewOrSpec: View | ItemSpec): void {
+        if (viewOrSpec instanceof ItemSpec) {
+            super.removeRow(viewOrSpec);
+            return;
+        }
+        this._disclosure.removeChild(viewOrSpec);
     }
 
     /**
@@ -177,7 +189,8 @@ export class AdwExpanderRow extends AdwActionRow {
      * which every NativeScript bundle is. Measured against that prototype shape, and
      * it would have broken apps that never touch XML. `rows` and `columns` are the
      * only two accessors of that shape on the bases this package extends —
-     * `scripts/check-nativescript-accessor-shadowing.mjs` holds both.
+     * `scripts/check-nativescript-xml-doors.mjs` holds both (in `SETTER_ONLY_ON_BASE`,
+     * `scripts/nativescript-xml-doors.mjs:116`).
      */
     get disclosureRows(): readonly View[] {
         const out: View[] = [];
