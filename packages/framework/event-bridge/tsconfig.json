@@ -27,6 +27,7 @@
         "src",
         "../../../node_modules/@girs/gdk-4.0/gdk-4.0-ambient.d.ts",
         "../../../node_modules/@girs/glib-2.0/glib-2.0-ambient.d.ts",
+        "../../../node_modules/@girs/graphene-1.0/graphene-1.0-ambient.d.ts",
         "../../../node_modules/@girs/gtk-4.0/gtk-4.0-ambient.d.ts"
     ],
     "exclude": ["src/test.mts"]

@@ -126,7 +126,7 @@ const GOLDEN = [
     'motion: 12,8', // pointermove clientX,clientY — coords pass through the clamp
     'move: 8,10', // movementX,movementY across successive motions
     'clamp: 0,0', // motion(-3,-7) → clamped to the allocation lower bound
-    'wheel: 0,100', // scroll(0,1) → WheelEvent deltaX,deltaY (ticks scaled ×100)
+    'wheel: 0,3', // scroll(0,1) → WheelEvent deltaX,deltaY (a WHEEL notch is three DOM_DELTA_LINE lines)
     'keydown: a KeyA shift=true ctrl=false', // Gdk.KEY_a + Gdk.ModifierType.SHIFT_MASK
     'modstate: Shift=true Control=false', // KeyboardEvent.getModifierState()
     'keydown: ArrowLeft ArrowLeft shift=false ctrl=true', // Gdk.KEY_Left + CONTROL_MASK (special-key marshalling)

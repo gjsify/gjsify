@@ -30,7 +30,7 @@
 //
 // The controllers are retrieved by ADD ORDER. `observe_controllers()` returns them
 // in REVERSE add order (GTK LIFO), so the list is reversed to recover the order
-// `attachEventControllers` adds them in: [motion, click, scroll, key, focus]. This
+// `attachEventControllers` adds them in: [motion, click, scroll, key, focus, legacy]. This
 // is used INSTEAD of the spec's `ctrl instanceof Gtk.EventControllerMotion` filter
 // because node-gi does not wire `instanceof` for GObject wrapper classes yet (a
 // documented deep-engine gap — see the test file header); wrapper IDENTITY is
@@ -129,7 +129,7 @@ app.connect('activate', () => {
 
             try {
                 const ctrls = collectControllers();
-                // [motion, click, scroll, key, focus] — attachEventControllers order.
+                // [motion, click, scroll, key, focus, legacy] — attachEventControllers order.
                 const [motionC, , scrollC, keyC, focusC] = ctrls;
 
                 // ---- Motion: coords, movement delta, lower-bound clamp ----
@@ -137,7 +137,7 @@ app.connect('activate', () => {
                 motionC.emit('motion', 20, 18);
                 motionC.emit('motion', -3, -7); // clamps to 0,0 regardless of allocation
 
-                // ---- Scroll → WheelEvent (delta scaled ×100) ----
+                // ---- Scroll → WheelEvent (a notch is three lines, deltaMode DOM_DELTA_LINE) ----
                 scrollC.emit('scroll', 0, 1);
 
                 // ---- Key: keyval + Gdk.ModifierType flags marshalling ----
