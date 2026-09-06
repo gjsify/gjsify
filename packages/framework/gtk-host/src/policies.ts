@@ -378,6 +378,7 @@ export interface Placement {
 export function insertChild(place: Placement): void {
     try {
         placeChild(place);
+        syncPerLineCap(place.parent);
     } catch (e) {
         if (e instanceof GtkHostError) throw e;
         // GTK's own message is accurate and anonymous: "Object is of type Gtk.Box
@@ -622,6 +623,42 @@ export function removeChild(parent: HostElement, child: HostElement): void {
     // whole teardown so handlers stay connected for the life of the process.
     if (!child.attached) return;
     detachChild(parent, child, host);
+    syncPerLineCap(parent);
+}
+
+/**
+ * Keep an `indexed` parent's per-line cap equal to its child count.
+ *
+ * WHY a cap has to be maintained at all rather than pinned high once is on
+ * `ChildPolicy`'s `perLineCap`: GTK measures the cap and not the children, and
+ * the cost is quadratic in it.
+ *
+ * The walk is O(children) and runs after every insert, which makes a build of n
+ * children O(n²) in POINTER HOPS — against the one measure per insert it takes
+ * off, at 1.5 ms and upwards each, that is not a trade worth avoiding. A counter
+ * kept on the element would be the faster shape and a second source for a fact
+ * GTK already holds; this asks the container.
+ *
+ * The write is bracketed as the HOST's for the reason `writeVisible` is: a
+ * consumer that never wrote this property should not be told it changed.
+ */
+function syncPerLineCap(parent: HostElement): void {
+    const policy = parent.descriptor.children;
+    if (policy.kind !== 'indexed' || policy.perLineCap === undefined) return;
+    if (parent.props[policy.perLineCap] !== undefined) return;
+    const host = parent.widget as unknown as Gtk.Widget | null;
+    if (!host) return;
+    let children = 0;
+    for (let c = host.get_first_child(); c !== null; c = c.get_next_sibling()) children += 1;
+    // `0` is refused, not read as "no limit": `gtk_flow_box_set_max_children_per_line:
+    // assertion 'n_children > 0' failed`, and the property keeps its old value
+    // (measured, GTK 4.22.4). So an empty container asks for one.
+    beginHostWrite(null);
+    try {
+        host.set_property(policy.perLineCap, Math.max(1, children));
+    } finally {
+        endHostWrite();
+    }
 }
 
 /** Does this parent reorder in place, or does it pay a full re-append? Declared, not guessed. */

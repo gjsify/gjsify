@@ -112,7 +112,17 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
     {
         gtype: 'GtkFlowBox',
         ctor: () => Gtk.FlowBox,
-        children: { kind: 'indexed', insert: 'insert', remove: 'remove', wrap: 'flow-box-child' },
+        // `perLineCap` is the one declaration here that exists for a COST rather
+        // than for a correctness rule — see `ChildPolicy`'s docblock for the
+        // measurement. Without it the class is still laid out correctly and still
+        // takes a second and a half to measure two children.
+        children: {
+            kind: 'indexed',
+            insert: 'insert',
+            remove: 'remove',
+            wrap: 'flow-box-child',
+            perLineCap: 'max-children-per-line',
+        },
     },
     {
         gtype: 'GtkListBoxRow',

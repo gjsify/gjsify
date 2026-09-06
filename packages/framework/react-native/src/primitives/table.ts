@@ -329,10 +329,29 @@ export interface PrimitiveSpec {
  *   seven children on a line and wrap the eighth however much room was left — a
  *   layout that is plausible on screen and wrong. There is no "no limit" spelling:
  *   `0` is OUT OF RANGE for the `guint` (a GLib-GObject-CRITICAL, and the property
- *   keeps its old value), and writing G_MAXUINT stores 65535. So 65535 IS GTK's
- *   spelling of "as many as fit", and the natural width is unaffected by it — it
- *   tracks the child count, measured identical for 12 children at 12, 1024 and
- *   65535.
+ *   keeps its old value), and writing G_MAXUINT stores 65535.
+ *
+ *   This table therefore pinned 65535, and **that correction is not made here any
+ *   more** — the cap is kept equal to the child count by `@gjsify/gtk-host`, the
+ *   only layer that knows the count (`ChildPolicy`'s `perLineCap`). A line can
+ *   never hold more children than exist, so the count forbids nothing 65535
+ *   allowed, and two things stop costing what they did.
+ *
+ *   The MEASURE, whose cost is quadratic in the cap rather than in the children.
+ *   One `Gtk.FlowBox` holding TWO children, per measure, GTK 4.22.4: 0.018 ms at
+ *   64, 19.3 ms at 8192, 421.8 ms at 32768, **1517.9 ms at 65535**. An
+ *   application with five two-chip rows froze its main loop for 12.7 s at
+ *   startup, and every screenshot of it looked right.
+ *
+ *   The NATURAL WIDTH, which carries `column-spacing × (cap - 1)` of gaps that do
+ *   not exist. 12 children, `column-spacing: 8`: 683 px at a cap of 12 and
+ *   **524 867 px** at 65535, the difference exactly 8 × 65534 in all five caps
+ *   measured. The old note here said the natural width was "unaffected by it —
+ *   measured identical for 12 children at 12, 1024 and 65535", and that holds
+ *   ONLY AT `column-spacing: 0`. Which is the measurement this table was least
+ *   entitled to make, because the same table routes every `gap-*` into
+ *   `column-spacing` (below) — a wrapping row with a gap is the case it creates,
+ *   and it is the case the claim excluded.
  *
  *   `selection-mode` defaults to SINGLE. A `Gtk.FlowBox` is a selection widget
  *   before it is a layout one, so a plain `<View>` would gain a focus ring and a
@@ -351,7 +370,7 @@ const WRAPS_INTO_FLOW_BOX: WrapsInto = {
     // announced a LAYOUT container to a screen reader as a data grid — a widget
     // swap made for a styling reason, changing what the element IS to assistive
     // technology, silently. GENERIC is what the unwrapped element already was.
-    widgetProps: { 'max-children-per-line': 65535, 'selection-mode': 'none', 'accessible-role': 'generic' },
+    widgetProps: { 'selection-mode': 'none', 'accessible-role': 'generic' },
 };
 
 const BOX: WidgetFacts = { box: true, alignsText: false, wrapsInto: WRAPS_INTO_FLOW_BOX };
