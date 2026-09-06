@@ -97,5 +97,7 @@ which artifact each one came from, are in
 
 ## Peer dependency
 
-`effect` is a **peer** dependency. A consumer's Effect and this layer's must be the same instance,
-or the service keys do not match.
+`effect` is a **peer** dependency, pinned to the exact RC rather than a range. A consumer's Effect
+and this layer's must be the same instance or the service keys do not match, and across prerelease
+tags a range does not guarantee that: `>=4.0.0-rc.112` admits `4.0.0-rc.113`, which is free to move
+a key. It relaxes to a caret the day 4.0.0 is stable.

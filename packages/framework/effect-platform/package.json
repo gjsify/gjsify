@@ -66,7 +66,7 @@
         "@girs/gtk-4.0": "4.6.0"
     },
     "peerDependencies": {
-        "effect": ">=4.0.0-rc.112"
+        "effect": "4.0.0-rc.112"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
