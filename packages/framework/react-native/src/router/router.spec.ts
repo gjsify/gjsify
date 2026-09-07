@@ -247,8 +247,12 @@ function TabsLayout(): ReactElement {
     return createElement(
         Tabs,
         null,
-        createElement(Tabs.Screen, { key: '1', name: 'one', options: { title: 'One' } }),
-        createElement(Tabs.Screen, { key: '2', name: 'two', options: { title: 'Two' } }),
+        createElement(Tabs.Screen, { key: '1', name: 'one', options: { title: 'One', iconName: 'go-home-symbolic' } }),
+        createElement(Tabs.Screen, {
+            key: '2',
+            name: 'two',
+            options: { title: 'Two', iconName: 'view-grid-symbolic' },
+        }),
     );
 }
 
@@ -334,6 +338,40 @@ const STACK_IN_TABS: RouteManifest = [
     { contextKey: 'one.tsx', module: { default: TabOne } },
     { contextKey: '(deep)/_layout.tsx', module: { default: InnerStackLayout } },
     { contextKey: '(deep)/detail.tsx', module: { default: Home } },
+];
+
+/**
+ * Five tabs with real labels, because the narrow threshold is MEASURED off them.
+ *
+ * Two short tabs fit in any window an `Adw.Window` will even open — its own minimum
+ * is wider than their switcher — so a manifest that small cannot be made narrow and
+ * proves nothing about a layout that reacts to width.
+ */
+const WIDE_TABS: RouteManifest = [
+    {
+        contextKey: '_layout.tsx',
+        module: {
+            default: (): ReactElement =>
+                createElement(
+                    Tabs,
+                    null,
+                    createElement(Tabs.Screen, { key: '1', name: 'one', options: { title: 'Startseite' } }),
+                    createElement(Tabs.Screen, { key: '2', name: 'two', options: { title: 'Entdecken' } }),
+                    createElement(Tabs.Screen, { key: '3', name: 'three', options: { title: 'Mediathek' } }),
+                    createElement(Tabs.Screen, { key: '4', name: 'four', options: { title: 'Mitmachen' } }),
+                    createElement(Tabs.Screen, { key: '5', name: 'five', options: { title: 'Profil' } }),
+                    // No title, deliberately: the header bar and the switcher button
+                    // have to fall back to the same thing.
+                    createElement(Tabs.Screen, { key: '6', name: 'six' }),
+                ),
+        },
+    },
+    { contextKey: 'one.tsx', module: { default: TabOne } },
+    { contextKey: 'two.tsx', module: { default: TabTwo } },
+    { contextKey: 'three.tsx', module: { default: TabOne } },
+    { contextKey: 'four.tsx', module: { default: TabTwo } },
+    { contextKey: 'five.tsx', module: { default: TabOne } },
+    { contextKey: 'six.tsx', module: { default: TabTwo } },
 ];
 
 /** A root navigator that renders NO bar: the window must keep its own. */
@@ -476,11 +514,15 @@ async function windowed(
     element: ReactNode,
     body: (window: Adw.Window, container: Gtk.Widget) => void | Promise<void>,
     manifestReady: (container: Gtk.Widget) => boolean = (container) => maybeFind(container, 'AdwHeaderBar') !== null,
+    // Set BEFORE `present`, because that is the only size a window reliably takes: a
+    // `set_default_size` on a window the compositor has already mapped is a request it
+    // is free to ignore, and a test that resized after presenting measured nothing.
+    size: readonly [number, number] = [900, 700],
 ): Promise<void> {
     const shell = buildWindowShell();
     const AdwWindow = lookupWidget('AdwWindow').ctor() as unknown as new () => Adw.Window;
     const window = new AdwWindow();
-    window.set_default_size(900, 700);
+    window.set_default_size(size[0], size[1]);
     window.set_content(shell.root);
     const root = createRoot(shell.content);
     try {
@@ -527,7 +569,7 @@ export default async () => {
             }) as Promise<void>;
 
         await gated('the widget table the router depends on', async () => {
-            await it('has a CURATED placement rule for all four tags the router names', async () => {
+            await it('has a CURATED placement rule for all five tags the router names', async () => {
                 // Measured the hard way: before these rules existed, rendering a
                 // screen into an `AdwNavigationPage` raised the host's own
                 // uncurated-placement refusal — correct, and useless to a layer that
@@ -537,6 +579,7 @@ export default async () => {
                     ['AdwNavigationPage', 'single'],
                     ['AdwViewStack', 'keyed'],
                     ['AdwToolbarView', 'slotted'],
+                    ['AdwBreakpointBin', 'single'],
                 ] as const) {
                     expect(lookupWidget(gtype).children.kind).toBe(kind);
                 }
@@ -1180,6 +1223,81 @@ export default async () => {
                     // switcher in the phone layout on a 900 px window reads as a bug.
                     expect(switcher.get_policy()).toBe(1);
                 });
+            });
+
+            await it('puts each tab’s iconName on its Adw.ViewStackPage', async () => {
+                await mounted(app(), async (container) => {
+                    const stack = await enterTabs(container);
+                    await settle(() => stack.get_visible_child_name() !== null);
+                    const icons = gtkChildren(stack).map((child) => stack.get_page(child).get_icon_name());
+                    // NOT decoration: `Adw.ViewSwitcher` reserves the icon whether or
+                    // not a page carries one (measured — the same tabs measure the same
+                    // width either way), so a page without one draws the icon theme's
+                    // missing-image glyph in the space it kept.
+                    expect(icons).toStrictEqual(['go-home-symbolic', 'view-grid-symbolic']);
+                });
+            });
+
+            await it('moves the switcher to a bottom bar when the window is too narrow for it', async () => {
+                await windowed(
+                    app(WIDE_TABS),
+                    async (_window, container) => {
+                        const bar = find(container, 'AdwViewSwitcherBar') as Adw.ViewSwitcherBar;
+                        // THE FULL BUDGET, and the assertion is that it runs out.
+                        // `reveal` starts false and the switcher starts in the header,
+                        // so asking whether they are still that way asks nothing — a
+                        // condition of `max-width: 99999px`, which makes every window
+                        // narrow, passed this vector, and so did settling on the bin's
+                        // first allocation. `settle` answers -1 when the predicate
+                        // never came true, which is the only shape here that fails for
+                        // an implementation that reveals the bar when it should not.
+                        expect(await settle(() => bar.get_reveal())).toBe(-1);
+                        const header = find(container, 'AdwHeaderBar') as Adw.HeaderBar;
+                        const title = header.get_title_widget();
+                        expect(title === null ? 'none' : typeOf(title)).toBe('AdwViewSwitcher');
+                    },
+                    undefined,
+                    // Wide enough for SIX labels: the threshold is measured off them,
+                    // so a window size written here is only ever "wider than whatever
+                    // this manifest asks for", and adding the sixth tab pushed the
+                    // previous 900 under it — which the vector caught.
+                    [1100, 700],
+                );
+
+                await windowed(
+                    app(WIDE_TABS),
+                    async (_window, container) => {
+                        const bar = find(container, 'AdwViewSwitcherBar') as Adw.ViewSwitcherBar;
+                        expect((await settle(() => bar.get_reveal())) >= 0).toBe(true);
+                        // Asserted on the HEADER BAR's title widget and not on "is there
+                        // an Adw.ViewSwitcher anywhere": `Adw.ViewSwitcherBar` builds one
+                        // of its own, so the tree holds a switcher in both layouts and
+                        // the question is only ever which bar it is in.
+                        const header = find(container, 'AdwHeaderBar') as Adw.HeaderBar;
+                        const title = header.get_title_widget();
+                        expect(title === null ? 'none' : typeOf(title)).toBe('AdwWindowTitle');
+                        // And it names the FOCUSED tab rather than nothing: an unset
+                        // title widget falls back to the page's own title, which under a
+                        // route group is the group's NAME. Navigated rather than read at
+                        // rest, because the route files sort alphabetically and the tab
+                        // that happens to open first is not what this is about.
+                        router.navigate('/one');
+                        const titleNow = (): string => {
+                            const held = (find(container, 'AdwHeaderBar') as Adw.HeaderBar).get_title_widget();
+                            return held === null ? 'none' : (held as Adw.WindowTitle).get_title();
+                        };
+                        expect((await settle(() => titleNow() === 'Startseite')) >= 0).toBe(true);
+
+                        // A tab with NO title falls back to its route name, the same
+                        // fallback the switcher button uses. With `?? ''` the two
+                        // disagreed and the header bar went blank — the empty title
+                        // area this widget exists to prevent, by a different door.
+                        router.navigate('/six');
+                        expect((await settle(() => titleNow() === 'six')) >= 0).toBe(true);
+                    },
+                    undefined,
+                    [420, 700],
+                );
             });
 
             await it('follows React when the route changes', async () => {
