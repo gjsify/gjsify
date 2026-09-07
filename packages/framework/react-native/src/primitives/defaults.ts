@@ -115,6 +115,15 @@ export const DEFAULT_ROWS: readonly DefaultRow[] = [
     },
     {
         gtype: 'GtkLabel',
+        property: 'wrap-mode',
+        gtk: 'word',
+        reactNative: 'a token that cannot be broken overflows its box, it does not widen it',
+        source: 'React Native lays text out with its own breaker and lets an unbreakable run spill; the box keeps the width the layout gave it.',
+        verdict: 'kept',
+        reason: 'GTK has no spelling for "overflow": a label’s MINIMUM width is its contribution to the layout, and at `word` that minimum is its longest word — MEASURED on GTK 4.22.4 with a 48-character filename, 394 px at `word` against 13 px at `word-char`, natural 394 either way. GTK’s default is KEPT because normalising it globally is visibly worse: a short label in a tight box then breaks mid-word instead of asking for room, and a "Live" badge rendered as "LIV-". `word-char` is written by the `numberOfLines` route instead — that prop is the author saying this text may be truncated, and a text that may be truncated should yield before the window does.',
+    },
+    {
+        gtype: 'GtkLabel',
         property: 'xalign',
         gtk: 0.5,
         reactNative: 'the script’s natural alignment — start, i.e. left in LTR',

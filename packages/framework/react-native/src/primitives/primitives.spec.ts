@@ -487,6 +487,11 @@ export default async () => {
             // declared no-op adds nothing to them.
             const p = plan('Text', { allowFontScaling: true, maxFontSizeMultiplier: 2 }).plan;
             expect(p.node.props).toStrictEqual({ wrap: true, xalign: 0, yalign: 0 });
+            // `wrap-mode` is NOT among them: it rides on `numberOfLines`, because a
+            // label that may be truncated should yield before the window does and one
+            // that may not should ask for its room. A default here read "LIV-".
+            const truncating = plan('Text', { numberOfLines: 2 }).plan;
+            expect(truncating.node.props['wrap-mode']).toBe('word-char');
         });
     });
 

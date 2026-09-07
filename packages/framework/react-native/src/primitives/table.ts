@@ -844,11 +844,26 @@ export const PRIMITIVES: Readonly<Record<string, PrimitiveSpec>> = {
             // label BOTH wraps and ellipsizes (the property's own documentation, and
             // measured — a `lines: 2` label with `ellipsize: none` renders all its
             // lines). So the route carries the two companions the value needs.
+            // `wrap-mode` rides along for a reason of its own, and only HERE.
+            //
+            // GTK breaks at WORD boundaries, so a label's MINIMUM width is its longest
+            // word, and a token with no break in it pins the layout open at that
+            // width. MEASURED on GTK 4.22.4 with a 48-character filename: minimum
+            // 394 px at `word`, 13 px at `word-char`, natural 394 either way — a card
+            // that would not shrink with its window, because a live-radio stream
+            // announced its track as `20260901_Gamescom_Laberpocast_…`.
+            //
+            // NOT a default on every `Text`, which was the first shape and is visibly
+            // wrong: a short label in a tight box then breaks mid-word rather than
+            // asking for room, and a "Live" badge rendered as "LIV-". The two cases
+            // are told apart by the author, not by the layer — `numberOfLines` is
+            // someone saying this text may be truncated, and a text that may be
+            // truncated should yield before the window does.
             numberOfLines: {
                 to: 'property',
                 names: ['lines'],
                 as: 'int',
-                also: { ellipsize: 'end', wrap: true },
+                also: { ellipsize: 'end', wrap: true, 'wrap-mode': 'word-char' },
             },
             ellipsizeMode: {
                 to: 'property',
