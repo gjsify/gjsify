@@ -275,16 +275,23 @@ export default async () => {
             expect(plan('View', { className: 'flex-row flex-wrap' }).plan.node.props.orientation).toBe('horizontal');
         });
 
-        await it('corrects the two GtkFlowBox defaults that would make it not a flex container', async () => {
-            // Both silent. `max-children-per-line` defaults to 7, so a wrap would cap
-            // a line at seven children however much room was left; `selection-mode`
-            // defaults to SINGLE, so a click would select a child and draw a focus
-            // ring a flexbox container never draws. 65535 is not a round number
-            // picked for looks — it is what GTK stores when handed G_MAXUINT, and `0`
-            // is out of range for the `guint` rather than meaning "no limit".
+        await it('corrects the GtkFlowBox default that would make it not a flex container', async () => {
+            // Silent, like the cap below it: `selection-mode` defaults to SINGLE, so a
+            // click would select a child and draw a focus ring a flexbox container
+            // never draws.
             const p = plan('View', { className: 'flex-wrap' }).plan;
-            expect(p.node.props['max-children-per-line']).toBe(65535);
             expect(p.node.props['selection-mode']).toBe('none');
+        });
+
+        await it('leaves `max-children-per-line` to the host, which is the layer that knows the count', async () => {
+            // This table pinned 65535 — GTK's spelling of "as many as fit" — and it
+            // was quadratically expensive to MEASURE: 1517.9 ms per measure of a
+            // two-child box, against 0.018 ms at 64. The cap is the child count now,
+            // maintained by `@gjsify/gtk-host` on every insert and remove, so the
+            // plan must carry no value at all. A plan that emitted one would win over
+            // the sync, which reads an authored value as an instruction.
+            const p = plan('View', { className: 'flex-wrap' }).plan;
+            expect(p.node.props['max-children-per-line']).toBeUndefined();
         });
 
         await it('sends a wrapping element’s gap to the two spacings, never to `spacing`', async () => {

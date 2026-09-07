@@ -183,8 +183,53 @@ export type ChildPolicy =
      * and pays a full re-append per reorder. That degradation is DECLARED, never silent.
      */
     | { kind: 'ordered'; append: string; after?: string; remove: string; reorder: 'native' | 'remove-all' }
-    /** `Gtk.ListBox`/`Gtk.FlowBox`: index-addressed, and the parent addresses a WRAPPER row. */
-    | { kind: 'indexed'; insert: string; remove: string; wrap: 'list-box-row' | 'flow-box-child' | null }
+    /**
+     * `Gtk.ListBox`/`Gtk.FlowBox`: index-addressed, and the parent addresses a WRAPPER row.
+     *
+     * `perLineCap` names a property the host keeps EQUAL TO THE CHILD COUNT, and
+     * `Gtk.FlowBox:max-children-per-line` is the only one. It is a cap, so every
+     * value at or above the child count lays the children out identically — and
+     * that equivalence is exactly what hid the cost, because GTK MEASURES THE CAP
+     * RATHER THAN THE CHILDREN.
+     *
+     * MEASURED on GTK 4.22.4, one `Gtk.FlowBox` holding TWO children, per
+     * HEIGHT-FOR-WIDTH measure — `measure(VERTICAL, 400)`, which is the one a
+     * container in a window asks for:
+     *
+     * | cap | 7 | 64 | 1024 | 8192 | 32768 | 65535 |
+     * | --- | --- | --- | --- | --- | --- | --- |
+     * | ms | 0.021 | 0.025 | 0.43 | 18.6 | 391.5 | 1393.2 |
+     *
+     * Quadratic in the cap, so "as many as fit" spelled as G_MAXUINT cost a second
+     * and a half to measure two chips, and a real application froze its main loop
+     * for 12.7 s at startup over five two-child rows. The ORIENTATION is part of
+     * the claim and not a detail: `measure(HORIZONTAL, -1)` stays under 0.1 ms at
+     * every one of those caps, so a re-measurement that asks for the width alone
+     * reproduces none of this.
+     *
+     * The cap is wrong in the ANSWER too, not only in what the answer costs.
+     * Natural width is `content + column-spacing × (cap - 1)` — measured, exactly,
+     * over five caps — so a cap above the child count `n` carries
+     * `column-spacing × (cap - n)` px of gaps that do not exist. 12 children at
+     * `column-spacing: 8`: 683 px natural at a cap of 12 and 524 867 px at 65535,
+     * the excess exactly 8 × 65 523. At `column-spacing: 0` there is no difference
+     * at all, which is how a pinned cap passed for as long as it did.
+     *
+     * The child count is the exact answer rather than a smaller cap chosen to be
+     * safe: a line can never hold more children than exist, so it forbids nothing
+     * G_MAXUINT allowed, and it is the largest value that costs nothing.
+     *
+     * An AUTHORED value wins. `<GtkFlowBox maxChildrenPerLine={3}>` is someone
+     * asking for three per line, and a sync that overwrote it would be the same
+     * silent kind of wrong this field exists to remove.
+     */
+    | {
+          kind: 'indexed';
+          insert: string;
+          remove: string;
+          wrap: 'list-box-row' | 'flow-box-child' | null;
+          perLineCap?: string;
+      }
     /**
      * `Adw.HeaderBar`, `Adw.ToolbarView`, `Adw.ActionRow`: named attachment points.
      *

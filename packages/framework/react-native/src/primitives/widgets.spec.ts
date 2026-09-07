@@ -760,10 +760,13 @@ export default async () => {
                         const flow = gtkChildren(container)[0] as Gtk.FlowBox;
                         expect(typeOf(flow)).toBe('GtkFlowBox');
                         expect(flow.orientation).toBe(Gtk.Orientation.HORIZONTAL);
-                        // The two corrected defaults, read back off the widget rather
-                        // than off the plan: 7 children per line and a SINGLE
-                        // selection are what a `Gtk.FlowBox` is without them.
-                        expect(flow.maxChildrenPerLine).toBe(65535);
+                        // The corrected defaults, read back off the widget rather than
+                        // off the plan: a SINGLE selection is what a `Gtk.FlowBox` is
+                        // without the correction, and seven children per line is what
+                        // its cap is without the host's sync. TWO children here, so
+                        // the cap is two — the largest value that changes no layout
+                        // and the only one that is cheap to measure.
+                        expect(flow.maxChildrenPerLine).toBe(2);
                         expect(flow.selectionMode).toBe(Gtk.SelectionMode.NONE);
                         // `gap-2` reached the two spacings, and NOT `Gtk.Box:spacing`
                         // — a property this class does not install at all.

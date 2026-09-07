@@ -387,6 +387,11 @@ export function insertChild(place: Placement): void {
         // two names it does know.
         throw err.rejectedChild(place.parent.descriptor.gtype, place.child.descriptor.gtype, (e as Error).message);
     }
+    // AFTER the catch, not inside it. The sync is not part of the placement, and a
+    // throw from in there would be rewritten as a refusal that never happened, on a
+    // child GTK has already taken — after which `attach` never marks it attached and
+    // the node is unlinked from a tree it is physically in.
+    syncPerLineCap(place.parent);
 }
 
 function placeChild(place: Placement): void {
@@ -622,6 +627,58 @@ export function removeChild(parent: HostElement, child: HostElement): void {
     // whole teardown so handlers stay connected for the life of the process.
     if (!child.attached) return;
     detachChild(parent, child, host);
+    syncPerLineCap(parent);
+}
+
+/**
+ * Keep an `indexed` parent's per-line cap equal to its child count.
+ *
+ * WHY a cap has to be maintained at all rather than pinned high once is on
+ * `ChildPolicy`'s `perLineCap`: GTK measures the cap and not the children, and
+ * the cost is quadratic in it.
+ *
+ * The walk is O(children) and runs after every insert, so a build of n children is
+ * O(n²) in POINTER HOPS. That is the honest cost and it is nanoseconds: MEASURED,
+ * 200 inserts into a flow box take 4.97 ms in total, and an insert does not measure
+ * at all — it queues a resize. So the trade is not against a measure this saves; it
+ * is that a counter kept on the element would be a second source for a number GTK
+ * already holds, and this asks the container.
+ *
+ * An AUTHORED value is left alone, and one that is later REMOVED is not recovered:
+ * the removal puts the class default back and nothing here runs until the next
+ * insert or remove. Declared rather than silent — a container given a cap and then
+ * relieved of it keeps GTK's 7 until its children change.
+ *
+ * The write is bracketed as the HOST's so a consumer that never wrote this property
+ * is not told it changed (measured: four raw `notify::max-children-per-line` over
+ * three inserts and a remove, none delivered to a bound handler). `null` as the
+ * target rather than the widget only because there is no non-notify consequence to
+ * preserve here, which is where this differs from `writeVisible`.
+ */
+function syncPerLineCap(parent: HostElement): void {
+    const policy = parent.descriptor.children;
+    if (policy.kind !== 'indexed' || policy.perLineCap === undefined) return;
+    if (parent.props[policy.perLineCap] !== undefined) return;
+    const host = parent.widget as unknown as Gtk.Widget | null;
+    if (!host) return;
+    let children = 0;
+    for (let c = host.get_first_child(); c !== null; c = c.get_next_sibling()) children += 1;
+    // BOTH ends are clamped, and the messages below are the ones THIS route produces
+    // — `set_property`, which is rejected at GValue validation before the C setter's
+    // own `assertion 'n_children > 0'` can run. MEASURED on GTK 4.22.4: `0` gives
+    // `GLib-GObject-CRITICAL: value "0" of type 'gint' is invalid or out of range for
+    // property 'max-children-per-line' of type 'guint'`, and the value is kept.
+    //
+    // The ceiling is the worse one, because it says NOTHING: 65536 stores 0 — the one
+    // value the line above refuses — 65537 stores 1 and 70000 stores 4464, all at
+    // exit 0. No container has 65536 children; a package whose reason for existing is
+    // refusing exit-0 mis-stores should still not be the one writing them.
+    beginHostWrite(null);
+    try {
+        host.set_property(policy.perLineCap, Math.min(65535, Math.max(1, children)));
+    } finally {
+        endHostWrite();
+    }
 }
 
 /** Does this parent reorder in place, or does it pay a full re-append? Declared, not guessed. */
