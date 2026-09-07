@@ -237,6 +237,69 @@ export const GST_PLUGIN_GAPS = {
 };
 
 /**
+ * THE VIDEO PATH, staged and not yet shipped — see the note at the end of this block.
+ *
+ * The audio list above says "video decode, encoding of any kind, capture, and every streaming
+ * SINK, server or adaptive-streaming demuxer are out", and it was right to: Homebrew's
+ * `gstreamer` drags in ffmpeg, x264, x265, faac and fdk-aac, which is a redistribution decision
+ * belonging to whoever ships the product rather than to a script that reads a directory. This
+ * list keeps that rule and gets video anyway, by taking the DECODER from the operating system
+ * instead of from the payload — the same trade the audio sinks already make, one element over.
+ *
+ * MEASURED on GStreamer 1.28.6 for which plugin each element actually lives in, because the
+ * element name and the plugin name differ for three of the four:
+ *
+ *   gtk4paintablesink  -> `gtk4`               (gst-plugins-rs; the only GdkPaintable sink)
+ *   videoconvert       -> `videoconvertscale`  (merged with videoscale since 1.22)
+ *   h264parse          -> `videoparsersbad`
+ *   hlsdemux2          -> `adaptivedemux2`     (`hlsdemux` is the older one, in `hls`)
+ *
+ * NOTHING HERE DECODES, and that is the point. On darwin `applemedia` is VideoToolbox
+ * (`vtdec_h264`), on win32 `d3d11`/`mediafoundation` are the OS's own — no GPL element, no
+ * patent-encumbered library inside the bundle, and hardware decode for free. On Linux the answer
+ * would be `libav` or a VA plugin, and Linux has no bundle: it runs on the system GStreamer,
+ * where this was measured playing a real PeerTube HLS stream.
+ *
+ * STAGED, NOT WIRED — {@link expectedGstPlugins} asks for none of this yet, so no build can go
+ * red over it. What each platform is missing is MEASURED rather than left for the first red
+ * build to find:
+ *
+ * **win32**, twice, and both halves agree. The PREFIX: the gvsbuild release this pipeline
+ * extracts (`GTK4_Gvsbuild_2026.6.0_x64.zip`) carries no GStreamer at all — 6741 entries read
+ * out of its central directory, not one plugin — which is why the workflow builds
+ * `gstreamer gst-plugins-base gst-plugins-good` itself, and stops there. Of the four above only
+ * `videoconvertscale` is in base: `videoparsersbad` is -bad and `gtk4` is gst-plugins-rs. The
+ * PAYLOAD: measured on the win11 VM against the published
+ * `@gjsify/gtk-runtime-win32-x64@0.48.0` — GStreamer 1.28.4, 22 plugins, every one audio.
+ * `playbin3`, `decodebin3`, `souphttpsrc` and `audioconvert` resolve; `gtk4paintablesink`,
+ * `videoconvert`, `h264parse`, `hlsdemux2`, `avdec_h264`, `d3d11h264dec` and `mfh264dec` are all
+ * null. So win32 needs gst-plugins-bad AND gst-plugins-rs added to a build that was trimmed on
+ * purpose.
+ *
+ * **darwin** is one plugin short, and it is the one with no formula. Homebrew's `gstreamer`
+ * 1.28.6 is the mega-formula, so `videoconvertscale`, `videoparsersbad`, `adaptivedemux2` and
+ * `applemedia` all arrive with the brew line the workflow already runs. `gst-plugins-rs` is NOT
+ * a Homebrew formula — measured, the API answers 404 — so `gtk4paintablesink` would have to be
+ * built from source with cargo-c or vendored.
+ *
+ * Which makes the paintable sink the whole of the remaining work on both, and it is the piece
+ * with no second source: it is the only GStreamer sink that hands out a `GdkPaintable`, and a
+ * `Gtk.Picture` takes nothing else.
+ */
+export const GST_VIDEO_PLUGINS = ['videoconvertscale', 'videoparsersbad', 'adaptivedemux2', 'gtk4'];
+
+/**
+ * The video decoders that belong to ONE platform, for {@link GST_PLATFORM_SINKS}' reason.
+ *
+ * Staged with the list above. `applemedia` and the two Windows ones are the OS's decoders rather
+ * than the bundle's, which is what keeps a licensing decision out of this script.
+ */
+export const GST_PLATFORM_VIDEO_DECODERS = {
+    darwin: ['applemedia'],
+    win32: ['d3d11', 'mediafoundation'],
+};
+
+/**
  * The output sinks that belong to ONE platform, so the other's absence is not a gap.
  *
  * The list above is one list for both bundles because every other plugin in it is portable. These
