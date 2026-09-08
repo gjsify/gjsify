@@ -9,7 +9,15 @@
  * "typelib not found" at some consumer's runtime.
  */
 
-export const PLATFORM_RE = /^(linux|darwin|win32)-(x64|arm64|ppc64|s390x|riscv64)$/;
+/**
+ * `-musl` rides on LINUX ONLY, and the alternation says so rather than a
+ * trailing optional group: npm's `libc` field is documented Linux-only, and
+ * musl targets no other kernel, so `darwin-arm64-musl` is a malformed token
+ * rather than a musl build of a mac binary. Accepting it here would mint a
+ * platform package nothing can install.
+ */
+export const PLATFORM_RE =
+    /^(?:linux-(?:x64|arm64|ppc64|s390x|riscv64)(?:-musl)?|(?:darwin|win32)-(?:x64|arm64|ppc64|s390x|riscv64))$/;
 
 /**
  * Legacy uname-style arch spellings folded onto the node one. Kept ONLY so a
@@ -26,10 +34,21 @@ export const ARCH_ALIASES = { x86_64: 'x64', amd64: 'x64', aarch64: 'arm64' };
  */
 export const KNOWN_ARCH_TOKENS = new Set(['x64', 'arm64', 'ppc64', 's390x', 'riscv64', ...Object.keys(ARCH_ALIASES)]);
 
-/** Canonical (node-spelling) form so `linux-x86_64` and `linux-x64` compare equal. */
+/**
+ * Canonical (node-spelling) form so `linux-x86_64` and `linux-x64` compare equal.
+ *
+ * The `-musl` suffix SURVIVES. This used to keep the first two dash-parts and
+ * nothing else, which folded `linux-x64-musl` onto `linux-x64` and made a musl
+ * target compare equal to the glibc one in every set operation the prebuild
+ * rules perform — two different binaries reading as one target. That was
+ * unreachable while nothing declared a musl target; `@gjsify/lightningcss-native`
+ * and `@gjsify/sab-native` now do, so the suffix has to be carried here, as
+ * `prebuild-libc.mjs`'s `canonicalPrebuildTarget` note asked for.
+ */
 export function canonicalPlatform(token) {
     const [os, arch] = String(token).split('-');
-    return `${os}-${ARCH_ALIASES[arch] ?? arch}`;
+    const canonical = `${os}-${ARCH_ALIASES[arch] ?? arch}`;
+    return String(token).endsWith('-musl') ? `${canonical}-musl` : canonical;
 }
 
 /** Shared-library file extension per `process.platform` token. */

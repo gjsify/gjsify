@@ -186,16 +186,25 @@ export function platformManifest(parent, target, measured, exemption = null) {
         version: parent.version,
         description:
             `${target} prebuilt native library + GObject-Introspection typelib for ${parent.name}. ` +
-            `Installed automatically on ${osCpu.os[0]}/${osCpu.cpu[0]} as an optionalDependency of that package ` +
+            `Installed automatically on ${osCpu.os[0]}/${osCpu.cpu[0]}${osCpu.libc ? `/${osCpu.libc[0]}` : ''} ` +
+            'as an optionalDependency of that package ' +
             '(ADR 0017) and skipped everywhere else. Contains no JavaScript.',
         license: 'MIT',
         os: osCpu.os,
         cpu: osCpu.cpu,
     };
     // npm's `libc` is a Linux-only install filter, honoured by npm, yarn and
-    // pnpm. Present ONLY when measurement proved the artifact cannot load under
-    // musl — see `measureLibcFields`.
-    if (measured.libc) manifest.libc = measured.libc;
+    // pnpm. It arrives here from two different kinds of claim, and the token
+    // wins because it is the stronger one:
+    //
+    //   • A `-musl` TOKEN declares the axis. The package is a musl build by
+    //     construction of its own name, so the filter is not a measurement to
+    //     be made — and without it npm would install a musl image on a glibc
+    //     host, where its loader is simply absent.
+    //   • Otherwise measurement decides, and only when it proved the artifact
+    //     cannot load under musl — see `measureLibcFields`.
+    if (osCpu.libc) manifest.libc = osCpu.libc;
+    else if (measured.libc) manifest.libc = measured.libc;
     // No `main`/`module`/`types`/`exports`: see the header. The prebuild
     // directory is the entire payload, so it is the entire `files` list.
     manifest.files = ['prebuilds'];

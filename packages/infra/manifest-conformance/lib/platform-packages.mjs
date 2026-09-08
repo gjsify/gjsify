@@ -77,6 +77,9 @@
 
 import { ARCH_ALIASES, PLATFORM_RE } from './platforms.mjs';
 
+/** The libc suffix the token grammar allows on linux targets. */
+const MUSL_SUFFIX = '-musl';
+
 /**
  * The npm name of the package carrying `parentName`'s prebuild for `target`.
  *
@@ -130,10 +133,21 @@ export function platformPackageDirName(parentDirName, target) {
  */
 export function osCpuForTarget(target) {
     if (!PLATFORM_RE.test(String(target))) return null;
-    const dash = String(target).indexOf('-');
-    const os = String(target).slice(0, dash);
-    const arch = String(target).slice(dash + 1);
-    return { os: [os], cpu: [ARCH_ALIASES[arch] ?? arch] };
+    // The libc axis is a THIRD npm field, not part of `cpu`. Splitting it off
+    // here keeps `cpu: ["arm64"]` — the value npm actually matches an arch
+    // against — instead of the `arch-musl` a plain last-dash split would mint,
+    // which npm compares against nothing and would make the package silently
+    // uninstallable everywhere.
+    const musl = String(target).endsWith(MUSL_SUFFIX);
+    const bare = musl ? String(target).slice(0, -MUSL_SUFFIX.length) : String(target);
+    const dash = bare.indexOf('-');
+    const os = bare.slice(0, dash);
+    const arch = bare.slice(dash + 1);
+    const osCpu = { os: [os], cpu: [ARCH_ALIASES[arch] ?? arch] };
+    // Declared, not measured — unlike the glibc half. A `-musl` package IS a
+    // musl build by construction of its token, whereas `libc: ["glibc"]` is a
+    // claim about a binary and stays the `prebuild-libc` reader's to make.
+    return musl ? { ...osCpu, libc: ['musl'] } : osCpu;
 }
 
 /**
