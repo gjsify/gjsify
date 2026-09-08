@@ -23,7 +23,7 @@
 // are read only at the outermost call site, as a default.
 
 import { readdirSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { readPackageJson } from './pkg-json.js';
 import { composeDyldFallback, systemGiLibraryDirs, type SystemGiOptions } from './system-gi.js';
 
@@ -566,6 +566,33 @@ export function detectNativePackages(startDir: string, target: HostTarget = {}):
  * @param platform `process.platform` value; the axis is Linux-only (as npm's own
  *   `libc` field is), so every other OS returns null.
  */
+/**
+ * The packages a musl host had to take the glibc build of, because they ship no
+ * musl prebuild.
+ *
+ * Returning names rather than warning here keeps the decision pure: the musl
+ * branch is only reachable from this repo's CI by injecting `libc`, since there
+ * is no musl runner (see this module's spec header).
+ *
+ * Why the fallback is worth saying out loud. musl's loader resolves
+ * `libc.so.6`/`libm.so.6` to ITSELF, so a glibc-linked prebuild loads and mostly
+ * works — until it wants a symbol musl does not implement. Measured on a
+ * OnePlus 6 (postmarketOS v26.06, musl 1.2.6, aarch64) against the published
+ * 0.48.0 train: nine of ten prebuilds loaded, and
+ * `@gjsify/lightningcss-native-linux-arm64` failed on `gnu_get_libc_version`.
+ * That surfaces far from its cause — `gjsify install` reports "System
+ * dependencies OK", and the first symptom is the CSS plugin missing during a
+ * later build, which rolldown reports as `Could not load src/application.css`.
+ * Nothing in that chain names libc, so the report belongs at install time where
+ * the fallback is chosen.
+ */
+export function muslPrebuildFallbacks(libc: HostLibc | null, packages: readonly NativePackage[]): string[] {
+    if (libc !== 'musl') return [];
+    return packages
+        .filter((pkg) => !basename(pkg.prebuildsDir).endsWith(MUSL_SUFFIX))
+        .map((pkg) => pkg.name);
+}
+
 export function resolveHostLibc(input: {
     platform: string;
     glibcVersionRuntime?: string | undefined;

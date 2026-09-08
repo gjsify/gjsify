@@ -25,7 +25,7 @@ import { forceExit } from '../utils/force-exit.js';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { buildInstallCommand, detectPackageManager, runMinimalChecks } from '../utils/check-system-deps.js';
-import { detectNativePackages } from '../utils/detect-native-packages.js';
+import { detectHostLibc, detectNativePackages, muslPrebuildFallbacks } from '../utils/detect-native-packages.js';
 import { buildLauncherShims, buildNativeEnvPreamble } from '../utils/bin-shim.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
 import { atomicWriteStrict } from '../utils/install-cache-fs.js';
@@ -1484,6 +1484,23 @@ async function runPostInstallChecks(args: InstallOptions): Promise<void> {
             console.log(`  • ${pkg.name}`);
         }
         console.log('\nUse `gjsify run <bundle>` to launch with LD_LIBRARY_PATH/GI_TYPELIB_PATH set.');
+
+        // A musl host resolves `libc.so.6` to its own loader, so a glibc
+        // prebuild loads and mostly works — the failure lands later, on the
+        // first glibc-only symbol, and reads as a bundler error rather than a
+        // libc one. Say it here, where the fallback is actually chosen.
+        const fellBack = muslPrebuildFallbacks(detectHostLibc(process.platform), native);
+        if (fellBack.length > 0) {
+            console.warn(
+                `\nmusl host: ${fellBack.length} package(s) ship no musl prebuild, so the glibc build was used:`,
+            );
+            for (const name of fellBack) console.warn(`  ! ${name}`);
+            console.warn(
+                '\nThese load only as far as musl\'s libc.so.6 alias carries them. A glibc-only\n' +
+                    'symbol fails at dlopen with "Error relocating … symbol not found", which can\n' +
+                    'surface much later as an unrelated build error.',
+            );
+        }
     }
 
     maybeInstallGitHooks();
