@@ -154,7 +154,6 @@ export default defineConfig({
                     items: [
                         { slug: 'guides/native-adwaita-app' },
                         { slug: 'patterns/gobject-classes' },
-                        { slug: 'guides/effect' },
                         { slug: 'patterns/bridges', label: 'Bridge Widgets' },
                         { slug: 'guides/web-views' },
                         { slug: 'guides/storybook' },
@@ -240,6 +239,14 @@ export default defineConfig({
                         { slug: 'showcases/webrtc-video' },
                         { slug: 'showcases/express-webserver' },
                     ],
+                },
+                {
+                    // Third-party paradigms gjsify can host but does not own, and does not
+                    // recommend by default. A page here is an offer, not a route: it has to
+                    // say who should skip it before it says what it does.
+                    label: 'Experiments',
+                    collapsed: true,
+                    items: [{ slug: 'experiments/effect', label: 'Effect' }],
                 },
                 {
                     label: 'Internals',

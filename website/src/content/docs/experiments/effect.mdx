@@ -1,11 +1,44 @@
 ---
 title: Effect
-description: Typed errors from GIO, cancellation that actually stops the read, and cleanup that runs when the window closes. Effect's platform services over Gio.File and GLib, for GNOME apps written in TypeScript.
+description: An optional integration, not a recommended pattern. Effect's platform services over Gio.File and GLib - typed errors, cancellation that reaches GIO, and cleanup tied to a window. Most GNOME apps do not need it.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
 
-Three things are awkward in every GJS app, and none of them is about widgets:
+:::caution[Read this first]
+This is an **experiment**, not part of the recommended way to build a GJSify app. Effect is a
+whole programming style, not a feature: adopting it changes how every function in your codebase
+is written, and nothing else on this site assumes you have.
+
+**Most GNOME apps should skip it.** If you are here because something on this page sounds
+useful, check the cheaper answer first — it usually exists.
+:::
+
+## Should you use this?
+
+Effect is a TypeScript library for programs whose hard part is failure, concurrency and
+cleanup rather than logic. It is very good at that, and it is a large thing to take on.
+
+**Probably not, if** your app opens a few files, does a couple of HTTP requests, and shows the
+result. Three lines of `try`/`finally`, one `Gio.Cancellable` passed by hand, and a small
+helper that turns a `GLib.Error` into something you can `switch` on will serve you better than
+a paradigm, and the next person reading your code will already know the language it is
+written in.
+
+**Possibly yes, if** your app runs a lot of I/O that can fail in ways you have to tell apart,
+that can be cancelled, and that overlaps — several services being reconciled against each
+other, a long import that a user may abandon halfway, a pipeline where "which step failed and
+why" is itself part of the domain. That is where `Effect<A, E, R>` starts giving back more
+than it costs, because the failure channel and the dependency set stop being conventions and
+become types the compiler checks.
+
+**In either case it stays optional.** `@gjsify/effect-platform` is a bridge, not a foundation:
+nothing else in GJSify depends on it, and no other page assumes it.
+
+## What the bridge actually provides
+
+If you have decided Effect is right for your app, three things about GNOME are otherwise
+awkward, and this is what the package answers:
 
 - **Every GIO failure looks the same.** A missing file, a permissions problem and a broken
   symlink all arrive as a `GLib.Error` carrying a number, and the number only means something
@@ -14,10 +47,6 @@ Three things are awkward in every GJS app, and none of them is about widgets:
   listing keeps going, finishes, and calls back into a widget that is gone.
 - **Cleanup is on you.** There is no place to say "release this when that window goes away",
   so it either happens by hand or it happens when the garbage collector feels like it.
-
-[Effect](https://effect.website) is a TypeScript library that answers all three, and
-`@gjsify/effect-platform` is its implementation over GNOME's own APIs: `Gio.File`, GLib, and
-GObject lifetimes.
 
 :::tip[This is not a UI framework]
 Effect does not render anything and does not replace Blueprint, Solid, Vue or React. Your
@@ -297,4 +326,4 @@ windows that use no Effect at all — tree-shaking works, and you pay for what y
 - The [`effect-adw-services` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/effect-adw-services)
   is a complete window built this way, and every snippet above is taken from it.
 - [UI Frameworks](/gjsify/frameworks/) for the rendering half, which Effect deliberately does
-  not touch.
+  not touch — and which, unlike this page, is part of the recommended path.
