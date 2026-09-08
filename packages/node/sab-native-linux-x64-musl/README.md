@@ -16,7 +16,7 @@ JavaScript in this package and nothing to import from it.
 
 You do not install this directly. `@gjsify/sab-native` declares it as an
 `optionalDependencies` entry and this package declares `os: ["linux"]`,
-`cpu: ["x64"]`, so your package manager installs the one build that fits your
+`cpu: ["x64"]` and `libc: ["musl"]`, so your package manager installs the one build that fits your
 machine and silently skips the rest — the same model `esbuild`, `rolldown` and
 `lightningcss` use. Before this split every consumer downloaded every platform's
 binary: 97.3 MB of which a linux-x64 machine could load 31.5 MB.

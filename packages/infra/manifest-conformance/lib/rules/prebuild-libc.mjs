@@ -113,11 +113,8 @@ import { join } from 'node:path';
 
 import { defineRule } from '../registry.mjs';
 import { compareGlibcVersions, readElfGlibcRequires, readElfNeeded } from '../binary.mjs';
-import { ARCH_ALIASES } from '../platforms.mjs';
+import { canonicalPlatform, MUSL_SUFFIX } from '../platforms.mjs';
 import { collectNativePackages } from './prebuild-artifacts.mjs';
-
-/** The one libc suffix the target grammar spells out. */
-const MUSL_SUFFIX = '-musl';
 
 /**
  * Split a prebuild target into its three axes: `<os>-<arch>[-musl]`.
@@ -171,35 +168,6 @@ export function parsePrebuildTarget(token) {
 export function hostPrebuildTarget(platform, arch, libc) {
     const base = `${platform}-${arch}`;
     return libc === 'musl' && platform === 'linux' ? `${base}${MUSL_SUFFIX}` : base;
-}
-
-/**
- * Canonical `<os>-<arch>[-musl]` form.
- *
- * `canonicalPlatform()` in `../platforms.mjs` is libc-BLIND: it does
- * `token.split('-')` and keeps the first two parts, so it silently folds
- * `linux-x64-musl` down to `linux-x64` — which would make a musl target compare
- * EQUAL to the glibc one in every set operation the prebuild rules perform. This
- * reimplements the split (reusing that module's alias TABLE, so the arch
- * vocabulary still has one definition) rather than editing it, because
- * `canonicalPlatform` is on the hot path of two shipped rules and nothing in the
- * tree declares a `-musl` target yet.
- *
- * FOLLOW-UP, and it is a real one: the moment a `-musl` target IS declared,
- * `../platforms.mjs`'s `PLATFORM_RE` rejects it (`platforms-ci` then fails the
- * declaration as invalid) and `canonicalPlatform` collapses it. Both must gain
- * the optional suffix in the SAME change that declares the first musl target.
- * Until then the collapse is unreachable, and this rule fails loudly on any
- * `-musl` token it does see, so the gap cannot be reached silently.
- *
- * @param {string} token
- * @returns {string}
- */
-export function canonicalPrebuildTarget(token) {
-    const { os, arch } = parsePrebuildTarget(token);
-    if (!arch) return String(token);
-    const canonical = `${os}-${ARCH_ALIASES[arch] ?? arch}`;
-    return String(token).endsWith(MUSL_SUFFIX) ? `${canonical}${MUSL_SUFFIX}` : canonical;
 }
 
 /**
@@ -399,7 +367,7 @@ export function auditPrebuildLibc(nativePkgs) {
 
         const exempt = new Set(
             pkg.uncommitted != null && typeof pkg.uncommitted === 'object' && !Array.isArray(pkg.uncommitted)
-                ? Object.keys(pkg.uncommitted).map(canonicalPrebuildTarget)
+                ? Object.keys(pkg.uncommitted).map(canonicalPlatform)
                 : [],
         );
 
@@ -415,9 +383,9 @@ export function auditPrebuildLibc(nativePkgs) {
                     `${pkg.name} (${pkg.path}): \`gjsify.glibcRequires\` must be an object mapping each Linux \`<os>-<arch>[-musl]\` target to the minimum glibc release its committed artifacts need, e.g. {"linux-x64": "2.14", "linux-riscv64": "2.27"}. It is per-TARGET because the measured floors in this tree span thirteen glibc releases (2.2.5 … 2.39) — a single number for a whole package would either lie about the target a user is on or bury the one they care about.`,
                 );
             } else {
-                const declaredCanon = new Set(pkg.declared.map(canonicalPrebuildTarget));
+                const declaredCanon = new Set(pkg.declared.map(canonicalPlatform));
                 for (const [target, floor] of Object.entries(declaredFloors)) {
-                    const canon = canonicalPrebuildTarget(target);
+                    const canon = canonicalPlatform(target);
                     if (!declaredCanon.has(canon)) {
                         failures.push(
                             `${pkg.name} (${pkg.path}): \`gjsify.glibcRequires["${target}"]\` names a target \`gjsify.platforms\` (${pkg.declared.join(', ')}) does not declare — a glibc floor for a platform this package does not promise is a number nothing can ever check.`,
@@ -445,7 +413,7 @@ export function auditPrebuildLibc(nativePkgs) {
         /** @type {Map<string, ReturnType<typeof measurePrebuildLibc>>} */ const measured = new Map();
         let measurable = true;
         for (const target of pkg.declared) {
-            const canon = canonicalPrebuildTarget(target);
+            const canon = canonicalPlatform(target);
             const { os, libc: tokenLibc } = parsePrebuildTarget(canon);
             if (os !== 'linux') {
                 stats.skippedNonLinux++;

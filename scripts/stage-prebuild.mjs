@@ -29,8 +29,7 @@ import { checkPrebuildDir } from './check-prebuild-loader-path.mjs';
 import { relocateDarwinPrebuildDir } from './relocate-macho.mjs';
 // The target GRAMMAR lives with the rule that validates it: this script WRITES
 // the directory name `prebuild-libc` then reads back and checks, so the two
-// agreeing by construction beats the two being independent. (`lib/platforms.mjs`
-// is libc-blind — see `canonicalPrebuildTarget`'s follow-up note.)
+// agreeing by construction beats the two being independent.
 import { hostPrebuildTarget } from '../packages/infra/manifest-conformance/lib/rules/prebuild-libc.mjs';
 import { platformPackageDirName } from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
 
