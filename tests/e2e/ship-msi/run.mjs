@@ -471,7 +471,13 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
         const notAnMsi = join(tmpDir, 'not-an.msi');
         writeFileSync(notAnMsi, 'this is not a compound file\n');
         try {
-            oracle([notAnMsi, programDir, 'msitools']);
+            // Named streams for the same reason `oracleExpectingFailure` names them,
+            // and this case needs it just as much. Measured in `E2E 1/4`, run
+            // 34227868797: `msiinfo suminfo` on a file that is not a compound file
+            // prints a WARNING, EXITS 0 and names no creating application, so the
+            // script's own `fail` fires — and its `::error` annotated that passing
+            // job with "the summary information names no creating application".
+            oracle([notAnMsi, programDir, 'msitools'], { stdio: ['ignore', 'pipe', 'pipe'] });
             assert.fail('verify-msi.sh accepted a file that is not an MSI');
         } catch (error) {
             assert.notEqual(error.status, 0);
