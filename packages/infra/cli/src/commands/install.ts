@@ -1485,20 +1485,27 @@ async function runPostInstallChecks(args: InstallOptions): Promise<void> {
         }
         console.log('\nUse `gjsify run <bundle>` to launch with LD_LIBRARY_PATH/GI_TYPELIB_PATH set.');
 
-        // A musl host resolves `libc.so.6` to its own loader, so a glibc
-        // prebuild loads and mostly works — the failure lands later, on the
-        // first glibc-only symbol, and reads as a bundler error rather than a
-        // libc one. Say it here, where the fallback is actually chosen.
+        // The install is the ONLY moment this is knowable: the libc axis is decided
+        // here, the failure it predicts happens in another process, days later, and
+        // names something else entirely (see `muslPrebuildFallbacks`). The list is
+        // the point — it is what lets a later `Error relocating` line be matched to
+        // a package.
         const fellBack = muslPrebuildFallbacks(detectHostLibc(process.platform), native);
         if (fellBack.length > 0) {
             console.warn(
-                `\nmusl host: ${fellBack.length} package(s) ship no musl prebuild, so the glibc build was used:`,
+                `\nWarning: musl host — ${fellBack.length} of ${native.length} package(s) ship no \`-musl\`` +
+                    ' prebuild, so the\n  default (glibc) build was used:',
             );
-            for (const name of fellBack) console.warn(`  ! ${name}`);
+            for (const name of fellBack) console.warn(`    ${name}`);
             console.warn(
-                "\nThese load only as far as musl's libc.so.6 alias carries them. A glibc-only\n" +
-                    'symbol fails at dlopen with "Error relocating … symbol not found", which can\n' +
-                    'surface much later as an unrelated build error.',
+                '  Most of these run anyway: a bridge that links only GLib records no libc at all.\n' +
+                    '  One that links glibc loads too — musl aliases `libc.so.6` to itself — and then\n' +
+                    '  fails at dlopen on its first glibc-only symbol:\n' +
+                    '    Error relocating <prebuild>.so: <symbol>: symbol not found\n' +
+                    '  A bridge lost that way is silently absent from the next build rather than\n' +
+                    '  reported, so the first symptom can be an unrelated-looking bundler error\n' +
+                    '  (`Could not load <file>` from rolldown, for the CSS bridge). Nothing to\n' +
+                    '  install: no `-musl` package is published for any target yet.',
             );
         }
     }

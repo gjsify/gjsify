@@ -5482,3 +5482,83 @@ re-run is how a guard gets quietly weakened. The arm ships with the narrower rul
 EMITTED refusal may not quote a `gi://` URL), and this entry is the retirement condition for
 that rule. Retiring it needs only the two sites in `gi-renderer-arms` — the twelve elsewhere
 constrain nothing about the arm.
+
+
+### No `-musl` prebuild package is published, so the libc axis has nothing to resolve to
+
+The CLI's libc axis is complete on the READ side. `detectHostLibc()` classifies the host under
+GJS as well as Node, `hostPlatformTokens()` puts `linux-<arch>-musl` ahead of the default build,
+`prebuildDirCandidates()` probes the suffixed directory first, `platformPackageName()` applies the
+same preference to the companion NAME, and `applyPlatformFilter` honours npm's `libc` field.
+Every one of those is unit-tested with an injected `libc: 'musl'`.
+
+Nothing is published for any of it to find. Registry check against `registry.npmjs.org`, all ten
+native bridges, measured 2026-09-08:
+
+| target | published |
+|---|---|
+| `linux-arm64` | 10 / 10 |
+| `linux-arm64-musl` | 0 / 10 — every one a 404 |
+| `linux-x64-musl` | 0 / 10 — every one a 404 |
+
+So `resolvePrebuildDirName()` falls back to the default build on every musl host, and
+`muslPrebuildFallbacks()` (`packages/infra/cli/src/utils/detect-native-packages.ts`) exists to say
+so at install time rather than let it stay silent. That report is a diagnosis, not a fix.
+
+**What it costs, measured.** OnePlus 6, postmarketOS v26.06, musl 1.2.6, aarch64, gjs 1.88.1,
+against the published 0.48.0 train: nine of the ten glibc prebuilds loaded and ran — musl aliases
+`libc.so.6`/`libm.so.6` to itself, and a bridge linking only GLib records no libc at all. The
+tenth, `@gjsify/lightningcss-native-linux-arm64`, answered
+`Error relocating …/libgjsify_lightningcss.so: gnu_get_libc_version: symbol not found`. It failed
+where nothing names libc: `gjsify install` had printed `System dependencies OK`, and the first
+symptom was rolldown reporting `Could not load src/application.css`, the CSS bridge silently
+absent from the bundle.
+
+**Why this is an entry and not a fix.** `prebuilds.yml` already carries a `build-prebuilds-musl`
+leg, so compilation is proven; what is missing is everything after it. `release.yml` does not
+mention musl once, and as `prebuilds.yml` notes, `-musl` "is not a `gjsify.platforms` token in the
+first place" — so the leg produces no publishable per-target package. Closing it means adding
+`-musl` to the platform grammar's WRITE side, generating the per-target manifests
+(`scripts/generate-platform-packages.mjs`), and extending the publish matrix. That is release
+infrastructure whose first-publish bootstrap ([docs/publishing.md](../docs/publishing.md)) cannot
+be rehearsed from a working copy, and every new `@gjsify/*` name needs a Trusted-Publisher
+bootstrap before the release that ships it. `oxlint`, vendored in this very repo, ships
+`@oxlint/binding-linux-arm64-musl`, so the shape is not in doubt — only the wiring.
+
+**The whole incident reproduces from the committed artifacts, with `readelf` and no phone.** That
+is worth more than the install-time report, because it is a gate rather than a message. Of the ten
+`linux-arm64` bridges, exactly one image references a glibc-only symbol:
+
+    $ readelf -sW packages/infra/lightningcss-native-linux-arm64/prebuilds/linux-arm64/\
+        libgjsify_lightningcss.so | grep gnu_get_libc_version
+    83: 0000000000000000  0 FUNC  GLOBAL DEFAULT  UND gnu_get_libc_version@GLIBC_2.17
+
+The other nine reference none, which is exactly why nine of ten loaded on that phone. So the
+symptom was predictable from this tree before it shipped, and the machinery to act on it already
+exists: npm's `libc` field, honoured by `applyPlatformFilter`, would have marked the package
+`inert` on a musl host — not downloaded, not installed — and `gjsify build` would have reported a
+missing CSS bridge instead of dying inside one. `tests/e2e/install-platform-filter` was written
+for precisely that outcome ("on Alpine the installer handed a glibc-only prebuild to a musl host
+and failed at `dlopen` instead of at install time").
+
+**Why the filter did not fire, measured.** `generate-platform-packages.mjs` writes `libc:
+["glibc"]` only when `measurePrebuildLibc` finds a glibc DYNAMIC LOADER recorded, and that is a
+deliberate, documented choice: musl resolves a `DT_NEEDED` of `libc.so.6` to itself, so declaring
+`glibc` on the libc-agnostic bridges would refuse the install on the hosts where they work. The
+hole is that the loader is not recorded consistently for the same source:
+
+| target | `DT_NEEDED` loader | npm `libc` written | glibc-only symbol |
+|---|---|---|---|
+| `linux-x64` | `ld-linux-x86-64.so.2` | `["glibc"]` | yes |
+| `linux-arm64` | none | none | yes |
+
+Same package, same glibc floor (`2.39`), and the x64 half is filtered out on musl by an accident
+of `DT_NEEDED` while the arm64 half installs and breaks. The predicate reads the loader; the
+question is the SYMBOL.
+
+**What has to be decided, and by whom.** Widening the predicate — `libc: ["glibc"]` for any image
+whose undefined symbols include one musl does not export — makes more packages `inert` on musl and
+needs a musl symbol set to be sound, so it is a policy change to `prebuild-libc`, not a repair.
+Publishing `-musl` packages makes the question moot for the bridges that can be built twice.
+Either way the CLI's install-time report stays useful for the residue, and neither is decidable
+from a working copy.
