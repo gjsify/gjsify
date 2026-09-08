@@ -5,7 +5,7 @@ export * from './runtime.js';
 export * from './merge.js';
 export { detectFreeGlobals } from './detect-free-globals.js';
 export { resolveGlobalsList, writeRegisterInjectFile } from './scan-globals.js';
-export { inlineStaticReads, isAbsoluteFsPath } from './inline-static-reads.js';
+export { inlineStaticReads, isAbsoluteFsPath, isWithin, resourceRootFor } from './inline-static-reads.js';
 export { GJSIFY_VIRTUAL_PREFIX, isGjsifyVirtualModuleId } from './virtual-module-id.js';
 export { locateSurvivingJsx, classifyJsxParseFailure, formatSurvivingJsx } from './jsx-survival.js';
 export type { SurvivingJsx } from './jsx-survival.js';

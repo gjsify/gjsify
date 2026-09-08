@@ -22,10 +22,17 @@
 //    bundling for `package.json`, locale files, etc.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { inlineStaticReads, isAbsoluteFsPath, shouldInline, shouldRewrite } from '@gjsify/rolldown-plugin-gjsify';
+import {
+    inlineStaticReads,
+    isAbsoluteFsPath,
+    isWithin,
+    resourceRootFor,
+    shouldInline,
+    shouldRewrite,
+} from '@gjsify/rolldown-plugin-gjsify';
 
 export default async () => {
     await describe('inline-static-reads', async () => {
@@ -84,6 +91,62 @@ export default async () => {
             expect(out.contents).toMatch(/\[\s*"/);
         });
 
+        await it('does NOT inline a read of the host, however static the path', () => {
+            // The one that shipped. `/lib` is perfectly resolvable at build time
+            // and its contents are a property of the MACHINE, so inlining freezes
+            // the build host's answer into the artifact. Measured on a musl
+            // aarch64 phone against the bundled CLI: `readdirSync('/lib')` gave
+            // the Fedora builder's 77 entries with no `ld-musl-*` and
+            // `existsSync('/lib/ld-musl-aarch64.so.1')` gave false, so
+            // `detectHostLibc` answered `glibc` on a musl host and every
+            // `-musl` preference downstream was inert.
+            const src = `
+                import { existsSync, readdirSync } from 'fs';
+                const onMusl = existsSync('/lib') && readdirSync('/lib').some((f) => f.startsWith('ld-musl-'));
+            `;
+            const out = inlineStaticReads(src, '/home/dev/repo/packages/infra/cli/src/utils/probe.ts');
+            expect(out.inlined).toBe(0);
+            expect(out.contents).toContain("existsSync('/lib')");
+            expect(out.contents).toContain("readdirSync('/lib')");
+        });
+
+        await it("does NOT inline a sibling package's file", () => {
+            // Another package's data is not this package's resource, and a
+            // hoisted tree makes it reachable by a static `..` walk.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-sibling-'));
+            const reader = join(dir, 'node_modules', 'a');
+            const other = join(dir, 'node_modules', 'b');
+            mkdirSync(reader, { recursive: true });
+            mkdirSync(other, { recursive: true });
+            writeFileSync(join(reader, 'package.json'), '{"name":"a"}');
+            writeFileSync(join(other, 'data.json'), '{"secret":1}');
+            const src = `
+                import { readFileSync } from 'fs';
+                import * as path from 'node:path';
+                const d = readFileSync(path.join(${JSON.stringify(other)}, 'data.json'), 'utf8');
+            `;
+            const out = inlineStaticReads(src, join(reader, 'index.js'));
+            rmSync(dir, { recursive: true, force: true });
+            expect(out.inlined).toBe(0);
+        });
+
+        await it("DOES still inline the package's own resource", () => {
+            // The happy path the gate must not cost: a package reading its own
+            // file through `import.meta.url`, which is the whole reason this
+            // module exists.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-own-'));
+            mkdirSync(join(dir, 'lib'), { recursive: true });
+            writeFileSync(join(dir, 'package.json'), '{"name":"own","version":"9.9.9"}');
+            const src = `
+                import { readFileSync } from 'fs';
+                const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+            `;
+            const out = inlineStaticReads(src, join(dir, 'lib', 'index.js'));
+            rmSync(dir, { recursive: true, force: true });
+            expect(out.inlined).toBe(1);
+            expect(out.contents).toContain('9.9.9');
+        });
+
         await it('does NOT misread arbitrary `.join` as `path.join` (no inlining)', () => {
             // `someArr.join('/')` must not be evaluated as `path.join`.
             // We use it here as the second positional arg of an unrelated
@@ -106,6 +169,47 @@ export default async () => {
     // `fileURLToPath(new URL(…))` and `path.join(__dirname)` — were silently
     // never inlined there. `platform` is injected, so both branches run on
     // every host; off win32 this regression is otherwise invisible.
+    await describe('isWithin', async () => {
+        await it('accepts the root itself and a descendant', () => {
+            expect(isWithin('/a/b', '/a/b', 'linux')).toBe(true);
+            expect(isWithin('/a/b/c/d.json', '/a/b', 'linux')).toBe(true);
+        });
+
+        await it('rejects an ancestor and a sibling', () => {
+            expect(isWithin('/a', '/a/b', 'linux')).toBe(false);
+            expect(isWithin('/a/c', '/a/b', 'linux')).toBe(false);
+        });
+
+        await it("rejects a sibling whose name EXTENDS the root — the string test's bug", () => {
+            // `startsWith` calls /lib64 a child of /lib. It is not one.
+            expect(isWithin('/lib64/x.so', '/lib', 'linux')).toBe(false);
+        });
+
+        await it('works on win32 paths', () => {
+            expect(isWithin('C:\\ws\\pkg\\data.json', 'C:\\ws\\pkg', 'win32')).toBe(true);
+            expect(isWithin('C:\\ws\\other\\data.json', 'C:\\ws\\pkg', 'win32')).toBe(false);
+        });
+    });
+
+    await describe('resourceRootFor', async () => {
+        await it('is the nearest ancestor carrying a package.json', () => {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-root-'));
+            mkdirSync(join(dir, 'pkg', 'src', 'deep'), { recursive: true });
+            writeFileSync(join(dir, 'pkg', 'package.json'), '{"name":"p"}');
+            expect(resourceRootFor(join(dir, 'pkg', 'src', 'deep', 'x.ts'))).toBe(join(dir, 'pkg'));
+            rmSync(dir, { recursive: true, force: true });
+        });
+
+        await it("falls back to the module's own directory when nothing above declares one", () => {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-noroot-'));
+            // Nothing under `dir` carries a package.json. Whatever the walk finds
+            // above it, the answer must still contain the module itself, which is
+            // what the fallback guarantees.
+            expect(isWithin(join(dir, 'x.js'), resourceRootFor(join(dir, 'x.js')))).toBe(true);
+            rmSync(dir, { recursive: true, force: true });
+        });
+    });
+
     await describe('isAbsoluteFsPath', async () => {
         await it('accepts a POSIX absolute path, rejects a relative one', () => {
             expect(isAbsoluteFsPath('/tmp/x.json', 'linux')).toBe(true);

@@ -40,6 +40,27 @@
 //
 // Anything not statically resolvable is left untouched — the legacy
 // `import.meta.url` rewriter still applies as a fallback.
+//
+// WHAT IS DELIBERATELY NOT INLINED, and it is not about resolvability. A read
+// only belongs in the bundle when its answer is a property of the BUILD; a read
+// of the machine's own layout is a property of the HOST, and freezing it ships
+// the build machine's answer to every user. `evalPathExpr` therefore refuses a
+// path that resolves outside the reading module's own package (see
+// `resourceRootFor`), however statically resolvable it is.
+//
+// Measured on a OnePlus 6T (postmarketOS, musl 1.2.6, aarch64) against the
+// bundled CLI of 2026-09-08, before that gate existed:
+//
+//     readdirSync('/lib')                     77 entries, no ld-musl-*
+//     existsSync('/lib/ld-musl-aarch64.so.1') false
+//
+// Both answers were the Fedora build host's, baked in at build time — the real
+// directory holds 2076 entries including `ld-musl-aarch64.so.1`. That is the
+// probe `detectHostLibc` reads, so a bundled `gjsify` answered `glibc` on a musl
+// machine and every musl-aware decision downstream — `prebuildDirCandidates`'
+// `-musl` preference, the launcher shims, the fallback report — was inert for
+// the life of the bundle. Ten runs, ten times `glibc`. Nothing failed loudly:
+// the glibc prebuild loads under musl's loader until it wants a glibc symbol.
 
 import * as acorn from 'acorn';
 import { tsPlugin } from 'acorn-typescript';
@@ -61,6 +82,8 @@ interface Edit {
 interface InlineContext {
     /** `import.meta.url` of the source file being inlined (file:// URL). */
     sourceUrl: string;
+    /** The tree this module's own resources live in — see `resourceRootFor`. */
+    resourceRoot: string;
 }
 
 /**
@@ -156,6 +179,7 @@ export function inlineStaticReads(src: string, sourceFilePath: string): { conten
 
     const ctx: InlineContext = {
         sourceUrl: pathToFileURL(sourceFilePath).href,
+        resourceRoot: resourceRootFor(sourceFilePath),
     };
     const edits: Edit[] = [];
 
@@ -374,9 +398,54 @@ function evalPathExpr(node: acorn.AnyNode | undefined, ctx: InlineContext): stri
         return undefined;
     }
     if (typeof v !== 'string') return undefined;
-    if (v.startsWith('file://')) return fileURLToPath(v);
-    if (isAbsoluteFsPath(v)) return v;
-    return undefined;
+    const asPath = v.startsWith('file://') ? fileURLToPath(v) : isAbsoluteFsPath(v) ? v : undefined;
+    if (asPath === undefined) return undefined;
+    // Resolvable is not the same as bundlable. Declining is the safe direction:
+    // the call is simply left in place and reads at runtime, which is what a host
+    // probe wants. Silent on purpose — a probe of `/proc`, `/sys` or `/lib` is
+    // ordinary in a runtime shim, and warning about each one would bury the
+    // decline that matters under the ones that do not.
+    if (!isWithin(asPath, ctx.resourceRoot)) return undefined;
+    return asPath;
+}
+
+/**
+ * The tree whose contents are a property of the BUILD rather than of the host:
+ * the nearest ancestor of the reading module that carries a `package.json`, and
+ * failing that the module's own directory.
+ *
+ * A package's own resources are what this module exists to bundle, and they are
+ * all under one of those two. Anything else — `/lib`, `/etc`, `/proc`, a sibling
+ * package's data — is either the machine's layout or another package's business,
+ * and its answer at build time is not its answer at run time.
+ *
+ * The nearest `package.json` rather than the workspace root: a hoisted
+ * `node_modules/<pkg>` resolves to itself and not to the whole tree, so one
+ * package cannot inline another's files even where both are being bundled.
+ */
+export function resourceRootFor(sourceFilePath: string): string {
+    let dir = dirname(resolve(sourceFilePath));
+    for (;;) {
+        if (existsSync(join(dir, 'package.json'))) return dir;
+        const parent = dirname(dir);
+        if (parent === dir) return dirname(resolve(sourceFilePath));
+        dir = parent;
+    }
+}
+
+/**
+ * Is `target` inside `root` (or `root` itself)?
+ *
+ * `relative()` rather than `startsWith`: the string test calls `/lib64` a child
+ * of `/lib`. `platform` is injected and the branches use `path.win32`/`path.posix`
+ * explicitly, the same shape as {@link isAbsoluteFsPath}, so both run from either
+ * host.
+ */
+export function isWithin(target: string, root: string, platform: string = process.platform): boolean {
+    const p = platform === 'win32' ? win32 : posix;
+    const rel = p.relative(p.resolve(root), p.resolve(target));
+    if (rel === '') return true;
+    return !rel.startsWith('..') && !p.isAbsolute(rel);
 }
 
 /**
