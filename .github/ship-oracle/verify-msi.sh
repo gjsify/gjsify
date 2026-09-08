@@ -96,11 +96,13 @@ require msiinfo msiextract find sort cmp awk tr
 # print `error: libmsi_database_export / msiinfo: internal error (function failed)`
 # on EPIPE, which reads as a corrupt database and is nothing but the pipe closing —
 # the same run that measured the CRLF chased that for ten minutes first.
-# An IDT export, with the reader held to the same standard as `msiextract`
-# below: three header lines (columns, types, table+keys) precede the rows, which
-# is the assumption every `NR > 3` in this file already makes. Fewer than three
-# means the READER produced nothing usable, and that is not the same fact as a
-# table without the row being looked for.
+#
+# THE READER IS HELD TO THE SAME STANDARD AS `msiextract` BELOW. An IDT export
+# carries three header lines — columns, types, table+keys — before any row, which
+# is the assumption every `NR > 3` in this file already makes, and an
+# empty-but-present table still has all three. Fewer than three means the READER
+# produced nothing usable, and that is not the same fact as a table without the
+# row being looked for.
 #
 # Measured 2026-09-08, `E2E 1/4` on `main`: this script reported "there is no
 # INSTALLDIR row, so `msiexec INSTALLDIR=…` has nothing to override" for an
@@ -117,7 +119,7 @@ idt() {
         fail "msiinfo export $1 exited non-zero on $MSI. That is the reader failing, not a finding about the installer."
     fi
     local lines
-    lines=$(printf '%s\n' "$out" | grep -c . || true)
+    lines=$(grep -c . <<<"$out" || true)
     if [ "$lines" -lt 3 ]; then
         fail "msiinfo export $1 returned $lines usable line(s) for $MSI, and an IDT export carries three header lines before any row. The reader produced nothing, so nothing below is a claim about the installer — re-read the file before believing any row is missing."
     fi
