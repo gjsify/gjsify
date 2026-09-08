@@ -690,19 +690,19 @@ export default async () => {
                 pkg('@gjsify/lightningcss-native-linux-arm64', 'linux-arm64'),
                 pkg('@gjsify/webgl-linux-arm64-musl', 'linux-arm64-musl'),
             ]);
-            expect(fellBack).toEqual(['@gjsify/lightningcss-native-linux-arm64']);
+            expect(fellBack).toStrictEqual(['@gjsify/lightningcss-native-linux-arm64']);
         });
 
         await it('says nothing when every package has a musl build', async () => {
-            expect(muslPrebuildFallbacks('musl', [pkg('@gjsify/webgl', 'linux-arm64-musl')])).toEqual([]);
+            expect(muslPrebuildFallbacks('musl', [pkg('@gjsify/webgl', 'linux-arm64-musl')])).toStrictEqual([]);
         });
 
         // The warning exists for musl hosts only. A glibc host resolving a
         // `linux-arm64` directory is the correct outcome, not a fallback.
         await it('stays quiet on glibc and where there is no libc axis', async () => {
             const packages = [pkg('@gjsify/webgl', 'linux-arm64')];
-            expect(muslPrebuildFallbacks('glibc', packages)).toEqual([]);
-            expect(muslPrebuildFallbacks(null, packages)).toEqual([]);
+            expect(muslPrebuildFallbacks('glibc', packages)).toStrictEqual([]);
+            expect(muslPrebuildFallbacks(null, packages)).toStrictEqual([]);
         });
 
         // `-musl` is a suffix of the DIRECTORY, and only the last segment of the
@@ -712,9 +712,7 @@ export default async () => {
             const fellBack = muslPrebuildFallbacks('musl', [
                 { name: '@gjsify/webgl', prebuildsDir: '/home/me/src-musl/node_modules/x/prebuilds/linux-arm64' },
             ]);
-            expect(fellBack).toEqual(['@gjsify/webgl']);
+            expect(fellBack).toStrictEqual(['@gjsify/webgl']);
         });
     });
-
-
 };

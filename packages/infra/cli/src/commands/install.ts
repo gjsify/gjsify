@@ -1496,7 +1496,7 @@ async function runPostInstallChecks(args: InstallOptions): Promise<void> {
             );
             for (const name of fellBack) console.warn(`  ! ${name}`);
             console.warn(
-                '\nThese load only as far as musl\'s libc.so.6 alias carries them. A glibc-only\n' +
+                "\nThese load only as far as musl's libc.so.6 alias carries them. A glibc-only\n" +
                     'symbol fails at dlopen with "Error relocating … symbol not found", which can\n' +
                     'surface much later as an unrelated build error.',
             );

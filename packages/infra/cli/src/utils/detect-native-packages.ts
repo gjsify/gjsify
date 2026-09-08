@@ -588,9 +588,7 @@ export function detectNativePackages(startDir: string, target: HostTarget = {}):
  */
 export function muslPrebuildFallbacks(libc: HostLibc | null, packages: readonly NativePackage[]): string[] {
     if (libc !== 'musl') return [];
-    return packages
-        .filter((pkg) => !basename(pkg.prebuildsDir).endsWith(MUSL_SUFFIX))
-        .map((pkg) => pkg.name);
+    return packages.filter((pkg) => !basename(pkg.prebuildsDir).endsWith(MUSL_SUFFIX)).map((pkg) => pkg.name);
 }
 
 export function resolveHostLibc(input: {
