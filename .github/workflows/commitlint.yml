@@ -75,6 +75,20 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: node scripts/check-pr-title-subject.mjs
 
+      # The title is covered above; this is the same asymmetry for the BODY, which a
+      # squash merge writes as the commit body. Measured 2026-09-08 over the last 600
+      # first-parent commits on `main`: ten fail commitlint on `body-max-line-length`,
+      # the longest body line being 739 characters, and three of the ten landed that
+      # day from a markdown table pasted into the description just before merging. The
+      # cost is the title's cost exactly — green on the PR, red on `main`, on a message
+      # that cannot be fixed without rewriting history, and the release cut then walks
+      # a commit that failed the lint that gates it.
+      - name: Check the squash body the PR body becomes
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/check-pr-body-lines.mjs
+
       # The two steps above cover the title. The BODY is the third string GitHub
       # reads on merge, and the only one that changes the state of OTHER records:
       # a `Closes #a, #b, #c` list closes #a and leaves the rest open while
