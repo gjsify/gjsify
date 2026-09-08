@@ -22,6 +22,7 @@ import {
     detectNativePackages,
     hostPlatformTokens,
     libraryPathVar,
+    muslPrebuildFallbacks,
     parsePlatformToken,
     platformPackageName,
     prebuildDirCandidates,
@@ -618,6 +619,31 @@ export default async () => {
                     join(root, 'node_modules/@gjsify/duallibc-native/prebuilds/linux-x64'),
                 );
             });
+
+            await it('reports what a real WALK fell back on, not a hand-built package list', async () => {
+                // The join the unit cases below cannot make: they are handed
+                // `NativePackage`s, so nothing else proves a real walk spells
+                // `prebuildsDir` the way the report reads it. `duallibc-native`
+                // (seeded above) ships a `-musl` build and must be absent; the four
+                // packages with only a default build must all be named, the
+                // pre-rename `linux-x86_64` one included — a legacy spelling is
+                // still a glibc build.
+                const onMusl = detectNativePackages(root, { platform: 'linux', arch: 'x64', libc: 'musl' });
+                const fellBack = muslPrebuildFallbacks('musl', onMusl);
+                expect(fellBack.includes('@gjsify/duallibc-native')).toBe(false);
+                for (const name of ['@gjsify/tls-native', '@gjsify/node-gi', '@gjsify/sab-native']) {
+                    expect(fellBack.includes(name)).toBe(true);
+                }
+                expect(fellBack.includes('@gjsify/legacy-native')).toBe(true);
+                // The same walk on glibc: each of those directories is the RIGHT
+                // answer there, so the report is empty rather than inverted.
+                expect(
+                    muslPrebuildFallbacks(
+                        'glibc',
+                        detectNativePackages(root, { platform: 'linux', arch: 'x64', libc: 'glibc' }),
+                    ),
+                ).toStrictEqual([]);
+            });
         } finally {
             rmSync(root, { recursive: true, force: true });
         }
@@ -642,6 +668,14 @@ export default async () => {
                 prebuildDirs: ['linux-x64-musl'],
                 platforms: ['linux-x64-musl'],
                 nodeModulesOf: '@gjsify/split-native',
+            });
+            // The shape the incident had: a bridge split per target with the musl
+            // companion never published, so the walk resolves the glibc one.
+            seedPackage(root, '@gjsify/glibconly-native', { prebuildDirs: [], platforms: ['linux-x64'] });
+            seedPackage(root, '@gjsify/glibconly-native-linux-x64', {
+                prebuildDirs: ['linux-x64'],
+                platforms: ['linux-x64'],
+                nodeModulesOf: '@gjsify/glibconly-native',
             });
 
             const byName = (pkgs: Array<{ name: string; prebuildsDir: string }>) =>
@@ -671,6 +705,18 @@ export default async () => {
                 expect(found['@gjsify/split-native-linux-x64']).toBeUndefined();
             });
 
+            await it('reports a companion-package fallback — the shape that was measured', async () => {
+                // A split bridge moves the target into the package NAME, so the
+                // fallback happens a level earlier than the directory probe. The
+                // report still reads the directory, which is what makes one function
+                // cover both: the companion carries its own target-named dir.
+                const fellBack = muslPrebuildFallbacks(
+                    'musl',
+                    detectNativePackages(root, { platform: 'linux', arch: 'x64', libc: 'musl' }),
+                );
+                expect(fellBack).toStrictEqual(['@gjsify/glibconly-native-linux-x64']);
+            });
+
             await it('adds nothing for a host with no companion package', async () => {
                 // Declared `darwin-arm64`, no companion installed — a macOS host
                 // must get a clean miss, not the linux artifact.
@@ -679,5 +725,49 @@ export default async () => {
         } finally {
             rmSync(root, { recursive: true, force: true });
         }
+    });
+
+    await describe('muslPrebuildFallbacks', async () => {
+        const pkg = (name: string, dir: string) => ({ name, prebuildsDir: `/p/node_modules/${name}/prebuilds/${dir}` });
+
+        await it('names the packages a musl host had to take the glibc build of', async () => {
+            const fellBack = muslPrebuildFallbacks('musl', [
+                pkg('@gjsify/lightningcss-native-linux-arm64', 'linux-arm64'),
+                pkg('@gjsify/webgl-linux-arm64-musl', 'linux-arm64-musl'),
+            ]);
+            expect(fellBack).toStrictEqual(['@gjsify/lightningcss-native-linux-arm64']);
+        });
+
+        await it('says nothing when every package has a musl build', async () => {
+            expect(muslPrebuildFallbacks('musl', [pkg('@gjsify/webgl', 'linux-arm64-musl')])).toStrictEqual([]);
+        });
+
+        // The warning exists for musl hosts only. A glibc host resolving a
+        // `linux-arm64` directory is the correct outcome, not a fallback.
+        await it('stays quiet on glibc and where there is no libc axis', async () => {
+            const packages = [pkg('@gjsify/webgl', 'linux-arm64')];
+            expect(muslPrebuildFallbacks('glibc', packages)).toStrictEqual([]);
+            expect(muslPrebuildFallbacks(null, packages)).toStrictEqual([]);
+        });
+
+        // Only the LAST path segment is a target token, so a checkout that happens
+        // to live under a `-musl` directory must not read as a musl prebuild.
+        await it('reads the target from the directory name, not the whole path', async () => {
+            const fellBack = muslPrebuildFallbacks('musl', [
+                { name: '@gjsify/webgl', prebuildsDir: '/home/me/src-musl/node_modules/x/prebuilds/linux-arm64' },
+            ]);
+            expect(fellBack).toStrictEqual(['@gjsify/webgl']);
+        });
+
+        await it('does not credit a `-musl` suffix on a target that cannot have one', async () => {
+            // `parsePlatformToken` honours the suffix on linux ONLY, because musl
+            // targets no other kernel — so `darwin-arm64-musl` is a malformed token,
+            // not a musl build, and reporting it as covered would hide the only
+            // package in the list. This is the difference between asking the grammar
+            // and testing the suffix by hand.
+            expect(muslPrebuildFallbacks('musl', [pkg('@gjsify/webgl', 'darwin-arm64-musl')])).toStrictEqual([
+                '@gjsify/webgl',
+            ]);
+        });
     });
 };

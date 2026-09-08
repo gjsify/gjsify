@@ -23,7 +23,7 @@
 // are read only at the outermost call site, as a default.
 
 import { readdirSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { readPackageJson } from './pkg-json.js';
 import { composeDyldFallback, systemGiLibraryDirs, type SystemGiOptions } from './system-gi.js';
 
@@ -597,6 +597,42 @@ export function detectHostLibc(platform: string): HostLibc | null {
     // this file already documents why the repo keeps exactly one.
     const muslLoaderPresent = existsSync('/lib') && readdirSync('/lib').some((f) => f.startsWith('ld-musl-'));
     return resolveHostLibc({ platform, glibcVersionRuntime, muslLoaderPresent });
+}
+
+/**
+ * The packages a musl host had to take the DEFAULT prebuild of, because they ship
+ * no `-musl` directory — the fallback {@link hostPlatformTokens} deliberately
+ * allows, named so a caller can report it. Returns names and prints nothing: this
+ * module resolves, and `libc` is a parameter for the same reason it is on every
+ * other function here (there is no musl runner in this repo's CI, so an injected
+ * `libc: 'musl'` is the only way the branch executes).
+ *
+ * Why a fallback that mostly WORKS is worth naming. musl's loader resolves
+ * `libc.so.6`/`libm.so.6` to itself, so a glibc-linked prebuild loads — and a
+ * bridge that records no libc at all then runs correctly, which is why the
+ * fallback exists rather than resolving to null. The one that is NOT agnostic dies
+ * at `dlopen` on its first glibc-only symbol, far from its cause. Measured on a
+ * OnePlus 6 (postmarketOS v26.06, musl 1.2.6, aarch64, gjs 1.88.1) against the
+ * published 0.48.0 train: nine of ten prebuilds loaded, while
+ * `@gjsify/lightningcss-native-linux-arm64` answered `gnu_get_libc_version: symbol
+ * not found`. `gjsify install` had printed "System dependencies OK", and the first
+ * symptom was rolldown reporting `Could not load src/application.css` — the CSS
+ * bridge silently absent from the bundle. Nothing in that chain names libc, which
+ * is what makes the report worth more than the failure.
+ *
+ * Membership goes through {@link parsePlatformToken}, not the suffix constant, so
+ * this does not become a second reader of the libc half of the token grammar —
+ * `darwin-arm64-musl` is a malformed token rather than a musl build, and only the
+ * grammar knows that.
+ *
+ * TODO(open-todos: `-musl` prebuild package is published): naming the fallback is
+ * not fixing it. No `-musl` target is published for any bridge, so on a musl host
+ * this reports every prebuild in the tree and there is nothing to fall back FROM.
+ */
+export function muslPrebuildFallbacks(libc: HostLibc | null, packages: readonly NativePackage[]): string[] {
+    if (libc !== 'musl') return [];
+    const fellBack = packages.filter((pkg) => parsePlatformToken(basename(pkg.prebuildsDir)).libc !== 'musl');
+    return fellBack.map((pkg) => pkg.name);
 }
 
 /**
