@@ -3200,9 +3200,11 @@ jobs:
     # CI touches. `continue-on-error` on a leg that can be green is the exact
     # shape of a gate that cannot fail, which is this repository's most expensive
     # defect class.
-    #   The 41-hour incident's real lesson is kept elsewhere and is not undone
-    #   here: `commit-prebuilds` still owns its own gate and is not gated on this
-    #   job, so a musl failure cannot hide or block the commit path.
+    #   `commit-prebuilds` DOES gate on this job now, which is the trade that
+    #   change argues for in its own comment: a leg whose artifacts are committed
+    #   cannot also be a canary. What the 41-hour incident actually bought is
+    #   still here — the leg can be green, so a red one is a regression rather
+    #   than the permanent red that taught everyone to ignore this workflow.
 
     strategy:
       fail-fast: false
@@ -3219,19 +3221,18 @@ jobs:
           # smuggled into this key, so the value stays the one
           # `${process.arch}` computes.
           #
-          # `libc` is what keeps this job out of the platform-PROMISE audit now
-          # that it is no longer dispatch-only. `parseCiPlatforms()` reads it,
-          # composes `linux-<arch>-musl`, and drops libc-carrying tokens from the
-          # map that declared-vs-built is computed from — because `-musl` is not a
-          # `gjsify.platforms` token at all (the libc distinction rides the npm
-          # `libc` field; see `musl-build.sh`'s header). DELETING THIS KEY IS A
-          # DEFECT, not a simplification: without it the parser credits these two
-          # packages with `linux-x64`/`linux-arm64`, which the glibc legs build and
-          # this one does not, so the audit would go green having measured the
-          # wrong job — and the real leg could then be deleted unnoticed.
-          # `ci-runner-arch` fails on both halves of that, and it reads THIS FILE
-          # to do it: its synthetic fixtures hold the parser, its "the real
-          # prebuilds.yml" block holds this job.
+          # `libc` is what tells the platform-PROMISE audit WHICH target this job
+          # builds. `parseCiPlatforms()` reads it and composes
+          # `linux-<arch>-musl`, the token both packages below declare, so
+          # declared-vs-built compares this leg against the musl half of their
+          # promise and the glibc legs against the other half. DELETING THIS KEY
+          # IS A DEFECT, not a simplification: without it the parser credits these
+          # two packages with `linux-x64`/`linux-arm64`, which the glibc legs build
+          # and this one does not, so the audit would go green having measured the
+          # wrong job — and their four musl targets would read as promised-but-
+          # unbuilt at the same time. `ci-runner-arch` fails on both halves of
+          # that, and it reads THIS FILE to do it: its synthetic fixtures hold the
+          # parser, its "the real prebuilds.yml" block holds this job.
           #
           # `machine` is `file(1)`'s spelling of the ELF e_machine this leg must
           # produce. The committed tree's machine-vs-directory invariant is held
