@@ -261,6 +261,54 @@ export default async () => {
         });
 
         await gated(diagnostics, 'single, slotted, keyed, coords', async () => {
+            await it('single: a Gtk.AspectFrame takes a child and sizes it by ratio', async () => {
+                // The placement is what this pins first — an uncurated `Gtk.AspectFrame`
+                // refuses its child by name, so the widget was unreachable.
+                //
+                // 16/9 AND NOT 1, and `obeyChild` written out, because the obvious
+                // spelling asserts nothing. MEASURED on a fresh instance, GTK's own
+                // defaults are `ratio: 1` and `obey-child: TRUE`, and the suite's label
+                // is roughly square — so `{ ratio: 1, obeyChild: false }` over a label
+                // answers 116 whether the props arrive or not, and the vector passed
+                // with `createElement('GtkAspectFrame')` and no props at all.
+                //
+                // At 16/9 the two answers separate: 65 with the ratio applied, and the
+                // child's own shape when `obey-child` keeps its default.
+                const frame = createElement('GtkAspectFrame', { ratio: 16 / 9, obeyChild: false });
+                const widget = materialize(frame) as unknown as Gtk.AspectFrame;
+                const [a] = labels(1);
+                insert(a, frame);
+                expect(gtkChildTypes(widget as unknown as Gtk.Widget)).toStrictEqual(['GtkLabel']);
+                expect(widget.measure(Gtk.Orientation.VERTICAL, 116)[1]).toBe(65);
+
+                // AND THE TRAP ITSELF, which is the one thing the descriptor tells a
+                // consumer and was the one claim with no check behind it: a `ratio` is
+                // INERT while `obey-child` keeps its default. Without this the
+                // sentence in the descriptor is prose, and a GTK that flipped that
+                // default would leave the vector above green while the sentence a
+                // consumer acts on became false.
+                //
+                // THE CHILD IS A SIZED BOX AND NOT A LABEL, and that is the whole
+                // reason this line is trustworthy. Asserting it over the suite's own
+                // label passed under gjs and FAILED on the Node reverse bridge, where
+                // a different font makes that label something other than square and
+                // `obey-child` derives a different ratio from it. A `Gtk.Box` carries
+                // no text, so its natural size IS its request — measured, [32, 16]
+                // exactly — and the derived ratio is 2 in any font on any runtime.
+                //
+                // 58 is then the answer, which is the number the descriptor cites,
+                // measured here beside it rather than quoted. A LABEL WOULD HAVE
+                // PASSED FOR THE WRONG REASON: its natural height is its line height,
+                // so a 32x16 request answers 32x18, and 32/18 is 16/9 to the pixel —
+                // both paths answer 65 and the assertion asserts nothing.
+                const inert = createElement('GtkAspectFrame', { ratio: 16 / 9 });
+                const inertWidget = materialize(inert) as unknown as Gtk.AspectFrame;
+                const sized = createElement('GtkBox', { widthRequest: 32, heightRequest: 16 });
+                materialize(sized);
+                insert(sized, inert);
+                expect(inertWidget.measure(Gtk.Orientation.VERTICAL, 116)[1]).toBe(58);
+            });
+
             await it('single: set_child replaces, it does not append', async () => {
                 const bin = createElement('AdwBin');
                 const widget = materialize(bin) as unknown as Adw.Bin;

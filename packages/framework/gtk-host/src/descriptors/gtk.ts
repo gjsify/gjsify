@@ -34,6 +34,36 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
         children: { kind: 'single', set: 'set_child' },
     },
     {
+        // HOW AN APPLICATION SPELLS "as tall as it is wide" ON THIS HOST, and that is
+        // the whole of it: nothing here maps React Native's `aspectRatio`, and this
+        // descriptor does not start doing so. `@gjsify/react-native`'s own
+        // `src/primitives/style.ts` lists that property among the ones it does not
+        // route and its partition refuses it by name; a consumer that wants the shape
+        // renders this widget. What it got instead was a refusal — without a curated
+        // placement the host declines the child as an uncurated one — so the shape was
+        // unreachable rather than merely unsugared.
+        //
+        // MEASURED on GTK 4.22.4: it is a height-for-width request and not merely an
+        // alignment, which is what makes it usable for this at all. WITH `obey-child`
+        // FALSE, which is the condition the whole paragraph rests on,
+        // `measure(VERTICAL, 116)` answers 116 at `ratio: 1` and 65 at 16/9, with a
+        // `Gtk.Picture` inside as with a box. At the default the same call answers 116
+        // for both, measured, which is the next paragraph.
+        //
+        // `obey-child` DEFAULTS TO TRUE, AND THAT IS A TRAP THIS DESCRIPTOR CANNOT
+        // CLOSE. Both measurements above hold with it written false; at its default the
+        // frame takes its ratio from the CHILD and the declared one is ignored in
+        // silence — measured, `ratio: 1` over a 32x16 child answers 58 rather than 116.
+        // A rule here can say which method adopts the child and nothing about a
+        // property the consumer writes, so this is the sentence rather than a check:
+        // a `ratio` is inert until `obey-child` is false. The vector in `host.spec.ts`
+        // is written at 16/9 for the same reason — at ratio 1 over a square-ish child
+        // the two answers coincide, and it asserted nothing.
+        gtype: 'GtkAspectFrame',
+        ctor: () => Gtk.AspectFrame,
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
         gtype: 'GtkScrolledWindow',
         ctor: () => Gtk.ScrolledWindow,
         children: { kind: 'single', set: 'set_child' },
