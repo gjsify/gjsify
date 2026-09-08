@@ -203,6 +203,15 @@ export function buildYarnResolutions(tarballsDir, tarballMap) {
  * missing, so the suite runs and a real problem stays red. `registryVersionState` is where
  * that rule lives.
  *
+ * A NAME that has never been published is therefore NOT a skip, and must not become one.
+ * It reads as `unverified` here and the suite dies at `YN0035: Package not found` — which
+ * is the correct outcome, because that is also what a real consumer gets: Yarn resolves the
+ * whole graph before it links any of it, so ONE unpublished transitive optional makes the
+ * bridge uninstallable on every platform. `status/pending-npm-bootstrap.json` names the
+ * queued publish and `verify-published-closure --phase pre-release` prints it; the fix is
+ * that publish, in the order `docs/publishing.md` calls a correctness property — bootstrap
+ * the target BEFORE the bridge. Measured on #1607, where the red is what produced it.
+ *
  * @param {{wanted?: {name: string, version: string}[], timeoutMs?: number}} [options]
  *   `wanted` defaults to `registryOnlyDependencies()` — the Yarn-PnP question. `create-app`
  *   passes the registry-bound ranges its templates carry instead; the probe is the same one.

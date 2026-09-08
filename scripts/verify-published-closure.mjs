@@ -639,8 +639,9 @@ if (undecidableEdges.length > 0) {
 if (bad.length > 0) {
     problems.push(
         `${bad.length} pinned dependency/dependencies of PUBLISHED package(s) do not resolve` +
-            `${preRelease ? '' : ` at ${version}`}. npm skips an unresolvable optionalDependency in SILENCE, so ` +
-            'consumers install the new bridge with no binary behind it. ' +
+            `${preRelease ? '' : ` at ${version}`}. npm and pnpm skip an unresolvable optionalDependency in ` +
+            'SILENCE, so consumers install the new bridge with no binary behind it; Yarn refuses the install ' +
+            'outright (`YN0035`), so for a Yarn consumer the bridge does not install at all. ' +
             // The remediation is the one thing that CANNOT be shared. "Re-run the
             // release workflow" is not advice a contributor on a pull request can
             // take, and #1500's second measured consequence was a message that sent
@@ -785,9 +786,12 @@ if (absentDeclared.length > 0) {
 const pinnedByDeclared = pinnedEdges.filter((e) => isLive(e.from) && expectedAbsent(e.to));
 if (pinnedByDeclared.length > 0) {
     notes.push(
-        `${pinnedByDeclared.length} release-pinned edge(s) point at a name declared pending bootstrap, so the cost ` +
-            'of the queued action is a SILENT one: npm skips an unresolvable optionalDependency without an error, ' +
-            `and the consumer installs the bridge with nothing behind it. ${pinnedByDeclared
+        `${pinnedByDeclared.length} release-pinned edge(s) point at a name declared pending bootstrap, and the cost ` +
+            'of the queued action is NOT the same on every package manager. npm and pnpm skip an unresolvable ' +
+            'optionalDependency without an error, so the consumer installs the bridge with nothing behind it; ' +
+            'Yarn resolves the whole graph before it links any of it and stops at `YN0035: Package not found`, ' +
+            'so the bridge is uninstallable for every Yarn consumer on every platform until the name exists. ' +
+            `Bootstrap these BEFORE the release that ships the bridge. ${pinnedByDeclared
                 .slice(0, 5)
                 .map((e) => `${e.from} → ${e.block}.${e.to}`)
                 .join('; ')}.`,
