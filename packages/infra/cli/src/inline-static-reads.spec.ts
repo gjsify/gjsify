@@ -130,6 +130,58 @@ export default async () => {
             expect(out.inlined).toBe(0);
         });
 
+        await it("does NOT inline a sibling package's file spelled as a URL either", () => {
+            // THE TWIN OF THE ROW ABOVE, and the reason it has to exist: the gate
+            // sat after the URL branch of `evalPathExpr` had already returned, so
+            // the same read declined as `path.join(<abs>)` was inlined as
+            // `new URL('../../b/…', import.meta.url)` — which is not an exotic
+            // spelling but the one this whole module was written for. Measured
+            // before the branches were merged: `inlined: 1`, with b's bytes in the
+            // output.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-sibling-url-'));
+            const reader = join(dir, 'node_modules', 'a', 'lib');
+            const other = join(dir, 'node_modules', 'b');
+            mkdirSync(reader, { recursive: true });
+            mkdirSync(other, { recursive: true });
+            writeFileSync(join(dir, 'node_modules', 'a', 'package.json'), '{"name":"a"}');
+            writeFileSync(join(other, 'package.json'), '{"name":"b"}');
+            writeFileSync(join(other, 'data.json'), '{"secret":1}');
+            const src = `
+                import { readFileSync } from 'fs';
+                const d = readFileSync(new URL('../../b/data.json', import.meta.url), 'utf8');
+            `;
+            const out = inlineStaticReads(src, join(reader, 'index.js'));
+            rmSync(dir, { recursive: true, force: true });
+            expect(out.inlined).toBe(0);
+            expect(out.contents).toContain('../../b/data.json');
+        });
+
+        await it('DOES still inline the manifest a dual-published module reads past its own type marker', () => {
+            // THE COST THE GATE MUST NOT HAVE, and it is not hypothetical: a
+            // package that publishes both formats drops a `{"type":"commonjs"}`
+            // marker beside the emitted output, and that marker IS a
+            // `package.json`. Answering "the nearest one" would put the resource
+            // root at `dist/cjs` and decline the module's read of its OWN manifest
+            // one level up — leaving live in the bundle exactly the read this file
+            // exists to remove. Measured in this repo's installed tree:
+            // `engine.io-client/build/{cjs,esm}` and
+            // `@socket.io/component-emitter/lib/cjs` are that shape.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-dual-'));
+            const pkg = join(dir, 'node_modules', 'dual');
+            mkdirSync(join(pkg, 'dist', 'cjs'), { recursive: true });
+            writeFileSync(join(pkg, 'package.json'), '{"name":"dual","version":"7.7.7"}');
+            writeFileSync(join(pkg, 'dist', 'cjs', 'package.json'), '{"type":"commonjs"}');
+            const src = `
+                import { readFileSync } from 'fs';
+                import { fileURLToPath } from 'url';
+                const v = readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8');
+            `;
+            const out = inlineStaticReads(src, join(pkg, 'dist', 'cjs', 'index.js'));
+            rmSync(dir, { recursive: true, force: true });
+            expect(out.inlined).toBe(1);
+            expect(out.contents).toContain('7.7.7');
+        });
+
         await it("DOES still inline the package's own resource", () => {
             // The happy path the gate must not cost: a package reading its own
             // file through `import.meta.url`, which is the whole reason this
@@ -191,12 +243,52 @@ export default async () => {
         });
     });
 
+    // Two rules, because "the reading module's package" is a different question for
+    // an installed file than for a first-party one, and one answer gets the other
+    // wrong. The pair below is what says so.
     await describe('resourceRootFor', async () => {
-        await it('is the nearest ancestor carrying a package.json', () => {
+        await it('is the nearest ancestor carrying a package.json, for a first-party file', () => {
             const dir = mkdtempSync(join(tmpdir(), 'gjsify-root-'));
             mkdirSync(join(dir, 'pkg', 'src', 'deep'), { recursive: true });
             writeFileSync(join(dir, 'pkg', 'package.json'), '{"name":"p"}');
             expect(resourceRootFor(join(dir, 'pkg', 'src', 'deep', 'x.ts'))).toBe(join(dir, 'pkg'));
+            rmSync(dir, { recursive: true, force: true });
+        });
+
+        await it('is the NEAREST one and not the outermost, so a monorepo package is not the workspace', () => {
+            // The outermost would be the workspace root, and one package could then
+            // inline its siblings' files.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-ws-'));
+            mkdirSync(join(dir, 'packages', 'a', 'src'), { recursive: true });
+            writeFileSync(join(dir, 'package.json'), '{"name":"ws","workspaces":["packages/*"]}');
+            writeFileSync(join(dir, 'packages', 'a', 'package.json'), '{"name":"a"}');
+            expect(resourceRootFor(join(dir, 'packages', 'a', 'src', 'x.ts'))).toBe(join(dir, 'packages', 'a'));
+            rmSync(dir, { recursive: true, force: true });
+        });
+
+        await it('is the node_modules package directory for an installed file, marker package.json or not', () => {
+            // Structural, not probed: a `{"type":"commonjs"}` marker deeper in the
+            // tree must not become the root — see the dual-publish row above.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-installed-'));
+            const pkg = join(dir, 'node_modules', 'dual');
+            mkdirSync(join(pkg, 'dist', 'cjs'), { recursive: true });
+            writeFileSync(join(pkg, 'package.json'), '{"name":"dual"}');
+            writeFileSync(join(pkg, 'dist', 'cjs', 'package.json'), '{"type":"commonjs"}');
+            expect(resourceRootFor(join(pkg, 'dist', 'cjs', 'index.js'))).toBe(pkg);
+            rmSync(dir, { recursive: true, force: true });
+        });
+
+        await it('keeps a scoped name whole, and takes the LAST node_modules on the way up', () => {
+            // A nested dependency and a scoped one must resolve to THEMSELVES, not
+            // to whatever contains them — the property a Yarn-PnP zip path depends
+            // on as much as a hoisted tree does.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-scoped-'));
+            const scoped = join(dir, 'node_modules', '@scope', 'name');
+            const nested = join(dir, 'node_modules', 'a', 'node_modules', 'b');
+            mkdirSync(join(scoped, 'lib'), { recursive: true });
+            mkdirSync(join(nested, 'lib'), { recursive: true });
+            expect(resourceRootFor(join(scoped, 'lib', 'x.js'))).toBe(scoped);
+            expect(resourceRootFor(join(nested, 'lib', 'x.js'))).toBe(nested);
             rmSync(dir, { recursive: true, force: true });
         });
 
