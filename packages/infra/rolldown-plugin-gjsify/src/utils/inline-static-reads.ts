@@ -40,6 +40,27 @@
 //
 // Anything not statically resolvable is left untouched — the legacy
 // `import.meta.url` rewriter still applies as a fallback.
+//
+// WHAT IS DELIBERATELY NOT INLINED, and it is not about resolvability. A read
+// only belongs in the bundle when its answer is a property of the BUILD; a read
+// of the machine's own layout is a property of the HOST, and freezing it ships
+// the build machine's answer to every user. `evalPathExpr` therefore refuses a
+// path that resolves outside the reading module's own package (see
+// `resourceRootFor`), however statically resolvable it is.
+//
+// Measured on a OnePlus 6T (postmarketOS, musl 1.2.6, aarch64) against the
+// bundled CLI of 2026-09-08, before that gate existed:
+//
+//     readdirSync('/lib')                     77 entries, no ld-musl-*
+//     existsSync('/lib/ld-musl-aarch64.so.1') false
+//
+// Both answers were the Fedora build host's, baked in at build time — the real
+// directory holds 2076 entries including `ld-musl-aarch64.so.1`. That is the
+// probe `detectHostLibc` reads, so a bundled `gjsify` answered `glibc` on a musl
+// machine and every musl-aware decision downstream — `prebuildDirCandidates`'
+// `-musl` preference, the launcher shims, the fallback report — was inert for
+// the life of the bundle. Ten runs, ten times `glibc`. Nothing failed loudly:
+// the glibc prebuild loads under musl's loader until it wants a glibc symbol.
 
 import * as acorn from 'acorn';
 import { tsPlugin } from 'acorn-typescript';
@@ -61,6 +82,8 @@ interface Edit {
 interface InlineContext {
     /** `import.meta.url` of the source file being inlined (file:// URL). */
     sourceUrl: string;
+    /** The tree this module's own resources live in — see `resourceRootFor`. */
+    resourceRoot: string;
 }
 
 /**
@@ -156,6 +179,7 @@ export function inlineStaticReads(src: string, sourceFilePath: string): { conten
 
     const ctx: InlineContext = {
         sourceUrl: pathToFileURL(sourceFilePath).href,
+        resourceRoot: resourceRootFor(sourceFilePath),
     };
     const edits: Edit[] = [];
 
@@ -369,14 +393,118 @@ function tryInlineReadFile(
  */
 function evalPathExpr(node: acorn.AnyNode | undefined, ctx: InlineContext): string | undefined {
     const v = evalExpr(node, ctx);
+    // ONE exit for both shapes, and that is the whole point of the arrangement. The
+    // URL branch used to `return` before any gate ran, so `new URL('/proc',
+    // import.meta.url)` and `new URL('file:///lib')` were read on the builder while
+    // the same read spelled `fileURLToPath(new URL(…))` was declined. Two spellings
+    // of one expression cannot answer differently, and `new URL(<lit>,
+    // import.meta.url)` is the spelling this module was written for.
+    let asPath: string | undefined;
     if (v instanceof URL) {
-        if (v.protocol === 'file:') return fileURLToPath(v);
-        return undefined;
+        asPath = v.protocol === 'file:' ? fileURLToPath(v) : undefined;
+    } else if (typeof v === 'string') {
+        asPath = v.startsWith('file://') ? fileURLToPath(v) : isAbsoluteFsPath(v) ? v : undefined;
     }
-    if (typeof v !== 'string') return undefined;
-    if (v.startsWith('file://')) return fileURLToPath(v);
-    if (isAbsoluteFsPath(v)) return v;
-    return undefined;
+    if (asPath === undefined) return undefined;
+    // Resolvable is not the same as bundlable. Declining is the safe direction:
+    // the call is simply left in place and reads at runtime, which is what a host
+    // probe wants. Silent on purpose — a probe of `/proc`, `/sys` or `/lib` is
+    // ordinary in a runtime shim, and warning about each one would bury the
+    // decline that matters under the ones that do not. What stops this silence
+    // costing what `isAbsoluteFsPath`'s did is that the declines have ROWS in
+    // `inline-static-reads.spec.ts` — a warning nobody reads would not have caught
+    // that one either.
+    if (!isWithin(asPath, ctx.resourceRoot)) return undefined;
+    return asPath;
+}
+
+/**
+ * The tree whose contents are a property of the BUILD rather than of the host —
+ * the reading module's own package.
+ *
+ * A package's own resources are what this module exists to bundle. Anything else
+ * — `/lib`, `/etc`, `/proc`, a sibling package's data — is either the machine's
+ * layout or another package's business, and its answer at build time is not its
+ * answer at run time.
+ *
+ * TWO RULES, because "the package" is answered two different ways and picking one
+ * of them gets the other wrong.
+ *
+ * For an INSTALLED file the root is STRUCTURAL: the directory whose parent is
+ * `node_modules` (or `node_modules/@scope`). Probing for the nearest
+ * `package.json` instead lands on the wrong directory for any package that
+ * dual-publishes, because the `{"type":"commonjs"}` marker beside the emitted
+ * output IS a `package.json`, and some of those markers carry the package's own
+ * `name` too — so neither presence nor a `name` tells a marker from a root.
+ * Measured in this repo's installed tree: `engine.io-client/build/{cjs,esm}` and
+ * `@socket.io/component-emitter/lib/cjs` are that shape. A module there reading
+ * its package's real manifest — the `new URL('../package.json',
+ * import.meta.url)` this file's header opens with, one level deeper — would be
+ * reading OUTSIDE its root, get declined, and ship the live read this module
+ * exists to remove.
+ *
+ * For a FIRST-PARTY file the root is the nearest ancestor carrying a
+ * `package.json`, and it has to be the NEAREST: in a monorepo the outermost one
+ * is the workspace root, which would let one package inline its siblings' files.
+ * The fallback when nothing above declares one is the module's own directory,
+ * which is the narrowest answer available rather than a licence to read upward.
+ */
+export function resourceRootFor(sourceFilePath: string): string {
+    const own = dirname(resolve(sourceFilePath));
+    const installed = installedPackageRootFor(own);
+    if (installed !== undefined) return installed;
+    let dir = own;
+    for (;;) {
+        if (existsSync(join(dir, 'package.json'))) return dir;
+        const parent = dirname(dir);
+        if (parent === dir) return own;
+        dir = parent;
+    }
+}
+
+/**
+ * The `node_modules/<name>` — or `node_modules/@scope/<name>` — directory `dir`
+ * lives in, or `undefined` when it is not inside an installed package.
+ *
+ * The LAST `node_modules` segment on the way up, so a nested dependency
+ * (`node_modules/a/node_modules/b`) and a Yarn-PnP zip
+ * (`…/cache/x.zip/node_modules/@scope/b`) both resolve to themselves rather than
+ * to whatever contains them. No filesystem probe: the layout is the answer, and a
+ * zip-resident path has no `package.json` a plain `existsSync` can see.
+ */
+function installedPackageRootFor(dir: string): string | undefined {
+    let cur = dir;
+    for (;;) {
+        const parent = dirname(cur);
+        if (parent === cur) return undefined;
+        const parentName = basename(parent);
+        if (parentName === 'node_modules') return cur;
+        if (parentName.startsWith('@') && basename(dirname(parent)) === 'node_modules') return cur;
+        cur = parent;
+    }
+}
+
+/**
+ * Is `target` inside `root` (or `root` itself)?
+ *
+ * `relative()` rather than `startsWith`: the string test calls `/lib64` a child
+ * of `/lib`. `resolve()` first, so a `..` composition is normalised before the
+ * comparison rather than after it. `platform` is injected and the branches use
+ * `path.win32`/`path.posix` explicitly, the same shape as
+ * {@link isAbsoluteFsPath}, so both run from either host.
+ *
+ * TEXTUAL, deliberately: no `realpathSync`. Both directions of that choice are
+ * the safe one here. A read that reaches into the package through a symlink
+ * resolves to a path outside the root and is DECLINED, which leaves a working
+ * runtime read; and a path textually inside the root cannot be widened by a
+ * symlink npm never creates. Resolving would also cost a syscall per candidate
+ * and break the zip-resident PnP case, whose paths are not files.
+ */
+export function isWithin(target: string, root: string, platform: string = process.platform): boolean {
+    const p = platform === 'win32' ? win32 : posix;
+    const rel = p.relative(p.resolve(root), p.resolve(target));
+    if (rel === '') return true;
+    return !rel.startsWith('..') && !p.isAbsolute(rel);
 }
 
 /**
