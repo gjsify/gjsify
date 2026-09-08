@@ -23,7 +23,6 @@ import {
     hostPrebuildTarget,
     isPlatformPackageManifest,
     KNOWN_ARCH_TOKENS,
-    parsePrebuildTarget,
     platformPackageName,
     prebuildOwnership,
     PLATFORM_RE,
@@ -281,20 +280,21 @@ export async function parseCiPlatforms(
                 const archs = job.archs.size > 0 ? [...job.archs] : [archFromRunner(job.runsOn, os)];
                 for (const arch of archs) targets.add(canonicalPlatform(`${os}-${arch}`));
             }
-            // A libc-carrying target is NOT a `gjsify.platforms` promise, so it
-            // must not reach the map declared-vs-built is computed from. The
-            // vocabulary is `<os>-<arch>` and the libc distinction rides npm's
-            // own field; a musl leg therefore proves that the SOURCES build and
-            // load on musl without promising anyone a musl binary.
+            // A libc-carrying target IS a promise now, and is kept.
             //
-            // Dropped here rather than at the composition above so the throw
-            // guarding the vocabulary still sees every value, and so the reason
-            // sits with the invariant it protects.
-            // Deleting the current entry mid-iteration is defined for a Set (the
-            // iterator skips removed entries), so no copy is needed.
-            for (const target of targets) {
-                if (parsePrebuildTarget(target).libc) targets.delete(target);
-            }
+            // It used to be dropped here, on the premise that "the vocabulary is
+            // `<os>-<arch>` and the libc distinction rides npm's own field", so a
+            // musl leg proved the SOURCES build without promising anyone a
+            // binary. That was true for exactly as long as nothing could declare
+            // such a target: `PLATFORM_RE` rejected the suffix. It now accepts it
+            // on linux, `@gjsify/lightningcss-native` and `@gjsify/sab-native`
+            // declare four musl targets, and `commit-prebuilds` lands the
+            // directories — so dropping them here would report every one of them
+            // as "declared, no CI job targets it" while the leg that builds them
+            // sits in the same file.
+            //
+            // The vocabulary throw above still sees every value, which is what
+            // that check was placed before this point to guarantee.
             // Attribute nothing when every target was dropped. Adding an EMPTY
             // set would be worse than adding none: `auditPlatforms` treats the
             // presence of a set as "the parser found jobs for this package" and
