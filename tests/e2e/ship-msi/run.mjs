@@ -38,7 +38,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -58,8 +58,8 @@ const MSI_NAME = `${BINARY}-1.2.3-1.${ARCH}.msi`;
  */
 const READERS = ['wixl', 'msiinfo', 'msiextract', 'msibuild'];
 
-function oracle(args) {
-    return execFileSync('bash', [join(ORACLE, 'verify-msi.sh'), ...args], { encoding: 'utf-8' });
+function oracle(args, opts) {
+    return execFileSync('bash', [join(ORACLE, 'verify-msi.sh'), ...args], { encoding: 'utf-8', ...opts });
 }
 
 /** Run the oracle from a working directory, the way the CI leg does. */
@@ -67,9 +67,19 @@ function oracleFrom(cwd, args) {
     return execFileSync('bash', [join(ORACLE, 'verify-msi.sh'), ...args], { encoding: 'utf-8', cwd });
 }
 
-function oracleExpectingFailure(args) {
+/**
+ * Run the oracle expecting a refusal, and return everything it said.
+ *
+ * `stdio` IS NAMED, and that is not tidiness. `verify-msi.sh`'s `fail` writes its
+ * `::error` workflow command to stderr, and `execFileSync` given no `stdio` of its
+ * own re-emits a captured stderr on the PARENT's. The runner reads workflow
+ * commands off stderr exactly as it does off stdout, so every refusal this suite
+ * ASKS for would annotate a job that passed. Naming the streams keeps the message
+ * on `error.stderr`, which is where the assertions read it from anyway.
+ */
+function oracleExpectingFailure(args, opts) {
     try {
-        oracle(args);
+        oracle(args, { stdio: ['ignore', 'pipe', 'pipe'], ...opts });
     } catch (error) {
         assert.equal(error.status, 1, `verify-msi.sh must exit 1, not ${error.status}`);
         return `${error.stdout ?? ''}${error.stderr ?? ''}`;
@@ -359,6 +369,35 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.match(failure, /INSTALLDIR is named/);
     });
 
+    it('blames the READER, not the installer, when an export comes back empty', () => {
+        // THE INCIDENT, REPRODUCED — `E2E 1/4` on `main`, 2026-09-08: a
+        // `msiinfo export Directory` returned exit 0 without the table it had just
+        // listed, and the script reported "there is no INSTALLDIR row" about a file
+        // that has one, in a run where four other cases read that row out of it.
+        // The mechanism behind the empty export is unexplained; that the
+        // MISATTRIBUTION is a defect in this script is not, and this is what says
+        // so. A wrapper forwards every msiinfo call to the real one except that
+        // one, which is the smallest reproduction of what was observed.
+        //
+        // The discriminator is the second assertion. Remove `idt`'s header guard
+        // and the script still exits 1 here — on the sentence about the artifact.
+        const stub = join(tmpDir, 'reader-stub');
+        mkdirSync(stub, { recursive: true });
+        const realMsiinfo = execFileSync('bash', ['-c', 'command -v msiinfo'], { encoding: 'utf-8' }).trim();
+        writeFileSync(
+            join(stub, 'msiinfo'),
+            '#!/usr/bin/env bash\n' +
+                'if [ "$1" = export ] && [ "$3" = Directory ]; then exit 0; fi\n' +
+                `exec ${JSON.stringify(realMsiinfo)} "$@"\n`,
+            { mode: 0o755 },
+        );
+        const failure = oracleExpectingFailure([msi, programDir, 'msitools'], {
+            env: { ...process.env, PATH: `${stub}:${process.env.PATH}` },
+        });
+        assert.match(failure, /msiinfo export Directory returned 0 usable line\(s\)/);
+        assert.doesNotMatch(failure, /there is no INSTALLDIR row/);
+    });
+
     it('the oracle refuses a producer the file does not claim', () => {
         // The third argument is what makes this script something other than
         // msitools reading msitools. If it did not compare, the cross-read job
@@ -432,7 +471,13 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
         const notAnMsi = join(tmpDir, 'not-an.msi');
         writeFileSync(notAnMsi, 'this is not a compound file\n');
         try {
-            oracle([notAnMsi, programDir, 'msitools']);
+            // Named streams for the same reason `oracleExpectingFailure` names them,
+            // and this case needs it just as much. Measured in `E2E 1/4`, run
+            // 34227868797: `msiinfo suminfo` on a file that is not a compound file
+            // prints a WARNING, EXITS 0 and names no creating application, so the
+            // script's own `fail` fires — and its `::error` annotated that passing
+            // job with "the summary information names no creating application".
+            oracle([notAnMsi, programDir, 'msitools'], { stdio: ['ignore', 'pipe', 'pipe'] });
             assert.fail('verify-msi.sh accepted a file that is not an MSI');
         } catch (error) {
             assert.notEqual(error.status, 0);

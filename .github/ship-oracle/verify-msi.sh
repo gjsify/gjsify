@@ -58,8 +58,18 @@ MSI=${1:?usage: verify-msi.sh <artifact.msi> <program directory> <producer|!prod
 DIR=${2:?usage: verify-msi.sh <artifact.msi> <program directory> <producer|!producer>}
 PRODUCER=${3:?usage: verify-msi.sh <artifact.msi> <program directory> <producer|!producer>}
 
+# STDERR, not stdout, and it is load-bearing rather than tidy. Several readers
+# here are called as `VAR=$(idt Directory)`, and a `fail` inside a command
+# substitution writes into VAR: the message is captured instead of shown, and
+# `exit 1` leaves only the subshell, so `set -e` aborts the script with nothing
+# printed at all. On stderr the message survives the substitution, and it cannot
+# contaminate the value a reader returns on stdout either.
+#
+# GitHub reads `::error` workflow commands from stderr the same as from stdout,
+# and `tests/e2e/ship-msi`'s `oracleExpectingFailure` concatenates both streams,
+# so nothing downstream can tell the difference except by working.
 fail() {
-    echo "::error title=Ship msi::$*"
+    echo "::error title=Ship msi::$*" >&2
     exit 1
 }
 
@@ -86,8 +96,34 @@ require msiinfo msiextract find sort cmp awk tr
 # print `error: libmsi_database_export / msiinfo: internal error (function failed)`
 # on EPIPE, which reads as a corrupt database and is nothing but the pipe closing —
 # the same run that measured the CRLF chased that for ten minutes first.
+#
+# THE READER IS HELD TO THE SAME STANDARD AS `msiextract` BELOW. An IDT export
+# carries three header lines — columns, types, table+keys — before any row, which
+# is the assumption every `NR > 3` in this file already makes, and an
+# empty-but-present table still has all three. Fewer than three means the READER
+# produced nothing usable, and that is not the same fact as a table without the
+# row being looked for.
+#
+# Measured 2026-09-08, `E2E 1/4` on `main`: this script reported "there is no
+# INSTALLDIR row, so `msiexec INSTALLDIR=…` has nothing to override" for an
+# installer that HAS one — four other cases in `tests/e2e/ship-msi` read that row
+# out of the same file in the same run, one of them reaching the byte round trip
+# beyond it. So a `msiinfo export` answered 0 without the table it had just
+# listed, and the accusation landed on the artifact. The mechanism is still
+# unexplained; what is settled is that the artifact was not at fault, and a
+# diagnostic pointing at the file for a fault in the reader is the direction the
+# header of this file calls the worst one.
 idt() {
-    msiinfo export "$MSI" "$1" | tr -d '\r'
+    local out
+    if ! out=$(msiinfo export "$MSI" "$1" | tr -d '\r'); then
+        fail "msiinfo export $1 exited non-zero on $MSI. That is the reader failing, not a finding about the installer."
+    fi
+    local lines
+    lines=$(grep -c . <<<"$out" || true)
+    if [ "$lines" -lt 3 ]; then
+        fail "msiinfo export $1 returned $lines usable line(s) for $MSI, and an IDT export carries three header lines before any row. The reader produced nothing, so nothing below is a claim about the installer — re-read the file before believing any row is missing."
+    fi
+    printf '%s\n' "$out"
 }
 
 [ -f "$MSI" ] || fail "$MSI does not exist"
