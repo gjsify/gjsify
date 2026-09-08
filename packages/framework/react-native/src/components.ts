@@ -30,8 +30,12 @@
 // (`ResolvedEvent.read`); this file reads it off the widget its ref holds.
 
 import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import {
     createElement,
+    useCallback,
     useContext,
     useEffect,
     useMemo,
@@ -549,8 +553,265 @@ export interface ScrollViewProps extends CommonProps {
     contentContainerClassName?: ClassNameInput;
 }
 
+/**
+ * A HORIZONTAL scroller's content answers for its own height, because GTK will
+ * never ask it for one.
+ *
+ * MEASURED on GTK 4.22.4 with a recording layout manager under a real window: a
+ * horizontal `Gtk.ScrolledWindow` asks its child `VERTICAL for_size -1`, and
+ * nothing changes that — plain, `propagate-natural-height`, `propagate-natural-
+ * width`, both together, and a width request of 380 or 1 000 on the child all asked
+ * it. That is right for a scroller — the child scrolls, so the viewport's width is
+ * not the child's width — and it is fatal to anything whose height is a FUNCTION of
+ * its width. A row of five 116 px tiles with three-line labels is 54 px tall and
+ * the scroller reserved 18, one line per tile; in the application this came from,
+ * a rail of cards needed 161 and GTK answered 83.
+ *
+ * ## It is a layout manager, and TWO things is what that buys
+ *
+ * `Gtk.BoxLayout` subclass on the content box, answering VERTICAL at `for_size -1`
+ * with the height at the width the content will actually be given. The version
+ * before this one wrote a `set_size_request` from a layout effect instead, and it
+ * is worth being precise about why that went, because the reason first given for it
+ * was wrong:
+ *
+ *   - NOT because a request cannot reach the answer. That was the headline reason
+ *     given for this rewrite and IT IS FALSE, caught in review. Four instruments on
+ *     one card tree under a real window, wanting 36:
+ *
+ *         plain GtkBox   18     layout manager, no watch   160
+ *         layout+watch   36     request at the same width, one idle later   36
+ *
+ *     A request only RAISES a height, and that never bites, because GTK's own
+ *     `for_size -1` answer is a wrapping row's height at its NATURAL width and
+ *     therefore the SMALLEST height it has — measured on that card,
+ *     `76:160 100:125 150:71 200:54 300:36 400:36 600:18`, monotone, with -1
+ *     answering 18. Every target is above the floor, so a request can always lift
+ *     the answer to it. The 160 in that table is this very class with its watch
+ *     removed, and the old code's own failure was its FORMULA and its TIMING: it
+ *     measured at `page-size` or the natural width and applied inline, which read
+ *     `scrollerH=18` while writing `height-request=36`, and on an overflowing rail
+ *     printed `Trying to measure GtkBox for width of 400, but it needs at least 580`.
+ *   - **THE FIRST REASON: no staleness.** GTK re-measures on the child's own
+ *     `queue_resize`, so a title that arrives from a re-render BELOW the scroller is
+ *     picked up — measured 18 → 54 → 18 across a child-only commit and back. A hook
+ *     that measures in a layout effect runs when the `<ScrollView>` itself commits,
+ *     which a child's own state change does not do, so it keeps its first answer for
+ *     ever unless something else hands it one.
+ *
+ *     WHAT THE APPLICATION SHOWS IS THE SHAPE OF THAT DEPENDENCE, and the numbers
+ *     here are corrected from an earlier draft: the published request version wrote
+ *     161 into a rail needing 161 — measured on a rebuild of it, twenty samples at
+ *     250 ms — because its `notify::page-size` watch fires once at the first
+ *     allocation and that one shot happened to land after the titles arrived. Strip
+ *     the watch and the same rail reads 93 against the same 161 — the height at the
+ *     content's natural width, 4 880, which is what that version fell back to with
+ *     nothing to correct it — with the third line of every card title clipped. So
+ *     the request instrument was right by ordering rather than by construction, and
+ *     its own diagnostic says so: `Trying to measure GtkBox for width of 1052, but
+ *     it needs at least 2052`, which this class does not print; the watch-stripped
+ *     variant prints none at all, which is where that warning comes from. The VECTOR is the gate, because a vector can
+ *     make the child commit late on purpose.
+ *   - **THE SECOND REASON: it cannot clobber a declared height.** `<ScrollView
+ *     contentContainerStyle={{ height: 200 }}>` lands on this very node and
+ *     `style.height` routes to `height-request`, so the instrument and the
+ *     consumer's value were the same field. Writing nothing has nothing to clear
+ *     and nothing to ratchet — a written height is read back by the next
+ *     measurement as if the content had asked for it, and measured that way the
+ *     rails grew until they filled the window.
+ * ## The one place the instrument still chooses: the natural height, as both
+ *
+ * A scroller reserves the MINIMUM its child answers, and a `Gtk.Picture`'s vertical
+ * minimum is 0 at every width — `can-shrink` lets it be squeezed away — while its
+ * natural is the height its width implies. So this returns the natural for both.
+ *
+ * MEASURED BY SHIPPING IT WRONG FIRST: forwarding both of `Gtk.BoxLayout`'s answers
+ * unchanged read `heightRequest=[58, 202]` on the application's podcast rail, the
+ * scroller took the 58, and every cover vanished — this file's own defect wearing a
+ * different hat. The version before this one wrote index [1] and so never faced the
+ * question; a layout manager answers both numbers and has to decide. A rail has no
+ * "smaller but scrollable" size anyway, because it does not scroll vertically.
+ *
+ * ## The width it answers at
+ *
+ * `max(hadjustment:page-size, the content's own minimum)`, which is what a viewport
+ * allocates: the minimum when the row overflows and scrolls, the viewport's width
+ * when it fits. Both halves are load-bearing — measured, the overflowing rail needs
+ * the minimum (54 at 580, not 18) and the card that fills the rail needs the page
+ * size (36 at 400, not the 160 its own minimum width implies).
+ *
+ * ONE CONFIGURATION WHERE THAT IS NOT THE ALLOCATION, found in review and latent:
+ * `Gtk.Viewport:hscroll-policy = NATURAL` allocated 511 where the formula answers
+ * 500. Nothing in this layer sets it and the default is MINIMUM, so it is written
+ * down rather than handled.
+ *
+ * ## Why the notify defers, and the vector that finally fails on it
+ *
+ * `page-size` is read for the SIGNAL and not for the value: `gtk_widget_get_width()`
+ * exists and answers the same number, and review measured that swapping the whole
+ * `hadjustment` read for it passes every vector. What a widget has no equivalent of
+ * is the NOTIFICATION, which is why the watch hangs off the adjustment — and one
+ * source for both is why the value is read there too. It is written during the
+ * scroller's own `size_allocate`.
+ * A `queue_resize` issued from that handler does not reach the pass in progress:
+ * MEASURED against a real presented window, with the invalidation inline the
+ * measurement was already right (36) while the scroller stayed at 160, and with the
+ * same call one idle later the scroller followed to 36. So the notify hands the
+ * invalidation to an idle. Nothing else in this hook needs one.
+ *
+ * ## The trap on the way here
+ *
+ * Overriding `vfunc_measure` on a `Gtk.Box` SUBCLASS is silently dead code:
+ * `gtk_widget_measure` goes to the layout manager and never calls the widget's
+ * class vfunc. Measured — 0 calls for a measurement that answered 18 — and worth
+ * stating, because the override looks installed and the numbers do not move.
+ */
+const RailLayout = GObject.registerClass(
+    { GTypeName: 'GjsifyReactNativeRailLayout' },
+    class RailLayout extends Gtk.BoxLayout {
+        vfunc_measure(
+            widget: Gtk.Widget,
+            orientation: Gtk.Orientation,
+            forSize: number,
+        ): [number, number, number, number] {
+            const plain = (size: number): [number, number, number, number] =>
+                super.vfunc_measure(widget, orientation, size) as [number, number, number, number];
+            // ONLY the height-regardless-of-width question, which is the one a
+            // horizontal scroller asks and the only one whose answer is wrong.
+            //
+            // AND ONLY WHILE THE BOX IS A ROW, which is a test and not a comment
+            // because a `<ScrollView>` can flip `horizontal` and this manager stays
+            // installed. Measured with a recording layout manager under a real
+            // window: a vertical `Gtk.ScrolledWindow` asks `VERTICAL for_size -1` zero
+            // times at every `hscrollbar-policy` — never, external and automatic alike
+            // — which is why the first version of this file called the question
+            // unreachable and dropped the test. THAT WAS WRONG: with
+            // `propagate-natural-height` it asks once, and the answer this class would
+            // give is wrong there — measured on the shape a flip leaves behind, a
+            // wrapping paragraph in a column: `Gtk.BoxLayout` answers 18, its height
+            // at its own natural width, where this correction would answer 178, its
+            // height at its longest word. The vector for the flip asserts the 18.
+            if (
+                orientation !== Gtk.Orientation.VERTICAL ||
+                forSize >= 0 ||
+                this.get_orientation() !== Gtk.Orientation.HORIZONTAL
+            ) {
+                return plain(forSize);
+            }
+            const minimum = (
+                super.vfunc_measure(widget, Gtk.Orientation.HORIZONTAL, -1) as [number, number, number, number]
+            )[0];
+            const scroller = widget.get_ancestor(Gtk.ScrolledWindow.$gtype) as Gtk.ScrolledWindow | null;
+            const page = scroller === null ? 0 : Math.round(scroller.get_hadjustment().get_page_size());
+            const width = Math.max(page, minimum);
+            if (width <= 0) return plain(forSize);
+            const [, natural, , natBaseline] = super.vfunc_measure(widget, Gtk.Orientation.VERTICAL, width) as [
+                number,
+                number,
+                number,
+                number,
+            ];
+            // THE NATURAL HEIGHT AS THE MINIMUM TOO, and this is not tidiness: a
+            // scroller reserves the MINIMUM its child reports, and a `Gtk.Picture`'s
+            // vertical minimum is 0 because `can-shrink` lets it be squeezed to
+            // nothing while its natural is the height its width implies. Measured on
+            // the application's podcast rail, forwarding both answers gave
+            // `heightRequest=[58, 202]` and the covers vanished — 58 px of label with
+            // no room for the images, which is the very defect this file is about.
+            // A rail cannot scroll vertically either, so "smaller but scrollable" is
+            // not a size it has.
+            // THE NATURAL'S BASELINE FOR BOTH, because the height reported for both
+            // IS the natural one and a baseline belongs to a height. Pairing the
+            // minimum's baseline with the natural's height is the mistake this
+            // replaced, and review measured a box where the two differ by 33 px.
+            //
+            // GATED, on a tree that took two rounds of review to find: `baseline-child`
+            // has to point at a child whose MIN AND NATURAL HEIGHTS DIFFER, which
+            // needs a `can-shrink` `Gtk.Picture` above a label. Three earlier shapes
+            // answered `[…, 15, 15]` for both and could not tell the candidates
+            // apart; on that one `Gtk.BoxLayout` answers `[18, 84, 15, 48]`, and the
+            // vector kills both the mistake and dropping the baselines entirely.
+            return [natural, natural, natBaseline, natBaseline];
+        }
+    },
+);
+
+/** Live `notify::page-size` subscriptions, for the same reason `announce.ts` counts its own. */
+let railWatches = 0;
+
+/**
+ * How many scrollers are currently watching their viewport's width.
+ *
+ * A column has nothing to invalidate when that width changes — its height is not a
+ * function of it — and a column that subscribed anyway would render identically to
+ * one that did not, queueing a resize per window resize with nothing to show for it.
+ * Only a count tells them apart.
+ */
+export const railWatchCount = (): number => railWatches;
+
+function useIntrinsicContentHeight(horizontal: boolean): (widget: unknown) => void {
+    const watchRef = useRef<{ adjustment: Gtk.Adjustment; id: number } | null>(null);
+    const pendingRef = useRef<number | null>(null);
+
+    return useCallback(
+        (widget: unknown): void => {
+            const previous = watchRef.current;
+            if (previous !== null) {
+                previous.adjustment.disconnect(previous.id);
+                watchRef.current = null;
+                railWatches -= 1;
+            }
+            if (pendingRef.current !== null) {
+                GLib.source_remove(pendingRef.current);
+                pendingRef.current = null;
+            }
+            const content = (widget ?? null) as Gtk.Widget | null;
+            // A COLUMN IS LEFT ENTIRELY ALONE — no manager of ours, no watch — which
+            // is what keeps this change to the axis it measured.
+            if (content === null || !horizontal) return;
+            const installed = content.get_layout_manager();
+            if (!(installed instanceof RailLayout)) {
+                // The box's own orientation and spacing LIVE IN the manager, so they
+                // are carried across rather than left at this class's defaults.
+                // HORIZONTAL unconditionally, because the swap runs only for a row:
+                // review measured both branches of a `box.get_orientation()` ternary
+                // here as unreachable, and this repository deletes what it cannot
+                // reach. The SPACING does have to come across — a `Gtk.Box`'s spacing
+                // lives in its manager — and `set_homogeneous` went the same way as
+                // the ternary: nothing in this layer writes it (`defaults.ts` records
+                // `GtkBox:homogeneous` as having no React Native counterpart) and
+                // nothing can reach the box before the swap.
+                const swapped = new RailLayout({ orientation: Gtk.Orientation.HORIZONTAL });
+                // THE METHOD AND NOT THE PROPERTY. `Gtk.BoxLayout:spacing` is
+                // annotated `int` where `get_spacing` returns `guint`, and touching it
+                // as a property prints two GJS diagnostics per process — "does not
+                // match return type … Falling back to slow path" — which a consumer
+                // would then carry for every rail it renders.
+                if (installed instanceof Gtk.BoxLayout) swapped.set_spacing(installed.get_spacing());
+                content.set_layout_manager(swapped);
+            }
+            const scroller = content.get_ancestor(Gtk.ScrolledWindow.$gtype) as Gtk.ScrolledWindow | null;
+            if (scroller === null) return;
+            const adjustment = scroller.get_hadjustment();
+            const id = adjustment.connect('notify::page-size', () => {
+                if (pendingRef.current !== null) return;
+                pendingRef.current = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                    pendingRef.current = null;
+                    content.queue_resize();
+                    return GLib.SOURCE_REMOVE;
+                });
+            });
+            watchRef.current = { adjustment, id };
+            railWatches += 1;
+        },
+        [horizontal],
+    );
+}
+
 export function ScrollView(props: ScrollViewProps): ReactElement {
-    return render(usePlan('ScrollView', props));
+    const rendered = usePlan('ScrollView', props);
+    const attachContent = useIntrinsicContentHeight(props.horizontal === true);
+    return render({ ...rendered, contentExtra: { ...rendered.contentExtra, ref: attachContent } });
 }
 
 export interface ActivityIndicatorProps extends CommonProps {

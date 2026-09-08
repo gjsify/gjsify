@@ -41,6 +41,7 @@
 // earns its place by being the one declaration of what a gated block means.
 
 import Adw from 'gi://Adw?version=1';
+import GLib from 'gi://GLib?version=2.0';
 import Gdk from 'gi://Gdk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
@@ -50,7 +51,7 @@ import { lookupWidget, paramSpecs, registerBuiltinWidgets } from '@gjsify/gtk-ho
 import { descriptorProblems, dumpTree, gtkChildren, installDiagnosticsGate } from '@gjsify/gtk-host/conformance';
 import { MINIMAL_TOKENS, StyleSheet as GeneratedStyleSheet, type StyleTokens } from '@gjsify/gtk-host/style';
 import { createRoot, flushSync } from '@gjsify/gtk-host/react';
-import { createElement, Fragment, type ReactNode } from 'react';
+import { createElement, Fragment, useState, type ReactNode } from 'react';
 
 import { PrimitiveError } from './errors.js';
 import { createHandle, type TextInputHandle } from './handles.js';
@@ -64,6 +65,7 @@ import {
     KeyboardAvoidingView,
     Modal,
     Pressable,
+    railWatchCount,
     SafeAreaView,
     ScrollView,
     StatusBar,
@@ -793,6 +795,442 @@ export default async () => {
                         expect(pressed).toBe(1);
                     },
                 );
+            });
+
+            await it('gives a horizontal ScrollView’s content the height its own width needs', async () => {
+                // THE ONE VECTOR THAT NEEDS A PRESENTED WINDOW, because the defect is
+                // in an allocation: a `Gtk.ScrolledWindow` measures its child's height
+                // at `for_size -1`, so a row whose height depends on its width — three
+                // lines of label here, an aspect-framed image in the application this
+                // came from — is reserved the height it would have if it were as wide
+                // as it liked, and renders clipped inside it.
+                //
+                // THE CONTROL IS THE SAME TREE WITHOUT THE LAYOUT MANAGER, put back
+                // straight after, because no other control is honest: every `measure`
+                // on this box now goes through the override, and asserting a pixel
+                // count would pass against a box that answered it by accident.
+                const long = 'Ein Titel, der über mehrere Zeilen läuft';
+                const tile = (key: string): ReactNode =>
+                    createElement(
+                        View,
+                        { key, style: { width: 116 } },
+                        createElement(Text, { numberOfLines: 3 }, long),
+                    );
+                const window = new Gtk.Window({ defaultWidth: 400, defaultHeight: 300 });
+                const container = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+                window.set_child(container);
+                const root = createRoot(container);
+                try {
+                    root.render(
+                        createElement(
+                            ScrollView,
+                            { horizontal: true },
+                            ['a', 'b', 'c', 'd', 'e'].map((key) => tile(key)),
+                        ),
+                    );
+                    const scrolled = gtkChildren(container)[0] as Gtk.ScrolledWindow;
+                    const content = find(scrolled, 'GtkBox') as Gtk.Box;
+                    window.present();
+                    const context = GLib.MainContext.default();
+                    for (let turn = 0; turn < 200; turn++) {
+                        if (content.get_width() > 0 && scrolled.get_height() > 0) break;
+                        context.iteration(false);
+                        await Promise.resolve();
+                    }
+                    const minimum = content.measure(Gtk.Orientation.HORIZONTAL, -1)[0];
+                    // `for_size >= 0` goes straight to `Gtk.BoxLayout`, so this is the
+                    // box's own answer at the width it is given, not the override's.
+                    const wanted = content.measure(Gtk.Orientation.VERTICAL, minimum)[0];
+
+                    const ours = content.get_layout_manager();
+                    content.set_layout_manager(new Gtk.BoxLayout({ orientation: Gtk.Orientation.HORIZONTAL }));
+                    const unfixed = content.measure(Gtk.Orientation.VERTICAL, -1)[0];
+                    content.set_layout_manager(ours);
+
+                    // Measured on this tree: 18 px for content that needs 54 — one
+                    // line per tile, and the rest of every label clipped.
+                    expect(wanted > unfixed).toBe(true);
+                    expect(content.measure(Gtk.Orientation.VERTICAL, -1)[0]).toBe(wanted);
+                    // AND IT REACHED THE LAYOUT, which the measurement alone does not
+                    // say: the scroller asks once and keeps the answer.
+                    expect(scrolled.get_height()).toBe(wanted);
+                    // WRITTEN BY NOTHING. A size request was the first instrument and
+                    // it could only ever RAISE a height, which is the whole reason for
+                    // the vector below.
+                    expect(content.heightRequest).toBe(-1);
+                } finally {
+                    root.unmount();
+                    window.destroy();
+                }
+            });
+
+            await it('lets a card that fills the rail be as SHORT as its real width allows', async () => {
+                // THE HALF A SIZE REQUEST COULD NOT EXPRESS, and this was a declared
+                // limit until the layout manager replaced it.
+                //
+                // A wrapping card that fills the rail is allocated the VIEWPORT, much
+                // wider than its own minimum — a label's minimum width is its longest
+                // word — so it needs 36 px where the height at that minimum width is
+                // 160. `measure` answers `max(natural, request)`, so the request
+                // version computed the 36 correctly and the scroller stayed at 160: a
+                // request cannot ask for less. The override is the answer GTK uses
+                // rather than a floor under it, so this rail is now simply right.
+                const long = 'Ein Kartentitel, der die ganze Breite der Leiste ausfüllt und dabei umbricht';
+                const window = new Gtk.Window({ defaultWidth: 400, defaultHeight: 300 });
+                const container = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+                window.set_child(container);
+                const root = createRoot(container);
+                try {
+                    root.render(createElement(ScrollView, { horizontal: true }, createElement(Text, null, long)));
+                    const scrolled = gtkChildren(container)[0] as Gtk.ScrolledWindow;
+                    const content = find(scrolled, 'GtkBox') as Gtk.Box;
+                    window.present();
+                    const context = GLib.MainContext.default();
+                    // BLOCKING ITERATION UNDER A DEADLINE, because this case waits for
+                    // a frame and not just for a pending source: `queue_resize` is
+                    // handed to an idle and the layout pass that answers it belongs to
+                    // the frame clock, which runs on real time. A non-blocking spin
+                    // returns immediately and measures the frame that has not happened.
+                    const settle = (ready: () => boolean, ms: number): void => {
+                        let expired = false;
+                        const guard = GLib.timeout_add(GLib.PRIORITY_LOW, ms, () => {
+                            expired = true;
+                            return GLib.SOURCE_REMOVE;
+                        });
+                        while (!expired && !ready()) context.iteration(true);
+                        if (!expired) GLib.source_remove(guard);
+                    };
+                    settle(() => Math.round(scrolled.get_hadjustment().get_page_size()) > 0, 2000);
+                    const page = Math.round(scrolled.get_hadjustment().get_page_size());
+                    const minimum = content.measure(Gtk.Orientation.HORIZONTAL, -1)[0];
+                    const atMinimum = content.measure(Gtk.Orientation.VERTICAL, minimum)[0];
+                    const wanted = content.measure(Gtk.Orientation.VERTICAL, page)[0];
+
+                    // The control: the content FITS, so the two widths disagree, and
+                    // measured they disagree by a lot — a 76 px longest word inside a
+                    // 400 px viewport, 160 px tall against 36.
+                    expect(page).toBeGreaterThan(minimum);
+                    expect(wanted < atMinimum).toBe(true);
+                    // ON THE ALLOCATION, not the measurement: the measurement is
+                    // already right before any frame happens, and the whole question
+                    // this vector answers is whether the invalidation REACHES a
+                    // layout pass.
+                    settle(() => scrolled.get_height() === wanted, 2000);
+                    // The short one, which is the one a request could not reach. This
+                    // is also the vector that fails when the invalidation runs INLINE
+                    // in `notify::page-size` instead of one idle later: measured, the
+                    // measurement was already 36 and the scroller stayed at 160.
+                    // The short one, which is the one a request could not reach.
+                    expect(content.measure(Gtk.Orientation.VERTICAL, -1)[0]).toBe(wanted);
+                    expect(scrolled.get_height()).toBe(wanted);
+                } finally {
+                    root.unmount();
+                    window.destroy();
+                }
+            });
+
+            await it('reserves the height an image NEEDS, not the nothing it can be squeezed to', async () => {
+                // THE INDEX, and it is the difference between a rail of covers and a
+                // rail of captions. A scroller reserves the MINIMUM its child answers,
+                // and a `Gtk.Picture`'s vertical minimum is 0 because `can-shrink`
+                // lets it be squeezed away, while its natural is the height its width
+                // implies. So this override answers the natural for both.
+                //
+                // MEASURED IN THE APPLICATION this came from, with `Gtk.BoxLayout`'s
+                // two answers forwarded unchanged: the podcast rail read
+                // `heightRequest=[58, 202]`, the scroller took the 58 and every cover
+                // vanished — the same "labels and nothing for the images" the whole
+                // change exists to fix.
+                //
+                // 16x9 of opaque bytes is enough of an image. What matters is that the
+                // paintable HAS an aspect, so the picture's height is a function of
+                // its width; the file `<Image source>` points at does not exist, which
+                // is why the texture goes on through a ref.
+                const texture = Gdk.MemoryTexture.new(
+                    16,
+                    9,
+                    Gdk.MemoryFormat.R8G8B8A8,
+                    GLib.Bytes.new(new Uint8Array(16 * 9 * 4).fill(0xff)),
+                    16 * 4,
+                );
+                const tile = (key: string): ReactNode =>
+                    createElement(
+                        View,
+                        { key, style: { width: 116 } },
+                        createElement(Image, {
+                            source: { uri: IMAGE_SOURCE },
+                            style: { width: 116 },
+                            ref: (widget: unknown) => {
+                                if (widget !== null) (widget as Gtk.Picture).set_paintable(texture);
+                            },
+                        } as ImageProps & { ref: (widget: unknown) => void }),
+                        createElement(Text, null, 'Ein Titel'),
+                    );
+                const container = new Gtk.Box();
+                const root = createRoot(container);
+                try {
+                    root.render(
+                        createElement(
+                            ScrollView,
+                            { horizontal: true },
+                            ['a', 'b', 'c'].map((key) => tile(key)),
+                        ),
+                    );
+                    const content = find(gtkChildren(container)[0] as Gtk.Widget, 'GtkBox') as Gtk.Box;
+                    const width = content.measure(Gtk.Orientation.HORIZONTAL, -1)[0];
+
+                    const ours = content.get_layout_manager();
+                    content.set_layout_manager(new Gtk.BoxLayout({ orientation: Gtk.Orientation.HORIZONTAL }));
+                    const [squeezed, needed] = content.measure(Gtk.Orientation.VERTICAL, width);
+                    content.set_layout_manager(ours);
+
+                    // The control: the two answers really do differ on this tree, so
+                    // the assertion below is about the index and not about a number.
+                    expect(needed).toBeGreaterThan(squeezed);
+                    const answer = content.measure(Gtk.Orientation.VERTICAL, -1);
+                    expect(answer[0]).toBe(needed);
+                    expect(answer[1]).toBe(needed);
+                } finally {
+                    root.unmount();
+                }
+            });
+
+            await it('pairs the baseline it reports with the height it reports', async () => {
+                // THE LAST DECLARED GAP, closed with the tree review handed over. The
+                // override answers the natural height for BOTH numbers, so it has to
+                // answer the natural's baseline for both as well — pairing the
+                // minimum's baseline with the natural's height is off by the
+                // difference between them.
+                //
+                // The ingredient every earlier attempt here missed: `baseline-child`
+                // has to point at a child whose MIN AND NATURAL HEIGHTS DIFFER, which
+                // needs a `can-shrink` `Gtk.Picture` — vertical minimum 0, natural the
+                // height its width implies — above a label. On this tree
+                // `Gtk.BoxLayout` answers `[min 18, nat 84, minBaseline 15,
+                // natBaseline 48]`, so all three candidate answers are distinct: 48
+                // for both is this code, 15 for both was the mistake, -1 for both was
+                // the third option.
+                const texture = Gdk.MemoryTexture.new(
+                    16,
+                    9,
+                    Gdk.MemoryFormat.R8G8B8A8,
+                    GLib.Bytes.new(new Uint8Array(16 * 9 * 4).fill(0xff)),
+                    16 * 4,
+                );
+                const container = new Gtk.Box();
+                const root = createRoot(container);
+                try {
+                    root.render(
+                        createElement(
+                            ScrollView,
+                            { horizontal: true },
+                            createElement(
+                                View,
+                                { key: 'tile', style: { width: 116 } },
+                                createElement(Image, {
+                                    source: { uri: IMAGE_SOURCE },
+                                    style: { width: 116 },
+                                    ref: (widget: unknown) => {
+                                        if (widget !== null) (widget as Gtk.Picture).set_paintable(texture);
+                                    },
+                                } as ImageProps & { ref: (widget: unknown) => void }),
+                                createElement(Text, null, 'Ein Titel'),
+                            ),
+                            createElement(Text, { key: 'beside' }, 'beside'),
+                        ),
+                    );
+                    const content = find(gtkChildren(container)[0] as Gtk.Widget, 'GtkBox') as Gtk.Box;
+                    // Through the widget, as this file's spacing assertion already
+                    // does: `baseline-child` has no React Native counterpart to route.
+                    content.set_baseline_child(0);
+                    const width = content.measure(Gtk.Orientation.HORIZONTAL, -1)[0];
+
+                    const ours = content.get_layout_manager();
+                    content.set_layout_manager(new Gtk.BoxLayout({ orientation: Gtk.Orientation.HORIZONTAL }));
+                    content.set_baseline_child(0);
+                    const [, , minBaseline, natBaseline] = content.measure(Gtk.Orientation.VERTICAL, width);
+                    content.set_layout_manager(ours);
+
+                    // The control: the two baselines differ here, which is what no
+                    // earlier shape in this file managed and why this was declared
+                    // ungated rather than asserted.
+                    expect(natBaseline).toBeGreaterThan(minBaseline);
+                    const answer = content.measure(Gtk.Orientation.VERTICAL, -1);
+                    expect(answer[2]).toBe(natBaseline);
+                    expect(answer[3]).toBe(natBaseline);
+                } finally {
+                    root.unmount();
+                }
+            });
+
+            await it('follows a title that arrives from a re-render BELOW the scroller', async () => {
+                // THE LIMIT THAT USED TO BE PROSE. The request version measured once
+                // per commit OF THE SCROLLVIEW, and a `<ScrollView>` does not re-render
+                // when a child's own state changes — so a title arriving from a second
+                // fetch, a font load re-wrapping a label or an image finishing its
+                // decode left the height at its first answer for ever. In the
+                // application that was the third line of every card title, clipped.
+                //
+                // A layout manager has nothing to go stale: GTK re-measures on the
+                // child's own `queue_resize`. No window and no main loop, because the
+                // answer does not wait for an allocation.
+                let grow: ((text: string) => void) | null = null;
+                function Tile(): ReactNode {
+                    const [title, setTitle] = useState('kurz');
+                    grow = setTitle;
+                    return createElement(
+                        View,
+                        { style: { width: 116 } },
+                        createElement(Text, { numberOfLines: 3 }, title),
+                    );
+                }
+                const container = new Gtk.Box();
+                const root = createRoot(container);
+                try {
+                    root.render(createElement(ScrollView, { horizontal: true }, createElement(Tile)));
+                    const content = find(gtkChildren(container)[0] as Gtk.Widget, 'GtkBox') as Gtk.Box;
+                    const needed = (): number =>
+                        content.measure(
+                            Gtk.Orientation.VERTICAL,
+                            content.measure(Gtk.Orientation.HORIZONTAL, -1)[0],
+                        )[0];
+                    const short = needed();
+                    expect(content.measure(Gtk.Orientation.VERTICAL, -1)[0]).toBe(short);
+
+                    // The tile's OWN state, so the ScrollView's fiber never re-renders
+                    // and any commit-time measurement never runs again.
+                    flushSync(() => (grow as (text: string) => void)('Ein Titel, der über mehrere Zeilen läuft'));
+                    expect(needed()).toBeGreaterThan(short);
+                    expect(content.measure(Gtk.Orientation.VERTICAL, -1)[0]).toBe(needed());
+                } finally {
+                    root.unmount();
+                }
+            });
+
+            await it('leaves a ScrollView’s own contentContainerStyle height alone, on both axes and every commit', async () => {
+                // `contentContainerStyle` lands on the very node this hook touches, and
+                // `style.height` routes to `height-request`. The request version reset
+                // a declared height to -1 — on the vertical axis on the first commit,
+                // and MEASURED by review, on the horizontal axis one commit later:
+                // `declared=200 afterFirst=200 afterSecond=18`, because the clear ran
+                // before the re-measure. Writing nothing is what makes both safe, so
+                // the second render is the half that matters.
+                for (const horizontal of [false, true]) {
+                    const container = new Gtk.Box();
+                    const root = createRoot(container);
+                    try {
+                        const tree = (label: string): ReactNode =>
+                            createElement(
+                                ScrollView,
+                                { horizontal, contentContainerStyle: { height: 200 } },
+                                createElement(Text, null, label),
+                            );
+                        root.render(tree('row'));
+                        const scrolled = gtkChildren(container)[0] as Gtk.ScrolledWindow;
+                        const content = find(scrolled, 'GtkBox') as Gtk.Box;
+                        expect(content.heightRequest).toBe(200);
+                        flushSync(() => root.render(tree('row two')));
+                        expect(content.heightRequest).toBe(200);
+                    } finally {
+                        root.unmount();
+                    }
+                }
+            });
+
+            await it('leaves the content box a Gtk.Box, with the spacing and orientation the host gave it', async () => {
+                // THE HAZARD OF THE INSTRUMENT. A `Gtk.Box`'s orientation and spacing
+                // LIVE IN its layout manager, so swapping the manager out is exactly
+                // how a row silently becomes a column with no gaps. Measured: both
+                // read back through the subclass, and `Gtk.Box`'s own setters keep
+                // working because it casts its manager to `Gtk.BoxLayout`, which this
+                // still is.
+                mounted(
+                    createElement(
+                        ScrollView,
+                        { horizontal: true, contentContainerStyle: { gap: 12 } },
+                        createElement(Text, null, 'row'),
+                    ),
+                    (container) => {
+                        const content = find(gtkChildren(container)[0] as Gtk.Widget, 'GtkBox') as Gtk.Box;
+                        expect(content.get_orientation()).toBe(Gtk.Orientation.HORIZONTAL);
+                        expect(content.get_spacing()).toBe(12);
+                        content.set_spacing(4);
+                        expect(content.get_spacing()).toBe(4);
+                    },
+                );
+                // …and a vertical one keeps the manager the host installed.
+                mounted(createElement(ScrollView, null, createElement(Text, null, 'column')), (container) => {
+                    const content = find(gtkChildren(container)[0] as Gtk.Widget, 'GtkBox') as Gtk.Box;
+                    expect(content.get_orientation()).toBe(Gtk.Orientation.VERTICAL);
+                });
+                // A `horizontal` THAT TURNS FALSE gives the host's own manager back,
+                // which is the case a swap done once and never undone leaves behind —
+                // and `horizontal` is a prop like any other, so a screen really can
+                // flip it. The override answers the height at a width, which is the
+                // wrong question for a column: there the scroller scrolls vertically
+                // and GTK's own -1 is the right answer.
+                // A WRAPPING PARAGRAPH, so the two widths this class chooses between
+                // are far apart on the axis the flip lands on.
+                const paragraph = 'Ein Absatz, der über mehrere Zeilen läuft und dabei umbricht, mehrfach sogar';
+                const container = new Gtk.Box();
+                const root = createRoot(container);
+                const watchesBefore = railWatchCount();
+                try {
+                    root.render(createElement(ScrollView, { horizontal: true }, createElement(Text, null, paragraph)));
+                    const content = find(gtkChildren(container)[0] as Gtk.Widget, 'GtkBox') as Gtk.Box;
+                    const swapped = content.get_layout_manager();
+                    expect(railWatchCount()).toBe(watchesBefore + 1);
+                    flushSync(() =>
+                        root.render(
+                            createElement(ScrollView, { horizontal: false }, createElement(Text, null, paragraph)),
+                        ),
+                    );
+                    // The manager STAYS — putting the host's own back would lose the
+                    // orientation the host has just written onto this one — so it has
+                    // to go INERT, and this is the assertion that says it does.
+                    //
+                    // A column asks the question rarely and answering it is wrong when
+                    // it does: measured on this shape, `Gtk.BoxLayout` answers 18 for
+                    // a wrapping paragraph at `for_size -1` (its height at its own
+                    // natural width) where the correction would answer 178 (its height
+                    // at its longest word). A vertical `Gtk.ScrolledWindow` does not
+                    // ask it at any `hscrollbar-policy` — measured, zero calls at
+                    // never, external and automatic alike — but it asks once under
+                    // `propagate-natural-height`, which a consumer can set, and that
+                    // is the 160 px the first version of this file would have been out
+                    // by while calling the case unreachable.
+                    expect(content.get_layout_manager() === swapped).toBe(true);
+                    expect(content.get_orientation()).toBe(Gtk.Orientation.VERTICAL);
+                    expect(railWatchCount()).toBe(watchesBefore);
+
+                    const asOurs = content.measure(Gtk.Orientation.VERTICAL, -1)[0];
+                    const atLongestWord = content.measure(
+                        Gtk.Orientation.VERTICAL,
+                        content.measure(Gtk.Orientation.HORIZONTAL, -1)[0],
+                    )[0];
+                    const plain = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+                    plain.append(new Gtk.Label({ label: paragraph, wrap: true, xalign: 0 }));
+                    expect(atLongestWord).toBeGreaterThan(asOurs);
+                    expect(asOurs).toBe(plain.measure(Gtk.Orientation.VERTICAL, -1)[0]);
+                } finally {
+                    root.unmount();
+                }
+            });
+
+            await it('watches the viewport width for a rail and for nothing else', async () => {
+                // The `liveRegionWatchCount` shape, for the same reason: a column that
+                // subscribed anyway renders identically to one that did not, and only a
+                // count tells them apart. The unmount half matters on its own — GJS
+                // blocks a JS callback during the sweeping phase of GC, so a handler
+                // left connected is one connected for the life of the process.
+                const before = railWatchCount();
+                mounted(createElement(ScrollView, null, createElement(Text, null, 'column')), () =>
+                    expect(railWatchCount()).toBe(before),
+                );
+                mounted(createElement(ScrollView, { horizontal: true }, createElement(Text, null, 'row')), () =>
+                    expect(railWatchCount()).toBe(before + 1),
+                );
+                expect(railWatchCount()).toBe(before);
             });
 
             await it('puts a ScrollView’s children in the implicit content box', async () => {
