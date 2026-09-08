@@ -90,13 +90,20 @@ export interface FetchOptions {
     fetch?: typeof fetch;
     /**
      * Max retry attempts on transient failures (network errors, TLS handshake
-     * resets, 5xx, 408, 429). Default 3 → up to 4 total attempts. Set to 0
-     * to disable retry.
+     * resets, a body that stops arriving, 5xx, 408, 429). Default 5 → up to 6
+     * total attempts. Set to 0 to disable retry.
      */
     retries?: number;
     /**
-     * Initial backoff in ms; doubles per attempt. Default 250 → 250, 500, 1000.
-     * The cap is 8s per delay so a bad spell stays bounded.
+     * Initial backoff in ms; doubles per attempt. Default 1000 → 1s, 2s, 4s,
+     * 8s, 8s, so the default budget is ~23s of patience. The cap is 8s per
+     * delay so a bad spell stays bounded.
+     *
+     * Sized against npm, which waits ~70s across three attempts
+     * (`fetch-retries=2`, `fetch-retry-mintimeout=10s`, `fetch-retry-factor=10`)
+     * and pnpm, which ships the same numbers. The 1.75s this used to allow was
+     * short enough that one blip during a multi-thousand-request cold install
+     * failed the whole run.
      */
     retryDelayMs?: number;
     /**
@@ -110,7 +117,8 @@ export interface FetchOptions {
      * loop treats as transient (CDN slowdowns recover), so a slow attempt
      * gets retried per the retries / retryDelayMs schedule. When ALL
      * retries exhaust because of timeouts, a `RegistryTimeoutError` is
-     * thrown with a clear "timed out after Xs × N attempts" message.
+     * thrown with a clear "timed out after Xs × N attempts" message; when they
+     * exhaust at the network layer instead, a `RegistryUnreachableError`.
      */
     timeoutMs?: number;
     /**

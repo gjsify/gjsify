@@ -4,7 +4,8 @@
 //
 // Barrel — re-exports only. Implementation lives in the sibling modules:
 //   types.ts      shared shapes (NpmrcConfig, Packument*, FetchOptions)
-//   errors.ts     PackageNotFoundError / IntegrityError / RegistryTimeoutError
+//   errors.ts     PackageNotFoundError / IntegrityError / RegistryTimeoutError /
+//                 RegistryUnreachableError
 //   npmrc.ts      DEFAULT_REGISTRY, registryFor, parseNpmrc
 //   auth.ts       buildHeaders, resolveAuthForUrl
 //   retry.ts      fetchWithRetry (backoff + per-request timeout)
@@ -14,7 +15,7 @@
 //   whoami.ts     whoami
 
 export type { FetchOptions, NpmrcConfig, Packument, PackumentDist, PackumentVersion } from './types.js';
-export { IntegrityError, PackageNotFoundError, RegistryTimeoutError } from './errors.js';
+export { IntegrityError, PackageNotFoundError, RegistryTimeoutError, RegistryUnreachableError } from './errors.js';
 export { DEFAULT_REGISTRY, parseNpmrc, registryFor } from './npmrc.js';
 export { buildHeaders, resolveAuthForUrl } from './auth.js';
 export { fetchWithRetry } from './retry.js';

@@ -55,6 +55,14 @@ export function packumentUrl(name: string, registry: string): string {
 }
 
 /** Outcome of a conditional packument fetch ({@link fetchPackumentConditional}). */
+/**
+ * What the retried read hands back: the response classified, the body decoded,
+ * nothing validated. Separate from {@link ConditionalPackument} because that
+ * one carries a `Packument`, and knowing the body IS a packument is exactly the
+ * step that must happen after the last retry rather than inside it.
+ */
+type TransportResult = { status: 'not-modified' } | { status: 'fresh'; body: unknown; etag?: string };
+
 export interface ConditionalPackument {
     /** `'fresh'` — the registry returned a new body (200). `'not-modified'` —
      *  a 304, so the caller's cached copy is still current. */
@@ -99,7 +107,10 @@ export async function fetchPackumentConditional(
     headers['accept'] ??= opts.fullMetadata ? FULL_ACCEPT : CORGI_ACCEPT;
     if (opts.ifNoneMatch) headers['if-none-match'] = opts.ifNoneMatch;
 
-    const res = await fetchWithRetry(
+    // `read` keeps the body inside the retried region: a full packument for a
+    // popular package is megabytes, and a stream that stopped half way used to
+    // throw at `decodeJsonBody`, outside every retry (see fetchWithRetry).
+    const fetched = await fetchWithRetry(
         url,
         { headers, signal: opts.signal },
         {
@@ -108,37 +119,50 @@ export async function fetchPackumentConditional(
             retryDelayMs: opts.retryDelayMs,
             timeoutMs: opts.timeoutMs,
             onRetry: opts.onRetry,
+            read: async (res: Response): Promise<TransportResult> => {
+                if (res.status === 304) {
+                    // 304 is not `res.ok`; fetchWithRetry returns it un-retried
+                    // because isRetryableStatus(304) is false. Drain any (empty)
+                    // body so the connection can be reused.
+                    try {
+                        await res.arrayBuffer();
+                    } catch {
+                        /* empty 304 body — nothing to drain */
+                    }
+                    return { status: 'not-modified' };
+                }
+                if (!res.ok) {
+                    // 404 = package not found. 406 = Not Acceptable — with the q-list
+                    // `accept` above a registry that simply lacks the abbreviated document
+                    // no longer answers 406 (it falls back to `application/json`), so what
+                    // remains here is the addressability case: npm returns 406 when the URL
+                    // path is unrecognised (e.g. `%40scope/name` is parsed
+                    // as a sub-path of the synthetic `%40scope` resource rather than a
+                    // scoped package name). Both indicate the package is not addressable
+                    // in this registry and should surface as PackageNotFoundError so
+                    // optional deps are silently skipped and required-dep errors are
+                    // reported consistently.
+                    //
+                    // Both are non-transient, so raising them from inside `read`
+                    // propagates on the spot rather than costing the budget.
+                    if (res.status === 404 || res.status === 406) throw new PackageNotFoundError(name, url);
+                    throw new Error(`registry GET ${url} -> ${res.status} ${res.statusText}`);
+                }
+                return {
+                    status: 'fresh',
+                    body: await decodeJsonBody(res),
+                    etag: res.headers.get('etag') ?? undefined,
+                };
+            },
         },
     );
-    if (res.status === 304) {
-        // 304 is not `res.ok`; fetchWithRetry returns it un-retried because
-        // isRetryableStatus(304) is false. Drain any (empty) body so the
-        // connection can be reused.
-        try {
-            await res.arrayBuffer();
-        } catch {
-            /* empty 304 body — nothing to drain */
-        }
-        return { status: 'not-modified', etag: opts.ifNoneMatch };
-    }
-    if (!res.ok) {
-        // 404 = package not found. 406 = Not Acceptable — with the q-list
-        // `accept` above a registry that simply lacks the abbreviated document
-        // no longer answers 406 (it falls back to `application/json`), so what
-        // remains here is the addressability case: npm returns 406 when the URL
-        // path is unrecognised (e.g. `%40scope/name` is parsed
-        // as a sub-path of the synthetic `%40scope` resource rather than a
-        // scoped package name). Both indicate the package is not addressable
-        // in this registry and should surface as PackageNotFoundError so
-        // optional deps are silently skipped and required-dep errors are
-        // reported consistently.
-        if (res.status === 404 || res.status === 406) throw new PackageNotFoundError(name, url);
-        throw new Error(`registry GET ${url} -> ${res.status} ${res.statusText}`);
-    }
-    const etag = res.headers.get('etag') ?? undefined;
-    const body = await decodeJsonBody(res);
+    if (fetched.status === 'not-modified') return { status: 'not-modified', etag: opts.ifNoneMatch };
+    // Out here on purpose: `assertPackument` throws TypeError, which the retry
+    // loop reads as transient, so inside `read` a malformed packument would
+    // spend the whole budget before anyone was told why.
+    const body = fetched.body;
     assertPackument(name, body);
-    return { status: 'fresh', packument: body, etag };
+    return { status: 'fresh', packument: body, etag: fetched.etag };
 }
 
 /**

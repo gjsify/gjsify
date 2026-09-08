@@ -13,7 +13,9 @@ export async function fetchTarball(url: string, opts: FetchOptions & { integrity
     const headers = buildHeaders(url, { ...opts, acceptEncoding: 'identity' });
     headers['accept'] ??= 'application/octet-stream';
 
-    const res = await fetchWithRetry(
+    // `read`, not a read after the call: a tarball is the body most likely to be
+    // dropped part-way, and outside the retried region that throws unretried.
+    const buf = await fetchWithRetry(
         url,
         { headers, signal: opts.signal },
         {
@@ -25,10 +27,16 @@ export async function fetchTarball(url: string, opts: FetchOptions & { integrity
             // A tarball URL came from a resolved packument, so a 404 on the
             // `.tgz` is a transient CDN hiccup, not a missing artifact — retry it.
             retryNotFound: opts.retryNotFound ?? true,
+            read: async (res: Response) => {
+                // Reached only on a final status; a retryable one with attempts
+                // left never gets here.
+                if (!res.ok) throw new Error(`tarball GET ${url} -> ${res.status} ${res.statusText}`);
+                return new Uint8Array(await res.arrayBuffer());
+            },
         },
     );
-    if (!res.ok) throw new Error(`tarball GET ${url} -> ${res.status} ${res.statusText}`);
-    const buf = new Uint8Array(await res.arrayBuffer());
+    // Integrity stays OUTSIDE `read`: a mismatch is not a transport fault, and
+    // raised inside it the bytes would be re-fetched before anyone was told.
     if (opts.integrity) {
         const ok = await verifyIntegrity(buf, opts.integrity);
         if (!ok) throw new IntegrityError(url, opts.integrity);

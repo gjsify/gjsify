@@ -12,6 +12,7 @@ import {
     fetchTarball,
     PackageNotFoundError,
     IntegrityError,
+    RegistryUnreachableError,
     type NpmrcConfig,
 } from './index.js';
 
@@ -500,11 +501,16 @@ export default async () => {
             expect(calls).toBe(3); // initial + 2 retries
         });
 
-        await it('throws the underlying error after exhausting retries', async () => {
+        await it('names the URL and the attempts after exhausting retries', async () => {
+            // A bare `TypeError: fetch failed` used to propagate, which says
+            // nothing about which request of an install died or how hard it was
+            // tried — what made the red macOS run of 2026-09-08 unreadable. The
+            // underlying error stays reachable as `cause`.
             let calls = 0;
+            const underlying = new TypeError('fetch failed');
             const mock = makeMockFetch(async () => {
                 calls++;
-                throw new TypeError('fetch failed');
+                throw underlying;
             });
             let caught: Error | null = null;
             try {
@@ -512,8 +518,12 @@ export default async () => {
             } catch (e) {
                 caught = e as Error;
             }
-            expect(caught instanceof TypeError).toBe(true);
-            expect(caught?.message).toBe('fetch failed');
+            expect(caught instanceof RegistryUnreachableError).toBe(true);
+            expect((caught as RegistryUnreachableError).attempts).toBe(3);
+            expect((caught as RegistryUnreachableError).url).toMatch(/lodash$/);
+            expect(String(caught?.message)).toMatch(/3 attempt\(s\)/);
+            expect(String(caught?.message)).toMatch(/fetch failed/);
+            expect((caught as { cause?: unknown }).cause).toBe(underlying);
             // 1 initial + 2 retries = 3 total.
             expect(calls).toBe(3);
         });
@@ -542,6 +552,93 @@ export default async () => {
             expect(caught?.name).toBe('AbortError');
             // 1 initial attempt, then the abort fires during backoff.
             expect(calls).toBe(1);
+        });
+
+        await it('retries a tarball body that dies mid-stream', async () => {
+            // The regression: fetchWithRetry used to return as soon as the
+            // HEADERS were in, so `res.arrayBuffer()` ran outside every retry
+            // and a connection dropped mid-body ended the install where it stood.
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                if (calls < 3) {
+                    // undici's shape for a body that stops arriving: the status
+                    // line was fine, the stream was not.
+                    return new Response(
+                        new ReadableStream({
+                            start(controller) {
+                                controller.error(new TypeError('terminated'));
+                            },
+                        }),
+                        { status: 200 },
+                    );
+                }
+                return new Response(new Uint8Array([0x1f, 0x8b, 0x08]), { status: 200 });
+            });
+            const got = await fetchTarball('https://r/x.tgz', { fetch: mock, retries: 3, retryDelayMs: 1 });
+            expect(got.length).toBe(3);
+            expect(calls).toBe(3);
+        });
+
+        await it('retries a packument body that dies mid-stream', async () => {
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                if (calls < 2) {
+                    return new Response(
+                        new ReadableStream({
+                            start(controller) {
+                                controller.enqueue(new TextEncoder().encode('{"name":"lod'));
+                                controller.error(new TypeError('terminated'));
+                            },
+                        }),
+                        { status: 200, headers: { 'content-type': 'application/json' } },
+                    );
+                }
+                return new Response(JSON.stringify({ name: 'lodash', 'dist-tags': {}, versions: {} }), {
+                    status: 200,
+                });
+            });
+            const p = await fetchPackument('lodash', { fetch: mock, retries: 3, retryDelayMs: 1 });
+            expect(p.name).toBe('lodash');
+            expect(calls).toBe(2);
+        });
+
+        await it('does NOT retry a packument that arrived whole but malformed', async () => {
+            // `assertPackument` throws TypeError, which isRetryableError reads
+            // as transient, so it has to stay OUTSIDE the retried read or a bad
+            // packument costs the whole budget before anyone is told why.
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                return new Response(JSON.stringify({ name: 'lodash' }), { status: 200 });
+            });
+            let threw = false;
+            try {
+                await fetchPackument('lodash', { fetch: mock, retries: 3, retryDelayMs: 1 });
+            } catch (e) {
+                threw = true;
+                expect(String((e as Error).message)).toMatch(/missing versions map/);
+            }
+            expect(threw).toBe(true);
+            expect(calls).toBe(1);
+        });
+
+        await it('defaults to 6 attempts', async () => {
+            // The shipped budget, asserted because it is the number that decides
+            // whether a real registry blip fails an install. retryDelayMs is
+            // overridden so the test does not actually wait the default ~23s.
+            let calls = 0;
+            const mock = makeMockFetch(async () => {
+                calls++;
+                throw new TypeError('fetch failed');
+            });
+            try {
+                await fetchPackument('lodash', { fetch: mock, retryDelayMs: 1 });
+            } catch {
+                /* expected — we are counting attempts, not asserting the throw */
+            }
+            expect(calls).toBe(6);
         });
 
         await it('retries: 0 disables retry path', async () => {

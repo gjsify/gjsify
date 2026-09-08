@@ -1,7 +1,14 @@
 // Exponential-backoff retry + per-request timeout around a single registry GET.
 
-import { RegistryTimeoutError } from './errors.js';
+import { RegistryTimeoutError, RegistryUnreachableError } from './errors.js';
 import type { FetchOptions } from './types.js';
+
+/** `compress` is forwarded verbatim to the fetch impl. On @gjsify/fetch (GJS)
+ * `compress: false` disables transparent gzip decoding so the caller can
+ * buffer-then-gunzip itself; Node's undici ignores the field. */
+type RetryInit = { headers: Record<string, string>; signal?: AbortSignal; compress?: boolean };
+
+type RetryOpts = Pick<FetchOptions, 'fetch' | 'retries' | 'retryDelayMs' | 'timeoutMs' | 'onRetry' | 'retryNotFound'>;
 
 /**
  * Wrap a single GET in exponential-backoff retry for transient failures.
@@ -16,6 +23,8 @@ import type { FetchOptions } from './types.js';
  *     surfaced by a fired timeout signal is treated as transient (slow
  *     CDN) and retried like any other network blip; distinguished from
  *     a caller-triggered abort via the abort signal's `reason` identity.
+ *   - a body that stops arriving mid-stream, but ONLY when the caller passes
+ *     `opts.read` (see below)
  *
  * Does NOT retry on:
  *   - 4xx other than 408/425/429 (semantic errors — 404 surfaces via the
@@ -25,30 +34,52 @@ import type { FetchOptions } from './types.js';
  *   - AbortError from the CALLER's signal (`opts.signal` — caller wants out)
  *   - any other thrown shape that doesn't look transient
  *
- * Default schedule: 250ms, 500ms, 1000ms (3 retries → 4 total attempts);
- * capped at 8s per delay. Caller can tune via opts.retries / opts.retryDelayMs
- * / opts.timeoutMs.
+ * `opts.read` brings the BODY inside the retried region. Without it this
+ * returns once the HEADERS are in, so a caller's `res.arrayBuffer()` /
+ * `res.json()` runs outside every retry and a connection dying mid-body throws
+ * there, unretried.
  *
- * When ALL retries exhaust because of per-request timeouts, throws a
- * typed `RegistryTimeoutError` (not the raw "signal is aborted without
- * reason" the underlying fetch would surface) so the user gets a clear
- * "<url> timed out after Xs × N attempts" message.
+ * Keep VALIDATION out of `read` (`assertPackument`, SRI): `assertPackument`
+ * throws `TypeError`, which {@link isRetryableError} reads as transient, so a
+ * malformed packument would spend the whole budget and then be reported as a
+ * network fault. `read` covers transport; the caller checks what arrived.
+ *
+ * Default schedule: 1s, 2s, 4s, 8s, 8s (5 retries → 6 attempts, ~23s of
+ * patience), capped at 8s per delay. Tunable via opts.retries /
+ * opts.retryDelayMs / opts.timeoutMs. The previous 250/500/1000ms was two
+ * orders of magnitude under npm, whose defaults (`fetch-retries=2`,
+ * `fetch-retry-mintimeout=10s`, `fetch-retry-factor=10`) wait ~70s, and pnpm
+ * ships npm's numbers. A cold install fans the whole dependency closure out at
+ * 16-way concurrency for minutes, so a blip need only outlast the budget ONCE
+ * to fail the run: this repository's macOS CI went red that way on 2026-09-08,
+ * at 32% of an `install --immutable`, on a single `fetch failed`.
+ *
+ * When ALL retries exhaust, throws a typed error naming the URL and the
+ * attempts spent instead of whatever shape the runtime hands us:
+ * `RegistryTimeoutError` for per-request timeouts, `RegistryUnreachableError`
+ * (original error as `cause`) at the network layer. An unattributed
+ * `fetch failed` does not say which request of an install died, or how hard it
+ * was tried.
  */
-export async function fetchWithRetry(
+export async function fetchWithRetry(url: string, init: RetryInit, opts: RetryOpts): Promise<Response>;
+export async function fetchWithRetry<T>(
     url: string,
-    // `compress` is forwarded verbatim to the fetch impl. On @gjsify/fetch
-    // (GJS) `compress: false` disables transparent gzip decoding so the caller
-    // can buffer-then-gunzip itself; Node's undici ignores the field.
-    init: { headers: Record<string, string>; signal?: AbortSignal; compress?: boolean },
-    opts: Pick<FetchOptions, 'fetch' | 'retries' | 'retryDelayMs' | 'timeoutMs' | 'onRetry' | 'retryNotFound'>,
-): Promise<Response> {
+    init: RetryInit,
+    opts: RetryOpts & { read: (res: Response) => Promise<T> },
+): Promise<T>;
+export async function fetchWithRetry<T>(
+    url: string,
+    init: RetryInit,
+    opts: RetryOpts & { read?: (res: Response) => Promise<T> },
+): Promise<T | Response> {
     const fetchImpl = opts.fetch ?? globalThis.fetch;
     if (!fetchImpl) throw new Error('@gjsify/npm-registry: globalThis.fetch is missing');
 
-    const maxRetries = Math.max(0, opts.retries ?? 3);
-    const baseDelay = Math.max(0, opts.retryDelayMs ?? 250);
+    const maxRetries = Math.max(0, opts.retries ?? 5);
+    const baseDelay = Math.max(0, opts.retryDelayMs ?? 1000);
     const timeoutMs = Math.max(0, opts.timeoutMs ?? 30_000);
     const retryNotFound = opts.retryNotFound ?? false;
+    const startedAt = Date.now();
     let attempt = 0;
     let lastErr: unknown;
     let timeoutHits = 0;
@@ -79,7 +110,10 @@ export async function fetchWithRetry(
             const res = await fetchImpl(url, { ...init, signal: composedSignal });
             const retryable = isRetryableStatus(res.status) || (retryNotFound && res.status === 404);
             if (res.ok || !retryable || attempt >= maxRetries) {
-                return res;
+                // `read` runs INSIDE the try, so a body that stops arriving
+                // mid-stream is classified and retried like any other network
+                // error instead of throwing at the caller, unretried.
+                return opts.read ? await opts.read(res) : res;
             }
             // Drain the body so the underlying connection can be reused.
             try {
@@ -112,7 +146,10 @@ export async function fetchWithRetry(
                 // upstream `try/catch` patterns recognize the shape.
                 throw signalAbortError(init.signal);
             } else {
-                if (!isRetryableError(err) || attempt >= maxRetries) throw err;
+                if (!isRetryableError(err)) throw err;
+                if (attempt >= maxRetries) {
+                    throw new RegistryUnreachableError(url, attempt + 1, Date.now() - startedAt, err);
+                }
                 lastErr = err;
             }
         } finally {
