@@ -10,27 +10,27 @@ and you get a real GTK 4 / Adwaita application: one native process, no bundled
 browser engine, no second process behind the window. GTK and libadwaita stay
 exactly as they are, reached through `gi://` imports.
 
-Four JavaScript runtimes can execute that app, and the choice is yours: GJS,
-Node.js, Bun or Deno. What differs between them is where `gi://` comes from and
-how far the app travels. GJS is GNOME's own JavaScript runtime, so it resolves
-`gi://` itself with nothing in between; Linux distributions ship it and Homebrew
-builds it for macOS, but there is none for Windows. On Node, Bun and Deno the
-same imports resolve through [`@gjsify/node-gi`](/gjsify/projects/node-gi/), a
-Node-API addon, which is the route that reaches all three operating systems.
+Four JavaScript runtimes can run that app: GJS, Node.js, Bun and Deno. What
+differs between them is where `gi://` comes from. GJS is GNOME's own JavaScript
+runtime, so it resolves `gi://` itself with nothing in between. Linux
+distributions ship it and Homebrew builds it for macOS, but there is no GJS for
+Windows. On Node, Bun and Deno the same imports resolve through
+[`@gjsify/node-gi`](/gjsify/projects/node-gi/), a Node-API addon, and that is the
+route reaching all three operating systems.
 
 The code you write is the same either way. Where a runtime has no implementation
 of its own, gjsify supplies one: on GJS that means `node:fs`, `fetch`, `WebSocket`
 and `<canvas>`, backed by Gio, libsoup and Cairo, which is what lets a large slice
-of npm run there. Where the runtime already has the module, the runtime's own is
-used.
+of npm run there. Where the runtime already has the module, you get the runtime's
+own.
 
-**What you can build with it:** a desktop app with the full Adwaita widget set, a
-game rendering with WebGL into a real `Gtk.GLArea` or with Canvas 2D into a
-`Gtk.DrawingArea` (three.js and Excalibur.js run unmodified), a command-line tool,
-or an HTTP server on Express or Hono. `gjsify create` scaffolds a starter for each
-of those — a bare `Gtk.Window` if you want to begin from nothing — and every one
-of them builds for all four runtimes. The same source can also be built for the
-browser.
+**What you can build.** A desktop app with the full Adwaita widget set. A game
+rendering with WebGL into a real `Gtk.GLArea` or with Canvas 2D into a
+`Gtk.DrawingArea`, where three.js and Excalibur.js run unmodified. A command-line
+tool. An HTTP server on Express or Hono. `gjsify create` scaffolds a starter for
+each of those, and a bare `Gtk.Window` if you want to begin from nothing. Every
+one of them builds for all four runtimes, and the same source builds for the
+browser too.
 
 The CLI runs on all four runtimes as well, so you develop with the one you already
 have.
@@ -44,9 +44,10 @@ Where your code runs is a flag on the build, not a decision baked into your app:
 
 | `gjsify build --app` | Runs on | What that gives you |
 |---|---|---|
-| `gjs` | GJS, on Linux; macOS in part | GNOME's own interpreter resolves `gi://` directly, with nothing bridging into GTK. Linux distributions ship the runtime; on macOS it comes from Homebrew and only part of the surface is verified there; there is no `gjs` for Windows. |
+| `gjs` | GJS, on Linux; macOS in part | GNOME's own interpreter resolves `gi://` directly, with nothing bridging into GTK. Linux distributions ship the runtime. On macOS it comes from Homebrew and only part of it is verified there, and there is no `gjs` for Windows. |
 | `node` | Node.js, Bun and Deno, on Linux, macOS and Windows | One bundle for all three, because Node-API is their common ABI. `gi://` goes through `@gjsify/node-gi`, and `@gjsify/gtk-runtime-darwin-arm64`, `-darwin-x64` and `-win32-x64` carry GTK itself, so those two platforms need no system GTK. |
 | `browser` | any modern browser | No native code at all, so it is portable by construction. Adwaita comes over as Web Components through `@gjsify/adwaita-web`. |
+| `nativescript` | Android and iOS, experimental | Real native views, no webview. `@gjsify/adwaita-nativescript` carries the widget set. Try it; do not ship on it yet. See [Runtimes](/gjsify/runtimes/#mobile-with-nativescript-experimental). |
 
 The flag defaults to whatever runtime is running the CLI, so a CLI installed
 through the GJS bootstrap builds `gjs` bundles and one installed with npm, Bun or
@@ -63,7 +64,7 @@ operating-system question.
 - [Widget Gallery](/gjsify/adwaita/): every Adwaita component, with live previews and code
 - [UI Frameworks](/gjsify/frameworks/): render a GTK window from Solid, Vue, React or React Native
 - [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/): the app shell, navigation, dialogs and toasts
-- [Runtimes](/gjsify/runtimes/): GJS, Node.js, Bun, Deno and the browser, and what runs where
+- [Runtimes](/gjsify/runtimes/): GJS, Node.js, Bun, Deno, the browser and mobile, and what runs where
 - [Packages](/gjsify/packages/overview/): the Node.js, Web and DOM APIs gjsify implements
 - [Showcases](/gjsify/showcases/): full apps that run natively and in your browser from one source
 - [CLI Reference](/gjsify/cli-reference/): every `gjsify` command and flag

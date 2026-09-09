@@ -19,11 +19,11 @@ app.get('/', (_req: Request, res: Response) => res.type('html').send(html));
 app.listen(8080);
 ```
 
-That file builds and runs on all four runtimes, and nothing in it mentions `@gjsify`. What changes is what the imports resolve to. An `--app gjs` build rewrites `node:fs` to `@gjsify/fs` (backed by `Gio.File`), and every `node:*` import inside `express` and its dependencies goes the same way. An `--app node` build leaves them alone, because Node, Bun and Deno ship those builtins themselves. The details are in [How It Works](/gjsify/how-it-works/).
+That file builds and runs on all four runtimes, and nothing in it mentions `@gjsify`. What changes is what the imports resolve to. An `--app gjs` build rewrites `node:fs` to `@gjsify/fs`, backed by `Gio.File`, and every `node:*` import inside `express` and its dependencies goes the same way. An `--app node` build leaves them alone, because Node, Bun and Deno ship those builtins themselves. [How It Works](/gjsify/how-it-works/) has the details.
 
 ## Install a package from npm
 
-Install it like any other dependency. Each of these installers writes the module layout its own runtime resolves against, so use the one your project is set up for.
+Install it like any other dependency. Each installer writes the module layout its own runtime resolves against, so use the one your project is set up for.
 
 <CommandTabs title="Install express">
   <Fragment slot="gjsify">
@@ -48,7 +48,7 @@ Install it like any other dependency. Each of these installers writes the module
   </Fragment>
 </CommandTabs>
 
-You do not add `@gjsify/fs`, `@gjsify/http` or any other polyfill by hand. `@gjsify/cli` depends on the two umbrella packages `@gjsify/node-polyfills` and `@gjsify/web-polyfills`, so once the CLI is a devDependency of your project (every scaffold from `gjsify create` has it), the whole polyfill set is already resolvable.
+You never add `@gjsify/fs`, `@gjsify/http` or any other polyfill by hand. `@gjsify/cli` depends on two umbrella packages, `@gjsify/node-polyfills` and `@gjsify/web-polyfills`. Once the CLI is a devDependency of your project, and every scaffold from `gjsify create` has it, the whole polyfill set is already resolvable.
 
 ## Import Node.js builtins
 
@@ -65,7 +65,7 @@ The bare form (`import fs from 'fs'`) resolves too, so dependencies written befo
 
 ## Use Web APIs without importing anything
 
-`fetch`, `WebSocket`, `crypto.subtle`, `ReadableStream` and friends are globals, not imports. An `--app gjs` build detects which ones your bundle actually reaches and registers only those. An `--app node` build injects none of them, since Node, Bun and Deno already have them:
+`fetch`, `WebSocket`, `crypto.subtle` and `ReadableStream` are globals, not imports. An `--app gjs` build detects which ones your bundle actually reaches and registers only those. An `--app node` build injects none of them, since Node, Bun and Deno already have them:
 
 ```typescript
 const response = await fetch('https://api.example.com/data');
@@ -122,16 +122,16 @@ These are the things that have no standard bare specifier:
 | Reverse bridge | 1 | [`@gjsify/node-gi`](/gjsify/projects/node-gi/), GObject-Introspection on Node.js, Bun and Deno |
 | Forward bridge | 1 | [`@gjsify/napi`](/gjsify/projects/napi/), native Node.js N-API `.node` addons in GJS |
 
-How much of each pillar is implemented is on [Coverage](/gjsify/coverage/), which renders it from generated data, module by module — one place, checked, rather than a percentage repeated here by hand. The three linked pages enumerate the modules and standards themselves, which is where a count belongs: a rendered list cannot disagree with itself, and a number typed beside it in another page has nothing holding it.
+[Coverage](/gjsify/coverage/) says how much of each row is implemented, module by module, rendered from generated data. No percentage is repeated here by hand: a rendered list cannot disagree with itself, and a number typed beside it on another page has nothing holding it.
 
 <BridgesGrid />
 
 ## Will my dependency work?
 
-The honest answer depends on what it reaches for. Two things help you decide before you try:
+It depends on what it reaches for, and two checks tell you before you try.
 
-- **Check the module list.** If your dependency only touches modules marked Full on the [Node.js](/gjsify/packages/node/) and [Web APIs](/gjsify/packages/web/) pages, it will almost certainly run.
-- **Check the integration suites.** Real npm packages whose own test suites run unmodified against `@gjsify/*` are listed on [Coverage](/gjsify/coverage/): `axios`, `socket.io`, `yargs`, `execa`, `fast-glob`, `cosmiconfig`, `webtorrent`, `acorn` and more. Express, three.js and Excalibur.js run as full [showcases](/gjsify/showcases/).
+- **The module list.** If your dependency only touches modules marked Full on the [Node.js](/gjsify/packages/node/) and [Web APIs](/gjsify/packages/web/) pages, it will almost certainly run.
+- **The integration suites.** [Coverage](/gjsify/coverage/) lists the real npm packages whose own test suites run unmodified against `@gjsify/*`: `axios`, `socket.io`, `yargs`, `execa`, `fast-glob`, `cosmiconfig`, `webtorrent`, `acorn` and more. Express, three.js and Excalibur.js run as full [showcases](/gjsify/showcases/).
 
 If a build fails on a missing global, the error names the identifier and [How It Works](/gjsify/how-it-works/) shows the one-flag fix.
 
@@ -141,4 +141,4 @@ If a build fails on a missing global, the error names the identifier and [How It
 - [Web APIs](/gjsify/packages/web/), the standards that work as globals
 - [DOM & Graphics](/gjsify/packages/dom/), canvas, WebGL, video and iframes inside GTK windows
 - [Versioning](/gjsify/versioning/), how to upgrade `@gjsify/*` safely
-- [Runtimes](/gjsify/runtimes/), the same source on GJS, Node.js, Bun, Deno and the browser
+- [Runtimes](/gjsify/runtimes/), the same source on GJS, Node.js, Bun, Deno, the browser and mobile
