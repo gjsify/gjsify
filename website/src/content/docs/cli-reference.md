@@ -1,6 +1,6 @@
 ---
 title: CLI Reference
-description: Every gjsify command, with the flags, defaults and examples you actually need.
+description: Every gjsify command, with its flags, defaults and examples.
 ---
 
 `gjsify` is the only binary a GJSify project needs. It scaffolds, builds, runs, tests, formats, packages and publishes.
@@ -22,9 +22,9 @@ deno run -A --reload --min-dep-age=0 npm:@gjsify/cli@latest <command>
 
 See [Install & Update](/gjsify/guides/install/) for the details.
 
-Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin, so a plain `npx @gjsify/cli …` can go on serving a release from months ago, and Deno adds a second rule that refuses anything published in the last 24 hours. Neither one tells you it happened; [Which version do `npx`, `bunx` and `deno run` give you?](/gjsify/guides/install/#which-version-do-npx-bunx-and-deno-run-give-you) has the measurement. Every example below writes plain `gjsify`; swap in whichever launcher you use.
+Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin, so a plain `npx @gjsify/cli …` can go on serving a release from months ago. Deno adds a second rule and refuses anything published in the last 24 hours. Neither one tells you it happened. [Which version do `npx`, `bunx` and `deno run` give you?](/gjsify/guides/install/#which-version-do-npx-bunx-and-deno-run-give-you) has the measurement. Every example below writes plain `gjsify`. Swap in whichever launcher you use.
 
-`gjsify --help` lists every command, and its last line tells you which runtime the CLI itself is on, for example `Running on GJS 1.88.1 (SpiderMonkey)` or `Running on Node.js v24.x.y`. Each command prints its own flags with `gjsify <command> --help`, except the two pass-through commands, `run` and `tsc`, which hand `--help` to the target they launch. That host runtime picks the default `--app` target for `gjsify build` and the default `--runtime` for `gjsify run` and `gjsify storybook`.
+`gjsify --help` lists every command, and its last line tells you which runtime the CLI itself is on, for example `Running on GJS 1.88.1 (SpiderMonkey)` or `Running on Node.js v24.x.y`. Each command prints its own flags with `gjsify <command> --help`. The two pass-through commands, `run` and `tsc`, hand `--help` to the target they launch instead. That host runtime picks the default `--app` target for `gjsify build` and the default `--runtime` for `gjsify run` and `gjsify storybook`.
 
 ## Commands at a glance
 
@@ -55,7 +55,7 @@ gjsify create my-app --template cli --package-manager pnpm --install
 gjsify create                       # pick template, runtime and manager interactively
 ```
 
-On a terminal it asks three questions in order (template, runtime, package manager), each narrowing the next. Every one can be answered by a flag instead, which is also how it is driven without a TTY. `npm create @gjsify/app` is the same scaffolder and takes the same flags.
+On a terminal it asks three questions in order (template, runtime, package manager), each narrowing the next. Every one can be answered by a flag instead, which is how you drive it without a TTY. `npm create @gjsify/app` is the same scaffolder and takes the same flags.
 
 | Option | Default | Description |
 |---|---|---|
@@ -66,7 +66,7 @@ On a terminal it asks three questions in order (template, runtime, package manag
 | `-f`, `--force` | `false` | Scaffold into a directory that already has files in it. |
 | `--install` | `false` | Run an install right after scaffolding. |
 
-An installer has to produce the module layout its runtime resolves against, so the runtime decides which managers are offered: `gjs` → `gjsify`; `node` → `npm`, `yarn`, `pnpm`, `gjsify`; `bun` → `bun`; `deno` → `deno`. Where a runtime offers exactly one, nothing is asked: it is used and announced. Passing `-p` without `-r` settles the runtime too, since a pinned manager already names one (`-p bun` sets the project up for Bun).
+An installer has to produce the module layout its runtime resolves against, so the runtime decides which managers are offered: `gjs` → `gjsify`; `node` → `npm`, `yarn`, `pnpm`, `gjsify`; `bun` → `bun`; `deno` → `deno`. Where a runtime offers exactly one, nothing is asked. gjsify uses it and says so. Passing `-p` without `-r` settles the runtime too, since a pinned manager already names one (`-p bun` sets the project up for Bun).
 
 The templates:
 
@@ -80,7 +80,7 @@ The templates:
 | `web-server-express` | HTTP server on Express. |
 | `web-server-hono` | HTTP server on Hono, fetch-style API. |
 
-Every template ships `src/`, a `tsconfig.json` and a `package.json` with `build`, `start`, `dev`, `check` and `clear` scripts. All seven declare `gjs`, `node`, `bun` and `deno` in `gjsify.example.runtimes` and build both bundles (`build:gjs` and `build:node`), so `-r` decides which start script the printed next steps name (`start` for gjs, `start:node`, `start:bun` or `start:deno` for the others), not what the project can do later. The GTK templates list `@gjsify/node-gi` as a dependency, which is what carries `gi://` on the three non-GJS runtimes. Scaffolding is done by [`@gjsify/create-app`](https://www.npmjs.com/package/@gjsify/create-app).
+Every template ships `src/`, a `tsconfig.json` and a `package.json` with `build`, `start`, `dev`, `check` and `clear` scripts. All seven declare `gjs`, `node`, `bun` and `deno` in `gjsify.example.runtimes` and build both bundles (`build:gjs` and `build:node`). So `-r` only decides which start script the printed next steps name: `start` for gjs, `start:node`, `start:bun` or `start:deno` for the others. It does not limit what the project can do later. The GTK templates list `@gjsify/node-gi` as a dependency, which is what carries `gi://` on the three non-GJS runtimes. Scaffolding is done by [`@gjsify/create-app`](https://www.npmjs.com/package/@gjsify/create-app).
 
 ## Build and run
 
@@ -103,7 +103,7 @@ gjsify build src/index.ts --watch                               # rebuild on cha
 | `--minify` | bool | `true` | Minify the output. Pass `--no-minify` for pretty-printed code. |
 | `--globals` | string | `auto` | Which globals to inject. See [Globals](#globals). |
 | `--dialect` | `react-native` | none | Build a React Native application for a desktop target. Aliases `react-native` to [`@gjsify/react-native`](/gjsify/frameworks/react-native/) so your files keep the import they already have, and fails the build on a name that layer does not implement, naming the file and the line. Opt-in only, on `--app gjs` and `--app node`; also readable as `gjsify.dialect` in `package.json`. |
-| `--gi-renderer` | bool | `false` | Resolve `gi://Ns?version=X` to the target's widget renderer instead of to an empty module, so `import Adw from 'gi://Adw?version=1'` is the same line on every target. `--app browser` answers `gi://Adw` and `gi://Gtk` out of [`@gjsify/adwaita-web`](/gjsify/widgets/), `--app nativescript` out of `@gjsify/adwaita-nativescript`; `@girs/adw-1` reaches the same namespace. A namespace with no renderer, and a `?version=` the renderer's vocabulary was not generated against, both FAIL the build by name, and reading a widget the renderer does not ship throws naming it. Opt-in only, on those two targets. |
+| `--gi-renderer` | bool | `false` | Resolve `gi://Ns?version=X` to the target's widget renderer instead of to an empty module, so `import Adw from 'gi://Adw?version=1'` is the same line on every target. `--app browser` answers `gi://Adw` and `gi://Gtk` out of [`@gjsify/adwaita-web`](/gjsify/adwaita/), `--app nativescript` out of `@gjsify/adwaita-nativescript`; `@girs/adw-1` reaches the same namespace. A namespace with no renderer, and a `?version=` the renderer's vocabulary was not generated against, both FAIL the build by name, and reading a widget the renderer does not ship throws naming it. Opt-in only, on those two targets. |
 | `--exclude-globals` | list | none | Identifiers to drop from the auto-detected set, for false positives out of dead compat code (`--exclude-globals fetch,XMLHttpRequest`). |
 | `--shebang` | bool | `false` | Prepend a target-appropriate shebang and `chmod 755` the output: `#!/usr/bin/env -S gjs -m` for `--app gjs`, `#!/usr/bin/env node` for `--app node`. Needs a single `--outfile`. |
 | `-w`, `--watch` | bool | `false` | Watch sources and rebuild on change, logging each rebuild with its duration. Ctrl-C stops it cleanly. Rejected with `--library`, and it needs the npm `rolldown` engine, so run it under Node. On GJS use [`gjsify dev`](#gjsify-dev), which needs no watcher API and relaunches the app too. |
@@ -126,7 +126,7 @@ gjsify build src/index.ts --watch                               # rebuild on cha
 
 For `--app gjs` the JS target is `firefox140` (SpiderMonkey 140), and `gi://*`, `cairo`, `system` and `gettext` stay external. For `--app node` the target is `node24`.
 
-**Native N-API addons on GJS.** A `--app gjs` build routes a compiled `.node` addon through [`@gjsify/napi`](/gjsify/projects/napi/)'s `loadAddon`, intercepting the addon's own `bindings` or `node-gyp-build` helper (or a direct `.node` import) and finding the binary with node-gyp-build's probe order. So `import Database from 'better-sqlite3'` works after `gjsify install @gjsify/napi`, with no config. It does nothing when no native addon is in the graph, and it never applies to `--app node`, `browser` or `nativescript`.
+**Native N-API addons on GJS.** A `--app gjs` build routes a compiled `.node` addon through [`@gjsify/napi`](/gjsify/projects/napi/)'s `loadAddon`. It intercepts the addon's own `bindings` or `node-gyp-build` helper, or a direct `.node` import, and finds the binary with node-gyp-build's probe order. So `import Database from 'better-sqlite3'` works after `gjsify install @gjsify/napi`, with no config. It does nothing when no native addon is in the graph, and it never applies to `--app node`, `browser` or `nativescript`.
 
 </details>
 
@@ -141,17 +141,17 @@ gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs
 - [`@gjsify/rolldown-plugin-solid`](/gjsify/frameworks/solid/) for SolidJS JSX
 - [`@gjsify/rolldown-plugin-vue`](/gjsify/frameworks/vue/) for Vue single-file components
 
-**`--app gjs` refuses a JSX entry that configures no transform**, and that refusal is the point. Left unset, the transformer applies its own default — the automatic React runtime — so the bundle imports `react/jsx-runtime`. GJS resolves no bare specifier, so the build would report the miss as a *warning*, exit 0, and the artifact would abort at load with `ImportError: Module not found: react/jsx-runtime`. On a project that does have React installed it is worse: the bundle builds React elements, which a GTK host does nothing with.
+**`--app gjs` refuses a JSX entry that configures no transform**, and that refusal is the point. Left unset, the transformer falls back to the automatic React runtime, so the bundle imports `react/jsx-runtime`. GJS resolves no bare specifier, so the build would report the miss as a *warning*, exit 0, and the artifact would abort at load with `ImportError: Module not found: react/jsx-runtime`. On a project that does have React installed it is worse: the bundle builds React elements, which a GTK host does nothing with.
 
 Answer the question one of three ways, and the error message lists all three:
 
 | Answer | How |
 |---|---|
 | Preserve the JSX for a framework compiler | `"jsx": "preserve"` in tsconfig or `gjsify.bundler.transform.jsx`, plus the plugin above. Pair with tsconfig `"jsxImportSource": "@gjsify/gtk-host"` for the types. |
-| Use an automatic runtime you actually have | `"jsx": "react-jsx"` + `"jsxImportSource": "<pkg exporting ./jsx-runtime>"`. **Not** `@gjsify/gtk-host` — its `/jsx-runtime` is a type surface and throws when called. |
+| Use an automatic runtime you actually have | `"jsx": "react-jsx"` + `"jsxImportSource": "<pkg exporting ./jsx-runtime>"`. **Not** `@gjsify/gtk-host`. Its `/jsx-runtime` is types only and throws when called. |
 | Say the entry holds no JSX | `"jsx": false`, and the transformer reports the JSX itself. |
 
-`--app node` and `--app browser` are unaffected: the React default is a legitimate answer there, and refusing would break builds for a mistake they did not make.
+`--app node` and `--app browser` are unaffected. The React default is a legitimate answer there, and refusing would break builds for a mistake they did not make.
 
 #### Bundle a third-party CLI that reads its own `package.json`
 
@@ -195,7 +195,7 @@ gjsify build src/index.ts -o dist/index.js --verbose
 #   AbortSignal, Buffer, HTMLElement, document, fetch, navigator, …
 ```
 
-The multi-pass machinery behind this is described in [How It Works](/gjsify/how-it-works/#automatic-globals-detection).
+[How It Works](/gjsify/how-it-works/#automatic-globals-detection) describes the multi-pass machinery.
 
 ### Known identifiers
 
@@ -309,7 +309,7 @@ These are deliberately not part of the coarse `dom` group. Injecting one require
 
 Identifiers outside this table are ignored. If you still hit `ReferenceError: X is not defined`, add `X` as an extra: `--globals auto,X`.
 
-The two GTK-backed groups are the ones an `--app node` build can also ask for. A plain `--globals auto` node build injects nothing, because Node, Bun and Deno bring their own `fetch`, streams, crypto and events. Name a group or an identifier explicitly and it injects the same register modules the `--app gjs` target would, reaching GTK through [`@gjsify/node-gi`](/gjsify/projects/node-gi/). That is what the Adwaita templates' `build:node` script does — `gtk-minimal` needs none of it, because plain GTK reaches no DOM API:
+The two GTK-backed groups are the ones an `--app node` build can also ask for. A plain `--globals auto` node build injects nothing, because Node, Bun and Deno bring their own `fetch`, streams, crypto and events. Name a group or an identifier explicitly and it injects the same register modules the `--app gjs` target would, reaching GTK through [`@gjsify/node-gi`](/gjsify/projects/node-gi/). That is what the Adwaita templates' `build:node` script does. `gtk-minimal` needs none of it, because plain GTK reaches no DOM API:
 
 ```bash
 gjsify build src/index.ts --app node --outfile dist/index.node.mjs --globals auto,dom
@@ -339,7 +339,7 @@ gjsify dev --build-only          # rebuild on every change, never launch
 
 **What gets built is not declared twice.** `gjsify dev` reads your own `build:gjs` / `build:node` script and layers its flags on top, so the dev loop and `gjsify run build` cannot drift into producing different bundles. Override one flag at a time with `--globals` or `--outfile`, pass a different entry as the positional argument, or point `--script` at another script to follow a different build entirely.
 
-**Why this is not `gjsify build --watch`.** That flag drives rolldown's watcher API, which only the npm engine exposes — on a Node-free GJS host it is not available at all. `gjsify dev` asks for no watcher API: it watches with `fs.watch` and rebuilds by re-entering the ordinary build command, so the same loop runs on gjs, node, bun and deno.
+**Why this is not `gjsify build --watch`.** That flag drives rolldown's watcher API, which only the npm engine exposes. On a Node-free GJS host it is not there at all. `gjsify dev` asks for no watcher API. It watches with `fs.watch` and rebuilds by re-entering the ordinary build command, so the same loop runs on gjs, node, bun and deno.
 
 ### `gjsify run`
 
@@ -355,7 +355,7 @@ gjsify run ./server.mjs -- --port 8080
 | Argument / Option | Description |
 |---|---|
 | `<target>` | A script name from the current `package.json`, or a path to a built bundle. |
-| `[args..]` | Extra arguments forwarded to the script or to the runtime. Use `--` before flags you do not want gjsify to parse. Everything after `--` reaches the target as you typed it, numbers included — `-- --port 8080` arrives as `--port 8080`, and `-- --scale 1.0` arrives as `1.0` rather than `1`. |
+| `[args..]` | Extra arguments forwarded to the script or to the runtime. Use `--` before flags you do not want gjsify to parse. Everything after `--` reaches the target as you typed it, numbers included: `-- --port 8080` arrives as `--port 8080`, and `-- --scale 1.0` arrives as `1.0` rather than `1`. |
 | `-w`, `--workspace <name>` | Run `<target>` as a script in the named workspace, like `npm run <script> -w <name>`. Matches the package name, the workspace-relative path, or the directory basename. |
 | `--runtime <gjs\|node\|bun\|deno>` | Launch a bundle **file** on this runtime. Forces file mode. |
 | `--node-script` | Treat `<target>` as an unbundled Node-style script that imports `node:` builtins, and run it on the host runtime. Under GJS the file is bundled `--app gjs` on the fly first, which is what lets a repo script run on a machine with no Node. Cannot be combined with `--runtime` or `--workspace`. |
@@ -366,7 +366,7 @@ For a bundle file, `gjsify run` also sets `GI_TYPELIB_PATH` plus the host's libr
 
 #### Run a bundle on gjs, node, bun or deno
 
-Without `--runtime`, a bundle file follows the host runtime the CLI is on, with one exception: a `--app gjs` bundle (it keeps `gi://` imports and a `gjs` shebang) always runs on `gjs`, because it has no node-gi shim. `gjs` runs it via `gjs -m`. `node`, `bun` and `deno` all run the **same** `--app node` bundle, since Node-API is their common ABI. `@gjsify/node-gi` is only needed when the bundle actually uses `gi://`.
+Without `--runtime`, a bundle file follows the host runtime the CLI is on. A `--app gjs` bundle is the exception and always runs on `gjs`, because it has no node-gi shim. gjsify recognises it by its `gi://` imports and its `gjs` shebang. `gjs` runs it via `gjs -m`. `node`, `bun` and `deno` all run the **same** `--app node` bundle, since Node-API is their common ABI. `@gjsify/node-gi` is only needed when the bundle actually uses `gi://`.
 
 ```bash
 gjsify build src/app.ts --app gjs  --outfile dist/app.gjs.mjs
@@ -418,7 +418,7 @@ gjsify test --rebuild           # rebuild even if bundles look fresh
 | `--build` | `true` | Build before running. `--no-build` skips it when bundles already exist. |
 | `--verbose` | `false` | Print the resolved entry and outdir plus per-step timing. |
 
-`gjs` and `node` are the only two runtimes this command drives: it builds the `--app gjs` and `--app node` bundles and runs each on its own runtime. Bun and Deno consume the same `--app node` bundle, so you can point them at it yourself with [`gjsify run --runtime`](#gjsify-run), but `gjsify test` does not drive them.
+`gjs` and `node` are the only two runtimes this command drives. It builds the `--app gjs` and `--app node` bundles and runs each on its own runtime. Bun and Deno consume the same `--app node` bundle, so you can point them at it yourself with [`gjsify run --runtime`](#gjsify-run), but `gjsify test` does not drive them.
 
 A runtime you did not ask for explicitly is skipped when its binary is not on `PATH`, with a line saying so. Set defaults in `package.json`:
 
@@ -508,7 +508,7 @@ Anything you would pass repeatedly on the command line can live in the `gjsify` 
 
 ### Where `define` goes
 
-`define` belongs under `bundler.transform.define`, not at the top level of `bundler`. Rolldown reads only the nested one. If you write `bundler.define`, GJSify moves it for you and warns at build time; move it yourself to silence the warning.
+`define` belongs under `bundler.transform.define`, not at the top level of `bundler`. Rolldown reads only the nested one. If you write `bundler.define`, GJSify moves it for you and warns at build time. Move it yourself to silence the warning.
 
 ```jsonc
 // works, but warns on every build
@@ -554,9 +554,9 @@ An unset variable with no `default` becomes the literal `undefined`, so you can 
 | `export` | `default` | Which export to call. It has to be a function returning a Rolldown plugin. |
 | `options` | `{}` | Passed to that function. |
 
-`plugins` is an array, and every entry is an object with those fields — a bare `"@gjsify/rolldown-plugin-solid"` string is not the same thing and is not accepted.
+`plugins` is an array, and every entry is an object with those fields. A bare `"@gjsify/rolldown-plugin-solid"` string is not the same thing and is not accepted.
 
-A named plugin must be a real dependency of the package that configures it — `dependencies`, `devDependencies` or `optionalDependencies`, any of the three. In a monorepo an undeclared one resolves anyway through the hoisted root `node_modules` and then stops resolving the moment the package is installed from npm, which is a declaration that is true in the tree and false everywhere else. `gjsify` conformance fails on it rather than letting it ship.
+A named plugin must be a real dependency of the package that configures it: `dependencies`, `devDependencies` or `optionalDependencies`, any of the three. In a monorepo an undeclared one resolves anyway through the hoisted root `node_modules`, then stops resolving the moment the package is installed from npm. That declaration is true in your tree and false everywhere else, so `gjsify` conformance fails on it rather than letting it ship.
 
 Plugins run in the order listed.
 
@@ -630,7 +630,7 @@ gjsify install -g @gjsify/cli   # global install under ~/.local/share/gjsify/glo
 | `--force` | `false` | Install a required dependency even when its `os` / `cpu` / `libc` excludes the target, instead of failing with `EBADPLATFORM`. Incompatible optional dependencies stay skipped. |
 | `--prune` | `true` | Afterwards, remove packages an earlier install left behind that this host cannot use, see [`gjsify prune`](#gjsify-prune). `--no-prune` disables. Skipped under `--immutable`, and whenever `--os`/`--cpu`/`--libc` is given. |
 
-The resolver follows npm v3 and later semantics, and honours npm-style `overrides` and yarn-style `resolutions` in `package.json`. The lockfile is `gjsify-lock.json`, a path-keyed `packages` map at `lockfileVersion` 4. There is more on how the tree is built in [How It Works](/gjsify/how-it-works/#how-gjsify-install-resolves-a-tree).
+The resolver follows npm v3 and later semantics, and honours npm-style `overrides` and yarn-style `resolutions` in `package.json`. The lockfile is `gjsify-lock.json`, a path-keyed `packages` map at `lockfileVersion` 4. [How It Works](/gjsify/how-it-works/#how-gjsify-install-resolves-a-tree) has more on how the tree is built.
 
 ### `gjsify uninstall`
 
@@ -662,7 +662,7 @@ gjsify prune                    # the same, for this project's node_modules
 gjsify prune -g --os=darwin     # what a darwin host could not use
 ```
 
-The decision is a **pure manifest read**: npm's own `os`, `cpu` and `libc`, through the same check the installer filters with, so a pruned prefix converges on what a fresh install would have placed. A package that declares **no** platform is never touched, however unusable it looks. Inferring that from a package *name* is how a prune starts deleting things it cannot justify.
+The decision is a **pure manifest read** of npm's own `os`, `cpu` and `libc`, through the same check the installer filters with. So a pruned prefix converges on what a fresh install would have placed. A package that declares **no** platform is never touched, however unusable it looks. Inferring that from a package *name* is how a prune starts deleting things it cannot justify.
 
 `install` and `self-update` run the same pass automatically, and `--no-prune` opts out. That pass uses the **measured** host and refuses outright when `--os`, `--cpu` or `--libc` is given, so an install can never delete against a target you typed. On this command those flags are honoured, because asking is not a side effect.
 
@@ -673,7 +673,7 @@ The decision is a **pure manifest read**: npm's own `os`, `cpu` and `libc`, thro
 | `--verbose` | `false` | List every package rather than the first few. |
 | `--os <name>` / `--cpu <arch>` / `--libc <name>` | this host | Decide as if the host were this target. |
 
-Removing nothing is a success, since this is idempotent housekeeping. It exits non-zero only when a removal you asked for failed. Sizes are **apparent**, summed from the files, so `du`, which counts allocated blocks, reports a slightly different number.
+Removing nothing is a success, since this is idempotent housekeeping. It exits non-zero only when a removal you asked for failed. Sizes are **apparent**, summed from the files, so `du`, which counts allocated blocks, reports a different number.
 
 ### `gjsify upgrade`
 
@@ -703,25 +703,25 @@ gjsify upgrade --align --exact --filter @girs    # fix that gate, offline
 | `--exclude-workspace <pattern>` | none | Skip workspaces, for ones with deliberate dependency drift such as integration tests pinned to a specific upstream. Repeatable. |
 | `--align` | `false` | Offline repair mode: find deps declared at several ranges and align them to the highest. With `--exact`, also drop the operator from declarations that already agree. No registry calls. |
 | `--check` | `false` | CI gate: exit non-zero when any dep is declared inconsistently across workspaces. Offline. `--align` with the same flags is the fix. |
-| `--exact` | `false` | Pin without a range operator. Writing, emits `1.2.3` instead of `^1.2.3`; with `--check`, fails on any matched dep that carries one; with `--align`, repairs exactly that. Pair with `--filter` — a repository-wide exactness run touches every ordinary caret dep by design. |
+| `--exact` | `false` | Pin without a range operator. Writing, emits `1.2.3` instead of `^1.2.3`; with `--check`, fails on any matched dep that carries one; with `--align`, repairs exactly that. Pair with `--filter`. A repository-wide exactness run touches every ordinary caret dep by design. |
 | `--dry-run` | `false` | Print the plan without writing. |
 | `-y`, `--yes` | `false` | In interactive mode, select everything without prompting. |
 | `--cwd <path>` | `process.cwd()` | Project directory. From inside a workspace it walks up to the monorepo root. |
 | `--verbose` | `false` | Print resolution details. |
 
-`workspace:`, `file:`, `link:`, `git:`, `git+`, `http(s):`, `npm:`, `*` and `latest` ranges are skipped, since none of them is an external npm dependency. The range prefix is preserved: `^1.2.3` becomes `^2.0.0`, `~0.4.0` becomes `~0.5.0` — unless `--exact` drops it. Lines the update does not touch are left byte-for-byte as they were, so a dependency bump never arrives as a diff over unrelated fields. The registry URL comes from `~/.npmrc`, then `<cwd>/.npmrc`, with `npm_config_registry` overriding both, and scope-specific registries and auth tokens are honoured.
+`workspace:`, `file:`, `link:`, `git:`, `git+`, `http(s):`, `npm:`, `*` and `latest` ranges are skipped, since none of them is an external npm dependency. The range prefix is preserved: `^1.2.3` becomes `^2.0.0` and `~0.4.0` becomes `~0.5.0`, unless `--exact` drops it. Lines the update does not touch are left byte-for-byte as they were, so a dependency bump never arrives as a diff over unrelated fields. The registry URL comes from `~/.npmrc`, then `<cwd>/.npmrc`, with `npm_config_registry` overriding both, and scope-specific registries and auth tokens are honoured.
 
 Output is a colour-coded table (red major, yellow minor, green patch, cyan prerelease). Run `gjsify install` afterwards to fetch the new versions.
 
 `@gjsify/*` packages ship as one release train, so upgrade them together: `gjsify upgrade --latest --filter @gjsify`. See [Versioning & Compatibility](/gjsify/versioning/).
 
-`--check` and `--align` answer the same two questions, so whatever the gate rejects the repair with the same flags fixes. Without `--exact` that question is consistency alone, and a tree where every manifest agrees on `^4.1.0` is done. `--exact` adds exactness, which consistency cannot answer — those same manifests all carry an operator — so `--align --exact` widens to every matched declaration that has one and rewrites it at its declared version, operator dropped. It never asks the registry: `^4.1.0` becomes `4.1.0`, not the newest 4.x. Use `--latest --exact` when you want the newest release instead. A range that names no single version (`^1.x`) cannot be pinned offline; `--align` names those deps and exits non-zero rather than reporting a repair the gate will still reject.
+`--check` and `--align` answer the same two questions, so whatever the gate rejects the repair with the same flags fixes. Without `--exact` the question is consistency alone, and a tree where every manifest agrees on `^4.1.0` is done. `--exact` adds exactness, which consistency cannot answer, because those same manifests all carry an operator. So `--align --exact` widens to every matched declaration that has one and rewrites it at its declared version, operator dropped. It never asks the registry: `^4.1.0` becomes `4.1.0`, not the newest 4.x. Use `--latest --exact` when you want the newest release instead. A range that names no single version (`^1.x`) cannot be pinned offline. `--align` names those deps and exits non-zero rather than reporting a repair the gate will still reject.
 
-`@girs/*` is pinned **exactly** in this repository, and a CI step holds it that way. Consistency is not the same question: every manifest agreeing on one caret is perfectly consistent and still resolves to whatever is newest, and a published package's declaration is what a consumer installs against with no lockfile of ours. Since `@gjsify/gtk-host` consumes the `@girs/<ns>/vocabulary` subpath, a minor release moving it under such an install is a real hazard — so the pin is the whole version.
+`@girs/*` is pinned **exactly** in this repository, and a CI step holds it that way. Consistency is not the same question. Every manifest agreeing on one caret is perfectly consistent and still resolves to whatever is newest, and a published package's declaration is what a consumer installs against with no lockfile of ours. Since `@gjsify/gtk-host` consumes the `@girs/<ns>/vocabulary` subpath, a minor release moving it under such an install is a real hazard. So the pin is the whole version.
 
 ### `gjsify dlx`
 
-Run the GJS bundle of a published package without adding it to your project, like `npx` or `yarn dlx`. It is strictly a GJS-bundle runner: it resolves the package's GJS entry and calls `gjs -m <bundle>`. A package with no GJS entry fails loudly.
+Run the GJS bundle of a published package without adding it to your project, like `npx` or `yarn dlx`. It is strictly a GJS-bundle runner. It resolves the package's GJS entry and calls `gjs -m <bundle>`. A package with no GJS entry fails loudly.
 
 ```bash
 gjsify dlx @gjsify/example-dom-canvas2d-fireworks
@@ -805,7 +805,7 @@ gjsify generate-installer \
 | `--output <file>` | `install.mjs` | Where to write it. |
 | `--force` | `false` | Overwrite an existing file. |
 
-The generated file is a copy of GJSify's own `install.mjs` with three constants substituted. Commit it. The full publication workflow is in [Distributing GJS apps](/gjsify/guides/distributing-gjs-apps/).
+The generated file is a copy of GJSify's own `install.mjs` with three constants substituted. Commit it. [Distributing GJS apps](/gjsify/guides/distributing-gjs-apps/) has the full publication workflow.
 
 ## Work in a monorepo
 
@@ -866,7 +866,7 @@ gjsify workspace @gjsify/website build -d      # build its deps first
 
 ### Build cache
 
-With `--cached` (or `GJSIFY_BUILD_CACHE=1`; an explicit `--no-cached` wins), `gjsify foreach <script>` and `gjsify workspace <name> <script>` skip workspaces whose inputs are unchanged and restore the stored outputs instead of re-running the script.
+`gjsify foreach <script>` and `gjsify workspace <name> <script>` can skip workspaces whose inputs are unchanged and restore the stored outputs instead of re-running the script. Turn that on with `--cached` or `GJSIFY_BUILD_CACHE=1`. An explicit `--no-cached` wins over both.
 
 ```bash
 gjsify foreach build -tp --cached          # rebuild only what changed
@@ -918,7 +918,7 @@ gjsify check --no-parallel --verbose      # sequential, full output
 | `-j`, `--jobs <n>` | `os.cpus().length` | Max workers when parallel. |
 | `--verbose` | `false` | Log each per-workspace command before spawning. |
 
-In a workspace root it walks every package that defines a `check` script and runs `npm run check` in each. Inside a single package it runs that package's `check` script directly. Exit code is 1 if any check fails. With `--no-parallel` you get the first non-zero code; in parallel mode you get a summary of the failures.
+In a workspace root it walks every package that defines a `check` script and runs `npm run check` in each. Inside a single package it runs that package's `check` script directly. Exit code is 1 if any check fails. With `--no-parallel` you get the first non-zero code. In parallel mode you get a summary of the failures.
 
 ### `gjsify tsc`
 
@@ -929,7 +929,7 @@ gjsify tsc --noEmit
 gjsify tsc -p tsconfig.build.json
 ```
 
-Two engines back it, picked by what is on the machine: the `@gjsify/tsc` bundle spawned as `gjs -m <bundle>` when that bundle resolves and `gjs` is on `PATH`, otherwise upstream npm `typescript` spawned on Node. If neither is there it says so and exits 1, naming both fixes. It is the same thing as the `gjsify-tsc` bin from `@gjsify/tsc`. Most templates wire it into their `check` script.
+Two engines back it, and the machine picks. The `@gjsify/tsc` bundle runs as `gjs -m <bundle>` when that bundle resolves and `gjs` is on `PATH`. Otherwise gjsify spawns upstream npm `typescript` on Node. If neither is there it says so and exits 1, naming both fixes. It is the same thing as the `gjsify-tsc` bin from `@gjsify/tsc`. Most templates wire it into their `check` script.
 
 ### `gjsify format`
 
@@ -952,11 +952,11 @@ gjsify format --no-write src/    # report drift locally without writing
 | `--force` | `false` | With `--init`, overwrite the existing config files. |
 | `--verbose` | `false` | Echo the resolved oxfmt launcher and args before spawning. |
 
-A bare `gjsify format` writes. There is no flagless report mode: `--check` is the read-only CI mode and `--no-write` the read-only local one.
+A bare `gjsify format` writes. There is no flagless report mode. `--check` is the read-only CI mode, `--no-write` the read-only local one.
 
 Under GJS, formatting runs in-process through the `@gjsify/oxfmt-native` bridge. Everywhere else the `oxfmt` npm launcher is resolved from `node_modules` and spawned with `node`. Set `GJSIFY_OXFMT=npm` to force the launcher, or `GJSIFY_OXFMT=native` to fail instead of falling back when the prebuild is missing. From inside a sub-workspace, resolution walks up to the workspace root, so a single `.oxfmtrc.json` there applies everywhere.
 
-oxfmt itself formats more than JS and TS — JSON, CSS and TOML among them — but the `.oxfmtrc.json` that `--init` writes ignores every one of those, so a GJSify project formats JS and TS only. Drop a pattern from `ignorePatterns` to widen it.
+oxfmt itself formats JSON, CSS and TOML as well as JS and TS. The `.oxfmtrc.json` that `--init` writes ignores every one of those, so a GJSify project formats JS and TS only. Drop a pattern from `ignorePatterns` to widen it.
 
 If oxfmt is missing you get `[gjsify oxc] oxfmt not found.` with `gjsify install -D oxfmt` as the hint, and exit 1.
 
@@ -964,7 +964,7 @@ If oxfmt is missing you get `[gjsify oxc] oxfmt not found.` with `gjsify install
 
 `.oxfmtrc.json`: 4-space indent, single quotes, semicolons, trailing commas everywhere, arrow parens always, print width 120, bracket spacing on. This matches the GJSify codebase and the GNOME Shell style guide. Generated artifacts are excluded (`dist`, `lib`, `cli.gjs.mjs`, `test.{gjs,node}.mjs`), along with Flatpak build directories, `refs/`, prebuilds and compiled `.metainfo.xml`.
 
-`.oxlintrc.json`: oxlint's `correctness` category as errors, plus `typescript/no-non-null-assertion` off (the `!` operator is needed on `@girs/*` surfaces), `typescript/no-explicit-any` and `typescript/consistent-type-imports` as warnings, `unicorn/prefer-node-protocol` as an error, and `eslint/no-unused-vars` as a warning. Same excludes as the formatter.
+`.oxlintrc.json`: oxlint's `correctness` category as errors, plus `typescript/no-non-null-assertion` off (the `!` operator is needed on `@girs/*` types), `typescript/no-explicit-any` and `typescript/consistent-type-imports` as warnings, `unicorn/prefer-node-protocol` as an error, and `eslint/no-unused-vars` as a warning. Same excludes as the formatter.
 
 ### `gjsify lint`
 
@@ -983,7 +983,7 @@ gjsify lint --fix        # apply safe fixes
 | `--config-path <path>` | nearest one | `.oxlintrc.json` override. |
 | `--verbose` | `false` | Echo the resolved oxlint launcher and args. |
 
-oxlint is spawned through its Node launcher so its JavaScript plugin host is available. That host is what runs GJSify's own plugin, `@gjsify/oxlint-plugin-gjsify`, wired in through `jsPlugins` in the workspace `.oxlintrc.json`. Its one rule, `gjsify/register-class-order`, catches static GObject metadata (`GTypeName`, `Properties`, `Signals`, `InternalChildren`, `Template`, `CssName` and their siblings) declared after a `static { GObject.registerClass(…) }` block, where `registerClass` runs before the field is assigned and the metadata is silently ignored, and autofixes it by hoisting the fields above the static block. Name the rule when you need to configure or silence it. [GObject classes](/gjsify/patterns/gobject-classes/) explains the trap and the forms that avoid it.
+oxlint is spawned through its Node launcher so its JavaScript plugin host is available. That host is what runs GJSify's own plugin, `@gjsify/oxlint-plugin-gjsify`, wired in through `jsPlugins` in the workspace `.oxlintrc.json`. Its one rule, `gjsify/register-class-order`, catches static GObject metadata (`GTypeName`, `Properties`, `Signals`, `InternalChildren`, `Template`, `CssName` and their siblings) declared after a `static { GObject.registerClass(…) }` block. There `registerClass` runs before the field is assigned, and the metadata is silently ignored. The rule autofixes it by hoisting the fields above the static block. Name the rule when you need to configure or silence it. [GObject classes](/gjsify/patterns/gobject-classes/) explains the trap and the forms that avoid it.
 
 Use [`gjsify fix`](#gjsify-fix) for format plus safe lint fixes in one pass.
 
@@ -1050,7 +1050,7 @@ This used to be called `gjsify check`. The bare name now runs the TypeScript che
 
 **Node.js** is reported but never required. The `install.mjs` bootstrap is run by `gjs`, so "not installed" is a legitimate answer here.
 
-**Build toolchain, optional.** `blueprint-compiler` for `.blp` templates — resolved the same way the build resolves it, so a project with no `.blp` never needs it and a Windows host keeping it off `PATH` under MSYS2 is not a miss. `ninja` and `vala` for the Vala bridges, `cargo` for the three Rust-backed engines (`@gjsify/rolldown-native`, `@gjsify/lightningcss-native`, `@gjsify/oxfmt-native`). You only need these if you rebuild a prebuild from source.
+**Build toolchain, optional.** `blueprint-compiler` for `.blp` templates, resolved the same way the build resolves it. A project with no `.blp` never needs it, and a Windows host keeping it off `PATH` under MSYS2 is not a miss. `ninja` and `vala` for the Vala bridges, `cargo` for the three Rust-backed engines (`@gjsify/rolldown-native`, `@gjsify/lightningcss-native`, `@gjsify/oxfmt-native`). You only need these if you rebuild a prebuild from source.
 
 **Library dependencies, optional.** Checked only when the matching `@gjsify/*` package is in your project:
 
@@ -1189,11 +1189,11 @@ gjsify gettext translations dist/applications \
 
 Needs `msgfmt` (the `gettext` package).
 
-`--format xml` and `--format desktop` **require** `--template`: `msgfmt` cannot produce either shape from `.po` files alone, and refuses with `--desktop requires a "--template template" specification`. The catalogues are merged one at a time with `msgfmt --locale=<lang>`, so no `LINGUAS` file is needed.
+`--format xml` and `--format desktop` **require** `--template`. `msgfmt` cannot produce either shape from `.po` files alone, and refuses with `--desktop requires a "--template template" specification`. The catalogues are merged one at a time with `msgfmt --locale=<lang>`, so no `LINGUAS` file is needed.
 
-For `--format xml`, the template's **filename** matters: `msgfmt --xml` finds its ITS rules by filename *pattern*, not by reading the document. gettext walks `/usr/share/gettext/its/*.loc`, and AppStream's rule there pairs `pattern="*.metainfo.xml"` with the root element `component` — so an AppStream template must be named `*.metainfo.xml` or `*.metainfo.xml.in`. Named `app.xml.in`, the same content fails with `cannot locate ITS rules for app.xml`. Both `metainfo.loc` and `metainfo.its` come from the `appstream` package.
+For `--format xml`, the template's **filename** matters. `msgfmt --xml` finds its ITS rules by filename *pattern*, not by reading the document. gettext walks `/usr/share/gettext/its/*.loc`, and AppStream's rule there pairs `pattern="*.metainfo.xml"` with the root element `component`. So an AppStream template must be named `*.metainfo.xml` or `*.metainfo.xml.in`. Named `app.xml.in`, the same content fails with `cannot locate ITS rules for app.xml`. Both `metainfo.loc` and `metainfo.its` come from the `appstream` package.
 
-There is no `--format json`: `msgfmt` has no JSON writer. Use `@gjsify/vite-plugin-gettext`'s `po2jsonPlugin`, which parses the catalogues directly.
+There is no `--format json`, because `msgfmt` has no JSON writer. Use `@gjsify/vite-plugin-gettext`'s `po2jsonPlugin`, which parses the catalogues directly.
 
 ## Explore
 
@@ -1274,7 +1274,7 @@ With `GJSIFY_DEVTOOLS=1` the storybook host also exposes the devtools control pl
 
 ### `gjsify debug`
 
-Launch an MCP bridge for a running, devtools-enabled GJSify app, talking to its `org.gjsify.Devtools` D-Bus control plane. An MCP client uses this as its server command: the bridge speaks JSON-RPC on stdio and translates each tool call to D-Bus. It comes from [`@gjsify/devtools-mcp`](https://www.npmjs.com/package/@gjsify/devtools-mcp).
+Launch an MCP bridge for a running, devtools-enabled GJSify app, talking to its `org.gjsify.Devtools` D-Bus control plane. An MCP client uses this as its server command. The bridge speaks JSON-RPC on stdio and translates each tool call to D-Bus. It comes from [`@gjsify/devtools-mcp`](https://www.npmjs.com/package/@gjsify/devtools-mcp).
 
 ```bash
 # In .mcp.json:
@@ -1294,11 +1294,11 @@ gjsify debug --build-only --out dist/bridge.gjs.mjs   # build once, point .mcp.j
 | `--out <path>` | `node_modules/.cache/gjsify-debug` | Output bundle path. |
 | `--build-only` | `false` | Build the bridge bundle without launching it. |
 
-`gjsify debug` logs to stderr only, because stdout is the JSON-RPC channel. The bridge resolves `@gjsify/devtools-mcp` from your project's `node_modules`. There is no `--runtime` here: the bridge bundle is always built `--app gjs` and launched with `gjs`, whichever runtime the CLI itself is on. The app it talks to can be on any of the four, since the two only ever meet over D-Bus. Full workflow: [Debugging and remote control](/gjsify/guides/devtools/).
+`gjsify debug` logs to stderr only, because stdout is the JSON-RPC channel. The bridge resolves `@gjsify/devtools-mcp` from your project's `node_modules`. There is no `--runtime` here. The bridge bundle is always built `--app gjs` and launched with `gjs`, whichever runtime the CLI itself is on. The app it talks to can be on any of the four, since the two only ever meet over D-Bus. Full workflow: [Debugging and remote control](/gjsify/guides/devtools/).
 
 ### `gjsify browse`
 
-Launch the minimal Adwaita web browser from [`@gjsify/devtools-browser`](https://www.npmjs.com/package/@gjsify/devtools-browser), optionally at a URL. With `--devtools` it exposes the same `org.gjsify.Devtools` control plane, so an agent can navigate, screenshot the rendered page, evaluate JS, inspect elements and read the DOM, network and accessibility trees over MCP. It is built for debugging web apps you built with gjsify.
+Launch the minimal Adwaita web browser from [`@gjsify/devtools-browser`](https://www.npmjs.com/package/@gjsify/devtools-browser), optionally at a URL. With `--devtools` it exposes the same `org.gjsify.Devtools` control plane, so an agent can navigate, screenshot the rendered page, evaluate JS, inspect elements and read the DOM, network and accessibility trees over MCP. It is meant for debugging web apps you wrote with gjsify.
 
 ```bash
 gjsify browse                                     # open page:welcome
@@ -1319,7 +1319,7 @@ gjsify browse https://localhost:8080 --screenshot shot.png
 | `--screenshot <path>` | none | One-shot: load the URL, capture a WebKit screenshot to this path, exit. Handy in CI. |
 | `--build-only` | `false` | Build the bundle without launching it. |
 
-The browser is built on [`@gjsify/iframe`](https://www.npmjs.com/package/@gjsify/iframe), a `WebKit.WebView` postMessage bridge, and it is always built `--app gjs` and launched with `gjs`, whichever runtime the CLI itself is on. With `--inspector-port` it also sets `WEBKIT_INSPECTOR_HTTP_SERVER` and exposes the [`@gjsify/devtools-cdp`](https://www.npmjs.com/package/@gjsify/devtools-cdp) methods (`CdpDiscoverTargets`, `CdpConnect`, `CdpSend`, `CdpDrainEvents`) over the control plane, which is the deep Runtime, DOM, CSS, Network, Console and Debugger protocol. Drive it with `gjsify debug --profile browser`, described in the [Debugging and remote control guide](/gjsify/guides/devtools/).
+The browser is built on [`@gjsify/iframe`](https://www.npmjs.com/package/@gjsify/iframe), a `WebKit.WebView` postMessage bridge. It is always built `--app gjs` and launched with `gjs`, whichever runtime the CLI itself is on. With `--inspector-port` it also sets `WEBKIT_INSPECTOR_HTTP_SERVER` and exposes the [`@gjsify/devtools-cdp`](https://www.npmjs.com/package/@gjsify/devtools-cdp) methods (`CdpDiscoverTargets`, `CdpConnect`, `CdpSend`, `CdpDrainEvents`) over the control plane. That is the full Runtime, DOM, CSS, Network, Console and Debugger protocol. Drive it with `gjsify debug --profile browser`, described in the [Debugging and remote control guide](/gjsify/guides/devtools/).
 
 ## Ship it
 
@@ -1383,7 +1383,7 @@ ship/out/              the artifacts
 | `windows-dir-zip` | win32 | yes | any host | `glib-compile-schemas` |
 | `msi` | win32 | no | linux or win32 | `wixl` from `msitools`, or WiX Toolset v3.14 |
 
-`.deb`, `.rpm` and both zips are written by `ship` itself, with no `dpkg-deb`, no `rpmbuild` and no `zip`. `glib-compile-schemas` is a tool rather than a host, so the formats that declare it still pack anywhere; a non-Linux layout has no install step, so the schemas are compiled while the tree is assembled.
+`.deb`, `.rpm` and both zips are written by `ship` itself, with no `dpkg-deb`, no `rpmbuild` and no `zip`. `glib-compile-schemas` is a tool rather than a host, so the formats that declare it still pack anywhere. A non-Linux layout has no install step, so the schemas are compiled while the tree is assembled.
 
 Ask for a format this host cannot finish and you get a refusal naming the two-phase way across, never a broken file:
 
@@ -1393,7 +1393,7 @@ gjsify ship --from-stage ./ship/stage \
             --target macos-app-dmg                  # there, on a Mac
 ```
 
-Name the format in the `--stage` run as well: phase one renders one licence overlay per format, and a stage that never saw a format is refused when that format is asked for. A missing tool is a separate message from the wrong host, because the fixes differ, and both fire before your `build` script runs.
+Name the format in the `--stage` run as well. Phase one renders one licence overlay per format, and a stage that never saw a format is refused when that format is asked for. A missing tool is a separate message from the wrong host, because the fixes differ, and both fire before your `build` script runs.
 
 #### What it works out for you
 
@@ -1403,7 +1403,7 @@ Name the format in the `--stage` run as well: phase one renders one licence over
 - **Localised metadata** is folded in from `gjsify.ship.localeDir`. The compiled `.mo` catalogues become `Name[xx]=` in the `.desktop` entry and `xml:lang` in the AppStream component.
 - **Metadata** falls back to `gjsify.flatpak`, so a project that already ships a Flatpak usually needs no `gjsify.ship` block at all.
 
-Packing the same build twice gives byte-identical files, which is explained in [How It Works](/gjsify/how-it-works/#reproducible-ship-artifacts).
+Packing the same build twice gives byte-identical files. [How It Works](/gjsify/how-it-works/#reproducible-ship-artifacts) explains how.
 
 #### Configure it
 
@@ -1445,7 +1445,7 @@ Packing the same build twice gives byte-identical files, which is explained in [
 | `typelibPackages` | `{}` | GI namespace to the package shipping its typelib. This is what unblocks an unknown namespace. |
 | `bundledTypelibs` | `[]` | Directories whose `*.typelib` and `*.so` the package carries itself, for GI libraries that arrive as npm prebuilds rather than distro packages. Staged into `lib/<name>/gi/`, with the launcher pointing `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` there. |
 | `localeDir` | none | Directory of COMPILED gettext catalogues in `<lang>/LC_MESSAGES/<domain>.mo` layout. Staged into `share/locale/`; the launcher exports `GJSIFY_LOCALE_DIR`. `.po` sources are refused, because `bindtextdomain` reads `.mo` only. |
-| `fonts` | none | Font files or a directory of them, staged into `share/fonts/<appId>/`. One payload path, three different readers: Linux gets a fontconfig directory, macOS an `ATSApplicationFontsPath` entry in the `Info.plist`, and **Windows only a handed-over directory** — the app must register them itself, see below. |
+| `fonts` | none | Font files or a directory of them, staged into `share/fonts/<appId>/`. One payload path, three different readers: Linux gets a fontconfig directory, macOS an `ATSApplicationFontsPath` entry in the `Info.plist`, and **Windows only a handed-over directory**. The app must register them itself, see below. |
 | `extraFiles` | `{}` | Extra payload entries: prefix-relative destination to project-relative source. |
 | `execArgs` | `[]` | Arguments the launcher appends before the user's own. |
 | `flatpak` | derived | The Flatpak half: `runtime` (`gnome`/`freedesktop`), `runtimeVersion`, `branch` (`stable`), `sdkExtensions`, `appendPath`, `finishArgs`, `cleanup`. |
@@ -1459,17 +1459,17 @@ Metadata keys (`name`, `summary`, `description`, `developer`, `license`, `catego
 What differs is who reads them, because the font backends differ rather than the
 packaging:
 
-- **Linux** — a fontconfig directory entry. `.deb`/`.rpm` get `<dir>/usr/share/fonts</dir>`;
-  every other prefix gets `<dir prefix="xdg">fonts</dir>`, which fontconfig also expands
-  over `XDG_DATA_DIRS` — the variable the launcher already exports. Nothing to call.
-  (That expansion is not in `fonts-conf(5)`; it is measured across eight independent
+- **Linux.** A fontconfig directory entry. `.deb`/`.rpm` get `<dir>/usr/share/fonts</dir>`,
+  every other prefix `<dir prefix="xdg">fonts</dir>`, which fontconfig also expands over
+  `XDG_DATA_DIRS`, the variable the launcher already exports. Nothing to call.
+  (That expansion is not in `fonts-conf(5)`. It is measured across eight independent
   fontconfig builds, 2.14.1 through 2.18.3.)
-- **macOS** — `ATSApplicationFontsPath` in the `Info.plist`. Declarative, and the
-  ordering is the argument: the CoreText font map has no re-scan path, and the OS
-  activates before any of your code runs. *Not verified end to end — nothing here
-  launches a real `.app` yet.*
-- **Windows** — nothing declarative exists. `pangocairo` selects the win32 backend and
-  populates from DirectWrite alone, so a fontconfig directory is inert: pointing
+- **macOS.** `ATSApplicationFontsPath` in the `Info.plist`. Declarative, and the ordering
+  is the argument. The CoreText font map has no re-scan path, and the OS activates the
+  faces before any of your code runs. *Not verified end to end. Nothing here launches a
+  real `.app` yet.*
+- **Windows.** Nothing declarative exists. `pangocairo` selects the win32 backend and
+  populates from DirectWrite alone, so a fontconfig directory is inert. Pointing
   `FONTCONFIG_FILE` at the staged directory moves the default font map by **zero**
   families, even when it is the only configuration present. Registering the face at
   runtime moves it by **one**, and the family then resolves for real rather than
@@ -1487,14 +1487,14 @@ const fonts = initFonts();
 ```
 
 Call it once at startup and **before any text is laid out**. That ordering is
-load-bearing rather than tidy: the fontconfig backend caches the fontset it resolved for
-a description and registering afterwards does not invalidate it, so a layout that
-measured the family first goes on measuring the fallback for the life of the process.
-`initFonts()` reads `GJSIFY_FONT_DIR` itself, does nothing when the app ships no faces,
-never throws, and returns which faces were registered, which the font map declined (macOS
-does, correctly — its bundle already activated them before your code ran) and which
-failed. Safe to call on all three operating systems, so there is no platform branch to
-write.
+load-bearing rather than tidy. The fontconfig backend caches the fontset it resolved for
+a description, and registering afterwards does not invalidate it. A layout that measured
+the family first goes on measuring the fallback for the life of the process.
+`initFonts()` reads `GJSIFY_FONT_DIR` itself, does nothing when the app ships no faces
+and never throws. It returns which faces were registered, which the font map declined
+and which failed. macOS declines correctly, because its bundle already activated them
+before your code ran. Safe to call on all three operating systems, so there is no
+platform branch to write.
 
 #### Signing
 
@@ -1513,13 +1513,13 @@ With no identity the run skips, prints why on stderr, and exits 0. `--sign` on t
 
 #### Where the interpreter comes from
 
-On **Linux** it is depended on, not shipped: `gjs (>= 1.86)`, or `nodejs (>= 24)` on deb and `nodejs(engine) >= 24` on rpm for an `--app node` bundle. Both floors exclude current Debian stable, and `gjsify ship` warns rather than lowering them; set `gjsify.ship.minGjsVersion` or `minNodeVersion` if your bundle genuinely runs on an older one.
+On **Linux** it is depended on, not shipped: `gjs (>= 1.86)`, or `nodejs (>= 24)` on deb and `nodejs(engine) >= 24` on rpm for an `--app node` bundle. Both floors exclude current Debian stable, and `gjsify ship` warns rather than lowering them. Set `gjsify.ship.minGjsVersion` or `minNodeVersion` if your bundle genuinely runs on an older one.
 
 On **macOS and Windows** there is no system interpreter to depend on, so the artifact carries its own from `@gjsify/node-runtime-<target>`, with the GTK closure from `@gjsify/gtk-runtime-<target>` and the addon from `@gjsify/node-gi`. You declare all three yourself in the project you package. They are resolved **by name** out of your own `node_modules` at ship time, so they have to be installed there. `GJSIFY_NODE_RUNTIME` and `GJSIFY_GTK_RUNTIME` override the first two with a directory. All six names are published, at the same version as the rest of the release train, and re-measured against the registry before every release. [macOS app bundles](/gjsify/ship/macos/) and [Windows artifacts](/gjsify/ship/windows/) carry the copy-pasteable blocks.
 
 That is also why the four macOS and Windows formats accept `node` only. There is no relocatable GJS to put inside a downloadable bundle, and there is no GJS host on Windows at all.
 
-Which runtime a target ships is `gjsify.ship.app.<os>` — keyed `linux`, `darwin`, `win32` — falling back to `gjsify.app`. It is per target because the answer is: a project can be GJS on Linux, where the distribution provides one, and Node where nothing does. One field for both questions meant that asking for a `.app` moved the Linux package's `Depends:` with it.
+Which runtime a target ships is `gjsify.ship.app.<os>`, keyed `linux`, `darwin` and `win32`, falling back to `gjsify.app`. It is per target because the answer changes with the OS: a project can be GJS on Linux, where the distribution provides one, and Node where nothing does. One field for both questions meant that asking for a `.app` moved the Linux package's `Depends:` with it.
 
 ### `gjsify flatpak`
 
@@ -1529,7 +1529,7 @@ The Flatpak toolchain, for shipping GJS apps and CLIs to Flathub.
 |---|---|
 | [`flatpak init`](#gjsify-flatpak-init) | Scaffold the Flathub asset set: manifest JSON, MetaInfo XML, `.desktop` (apps only), `flathub.json`. |
 | [`flatpak check`](#gjsify-flatpak-check) | Run `appstreamcli validate --strict` and `flatpak-builder-lint` locally. |
-| [`flatpak build`](#gjsify-flatpak-build) | Wrap `flatpak-builder` with sensible defaults. |
+| [`flatpak build`](#gjsify-flatpak-build) | Wrap `flatpak-builder`, with `--force-clean`, `--sandbox` and `--delete-build-dirs` on. |
 | [`flatpak deps`](#gjsify-flatpak-deps) | Wrap `flatpak-node-generator` to produce the offline npm cache. |
 | [`flatpak sources`](#gjsify-flatpak-sources) | Generate an offline `sources` array from any lockfile. |
 | [`flatpak ci`](#gjsify-flatpak-ci) | Scaffold `.github/workflows/flatpak.yml`. |
@@ -1566,7 +1566,7 @@ gjsify flatpak init --kind cli      # CLI tool: no .desktop, console-application
 | `--force` | `false` | Overwrite existing outputs. By default they are skipped and logged. |
 | `--verbose` | `false` | Print resolved fields before writing. |
 
-Each output is checked for existence on its own, so a hand-tuned `.desktop` does not block re-running `init` to refresh the others. Missing MetaInfo fields are reported with the exact `gjsify.flatpak.<key>` to set: the manifest still writes, and MetaInfo and `.desktop` wait until you fill the gaps.
+Each output is checked for existence on its own, so a hand-tuned `.desktop` does not block re-running `init` to refresh the others. Missing MetaInfo fields are reported with the exact `gjsify.flatpak.<key>` to set. The manifest still writes, and MetaInfo and `.desktop` wait until you fill the gaps.
 
 <details>
 <summary>Every gjsify.flatpak metadata key</summary>
@@ -1609,7 +1609,7 @@ Each output is checked for existence on its own, so a hand-tuned `.desktop` does
 | `modules` | optional | Replaces the module array outright, so neither `extraModules` nor the Meson default is emitted. This is what a plain JS CLI wants, since the Meson default does not apply to it. |
 | `flathubRepo` | optional | Overrides the `flathub/<app-id>` derivation for repos that do not follow the convention. |
 
-Every translatable string (`summary`, description paragraphs and list items, screenshot captions, release notes) takes a parallel `translatorHint` that becomes a `<!-- TRANSLATORS: ... -->` comment in the generated `.metainfo.xml.in`. `xgettext` and `msgfmt --xml --template` forward those to the `.po` files, so translators see the context. There is a worked example in [Ship a GTK app as a Flatpak](/gjsify/guides/flatpak-app/#rich-appstream-features-i18n-ready).
+Every translatable string (`summary`, description paragraphs and list items, screenshot captions, release notes) takes a parallel `translatorHint` that becomes a `<!-- TRANSLATORS: ... -->` comment in the generated `.metainfo.xml.in`. `xgettext` and `msgfmt --xml --template` forward those to the `.po` files, so translators see the context. [Ship a GTK app as a Flatpak](/gjsify/guides/flatpak-app/#rich-appstream-features-i18n-ready) has a worked example.
 
 </details>
 
@@ -1636,7 +1636,7 @@ Needs `appstreamcli` and `flatpak-builder-lint` on `PATH`. Both ship inside the 
 
 #### `gjsify flatpak build`
 
-Build the Flatpak with `flatpak-builder`, wrapping the usual install, export, bundle and tarball pipeline.
+Build the Flatpak with `flatpak-builder`, then install it, export it to a repo, bundle it or tar the build directory up.
 
 ```bash
 gjsify flatpak build
@@ -1726,7 +1726,7 @@ gjsify flatpak sync-flathub --version v0.6.6 --no-pr         # clone, commit, pu
 | `--dry-run` | `false` | Report the resolution, branch and commit, touching no files. |
 | `--verbose` | `false` | Echo every `git` and `gh` invocation. |
 
-It clones or updates `flathub/<app-id>` under `$XDG_CACHE_HOME/gjsify/flathub-sync/`, edits `modules[0].sources[<i>]` to set `tag` and `commit`, adds an `x-checker-data` block if missing so Flathub's update bot can pick up future releases, and preserves the manifest's original indentation and key order. Needs `git` always, and `gh` unless you pass `--no-pr`. Re-running with the same `--version` does nothing when the manifest is already pinned.
+It clones or updates `flathub/<app-id>` under `$XDG_CACHE_HOME/gjsify/flathub-sync/` and edits `modules[0].sources[<i>]` to set `tag` and `commit`. It adds an `x-checker-data` block if missing, so Flathub's update bot can pick up future releases, and it preserves the manifest's original indentation and key order. Needs `git` always, and `gh` unless you pass `--no-pr`. Re-running with the same `--version` does nothing when the manifest is already pinned.
 
 #### `gjsify flatpak diff`
 
@@ -1830,13 +1830,13 @@ Auth reads `process.env.NPM_CONFIG_USERCONFIG` first (where `actions/setup-node`
 
 **A 2xx from npm is an accepted write, not a durable one, so the upload is read back.** After the PUT
 succeeds, `gjsify publish` asks the registry for that exact `name@version` and prints
-`+ name@version` only once it is served. A 2xx that never resolves is its own outcome —
-`publish-unconfirmed`, exit 1 — and the message states what was PUT, what was asked and what came
+`+ name@version` only once it is served. A 2xx that never resolves is its own outcome,
+`publish-unconfirmed`, exit 1. The message then states what was PUT, what was asked and what came
 back. The retry window exists because npm's write really is eventually consistent: measured over
 the 199 packages of the v0.46.0 release, 90.5% were committed before the response arrived and 9.5%
 between 56 and 252 seconds after it, while one was never committed at all under a green job. A
-`409 already published` tolerated by `--tolerate-republish` is read back the same way — npm can
-refuse to overwrite a version seconds before it serves it — and the read-back GET carries the same
+`409 already published` tolerated by `--tolerate-republish` is read back the same way, because npm
+can refuse to overwrite a version seconds before it serves it. The read-back GET carries the same
 credential the upload did, so a registry that requires a token to read packuments does not turn a
 good publish into a red one. Set `--verify-timeout 0` for a registry with no packument read path.
 
@@ -1878,7 +1878,7 @@ gjsify login --username me --otp 123456
 | `--otp <code>` | prompted on demand | 2FA code. |
 | `--json` | `false` | Emit `{username, registry}` on success. |
 
-It prompts for the password with the input hidden. This is npm's legacy credentials flow; the web OAuth flow is not supported.
+It prompts for the password with the input hidden. This is npm's legacy credentials flow. The web OAuth flow is not supported.
 
 ### `gjsify logout`
 
@@ -1923,7 +1923,7 @@ gjsify trust --dry-run
 
 Make sure every publishable package in a monorepo is both published on npm and has a Trusted Publisher configured, doing only the missing work. It folds the whole manual first-publish and trust bootstrap into one idempotent sweep.
 
-Nothing about it is specific to a gjsify project. It works on any npm or yarn workspace out of the box, and `--packages` extends it to a monorepo that has no workspace manifest at all — a repo whose package directories simply sit next to each other.
+Nothing about it is specific to a gjsify project. It works on any npm or yarn workspace, and `--packages` extends it to a monorepo with no workspace manifest at all: a repo whose package directories sit next to each other.
 
 ```bash
 gjsify onboard                       # publish and trust whatever is missing
@@ -1947,7 +1947,7 @@ gjsify onboard --yes                 # non-interactive
 | `--build` / `--no-build` | `--build` | Run a to-be-published package's `build` script first. Turn it off for a repo whose packages are generated artifacts. |
 | `--registry <url>` | scope-aware `.npmrc` lookup | Registry override. |
 | `--otp <code>` | prompted once on demand | The initial shared 2FA code. |
-| `--concurrency <n>` | `4` | How many packages to read state for in parallel. Kept small so one token does not burst npm; the first read is always serial, to prompt for the shared code once. |
+| `--concurrency <n>` | `4` | How many packages to read state for in parallel. Kept small so one token does not burst npm. The first read is always serial, to prompt for the shared code once. |
 | `-v, --verbose` | `false` | List every package in the plan, not just the rows that need work. The counts always cover all of them. |
 | `--dry-run` | `false` | Report the plan without changing anything. |
 | `--json` | `false` | Emit a summary object as the final stdout line. |
@@ -1955,37 +1955,38 @@ gjsify onboard --yes                 # non-interactive
 
 What it does, in order: check the token is live (running the [`login`](#gjsify-login) flow only if it is not), enumerate the publishable packages, read each package's Trusted Publisher state concurrently, then act only on the gaps. One 2FA code is reused across every publish and trust operation, so a sweep of many packages usually asks you for a code once. Re-running when everything is already published and trusted does nothing and exits 0.
 
-The sweep reports progress through both phases: the state-read phase ticks (`read 600/703 — 590 to
-do, 10 already done`) and every write is numbered (`[123/662] trusted @acme/x`). Nothing else
-writes to the terminal while a 2FA prompt is open — such messages are held and flushed once you
-have answered, so a notice from a concurrent worker cannot land inside the digits you are typing.
+The sweep reports progress through both phases. The state-read phase ticks (`read 600/703`, then
+`590 to do, 10 already done`) and every write is numbered (`[123/662] trusted @acme/x`). Nothing
+else writes to the terminal while a 2FA prompt is open. Those messages are held and flushed once
+you have answered, so a notice from a concurrent worker cannot land inside the digits you are
+typing.
 
-One 2FA code covers the whole sweep, and it is asked for **once at a time** — concurrent probes
+One 2FA code covers the whole sweep, and it is asked for **once at a time**. Concurrent probes
 share the prompt rather than each opening their own. npm codes expire on their ~30-second window,
-so a long sweep may ask again later; each such expiry costs exactly one prompt.
+so a long sweep may ask again later. Each such expiry costs exactly one prompt.
 
 Trusted-Publisher **writes** run at `--write-concurrency` (default 4); **publishes** stay serial,
 because publish order is a correctness property. Raising the write concurrency buys fewer 2FA
-prompts rather than raw speed — measured against a 703-package repo, npm rate-limits the sweep at
+prompts rather than raw speed. Measured against a 703-package repo, npm rate-limits the sweep at
 serial pace already, so the registry sets the ceiling, not the loop. What serial cost was codes:
 one lives about 30 seconds, so the sweep crossed a code boundary roughly every 38 packages.
 
 An HTTP 429 is waited out, not reported. npm throttles a long sweep, and because it is cumulative
-it lands on the *tail* of the list — which reads as "these packages are special" when the truth is
-that the sweep asked too fast. A 429 **anywhere pauses everywhere**: retrying one throttled request in isolation leaves the rest
-of the sweep provoking the very limit that retry is waiting out, which is how a real run spent its
-retry budget and reported `trust failed (HTTP 429)`. Reads and writes share one cool-down, so the
+it lands on the *tail* of the list. That reads as "these packages are special" when the truth is
+that the sweep asked too fast. A 429 **anywhere pauses everywhere**. Retrying one throttled
+request in isolation leaves the rest of the sweep provoking the very limit that retry is waiting
+out, which is how a real run spent its retry budget and reported `trust failed (HTTP 429)`. Reads and writes share one cool-down, so the
 sweep self-paces down to whatever npm will serve. The wait is a TIME budget (5 minutes per request), not an
-attempt count: a fixed number of doubling retries is only ~30 seconds of patience, npm's window is
-longer than that, and a real 703-package sweep consequently failed its last 73 writes inside a
-single cooldown. Only throttling that outlasts the budget is reported — in the plan AND in the
-closing summary, since a write is throttled long after the plan has scrolled away and `73 failed`
-on its own reads as 73 broken packages.
+attempt count. A fixed number of doubling retries is only ~30 seconds of patience, and npm's
+window is longer than that: a real 703-package sweep failed its last 73 writes inside a single
+cooldown. Only throttling that outlasts the budget is reported, in the plan AND in the closing
+summary. A write is throttled long after the plan has scrolled away, and `73 failed` on its own
+reads as 73 broken packages.
 
-npm advertises no budget ahead of time — there are no `X-RateLimit-*` headers on ordinary
-responses — so the first 429 of a run prints what the registry actually said, including when it
-said nothing and the delay is the CLI's own. Re-running is safe: the sweep is idempotent and
-skips whatever already landed.
+npm advertises no budget ahead of time, and there are no `X-RateLimit-*` headers on ordinary
+responses. So the first 429 of a run prints what the registry actually said, including when it
+said nothing and the delay is the CLI's own. Re-running is safe, because the sweep is idempotent
+and skips whatever already landed.
 
 A package whose own `package.json` names a **different** `repository` than the one being
 configured is refused, with the foreign repo and the count. A workspace of a repo is not the same
@@ -1995,4 +1996,4 @@ that package's OIDC exchange at a workflow that never publishes it. Narrow the s
 `--exclude` / `--include`, or point `--repository` at the repo that does publish them. A package
 that declares no repository is not evidence of a mismatch, and passes.
 
-The first line of output names the repo root and every enumeration source with its count — `root=/src/types | packages(*)=703`. That is worth reading before you let a sweep write to npm: the package list is the whole blast radius, and a total on its own cannot tell the right tree from a plausible wrong one. `--json` carries the same three fields (`root`, `sources`, `discovered`) in its summary object.
+The first line of output names the repo root and every enumeration source with its count: `root=/src/types | packages(*)=703`. Read it before you let a sweep write to npm. The package list is the whole blast radius, and a total on its own cannot tell the right tree from a plausible wrong one. `--json` carries the same three fields (`root`, `sources`, `discovered`) in its summary object.
