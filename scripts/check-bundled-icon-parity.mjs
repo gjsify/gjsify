@@ -21,7 +21,7 @@
 //
 // Usage: node scripts/check-bundled-icon-parity.mjs [--root <dir>]
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -101,6 +101,25 @@ function vendoredGlyphs() {
     return bySubpath;
 }
 
+const GENERATED = join(ROOT, 'packages/framework/adwaita-app/src/icons.generated.ts');
+
+/**
+ * The names the COMMITTED artifact says it carries, or `null` when it is absent.
+ *
+ * The artifact is committed (the shape `adwaita-web/src/styles.generated.ts` already has:
+ * a generated `.ts` that `src/` imports is an input to the TS program, not a build output
+ * nobody type-checks). Committing it is also what lets the package build on a host with no
+ * `glib-compile-resources` — the Windows leg of `gtk-os-suites.yml` deliberately has no GTK
+ * toolchain at all. The cost of committing is that it can go STALE against SUBSET, and this
+ * is the arm that refuses to let it: the generator records the name list precisely so the
+ * check needs no toolchain of its own.
+ */
+function committedNames() {
+    if (!existsSync(GENERATED)) return null;
+    const m = /BUNDLED_ICON_NAMES = (\[[^\]]*\])/.exec(readFileSync(GENERATED, 'utf8'));
+    return m ? JSON.parse(m[1]) : [];
+}
+
 const rel = (p) => toPosixPath(relative(ROOT, p));
 const exportNameFor = (name) => `${name.replace(/-([a-z0-9])/g, (_a, c) => c.toUpperCase())}Symbolic`;
 
@@ -134,6 +153,25 @@ for (const [name, subpath] of [...gtk].sort()) {
         failures.push(`${name} names ${exportName}, which @gjsify/adwaita-icons does not export.`);
     } else if (home !== subpath) {
         failures.push(`${name} is taken from '${subpath}' but ${exportName} lives in '${home}'.`);
+    }
+}
+
+// The committed artifact must agree with SUBSET, or the bundle a consumer installs is not
+// the bundle this file argues about.
+const committed = committedNames();
+if (committed !== null) {
+    const want = [...gtk.keys()].sort();
+    const have = [...committed].sort();
+    if (want.join(',') !== have.join(',')) {
+        const missing = want.filter((n) => !have.includes(n));
+        const extra = have.filter((n) => !want.includes(n));
+        failures.push(
+            `the committed packages/framework/adwaita-app/src/icons.generated.ts is STALE against SUBSET` +
+                `${missing.length > 0 ? ` — missing ${missing.join(', ')}` : ''}` +
+                `${extra.length > 0 ? ` — carries ${extra.join(', ')} that SUBSET does not` : ''}. ` +
+                `Regenerate it: gjsify workspace @gjsify/adwaita-app run build:icons (needs ` +
+                `glib-compile-resources), and commit the result.`,
+        );
     }
 }
 
