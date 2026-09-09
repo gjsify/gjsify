@@ -158,6 +158,11 @@ const ONE_RENDERER_ONLY = {
         decision:
             'No `AdwAlertResponse` type upstream — a response is an id passed to `adw_alert_dialog_add_response()`, whose MARKUP form is a GtkBuildable `<response>` child, which is what this element mirrors. NativeScript calls the method against the same `AdwAlertResponses` in adwaita-core, so only the browser needs a tag to declare one in.',
     },
+    box: {
+        only: 'nativescript',
+        decision:
+            "Upstream has no AdwBox: `GtkBox` is GTK's primitive and libadwaita styles what a caller puts IN one. On the browser a box is a `<div>` — the DOM already is a box with a gap, so wrapping it in an element would carry no behaviour, the same verdict `<adw-card>` gets from the other side. NativeScript needed a class because its `StackLayout` has no gap at all (`Style` carries no `columnGap`/`rowGap`) and no `insert_after` child order, so the two things this widget adds are the two the platform lacks (gtk-box.ts). The rest is why: a documented pane that reaches into `@nativescript/core` for a box is a different PROGRAM from its `gjs` sibling, which is what ADR 0034 § Amendment 14's `composition` kind counts.",
+    },
     'bottom-sheet-content': {
         only: 'web',
         decision:
@@ -195,6 +200,11 @@ const ONE_RENDERER_ONLY = {
         only: 'nativescript',
         decision:
             'Recorded in adw-image-button.ts:6-8: "NativeScript\'s `Button` is text-only (it cannot host a child view), so an icon button is a tappable `GridLayout` holding a centered `Image`." Upstream `.image-button` is a style class (_buttons.scss:66); on the browser it exists only as the split button\'s CSS-node-contract mirror (adw-split-button.ts:372 toggles it on the HOST, per `splitbutton[.image-button]`) and is styled in no adwaita-web stylesheet, so no browser element carries the idiom either.',
+    },
+    label: {
+        only: 'nativescript',
+        decision:
+            "Upstream has no AdwLabel: `GtkLabel` is GTK's, and libadwaita's label looks are style classes over it (`.title-1`…`.title-4`, `.dimmed`, stylesheet/widgets/_labels.scss). On the browser a label is a `<span>` and the markup a caller writes is already the markup the label shows, so there is nothing for an element to translate. NativeScript's `Label.text` is LITERAL and its `formattedText` takes objects rather than a markup string, so a port had to decide what `use-markup` means here — it reduces Pango markup to its plain text, the same answer `Adw.Banner` already gives (label-text.ts) — and that decision is the widget.",
     },
     'navigation-page': {
         only: 'web',

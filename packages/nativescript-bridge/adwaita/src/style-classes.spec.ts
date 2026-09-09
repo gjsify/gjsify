@@ -20,7 +20,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { classNameWith, normalizeStyleClasses } from './widgets/style-classes.js';
+import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './widgets/style-classes.js';
 
 /** What `GtkButton`'s setter does, minus the NativeScript base class it cannot import. */
 function classNameFor(base: string, value: string | null | undefined): string {
@@ -88,6 +88,61 @@ export default async () => {
             expect(classNameFor('adw-button', 'pill suggested-action')).toBe('adw-button pill suggested-action');
             expect(classNameFor('adw-button', 'flat')).toBe('adw-button flat');
             expect(classNameFor('adw-button', '')).toBe('adw-button');
+        });
+    });
+
+    await describe('classNameWith with NO base — the two widgets that have no class of their own', async () => {
+        await it('a bare `Gtk.Box` or `Gtk.Label` carries nothing at all', () => {
+            // GTK's `box` and `label` are CSS NAMES, never members of `css-classes`, and
+            // neither has an Adwaita fill or typography of its own to carry.
+            expect(classNameWith('', [])).toBe('');
+        });
+
+        await it('carries only the caller\u2019s classes, with no leading space', () => {
+            // A leading space is not cosmetic: NativeScript splits `className` on
+            // whitespace into the live `cssClasses` Set, so `' title-1'` adds an EMPTY
+            // class name beside the real one.
+            expect(classNameWith('', ['title-1'])).toBe('title-1');
+            expect(classNameWith('', ['card', 'accent'])).toBe('card accent');
+            expect(classNameWith('', ['title-1']).startsWith(' ')).toBe(false);
+        });
+    });
+
+    await describe('withCssClass / withoutCssClass — GTK\u2019s own methods, over the same list', async () => {
+        // Measured under gjs 1.88.1 on a `Gtk.Button`, `get_css_classes()` after each call:
+        //   add a, add b, add a      ['a','b']    a second add does not move the class
+        //   remove b                 ['a']
+        //   remove b again           ['a']        absent is a no-op, not an error
+        await it('appends at the end', () => {
+            expect(withCssClass([], 'pill')).toStrictEqual(['pill']);
+            expect(withCssClass(['pill'], 'suggested-action')).toStrictEqual(['pill', 'suggested-action']);
+        });
+
+        await it('a second add of a class already held is a no-op and does NOT move it', () => {
+            expect(withCssClass(['a', 'b'], 'a')).toStrictEqual(['a', 'b']);
+        });
+
+        await it('removes a class it holds, and shrugs at one it does not', () => {
+            expect(withoutCssClass(['pill', 'flat'], 'flat')).toStrictEqual(['pill']);
+            expect(withoutCssClass(['pill'], 'flat')).toStrictEqual(['pill']);
+            expect(withoutCssClass([], 'flat')).toStrictEqual([]);
+        });
+
+        await it('trims, because the string door already means \u201Ca list\u201D', () => {
+            expect(withCssClass([], '  pill  ')).toStrictEqual(['pill']);
+            expect(withoutCssClass(['pill'], '  pill  ')).toStrictEqual([]);
+        });
+
+        await it('drops an empty name rather than adding a class nothing can be', () => {
+            expect(withCssClass([], '')).toStrictEqual([]);
+            expect(withCssClass([], '   ')).toStrictEqual([]);
+        });
+
+        await it('never mutates the list it is given — the widget holds one and rewrites className', () => {
+            const held = ['pill'];
+            withCssClass(held, 'flat');
+            withoutCssClass(held, 'pill');
+            expect(held).toStrictEqual(['pill']);
         });
     });
 };

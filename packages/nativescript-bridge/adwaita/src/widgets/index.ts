@@ -64,6 +64,11 @@ export type { NotifySliderValueEventData } from './adw-slider-row.js';
 export { AdwExpanderRow, ExpanderState, NOTIFY_EXPANDED } from './adw-expander-row.js';
 export type { ExpanderStateListener, NotifyExpandedEventData } from './adw-expander-row.js';
 export { GtkButton } from './gtk-button.js';
+export { GtkBox, DEFAULT_BOX_SPACING } from './gtk-box.js';
+export { boxChildMargin, boxSpacingChanges, normalizeBoxSpacing } from './box-layout.js';
+export type { BoxOrientation } from './box-layout.js';
+export { GtkLabel } from './gtk-label.js';
+export { labelDisplayText, labelMarkupIsUnparseable } from './label-text.js';
 export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
 export { GtkMenuButton, MENU_ITEM_ACTIVATED } from './gtk-menu-button.js';
 export type { MenuItemActivatedEventData } from './gtk-menu-button.js';
@@ -323,6 +328,8 @@ import { AdwSpinRow } from './adw-spin-row.js';
 import { AdwSliderRow } from './adw-slider-row.js';
 import { AdwExpanderRow } from './adw-expander-row.js';
 import { GtkButton } from './gtk-button.js';
+import { GtkBox } from './gtk-box.js';
+import { GtkLabel } from './gtk-label.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { GtkMenuButton } from './gtk-menu-button.js';
 import { GtkImage } from './gtk-image.js';
@@ -371,6 +378,8 @@ const ELEMENTS = {
     AdwSliderRow,
     AdwExpanderRow,
     GtkButton,
+    GtkBox,
+    GtkLabel,
     AdwImageButton,
     GtkMenuButton,
     GtkImage,

@@ -265,6 +265,26 @@ const KNOWN_GAPS = {
         gaps: ['policy'],
         why: 'The port HAS this control and not under this name: `AdwViewSwitcherBase` declares a PROTECTED `policy` getter for the button orientation and exposes the settable door as `switcherPolicy` beside it (view-switcher-base.ts:89-99). So the GIR name is taken by a port-owned member, which ADR 0034 § Amendment 11 records as a question about that member rather than a reason the name cannot converge — the getter is internal and could be renamed. Listed here because until it is, the widget does not answer to `policy`.',
     },
+    'gtk-box': {
+        gaps: ['baselineChild', 'baselinePosition', 'homogeneous'],
+        why: "The box extends the real NativeScript `StackLayout` and adds the two things the platform has no word for — the gap, which comes out of the children's margins because `Style` carries no `columnGap`/`rowGap`, and GTK's child verbs (gtk-box.ts). The two baseline properties are the same absence `gtk-align.ts` already declares for `Gtk.Align`'s three baseline members: nothing in @nativescript/core measures a text baseline, so there is no allocation for a baseline child or a baseline position to change. `homogeneous` asks every child for the widest child's size, and a `StackLayout` measures each child at its natural size with no equal-share mode — the same missing size-negotiation protocol `adw-inline-view-switcher` declares one entry over.",
+    },
+    'gtk-label': {
+        gaps: [
+            'ellipsize',
+            'justify',
+            'lines',
+            'maxWidthChars',
+            'naturalWrapMode',
+            'selectable',
+            'singleLineMode',
+            'widthChars',
+            'wrapMode',
+            'xalign',
+            'yalign',
+        ],
+        why: 'Everything here is PANGO, and a NativeScript `Label` exposes `text`, `textWrap` and `textAlignment` over a platform text view with no text-layout engine reachable behind them (gtk-label.ts). So there is no ellipsize mode, no line cap, no character-width request, no wrap-mode choice — the platform wraps at word boundaries or not at all — and no selectable text on a `Label` (that is `TextView` there, a different view). `xalign`/`yalign` are the sharpest of them: they are a CONTINUUM in [0,1] where `textAlignment` has three positions and `horizontalAlignment` is the property a caller actually has here, so mapping them would report a snap as agreement. `justify` and `xalign` would both land on that one knob, which is why neither is mapped rather than one of them silently winning.',
+    },
     'gtk-button': {
         gaps: ['canShrink', 'hasFrame', 'iconName', 'label', 'useUnderline'],
         why: "This class extends the REAL NativeScript `Button` (gtk-button.ts:9) and adds exactly one property, `variant`. The label is NS `Button.text` — the same control under the platform's name, which is a divergence no gate sees because `text` is inherited rather than declared here. `has-frame` and the mnemonic underline are GTK chrome with no NS counterpart, `icon-name` is what `AdwImageButton` is for, and `can-shrink` is the size-negotiation property. `<gtk-button>` declares four of the five on the web surface.",

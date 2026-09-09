@@ -27,6 +27,12 @@ export {
     DEFAULT_ICON_BUTTON_ICON_SIZE,
     MENU_ITEM_ACTIVATED,
     DEFAULT_GTK_IMAGE_SIZE,
+    DEFAULT_BOX_SPACING,
+    boxChildMargin,
+    boxSpacingChanges,
+    normalizeBoxSpacing,
+    labelDisplayText,
+    labelMarkupIsUnparseable,
     BUTTON_CLICKED,
     AVATAR_DEFAULT_ICON,
     DEFAULT_AVATAR_SIZE,
@@ -126,6 +132,7 @@ export {
     registerAdwaitaElements,
 } from './widgets/index.js';
 export type {
+    BoxOrientation,
     NotifyActiveEventData,
     NotifyTextEventData,
     NotifyEntryTextEventData,
