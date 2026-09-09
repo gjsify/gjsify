@@ -47,21 +47,21 @@ export class OverviewWidgetsNsStory extends StoryView {
         dark.title = OVERVIEW_TEXT.darkMode;
         dark.subtitle = OVERVIEW_TEXT.darkModeSubtitle;
         dark.active = false;
-        appearance.addRow(dark);
+        appearance.add(dark);
 
         const notifications = new Adw.SwitchRow();
         notifications.title = OVERVIEW_TEXT.notifications;
         notifications.subtitle = OVERVIEW_TEXT.notificationsSubtitle;
         notifications.active = true;
-        appearance.addRow(notifications);
+        appearance.add(notifications);
 
         const accent = new Adw.ComboRow();
         accent.title = OVERVIEW_TEXT.accentColor;
         accent.model = OVERVIEW_ACCENT_OPTIONS.map((label) => ({ label, value: label.toLowerCase() }));
         accent.selected = 0;
-        appearance.addRow(accent);
+        appearance.add(accent);
 
-        page.addGroup(appearance);
+        page.add(appearance);
 
         // --- Account ---
         const account = new Adw.PreferencesGroup();
@@ -70,12 +70,12 @@ export class OverviewWidgetsNsStory extends StoryView {
         const name = new Adw.EntryRow();
         name.title = OVERVIEW_TEXT.name;
         name.text = OVERVIEW_TEXT.nameValue;
-        account.addRow(name);
+        account.add(name);
 
         const email = new Adw.EntryRow();
         email.title = OVERVIEW_TEXT.email;
         email.text = OVERVIEW_TEXT.emailValue;
-        account.addRow(email);
+        account.add(email);
 
         const devices = new Adw.SpinRow();
         devices.title = OVERVIEW_TEXT.devices;
@@ -87,7 +87,7 @@ export class OverviewWidgetsNsStory extends StoryView {
             stepIncrement: OVERVIEW_DEVICES.step,
         };
         devices.value = OVERVIEW_DEVICES.value;
-        account.addRow(devices);
+        account.add(devices);
 
         const advanced = new Adw.ExpanderRow();
         advanced.title = OVERVIEW_TEXT.advanced;
@@ -97,17 +97,17 @@ export class OverviewWidgetsNsStory extends StoryView {
                 const child = new Adw.SwitchRow();
                 child.title = row.title;
                 child.active = row.active ?? false;
-                advanced.addRow(child);
+                advanced.add_row(child);
             } else {
                 const child = new Adw.ActionRow();
                 child.title = row.title;
-                advanced.addRow(child);
+                advanced.add_row(child);
             }
         }
         advanced.expanded = true;
-        account.addRow(advanced);
+        account.add(advanced);
 
-        page.addGroup(account);
+        page.add(account);
 
         // --- Shortcuts: the newest widget, in context ---
         const shortcuts = new Adw.PreferencesGroup();
@@ -117,10 +117,10 @@ export class OverviewWidgetsNsStory extends StoryView {
             row.title = shortcut.title;
             const label = new Adw.ShortcutLabel();
             label.accelerator = shortcut.accelerator;
-            row.setSuffix(label);
-            shortcuts.addRow(row);
+            row.add_suffix(label);
+            shortcuts.add(row);
         }
-        page.addGroup(shortcuts);
+        page.add(shortcuts);
 
         // --- Actions ---
         const actions = new Adw.PreferencesGroup();
@@ -139,8 +139,8 @@ export class OverviewWidgetsNsStory extends StoryView {
         remove.styleClasses = 'destructive-action';
         buttons.addChild(remove);
 
-        actions.addRow(buttons);
-        page.addGroup(actions);
+        actions.add(buttons);
+        page.add(actions);
 
         host.addChild(page);
         this.addContent(host);

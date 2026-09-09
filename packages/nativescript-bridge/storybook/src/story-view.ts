@@ -112,7 +112,7 @@ export class StoryView extends StoryViewBase<View> {
 
         group.addChild(header);
         group.addChild(stage);
-        clamp.setChild(group);
+        clamp.set_child(group);
         page.addChild(clamp);
 
         return {

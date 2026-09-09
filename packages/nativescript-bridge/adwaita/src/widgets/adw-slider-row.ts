@@ -22,6 +22,7 @@ import { SpinState, parseAdjustment, snapAdjustmentValue } from '@gjsify/adwaita
 import type { AdwAdjustment, AdwAdjustmentInput } from '@gjsify/adwaita-core';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when {@link AdwSliderRow.value} changes. Mirrors GObject `notify::value`. */
 export const NOTIFY_SLIDER_VALUE = 'notify::value';
@@ -32,7 +33,7 @@ export interface NotifySliderValueEventData extends EventData {
     value: number;
 }
 
-export class AdwSliderRow extends StackLayout {
+export class AdwSliderRow extends withSignals(StackLayout) {
     /** The title label (header, left). */
     protected readonly _titleLabel: Label;
     /** The live value label (header, right, dim). */

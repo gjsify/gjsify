@@ -56,6 +56,7 @@ import {
 } from './wrap-box-layout.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Every `notify::` an `Adw.WrapBox` emits (adw-wrap-box.c:284-497). */
 export type AdwWrapBoxProperty =
@@ -74,7 +75,7 @@ export type AdwWrapBoxProperty =
     | 'wrap-policy'
     | 'orientation';
 
-export class AdwWrapBox extends FlexboxLayout {
+export class AdwWrapBox extends withSignals(FlexboxLayout) {
     private _childSpacing = DEFAULT_WRAP_BOX_SPACING;
     private _lineSpacing = DEFAULT_WRAP_BOX_SPACING;
     private _childSpacingUnit: AdwLengthUnit = ADW_WRAP_BOX_DEFAULT_LENGTH_UNIT;
@@ -102,7 +103,7 @@ export class AdwWrapBox extends FlexboxLayout {
     // --- child list ---
 
     /** Append a child — `adw_wrap_box_append` (adw-wrap-box.c:1344-1352). */
-    add(view: View): void {
+    append(view: View): void {
         this.addChild(view);
     }
 
@@ -112,14 +113,14 @@ export class AdwWrapBox extends FlexboxLayout {
     }
 
     /** `adw_wrap_box_remove_all` (:1406-1414). */
-    removeAll(): void {
+    remove_all(): void {
         this.removeChildren();
     }
 
     /**
-     * Every path a child can enter by — `add()`, a direct `addChild()`, and XML
+     * Every path a child can enter by — `append()`, a direct `addChild()`, and XML
      * inflation via `_addChildFromBuilder` — ends here, which is why the spacing
-     * is applied here and not in `add()`. It used to be applied in `add()` only,
+     * is applied here and not in `append()`. It used to be applied in `append()` only,
      * so a child declared in markup got no spacing at all; C routes GtkBuildable's
      * `add_child` through the same append for the same reason.
      */
@@ -139,12 +140,12 @@ export class AdwWrapBox extends FlexboxLayout {
      * `WRAP_BOX_CHILD_ORDER_VECTORS`. Returns whether the insert happened; a
      * refusal is where C would have hit a `g_return_if_fail`.
      */
-    insertChildAfter(view: View, sibling: View | null = null): boolean {
+    insert_child_after(view: View, sibling: View | null = null): boolean {
         return this._applyOrder('insert-after', view, sibling);
     }
 
     /** `adw_wrap_box_reorder_child_after` (:1315-1332). Same NULL rule. */
-    reorderChildAfter(view: View, sibling: View | null = null): boolean {
+    reorder_child_after(view: View, sibling: View | null = null): boolean {
         return this._applyOrder('reorder-after', view, sibling);
     }
 

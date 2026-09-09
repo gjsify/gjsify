@@ -22,6 +22,7 @@
 import { Label, StackLayout, type EventData } from '@nativescript/core';
 import { WindowTitleState, toLabelVisuals } from './row-state.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when {@link AdwWindowTitle.title} changes. */
 export const NOTIFY_TITLE = 'notify::title';
@@ -29,7 +30,7 @@ export const NOTIFY_TITLE = 'notify::title';
 /** Event name emitted when {@link AdwWindowTitle.subtitle} changes. */
 export const NOTIFY_SUBTITLE = 'notify::subtitle';
 
-export class AdwWindowTitle extends StackLayout {
+export class AdwWindowTitle extends withSignals(StackLayout) {
     /** The bold title label. */
     protected readonly _titleLabel: Label;
     /** The dim subtitle label. */

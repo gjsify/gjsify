@@ -21,6 +21,11 @@
 //     side: a value arriving through it is a real JS value rather than a string, so a
 //     setter must NOT widen its declared type to admit an enum constant — that would
 //     drag the number into the ATTRIBUTE door, where it has no coercer.
+//   · A SIGNAL HANDLER (ADR 0034 § Amendment 14). The one door that goes OUT: GJS's
+//     `connect(name, cb) -> id` / `disconnect(id)`, which `widgets/signals.ts` puts on
+//     every class as a mixin applied where the class meets `@nativescript/core` —
+//     `extends withSignals(GridLayout)`. A class extending a platform base bare has no
+//     door; a class extending a port base inherits it and must not wrap again.
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -180,6 +185,36 @@ export const NS_CORE_TYPES = 'packages/nativescript-bridge/adwaita/src/ns-core.d
 export function readCoreProperties(root) {
     const text = readFileSync(join(root, NS_CORE_TYPES), 'utf8');
     return new Set([...text.matchAll(/^\s{4,}([A-Za-z_$][A-Za-z0-9_$]*)\??:/gm)].map((m) => m[1]));
+}
+
+/** Where GJS's `connect` / `disconnect` come from, and the wrapper a class takes them with. */
+export const NS_SIGNALS = `${NS_WIDGETS_DIR}/signals.ts`;
+export const SIGNALS_MIXIN = 'withSignals';
+
+/**
+ * What one widget class extends: the base name, and whether it is wrapped in
+ * `withSignals(…)`. `null` when the declaration has no `extends` this reader can spell.
+ *
+ * Generics on the class and on the base are skipped the way `classBases` in
+ * `check-nativescript-widget-coverage.mjs` skips them, and for the reason it records:
+ * `AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewState>`.
+ *
+ * @param {string} text the module source
+ * @param {string} name the class
+ * @returns {{ base: string, wrapped: boolean } | null}
+ */
+export function extendsOf(text, name) {
+    const match = new RegExp(
+        `export (?:abstract )?class ${name}\\b(?:<[^{]*?>)?\\s+extends\\s+(${SIGNALS_MIXIN}\\()?([A-Za-z0-9_$]+)`,
+    ).exec(executable(text));
+    if (match === null) return null;
+    return { base: match[2], wrapped: match[1] !== undefined };
+}
+
+/** Every class the ambient slice declares — where a port chain is allowed to leave the package. */
+export function readCoreClasses(root) {
+    const text = readFileSync(join(root, NS_CORE_TYPES), 'utf8');
+    return new Set([...executable(text).matchAll(/\bclass\s+([A-Za-z0-9_$]+)/g)].map((m) => m[1]));
 }
 
 /**
@@ -656,6 +691,49 @@ export function membersOf(sources, tag) {
         for (const [, name] of text.matchAll(/^ {4}(?:async )?(\w+)\(/gm)) members.add(name);
     }
     return members;
+}
+
+/**
+ * The PUBLIC methods one class declares in its own body — the port's method vocabulary,
+ * which is what `check-vocabulary-alignment.mjs` holds against the GIR's.
+ *
+ * Read from the class body proper, brace-matched from the declaration, rather than from a
+ * slice up to the next `class` keyword: a top-level function after the class would
+ * otherwise contribute its inner `if (` and `for (` at four-space indentation as methods,
+ * which is exactly what the first census of this surface printed for `gtk-align.ts`.
+ *
+ * WHAT COUNTS. A four-space-indented member `name(`, optionally `override`/`async`/
+ * `public`, that is not an accessor (`get`/`set` are the property vocabulary, held one
+ * ledger over), not `private`/`protected` (a caller cannot write it), not `static` (the
+ * GIR side holds instance methods only — a static is `Gtk.Widget.get_default_direction()`
+ * and no port instance can converge to it), and not `_`-prefixed (NativeScript's own
+ * convention for a member the builder calls, `_addChildFromBuilder`). An OVERRIDE of a
+ * `@nativescript/core` member counts — `addChild` on `AdwWrapBox` is in the corpus —
+ * because a name the platform owns is precisely the collision the ledger exists to declare.
+ *
+ * `null` when the class is not in the text at all, so a widget whose class cannot be found
+ * drops out as a failure and not as a widget with no methods.
+ *
+ * @param {string} text the module source
+ * @param {string} className the class to read
+ * @returns {string[] | null} declaration order, de-duplicated
+ */
+export function publicMethodsOf(text, className) {
+    const code = executable(text);
+    const head = new RegExp(`\\bclass\\s+${className}\\b[^{]*\\{`).exec(code);
+    if (head === null) return null;
+    const open = head.index + head[0].length - 1;
+    const close = matchingBrace(code, open);
+    if (close === -1) return null;
+    const body = code.slice(open + 1, close);
+    const out = [];
+    const member =
+        /^ {4}(?:(?:public|override|async)\s+)*(?!(?:get|set|private|protected|static|constructor|readonly)\b)([A-Za-z][\w$]*)\s*(?:<[^>]*>)?\(/gm;
+    for (const [, name] of body.matchAll(member)) {
+        if (name.startsWith('_') || out.includes(name)) continue;
+        out.push(name);
+    }
+    return out;
 }
 
 /** Does the setter actually put the value through something that accepts a string? */

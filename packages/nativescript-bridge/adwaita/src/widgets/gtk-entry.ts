@@ -39,6 +39,7 @@ import { GridLayout, ItemSpec, TextField, type EventData } from '@nativescript/c
 import { ENTRY_ROW_MAX_LENGTH_LIMIT, clampEntryText, entryTextLength } from '@gjsify/adwaita-core';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when {@link GtkEntry.text} changes. Mirrors GObject `notify::text`. */
 export const NOTIFY_TEXT = 'notify::text';
@@ -54,7 +55,7 @@ export interface NotifyEntryTextEventData extends EventData {
     textLength: number;
 }
 
-export class GtkEntry extends GridLayout {
+export class GtkEntry extends withSignals(GridLayout) {
     /** The real input. Chrome-less: the box around it paints the Adwaita surface. */
     protected readonly _field: TextField;
     private _text = '';

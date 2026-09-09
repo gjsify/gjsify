@@ -8,7 +8,7 @@
 // toast strip, the `setTimeout`-backed scheduler that drives the core queue's
 // auto-dismiss, and the CSS.
 //
-// `AdwToastOverlay` drives an {@link AdwToastQueue}: `addToast(toast)` /
+// `AdwToastOverlay` drives an {@link AdwToastQueue}: `add_toast(toast)` /
 // `showToast(title, opts)` enqueue; the queue shows one at a time and calls back
 // to mount/tear-down the strip (`onShow`/`onHide`), with the injected scheduler
 // firing the auto-dismiss. Optional action button (`buttonLabel` +
@@ -29,6 +29,7 @@ import { Button, GridLayout, ItemSpec, Label, type EventData } from '@nativescri
 import { AdwToast, AdwToastQueue } from '@gjsify/adwaita-core';
 import type { AdwToastOptions, ToastScheduler } from '@gjsify/adwaita-core';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 // Re-export the headless surface so existing consumers keep importing it from
 // `@gjsify/adwaita-nativescript` unchanged.
@@ -50,7 +51,7 @@ const nativeScriptScheduler: ToastScheduler = {
     cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
-export class AdwToastOverlay extends GridLayout {
+export class AdwToastOverlay extends withSignals(GridLayout) {
     /** The always-visible content layer. */
     private _content: View | null = null;
     /** The bottom-anchored toast strip. */
@@ -113,8 +114,8 @@ export class AdwToastOverlay extends GridLayout {
         applyConstructProps(this, props);
     }
 
-    /** Set (or replace) the always-visible content layer (under the toast). */
-    setContent(view: View | null): void {
+    /** Set (or replace) the always-visible content layer (under the toast) — `adw_toast_overlay_set_child`. */
+    set_child(view: View | null): void {
         if (this._content) this.removeChild(this._content);
         this._content = view;
         if (view) {
@@ -126,8 +127,8 @@ export class AdwToastOverlay extends GridLayout {
         }
     }
 
-    /** Enqueue a {@link AdwToast} descriptor (shows now, or after the current one). */
-    addToast(toast: AdwToast): void {
+    /** Enqueue a {@link AdwToast} descriptor (shows now, or after the current one) — `adw_toast_overlay_add_toast`. */
+    add_toast(toast: AdwToast): void {
         this._queue.add(toast);
     }
 

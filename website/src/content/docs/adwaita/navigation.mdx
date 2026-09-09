@@ -187,8 +187,8 @@ the sidebar and the content each their own navigation page and header bar.
     sidebarList.selected = 0;
 
     const sidebar = new Adw.ToolbarView();
-    sidebar.addTopBar(new Adw.HeaderBar({ title: 'Mailboxes' }));
-    sidebar.setContent(sidebarList);
+    sidebar.add_top_bar(new Adw.HeaderBar({ title: 'Mailboxes' }));
+    sidebar.set_content(sidebarList);
 
     // Content: a status page inside a toolbar view.
     const status = new Adw.StatusPage({
@@ -198,12 +198,12 @@ the sidebar and the content each their own navigation page and header bar.
         description: 'Select a conversation from the list to read it here.',
     });
     const content = new Adw.ToolbarView();
-    content.addTopBar(new Adw.HeaderBar({ title: 'All Mail' }));
-    content.setContent(status);
+    content.add_top_bar(new Adw.HeaderBar({ title: 'All Mail' }));
+    content.set_content(status);
 
     const view = new Adw.NavigationSplitView();
-    view.setSidebar(sidebar);
-    view.setContent(content);
+    view.set_sidebar(sidebar);
+    view.set_content(content);
     view.showSidebar = true;
     ```
   </Fragment>
@@ -340,8 +340,8 @@ navigation pane that should not push the main content aside on a narrow window.
     sidebarList.selected = 0;
 
     const sidebar = new Adw.ToolbarView();
-    sidebar.addTopBar(new Adw.HeaderBar({ styleClasses: 'flat' }));
-    sidebar.setContent(sidebarList);
+    sidebar.add_top_bar(new Adw.HeaderBar({ styleClasses: 'flat' }));
+    sidebar.set_content(sidebarList);
 
     const status = new Adw.StatusPage({
         // `iconName` takes the SVG SOURCE here, not a theme name.
@@ -350,12 +350,12 @@ navigation pane that should not push the main content aside on a narrow window.
         description: 'Toggle the sidebar to browse sections. Collapse it to overlay the content.',
     });
     const content = new Adw.ToolbarView();
-    content.addTopBar(new Adw.HeaderBar());
-    content.setContent(status);
+    content.add_top_bar(new Adw.HeaderBar());
+    content.set_content(status);
 
     const view = new Adw.OverlaySplitView();
-    view.setSidebar(sidebar);
-    view.setContent(content);
+    view.set_sidebar(sidebar);
+    view.set_content(content);
     view.showSidebar = true;
     view.collapsed = false;
     ```
@@ -495,8 +495,8 @@ the detail page and watch the back button appear.
         description: 'Mathematician and writer, the first computer programmer.',
     });
     const detail = new Adw.ToolbarView();
-    detail.addTopBar(new Adw.HeaderBar({ title: 'Ada Lovelace' }));
-    detail.setContent(detailStatus);
+    detail.add_top_bar(new Adw.HeaderBar({ title: 'Ada Lovelace' }));
+    detail.set_content(detailStatus);
 
     // Root page: a pill button that pushes the detail page by tag.
     const open = new Gtk.Button({
@@ -505,8 +505,8 @@ the detail page and watch the back button appear.
     });
     open.addEventListener('tap', () => view.push('detail'));
     const root = new Adw.ToolbarView();
-    root.addTopBar(new Adw.HeaderBar({ title: 'Contacts' }));
-    root.setContent(open);
+    root.add_top_bar(new Adw.HeaderBar({ title: 'Contacts' }));
+    root.set_content(open);
 
     view.add(root, 'root');
     view.add(detail, 'detail');
@@ -826,7 +826,7 @@ content pane, not to work.
     const toggle = new Gtk.Button({ text: 'Toggle sheet', styleClasses: 'pill' });
     toggle.addEventListener('tap', () => { sheet.open = !sheet.open; });
     center.addChild(toggle);
-    sheet.setContent(center);
+    sheet.set_content(center);
 
     // The sheet: a title above a boxed list of share actions.
     const box = new StackLayout();
@@ -838,10 +838,10 @@ content pane, not to work.
 
     const group = new Adw.PreferencesGroup();
     for (const rowTitle of ['Copy link', 'Send to a friend', 'Add to playlist']) {
-        group.addRow(new Adw.ActionRow({ title: rowTitle }));
+        group.add(new Adw.ActionRow({ title: rowTitle }));
     }
     box.addChild(group);
-    sheet.setSheet(box);
+    sheet.set_sheet(box);
 
     sheet.open = true;
     ```

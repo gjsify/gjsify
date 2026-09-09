@@ -55,7 +55,7 @@ export class BottomSheetNsStory extends StoryView {
         ] as const) {
             const row = new Adw.ActionRow();
             row.title = rowTitle;
-            group.addRow(row);
+            group.add(row);
         }
         box.addChild(group);
 
@@ -69,8 +69,8 @@ export class BottomSheetNsStory extends StoryView {
         this._sheet.width = 480;
         this._sheet.height = 340;
 
-        this._sheet.setContent(this._buildContent());
-        this._sheet.setSheet(this._buildSheet());
+        this._sheet.set_content(this._buildContent());
+        this._sheet.set_sheet(this._buildSheet());
 
         this._sync();
         this.addContent(this._sheet);

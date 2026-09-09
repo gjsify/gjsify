@@ -138,7 +138,7 @@ on the desktop.
     });
 
     const overlay = new Adw.ToastOverlay();
-    overlay.setContent(content);
+    overlay.set_content(content);
 
     // The NativeScript overlay timer is in milliseconds.
     overlay.showToast('File moved to Trash', {
@@ -216,11 +216,11 @@ ID, and that ID is what reaches your code. Give one response a **destructive** o
         'This will permanently remove the project and all of its files. This action cannot be undone.',
     );
 
-    dialog.addResponse('cancel', 'Cancel');
-    dialog.addResponse('delete', 'Delete');
+    dialog.add_response('cancel', 'Cancel');
+    dialog.add_response('delete', 'Delete');
     // The appearance is the nick, not a constant: `@gjsify/adwaita-core` spells it
     // 'default' | 'suggested' | 'destructive' on every surface.
-    dialog.setResponseAppearance('delete', 'destructive');
+    dialog.set_response_appearance('delete', 'destructive');
     dialog.defaultResponse = 'cancel';
     dialog.closeResponse = 'cancel';
 
@@ -434,18 +434,18 @@ the web port renders them stacked instead.
         description: 'Control how the application looks and behaves.',
     });
 
-    group.addRow(new Adw.SwitchRow({ title: 'Dark style', subtitle: 'Use a dark colour scheme', active: true }));
-    group.addRow(new Adw.ComboRow({
+    group.add(new Adw.SwitchRow({ title: 'Dark style', subtitle: 'Use a dark colour scheme', active: true }));
+    group.add(new Adw.ComboRow({
         title: 'Accent colour',
         model: ['Blue', 'Teal', 'Green', 'Orange', 'Purple'],
         selected: 0,
     }));
-    group.addRow(new Adw.SpinRow({
+    group.add(new Adw.SpinRow({
         title: 'Font size',
         adjustment: { lower: 8, upper: 24, value: 12, stepIncrement: 1 },
     }));
 
-    page.addGroup(group);
+    page.add(group);
     dialog.add(page);
     dialog.present();
     ```

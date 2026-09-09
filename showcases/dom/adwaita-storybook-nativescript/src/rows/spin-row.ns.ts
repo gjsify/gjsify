@@ -22,11 +22,11 @@ export class SpinRowNsStory extends StoryView {
         this._syncRow();
 
         const group = new Adw.PreferencesGroup();
-        group.addRow(this._row);
+        group.add(this._row);
 
         const clamp = new Adw.Clamp();
         clamp.maximumSize = 400;
-        clamp.setChild(group);
+        clamp.set_child(group);
 
         this.addContent(clamp);
     }

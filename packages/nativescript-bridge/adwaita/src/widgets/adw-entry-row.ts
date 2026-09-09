@@ -90,7 +90,7 @@ export class AdwEntryRow extends AdwActionRow {
     /** The caps-lock warning slot (`indicator`). */
     protected readonly _indicator: GtkImage;
     protected readonly _applyButton: AdwImageButton;
-    /** The suffix installed through the inherited single-slot {@link setSuffix}. */
+    /** The suffix installed through the inherited single-slot {@link add_suffix}. */
     private _slotSuffix: View | null = null;
     private _lastText = '';
     private _lastLength = 0;
@@ -165,7 +165,7 @@ export class AdwEntryRow extends AdwActionRow {
         suffixes.addChild(editIcon);
         this._editIcon = editIcon;
 
-        super.setSuffix(suffixes);
+        super.add_suffix(suffixes);
 
         this._field.addEventListener('textChange', () => {
             // Route through the core so max-length truncation counts CHARACTERS.
@@ -245,31 +245,31 @@ export class AdwEntryRow extends AdwActionRow {
         return this._state.editing;
     }
 
-    /** Append a suffix — `adw_entry_row_add_suffix` appends into a BOX, so suffixes COEXIST. */
-    addSuffix(view: View): void {
+    /**
+     * Append a suffix — `adw_entry_row_add_suffix` appends into a BOX, so suffixes
+     * COEXIST here as upstream, unlike the one-slot rule `AdwActionRow.add_suffix` states.
+     *
+     * The override matters for the password row: the base's one-slot `add_suffix` would
+     * detach the row's own peek toggle to make room, leaving `_peekButton` pointing at a
+     * detached view so the row could never be revealed again.
+     */
+    override add_suffix(view: View): void {
         view.className = `${view.className ?? ''} adw-row-suffix`.trim();
         this._suffixes.addChild(view);
+        this._slotSuffix = view;
     }
 
-    /**
-     * The inherited single-slot API, narrowed to replace only the suffix a previous
-     * `setSuffix` installed. `AdwActionRow.setSuffix` removes whatever sits in the
-     * slot, which would detach the password row's own peek toggle — leaving
-     * `_peekButton` pointing at a detached view, so the row could never be revealed
-     * again. Upstream has no such conflict: `add_suffix` appends.
-     */
-    override setSuffix(view: View | null): void {
-        if (this._slotSuffix) {
-            this._suffixes.removeChild(this._slotSuffix);
-            this._slotSuffix = null;
+    /** Remove a suffix added through {@link add_suffix} — `adw_entry_row_remove`. */
+    override remove(view: View): void {
+        if (view === this.prefix) {
+            super.remove(view);
+            return;
         }
-        if (view) {
-            this.addSuffix(view);
-            this._slotSuffix = view;
-        }
+        this._suffixes.removeChild(view);
+        if (view === this._slotSuffix) this._slotSuffix = null;
     }
 
-    /** The suffix installed through {@link setSuffix}, or `null`. */
+    /** The suffix most recently installed through {@link add_suffix}, or `null`. */
     override get suffix(): View | null {
         return this._slotSuffix;
     }

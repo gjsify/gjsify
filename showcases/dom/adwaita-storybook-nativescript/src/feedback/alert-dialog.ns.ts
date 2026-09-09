@@ -38,8 +38,8 @@ export class AlertDialogNsStory extends StoryView {
     /** Build + present a fresh dialog, reading the latest args (as the GTK story does). */
     private async _present(): Promise<void> {
         const dialog = new Adw.AlertDialog(this.args.heading as string, this.args.body as string);
-        dialog.addResponse('cancel', 'Cancel');
-        dialog.addResponse('delete', 'Delete');
+        dialog.add_response('cancel', 'Cancel');
+        dialog.add_response('delete', 'Delete');
         dialog.defaultResponse = 'cancel';
         dialog.closeResponse = 'cancel';
         await dialog.present();

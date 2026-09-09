@@ -50,23 +50,23 @@ export class PreferencesDialogNsStory extends StoryView {
         darkStyle.title = 'Dark style';
         darkStyle.subtitle = 'Use a dark colour scheme';
         darkStyle.active = true;
-        group.addRow(darkStyle);
+        group.add(darkStyle);
 
         // Accent colour — a combo row over the same five options.
         const accent = new Adw.ComboRow();
         accent.title = 'Accent colour';
         accent.model = ['Blue', 'Teal', 'Green', 'Orange', 'Purple'];
         accent.selected = 0;
-        group.addRow(accent);
+        group.add(accent);
 
         // Font size — a spin row bounded 8–24, defaulting to 12.
         const fontSize = new Adw.SpinRow();
         fontSize.title = 'Font size';
         fontSize.adjustment = { lower: 8, upper: 24, stepIncrement: 1 };
         fontSize.value = 12;
-        group.addRow(fontSize);
+        group.add(fontSize);
 
-        page.addGroup(group);
+        page.add(group);
         dialog.add(page);
         return dialog;
     }

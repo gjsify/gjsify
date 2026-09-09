@@ -39,7 +39,7 @@ export class OverlaySplitViewNsStory extends StoryView {
         for (const [title, glyph] of SIDEBAR_ROWS) {
             const row = new Adw.ActionRow();
             row.title = `${glyph}  ${title}`;
-            group.addRow(row);
+            group.add(row);
         }
 
         // Toolbar view with a flat, title-less header bar framing the boxed list —
@@ -48,8 +48,8 @@ export class OverlaySplitViewNsStory extends StoryView {
         header.styleClasses = 'flat';
 
         const toolbarView = new Adw.ToolbarView();
-        toolbarView.addTopBar(header);
-        toolbarView.setContent(group);
+        toolbarView.add_top_bar(header);
+        toolbarView.set_content(group);
         return toolbarView;
     }
 
@@ -62,8 +62,8 @@ export class OverlaySplitViewNsStory extends StoryView {
         const header = new Adw.HeaderBar();
 
         const toolbarView = new Adw.ToolbarView();
-        toolbarView.addTopBar(header);
-        toolbarView.setContent(status);
+        toolbarView.add_top_bar(header);
+        toolbarView.set_content(status);
         return toolbarView;
     }
 
@@ -71,8 +71,8 @@ export class OverlaySplitViewNsStory extends StoryView {
         this._view = new Adw.OverlaySplitView();
         this._view.width = 480;
         this._view.height = 340;
-        this._view.setSidebar(this.buildSidebar());
-        this._view.setContent(this.buildContent());
+        this._view.set_sidebar(this.buildSidebar());
+        this._view.set_content(this.buildContent());
 
         this._sync();
         this.addContent(this._view);

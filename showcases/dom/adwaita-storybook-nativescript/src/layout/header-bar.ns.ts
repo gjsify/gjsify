@@ -23,19 +23,19 @@ export class HeaderBarNsStory extends StoryView {
         this._title = new Adw.WindowTitle();
 
         this._headerBar = new Adw.HeaderBar();
-        this._headerBar.setTitleWidget(this._title);
+        this._headerBar.set_title_widget(this._title);
 
         // Start control — a flat back button (glyph label; NS has no icon theme).
         const backButton = new Gtk.Button();
         backButton.text = '‹';
         backButton.styleClasses = 'flat';
-        this._headerBar.packStart(backButton);
+        this._headerBar.pack_start(backButton);
 
         // End control — a flat menu button.
         const menuButton = new Gtk.Button();
         menuButton.text = '≡';
         menuButton.styleClasses = 'flat';
-        this._headerBar.packEnd(menuButton);
+        this._headerBar.pack_end(menuButton);
 
         this._sync();
         this.addContent(this._headerBar);

@@ -44,22 +44,22 @@ export class ActionRowNsStory extends StoryView {
         // PathParser), matching Adw.ActionRow's prefix icon — not an emoji glyph.
         this._icon = new Gtk.Image();
         this._icon.iconName = iconSvg(this.args.iconName as string);
-        this._row.setPrefix(this._icon);
+        this._row.add_prefix(this._icon);
 
         // Trailing SUFFIX: the go-next chevron as a symbolic icon (the activatable
         // arrow), matching the browser/GTK twin.
         const chevron = new Gtk.Image();
         chevron.iconName = goNextSymbolic;
-        this._row.setSuffix(chevron);
+        this._row.add_suffix(chevron);
 
         this._syncRow();
 
         const group = new Adw.PreferencesGroup();
-        group.addRow(this._row);
+        group.add(this._row);
 
         const clamp = new Adw.Clamp();
         clamp.maximumSize = 400;
-        clamp.setChild(group);
+        clamp.set_child(group);
 
         this.addContent(clamp);
     }

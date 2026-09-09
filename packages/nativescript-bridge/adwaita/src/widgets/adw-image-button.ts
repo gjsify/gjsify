@@ -23,11 +23,12 @@ import { renderSymbolicIcon } from './icons.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Default symbolic-icon size, in DIPs — the Adwaita 16px icon grid. */
 export const DEFAULT_ICON_BUTTON_ICON_SIZE = 16;
 
-export class AdwImageButton extends GridLayout {
+export class AdwImageButton extends withSignals(GridLayout) {
     /** The centered icon image. */
     protected readonly _image: Image;
     private _iconSvg = '';

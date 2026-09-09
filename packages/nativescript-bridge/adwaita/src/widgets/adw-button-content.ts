@@ -38,11 +38,12 @@ import {
 } from './button-content.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** The content's own base class, before `can-shrink` adds its own. */
 const BASE_CLASS = 'adw-button-content';
 
-export class AdwButtonContent extends StackLayout {
+export class AdwButtonContent extends withSignals(StackLayout) {
     /** The leading symbolic icon. Always parented — the C never hides the image. */
     protected readonly _icon: GtkImage;
     /** The text label. */

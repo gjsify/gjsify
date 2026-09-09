@@ -33,11 +33,12 @@ import { AdwImageButton } from './adw-image-button.js';
 import { searchNsPreferences, type NsPreferencesSearchResult, type NsSearchablePage } from './preferences-search.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when the dialog is closed. */
 export const CLOSED = 'closed';
 
-export class AdwPreferencesDialog extends GridLayout {
+export class AdwPreferencesDialog extends withSignals(GridLayout) {
     protected readonly _card: GridLayout;
     protected readonly _headerBox: GridLayout;
     protected readonly _titleLabel: Label;

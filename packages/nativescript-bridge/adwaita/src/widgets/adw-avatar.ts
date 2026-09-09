@@ -35,6 +35,7 @@ import { AVATAR_DEFAULT_ICON, avatarViewState } from './avatar-view.js';
 import { GtkImage } from './gtk-image.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Default avatar diameter in DIPs (Adwaita's common avatar size). */
 export const DEFAULT_AVATAR_SIZE = 48;
@@ -43,7 +44,7 @@ export const DEFAULT_AVATAR_SIZE = 48;
 export { avatarColor, avatarInitials };
 export { AVATAR_DEFAULT_ICON };
 
-export class AdwAvatar extends GridLayout {
+export class AdwAvatar extends withSignals(GridLayout) {
     /** The centered initials label. */
     protected readonly _label: Label;
     /** The fallback symbolic icon, shown when the initials are not. */

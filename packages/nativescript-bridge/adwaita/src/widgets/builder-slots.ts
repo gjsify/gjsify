@@ -8,8 +8,8 @@
 // `<AdwToolbarView.topBar>` and the plain ELEMENT name (`AdwHeaderBar`) for a
 // bare child, and `LayoutBase`'s inherited implementation ignores it entirely and
 // calls `addChild`. Every composed widget here builds its own internal boxes in
-// its constructor and exposes `addTopBar` / `setContent` / `packStart` /
-// `setChild` to reach them, so that inherited default drops an XML child into the
+// its constructor and exposes `add_top_bar` / `set_content` / `pack_start` /
+// `set_child` to reach them, so that inherited default drops an XML child into the
 // layout's first cell instead — MEASURED on an Android emulator, 2026-08-28:
 // `<AdwToolbarView.topBar>` and `<AdwToolbarView.content>` both landed at row 0
 // and painted on top of each other, an `AdwHeaderBar` child left `startBox` empty,

@@ -62,6 +62,13 @@
 //      NOT their position, and both in-repo shortcuts (the nick order, and `@girs`'s
 //      initialiser-less `enum Align`) say otherwise. What this arm CANNOT hold is that one
 //      alias declaration; `construct-props.spec.ts` pins the seven derived numbers instead.
+//   6. THE FOURTH DOOR (ADR 0034 § Amendment 14). Every widget class reaches GJS's
+//      `connect` / `disconnect`: a class extending a `@nativescript/core` base wraps it in
+//      `withSignals(…)` from `widgets/signals.ts`, and a class extending a port base
+//      inherits the two and does NOT wrap again. Both directions fail — a bare platform
+//      base is a widget a GJS event snippet cannot run on, and a second wrap is a second,
+//      identical copy of the door one prototype up. The count is PRINTED, split by which
+//      way each class got it, so "every class" is a number and not a sentence.
 //
 // Plain Node over the repo's own files — no install, no build. It defines nothing that
 // writes, and `nativescript-xml-doors.mjs` beside it is a library for the same reason.
@@ -79,6 +86,7 @@ import {
     CONSTRUCT_PROPS_APPLIER,
     constructorOf,
     doorFor,
+    extendsOf,
     GTK_HOST_NICKS,
     JSON_DOORS,
     jsonDoors,
@@ -86,7 +94,9 @@ import {
     NOT_AN_XML_WIDGET,
     NS_CONSTRUCT_PROPS,
     NS_GTK_ALIGN,
+    NS_SIGNALS,
     NS_WIDGETS_DIR,
+    readCoreClasses,
     readElements,
     readNickUnion,
     readRecordLiteral,
@@ -95,6 +105,7 @@ import {
     readWidgets,
     SETTER_ONLY_ON_BASE,
     settersOf,
+    SIGNALS_MIXIN,
     stringTolerant,
     STRING_TOLERANT,
     WIDGET_CLASS,
@@ -471,6 +482,73 @@ if (alignSource !== null && nicks !== null) {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// 6. every widget class reaches connect/disconnect, through exactly one application
+// ---------------------------------------------------------------------------
+
+let signalsSource = '';
+try {
+    signalsSource = readFileSync(join(ROOT, NS_SIGNALS), 'utf8');
+} catch {
+    failures.push(`${NS_SIGNALS} is not readable — arm 6 has nothing to hold the widgets against.`);
+}
+if (signalsSource !== '' && !signalsSource.includes(`export function ${SIGNALS_MIXIN}<`)) {
+    failures.push(`${NS_SIGNALS} no longer exports ${SIGNALS_MIXIN} — every wrapped class below calls it.`);
+}
+const coreClasses = readCoreClasses(ROOT);
+if (coreClasses.size === 0)
+    failures.push('ns-core.d.ts declares no class — arm 6 cannot tell a platform base from a typo');
+
+let wrapped = 0;
+let inherited = 0;
+for (const [tag, { file, text }] of [...sources].sort()) {
+    const head = extendsOf(text, tag);
+    if (head === null) {
+        failures.push(
+            `${file}: ${tag} extends nothing this reader can spell, so nothing here can say whether it gets the door.`,
+        );
+        continue;
+    }
+    if (sources.has(head.base)) {
+        if (head.wrapped) {
+            failures.push(
+                `${file}: ${tag} wraps ${head.base} in ${SIGNALS_MIXIN}(), but ${head.base} is a widget of this ` +
+                    'package and already carries connect/disconnect. A second application is a second, identical ' +
+                    'copy one prototype up — drop the wrapper and inherit.',
+            );
+            continue;
+        }
+        inherited += 1;
+        continue;
+    }
+    if (!head.wrapped) {
+        failures.push(
+            `${file}: ${tag} extends ${head.base} bare. Every class that meets @nativescript/core takes GJS's ` +
+                `connect/disconnect there — \`extends ${SIGNALS_MIXIN}(${head.base})\` — or a GJS event snippet ` +
+                'runs on every widget but this one (ADR 0034 § Amendment 14).',
+        );
+        continue;
+    }
+    if (!coreClasses.has(head.base)) {
+        failures.push(
+            `${file}: ${tag} wraps ${head.base}, which is neither a widget of this package nor a class ` +
+                '`ns-core.d.ts` declares. The wrapper goes on a PLATFORM base; a base nothing declares is a chain ' +
+                'that leaves the package at a name no gate can read.',
+        );
+        continue;
+    }
+    if (!text.includes(`from './signals.js'`)) {
+        failures.push(`${file}: ${tag} wraps its base in ${SIGNALS_MIXIN}() without importing it from ./signals.js.`);
+        continue;
+    }
+    wrapped += 1;
+}
+notes.push(
+    `${wrapped + inherited} widget class(es) reach connect/disconnect — ${wrapped} wrap their @nativescript/core ` +
+        `base in ${SIGNALS_MIXIN}(), ${inherited} inherit it through a port base`,
+);
+if (wrapped === 0) failures.push('no widget class wraps a platform base — arm 6 proved nothing');
 
 for (const note of notes) console.log(`check-nativescript-xml-doors: ${note}`);
 

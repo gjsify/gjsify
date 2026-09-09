@@ -37,6 +37,7 @@ import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when {@link GtkDropDown.selected} changes through a pick. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
@@ -51,7 +52,7 @@ export interface NotifyDropDownSelectedEventData extends EventData {
     label: string;
 }
 
-export class GtkDropDown extends StackLayout {
+export class GtkDropDown extends withSignals(StackLayout) {
     /** The button label — the selected option. */
     protected readonly _label: Label;
     /** The down-chevron — a real Adwaita `pan-down-symbolic` icon. */

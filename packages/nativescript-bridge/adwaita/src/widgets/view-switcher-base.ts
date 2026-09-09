@@ -43,6 +43,7 @@ import {
     type ViewSwitcherNotifyPayload,
 } from './view-switcher-model.js';
 import { xmlNumber } from './xml-values.js';
+import { withSignals } from './signals.js';
 
 // Re-exported so the widget module stays the one import site for the page type.
 export type { AdwViewPage };
@@ -69,7 +70,7 @@ interface ButtonNodes {
  * Shared base: a switcher bar (row 0) + a content area (row 1), one page visible.
  * Subclasses set the bar/button CSS classes for their look.
  */
-export abstract class AdwViewSwitcherBase extends GridLayout {
+export abstract class AdwViewSwitcherBase extends withSignals(GridLayout) {
     /** The horizontal switcher bar holding the buttons. */
     protected readonly _bar: GridLayout;
     /** `Adw.ViewSwitcher:policy`, default NARROW as in C. */

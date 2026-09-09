@@ -27,7 +27,7 @@ export class ClampNsStory extends StoryView {
         inner.label = 'This content is clamped — it stops growing past the maximum size and stays centred.';
 
         this._clamp = new Adw.Clamp();
-        this._clamp.setChild(inner);
+        this._clamp.set_child(inner);
         this._syncClamp();
 
         this.addContent(this._clamp);

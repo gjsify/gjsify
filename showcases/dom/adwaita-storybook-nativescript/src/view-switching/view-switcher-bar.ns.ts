@@ -49,8 +49,8 @@ export class ViewSwitcherBarNsStory extends StoryView {
         // places it — and because `addContent` REPLACES the stage, so the stack and
         // the bar have to arrive as one view.
         const view = new Adw.ToolbarView();
-        view.setContent(stack);
-        view.addBottomBar(bar);
+        view.set_content(stack);
+        view.add_bottom_bar(bar);
         this.addContent(view);
     }
 

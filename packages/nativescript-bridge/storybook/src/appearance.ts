@@ -43,19 +43,6 @@ import {
 import { StorybookSettings } from '@gjsify/storybook-core';
 import { GridLayout, WrapLayout } from '@nativescript/core';
 
-/** Kept for the dialog's own use; NS swatches carry no text of their own. */
-const ACCENT_LABELS: Record<AdwAccentColorName, string> = {
-    blue: 'Blue',
-    teal: 'Teal',
-    green: 'Green',
-    yellow: 'Yellow',
-    orange: 'Orange',
-    red: 'Red',
-    pink: 'Pink',
-    purple: 'Purple',
-    slate: 'Slate',
-};
-
 /** The class the theme styles a swatch with; see `theme/storybook.css`. */
 const SWATCH_CLASS = 'sb-swatch';
 
@@ -111,7 +98,7 @@ export function buildAppearanceDialog(appearance: StorybookNsAppearance): Adw.Pr
     accentSwitch.title = 'Use a custom accent colour';
     accentSwitch.subtitle = 'Off keeps the default Adwaita blue';
     accentSwitch.active = settings.accentMode === 'custom';
-    group.addRow(accentSwitch);
+    group.add(accentSwitch);
 
     // A WrapLayout, not a StackLayout: nine swatches do not fit one dialog-width line
     // and a StackLayout does not wrap — it clipped the last two and a half off the edge.
@@ -132,8 +119,8 @@ export function buildAppearanceDialog(appearance: StorybookNsAppearance): Adw.Pr
         swatches.set(accent, swatch);
         row.addChild(swatch);
     }
-    group.addRow(row);
-    page.addGroup(group);
+    group.add(row);
+    page.add(group);
     dialog.add(page);
 
     const sync = (): void => {

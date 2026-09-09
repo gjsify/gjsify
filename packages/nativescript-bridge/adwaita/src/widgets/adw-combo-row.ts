@@ -76,7 +76,7 @@ export class AdwComboRow extends AdwActionRow {
 
         suffix.addChild(valueLabel);
         suffix.addChild(chevron);
-        this.setSuffix(suffix);
+        this.add_suffix(suffix);
 
         this._valueLabel = valueLabel;
         this._chevron = chevron;

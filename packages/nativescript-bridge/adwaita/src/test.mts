@@ -29,9 +29,11 @@ import windowInsetsTestSuite from './window-insets.spec.js';
 import styleClassesTestSuite from './style-classes.spec.js';
 import avatarNsTestSuite from './avatar.spec.js';
 import constructPropsTestSuite from './construct-props.spec.js';
+import signalsTestSuite from './signals.spec.js';
 
 run({
     constructPropsTestSuite,
+    signalsTestSuite,
     bannerNsTestSuite,
     buttonContentNsTestSuite,
     shortcutLabelNsTestSuite,

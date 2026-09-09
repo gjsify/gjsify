@@ -26,6 +26,7 @@ import type { AdwBannerButtonStyle } from '@gjsify/adwaita-core';
 import { bannerButtonClassName, bannerTitleText, bannerVisibility, defaultBannerProps } from './chrome.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when the banner's action button is tapped. */
 export const BUTTON_CLICKED = 'buttonClicked';
@@ -33,7 +34,7 @@ export const BUTTON_CLICKED = 'buttonClicked';
 /** The banner button's base class, before `button-style` adds its own. */
 const BUTTON_BASE_CLASS = 'adw-banner-button';
 
-export class AdwBanner extends GridLayout {
+export class AdwBanner extends withSignals(GridLayout) {
     /** The message label (column 0). */
     protected readonly _titleLabel: Label;
     /** The action button (column 1, only in the tree when a label is set). */

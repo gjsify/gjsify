@@ -27,6 +27,7 @@ import { SidebarState, sidebarRowClassName, sidebarSectionsFromLabels } from './
 import type { AdwSidebarItemSpec, AdwSidebarSectionSpec, SidebarItemFilter } from './sidebar-model.js';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when {@link AdwSidebar.selected} changes. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
@@ -57,7 +58,7 @@ export interface SidebarActivatedEventData extends EventData {
     title: string;
 }
 
-export class AdwSidebar extends ScrollView {
+export class AdwSidebar extends withSignals(ScrollView) {
     /** The vertical list container. */
     protected readonly _list: StackLayout;
     private readonly _state = new SidebarState();

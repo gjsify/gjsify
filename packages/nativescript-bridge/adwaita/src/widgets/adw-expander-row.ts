@@ -4,7 +4,7 @@
 // visible header, a chevron sits in the suffix slot, and a second grid row
 // (spanning both columns) holds a `StackLayout` of child rows that is
 // revealed/collapsed by toggling its `visibility`. Mirrors `Adw.ExpanderRow`:
-// `addRow(child)` appends to the disclosure, `expanded` get/set drives the reveal
+// `add_row(child)` appends to the disclosure, `expanded` get/set drives the reveal
 // and emits `notify::expanded`. Tapping the HEADER toggles it — see the
 // constructor for which views carry that and the device measurement behind it.
 //
@@ -86,7 +86,7 @@ export class AdwExpanderRow extends AdwActionRow {
         const toggle = new GtkImage();
         toggle.iconName = panDownSymbolic;
         toggle.className = `${toggle.className} adw-expander-toggle`.trim();
-        this.setSuffix(toggle);
+        this.add_suffix(toggle);
         this._toggle = toggle;
 
         // The core state drives the reveal + chevron + notify.
@@ -139,33 +139,23 @@ export class AdwExpanderRow extends AdwActionRow {
         applyConstructProps(this, props);
     }
 
-    /** Append a child row (or any view) to the disclosure container. */
-    addRow(viewOrSpec: View | ItemSpec): void {
-        // GridLayout.addRow takes an ItemSpec; AdwExpanderRow.addRow takes a child
-        // view (Adw semantics). Disambiguate so the constructor's grid-row setup
-        // (which calls the GridLayout signature) still works.
-        if (viewOrSpec instanceof ItemSpec) {
-            super.addRow(viewOrSpec);
-            return;
-        }
-        this._disclosure.addChild(viewOrSpec);
+    /**
+     * Append a child row (or any view) to the disclosure container —
+     * `adw_expander_row_add_row`.
+     *
+     * The GIR name is what ended a collision: this method was `addRow(View | ItemSpec)`,
+     * a union that existed only because `GridLayoutBase` already declares
+     * `addRow(itemSpec: ItemSpec)` and a same-named method with a narrower parameter is
+     * a type error against the real `@nativescript/core`. `add_row` is nobody else's, so
+     * the grid's track setup and the row's child list no longer share a name.
+     */
+    add_row(view: View): void {
+        this._disclosure.addChild(view);
     }
 
-    /**
-     * Remove a previously-added child row from the disclosure container.
-     *
-     * Takes `View | ItemSpec` for the same reason `addRow` does: `GridLayout` already
-     * declares `removeRow(itemSpec: ItemSpec)`, so accepting only a `View` NARROWS an
-     * inherited signature. That is a type error for anyone compiling against the real
-     * `@nativescript/core`, and it left the base's own track teardown unreachable
-     * through this name.
-     */
-    removeRow(viewOrSpec: View | ItemSpec): void {
-        if (viewOrSpec instanceof ItemSpec) {
-            super.removeRow(viewOrSpec);
-            return;
-        }
-        this._disclosure.removeChild(viewOrSpec);
+    /** Remove a previously-added child row from the disclosure container — `adw_expander_row_remove`. */
+    override remove(view: View): void {
+        this._disclosure.removeChild(view);
     }
 
     /**
@@ -175,12 +165,12 @@ export class AdwExpanderRow extends AdwActionRow {
      */
     _addChildFromBuilder(name: string, view: View): void {
         const slot = resolveBuilderSlot(name, EXPANDER_ROW_SLOTS, 'row');
-        if (slot === 'row') this.addRow(view);
+        if (slot === 'row') this.add_row(view);
         else super._addChildFromBuilder(slot, view);
     }
 
     /**
-     * The rows inside the disclosure, in order — the read-back for `addRow`.
+     * The rows inside the disclosure, in order — the read-back for `add_row`.
      *
      * NOT `rows`, which is what it was called first. `GridLayoutBase` declares `rows`
      * as a SETTER-ONLY accessor (its getter is `rowsInternal`), so a getter of that

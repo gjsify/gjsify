@@ -50,7 +50,7 @@ abstract class CarouselNsStoryBase extends StoryView {
         const carousel = new Adw.Carousel();
         carousel.pageWidth = PAGE_WIDTH;
         for (const page of PAGES) {
-            carousel.addPage(buildPage(page.title, page.accent));
+            carousel.append(buildPage(page.title, page.accent));
         }
         this._carousel = carousel;
         // allowScrollWheel / allowLongSwipes have no NS equivalent (no swipe-snap

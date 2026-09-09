@@ -86,7 +86,7 @@ export class AdwSpinRow extends AdwActionRow {
         control.addChild(valueLabel);
         control.addChild(minus);
         control.addChild(plus);
-        this.setSuffix(control);
+        this.add_suffix(control);
 
         this._minusButton = minus;
         this._plusButton = plus;

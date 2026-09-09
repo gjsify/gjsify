@@ -2,7 +2,7 @@
 //
 // Renders a REAL NativeScript `GridLayout` (rows `auto, *, auto`): a top-bar slot
 // (header bars / toolbars), an expanding content slot, and a bottom-bar slot.
-// Mirrors `Adw.ToolbarView`: `addTopBar()` / `setContent()` / `addBottomBar()`.
+// Mirrors `Adw.ToolbarView`: `add_top_bar()` / `set_content()` / `add_bottom_bar()`.
 //
 // FIDELITY: the vertical arrangement maps directly onto an NS `GridLayout`, and the four
 // classes libadwaita derives from `top-bar-style`/`bottom-bar-style` (`raised`,
@@ -37,6 +37,7 @@ import { observeWindowInsets } from './window-insets-source.js';
 import { NO_INSETS, type WindowInsets, insetsOwedBy, toolbarViewInsetPadding } from './window-insets.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** The classes the widget starts with; the derived ones are swapped in beside them. */
 const BASE_CLASSES = {
@@ -51,7 +52,7 @@ const BASE_CLASSES = {
  */
 const TOOLBAR_VIEW_SLOTS = ['topBar', 'bottomBar', 'content'] as const;
 
-export class AdwToolbarView extends GridLayout {
+export class AdwToolbarView extends withSignals(GridLayout) {
     /** The top-bar slot (row 0) — stack of header bars / toolbars. */
     protected readonly _topBox: StackLayout;
     /** The bottom-bar slot (row 2) — stack of bottom toolbars. */
@@ -110,22 +111,22 @@ export class AdwToolbarView extends GridLayout {
         applyConstructProps(this, props);
     }
 
-    /** Append a widget (e.g. an {@link AdwHeaderBar}) to the top-bar slot. */
-    addTopBar(view: View): void {
+    /** Append a widget (e.g. an {@link AdwHeaderBar}) to the top-bar slot — `adw_toolbar_view_add_top_bar`. */
+    add_top_bar(view: View): void {
         this._topBox.addChild(view);
         this._topBarCount += 1;
         this._applyInsets(this._insets);
     }
 
-    /** Append a widget to the bottom-bar slot. */
-    addBottomBar(view: View): void {
+    /** Append a widget to the bottom-bar slot — `adw_toolbar_view_add_bottom_bar`. */
+    add_bottom_bar(view: View): void {
         this._bottomBox.addChild(view);
         this._bottomBarCount += 1;
         this._applyInsets(this._insets);
     }
 
-    /** Set (or replace) the main content view. Pass `null` to clear it. */
-    setContent(view: View | null): void {
+    /** Set (or replace) the main content view — `adw_toolbar_view_set_content`. `null` clears it. */
+    set_content(view: View | null): void {
         if (this._content) {
             this.removeChild(this._content);
             this._content = null;
@@ -151,13 +152,13 @@ export class AdwToolbarView extends GridLayout {
     _addChildFromBuilder(name: string, view: View): void {
         switch (resolveBuilderSlot(name, TOOLBAR_VIEW_SLOTS, 'content')) {
             case 'topBar':
-                this.addTopBar(view);
+                this.add_top_bar(view);
                 return;
             case 'bottomBar':
-                this.addBottomBar(view);
+                this.add_bottom_bar(view);
                 return;
             default:
-                this.setContent(view);
+                this.set_content(view);
         }
     }
 

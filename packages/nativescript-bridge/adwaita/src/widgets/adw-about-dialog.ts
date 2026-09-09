@@ -23,11 +23,12 @@ import { aboutDialogVisibility } from '@gjsify/adwaita-core';
 import { Button, GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when the dialog is closed. */
 export const CLOSED = 'closed';
 
-export class AdwAboutDialog extends GridLayout {
+export class AdwAboutDialog extends withSignals(GridLayout) {
     protected readonly _card: StackLayout;
     protected readonly _iconLabel: Label;
     protected readonly _nameLabel: Label;
