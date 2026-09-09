@@ -5110,8 +5110,11 @@ tree is 384 findings of which about ten are real: `packages/framework/gtk-host` 
 useful version is scoped by a hand-kept list of two directories, and a gate whose scope is
 a hand-kept list goes blind the first time a fifth showcase is added — the failure mode
 `coreListParsers` was just rewritten to avoid one file away. What closes it properly is a
-tag → attribute type surface the imperative call sites can be checked against, which is the
-same derivation `website/scripts/generate-adwaita-attributes.mjs` already runs for the docs.
+tag → attribute type surface the imperative call sites can be checked against. The
+`observedAttributes` half of that derivation is `scripts/adwaita-elements.mjs`, which arm 3 of
+`check-website-attr-samples.mjs` still reads; the generator that once emitted it as website
+data went with the attribute pane (ADR 0034 § Amendment 16), and it emitted names, not types,
+so it was never the missing half anyway.
 
 ### The NativeScript list-model setter is held by core's vectors, not by a widget test
 
