@@ -11,7 +11,6 @@ import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@
 import { Adw } from '@gjsify/adwaita-nativescript';
 import { avatarMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-
 export class AvatarNsStory extends StoryView {
     private _avatar: Adw.Avatar | null = null;
 

@@ -11,7 +11,6 @@ import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@
 import { Adw } from '@gjsify/adwaita-nativescript';
 import { VIEW_SWITCHER_BAR_PAGES, viewSwitcherBarMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-
 export class ViewSwitcherBarNsStory extends StoryView {
     private _bar: Adw.ViewSwitcherBar | null = null;
 

@@ -11,7 +11,6 @@ import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@
 import { Adw, Gtk } from '@gjsify/adwaita-nativescript';
 import { statusPageMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-
 export class StatusPageNsStory extends StoryView {
     private _page: Adw.StatusPage | null = null;
 

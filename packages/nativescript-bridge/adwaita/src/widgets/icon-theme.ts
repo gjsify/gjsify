@@ -87,7 +87,12 @@ import {
     folderSymbolic,
     userTrashSymbolic,
 } from '@gjsify/adwaita-icons/places';
-import { avatarDefaultSymbolic, imageMissingSymbolic, mailUnreadSymbolic, starredSymbolic } from '@gjsify/adwaita-icons/status';
+import {
+    avatarDefaultSymbolic,
+    imageMissingSymbolic,
+    mailUnreadSymbolic,
+    starredSymbolic,
+} from '@gjsify/adwaita-icons/status';
 
 /**
  * The name every unresolvable name resolves TO.

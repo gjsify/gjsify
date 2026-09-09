@@ -77,15 +77,7 @@ const LEDGER = join(ROOT, 'status/nativescript-icon-names.json');
 const MIN_REASON = 40;
 
 /** The property/field names that carry an icon NAME into a widget of this port. */
-const KEYS = [
-    'icon',
-    'iconName',
-    'startIconName',
-    'endIconName',
-    'defaultIcon',
-    'indicatorIcon',
-    'peekIconName',
-];
+const KEYS = ['icon', 'iconName', 'startIconName', 'endIconName', 'defaultIcon', 'indicatorIcon', 'peekIconName'];
 const KEY_ALT = KEYS.join('|');
 
 /** `iconName: 'go-next-symbolic'` / `x.iconName = 'go-next-symbolic'` — the TS forms. */
@@ -271,7 +263,10 @@ function filesUnder(source) {
                 continue;
             }
             if (!EXTENSIONS.some((ext) => entry.name.endsWith(ext))) continue;
-            if (source.only && !source.only.some((s) => (typeof s === 'string' ? entry.name === s : s.test(entry.name))))
+            if (
+                source.only &&
+                !source.only.some((s) => (typeof s === 'string' ? entry.name === s : s.test(entry.name)))
+            )
                 continue;
             if (source.skipFile?.some((s) => (typeof s === 'string' ? entry.name === s : s.test(entry.name)))) continue;
             found.push(path);
@@ -346,7 +341,11 @@ function vendoredGlyphs() {
     const names = new Set();
     for (const block of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'@gjsify\/adwaita-icons[^']*'/g)) {
         for (const spec of block[1].split(',')) {
-            const local = spec.trim().split(/\s+as\s+/).pop()?.trim();
+            const local = spec
+                .trim()
+                .split(/\s+as\s+/)
+                .pop()
+                ?.trim();
             if (local) names.add(local);
         }
     }
@@ -372,7 +371,7 @@ const vendored = vendoredGlyphs();
 const fallback = /ICON_FALLBACK_NAME = '([a-z0-9-]+)'/.exec(readFileSync(ICON_THEME, 'utf8'))?.[1];
 if (fallback === undefined) {
     process.stderr.write(
-        'check-nativescript-icon-names: no `ICON_FALLBACK_NAME = \'…\'` in the icon theme — the ' +
+        "check-nativescript-icon-names: no `ICON_FALLBACK_NAME = '…'` in the icon theme — the " +
             'substitution every unresolvable name relies on cannot be identified.\n',
     );
     process.exit(1);

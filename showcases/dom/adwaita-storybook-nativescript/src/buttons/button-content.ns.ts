@@ -15,7 +15,6 @@ import { Adw } from '@gjsify/adwaita-nativescript';
 import { StackLayout } from '@nativescript/core';
 import { buttonContentMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-
 export class ButtonContentNsStory extends StoryView {
     private _content: Adw.ButtonContent | null = null;
 

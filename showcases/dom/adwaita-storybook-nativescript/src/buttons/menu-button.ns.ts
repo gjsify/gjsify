@@ -11,7 +11,6 @@ import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@
 import { Gtk } from '@gjsify/adwaita-nativescript';
 import { MENU_BUTTON_ITEMS, menuButtonMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-
 export class MenuButtonNsStory extends StoryView {
     private _widget: Gtk.MenuButton | null = null;
 

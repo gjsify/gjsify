@@ -21,7 +21,6 @@ import { splitButtonFlatMeta, splitButtonMeta } from '@gjsify/example-gtk-adwait
 // MENU model in the browser story. NS Adw.SplitButton.menu is a plain label list.
 const MENU = ['Save as…', 'Export', 'Print'];
 
-
 abstract class SplitButtonNsStoryBase extends StoryView {
     protected _widget: Adw.SplitButton | null = null;
     protected abstract get flat(): boolean;
