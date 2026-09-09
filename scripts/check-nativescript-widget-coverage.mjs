@@ -99,7 +99,7 @@ import { adwaitaNativeScriptWidgets, settablePropertiesOfClass, tagClass } from 
 // web surface. Two definitions of "a scalar property" is two backlogs that can disagree
 // about what they are counting while both stay green.
 import { girReaderSelfTest, propsBodies, scalarPropertyNames, tagGTypes } from './gir-scalar-properties.mjs';
-import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
+import { ambientCoreClasses, CLASS_BASE_VECTORS, classBases, classReaderSelfTest } from './nativescript-xml-doors.mjs';
 
 const ROOT = process.cwd();
 const NS_SRC = 'packages/nativescript-bridge/adwaita/src';
@@ -327,31 +327,10 @@ function packageSources(dir) {
     return out;
 }
 
-/**
- * `class <Name>[<T>] [extends <Base>]` over one source, comments stripped.
- *
- * The type arguments are what makes this a reader rather than a one-liner:
- * `AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewState>` names its base
- * with a generic, and a pattern that stops at the identifier before `<` reads the base as
- * missing — which ends the chain walk and hands the widget a setter set seven short.
- *
- * @param {string} source
- * @returns {Map<string, string | null>} class -> base class name, or null
- */
-export function classBases(source) {
-    const bases = new Map();
-    for (const [, name, base] of stripComments(source).matchAll(
-        /\bclass\s+([A-Za-z0-9_$]+)(?:<[^>]*>)?(?:\s+extends\s+([A-Za-z0-9_$]+))?/g,
-    )) {
-        bases.set(name, base ?? null);
-    }
-    return bases;
-}
-
-/** Every class `ns-core.d.ts` declares — where the port's chains are allowed to end. */
-export function ambientCoreClasses(source) {
-    return new Set(classBases(source).keys());
-}
+// The class reader and its vectors live in `nativescript-xml-doors.mjs`. They were a
+// second copy here, and the two copies shared a defect: neither could read a wrapped
+// base pushed onto its own line, so both reported the mixin as the base. That header
+// carries the incident.
 
 // ------------------------------------------------------------------ rules
 
@@ -633,33 +612,11 @@ const VECTORS = [
  * hypothetical here: a base pattern that stops at the identifier before `<` reads
  * `extends AdwSplitViewBase<NsOverlaySplitViewState>` as no base at all, ends the chain
  * walk, and reports seven properties the widget has as seven it does not.
+ *
+ * The class reader's vectors are `CLASS_BASE_VECTORS`, beside the reader itself.
  */
-const BASE_VECTORS = [
-    ['export class AdwDemo extends GridLayout {}', 'AdwDemo', 'GridLayout'],
-    ['export abstract class AdwBase<T> extends GridLayout {}', 'AdwBase', 'GridLayout'],
-    ['class AdwDemo extends AdwBase<NsState> {}', 'AdwDemo', 'AdwBase'],
-    ['class AdwDemo extends AdwBase<NsState<Deep>> {}', 'AdwDemo', 'AdwBase'],
-    ['export class AdwGroup extends StackLayout implements NsSearchableGroup {}', 'AdwGroup', 'StackLayout'],
-    ['export class AdwRoot {}', 'AdwRoot', null],
-    // A class named inside a comment is prose, and these files explain their own
-    // hierarchies in prose — `adw-combo-row.ts` opens with "Extends {@link AdwActionRow}".
-    ['// class AdwGhost extends GridLayout\nexport class AdwDemo extends Image {}', 'AdwGhost', undefined],
-];
-
-function readerSelfTest() {
-    const failures = [];
-    for (const [source, klass, want] of BASE_VECTORS) {
-        const bases = classBases(source);
-        const got = bases.has(klass) ? bases.get(klass) : undefined;
-        if (got !== want) {
-            failures.push(`classBases(${JSON.stringify(source)}).get('${klass}') is ${got}, wanted ${want}`);
-        }
-    }
-    return failures;
-}
-
 function selfTest() {
-    const failures = [...girReaderSelfTest(), ...readerSelfTest()];
+    const failures = [...girReaderSelfTest(), ...classReaderSelfTest()];
     for (const [label, mutate, expected] of VECTORS) {
         let problems;
         try {
@@ -712,7 +669,7 @@ try {
     const baseOf = new Map();
     for (const file of packageSources(join(ROOT, NS_SRC))) {
         const source = readFileSync(file, 'utf8');
-        for (const [name, base] of classBases(source)) {
+        for (const [name, { base }] of classBases(source)) {
             declaredIn.set(name, file);
             baseOf.set(name, base);
         }
@@ -791,7 +748,7 @@ const vacuous = world.measured.filter((widget) => widget.scalars.size === 0).map
 const complete = held.filter((widget) => KNOWN_GAPS[widget.tag] === undefined).length;
 console.log(
     `check-nativescript-widget-coverage: self-test green — ${VECTORS.length - 1} failing vector(s), ` +
-        `${BASE_VECTORS.length} reader vector(s). ${world.measured.length} NativeScript widgets share a ` +
+        `${CLASS_BASE_VECTORS.length} reader vector(s). ${world.measured.length} NativeScript widgets share a ` +
         `spelling with a GTK tag and are held against ${scalarTotal} scalar GIR propert(y|ies) their ` +
         `counterparts declare — ${scalarTotal - backlog} are set, ${backlog} across ${withGaps} widgets remain ` +
         `a declared backlog, and ${complete} widgets hold every one their counterpart declares. ` +

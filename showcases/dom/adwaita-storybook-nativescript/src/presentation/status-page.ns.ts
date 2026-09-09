@@ -36,7 +36,7 @@ export class StatusPageNsStory extends StoryView {
         const button = new Gtk.Button();
         button.text = 'New Document';
         button.styleClasses = 'suggested-action';
-        this._page.setChild(button);
+        this._page.set_child(button);
 
         this._sync();
         this.addContent(this._page);

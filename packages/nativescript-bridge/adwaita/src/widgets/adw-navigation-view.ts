@@ -36,6 +36,7 @@ import {
 import type { NsNavigationEvent } from './navigation-stack.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 export { NOTIFY_VISIBLE_PAGE, POPPED, PUSHED, REPLACED };
 
@@ -52,7 +53,7 @@ export interface AdwNavigationEventData extends EventData {
 /** Payload of the `notify::visible-page` event. */
 export type NotifyVisiblePageEventData = AdwNavigationEventData;
 
-export class AdwNavigationView extends GridLayout {
+export class AdwNavigationView extends withSignals(GridLayout) {
     private readonly _nav: NsNavigationStack;
 
     constructor(props?: ConstructProps<AdwNavigationView>) {
@@ -102,7 +103,7 @@ export class AdwNavigationView extends GridLayout {
      *
      * Registered with NO TAG: `add(view)` defaults it to `null`, and nothing in the
      * markup can supply one, because a `tag` is this widget's own idea rather than a
-     * property of the child. `pushByTag` is therefore not reachable for a page that
+     * property of the child. `push_by_tag` is therefore not reachable for a page that
      * came from a template; a loader that wants it registers the page itself, or
      * calls `setPageTag` on one it looked up. What XML contributes is the tree.
      */
@@ -111,12 +112,19 @@ export class AdwNavigationView extends GridLayout {
     }
 
     /**
-     * Remove a page (`AdwNavigationView.remove`). One that is on the stack is
-     * removed once it is POPPED. Named `removePage` rather than `remove` so the
-     * widget never shadows a member of NativeScript's own `ViewBase`, the same
-     * reason `@gjsify/adwaita-web` avoids `HTMLElement.remove()`.
+     * Remove a page — `adw_navigation_view_remove`. One that is on the stack is
+     * removed once it is POPPED.
+     *
+     * This was `removePage`, "so the widget never shadows a member of NativeScript's
+     * own `ViewBase`, the same reason `@gjsify/adwaita-web` avoids
+     * `HTMLElement.remove()`". The web half is true; the NativeScript half was never
+     * measured. Against `@nativescript/core@9.1.0-alpha.11` no view base declares a
+     * `remove` at all — the one `remove(` in the package is `ImageCache.remove(key)` —
+     * and `AdwWrapBox` and `AdwPreferencesDialog` had carried the name the whole time
+     * without incident. The same shape as the `openState` reasoning ADR 0034
+     * § Amendment 11 keeps: a collision ruled a name out, and the collision was assumed.
      */
-    removePage(view: View): boolean {
+    remove(view: View): boolean {
         return this._nav.remove(view);
     }
 
@@ -125,8 +133,8 @@ export class AdwNavigationView extends GridLayout {
         return this._nav.push(viewOrTag, options);
     }
 
-    /** Push the page carrying `tag`. */
-    pushByTag(tag: string): boolean {
+    /** Push the page carrying `tag` — `adw_navigation_view_push_by_tag`. */
+    push_by_tag(tag: string): boolean {
         return this._nav.pushByTag(tag);
     }
 
@@ -139,13 +147,13 @@ export class AdwNavigationView extends GridLayout {
         return this._nav.pop();
     }
 
-    /** Pop until `view` is visible, in ONE transition. */
-    popToPage(view: View): boolean {
+    /** Pop until `view` is visible, in ONE transition — `adw_navigation_view_pop_to_page`. */
+    pop_to_page(view: View): boolean {
         return this._nav.popToPage(view);
     }
 
-    /** Pop until the page carrying `tag` is visible. */
-    popToTag(tag: string): boolean {
+    /** Pop until the page carrying `tag` is visible — `adw_navigation_view_pop_to_tag`. */
+    pop_to_tag(tag: string): boolean {
         return this._nav.popToTag(tag);
     }
 
@@ -154,18 +162,18 @@ export class AdwNavigationView extends GridLayout {
         this._nav.replace(entries);
     }
 
-    /** Replace the stack with the pages carrying `tags`. */
-    replaceWithTags(tags: readonly string[]): void {
+    /** Replace the stack with the pages carrying `tags` — `adw_navigation_view_replace_with_tags`. */
+    replace_with_tags(tags: readonly string[]): void {
         this._nav.replaceWithTags(tags);
     }
 
-    /** The page with this tag, or `null`. */
-    findPage(tag: string): View | null {
+    /** The page with this tag, or `null` — `adw_navigation_view_find_page`. */
+    find_page(tag: string): View | null {
         return this._nav.findPage(tag);
     }
 
-    /** The page popping `view` would reveal, or `null`. */
-    getPreviousPage(view: View): View | null {
+    /** The page popping `view` would reveal, or `null` — `adw_navigation_view_get_previous_page`. */
+    get_previous_page(view: View): View | null {
         return this._nav.getPreviousPage(view);
     }
 

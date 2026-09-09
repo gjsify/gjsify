@@ -82,6 +82,24 @@
 //     `scripts/manifest-conformance/rules/widget-vocabulary.mjs` beside it — the same
 //     mechanism, one level up.
 //
+//  6. THE METHOD LEDGER. The third axis, and the one no ledger and no gate touched:
+//     the word "method" appeared in this file only inside prose reasons while the
+//     gallery's NativeScript panes called 24 verbs the GJS panes never do (`setContent`,
+//     `addRow`, `addTopBar`, …) and the GJS panes 34 the port had none of (`append`,
+//     `add_css_class`, `add_top_bar`, …), three names shared between them. AND THE
+//     SPELLING IS NOT FREE: GJS installs `add_top_bar` and nothing else — measured,
+//     `Adw.ToolbarView.prototype.addTopBar` is undefined — so a method converges to the
+//     snake_case name or does not converge. `NS_METHOD_ALIGNMENT` holds every public
+//     method of a NativeScript widget that its GIR counterpart's chain has no method of
+//     that exact spelling for, the three verdicts of the property ledger, and the count
+//     of `gir` entries is the printed method distance.
+//
+//     The comparison target is `packages/framework/gtk-host/src/generated/methods.mts`,
+//     read from the INSTALLED TYPELIB by `scripts/generate-widget-methods.mjs` — not
+//     from `@girs/*`, whose `vocabulary` entry carries no method table (measured on the
+//     published 4.6.0; the gap is in `status/open-todos.md`). That is a different kind
+//     of side from `props.ts`, and the difference is stated below where it matters.
+//
 // WHICH HALF CAN GO RED — INCLUDING THE PARTS ADDED LAST
 //
 // The § 1 argument above is that a rule comparing a mapped type with its own source is
@@ -113,6 +131,15 @@
 //   as redundant. This half goes red the first time somebody adds an accessor under a
 //   name GTK does not use — which is the event the 52 entries below all are.
 //
+//   CAN go red, on the method half, and against a side that is more independent than
+//   the property half's. The methods are hand-typed declarations in the port;
+//   `generated/methods.mts` is read from the typelib GJS itself loads, by a generator that
+//   reads no port file. A public method that is neither a method of the counterpart's
+//   chain nor declared fails; a convergence target that is not such a method fails; an
+//   entry for a method the widget no longer declares fails; an entry for a method that
+//   already spells one fails as redundant. And the failure SAYS when the snake_case twin
+//   exists, because that is the one case where the fix is a rename and not a reason.
+//
 //   CAN go red, on enrolment, in BOTH directions, because the declarations live in
 //   `package.json` files and the readers live in `scripts/widget-surfaces.mjs`. A package
 //   that declares itself a widget surface with no reader fails; a reader whose package
@@ -135,6 +162,15 @@
 //   vocabularies and is NOT evidence about GTK. `AdwSpinner`'s empty writable surface is
 //   a fact about `generated/props.ts`, which is a fact about the GIR — one source, read
 //   twice.
+//
+//   CANNOT go red, third instance, and it is narrower than the second: the method table
+//   is COMMITTED, so agreement with it is agreement with the host that generated it.
+//   Whether that host's typelib still describes the GTK a reader has is held one package
+//   over — gtk-host's `generated.spec.ts` asks the running GJS for every name — and this
+//   job cannot ask, having no GJS. What this half proves is that two spellings agree; what
+//   it cannot prove is that `add_prefix` on the port does what `adw_action_row_add_prefix`
+//   does, and on that widget it does not (one slot where libadwaita keeps a box, declared
+//   in place and in ADR 0034 § Amendment 15).
 //
 //   WHAT NO HALF PROVES: behaviour. `<gtk-check-button>` and NativeScript's `GtkEntry`
 //   SHARE a spelling with the GTK tag and the GTK type, and `AdwSpinRow.min` is DECLARED
@@ -173,6 +209,8 @@ import {
     vocabularyCallers,
     VOCABULARY_CALLER_DIRS,
 } from './adwaita-elements.mjs';
+import { extendsOf, publicMethodsOf, readWidgets } from './nativescript-xml-doors.mjs';
+import { METHODS_FILE, methodsOf, readMethodTable, snakeOf } from './widget-methods.mjs';
 // `stripComments`, so a rule about DECLARATIONS is not answered by prose: these files
 // explain what they deliberately do not contain, and they name those things. A naive match
 // reports the explanation as the violation — measured on the sibling check for the
@@ -204,6 +242,7 @@ const TABLE_SOURCE = 'WEB_ELEMENT_ALIGNMENT in scripts/check-vocabulary-alignmen
 const NS_TABLE_SOURCE = 'NS_WIDGET_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
 const RN_TABLE_SOURCE = 'RN_WIDGET_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
 const NS_PROPERTY_TABLE_SOURCE = 'NS_PROPERTY_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
+const NS_METHOD_TABLE_SOURCE = 'NS_METHOD_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
 
 /** Where each surface's clause-2 namespace lives. Named in every namespace failure. */
 const NAMESPACE_SOURCE = 'the Adw/Gtk namespace barrels in packages/web/adwaita-web/src/namespace/';
@@ -235,6 +274,9 @@ const GAP_ISSUE = /^#\d+$/;
  * above: `gap` records no verdict and reads as the last resort it is.
  */
 const PROPERTY_KINDS = ['gir', 'own', 'gap'];
+
+/** The three kinds a METHOD entry may be — the property union, for the property reason. */
+const METHOD_KINDS = ['gir', 'own', 'gap'];
 
 /**
  * Every element whose spelling is NOT a GTK tag, and what it is instead.
@@ -570,6 +612,220 @@ const NS_PROPERTY_ALIGNMENT = {
     },
     'adw-toggle-group.options': {
         own: 'Toggles are `Adw.Toggle` objects added with `adw_toggle_group_add()`; AdwToggleGroupProps has no list key (`active`, `activeName`, `canShrink`, `homogeneous` are the writable ones). The port rebuilds the group from a label array instead (adw-toggle-group.ts:82-86).',
+    },
+};
+
+/**
+ * The reasons a FAMILY of method entries share, written once. Each names what the port
+ * holds, what GTK holds, and where the difference lives.
+ */
+const TAB_PAGE_HANDLE =
+    "The GIR verb takes the `Adw.TabPage`; this takes the page-id STRING that ADR 0048 made the port's handle for `selectedPage`, because the port has no page GObject to pass. Converging means accepting the port's own `AdwTabPage` record — `set_selected_page` already does — and it has not been done here.";
+const TAB_PAGE_PROPERTY =
+    'A property of `Adw.TabPage` — `title`, `icon`, `loading`, `needs-attention` — which is a GObject the port does not have; it keeps the page as a headless record (tab-view-state.ts) and sets the field through the view, keyed on the page id.';
+const NAVIGATION_PAGE_PROPERTY =
+    "A property of `Adw.NavigationPage` — `tag`, `title`, `can-pop` — the CHILD type the port ships no widget for; it flattens the page's properties onto the view, the same flattening the property ledger records for `adw-navigation-split-view.sidebarTag`.";
+const VIEW_PAGE_VISIBLE =
+    '`Adw.ViewStackPage:visible` on the page object of the stack this switcher wraps. The port bundles switcher and stack (adwaita-web declares the same bundling web-only) and keeps pages as headless records, so the flag is set through the switcher by name.';
+const LIST_BUILT_PER_ITEM = (verb) =>
+    `GTK builds this list with per-item ${verb} and has no method taking a collection; the port replaces the whole list from a plain array. Whether it grows the per-item verb is the open-todo entry "The list widgets GTK builds with a METHOD have no portable collection, and a model type is the wrong fix" (status/open-todos.md) — a curated ChildPolicy per widget, not a rename.`;
+const SIDEBAR_PANE =
+    'On GTK the pane is shown and hidden through a PROPERTY — `set_show_sidebar(bool)` on the overlay split view, `set_show_content(bool)` on the navigation one — which the port also has. This is the parameterless convenience the storybook drives from its back button (split-view-base.ts); no GIR method takes no argument.';
+const PREFERENCES_SEARCH =
+    "The preferences search is INTERNAL to `Adw.PreferencesDialog` (`search-enabled`, its own entry, a `GtkListBox` filter over every row); no type in the chain exposes the walk. The port's rows are plain views with no filter model, so each level exposes what it contributes (preferences-search.ts).";
+
+/**
+ * Every public method of a NativeScript widget that its GIR counterpart's chain has no
+ * method of the same spelling for, and what it is instead.
+ *
+ * KEYED `<widget-tag>.<method>`, as the property ledger is, and read the same way in
+ * both directions. THE PORT SIDE RESOLVES THE PORT'S OWN CHAIN one step further than the
+ * property reader does: a method declared on an abstract base of this package
+ * (`AdwSplitViewBase.set_content`) is measured on the row of every concrete widget that
+ * extends it, because the counterpart differs per widget and the base has none. A method
+ * a widget inherits from a port class that IS a widget is held on that widget's row and
+ * not repeated — `adw-switch-row` does not list `adw-action-row`'s `add_prefix`.
+ *
+ * THE COMPARISON TARGET is `generated/methods.mts` — every instance method the installed
+ * typelib declares on the counterpart and on everything the counterpart inherits from or
+ * implements, PLUS the nine names GJS installs on every GObject beyond the typelib
+ * (`connect`, `disconnect`, `emit`, …). Spelled as GJS installs them: snake_case.
+ *
+ * THE RULE THAT SPLITS A RENAME FROM AN ENTRY is the property ledger's, one level over:
+ * a method converges when both sides take the same KIND of argument and differ only in
+ * spelling. `addTopBar(view)` beside `add_top_bar(child)` is a rename and was renamed —
+ * forty-odd of them were, in the change that introduced this table, so the entries left
+ * are not a backlog with that shape. What stays is:
+ *
+ *   { gir: '<method>', why }  the counterpart has the method; the port's takes a different
+ *                            KIND — a page id where GTK passes the `Adw.TabPage`, an index
+ *                            where GTK passes the widget. It should converge, and the
+ *                            `why` says what would have to change. The count of these is
+ *                            the printed method distance.
+ *   { own: '<reason>' }       the counterpart has no such method. The reason says which of
+ *                            the shapes it is: a PROPERTY of a type the port flattens (the
+ *                            page's `title`); an ACTION rather than a method
+ *                            (`navigation.push`); a SIGNAL (`apply`); PRIVATE C API the
+ *                            port has to expose (`set_show_indicator`); a collection where
+ *                            GTK adds per item; or an override of a `@nativescript/core`
+ *                            member the port cannot not have (`addChild`).
+ *   { gap: '#NNNN' }          nobody has decided. Not a reason — a pointer.
+ *
+ * WHAT A NAME AGREEMENT DOES NOT SAY, stated because the same limit is recorded for
+ * properties in `status/open-todos.md`: `add_prefix` agrees on this surface and holds ONE
+ * widget where libadwaita holds a box, and `present()` on the alert dialog returns a
+ * Promise where GJS returns nothing and hands the answer to `choose()`. Both are declared
+ * in the widget file. And the host's `set` is in the agreeing set because GJS installs it
+ * — `widget.set({ label })` — while NativeScript's `Observable.set(name, value)` is a
+ * different contract under the same name; no port widget declares one, so it never
+ * reaches this table, and the sentence is here so the next reader does not put it there.
+ *
+ * ONE SURFACE, DELIBERATELY, for the reason the property ledger gives.
+ */
+const NS_METHOD_ALIGNMENT = {
+    // ── The counterpart has the method; the argument KIND differs. The printed distance. ──
+    'adw-carousel.scrollToPage': {
+        gir: 'scroll_to',
+        why: "`adw_carousel_scroll_to(widget, animate)` takes the PAGE and this takes its INDEX, because the port's own indicator dots resolve an index at tap time from the id the model tracks (adw-carousel.ts). Converging means accepting the `View` and looking its index up in `_views`, which the port can do; it has not, and until it does an index is not the kind of value the GIR verb takes.",
+    },
+    'adw-view-stack.removePage': {
+        gir: 'remove',
+        why: "`adw_view_stack_remove(child)` takes the page's CHILD widget; this takes the page NAME, because the port keeps its pages in a headless list keyed on the name it also selects by (view-stack-state.ts). A caller off GJS holds the view, not the name.",
+    },
+    // `Adw.TabView` passes an `Adw.TabPage` to every page method; this port identifies a
+    // page by the id string ADR 0048 chose for `selectedPage`, so every one of these takes
+    // a string where the GIR verb takes the page object. One reason, stated once.
+    'adw-tab-view.addPage': { gir: 'add_page', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.insertPage': { gir: 'insert', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.prependPage': { gir: 'prepend', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.appendPage': { gir: 'append', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.insertPinnedPage': { gir: 'insert_pinned', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.prependPinnedPage': { gir: 'prepend_pinned', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.appendPinnedPage': { gir: 'append_pinned', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.setPagePinned': { gir: 'set_page_pinned', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.closePage': { gir: 'close_page', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.closePageFinish': { gir: 'close_page_finish', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.closeOtherPages': { gir: 'close_other_pages', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.closePagesBefore': { gir: 'close_pages_before', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.closePagesAfter': { gir: 'close_pages_after', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.reorderPage': { gir: 'reorder_page', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.reorderBackward': { gir: 'reorder_backward', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.reorderForward': { gir: 'reorder_forward', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.reorderFirst': { gir: 'reorder_first', why: TAB_PAGE_HANDLE },
+    'adw-tab-view.reorderLast': { gir: 'reorder_last', why: TAB_PAGE_HANDLE },
+
+    // ── A property of a type the port flattens. ───────────────────────────────────────
+    'adw-tab-view.setPageTitle': { own: TAB_PAGE_PROPERTY },
+    'adw-tab-view.setPageIcon': { own: TAB_PAGE_PROPERTY },
+    'adw-tab-view.setPageLoading': { own: TAB_PAGE_PROPERTY },
+    'adw-tab-view.setPageNeedsAttention': { own: TAB_PAGE_PROPERTY },
+    'adw-navigation-view.setPageTag': { own: NAVIGATION_PAGE_PROPERTY },
+    'adw-navigation-view.setPageTitle': { own: NAVIGATION_PAGE_PROPERTY },
+    'adw-navigation-view.setPageCanPop': { own: NAVIGATION_PAGE_PROPERTY },
+    'adw-view-stack.setPageVisible': {
+        own: '`visible` is `Adw.ViewStackPage:visible`, a property of the PAGE object `adw_view_stack_add` returns. The port keeps the page as a headless record keyed on its name (view-stack-state.ts) and has no page GObject to put a setter on, so the stack takes the name and the flag.',
+    },
+    'adw-view-switcher.setPageVisible': { own: VIEW_PAGE_VISIBLE },
+    'adw-inline-view-switcher.setPageVisible': { own: VIEW_PAGE_VISIBLE },
+
+    // ── A collection where GTK adds per item. ─────────────────────────────────────────
+    'adw-tab-view.setViews': { own: LIST_BUILT_PER_ITEM('adw_tab_view_append()') },
+    'adw-view-switcher.setViews': { own: LIST_BUILT_PER_ITEM('adw_view_stack_add_titled()') },
+    'adw-inline-view-switcher.setViews': { own: LIST_BUILT_PER_ITEM('adw_view_stack_add_titled()') },
+    'adw-sidebar.setItems': { own: LIST_BUILT_PER_ITEM('adw_sidebar_append()') },
+    'adw-sidebar.setSections': { own: LIST_BUILT_PER_ITEM('adw_sidebar_append()') },
+    'adw-toggle-group.setToggles': { own: LIST_BUILT_PER_ITEM('adw_toggle_group_add()') },
+
+    // ── An action, a signal, or an internal GTK does not expose as a method. ──────────
+    'adw-navigation-split-view.push': {
+        own: 'On GTK a split view is navigated by the `navigation.push` ACTION, activated from a widget inside it (adw-navigation-split-view.c, `navigation_push_cb`) — `Adw.NavigationSplitView` declares no push method. The port has no action group and exposes the transition as a method (adw-navigation-split-view.ts).',
+    },
+    'adw-navigation-split-view.pop': {
+        own: "The `navigation.pop` ACTION's counterpart, for the reason `push` gives: `Adw.NavigationSplitView` declares no pop method, and the port exposes the transition because it has no action group to activate.",
+    },
+    'adw-navigation-split-view.showSidebarPane': { own: SIDEBAR_PANE },
+    'adw-navigation-split-view.hideSidebarPane': { own: SIDEBAR_PANE },
+    'adw-overlay-split-view.showSidebarPane': { own: SIDEBAR_PANE },
+    'adw-overlay-split-view.hideSidebarPane': { own: SIDEBAR_PANE },
+    'adw-navigation-view.canGoBack': {
+        own: 'GTK answers this through the enabled state of its `navigation.pop` action and its own back button; there is no query method on `Adw.NavigationView`. The port exposes the answer because its host draws the back affordance (adw-navigation-view.ts).',
+    },
+    'adw-navigation-view.backButtonTooltip': {
+        own: "`Adw.NavigationView` computes its back button's tooltip internally from the previous page's title (adw-navigation-view.c) and offers no method for it. The port has to hand the string to a host-drawn button.",
+    },
+    'adw-navigation-view.popFromShortcut': {
+        own: 'Alt+Left and the mouse back button are handled INSIDE `Adw.NavigationView` by a shortcut controller; no method. The port has no key events of its own and exposes the entry point for a host that receives them (adw-navigation-view.ts).',
+    },
+    'adw-navigation-view.popFromEscape': {
+        own: 'Escape is `Adw.NavigationView:pop-on-escape`, handled internally by a shortcut controller. The port exposes the entry point for the same reason as `popFromShortcut`: it receives no key events itself.',
+    },
+    'adw-entry-row.apply': {
+        own: "`apply` is a SIGNAL of `Adw.EntryRow`, not a method — a GJS caller writes `row.emit('apply')`. The port exposes the emitter as a method because its own apply button and its host both have to fire it (adw-entry-row.ts).",
+    },
+    'adw-entry-row.setShowIndicator': {
+        own: "`adw_entry_row_set_show_indicator` is PRIVATE upstream (adw-entry-row-private.h) and therefore in no typelib. Public here because `AdwPasswordEntryRow` composes rather than reaching into a private header, as the method's own doc says.",
+    },
+    'adw-entry-row.setIndicatorIcon': {
+        own: '`adw_entry_row_set_indicator_icon_name` is private upstream, in no typelib, for the same reason `setShowIndicator` is exposed here: the password row drives the indicator from outside.',
+    },
+    'adw-password-entry-row.togglePeek': {
+        own: 'On GTK the peek toggle is an internal `GtkToggleButton` flipping the inner `Gtk.Text:visibility`; `Adw.PasswordEntryRow` declares no method at all. The port exposes the toggle because its own suffix button calls it (adw-password-entry-row.ts).',
+    },
+    'adw-password-entry-row.setCapsLockOn': {
+        own: 'GDK reads the Caps Lock state off the keyboard for the warning icon; NativeScript exposes no keyboard modifier state, so the port has to be TOLD, and the method is that input (adw-password-entry-row.ts, COMPROMISE).',
+    },
+    'adw-bottom-sheet.requestClose': {
+        own: 'GTK gates dismissal with `Adw.BottomSheet:can-close` and the `close-attempt` signal, with no method. The port routes every dismissal affordance — scrim tap, drag, back — through one gate and exposes it so a host can add its own (adw-bottom-sheet.ts).',
+    },
+    'adw-carousel.navigate': {
+        own: "GTK moves a carousel through its swipe tracker and the indicator widgets, both of which call `scroll_to`; there is no navigate method. The port's keyboard and back-navigation helper over the headless state (adw-carousel.ts).",
+    },
+    'adw-action-row.syncActivatableWidgetSensitivity': {
+        own: "GTK binds `activatable-widget`'s `sensitive` into the row through a property binding. NativeScript has no property-change notification a plain `View` write goes through, so the port needs a call to re-read it (adw-action-row.ts).",
+    },
+    'adw-tab-view.isClosing': {
+        own: 'The state between `close_page` and `close_page_finish` is internal to `Adw.TabView` and observable only through the `close-page` signal. The port exposes it because its own tab strip draws the pending close (adw-tab-view.ts).',
+    },
+    'adw-view-stack.selectNthPage': {
+        own: "GJS writes `stack.set_visible_child(stack.get_pages().get_item(n).child)`; `Adw.ViewStack` has no method taking a position. The port's pages are a headless list keyed on name and index alike (view-stack-state.ts), so the index is one call.",
+    },
+    'adw-tab-view.selectNthPage': {
+        own: "GJS writes `view.set_selected_page(view.get_nth_page(n))`; there is no single method. The port's pages are a headless list, so the index is the natural handle and the composition is one call.",
+    },
+    'adw-tab-view.selectFirstPage': {
+        own: "`adw_tab_view_select_first_page` is PRIVATE upstream (adw-tab-view-private.h) — the typelib carries `select_next_page` and `select_previous_page` only. Public here for the port's keyboard handling.",
+    },
+    'adw-tab-view.selectLastPage': {
+        own: '`adw_tab_view_select_last_page` is private upstream, in no typelib, for the same reason as `selectFirstPage`.',
+    },
+    'adw-tab-view.cycleNextPage': {
+        own: "`adw_tab_view_select_next_page` returns FALSE at the last page and does not wrap. The wrapping variant is the port's own, for Ctrl+Tab-style cycling (adw-tab-view.ts); GTK has no method for it.",
+    },
+    'adw-tab-view.cyclePreviousPage': {
+        own: "The wrapping counterpart of `cycleNextPage`, for the same reason: `select_previous_page` stops at the first page and the port's cycling helper does not.",
+    },
+    'adw-tab-view.detachPage': {
+        own: '`adw_tab_view_transfer_page(page, other_view, position)` moves a page between two views in one call; the port detaches and hands the page record back to the caller instead, because it has no second view to address and no `Adw.TabPage` to move (adw-tab-view.ts).',
+    },
+    'adw-toast-overlay.showToast': {
+        own: 'A convenience that builds the `AdwToast` and enqueues it; on GTK a caller writes `new Adw.Toast({ title })` and `add_toast`, which this port ALSO offers. Kept for the XML-adjacent callers that have a string and no toast object.',
+    },
+    'adw-toast-overlay.dismiss': {
+        own: "`dismiss()` is `Adw.Toast`'s, a method of the TOAST; the overlay's only dismissal method is `adw_toast_overlay_dismiss_all`, which empties the queue. This dismisses the CURRENT toast and advances, which is neither: the toast's verb applied through the overlay because the port's queue owns the toast objects.",
+    },
+    'adw-preferences-dialog.search': {
+        own: PREFERENCES_SEARCH,
+    },
+    'adw-preferences-group.searchRows': { own: PREFERENCES_SEARCH },
+    'adw-preferences-page.searchGroups': { own: PREFERENCES_SEARCH },
+    'adw-view-switcher-bar.refresh': {
+        own: "GTK rebuilds the bar from the stack's `pages` selection model, whose `items-changed` it subscribes to; no method. The port has no list model on the stack and needs a nudge after pages change (adw-view-switcher-bar.ts).",
+    },
+    'adw-alert-dialog.addResponses': {
+        own: '`adw_alert_dialog_add_responses` is VARARGS in C, which introspection skips, so no GJS caller has a spelling of it to converge on; `add_response`, one at a time, is the introspectable verb and this port has it.',
+    },
+    'adw-wrap-box.addChild': {
+        own: "`addChild` is `LayoutBase`'s, NativeScript's own entry point for a child — the builder calls it, and so does any NativeScript caller. The port overrides it so every path lands in the flex row (adw-wrap-box.ts) and offers `append`, the GIR verb, beside it. A name the platform owns and the port cannot not have.",
     },
 };
 
@@ -1379,6 +1635,212 @@ function propertyProblems(world) {
 }
 
 /**
+ * The GIR side of one widget's method comparison: every method a GJS caller can invoke
+ * on its counterpart(s), or `null` when the table covers none of them.
+ */
+function counterpartMethods(world, widget, counterparts) {
+    const out = new Set();
+    let covered = 0;
+    for (const gtype of counterparts) {
+        const methods = methodsOf(world.methodTable, gtype);
+        if (methods === null) continue;
+        covered++;
+        for (const name of methods) out.add(name);
+    }
+    return covered === 0 ? null : out;
+}
+
+/**
+ * What the method comparison found, counted rather than inferred — the method half of
+ * {@link propertyCensus}, for its reason.
+ *
+ * @param {object} world
+ * @returns {{widgets: number, methods: number, shared: number, diverging: number, unmeasured: string[]}}
+ */
+function methodCensus(world) {
+    const { runtime, nsWidgets, nsTable, nsMethods } = world;
+    const tagToGType = new Map([...runtime].map(([gtype, tag]) => [tag, gtype]));
+    let widgets = 0;
+    let methods = 0;
+    let shared = 0;
+    const unmeasured = [];
+    for (const widget of nsWidgets) {
+        const counterparts = counterpartsOf(widget, nsTable, tagToGType);
+        if (counterparts === null) continue;
+        const gir = counterpartMethods(world, widget, counterparts);
+        if (gir === null) {
+            unmeasured.push(widget);
+            continue;
+        }
+        widgets++;
+        for (const method of nsMethods.get(widget) ?? []) {
+            methods++;
+            if (gir.has(method)) shared++;
+        }
+    }
+    return { widgets, methods, shared, diverging: methods - shared, unmeasured };
+}
+
+/**
+ * The method half: every public method of a NativeScript widget WITH a counterpart is a
+ * method of that counterpart's chain, spelled as GJS installs it, or it is declared.
+ *
+ * @param {object} world the same world `alignmentProblems` reads
+ * @returns {string[]}
+ */
+function methodProblems(world) {
+    const { methodTable, runtime, nsWidgets, nsTable, nsMethods, methodLedger } = world;
+    const tagToGType = new Map([...runtime].map(([gtype, tag]) => [tag, gtype]));
+    const problems = [];
+
+    // The controls. The table is a committed artifact, so its SHAPE is held here — the
+    // no-install half of the arrangement `generated/enum-values.mts` set — and each of
+    // these would otherwise let the whole half pass while measuring nothing.
+    if (methodTable === null || methodTable === undefined) {
+        problems.push('no method table read from generated/methods.mts — the method half has no comparison target');
+        return problems;
+    }
+    for (const gtype of runtime.keys()) {
+        if (methodTable.ancestry.has(gtype) || methodTable.unavailable.has(gtype)) continue;
+        problems.push(
+            `${gtype} is in the runtime widget table and has no ANCESTRY row in generated/methods.mts and is not ` +
+                'declared unavailable — the artifact is behind widgets.ts. Regenerate it: ' +
+                '`gjs -m scripts/generate-widget-methods.mjs`.',
+        );
+    }
+    for (const verb of ['connect', 'disconnect']) {
+        if (!methodTable.host.includes(verb)) {
+            problems.push(
+                `GJS_OBJECT_METHODS in generated/methods.mts no longer carries '${verb}' — the host table lost the ` +
+                    'connect/disconnect the port converges on (widgets/signals.ts), so every widget would read as ' +
+                    'diverging on the one verb every GJS snippet writes.',
+            );
+        }
+    }
+    const measured = nsWidgets.filter((widget) => {
+        const counterparts = counterpartsOf(widget, nsTable, tagToGType);
+        return counterparts !== null && counterpartMethods(world, widget, counterparts) !== null;
+    });
+    if (measured.length === 0) {
+        problems.push(
+            'no NativeScript widget has a counterpart the method table covers — the method half has nothing to measure',
+        );
+    }
+    const unreadable = measured.filter(
+        (widget) => nsMethods.get(widget) === null || nsMethods.get(widget) === undefined,
+    );
+    if (unreadable.length > 0) {
+        problems.push(
+            `the method reader found no class for ${unreadable.join(', ')} — a widget whose methods cannot be ` +
+                'read drops out of the comparison as an aligned one',
+        );
+    }
+    if (problems.length > 0) return problems;
+
+    const methodTotal = measured.reduce((sum, widget) => sum + nsMethods.get(widget).length, 0);
+    if (methodTotal === 0) {
+        problems.push(
+            'no public method found on any counterpart-bearing NativeScript widget — the reader or the ' +
+                'declaration convention moved, and an empty side agrees with everything',
+        );
+        return problems;
+    }
+
+    const declared = new Set(Object.keys(methodLedger));
+    const seen = new Set();
+    for (const widget of measured) {
+        const counterparts = counterpartsOf(widget, nsTable, tagToGType);
+        const gir = counterpartMethods(world, widget, counterparts);
+        const klass = tagClass(widget);
+        const against = counterparts.join(' + ');
+        for (const method of nsMethods.get(widget)) {
+            const key = `${widget}.${method}`;
+            seen.add(key);
+            const entry = methodLedger[key];
+            if (gir.has(method)) {
+                if (entry) {
+                    problems.push(
+                        `${klass}.${method} is already a method of ${against}, so its method entry is ` +
+                            `redundant — delete '${key}' from ${NS_METHOD_TABLE_SOURCE} rather than leaving two answers`,
+                    );
+                }
+                continue;
+            }
+            if (!entry) {
+                const twin = snakeOf(method);
+                const hint =
+                    twin !== method && gir.has(twin)
+                        ? ` \`${twin}\` IS one — the spelling GJS installs, since a method gets no camelCase twin ` +
+                          "there — so the fix is a rename, or a 'gir' entry saying why not."
+                        : '';
+                problems.push(
+                    `${klass}.${method} is a public method and is not a method of ${against} in generated/methods.mts, ` +
+                        `and nothing declares what it is.${hint} Add '${key}' to ${NS_METHOD_TABLE_SOURCE}: 'gir' with ` +
+                        "the method it should converge to, 'own' with the reason the counterpart has no method for it, " +
+                        "or 'gap' with an issue number. An undeclared divergence is an undecided one, and undecided is " +
+                        'what fails here.',
+                );
+                continue;
+            }
+            const kinds = METHOD_KINDS.filter((kind) => entry[kind] !== undefined);
+            if (kinds.length !== 1) {
+                problems.push(
+                    `${klass}.${method} has a method entry declaring ${kinds.length === 0 ? 'no kind at all' : kinds.join(' and ')} — ` +
+                        `exactly one of ${METHOD_KINDS.map((kind) => `'${kind}'`).join(', ')} says what the method is, ` +
+                        'and two answers is none',
+                );
+                continue;
+            }
+            if (entry.gir !== undefined) {
+                if (entry.gir === method) {
+                    problems.push(
+                        `${klass}.${method} declares it should converge to '${entry.gir}', which is its own name. A ` +
+                            'convergence target that is the method itself records no decision.',
+                    );
+                } else if (!gir.has(entry.gir)) {
+                    problems.push(
+                        `${klass}.${method} declares it should converge to '${entry.gir}', which is not a method of ` +
+                            `${against} in generated/methods.mts. A convergence target nothing offers is not a target.`,
+                    );
+                } else {
+                    problems.push(
+                        ...reasonProblems(
+                            `${klass}.${method} should converge to '${entry.gir}'`,
+                            entry.why,
+                            "a 'why'",
+                            NS_METHOD_TABLE_SOURCE,
+                        ),
+                    );
+                }
+            } else if (entry.own !== undefined) {
+                problems.push(
+                    ...reasonProblems(
+                        `${klass}.${method} is declared to have no counterpart method`,
+                        entry.own,
+                        "an 'own' reason",
+                        NS_METHOD_TABLE_SOURCE,
+                    ),
+                );
+            } else if (!GAP_ISSUE.test(entry.gap)) {
+                problems.push(
+                    `${klass}.${method} points its gap at '${entry.gap}', which is not an issue number. A gap is a ` +
+                        'POINTER at tracked work and never a reason.',
+                );
+            }
+        }
+    }
+    for (const key of declared) {
+        if (seen.has(key)) continue;
+        problems.push(
+            `the method ledger declares '${key}', which no counterpart-bearing NativeScript widget declares any ` +
+                `more — drop the entry from ${NS_METHOD_TABLE_SOURCE}. A ledger describing a method that does not ` +
+                'exist tells the next reader something false.',
+        );
+    }
+    return problems;
+}
+
+/**
  * Every rule, as one pure function over plain data.
  *
  * Pure so the self-test can hand it a broken world without materialising files, and so a
@@ -1578,6 +2040,9 @@ export function alignmentProblems(world) {
     // The PROPERTY half — one level down, on the surface where it was measured.
     problems.push(...propertyProblems(world));
 
+    // The METHOD half — the third axis, on the same surface, against the typelib-read table.
+    problems.push(...methodProblems(world));
+
     return problems;
 }
 
@@ -1731,6 +2196,38 @@ const WORLD = () => ({
     propertyTable: {
         'adw-icon-button.icon': { gir: 'iconName', why: FIXTURE_REASON },
         'adw-button.variant': { own: FIXTURE_REASON },
+    },
+    // The method half's GIR side, in the artifact's own shape: own methods per type, a
+    // chain per widget, the host's verbs, and an empty remainder. `add_css_class` is only
+    // reachable through the chain and `connect` only through the host list, so a reader
+    // that resolved neither would report both as divergences against the real tree.
+    methodTable: {
+        provenance: 'Fixture-1/1.0.0',
+        own: new Map([
+            ['GObject', ['notify']],
+            ['GtkWidget', ['add_css_class']],
+            ['AdwBin', ['set_child']],
+            ['GtkBox', ['append']],
+            ['GtkButton', ['set_label']],
+        ]),
+        ancestry: new Map([
+            ['AdwBin', ['GtkWidget', 'GObject']],
+            ['GtkBox', ['GtkWidget', 'GObject']],
+            ['GtkButton', ['GtkWidget', 'GObject']],
+        ]),
+        host: ['connect', 'disconnect'],
+        unavailable: new Map(),
+    },
+    nsMethods: new Map([
+        ['adw-bin', ['set_child', 'add_css_class']],
+        ['adw-button', ['set_label', 'connect', 'grabFocusLater']],
+        ['adw-icon-button', ['append', 'setIcon']],
+        // No counterpart, so never measured — the widget the method half must SKIP.
+        ['adw-grid', ['addRow']],
+    ]),
+    methodLedger: {
+        'adw-button.grabFocusLater': { own: FIXTURE_REASON },
+        'adw-icon-button.setIcon': { gir: 'set_label', why: FIXTURE_REASON },
     },
 });
 
@@ -2136,6 +2633,103 @@ const VECTORS = [
         (w) => ({ ...w, propertyTable: { ...w.propertyTable, 'adw-button.variant': { gap: 'later maybe' } } }),
         "AdwButton.variant points its gap at 'later maybe', which is not an issue number",
     ],
+    // ── The method half (ADR 0034 § Amendment 15). ───────────────────────────────────
+    ['no method table at all', (w) => ({ ...w, methodTable: null }), 'no method table read'],
+    [
+        'a runtime widget whose chain the method table lost',
+        (w) => ({
+            ...w,
+            methodTable: {
+                ...w.methodTable,
+                ancestry: new Map([...w.methodTable.ancestry].filter(([g]) => g !== 'GtkBox')),
+            },
+        }),
+        'GtkBox is in the runtime widget table and has no ANCESTRY row',
+    ],
+    [
+        'a host table that lost connect',
+        (w) => ({ ...w, methodTable: { ...w.methodTable, host: ['emit'] } }),
+        "no longer carries 'connect'",
+    ],
+    [
+        'a widget class the method reader could not find',
+        (w) => ({ ...w, nsMethods: new Map([...w.nsMethods, ['adw-button', null]]) }),
+        'the method reader found no class for adw-button',
+    ],
+    [
+        'no public method anywhere on the surface',
+        (w) => ({ ...w, nsMethods: new Map([...w.nsMethods].map(([tag]) => [tag, []])) }),
+        'no public method found on any counterpart-bearing NativeScript widget',
+    ],
+    [
+        'an undeclared method',
+        (w) => ({ ...w, methodLedger: {} }),
+        'AdwButton.grabFocusLater is a public method and is not a method of GtkButton',
+    ],
+    [
+        'an undeclared method whose snake_case twin the counterpart has',
+        (w) => ({ ...w, nsMethods: new Map([...w.nsMethods, ['adw-button', ['setLabel']]]) }),
+        '`set_label` IS one',
+    ],
+    [
+        'a method entry for a method the counterpart already has',
+        (w) => ({ ...w, methodLedger: { ...w.methodLedger, 'adw-bin.set_child': { own: FIXTURE_REASON } } }),
+        'AdwBin.set_child is already a method of AdwBin, so its method entry is redundant',
+    ],
+    [
+        'a method entry only reachable through the chain or the host',
+        (w) => ({ ...w, methodLedger: { ...w.methodLedger, 'adw-button.connect': { own: FIXTURE_REASON } } }),
+        'AdwButton.connect is already a method of GtkButton',
+    ],
+    [
+        'a stale method entry',
+        (w) => ({ ...w, methodLedger: { ...w.methodLedger, 'adw-button.vanished': { own: FIXTURE_REASON } } }),
+        "the method ledger declares 'adw-button.vanished'",
+    ],
+    [
+        'a method convergence target that is not a method of the counterpart',
+        (w) => ({
+            ...w,
+            methodLedger: { ...w.methodLedger, 'adw-icon-button.setIcon': { gir: 'ghost', why: FIXTURE_REASON } },
+        }),
+        "should converge to 'ghost', which is not a method of GtkButton + GtkBox",
+    ],
+    [
+        'a method convergence target that is the method itself',
+        (w) => ({
+            ...w,
+            methodLedger: { ...w.methodLedger, 'adw-icon-button.setIcon': { gir: 'setIcon', why: FIXTURE_REASON } },
+        }),
+        'which is its own name',
+    ],
+    [
+        'a method convergence entry with no reason',
+        (w) => ({ ...w, methodLedger: { ...w.methodLedger, 'adw-icon-button.setIcon': { gir: 'set_label' } } }),
+        "AdwIconButton.setIcon should converge to 'set_label' with no reason",
+    ],
+    [
+        'an own method reason under the floor',
+        (w) => ({ ...w, methodLedger: { ...w.methodLedger, 'adw-button.grabFocusLater': { own: 'none' } } }),
+        'AdwButton.grabFocusLater is declared to have no counterpart method with a 4-character reason',
+    ],
+    [
+        'a method entry answering twice',
+        (w) => ({
+            ...w,
+            methodLedger: { ...w.methodLedger, 'adw-button.grabFocusLater': { gir: 'set_label', own: FIXTURE_REASON } },
+        }),
+        'AdwButton.grabFocusLater has a method entry declaring gir and own',
+    ],
+    [
+        'a method entry answering not at all',
+        (w) => ({ ...w, methodLedger: { ...w.methodLedger, 'adw-button.grabFocusLater': { why: FIXTURE_REASON } } }),
+        'AdwButton.grabFocusLater has a method entry declaring no kind at all',
+    ],
+    [
+        'a method gap pointing at prose instead of tracked work',
+        (w) => ({ ...w, methodLedger: { ...w.methodLedger, 'adw-button.grabFocusLater': { gap: 'later maybe' } } }),
+        "AdwButton.grabFocusLater points its gap at 'later maybe', which is not an issue number",
+    ],
     // ── Enrolment (ADR 0034 stage 4). These run FIRST and stop the run. ──────────────
     [
         'a declared renderer no half of the check compares',
@@ -2440,6 +3034,27 @@ try {
     );
     const nsFiles = adwaitaNativeScriptWidgets(ROOT);
     const nsWidgets = surfaceWidgets.get('@gjsify/adwaita-nativescript') ?? [];
+    // The method half's port side: every widget class's OWN public methods plus those of
+    // any ABSTRACT port base it extends, read from the same sources the doors gate reads.
+    // A base that is itself a widget file is a row of its own and is not repeated.
+    const { sources: nsSources } = readWidgets(ROOT);
+    const widgetClasses = new Set([...nsFiles.keys()].map(tagClass));
+    const nsMethodsOf = (klass) => {
+        const own = nsSources.get(klass);
+        const names = own === undefined ? null : publicMethodsOf(own.text, klass);
+        if (names === null) return null;
+        const out = [...names];
+        for (
+            let head = extendsOf(own.text, klass);
+            head !== null && nsSources.has(head.base) && !widgetClasses.has(head.base);
+            head = extendsOf(nsSources.get(head.base).text, head.base)
+        ) {
+            for (const name of publicMethodsOf(nsSources.get(head.base).text, head.base) ?? []) {
+                if (!out.includes(name)) out.push(name);
+            }
+        }
+        return out;
+    };
     const renderers = Object.entries(RENDERER_TABLES)
         .filter(([name]) => surfaceWidgets.has(name))
         .map(([name, { table, source, namespaceSource }]) => ({
@@ -2499,6 +3114,11 @@ try {
             }),
         ),
         propertyTable: NS_PROPERTY_ALIGNMENT,
+        // The method half's two sides: the typelib-read table, and what each NativeScript
+        // widget class declares. `null` for an unreadable class is deliberate, as above.
+        methodTable: readMethodTable(read(METHODS_FILE)),
+        nsMethods: new Map([...nsFiles.keys()].map((tag) => [tag, nsMethodsOf(tagClass(tag))])),
+        methodLedger: NS_METHOD_ALIGNMENT,
     };
 } catch (error) {
     console.error(`check-vocabulary-alignment: cannot read an input — ${error.message}`);
@@ -2562,6 +3182,8 @@ const renderersDeclared = Object.values(WIDGET_SURFACE_READERS).filter((r) => r.
 
 const census = propertyCensus(world);
 const propConverge = kindCount(NS_PROPERTY_ALIGNMENT, 'gir');
+const methods = methodCensus(world);
+const methodConverge = kindCount(NS_METHOD_ALIGNMENT, 'gir');
 console.log(
     `check-vocabulary-alignment: self-test green — ${VECTORS.length - 1} failing vector(s), ` +
         `${READER_VECTORS.length + NAMESPACE_BARREL_VECTORS.length + RN_BARREL_VECTORS.length} reader vector(s). ` +
@@ -2575,10 +3197,18 @@ console.log(
         `counterpart's ConstructorProps, ${census.diverging} do not (${propConverge} should converge, ` +
         `${kindCount(NS_PROPERTY_ALIGNMENT, 'own')} declared own, ` +
         `${kindCount(NS_PROPERTY_ALIGNMENT, 'gap')} undecided). ` +
+        `Methods, on the same surface, against the typelib-read generated/methods.mts (${world.methodTable.provenance}): ` +
+        `${methods.widgets} widgets with a covered counterpart declare ${methods.methods} public method(s) between ` +
+        `them — ${methods.shared} already spell a method of the counterpart's chain, ${methods.diverging} do not ` +
+        `(${methodConverge} should converge, ${kindCount(NS_METHOD_ALIGNMENT, 'own')} declared own, ` +
+        `${kindCount(NS_METHOD_ALIGNMENT, 'gap')} undecided)` +
+        `${methods.unmeasured.length > 0 ? `; ${methods.unmeasured.length} widget(s) whose counterpart the generating host predates: ${methods.unmeasured.join(', ')}` : ''}` +
+        "; and every class reaches the host's connect/disconnect through withSignals(), counted by " +
+        'check-nativescript-xml-doors. ' +
         `Namespace exports (ADR 0034 clause 2): ${namespaced.length} of ${renderersDeclared} renderer(s)` +
         `${namespaced.length > 0 ? ` — ${namespaced.join(', ')}` : ''}, ` +
         `held at ${world.callers.length} caller import(s) in ` +
         `${new Set(world.callers.map((caller) => caller.file)).size} file(s). ` +
-        `Distance to one vocabulary: ${widgetDistance} widget name(s) and ${propConverge} property name(s), ` +
-        'and both can only go down.',
+        `Distance to one vocabulary: ${widgetDistance} widget name(s), ${propConverge} property name(s) and ` +
+        `${methodConverge} method name(s), and all three can only go down.`,
 );

@@ -48,6 +48,7 @@ import {
 import type { AdwViewPage } from './view-switcher-base.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
@@ -85,7 +86,7 @@ interface TabChip {
     close: AdwImageButton;
 }
 
-export class AdwTabView extends GridLayout {
+export class AdwTabView extends withSignals(GridLayout) {
     private readonly _state = createTabViewState({ onClosePage: (page) => this._requestClose(page) });
     private readonly _bar: StackLayout;
     private readonly _contentArea: GridLayout;
@@ -207,7 +208,7 @@ export class AdwTabView extends GridLayout {
     }
 
     /** `adw_tab_view_set_selected_page`. The page, or the id this port uses as its handle. */
-    setSelectedPage(page: AdwTabPage | string | null): boolean {
+    set_selected_page(page: AdwTabPage | string | null): boolean {
         return this._state.setSelectedPage(page);
     }
 
@@ -215,11 +216,13 @@ export class AdwTabView extends GridLayout {
         return this._state.selectNthPage(n);
     }
 
-    selectPreviousPage(): boolean {
+    /** `adw_tab_view_select_previous_page`. */
+    select_previous_page(): boolean {
         return this._state.selectPreviousPage();
     }
 
-    selectNextPage(): boolean {
+    /** `adw_tab_view_select_next_page`. */
+    select_next_page(): boolean {
         return this._state.selectNextPage();
     }
 

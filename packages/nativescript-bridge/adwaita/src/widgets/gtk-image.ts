@@ -29,11 +29,12 @@ import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { renderSymbolicIcon } from './icons.js';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Default decorative-icon size, in DIPs — the Adwaita 16px symbolic grid. */
 export const DEFAULT_GTK_IMAGE_SIZE = 16;
 
-export class GtkImage extends Image {
+export class GtkImage extends withSignals(Image) {
     private _iconSvg = '';
     // Default fill follows the active color scheme (dark fg on light, near-white
     // on dark); an explicit `iconColor` pins it and stops following the theme.

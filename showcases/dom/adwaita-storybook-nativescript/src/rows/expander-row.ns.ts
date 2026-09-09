@@ -27,16 +27,16 @@ export class ExpanderRowNsStory extends StoryView {
         const authRow = new Adw.SwitchRow();
         authRow.title = 'Use authentication';
 
-        this._row.addRow(hostRow);
-        this._row.addRow(authRow);
+        this._row.add_row(hostRow);
+        this._row.add_row(authRow);
         this._syncRow();
 
         const group = new Adw.PreferencesGroup();
-        group.addRow(this._row);
+        group.add(this._row);
 
         const clamp = new Adw.Clamp();
         clamp.maximumSize = 400;
-        clamp.setChild(group);
+        clamp.set_child(group);
 
         this.addContent(clamp);
     }

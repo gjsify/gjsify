@@ -21,6 +21,11 @@
 //     side: a value arriving through it is a real JS value rather than a string, so a
 //     setter must NOT widen its declared type to admit an enum constant — that would
 //     drag the number into the ATTRIBUTE door, where it has no coercer.
+//   · A SIGNAL HANDLER (ADR 0034 § Amendment 15). The one door that goes OUT: GJS's
+//     `connect(name, cb) -> id` / `disconnect(id)`, which `widgets/signals.ts` puts on
+//     every class as a mixin applied where the class meets `@nativescript/core` —
+//     `extends withSignals(GridLayout)`. A class extending a platform base bare has no
+//     door; a class extending a port base inherits it and must not wrap again.
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -180,6 +185,147 @@ export const NS_CORE_TYPES = 'packages/nativescript-bridge/adwaita/src/ns-core.d
 export function readCoreProperties(root) {
     const text = readFileSync(join(root, NS_CORE_TYPES), 'utf8');
     return new Set([...text.matchAll(/^\s{4,}([A-Za-z_$][A-Za-z0-9_$]*)\??:/gm)].map((m) => m[1]));
+}
+
+/** Where GJS's `connect` / `disconnect` come from, and the wrapper a class takes them with. */
+export const NS_SIGNALS = `${NS_WIDGETS_DIR}/signals.ts`;
+export const SIGNALS_MIXIN = 'withSignals';
+
+/**
+ * The `withSignals(` opener, tolerant of the line break a long declaration takes.
+ *
+ * ONE CLASS IN THE PORT DOES NOT FIT ON A LINE, and it is what made this a constant
+ * rather than an inline pattern. `AdwSplitViewBase` is generic AND wrapped, so the
+ * formatter writes
+ *
+ *     export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplitViewState> extends withSignals(
+ *         GridLayout,
+ *     ) {
+ *
+ * A pattern demanding the base name immediately after the paren cannot match that, and
+ * it does not fail loudly: the optional `withSignals\(` group backtracks to empty and
+ * the base capture then takes `withSignals` ITSELF. Both readers over this package did
+ * that, in two separate copies, and both then reported the MIXIN as a base the ambient
+ * slice does not declare — `check-nativescript-xml-doors` as "extends withSignals bare"
+ * on a class that is wrapped correctly, `check-nativescript-widget-coverage` as a chain
+ * that "leaves the package at 'withSignals'" for the two split views. Two false reds,
+ * one blind spot, on the single class whose declaration is too long for a line.
+ *
+ * Every self-test vector on both sides was single-line, which is why it survived being
+ * written down: the readers were proven against the shape they were written against.
+ * {@link CLASS_BASE_VECTORS} now carries the wrapped-and-broken form.
+ */
+const MIXIN_OPEN = `${SIGNALS_MIXIN}\\(\\s*`;
+
+/**
+ * Every class a source declares and what it extends, comments stripped.
+ *
+ * ONE reader for the whole package, because there were two and they shared a defect.
+ * The precedent is `gir-scalar-properties.mjs`, extracted for the same reason on the GIR
+ * side: two definitions of the same reading are two answers that can disagree while both
+ * stay green.
+ *
+ * The type arguments are what makes this a reader rather than a one-liner:
+ * `AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewState>` names its base
+ * with a generic, and a pattern that stops at the identifier before `<` reads the base as
+ * missing — which ends a chain walk and hands the widget a setter set seven short.
+ *
+ * @param {string} source
+ * @returns {Map<string, { base: string | null, wrapped: boolean }>}
+ */
+export function classBases(source) {
+    const bases = new Map();
+    const pattern = new RegExp(
+        String.raw`\bclass\s+([A-Za-z0-9_$]+)(?:<[^>]*>)?(?:\s+extends\s+(` +
+            MIXIN_OPEN +
+            String.raw`)?([A-Za-z0-9_$]+))?`,
+        'g',
+    );
+    for (const [, name, open, base] of executable(source).matchAll(pattern)) {
+        bases.set(name, { base: base ?? null, wrapped: open !== undefined });
+    }
+    return bases;
+}
+
+/**
+ * What one widget class extends: the base name, and whether it is wrapped in
+ * `withSignals(…)`. `null` when the class is absent or its declaration has no `extends`.
+ *
+ * @param {string} text the module source
+ * @param {string} name the class
+ * @returns {{ base: string, wrapped: boolean } | null}
+ */
+export function extendsOf(text, name) {
+    const entry = classBases(text).get(name);
+    if (entry === undefined || entry.base === null) return null;
+    return { base: entry.base, wrapped: entry.wrapped };
+}
+
+/** Every class a source declares — where the port's chains are allowed to end. */
+export function ambientCoreClasses(source) {
+    return new Set(classBases(source).keys());
+}
+
+/** Every class the ambient slice declares — where a port chain is allowed to leave the package. */
+export function readCoreClasses(root) {
+    return ambientCoreClasses(readFileSync(join(root, NS_CORE_TYPES), 'utf8'));
+}
+
+/**
+ * The reader's own vectors: source, class, the base wanted, and whether it is wrapped.
+ *
+ * `undefined` as the wanted base means the class must not appear at all. The last four
+ * rows are the ones the two copies of this reader failed — a wrapped base pushed onto its
+ * own line, with and without the trailing comma the formatter adds, and with a type
+ * parameter that itself contains the word `extends`.
+ */
+export const CLASS_BASE_VECTORS = [
+    ['export class AdwDemo extends GridLayout {}', 'AdwDemo', 'GridLayout', false],
+    ['export abstract class AdwBase<T> extends GridLayout {}', 'AdwBase', 'GridLayout', false],
+    ['class AdwDemo extends AdwBase<NsState> {}', 'AdwDemo', 'AdwBase', false],
+    ['class AdwDemo extends AdwBase<NsState<Deep>> {}', 'AdwDemo', 'AdwBase', false],
+    ['export class AdwGroup extends StackLayout implements NsSearchableGroup {}', 'AdwGroup', 'StackLayout', false],
+    ['export class AdwDemo extends withSignals(GridLayout) {}', 'AdwDemo', 'GridLayout', true],
+    [
+        'export abstract class AdwBase<T> extends withSignals(GridLayout) implements NsX {}',
+        'AdwBase',
+        'GridLayout',
+        true,
+    ],
+    ['export class AdwRoot {}', 'AdwRoot', null, false],
+    // A class named inside a comment is prose, and these files explain their own
+    // hierarchies in prose — `adw-combo-row.ts` opens with "Extends {@link AdwActionRow}".
+    ['// class AdwGhost extends GridLayout\nexport class AdwDemo extends Image {}', 'AdwGhost', undefined, false],
+    ['export class AdwDemo extends withSignals(\n    GridLayout,\n) {}', 'AdwDemo', 'GridLayout', true],
+    ['export class AdwDemo extends withSignals(\n    GridLayout\n) {}', 'AdwDemo', 'GridLayout', true],
+    [
+        'export abstract class AdwBase<T extends NsState = NsState> extends withSignals(\n    GridLayout,\n) {}',
+        'AdwBase',
+        'GridLayout',
+        true,
+    ],
+];
+
+/**
+ * Prove the reader before either gate reads real data.
+ *
+ * Exported and called by BOTH gates rather than by the one that happens to own the file:
+ * they each depend on this reading, and a reader proven in only one job is proven for
+ * only one job.
+ *
+ * @returns {string[]} one line per failing vector
+ */
+export function classReaderSelfTest() {
+    const failures = [];
+    for (const [source, klass, wantBase, wantWrapped] of CLASS_BASE_VECTORS) {
+        const entry = classBases(source).get(klass);
+        const gotBase = entry === undefined ? undefined : entry.base;
+        const gotWrapped = entry === undefined ? false : entry.wrapped;
+        const label = `classBases(${JSON.stringify(source)}).get('${klass}')`;
+        if (gotBase !== wantBase) failures.push(`${label} base is ${gotBase}, wanted ${wantBase}`);
+        if (gotWrapped !== wantWrapped) failures.push(`${label} wrapped is ${gotWrapped}, wanted ${wantWrapped}`);
+    }
+    return failures;
 }
 
 /**
@@ -656,6 +802,49 @@ export function membersOf(sources, tag) {
         for (const [, name] of text.matchAll(/^ {4}(?:async )?(\w+)\(/gm)) members.add(name);
     }
     return members;
+}
+
+/**
+ * The PUBLIC methods one class declares in its own body — the port's method vocabulary,
+ * which is what `check-vocabulary-alignment.mjs` holds against the GIR's.
+ *
+ * Read from the class body proper, brace-matched from the declaration, rather than from a
+ * slice up to the next `class` keyword: a top-level function after the class would
+ * otherwise contribute its inner `if (` and `for (` at four-space indentation as methods,
+ * which is exactly what the first census of this surface printed for `gtk-align.ts`.
+ *
+ * WHAT COUNTS. A four-space-indented member `name(`, optionally `override`/`async`/
+ * `public`, that is not an accessor (`get`/`set` are the property vocabulary, held one
+ * ledger over), not `private`/`protected` (a caller cannot write it), not `static` (the
+ * GIR side holds instance methods only — a static is `Gtk.Widget.get_default_direction()`
+ * and no port instance can converge to it), and not `_`-prefixed (NativeScript's own
+ * convention for a member the builder calls, `_addChildFromBuilder`). An OVERRIDE of a
+ * `@nativescript/core` member counts — `addChild` on `AdwWrapBox` is in the corpus —
+ * because a name the platform owns is precisely the collision the ledger exists to declare.
+ *
+ * `null` when the class is not in the text at all, so a widget whose class cannot be found
+ * drops out as a failure and not as a widget with no methods.
+ *
+ * @param {string} text the module source
+ * @param {string} className the class to read
+ * @returns {string[] | null} declaration order, de-duplicated
+ */
+export function publicMethodsOf(text, className) {
+    const code = executable(text);
+    const head = new RegExp(`\\bclass\\s+${className}\\b[^{]*\\{`).exec(code);
+    if (head === null) return null;
+    const open = head.index + head[0].length - 1;
+    const close = matchingBrace(code, open);
+    if (close === -1) return null;
+    const body = code.slice(open + 1, close);
+    const out = [];
+    const member =
+        /^ {4}(?:(?:public|override|async)\s+)*(?!(?:get|set|private|protected|static|constructor|readonly)\b)([A-Za-z][\w$]*)\s*(?:<[^>]*>)?\(/gm;
+    for (const [, name] of body.matchAll(member)) {
+        if (name.startsWith('_') || out.includes(name)) continue;
+        out.push(name);
+    }
+    return out;
 }
 
 /** Does the setter actually put the value through something that accepts a string? */

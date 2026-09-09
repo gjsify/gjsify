@@ -21,8 +21,9 @@ import {
 } from './shortcut-label.js';
 import type { ShortcutLabelViewSpec } from './shortcut-label.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
-export class AdwShortcutLabel extends StackLayout {
+export class AdwShortcutLabel extends withSignals(StackLayout) {
     private _accelerator = '';
     private _disabledText = '';
 

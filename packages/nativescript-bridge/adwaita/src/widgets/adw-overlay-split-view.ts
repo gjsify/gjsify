@@ -14,7 +14,7 @@
 // CSS subset (which has no transform transition), and degrade to an instant
 // `visibility` swap off-screen or off-device. The scrim + sidebar are RE-RAISED above
 // the content on every layout (content < scrim < sidebar) so the overlay
-// paints/hit-tests on top whatever order setContent / setSidebar / collapsed came in.
+// paints/hit-tests on top whatever order set_content / set_sidebar / collapsed came in.
 // Still out of reach: box-shadow and backdrop-blur — the scrim is a flat fill.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-overlay-split-view`.
@@ -175,7 +175,7 @@ export class AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewStat
 
     /** Re-establish paint order: content < scrim < sidebar (NS paints in add order).
      *  Removing + re-adding the scrim/sidebar keeps them above the content no matter
-     *  what order setContent/setSidebar/collapsed ran in. */
+     *  what order set_content/set_sidebar/collapsed ran in. */
     private _raiseOverlayChildren(): void {
         const scrim = this._ensureScrim();
         if (this._isChild(scrim)) this.removeChild(scrim);

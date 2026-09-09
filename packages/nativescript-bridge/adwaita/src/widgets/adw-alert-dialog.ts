@@ -7,7 +7,7 @@
 // this class composes it and keeps only the NativeScript binding: mapping to the
 // platform's native `confirm()` (≤3 responses) / `action()` (>3) and emitting the
 // `notify::response` GObject signal. Mirrors `Adw.AlertDialog`: `heading`, `body`,
-// `addResponse(id, label)`, `present()` resolving to the chosen response id.
+// `add_response(id, label)`, `present()` resolving to the chosen response id.
 //
 // FIDELITY: approximated by design. There is NO custom in-app modal here — the NS
 // platform alert/action sheet is used so the dialog looks like the user's OS
@@ -29,6 +29,7 @@ import { action, confirm, Observable, type EventData } from '@nativescript/core'
 import { AdwAlertResponses } from '@gjsify/adwaita-core';
 import type { AdwResponseAppearance, AdwResponseOptions } from '@gjsify/adwaita-core';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 // Re-export the headless response model + its types so existing consumers keep
 // importing them from `@gjsify/adwaita-nativescript` unchanged.
@@ -49,7 +50,7 @@ export interface NotifyResponseEventData extends EventData {
     response: string;
 }
 
-export class AdwAlertDialog extends Observable {
+export class AdwAlertDialog extends withSignals(Observable) {
     /** The headless response registry + ordering + resolution (ADR 0004). */
     private readonly _responses: AdwAlertResponses;
 
@@ -78,33 +79,38 @@ export class AdwAlertDialog extends Observable {
         this._responses.body = value;
     }
 
-    /** Register a response button (`id` is what `present()` resolves to). */
-    addResponse(id: string, label: string, options?: AdwResponseOptions): void {
+    /** Register a response button — `adw_alert_dialog_add_response`; `id` is what `present()` resolves to. */
+    add_response(id: string, label: string, options?: AdwResponseOptions): void {
         this._responses.addResponse(id, label, options);
     }
 
-    /** Register many responses at once (`id, label, id, label, …`). */
+    /**
+     * Register many responses at once (`id, label, id, label, …`).
+     *
+     * Keeps its own name: the C counterpart `adw_alert_dialog_add_responses` is varargs,
+     * which introspection skips, so no GJS caller has a spelling of it to converge on.
+     */
     addResponses(...idLabelPairs: string[]): void {
         this._responses.addResponses(...idLabelPairs);
     }
 
-    /** Set a registered response's visual emphasis (suggested/destructive). */
-    setResponseAppearance(id: string, appearance: AdwResponseAppearance): void {
+    /** Set a registered response's emphasis — `adw_alert_dialog_set_response_appearance`. */
+    set_response_appearance(id: string, appearance: AdwResponseAppearance): void {
         this._responses.setResponseAppearance(id, appearance);
     }
 
-    /** A registered response's emphasis (`'default'` for an unknown id). */
-    getResponseAppearance(id: string): AdwResponseAppearance {
+    /** A registered response's emphasis — `adw_alert_dialog_get_response_appearance`; `'default'` for an unknown id. */
+    get_response_appearance(id: string): AdwResponseAppearance {
         return this._responses.getResponseAppearance(id);
     }
 
-    /** Enable/disable a registered response. */
-    setResponseEnabled(id: string, enabled: boolean): void {
+    /** Enable/disable a registered response — `adw_alert_dialog_set_response_enabled`. */
+    set_response_enabled(id: string, enabled: boolean): void {
         this._responses.setResponseEnabled(id, enabled);
     }
 
-    /** Whether a registered response is enabled (`true` for an unknown id). */
-    getResponseEnabled(id: string): boolean {
+    /** Whether a registered response is enabled — `adw_alert_dialog_get_response_enabled`; `true` for an unknown id. */
+    get_response_enabled(id: string): boolean {
         return this._responses.getResponseEnabled(id);
     }
 

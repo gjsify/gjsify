@@ -22,6 +22,13 @@
 // `scripts/nativescript-xml-doors.mjs` records), and `AdwSplitButton.direction` over
 // `ViewCommon.direction`, NativeScript's RTL layout property. All three are a type
 // error for a consumer that compiles our `lib/types` without `skipLibCheck`.
+//
+// AND THE OTHER DIRECTION IS NOT HELD AT ALL. `widgets/signals.ts` adds `connect` and
+// `disconnect` to every widget, on the measurement that no view base of 9.1.0-alpha.11
+// declares either; a future core that adds one would be shadowed by the mixin, and
+// nothing here could say so — an ambient slice can only refuse names it DECLARES, and it
+// cannot declare a member the package does not have. `status/open-todos.md` carries that
+// limit.
 
 declare module '@nativescript/core' {
     /** Payload shape for NativeScript's `Observable.notify` / event listeners. */

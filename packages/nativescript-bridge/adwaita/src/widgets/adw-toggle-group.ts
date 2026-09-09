@@ -29,6 +29,7 @@ import { ToggleGroupState } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import { xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 // Re-export the headless state machine so consumers can reach it from
 // `@gjsify/adwaita-nativescript` unchanged.
@@ -52,7 +53,7 @@ export interface AdwToggle {
     icon?: string;
 }
 
-export class AdwToggleGroup extends StackLayout {
+export class AdwToggleGroup extends withSignals(StackLayout) {
     private _toggles: AdwToggle[] = [];
     private readonly _segments: StackLayout[] = [];
     /** The headless labels + selected-index state machine (ADR 0004). */

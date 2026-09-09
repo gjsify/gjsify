@@ -37,6 +37,7 @@ import { MENU_CANCEL_LABEL, presentMenuSheet, refuseMenuString } from './menu-sh
 import { setActionIcon, splitButtonArrowSvg } from './split-button.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when the main action part is tapped. Mirrors `Adw.SplitButton::clicked`. */
 export const CLICKED = 'clicked';
@@ -60,7 +61,7 @@ export interface MenuTappedEventData extends EventData {
     action?: string;
 }
 
-export class AdwSplitButton extends GridLayout {
+export class AdwSplitButton extends withSignals(GridLayout) {
     /** The main action part (column 0). */
     protected readonly _actionPart: StackLayout;
     /** The action label (shown in label mode). */

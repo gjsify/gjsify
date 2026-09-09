@@ -31,7 +31,7 @@ export class ToastNsStory extends StoryView {
         // bounded overlay area to float over.
         this._overlay.width = 360;
         this._overlay.height = 220;
-        this._overlay.setContent(button);
+        this._overlay.set_child(button);
 
         this.addContent(this._overlay);
     }

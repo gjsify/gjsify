@@ -115,7 +115,7 @@ function classList(className: string | null | undefined): string[] {
  * libadwaita never writes to the child's own style classes — the marker lives on
  * the internal bin (`adw_bottom_sheet_set_content`, adw-bottom-sheet.c:1497-1510).
  * This port does write it, and used to do so with a bare string concat, so
- * `setContent(v)` twice left `'adw-bottom-sheet-content adw-bottom-sheet-content'`.
+ * `set_content(v)` twice left `'adw-bottom-sheet-content adw-bottom-sheet-content'`.
  */
 export function addMarkerClass(className: string | null | undefined, marker: string): string {
     const classes = classList(className);

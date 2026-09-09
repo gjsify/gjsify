@@ -23,6 +23,7 @@ import { ActionRowState, isViewSensitive, rowLabelVisuals } from './row-state.js
 import { xmlBoolean } from './xml-values.js';
 import { resolveBuilderSlot } from './builder-slots.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when the row is activated. Mirrors `Adw.ActionRow::activated`. */
 export const ACTIVATED = 'activated';
@@ -30,7 +31,7 @@ export const ACTIVATED = 'activated';
 /** The edges an XML child of an action row can ask for. */
 const ACTION_ROW_SLOTS = ['prefix', 'suffix'] as const;
 
-export class AdwActionRow extends GridLayout {
+export class AdwActionRow extends withSignals(GridLayout) {
     /**
      * Whether libadwaita would answer `ADW_IS_ACTION_ROW` for this row, which decides
      * whether the preferences SEARCH consults its subtitle.
@@ -92,18 +93,21 @@ export class AdwActionRow extends GridLayout {
         applyConstructProps(this, props);
     }
 
-    /** Install a prefix widget in column 0. Replaces any previous one; `null` clears. */
-    setPrefix(view: View | null): void {
-        if (this._prefix) {
-            this.removeChild(this._prefix);
-            this._prefix = null;
-        }
-        if (view) {
-            view.className = `${view.className ?? ''} adw-row-prefix`.trim();
-            GridLayout.setColumn(view, 0);
-            this.addChild(view);
-            this._prefix = view;
-        }
+    /**
+     * Install a prefix widget in column 0 — `adw_action_row_add_prefix`.
+     *
+     * ONE slot per edge on this port, where libadwaita keeps a box: a second call
+     * REPLACES the first. The verb converges (a widget goes in, on both sides) and the
+     * cardinality is the declared remainder — the method ledger in
+     * `scripts/check-vocabulary-alignment.mjs` compares names, and ADR 0034 § Amendment 14
+     * names this as the divergence a name cannot carry. `remove()` clears the slot.
+     */
+    add_prefix(view: View): void {
+        if (this._prefix) this.remove(this._prefix);
+        view.className = `${view.className ?? ''} adw-row-prefix`.trim();
+        GridLayout.setColumn(view, 0);
+        this.addChild(view);
+        this._prefix = view;
     }
 
     get prefix(): View | null {
@@ -131,18 +135,31 @@ export class AdwActionRow extends GridLayout {
         if (this._rowState.setSubtitle(value)) this._applyLabels();
     }
 
-    /** Install a suffix widget in column 2. Replaces any previous one; `null` clears. */
-    setSuffix(view: View | null): void {
-        if (this._suffix) {
-            this.removeChild(this._suffix);
-            this._suffix = null;
+    /** Install a suffix widget in column 2 — `adw_action_row_add_suffix`. Same one-slot rule as {@link add_prefix}. */
+    add_suffix(view: View): void {
+        if (this._suffix) this.remove(this._suffix);
+        view.className = `${view.className ?? ''} adw-row-suffix`.trim();
+        GridLayout.setColumn(view, 2);
+        this.addChild(view);
+        this._suffix = view;
+    }
+
+    /**
+     * Remove a prefix or suffix previously added — `adw_action_row_remove`.
+     *
+     * A view in neither slot throws, where C logs a critical and returns: a silent
+     * no-op here is the failure the construct-props bag refuses one door over.
+     */
+    remove(view: View): void {
+        if (view === this._prefix) this._prefix = null;
+        else if (view === this._suffix) this._suffix = null;
+        else {
+            throw new TypeError(
+                `${this.constructor.name}.remove(): the view is neither this row's prefix nor its suffix. ` +
+                    'add_prefix()/add_suffix() are the only two slots remove() clears.',
+            );
         }
-        if (view) {
-            view.className = `${view.className ?? ''} adw-row-suffix`.trim();
-            GridLayout.setColumn(view, 2);
-            this.addChild(view);
-            this._suffix = view;
-        }
+        this.removeChild(view);
     }
 
     get suffix(): View | null {
@@ -158,13 +175,13 @@ export class AdwActionRow extends GridLayout {
      * `adw-row-suffix` class and no column, so it lands on top of the title.
      *
      * The subclasses inherit it, and that is deliberate but sharp-edged: a switch row
-     * builds its own `Switch` as the suffix in its constructor, and `setSuffix`
-     * REPLACES. An explicit `<AdwSwitchRow.suffix>` therefore takes the switch's
-     * place, which is what "set the suffix" has to mean.
+     * builds its own `Switch` as the suffix in its constructor, and `add_suffix` on this
+     * one-slot port REPLACES. An explicit `<adw:SwitchRow.suffix>` therefore takes the
+     * switch's place, which is what "the suffix" has to mean here.
      */
     _addChildFromBuilder(name: string, view: View): void {
-        if (resolveBuilderSlot(name, ACTION_ROW_SLOTS, 'suffix') === 'prefix') this.setPrefix(view);
-        else this.setSuffix(view);
+        if (resolveBuilderSlot(name, ACTION_ROW_SLOTS, 'suffix') === 'prefix') this.add_prefix(view);
+        else this.add_suffix(view);
     }
 
     /** `Adw.ActionRow:activatable-widget` — the widget this row activates. */

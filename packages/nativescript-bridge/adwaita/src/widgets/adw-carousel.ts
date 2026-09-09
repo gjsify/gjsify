@@ -2,7 +2,7 @@
 //
 // Renders a REAL NativeScript `GridLayout` (rows `*, auto`): a horizontal
 // `ScrollView` of full-width pages (row 0) and a row of page-indicator dots
-// (row 1). Mirrors `Adw.Carousel`: `insertPage`/`removePage`/`reorderPage`,
+// (row 1). Mirrors `Adw.Carousel`: `insert`/`remove`/`reorder`,
 // `position`, `scrollToPage()`, `nPages`, `notify::position` and `page-changed`.
 //
 // The BEHAVIOUR is headless in `@gjsify/adwaita-core` (ADR 0004) as `CarouselState`,
@@ -43,6 +43,7 @@ import {
 } from './carousel-state.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 // Re-exported so the widget module stays the one import site, as
 // `widgets/index.ts` and every consumer already expect.
@@ -72,7 +73,7 @@ interface ScrollEventData extends EventData {
     scrollY: number;
 }
 
-export class AdwCarousel extends GridLayout {
+export class AdwCarousel extends withSignals(GridLayout) {
     /** The horizontal scroller holding the pages. */
     protected readonly _scroller: ScrollView;
     /** The horizontal track inside the scroller (holds fixed-width pages). */
@@ -142,8 +143,8 @@ export class AdwCarousel extends GridLayout {
     }
 
     /** Append a page — `adw_carousel_append` (adw-carousel.c:1348-1357). */
-    addPage(view: View): void {
-        this.insertPage(view, -1);
+    append(view: View): void {
+        this.insert(view, -1);
     }
 
     /**
@@ -155,14 +156,14 @@ export class AdwCarousel extends GridLayout {
      * never gets a width, a `adw-carousel-page` class or a dot.
      */
     _addChildFromBuilder(_name: string, view: View): void {
-        this.addPage(view);
+        this.append(view);
     }
 
     /**
      * Insert a page at `position` — `adw_carousel_insert` (adw-carousel.c:1370-1407).
      * `-1` or a position past the end appends. Returns whether it was added.
      */
-    insertPage(view: View, position = -1): boolean {
+    insert(view: View, position = -1): boolean {
         const id = `page-${this._nextPageId++}`;
 
         view.width = this._pageWidth;
@@ -176,7 +177,7 @@ export class AdwCarousel extends GridLayout {
         // wrong one — which is what the old `const index = length` did.
         dot.addEventListener('tap', () => this.scrollToPage(this._state.indexOf(id)));
 
-        // Registered BEFORE the model knows about the page: `insertPage` notifies
+        // Registered BEFORE the model knows about the page: `insert` notifies
         // synchronously, and the subscription projects the dots by walking the
         // model's page order — a page with no dot yet would shift every class
         // after it onto the wrong marker.
@@ -197,7 +198,7 @@ export class AdwCarousel extends GridLayout {
     }
 
     /** Remove a page — `adw_carousel_remove` (adw-carousel.c:1508-1532). */
-    removePage(view: View): boolean {
+    remove(view: View): boolean {
         const id = this._idOf(view);
         if (id === null) return false;
         if (!this._state.removePage(id)) return false;
@@ -211,7 +212,7 @@ export class AdwCarousel extends GridLayout {
     }
 
     /** Move a page — `adw_carousel_reorder` (adw-carousel.c:1419-1499). */
-    reorderPage(view: View, position: number): boolean {
+    reorder(view: View, position: number): boolean {
         const id = this._idOf(view);
         if (id === null) return false;
         if (!this._state.reorderPage(id, position)) return false;
@@ -234,7 +235,7 @@ export class AdwCarousel extends GridLayout {
         return this._state.navigate(direction);
     }
 
-    /** The pages on the track, in order — the read-back for `addPage`/`insertPage`. */
+    /** The pages on the track, in order — the read-back for `append`/`insert`. */
     get pages(): readonly View[] {
         const out: View[] = [];
         for (let i = 0; i < this._track.getChildrenCount(); i++) out.push(this._track.getChildAt(i));

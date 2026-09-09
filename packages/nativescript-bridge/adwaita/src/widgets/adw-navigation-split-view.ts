@@ -6,7 +6,7 @@
 // distinction is the whole widget: the stack keeps a LONE child visible whatever
 // `show-content` says (adw-navigation-split-view.c:389-401), and with
 // `sidebar-position: end` the CONTENT is the root page, so showing it is a POP and
-// hiding it a PUSH (:1414-1428). Mirrors it: `setSidebar`/`setContent`,
+// hiding it a PUSH (:1414-1428). Mirrors it: `set_sidebar`/`set_content`,
 // `collapsed`, `showSidebar`, `sidebarPosition`, `notify::show-sidebar`.
 //
 // The ordering table is NOT here — it is `NsNavigationSplitViewState`, over the

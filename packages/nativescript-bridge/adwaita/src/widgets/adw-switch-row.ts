@@ -48,7 +48,7 @@ export class AdwSwitchRow extends AdwActionRow {
 
         const sw = new Switch();
         sw.className = 'adw-switch';
-        this.setSuffix(sw);
+        this.add_suffix(sw);
         this._switch = sw;
 
         // `adw_switch_row_init` (C:160-162): the row is activatable and the

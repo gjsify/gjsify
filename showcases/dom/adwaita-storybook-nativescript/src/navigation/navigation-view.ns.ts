@@ -37,8 +37,8 @@ export class NavigationViewNsStory extends StoryView {
         this._detailStatus.description = 'Mathematician and writer, the first computer programmer.';
 
         const detailToolbar = new Adw.ToolbarView();
-        detailToolbar.addTopBar(this._detailHeader);
-        detailToolbar.setContent(this._detailStatus);
+        detailToolbar.add_top_bar(this._detailHeader);
+        detailToolbar.set_content(this._detailStatus);
 
         // --- Root page: an "Open contact" pill button that pushes the detail. ---
         this._rootHeader = new Adw.HeaderBar();
@@ -54,8 +54,8 @@ export class NavigationViewNsStory extends StoryView {
         });
 
         const rootToolbar = new Adw.ToolbarView();
-        rootToolbar.addTopBar(this._rootHeader);
-        rootToolbar.setContent(openButton);
+        rootToolbar.add_top_bar(this._rootHeader);
+        rootToolbar.set_content(openButton);
 
         // Root is registered first (auto-pushed); the detail is reachable via
         // push-by-tag from the root button.

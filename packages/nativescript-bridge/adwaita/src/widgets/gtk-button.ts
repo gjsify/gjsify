@@ -20,8 +20,9 @@
 import { Button } from '@nativescript/core';
 import { classNameWith, normalizeStyleClasses } from './style-classes.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
-export class GtkButton extends Button {
+export class GtkButton extends withSignals(Button) {
     private _styleClasses: string[] = [];
 
     constructor(props?: ConstructProps<GtkButton>) {

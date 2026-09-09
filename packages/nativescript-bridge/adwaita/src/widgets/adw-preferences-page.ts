@@ -22,8 +22,9 @@ import { ScrollView, StackLayout } from '@nativescript/core';
 import type { NsSearchableGroup, NsSearchablePage } from './preferences-search.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
-export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
+export class AdwPreferencesPage extends withSignals(ScrollView) implements NsSearchablePage {
     /**
      * The vertical stack that actually holds the groups.
      *
@@ -32,7 +33,7 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
      * its own `content` accessor (`ui/content-view/index.js:12,15-21`). Sharing that
      * name does not shadow the field, it IS the field: `readonly` becomes a
      * compile-time fiction, because `set content` writes it, so any `page.content = x`
-     * silently re-points this handle and `addGroup`/`searchGroups`/`groups` then work
+     * silently re-points this handle and `add`/`searchGroups`/`groups` then work
      * on the wrong view. No type-checker can catch it — `_content` appears in no
      * `.d.ts` of `@nativescript/core`, only in the compiled JS.
      *
@@ -63,7 +64,7 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
         this._groups = content;
 
         // After `_groups`, because a construct prop assigns through the public
-        // setters and `addGroup` reads it.
+        // setters and `add` reads it.
         applyConstructProps(this, props);
     }
 
@@ -110,13 +111,13 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
         this._useUnderline = xmlBoolean(value, false);
     }
 
-    /** Append a preferences group (or any view) to the page. */
-    addGroup(view: View): void {
+    /** Append a preferences group (or any view) to the page — `adw_preferences_page_add`. */
+    add(view: View): void {
         this._groups.addChild(view);
     }
 
-    /** Remove a previously-added group from the page. */
-    removeGroup(view: View): void {
+    /** Remove a previously-added group from the page — `adw_preferences_page_remove`. */
+    remove(view: View): void {
         this._groups.removeChild(view);
     }
 
@@ -126,7 +127,7 @@ export class AdwPreferencesPage extends ScrollView implements NsSearchablePage {
      * of all of them, and no error.
      */
     _addChildFromBuilder(_name: string, view: View): void {
-        this.addGroup(view);
+        this.add(view);
     }
 
     /**

@@ -3,7 +3,7 @@
 // Renders a REAL NativeScript `GridLayout` (columns `auto, *, auto`): a start
 // slot, a centered title widget, and an end slot. The centered title defaults to
 // an {@link AdwWindowTitle} (so `title`/`subtitle` work out of the box) but can be
-// replaced with any custom widget via {@link setTitleWidget}. Mirrors
+// replaced with any custom widget via {@link set_title_widget}. Mirrors
 // `Adw.HeaderBar`: start/end packing + a centered title-widget. The `flat` STYLE CLASS
 // (`styleClasses="flat"`, ADR 0049) drops the bottom hairline / background fill.
 //
@@ -29,6 +29,7 @@ import { AdwWindowTitle } from './adw-window-title.js';
 import { resolveBuilderSlot } from './builder-slots.js';
 import { classNameWith, normalizeStyleClasses } from './style-classes.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /**
  * The slots a template may name, spelled as this widget's own properties —
@@ -36,7 +37,7 @@ import { applyConstructProps, type ConstructProps } from './construct-props.js';
  */
 const HEADER_BAR_SLOTS = ['titleWidget', 'startBox', 'endBox'] as const;
 
-export class AdwHeaderBar extends GridLayout {
+export class AdwHeaderBar extends withSignals(GridLayout) {
     /** The start (left) slot — a horizontal stack. */
     protected readonly _startBox: StackLayout;
     /** The end (right) slot — a horizontal stack. */
@@ -128,8 +129,8 @@ export class AdwHeaderBar extends GridLayout {
         this.className = classNameWith('adw-header-bar', this._styleClasses);
     }
 
-    /** Pack a widget at the start (left) of the bar — `gtk_box_append`. */
-    packStart(view: View): void {
+    /** Pack a widget at the start (left) of the bar — `adw_header_bar_pack_start`, a `gtk_box_append`. */
+    pack_start(view: View): void {
         // adw-header-bar.c:1083 — appended, so successive children run left to
         // right and the first one packed sits furthest from the centre.
         this._startBox.addChild(view);
@@ -142,15 +143,15 @@ export class AdwHeaderBar extends GridLayout {
      * adw-header-bar.c:1106): "packed with reference to the end" means the FIRST
      * widget packed is the one nearest the end of the bar, and each later one
      * goes in front of it. The port appended instead, so every end slot came out
-     * mirrored — `packEnd(menu); packEnd(search)` drew `menu | search` where
+     * mirrored — `pack_end(menu); pack_end(search)` drew `menu | search` where
      * libadwaita draws `search | menu`, with the menu button in the corner.
      */
-    packEnd(view: View): void {
+    pack_end(view: View): void {
         this._endBox.insertChild(view, 0);
     }
 
-    /** Replace the centered title widget with a custom one (e.g. a URL entry). */
-    setTitleWidget(view: View): void {
+    /** Replace the centered title widget with a custom one — `adw_header_bar_set_title_widget`. */
+    set_title_widget(view: View): void {
         if (this._titleWidget) {
             this.removeChild(this._titleWidget);
         }
@@ -166,7 +167,7 @@ export class AdwHeaderBar extends GridLayout {
      *
      * NativeScript spells a slot as a complex property, so `<AdwHeaderBar.endBox>`
      * arrives here as `endBox`; a bare child arrives under its element name and
-     * takes the fallback, `packStart`. Without this the `GridLayout` default added
+     * takes the fallback, `pack_start`. Without this the `GridLayout` default added
      * the view straight to the grid at column 0: measured on Android, a header bar
      * written in markup left `startBox` and `endBox` empty while the button still
      * appeared, so it LOOKED packed and was not — a second one would have been
@@ -175,13 +176,13 @@ export class AdwHeaderBar extends GridLayout {
     _addChildFromBuilder(name: string, view: View): void {
         switch (resolveBuilderSlot(name, HEADER_BAR_SLOTS, 'startBox')) {
             case 'titleWidget':
-                this.setTitleWidget(view);
+                this.set_title_widget(view);
                 return;
             case 'endBox':
-                this.packEnd(view);
+                this.pack_end(view);
                 return;
             default:
-                this.packStart(view);
+                this.pack_start(view);
         }
     }
 

@@ -4,7 +4,7 @@
 // optional icon (a symbolic SVG via {@link GtkImage}, or a glyph `Label`), a bold
 // `title` `Label`, a dim `description` `Label`, and an optional child widget
 // (e.g. an action button). Mirrors `Adw.StatusPage`: `icon`, `iconText`, `title`,
-// `description`, `setChild()`.
+// `description`, `set_child()`.
 //
 // The stack is BUILT ONCE and its parts are shown or hidden, exactly as the
 // upstream template does it — every part binds its `visible` to a closure over
@@ -25,13 +25,14 @@ import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 import { GtkImage } from './gtk-image.js';
 import { statusPageIconVisibility, statusPageLabelVisibility } from './status-page-content.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Default status-page icon size (DIPs) — Adw.StatusPage shows a large glyph. */
 const DEFAULT_STATUS_ICON_SIZE = 96;
 /** Default dim icon colour — Adw.StatusPage dims the empty-state icon. */
 const DEFAULT_STATUS_ICON_COLOR = '#9b9b9b';
 
-export class AdwStatusPage extends GridLayout {
+export class AdwStatusPage extends withSignals(GridLayout) {
     /** The centered vertical stack. */
     protected readonly _stack: StackLayout;
     /** The large symbolic icon (shown when an `icon` SVG is set). */
@@ -171,8 +172,8 @@ export class AdwStatusPage extends GridLayout {
         this._descriptionLabel.visibility = statusPageLabelVisibility(text);
     }
 
-    /** Set (or replace) the optional child widget below the description. */
-    setChild(view: View | null): void {
+    /** Set (or replace) the optional child widget below the description — `adw_status_page_set_child`. */
+    set_child(view: View | null): void {
         if (this._child) {
             this._stack.removeChild(this._child);
             this._child = null;
@@ -197,6 +198,6 @@ export class AdwStatusPage extends GridLayout {
      * `AdwClamp` already has.
      */
     _addChildFromBuilder(_name: string, view: View): void {
-        this.setChild(view);
+        this.set_child(view);
     }
 }

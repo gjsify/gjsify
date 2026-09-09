@@ -25,19 +25,19 @@ export class PreferencesGroupNsStory extends StoryView {
         const nameRow = new Adw.EntryRow();
         nameRow.title = 'Display name';
         nameRow.text = 'Grace Hopper';
-        this._group.addRow(nameRow);
+        this._group.add(nameRow);
 
         const syncRow = new Adw.SwitchRow();
         syncRow.title = 'Sync over Wi-Fi only';
         syncRow.subtitle = 'Avoid using mobile data for backups';
         syncRow.active = true;
-        this._group.addRow(syncRow);
+        this._group.add(syncRow);
 
         const regionRow = new Adw.ComboRow();
         regionRow.title = 'Region';
         regionRow.model = REGION_OPTIONS;
         regionRow.selected = 0;
-        this._group.addRow(regionRow);
+        this._group.add(regionRow);
 
         // The native story's `headerSuffix` is a flat "Sign out" Gtk.Button in the
         // group header — the NS group now has that slot, so the three renderers
@@ -51,7 +51,7 @@ export class PreferencesGroupNsStory extends StoryView {
 
         const clamp = new Adw.Clamp();
         clamp.maximumSize = 400;
-        clamp.setChild(this._group);
+        clamp.set_child(this._group);
 
         this.addContent(clamp);
     }

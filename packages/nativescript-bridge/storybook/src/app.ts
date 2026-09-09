@@ -250,7 +250,7 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
 
     renderControls(rows: Array<ControlRow<unknown>>): void {
         this._controlsGroup.listbox.removeChildren();
-        for (const row of rows) this._controlsGroup.addRow(row.view as View);
+        for (const row of rows) this._controlsGroup.add(row.view as View);
     }
 
     private _buildControls(story: StoryView): Array<ControlRow<unknown>> {
@@ -282,8 +282,8 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         sidebarHeader.className = `${sidebarHeader.className} sb-sidebar-header`.trim();
         const sidebarTitle = new Adw.WindowTitle();
         sidebarTitle.title = this._options.title ?? 'Stories';
-        sidebarHeader.setTitleWidget(sidebarTitle);
-        sidebar.addTopBar(sidebarHeader);
+        sidebarHeader.set_title_widget(sidebarTitle);
+        sidebar.add_top_bar(sidebarHeader);
 
         this._listColumn = new StackLayout();
         this._listColumn.orientation = 'vertical';
@@ -291,8 +291,8 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         const sidebarScroll = new ScrollView();
         sidebarScroll.className = 'sb-sidebar-scroll';
         sidebarScroll.content = this._listColumn;
-        sidebar.setContent(sidebarScroll);
-        this.root.setSidebar(sidebar);
+        sidebar.set_content(sidebarScroll);
+        this.root.set_sidebar(sidebar);
 
         // --- Detail pane: header bar (back + title + controls toggle) over an
         //     OverlaySplitView whose content is the preview and whose END overlay is the
@@ -310,11 +310,11 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         // up; `_applyLayoutMode` flips it on resize.
         back.visibility = this._collapsed ? 'visible' : 'collapse';
         this._backButton = back;
-        header.packStart(back);
+        header.pack_start(back);
 
         this._previewTitle = new Adw.WindowTitle();
         this._previewTitle.title = 'Preview';
-        header.setTitleWidget(this._previewTitle);
+        header.set_title_widget(this._previewTitle);
 
         const controlsToggle = new AdwImageButton();
         controlsToggle.iconName = sidebarShowRightSymbolic;
@@ -328,9 +328,9 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         appearance.iconName = colorSelectSymbolic;
         appearance.className = `${appearance.className} sb-appearance-button`.trim();
         appearance.addEventListener('tap', () => this._presentAppearance());
-        header.packEnd(appearance);
-        header.packEnd(controlsToggle);
-        detail.addTopBar(header);
+        header.pack_end(appearance);
+        header.pack_end(controlsToggle);
+        detail.add_top_bar(header);
 
         // Preview as content, controls as a right overlay when collapsed or a permanent
         // right pane when expanded.
@@ -346,7 +346,7 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         const previewScroll = new ScrollView();
         previewScroll.className = 'sb-preview-scroll';
         previewScroll.content = this._previewSlot;
-        this._controlsSplit.setContent(previewScroll);
+        this._controlsSplit.set_content(previewScroll);
 
         this._controlsGroup = new Adw.PreferencesGroup();
         this._controlsGroup.title = 'Controls';
@@ -354,12 +354,12 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         const controlsScroll = new ScrollView();
         controlsScroll.className = 'sb-controls-scroll';
         controlsScroll.content = this._controlsGroup;
-        this._controlsSplit.setSidebar(controlsScroll);
+        this._controlsSplit.set_sidebar(controlsScroll);
         // No show/hide call: the `collapsed` assignment above already left the controls
         // hidden (phone) or up as a permanent right pane (wide).
 
-        detail.setContent(this._controlsSplit);
-        this.root.setContent(detail);
+        detail.set_content(this._controlsSplit);
+        this.root.set_content(detail);
 
         // Start on the story list; in wide layout both panes are visible regardless.
         this.root.showSidebarPane();

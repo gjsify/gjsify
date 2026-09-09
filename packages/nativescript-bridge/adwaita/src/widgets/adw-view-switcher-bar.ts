@@ -40,6 +40,7 @@ import { attachRowPressFeedback } from './row-press.js';
 import { createViewSwitcherBarState, nsIconSvg } from './view-switcher-model.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** The per-button NS nodes, so a selection change repaints instead of rebuilding. */
 interface BarButtonNodes {
@@ -49,7 +50,7 @@ interface BarButtonNodes {
     badge: Label;
 }
 
-export class AdwViewSwitcherBar extends GridLayout {
+export class AdwViewSwitcherBar extends withSignals(GridLayout) {
     /** The horizontal (homogeneous) row of buttons. */
     private readonly _bar: GridLayout;
     private _nodes: BarButtonNodes[] = [];
@@ -88,7 +89,7 @@ export class AdwViewSwitcherBar extends GridLayout {
     }
 
     /** Bind to an {@link AdwViewStack}: build buttons from its pages + two-way sync. */
-    setStack(stack: AdwViewStack | null): void {
+    set_stack(stack: AdwViewStack | null): void {
         this._unbindStack();
         this._stack = stack;
         this._bindStack();
@@ -101,7 +102,7 @@ export class AdwViewSwitcherBar extends GridLayout {
     }
 
     set stack(value: AdwViewStack | null) {
-        this.setStack(value);
+        this.set_stack(value);
     }
 
     /**

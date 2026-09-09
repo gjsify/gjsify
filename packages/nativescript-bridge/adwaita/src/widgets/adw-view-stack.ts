@@ -29,6 +29,7 @@ import {
     type ViewStackNotifyPayload,
 } from './view-stack-state.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
@@ -44,7 +45,7 @@ export const NOTIFY_VISIBLE_CHILD = 'notify::visible-child';
  */
 export interface NotifyVisibleChildEventData extends EventData, ViewStackNotifyPayload {}
 
-export class AdwViewStack extends GridLayout {
+export class AdwViewStack extends withSignals(GridLayout) {
     private readonly _state = createViewStackState();
 
     constructor(props?: ConstructProps<AdwViewStack>) {
@@ -83,7 +84,7 @@ export class AdwViewStack extends GridLayout {
     }
 
     /** Convenience alias matching `Adw.ViewStack.add_titled`. */
-    addTitled(content: View, name: string, title: string): AdwViewStackPage {
+    add_titled(content: View, name: string, title: string): AdwViewStackPage {
         return this.add(content, name, title);
     }
 

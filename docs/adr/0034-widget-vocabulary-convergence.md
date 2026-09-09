@@ -30,6 +30,10 @@
   vocabulary. § Amendment 14, 2026-09-09, CASHES stages 8 and 9 in on the documentation
   surface — the move § Amendment 12 named and deliberately did not make — and puts a printed
   distance behind it, so "the two snippets are closer" stops being unfalsifiable.
+  vocabulary. One more on 2026-09-09: § Amendment 15 opens the METHOD axis — the one no
+  ledger and no gate touched — with GJS's `connect`/`disconnect` on every NativeScript
+  widget, a typelib-read method table as the in-repo oracle, a third ledger beside the
+  widget and property ones, and forty-eight methods renamed to the only spelling GJS installs.
 - Date: 2026-08-29
 - Deciders: Pascal Garber
 - Related: [ADR 0027 § 9 (the goal)](0027-gtk-host-layer.md), [ADR 0028 § 6 (the alignment mechanism)](0028-widget-table-provenance.md), [ADR 0029 (the vocabulary in `@girs/*`)](0029-girs-widget-vocabulary.md), [ADR 0019 (ts-for-gir as a library; where the `.gir` travels)](0019-ts-for-gir-as-library.md), [ADR 0004 (headless core)](0004-headless-adwaita-core.md), [ADR 0032 (React Native on the host)](0032-react-native-on-the-gtk-host.md), [ADR 0033 (templates preferred)](0033-declarative-templates-preferred.md)
@@ -2650,3 +2654,121 @@ finds nothing passes every bag in the gallery.
   with a `gi://` line that resolves only when the build passes the flag, so each gallery page
   says so in the paragraph that already explains how the two ports follow libadwaita's naming.
   Nothing holds that sentence; arm 10 holds window TITLES in prose and this is not one.
+## Amendment 15, 2026-09-09 — the method axis, and the spelling that is not free
+
+§ 1 converged widget NAMES and § Amendments 2, 7 and 11 counted down PROPERTY names.
+Methods were the axis no ledger and no gate touched: the word "method" appeared in
+`check-vocabulary-alignment.mjs` only inside prose reasons. Measured across the 40 gallery
+blocks that carry both a `gjs` and a `nativescript` pane, the two surfaces shared exactly
+THREE method names — `add`, `present`, `push` — while the NativeScript panes called 24 verbs
+the GJS panes never do (`setContent`, `addRow`, `addChild`, `addTopBar`, …) and the GJS
+panes 34 the port had none of (`append`, `add_css_class`, `add_top_bar`, `pack_start`, …).
+
+**And the spelling is not free.** Measured on the real GJS (1.88, Gtk 4.22, Adw 1.9):
+
+    Gtk.Button.prototype.add_css_class      function    addCssClass   undefined
+    Adw.ToolbarView.prototype.add_top_bar   function    addTopBar     undefined
+    Adw.PreferencesGroup.prototype.add      function    remove        function
+
+GJS installs the snake_case name and nothing else — a PROPERTY gets a camelCase twin, a
+method does not. So a method either converges to the typelib's own spelling or it does not
+converge, and this amendment decides for the spelling: `toolbar.add_top_bar(header)` is now
+what a NativeScript caller writes too, on a class whose properties stay camelCase. That is
+the property question of § 4 one level over, answered the same way: the vocabulary is
+read from the GIR, and what the GIR spells is what runs.
+
+### What was decided, and what each decision was measured against
+
+**`connect` / `disconnect` on every widget, as a mixin at `extends`.** The port already
+emitted the GObject SIGNAL NAMES (`NOTIFY_ACTIVE = 'notify::active'`); only the subscribe
+verb differed, and it returned nothing. `widgets/signals.ts` gives every class GJS's
+contract — a numeric, process-unique handler id, `disconnect(id)` removing exactly that one
+— applied where the port MEETS the platform: `extends withSignals(GridLayout)`, on the 36
+classes whose base is a `@nativescript/core` class; the 12 that extend a port class inherit
+it. § Amendment 13 refused a base class and a mixin for the construct-props bag, and both
+of its reasons are about constructor ORDER — the bag runs last in each concrete class's own
+constructor, after that class's children exist. A method carries no order and no per-class
+state, so the objection does not reach it; the other objection, that a mixin "would have to
+re-declare each base's type surface", is true of a hand-written one and not of a generic
+one, which keeps the base's type. The `Observable` root is what makes the two doors
+genuinely different: the bag needs the CONCRETE class, the verb needs any `Observable`.
+Measured before it was built: no view base of `@nativescript/core@9.1.0-alpha.11` declares
+`connect` or `disconnect` (the one `disconnect(` in the package is `GesturesObserver`'s),
+and no runtime `.js` assigns either — the measurement the ambient slice cannot make in the
+other direction, recorded there and in `status/open-todos.md`. Held by arm 6 of
+`check-nativescript-xml-doors.mjs`, which prints the split and goes red on a bare platform
+base AND on a second wrap. The callback receives `(self, data)`: the widget first, as GJS
+passes it, then the NativeScript payload; a `GParamSpec` is not reconstructed.
+
+**The oracle is the typelib, committed.** `@girs/<ns>/vocabulary` carries no method table —
+measured on the published 4.6.0, its eight exports are PROVENANCE, OWN_PROPS, OWN_SIGNALS,
+DECLS, CHILD_HOLDERS, ENUM_NICKS, SLOT_CANDIDATES and SINCE; `SLOT_CANDIDATES` is DERIVED
+from methods and carries the slot, not the verb. So gtk-host's generator could not emit
+one, and the choice was between inventing a table and reading the one file that already
+answers the question. `scripts/generate-widget-methods.mjs` reads the installed typelib
+through GIRepository — the genuinely independent oracle § 7.3 names, the file GJS itself
+loads — and writes `gtk-host/src/generated/methods.mts`: every instance method of every
+runtime-table widget and of everything it inherits from or implements, plus the nine names
+GJS installs on `GObject.Object.prototype` beyond any typelib (`connect`, `disconnect`,
+`emit`, `set`, …), measured by subtraction rather than authored. The same arrangement
+ADR 0029 § Amendment 2 chose for enum values, split the same way: the no-install gate holds
+the SHAPE (every runtime widget has a chain or a declared absence; the host list carries the
+two verbs the port converged on), and gtk-host's `generated.spec.ts` holds every NAME
+against the running GJS — a method the artifact names that this host does not install fails
+unless the artifact was read from a newer library. What it does and does not prove is in
+the gate's header: agreement is between two SPELLINGS, and `add_prefix` on this port holds
+one widget where libadwaita holds a box.
+
+**A third ledger, with the property ledger's rule.** `NS_METHOD_ALIGNMENT` holds every
+public method of a NativeScript widget that its counterpart's chain has no method of that
+exact spelling for; the port side resolves the port's own abstract bases
+(`AdwSplitViewBase.set_content` is measured on both concrete split views), which is the
+blind side `status/open-todos.md` records for the property reader and this reader was
+built without. A method converges when both sides take the same KIND of argument and differ
+only in spelling — the § Amendment 7 rule — so `addTopBar(view)` beside `add_top_bar(child)`
+was a rename, and the twenty `gir` entries left are the ones where the kind differs: the
+tab view passes a page-id string where GTK passes the `Adw.TabPage`, the carousel an index
+where GTK passes the widget. The failure message SAYS when the snake_case twin exists,
+because that is the one case whose fix is a rename and not a reason.
+
+**Forty-eight methods took their GIR names** — measured as 49 public names retired against
+HEAD, of which `AdwEntryRow`'s `addSuffix` and its `setSuffix` override folded into one
+`add_suffix`, plus a `remove` added on the action row and the entry row — breaking, across
+the port, its storybook, the two showcases and the website's NativeScript panes — `add_top_bar`, `set_content`,
+`add_response`, `add_prefix`/`add_suffix`, `pack_start`/`pack_end`, `set_child`, `add_toast`,
+`append`/`insert`/`remove`/`reorder` on the carousel, `push_by_tag`/`pop_to_page` on the
+navigation view, and `add`/`remove` where the port had `addRow`/`removeRow` and
+`addGroup`/`removeGroup`. Two of those renames closed defects the old names had caused:
+`AdwExpanderRow.addRow(View | ItemSpec)` carried that union only because the name shadowed
+`GridLayoutBase.addRow(ItemSpec)`, and `add_row` is nobody else's; and
+`AdwNavigationView.removePage` was named "so the widget never shadows a member of
+NativeScript's own `ViewBase`" — a `ViewBase.remove` that, measured, does not exist, while
+two sibling widgets had carried `remove` the whole time. The same shape as § Amendment 11's
+`openState`: a collision ruled a name out, and the collision was assumed.
+
+**And the three panes' `addEventListener` became `connect`.** The verb is what this
+amendment converges; the signal NAMES a NativeScript widget emits for platform events
+(`'tap'` where GTK emits `clicked`) are the next axis, and no ledger holds them yet.
+
+### What is deliberately left open
+
+- **Cardinality under a converged name.** `add_prefix`/`add_suffix` on `AdwActionRow` hold
+  ONE widget per edge where `adw_action_row_add_prefix` appends into a box; a second call
+  replaces. The verb converges — a widget goes in, on both sides — and the ledger, which
+  compares names, cannot see the difference; the widget file declares it, and this entry is
+  where it is recorded for the reader of the printed distance. `AdwEntryRow` already keeps
+  a box and appends, so the class it is worth closing on is the action row.
+- **Argument kind on the twenty `gir` entries.** Closing them means the port accepting its
+  own page record where it takes an id string today (`set_selected_page` already does), or
+  the carousel accepting the page view. Each is a real API change to a published package
+  and none is a rename, so none was done in the change that introduced the ledger.
+- **The collection setters** (`setViews`, `setItems`, `setSections`, `setToggles`) are
+  declared `own`, pointing at the open-todo entry on list widgets GTK builds with a method:
+  GTK has no method taking a collection, and the fix is a curated `ChildPolicy` per widget.
+- **Signal names.** `connect('tap', …)` runs on the port and `connect('clicked', …)` on
+  GJS; the verb is shared and the name is not. The vocabulary's `OWN_SIGNALS` would be the
+  oracle, and a port-side reader of `notify(…)` event names the other half.
+- **The vocabulary gap upstream.** An `OWN_METHODS` export from ts-for-gir's surface
+  generator would let gtk-host emit the method table in the same run as `props.ts` and
+  `widgets.ts`, under one provenance, and would give the typelib reading a second source to
+  be held against. Recorded in `status/open-todos.md` in the shape the enum-values gap was.

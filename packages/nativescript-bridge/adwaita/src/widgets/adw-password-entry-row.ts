@@ -9,8 +9,8 @@
 // drives its parent through the private `adw_entry_row_set_show_indicator` hook. Two
 // rules that follow: peeking suppresses the caps-lock warning, and so does losing focus.
 //
-// The peek toggle is installed through {@link AdwEntryRow.addSuffix} rather than the
-// single-slot `setSuffix`, so a consumer suffix cannot detach it and leave
+// The peek toggle is installed through {@link AdwEntryRow.add_suffix}, which appends, rather than
+// `AdwActionRow`'s one-slot `add_suffix`, so a consumer suffix cannot detach it and leave
 // `_peekButton` pointing at a view that is no longer in the tree.
 //
 // COMPROMISE: NativeScript exposes no keyboard modifier state, so nothing on
@@ -64,7 +64,7 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
         // consumer's own suffix lands after it instead of replacing it. The icon
         // itself comes from the render below, never from a second local copy of
         // the reveal/conceal mapping.
-        this.addSuffix(peek);
+        this.add_suffix(peek);
         this._peekButton = peek;
 
         // The indicator icon is set once at init (C:169-171). `caps-lock-symbolic`

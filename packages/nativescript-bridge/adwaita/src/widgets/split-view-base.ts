@@ -40,6 +40,7 @@ import type { AdwPackType, NsShowSidebarNotification, NsSplitViewState } from '.
 import type { AdwTextDirection } from '@gjsify/adwaita-core';
 import { resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when the sidebar visibility changes. */
 export const NOTIFY_SHOW_SIDEBAR = 'notify::show-sidebar';
@@ -54,7 +55,9 @@ export interface NotifyShowSidebarEventData extends EventData {
 /** The two panes an XML child of a split view can ask for. */
 const SPLIT_VIEW_SLOTS = ['sidebar', 'content'] as const;
 
-export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplitViewState> extends GridLayout {
+export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplitViewState> extends withSignals(
+    GridLayout,
+) {
     protected _sidebar: View | null = null;
     protected _content: View | null = null;
     /** The three width PROPERTIES; the drawn width is derived from them. */
@@ -198,8 +201,8 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         return false;
     }
 
-    /** Set (or replace) the sidebar pane. */
-    setSidebar(view: View | null): void {
+    /** Set (or replace) the sidebar pane — `set_sidebar` on both split views. */
+    set_sidebar(view: View | null): void {
         if (this._sidebar) this.removeChild(this._sidebar);
         this._sidebar = view;
         if (view) {
@@ -214,8 +217,8 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         this._applyLayout();
     }
 
-    /** Set (or replace) the content pane. */
-    setContent(view: View | null): void {
+    /** Set (or replace) the content pane — `set_content` on both split views. */
+    set_content(view: View | null): void {
         if (this._content) this.removeChild(this._content);
         this._content = view;
         if (view) {
@@ -235,8 +238,8 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
      * default drops both panes into column 0 of the grid, stacked.
      */
     _addChildFromBuilder(name: string, view: View): void {
-        if (resolveBuilderSlot(name, SPLIT_VIEW_SLOTS, 'content') === 'sidebar') this.setSidebar(view);
-        else this.setContent(view);
+        if (resolveBuilderSlot(name, SPLIT_VIEW_SLOTS, 'content') === 'sidebar') this.set_sidebar(view);
+        else this.set_content(view);
     }
 
     /** Show the sidebar (relevant in collapsed mode). */

@@ -2,7 +2,7 @@
 //
 // Renders a REAL NativeScript `GridLayout` overlaying a content layer (row-spanned)
 // with a bottom-anchored sheet panel that is shown/hidden. Mirrors
-// `Adw.BottomSheet`: `setContent()` (the always-visible body), `setSheet()` (the
+// `Adw.BottomSheet`: `set_content()` (the always-visible body), `set_sheet()` (the
 // panel that slides up), `open`, `can-close` and the `close-attempt` signal.
 //
 // The open state and the dismissal gate are NOT implemented here: they live in
@@ -49,19 +49,20 @@ import {
 import { resolveBuilderSlot } from './builder-slots.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 export { CLOSE_ATTEMPT, NOTIFY_OPEN, SHEET_CLOSE };
 export type { NotifyOpenEventData };
 
-/** Marker class applied to the view handed to {@link AdwBottomSheet.setContent}. */
+/** Marker class applied to the view handed to {@link AdwBottomSheet.set_content}. */
 const CONTENT_CLASS = 'adw-bottom-sheet-content';
-/** Marker class applied to the view handed to {@link AdwBottomSheet.setSheet}. */
+/** Marker class applied to the view handed to {@link AdwBottomSheet.set_sheet}. */
 const SHEET_CLASS = 'adw-bottom-sheet-sheet';
 
 /** The two layers an XML child of a bottom sheet can ask for. */
 const BOTTOM_SHEET_SLOTS = ['sheet', 'content'] as const;
 
-export class AdwBottomSheet extends GridLayout {
+export class AdwBottomSheet extends withSignals(GridLayout) {
     /** The always-visible content layer. */
     private _content: View | null = null;
     /** The bottom sheet panel wrapper (drag handle + sheet child). */
@@ -108,8 +109,8 @@ export class AdwBottomSheet extends GridLayout {
         applyConstructProps(this, props);
     }
 
-    /** Set (or replace) the always-visible content layer (painted under the sheet). */
-    setContent(view: View | null): void {
+    /** Set (or replace) the always-visible content layer (painted under the sheet) — `adw_bottom_sheet_set_content`. */
+    set_content(view: View | null): void {
         // `adw_bottom_sheet_set_content` early-returns on an unchanged widget
         // (adw-bottom-sheet.c:1497-1498); without that guard the marker class
         // was appended again on every call.
@@ -128,8 +129,8 @@ export class AdwBottomSheet extends GridLayout {
         }
     }
 
-    /** Set (or replace) the sheet panel's child (shown when open). */
-    setSheet(view: View | null): void {
+    /** Set (or replace) the sheet panel's child (shown when open) — `adw_bottom_sheet_set_sheet`. */
+    set_sheet(view: View | null): void {
         // adw_bottom_sheet_set_sheet, adw-bottom-sheet.c:1547-1556.
         if (this._sheetChild === view) return;
         if (this._sheetChild) {
@@ -151,14 +152,14 @@ export class AdwBottomSheet extends GridLayout {
      * with it.
      */
     _addChildFromBuilder(name: string, view: View): void {
-        if (resolveBuilderSlot(name, BOTTOM_SHEET_SLOTS, 'content') === 'sheet') this.setSheet(view);
-        else this.setContent(view);
+        if (resolveBuilderSlot(name, BOTTOM_SHEET_SLOTS, 'content') === 'sheet') this.set_sheet(view);
+        else this.set_content(view);
     }
 
     /**
      * The always-visible content layer, or `null`.
      *
-     * A read-back for `setContent`: a write-only pane cannot be asserted, and the XML
+     * A read-back for `set_content`: a write-only pane cannot be asserted, and the XML
      * door made that concrete — the gallery probe has to ask the widget where the
      * child it declared actually went.
      */
@@ -166,7 +167,7 @@ export class AdwBottomSheet extends GridLayout {
         return this._content;
     }
 
-    /** The sheet panel's child, or `null` — the read-back for `setSheet`. */
+    /** The sheet panel's child, or `null` — the read-back for `set_sheet`. */
     get sheet(): View | null {
         return this._sheetChild;
     }

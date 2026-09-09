@@ -30,8 +30,8 @@ export class ToolbarViewNsStory extends StoryView {
         const title = new Adw.WindowTitle();
         title.title = 'Documents';
         title.subtitle = '12 items';
-        header.setTitleWidget(title);
-        view.addTopBar(header);
+        header.set_title_widget(title);
+        view.add_top_bar(header);
         this._topBar = header;
 
         // Content — a status page sits between the toolbars.
@@ -39,7 +39,7 @@ export class ToolbarViewNsStory extends StoryView {
         content.iconName = folderSymbolic;
         content.title = 'Your library';
         content.description = 'Content sits between the toolbars and scrolls independently of them.';
-        view.setContent(content);
+        view.set_content(content);
 
         // Bottom action bar — flat start buttons, a centered label and an end
         // button (mirrors the native Gtk.ActionBar with pack_start / center /
@@ -49,21 +49,21 @@ export class ToolbarViewNsStory extends StoryView {
 
         const addButton = new AdwImageButton();
         addButton.iconName = listAddSymbolic;
-        bottomBar.packStart(addButton);
+        bottomBar.pack_start(addButton);
 
         const removeButton = new AdwImageButton();
         removeButton.iconName = listRemoveSymbolic;
-        bottomBar.packStart(removeButton);
+        bottomBar.pack_start(removeButton);
 
         const selectionLabel = new Adw.WindowTitle();
         selectionLabel.title = 'Selection: none';
-        bottomBar.setTitleWidget(selectionLabel);
+        bottomBar.set_title_widget(selectionLabel);
 
         const shareButton = new AdwImageButton();
         shareButton.iconName = sendToSymbolic;
-        bottomBar.packEnd(shareButton);
+        bottomBar.pack_end(shareButton);
 
-        view.addBottomBar(bottomBar);
+        view.add_bottom_bar(bottomBar);
         this._bottomBar = bottomBar;
 
         this._sync();

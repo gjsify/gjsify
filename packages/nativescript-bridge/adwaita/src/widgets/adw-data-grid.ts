@@ -73,6 +73,7 @@ import {
 } from './data-grid-model.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 /** Event name emitted when an interactive row is tapped. Mirrors the browser's `row-activated`. */
 export const ROW_ACTIVATED = 'row-activated';
@@ -92,7 +93,7 @@ interface DataGridRowNodes {
     cells: Label[];
 }
 
-export class AdwDataGrid extends GridLayout {
+export class AdwDataGrid extends withSignals(GridLayout) {
     private _columns: AdwDataGridColumn[] = [];
     private _dataRows: AdwDataGridRow[] = [];
     private _interactive = false;

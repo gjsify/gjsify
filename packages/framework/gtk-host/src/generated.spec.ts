@@ -15,6 +15,7 @@
 import { expect, it, on } from '@gjsify/unit';
 
 import Adw from 'gi://Adw?version=1';
+import Gio from 'gi://Gio?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
@@ -28,6 +29,13 @@ import {
 } from './descriptors/index.js';
 import { createElement, insert, materialize, setEventHandler, setProp } from './host.js';
 import { ENUM_VALUES, ENUM_VALUES_UNAVAILABLE, VALUES_PROVENANCE } from './generated/enum-values.mjs';
+import {
+    ANCESTRY,
+    GJS_OBJECT_METHODS,
+    METHODS_PROVENANCE,
+    METHODS_UNAVAILABLE,
+    OWN_METHODS,
+} from './generated/methods.mjs';
 import { DECLS, ENUM_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
 import { camelOf, eventPropOf } from './generator/names.mjs';
 import { enumMembers, isWritable, lookupEnumNick, paramSpecs } from './props.js';
@@ -665,6 +673,249 @@ export default async () => {
                     return !(ENUM_NICKS[key.slice(0, at)] ?? []).includes(key.slice(at + 1));
                 });
                 expect(unknown).toStrictEqual([]);
+            });
+
+            // ── The method table, `generated/methods.mts`. Read from a typelib by
+            // `scripts/generate-widget-methods.mjs`; these hold it against the GJS that is
+            // RUNNING, which the no-install gate that consumes it cannot. Same split as the
+            // enum values above, for the same reason a committed artifact is admissible at all.
+
+            /**
+             * The JS class or interface object a GType NAME resolves to on this host, or
+             * `null` when the installed library has no such type.
+             *
+             * Explicit per namespace, and FAILING on a namespace this map does not know: the
+             * artifact reaches `GObject`, `GInitiallyUnowned`, the two Gio action interfaces
+             * the application windows implement, Gtk and Adw today, and a chain that grew a
+             * namespace outside those would otherwise be skipped as "absent" and count for
+             * nothing.
+             */
+            const methodOwner = (
+                gtype: string,
+            ): { prototype: Record<string, unknown>; $gtype?: GObject.GType } | null => {
+                if (gtype === 'GObject') return GObject.Object as unknown as { prototype: Record<string, unknown> };
+                if (gtype === 'GInitiallyUnowned') {
+                    return GObject.InitiallyUnowned as unknown as { prototype: Record<string, unknown> };
+                }
+                const prefix = /^(Adw|Gtk|G)(?=[A-Z])/.exec(gtype)?.[1];
+                if (prefix === undefined) throw new Error(`${gtype}: no namespace map for it in this spec`);
+                const ns = (prefix === 'Adw' ? Adw : prefix === 'Gtk' ? Gtk : Gio) as unknown as Record<
+                    string,
+                    unknown
+                >;
+                return (ns[gtype.slice(prefix.length)] as { prototype: Record<string, unknown> } | undefined) ?? null;
+            };
+            const methodsAgainst: Readonly<Record<string, string>> = Object.fromEntries(
+                METHODS_PROVENANCE.split(' ')
+                    .map((part) => /^(\w+)-[\d.]+\/([\d.]+)$/.exec(part))
+                    .filter((m): m is RegExpExecArray => m !== null)
+                    .map((m) => [m[1] as string, m[2] as string]),
+            );
+            /** True where the artifact was read from a NEWER library than the one running. */
+            const methodsAhead = (gtype: string): boolean => {
+                // GObject and Gio types are not versioned by the artifact's provenance line; a
+                // method missing on one of them is a defect on any host.
+                if (!gtype.startsWith('Adw') && !gtype.startsWith('Gtk')) return false;
+                const library = libraryOf(gtype);
+                const read = methodsAgainst[library];
+                return read !== undefined && newerThan(read, running[library] as string);
+            };
+
+            await it('installs every method the artifact names on the type it names it on', async () => {
+                // THE WHOLE POINT of the artifact: `Adw.ToolbarView.prototype.add_top_bar` is
+                // a function on this host and `addTopBar` is not. A name here that the running
+                // GJS does not install is a name the vocabulary gate would let a port converge
+                // TO, and a snippet written to it would fail at the call.
+                const problems: string[] = [];
+                const absent: string[] = [];
+                let checked = 0;
+                for (const [gtype, names] of Object.entries(OWN_METHODS)) {
+                    const owner = methodOwner(gtype);
+                    if (owner === null) {
+                        (methodsAhead(gtype) ? absent : problems).push(`${gtype} has no class on this host`);
+                        continue;
+                    }
+                    for (const name of names) {
+                        checked++;
+                        if (typeof owner.prototype[name] === 'function') continue;
+                        (methodsAhead(gtype) ? absent : problems).push(`${gtype}.${name} is not a function here`);
+                    }
+                }
+                if (absent.length > 0) {
+                    console.error(
+                        `  (${absent.length} method(s) this host does not install — the artifact was read from a newer library: ${absent.slice(0, 8).join(', ')}${absent.length > 8 ? ', …' : ''})`,
+                    );
+                }
+                expect(problems).toStrictEqual([]);
+                // Not vacuous: an empty table, or an owner map resolving nothing, would pass above.
+                expect(checked > 1000).toBe(true);
+            });
+
+            // WHAT THIS HOST CAN BE ASKED, probed once so the two halves below can be scoped
+            // separately. `GObject.type_parent` answers everywhere measured; `type_interfaces`
+            // answers on gjs and returns nothing at all over the node-gi bridge — for all 168
+            // types, which is a capability gap and not a disagreement.
+            const chainProbe = (() => {
+                let named = 0;
+                let withInterfaces = 0;
+                for (const gtype of Object.keys(ANCESTRY)) {
+                    const owner = methodOwner(gtype);
+                    if (owner?.$gtype === undefined) continue;
+                    const first = GObject.type_parent(owner.$gtype);
+                    if (first && typeof GObject.type_name(first) === 'string') named++;
+                    if (
+                        GObject.type_interfaces(owner.$gtype).some(
+                            (iface) => typeof GObject.type_name(iface) === 'string',
+                        )
+                    )
+                        withInterfaces++;
+                }
+                return { named, withInterfaces };
+            })();
+
+            await it('chains every widget through the parents the running GType system names', async () => {
+                // `ANCESTRY` is what turns a per-type table into "every method a caller can
+                // write on this widget". This half is held against `GObject.type_parent`, which
+                // every host measured answers.
+                //
+                // The first version of this test asked type_parent and type_interfaces together
+                // and treated both as always answerable. It was green on the generating host and
+                // red on darwin and over the node-gi bridge, in two shapes that are the same
+                // mistake: `GObject.type_name(parent)` can answer null where a GType handle is
+                // opaque, which put a literal `null` into a set of NAMES and reported every
+                // widget as "chain lacks null"; and `type_interfaces()` can answer nothing,
+                // which reported every interface the table DOES carry as one the widget "does
+                // not inherit here". Neither was a table error.
+                const problems: string[] = [];
+                let checked = 0;
+                for (const [gtype, chain] of Object.entries(ANCESTRY)) {
+                    const owner = methodOwner(gtype);
+                    if (owner?.$gtype === undefined) {
+                        if (!methodsAhead(gtype)) problems.push(`${gtype} has no class on this host`);
+                        continue;
+                    }
+                    checked++;
+                    const got = new Set(chain);
+                    for (let parent = GObject.type_parent(owner.$gtype); parent; parent = GObject.type_parent(parent)) {
+                        const name = GObject.type_name(parent);
+                        // A nameless parent is this host declining, not a missing chain entry.
+                        if (typeof name !== 'string' || name.length === 0) break;
+                        if (!got.has(name)) problems.push(`${gtype}: chain lacks ${name}`);
+                    }
+                }
+                expect(problems).toStrictEqual([]);
+                expect(checked > 100).toBe(true);
+                // Not vacuous: a host naming no parent at all would otherwise pass with an empty
+                // problem list, which is exactly how the first version looked green.
+                expect(chainProbe.named > 100).toBe(true);
+            });
+
+            await it.failing(
+                'chains every widget through the interfaces the running GType system names',
+                async () => {
+                    // The other half, and the one a host can decline. Held the same way, plus the
+                    // reverse direction: a name the table carries that the host reported under
+                    // neither question is an extra.
+                    const problems: string[] = [];
+                    for (const [gtype, chain] of Object.entries(ANCESTRY)) {
+                        const owner = methodOwner(gtype);
+                        if (owner?.$gtype === undefined) continue;
+                        const got = new Set(chain);
+                        const reported = new Set<string>();
+                        for (
+                            let parent = GObject.type_parent(owner.$gtype);
+                            parent;
+                            parent = GObject.type_parent(parent)
+                        ) {
+                            const name = GObject.type_name(parent);
+                            if (typeof name !== 'string' || name.length === 0) break;
+                            reported.add(name);
+                        }
+                        const ifaces = GObject.type_interfaces(owner.$gtype)
+                            .map((iface) => GObject.type_name(iface))
+                            .filter((name): name is string => typeof name === 'string' && name.length > 0);
+                        for (const name of ifaces) {
+                            reported.add(name);
+                            if (!got.has(name)) problems.push(`${gtype}: chain lacks ${name}`);
+                        }
+                        for (const name of got)
+                            if (!reported.has(name))
+                                problems.push(`${gtype}: chain names ${name}, which it does not inherit here`);
+                    }
+                    expect(problems).toStrictEqual([]);
+                    expect(chainProbe.withInterfaces > 0).toBe(true);
+                },
+                'GObject.type_interfaces() answers nothing over the node-gi bridge — every type, so the interface half of ANCESTRY cannot be held there. Tracked in status/open-todos.md; this marker retires itself the day the bridge answers.',
+                { when: chainProbe.withInterfaces === 0 },
+            );
+
+            // WHERE the host verbs live is a HOST question, and this host may answer none of it.
+            // Probed rather than assumed: on gjs each verb is an own member of
+            // `GObject.Object.prototype`; over the node-gi bridge `connect`, `connect_after`,
+            // `connect_object`, `disconnect`, `emit` and `set` are not on that prototype AT
+            // ALL — not merely inherited rather than own, which is what the first split
+            // assumed and what made the strict half red there.
+            const verbsOnPrototype = GJS_OBJECT_METHODS.every(
+                (name) =>
+                    typeof (GObject.Object.prototype as unknown as Record<string, unknown>)[name] === 'function' &&
+                    Object.prototype.hasOwnProperty.call(GObject.Object.prototype, name),
+            );
+
+            await it('keeps the host verbs out of the typelib half of the artifact', async () => {
+                // `connect` and `disconnect` are what `@gjsify/adwaita-nativescript` converges
+                // its widgets on (ADR 0034 § Amendment 15). The artifact measured the host verbs
+                // by SUBTRACTION on the generating host — everything on the prototype that is
+                // not a typelib method of GObject — and THIS is the half of that subtraction
+                // every host can answer, because it is a claim about the artifact and not about
+                // the prototype: a name in the host list must not also be a typelib method.
+                const typelib = new Set(OWN_METHODS['GObject'] ?? []);
+                const problems: string[] = [];
+                for (const name of GJS_OBJECT_METHODS)
+                    if (typelib.has(name))
+                        problems.push(`${name} is a typelib method of GObject and does not belong in the host list`);
+                expect(problems).toStrictEqual([]);
+                expect(GJS_OBJECT_METHODS.length > 0).toBe(true);
+                for (const verb of ['connect', 'disconnect']) expect(GJS_OBJECT_METHODS.includes(verb)).toBe(true);
+            });
+
+            await it.failing(
+                'installs the host verbs as own members of GObject.Object.prototype',
+                async () => {
+                    // The other half of the subtraction, and the one a host can decline
+                    // entirely. Asserted rather than dropped, because WHERE the verb sits is
+                    // what the artifact's measurement depended on.
+                    const proto = GObject.Object.prototype as unknown as Record<string, unknown>;
+                    const problems: string[] = [];
+                    for (const name of GJS_OBJECT_METHODS) {
+                        if (typeof proto[name] !== 'function') {
+                            problems.push(`${name} is not a callable member of GObject.Object.prototype`);
+                            continue;
+                        }
+                        if (!Object.prototype.hasOwnProperty.call(GObject.Object.prototype, name))
+                            problems.push(`${name} is not an own member of GObject.Object.prototype`);
+                    }
+                    expect(problems).toStrictEqual([]);
+                },
+                'The node-gi bridge and the darwin closure do not put the GJS host verbs on GObject.Object.prototype — connect, connect_after, connect_object, disconnect, emit and set are absent there rather than inherited. Tracked in status/open-todos.md; this marker retires itself the day the prototype carries them.',
+                { when: !verbsOnPrototype },
+            );
+
+            await it('excuses only the widgets this host really has no class for', async () => {
+                // The OTHER direction on the declared remainder, as for the enum values: a
+                // widget in `METHODS_UNAVAILABLE` on a host that HAS it means the artifact is
+                // behind — reported, and the fix is the generator's own `--check`.
+                const stale = Object.keys(METHODS_UNAVAILABLE).filter((gtype) => methodOwner(gtype) !== null);
+                if (stale.length > 0) {
+                    console.error(
+                        `  (${stale.length} widget(s) excused as unavailable that this host DOES have — the artifact predates this machine's libraries: ${stale.join(', ')})`,
+                    );
+                }
+                // Every excused widget is one the runtime table names, and none has a chain too.
+                const rows = new Set(GENERATED_WIDGETS.map((w) => w.gtype));
+                for (const gtype of Object.keys(METHODS_UNAVAILABLE)) {
+                    expect(rows.has(gtype)).toBe(true);
+                    expect(gtype in ANCESTRY).toBe(false);
+                }
             });
 
             await it('names every event prop so the host resolves it back to the same signal', async () => {

@@ -123,8 +123,8 @@ preferences page.
         headerSuffix: signOut,
     });
 
-    group.addRow(new Adw.EntryRow({ title: 'Display name', text: 'Grace Hopper' }));
-    group.addRow(new Adw.SwitchRow({ title: 'Sync over Wi-Fi only', active: true }));
+    group.add(new Adw.EntryRow({ title: 'Display name', text: 'Grace Hopper' }));
+    group.add(new Adw.SwitchRow({ title: 'Sync over Wi-Fi only', active: true }));
     ```
   </Fragment>
 </AdwWidget>
@@ -205,8 +205,8 @@ row responds to a click, which is how you open a detail page.
 
     // `iconName` takes the SVG SOURCE, not a theme name — nothing on this runtime
     // resolves one, so the glyph is imported and handed in.
-    row.setPrefix(new Gtk.Image({ iconName: networkWirelessSymbolic }));
-    row.setSuffix(new Gtk.Image({ iconName: goNextSymbolic }));
+    row.add_prefix(new Gtk.Image({ iconName: networkWirelessSymbolic }));
+    row.add_suffix(new Gtk.Image({ iconName: goNextSymbolic }));
     ```
   </Fragment>
 </AdwWidget>
@@ -587,8 +587,8 @@ whole section.
         expanded: true,
     });
 
-    row.addRow(new Adw.EntryRow({ title: 'Host', text: 'proxy.example.com' }));
-    row.addRow(new Adw.SwitchRow({ title: 'Use authentication', active: false }));
+    row.add(new Adw.EntryRow({ title: 'Host', text: 'proxy.example.com' }));
+    row.add(new Adw.SwitchRow({ title: 'Use authentication', active: false }));
     ```
   </Fragment>
 </AdwWidget>

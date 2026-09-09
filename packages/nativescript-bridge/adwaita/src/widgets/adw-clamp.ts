@@ -28,10 +28,11 @@ import {
     normalizeClampProp,
 } from './chrome.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withSignals } from './signals.js';
 
 export { DEFAULT_CLAMP_MAX_SIZE, DEFAULT_CLAMP_TIGHTENING_THRESHOLD };
 
-export class AdwClamp extends GridLayout {
+export class AdwClamp extends withSignals(GridLayout) {
     private _props: ClampProps = defaultClampProps();
     private _child: View | null = null;
     /** The container width the child was last clamped against, in DIPs. */
@@ -56,8 +57,8 @@ export class AdwClamp extends GridLayout {
         applyConstructProps(this, props);
     }
 
-    /** Set (or replace) the clamped, centered child. Pass `null` to clear it. */
-    setChild(view: View | null): void {
+    /** Set (or replace) the clamped, centered child — `adw_clamp_set_child`. `null` clears it. */
+    set_child(view: View | null): void {
         if (this._child) {
             // Hand the child back the way it arrived — the size class is the
             // clamp's, not the consumer's.
@@ -91,7 +92,7 @@ export class AdwClamp extends GridLayout {
      * bare child mean the same thing.
      */
     _addChildFromBuilder(_name: string, view: View): void {
-        this.setChild(view);
+        this.set_child(view);
     }
 
     /** `Adw.Clamp:maximum-size` — the widest the child may ever get, in DIPs. */
