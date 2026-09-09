@@ -87,13 +87,14 @@
 //      of the widget whose API is imperative; a second one has to say why.
 //  10. Every WINDOW a page draws is NAMED in that page's prose, and every window
 //      title the prose names is one that page draws. The window titles are the join
-//      between the chrome and the page: what a title cannot say — the four runtimes
-//      behind "Native TypeScript", the three dialects behind "UI frameworks" — the
-//      intro says instead, so the two are one explanation in two files. Renaming a
-//      window in the component alone left nine pages naming one that no longer
-//      exists, and growing the frameworks window from three blocks to forty left
-//      seven intros enumerating two windows where the reader meets three. Arms 1-9
-//      see neither: the strings never leave the prose.
+//      between the chrome and the page: what a title cannot say — the dialects behind
+//      "UI frameworks", the file pair behind "GJS" — the intro says instead, so the two
+//      are one explanation in two files. Renaming a window in the component alone left
+//      nine pages naming one that no longer exists, and growing the frameworks window
+//      from three blocks to forty left seven intros enumerating two windows where the
+//      reader meets three. Arms 1-9 see neither: the strings never leave the prose. It
+//      is read EMPHASISED, the way the enumeration writes a title — see
+//      {@link proseName} for the short title that makes the bare read vacuous.
 //  12. The `gjs` pane and the `nativescript` pane of one block are the SAME TEXT,
 //      or the block is ledgered in {@link PANE_TEXT_DIVERGENCES} with the reason and
 //      the KIND of work that would close it. ADR 0034 § Amendment 12 said the `gi://`
