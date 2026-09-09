@@ -47,22 +47,32 @@
 //      this arm is named after, moved from the directory to the navigation. Same shape as
 //      arm 10's known limit, which holds window TITLES and therefore cannot see a new
 //      TAB inside a window whose title is already named.
-//   5. Every `<Fragment slot="…">` inside a block names a slot `AdwWidget` renders.
-//      Astro drops an unmatched slot in SILENCE — no warning, no build failure — so a
-//      misspelled port is a snippet that is written, reviewed, committed and shown to
-//      nobody. Arms 1-4 cannot see it: the block has a title, the title has a meta,
-//      and the page is in the sidebar.
+//   5. Every `<Fragment slot="…">` inside a block names a slot `AdwWidget` renders, or
+//      the markup OVERRIDE, or one of its declared CORPUS slots. Astro drops an
+//      unmatched slot in SILENCE — no warning, no build failure — so a misspelled port
+//      is a snippet that is written, reviewed, committed and shown to nobody. Arms 1-4
+//      cannot see it: the block has a title, the title has a meta, and the page is in
+//      the sidebar.
 //   6. Every port in `AdwWidget`'s {@link WINDOWS} is provided by at least one block.
 //      The component renders a tab only for a slot a page actually gave it, so an
 //      entry nothing provides renders nowhere — a port declared to every reader of the
 //      component and shipped to none of them. The two arms are each other's inverse:
 //      5 refuses a page naming a port the component has not got, 6 refuses a component
 //      naming a port no page has got.
-//   7. Every WINDOW has at least one tab, and at least one tab some block provides. A
-//      window is a header bar, a title and its tabs; declared with an empty `tabs` list
-//      it announces a kind of implementation that renders on no block at all, and arm
-//      6 cannot see it because there is no slot to be unprovided. Same class as 6, one
-//      level up — the level the restructure added.
+//
+//      AND THE CORPUS HALF. A corpus slot is one the pages AUTHOR, another arm READS,
+//      and no window renders — `nativescript` is the one, because the end state of ADR
+//      0034's convergence is that a block's NativeScript program IS its GJS program and
+//      rendering both is the redundancy a reader noticed. Arm 5 has to let those
+//      through, which is exactly the hole a misspelled slot would hide in, so arm 6
+//      demands of each one that some block writes it and that some arm of THIS file
+//      reads it ({@link SLOT_READERS}, derived from the arms' own input rather than
+//      written out beside them). A category nothing reads is a category, not a reason.
+//   7. Every WINDOW renders at least one pane on at least one block: a tab slot some
+//      block provides, a data GROUP (filled or refused, so on every block), or the live
+//      preview the component provides itself. A window with none of the three announces
+//      a kind of implementation that renders on no block at all, and arm 6 cannot see
+//      it because there is no slot to be unprovided. Same class as 6, one level up.
 //   8. Every block providing the MARKUP OVERRIDE is ledgered in
 //      {@link MARKUP_OVERRIDE_LEDGER} with its reason, and every ledger entry names a
 //      block that provides it.
@@ -111,21 +121,28 @@
 //      cannot outlive what it was recorded for. The partition and the DISTANCE are
 //      PRINTED on every run and written down nowhere: a count in a header is the
 //      drift this gallery has already paid for twice.
-//   9. The LIVE PREVIEW is the FIRST pane of the window that runs the widget, in
-//      {@link WINDOW_COMPONENT} — the file that draws a window, which is where pane
-//      order is decided.
+//   9. The reader meets the RUNNING WIDGET before any source, and the markup that
+//      paints it is shown. Read out of both component files, because the claim now
+//      spans them: the live pane and the markup tab are ONE source (the pane mounts the
+//      bytes the tab shows) and they sit in two different WINDOWS.
 //
-//      The preview and the markup tab beside it are ONE source: the pane mounts the
-//      bytes the tab shows. Order is what makes that legible — the reader meets the
-//      widget, then the markup that painted it, which is the order every gallery page's
-//      prose promises ("The first one RUNS the widget"). Swapped, the window opens on a
-//      block of HTML for a widget the reader has not seen yet, and NOTHING else would
-//      notice: arm 8 still holds, both tabs still render, the fence is still authored
-//      once. It is a source-order read because the panes are laid out in the template,
-//      and this gate deliberately runs without a build — so it reads the file with its
-//      COMMENTS BLANKED OUT and counts the mount, because a marker named in prose above
-//      the tabs, or mounted twice, is how a source-text read goes green over the defect
-//      it is named after.
+//      In {@link WIDGET_COMPONENT}: exactly one window declares `live: true`, it is
+//      FIRST, it has no tabs and no groups beside the widget, and the fence it mounts
+//      (`MARKUP_SLOT`) is a tab of a LATER window that some block fills. Drop that tab
+//      and every block paints a widget whose markup a reader cannot read, at exit 0,
+//      with the fence still authored and still gated.
+//
+//      In {@link WINDOW_COMPONENT}: the preview is mounted exactly once, and OUTSIDE
+//      the tab view. Mounted inside it, the running widget is one tab beside its own
+//      sources, which is the arrangement the first window was restructured out of and
+//      which comes back by moving four lines. Nothing else would notice: arm 8 still
+//      holds, every pane still renders, the fence is still authored once.
+//
+//      Both are source-text reads, so the files are read with their COMMENTS BLANKED
+//      OUT — a marker named in prose is how a read like this goes green over the defect
+//      it is named after — and each read has a floor: no tab view found, no pane map
+//      found, no `MARKUP_SLOT` declared and no live window at all are all failures
+//      rather than a clean run against an empty set.
 //
 // The `title` IS the join: `Adw.ViewSwitcherBar` → `view-switcher-bar`, the same
 // bare name the widget files, the story metas and the ledgers are already spelled
@@ -272,14 +289,14 @@ const PANE_MAP = 'tabbed.map(';
 /**
  * The same file with its comments blanked out.
  *
- * Arm 9 is a SOURCE-TEXT read, and a source-text read that counts PROSE is how a
- * check goes green while the thing it names is gone. That is not hypothetical here:
+ * Arms 9 and 10 are SOURCE-TEXT reads, and a source-text read that counts PROSE is how
+ * a check goes green while the thing it names is gone. That is not hypothetical here:
  * `check-website-preview-not-content.mjs` shipped in exactly that state — its first
  * cut asked whether a file CONTAINED the marker string, and `AdwGalleryCard.astro`
  * carries an eight-line comment naming the marker, so deleting the marker from its
- * markup left the check green. Measured again on this arm: move the preview after
- * the code tabs and leave `adw-widget-preview-tpl` in a comment above them, and the
- * unmasked read exits 0 on a window that opens on HTML.
+ * markup left the check green. Measured again on arm 9: put the mount back inside the
+ * tab view and leave `adw-widget-preview-tpl` in a comment outside it, and the unmasked
+ * read exits 0 on a window that offers the widget as a tab.
  *
  * Line comments are anchored to the start of a line so that a `https://` inside an
  * attribute is not read as one.
@@ -1159,7 +1176,11 @@ for (const block of blocks) {
             provided.add(slot);
             continue;
         }
-        if (slot === override || corpusSlots.has(slot)) continue;
+        if (slot === override) {
+            overriding.set(block.title, block.page);
+            continue;
+        }
+        if (corpusSlots.has(slot)) continue;
         failures.push(
             `${block.page}: <AdwWidget title="${block.title}"> provides a "${slot}" fragment, and AdwWidget\n` +
                 '    renders no slot of that name. Astro drops an unmatched slot in SILENCE — no warning, no\n' +
@@ -1490,10 +1511,13 @@ console.log(
 );
 console.log(
     `check-website-adwaita-gallery: ${windows.length} window(s) in ${WIDGET_COMPONENT} — ` +
-        `${windows.map((w) => `${w.id} [${w.slots.join(' ')}]`).join(', ')} — each with a tab at least one ` +
-        `of ${blocks.length} blocks provides, every fragment slot they write is one the component renders, ` +
-        `${overriding.size} block(s) override the markup tab, all ledgered, and ${WINDOW_COMPONENT} mounts ` +
-        'the live preview ahead of them.',
+        `${windows
+            .map((w) => `${w.id} [${[...(w.live ? ['«the widget»'] : []), ...w.slots, ...w.groups].join(' ')}]`)
+            .join(', ')} — each rendering a pane on at least one of ${blocks.length} blocks, every fragment ` +
+        `slot they write is one the component renders or a corpus slot an arm reads (${[...corpusSlots].join(
+            ', ',
+        )}), ${overriding.size} block(s) override the markup tab, all ledgered, and the widget is mounted ` +
+        `once, outside ${WINDOW_COMPONENT}'s tab view, ahead of the window that shows its markup.`,
 );
 
 /** The ledger's own partition, by kind, so a run says what the remaining work IS. */
