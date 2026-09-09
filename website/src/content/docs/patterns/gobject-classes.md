@@ -61,9 +61,10 @@ the code stays correct after a rename.
 
 ## Add a property
 
-Properties are GObject `ParamSpec`s, keyed by their kebab-case GObject name. Read and write
-them from JS with the camelCase or snake_case accessor the GObject layer generates for
-them. Both spellings exist on `gjs` and under node-gi, so pick one and stay with it.
+You declare each property as a `ParamSpec`, GObject's description of a property's type,
+range and default, keyed by the property's kebab-case GObject name. Read and write it from
+JS through the camelCase or snake_case accessor the GObject layer generates. Both spellings
+exist on `gjs` and under node-gi, so pick one and stay with it.
 
 ```ts
 class Counter extends GObject.Object {
@@ -96,7 +97,7 @@ Keep the bounds inside the C type. `ParamSpec.int` is a `gint`, so its maximum i
 `GLib-GObject-CRITICAL` on stderr to say why. The same holds for `uint`, `int64` and
 friends.
 
-The full `ParamSpec` surface (`boolean`, `double`, `enum`, `object`, `boxed`, `flags`, …)
+Every other `ParamSpec` kind (`boolean`, `double`, `enum`, `object`, `boxed`, `flags`, …)
 is exercised in
 [`examples/gobject-param-spec`](https://github.com/gjsify/ts-for-gir/tree/main/examples/gobject-param-spec).
 
@@ -122,8 +123,9 @@ this.connect('row-picked', (_self, id: string, index: number) => { /* … */ });
 
 ## Override a vfunc
 
-`vfunc_*` overrides are ordinary instance methods. They can sit anywhere in the class body,
-because they live on the prototype and are not affected by static evaluation order.
+A `vfunc_*` method overrides one of the C class's virtual functions, and it is an ordinary
+instance method. It can sit anywhere in the class body, because it lives on the prototype
+and static evaluation order does not touch it.
 
 ```ts
 class Initable extends GObject.Object {

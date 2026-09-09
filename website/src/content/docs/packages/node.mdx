@@ -15,13 +15,13 @@ import { EventEmitter } from 'node:events';
 import path from 'node:path';
 ```
 
-In an `--app gjs` build each import is rewritten to its `@gjsify/*` implementation: `node:fs` to `Gio.File`, `node:http` to `Soup.Server`, `node:crypto` to `GLib.Checksum` and `GLib.Hmac`. Your source file stays portable either way, so the same file also builds for `--app node`, where the imports stay as written and Node, Bun and Deno answer them from their own builtins.
+In an `--app gjs` build each import is rewritten to its `@gjsify/*` implementation: `node:fs` to `Gio.File`, `node:http` to `Soup.Server`, `node:crypto` to `GLib.Checksum` and `GLib.Hmac`. The same file also builds for `--app node`, where the imports stay as written and Node, Bun and Deno answer them from their own builtins.
 
 The bare form works too. `import fs from 'fs'` resolves the same way, which is why dependencies written before the `node:` prefix existed keep working unchanged.
 
-## Globals come along for free
+## Globals need no import
 
-`process`, `Buffer`, `URL`, `structuredClone`, `queueMicrotask` and `setImmediate` need no import. An `--app gjs` build scans the bundled output, finds the ones you actually reach, and injects only those. An `--app node` build injects none of them, since Node, Bun and Deno already define them.
+`process`, `Buffer`, `URL`, `structuredClone`, `queueMicrotask` and `setImmediate` are there without one. An `--app gjs` build scans the bundled output, finds the ones you actually reach, and injects only those. An `--app node` build injects none of them, because Node, Bun and Deno already define them.
 
 ```typescript
 const port = Number(process.env.PORT ?? '8080');
@@ -30,7 +30,7 @@ const body = Buffer.from('hello', 'utf-8');
 
 ## Which modules are ready
 
-Three levels of completeness. **Full** means the surface a normal app touches is there. **Partial** means the core works and specific corners are missing (each one is named in the table). **Stub** means the module resolves so a dependency check passes, but does nothing useful.
+Three levels of completeness. **Full** means everything a normal app touches is there. **Partial** means the core works and specific corners are missing, each one named in the table. **Stub** means the module resolves so a dependency check passes, but does nothing useful.
 
 <NodeApiCoverage />
 
